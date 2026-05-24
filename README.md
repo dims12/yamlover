@@ -105,6 +105,15 @@ A node's value can be supplied in either of two ways:
 subdirectories or sibling files, each its own node — or collapsed into a single
 file via `concrete`/`file-name`, as `examples/entity07` does for a whole mapping.
 
+**Sequences** need an explicit order, since directory entries have none. The
+schema's `prefixItems` list *is* that order: an element's position in the list is
+its index, and its `x-yamlover.file-name` binds it to a file — whose name on disk
+is therefore arbitrary. See `examples/entity09`, an array `["Alice", 42, true]`
+whose elements live in files named `anyfile01`, `alsoany02`, and `andany03.json`.
+Because the schema alone defines the sequence, a file the schema does not describe
+is simply a schema violation — `entity09`'s `items: false` forbids a fourth
+element. The bare filesystem has no order; yamlover supplies it.
+
 So this document:
 
 ```json
@@ -144,9 +153,6 @@ a sibling `address.yaml`.
 
 These were not yet settled and need a decision before this is a complete spec:
 
-- **Sequences / ordering.** Filesystems have no inherent order. Options: numbered
-  entries (`0/`, `1/`, …), an explicit `order:` list in `schema.yaml`, or sequences
-  always staying inline. Undecided.
 - **DAG edges / shared nodes.** What lifts this above a plain tree is that a node
   may be reached from more than one parent, and nodes may cross-reference each
   other. Candidates: filesystem symlinks, or a reference syntax inside the YAML
