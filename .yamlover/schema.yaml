@@ -1,0 +1,69 @@
+x-yamlover:
+  concrete: yamlover
+properties:
+  $defs:
+    description: Defines a set of reusable templates
+    x-yamlover:
+      concrete: dir
+      file-name: defs
+  examples:
+    description: Contains example configurations for Yamlover
+    x-yamlover:
+      concrete: dir
+    properties:
+      entity01:
+        description: >-
+          The file representation — a plain text file whose content (30) is
+          valid YAML.
+        x-yamlover:
+          concrete: file/yaml
+      entity02:
+        description: >-
+          The yamlover representation — a directory whose schema pins the only
+          valid value to 30 with const.
+        x-yamlover:
+          concrete: yamlover
+      entity03:
+        description: >-
+          The dir representation — a plain directory with no .yamlover; the
+          child age is a file holding 30.
+        x-yamlover:
+          concrete: dir
+      entity04:
+        description: >-
+          A yamlover node with a scalar child (age) stored as a little-endian
+          int32 binary file (concrete file/binary, format int32/le).
+        x-yamlover:
+          concrete: yamlover
+      entity05:
+        description: >-
+          A yamlover node whose scalar children (name, age, isAdmin) are each
+          stored in their own YAML-text file (concrete file/yaml).
+        x-yamlover:
+          concrete: yamlover
+      entity06:
+        description: >-
+          A yamlover overlay over an existing YAML file — a scalar integer
+          stored in somefile.yaml, named via x-yamlover.file-name.
+        x-yamlover:
+          concrete: yamlover
+      entity07:
+        description: >-
+          A yamlover node whose whole mapping is collapsed into a single YAML
+          file (somefile.yaml); the object counterpart of entity06.
+        x-yamlover:
+          concrete: yamlover
+      entity08:
+        description: >-
+          A yamlover node mixing a binary file child (object_detection.png,
+          file/binary, image/png) with a markup array pinned inline in the
+          schema with const.
+        x-yamlover:
+          concrete: yamlover
+      entity09:
+        description: >-
+          An array (sequence) encoded as a yamlover node — each element in its
+          own file, ordered by prefixItems and named via x-yamlover.file-name,
+          with per-element concrete encodings (file/yaml and file/json).
+        x-yamlover:
+          concrete: yamlover

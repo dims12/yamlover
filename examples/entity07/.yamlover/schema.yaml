@@ -1,0 +1,4 @@
+type: object
+x-yamlover:
+  concrete: file/yaml
+  file-name: somefile.yaml

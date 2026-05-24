@@ -1,0 +1,15 @@
+type: object
+properties:
+  name:
+    type: string
+    x-yamlover:
+      concrete: file/yaml
+  age:
+    type: integer
+    minimum: 0
+    x-yamlover:
+      concrete: file/yaml
+  isAdmin:
+    type: boolean
+    x-yamlover:
+      concrete: file/yaml

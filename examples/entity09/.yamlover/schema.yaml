@@ -1,0 +1,15 @@
+type: array
+prefixItems:
+- type: string
+  x-yamlover:
+    concrete: file/yaml
+    file-name: anyfile01
+- type: integer
+  x-yamlover:
+    concrete: file/yaml
+    file-name: alsoany02
+- type: boolean
+  x-yamlover:
+    concrete: file/json
+    file-name: andany03.json
+items: false
