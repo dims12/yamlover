@@ -61,6 +61,11 @@ is stored:
 | `const` | a value pinned inline in the schema |
 | `inline` | structure defined in the schema, or living inside a parent's collapsed file |
 
+For an object node, `ls` lists both the schema-described properties **and** any
+ordinary files/directories that physically exist but aren't described (a stray
+`README.md`, say). Hidden entries (`.git`, `.yamlover`, …) and files already
+claimed by a property are omitted.
+
 ## Example
 
 Listing `examples/` shows the filesystem-level representations side by side — a

@@ -89,12 +89,7 @@ def load_entity(path: str) -> Node:
             node.concrete = "yamlover"  # this directory is itself a yamlover node
             return node
         # plain directory (no .yamlover/): an object of its visible entries
-        children = {
-            name: load_entity(os.path.join(path, name))
-            for name in sorted(os.listdir(path))
-            if name != YAMLOVER_DIR
-        }
-        return Node(children, "dir")
+        return Node(extra_entries(path, consumed=set(), existing={}), "dir")
     # a plain file
     node = from_file(path, "file/yaml", None)
     node.concrete = "file"
@@ -131,10 +126,14 @@ def resolve(schema, container: str, default_name: str | None) -> Node:
         return load_entity(os.path.join(container, name))
 
     if is_object:
-        children = {
-            key: resolve(child, container, key)
-            for key, child in (schema.get("properties") or {}).items()
-        }
+        children = {}
+        consumed = {YAMLOVER_DIR}
+        for key, child in (schema.get("properties") or {}).items():
+            children[key] = resolve(child, container, key)
+            cxy = (child.get("x-yamlover") if isinstance(child, dict) else None) or {}
+            consumed.add(cxy.get("file-name") or key)
+        # also surface undescribed files/dirs that are physically present
+        children.update(extra_entries(container, consumed, children))
         return Node(children, concrete or "inline")
 
     if is_array:
@@ -166,6 +165,23 @@ def wrap(value, concrete: str) -> Node:
     if isinstance(value, list):
         return Node([wrap(v, concrete) for v in value], concrete)
     return Node(value, concrete)
+
+
+def extra_entries(container: str, consumed: set, existing: dict) -> dict:
+    """Undescribed, non-hidden files/dirs physically present in *container*.
+
+    These are surfaced as children even though the schema does not mention them,
+    so ``ls`` shows ordinary files (e.g. a README) that simply live in the
+    directory. Hidden entries (``.git``, ``.yamlover``, …) and names already
+    claimed by a schema property are skipped.
+    """
+    out = {}
+    if os.path.isdir(container):
+        for name in sorted(os.listdir(container)):
+            if name.startswith(".") or name in consumed or name in existing:
+                continue
+            out[name] = load_entity(os.path.join(container, name))
+    return out
 
 
 def decode_file(path: str, concrete: str, schema):
