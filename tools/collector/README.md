@@ -1,0 +1,69 @@
+# collector
+
+Assemble a yamlover tree into a single **Yamlover JSON Schema**.
+
+Where [`walker`](../walker/) materializes the *values* of a yamlover tree,
+`collector` materializes the *schema*. It walks an entity tree, merges every
+per-directory `.yamlover/schema.yaml` into one document — inlining the schema of
+each nested node — and infers a schema for any plain file or plain directory
+that has none. The result is one schema describing the whole tree, printed as
+YAML (default) or JSON.
+
+Every node is annotated with its concrete representation under
+`x-yamlover.concrete`:
+
+| concrete | the node is… |
+|----------|--------------|
+| `yamlover` | a directory with a `.yamlover/schema.yaml` (its own schema is inlined) |
+| `dir` | a plain directory (object of its entries) |
+| `file` | a plain file with no schema (type inferred from its contents) |
+| `file/yaml` · `file/json` · `file/binary` | a value stored in its own file, per the owning schema |
+
+A node's own schema is preserved verbatim (including `const`, `format`,
+`prefixItems`, `file-name`, …); parent context such as `description` and
+`file-name` is folded in, and undescribed non-hidden files are surfaced as
+extra properties (hidden entries like `.git` / `.yamlover` are skipped).
+
+## Requirements
+
+- Python 3.10+
+- [PyYAML](https://pypi.org/project/PyYAML/) — `pip install pyyaml`
+
+## Usage
+
+```console
+$ python collector.py [PATH] [-f yaml|json]      # PATH defaults to .
+```
+
+- `-f yaml` (default) — print the collected schema as YAML
+- `-f json` — print it as JSON
+
+## Example
+
+Collecting `examples/entity09` — an array whose elements live in separate files
+— yields a single self-contained schema:
+
+```console
+$ python collector.py ../../examples/entity09 -f yaml
+type: array
+prefixItems:
+- type: string
+  x-yamlover:
+    concrete: file/yaml
+    file-name: anyfile01
+- type: integer
+  x-yamlover:
+    concrete: file/yaml
+    file-name: alsoany02
+- type: boolean
+  x-yamlover:
+    concrete: file/json
+    file-name: andany03.json
+items: false
+x-yamlover:
+  concrete: yamlover
+```
+
+Pointed at a directory, it inlines every child. `collector.py ../../examples`
+produces one `object` schema whose `properties` are the nine example entities,
+each with its own inlined schema and `concrete` annotation.
