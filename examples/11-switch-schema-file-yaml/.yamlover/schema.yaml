@@ -1,0 +1,16 @@
+properties:
+  user:
+    properties:
+      name:
+        const: Alice
+      contact:
+        x-yamlover:
+          concrete: file/yaml
+          os:
+            path: continuation.yaml
+  settings:
+    properties:
+      theme:
+        const: dark
+      notifications:
+        const: true

@@ -93,11 +93,11 @@ def expand_children(schema: dict, container: str) -> dict:
 
 
 def apply_parent_meta(schema: dict, parent_prop) -> dict:
-    """Fold the parent's contextual metadata (description, path) onto a node."""
+    """Fold the parent's contextual metadata (description, os) onto a node."""
     if isinstance(parent_prop, dict):
         pxy = parent_prop.get("x-yamlover") or {}
-        if "path" in pxy:
-            schema.setdefault("x-yamlover", {})["path"] = pxy["path"]
+        if "os" in pxy:
+            schema.setdefault("x-yamlover", {})["os"] = pxy["os"]
         if "description" in parent_prop and "description" not in schema:
             schema = {"description": parent_prop["description"], **schema}
     return schema
@@ -105,7 +105,7 @@ def apply_parent_meta(schema: dict, parent_prop) -> dict:
 
 def child_name(cprop, default: str) -> str:
     xy = (cprop.get("x-yamlover") if isinstance(cprop, dict) else None) or {}
-    return xy.get("path") or default
+    return (xy.get("os") or {}).get("path") or default
 
 
 def read_value(path: str):

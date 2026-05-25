@@ -99,9 +99,9 @@ cross-references) — see *Open questions* below.
    a directory "speak YAML."
 4. **`.yamlover/schema.yaml` is a JSON Schema, written in YAML, describing the
    node** that the containing directory represents. yamlover adds metadata about
-   *physical layout* — how each child is stored (its `concrete`), ordering, links —
-   grouped under an `x-yamlover` keyword (the standard vendor-extension
-   convention). A schema
+   *physical layout* — how each child is stored (its `concrete`), its filesystem
+   facts (`os`: path, size, mtime), ordering, links — grouped under an
+   `x-yamlover` keyword (the standard vendor-extension convention). A schema
    may pin a value inline with `const:`, but need not: a value may instead live
    in its own file, with the matching schema entry giving its type and how to
    interpret it.
@@ -131,20 +131,25 @@ A node's value can be supplied in either of two ways:
   - `file/json` — parse the file as strict JSON.
   - `file/binary` — the file is raw bytes; the standard JSON Schema `format`
     keyword then gives their interpretation (e.g. `int32/le`, `image/png`). (See
-    `examples/09-scalar-as-binary` and `examples/11-image-with-markup`.)
+    `examples/09-scalar-as-binary` and `examples/12-image-with-markup`.)
 
-  By default the file is named after the key. `x-yamlover.path` overrides
-  that, letting the schema *overlay* a file that already has some other name (see
-  `examples/08-scalar-file-overlay` and `02-object-in-yaml`, which describe an
-  existing `somefile.yaml`).
+  By default the file is named after the key. **`x-yamlover.os`** records that
+  file's filesystem facts — `path` (the name on disk, relative to the container),
+  and optionally portable metadata like `size` (bytes) and `mtime` (ISO 8601,
+  UTC). `os.path` overrides the default name, letting the schema *overlay* a file
+  that already has some other name (see `examples/08-scalar-file-overlay` and
+  `02-object-in-yaml`, which describe an existing `somefile.yaml`). Everything
+  filesystem- or OS-specific lives under `os`, leaving the rest of `x-yamlover`
+  portable.
 
 **Structured values** (mappings and sequences) are materialized as named
 subdirectories or sibling files, each its own node — or collapsed into a single
-file via `concrete`/`path`, as `examples/02-object-in-yaml` does for a whole mapping.
+file via `concrete`/`os.path`, as `examples/02-object-in-yaml` does for a whole
+mapping.
 
 **Sequences** need an explicit order, since directory entries have none. The
 schema's `prefixItems` list *is* that order: an element's position in the list is
-its index, and its `x-yamlover.path` binds it to a file — whose name on disk
+its index, and its `x-yamlover.os.path` binds it to a file — whose name on disk
 is therefore arbitrary. See `examples/10-array-of-files`, an array `["Alice", 42, true]`
 whose elements live in files named `anyfile01`, `alsoany02`, and `andany03.json`.
 Because the schema alone defines the sequence, a file the schema does not describe
@@ -244,6 +249,28 @@ next.
 [`examples/02-object-in-yaml`]: examples/README.md#02-object-in-yaml
 [`examples/01-object-in-schema`]: examples/README.md#01-object-in-schema
 
+## Schema-coordinate references: `$defs` and `$ref`
+
+The first of the two anchor systems is the **schema-side** one — standard JSON
+Schema `$defs` and `$ref`, resolved entirely in **schema coordinates**:
+
+- **`$defs`** holds reusable schema fragments. It is a sibling of `properties`,
+  not a property itself, so it never appears in the materialized data — it lives
+  purely in schema space.
+- **`$ref`** is a same-document **JSON Pointer** (`#/...`). It may target *any*
+  location in the schema, not only `#/$defs/...` —
+  `#/properties/markup/prefixItems/0` is just as valid. These are schema
+  coordinates, never filesystem paths (which live under `x-yamlover.os`).
+- Per JSON Schema 2020-12, a `$ref` may sit beside other keywords: the referenced
+  fragment and the local keywords are **merged**, so a shared *shape* and locally
+  inlined `const` values both apply.
+
+`examples/13-defs-and-refs` mirrors `examples/12-image-with-markup`, but each
+markup region is pulled in by `$ref` to a `$defs/rectangular-area` shape with its
+coordinates inlined as `const` — and materializes to the very same value. The
+*instance-side* anchor system (YAML's `&anchor` / `*alias`) is still to come; see
+*Open questions*.
+
 ## Open questions
 
 These were not yet settled and need a decision before this is a complete spec:
@@ -252,8 +279,8 @@ These were not yet settled and need a decision before this is a complete spec:
   may be reached from more than one parent, and nodes may cross-reference each
   other. The chosen direction follows from *[Schema ↔ instance
   correspondence](#schema--instance-correspondence)*: because schema and instance
-  are equivalent, yamlover carries **both** anchor systems — YAML's `&anchor` /
-  `*alias` in instances and JSON Schema's `$anchor` / `$ref` / `$defs` in
-  schemas. What remains to settle is how each is spelled in each concrete (and
-  whether a filesystem symlink is an additional, equivalent form) — specified
-  next.
+  are equivalent, yamlover carries **both** anchor systems. The schema-side one —
+  JSON Schema `$ref` / `$defs` — is now in place (see *[Schema-coordinate
+  references](#schema-coordinate-references-defs-and-ref)*). Still open: the
+  instance-side `&anchor` / `*alias`, whether the two need to stay in sync across
+  concretes, and whether a filesystem symlink is an additional equivalent form.

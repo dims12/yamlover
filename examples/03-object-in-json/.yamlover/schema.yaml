@@ -1,4 +1,5 @@
 type: object
 x-yamlover:
   concrete: file/json
-  path: somefile.json
+  os:
+    path: somefile.json

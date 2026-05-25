@@ -20,8 +20,8 @@ Every node is annotated with its concrete representation under
 | `file/yaml` · `file/json` · `file/binary` | a value stored in its own file, per the owning schema |
 
 A node's own schema is preserved verbatim (including `const`, `format`,
-`prefixItems`, `path`, …); parent context such as `description` and
-`path` is folded in, and undescribed non-hidden files are surfaced as
+`prefixItems`, `os`, …); parent context such as `description` and
+`x-yamlover.os` is folded in, and undescribed non-hidden files are surfaced as
 extra properties (hidden entries like `.git` / `.yamlover` are skipped).
 
 ## Requirements
@@ -50,20 +50,23 @@ prefixItems:
 - type: string
   x-yamlover:
     concrete: file/yaml
-    path: anyfile01
+    os:
+      path: anyfile01
 - type: integer
   x-yamlover:
     concrete: file/yaml
-    path: alsoany02
+    os:
+      path: alsoany02
 - type: boolean
   x-yamlover:
     concrete: file/json
-    path: andany03.json
+    os:
+      path: andany03.json
 items: false
 x-yamlover:
   concrete: yamlover
 ```
 
 Pointed at a directory, it inlines every child. `collector.py ../../examples`
-produces one `object` schema whose `properties` are the nine example entities,
-each with its own inlined schema and `concrete` annotation.
+produces one `object` schema whose `properties` are the example entities, each
+with its own inlined schema and `concrete` annotation.

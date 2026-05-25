@@ -6,9 +6,9 @@ they sort into reading order.
 The first four (`01`–`04`) hold the **same object** `{name, age, isAdmin}` in the
 four core concretes — pinned in the schema, collapsed into a YAML file, collapsed
 into a JSON file, and expanded into a directory — so the representations can be
-compared directly. The rest (`05`–`11`) use trivial data (the value **30**, alone
-or under a key) or richer data — a binary value, an array, an image with markup —
-to isolate one further feature each.
+compared directly. The rest (`05`–`13`) use trivial data (the value **30**, alone
+or under a key) or richer data — a binary value, an array, a mid-tree concrete
+switch, an image with markup, `$ref`/`$defs` — to isolate one further feature each.
 
 # 01-object-in-schema
 
@@ -118,17 +118,18 @@ A directory that contains:
   type: object
   x-yamlover:
     concrete: file/yaml
-    path: somefile.yaml
+    os:
+      path: somefile.yaml
   ```
 
 The node is an *object* (`type: object`), but rather than giving it `properties`
 mapped to per-child files (as [04-object-in-dir](#04-object-in-dir) does), the schema declares
-`x-yamlover.concrete: file/yaml` with `x-yamlover.path: somefile.yaml` — so the
+`x-yamlover.concrete: file/yaml` with `x-yamlover.os.path: somefile.yaml` — so the
 entire mapping is stored *collapsed* inside one YAML file. Whereas
 [04-object-in-dir](#04-object-in-dir) expands the same object into one file per child, here all
 the keys live together in a single file. Per the spec, a file and a subdirectory
 are equivalent ways to represent the same node; this is the collapsed-into-a-file
-form, and `path` lets that file keep an arbitrary name while the `.yamlover/`
+form, and `os.path` lets that file keep an arbitrary name while the `.yamlover/`
 schema overlays it.
 
 # 03-object-in-json
@@ -176,7 +177,8 @@ A directory that contains:
   type: object
   x-yamlover:
     concrete: file/json
-    path: somefile.json
+    os:
+      path: somefile.json
   ```
 
 The only difference from [02-object-in-yaml](#02-object-in-yaml) is the data file's encoding:
@@ -341,14 +343,15 @@ A directory that contains:
   type: integer
   x-yamlover:
     concrete: file/yaml
-    path: somefile.yaml
+    os:
+      path: somefile.yaml
   ```
 
 Here the whole entity is a *scalar* (an integer), so the schema sits at the root
 rather than under `properties`. `x-yamlover.concrete: file/yaml` says the value
-lives in its own file, encoded as YAML, and `x-yamlover.path: somefile.yaml`
+lives in its own file, encoded as YAML, and `x-yamlover.os.path: somefile.yaml`
 names exactly which file.
-That explicit `path` is what makes this an overlay: the data file can keep
+That explicit `os.path` is what makes this an overlay: the data file can keep
 any name it already had (`somefile.yaml`), and the `.yamlover/` schema is dropped
 alongside it to describe how to read it — without renaming or moving the file.
 
@@ -400,7 +403,7 @@ namespace are yamlover extensions (a binary value has no JSON form — hence the
 
 This entity is in the **yamlover** concrete representation and shows how an
 **array** (sequence) is encoded: the node is `type: array`, and each element is
-stored in its own file. Whereas [11-image-with-markup](#11-image-with-markup)'s `markup` array is pinned
+stored in its own file. Whereas [12-image-with-markup](#12-image-with-markup)'s `markup` array is pinned
 inline in the schema, here the elements live on disk.
 
 YAML concrete representation:
@@ -433,22 +436,25 @@ A directory that contains:
     - type: string
       x-yamlover:
         concrete: file/yaml
-        path: anyfile01
+        os:
+          path: anyfile01
     - type: integer
       x-yamlover:
         concrete: file/yaml
-        path: alsoany02
+        os:
+          path: alsoany02
     - type: boolean
       x-yamlover:
         concrete: file/json
-        path: andany03.json
+        os:
+          path: andany03.json
   items: false
   ```
 
 The key problem an array poses on a filesystem is **order** — directory entries
 have none. yamlover solves it with JSON Schema's `prefixItems`: the *position* of
 each entry in that list is the element's index (0, 1, 2), and its
-`x-yamlover.path` says which file on disk holds that element. So the file
+`x-yamlover.os.path` says which file on disk holds that element. So the file
 names are arbitrary (`anyfile01`, `alsoany02`, `andany03.json`) — the schema, not
 the filesystem ordering, fixes the sequence. (This is one concrete answer to the
 *Sequences / ordering* open question in the top-level spec.)
@@ -458,7 +464,77 @@ Each element also carries its own `concrete` encoding, and they need not match:
 (its `true` is read by a strict JSON parser). Finally, `items: false` closes the
 tuple — no elements beyond the three listed in `prefixItems` are allowed.
 
-# 11-image-with-markup
+# 11-switch-schema-file-yaml
+
+This entity shows that the **concrete can change partway down the tree** — the
+model continues from the middle in a *different* representation. Most of it is
+pinned in the schema (`yaml-schema/instantiate`), but one node, `user.contact`,
+switches to `file/yaml`: its value isn't in the schema, it *continues* in a
+separate file (`continuation.yaml`).
+
+YAML concrete representation:
+
+```yaml
+user:
+  name: Alice
+  contact:
+    email: alice@example.com
+    phone: 123-456-7890
+settings:
+  theme: dark
+  notifications: true
+```
+
+yamlover concrete representation:
+
+A directory that contains:
+
+- `continuation.yaml` — where `user.contact` continues:
+
+  ```yaml
+  email: alice@example.com
+  phone: 123-456-7890
+  ```
+
+- `.yamlover/schema.yaml` — pins everything *except* `user.contact`, which only
+  says "from here, read that file":
+
+  ```yaml
+  properties:
+    user:
+      properties:
+        name:
+          const: Alice
+        contact:
+          x-yamlover:
+            concrete: file/yaml
+            os:
+              path: continuation.yaml
+    settings:
+      properties:
+        theme:
+          const: dark
+        notifications:
+          const: true
+  ```
+
+Walking in shows the switch on a single child:
+
+```console
+$ printf 'cd user\nls\n' | python ../../tools/walker/walker.py 11-switch-schema-file-yaml
+NAME     TYPE    CONCRETE
+name     string  yaml-schema/instantiate
+contact  object  file/yaml
+```
+
+`name` is `yaml-schema/instantiate` (its value lives in the schema), while
+`contact` is `file/yaml` (its value lives in `continuation.yaml`) — two concretes
+side by side, one level down. Because `continuation.yaml` is *claimed* by
+`user.contact`, it is not also listed as a stray file at the root. This is the
+hand-off point where a schema-pinned tree resumes as on-disk data, in either
+direction.
+
+# 12-image-with-markup
 
 This entity is in the **yamlover** concrete representation. It is a more
 realistic mix: one child is a **binary file** (a PNG image), and a sibling child
@@ -538,3 +614,78 @@ Two storage strategies sit side by side here:
   two-element tuple), and each item's `description` (`bus`, `car`) labels which
   detected object that box belongs to. The box coordinates `x`/`y`/`dx`/`dy` are
   the pinned values.
+
+# 13-defs-and-refs
+
+This entity is the **`$ref`/`$defs`** version of
+[12-image-with-markup](#12-image-with-markup): the same image-plus-markup data,
+but each region's *shape* is pulled in by a `$ref` to a shared definition rather
+than spelled out twice. `$ref` and `$defs` live in **schema coordinates** — they
+are JSON Pointers within the schema document, never filesystem paths.
+
+It materializes to exactly the same value as
+[12-image-with-markup](#12-image-with-markup):
+
+```yaml
+markup:
+  - { x: 25, y: 40, dx: 25, dy: 40 }   # bus
+  - { x: 25, y: 40, dx: 25, dy: 40 }   # car
+# object_detection.png omitted here — a 1×1 placeholder PNG stands in for 12's image
+```
+
+yamlover concrete representation:
+
+A directory that contains:
+
+- `object_detection.png` — a minimal 1×1 placeholder PNG (the example is about
+  the markup; 12's real 780 KB image isn't duplicated).
+- `.yamlover/schema.yaml` — a Yamlover JSON Schema defining the region shape once,
+  under the standard JSON Schema `$defs`, and referencing it per region:
+
+  ```yaml
+  $defs:
+    rectangular-area:
+      type: object
+      properties:
+        x: { type: integer }
+        y: { type: integer }
+        dx: { type: integer }
+        dy: { type: integer }
+  properties:
+    object_detection.png:
+      type: binary
+      format: image/png
+      x-yamlover:
+        concrete: file/binary
+    markup:
+      type: array
+      prefixItems:
+        - description: bus
+          $ref: '#/$defs/rectangular-area'
+          properties:
+            x: { const: 25 }
+            y: { const: 40 }
+            dx: { const: 25 }
+            dy: { const: 40 }
+        - description: car
+          $ref: '#/$defs/rectangular-area'
+          properties:
+            x: { const: 25 }
+            y: { const: 40 }
+            dx: { const: 25 }
+            dy: { const: 40 }
+  ```
+
+How it resolves:
+
+- **`$defs`** holds reusable schema fragments. It is a sibling of `properties`,
+  not a property itself, so it never appears in the materialized data — it lives
+  purely in schema space.
+- **`$ref: '#/$defs/rectangular-area'`** is a JSON Pointer into the same document.
+  It can point at *any* location in schema coordinates, not only under `$defs`
+  (e.g. `#/properties/markup/prefixItems/0`).
+- Per JSON Schema 2020-12, a `$ref` may carry sibling keywords: the referenced
+  shape (`type: object` with integer `x`/`y`/`dx`/`dy`) and the locally inlined
+  `const` coordinates are **merged** — both apply, so each region is an integer
+  rectangle pinned to `(25, 40, 25, 40)`. The walker resolves the `$ref` while
+  reading the tree, so `ls`/`cat`/`yaml` show the fully expanded regions.

@@ -5,7 +5,8 @@ properties:
     description: Defines a set of reusable templates
     x-yamlover:
       concrete: dir
-      path: defs
+      os:
+        path: defs
   examples:
     description: Contains example configurations for Yamlover
     x-yamlover:
@@ -59,7 +60,7 @@ properties:
       08-scalar-file-overlay:
         description: >-
           A yamlover overlay over an existing YAML file — a scalar integer
-          stored in somefile.yaml, named via x-yamlover.path.
+          stored in somefile.yaml, named via x-yamlover.os.path.
         x-yamlover:
           concrete: yamlover
       09-scalar-as-binary:
@@ -71,14 +72,28 @@ properties:
       10-array-of-files:
         description: >-
           An array (sequence) encoded as a yamlover node — each element in its
-          own file, ordered by prefixItems and named via x-yamlover.path,
+          own file, ordered by prefixItems and named via x-yamlover.os.path,
           with per-element concrete encodings (file/yaml and file/json).
         x-yamlover:
           concrete: yamlover
-      11-image-with-markup:
+      11-switch-schema-file-yaml:
+        description: >-
+          Continues the model with a different concrete from the middle: a
+          mostly schema-pinned tree where one node (user.contact) switches to
+          file/yaml, its data continuing in continuation.yaml.
+        x-yamlover:
+          concrete: yamlover
+      12-image-with-markup:
         description: >-
           A yamlover node mixing a binary file child (object_detection.png,
           file/binary, image/png) with a markup array pinned inline in the
           schema with const.
+        x-yamlover:
+          concrete: yamlover
+      13-defs-and-refs:
+        description: >-
+          Like 12-image-with-markup, but each markup region is included by a
+          $ref to a $defs/rectangular-area shape, with the const coordinates
+          inlined — $defs and $ref resolved in schema coordinates.
         x-yamlover:
           concrete: yamlover

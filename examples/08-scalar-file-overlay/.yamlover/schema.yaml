@@ -1,4 +1,5 @@
 type: integer
 x-yamlover:
   concrete: file/yaml
-  path: somefile.yaml
+  os:
+    path: somefile.yaml

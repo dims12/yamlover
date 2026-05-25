@@ -3,13 +3,16 @@ prefixItems:
 - type: string
   x-yamlover:
     concrete: file/yaml
-    path: anyfile01
+    os:
+      path: anyfile01
 - type: integer
   x-yamlover:
     concrete: file/yaml
-    path: alsoany02
+    os:
+      path: alsoany02
 - type: boolean
   x-yamlover:
     concrete: file/json
-    path: andany03.json
+    os:
+      path: andany03.json
 items: false

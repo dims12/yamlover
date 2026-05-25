@@ -21,14 +21,17 @@ Then, at the prompt:
     pwd            show the current logical path
     cat [path]     print the value at a node
     tree [path]    print the subtree
-    json [path]    print the subtree as JSON
-    yaml [path]    print the subtree as YAML
+    json [path] [--depth N]    print the subtree as JSON
+    yaml [path] [--depth N]    print the subtree as YAML
+    json-schema/instantiate [path] [--depth N]   the subtree's const-only schema (JSON)
+    yaml-schema/instantiate [path] [--depth N]   the subtree's const-only schema (YAML)
     help           show this help
     exit | quit    leave
 """
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import re
@@ -42,6 +45,27 @@ except ImportError:  # pragma: no cover
 
 YAMLOVER_DIR = ".yamlover"
 SCHEMA_FILE = "schema.yaml"
+
+
+def xy_path(xy: dict) -> str | None:
+    """The file name an ``x-yamlover`` block binds a node to: ``x-yamlover.os.path``."""
+    return (xy.get("os") or {}).get("path") if xy else None
+
+
+def os_info(path: str) -> dict:
+    """Portable filesystem metadata for *path* → an ``x-yamlover.os`` block.
+
+    ``path`` is the on-disk name relative to the node's container; ``size`` (bytes,
+    files only) and ``mtime`` (ISO 8601, UTC) round out the portable attributes.
+    """
+    st = os.stat(path)
+    info = {"path": os.path.basename(path)}
+    if not os.path.isdir(path):
+        info["size"] = st.st_size
+    info["mtime"] = (datetime.datetime
+                     .fromtimestamp(st.st_mtime, datetime.timezone.utc)
+                     .strftime("%Y-%m-%dT%H:%M:%SZ"))
+    return info
 
 # A value pinned in the schema (via ``const``, or built from ``const`` leaves) is
 # *instantiated from the schema*. The schema's own encoding tags the concrete:
@@ -86,11 +110,16 @@ class Node:
     · ``file/binary`` (a value in its own file); ``yaml`` · ``json`` (inside a
     parent's collapsed document file); ``yaml-schema/instantiate`` (pinned/defined
     in the schema, which is YAML).
+
+    ``path`` is the on-disk path of nodes backed by a filesystem entry (a file or
+    directory); ``None`` for nodes living inside a collapsed file or pinned in the
+    schema. It is what lets the instantiate schema report ``x-yamlover.os``.
     """
 
-    def __init__(self, value, concrete: str | None = None):
+    def __init__(self, value, concrete: str | None = None, path: str | None = None):
         self.value = value
         self.concrete = concrete
+        self.path = path
 
 
 # --------------------------------------------------------------------------- #
@@ -103,36 +132,84 @@ def load_entity(path: str) -> Node:
         if os.path.isfile(schema_path):
             with open(schema_path, encoding="utf-8") as fh:
                 schema = yaml.safe_load(fh)
-            node = resolve(schema, path, default_name=None, backed=True)
+            node = resolve(schema, path, default_name=None, backed=True, root=schema)
             node.concrete = "yamlover"  # this directory is itself a yamlover node
+            node.path = path
             return node
         # plain directory (no .yamlover/): an object of its visible entries
-        return Node(extra_entries(path, consumed=set(), existing={}), "dir")
+        return Node(extra_entries(path, consumed=set(), existing={}), "dir", path)
     # a plain file
     node = from_file(path, "file/yaml", None)
     node.concrete = "file"
     return node
 
 
-def resolve(schema, container: str, default_name: str | None, *, backed=False) -> Node:
+def resolve_ref(ref: str, root: dict):
+    """Resolve a ``$ref`` JSON Pointer within the schema document.
+
+    Only same-document refs (``#/...``) are supported — ``$ref`` lives in *schema
+    coordinates*, not the filesystem. The pointer may target any location, not
+    just ``#/$defs/...`` (e.g. ``#/properties/markup/prefixItems/0``).
+    """
+    if not ref.startswith("#"):
+        raise ValueError(f"only same-document $ref is supported, got {ref!r}")
+    target = root
+    for part in ref[1:].split("/"):
+        if part == "":
+            continue
+        part = part.replace("~1", "/").replace("~0", "~")  # JSON Pointer unescape
+        try:
+            target = target[int(part)] if isinstance(target, list) else target[part]
+        except (KeyError, TypeError, IndexError, ValueError):
+            raise KeyError(f"$ref target not found: {ref}")
+    return target
+
+
+def merge_schema(base: dict, overlay: dict) -> dict:
+    """Deep-merge a ``$ref`` target with the keywords beside it (overlay wins).
+
+    Nested dicts (notably ``properties``) merge per key, so a referenced shape and
+    locally inlined ``const`` values combine — both constraints apply.
+    """
+    out = dict(base)
+    for k, v in overlay.items():
+        if isinstance(out.get(k), dict) and isinstance(v, dict):
+            out[k] = merge_schema(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def resolve(schema, container: str, default_name: str | None, *,
+            backed=False, root=None) -> Node:
     """Resolve a JSON-Schema fragment to a logical :class:`Node`.
 
     container     directory holding this node's file(s)
-    default_name  file/subdir name when ``x-yamlover.path`` is absent
+    default_name  file/subdir name when ``x-yamlover.os.path`` is absent
                   (the property key or array index); ``None`` at the root
     backed        True only when this node *is* ``container`` (the directory's
                   own node); then undescribed files in it are surfaced as extra
                   children. False for objects defined inline in the schema (e.g.
                   array items), which must not adopt the parent's stray files.
+    root          the schema document, against which ``$ref`` JSON Pointers
+                  resolve; defaults to *schema* (the top of the document).
     """
     if schema is None:
         return Node(None, None)
+    if root is None:
+        root = schema
+    # $ref lives in schema coordinates: pull in the referenced fragment and merge
+    # any sibling keywords over it (JSON Schema 2020-12 allows $ref + siblings).
+    if isinstance(schema, dict) and "$ref" in schema:
+        target = resolve_ref(schema["$ref"], root)
+        schema = merge_schema(target, {k: v for k, v in schema.items()
+                                       if k != "$ref"})
     if "const" in schema:
         return wrap(schema["const"], SCHEMA_INSTANTIATE)
 
     xy = schema.get("x-yamlover") or {}
     concrete = xy.get("concrete")
-    name = xy.get("path") or default_name
+    name = xy_path(xy) or default_name
     is_file = bool(concrete) and concrete.startswith("file/")
 
     stype = schema.get("type")
@@ -151,12 +228,17 @@ def resolve(schema, container: str, default_name: str | None, *, backed=False) -
         children = {}
         consumed = {YAMLOVER_DIR}
         for key, child in (schema.get("properties") or {}).items():
-            children[key] = resolve(child, container, key)
+            children[key] = resolve(child, container, key, root=root)
             cxy = (child.get("x-yamlover") if isinstance(child, dict) else None) or {}
-            consumed.add(cxy.get("path") or key)
+            consumed.add(xy_path(cxy) or key)
         # also surface undescribed files/dirs physically present — but only when
         # this node actually backs `container`, not for inline schema objects
         if backed:
+            # a file claimed by a *nested* inline property (e.g. a mid-tree switch
+            # to file/yaml) lives in this same container; mark it consumed so it
+            # is not also surfaced here as a stray extra
+            for child in children.values():
+                claim_paths(child, container, consumed)
             children.update(extra_entries(container, consumed, children))
         # No concrete and no backing file: the structure is defined inline in the
         # schema, i.e. instantiated from it.
@@ -164,7 +246,7 @@ def resolve(schema, container: str, default_name: str | None, *, backed=False) -
 
     if is_array:
         items = [
-            resolve(child, container, str(idx))
+            resolve(child, container, str(idx), root=root)
             for idx, child in enumerate(schema.get("prefixItems") or [])
         ]
         return Node(items, concrete or SCHEMA_INSTANTIATE)
@@ -183,6 +265,7 @@ def from_file(path: str, concrete: str, schema) -> Node:
     value = decode_file(path, concrete, schema)
     node = wrap(value, interior(concrete))
     node.concrete = concrete
+    node.path = path  # the node is this file; its interior children stay path-less
     return node
 
 
@@ -193,6 +276,22 @@ def wrap(value, concrete: str) -> Node:
     if isinstance(value, list):
         return Node([wrap(v, concrete) for v in value], concrete)
     return Node(value, concrete)
+
+
+def claim_paths(node: Node, container: str, consumed: set) -> None:
+    """Add to *consumed* every filename in *container* that *node*'s subtree
+    already binds — so a file pulled in by a nested property is not re-surfaced
+    as a stray extra. Only direct children of *container* are claimed; entries
+    under a subdirectory belong to that subdirectory, not here.
+    """
+    if node.path and os.path.dirname(node.path) == container:
+        consumed.add(os.path.basename(node.path))
+    if isinstance(node.value, dict):
+        for child in node.value.values():
+            claim_paths(child, container, consumed)
+    elif isinstance(node.value, list):
+        for child in node.value:
+            claim_paths(child, container, consumed)
 
 
 def extra_entries(container: str, consumed: set, existing: dict) -> dict:
@@ -218,13 +317,15 @@ def decode_file(path: str, concrete: str, schema):
         return f"<missing: {os.path.basename(path)}>"
     try:
         if concrete == "file/binary":
-            data = open(path, "rb").read()
+            with open(path, "rb") as fh:
+                data = fh.read()
             fmt = (schema or {}).get("format")
             decoded = None
             if fmt == "int32/le" and len(data) == 4:
                 decoded = struct.unpack("<i", data)[0]
             return Binary(data, fmt, decoded)
-        text = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
         if concrete == "file/json":
             return json.loads(text)
         return yaml.safe_load(text)  # file/yaml (default)
@@ -317,22 +418,76 @@ def format_path(segments) -> str:
     return out or "/"
 
 
+def parse_serialize_arg(arg: str | None):
+    """Split a serialize command's argument into ``(path, depth)``.
+
+    getopt/jq-style: the path stays positional (like a jq filter), while a depth
+    limit is a flag — ``--depth N`` · ``--depth=N`` · ``-d N`` · ``-dN``.
+    Returns ``(None, None)`` for no argument.
+    """
+    if not arg:
+        return None, None
+    tokens, path_tokens, depth, i = arg.split(), [], None, 0
+    while i < len(tokens):
+        t = tokens[i]
+        if t in ("-d", "--depth"):
+            i += 1
+            if i >= len(tokens):
+                raise ValueError(f"{t} needs a number")
+            depth = _depth_int(tokens[i])
+        elif t.startswith("--depth="):
+            depth = _depth_int(t[len("--depth="):])
+        elif t.startswith("-d") and len(t) > 2:
+            depth = _depth_int(t[2:])
+        elif t.startswith("-"):
+            raise ValueError(f"unknown option: {t}")
+        else:
+            path_tokens.append(t)
+        i += 1
+    if len(path_tokens) > 1:
+        raise ValueError(f"unexpected extra argument: {path_tokens[1]}")
+    return (path_tokens[0] if path_tokens else None), depth
+
+
+def _depth_int(s: str) -> int:
+    try:
+        n = int(s)
+    except ValueError:
+        raise ValueError(f"depth must be an integer, got {s!r}")
+    if n < 0:
+        raise ValueError(f"depth must be >= 0, got {n}")
+    return n
+
+
 # --------------------------------------------------------------------------- #
 # Rendering
 # --------------------------------------------------------------------------- #
-def to_plain(node: Node, binary: str = "repr"):
+def _descend(depth):
+    """Next depth budget when recursing into a container (``None`` = unlimited)."""
+    return depth if depth is None else depth - 1
+
+
+def to_plain(node: Node, binary: str = "repr", depth=None):
     """Materialize a node's subtree as plain Python values.
 
     ``binary`` chooses how a :class:`Binary` leaf is rendered: ``"repr"`` (a
     human-readable string, the default — used by ``cat``/``tree``), ``"bytes"``
     (the raw bytes, so PyYAML emits ``!!binary``), or ``"error"`` (raise, since
     binary has no JSON form).
+
+    ``depth`` limits container-nesting levels (``None`` = unlimited). A container
+    beyond the budget is elided to ``"{...}"`` (object) or ``"[...]"`` (array);
+    scalars are always shown.
     """
     v = node.value
     if isinstance(v, dict):
-        return {k: to_plain(c, binary) for k, c in v.items()}
+        if depth is not None and depth <= 0:
+            return "{...}"
+        return {k: to_plain(c, binary, _descend(depth)) for k, c in v.items()}
     if isinstance(v, list):
-        return [to_plain(c, binary) for c in v]
+        if depth is not None and depth <= 0:
+            return "[...]"
+        return [to_plain(c, binary, _descend(depth)) for c in v]
     if isinstance(v, Binary):
         if binary == "bytes":
             return v.data
@@ -342,18 +497,85 @@ def to_plain(node: Node, binary: str = "repr"):
     return v
 
 
-def to_yaml(node: Node) -> str:
+def to_yaml(node: Node, depth=None) -> str:
     """Serialize a node's subtree as YAML (binary leaves become ``!!binary``)."""
     text = yaml.safe_dump(
-        to_plain(node, binary="bytes"), sort_keys=False, allow_unicode=True
+        to_plain(node, "bytes", depth), sort_keys=False, allow_unicode=True
     )
     # bare scalars come back with YAML's "\n..." document-end marker; drop it
     return text.rstrip().removesuffix("\n...").rstrip()
 
 
-def to_json(node: Node) -> str:
+def to_json(node: Node, depth=None) -> str:
     """Serialize a node's subtree as JSON (raises if it holds binary)."""
-    return json.dumps(to_plain(node, binary="error"), indent=2, ensure_ascii=False)
+    return json.dumps(to_plain(node, "error", depth), indent=2, ensure_ascii=False)
+
+
+def to_schema(node: Node, binary: str = "bytes", depth=None) -> dict:
+    """Build the JSON Schema whose *sole* instance is *node*'s subtree — the
+    *instance → schema* direction of the Schema ↔ instance correspondence (every
+    value ``v`` becomes ``{const: v}``).
+
+    This is the dual of :func:`to_plain`: where that materializes the value, this
+    materializes the schema. Nodes backed by a filesystem entry also carry an
+    ``x-yamlover`` block (``concrete`` plus an ``os`` record of where the bytes
+    live), so from the root it is a single schema for the whole tree, like
+    ``collector`` (which instead preserves the *declared* types rather than
+    pinning with ``const``).
+
+    ``depth`` limits container-nesting levels (``None`` = unlimited). A container
+    beyond the budget degrades to a type-only ``{type: object}`` / ``{type:
+    array}`` — pin shallow, leave the deep structure open — but still reports its
+    ``x-yamlover``.
+    """
+    v = node.value
+    if isinstance(v, dict):
+        if depth is not None and depth <= 0:
+            schema = {"type": "object"}
+        else:
+            schema = {"type": "object",
+                      "properties": {k: to_schema(c, binary, _descend(depth))
+                                     for k, c in v.items()}}
+    elif isinstance(v, list):
+        if depth is not None and depth <= 0:
+            schema = {"type": "array"}
+        else:
+            schema = {"type": "array",
+                      "prefixItems": [to_schema(c, binary, _descend(depth))
+                                      for c in v],
+                      "items": False}
+    elif isinstance(v, Binary):
+        if binary == "error":
+            raise ValueError(
+                "binary value has no JSON form (try 'yaml-schema/instantiate')")
+        schema = {"const": v.data}  # PyYAML emits !!binary
+    else:
+        schema = {"const": v}
+
+    if node.path is not None:  # a real filesystem entry → record its provenance
+        schema["x-yamlover"] = {"concrete": node.concrete, "os": os_info(node.path)}
+    return schema
+
+
+def to_yaml_schema(node: Node, depth=None) -> str:
+    """The instantiate schema of a subtree, as YAML (binary pins as ``!!binary``)."""
+    return yaml.safe_dump(
+        to_schema(node, "bytes", depth), sort_keys=False, allow_unicode=True
+    ).rstrip()
+
+
+def to_json_schema(node: Node, depth=None) -> str:
+    """The instantiate schema of a subtree, as JSON (raises if it holds binary)."""
+    return json.dumps(to_schema(node, "error", depth), indent=2, ensure_ascii=False)
+
+
+# Serialize commands: name → function(node, depth). They share `[path] [--depth N]`.
+SERIALIZERS = {
+    "json": to_json,
+    "yaml": to_yaml,
+    "json-schema/instantiate": to_json_schema,
+    "yaml-schema/instantiate": to_yaml_schema,
+}
 
 
 def render(node: Node) -> str:
@@ -463,10 +685,9 @@ class Shell:
         elif cmd == "tree":
             node = self.node_at(arg)
             print(render_tree(node) if is_container(node) else render(node))
-        elif cmd == "json":
-            print(to_json(self.node_at(arg)))
-        elif cmd == "yaml":
-            print(to_yaml(self.node_at(arg)))
+        elif cmd in SERIALIZERS:
+            path, depth = parse_serialize_arg(arg)
+            print(SERIALIZERS[cmd](self.node_at(path), depth))
         else:
             print(f"unknown command: {cmd} (try 'help')")
 

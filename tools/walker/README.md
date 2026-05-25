@@ -12,7 +12,10 @@ around that logical tree as if it were an ordinary filesystem.
 It abstracts over the physical layout, so the same commands work whether a value
 is pinned in the schema (`const`), stored in its own file
 (`file/yaml` · `file/json` · `file/binary`), collapsed into a single file, or
-expanded into a subdirectory.
+expanded into a subdirectory. It also resolves JSON Schema `$ref` (a same-document
+JSON Pointer, e.g. `#/$defs/rectangular-area`) and merges any keywords beside it,
+so a referenced shape and locally inlined `const` values combine — see
+`examples/13-defs-and-refs`.
 
 ## Requirements
 
@@ -34,8 +37,10 @@ $ python walker.py PATH        # PATH defaults to the current directory
 | `pwd`         | print the current logical path                          |
 | `cat [path]`  | print the value at a node                               |
 | `tree [path]` | print the subtree                                       |
-| `json [path]` | print the subtree as JSON                               |
-| `yaml [path]` | print the subtree as YAML                               |
+| `json [path] [--depth N]` | print the subtree as JSON                   |
+| `yaml [path] [--depth N]` | print the subtree as YAML                   |
+| `json-schema/instantiate [path] [--depth N]` | the subtree's instantiate **schema** (JSON) |
+| `yaml-schema/instantiate [path] [--depth N]` | the subtree's instantiate **schema** (YAML) |
 | `help`        | show the command list                                   |
 | `exit`/`quit` | leave                                                   |
 
@@ -50,10 +55,50 @@ so a tree spread across per-child files, a collapsed file, and `const`-pinned
 schema values all print as a single document. A binary leaf becomes `!!binary` in
 `yaml`; since binary has no JSON form, `json` reports an error on such a subtree.
 
+`json-schema/instantiate` and `yaml-schema/instantiate` are the **dual** of those:
+instead of the instance, they print the `const:`-only **schema** whose sole instance
+is that subtree (every value `v` rendered as `{const: v}`). This is the
+*instance → schema* direction of the [Schema ↔ instance
+correspondence](../../README.md#schema--instance-correspondence) — drop the output
+into a `.yamlover/schema.yaml` and `walker` materializes the original data back.
+Each node backed by a filesystem entry also carries its provenance under
+`x-yamlover` — `concrete` plus an `os` block (`path`, and for files `size` and
+`mtime`):
+
+```console
+$ printf 'json-schema/instantiate name\n' | python walker.py ../../examples/04-object-in-dir
+{
+  "const": "Alice",
+  "x-yamlover": {
+    "concrete": "file/yaml",
+    "os": { "path": "name", "size": 7, "mtime": "2026-05-24T13:01:03Z" }
+  }
+}
+```
+
+From the root it prints one schema for the whole tree, conceptually like
+[`collector`](../collector/) (which instead preserves the declared types rather
+than pinning everything with `const`).
+
+All four take an optional `--depth N` (also `-d N` / `--depth=N`) that limits how
+many container-nesting levels are printed; the path stays positional, jq-style
+(`json markup --depth 1`). `N` counts container levels — scalars are always shown.
+Beyond the limit, the *instance* commands elide a container to `"{...}"` or
+`"[...]"`, while the *schema* commands degrade it to a type-only `{type: object}`
+/ `{type: array}` (pin shallow, leave the deep structure open):
+
+```console
+$ printf 'json markup --depth 1\n' | python walker.py ../../examples/12-image-with-markup
+[
+  "{...}",
+  "{...}"
+]
+```
+
 Commands can also be piped in for scripting:
 
 ```console
-$ printf 'cd markup[0]\nls\ncat x\n' | python walker.py ../../examples/11-image-with-markup
+$ printf 'cd markup[0]\nls\ncat x\n' | python walker.py ../../examples/12-image-with-markup
 ```
 
 Each row of `ls` reports the node's JSON-Schema **type** (`object`, `array`,
@@ -109,3 +154,19 @@ NAME  TYPE     CONCRETE
 ├── [1]: 42  [file/yaml]
 └── [2]: true  [file/json]
 ```
+
+## Tests
+
+`test_walker.py` exercises walker against every entity in `examples/` —
+materialized values, the concrete each node reports, the `json`/`yaml` and
+`*-schema/instantiate` output, navigation, and the schema↔instance round-trip.
+It needs only the standard library plus PyYAML (no test runner to install):
+
+```console
+$ python -m unittest discover -s tools/walker     # from the repo root
+$ python tools/walker/test_walker.py              # or run the file directly
+$ pytest tools/walker/test_walker.py              # pytest runs them too
+```
+
+The checks are data-driven from tables at the top of the file, so a new
+`examples/` entity is covered by adding one row, not a new test.
