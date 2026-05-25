@@ -44,6 +44,12 @@ SWITCH = {                                                # 11's mid-tree switch
              "contact": {"email": "alice@example.com", "phone": "123-456-7890"}},
     "settings": {"theme": "dark", "notifications": True},
 }
+GENEALOGY = {                                             # 14's paternal backbone
+    # leaves are typeless (no `type: object`) so they materialize to null;
+    # eve keeps `type: object`, so it is an empty object
+    "adam": {"cain": {"enoch": None}, "seth": None, "azura": None},
+    "eve": {},
+}
 
 # Value of each example, as produced by ``to_plain(node, binary="bytes")``.
 EXPECTED_INSTANCE = {
@@ -60,6 +66,7 @@ EXPECTED_INSTANCE = {
     "11-switch-schema-file-yaml": SWITCH,
     "12-image-with-markup": {"object_detection.png": PNG, "markup": [BOX, BOX]},
     "13-defs-and-refs": {"object_detection.png": PNG13, "markup": [BOX, BOX]},
+    "14-genealogy-dag": GENEALOGY,
 }
 
 # The concrete reported at each example's root node (its filesystem-node kind).
@@ -77,6 +84,7 @@ EXPECTED_ROOT_CONCRETE = {
     "11-switch-schema-file-yaml": "yamlover",
     "12-image-with-markup": "yamlover",
     "13-defs-and-refs": "yamlover",
+    "14-genealogy-dag": "yamlover",
 }
 
 # The concrete reported at a specific nested node (the value-location axis).
@@ -91,6 +99,10 @@ EXPECTED_CHILD_CONCRETE = [
     ("10-array-of-files", [2], "file/json"),
     ("11-switch-schema-file-yaml", ["user", "name"], "yaml-schema/instantiate"),
     ("11-switch-schema-file-yaml", ["user", "contact"], "file/yaml"),
+    ("14-genealogy-dag", ["adam", "cain"], "yaml-schema/instantiate"),
+    # a typeless inline node (no type/properties/const) still came from the
+    # schema, so its concrete is yaml-schema/instantiate, not "-"
+    ("14-genealogy-dag", ["adam", "seth"], "yaml-schema/instantiate"),
     ("12-image-with-markup", ["object_detection.png"], "file/binary"),
     ("12-image-with-markup", ["markup"], "yaml-schema/instantiate"),
     ("12-image-with-markup", ["markup", 0], "yaml-schema/instantiate"),
@@ -463,6 +475,82 @@ class TestNavigation(unittest.TestCase):
         with self.assertRaises(KeyError):
             walker.child_key(markup, "[9]")
 
+    def test_caret_splits_as_token_boundary(self):
+        # `a^b` must tokenize as `a` then `^b`, not a key literally "a^b"
+        self.assertEqual(walker._PATH_TOKEN.findall("adam^father"),
+                         ["adam", "^father"])
+
+
+# --------------------------------------------------------------------------- #
+# Walking up: ^name parent edges (entity 14)
+# --------------------------------------------------------------------------- #
+class TestWalkUp(unittest.TestCase):
+    def setUp(self):
+        self.root = load("14-genealogy-dag")
+
+    def test_caret_mother_absolute(self):
+        # enoch's mother is /adam/azura (absolute, anchored at the entity root)
+        enoch = ["adam", "cain", "enoch"]
+        self.assertEqual(walker.navigate(self.root, enoch, "^mother"),
+                         ["adam", "azura"])
+
+    def test_caret_father_relative(self):
+        # father is "..", a relative up-edge
+        self.assertEqual(
+            walker.navigate(self.root, ["adam", "cain", "enoch"], "^father"),
+            ["adam", "cain"])
+        self.assertEqual(walker.navigate(self.root, ["adam", "cain"], "^mother"),
+                         ["eve"])
+
+    def test_caret_own_key_default_ascends(self):
+        # azura has no rel entry named "azura", but it is her key -> primary up
+        self.assertEqual(walker.navigate(self.root, ["adam", "azura"], "^azura"),
+                         ["adam"])
+
+    def test_caret_unknown_relation_errors(self):
+        with self.assertRaises(KeyError):
+            walker.navigate(self.root, ["eve"], "^mother")    # eve is a root
+
+    def test_absolute_rel_anchors_to_entity_not_launch_root(self):
+        # launched from the repo root: ^mother's "/adam/azura" must still resolve
+        # against the 14-genealogy-dag entity, not the launch root
+        outer = walker.load_entity(os.path.dirname(EXAMPLES))
+        segs = ["examples", "14-genealogy-dag", "adam", "cain", "enoch"]
+        self.assertEqual(walker.navigate(outer, segs, "^mother"),
+                         ["examples", "14-genealogy-dag", "adam", "azura"])
+
+    # --- virtual children: rel keys prefixed with "." (down-edges) ---------- #
+    def test_virtual_children_helper(self):
+        eve = self.root.value["eve"]
+        self.assertEqual(walker.virtual_children(eve),
+                         {"cain": "/adam/cain", "seth": "/adam/seth",
+                          "azura": "/adam/azura"})
+        self.assertEqual(walker.virtual_children(self.root.value["adam"]), {})
+
+    def test_cd_follows_virtual_child(self):
+        # eve has no containment children, but cd cain follows her virtual child
+        self.assertEqual(walker.navigate(self.root, ["eve"], "cain"),
+                         ["adam", "cain"])
+        # works through a null leaf too: azura's virtual child enoch
+        self.assertEqual(walker.navigate(self.root, ["adam", "azura"], "enoch"),
+                         ["adam", "cain", "enoch"])
+
+    def test_real_child_shadows_virtual(self):
+        # adam has a real child cain; navigation uses it (no rel anyway)
+        self.assertEqual(walker.navigate(self.root, ["adam"], "cain"),
+                         ["adam", "cain"])
+
+    def test_ls_lists_virtual_children(self):
+        out = walker.list_children(self.root.value["eve"], self.root, ["eve"])
+        self.assertIn("cain", out)
+        self.assertIn("seth", out)
+        self.assertIn("rel →", out)         # marked as a relation edge
+
+    def test_virtual_children_not_in_value(self):
+        # the maternal edges are relations, not containment — eve stays {}
+        self.assertEqual(walker.to_plain(self.root.value["eve"]), {})
+        self.assertEqual(walker.to_plain(self.root), GENEALOGY)
+
 
 # --------------------------------------------------------------------------- #
 # Depth limiting
@@ -549,6 +637,10 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(node.concrete, "yaml")
         self.assertEqual(node.value["a"].concrete, "yaml")
         self.assertEqual(node.value["a"].value[0].concrete, "yaml")
+
+    def test_render_null_as_tilde(self):
+        self.assertEqual(walker.render(Node(None)), "~")
+        self.assertEqual(walker.render(Node(True)), "true")
 
 
 if __name__ == "__main__":

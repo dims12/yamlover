@@ -6,9 +6,10 @@ they sort into reading order.
 The first four (`01`–`04`) hold the **same object** `{name, age, isAdmin}` in the
 four core concretes — pinned in the schema, collapsed into a YAML file, collapsed
 into a JSON file, and expanded into a directory — so the representations can be
-compared directly. The rest (`05`–`13`) use trivial data (the value **30**, alone
+compared directly. The rest (`05`–`14`) use trivial data (the value **30**, alone
 or under a key) or richer data — a binary value, an array, a mid-tree concrete
-switch, an image with markup, `$ref`/`$defs` — to isolate one further feature each.
+switch, an image with markup, `$ref`/`$defs`, a two-parent genealogy DAG — to
+isolate one further feature each.
 
 # 01-object-in-schema
 
@@ -689,3 +690,100 @@ How it resolves:
   `const` coordinates are **merged** — both apply, so each region is an integer
   rectangle pinned to `(25, 40, 25, 40)`. The walker resolves the `$ref` while
   reading the tree, so `ls`/`cat`/`yaml` show the fully expanded regions.
+
+# 14-genealogy-dag
+
+This entity is a **DAG**: every person has *two* parents — a `father` and a
+`mother` — so a node is reached from more than one place. The trick is that one
+relation, **containment**, carries the tree backbone and the other is an explicit
+cross-edge:
+
+- the **containment tree is the paternal line** — a person's dict children *are*
+  his offspring (`/adam/cain/enoch`);
+- the **maternal edge** is declared under `x-yamlover.rel` and followed with the
+  `^` (ascend) operator.
+
+Because dict children are the *paternal* relation, **females never have dict
+children** — they appear as leaves and are pointed *at* as mothers. So `eve` and
+`azura` are childless in the containment tree, while `azura` is simultaneously a
+child of `adam` and the mother of `enoch` (the shared node that makes this a DAG,
+not a tree). To give mothers their children back, a `rel` key prefixed with `.`
+declares a **virtual child** — a down-edge that `ls`/`cd` follow but that does not
+nest into the value (see below).
+
+Its **value** is just the paternal backbone — relations (maternal edges, virtual
+children) don't nest. The leaves are typeless, so they materialize to `~` (null);
+`eve` keeps `type: object`, so it is an empty object:
+
+```yaml
+adam:
+  cain:
+    enoch: ~
+  seth: ~
+  azura: ~
+eve: {}
+```
+
+yamlover concrete representation — `.yamlover/schema.yaml` pins the people inline
+and records each one's parents under `x-yamlover.rel`:
+
+```yaml
+properties:
+  adam:                       # root male — no parents, so no rel
+    properties:
+      cain:
+        x-yamlover:
+          rel:
+            father: ".."      # main (containment) parent, named "father"
+            mother: "/eve"    # second parent — a cross-edge
+        properties:
+          enoch:
+            x-yamlover:
+              rel:
+                father: ".."          # → /adam/cain
+                mother: "/adam/azura" # the DAG edge: enoch's mother is adam's daughter
+      seth:
+        x-yamlover: { rel: { father: "..", mother: "/eve" } }
+      azura:                  # adam's daughter; also enoch's mother
+        x-yamlover:
+          rel:
+            father: ".."
+            mother: "/eve"
+            .enoch: "/adam/cain/enoch"   # virtual child (down-edge)
+  eve:                        # root female; childless in containment, given
+    type: object              # her children back as virtual down-edges
+    x-yamlover:
+      rel:
+        .cain: "/adam/cain"
+        .seth: "/adam/seth"
+        .azura: "/adam/azura"
+```
+
+How the relations read:
+
+- **`rel` is a node's table of up-edges**, keyed by relation name. The entry
+  pointing at the containment parent (`..`) is the **main-parent slug** — here
+  named `father`; it is **optional** (the containment parent is implicit, and
+  defaults to the node's own key), spelled out only to give it the name `father`.
+- **`mother`** is an additional parent, its value a path to that node:
+  `..`-relative or `/…`-absolute from the entity root (a `*anchor` would be the
+  move-stable form).
+- **A `.`-prefixed key is a *virtual child*** — a *down*-edge (the dual of a
+  parent edge). It is **listed by `ls` and followed by `cd`, but never nested
+  into the value**. That is how `eve`, childless in the containment tree, gets her
+  children back, and how `azura` claims `enoch`.
+- **Navigation:** `/name` descends a child, **`^name` ascends a named parent** —
+  `^father` undoes the last descent, `^mother` jumps to the mother. `..` is sugar
+  for the primary (paternal) parent; in a DAG you name the rest. The walker
+  resolves these, anchoring an absolute `rel` pointer at the enclosing entity:
+
+  ```console
+  $ printf 'cd adam/cain/enoch\ncd ^mother\npwd\n' | python ../../tools/walker/walker.py 14-genealogy-dag
+  /adam/azura
+
+  $ printf 'cd eve\nls\n' | python ../../tools/walker/walker.py 14-genealogy-dag
+  NAME   TYPE    CONCRETE
+  cain   object  rel → /adam/cain
+  seth   null    rel → /adam/seth
+  azura  null    rel → /adam/azura
+  ```

@@ -1,0 +1,32 @@
+properties:
+  adam:
+    properties:
+      cain:
+        x-yamlover:
+          rel:
+            father: ".."
+            mother: "/eve"
+        properties:
+          enoch:
+            x-yamlover:
+              rel:
+                father: ".."
+                mother: "/adam/azura"
+      seth:
+        x-yamlover:
+          rel:
+            father: ".."
+            mother: "/eve"
+      azura:
+        x-yamlover:
+          rel:
+            father: ".."
+            mother: "/eve"
+            .enoch: "/adam/cain/enoch"
+  eve:
+    type: object
+    x-yamlover:
+      rel:
+        .cain: "/adam/cain"
+        .seth: "/adam/seth"
+        .azura: "/adam/azura"

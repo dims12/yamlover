@@ -17,7 +17,7 @@ Usage:
 
 Then, at the prompt:
     ls [path]      list a node's children (name, type, concrete)
-    cd <path>      move to a node — JSON-path style:  ..  /a/b  a[0]/b
+    cd <path>      move to a node:  /a/b  a[0]/b  .. (up)  ^name (up a named parent)
     pwd            show the current logical path
     cat [path]     print the value at a node
     tree [path]    print the subtree
@@ -114,12 +114,17 @@ class Node:
     ``path`` is the on-disk path of nodes backed by a filesystem entry (a file or
     directory); ``None`` for nodes living inside a collapsed file or pinned in the
     schema. It is what lets the instantiate schema report ``x-yamlover.os``.
+
+    ``rel`` is the node's ``x-yamlover.rel`` table (named up-edges → pointers to
+    parents), used by ``^name`` navigation; ``None`` if the node declares none.
     """
 
-    def __init__(self, value, concrete: str | None = None, path: str | None = None):
+    def __init__(self, value, concrete: str | None = None, path: str | None = None,
+                 rel: dict | None = None):
         self.value = value
         self.concrete = concrete
         self.path = path
+        self.rel = rel
 
 
 # --------------------------------------------------------------------------- #
@@ -211,6 +216,7 @@ def resolve(schema, container: str, default_name: str | None, *,
     concrete = xy.get("concrete")
     name = xy_path(xy) or default_name
     is_file = bool(concrete) and concrete.startswith("file/")
+    rel = xy.get("rel")  # named up-edges (parents) — consumed by ^name navigation
 
     stype = schema.get("type")
     is_object = stype == "object" or "properties" in schema
@@ -218,11 +224,17 @@ def resolve(schema, container: str, default_name: str | None, *,
 
     # A structured node collapsed into a single file (e.g. 02-object-in-yaml).
     if (is_object or is_array) and is_file and name:
-        return from_file(os.path.join(container, name), concrete, schema)
+        node = from_file(os.path.join(container, name), concrete, schema)
+        if rel:
+            node.rel = rel
+        return node
 
     # A child expanded as its own subdirectory (e.g. the spec's address/).
     if name and os.path.isdir(os.path.join(container, name)):
-        return load_entity(os.path.join(container, name))
+        node = load_entity(os.path.join(container, name))
+        if rel:
+            node.rel = rel
+        return node
 
     if is_object:
         children = {}
@@ -242,20 +254,24 @@ def resolve(schema, container: str, default_name: str | None, *,
             children.update(extra_entries(container, consumed, children))
         # No concrete and no backing file: the structure is defined inline in the
         # schema, i.e. instantiated from it.
-        return Node(children, concrete or SCHEMA_INSTANTIATE)
+        return Node(children, concrete or SCHEMA_INSTANTIATE, rel=rel)
 
     if is_array:
         items = [
             resolve(child, container, str(idx), root=root)
             for idx, child in enumerate(schema.get("prefixItems") or [])
         ]
-        return Node(items, concrete or SCHEMA_INSTANTIATE)
+        return Node(items, concrete or SCHEMA_INSTANTIATE, rel=rel)
 
     # A scalar stored in its own file (e.g. 04-object-in-dir / 08-scalar-file-overlay / 10-array-of-files).
     if is_file and name:
-        return from_file(os.path.join(container, name), concrete, schema)
+        node = from_file(os.path.join(container, name), concrete, schema)
+        if rel:
+            node.rel = rel
+        return node
 
-    return Node(None, concrete)  # underspecified node
+    # No value, but still defined inline in the schema → instantiated from it.
+    return Node(None, concrete or SCHEMA_INSTANTIATE, rel=rel)
 
 
 def from_file(path: str, concrete: str, schema) -> Node:
@@ -387,29 +403,96 @@ def get_node(root: Node, segments) -> Node:
     return node
 
 
-# A path token is either a bracketed array index ([0]) or a key name.
-_PATH_TOKEN = re.compile(r"\[\d+\]|[^/\[\]]+")
+# A path token is a bracketed array index ([0]), a `^name` ascent, or a key name.
+# `^` is a boundary so `a^b` splits into `a` then `^b`; keys may not contain `^`.
+_PATH_TOKEN = re.compile(r"\[\d+\]|\^[^/\[\]^]+|[^/\[\]^]+")
 
 
-def navigate(root: Node, current, arg: str | None):
-    """Return the new path segments for ``cd arg`` from *current*.
+def entity_root_segs(root: Node, segs):
+    """Segments of the nearest ancestor-or-self that is a yamlover entity.
 
-    Accepts JSON-path-style arguments — ``/a/b[0]``, ``b[0]/c``, ``..`` — where
-    ``[n]`` is an array index and slash-separated names are object keys.
+    Absolute ``rel`` pointers (``/…``) are written relative to the schema that
+    declared them — i.e. the enclosing yamlover node — not the walker's launch
+    point. This finds that anchor; falls back to the root if there is none.
     """
-    if not arg:
-        return []  # bare `cd` → root
-    segs = [] if arg.startswith("/") else list(current)
-    for token in _PATH_TOKEN.findall(arg):
+    for i in range(len(segs), -1, -1):
+        if get_node(root, segs[:i]).concrete == "yamlover":
+            return segs[:i]
+    return []
+
+
+def follow_pointer(root: Node, segs, ptr):
+    """Resolve a ``rel`` pointer to target segments: ``..``-relative walks from
+    *segs*, an absolute ``/…`` from the enclosing yamlover entity."""
+    if isinstance(ptr, str) and ptr.startswith("*"):
+        raise KeyError(f"anchor refs not yet supported: {ptr}")
+    base = entity_root_segs(root, segs) if str(ptr).startswith("/") else segs
+    return walk_segments(root, base, _PATH_TOKEN.findall(str(ptr)))
+
+
+def ascend(root: Node, segs, name: str):
+    """Walk *up* a named parent edge (``^name``) from the node at *segs*.
+
+    Resolves via the node's ``x-yamlover.rel``. Without a `rel` entry,
+    ``^<own-key>`` still ascends to the (primary) containment parent.
+    """
+    node = get_node(root, segs)
+    rel = node.rel or {}
+    if name in rel:
+        return follow_pointer(root, segs, rel[name])
+    if segs and str(segs[-1]) == name:   # default: ^<own-key> undoes the descent
+        return segs[:-1]
+    raise KeyError(f"no parent relation: ^{name}")
+
+
+def virtual_children(node: Node) -> dict:
+    """A node's *virtual children* — ``rel`` keys prefixed with ``.`` (down-edges),
+    e.g. a mother's children. Returns ``{name: pointer}`` (the ``.`` stripped)."""
+    return {k[1:]: v for k, v in (node.rel or {}).items() if k.startswith(".")}
+
+
+def walk_segments(root: Node, segs, tokens):
+    """Apply path *tokens* from *segs*: ``..`` ascends primary, ``^name`` ascends
+    a named parent, ``[n]``/names descend (falling back to a virtual child)."""
+    segs = list(segs)
+    for token in tokens:
         if token == ".":
             continue
         if token == "..":
             if segs:
                 segs.pop()
-            continue
-        segs.append(child_key(get_node(root, segs), token))
+        elif token.startswith("^"):
+            segs = ascend(root, segs, token[1:])
+        else:
+            node = get_node(root, segs)
+            vkids = virtual_children(node)
+            # a real containment child wins; otherwise follow a virtual down-edge
+            if token in vkids and not _has_child(node, token):
+                segs = follow_pointer(root, segs, vkids[token])
+            else:
+                segs.append(child_key(node, token))
     get_node(root, segs)  # validate
     return segs
+
+
+def _has_child(node: Node, token: str) -> bool:
+    try:
+        child_key(node, token)
+        return True
+    except (KeyError, IndexError):
+        return False
+
+
+def navigate(root: Node, current, arg: str | None):
+    """Return the new path segments for ``cd arg`` from *current*.
+
+    JSON-path-style: ``/a/b[0]`` · ``b[0]/c`` · ``..`` (up) · ``^name`` (up a
+    named parent edge). ``[n]`` is an array index, slash-separated names are keys.
+    """
+    if not arg:
+        return []  # bare `cd` → root
+    start = [] if arg.startswith("/") else list(current)
+    return walk_segments(root, start, _PATH_TOKEN.findall(arg))
 
 
 def format_path(segments) -> str:
@@ -589,22 +672,34 @@ def render(node: Node) -> str:
         if v is False:
             return "false"
         if v is None:
-            return "null"
+            return "~"   # YAML's null literal — used by an undefined/leaf node
         return str(v)
     return yaml.safe_dump(to_plain(node), sort_keys=False, allow_unicode=True).rstrip()
 
 
-def list_children(node: Node) -> str:
+def list_children(node: Node, root: Node = None, segs=None) -> str:
     v = node.value
     if isinstance(v, dict):
-        rows = [(str(k), c) for k, c in v.items()]
+        disp = [(str(k), type_label(c), c.concrete or "-") for k, c in v.items()]
     elif isinstance(v, list):
-        rows = [(f"[{i}]", c) for i, c in enumerate(v)]
+        disp = [(f"[{i}]", type_label(c), c.concrete or "-")
+                for i, c in enumerate(v)]
+    elif virtual_children(node):
+        disp = []        # a leaf that nonetheless has virtual (rel) children
     else:
-        return render(node)  # a scalar leaf: just show its value
-    if not rows:
+        return render(node)  # a plain scalar leaf: just show its value
+
+    # virtual children — rel down-edges; listed but never nested into the value
+    if root is not None and segs is not None:
+        for name, ptr in virtual_children(node).items():
+            try:
+                target = get_node(root, follow_pointer(root, segs, ptr))
+                disp.append((name, type_label(target), f"rel → {ptr}"))
+            except (KeyError, IndexError, ValueError):
+                disp.append((name, "-", f"rel → {ptr} (unresolved)"))
+
+    if not disp:
         return "(empty)"
-    disp = [(name, type_label(child), child.concrete or "-") for name, child in rows]
     nw = max(len("NAME"), *(len(d[0]) for d in disp))
     tw = max(len("TYPE"), *(len(d[1]) for d in disp))
     lines = [f"{'NAME':<{nw}}  {'TYPE':<{tw}}  CONCRETE"]
@@ -647,9 +742,11 @@ class Shell:
     def prompt(self) -> str:
         return f"{self.name}:{format_path(self.path)}> "
 
+    def segs_at(self, arg: str | None):
+        return self.path if not arg else navigate(self.root, self.path, arg)
+
     def node_at(self, arg: str | None) -> Node:
-        segs = self.path if not arg else navigate(self.root, self.path, arg)
-        return get_node(self.root, segs)
+        return get_node(self.root, self.segs_at(arg))
 
     def run(self):
         print(f"walking {self.name!r}  ({self.root.concrete or '-'}, {type_label(self.root)})")
@@ -677,7 +774,8 @@ class Shell:
         elif cmd == "pwd":
             print(format_path(self.path))
         elif cmd == "ls":
-            print(list_children(self.node_at(arg)))
+            segs = self.segs_at(arg)
+            print(list_children(get_node(self.root, segs), self.root, segs))
         elif cmd == "cd":
             self.path = navigate(self.root, self.path, arg)
         elif cmd == "cat":

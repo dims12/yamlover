@@ -33,7 +33,7 @@ $ python walker.py PATH        # PATH defaults to the current directory
 | command       | what it does                                            |
 |---------------|---------------------------------------------------------|
 | `ls [path]`   | list a node's children — name, JSON-Schema type, concrete representation |
-| `cd <path>`   | move to a node — JSON-path style: `..`, `/a/b`, `a[0]/b`  |
+| `cd <path>`   | move to a node: `/a/b`, `a[0]/b`, `..` (up), `^name` (up a named parent) |
 | `pwd`         | print the current logical path                          |
 | `cat [path]`  | print the value at a node                               |
 | `tree [path]` | print the subtree                                       |
@@ -48,6 +48,27 @@ The prompt and `pwd` show the current location in **JSON-path** form, so object
 keys and array indices are distinguishable — e.g. `yamlover:/examples/10-array-of-files[0]>`
 (index `[0]`) versus `.../10-array-of-files` (key). The same syntax works as a `cd`
 argument.
+
+`cd` walks **down** with `/name` (and `[n]` for array indices) and **up** with
+`..` (the primary parent) or **`^name`** (a *named* parent edge from a node's
+`x-yamlover.rel`). Up-edges are what make the tree a DAG: in
+`examples/14-genealogy-dag` every person has a `father` (the containment parent)
+and a `mother` (a cross-edge), so from `enoch` you can ascend either way:
+
+```console
+$ printf 'cd adam/cain/enoch\ncd ^mother\npwd\n' | python walker.py ../../examples/14-genealogy-dag
+/adam/azura
+```
+
+`^father` undoes the last descent; `^mother` jumps to the maternal node. An
+absolute `rel` pointer (`/adam/azura`) is resolved against the enclosing yamlover
+entity, so it works regardless of where the walker was launched.
+
+`rel` also carries **virtual children** — keys prefixed with `.` are *down*-edges
+(the dual of `^`). `ls` lists them and `cd <name>` follows them, but they are
+**not** nested into the materialized value (they're relations, not containment).
+So `eve`, who has no dict children, still "has" children: `ls` on her shows
+`cain`/`seth`/`azura` as `rel → /adam/…`, and `cd cain` jumps to the real node.
 
 `json` and `yaml` serialize the subtree at the current node (or `[path]`) into
 that one concrete representation, regardless of how the data is physically stored —

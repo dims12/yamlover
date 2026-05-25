@@ -97,3 +97,12 @@ properties:
           inlined — $defs and $ref resolved in schema coordinates.
         x-yamlover:
           concrete: yamlover
+      14-genealogy-dag:
+        description: >-
+          A small genealogy: the containment tree is the paternal line, and each
+          person names a second parent (mother) via x-yamlover.rel and ^ up-edges.
+          Females are leaves (dict children are paternal), so it is a DAG — e.g.
+          azura is both adam's child and enoch's mother. Mothers regain children
+          via .-prefixed virtual down-edges, listed/navigable but not nested.
+        x-yamlover:
+          concrete: yamlover
