@@ -20,8 +20,8 @@ Every node is annotated with its concrete representation under
 | `file/yaml` · `file/json` · `file/binary` | a value stored in its own file, per the owning schema |
 
 A node's own schema is preserved verbatim (including `const`, `format`,
-`prefixItems`, `file-name`, …); parent context such as `description` and
-`file-name` is folded in, and undescribed non-hidden files are surfaced as
+`prefixItems`, `path`, …); parent context such as `description` and
+`path` is folded in, and undescribed non-hidden files are surfaced as
 extra properties (hidden entries like `.git` / `.yamlover` are skipped).
 
 ## Requirements
@@ -50,15 +50,15 @@ prefixItems:
 - type: string
   x-yamlover:
     concrete: file/yaml
-    file-name: anyfile01
+    path: anyfile01
 - type: integer
   x-yamlover:
     concrete: file/yaml
-    file-name: alsoany02
+    path: alsoany02
 - type: boolean
   x-yamlover:
     concrete: file/json
-    file-name: andany03.json
+    path: andany03.json
 items: false
 x-yamlover:
   concrete: yamlover

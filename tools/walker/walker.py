@@ -100,7 +100,7 @@ def resolve(schema, container: str, default_name: str | None) -> Node:
     """Resolve a JSON-Schema fragment to a logical :class:`Node`.
 
     container     directory holding this node's file(s)
-    default_name  file/subdir name when ``x-yamlover.file-name`` is absent
+    default_name  file/subdir name when ``x-yamlover.path`` is absent
                   (the property key or array index); ``None`` at the root
     """
     if schema is None:
@@ -110,7 +110,7 @@ def resolve(schema, container: str, default_name: str | None) -> Node:
 
     xy = schema.get("x-yamlover") or {}
     concrete = xy.get("concrete")
-    name = xy.get("file-name") or default_name
+    name = xy.get("path") or default_name
     is_file = bool(concrete) and concrete.startswith("file/")
 
     stype = schema.get("type")
@@ -131,7 +131,7 @@ def resolve(schema, container: str, default_name: str | None) -> Node:
         for key, child in (schema.get("properties") or {}).items():
             children[key] = resolve(child, container, key)
             cxy = (child.get("x-yamlover") if isinstance(child, dict) else None) or {}
-            consumed.add(cxy.get("file-name") or key)
+            consumed.add(cxy.get("path") or key)
         # also surface undescribed files/dirs that are physically present
         children.update(extra_entries(container, consumed, children))
         return Node(children, concrete or "inline")

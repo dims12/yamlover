@@ -1,0 +1,9 @@
+properties:
+  x:
+    type: integer
+  y:
+    type: integer
+  dx:
+    type: integer
+  dy:
+    type: integer

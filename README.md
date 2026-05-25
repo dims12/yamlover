@@ -1,15 +1,22 @@
 # yamlover
 
-**yamlover** stands for **YAML Overlay** — not "Yam lover". It is a YAML layer
+`yamlover` is a materialization "language", that supersedes `YAML` and `JSON` and
+supports both file and filesystem storage of tree- and DAG-like data structeres.
+
+**yamlover** stands for **YAML Overlay** — not "Yam lover". It means YAML layer
 laid *over* the filesystem.
 
-The goal of the project is to define a **unified approach to represent DAGs**
-(directed acyclic graphs) with **filesystem**, **JSON**, and **YAML** files,
-interchangeably. None of these is the "real" form and the others copies — they
-are all equally valid *concrete representations* of the same DAG: of its nodes
-and of the structure that connects them. You can navigate a graph with
-`cd`/`ls`, edit it with a text editor, or load it as a single structured
-document, and it all means the same thing.
+The project has the following goals
+
+- define a way to store JSON-like data structures in a filesystem trees
+- be able to validate directory content by JSON schema
+- extend JSON schema for YAML and directories
+- support not only trees, but also directed acyclic graphs (DAGs)
+- support mind mapping storage
+- support metadata and tagging software
+- support control of LLM agents
+- support reference management for scientific paper research
+- define a way to navigate JSONs and YAMLs in cd/ls manner
 
 > **Status:** design / specification. No implementation yet — this document
 > describes the model.
@@ -97,17 +104,17 @@ A node's value can be supplied in either of two ways:
     keyword then gives their interpretation (e.g. `int32/le`, `image/png`). (See
     `examples/entity04` and `examples/entity08`.)
 
-  By default the file is named after the key. `x-yamlover.file-name` overrides
+  By default the file is named after the key. `x-yamlover.path` overrides
   that, letting the schema *overlay* a file that already has some other name (see
   `examples/entity06`–`entity07`, which describe an existing `somefile.yaml`).
 
 **Structured values** (mappings and sequences) are materialized as named
 subdirectories or sibling files, each its own node — or collapsed into a single
-file via `concrete`/`file-name`, as `examples/entity07` does for a whole mapping.
+file via `concrete`/`path`, as `examples/entity07` does for a whole mapping.
 
 **Sequences** need an explicit order, since directory entries have none. The
 schema's `prefixItems` list *is* that order: an element's position in the list is
-its index, and its `x-yamlover.file-name` binds it to a file — whose name on disk
+its index, and its `x-yamlover.path` binds it to a file — whose name on disk
 is therefore arbitrary. See `examples/entity09`, an array `["Alice", 42, true]`
 whose elements live in files named `anyfile01`, `alsoany02`, and `andany03.json`.
 Because the schema alone defines the sequence, a file the schema does not describe

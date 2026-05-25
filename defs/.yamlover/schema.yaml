@@ -1,0 +1,5 @@
+properties:
+  image-region.yaml:
+    x-yamlover:
+      concrete: file/yaml
+      anchor-def: image-region

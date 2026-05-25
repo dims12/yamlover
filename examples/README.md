@@ -204,14 +204,14 @@ A directory that contains:
   type: integer
   x-yamlover:
     concrete: file/yaml
-    file-name: somefile.yaml
+    path: somefile.yaml
   ```
 
 Here the whole entity is a *scalar* (an integer), so the schema sits at the root
 rather than under `properties`. `x-yamlover.concrete: file/yaml` says the value
-lives in its own file, encoded as YAML, and `x-yamlover.file-name: somefile.yaml`
+lives in its own file, encoded as YAML, and `x-yamlover.path: somefile.yaml`
 names exactly which file.
-That explicit `file-name` is what makes this an overlay: the data file can keep
+That explicit `path` is what makes this an overlay: the data file can keep
 any name it already had (`somefile.yaml`), and the `.yamlover/` schema is dropped
 alongside it to describe how to read it — without renaming or moving the file.
 
@@ -259,17 +259,17 @@ A directory that contains:
   type: object
   x-yamlover:
     concrete: file/yaml
-    file-name: somefile.yaml
+    path: somefile.yaml
   ```
 
 The node is an *object* (`type: object`), but rather than giving it `properties`
 mapped to per-child files (as [entity05](#entity05) does), the schema declares
-`x-yamlover.concrete: file/yaml` with `x-yamlover.file-name: somefile.yaml` — so the
+`x-yamlover.concrete: file/yaml` with `x-yamlover.path: somefile.yaml` — so the
 entire mapping is stored *collapsed* inside one YAML file. Whereas
 [entity05](#entity05) expands the same object into one file per child, here all
 the keys live together in a single file. Per the spec, a file and a subdirectory
 are equivalent ways to represent the same node; this is the collapsed-into-a-file
-form, and `file-name` lets that file keep an arbitrary name while the `.yamlover/`
+form, and `path` lets that file keep an arbitrary name while the `.yamlover/`
 schema overlays it.
 
 # entity08
@@ -390,22 +390,22 @@ A directory that contains:
     - type: string
       x-yamlover:
         concrete: file/yaml
-        file-name: anyfile01
+        path: anyfile01
     - type: integer
       x-yamlover:
         concrete: file/yaml
-        file-name: alsoany02
+        path: alsoany02
     - type: boolean
       x-yamlover:
         concrete: file/json
-        file-name: andany03.json
+        path: andany03.json
   items: false
   ```
 
 The key problem an array poses on a filesystem is **order** — directory entries
 have none. yamlover solves it with JSON Schema's `prefixItems`: the *position* of
 each entry in that list is the element's index (0, 1, 2), and its
-`x-yamlover.file-name` says which file on disk holds that element. So the file
+`x-yamlover.path` says which file on disk holds that element. So the file
 names are arbitrary (`anyfile01`, `alsoany02`, `andany03.json`) — the schema, not
 the filesystem ordering, fixes the sequence. (This is one concrete answer to the
 *Sequences / ordering* open question in the top-level spec.)

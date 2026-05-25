@@ -35,7 +35,7 @@ def collect(path: str, parent_prop=None) -> dict:
     """Build the schema for the entity at *path*.
 
     parent_prop  the schema fragment the parent used for this child (carrying
-                 contextual metadata such as ``description`` and ``file-name``),
+                 contextual metadata such as ``description`` and ``path``),
                  or ``None`` at the root / for an undescribed entry.
     """
     if os.path.isdir(path):
@@ -93,11 +93,11 @@ def expand_children(schema: dict, container: str) -> dict:
 
 
 def apply_parent_meta(schema: dict, parent_prop) -> dict:
-    """Fold the parent's contextual metadata (description, file-name) onto a node."""
+    """Fold the parent's contextual metadata (description, path) onto a node."""
     if isinstance(parent_prop, dict):
         pxy = parent_prop.get("x-yamlover") or {}
-        if "file-name" in pxy:
-            schema.setdefault("x-yamlover", {})["file-name"] = pxy["file-name"]
+        if "path" in pxy:
+            schema.setdefault("x-yamlover", {})["path"] = pxy["path"]
         if "description" in parent_prop and "description" not in schema:
             schema = {"description": parent_prop["description"], **schema}
     return schema
@@ -105,7 +105,7 @@ def apply_parent_meta(schema: dict, parent_prop) -> dict:
 
 def child_name(cprop, default: str) -> str:
     xy = (cprop.get("x-yamlover") if isinstance(cprop, dict) else None) or {}
-    return xy.get("file-name") or default
+    return xy.get("path") or default
 
 
 def read_value(path: str):

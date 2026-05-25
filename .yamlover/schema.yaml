@@ -5,7 +5,7 @@ properties:
     description: Defines a set of reusable templates
     x-yamlover:
       concrete: dir
-      file-name: defs
+      path: defs
   examples:
     description: Contains example configurations for Yamlover
     x-yamlover:
@@ -44,7 +44,7 @@ properties:
       entity06:
         description: >-
           A yamlover overlay over an existing YAML file — a scalar integer
-          stored in somefile.yaml, named via x-yamlover.file-name.
+          stored in somefile.yaml, named via x-yamlover.path.
         x-yamlover:
           concrete: yamlover
       entity07:
@@ -63,7 +63,7 @@ properties:
       entity09:
         description: >-
           An array (sequence) encoded as a yamlover node — each element in its
-          own file, ordered by prefixItems and named via x-yamlover.file-name,
+          own file, ordered by prefixItems and named via x-yamlover.path,
           with per-element concrete encodings (file/yaml and file/json).
         x-yamlover:
           concrete: yamlover
