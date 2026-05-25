@@ -40,11 +40,11 @@ $ python collector.py [PATH] [-f yaml|json]      # PATH defaults to .
 
 ## Example
 
-Collecting `examples/entity09` — an array whose elements live in separate files
+Collecting `examples/10-array-of-files` — an array whose elements live in separate files
 — yields a single self-contained schema:
 
 ```console
-$ python collector.py ../../examples/entity09 -f yaml
+$ python collector.py ../../examples/10-array-of-files -f yaml
 type: array
 prefixItems:
 - type: string

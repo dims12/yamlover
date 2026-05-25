@@ -34,18 +34,26 @@ $ python walker.py PATH        # PATH defaults to the current directory
 | `pwd`         | print the current logical path                          |
 | `cat [path]`  | print the value at a node                               |
 | `tree [path]` | print the subtree                                       |
+| `json [path]` | print the subtree as JSON                               |
+| `yaml [path]` | print the subtree as YAML                               |
 | `help`        | show the command list                                   |
 | `exit`/`quit` | leave                                                   |
 
 The prompt and `pwd` show the current location in **JSON-path** form, so object
-keys and array indices are distinguishable — e.g. `yamlover:/examples/entity09[0]>`
-(index `[0]`) versus `.../entity09` (key). The same syntax works as a `cd`
+keys and array indices are distinguishable — e.g. `yamlover:/examples/10-array-of-files[0]>`
+(index `[0]`) versus `.../10-array-of-files` (key). The same syntax works as a `cd`
 argument.
+
+`json` and `yaml` serialize the subtree at the current node (or `[path]`) into
+that one concrete representation, regardless of how the data is physically stored —
+so a tree spread across per-child files, a collapsed file, and `const`-pinned
+schema values all print as a single document. A binary leaf becomes `!!binary` in
+`yaml`; since binary has no JSON form, `json` reports an error on such a subtree.
 
 Commands can also be piped in for scripting:
 
 ```console
-$ printf 'cd markup[0]\nls\ncat x\n' | python walker.py ../../examples/entity08
+$ printf 'cd markup[0]\nls\ncat x\n' | python walker.py ../../examples/11-image-with-markup
 ```
 
 Each row of `ls` reports the node's JSON-Schema **type** (`object`, `array`,
@@ -58,8 +66,8 @@ is stored:
 | `dir` | a plain directory (no `.yamlover/`) |
 | `file` | a plain file (no schema) |
 | `file/yaml` · `file/json` · `file/binary` | a value in its own file, with that encoding |
-| `const` | a value pinned inline in the schema |
-| `inline` | structure defined in the schema, or living inside a parent's collapsed file |
+| `yaml` · `json` | a value *inside* a parent's collapsed document file — the file's interior |
+| `yaml-schema/instantiate` | a value pinned or defined **in the schema**, which is YAML (`const`, or a structure built from `const` leaves) — would be `json-schema/instantiate` for a JSON schema, and `file/{yaml,json}-schema/instantiate` for a standalone schema file |
 
 For an object node, `ls` lists both the schema-described properties **and** any
 ordinary files/directories that physically exist but aren't described (a stray
@@ -75,23 +83,23 @@ plain file, a plain directory, and yamlover nodes:
 $ printf 'ls\n' | python walker.py ../../examples
 walking 'examples'  (dir, object)
 ...
-NAME       TYPE     CONCRETE
-README.md  string   file
-entity01   integer  file
-entity02   integer  yamlover
-entity03   object   dir
-entity04   object   yamlover
+NAME                    TYPE     CONCRETE
+01-object-in-schema     object   yamlover
 ...
-entity09   array    yamlover
+05-scalar-as-file       integer  file
+06-plain-dir            object   dir
+...
+10-array-of-files       array    yamlover
+README.md               string   file
 ```
 
-Walking into `examples/entity09` — an array whose elements live in files named
+Walking into `examples/10-array-of-files` — an array whose elements live in files named
 `anyfile01`, `alsoany02`, `andany03.json` — shows the per-element encodings and
 the order fixed by `prefixItems`:
 
 ```console
-$ printf 'ls\ntree\n' | python walker.py ../../examples/entity09
-walking 'entity09'  (yamlover, array)
+$ printf 'ls\ntree\n' | python walker.py ../../examples/10-array-of-files
+walking '10-array-of-files'  (yamlover, array)
 ...
 NAME  TYPE     CONCRETE
 [0]   string   file/yaml

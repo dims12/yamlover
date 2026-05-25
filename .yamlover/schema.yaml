@@ -11,59 +11,74 @@ properties:
     x-yamlover:
       concrete: dir
     properties:
-      entity01:
+      01-object-in-schema:
         description: >-
-          The file representation — a plain text file whose content (30) is
-          valid YAML.
-        x-yamlover:
-          concrete: file/yaml
-      entity02:
-        description: >-
-          The yamlover representation — a directory whose schema pins the only
-          valid value to 30 with const.
+          A yamlover node whose whole mapping is pinned inside the schema with
+          const — the schema counterpart of 04-object-in-dir/02-object-in-yaml; no data file
+          exists, the values live in the schema itself.
         x-yamlover:
           concrete: yamlover
-      entity03:
+
+      02-object-in-yaml:
         description: >-
-          The dir representation — a plain directory with no .yamlover; the
-          child age is a file holding 30.
-        x-yamlover:
-          concrete: dir
-      entity04:
-        description: >-
-          A yamlover node with a scalar child (age) stored as a little-endian
-          int32 binary file (concrete file/binary, format int32/le).
+          A yamlover node whose whole mapping is collapsed into a single YAML
+          file (somefile.yaml); the object counterpart of 08-scalar-file-overlay.
         x-yamlover:
           concrete: yamlover
-      entity05:
+      03-object-in-json:
+        description: >-
+          The JSON-file twin of 02-object-in-yaml — the same mapping collapsed into a
+          single JSON file (somefile.json, concrete file/json); its keys live in
+          the json interior concrete.
+        x-yamlover:
+          concrete: yamlover
+      04-object-in-dir:
         description: >-
           A yamlover node whose scalar children (name, age, isAdmin) are each
           stored in their own YAML-text file (concrete file/yaml).
         x-yamlover:
           concrete: yamlover
-      entity06:
+      05-scalar-as-file:
+        description: >-
+          The file representation — a plain text file whose content (30) is
+          valid YAML.
+        x-yamlover:
+          concrete: file/yaml
+      06-plain-dir:
+        description: >-
+          The dir representation — a plain directory with no .yamlover; the
+          child age is a file holding 30.
+        x-yamlover:
+          concrete: dir
+      07-scalar-in-schema:
+        description: >-
+          The yamlover representation — a directory whose schema pins the only
+          valid value to 30 with const.
+        x-yamlover:
+          concrete: yamlover
+      08-scalar-file-overlay:
         description: >-
           A yamlover overlay over an existing YAML file — a scalar integer
           stored in somefile.yaml, named via x-yamlover.path.
         x-yamlover:
           concrete: yamlover
-      entity07:
+      09-scalar-as-binary:
         description: >-
-          A yamlover node whose whole mapping is collapsed into a single YAML
-          file (somefile.yaml); the object counterpart of entity06.
+          A yamlover node with a scalar child (age) stored as a little-endian
+          int32 binary file (concrete file/binary, format int32/le).
         x-yamlover:
           concrete: yamlover
-      entity08:
-        description: >-
-          A yamlover node mixing a binary file child (object_detection.png,
-          file/binary, image/png) with a markup array pinned inline in the
-          schema with const.
-        x-yamlover:
-          concrete: yamlover
-      entity09:
+      10-array-of-files:
         description: >-
           An array (sequence) encoded as a yamlover node — each element in its
           own file, ordered by prefixItems and named via x-yamlover.path,
           with per-element concrete encodings (file/yaml and file/json).
+        x-yamlover:
+          concrete: yamlover
+      11-image-with-markup:
+        description: >-
+          A yamlover node mixing a binary file child (object_detection.png,
+          file/binary, image/png) with a markup array pinned inline in the
+          schema with const.
         x-yamlover:
           concrete: yamlover

@@ -1,123 +1,193 @@
 This directory contains samples of yamlover entities. Each one demonstrates a
 different **concrete representation** — a different way the same kind of data can
-live on the filesystem, in a YAML file, or in a JSON file.
+live on the filesystem, in a YAML file, or in a JSON file. They are numbered so
+they sort into reading order.
 
-The early entities keep the data trivial (the value **30**, alone or under a key)
-so the representations can be compared directly; the later ones use richer data —
-a mapping, a binary image, an array — to show features a bare scalar can't.
+The first four (`01`–`04`) hold the **same object** `{name, age, isAdmin}` in the
+four core concretes — pinned in the schema, collapsed into a YAML file, collapsed
+into a JSON file, and expanded into a directory — so the representations can be
+compared directly. The rest (`05`–`11`) use trivial data (the value **30**, alone
+or under a key) or richer data — a binary value, an array, an image with markup —
+to isolate one further feature each.
 
-# entity01
+# 01-object-in-schema
 
-This entity is in the **file** concrete representation.
-
-YAML concrete representation:
-
-```yaml
-30
-```
-
-JSON concrete representation:
-
-```json
-30
-```
-
-file concrete representation:
-
-A regular text file named `entity01` with content `30`, which is valid YAML.
-
-# entity02
-
-This entity is in the **yamlover** concrete representation — a directory with a
-`.yamlover/` subdirectory.
+This entity is in the **yamlover** concrete representation. It is the *schema*
+counterpart of [04-object-in-dir](#04-object-in-dir) and [02-object-in-yaml](#02-object-in-yaml): the **same**
+object is stored entirely **inside the schema**, pinned value-by-value with
+`const:`, so no data file exists at all.
 
 YAML concrete representation:
 
 ```yaml
-30
-```
-
-JSON concrete representation:
-
-```json
-30
-```
-
-yamlover concrete representation:
-
-A directory that contains a `.yamlover/schema.yaml` file. This file is a
-Yamlover JSON Schema, expressed in YAML format. The schema (`const: 30`)
-describes that the only possible value is 30.
-
-# entity03
-
-This entity is in the **dir** concrete representation — a directory
-*without* a `.yamlover/` subdirectory.
-
-YAML concrete representation:
-
-```yaml
+name: Alice
 age: 30
+isAdmin: true
 ```
 
 JSON concrete representation:
 
 ```json
 {
-  "age": 30
+  "name": "Alice",
+  "age": 30,
+  "isAdmin": true
 }
 ```
 
-dir concrete representation:
+yamlover concrete representation:
 
-The directory contains one text file named `age`, whose content is the valid
-YAML scalar `30`.
+A directory that contains *only*:
 
-# entity04
+- `.yamlover/schema.yaml` — a Yamlover JSON Schema, expressed in YAML, that pins
+  every property to a constant:
 
-This entity is in the **yamlover** concrete representation, but the scalar child
-`age` is stored as a *binary* file rather than as inline text.
+  ```yaml
+  properties:
+    name:
+      const: Alice
+    age:
+      const: 30
+    isAdmin:
+      const: true
+  ```
+
+There are no `name`, `age`, or `isAdmin` files (as in [04-object-in-dir](#04-object-in-dir)), and
+no collapsed `somefile.yaml` (as in [02-object-in-yaml](#02-object-in-yaml)) either — the directory
+holds nothing but its `.yamlover/`. Every value lives in the schema. This is the
+object-sized version of [07-scalar-in-schema](#07-scalar-in-schema), which pins a bare scalar with
+`const: 30`: where 07-scalar-in-schema pins one value, 01-object-in-schema pins a whole mapping.
+
+The three entities close a triangle over the *same* data
+`{name: Alice, age: 30, isAdmin: true}` — three ways to materialize one object:
+
+| entity | where the values live | form |
+|--------|----------------------|------|
+| [04-object-in-dir](#04-object-in-dir) | one file per child (`name`, `age`, `isAdmin`) | expanded **directory** |
+| [02-object-in-yaml](#02-object-in-yaml) | a single collapsed file (`somefile.yaml`) | one **YAML file** |
+| **01-object-in-schema** | the schema itself (`const:` per property) | the **schema** |
+
+All three are the **yamlover** concrete representation; what differs is *where the
+bytes sit*. Because a JSON Schema whose leaves are all `const:` **is** the
+instance it validates (see the top-level spec, *[Schema ↔ instance
+correspondence](../README.md#schema--instance-correspondence)*), the schema can
+carry the data outright — the limiting case where the description and the thing
+described coincide.
+
+# 02-object-in-yaml
+
+This entity is in the **yamlover** concrete representation. It is the *object*
+counterpart of [08-scalar-file-overlay](#08-scalar-file-overlay): a whole mapping is collapsed into a single
+overlaid file instead of being expanded into one file per child (as in
+[04-object-in-dir](#04-object-in-dir)).
 
 YAML concrete representation:
 
 ```yaml
-age: !!binary HgAAAA==
+name: Alice
+age: 30
+isAdmin: true
 ```
 
 JSON concrete representation:
 
-```json5
-// impossible
+```json
+{
+  "name": "Alice",
+  "age": 30,
+  "isAdmin": true
+}
 ```
 
 yamlover concrete representation:
 
 A directory that contains:
 
-- `age` — a 4-byte file holding `30` as a little-endian `int32` (`1e 00 00 00`).
-- `.yamlover/schema.yaml` — a Yamlover JSON Schema, expressed in YAML, describing
-  how to decode that file:
+- `somefile.yaml` — a text file holding the whole object as a YAML mapping:
 
   ```yaml
-  properties:
-    age:
-      type: binary
-      format: int32/le
-      x-yamlover:
-        concrete: file/binary
+  name: Alice
+  age: 30
+  isAdmin: true
   ```
 
-`x-yamlover.concrete: file/binary` says the `age` child lives in its own file. The
-suffix after the slash is the file's *encoding*: yamlover spells `concrete` as one
-of `file/binary`, `file/yaml`, or `file/json` so a reader knows how to parse the
-file before any schema `type`/`format` is applied. Here the encoding is
-`file/binary` (raw bytes), and `format: int32/le` says how to read those bytes —
-a little-endian 32-bit integer. `format` is a standard, open JSON Schema keyword
-used here for a binary interpretation, while `type: binary` and the `x-yamlover`
-namespace are yamlover extensions (a binary value has no JSON form — hence the
-`// impossible` above — but YAML carries it via `!!binary`).
+- `.yamlover/schema.yaml` — a Yamlover JSON Schema, expressed in YAML, describing
+  the entity:
 
-# entity05
+  ```yaml
+  type: object
+  x-yamlover:
+    concrete: file/yaml
+    path: somefile.yaml
+  ```
+
+The node is an *object* (`type: object`), but rather than giving it `properties`
+mapped to per-child files (as [04-object-in-dir](#04-object-in-dir) does), the schema declares
+`x-yamlover.concrete: file/yaml` with `x-yamlover.path: somefile.yaml` — so the
+entire mapping is stored *collapsed* inside one YAML file. Whereas
+[04-object-in-dir](#04-object-in-dir) expands the same object into one file per child, here all
+the keys live together in a single file. Per the spec, a file and a subdirectory
+are equivalent ways to represent the same node; this is the collapsed-into-a-file
+form, and `path` lets that file keep an arbitrary name while the `.yamlover/`
+schema overlays it.
+
+# 03-object-in-json
+
+This entity is in the **yamlover** concrete representation. It is the JSON-file
+twin of [02-object-in-yaml](#02-object-in-yaml): the same mapping is collapsed into a single
+overlaid file, but that file is **JSON** (`somefile.json`) rather than YAML.
+
+YAML concrete representation:
+
+```yaml
+name: Alice
+age: 30
+isAdmin: true
+```
+
+JSON concrete representation:
+
+```json
+{
+  "name": "Alice",
+  "age": 30,
+  "isAdmin": true
+}
+```
+
+yamlover concrete representation:
+
+A directory that contains:
+
+- `somefile.json` — a text file holding the whole object as strict JSON:
+
+  ```json
+  {
+    "name": "Alice",
+    "age": 30,
+    "isAdmin": true
+  }
+  ```
+
+- `.yamlover/schema.yaml` — a Yamlover JSON Schema, expressed in YAML, describing
+  the entity:
+
+  ```yaml
+  type: object
+  x-yamlover:
+    concrete: file/json
+    path: somefile.json
+  ```
+
+The only difference from [02-object-in-yaml](#02-object-in-yaml) is the data file's encoding:
+`x-yamlover.concrete` is `file/json` rather than `file/yaml`, so the collapsed file
+is read by a strict JSON parser. Everything *inside* that file is therefore in the
+**json** concrete representation (the interior of a JSON file), just as
+[02-object-in-yaml](#02-object-in-yaml)'s keys are in the **yaml** concrete — the walker reports
+`json` for `name`/`age`/`isAdmin` here and `yaml` there. The schema stays YAML
+(`.yamlover/schema.yaml`); only the encoding of the overlaid data file changes.
+
+# 04-object-in-dir
 
 This entity is in the **yamlover** concrete representation, but the scalar children
 are stored as files in YAML format.
@@ -169,13 +239,80 @@ A directory that contains:
   ```
 
 `x-yamlover.concrete: file/yaml` says each child lives in its own file, encoded as
-YAML text. Unlike [entity04](#entity04)'s `file/binary`, the bytes are parsed as
+YAML text. Unlike [09-scalar-as-binary](#09-scalar-as-binary)'s `file/binary`, the bytes are parsed as
 YAML — the file content is itself a valid YAML scalar (`"Alice"`, `30`, `true`),
 so no `format` is needed. The `type` of each property (`string`, `integer`,
 `boolean`) is a standard JSON Schema keyword, while the `x-yamlover` namespace is
 the yamlover extension that points the child at its own file.
 
-# entity06
+# 05-scalar-as-file
+
+This entity is in the **file** concrete representation.
+
+YAML concrete representation:
+
+```yaml
+30
+```
+
+JSON concrete representation:
+
+```json
+30
+```
+
+file concrete representation:
+
+A regular text file named `05-scalar-as-file` with content `30`, which is valid YAML.
+
+# 06-plain-dir
+
+This entity is in the **dir** concrete representation — a directory
+*without* a `.yamlover/` subdirectory.
+
+YAML concrete representation:
+
+```yaml
+age: 30
+```
+
+JSON concrete representation:
+
+```json
+{
+  "age": 30
+}
+```
+
+dir concrete representation:
+
+The directory contains one text file named `age`, whose content is the valid
+YAML scalar `30`.
+
+# 07-scalar-in-schema
+
+This entity is in the **yamlover** concrete representation — a directory with a
+`.yamlover/` subdirectory.
+
+YAML concrete representation:
+
+```yaml
+30
+```
+
+JSON concrete representation:
+
+```json
+30
+```
+
+yamlover concrete representation:
+
+A directory that contains a `.yamlover/schema.yaml` file. This file is a
+Yamlover JSON Schema, expressed in YAML format. The schema (`const: 30`)
+describes that the only possible value is 30.
+
+# 08-scalar-file-overlay
 
 This entity is in the **yamlover** concrete representation, used here to
 *overlay* an existing directory that already contains a YAML file.
@@ -215,64 +352,113 @@ That explicit `path` is what makes this an overlay: the data file can keep
 any name it already had (`somefile.yaml`), and the `.yamlover/` schema is dropped
 alongside it to describe how to read it — without renaming or moving the file.
 
-# entity07
+# 09-scalar-as-binary
 
-This entity is in the **yamlover** concrete representation. It is the *object*
-counterpart of [entity06](#entity06): a whole mapping is collapsed into a single
-overlaid file instead of being expanded into one file per child (as in
-[entity05](#entity05)).
+This entity is in the **yamlover** concrete representation, but the scalar child
+`age` is stored as a *binary* file rather than as inline text.
 
 YAML concrete representation:
 
 ```yaml
-name: Alice
-age: 30
-isAdmin: true
+age: !!binary HgAAAA==
 ```
 
 JSON concrete representation:
 
-```json
-{
-  "name": "Alice",
-  "age": 30,
-  "isAdmin": true
-}
+```json5
+// impossible
 ```
 
 yamlover concrete representation:
 
 A directory that contains:
 
-- `somefile.yaml` — a text file holding the whole object as a YAML mapping:
-
-  ```yaml
-  name: Alice
-  age: 30
-  isAdmin: true
-  ```
-
+- `age` — a 4-byte file holding `30` as a little-endian `int32` (`1e 00 00 00`).
 - `.yamlover/schema.yaml` — a Yamlover JSON Schema, expressed in YAML, describing
-  the entity:
+  how to decode that file:
 
   ```yaml
-  type: object
-  x-yamlover:
-    concrete: file/yaml
-    path: somefile.yaml
+  properties:
+    age:
+      type: binary
+      format: int32/le
+      x-yamlover:
+        concrete: file/binary
   ```
 
-The node is an *object* (`type: object`), but rather than giving it `properties`
-mapped to per-child files (as [entity05](#entity05) does), the schema declares
-`x-yamlover.concrete: file/yaml` with `x-yamlover.path: somefile.yaml` — so the
-entire mapping is stored *collapsed* inside one YAML file. Whereas
-[entity05](#entity05) expands the same object into one file per child, here all
-the keys live together in a single file. Per the spec, a file and a subdirectory
-are equivalent ways to represent the same node; this is the collapsed-into-a-file
-form, and `path` lets that file keep an arbitrary name while the `.yamlover/`
-schema overlays it.
+`x-yamlover.concrete: file/binary` says the `age` child lives in its own file. The
+suffix after the slash is the file's *encoding*: yamlover spells `concrete` as one
+of `file/binary`, `file/yaml`, or `file/json` so a reader knows how to parse the
+file before any schema `type`/`format` is applied. Here the encoding is
+`file/binary` (raw bytes), and `format: int32/le` says how to read those bytes —
+a little-endian 32-bit integer. `format` is a standard, open JSON Schema keyword
+used here for a binary interpretation, while `type: binary` and the `x-yamlover`
+namespace are yamlover extensions (a binary value has no JSON form — hence the
+`// impossible` above — but YAML carries it via `!!binary`).
 
-# entity08
+# 10-array-of-files
+
+This entity is in the **yamlover** concrete representation and shows how an
+**array** (sequence) is encoded: the node is `type: array`, and each element is
+stored in its own file. Whereas [11-image-with-markup](#11-image-with-markup)'s `markup` array is pinned
+inline in the schema, here the elements live on disk.
+
+YAML concrete representation:
+
+```yaml
+- Alice
+- 42
+- true
+```
+
+JSON concrete representation:
+
+```json
+["Alice", 42, true]
+```
+
+yamlover concrete representation:
+
+A directory that contains:
+
+- `anyfile01` — a text file holding the YAML scalar `Alice` (element 0).
+- `alsoany02` — a text file holding the YAML scalar `42` (element 1).
+- `andany03.json` — a text file holding the JSON scalar `true` (element 2).
+- `.yamlover/schema.yaml` — a Yamlover JSON Schema, expressed in YAML, describing
+  the array:
+
+  ```yaml
+  type: array
+  prefixItems:
+    - type: string
+      x-yamlover:
+        concrete: file/yaml
+        path: anyfile01
+    - type: integer
+      x-yamlover:
+        concrete: file/yaml
+        path: alsoany02
+    - type: boolean
+      x-yamlover:
+        concrete: file/json
+        path: andany03.json
+  items: false
+  ```
+
+The key problem an array poses on a filesystem is **order** — directory entries
+have none. yamlover solves it with JSON Schema's `prefixItems`: the *position* of
+each entry in that list is the element's index (0, 1, 2), and its
+`x-yamlover.path` says which file on disk holds that element. So the file
+names are arbitrary (`anyfile01`, `alsoany02`, `andany03.json`) — the schema, not
+the filesystem ordering, fixes the sequence. (This is one concrete answer to the
+*Sequences / ordering* open question in the top-level spec.)
+
+Each element also carries its own `concrete` encoding, and they need not match:
+`anyfile01` and `alsoany02` are `file/yaml`, while `andany03.json` is `file/json`
+(its `true` is read by a strict JSON parser). Finally, `items: false` closes the
+tuple — no elements beyond the three listed in `prefixItems` are allowed.
+
+# 11-image-with-markup
 
 This entity is in the **yamlover** concrete representation. It is a more
 realistic mix: one child is a **binary file** (a PNG image), and a sibling child
@@ -339,78 +525,16 @@ A directory that contains:
 
 Two storage strategies sit side by side here:
 
-- **`object_detection.png` lives in a file.** As in [entity04](#entity04),
+- **`object_detection.png` lives in a file.** As in [09-scalar-as-binary](#09-scalar-as-binary),
   `type: binary` + `x-yamlover.concrete: file/binary` say the child is raw bytes in
   its own file; `format: image/png` is the standard JSON Schema keyword giving the binary
-  interpretation (a real MIME type, rather than entity04's synthetic
+  interpretation (a real MIME type, rather than 09-scalar-as-binary's synthetic
   `int32/le`). Because it is binary, the entity has no JSON form — hence the
   `// impossible` above — though YAML can carry it via `!!binary`.
 - **`markup` is pinned in the schema.** No `markup` file exists on disk; the whole
   array is fixed inline with `const:`, the same "pinned in the schema" path the
-  spec describes for scalars (see [entity02](#entity02)), extended here to
+  spec describes for scalars (see [07-scalar-in-schema](#07-scalar-in-schema)), extended here to
   structured data. `prefixItems` validates the array position-by-position (a
   two-element tuple), and each item's `description` (`bus`, `car`) labels which
   detected object that box belongs to. The box coordinates `x`/`y`/`dx`/`dy` are
   the pinned values.
-
-# entity09
-
-This entity is in the **yamlover** concrete representation and shows how an
-**array** (sequence) is encoded: the node is `type: array`, and each element is
-stored in its own file. Whereas [entity08](#entity08)'s `markup` array is pinned
-inline in the schema, here the elements live on disk.
-
-YAML concrete representation:
-
-```yaml
-- Alice
-- 42
-- true
-```
-
-JSON concrete representation:
-
-```json
-["Alice", 42, true]
-```
-
-yamlover concrete representation:
-
-A directory that contains:
-
-- `anyfile01` — a text file holding the YAML scalar `Alice` (element 0).
-- `alsoany02` — a text file holding the YAML scalar `42` (element 1).
-- `andany03.json` — a text file holding the JSON scalar `true` (element 2).
-- `.yamlover/schema.yaml` — a Yamlover JSON Schema, expressed in YAML, describing
-  the array:
-
-  ```yaml
-  type: array
-  prefixItems:
-    - type: string
-      x-yamlover:
-        concrete: file/yaml
-        path: anyfile01
-    - type: integer
-      x-yamlover:
-        concrete: file/yaml
-        path: alsoany02
-    - type: boolean
-      x-yamlover:
-        concrete: file/json
-        path: andany03.json
-  items: false
-  ```
-
-The key problem an array poses on a filesystem is **order** — directory entries
-have none. yamlover solves it with JSON Schema's `prefixItems`: the *position* of
-each entry in that list is the element's index (0, 1, 2), and its
-`x-yamlover.path` says which file on disk holds that element. So the file
-names are arbitrary (`anyfile01`, `alsoany02`, `andany03.json`) — the schema, not
-the filesystem ordering, fixes the sequence. (This is one concrete answer to the
-*Sequences / ordering* open question in the top-level spec.)
-
-Each element also carries its own `concrete` encoding, and they need not match:
-`anyfile01` and `alsoany02` are `file/yaml`, while `andany03.json` is `file/json`
-(its `true` is read by a strict JSON parser). Finally, `items: false` closes the
-tuple — no elements beyond the three listed in `prefixItems` are allowed.

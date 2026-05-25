@@ -21,6 +21,8 @@ Then, at the prompt:
     pwd            show the current logical path
     cat [path]     print the value at a node
     tree [path]    print the subtree
+    json [path]    print the subtree as JSON
+    yaml [path]    print the subtree as YAML
     help           show this help
     exit | quit    leave
 """
@@ -40,6 +42,21 @@ except ImportError:  # pragma: no cover
 
 YAMLOVER_DIR = ".yamlover"
 SCHEMA_FILE = "schema.yaml"
+
+# A value pinned in the schema (via ``const``, or built from ``const`` leaves) is
+# *instantiated from the schema*. The schema's own encoding tags the concrete:
+# ``.yamlover/schema.yaml`` is YAML, hence ``yaml-schema/instantiate`` (a JSON
+# schema would give ``json-schema/instantiate``).
+SCHEMA_INSTANTIATE = "yaml-schema/instantiate"
+
+
+def interior(concrete: str | None) -> str:
+    """The interior representation of a collapsed document file.
+
+    A value living *inside* a ``file/yaml`` is in the ``yaml`` concrete (the
+    interior of a YAML file); inside a ``file/json`` it is ``json``.
+    """
+    return "json" if concrete == "file/json" else "yaml"
 
 
 # --------------------------------------------------------------------------- #
@@ -65,9 +82,10 @@ class Node:
 
     ``value`` is a ``dict[str, Node]`` (object), a ``list[Node]`` (array), or a
     scalar / :class:`Binary` (leaf). ``concrete`` records how the node is stored:
-    ``yamlover`` · ``dir`` · ``file`` · ``file/yaml`` · ``file/json`` ·
-    ``file/binary`` · ``const`` (pinned in the schema) · ``inline`` (defined in
-    the schema or inside a parent's collapsed file).
+    ``yamlover`` · ``dir`` · ``file`` (filesystem); ``file/yaml`` · ``file/json``
+    · ``file/binary`` (a value in its own file); ``yaml`` · ``json`` (inside a
+    parent's collapsed document file); ``yaml-schema/instantiate`` (pinned/defined
+    in the schema, which is YAML).
     """
 
     def __init__(self, value, concrete: str | None = None):
@@ -85,7 +103,7 @@ def load_entity(path: str) -> Node:
         if os.path.isfile(schema_path):
             with open(schema_path, encoding="utf-8") as fh:
                 schema = yaml.safe_load(fh)
-            node = resolve(schema, path, default_name=None)
+            node = resolve(schema, path, default_name=None, backed=True)
             node.concrete = "yamlover"  # this directory is itself a yamlover node
             return node
         # plain directory (no .yamlover/): an object of its visible entries
@@ -96,17 +114,21 @@ def load_entity(path: str) -> Node:
     return node
 
 
-def resolve(schema, container: str, default_name: str | None) -> Node:
+def resolve(schema, container: str, default_name: str | None, *, backed=False) -> Node:
     """Resolve a JSON-Schema fragment to a logical :class:`Node`.
 
     container     directory holding this node's file(s)
     default_name  file/subdir name when ``x-yamlover.path`` is absent
                   (the property key or array index); ``None`` at the root
+    backed        True only when this node *is* ``container`` (the directory's
+                  own node); then undescribed files in it are surfaced as extra
+                  children. False for objects defined inline in the schema (e.g.
+                  array items), which must not adopt the parent's stray files.
     """
     if schema is None:
         return Node(None, None)
     if "const" in schema:
-        return wrap(schema["const"], "const")
+        return wrap(schema["const"], SCHEMA_INSTANTIATE)
 
     xy = schema.get("x-yamlover") or {}
     concrete = xy.get("concrete")
@@ -117,7 +139,7 @@ def resolve(schema, container: str, default_name: str | None) -> Node:
     is_object = stype == "object" or "properties" in schema
     is_array = stype == "array" or "prefixItems" in schema
 
-    # A structured node collapsed into a single file (e.g. entity07).
+    # A structured node collapsed into a single file (e.g. 02-object-in-yaml).
     if (is_object or is_array) and is_file and name:
         return from_file(os.path.join(container, name), concrete, schema)
 
@@ -132,18 +154,22 @@ def resolve(schema, container: str, default_name: str | None) -> Node:
             children[key] = resolve(child, container, key)
             cxy = (child.get("x-yamlover") if isinstance(child, dict) else None) or {}
             consumed.add(cxy.get("path") or key)
-        # also surface undescribed files/dirs that are physically present
-        children.update(extra_entries(container, consumed, children))
-        return Node(children, concrete or "inline")
+        # also surface undescribed files/dirs physically present — but only when
+        # this node actually backs `container`, not for inline schema objects
+        if backed:
+            children.update(extra_entries(container, consumed, children))
+        # No concrete and no backing file: the structure is defined inline in the
+        # schema, i.e. instantiated from it.
+        return Node(children, concrete or SCHEMA_INSTANTIATE)
 
     if is_array:
         items = [
             resolve(child, container, str(idx))
             for idx, child in enumerate(schema.get("prefixItems") or [])
         ]
-        return Node(items, concrete or "inline")
+        return Node(items, concrete or SCHEMA_INSTANTIATE)
 
-    # A scalar stored in its own file (e.g. entity05 / entity06 / entity09).
+    # A scalar stored in its own file (e.g. 04-object-in-dir / 08-scalar-file-overlay / 10-array-of-files).
     if is_file and name:
         return from_file(os.path.join(container, name), concrete, schema)
 
@@ -151,9 +177,11 @@ def resolve(schema, container: str, default_name: str | None) -> Node:
 
 
 def from_file(path: str, concrete: str, schema) -> Node:
-    """Decode a file and wrap it; the node is the file, its contents are inline."""
+    """Decode a file and wrap it. The node *is* the file (tagged with its own
+    ``concrete``, e.g. ``file/yaml``); everything nested inside is the file's
+    interior — the ``yaml`` or ``json`` concrete."""
     value = decode_file(path, concrete, schema)
-    node = wrap(value, "inline")
+    node = wrap(value, interior(concrete))
     node.concrete = concrete
     return node
 
@@ -292,15 +320,40 @@ def format_path(segments) -> str:
 # --------------------------------------------------------------------------- #
 # Rendering
 # --------------------------------------------------------------------------- #
-def to_plain(node: Node):
+def to_plain(node: Node, binary: str = "repr"):
+    """Materialize a node's subtree as plain Python values.
+
+    ``binary`` chooses how a :class:`Binary` leaf is rendered: ``"repr"`` (a
+    human-readable string, the default — used by ``cat``/``tree``), ``"bytes"``
+    (the raw bytes, so PyYAML emits ``!!binary``), or ``"error"`` (raise, since
+    binary has no JSON form).
+    """
     v = node.value
     if isinstance(v, dict):
-        return {k: to_plain(c) for k, c in v.items()}
+        return {k: to_plain(c, binary) for k, c in v.items()}
     if isinstance(v, list):
-        return [to_plain(c) for c in v]
+        return [to_plain(c, binary) for c in v]
     if isinstance(v, Binary):
+        if binary == "bytes":
+            return v.data
+        if binary == "error":
+            raise ValueError("binary value has no JSON form (try 'yaml')")
         return repr(v)
     return v
+
+
+def to_yaml(node: Node) -> str:
+    """Serialize a node's subtree as YAML (binary leaves become ``!!binary``)."""
+    text = yaml.safe_dump(
+        to_plain(node, binary="bytes"), sort_keys=False, allow_unicode=True
+    )
+    # bare scalars come back with YAML's "\n..." document-end marker; drop it
+    return text.rstrip().removesuffix("\n...").rstrip()
+
+
+def to_json(node: Node) -> str:
+    """Serialize a node's subtree as JSON (raises if it holds binary)."""
+    return json.dumps(to_plain(node, binary="error"), indent=2, ensure_ascii=False)
 
 
 def render(node: Node) -> str:
@@ -391,7 +444,7 @@ class Shell:
             arg = arg.strip() or None
             try:
                 self.dispatch(cmd, arg)
-            except (KeyError, IndexError) as exc:
+            except (KeyError, IndexError, ValueError) as exc:
                 print(f"error: {exc}".replace('"', ""))
 
     def dispatch(self, cmd: str, arg: str | None):
@@ -410,6 +463,10 @@ class Shell:
         elif cmd == "tree":
             node = self.node_at(arg)
             print(render_tree(node) if is_container(node) else render(node))
+        elif cmd == "json":
+            print(to_json(self.node_at(arg)))
+        elif cmd == "yaml":
+            print(to_yaml(self.node_at(arg)))
         else:
             print(f"unknown command: {cmd} (try 'help')")
 
