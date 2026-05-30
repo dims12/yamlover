@@ -9,3 +9,6 @@ self-contained programs that demonstrate it.
   stored.
 - [`collector/`](collector/) — assemble a yamlover tree into a single Yamlover
   JSON Schema (inlining every per-directory schema), printed as YAML or JSON.
+- [`server/`](server/) — browse a yamlover tree in the web browser:
+  `npx yamlover <root>` serves a React SPA with a table-of-contents tree and a
+  per-node view (a TypeScript port of the walker read side).

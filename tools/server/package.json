@@ -1,0 +1,41 @@
+{
+  "name": "yamlover",
+  "version": "0.1.0",
+  "description": "Browse a yamlover tree in the web: npx yamlover <root> serves a React SPA over a directory.",
+  "type": "module",
+  "bin": {
+    "yamlover": "bin/yamlover.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "index.html"
+  ],
+  "scripts": {
+    "start": "node bin/yamlover.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "ignore": "^6.0.2",
+    "js-yaml": "^4.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.11"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.1.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,281 @@
+:root {
+  --bg: #1e1e2e;
+  --bg-alt: #181825;
+  --panel: #24273a;
+  --line: #363a4f;
+  --fg: #cad3f5;
+  --dim: #8087a2;
+  --accent: #8aadf4;
+  --key: #91d7e3;
+  --string: #a6da95;
+  --number: #f5a97f;
+  --bool: #c6a0f6;
+  --null: #ed8796;
+  --sel: #363a4f;
+  --font: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 13px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* --- top bar / breadcrumbs ------------------------------------------------ */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 14px;
+  background: var(--bg-alt);
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+.crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  min-height: 1.3em; /* keep the bar from collapsing before the head loads */
+}
+.crumb {
+  color: var(--fg);
+  text-decoration: none;
+}
+.crumb:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.crumb-sep {
+  color: var(--dim);
+  margin: 0 6px;
+}
+
+/* --- body split ----------------------------------------------------------- */
+.body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.pane {
+  height: 100%;
+  overflow: auto; /* LHS and RHS scroll independently */
+}
+.left {
+  flex: 0 0 auto;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  padding: 8px 0;
+}
+.right {
+  flex: 1 1 auto;
+  padding: 14px 18px;
+}
+.splitter {
+  flex: 0 0 5px;
+  cursor: col-resize;
+  background: var(--line);
+}
+.splitter:hover {
+  background: var(--accent);
+}
+
+/* --- tree ----------------------------------------------------------------- */
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px 1px 0;
+  white-space: nowrap;
+}
+.tree-row.selected {
+  background: var(--sel);
+}
+.tree-label {
+  cursor: pointer;
+}
+.tree-label:hover {
+  color: var(--accent);
+}
+
+/* type/format icon */
+.icon {
+  display: inline-block;
+  width: 1.6em;
+  text-align: center;
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+.t-struct {
+  color: var(--key);
+}
+.t-str {
+  color: var(--string);
+}
+.t-num {
+  color: var(--number);
+}
+.t-bool {
+  color: var(--bool);
+}
+.t-null {
+  color: var(--null);
+}
+.t-bin,
+.t-fmt {
+  color: var(--dim);
+}
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  padding: 0;
+  flex: 0 0 auto;
+}
+.toggle .chevron {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  transition: transform 0.12s ease;
+}
+.toggle.open .chevron {
+  transform: rotate(90deg);
+}
+.toggle.loading {
+  opacity: 0.4;
+}
+.toggle:hover {
+  color: var(--accent);
+}
+.toggle.leaf {
+  cursor: default;
+}
+
+/* --- node view ------------------------------------------------------------ */
+.nodehead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+.nodemeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.nodepath {
+  color: var(--accent);
+}
+.tag {
+  font-size: 11px;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--fg);
+}
+.tag.dim {
+  color: var(--dim);
+}
+.nodedesc {
+  color: var(--dim);
+  margin: 0 0 12px;
+  font-style: italic;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+.tab {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--dim);
+  padding: 2px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 12px;
+}
+.tab.active {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* --- code ----------------------------------------------------------------- */
+.code {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+  font-family: var(--font);
+}
+.code.raw {
+  color: var(--fg);
+}
+.k {
+  color: var(--key);
+}
+.s {
+  color: var(--string);
+}
+.n {
+  color: var(--number);
+}
+.b {
+  color: var(--bool);
+}
+.null {
+  color: var(--null);
+}
+.punct {
+  color: var(--dim);
+}
+.c {
+  color: var(--dim);
+  font-style: italic;
+}
+.descend {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+  cursor: pointer;
+}
+.descend:hover {
+  background: var(--sel);
+}
+
+.error {
+  color: var(--null);
+  padding: 12px;
+}
+.loading {
+  color: var(--dim);
+  padding: 12px;
+}

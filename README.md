@@ -18,8 +18,13 @@ The project has the following goals
 - support reference management for scientific paper research
 - define a way to navigate JSONs and YAMLs in cd/ls manner
 
-> **Status:** design / specification. No implementation yet — this document
-> describes the model.
+> **Status:** design / specification, with a working reference implementation of
+> the read side. This document describes the model; [`tools/`](tools/) holds the
+> reference tools — [`walker`](tools/walker/) (navigate a tree with `cd`/`ls`),
+> [`collector`](tools/collector/) (assemble a tree into one schema), and
+> [`server`](tools/server/) (`npx yamlover <root>` — browse a tree in the web).
+> Writing data back onto the filesystem, and the instance-side references in
+> *Open questions*, are not yet implemented.
 
 ## Isomorphisms briefly
 

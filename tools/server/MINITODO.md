@@ -1,0 +1,11 @@
+- binaries should be hyperlinkes +DONE
+- bigger collapse expand icons; chevrons? +DONE
+- format icons +PARTIALLY
+- remove concrete icons +DONE
+- Incorrect escaping http://calculon:5173/tools/server/package.json/dependencies/%40vitejs/plugin-react +DONE
+- http://calculon:5173/tools/server/src/client shows App.tsx: <unparseable App.tsx: YAMLException> +DONE
+- JSONs displayed deep DONE?
+- Breadcrumb separator should be a slash; another breadcrumb on page +DONE
+- If I open URL, TOC is not updated; navigating links also don't update
+- Reformat representation buttons yaml/json schema/instance
+- Binary icon should be 0110 in a square
