@@ -16,6 +16,7 @@ export interface NodeJson {
   title: string | null;
   description: string | null;
   value: unknown;
+  relations?: Record<string, unknown>; // named up-edges (+ `..`) as ref markers
 }
 
 async function getJson<T>(url: string): Promise<T> {

@@ -448,6 +448,40 @@ export function isContainer(node: YNode): boolean {
   return k === "object" || k === "array";
 }
 
+/** Whether a node *displays* as a container: a real object/array, or a `null`
+ *  leaf *overlaid* with virtual children (dot-prefixed `rel` down-edges) — those
+ *  keys make the null read as an object (e.g. a childless person who is recorded
+ *  as a parent elsewhere). Plain up-edge relations (`father`/`mother`) do *not*
+ *  promote a null: it stays a scalar. The virtual-children check (which reads only
+ *  `rel`) comes before touching `value`, so leaves are judged without a file read. */
+export function isDisplayContainer(node: YNode): boolean {
+  const k = nodeKind(node);
+  if (k === "object" || k === "array") return true;
+  if (k === "binary") return false;
+  if (Object.keys(virtualChildren(node)).length === 0) return false;
+  return node.value == null;
+}
+
+/** A node's display kind: an entity node (see {@link isDisplayContainer}) shows as
+ *  `object`; otherwise its ordinary {@link nodeKind}. */
+export function displayKind(node: YNode): Kind {
+  const k = nodeKind(node);
+  return k === "scalar" && isDisplayContainer(node) ? "object" : k;
+}
+
+/** Direct child count for display: real children plus non-colliding virtual ones
+ *  (dot-prefixed `rel` down-edges read like real children). */
+function displayChildCount(node: YNode): number {
+  const k = nodeKind(node);
+  const real =
+    k === "object" ? Object.keys(node.value as Record<string, YNode>)
+    : k === "array" ? (node.value as YNode[]).map((_, i) => String(i))
+    : [];
+  let n = real.length;
+  for (const name of Object.keys(virtualChildren(node))) if (!real.includes(name)) n++;
+  return n;
+}
+
 export function typeLabel(node: YNode): string {
   const v = node.value;
   if (isPlainObject(v)) return "object";
@@ -458,6 +492,13 @@ export function typeLabel(node: YNode): string {
   if (typeof v === "string") return "string";
   if (v === null) return "null";
   return typeof v;
+}
+
+/** The type shown in the TOC and the content header. Same as {@link typeLabel},
+ *  except a `null` leaf overlaid with virtual children reads as `object` (see
+ *  {@link isDisplayContainer}); a node with only up-edge relations stays `null`. */
+export function displayTypeLabel(node: YNode): string {
+  return nodeKind(node) === "scalar" && isDisplayContainer(node) ? "object" : typeLabel(node);
 }
 
 // --------------------------------------------------------------------------- //
@@ -514,6 +555,111 @@ export function getNode(root: YNode, segs: Seg[]): YNode {
 }
 
 // --------------------------------------------------------------------------- //
+// rel pointer resolution (a port of walker.py's follow_pointer / walk_segments)
+// --------------------------------------------------------------------------- //
+
+// A rel-pointer token: a bracketed array index (`[0]`), a `^name` ascent, or a
+// key name. `^` is a boundary (`a^b` → `a` then `^b`); keys may not contain `^`.
+const REL_TOKEN = /\[\d+\]|\^[^/\[\]^]+|[^/\[\]^]+/g;
+
+/** Translate a single path token into a real key/index for `node`'s value. */
+function childKey(node: YNode, part: string): Seg {
+  const v = node.value;
+  if (isPlainObject(v)) {
+    if (part in v) return part;
+    throw new Error(`no such child: ${part}`);
+  }
+  if (Array.isArray(v)) {
+    const tok = part.startsWith("[") && part.endsWith("]") ? part.slice(1, -1) : part;
+    const idx = Number(tok);
+    if (Number.isInteger(idx) && idx >= 0 && idx < v.length) return idx;
+    throw new Error(`bad index: ${part}`);
+  }
+  throw new Error(`${typeLabel(node)} has no children`);
+}
+
+function hasChild(node: YNode, token: string): boolean {
+  try {
+    childKey(node, token);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A node's virtual children — `rel` keys prefixed with `.` (down-edges), the
+ *  `.` stripped — mapping name → pointer (string pointers only). */
+function virtualChildren(node: YNode): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(node.rel || {}))
+    if (k.startsWith(".") && typeof v === "string") out[k.slice(1)] = v;
+  return out;
+}
+
+/** Segments of the nearest ancestor-or-self that is a yamlover entity — the
+ *  anchor an absolute (`/…`) pointer is written relative to. Falls back to root. */
+function entityRootSegs(root: YNode, segs: Seg[]): Seg[] {
+  for (let i = segs.length; i >= 0; i--)
+    if (getNode(root, segs.slice(0, i)).concrete === "yamlover") return segs.slice(0, i);
+  return [];
+}
+
+/** Walk *up* a named parent edge (`^name`) from the node at `segs`. */
+function ascend(root: YNode, segs: Seg[], name: string): Seg[] {
+  const rel = getNode(root, segs).rel || {};
+  if (name in rel && typeof rel[name] === "string") return followPointer(root, segs, rel[name] as string);
+  if (segs.length && String(segs[segs.length - 1]) === name) return segs.slice(0, -1); // ^<own-key> undoes the descent
+  throw new Error(`no parent relation: ^${name}`);
+}
+
+/** Apply path `tokens` from `segs`: `..` ascends, `^name` ascends a named parent,
+ *  `[n]`/names descend (falling back to a virtual child). Throws on a bad step. */
+function walkSegments(root: YNode, segs: Seg[], tokens: string[]): Seg[] {
+  let cur = [...segs];
+  for (const token of tokens) {
+    if (token === ".") continue;
+    if (token === "..") {
+      if (cur.length) cur.pop();
+    } else if (token.startsWith("^")) {
+      cur = ascend(root, cur, token.slice(1));
+    } else {
+      const node = getNode(root, cur);
+      const vkids = virtualChildren(node);
+      // a real containment child wins; otherwise follow a virtual down-edge
+      if (token in vkids && !hasChild(node, token)) cur = followPointer(root, cur, vkids[token]);
+      else cur.push(childKey(node, token));
+    }
+  }
+  getNode(root, cur); // validate
+  return cur;
+}
+
+/** Resolve a `rel` pointer to target segments: `..`-relative walks from `segs`,
+ *  an absolute `/…` from the enclosing yamlover entity (cf. walker.py). */
+function followPointer(root: YNode, segs: Seg[], ptr: string): Seg[] {
+  if (ptr.startsWith("*")) throw new Error(`anchor refs not yet supported: ${ptr}`);
+  const base = ptr.startsWith("/") ? entityRootSegs(root, segs) : segs;
+  return walkSegments(root, base, ptr.match(REL_TOKEN) || []);
+}
+
+/** The target segments a `rel` pointer resolves to, or null when it is not a
+ *  string pointer or does not resolve to a real node. */
+export function resolveRel(root: YNode, segs: Seg[], ptr: unknown): Seg[] | null {
+  if (typeof ptr !== "string") return null;
+  try {
+    return followPointer(root, segs, ptr);
+  } catch {
+    return null;
+  }
+}
+
+/** The JSON-space path a `rel` pointer resolves to (for hyperlinking), or null. */
+export function relTargetPath(root: YNode, segs: Seg[], ptr: unknown): string | null {
+  const target = resolveRel(root, segs, ptr);
+  return target ? segsToStr(target) : null;
+}
+
+// --------------------------------------------------------------------------- //
 // Serialization: JSON value and instance JSON Schema
 // --------------------------------------------------------------------------- //
 
@@ -529,20 +675,79 @@ function descend(depth: number | null): number | null {
 export const LINK_KEY = "$yamloverLink";
 
 interface LinkMarker {
-  [LINK_KEY]: { kind: Kind; path: string; count?: number; size?: number; format?: string | null };
+  [LINK_KEY]: { kind: Kind; path: string; count?: number; size?: number; format?: string | null; value?: unknown };
 }
 
 function linkMarker(node: YNode, segs: Seg[]): LinkMarker {
-  const kind = nodeKind(node);
+  const kind = displayKind(node); // entity nodes link as `object`, like their siblings
   const info: LinkMarker[typeof LINK_KEY] = { kind, path: segsToStr(segs) };
   if (kind === "binary") {
     const b = node.value as Binary; // stat-cheap; gives size + format
     info.size = b.size;
     info.format = b.fmt;
+  } else if (kind === "scalar") {
+    info.value = node.value; // a link to a genuine scalar shows its value as the label
   } else {
-    info.count = childCount(node);
+    info.count = displayChildCount(node);
   }
   return { [LINK_KEY]: info };
+}
+
+// An `x-yamlover.rel` pointer, emitted in the schema view as `{ [REF_KEY]: {text,
+// path} }`: the client renders `text` (the original pointer) as a hyperlink that
+// navigates to `path` (the resolved JSON-space location), or as plain text when
+// `path` is null (the pointer does not resolve to a real node).
+export const REF_KEY = "$yamloverRef";
+
+interface RefMarker {
+  [REF_KEY]: { text: string; path: string | null };
+}
+
+/** Turn a node's `rel` table into ref markers, resolving each pointer (relative
+ *  to `segs`, the node's own path) so the client can hyperlink it. */
+function relMarkers(rel: Record<string, unknown>, segs: Seg[], root: YNode): Record<string, RefMarker> {
+  const out: Record<string, RefMarker> = {};
+  for (const [name, ptr] of Object.entries(rel))
+    out[name] = { [REF_KEY]: { text: String(ptr), path: relTargetPath(root, segs, ptr) } };
+  return out;
+}
+
+function refTo(path: string | null, fallbackText: string): RefMarker {
+  return { [REF_KEY]: { text: path ?? fallbackText, path } };
+}
+
+/** A hyperlink to where a `rel` pointer resolves, shown with the *target's*
+ *  standard title (`{ object … }` / `[ array … ]` / scalar value) via a
+ *  {@link linkMarker}; falls back to a plain-text {@link refTo} when the pointer
+ *  does not resolve to a real node. */
+function relLink(root: YNode, segs: Seg[], ptr: unknown): LinkMarker | RefMarker {
+  const target = resolveRel(root, segs, ptr);
+  return target ? linkMarker(getNode(root, target), target) : refTo(null, String(ptr));
+}
+
+/**
+ * The relations panel shown above the value in the data (yaml/json) views: the
+ * node's *named up-edges* (its non-dot `rel` keys, e.g. `father`/`mother`), each
+ * a hyperlink to where it resolves — shown with the target's standard title, like
+ * any other container link — led by the structural parent `..`. The `..` is
+ * omitted when a named edge already points to the parent (e.g. `father: ".."`),
+ * so the parent is not listed twice, and at the root (which has no parent); a node
+ * with no named up-edges shows only `..`. (Dot-prefixed `rel` keys are *virtual
+ * children* — see {@link toPlain} — surfaced in the value, not here.)
+ */
+export function buildRelations(node: YNode, segs: Seg[], root: YNode): Record<string, unknown> {
+  const parentSegs = segs.slice(0, -1); // structural parent (root → itself)
+  const parentPath = segsToStr(parentSegs);
+  const named: Record<string, unknown> = {};
+  let parentCovered = false;
+  for (const [name, ptr] of Object.entries(node.rel || {})) {
+    if (name.startsWith(".")) continue;
+    named[name] = relLink(root, segs, ptr);
+    if (relTargetPath(root, segs, ptr) === parentPath) parentCovered = true;
+  }
+  const out: Record<string, unknown> = {};
+  if (segs.length > 0 && !parentCovered) out[".."] = linkMarker(getNode(root, parentSegs), parentSegs);
+  return Object.assign(out, named);
 }
 
 // The bytes of a binary leaf, shown only when the leaf itself is the selection.
@@ -558,19 +763,45 @@ export function binaryContent(node: YNode): Record<string, unknown> {
  * container nesting (null = unlimited); a container past the budget becomes a
  * {@link linkMarker} (so the client links to it rather than inlining it).
  * `segs` is the node's own JSON path, threaded so markers know where to point.
+ *
+ * Entity nodes — including childless ones that materialize as null-valued leaves
+ * carrying only a `rel` table — display as objects (see {@link isDisplayContainer})
+ * so siblings render uniformly. A node's *virtual children* (its dot-prefixed
+ * `rel` down-edges, e.g. a mother's `.cain`) are surfaced alongside any real
+ * children as links to where they resolve — with the target's standard title, like
+ * any container link — so they read like ordinary children. A real child of the
+ * same name always wins. `root` (default `node`) anchors the pointer resolution;
+ * the API passes the real entity root.
  */
-export function toPlain(node: YNode, depth: number | null = null, segs: Seg[] = [], top = true): unknown {
+export function toPlain(
+  node: YNode,
+  depth: number | null = null,
+  segs: Seg[] = [],
+  top = true,
+  root: YNode = node,
+): unknown {
   const k = nodeKind(node);
-  if ((k === "object" || k === "array") && depth != null && depth <= 0) return linkMarker(node, segs);
-  if (k === "binary" && !top) return linkMarker(node, segs); // a binary child links to its page
-  if (k === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [key, c] of Object.entries(node.value as Record<string, YNode>))
-      out[key] = toPlain(c, descend(depth), [...segs, key], false);
-    return out;
-  }
+  // Every child (non-top) is a hyperlink to its own page: at the one-level depth
+  // boundary a container links by its `{ … }`/`[ … ]` summary and a scalar by its
+  // rendered value, so all children are navigable alike. (The top node is shown in
+  // full, and a binary child always links — never inlined — regardless of depth.)
+  if (!top && depth != null && depth <= 0) return linkMarker(node, segs);
+  if (k === "binary" && !top) return linkMarker(node, segs);
+
   if (k === "array") {
-    return (node.value as YNode[]).map((c, i) => toPlain(c, descend(depth), [...segs, i], false));
+    return (node.value as YNode[]).map((c, i) => toPlain(c, descend(depth), [...segs, i], false, root));
+  }
+  if (isDisplayContainer(node)) {
+    // a real object, or a null leaf overlaid with virtual children, rendered as an
+    // object: real children recursed, virtual ones (dot-rel) linked to where they
+    // resolve (a real child of the same name wins)
+    const out: Record<string, unknown> = {};
+    if (k === "object")
+      for (const [key, c] of Object.entries(node.value as Record<string, YNode>))
+        out[key] = toPlain(c, descend(depth), [...segs, key], false, root);
+    for (const [name, ptr] of Object.entries(virtualChildren(node)))
+      if (!(name in out)) out[name] = relLink(root, segs, ptr);
+    return out;
   }
   if (k === "binary") return (node.value as Binary).repr(); // top-level binary (header only)
   return node.value; // scalar — read on demand
@@ -579,11 +810,22 @@ export function toPlain(node: YNode, depth: number | null = null, segs: Seg[] = 
 /**
  * Build the JSON Schema whose sole instance is the node's subtree — the
  * instance → schema direction of the Schema ↔ instance correspondence (every
- * value `v` becomes `{const: v}`). Filesystem-backed nodes also carry their
- * `x-yamlover` provenance. A container past the `depth` budget becomes a
+ * value `v` becomes `{const: v}`). Every node also carries its full
+ * `x-yamlover` block (see {@link xyProvenance}) — uniformly, whatever its
+ * concrete representation. A container past the `depth` budget becomes a
  * {@link linkMarker}, exactly as in {@link toPlain}.
+ *
+ * `root` is the full materialized tree (defaulting to `node` itself), needed to
+ * resolve each node's `rel` pointers into hyperlinks; the API passes the real
+ * entity root so absolute (`/…`) pointers anchor correctly.
  */
-export function toSchema(node: YNode, depth: number | null = null, segs: Seg[] = [], top = true): unknown {
+export function toSchema(
+  node: YNode,
+  depth: number | null = null,
+  segs: Seg[] = [],
+  top = true,
+  root: YNode = node,
+): unknown {
   const k = nodeKind(node);
   if ((k === "object" || k === "array") && depth != null && depth <= 0) return linkMarker(node, segs);
   if (k === "binary" && !top) return linkMarker(node, segs); // a binary child links to its page
@@ -592,12 +834,12 @@ export function toSchema(node: YNode, depth: number | null = null, segs: Seg[] =
   if (k === "object") {
     const properties: Schema = {};
     for (const [key, c] of Object.entries(node.value as Record<string, YNode>))
-      properties[key] = toSchema(c, descend(depth), [...segs, key], false);
+      properties[key] = toSchema(c, descend(depth), [...segs, key], false, root);
     schema = { type: "object", properties };
   } else if (k === "array") {
     schema = {
       type: "array",
-      prefixItems: (node.value as YNode[]).map((c, i) => toSchema(c, descend(depth), [...segs, i], false)),
+      prefixItems: (node.value as YNode[]).map((c, i) => toSchema(c, descend(depth), [...segs, i], false, root)),
       items: false,
     };
   } else if (k === "binary") {
@@ -607,8 +849,27 @@ export function toSchema(node: YNode, depth: number | null = null, segs: Seg[] =
   }
   if (node.title) schema.title = node.title;
   if (node.description) schema.description = node.description;
-  if (node.path != null) schema["x-yamlover"] = { concrete: node.concrete, os: osInfo(node.path) };
+  const xy = xyProvenance(node, segs, root);
+  if (xy) schema["x-yamlover"] = xy;
   return schema;
+}
+
+/**
+ * A node's full `x-yamlover` block for the schema view, built the same way for
+ * every node regardless of how it is concretely stored: its `concrete` tag, any
+ * `rel` links, and — only when the node is physically on disk — its `os` stat
+ * provenance. There is no per-concrete special-casing: a schema-instantiated
+ * node (no file, no directory) still surfaces its `concrete` and `rel`, and a
+ * filesystem-backed one adds `os` on top. Returns null when nothing applies.
+ * Each `rel` pointer is emitted as a {@link relMarkers} ref so the client can
+ * hyperlink it to the location it resolves to.
+ */
+function xyProvenance(node: YNode, segs: Seg[], root: YNode): Schema | null {
+  const xy: Schema = {};
+  if (node.concrete != null) xy.concrete = node.concrete;
+  if (node.rel != null) xy.rel = relMarkers(node.rel, segs, root);
+  if (node.path != null) xy.os = osInfo(node.path);
+  return Object.keys(xy).length > 0 ? xy : null;
 }
 
 function osInfo(p: string): Schema {
@@ -648,11 +909,15 @@ export function labelForSeg(node: YNode, keyOrIdx: Seg): string {
 
 /** The TOC type for a node, derived without forcing a file read: the schema
  *  `type` if known, else the coarse kind (and the precise scalar type only when
- *  the value already happens to be loaded, e.g. a `const`). */
+ *  the value already happens to be loaded, e.g. a `const`). A `null` leaf overlaid
+ *  with virtual children reads as `object`, matching the content header. */
 function tocType(node: YNode): string {
   if (node.schemaType) return node.schemaType;
   const k = nodeKind(node);
-  if (k === "scalar") return node.loaded ? typeLabel(node) : "string";
+  if (k === "scalar") {
+    if (isDisplayContainer(node)) return "object"; // virtual-children overlay
+    return node.loaded ? typeLabel(node) : "string";
+  }
   return k;
 }
 

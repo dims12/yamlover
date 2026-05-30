@@ -22,8 +22,9 @@ import {
   labelForSeg,
   toPlain,
   toSchema,
+  buildRelations,
   binaryContent,
-  typeLabel,
+  displayTypeLabel,
   setIgnoreFilter,
   YNode,
 } from "./yamlover.js";
@@ -71,7 +72,8 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
       }
 
       const node = getNode(root(), segs);
-      const type = typeLabel(node);
+      // display type: a virtual-children overlay reads as `object` (matches the TOC)
+      const type = displayTypeLabel(node);
       // Every representation is one level deep with nested containers as links;
       // the client picks the YAML/JSON syntax. `depth` defaults to 1.
       const viewDepth = depth ?? 1;
@@ -86,10 +88,14 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
           concrete: node.concrete,
           title: node.title ?? null,
           description: node.description ?? null,
-          value: wantBytes ? binaryContent(node) : toPlain(node, viewDepth, segs),
+          // virtual children are merged into the value; named up-edges (+ `..`)
+          // ride alongside as `relations` for the panel above the divider
+          value: wantBytes ? binaryContent(node) : toPlain(node, viewDepth, segs, true, root()),
+          relations: buildRelations(node, segs, root()),
         });
       } else if (url.pathname === "/api/schema") {
-        sendJson(res, 200, toSchema(node, viewDepth, segs));
+        // pass the real root so a node's rel pointers (esp. absolute /…) resolve
+        sendJson(res, 200, toSchema(node, viewDepth, segs, true, root()));
       } else {
         sendJson(res, 404, { error: `no such endpoint: ${url.pathname}` });
       }

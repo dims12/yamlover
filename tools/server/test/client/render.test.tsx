@@ -47,6 +47,34 @@ describe("Render", () => {
     expect(screen.getByText("{ object with 1 property }")).toBeTruthy();
   });
 
+  it("renders a scalar link by its value (syntax-aware) as a navigating hyperlink", () => {
+    const onNav = vi.fn();
+    // null → `~` in YAML
+    const { rerender } = render(
+      <Render
+        value={{ seth: { $yamloverLink: { kind: "scalar", value: null, path: "/adam/seth" } } }}
+        syntax="yaml"
+        onNavigate={onNav}
+      />,
+    );
+    const yamlLink = screen.getByText("~");
+    expect(yamlLink.tagName).toBe("A");
+    expect(yamlLink.getAttribute("href")).toBe("/adam/seth");
+    fireEvent.click(yamlLink);
+    expect(onNav).toHaveBeenCalledWith("/adam/seth");
+
+    // null → `null`, string quoted in JSON
+    rerender(
+      <Render
+        value={{ seth: { $yamloverLink: { kind: "scalar", value: null, path: "/adam/seth" } }, name: { $yamloverLink: { kind: "scalar", value: "Alice", path: "/name" } } }}
+        syntax="json"
+        onNavigate={onNav}
+      />,
+    );
+    expect(screen.getByText("null").tagName).toBe("A");
+    expect(screen.getByText('"Alice"').tagName).toBe("A");
+  });
+
   it("renders a binary payload as a YAML !!binary block", () => {
     render(
       <Render
@@ -59,6 +87,34 @@ describe("Render", () => {
     expect(txt).toContain("!!binary");
     expect(txt).toContain("image/png");
     expect(txt).toContain("iVBORw0KGgo");
+  });
+
+  it("renders a rel ref as a hyperlink to its resolved path", () => {
+    const onNav = vi.fn();
+    render(
+      <Render
+        value={{ "x-yamlover": { rel: { mother: { $yamloverRef: { text: "/eve", path: "/eve" } } } } }}
+        syntax="yaml"
+        onNavigate={onNav}
+      />,
+    );
+    const link = screen.getByText("/eve");
+    expect(link.tagName).toBe("A");
+    expect(link.getAttribute("href")).toBe("/eve");
+    fireEvent.click(link);
+    expect(onNav).toHaveBeenCalledWith("/eve");
+  });
+
+  it("renders an unresolved rel ref as plain text (no link)", () => {
+    render(
+      <Render
+        value={{ rel: { ghost: { $yamloverRef: { text: "*anchor", path: null } } } }}
+        syntax="yaml"
+        onNavigate={() => {}}
+      />,
+    );
+    const el = screen.getByText("*anchor");
+    expect(el.tagName).not.toBe("A");
   });
 
   it("renders JSON syntax with quoted keys/strings", () => {

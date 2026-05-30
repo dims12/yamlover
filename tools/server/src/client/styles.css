@@ -270,6 +270,12 @@ body {
 .descend:hover {
   background: var(--sel);
 }
+/* divider between the relations panel and the value, in the data views */
+.reldiv {
+  border: none;
+  border-top: 1px solid var(--border, var(--dim));
+  margin: 8px 0;
+}
 
 .error {
   color: var(--null);

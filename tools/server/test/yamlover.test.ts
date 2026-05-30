@@ -6,11 +6,14 @@ import {
   strToSegs,
   toPlain,
   toSchema,
+  buildRelations,
   buildTree,
   binaryContent,
   typeLabel,
+  displayTypeLabel,
   nodeKind,
   setIgnoreFilter,
+  YNode,
   Binary,
   LINK_KEY,
   BINARY_KEY,
@@ -70,7 +73,8 @@ describe("link markers (one level deep)", () => {
   it("detects an untyped file/yaml as an object and links it", () => {
     const root = loadEntity(ex("11-switch-schema-file-yaml"));
     const user = toPlain(getNode(root, ["user"]), 1, strToSegs("/user")) as any;
-    expect(user.name).toBe("Alice");
+    // every child is a link one level deep: a scalar by its value, a container by summary
+    expect(user.name[LINK_KEY]).toMatchObject({ kind: "scalar", value: "Alice", path: "/user/name" });
     expect(user.contact[LINK_KEY]).toMatchObject({ kind: "object", count: 2 });
     expect(user.contact[LINK_KEY].path).toBe("/user/contact");
   });
@@ -89,6 +93,96 @@ describe("instance schema (toSchema)", () => {
   it("carries the schema title", () => {
     const s = toSchema(loadEntity(ex("15-doc-tree")), 1) as any;
     expect(s.title).toBe("The Yamlover Handbook");
+  });
+
+  it("surfaces x-yamlover for a schema-only node (no filesystem path)", () => {
+    const root = loadEntity(ex("14-genealogy-dag"));
+    const s = toSchema(getNode(root, ["eve"]), null, ["eve"], true, root) as any;
+    expect(s["x-yamlover"].concrete).toBe("yaml-schema/instantiate");
+    expect(s["x-yamlover"].os).toBeUndefined(); // not backed by a file/dir
+  });
+
+  it("emits rel pointers as hyperlinks resolved to their target location", () => {
+    const root = loadEntity(ex("14-genealogy-dag"));
+
+    // absolute (/…) pointers anchor at the enclosing yamlover entity (the root)
+    const eve = toSchema(getNode(root, ["eve"]), null, ["eve"], true, root) as any;
+    expect(eve["x-yamlover"].rel[".cain"]).toEqual({
+      $yamloverRef: { text: "/adam/cain", path: "/adam/cain" },
+    });
+
+    // a `..`-relative pointer resolves from the node's own location
+    const cain = toSchema(getNode(root, ["adam", "cain"]), null, ["adam", "cain"], true, root) as any;
+    expect(cain["x-yamlover"].rel.father).toEqual({
+      $yamloverRef: { text: "..", path: "/adam" },
+    });
+    expect(cain["x-yamlover"].rel.mother).toEqual({
+      $yamloverRef: { text: "/eve", path: "/eve" },
+    });
+  });
+});
+
+describe("relations & virtual children (data views)", () => {
+  const link = (path: string, count: number) => ({ $yamloverLink: { kind: "object", path, count } });
+  const scalarLink = (path: string, value: unknown) => ({ $yamloverLink: { kind: "scalar", path, value } });
+
+  it("builds a relations panel of named up-edges (standard titles), dropping `..` when covered", () => {
+    const root = loadEntity(ex("14-genealogy-dag"));
+    // cain's father resolves to its structural parent (/adam), so `..` is omitted;
+    // each edge is shown with the target's standard `{ object … }` title, not a path
+    expect(buildRelations(getNode(root, ["adam", "cain"]), ["adam", "cain"], root)).toEqual({
+      father: link("/adam", 3),
+      mother: link("/eve", 3),
+    });
+  });
+
+  it("keeps `..` when a named edge points somewhere other than the parent", () => {
+    // synthetic tree: /x has a `friend` edge to /y (not its parent, the root)
+    const root = new YNode({}, "yamlover");
+    const x = new YNode(null);
+    x.rel = { friend: "/y" };
+    root.value = { x, y: new YNode({}) };
+    expect(buildRelations(x, ["x"], root)).toEqual({
+      "..": link("/", 2),
+      friend: link("/y", 0),
+    });
+  });
+
+  it("shows only `..` when a node has no named relations, and nothing at the root", () => {
+    const root = loadEntity(ex("14-genealogy-dag"));
+    // eve's rel are all dot-prefixed (virtual children), so no named up-edges
+    expect(buildRelations(getNode(root, ["eve"]), ["eve"], root)).toEqual({ "..": link("/", 2) });
+    // the root has no parent → no relations panel
+    expect(buildRelations(root, [], root)).toEqual({});
+  });
+
+  it("links every child — overlaid entities as objects, plain nulls as scalar links", () => {
+    const root = loadEntity(ex("14-genealogy-dag"));
+    // eve's children exist only virtually (.cain/.seth/.azura). cain has a real
+    // child and azura a virtual one → objects; seth (only up-edges) stays a null
+    // scalar, hyperlinked by its rendered value
+    expect(toPlain(getNode(root, ["eve"]), 1, ["eve"], true, root)).toEqual({
+      cain: link("/adam/cain", 1),
+      seth: scalarLink("/adam/seth", null),
+      azura: link("/adam/azura", 1),
+    });
+  });
+
+  it("treats a virtual child like a real one (enoch is a null leaf either way)", () => {
+    const root = loadEntity(ex("14-genealogy-dag"));
+    // azura reaches enoch virtually, cain by containment; enoch is a null leaf, so
+    // both render it as a scalar link titled by its value
+    const azura = toPlain(getNode(root, ["adam", "azura"]), 1, ["adam", "azura"], true, root);
+    const cain = toPlain(getNode(root, ["adam", "cain"]), 1, ["adam", "cain"], true, root);
+    expect(azura).toEqual({ enoch: scalarLink("/adam/cain/enoch", null) });
+    expect(cain).toEqual({ enoch: scalarLink("/adam/cain/enoch", null) });
+  });
+
+  it("overlays a null with virtual children as `object`, but leaves plain nulls null", () => {
+    const root = loadEntity(ex("14-genealogy-dag"));
+    expect(displayTypeLabel(getNode(root, ["adam", "azura"]))).toBe("object"); // has `.enoch`
+    expect(displayTypeLabel(getNode(root, ["adam", "seth"]))).toBe("null"); // only up-edges
+    expect(displayTypeLabel(getNode(root, ["adam", "cain", "enoch"]))).toBe("null");
   });
 });
 

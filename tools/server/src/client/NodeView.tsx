@@ -85,6 +85,14 @@ export function NodeView({ path, format, onFormat, onNavigate }: Props) {
         renderer.render(node, onNavigate)
       ) : (
         <pre className="code">
+          {/* data views lead with the relations panel (named up-edges + `..`),
+              an <hr/>, then the value; schema views embed rel inline already */}
+          {!isSchema(format) && node.relations && Object.keys(node.relations).length > 0 && (
+            <>
+              <Render value={node.relations} syntax={syntaxOf(format)} onNavigate={onNavigate} />
+              <hr className="reldiv" />
+            </>
+          )}
           {ready ? <Render value={content} syntax={syntaxOf(format)} onNavigate={onNavigate} /> : "…"}
         </pre>
       )}

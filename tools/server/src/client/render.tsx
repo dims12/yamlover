@@ -8,8 +8,13 @@ import { ReactNode } from "react";
 //
 // The bytes of a selected binary leaf arrive as `{ [BINARY_KEY]: {format,size,
 // base64} }`, rendered as `!!binary` (YAML) or the metadata object (JSON).
+//
+// An `x-yamlover.rel` pointer arrives as `{ [REF_KEY]: {text, path} }` — the
+// pointer string rendered as a hyperlink that navigates to the resolved `path`
+// (or as plain text when `path` is null, i.e. the pointer does not resolve).
 const LINK_KEY = "$yamloverLink";
 const BINARY_KEY = "$yamloverBinary";
+const REF_KEY = "$yamloverRef";
 
 interface Link {
   kind: "object" | "array" | "scalar" | "binary";
@@ -17,6 +22,12 @@ interface Link {
   count?: number;
   size?: number;
   format?: string | null;
+  value?: unknown; // for a link to a scalar: its value, shown as the label
+}
+
+interface Ref {
+  text: string;
+  path: string | null;
 }
 
 interface BinaryPayload {
@@ -35,6 +46,7 @@ function asSingle<T>(v: unknown, key: string): T | null {
 
 const asLink = (v: unknown) => asSingle<Link>(v, LINK_KEY);
 const asBinary = (v: unknown) => asSingle<BinaryPayload>(v, BINARY_KEY);
+const asRef = (v: unknown) => asSingle<Ref>(v, REF_KEY);
 
 type Syntax = "yaml" | "json";
 
@@ -83,7 +95,10 @@ interface KC {
   n: number;
 }
 
-function linkNode(link: Link, kc: KC, onNavigate: (p: string) => void): ReactNode {
+function linkNode(link: Link, syntax: Syntax, kc: KC, onNavigate: (p: string) => void): ReactNode {
+  // a scalar child links by its rendered value (`~`/`null`, quoted/bare per syntax);
+  // a container by its `{ … }`/`[ … ]` summary
+  const label = link.kind === "scalar" ? scalarLabel(link.value, syntax) : linkLabel(link);
   return (
     <a
       key={kc.n++}
@@ -94,7 +109,35 @@ function linkNode(link: Link, kc: KC, onNavigate: (p: string) => void): ReactNod
         onNavigate(link.path);
       }}
     >
-      {linkLabel(link)}
+      {label}
+    </a>
+  );
+}
+
+/** A scalar value as it would render in `syntax` — used as a scalar link's label. */
+function scalarLabel(v: unknown, syntax: Syntax): string {
+  if (v === null || v === undefined) return syntax === "json" ? "null" : "~";
+  if (typeof v === "boolean" || typeof v === "number") return String(v);
+  return syntax === "json" ? JSON.stringify(v) : String(v);
+}
+
+/** A `rel` pointer: its text as a hyperlink to the resolved `path`, or — when the
+ *  pointer does not resolve — plain string text (no link). */
+function refNode(ref: Ref, syntax: Syntax, kc: KC, onNavigate: (p: string) => void): ReactNode {
+  const text = syntax === "json" ? JSON.stringify(ref.text) : ref.text;
+  if (!ref.path) return <span className="s" key={kc.n++}>{text}</span>;
+  const target = ref.path;
+  return (
+    <a
+      key={kc.n++}
+      className="descend"
+      href={target}
+      onClick={(e) => {
+        e.preventDefault();
+        onNavigate(target);
+      }}
+    >
+      {text}
     </a>
   );
 }
@@ -123,7 +166,12 @@ const isObj = (v: unknown): v is Record<string, unknown> =>
 function emitYaml(value: unknown, indent: number, out: ReactNode[], kc: KC, nav: (p: string) => void): void {
   const link = asLink(value);
   if (link) {
-    out.push(linkNode(link, kc, nav), "\n");
+    out.push(linkNode(link, "yaml", kc, nav), "\n");
+    return;
+  }
+  const ref = asRef(value);
+  if (ref) {
+    out.push(refNode(ref, "yaml", kc, nav), "\n");
     return;
   }
   if (isObj(value)) {
@@ -165,8 +213,11 @@ function emitYamlChild(
   inArray = false,
 ): void {
   const link = asLink(v);
+  const ref = asRef(v);
   if (link) {
-    out.push(" ", linkNode(link, kc, nav), "\n");
+    out.push(" ", linkNode(link, "yaml", kc, nav), "\n");
+  } else if (ref) {
+    out.push(" ", refNode(ref, "yaml", kc, nav), "\n");
   } else if (isObj(v) && Object.keys(v).length === 0) {
     out.push(" ", <span className="punct" key={kc.n++}>{"{}"}</span>, "\n");
   } else if (Array.isArray(v) && v.length === 0) {
@@ -187,7 +238,12 @@ function emitYamlChild(
 function emitJson(value: unknown, indent: number, out: ReactNode[], kc: KC, nav: (p: string) => void): void {
   const link = asLink(value);
   if (link) {
-    out.push(linkNode(link, kc, nav));
+    out.push(linkNode(link, "json", kc, nav));
+    return;
+  }
+  const ref = asRef(value);
+  if (ref) {
+    out.push(refNode(ref, "json", kc, nav));
     return;
   }
   if (isObj(value)) {

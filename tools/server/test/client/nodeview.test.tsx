@@ -38,6 +38,50 @@ describe("NodeView", () => {
     expect(onFormat).toHaveBeenCalledWith("json");
   });
 
+  it("shows the relations panel (standard-title hyperlinks) above the value in a data view", async () => {
+    mNode.mockResolvedValue({
+      path: "/adam/cain",
+      type: "object",
+      concrete: "yaml-schema/instantiate",
+      title: null,
+      description: null,
+      value: { enoch: { $yamloverLink: { kind: "object", count: 0, path: "/adam/cain/enoch" } } },
+      relations: {
+        father: { $yamloverLink: { kind: "object", count: 3, path: "/adam" } },
+        mother: { $yamloverLink: { kind: "object", count: 3, path: "/eve" } },
+      },
+    });
+    const onNav = vi.fn();
+    render(<NodeView path="/adam/cain" format="yaml" onFormat={() => {}} onNavigate={onNav} />);
+
+    // both relations render with the target's standard title (not a path)
+    const links = await screen.findAllByText("{ object with 3 properties }");
+    expect(links).toHaveLength(2);
+    expect((links[0] as HTMLAnchorElement).getAttribute("href")).toBe("/adam");
+    fireEvent.click(links[1]);
+    expect(onNav).toHaveBeenCalledWith("/eve");
+
+    expect(screen.getByText("mother")).toBeTruthy();
+    expect(document.querySelector("hr.reldiv")).toBeTruthy(); // divider above the value
+    expect(screen.getByText("enoch")).toBeTruthy(); // value still rendered below
+  });
+
+  it("does not show the relations panel in a schema view", async () => {
+    mNode.mockResolvedValue({
+      path: "/adam/cain",
+      type: "object",
+      concrete: "yaml-schema/instantiate",
+      title: null,
+      description: null,
+      value: { enoch: null },
+      relations: { "..": { $yamloverLink: { kind: "object", count: 3, path: "/adam" } } },
+    });
+    mSchema.mockResolvedValue({ type: "object", properties: { enoch: { const: null } } });
+    render(<NodeView path="/adam/cain" format="yaml-schema" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("enoch");
+    expect(document.querySelector("hr.reldiv")).toBeNull();
+  });
+
   it("loads and shows a binary leaf as !!binary only when viewed", async () => {
     mNode.mockImplementation((_p: string, _d?: number, opts?: { binary?: boolean }) =>
       Promise.resolve(
