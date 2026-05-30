@@ -50,6 +50,13 @@ GENEALOGY = {                                             # 14's paternal backbo
     "adam": {"cain": {"enoch": None}, "seth": None, "azura": None},
     "eve": {},
 }
+DOC_TREE = [                                               # 15's recursive doc tree
+    # a chapter is a list of prose strings and nested chapters (subchapters)
+    "Welcome to the handbook. It is one self-contained yamlover tree.",
+    ["Install Python 3.10+ and PyYAML.",
+     ["You need git and a POSIX shell."]],
+    ["Run the walker against any example directory."],
+]
 
 # Value of each example, as produced by ``to_plain(node, binary="bytes")``.
 EXPECTED_INSTANCE = {
@@ -67,6 +74,7 @@ EXPECTED_INSTANCE = {
     "12-image-with-markup": {"object_detection.png": PNG, "markup": [BOX, BOX]},
     "13-defs-and-refs": {"object_detection.png": PNG13, "markup": [BOX, BOX]},
     "14-genealogy-dag": GENEALOGY,
+    "15-doc-tree": DOC_TREE,
 }
 
 # The concrete reported at each example's root node (its filesystem-node kind).
@@ -85,6 +93,7 @@ EXPECTED_ROOT_CONCRETE = {
     "12-image-with-markup": "yamlover",
     "13-defs-and-refs": "yamlover",
     "14-genealogy-dag": "yamlover",
+    "15-doc-tree": "yamlover",
 }
 
 # The concrete reported at a specific nested node (the value-location axis).
@@ -108,6 +117,10 @@ EXPECTED_CHILD_CONCRETE = [
     ("12-image-with-markup", ["markup", 0], "yaml-schema/instantiate"),
     ("12-image-with-markup", ["markup", 0, "x"], "yaml-schema/instantiate"),
     ("13-defs-and-refs", ["markup", 0, "x"], "yaml-schema/instantiate"),
+    # 15: recursive chapters, all pinned inline in the schema ($ref to $defs)
+    ("15-doc-tree", [0], "yaml-schema/instantiate"),       # a prose string block
+    ("15-doc-tree", [1], "yaml-schema/instantiate"),       # a subchapter (array)
+    ("15-doc-tree", [1, 1, 0], "yaml-schema/instantiate"), # nested prose, depth 3
 ]
 
 # Examples whose subtree contains a binary leaf (no JSON form).
@@ -396,6 +409,15 @@ class TestRefs(unittest.TestCase):
             walker.resolve_ref("#/$defs/missing", {"$defs": {}})
         with self.assertRaises(ValueError):
             walker.resolve_ref("other.json#/x", {})
+
+    def test_recursive_ref_to_self(self):
+        # 15's chapter $defs references itself: a subchapter is reached by a
+        # $ref to #/$defs/chapter, recursed to arbitrary depth.
+        root = load("15-doc-tree")
+        # depth-3 prose proves the recursion unrolled chapter -> chapter -> string
+        deep = walker.get_node(root, [1, 1, 0])
+        self.assertEqual(walker.to_plain(deep), "You need git and a POSIX shell.")
+        self.assertEqual(walker.to_plain(root), DOC_TREE)
 
     def test_merge_schema_deep(self):
         merged = walker.merge_schema(

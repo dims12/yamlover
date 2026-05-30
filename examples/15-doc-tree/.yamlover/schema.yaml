@@ -1,0 +1,43 @@
+# A recursive document tree (a help/book structure), fully self-contained:
+# every prose block is pinned inline with `const`, so no .md files exist — the
+# whole handbook lives in this one schema. A `chapter` is an ordered list whose
+# every element is either a prose string or another chapter (the recursion).
+# `title`/`description` are JSON-Schema annotations carrying each chapter's
+# heading and subtitle; the prose lives in the values.
+x-yamlover:
+  concrete: yamlover
+$ref: '#/$defs/chapter'
+title: The Yamlover Handbook
+description: Storing trees of text on the filesystem
+prefixItems:
+  - const: "Welcome to the handbook. It is one self-contained yamlover tree."
+    contentMediaType: text/markdown
+
+  - $ref: '#/$defs/chapter'
+    title: Installation
+    description: Getting the toolchain set up
+    prefixItems:
+      - const: "Install Python 3.10+ and PyYAML."
+        contentMediaType: text/markdown
+      - $ref: '#/$defs/chapter'
+        title: Prerequisites
+        prefixItems:
+          - const: "You need git and a POSIX shell."
+            contentMediaType: text/markdown
+
+  - $ref: '#/$defs/chapter'
+    title: Usage
+    description: Day-to-day workflows
+    prefixItems:
+      - const: "Run the walker against any example directory."
+        contentMediaType: text/markdown
+items: false
+
+$defs:
+  chapter:
+    type: array
+    items:
+      anyOf:
+        - type: string                  # a prose block
+          contentMediaType: text/markdown
+        - $ref: '#/$defs/chapter'        # a subchapter — the recursion

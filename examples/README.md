@@ -6,10 +6,10 @@ they sort into reading order.
 The first four (`01`–`04`) hold the **same object** `{name, age, isAdmin}` in the
 four core concretes — pinned in the schema, collapsed into a YAML file, collapsed
 into a JSON file, and expanded into a directory — so the representations can be
-compared directly. The rest (`05`–`14`) use trivial data (the value **30**, alone
+compared directly. The rest (`05`–`15`) use trivial data (the value **30**, alone
 or under a key) or richer data — a binary value, an array, a mid-tree concrete
-switch, an image with markup, `$ref`/`$defs`, a two-parent genealogy DAG — to
-isolate one further feature each.
+switch, an image with markup, `$ref`/`$defs`, a two-parent genealogy DAG, a
+recursive document tree — to isolate one further feature each.
 
 # 01-object-in-schema
 
@@ -787,3 +787,99 @@ How the relations read:
   seth   null    rel → /adam/seth
   azura  null    rel → /adam/azura
   ```
+
+# 15-doc-tree
+
+This entity is a **recursive document tree** — a help/book structure, the kind of
+thing you might otherwise keep as a folder of Markdown or AsciiDoc files. A
+**chapter** is an ordered list whose every element is either a **prose block** (a
+string) or **another chapter** (a subchapter); nesting depth is the chapter level.
+The recursion is expressed once, in `$defs`, and pulled in by `$ref` — the same
+schema-coordinate mechanism as [13-defs-and-refs](#13-defs-and-refs), here pointing
+at *itself*.
+
+It is **fully self-contained**: every prose block is pinned inline with `const`, so
+**no `.md` files exist** — the whole handbook lives in the schema (concrete
+`yaml-schema/instantiate` throughout). Because a block is just a `const` value, any
+one of them could later be externalized to a `file` (`text/markdown`) with no change
+to the logical tree — self-containment is a per-block choice, not a global mode.
+
+YAML concrete representation (the materialized value — nested lists of prose):
+
+```yaml
+- Welcome to the handbook. It is one self-contained yamlover tree.
+- - Install Python 3.10+ and PyYAML.
+  - - You need git and a POSIX shell.
+- - Run the walker against any example directory.
+```
+
+yamlover concrete representation — `.yamlover/schema.yaml` defines the recursive
+`chapter` shape once and pins the content inline:
+
+```yaml
+x-yamlover:
+  concrete: yamlover
+$ref: '#/$defs/chapter'
+title: The Yamlover Handbook           # book heading  (schema annotation)
+description: Storing trees of text on the filesystem   # subtitle
+prefixItems:
+  - const: "Welcome to the handbook. It is one self-contained yamlover tree."
+    contentMediaType: text/markdown
+  - $ref: '#/$defs/chapter'            # a subchapter
+    title: Installation
+    description: Getting the toolchain set up
+    prefixItems:
+      - const: "Install Python 3.10+ and PyYAML."
+        contentMediaType: text/markdown
+      - $ref: '#/$defs/chapter'        # a sub-subchapter
+        title: Prerequisites
+        prefixItems:
+          - const: "You need git and a POSIX shell."
+            contentMediaType: text/markdown
+  - $ref: '#/$defs/chapter'
+    title: Usage
+    description: Day-to-day workflows
+    prefixItems:
+      - const: "Run the walker against any example directory."
+        contentMediaType: text/markdown
+items: false
+
+$defs:
+  chapter:
+    type: array
+    items:
+      anyOf:
+        - type: string                 # a prose block
+          contentMediaType: text/markdown
+        - $ref: '#/$defs/chapter'       # a subchapter — the recursion
+```
+
+How it reads:
+
+- **`$defs/chapter` is the recursive *type*** — "a list whose elements are a string
+  **or** another chapter, to any depth." Its `items: { anyOf: [...] }` is the
+  open/generic form; each concrete chapter overrides it with `prefixItems` to pin a
+  specific, ordered tuple of blocks.
+- **`title` / `description` are JSON-Schema annotations**, attached to each chapter
+  (the array node), carrying its heading and subtitle. They describe the node rather
+  than living in the prose — a clean split from the `const` content.
+- **`contentMediaType`** (a standard JSON-Schema 2020-12 keyword) tags each block's
+  format; set it per node to mix `text/markdown`, `text/asciidoc`, `text/html`.
+- **Ordering is free** — the `prefixItems` order *is* the TOC order, the natural
+  answer to sequencing a document.
+
+Walking in shows the recursion unrolled as nested arrays:
+
+```console
+$ printf 'cd [1]\nls\ncat [1][0]\n' | python ../../tools/walker/walker.py 15-doc-tree
+NAME  TYPE    CONCRETE
+[0]   string  yaml-schema/instantiate
+[1]   array   yaml-schema/instantiate
+You need git and a POSIX shell.
+```
+
+A planned next step is **hyperlinks** between blocks: a leaf carrying a JSON-path
+pointer in `x-yamlover` (resolved against the enclosing entity, like
+[14-genealogy-dag](#14-genealogy-dag)'s `rel` pointers and the `^`/virtual-child
+navigation). Inline-`const` self-containment is what lets those links resolve within
+one document instead of chasing files.

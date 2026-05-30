@@ -106,3 +106,12 @@ properties:
           via .-prefixed virtual down-edges, listed/navigable but not nested.
         x-yamlover:
           concrete: yamlover
+      15-doc-tree:
+        description: >-
+          A recursive document tree (a help/book): a chapter is an ordered list
+          whose elements are prose strings or nested chapters, defined once in
+          $defs and recursed via $ref. Fully self-contained — every block is
+          pinned inline with const, so no .md files exist; title/description
+          carry each chapter's heading and subtitle.
+        x-yamlover:
+          concrete: yamlover
