@@ -85,6 +85,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
         sendJson(res, 200, {
           path: url.searchParams.get("path") || "/",
           type,
+          format: node.format ?? null, // with `type`, the (type, format) renderer key
           concrete: node.concrete,
           title: node.title ?? null,
           description: node.description ?? null,

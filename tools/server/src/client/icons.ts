@@ -45,8 +45,10 @@ const FORMAT: Record<string, string> = {
   color: "🎨",
 };
 
-// Media-type / binary-encoding formats → an icon, chosen by prefix.
+// Media-type / binary-encoding / custom formats → an icon, chosen by prefix.
 function mediaIcon(format: string): string | null {
+  if (format === "x-yamlover-chapter") return "📖";
+  if (format.startsWith("x-yamlover-")) return "🧩"; // a custom yamlover renderer
   if (format.startsWith("image/")) return "🖼️";
   if (format === "text/markdown") return "📝";
   if (format.startsWith("text/")) return "📄";

@@ -790,68 +790,78 @@ How the relations read:
 
 # 15-doc-tree
 
-This entity is a **recursive document tree** — a help/book structure, the kind of
-thing you might otherwise keep as a folder of Markdown or AsciiDoc files. A
-**chapter** is an ordered list whose every element is either a **prose block** (a
-string) or **another chapter** (a subchapter); nesting depth is the chapter level.
-The recursion is expressed once, in `$defs`, and pulled in by `$ref` — the same
-schema-coordinate mechanism as [13-defs-and-refs](#13-defs-and-refs), here pointing
-at *itself*.
+This entity is a **recursive document tree** — a help/book structure (here, a small
+pet-keeping handbook), the kind of thing you might otherwise keep as a folder of
+Markdown or AsciiDoc files. A **chapter** is an ordered list whose every element is
+either a **prose block** (a string — several per chapter, read as paragraphs) or
+**another chapter** (a subchapter); nesting depth is the chapter level. The recursion
+is expressed once, in `$defs`, and pulled in by `$ref` — the same schema-coordinate
+mechanism as [13-defs-and-refs](#13-defs-and-refs), here pointing at *itself*.
 
 It is **fully self-contained**: every prose block is pinned inline with `const`, so
 **no `.md` files exist** — the whole handbook lives in the schema (concrete
 `yaml-schema/instantiate` throughout). Because a block is just a `const` value, any
-one of them could later be externalized to a `file` (`text/markdown`) with no change
-to the logical tree — self-containment is a per-block choice, not a global mode.
+one of them could later be externalized to a `file` with no change to the logical
+tree — self-containment is a per-block choice, not a global mode.
 
 YAML concrete representation (the materialized value — nested lists of prose):
 
 ```yaml
-- Welcome to the handbook. It is one self-contained yamlover tree.
-- - Install Python 3.10+ and PyYAML.
-  - - You need git and a POSIX shell.
-- - Run the walker against any example directory.
+- Pets share our homes, our routines, and a surprising amount of our furniture.
+- This handbook collects what every keeper learns sooner or later, one species at a time.
+- Read the chapter for your companion, but the first rule is universal: watch, listen, and be patient.
+- - A dog is a social animal that adopts your family as its pack.
+  - Daily walks are not optional; they are how a dog reads the news of the neighbourhood.
+  - Consistency matters more than severity: the same word should always mean the same thing.
+  - - Puppies sleep most of the day and chew most of the rest.
+    - Begin house training the day they arrive, and reward every success generously.
+    - Early, gentle exposure to people and places shapes a calm adult dog.
+- - A cat tolerates your presence on terms it renews daily.
+  - Vertical space — shelves, perches, a tall scratching post — keeps a cat content.
+  - A clean litter box is the single most important thing you can offer a cat.
+- - An aquarium is a small ecosystem, and water quality is everything.
+  - Cycle a new tank for weeks before adding fish, so helpful bacteria can establish.
+  - Feed sparingly: uneaten food fouls the water faster than anything else.
 ```
 
 yamlover concrete representation — `.yamlover/schema.yaml` defines the recursive
-`chapter` shape once and pins the content inline:
+`chapter` shape once and pins the content inline (abbreviated):
 
 ```yaml
 x-yamlover:
   concrete: yamlover
 $ref: '#/$defs/chapter'
-title: The Yamlover Handbook           # book heading  (schema annotation)
-description: Storing trees of text on the filesystem   # subtitle
+title: The Pet Keeper's Handbook            # book heading  (schema annotation)
+description: A friendly guide to living with animals   # subtitle
 prefixItems:
-  - const: "Welcome to the handbook. It is one self-contained yamlover tree."
-    contentMediaType: text/markdown
-  - $ref: '#/$defs/chapter'            # a subchapter
-    title: Installation
-    description: Getting the toolchain set up
+  - const: "Pets share our homes, our routines, and a surprising amount of our furniture."
+  - const: "This handbook collects what every keeper learns sooner or later, one species at a time."
+  - const: "Read the chapter for your companion, but the first rule is universal: watch, listen, and be patient."
+  - $ref: '#/$defs/chapter'                 # a subchapter
+    title: Dogs
+    description: Loyal, loud, and endlessly hopeful
     prefixItems:
-      - const: "Install Python 3.10+ and PyYAML."
-        contentMediaType: text/markdown
-      - $ref: '#/$defs/chapter'        # a sub-subchapter
-        title: Prerequisites
+      - const: "A dog is a social animal that adopts your family as its pack."
+      - const: "Daily walks are not optional; they are how a dog reads the news of the neighbourhood."
+      - const: "Consistency matters more than severity: the same word should always mean the same thing."
+      - $ref: '#/$defs/chapter'             # a sub-subchapter
+        title: Puppies
+        description: The first few months
         prefixItems:
-          - const: "You need git and a POSIX shell."
-            contentMediaType: text/markdown
-  - $ref: '#/$defs/chapter'
-    title: Usage
-    description: Day-to-day workflows
-    prefixItems:
-      - const: "Run the walker against any example directory."
-        contentMediaType: text/markdown
+          - const: "Puppies sleep most of the day and chew most of the rest."
+          - const: "Begin house training the day they arrive, and reward every success generously."
+          - const: "Early, gentle exposure to people and places shapes a calm adult dog."
+  # … Cats and Fish chapters follow, each three prose blocks …
 items: false
 
 $defs:
   chapter:
     type: array
+    format: x-yamlover-chapter            # keys the server's `chapter` renderer
     items:
       anyOf:
-        - type: string                 # a prose block
-          contentMediaType: text/markdown
-        - $ref: '#/$defs/chapter'       # a subchapter — the recursion
+        - type: string                    # a prose block (paragraph)
+        - $ref: '#/$defs/chapter'         # a subchapter — the recursion
 ```
 
 How it reads:
@@ -863,19 +873,25 @@ How it reads:
 - **`title` / `description` are JSON-Schema annotations**, attached to each chapter
   (the array node), carrying its heading and subtitle. They describe the node rather
   than living in the prose — a clean split from the `const` content.
-- **`contentMediaType`** (a standard JSON-Schema 2020-12 keyword) tags each block's
-  format; set it per node to mix `text/markdown`, `text/asciidoc`, `text/html`.
+- **`format: x-yamlover-chapter`** is a custom format on the `chapter` type. The web
+  server's renderer registry keys on the `(type, format)` tuple `("array",
+  "x-yamlover-chapter")` to present a chapter as a readable **page** — its prose
+  strings as paragraphs, its subchapters as title hyperlinks — and to surface only
+  the subchapters (not the prose) as its TOC children.
 - **Ordering is free** — the `prefixItems` order *is* the TOC order, the natural
   answer to sequencing a document.
 
-Walking in shows the recursion unrolled as nested arrays:
+Walking in shows the recursion unrolled as nested arrays — the `Dogs` chapter (`[3]`)
+holds three prose blocks then the `Puppies` subchapter (`[3]`):
 
 ```console
-$ printf 'cd [1]\nls\ncat [1][0]\n' | python ../../tools/walker/walker.py 15-doc-tree
+$ printf 'cd [3]\nls\ncat [3][0]\n' | python ../../tools/walker/walker.py 15-doc-tree
 NAME  TYPE    CONCRETE
 [0]   string  yaml-schema/instantiate
-[1]   array   yaml-schema/instantiate
-You need git and a POSIX shell.
+[1]   string  yaml-schema/instantiate
+[2]   string  yaml-schema/instantiate
+[3]   array   yaml-schema/instantiate
+Puppies sleep most of the day and chew most of the rest.
 ```
 
 A planned next step is **hyperlinks** between blocks: a leaf carrying a JSON-path

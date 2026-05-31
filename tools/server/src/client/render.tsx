@@ -16,9 +16,10 @@ const LINK_KEY = "$yamloverLink";
 const BINARY_KEY = "$yamloverBinary";
 const REF_KEY = "$yamloverRef";
 
-interface Link {
+export interface Link {
   kind: "object" | "array" | "scalar" | "binary";
   path: string;
+  title?: string; // the target's schema title, when set (used as a link label)
   count?: number;
   size?: number;
   format?: string | null;
@@ -44,7 +45,10 @@ function asSingle<T>(v: unknown, key: string): T | null {
   return null;
 }
 
-const asLink = (v: unknown) => asSingle<Link>(v, LINK_KEY);
+/** Read a one-level link marker (a nested container or binary shown as a
+ *  hyperlink), or null when `v` is not one. Exported for custom renderers that
+ *  need to treat a child's link specially (e.g. the chapter renderer). */
+export const asLink = (v: unknown) => asSingle<Link>(v, LINK_KEY);
 const asBinary = (v: unknown) => asSingle<BinaryPayload>(v, BINARY_KEY);
 const asRef = (v: unknown) => asSingle<Ref>(v, REF_KEY);
 

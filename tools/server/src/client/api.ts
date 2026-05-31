@@ -12,6 +12,7 @@ export interface TreeNode {
 export interface NodeJson {
   path: string;
   type: string;
+  format?: string | null; // schema `format`; with `type` it keys the renderer
   concrete: string | null;
   title: string | null;
   description: string | null;

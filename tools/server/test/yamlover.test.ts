@@ -92,7 +92,7 @@ describe("instance schema (toSchema)", () => {
 
   it("carries the schema title", () => {
     const s = toSchema(loadEntity(ex("15-doc-tree")), 1) as any;
-    expect(s.title).toBe("The Yamlover Handbook");
+    expect(s.title).toBe("The Pet Keeper's Handbook");
   });
 
   it("surfaces x-yamlover for a schema-only node (no filesystem path)", () => {
@@ -235,10 +235,10 @@ describe("table of contents (buildTree)", () => {
   it("uses titles for labels (recursively)", () => {
     const root = loadEntity(ex("15-doc-tree"));
     const t = buildTree(root, [], root.title || "doc", 3);
-    expect(t.label).toBe("The Yamlover Handbook");
-    const installation = t.children.find((c) => c.label === "Installation");
-    expect(installation).toBeTruthy();
-    expect(installation!.children.find((c) => c.label === "Prerequisites")).toBeTruthy();
+    expect(t.label).toBe("The Pet Keeper's Handbook");
+    const dogs = t.children.find((c) => c.label === "Dogs");
+    expect(dogs).toBeTruthy();
+    expect(dogs!.children.find((c) => c.label === "Puppies")).toBeTruthy();
   });
 
   it("depth-limits, flagging hasChildren past the boundary, and carries format", () => {

@@ -1,43 +1,59 @@
-# A recursive document tree (a help/book structure), fully self-contained:
-# every prose block is pinned inline with `const`, so no .md files exist — the
-# whole handbook lives in this one schema. A `chapter` is an ordered list whose
-# every element is either a prose string or another chapter (the recursion).
-# `title`/`description` are JSON-Schema annotations carrying each chapter's
-# heading and subtitle; the prose lives in the values.
+# A recursive document tree (a help/book structure), fully self-contained: every
+# prose block is pinned inline with `const`, so no .md files exist — the whole
+# handbook lives in this one schema. A `chapter` is an ordered list whose every
+# element is either a prose string (several per chapter, read as paragraphs) or
+# another chapter (the recursion). `title`/`description` are JSON-Schema
+# annotations carrying each chapter's heading and subtitle; the prose lives in the
+# values. The `chapter` $def carries `format: x-yamlover-chapter`, which the
+# server's renderer registry keys on to present a chapter as readable pages
+# (prose paragraphs + subchapter links).
 x-yamlover:
   concrete: yamlover
 $ref: '#/$defs/chapter'
-title: The Yamlover Handbook
-description: Storing trees of text on the filesystem
+title: The Pet Keeper's Handbook
+description: A friendly guide to living with animals
 prefixItems:
-  - const: "Welcome to the handbook. It is one self-contained yamlover tree."
-    contentMediaType: text/markdown
+  - const: "Pets share our homes, our routines, and a surprising amount of our furniture."
+  - const: "This handbook collects what every keeper learns sooner or later, one species at a time."
+  - const: "Read the chapter for your companion, but the first rule is universal: watch, listen, and be patient."
 
   - $ref: '#/$defs/chapter'
-    title: Installation
-    description: Getting the toolchain set up
+    title: Dogs
+    description: Loyal, loud, and endlessly hopeful
     prefixItems:
-      - const: "Install Python 3.10+ and PyYAML."
-        contentMediaType: text/markdown
+      - const: "A dog is a social animal that adopts your family as its pack."
+      - const: "Daily walks are not optional; they are how a dog reads the news of the neighbourhood."
+      - const: "Consistency matters more than severity: the same word should always mean the same thing."
       - $ref: '#/$defs/chapter'
-        title: Prerequisites
+        title: Puppies
+        description: The first few months
         prefixItems:
-          - const: "You need git and a POSIX shell."
-            contentMediaType: text/markdown
+          - const: "Puppies sleep most of the day and chew most of the rest."
+          - const: "Begin house training the day they arrive, and reward every success generously."
+          - const: "Early, gentle exposure to people and places shapes a calm adult dog."
 
   - $ref: '#/$defs/chapter'
-    title: Usage
-    description: Day-to-day workflows
+    title: Cats
+    description: Independent roommates with opinions
     prefixItems:
-      - const: "Run the walker against any example directory."
-        contentMediaType: text/markdown
+      - const: "A cat tolerates your presence on terms it renews daily."
+      - const: "Vertical space — shelves, perches, a tall scratching post — keeps a cat content."
+      - const: "A clean litter box is the single most important thing you can offer a cat."
+
+  - $ref: '#/$defs/chapter'
+    title: Fish
+    description: A quiet window into another world
+    prefixItems:
+      - const: "An aquarium is a small ecosystem, and water quality is everything."
+      - const: "Cycle a new tank for weeks before adding fish, so helpful bacteria can establish."
+      - const: "Feed sparingly: uneaten food fouls the water faster than anything else."
 items: false
 
 $defs:
   chapter:
     type: array
+    format: x-yamlover-chapter
     items:
       anyOf:
-        - type: string                  # a prose block
-          contentMediaType: text/markdown
+        - type: string                  # a prose block (paragraph)
         - $ref: '#/$defs/chapter'        # a subchapter — the recursion

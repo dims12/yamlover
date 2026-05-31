@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchInfo, fetchTree, TreeNode } from "./api";
 import { Tree } from "./Tree";
-import { NodeView, Format, DEFAULT_FORMAT } from "./NodeView";
+import { NodeView, Format, FORMATS, DEFAULT_FORMAT } from "./NodeView";
+import { rendererName } from "./renderers/registry";
+
+const isStandardFormat = (f: Format) => (FORMATS as string[]).includes(f);
 import { crumbs, formatFromUrl, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
 
 // Levels of the TOC fetched at once — initially and on each lazy expand.
@@ -50,6 +53,10 @@ export function App() {
     fetchInfo().then((i) => setRootLabel(i.root)).catch(() => {});
   }, []);
 
+  // Whether the initial URL pinned a representation; if not, a landing node that
+  // has a renderer opens in its rendered view (decided once the TOC loads).
+  const explicitFormat = useRef(new URLSearchParams(window.location.search).has("format"));
+
   // Reflect the initial path+format back into the URL (so ?format= is present).
   useEffect(() => {
     writeUrl(current, format, true);
@@ -58,7 +65,20 @@ export function App() {
 
   // Load the TOC's first few levels; deeper branches load on expand.
   useEffect(() => {
-    fetchTree("/", INITIAL_DEPTH).then(setTree).catch((e) => setError(e.message));
+    fetchTree("/", INITIAL_DEPTH)
+      .then((t) => {
+        setTree(t);
+        if (!explicitFormat.current) {
+          const n = findNode(t, current);
+          const rn = n ? rendererName(n.type, n.format) : null;
+          if (rn) {
+            setFormat(rn);
+            writeUrl(current, rn, true);
+          }
+        }
+      })
+      .catch((e) => setError(e.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch a collapsed branch's children and splice them into the tree in place.
@@ -86,14 +106,25 @@ export function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // Navigating changes the path (and keeps the current format); switching the
-  // representation replaces the format in place.
+  // Navigating changes the path. The format carries over, except: a target that
+  // has a renderer opens in that renderer's view (so e.g. a chapter reads as a
+  // page, with its tab active), and leaving a renderer node drops a stale renderer
+  // format back to the default. A target absent from the TOC keeps the current
+  // format — reading deeper into a rendered tree stays rendered. NodeView makes
+  // the final call from the fetched node's (type, format).
   const navigate = useCallback(
     (p: string) => {
-      writeUrl(p, format, false);
+      const target = tree ? findNode(tree, p) : null;
+      let f: Format = format;
+      if (target) {
+        const rn = rendererName(target.type, target.format);
+        f = rn ?? (isStandardFormat(format) ? format : DEFAULT_FORMAT);
+      }
+      writeUrl(p, f, false);
       setCurrent(p);
+      if (f !== format) setFormat(f);
     },
-    [format],
+    [format, tree],
   );
 
   const changeFormat = useCallback(

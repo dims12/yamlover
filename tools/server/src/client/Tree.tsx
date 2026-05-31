@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { TreeNode } from "./api";
-import { isActiveRenderer } from "./renderers/registry";
+import { tocChildren } from "./renderers/registry";
 import { typeIcon } from "./icons";
 import { isAncestorPath } from "./paths";
 
@@ -13,18 +13,22 @@ interface Props {
 }
 
 /**
- * One TOC branch. Every node is shown — scalar fields and array elements
- * included — and labeled by its title or key/index. A node is *expandable* when
- * it has children and no active renderer (object/array passive renderers don't
- * block expansion); past the initially loaded levels, children are fetched on
- * first expand. Selecting a row navigates the RHS.
+ * One TOC branch. Children are labeled by title or key/index. Which children
+ * appear is the renderer's call (see `tocChildren`): by default all of them, but
+ * e.g. a chapter surfaces only its subchapters and keeps prose off the tree. A
+ * node is *expandable* when it has such children; past the initially loaded
+ * levels, children are fetched on first expand. Selecting a row navigates the RHS.
  */
 export function Tree({ node, current, onSelect, onLoadChildren, depth = 0 }: Props) {
-  const expandable = node.hasChildren && !isActiveRenderer(node.type, node.format);
+  // The children this node exposes to the TOC (a renderer may surface a subset).
+  const kids = tocChildren(node.type, node.format, node.children);
   const loaded = node.children.length > 0;
+  // Expandable when it has structural children: from the filtered set once loaded,
+  // else the server's hasChildren hint (children fetched lazily on first expand).
+  const expandable = loaded ? kids.length > 0 : node.hasChildren;
   // Loaded branches start open (so the first levels show expanded); a branch
   // whose children are not loaded yet starts closed and loads when opened.
-  const [open, setOpen] = useState(loaded);
+  const [open, setOpen] = useState(kids.length > 0);
   const [loading, setLoading] = useState(false);
   const selected = node.path === current;
   const onPath = isAncestorPath(node.path, current); // an ancestor of the selection
@@ -76,7 +80,7 @@ export function Tree({ node, current, onSelect, onLoadChildren, depth = 0 }: Pro
         </span>
       </div>
       {open &&
-        node.children.map((c) => (
+        kids.map((c) => (
           <Tree
             key={c.path}
             node={c}

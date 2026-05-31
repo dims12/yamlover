@@ -15,6 +15,11 @@ describe("typeIcon", () => {
     expect(typeIcon("binary", "image/png").glyph).toBe("🖼️");
   });
 
+  it("gives custom x-yamlover- formats an icon", () => {
+    expect(typeIcon("array", "x-yamlover-chapter").glyph).toBe("📖");
+    expect(typeIcon("array", "x-yamlover-future").glyph).toBe("🧩");
+  });
+
   it("falls back for an unknown type", () => {
     expect(typeIcon("weird", null).glyph).toBe("•");
   });

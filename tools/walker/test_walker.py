@@ -51,11 +51,23 @@ GENEALOGY = {                                             # 14's paternal backbo
     "eve": {},
 }
 DOC_TREE = [                                               # 15's recursive doc tree
-    # a chapter is a list of prose strings and nested chapters (subchapters)
-    "Welcome to the handbook. It is one self-contained yamlover tree.",
-    ["Install Python 3.10+ and PyYAML.",
-     ["You need git and a POSIX shell."]],
-    ["Run the walker against any example directory."],
+    # a chapter is a list of prose strings (several per chapter) and nested
+    # chapters (subchapters)
+    "Pets share our homes, our routines, and a surprising amount of our furniture.",
+    "This handbook collects what every keeper learns sooner or later, one species at a time.",
+    "Read the chapter for your companion, but the first rule is universal: watch, listen, and be patient.",
+    ["A dog is a social animal that adopts your family as its pack.",
+     "Daily walks are not optional; they are how a dog reads the news of the neighbourhood.",
+     "Consistency matters more than severity: the same word should always mean the same thing.",
+     ["Puppies sleep most of the day and chew most of the rest.",
+      "Begin house training the day they arrive, and reward every success generously.",
+      "Early, gentle exposure to people and places shapes a calm adult dog."]],
+    ["A cat tolerates your presence on terms it renews daily.",
+     "Vertical space — shelves, perches, a tall scratching post — keeps a cat content.",
+     "A clean litter box is the single most important thing you can offer a cat."],
+    ["An aquarium is a small ecosystem, and water quality is everything.",
+     "Cycle a new tank for weeks before adding fish, so helpful bacteria can establish.",
+     "Feed sparingly: uneaten food fouls the water faster than anything else."],
 ]
 
 # Value of each example, as produced by ``to_plain(node, binary="bytes")``.
@@ -119,8 +131,8 @@ EXPECTED_CHILD_CONCRETE = [
     ("13-defs-and-refs", ["markup", 0, "x"], "yaml-schema/instantiate"),
     # 15: recursive chapters, all pinned inline in the schema ($ref to $defs)
     ("15-doc-tree", [0], "yaml-schema/instantiate"),       # a prose string block
-    ("15-doc-tree", [1], "yaml-schema/instantiate"),       # a subchapter (array)
-    ("15-doc-tree", [1, 1, 0], "yaml-schema/instantiate"), # nested prose, depth 3
+    ("15-doc-tree", [3], "yaml-schema/instantiate"),       # a subchapter (array)
+    ("15-doc-tree", [3, 3, 0], "yaml-schema/instantiate"), # nested prose, depth 3
 ]
 
 # Examples whose subtree contains a binary leaf (no JSON form).
@@ -415,8 +427,8 @@ class TestRefs(unittest.TestCase):
         # $ref to #/$defs/chapter, recursed to arbitrary depth.
         root = load("15-doc-tree")
         # depth-3 prose proves the recursion unrolled chapter -> chapter -> string
-        deep = walker.get_node(root, [1, 1, 0])
-        self.assertEqual(walker.to_plain(deep), "You need git and a POSIX shell.")
+        deep = walker.get_node(root, [3, 3, 0])
+        self.assertEqual(walker.to_plain(deep), "Puppies sleep most of the day and chew most of the rest.")
         self.assertEqual(walker.to_plain(root), DOC_TREE)
 
     def test_merge_schema_deep(self):

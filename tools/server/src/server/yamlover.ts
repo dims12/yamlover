@@ -213,6 +213,7 @@ function resolve(
   // A structured node collapsed into a single file (e.g. 02-object-in-yaml).
   if ((isObject || isArray) && isFileConcrete && name) {
     const node = fromFile(path.join(container, name), concrete!, schema!, isObject ? "object" : "array");
+    annotate(node, schema!); // title/description/type/format (post-$ref-merge)
     if (rel) node.rel = rel;
     return node;
   }
@@ -240,6 +241,7 @@ function resolve(
       Object.assign(children, extraEntries(container, consumed, children));
     }
     const node = new YNode(children, concrete ?? SCHEMA_INSTANTIATE);
+    annotate(node, schema!); // title/description/type/format (post-$ref-merge)
     if (rel) node.rel = rel;
     return node;
   }
@@ -251,6 +253,7 @@ function resolve(
       return cnode;
     });
     const node = new YNode(items, concrete ?? SCHEMA_INSTANTIATE);
+    annotate(node, schema!); // title/description/type/format (post-$ref-merge)
     if (rel) node.rel = rel;
     return node;
   }
@@ -261,12 +264,14 @@ function resolve(
   if (isFileConcrete && name) {
     const kind = concrete === "file/binary" ? "binary" : kindFromType(stype);
     const node = fromFile(path.join(container, name), concrete!, schema!, kind);
+    annotate(node, schema!); // title/description/type/format (post-$ref-merge)
     if (rel) node.rel = rel;
     return node;
   }
 
   // No value, but still defined inline in the schema → instantiated from it.
   const node = new YNode(null, concrete ?? SCHEMA_INSTANTIATE);
+  annotate(node, schema!); // title/description/type/format (post-$ref-merge)
   if (rel) node.rel = rel;
   return node;
 }
@@ -675,12 +680,15 @@ function descend(depth: number | null): number | null {
 export const LINK_KEY = "$yamloverLink";
 
 interface LinkMarker {
-  [LINK_KEY]: { kind: Kind; path: string; count?: number; size?: number; format?: string | null; value?: unknown };
+  [LINK_KEY]: { kind: Kind; path: string; title?: string; count?: number; size?: number; format?: string | null; value?: unknown };
 }
 
 function linkMarker(node: YNode, segs: Seg[]): LinkMarker {
   const kind = displayKind(node); // entity nodes link as `object`, like their siblings
   const info: LinkMarker[typeof LINK_KEY] = { kind, path: segsToStr(segs) };
+  // a node's schema title rides along so a renderer can label the link with the
+  // target's heading (e.g. a chapter linking its subchapters by their titles)
+  if (node.title) info.title = node.title;
   if (kind === "binary") {
     const b = node.value as Binary; // stat-cheap; gives size + format
     info.size = b.size;

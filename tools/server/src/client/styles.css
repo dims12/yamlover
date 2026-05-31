@@ -277,6 +277,36 @@ body {
   margin: 8px 0;
 }
 
+/* --- chapter renderer (x-yamlover-chapter) -------------------------------- */
+.chapter {
+  line-height: 1.65;
+  max-width: 70ch;
+}
+.chapter-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--fg);
+}
+.chapter-subtitle {
+  margin: 0 0 18px;
+  color: var(--dim);
+  font-style: italic;
+}
+.chapter-prose {
+  margin: 0 0 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.chapter-link {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 18px 0 8px;
+}
+.chapter-link a {
+  border-bottom-width: 0;
+}
+
 .error {
   color: var(--null);
   padding: 12px;

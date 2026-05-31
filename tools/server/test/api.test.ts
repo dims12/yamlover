@@ -29,7 +29,7 @@ function call(handler: Handler, pathname: string, params: Record<string, string>
 describe("api endpoints", () => {
   it("/api/info returns the yamlover title when present", () => {
     const h = createHandlers(ex("15-doc-tree"), { gitignore: false });
-    expect(call(h, "/api/info").json).toEqual({ root: "The Yamlover Handbook" });
+    expect(call(h, "/api/info").json).toEqual({ root: "The Pet Keeper's Handbook" });
   });
 
   it("/api/info falls back to the directory name", () => {
