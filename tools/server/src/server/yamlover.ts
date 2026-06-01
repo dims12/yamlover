@@ -247,9 +247,14 @@ function resolve(
   }
 
   if (isArray) {
+    // When the array's `items` is an element schema (not `false`), it is the base
+    // each `prefixItems` entry overlays — so a uniform element type/format (e.g. a
+    // chapter's chunks all `string`/`text/markdown`) is declared once, not repeated.
+    const itemBase = isPlainObject(schema!["items"]) ? (schema!["items"] as Schema) : null;
     const items = (schema!["prefixItems"] || []).map((child: Schema, idx: number) => {
-      const cnode = resolve(child, container, String(idx), false, root);
-      annotate(cnode, child);
+      const eff = itemBase ? mergeSchema(itemBase, child) : child;
+      const cnode = resolve(eff, container, String(idx), false, root);
+      annotate(cnode, eff);
       return cnode;
     });
     const node = new YNode(items, concrete ?? SCHEMA_INSTANTIATE);
@@ -680,19 +685,22 @@ function descend(depth: number | null): number | null {
 export const LINK_KEY = "$yamloverLink";
 
 interface LinkMarker {
-  [LINK_KEY]: { kind: Kind; path: string; title?: string; count?: number; size?: number; format?: string | null; value?: unknown };
+  [LINK_KEY]: { kind: Kind; type: string; path: string; title?: string; count?: number; size?: number; format?: string | null; value?: unknown };
 }
 
 function linkMarker(node: YNode, segs: Seg[]): LinkMarker {
   const kind = displayKind(node); // entity nodes link as `object`, like their siblings
-  const info: LinkMarker[typeof LINK_KEY] = { kind, path: segsToStr(segs) };
+  // the (type, format) tuple rides along — the same key the TOC and RHS use — so a
+  // renderer can route a child to its own renderer (e.g. a chapter to its chunks)
+  const info: LinkMarker[typeof LINK_KEY] = { kind, type: tocType(node), path: segsToStr(segs) };
+  if (node.format) info.format = node.format; // half of the routing key (see above)
   // a node's schema title rides along so a renderer can label the link with the
   // target's heading (e.g. a chapter linking its subchapters by their titles)
   if (node.title) info.title = node.title;
   if (kind === "binary") {
     const b = node.value as Binary; // stat-cheap; gives size + format
     info.size = b.size;
-    info.format = b.fmt;
+    if (info.format == null) info.format = b.fmt; // fall back to the file's encoded format
   } else if (kind === "scalar") {
     info.value = node.value; // a link to a genuine scalar shows its value as the label
   } else {

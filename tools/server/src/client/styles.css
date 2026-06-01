@@ -307,6 +307,30 @@ body {
   border-bottom-width: 0;
 }
 
+/* a numbered chunk: an index gutter (linking to the chunk's own node) + body */
+.chunk {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+}
+.chunk-index {
+  flex: 0 0 auto;
+  min-width: 1.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--dim);
+  user-select: none;
+  border-bottom-width: 0;
+}
+a.chunk-index:hover {
+  color: var(--accent);
+}
+.chunk-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .error {
   color: var(--null);
   padding: 12px;

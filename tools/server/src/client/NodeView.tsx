@@ -44,7 +44,21 @@ export function NodeView({ path, format, onFormat, onNavigate }: Props) {
   useEffect(() => {
     setError(null);
     setNode(null);
-    fetchNode(path).then(setNode).catch((e) => setError(e.message));
+    let cancelled = false;
+    // A first (one-level) fetch settles the node's (type, format); a renderer that
+    // needs deeper value (e.g. a chapter, depth 2: arrays one level, elements the
+    // next) gets a second fetch at that depth before its value is shown.
+    fetchNode(path)
+      .then((n) => {
+        if (cancelled) return;
+        const d = getRenderer(n)?.depth ?? 1;
+        if (d > 1) fetchNode(path, d).then((dn) => !cancelled && setNode(dn)).catch((e) => !cancelled && setError(e.message));
+        else setNode(n);
+      })
+      .catch((e) => !cancelled && setError(e.message));
+    return () => {
+      cancelled = true;
+    };
   }, [path]);
 
   useEffect(() => {

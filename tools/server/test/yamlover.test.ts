@@ -123,8 +123,8 @@ describe("instance schema (toSchema)", () => {
 });
 
 describe("relations & virtual children (data views)", () => {
-  const link = (path: string, count: number) => ({ $yamloverLink: { kind: "object", path, count } });
-  const scalarLink = (path: string, value: unknown) => ({ $yamloverLink: { kind: "scalar", path, value } });
+  const link = (path: string, count: number) => ({ $yamloverLink: { kind: "object", type: "object", path, count } });
+  const scalarLink = (path: string, value: unknown) => ({ $yamloverLink: { kind: "scalar", type: "null", path, value } });
 
   it("builds a relations panel of named up-edges (standard titles), dropping `..` when covered", () => {
     const root = loadEntity(ex("14-genealogy-dag"));
@@ -234,11 +234,17 @@ describe("table of contents (buildTree)", () => {
 
   it("uses titles for labels (recursively)", () => {
     const root = loadEntity(ex("15-doc-tree"));
-    const t = buildTree(root, [], root.title || "doc", 3);
+    // Puppies is four levels deep now (root → children → Dogs → children → Puppies).
+    const t = buildTree(root, [], root.title || "doc", 5);
     expect(t.label).toBe("The Pet Keeper's Handbook");
-    const dogs = t.children.find((c) => c.label === "Dogs");
+    // subchapters live under the `children` array wrapper (labelled by its key)
+    const children = t.children.find((c) => c.label === "children")!;
+    const dogs = children.children.find((c) => c.label === "Dogs");
     expect(dogs).toBeTruthy();
-    expect(dogs!.children.find((c) => c.label === "Puppies")).toBeTruthy();
+    expect(dogs!.type).toBe("object");
+    expect(dogs!.format).toBe("x-yamlover-chapter");
+    const dogsChildren = dogs!.children.find((c) => c.label === "children")!;
+    expect(dogsChildren.children.find((c) => c.label === "Puppies")).toBeTruthy();
   });
 
   it("depth-limits, flagging hasChildren past the boundary, and carries format", () => {

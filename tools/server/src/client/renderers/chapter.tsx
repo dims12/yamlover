@@ -1,19 +1,23 @@
 import { NodeJson } from "../api";
 import { asLink, Link } from "../render";
+import { Chunk, rendererFor } from "./registry";
 
 /**
- * The renderer for an `x-yamlover-chapter` array: a chapter shown as a readable
- * page rather than a YAML list. The page leads with the chapter's own `title`
- * (heading) and `description` (subtitle), then each element of the chapter:
+ * The renderer for an `object`/`x-yamlover-chapter`: a chapter shown as a readable
+ * page. A chapter is a heading (`title`/`description`) plus two arrays:
  *
- *   - a prose string  → rendered as a paragraph, or
- *   - a subchapter     → rendered as a heading whose text is the subchapter's
- *                        title, hyperlinked to that nested chapter.
+ *   - `chunks`   — the prose body, rendered as numbered blocks. Each chunk is
+ *                  delegated to the renderer for its own (type, format) (a
+ *                  `string`/`text/markdown` chunk → the text renderer; an image
+ *                  chunk would route to an image renderer, no change here), and
+ *                  prefixed with its zero-based index, hyperlinked to the chunk's
+ *                  own node — the same numbering an array view shows.
+ *   - `children` — the subchapters, rendered as heading links to each nested
+ *                  chapter (and surfaced in the TOC; see `chapterTocView`).
  *
- * The chapter's value arrives one level deep (see `toPlain`), where every child
- * is a link marker: a subchapter is a *container* link carrying its `title` and
- * `path`, while a prose block is a *scalar* link carrying its text as `value`.
- * (Were the prose ever inline as a raw string, it is handled too.)
+ * The value arrives two levels deep (see the chapter renderer's `depth`): the
+ * arrays are present, and each element is a link marker carrying its (type,
+ * format), value/title, and path.
  */
 export function ChapterView({
   node,
@@ -22,43 +26,84 @@ export function ChapterView({
   node: NodeJson;
   onNavigate: (path: string) => void;
 }) {
-  const items = Array.isArray(node.value) ? node.value : [];
+  const v = (node.value ?? {}) as { chunks?: unknown; children?: unknown };
+  const chunks = Array.isArray(v.chunks) ? v.chunks : [];
+  const children = Array.isArray(v.children) ? v.children : [];
   return (
     <div className="chapter">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      {items.map((item, i) => {
+
+      {chunks.map((item, i) => (
+        <ChunkBlock key={i} index={i} item={item} onNavigate={onNavigate} />
+      ))}
+
+      {children.map((item, i) => {
         const link = asLink(item);
-        // a subchapter (a nested container) → a heading linking to that chapter
-        if (link && (link.kind === "object" || link.kind === "array")) {
-          return (
-            <h2 className="chapter-link" key={i}>
-              <a
-                className="descend"
-                href={link.path}
-                onClick={(e) => {
-                  e.preventDefault();
-                  onNavigate(link.path);
-                }}
-              >
-                {chapterTitle(link)}
-              </a>
-            </h2>
-          );
-        }
-        // prose → a paragraph: the text is a scalar link's `value`, or inline
-        const text = link ? String(link.value ?? "") : String(item);
         return (
-          <p className="chapter-prose" key={i}>
-            {text}
-          </p>
+          <h2 className="chapter-link" key={i}>
+            <a
+              className="descend"
+              href={link?.path ?? "#"}
+              onClick={(e) => {
+                e.preventDefault();
+                if (link) onNavigate(link.path);
+              }}
+            >
+              {chapterTitle(link)}
+            </a>
+          </h2>
         );
       })}
     </div>
   );
 }
 
+/** One numbered chunk: its zero-based index (a link to the chunk's own node) and
+ *  the chunk rendered by the renderer for its (type, format) — falling back to a
+ *  plain paragraph when none claims it (or the chunk is a bare inline value). */
+function ChunkBlock({
+  index,
+  item,
+  onNavigate,
+}: {
+  index: number;
+  item: unknown;
+  onNavigate: (path: string) => void;
+}) {
+  const link = asLink(item);
+  const chunk: Chunk = {
+    value: link ? link.value : item,
+    path: link?.path ?? "",
+    type: link?.type ?? "string",
+    format: link?.format ?? null,
+  };
+  const renderer = rendererFor(chunk.type, chunk.format);
+  const body = renderer?.renderChunk
+    ? renderer.renderChunk(chunk, onNavigate)
+    : <p className="chapter-prose">{String(chunk.value ?? "")}</p>;
+  return (
+    <div className="chunk">
+      {chunk.path ? (
+        <a
+          className="chunk-index"
+          href={chunk.path}
+          onClick={(e) => {
+            e.preventDefault();
+            onNavigate(chunk.path);
+          }}
+        >
+          {index}
+        </a>
+      ) : (
+        <span className="chunk-index">{index}</span>
+      )}
+      <div className="chunk-body">{body}</div>
+    </div>
+  );
+}
+
 /** A subchapter link's label: its schema title, else a generic fallback. */
-function chapterTitle(link: Link): string {
-  return link.title ?? "(untitled chapter)";
+function chapterTitle(link: Link | null): string {
+  return link?.title ?? "(untitled chapter)";
 }

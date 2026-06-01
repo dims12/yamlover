@@ -94,17 +94,31 @@ selected binary leaf's bytes arrive as `{ "$yamloverBinary": {format,size,base64
 ### Renderers
 
 A renderer is keyed by a **(type, format)** tuple — the JSON-Schema `type` plus
-its `format`. Scalar types and object/array have built-in renderers; the
-object/array ones are *passive* — they render the node but do **not** stop it
-from being expanded in the TOC. An **active** renderer (a custom `format`, e.g.
-an image or a rendered document) does: such a node is shown in the TOC but not
-expanded — its internals are presented as content, not browsed.
+its `format` — the same key the TOC icons and the link markers carry. A node with
+no matching renderer falls through to the default tabbed view (YAML/JSON ×
+data/schema) and expands normally in the TOC.
 
-The registry lives in `src/client/renderers/`: `getRenderer` picks the RHS
-renderer and `isActiveRenderer(type, format)` decides TOC expandability. v1
-registers none — every node falls through to the default tabbed view, and every
-container expands — but the hook is in place for, e.g., a markdown renderer for
-`text/markdown` or an image renderer for `image/png`.
+The registry lives in `src/client/renderers/`. A renderer participates three ways,
+all on the one tuple:
+
+- **`render`** — the full RHS page (its tab is the node's default representation).
+- **`renderChunk`** — its *inline* form, when embedded in another renderer's page.
+  A renderer composes children by routing each to the renderer for the child's own
+  tuple: the `chapter` renderer draws each of its `chunks` by delegating to that
+  chunk's renderer (a `string`/`text/markdown` chunk → the `text` renderer; an
+  `image/png` chunk would route to an image renderer, no change to `chapter`).
+- **`tocView`** — how the node appears in the TOC: which children are navigable,
+  whether it expands, and whether they are loaded (default: its own children,
+  lazily loaded). A renderer can unwrap or filter — `chapter` surfaces its
+  subchapters directly (from its `children` array) and keeps its `chunks` off the
+  tree, so the TOC reads as a table of contents.
+
+A renderer may also declare **`depth`** — the value depth `NodeView` fetches for
+it (default 1; `chapter` needs 2 to reach its chunk/subchapter elements).
+
+Registered today: `chapter` (`object`/`x-yamlover-chapter`) and `text`
+(`string`/`text/markdown`). Adding a shape (e.g. an image renderer for
+`image/png`) is a single registry entry.
 
 ## Requirements
 

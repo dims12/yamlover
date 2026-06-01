@@ -18,6 +18,7 @@ const REF_KEY = "$yamloverRef";
 
 export interface Link {
   kind: "object" | "array" | "scalar" | "binary";
+  type?: string; // the target's JSON-Schema type; with `format`, the routing key
   path: string;
   title?: string; // the target's schema title, when set (used as a link label)
   count?: number;

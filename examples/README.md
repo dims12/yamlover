@@ -792,36 +792,38 @@ How the relations read:
 
 This entity is a **recursive document tree** — a help/book structure (here, a small
 pet-keeping handbook), the kind of thing you might otherwise keep as a folder of
-Markdown or AsciiDoc files. A **chapter** is an ordered list whose every element is
-either a **prose block** (a string — several per chapter, read as paragraphs) or
-**another chapter** (a subchapter); nesting depth is the chapter level. The recursion
-is expressed once, in `$defs`, and pulled in by `$ref` — the same schema-coordinate
-mechanism as [13-defs-and-refs](#13-defs-and-refs), here pointing at *itself*.
+Markdown or AsciiDoc files. A **chapter** is an object with two arrays: **`chunks`**
+(its prose body, read as numbered paragraphs) and **`children`** (its subchapters —
+the recursion). The two are deliberately *separate*: a chapter is heading + body +
+subchapters, and subchapters are **terminal** — there is no returning to a parent's
+prose after one, the way real documents read. The recursion is expressed once, in
+`$defs`, and pulled in by `$ref` — the same schema-coordinate mechanism as
+[13-defs-and-refs](#13-defs-and-refs), here pointing at *itself*.
 
-It is **fully self-contained**: every prose block is pinned inline with `const`, so
+It is **fully self-contained**: every prose chunk is pinned inline with `const`, so
 **no `.md` files exist** — the whole handbook lives in the schema (concrete
-`yaml-schema/instantiate` throughout). Because a block is just a `const` value, any
+`yaml-schema/instantiate` throughout). Because a chunk is just a `const` value, any
 one of them could later be externalized to a `file` with no change to the logical
-tree — self-containment is a per-block choice, not a global mode.
+tree — self-containment is a per-chunk choice, not a global mode.
 
-YAML concrete representation (the materialized value — nested lists of prose):
+YAML concrete representation (the materialized value — a chapter object, abbreviated):
 
 ```yaml
-- Pets share our homes, our routines, and a surprising amount of our furniture.
-- This handbook collects what every keeper learns sooner or later, one species at a time.
-- Read the chapter for your companion, but the first rule is universal: watch, listen, and be patient.
-- - A dog is a social animal that adopts your family as its pack.
-  - Daily walks are not optional; they are how a dog reads the news of the neighbourhood.
-  - Consistency matters more than severity: the same word should always mean the same thing.
-  - - Puppies sleep most of the day and chew most of the rest.
-    - Begin house training the day they arrive, and reward every success generously.
-    - Early, gentle exposure to people and places shapes a calm adult dog.
-- - A cat tolerates your presence on terms it renews daily.
-  - Vertical space — shelves, perches, a tall scratching post — keeps a cat content.
-  - A clean litter box is the single most important thing you can offer a cat.
-- - An aquarium is a small ecosystem, and water quality is everything.
-  - Cycle a new tank for weeks before adding fish, so helpful bacteria can establish.
-  - Feed sparingly: uneaten food fouls the water faster than anything else.
+chunks:
+  - Pets share our homes, our routines, and a surprising amount of our furniture.
+  - This handbook collects what every keeper learns sooner or later, one species at a time.
+  - Read the chapter for your companion, but the first rule is universal: watch, listen, and be patient.
+children:
+  - chunks:
+      - A dog is a social animal that adopts your family as its pack.
+      - Daily walks are not optional; they are how a dog reads the news of the neighbourhood.
+      - Consistency matters more than severity: the same word should always mean the same thing.
+    children:
+      - chunks:
+          - Puppies sleep most of the day and chew most of the rest.
+          - Begin house training the day they arrive, and reward every success generously.
+          - Early, gentle exposure to people and places shapes a calm adult dog.
+  # … Cats and Fish chapters follow, each three prose chunks …
 ```
 
 yamlover concrete representation — `.yamlover/schema.yaml` defines the recursive
@@ -833,68 +835,88 @@ x-yamlover:
 $ref: '#/$defs/chapter'
 title: The Pet Keeper's Handbook            # book heading  (schema annotation)
 description: A friendly guide to living with animals   # subtitle
-prefixItems:
-  - const: "Pets share our homes, our routines, and a surprising amount of our furniture."
-  - const: "This handbook collects what every keeper learns sooner or later, one species at a time."
-  - const: "Read the chapter for your companion, but the first rule is universal: watch, listen, and be patient."
-  - $ref: '#/$defs/chapter'                 # a subchapter
-    title: Dogs
-    description: Loyal, loud, and endlessly hopeful
+properties:
+  chunks:
     prefixItems:
-      - const: "A dog is a social animal that adopts your family as its pack."
-      - const: "Daily walks are not optional; they are how a dog reads the news of the neighbourhood."
-      - const: "Consistency matters more than severity: the same word should always mean the same thing."
-      - $ref: '#/$defs/chapter'             # a sub-subchapter
-        title: Puppies
-        description: The first few months
-        prefixItems:
-          - const: "Puppies sleep most of the day and chew most of the rest."
-          - const: "Begin house training the day they arrive, and reward every success generously."
-          - const: "Early, gentle exposure to people and places shapes a calm adult dog."
-  # … Cats and Fish chapters follow, each three prose blocks …
-items: false
+      - const: "Pets share our homes, our routines, and a surprising amount of our furniture."
+      - const: "This handbook collects what every keeper learns sooner or later, one species at a time."
+      - const: "Read the chapter for your companion, but the first rule is universal: watch, listen, and be patient."
+  children:
+    prefixItems:
+      - title: Dogs                          # a subchapter (the $defs/chapter base is merged in via `items`)
+        description: Loyal, loud, and endlessly hopeful
+        properties:
+          chunks:
+            prefixItems:
+              - const: "A dog is a social animal that adopts your family as its pack."
+              - const: "Daily walks are not optional; they are how a dog reads the news of the neighbourhood."
+              - const: "Consistency matters more than severity: the same word should always mean the same thing."
+          children:
+            prefixItems:
+              - title: Puppies               # a sub-subchapter
+                description: The first few months
+                properties:
+                  chunks:
+                    prefixItems:
+                      - const: "Puppies sleep most of the day and chew most of the rest."
+                      - const: "Begin house training the day they arrive, and reward every success generously."
+                      - const: "Early, gentle exposure to people and places shapes a calm adult dog."
+      # … Cats and Fish chapters follow, each three prose chunks …
 
 $defs:
   chapter:
-    type: array
+    type: object
     format: x-yamlover-chapter            # keys the server's `chapter` renderer
-    items:
-      anyOf:
-        - type: string                    # a prose block (paragraph)
-        - $ref: '#/$defs/chapter'         # a subchapter — the recursion
+    properties:
+      chunks:                              # prose body, read as numbered paragraphs
+        type: array
+        items:
+          type: string
+          format: text/markdown            # each chunk's (type, format) — routes to the text renderer
+      children:                            # subchapters — the recursion
+        type: array
+        items:
+          $ref: '#/$defs/chapter'
 ```
 
 How it reads:
 
-- **`$defs/chapter` is the recursive *type*** — "a list whose elements are a string
-  **or** another chapter, to any depth." Its `items: { anyOf: [...] }` is the
-  open/generic form; each concrete chapter overrides it with `prefixItems` to pin a
-  specific, ordered tuple of blocks.
-- **`title` / `description` are JSON-Schema annotations**, attached to each chapter
-  (the array node), carrying its heading and subtitle. They describe the node rather
-  than living in the prose — a clean split from the `const` content.
+- **`$defs/chapter` is the recursive *type*** — an object of `chunks` (strings) and
+  `children` (chapters), to any depth. Each concrete chapter supplies its content by
+  overriding the two arrays' `prefixItems`. An array's `items` schema is the base each
+  `prefixItems` entry overlays, so the element type is declared once: chunks inherit
+  `string`/`text/markdown`, and each `children` entry inherits the `$ref` to `chapter`
+  (which is why the entries below only carry their `title`/content, not the `$ref`).
+- **`title` / `description` are JSON-Schema annotations**, attached to each chapter,
+  carrying its heading and subtitle. They describe the node rather than living in the
+  prose — a clean split from the `const` content.
 - **`format: x-yamlover-chapter`** is a custom format on the `chapter` type. The web
-  server's renderer registry keys on the `(type, format)` tuple `("array",
-  "x-yamlover-chapter")` to present a chapter as a readable **page** — its prose
-  strings as paragraphs, its subchapters as title hyperlinks — and to surface only
-  the subchapters (not the prose) as its TOC children.
-- **Ordering is free** — the `prefixItems` order *is* the TOC order, the natural
+  server's renderer registry keys on the `(type, format)` tuple `("object",
+  "x-yamlover-chapter")` to present a chapter as a readable **page** — its chunks as
+  **numbered** paragraphs (each number a hyperlink to that chunk's own node) and its
+  subchapters as title hyperlinks. In the TOC it surfaces the subchapters *directly*
+  (unwrapping the `children` array, hiding `chunks`) so the tree reads as a table of
+  contents.
+- **Renderers compose by `(type, format)`** — the chapter doesn't render prose itself;
+  it delegates each chunk to the renderer for that chunk's tuple. A
+  `string`/`text/markdown` chunk routes to the **text** renderer; an image or formula
+  chunk would route to its own renderer with no change to the chapter. The same tuple
+  that selects a node's full-page view also selects its inline form.
+- **Ordering is free** — the `prefixItems` order *is* the reading order, the natural
   answer to sequencing a document.
 
-Walking in shows the recursion unrolled as nested arrays — the `Dogs` chapter (`[3]`)
-holds three prose blocks then the `Puppies` subchapter (`[3]`):
+Walking in shows the structure — the `Dogs` chapter (`children[0]`) holds its own
+`chunks` and `children`:
 
 ```console
-$ printf 'cd [3]\nls\ncat [3][0]\n' | python ../../tools/walker/walker.py 15-doc-tree
-NAME  TYPE    CONCRETE
-[0]   string  yaml-schema/instantiate
-[1]   string  yaml-schema/instantiate
-[2]   string  yaml-schema/instantiate
-[3]   array   yaml-schema/instantiate
-Puppies sleep most of the day and chew most of the rest.
+$ printf 'cd children[0]\nls\ncat chunks[0]\n' | python ../../tools/walker/walker.py 15-doc-tree
+NAME      TYPE   CONCRETE
+chunks    array  yaml-schema/instantiate
+children  array  yaml-schema/instantiate
+A dog is a social animal that adopts your family as its pack.
 ```
 
-A planned next step is **hyperlinks** between blocks: a leaf carrying a JSON-path
+A planned next step is **hyperlinks** between chunks: a leaf carrying a JSON-path
 pointer in `x-yamlover` (resolved against the enclosing entity, like
 [14-genealogy-dag](#14-genealogy-dag)'s `rel` pointers and the `^`/virtual-child
 navigation). Inline-`const` self-containment is what lets those links resolve within

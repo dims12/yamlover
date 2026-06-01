@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { TreeNode } from "./api";
-import { tocChildren } from "./renderers/registry";
+import { tocView } from "./renderers/registry";
 import { typeIcon } from "./icons";
 import { isAncestorPath } from "./paths";
 
@@ -13,19 +13,17 @@ interface Props {
 }
 
 /**
- * One TOC branch. Children are labeled by title or key/index. Which children
- * appear is the renderer's call (see `tocChildren`): by default all of them, but
+ * One TOC branch. Children are labeled by title or key/index. How a node appears
+ * is the renderer's call (see `tocView`): by default all of its children, but
  * e.g. a chapter surfaces only its subchapters and keeps prose off the tree. A
  * node is *expandable* when it has such children; past the initially loaded
  * levels, children are fetched on first expand. Selecting a row navigates the RHS.
  */
 export function Tree({ node, current, onSelect, onLoadChildren, depth = 0 }: Props) {
-  // The children this node exposes to the TOC (a renderer may surface a subset).
-  const kids = tocChildren(node.type, node.format, node.children);
-  const loaded = node.children.length > 0;
-  // Expandable when it has structural children: from the filtered set once loaded,
-  // else the server's hasChildren hint (children fetched lazily on first expand).
-  const expandable = loaded ? kids.length > 0 : node.hasChildren;
+  // How this node presents in the TOC: the rows to show, whether it expands, and
+  // whether those rows are loaded yet (a renderer may unwrap/filter; default is
+  // the node's own children, fetched lazily on first expand).
+  const { children: kids, expandable, loaded } = tocView(node);
   // Loaded branches start open (so the first levels show expanded); a branch
   // whose children are not loaded yet starts closed and loads when opened.
   const [open, setOpen] = useState(kids.length > 0);

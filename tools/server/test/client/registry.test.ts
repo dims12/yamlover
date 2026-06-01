@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getRenderer, rendererName, tocChildren } from "../../src/client/renderers/registry";
+import { getRenderer, rendererName, tocView } from "../../src/client/renderers/registry";
 import type { NodeJson, TreeNode } from "../../src/client/api";
 
 const node = (over: Partial<NodeJson>): NodeJson => ({
@@ -25,33 +25,72 @@ const tnode = (over: Partial<TreeNode>): TreeNode => ({
 
 describe("renderer registry (keyed on (type, format))", () => {
   it("selects a renderer by the (type, format) tuple", () => {
-    const r = getRenderer(node({ type: "array", format: "x-yamlover-chapter", value: [] }));
-    expect(r?.name).toBe("chapter");
+    expect(getRenderer(node({ type: "object", format: "x-yamlover-chapter" }))?.name).toBe("chapter");
+    expect(getRenderer(node({ type: "string", format: "text/markdown", value: "hi" }))?.name).toBe("text");
   });
 
   it("returns null when no renderer claims the tuple (default tabbed view)", () => {
     expect(getRenderer(node({ type: "array", format: null, value: [] }))).toBeNull();
     expect(getRenderer(node({ type: "object", format: null }))).toBeNull();
-    expect(getRenderer(node({ type: "string", format: "date" }))).toBeNull();
+    expect(getRenderer(node({ type: "string", format: null, value: "x" }))).toBeNull(); // a bare string is not hijacked
   });
 
   it("exposes the renderer name as the representation key", () => {
-    expect(rendererName("array", "x-yamlover-chapter")).toBe("chapter");
+    expect(rendererName("object", "x-yamlover-chapter")).toBe("chapter");
+    expect(rendererName("string", "text/markdown")).toBe("text");
     expect(rendererName("array", null)).toBeNull();
   });
 
-  it("lets the chapter renderer surface only subchapters in the TOC", () => {
-    const kids = [
-      tnode({ path: "[0]", label: "[0]", type: "string", format: null }), // prose
-      tnode({ path: "[1]", label: "Installation", type: "array", format: "x-yamlover-chapter" }),
-      tnode({ path: "[2]", label: "Usage", type: "array", format: "x-yamlover-chapter" }),
-    ];
-    const shown = tocChildren("array", "x-yamlover-chapter", kids);
-    expect(shown.map((c) => c.label)).toEqual(["Installation", "Usage"]);
+  it("a chapter's TOC view unwraps `children` (subchapters direct) and hides `chunks`", () => {
+    const chapter = tnode({
+      path: "/",
+      type: "object",
+      format: "x-yamlover-chapter",
+      hasChildren: true,
+      children: [
+        tnode({ path: "/chunks", type: "array", hasChildren: true, children: [tnode({ path: "/chunks[0]" })] }),
+        tnode({
+          path: "/children",
+          type: "array",
+          hasChildren: true,
+          children: [
+            tnode({ path: "/children[0]", label: "Dogs", type: "object", format: "x-yamlover-chapter", hasChildren: true }),
+            tnode({ path: "/children[1]", label: "Cats", type: "object", format: "x-yamlover-chapter", hasChildren: true }),
+          ],
+        }),
+      ],
+    });
+    const view = tocView(chapter);
+    expect(view.children.map((c) => c.label)).toEqual(["Dogs", "Cats"]); // no chunks, no wrapper rows
+    expect(view.expandable).toBe(true);
+    expect(view.loaded).toBe(true);
   });
 
-  it("surfaces all children when no renderer claims the tuple", () => {
+  it("a chapter whose subchapters aren't loaded yet is expandable but not loaded", () => {
+    const chapter = tnode({
+      type: "object",
+      format: "x-yamlover-chapter",
+      hasChildren: true,
+      children: [
+        tnode({ path: "/chunks", type: "array", hasChildren: true }),
+        tnode({ path: "/children", type: "array", hasChildren: true, children: [] }), // boundary
+      ],
+    });
+    const view = tocView(chapter);
+    expect(view.children).toEqual([]);
+    expect(view.expandable).toBe(true);
+    expect(view.loaded).toBe(false);
+  });
+
+  it("defaults to a node's own children, lazily loaded, when no renderer claims it", () => {
     const kids = [tnode({ label: "a" }), tnode({ label: "b" })];
-    expect(tocChildren("object", null, kids)).toEqual(kids);
+    const loaded = tocView(tnode({ type: "object", hasChildren: true, children: kids }));
+    expect(loaded.children).toEqual(kids);
+    expect(loaded.expandable).toBe(true);
+    expect(loaded.loaded).toBe(true);
+
+    const unloaded = tocView(tnode({ type: "object", hasChildren: true, children: [] }));
+    expect(unloaded.expandable).toBe(true); // hint says expandable
+    expect(unloaded.loaded).toBe(false); // children fetched on expand
   });
 });

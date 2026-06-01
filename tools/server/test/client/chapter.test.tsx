@@ -6,19 +6,24 @@ import type { NodeJson } from "../../src/client/api";
 
 afterEach(cleanup);
 
-// A chapter one level deep: prose blocks are scalar link markers (text in
-// `value`); subchapters are container link markers carrying their `title`.
+// A chapter two levels deep: `chunks` are scalar link markers (text/markdown,
+// text in `value`); `children` are object link markers carrying their `title`.
 const chapter: NodeJson = {
   path: "/",
-  type: "array",
+  type: "object",
   format: "x-yamlover-chapter",
   concrete: "yamlover",
   title: "The Handbook",
   description: "A friendly guide",
-  value: [
-    { $yamloverLink: { kind: "scalar", path: "[0]", value: "Welcome to the handbook." } },
-    { $yamloverLink: { kind: "array", path: "[1]", title: "Installation", count: 2 } },
-  ],
+  value: {
+    chunks: [
+      { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: "/chunks[0]", value: "Welcome to the handbook." } },
+      { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: "/chunks[1]", value: "Read on." } },
+    ],
+    children: [
+      { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: "/children[0]", title: "Installation", count: 2 } },
+    ],
+  },
 };
 
 describe("ChapterView", () => {
@@ -32,16 +37,28 @@ describe("ChapterView", () => {
     expect(subtitle.className).toContain("chapter-subtitle");
   });
 
-  it("renders prose as a paragraph and a subchapter as a title hyperlink", () => {
+  it("renders each chunk as a paragraph, numbered zero-based with a link to its node", () => {
     const onNav = vi.fn();
     render(<ChapterView node={chapter} onNavigate={onNav} />);
 
     const prose = screen.getByText("Welcome to the handbook.");
-    expect(prose.tagName).toBe("P"); // prose is a paragraph, not a link
+    expect(prose.tagName).toBe("P"); // a chunk is delegated to the text renderer → paragraph
+
+    // the index 0 links to the chunk's own node
+    const idx0 = screen.getByText("0");
+    expect((idx0 as HTMLAnchorElement).getAttribute("href")).toBe("/chunks[0]");
+    expect(screen.getByText("1")).toBeTruthy(); // second chunk numbered 1
+    fireEvent.click(idx0);
+    expect(onNav).toHaveBeenCalledWith("/chunks[0]");
+  });
+
+  it("renders a subchapter as a title hyperlink", () => {
+    const onNav = vi.fn();
+    render(<ChapterView node={chapter} onNavigate={onNav} />);
 
     const link = screen.getByText("Installation"); // subchapter by its title
-    expect((link as HTMLAnchorElement).getAttribute("href")).toBe("[1]");
+    expect((link as HTMLAnchorElement).getAttribute("href")).toBe("/children[0]");
     fireEvent.click(link);
-    expect(onNav).toHaveBeenCalledWith("[1]");
+    expect(onNav).toHaveBeenCalledWith("/children[0]");
   });
 });
