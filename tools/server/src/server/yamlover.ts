@@ -477,6 +477,7 @@ const EXT_FORMAT: Record<string, string> = {
   ".pdf": "application/pdf",
   ".djvu": "image/vnd.djvu",
   ".djv": "image/vnd.djvu",
+  ".fb2": "application/x-fictionbook+xml",
   ".html": "text/html",
   ".htm": "text/html",
   ".md": "text/markdown",

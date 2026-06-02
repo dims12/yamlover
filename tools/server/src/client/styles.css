@@ -426,6 +426,49 @@ a.chunk-index:hover {
   color: var(--dim);
 }
 
+/* ---- fb2 ebook renderer -------------------------------------------------- */
+.fb2-body {
+  font-family: var(--mono, monospace);
+}
+.fb2-cover {
+  max-width: 320px;
+  max-height: 60vh;
+  display: block;
+  margin: 0 0 18px;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+}
+.fb2-body .fb2-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--fg);
+  margin: 22px 0 10px;
+}
+.fb2-body .fb2-subtitle {
+  font-weight: 600;
+  margin: 14px 0 8px;
+}
+.fb2-body .fb2-cite {
+  font-style: italic;
+}
+.fb2-body .fb2-poem {
+  margin: 12px 0;
+  padding-left: 16px;
+  font-style: italic;
+}
+.fb2-body .fb2-stanza {
+  margin: 8px 0;
+}
+.fb2-body .fb2-text-author {
+  text-align: right;
+  color: var(--dim);
+  font-style: italic;
+}
+.fb2-body .fb2-img {
+  max-width: 100%;
+  display: block;
+  margin: 12px 0;
+}
+
 /* ---- tag renderer: a small supertag / tag / subtag hierarchy diagram ----- */
 .tagview {
   position: relative;

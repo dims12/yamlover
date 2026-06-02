@@ -4,6 +4,7 @@ import { ChapterView } from "./chapter";
 import { TextView, TextChunk } from "./text";
 import { AsciidocView, AsciidocChunk } from "./asciidoc";
 import { TagView } from "./tag";
+import { Fb2View } from "./fb2";
 import { ImageView, HtmlView } from "./media";
 
 // pdf.js and DjVu.js are heavy and browser-only (they reach for canvas globals at
@@ -111,6 +112,11 @@ const REGISTRY: Renderer[] = [
     name: "html",
     accepts: [["binary", "text/html"]],
     render: (node) => <HtmlView node={node} />,
+  },
+  {
+    name: "fb2",
+    accepts: [["binary", "application/x-fictionbook+xml"]],
+    render: (node) => <Fb2View node={node} />,
   },
   {
     name: "pdf",
