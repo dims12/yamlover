@@ -142,6 +142,17 @@ body {
 .t-fmt {
   color: var(--dim);
 }
+/* binary type glyph: the bits "0110" boxed into a little square */
+.icon.binsq {
+  width: auto;
+  font-family: var(--mono, monospace);
+  font-size: 6px;
+  font-weight: 700;
+  line-height: 1;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  padding: 2px 2px;
+}
 .toggle {
   display: inline-flex;
   align-items: center;
@@ -344,14 +355,19 @@ a.chunk-index:hover {
 .filemedia,
 .filepdf,
 .filedjvu {
-  padding: 12px;
+  padding: 12px 0;
   overflow: auto;
+  max-width: 900px; /* don't span the whole pane (001) */
 }
 .fileimage {
+  /* keep the image's own aspect ratio — never stretch (007) */
   max-width: 100%;
+  max-height: 80vh;
+  width: auto;
   height: auto;
+  object-fit: contain;
   display: block;
-  margin: 0 auto 12px;
+  margin: 0 0 12px; /* left-aligned, like every other resource (004) */
   background: #fff;
 }
 .filehtml {
@@ -362,7 +378,7 @@ a.chunk-index:hover {
 }
 .filepdf .react-pdf__Page,
 .filedjvu .fileimage {
-  margin: 0 auto 12px;
+  margin: 0 0 12px; /* left-aligned (004) */
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
 }
 
@@ -370,6 +386,7 @@ a.chunk-index:hover {
 .markup {
   line-height: 1.55;
   word-break: break-word;
+  max-width: 72ch; /* a readable measure — don't run the full pane width (001) */
 }
 .markup :first-child {
   margin-top: 0;
@@ -430,7 +447,7 @@ a.chunk-index:hover {
   z-index: 1;
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start; /* left-aligned, like every other view (007) */
   gap: 12px;
   margin: 34px 0;
 }
@@ -496,7 +513,7 @@ a.chunk-index:hover {
   filter: brightness(1.18);
 }
 .tagdesc {
-  text-align: center;
+  text-align: left;
   color: var(--dim);
   font-style: italic;
   margin: 8px 0 0;

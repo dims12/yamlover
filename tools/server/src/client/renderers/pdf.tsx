@@ -32,10 +32,15 @@ export function PdfView({ node }: { node: NodeJson }) {
 
   return (
     <div className="filepdf" ref={ref}>
-      <Document file={blobUrl(node.path)} onLoadSuccess={({ numPages }) => setPages(numPages)} loading="…">
+      <Document
+        file={blobUrl(node.path)}
+        onLoadSuccess={({ numPages }) => setPages(numPages)}
+        loading={<div className="loading">loading PDF…</div>}
+        error={<div className="error">could not load PDF</div>}
+      >
         {width > 0 &&
           Array.from({ length: pages }, (_, i) => (
-            <Page key={i} pageNumber={i + 1} width={Math.min(width, 1000)} />
+            <Page key={i} pageNumber={i + 1} width={Math.min(width, 1000)} loading={<div className="loading">page {i + 1}…</div>} />
           ))}
       </Document>
     </div>

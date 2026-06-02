@@ -1,11 +1,20 @@
 - binaries should be hyperlinkes +DONE
 - bigger collapse expand icons; chevrons? +DONE
-- format icons +PARTIALLY
+- format icons +DONE
 - remove concrete icons +DONE
 - Incorrect escaping http://calculon:5173/tools/server/package.json/dependencies/%40vitejs/plugin-react +DONE
 - http://calculon:5173/tools/server/src/client shows App.tsx: <unparseable App.tsx: YAMLException> +DONE
 - JSONs displayed deep DONE?
 - Breadcrumb separator should be a slash; another breadcrumb on page +DONE
-- If I open URL, TOC is not updated; navigating links also don't update
+- If I open URL, TOC is not updated; navigating links also don't update +DONE
 - Reformat representation buttons yaml/json schema/instance
-- Binary icon should be 0110 in a square
+- Binary icon should be 0110 in a square +DONE
+- 001 PDFs/MDs are too wide; limit right margin +DONE
+- 002 no indication on PDF load +DONE
+- 003 PDF icon should be normal PDF icon +DONE
+- 004 Images are centered, should be left aligned as other resources +DONE
+- 005 Page #fragment links for PDFs and DJVUs
+- 006 Support #fragment links for MDs and ADOCs
+- 007 SVGs are stretched +DONE
+- 008 Links in MDs and ADOCs are not working; prepare endpoint, that redirects from these links into our  space
+- 007 Tag diagrams are centered, should also be left aligned +DONE

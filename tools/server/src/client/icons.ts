@@ -16,7 +16,7 @@ const TYPE: Record<string, { glyph: string; cls: string }> = {
   number: { glyph: "½", cls: "t-num" },
   boolean: { glyph: "◧", cls: "t-bool" },
   null: { glyph: "∅", cls: "t-null" },
-  binary: { glyph: "▤", cls: "t-bin" },
+  binary: { glyph: "0110", cls: "t-bin binsq" }, // bits in a little square
 };
 
 // Exact-match formats → an icon.
@@ -48,9 +48,13 @@ const FORMAT: Record<string, string> = {
 // Media-type / binary-encoding / custom formats → an icon, chosen by prefix.
 function mediaIcon(format: string): string | null {
   if (format === "x-yamlover-chapter") return "📖";
+  if (format === "x-yamlover-tag") return "🏷️";
   if (format.startsWith("x-yamlover-")) return "🧩"; // a custom yamlover renderer
+  if (format === "application/pdf") return "📕";
+  if (format === "image/vnd.djvu") return "📓";
   if (format.startsWith("image/")) return "🖼️";
   if (format === "text/markdown") return "📝";
+  if (format === "text/asciidoc") return "📃";
   if (format.startsWith("text/")) return "📄";
   if (format.startsWith("audio/")) return "🔊";
   if (format.startsWith("video/")) return "🎬";
