@@ -1,6 +1,17 @@
+import { lazy, Suspense } from "react";
 import { NodeJson, TreeNode } from "../api";
 import { ChapterView } from "./chapter";
 import { TextView, TextChunk } from "./text";
+import { AsciidocView, AsciidocChunk } from "./asciidoc";
+import { TagView } from "./tag";
+import { ImageView, HtmlView } from "./media";
+
+// pdf.js and DjVu.js are heavy and browser-only (they reach for canvas globals at
+// import time). Load them lazily so the registry — imported by the TOC and by
+// tests — never pulls them in until a PDF/DjVu node is actually rendered.
+const PdfView = lazy(() => import("./pdf").then((m) => ({ default: m.PdfView })));
+const DjvuView = lazy(() => import("./djvu").then((m) => ({ default: m.DjvuView })));
+const lazily = (el: JSX.Element) => <Suspense fallback={<div className="loading">…</div>}>{el}</Suspense>;
 
 /**
  * A renderer turns a node into a React element for the RHS pane. It is selected
@@ -69,6 +80,47 @@ const REGISTRY: Renderer[] = [
     accepts: [["string", "text/markdown"]],
     render: (node) => <TextView node={node} />,
     renderChunk: (chunk) => <TextChunk chunk={chunk} />,
+  },
+  {
+    name: "asciidoc",
+    accepts: [["string", "text/asciidoc"]],
+    render: (node) => <AsciidocView node={node} />,
+    renderChunk: (chunk) => <AsciidocChunk chunk={chunk} />,
+  },
+  {
+    name: "tag",
+    accepts: [["object", "x-yamlover-tag"]],
+    render: (node, onNavigate) => <TagView node={node} onNavigate={onNavigate} />,
+  },
+  {
+    // File-backed binaries the server tags with an inferred image format.
+    name: "image",
+    accepts: [
+      ["binary", "image/png"],
+      ["binary", "image/jpeg"],
+      ["binary", "image/gif"],
+      ["binary", "image/webp"],
+      ["binary", "image/avif"],
+      ["binary", "image/bmp"],
+      ["binary", "image/x-icon"],
+      ["binary", "image/svg+xml"],
+    ],
+    render: (node) => <ImageView node={node} />,
+  },
+  {
+    name: "html",
+    accepts: [["binary", "text/html"]],
+    render: (node) => <HtmlView node={node} />,
+  },
+  {
+    name: "pdf",
+    accepts: [["binary", "application/pdf"]],
+    render: (node) => lazily(<PdfView node={node} />),
+  },
+  {
+    name: "djvu",
+    accepts: [["binary", "image/vnd.djvu"]],
+    render: (node) => lazily(<DjvuView node={node} />),
   },
 ];
 

@@ -6,10 +6,11 @@ they sort into reading order.
 The first four (`01`–`04`) hold the **same object** `{name, age, isAdmin}` in the
 four core concretes — pinned in the schema, collapsed into a YAML file, collapsed
 into a JSON file, and expanded into a directory — so the representations can be
-compared directly. The rest (`05`–`15`) use trivial data (the value **30**, alone
+compared directly. The rest (`05`–`16`) use trivial data (the value **30**, alone
 or under a key) or richer data — a binary value, an array, a mid-tree concrete
 switch, an image with markup, `$ref`/`$defs`, a two-parent genealogy DAG, a
-recursive document tree — to isolate one further feature each.
+recursive document tree, a tagged library of papers — to isolate one further
+feature each.
 
 # 01-object-in-schema
 
@@ -921,3 +922,132 @@ pointer in `x-yamlover` (resolved against the enclosing entity, like
 [14-genealogy-dag](#14-genealogy-dag)'s `rel` pointers and the `^`/virtual-child
 navigation). Inline-`const` self-containment is what lets those links resolve within
 one document instead of chasing files.
+
+# 16-pdf-tags
+
+This entity is a small **library of papers, classified by tags** — and the tags
+live in the *same document* as the things they classify. It is built in three
+layers, bottom-up:
+
+1. **a tree of tags** (the taxonomy), pinned inline in the schema;
+2. **each file on disk described as a node** — the real PDFs and HTML already in
+   the directory, given a `concrete: file/binary` declaration and a human title;
+3. **classification by `rel`** — each paper carries `x-yamlover.rel` edges that
+   point at tag nodes, the same up-edge mechanism as
+   [14-genealogy-dag](#14-genealogy-dag)'s `mother`, here used to mean "is tagged".
+
+The six papers are real, and all famously short or deadpan: Lander & Parkin's
+two-sentence *Counterexample to Euler's Conjecture*; Upper's entirely blank *The
+Unsuccessful Self-Treatment of a Case of "Writer's Block"*; Goldberg &
+Chemjobber's blank *Comprehensive Overview of Chemical-Free Consumer Products*;
+Berry et al.'s *Can Apparent Superluminal Neutrino Speeds…?* (abstract: "Probably
+not."); Gardner & Knopoff's *Is the Sequence of Earthquakes… Poissonian?*
+(abstract: "Yes."); and the Fermat's Library annotated edition of the first.
+
+The **tag tree** has two independent axes — **`field`** (what a paper is about)
+and **`genre`** (how it is short). Every tag is an object, so it can carry a
+`description` and still nest sub-tags; the leaves are simply tags with no children:
+
+```yaml
+properties:
+  tags:
+    type: object
+    properties:
+      field:                                  # axis 1 — subject
+        type: object
+        properties:
+          mathematics:
+            type: object
+            properties:
+              number-theory: { type: object, description: Diophantine equations, sums of powers }
+          physics:
+            type: object
+            properties:
+              quantum:  { type: object, description: Quantum mechanics and measurement }
+              particle: { type: object, description: Neutrinos and the like }
+          earth-science:
+            type: object
+            properties:
+              seismology: { type: object, description: Earthquakes and their statistics }
+          chemistry: { type: object }
+          psychology:
+            type: object
+            properties:
+              behavior-analysis: { type: object }
+      genre:                                  # axis 2 — how it is short
+        type: object
+        properties:
+          brevity:
+            type: object
+            properties:
+              shortest-paper:  { type: object, description: Famously the shortest in its journal }
+              one-word-answer: { type: object, description: A title that is a question; a one-word abstract }
+              empty-body:      { type: object, description: The body is (almost) entirely blank }
+          humor:
+            type: object
+            properties:
+              deadpan: { type: object, description: Plays it completely straight }
+              satire:  { type: object, description: Mocks its target }
+          annotation: { type: object, description: A derivative edition of another paper }
+```
+
+Each **paper is the file on disk** — `concrete: file/binary` names the encoding,
+and `x-yamlover.os.path` carries the real (space- and apostrophe-laden) filename,
+while the schema layers a readable `title`/`description` over the bytes. The
+**`rel` table classifies it**, one named edge per tag, each an absolute pointer
+into the tag tree:
+
+```yaml
+  papers:
+    type: object
+    properties:
+      superluminal-neutrino:
+        type: binary
+        format: application/pdf
+        title: Can Apparent Superluminal Neutrino Speeds Be Explained as a Quantum Weak Measurement?
+        description: Berry et al., J. Phys. A, 2011 — abstract in full, "Probably not."
+        x-yamlover:
+          concrete: file/binary
+          os:
+            path: 1110.2832v2.pdf            # the actual file in this directory
+          rel:                               # ↓ classification — each edge a tag
+            quantum:         /tags/field/physics/quantum
+            particle:        /tags/field/physics/particle
+            one-word-answer: /tags/genre/brevity/one-word-answer
+            deadpan:         /tags/genre/humor/deadpan
+
+      fermat-library-annotated:
+        type: binary
+        format: text/html
+        title: "Fermat's Library: the Lander–Parkin paper, annotated"
+        x-yamlover:
+          concrete: file/binary
+          os:
+            path: "Fermat's Library _ Shortest paper ever … annotated_explained version..html"
+          rel:
+            number-theory: /tags/field/mathematics/number-theory
+            annotation:    /tags/genre/annotation
+            source:        /papers/euler-counterexample   # not a tag — a paper→paper edge
+```
+
+How it reads:
+
+- **A tag is just a node, and tagging is just a `rel` edge.** There is no special
+  "tag" machinery — the taxonomy is ordinary containment, and classification reuses
+  the same up-edge table as [14-genealogy-dag](#14-genealogy-dag). A paper can carry
+  as many edges as it has tags; the edge *name* is the tag's own name, so the
+  relation reads off the schema (`one-word-answer: /tags/genre/brevity/one-word-answer`).
+- **The pointers are absolute (`/…`), anchored at the enclosing entity** — here the
+  root — so every edge resolves to a location **inside the current document**. The
+  server renders each one as a hyperlink to the tag node it names.
+- **`rel` is not tags-only.** The Fermat's Library entry is an annotated edition of
+  the Lander–Parkin paper, so alongside its tags it carries a `source` edge to that
+  paper — a plain paper-to-paper relation, distinct from classification.
+- **The files are described, not duplicated.** Each paper node *is* the file already
+  sitting in the directory; `os.path` claims it, so it is presented through its
+  schema-given title rather than surfaced as a stray entry.
+
+This "absolute pointer = inside the current document" reading is the seed of a
+larger idea: letting a `rel` edge also be written as a full URI — a tree-wide scope
+(`https://<tree>/tags/…`) or a built-in, universal tag vocabulary
+(`https://schemas.yamlover.org/…`) — without changing what a paper→tag edge *is*.

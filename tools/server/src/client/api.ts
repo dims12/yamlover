@@ -50,6 +50,11 @@ export function fetchNode(
   return getJson<NodeJson>(`/api/json?${q}`);
 }
 
+/** URL of a file-backed node's raw bytes (image / pdf / html / djvu source). */
+export function blobUrl(path: string): string {
+  return `/api/blob?path=${encodeURIComponent(path)}`;
+}
+
 /** The node's instance schema, one level deep (nested containers as link markers). */
 export function fetchSchema(path: string, depth?: number): Promise<unknown> {
   const q = new URLSearchParams({ path });

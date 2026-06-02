@@ -1,0 +1,217 @@
+# A small library of famously short / deadpan academic papers, classified by a
+# tag taxonomy that lives in the same document. Three layers, built bottom-up:
+#
+#   1. `tags`   — a tree of tags (the taxonomy). Two independent axes: `field`
+#                 (what a paper is about) and `genre` (how it is short). Every
+#                 tag is an object so it can carry a `description` and still nest
+#                 sub-tags; the leaves are simply tags with no children.
+#   2. `papers` — each file on disk described as a yamlover node. The binary lives
+#                 where it already sits in this directory (`concrete: file/binary`
+#                 + `x-yamlover.os.path` names the real, space-laden filename); the
+#                 schema adds a human `title`/`description` on top of the bytes.
+#   3. classification — each paper node carries an `x-yamlover.rel` table whose
+#                 named edges point at tag nodes by absolute pointer
+#                 (`/tags/genre/brevity/one-word-answer`). Absolute `rel` pointers
+#                 anchor at the enclosing yamlover entity — here the root — so the
+#                 reference reads as a location *inside the current document*. The
+#                 server resolves each edge to a hyperlink to the tag it names.
+#
+# `rel` is not tags-only: the Fermat's Library entry is an annotated edition of
+# the Lander–Parkin paper, so it also carries a `source` edge to that node — a
+# plain paper-to-paper relation alongside its tags.
+x-yamlover:
+  concrete: yamlover
+
+properties:
+  # ----------------------------------------------------------------------- #
+  # 1. The tag tree — the taxonomy these papers are classified against.
+  # ----------------------------------------------------------------------- #
+  # Every node in this subtree carries `format: x-yamlover-tag`, so the server's
+  # renderer registry presents each one as a *tag*: a badge with its supertag
+  # (containment parent) above and its subtags (children) below, wired together.
+  tags:
+    type: object
+    format: x-yamlover-tag
+    title: Tags
+    description: A small taxonomy for short / deadpan papers — two axes, field and genre
+    properties:
+      field:
+        type: object
+        format: x-yamlover-tag
+        description: What the paper is about
+        properties:
+          mathematics:
+            type: object
+            format: x-yamlover-tag
+            description: Mathematics
+            properties:
+              number-theory:
+                type: object
+                format: x-yamlover-tag
+                description: Number theory — Diophantine equations, sums of powers
+          physics:
+            type: object
+            format: x-yamlover-tag
+            description: Physics
+            properties:
+              quantum:
+                type: object
+                format: x-yamlover-tag
+                description: Quantum mechanics and measurement
+              particle:
+                type: object
+                format: x-yamlover-tag
+                description: Particle physics — neutrinos and the like
+          earth-science:
+            type: object
+            format: x-yamlover-tag
+            description: Earth science
+            properties:
+              seismology:
+                type: object
+                format: x-yamlover-tag
+                description: Seismology — earthquakes and their statistics
+          chemistry:
+            type: object
+            format: x-yamlover-tag
+            description: Chemistry
+          psychology:
+            type: object
+            format: x-yamlover-tag
+            description: Psychology
+            properties:
+              behavior-analysis:
+                type: object
+                format: x-yamlover-tag
+                description: Applied behavior analysis
+      genre:
+        type: object
+        format: x-yamlover-tag
+        description: How the paper is short
+        properties:
+          brevity:
+            type: object
+            format: x-yamlover-tag
+            description: The paper is famously short
+            properties:
+              shortest-paper:
+                type: object
+                format: x-yamlover-tag
+                description: Famously the shortest paper in its journal
+              one-word-answer:
+                type: object
+                format: x-yamlover-tag
+                description: The title is a question; the abstract answers it in a word
+              empty-body:
+                type: object
+                format: x-yamlover-tag
+                description: The body of the paper is (almost) entirely blank
+          humor:
+            type: object
+            format: x-yamlover-tag
+            description: The paper is a joke
+            properties:
+              deadpan:
+                type: object
+                format: x-yamlover-tag
+                description: Plays it completely straight
+              satire:
+                type: object
+                format: x-yamlover-tag
+                description: Mocks its target
+          annotation:
+            type: object
+            format: x-yamlover-tag
+            description: A secondary / derivative edition of another paper
+
+  # ----------------------------------------------------------------------- #
+  # 2. The papers — each the file on disk, plus 3. its tag classification.
+  # ----------------------------------------------------------------------- #
+  papers:
+    type: object
+    title: Papers
+    description: The collection — each entry is the file on disk, classified by rel edges into the tag tree
+    properties:
+      euler-counterexample:
+        type: binary
+        format: application/pdf
+        title: Counterexample to Euler's Conjecture on Sums of Like Powers
+        description: Lander & Parkin, Bull. AMS, 1966 — a two-sentence proof (27⁵ + 84⁵ + 110⁵ + 133⁵ = 144⁵)
+        x-yamlover:
+          concrete: file/binary
+          os:
+            path: S0002-9904-1966-11654-3.pdf
+          rel:
+            number-theory: /tags/field/mathematics/number-theory
+            shortest-paper: /tags/genre/brevity/shortest-paper
+
+      writers-block:
+        type: binary
+        format: application/pdf
+        title: The Unsuccessful Self-Treatment of a Case of "Writer's Block"
+        description: Dennis Upper, J. Applied Behavior Analysis, 1974 — an entirely blank paper
+        x-yamlover:
+          concrete: file/binary
+          os:
+            path: jaba00061-0143a.pdf
+          rel:
+            behavior-analysis: /tags/field/psychology/behavior-analysis
+            empty-body: /tags/genre/brevity/empty-body
+            deadpan: /tags/genre/humor/deadpan
+
+      chemical-free:
+        type: binary
+        format: application/pdf
+        title: A Comprehensive Overview of Chemical-Free Consumer Products
+        description: Goldberg & Chemjobber, Nature Chemistry, 2014 — a blank survey, since no such products exist
+        x-yamlover:
+          concrete: file/binary
+          os:
+            path: Chemical-Free.pdf
+          rel:
+            chemistry: /tags/field/chemistry
+            empty-body: /tags/genre/brevity/empty-body
+            satire: /tags/genre/humor/satire
+
+      superluminal-neutrino:
+        type: binary
+        format: application/pdf
+        title: Can Apparent Superluminal Neutrino Speeds Be Explained as a Quantum Weak Measurement?
+        description: Berry, Brunner, Popescu & Shukla, J. Phys. A, 2011 — abstract in full, "Probably not."
+        x-yamlover:
+          concrete: file/binary
+          os:
+            path: 1110.2832v2.pdf
+          rel:
+            quantum: /tags/field/physics/quantum
+            particle: /tags/field/physics/particle
+            one-word-answer: /tags/genre/brevity/one-word-answer
+            deadpan: /tags/genre/humor/deadpan
+
+      earthquakes-poissonian:
+        type: binary
+        format: application/pdf
+        title: Is the Sequence of Earthquakes in Southern California, With Aftershocks Removed, Poissonian?
+        description: Gardner & Knopoff, Bull. Seism. Soc. Am., 1974 — abstract in full, "Yes."
+        x-yamlover:
+          concrete: file/binary
+          os:
+            path: "1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf"
+          rel:
+            seismology: /tags/field/earth-science/seismology
+            one-word-answer: /tags/genre/brevity/one-word-answer
+            deadpan: /tags/genre/humor/deadpan
+
+      fermat-library-annotated:
+        type: binary
+        format: text/html
+        title: "Fermat's Library: the Lander–Parkin paper, annotated"
+        description: An annotated / explained edition of the Euler counterexample paper
+        x-yamlover:
+          concrete: file/binary
+          os:
+            path: "Fermat's Library _ Shortest paper ever published in a serious Math Journal annotated_explained version..html"
+          rel:
+            number-theory: /tags/field/mathematics/number-theory
+            annotation: /tags/genre/annotation
+            source: /papers/euler-counterexample

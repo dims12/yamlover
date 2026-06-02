@@ -135,8 +135,24 @@ export function loadEntity(entityPath: string): YNode {
     // plain directory (no .yamlover/): an object of its visible entries
     return new YNode(extraEntries(entityPath, new Set(), {}), "dir", entityPath);
   }
-  // A plain file with no schema: read it now (we cannot know its kind otherwise),
-  // but stray plain files are small text; described leaves stay lazy via fromFile.
+  // A plain file with no schema, but whose extension names a renderable format.
+  // Binary-rendered formats (image, pdf, djvu, html) stay raw bytes, served as
+  // such and routed to their renderer by `(binary, format)`. Text formats
+  // (markdown, asciidoc) read as a string — their renderer takes the text value.
+  const fmt = formatFromExt(entityPath);
+  if (fmt && !TEXT_FORMATS.has(fmt)) {
+    const node = fromFile(entityPath, "file/binary", null, "binary");
+    node.format = fmt;
+    return node;
+  }
+  if (fmt) {
+    const node = new YNode(fs.readFileSync(entityPath, "utf-8"), "file", entityPath);
+    node.format = fmt;
+    node.kind = "scalar";
+    return node;
+  }
+  // Otherwise read it now (we cannot know its kind otherwise), but stray plain
+  // files are small text; described leaves stay lazy via fromFile.
   const value = decodeFile(entityPath, "file/yaml", null) as NodeValue;
   const node = wrap(value, "yaml");
   node.concrete = "file";
@@ -285,12 +301,19 @@ function resolve(
  *  the value is first accessed. `kind` (from the schema) lets callers list or
  *  elide it without reading the bytes. */
 function fromFile(filePath: string, concrete: string, schema: Schema | null, kind?: Kind): YNode {
-  return YNode.lazy(
+  const node = YNode.lazy(
     () => wrap(decodeFile(filePath, concrete, schema), interior(concrete)).value,
     concrete,
     filePath, // the node is this file; its interior children stay path-less
     kind,
   );
+  // Fall back to the extension-implied format when the schema pins none, so a
+  // file routes to its renderer with no `format:` declaration. A schema `format`
+  // (applied by `annotate` after this) still wins.
+  const schemaFmt = isPlainObject(schema) ? schema["format"] : null;
+  const fmt = (typeof schemaFmt === "string" ? schemaFmt : null) ?? formatFromExt(filePath);
+  if (fmt) node.format = fmt;
+  return node;
 }
 
 /** Wrap a plain JS value into YNodes, tagging every level with `concrete`. */
@@ -356,7 +379,7 @@ function decodeFile(filePath: string, concrete: string, schema: Schema | null): 
   if (concrete === "file/binary") {
     try {
       const size = fs.statSync(filePath).size; // cheap; avoids reading the blob
-      const fmt = (schema || {})["format"] ?? null;
+      const fmt = (isPlainObject(schema) ? schema["format"] : null) ?? formatFromExt(filePath);
       let decoded: unknown = null;
       let data: Buffer | null = null;
       if (fmt === "int32/le" && size === 4) {
@@ -394,6 +417,42 @@ function xyPath(xy: any): string | null {
 function interior(concrete: string | null): string {
   return concrete === "file/json" ? "json" : "yaml";
 }
+
+// File extension → format (MIME-ish), the second half of the (type, format)
+// renderer key. A file-backed node that carries no explicit schema `format`
+// falls back to this, so a stray `.pdf`/`.png`/`.md` renders without being
+// declared. The formats here are exactly the ones a client renderer claims.
+const EXT_FORMAT: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".avif": "image/avif",
+  ".bmp": "image/bmp",
+  ".ico": "image/x-icon",
+  ".svg": "image/svg+xml",
+  ".pdf": "application/pdf",
+  ".djvu": "image/vnd.djvu",
+  ".djv": "image/vnd.djvu",
+  ".html": "text/html",
+  ".htm": "text/html",
+  ".md": "text/markdown",
+  ".markdown": "text/markdown",
+  ".adoc": "text/asciidoc",
+  ".asciidoc": "text/asciidoc",
+  ".asc": "text/asciidoc",
+};
+
+/** The renderable format implied by a file's extension, or null when unknown. */
+export function formatFromExt(filePath: string | null): string | null {
+  if (!filePath) return null;
+  return EXT_FORMAT[path.extname(filePath).toLowerCase()] ?? null;
+}
+
+// Formats whose nodes carry their content as a *string* value (rendered from the
+// text). Everything else inferable (images, pdf, djvu, html) is served as bytes.
+const TEXT_FORMATS = new Set(["text/markdown", "text/asciidoc"]);
 
 /** Capture a fragment's annotations onto a node: `title`/`description` (tree
  *  labels) and `type`/`format` (the (type, format) renderer key — read without

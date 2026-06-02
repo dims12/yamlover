@@ -66,20 +66,27 @@ export function App() {
   // Load the TOC's first few levels; deeper branches load on expand.
   useEffect(() => {
     fetchTree("/", INITIAL_DEPTH)
-      .then((t) => {
-        setTree(t);
-        if (!explicitFormat.current) {
-          const n = findNode(t, current);
-          const rn = n ? rendererName(n.type, n.format) : null;
-          if (rn) {
-            setFormat(rn);
-            writeUrl(current, rn, true);
-          }
-        }
-      })
+      .then(setTree)
       .catch((e) => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // First time the landing node appears in the TOC (immediately when shallow,
+  // after lazy-loading the path when deep-linked), open it in its renderer's
+  // view — unless the URL pinned a representation. Runs once; later tab switches
+  // and in-app navigation make their own choice.
+  const resolvedLanding = useRef(false);
+  useEffect(() => {
+    if (explicitFormat.current || resolvedLanding.current || !tree) return;
+    const n = findNode(tree, current);
+    if (!n) return; // not loaded along the path yet — wait for the next pass
+    resolvedLanding.current = true;
+    const rn = rendererName(n.type, n.format);
+    if (rn) {
+      setFormat(rn);
+      writeUrl(current, rn, true);
+    }
+  }, [tree, current]);
 
   // Fetch a collapsed branch's children and splice them into the tree in place.
   const loadChildren = useCallback(async (path: string) => {

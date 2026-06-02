@@ -6,6 +6,8 @@
  *   GET /api/tree                        the table of contents (containers only)
  *   GET /api/json?path&depth             the node's value as JSON
  *   GET /api/schema?path&depth&format    the node's instance schema (json | yaml)
+ *   GET /api/blob?path                   a file-backed node's raw bytes (for the
+ *                                        image / pdf / html / djvu / markup renderers)
  *
  * The materialized tree is cached per server for a short window (leaf bytes load
  * lazily within it), so a burst of clicks does not re-read the filesystem; edits
@@ -13,6 +15,7 @@
  */
 
 import path from "node:path";
+import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   loadEntity,
@@ -25,6 +28,7 @@ import {
   buildRelations,
   binaryContent,
   displayTypeLabel,
+  formatFromExt,
   setIgnoreFilter,
   YNode,
 } from "./yamlover.js";
@@ -68,6 +72,23 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
         const start = getNode(root(), segs);
         const label = segs.length === 0 ? start.title || rootName : labelForSeg(start, segs[segs.length - 1]);
         sendJson(res, 200, buildTree(start, segs, label, depth ?? 3));
+        return;
+      }
+
+      if (url.pathname === "/api/blob") {
+        // Raw file bytes, served with the node's (inferred) format as the
+        // Content-Type, so a renderer can point an <img>/<iframe>/pdf loader at
+        // the URL — or fetch the text of a markdown/asciidoc file — directly.
+        const n = getNode(root(), segs);
+        if (!n.path || !fs.existsSync(n.path) || fs.statSync(n.path).isDirectory()) {
+          sendJson(res, 404, { error: `not a file-backed node: ${url.searchParams.get("path")}` });
+          return;
+        }
+        const data = fs.readFileSync(n.path);
+        res.statusCode = 200;
+        res.setHeader("Content-Type", n.format ?? formatFromExt(n.path) ?? "application/octet-stream");
+        res.setHeader("Content-Length", String(data.length));
+        res.end(data);
         return;
       }
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { fetchNode, fetchSchema, NodeJson } from "./api";
 import { getRenderer } from "./renderers/registry";
+import { TagBadges, splitTagRefs } from "./renderers/tag";
 import { Render } from "./render";
 
 // yaml-schema (ours) is the default; yaml/json are the data, json-schema the
@@ -101,12 +102,18 @@ export function NodeView({ path, format, onFormat, onNavigate }: Props) {
     ready = true;
   }
 
+  // Tag references (rel edges to x-yamlover-tag nodes) show as badges on every
+  // representation; the remaining relations stay in the data-view panel.
+  const { tags, rest } = splitTagRefs(node.relations);
+
   return (
     <div className="nodeview">
       <div className="nodehead">
         <div className="nodemeta">
           <span className="tag">{node.type}</span>
           {node.concrete && <span className="tag dim">{node.concrete}</span>}
+          {/* the tags this node is filed under, inline among the chips */}
+          <TagBadges tags={tags} onNavigate={onNavigate} />
         </div>
         <div className="tabs">
           {tabs.map((f) => (
@@ -125,11 +132,11 @@ export function NodeView({ path, format, onFormat, onNavigate }: Props) {
         renderer!.render(node, onNavigate)
       ) : (
         <pre className="code">
-          {/* data views lead with the relations panel (named up-edges + `..`),
+          {/* data views lead with the relations panel (non-tag up-edges + `..`),
               an <hr/>, then the value; schema views embed rel inline already */}
-          {!isSchema(effective) && node.relations && Object.keys(node.relations).length > 0 && (
+          {!isSchema(effective) && Object.keys(rest).length > 0 && (
             <>
-              <Render value={node.relations} syntax={syntaxOf(effective)} onNavigate={onNavigate} />
+              <Render value={rest} syntax={syntaxOf(effective)} onNavigate={onNavigate} />
               <hr className="reldiv" />
             </>
           )}

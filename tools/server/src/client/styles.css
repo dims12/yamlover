@@ -339,3 +339,165 @@ a.chunk-index:hover {
   color: var(--dim);
   padding: 12px;
 }
+
+/* ---- file renderers: image / html / pdf / djvu / markup ------------------ */
+.filemedia,
+.filepdf,
+.filedjvu {
+  padding: 12px;
+  overflow: auto;
+}
+.fileimage {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto 12px;
+  background: #fff;
+}
+.filehtml {
+  width: 100%;
+  height: calc(100vh - 120px);
+  border: 1px solid var(--border, #313244);
+  background: #fff;
+}
+.filepdf .react-pdf__Page,
+.filedjvu .fileimage {
+  margin: 0 auto 12px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* rendered Markdown / AsciiDoc body */
+.markup {
+  line-height: 1.55;
+  word-break: break-word;
+}
+.markup :first-child {
+  margin-top: 0;
+}
+.markup h1,
+.markup h2,
+.markup h3 {
+  color: var(--fg);
+  margin: 18px 0 8px;
+}
+.markup a {
+  color: var(--accent);
+}
+.markup code {
+  font-family: var(--mono, monospace);
+  background: var(--bg-alt);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.markup pre {
+  background: var(--bg-alt);
+  padding: 10px;
+  border-radius: 4px;
+  overflow: auto;
+}
+.markup pre code {
+  background: none;
+  padding: 0;
+}
+.markup img {
+  max-width: 100%;
+}
+.markup blockquote {
+  border-left: 3px solid var(--border, #313244);
+  margin: 10px 0;
+  padding-left: 12px;
+  color: var(--dim);
+}
+
+/* ---- tag renderer: a small supertag / tag / subtag hierarchy diagram ----- */
+.tagview {
+  position: relative;
+  padding: 28px 16px 16px;
+}
+.tagwires {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none; /* clicks fall through to the badges */
+  z-index: 0;
+}
+.tagwires line {
+  stroke: var(--dim);
+  stroke-width: 1.5;
+}
+.tagrow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin: 34px 0;
+}
+/* the diagram reuses the same luggage-tag shape (.tagtag, below) at a larger
+   size, each in its own stable hash color (so a tag matches its header badge).
+   The current tag is larger still, so it reads as the focus. */
+.tagview .tagtag {
+  font-size: 13px;
+  padding: 4px 13px 4px 22px;
+  clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 50%);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+.tagview .tagtag::before {
+  left: 6px;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+}
+.tagview .tagtag:hover {
+  filter: brightness(1.14) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+.tagview .tagtag-current {
+  font-size: 17px;
+  font-weight: 700;
+  padding: 7px 18px 7px 30px;
+  clip-path: polygon(20px 0, 100% 0, 100% 100%, 20px 100%, 0 50%);
+}
+.tagview .tagtag-current::before {
+  left: 8px;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+}
+
+/* tag references shown in a node's header bar: a colored luggage-tag shape — one
+   end rectangular, the other a triangular point with a punched hole. The color is
+   a stable hash of the tag name (see tagColor). */
+.tagtag {
+  position: relative;
+  display: inline-block;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.45;
+  padding: 1px 9px 1px 17px; /* extra left clears the point + hole */
+  text-decoration: none;
+  border-bottom: 0; /* override the global link underline */
+  cursor: pointer;
+  white-space: nowrap;
+  clip-path: polygon(11px 0, 100% 0, 100% 100%, 11px 100%, 0 50%);
+}
+.tagtag::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: var(--bg); /* the bar behind shows through — a punched hole */
+}
+.tagtag:hover {
+  filter: brightness(1.18);
+}
+.tagdesc {
+  text-align: center;
+  color: var(--dim);
+  font-style: italic;
+  margin: 8px 0 0;
+}

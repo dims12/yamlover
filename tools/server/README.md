@@ -82,6 +82,7 @@ optional `depth` (container-nesting limit).
 | `GET /api/tree?path&depth` | the table of contents rooted at `path`, `depth` levels deep (default 3) — fetched again per branch for lazy expansion |
 | `GET /api/json?path&depth` | the node's value, one level deep (`depth` default 1); nested containers become link markers (add `&binary=1` for a binary leaf's base64) |
 | `GET /api/schema?path&depth` | the node's instance JSON Schema, one level deep, with the same link markers |
+| `GET /api/blob?path` | a file-backed node's **raw bytes**, with its (inferred) format as the `Content-Type` — what the image / html / pdf / djvu / markup renderers read, instead of base64 over `json` |
 
 A **link marker** — `{ "$yamloverLink": { kind, path, count|size } }` — stands in
 for a node shown only as a link (a nested container past the one-level view, or
@@ -116,16 +117,63 @@ all on the one tuple:
 A renderer may also declare **`depth`** — the value depth `NodeView` fetches for
 it (default 1; `chapter` needs 2 to reach its chunk/subchapter elements).
 
-Registered today: `chapter` (`object`/`x-yamlover-chapter`) and `text`
-(`string`/`text/markdown`). Adding a shape (e.g. an image renderer for
-`image/png`) is a single registry entry.
+Registered today:
+
+| renderer | (type, format) | draws with |
+|----------|----------------|------------|
+| `chapter` | `object` / `x-yamlover-chapter` | numbered chunks + subchapter links |
+| `tag` | `object` / `x-yamlover-tag` | a hierarchy diagram: supertag (containment parent) and subtags (children) wired to the current tag |
+| `text` | `string` / `text/markdown` | [marked](https://marked.js.org) |
+| `asciidoc` | `string` / `text/asciidoc` | [@asciidoctor/core](https://asciidoctor.org) |
+| `image` | `binary` / `image/*` | native `<img>` |
+| `html` | `binary` / `text/html` | sandboxed `<iframe>` |
+| `pdf` | `binary` / `application/pdf` | [pdf.js](https://mozilla.github.io/pdf.js/) via [react-pdf](https://github.com/wojtekmaj/react-pdf) |
+| `djvu` | `binary` / `image/vnd.djvu` | [DjVu.js](https://djvu.js.org) (vendored) |
+
+Adding a shape is still a single registry entry.
+
+### File rendering and format inference
+
+The bottom seven renderers above turn the browser into a viewer for the common
+file types a tree carries. They hang off one rule, applied to any file-backed
+node that carries **no explicit schema `format`**: the server **infers a format
+from the file extension** (`formatFromExt` in `src/server/yamlover.ts`). So a
+stray `.pdf`, `.png`, or `.md` — or one declared with only `concrete: file`/
+`file/binary` — renders without a `format:` line. An explicit schema `format`
+always wins.
+
+Inference splits two ways by how the renderer consumes the file:
+
+- **Served as bytes** — images, `application/pdf`, `text/html`, `image/vnd.djvu`
+  become `file/binary`. Their renderer points an `<img>`/`<iframe>`/pdf-loader at
+  **`/api/blob`** (or, for DjVu, fetches the `ArrayBuffer`), so the bytes stream
+  straight from disk with no base64 round-trip.
+- **Read as text** — `.md`/`.adoc` keep a **string** value (the file's text),
+  which the `text`/`asciidoc` renderer parses to HTML. (This preserves the
+  existing "a `.md` file is a string" behavior.)
+
+Two implementation notes:
+
+- **DjVu has no native browser support**, so it is decoded client-side by
+  **DjVu.js**, vendored as a prebuilt bundle at `src/client/vendor/djvu.js`.
+  The library is **GPL-v2** (see `src/client/vendor/README.md` for provenance and
+  how to regenerate); the rest of this package is not.
+- **pdf.js and DjVu.js reach for browser globals at import time**, which would
+  break the (Node/jsdom) test run. So the `pdf` and `djvu` renderers are
+  **lazy-loaded** (`React.lazy`) — importing the registry, as the TOC and the
+  tests do, never pulls them in until a PDF/DjVu node is actually shown.
+
+`examples/16-pdf-tags` exercises this: a library of real papers stored as PDFs
+and one saved HTML page, each rendered in place.
 
 ## Requirements
 
 - Node.js 18+
 
-Dependencies (React, Vite, js-yaml, ignore) install with `npm install` in this
-directory; `npx yamlover` then runs `bin/yamlover.js`.
+Dependencies (React, Vite, js-yaml, ignore, plus the renderer libraries
+`react-pdf`, `marked`, `@asciidoctor/core`) install with `npm install` in this
+directory; `npx yamlover` then runs `bin/yamlover.js`. DjVu.js is **vendored**
+(`src/client/vendor/djvu.js`), not an npm dependency.
 
 ## Tests
 
@@ -155,10 +203,12 @@ $ npm run test:watch
 ```
 bin/yamlover.js     CLI entry — arg parsing + Vite middleware-mode server
 src/server/         TypeScript port of the walker read side + JSON API
-  yamlover.ts         materialize a logical tree (lazy leaves); toPlain/toSchema/buildTree
+  yamlover.ts         materialize a logical tree (lazy leaves); toPlain/toSchema/buildTree; formatFromExt
   gitignore.ts        .gitignore predicate for surfaced stray files
-  api.ts              /api/info, /api/tree, /api/json, /api/schema
-src/client/         the React SPA (tree, node view, render, renderers, icons, paths)
+  api.ts              /api/info, /api/tree, /api/json, /api/schema, /api/blob
+src/client/         the React SPA (tree, node view, render, icons, paths)
+  renderers/          (type, format) registry + chapter/text/asciidoc/media/pdf/djvu
+  vendor/djvu.js      prebuilt DjVu.js bundle (GPL-v2; see vendor/README.md)
 test/               Vitest suite for the server logic
 index.html          SPA shell
 ```

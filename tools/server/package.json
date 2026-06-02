@@ -20,11 +20,14 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@asciidoctor/core": "^3.0.4",
     "@vitejs/plugin-react": "^4.3.4",
     "ignore": "^6.0.2",
     "js-yaml": "^4.1.0",
+    "marked": "^18.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-pdf": "^10.4.1",
     "vite": "^5.4.11"
   },
   "devDependencies": {
