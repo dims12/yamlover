@@ -18,3 +18,6 @@
 - 007 SVGs are stretched +DONE
 - 008 Links in MDs and ADOCs are not working; prepare endpoint, that redirects from these links into our  space
 - 007 Tag diagrams are centered, should also be left aligned +DONE
+- 010 Support XML, DOC, DOCX
+- 011 Support CSV
+- 012 Support links in EPUB
