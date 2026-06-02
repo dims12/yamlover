@@ -52,6 +52,7 @@ function mediaIcon(format: string): string | null {
   if (format.startsWith("x-yamlover-")) return "🧩"; // a custom yamlover renderer
   if (format === "application/pdf") return "📕";
   if (format === "application/x-fictionbook+xml") return "📘";
+  if (format === "application/epub+zip") return "📗";
   if (format === "image/vnd.djvu") return "📓";
   if (format.startsWith("image/")) return "🖼️";
   if (format === "text/markdown") return "📝";

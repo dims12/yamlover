@@ -469,6 +469,17 @@ a.chunk-index:hover {
   margin: 12px 0;
 }
 
+/* ---- epub ebook renderer ------------------------------------------------- */
+.epub-body img {
+  max-width: 100%;
+  height: auto;
+}
+.epub-body .epub-doc + .epub-doc {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
 /* ---- tag renderer: a small supertag / tag / subtag hierarchy diagram ----- */
 .tagview {
   position: relative;

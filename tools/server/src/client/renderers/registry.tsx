@@ -5,6 +5,7 @@ import { TextView, TextChunk } from "./text";
 import { AsciidocView, AsciidocChunk } from "./asciidoc";
 import { TagView } from "./tag";
 import { Fb2View } from "./fb2";
+import { EpubView } from "./epub";
 import { ImageView, HtmlView } from "./media";
 
 // pdf.js and DjVu.js are heavy and browser-only (they reach for canvas globals at
@@ -117,6 +118,11 @@ const REGISTRY: Renderer[] = [
     name: "fb2",
     accepts: [["binary", "application/x-fictionbook+xml"]],
     render: (node) => <Fb2View node={node} />,
+  },
+  {
+    name: "epub",
+    accepts: [["binary", "application/epub+zip"]],
+    render: (node) => <EpubView node={node} />,
   },
   {
     name: "pdf",

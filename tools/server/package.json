@@ -22,6 +22,7 @@
   "dependencies": {
     "@asciidoctor/core": "^3.0.4",
     "@vitejs/plugin-react": "^4.3.4",
+    "fflate": "^0.8.3",
     "ignore": "^6.0.2",
     "js-yaml": "^4.1.0",
     "marked": "^18.0.4",
