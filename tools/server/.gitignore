@@ -1,3 +1,6 @@
 node_modules/
 dist/
 *.log
+
+# npm pack output (regenerable build artifact)
+*.tgz

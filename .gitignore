@@ -7,3 +7,10 @@
 # Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
+
+# Node
+node_modules/
+
+# Playwright MCP scratch (screenshots, traces)
+.playwright-mcp/
