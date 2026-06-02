@@ -40,7 +40,10 @@ interface Options {
   gitignore?: boolean; // honor .gitignore for stray files (default: true)
 }
 
-const CACHE_TTL_MS = 2000;
+// The materialized tree is cached this long. With lazy directory loading the
+// cached tree *accumulates* the levels you browse (each read once and memoized),
+// so a longer window keeps navigation warm; edits show after it on reload.
+const CACHE_TTL_MS = 15000;
 
 export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
   // The root label (breadcrumb head and TOC root): the yamlover title if set,

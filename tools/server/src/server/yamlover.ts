@@ -120,9 +120,11 @@ export class YNode {
 // Loading / materialization
 // --------------------------------------------------------------------------- //
 
-/** Materialize the logical node of the yamlover entity at `entityPath`. */
-export function loadEntity(entityPath: string): YNode {
-  if (isDir(entityPath)) {
+/** Materialize the logical node of the yamlover entity at `entityPath`.
+ *  `knownDir` lets a caller that already learned the type (e.g. from a
+ *  `readdir({withFileTypes})` Dirent) skip a redundant `stat`. */
+export function loadEntity(entityPath: string, knownDir?: boolean): YNode {
+  if (knownDir ?? isDir(entityPath)) {
     const schemaPath = path.join(entityPath, YAMLOVER_DIR, SCHEMA_FILE);
     if (isFile(schemaPath)) {
       const schema = yaml.load(fs.readFileSync(schemaPath, "utf-8")) as Schema;
@@ -132,8 +134,11 @@ export function loadEntity(entityPath: string): YNode {
       annotate(node, schema);
       return node;
     }
-    // plain directory (no .yamlover/): an object of its visible entries
-    return new YNode(extraEntries(entityPath, new Set(), {}), "dir", entityPath);
+    // plain directory (no .yamlover/): a *lazy* object of its visible entries.
+    // The entries (and any files among them) are read only when this directory
+    // is actually descended into — its subdirectories are themselves lazy — so a
+    // huge tree is never walked whole; only the levels the TOC shows are read.
+    return YNode.lazy(() => extraEntries(entityPath, new Set(), {}), "dir", entityPath, "object");
   }
   // A plain file with no schema, but whose extension names a renderable format.
   // Binary-rendered formats (image, pdf, djvu, html) stay raw bytes, served as
@@ -151,14 +156,44 @@ export function loadEntity(entityPath: string): YNode {
     node.kind = "scalar";
     return node;
   }
-  // Otherwise read it now (we cannot know its kind otherwise), but stray plain
-  // files are small text; described leaves stay lazy via fromFile.
+  // Unknown extension: an opaque file (binary, or simply large) is surfaced as a
+  // *binary link* — stat-only, never read during materialization, fetched on
+  // demand (a directory full of archives/scans must not be slurped into memory).
+  // Only a small, text-looking file is read so its YAML/JSON/raw value can show.
+  if (looksBinary(entityPath)) {
+    const node = fromFile(entityPath, "file/binary", null, "binary");
+    node.path = entityPath;
+    return node;
+  }
+  // A small text file: read it now (we cannot know its kind otherwise).
   const value = decodeFile(entityPath, "file/yaml", null) as NodeValue;
   const node = wrap(value, "yaml");
   node.concrete = "file";
   node.path = entityPath;
   node.kind = valueKind(node.value);
   return node;
+}
+
+// The largest stray file read as text during materialization; above this it is
+// treated as opaque bytes (a binary link) regardless of content.
+const MAX_TEXT_BYTES = 1 << 20; // 1 MiB
+
+/** Whether a stray file should be treated as opaque bytes rather than read as
+ *  text: true when it is large, or when a NUL byte in its head marks it binary.
+ *  Cheap — it stats and reads at most an 8 KiB prefix, never the whole file. */
+function looksBinary(filePath: string): boolean {
+  let fd: number | undefined;
+  try {
+    if (fs.statSync(filePath).size > MAX_TEXT_BYTES) return true;
+    fd = fs.openSync(filePath, "r");
+    const buf = Buffer.alloc(8192);
+    const n = fs.readSync(fd, buf, 0, buf.length, 0);
+    return buf.subarray(0, n).includes(0); // a NUL byte ⇒ binary
+  } catch {
+    return false;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
 }
 
 type Schema = Record<string, any>;
@@ -360,11 +395,18 @@ function extraEntries(
 ): Record<string, YNode> {
   const out: Record<string, YNode> = {};
   if (isDir(container)) {
-    for (const name of fs.readdirSync(container).sort()) {
+    // `withFileTypes` returns each entry's kind in the one `readdir`, so the
+    // common dir/file case needs no extra `stat` per entry (a symlink still
+    // falls back to one, via `knownDir: undefined`).
+    const ents = fs.readdirSync(container, { withFileTypes: true });
+    ents.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    for (const ent of ents) {
+      const name = ent.name;
       if (name.startsWith(".") || consumed.has(name) || name in existing) continue;
       const full = path.join(container, name);
       if (isIgnored(full)) continue;
-      out[name] = loadEntity(full);
+      const knownDir = ent.isDirectory() ? true : ent.isFile() ? false : undefined;
+      out[name] = loadEntity(full, knownDir);
     }
   }
   return out;
@@ -1018,7 +1060,9 @@ export function buildTree(node: YNode, segs: Seg[], label: string, depth: number
     label,
     type: tocType(node),
     format: node.format ?? null,
-    hasChildren: container && childCount(node) > 0,
+    // An unloaded lazy container (a directory not yet descended into) is assumed
+    // expandable rather than read just to count — its children load on expand.
+    hasChildren: container && (node.loaded ? childCount(node) > 0 : true),
     children: [],
   };
   if (container && depth > 0) {

@@ -19,11 +19,26 @@ import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
 import { createServer as createHttpServer } from "node:http";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import fs from "node:fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(__dirname, ".."); // tools/server
+
+// Resolve react/react-dom as *this package* sees them, and alias Vite to those
+// exact copies, so the SPA never picks up a stale React from a parent
+// node_modules (which surfaces as "react-dom … does not provide an export named
+// 'createRoot'" — createRoot is React 18+). Best-effort: if resolution fails we
+// leave Vite to its defaults.
+const reactAlias = {};
+try {
+  const req = createRequire(join(pkgRoot, "package.json"));
+  reactAlias["react"] = dirname(req.resolve("react/package.json"));
+  reactAlias["react-dom"] = dirname(req.resolve("react-dom/package.json"));
+} catch {
+  /* fall back to default resolution */
+}
 
 // --- argument parsing ----------------------------------------------------- //
 let rootArg = null; // the ROOT path as typed (null when omitted)
@@ -83,6 +98,16 @@ vite = await createServer({
   root: pkgRoot,
   plugins: [react()],
   appType: "custom",
+  // Always use this package's own React: `dedupe` collapses react/react-dom to a
+  // single copy, and the aliases pin that copy to the one resolvable from here —
+  // so a stale react-dom in a *parent* node_modules (the classic "does not
+  // provide an export named 'createRoot'" failure) cannot shadow it.
+  resolve: { dedupe: ["react", "react-dom"], alias: reactAlias },
+  // Pre-bundle the heavy renderer deps up front. `react-pdf` is lazy-loaded, so
+  // Vite would otherwise discover it (and its CJS deps such as `warning`) only on
+  // first use and could serve them un-interopped — the "does not provide an
+  // export named 'default'" failure. Listing them forces a clean CJS→ESM bundle.
+  optimizeDeps: { include: ["react-pdf", "marked", "@asciidoctor/core"] },
   // `allowedHosts: true` lifts Vite's Host-header allowlist so the SPA is
   // reachable from the network (any hostname/IP), matching the 0.0.0.0 bind.
   server: { middlewareMode: true, allowedHosts: true, hmr: { server } },
@@ -92,8 +117,32 @@ vite = await createServer({
 const { createHandlers } = await vite.ssrLoadModule("/src/server/api.ts");
 handle = createHandlers(dataRoot, { gitignore });
 
-server.listen(port, host, () => {
-  const shown = host === "0.0.0.0" || host === "::" ? "localhost" : host;
-  console.log(`yamlover  serving ${dataRoot}`);
-  console.log(`          http://${shown}:${port}/  (bound to ${host})`);
-});
+// Listen on `port`; if it is already in use, fall back to the next port (up to
+// `MAX_PORT_TRIES`), so two instances — or a leftover one — don't collide.
+const shown = host === "0.0.0.0" || host === "::" ? "localhost" : host;
+const MAX_PORT_TRIES = 50;
+
+function listenWithFallback(p, triesLeft) {
+  const onError = (err) => {
+    server.off("listening", onListening); // drop this attempt's success handler
+    if (err && err.code === "EADDRINUSE" && triesLeft > 0) {
+      console.log(`yamlover  port ${p} in use — trying ${p + 1}…`);
+      listenWithFallback(p + 1, triesLeft - 1);
+    } else if (err && err.code === "EADDRINUSE") {
+      console.error(`yamlover: no free port found in ${port}–${p}`);
+      process.exit(1);
+    } else {
+      throw err;
+    }
+  };
+  const onListening = () => {
+    server.off("error", onError); // bound OK — stop intercepting listen errors
+    console.log(`yamlover  serving ${dataRoot}`);
+    console.log(`          http://${shown}:${p}/  (bound to ${host})`);
+  };
+  server.once("error", onError);
+  server.once("listening", onListening);
+  server.listen(p, host);
+}
+
+listenWithFallback(port, MAX_PORT_TRIES);

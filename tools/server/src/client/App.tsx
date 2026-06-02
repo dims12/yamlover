@@ -7,8 +7,10 @@ import { rendererName } from "./renderers/registry";
 const isStandardFormat = (f: Format) => (FORMATS as string[]).includes(f);
 import { crumbs, formatFromUrl, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
 
-// Levels of the TOC fetched at once — initially and on each lazy expand.
-const INITIAL_DEPTH = 3;
+// Levels of the TOC fetched at once — initially and on each lazy expand. One
+// level keeps every fetch cheap on a huge/slow tree (a fetch only reads the
+// directories it actually shows); deeper levels load instantly on expand.
+const INITIAL_DEPTH = 1;
 
 /** Return a copy of `tree` with the children of the node at `path` replaced. */
 function replaceChildren(tree: TreeNode, path: string, children: TreeNode[]): TreeNode {
@@ -186,6 +188,7 @@ export function App() {
       <div className="body">
         <aside className="pane left" style={{ width: leftWidth }}>
           {error && <div className="error">{error}</div>}
+          {!error && !tree && <div className="loading">loading…</div>}
           {tree && (
             <Tree node={tree} current={current} onSelect={navigate} onLoadChildren={loadChildren} />
           )}

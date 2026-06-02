@@ -35,27 +35,29 @@ function loadDjVu(): Promise<any> {
  */
 export function DjvuView({ node }: { node: NodeJson }) {
   const [pages, setPages] = useState<string[]>([]);
+  const [count, setCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const created: string[] = [];
     setPages([]);
+    setCount(0);
     setError(null);
     (async () => {
       const DjVu = await loadDjVu();
       const buf = await fetch(blobUrl(node.path)).then((r) => r.arrayBuffer());
       const doc = new DjVu.Document(buf);
-      const count = doc.getPagesQuantity();
-      const urls: string[] = [];
-      for (let i = 1; i <= count && !cancelled; i++) {
+      const total = doc.getPagesQuantity();
+      if (!cancelled) setCount(total);
+      // Decode page-by-page and reveal each as it's ready, so a long scanned
+      // document shows its first page quickly instead of blocking on the whole.
+      for (let i = 1; i <= total && !cancelled; i++) {
         const page = await doc.getPage(i);
         const { url } = await page.createPngObjectUrl();
-        urls.push(url);
         created.push(url);
+        if (!cancelled) setPages((prev) => [...prev, url]);
       }
-      if (cancelled) created.forEach(URL.revokeObjectURL);
-      else setPages(urls);
     })().catch((e) => !cancelled && setError(String((e as Error).message || e)));
     return () => {
       cancelled = true;
@@ -64,9 +66,12 @@ export function DjvuView({ node }: { node: NodeJson }) {
   }, [node.path]);
 
   if (error) return <div className="error">djvu: {error}</div>;
-  if (pages.length === 0) return <div className="loading">decoding djvu…</div>;
   return (
     <div className="filedjvu">
+      {count > 0 && pages.length < count && (
+        <div className="loading">decoding djvu… page {pages.length + 1} of {count}</div>
+      )}
+      {count === 0 && pages.length === 0 && <div className="loading">decoding djvu…</div>}
       {pages.map((url, i) => (
         <img key={i} className="fileimage" src={url} alt={`page ${i + 1}`} />
       ))}
