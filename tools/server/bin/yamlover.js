@@ -103,11 +103,14 @@ vite = await createServer({
   // so a stale react-dom in a *parent* node_modules (the classic "does not
   // provide an export named 'createRoot'" failure) cannot shadow it.
   resolve: { dedupe: ["react", "react-dom"], alias: reactAlias },
-  // Pre-bundle the heavy renderer deps up front. `react-pdf` is lazy-loaded, so
-  // Vite would otherwise discover it (and its CJS deps such as `warning`) only on
-  // first use and could serve them un-interopped — the "does not provide an
-  // export named 'default'" failure. Listing them forces a clean CJS→ESM bundle.
-  optimizeDeps: { include: ["react-pdf", "marked", "@asciidoctor/core"] },
+  // Pre-bundle the heavy renderer deps up front. These are all lazy-loaded, so
+  // Vite would otherwise discover them (and their transitive CJS deps such as
+  // `warning` for react-pdf or `base64-js` for ag-psd) only on first use and could
+  // serve them un-interopped — the "does not provide an export named …" failure.
+  // Listing them forces a clean CJS→ESM bundle before any renderer mounts.
+  optimizeDeps: {
+    include: ["react-pdf", "marked", "@asciidoctor/core", "ag-psd", "utif", "heic2any"],
+  },
   // `allowedHosts: true` lifts Vite's Host-header allowlist so the SPA is
   // reachable from the network (any hostname/IP), matching the 0.0.0.0 bind.
   server: { middlewareMode: true, allowedHosts: true, hmr: { server } },

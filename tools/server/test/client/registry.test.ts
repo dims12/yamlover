@@ -33,6 +33,8 @@ describe("renderer registry (keyed on (type, format))", () => {
     expect(getRenderer(node({ type: "binary", format: "image/png" }))?.name).toBe("image");
     expect(getRenderer(node({ type: "binary", format: "image/vnd.djvu" }))?.name).toBe("djvu");
     expect(getRenderer(node({ type: "binary", format: "image/vnd.adobe.photoshop" }))?.name).toBe("psd");
+    expect(getRenderer(node({ type: "binary", format: "image/tiff" }))?.name).toBe("tiff");
+    expect(getRenderer(node({ type: "binary", format: "image/heic" }))?.name).toBe("heic");
     expect(rendererName("binary", "image/vnd.adobe.photoshop")).toBe("psd");
   });
 

@@ -14,6 +14,8 @@ import { ImageView, HtmlView } from "./media";
 const PdfView = lazy(() => import("./pdf").then((m) => ({ default: m.PdfView })));
 const DjvuView = lazy(() => import("./djvu").then((m) => ({ default: m.DjvuView })));
 const PsdView = lazy(() => import("./psd").then((m) => ({ default: m.PsdView })));
+const TiffView = lazy(() => import("./tiff").then((m) => ({ default: m.TiffView })));
+const HeicView = lazy(() => import("./heic").then((m) => ({ default: m.HeicView })));
 const lazily = (el: JSX.Element) => <Suspense fallback={<div className="loading">…</div>}>{el}</Suspense>;
 
 /**
@@ -139,6 +141,16 @@ const REGISTRY: Renderer[] = [
     name: "psd",
     accepts: [["binary", "image/vnd.adobe.photoshop"]],
     render: (node) => lazily(<PsdView node={node} />),
+  },
+  {
+    name: "tiff",
+    accepts: [["binary", "image/tiff"]],
+    render: (node) => lazily(<TiffView node={node} />),
+  },
+  {
+    name: "heic",
+    accepts: [["binary", "image/heic"]],
+    render: (node) => lazily(<HeicView node={node} />),
   },
 ];
 
