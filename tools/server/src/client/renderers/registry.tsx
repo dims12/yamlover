@@ -13,6 +13,7 @@ import { ImageView, HtmlView } from "./media";
 // tests — never pulls them in until a PDF/DjVu node is actually rendered.
 const PdfView = lazy(() => import("./pdf").then((m) => ({ default: m.PdfView })));
 const DjvuView = lazy(() => import("./djvu").then((m) => ({ default: m.DjvuView })));
+const PsdView = lazy(() => import("./psd").then((m) => ({ default: m.PsdView })));
 const lazily = (el: JSX.Element) => <Suspense fallback={<div className="loading">…</div>}>{el}</Suspense>;
 
 /**
@@ -133,6 +134,11 @@ const REGISTRY: Renderer[] = [
     name: "djvu",
     accepts: [["binary", "image/vnd.djvu"]],
     render: (node) => lazily(<DjvuView node={node} />),
+  },
+  {
+    name: "psd",
+    accepts: [["binary", "image/vnd.adobe.photoshop"]],
+    render: (node) => lazily(<PsdView node={node} />),
   },
 ];
 

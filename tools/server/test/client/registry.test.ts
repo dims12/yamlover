@@ -29,6 +29,13 @@ describe("renderer registry (keyed on (type, format))", () => {
     expect(getRenderer(node({ type: "string", format: "text/markdown", value: "hi" }))?.name).toBe("text");
   });
 
+  it("claims file-backed binaries by their inferred format", () => {
+    expect(getRenderer(node({ type: "binary", format: "image/png" }))?.name).toBe("image");
+    expect(getRenderer(node({ type: "binary", format: "image/vnd.djvu" }))?.name).toBe("djvu");
+    expect(getRenderer(node({ type: "binary", format: "image/vnd.adobe.photoshop" }))?.name).toBe("psd");
+    expect(rendererName("binary", "image/vnd.adobe.photoshop")).toBe("psd");
+  });
+
   it("returns null when no renderer claims the tuple (default tabbed view)", () => {
     expect(getRenderer(node({ type: "array", format: null, value: [] }))).toBeNull();
     expect(getRenderer(node({ type: "object", format: null }))).toBeNull();
