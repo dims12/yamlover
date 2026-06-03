@@ -1,0 +1,23 @@
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: docker
+    container:
+      image: node:20-bookworm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure npm for Nexus
+        run: |
+          AUTH=$(printf '%s:%s' "${{ secrets.NEXUS_USERNAME }}" "${{ secrets.NEXUS_PASSWORD }}" | base64 -w0)
+          cat > .npmrc <<EOF
+          registry=https://nexus.inthemoon.net/repository/npm-hosted/
+          //nexus.inthemoon.net/repository/npm-hosted/:_auth=${AUTH}
+          always-auth=true
+          EOF
+
+      - name: Publish
+        run: npm publish
