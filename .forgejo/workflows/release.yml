@@ -1,0 +1,62 @@
+# package.json-driven release. The version field in tools/server/package.json is
+# the single source of truth: bump it, push main, and CI does the rest. This job
+# reads that version, and only when no v<version> tag exists yet does it create +
+# push the tag and `npm publish`. So tagging stays in lockstep with package.json
+# automatically (no hand-made tags to drift), and re-pushing main is idempotent —
+# an unchanged version simply does nothing.
+#
+# It is one job on purpose: a tag pushed by CI's own token does not re-trigger a
+# separate tag-based workflow, so tagging and publishing must live in the same run.
+on:
+  push:
+    branches: [main]
+    paths: ['tools/server/package.json']
+
+jobs:
+  release:
+    runs-on: docker
+    container:
+      image: node:20-bookworm
+    defaults:
+      run:
+        working-directory: tools/server
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the full tag history for the "already released?" check
+
+      - name: Read version from package.json
+        id: v
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Is this version already released?
+        id: check
+        run: |
+          if git rev-parse "v${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
+            echo "tag v${{ steps.v.outputs.version }} already exists — nothing to do"
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag from package.json
+        if: steps.check.outputs.new == 'true'
+        run: |
+          git config user.name "forgejo-actions"
+          git config user.email "actions@forgejo"
+          git tag "v${{ steps.v.outputs.version }}"
+          git push origin "v${{ steps.v.outputs.version }}"
+
+      - name: Configure npm for Nexus
+        if: steps.check.outputs.new == 'true'
+        run: |
+          AUTH=$(printf '%s:%s' "${{ secrets.NEXUS_USERNAME }}" "${{ secrets.NEXUS_PASSWORD }}" | base64 -w0)
+          cat > .npmrc <<EOF
+          registry=https://nexus.inthemoon.net/repository/npm-hosted/
+          //nexus.inthemoon.net/repository/npm-hosted/:_auth=${AUTH}
+          always-auth=true
+          EOF
+
+      - name: Publish
+        if: steps.check.outputs.new == 'true'
+        run: npm publish
