@@ -106,12 +106,33 @@ properties:
           via .-prefixed virtual down-edges, listed/navigable but not nested.
         x-yamlover:
           concrete: yamlover
-      15-doc-tree:
+      15-all-formats-object:
         description: >-
-          A recursive document tree (a help/book): a chapter is an ordered list
-          whose elements are prose strings or nested chapters, defined once in
-          $defs and recursed via $ref. Fully self-contained — every block is
-          pinned inline with const, so no .md files exist; title/description
+          A catalogue object with one property per renderable (type, format) the
+          web viewer supports — markdown/asciidoc/plantuml pinned inline, the rest
+          binary sample files (png, svg, gif, bmp, ico, tiff, html, pdf, fb2, epub,
+          psd). Navigating any property shows it in its own renderer.
+        x-yamlover:
+          concrete: yamlover
+      16-all-formats-chunks:
+        description: >-
+          The same format catalogue flowed into a chapter's chunks: the chapter
+          delegates every chunk to the renderer for its (type, format), so one
+          numbered body interleaves prose, a diagram, and each binary file inline.
+        x-yamlover:
+          concrete: yamlover
+      17-doc-tree:
+        description: >-
+          A recursive document tree (a help/book): a chapter is heading + an
+          ordered body of chunks (markdown, images, PlantUML diagrams) + nested
+          chapters, defined once in $defs and recursed via $ref. title/description
           carry each chapter's heading and subtitle.
+        x-yamlover:
+          concrete: yamlover
+      18-pdf-tags:
+        description: >-
+          A small library of real papers (PDFs/HTML) classified by a tag tree: each
+          paper is a file-backed node carrying x-yamlover.rel edges to tag nodes —
+          tagging as the same up-edge mechanism as the genealogy DAG.
         x-yamlover:
           concrete: yamlover

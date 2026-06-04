@@ -91,8 +91,11 @@ export function App() {
   }, [tree, current]);
 
   // Fetch a collapsed branch's children and splice them into the tree in place.
-  const loadChildren = useCallback(async (path: string) => {
-    const sub = await fetchTree(path, INITIAL_DEPTH);
+  // `levels` is how deep to pull (default one): a renderer whose TOC rows sit
+  // deeper than its direct children (a chapter, surfacing subchapters from under
+  // its `children` wrapper) asks for more, so one expand reveals them.
+  const loadChildren = useCallback(async (path: string, levels = INITIAL_DEPTH) => {
+    const sub = await fetchTree(path, levels);
     setTree((t) => (t ? replaceChildren(t, path, sub.children) : t));
   }, []);
 

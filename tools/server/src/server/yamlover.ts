@@ -492,6 +492,10 @@ const EXT_FORMAT: Record<string, string> = {
   ".adoc": "text/asciidoc",
   ".asciidoc": "text/asciidoc",
   ".asc": "text/asciidoc",
+  ".puml": "text/x-plantuml",
+  ".plantuml": "text/x-plantuml",
+  ".iuml": "text/x-plantuml",
+  ".pu": "text/x-plantuml",
 };
 
 /** The renderable format implied by a file's extension, or null when unknown. */
@@ -502,7 +506,7 @@ export function formatFromExt(filePath: string | null): string | null {
 
 // Formats whose nodes carry their content as a *string* value (rendered from the
 // text). Everything else inferable (images, pdf, djvu, html) is served as bytes.
-const TEXT_FORMATS = new Set(["text/markdown", "text/asciidoc"]);
+const TEXT_FORMATS = new Set(["text/markdown", "text/asciidoc", "text/x-plantuml"]);
 
 /** Capture a fragment's annotations onto a node: `title`/`description` (tree
  *  labels) and `type`/`format` (the (type, format) renderer key — read without
@@ -1014,6 +1018,7 @@ export interface TreeNode {
   label: string;
   type: string; // JSON-Schema type (object | array | string | integer | …)
   format: string | null; // schema `format`; with `type` it keys the renderer/icon
+  concrete: string | null; // how it is stored (e.g. `dir` → a plain folder icon)
   hasChildren: boolean; // container with children (whether or not loaded here)
   children: TreeNode[]; // loaded up to the requested depth ([] past the boundary)
 }
@@ -1068,6 +1073,7 @@ export function buildTree(node: YNode, segs: Seg[], label: string, depth: number
     label,
     type: tocType(node),
     format: node.format ?? null,
+    concrete: node.concrete ?? null,
     // An unloaded lazy container (a directory not yet descended into) is assumed
     // expandable rather than read just to count — its children load on expand.
     hasChildren: container && (node.loaded ? childCount(node) > 0 : true),

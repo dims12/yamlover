@@ -11,6 +11,7 @@ const tree: TreeNode = {
   label: "root",
   type: "object",
   format: null,
+  concrete: null,
   hasChildren: true,
   children: [
     {
@@ -18,10 +19,11 @@ const tree: TreeNode = {
       label: "a",
       type: "object",
       format: null,
+      concrete: null,
       hasChildren: true,
-      children: [{ path: "/a/b", label: "b", type: "string", format: null, hasChildren: false, children: [] }],
+      children: [{ path: "/a/b", label: "b", type: "string", format: null, concrete: null, hasChildren: false, children: [] }],
     },
-    { path: "/c", label: "c", type: "object", format: null, hasChildren: true, children: [] }, // unloaded
+    { path: "/c", label: "c", type: "object", format: null, concrete: null, hasChildren: true, children: [] }, // unloaded
   ],
 };
 
@@ -47,7 +49,7 @@ describe("Tree", () => {
     render(<Tree node={tree} current="/" onSelect={() => {}} onLoadChildren={onLoad} />);
     const cRow = screen.getByText("c").closest(".tree-row") as HTMLElement;
     fireEvent.click(within(cRow).getByRole("button"));
-    expect(onLoad).toHaveBeenCalledWith("/c");
+    expect(onLoad).toHaveBeenCalledWith("/c", undefined); // a plain node: default depth (one level)
   });
 
   it("renders leaves without a toggle", () => {

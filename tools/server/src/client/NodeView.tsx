@@ -4,12 +4,14 @@ import { getRenderer } from "./renderers/registry";
 import { TagBadges, splitTagRefs } from "./renderers/tag";
 import { Render } from "./render";
 
-// yaml-schema (ours) is the default; yaml/json are the data, json-schema the
-// standard JSON Schema. Each is one level deep with nested containers as links.
-// A node with a renderer also offers a tab keyed by the renderer's *name* (e.g.
-// `chapter`) — the rendered view, and that node's default representation.
+// yaml-schema (ours) is the default. Tabs are grouped by syntax: the YAML pair
+// (yaml-schema, then the yaml data) then the JSON pair (json-schema, then the
+// json data) — schema before data within each. Each is one level deep with
+// nested containers as links. A node with a renderer also offers a tab keyed by
+// the renderer's *name* (e.g. `chapter`) — the rendered view, and that node's
+// default representation.
 export type Format = "yaml-schema" | "yaml" | "json" | "json-schema" | (string & {});
-export const FORMATS: Format[] = ["yaml-schema", "yaml", "json", "json-schema"];
+export const FORMATS: Format[] = ["yaml-schema", "yaml", "json-schema", "json"];
 export const DEFAULT_FORMAT: Format = "yaml-schema";
 
 const isStandard = (f: Format) => (FORMATS as string[]).includes(f);

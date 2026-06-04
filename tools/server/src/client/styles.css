@@ -318,15 +318,19 @@ body {
   border-bottom-width: 0;
 }
 
-/* a numbered chunk: an index gutter (linking to the chunk's own node) + body */
+/* a numbered chunk: an index gutter (linking to the chunk's own node) + body.
+   Align the index to the top, not the baseline: a replaced element (image /
+   diagram) has its baseline at its *bottom* edge, which would drop the index
+   below the object — flex-start keeps it at the body's top-left for prose and
+   media alike. */
 .chunk {
   display: flex;
   gap: 12px;
-  align-items: baseline;
+  align-items: flex-start;
 }
 .chunk-index {
   flex: 0 0 auto;
-  min-width: 1.5em;
+  min-width: 2.2em; /* fits the § prefix + a digit, keeps the gutter right-aligned */
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-size: 12px;
@@ -340,6 +344,21 @@ a.chunk-index:hover {
 .chunk-body {
   flex: 1 1 auto;
   min-width: 0;
+}
+/* an image / diagram chunk sits flush with its index: drop the standalone-view
+   top padding so the object's top-left corner meets the gutter (the index) */
+.chunk-body .filemedia {
+  padding-top: 0;
+}
+/* full-page media reused inline as a chunk: cap the heights that otherwise fill
+   the viewport (the standalone html iframe / pdf page), so a chapter body stays
+   readable when it interleaves an HTML or PDF chunk */
+.chunk-body .filehtml {
+  height: 340px;
+}
+.chunk-body .filepdf {
+  max-height: 460px;
+  overflow: auto;
 }
 
 .error {
@@ -369,6 +388,13 @@ a.chunk-index:hover {
   display: block;
   margin: 0 0 12px; /* left-aligned, like every other resource (004) */
   background: #fff;
+}
+/* a PlantUML diagram is an SVG on a white card, padded so it doesn't crowd the edges */
+.fileimage.plantuml {
+  max-height: none; /* let a tall diagram grow; the pane scrolls */
+  padding: 12px;
+  border: 1px solid var(--border, #313244);
+  border-radius: 6px;
 }
 .filehtml {
   width: 100%;

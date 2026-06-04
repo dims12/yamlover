@@ -44,12 +44,37 @@ describe("ChapterView", () => {
     const prose = screen.getByText("Welcome to the handbook.");
     expect(prose.tagName).toBe("P"); // a chunk is delegated to the text renderer → paragraph
 
-    // the index 0 links to the chunk's own node
-    const idx0 = screen.getByText("0");
+    // the index §0 links to the chunk's own node
+    const idx0 = screen.getByText("§0");
     expect((idx0 as HTMLAnchorElement).getAttribute("href")).toBe("/chunks[0]");
-    expect(screen.getByText("1")).toBeTruthy(); // second chunk numbered 1
+    expect(screen.getByText("§1")).toBeTruthy(); // second chunk numbered 1
     fireEvent.click(idx0);
     expect(onNav).toHaveBeenCalledWith("/chunks[0]");
+  });
+
+  it("routes a non-prose chunk to the renderer for its (type, format)", () => {
+    // a chapter whose body interleaves Markdown, an image, and a PlantUML diagram
+    const mixed: NodeJson = {
+      ...chapter,
+      value: {
+        chunks: [
+          { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: "/chunks[0]", value: "Intro." } },
+          { $yamloverLink: { kind: "binary", type: "binary", format: "image/png", path: "/chunks[1]", size: 1234 } },
+          { $yamloverLink: { kind: "scalar", type: "string", format: "text/x-plantuml", path: "/chunks[2]", value: "@startuml\nA -> B\n@enduml" } },
+        ],
+        children: [],
+      },
+    };
+    const { container } = render(<ChapterView node={mixed} onNavigate={vi.fn()} />);
+
+    expect(screen.getByText("Intro.").tagName).toBe("P"); // markdown → text renderer
+    const imgs = container.querySelectorAll("img");
+    expect(imgs.length).toBe(2); // the image chunk + the PlantUML diagram chunk
+    // the image chunk points at its own node's blob
+    expect(imgs[0].getAttribute("src")).toContain("/api/blob");
+    expect(imgs[0].getAttribute("src")).toContain(encodeURIComponent("/chunks[1]"));
+    // the diagram chunk points at a PlantUML server, not the blob endpoint
+    expect(imgs[1].getAttribute("src")).toMatch(/\/plantuml\/svg\//);
   });
 
   it("renders a subchapter as a title hyperlink", () => {

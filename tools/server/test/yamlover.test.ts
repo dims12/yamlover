@@ -91,7 +91,7 @@ describe("instance schema (toSchema)", () => {
   });
 
   it("carries the schema title", () => {
-    const s = toSchema(loadEntity(ex("15-doc-tree")), 1) as any;
+    const s = toSchema(loadEntity(ex("17-doc-tree")), 1) as any;
     expect(s.title).toBe("The Pet Keeper's Handbook");
   });
 
@@ -233,7 +233,7 @@ describe("table of contents (buildTree)", () => {
   });
 
   it("uses titles for labels (recursively)", () => {
-    const root = loadEntity(ex("15-doc-tree"));
+    const root = loadEntity(ex("17-doc-tree"));
     // Puppies is four levels deep now (root → children → Dogs → children → Puppies).
     const t = buildTree(root, [], root.title || "doc", 5);
     expect(t.label).toBe("The Pet Keeper's Handbook");
@@ -256,6 +256,39 @@ describe("table of contents (buildTree)", () => {
     const img = t.children.find((c) => c.label === "object_detection.png")!;
     expect(img.format).toBe("image/png");
     expect(img.hasChildren).toBe(false);
+  });
+});
+
+describe("all-supported-formats catalogue examples (15 & 16)", () => {
+  // every renderable (type, format) the two examples enumerate, in schema order
+  const FORMATS = [
+    "text/markdown",
+    "text/asciidoc",
+    "text/x-plantuml",
+    "image/png",
+    "image/svg+xml",
+    "image/gif",
+    "image/bmp",
+    "image/x-icon",
+    "image/tiff",
+    "text/html",
+    "application/pdf",
+    "application/x-fictionbook+xml",
+    "application/epub+zip",
+    "image/vnd.adobe.photoshop",
+  ];
+
+  it("15-all-formats-object exposes one property per renderable format", () => {
+    const t = buildTree(loadEntity(ex("15-all-formats-object")), [], "root", 1);
+    const formats = t.children.map((c) => c.format);
+    for (const f of FORMATS) expect(formats, `missing property for ${f}`).toContain(f);
+  });
+
+  it("16-all-formats-chunks puts the same set into a chapter's chunks, in order", () => {
+    const root = loadEntity(ex("16-all-formats-chunks"));
+    expect(root.format).toBe("x-yamlover-chapter");
+    const chunks = buildTree(root, [], "root", 2).children.find((c) => c.label === "chunks")!;
+    expect(chunks.children.map((c) => c.format)).toEqual(FORMATS);
   });
 });
 

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">
+  <description><title-info>
+    <book-title>FictionBook Sample</book-title>
+    <author><first-name>Ada</first-name><last-name>Sample</last-name></author>
+  </title-info></description>
+  <body><section>
+    <title><p>A Tiny FB2</p></title>
+    <p>FB2 is a single XML file describing a whole book — metadata, sections, and prose.</p>
+    <p>This sample has one section with two paragraphs, rendered inline by the FB2 renderer.</p>
+  </section></body>
+</FictionBook>

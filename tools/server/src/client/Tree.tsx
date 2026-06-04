@@ -8,7 +8,7 @@ interface Props {
   node: TreeNode;
   current: string;
   onSelect: (path: string) => void;
-  onLoadChildren: (path: string) => Promise<void>;
+  onLoadChildren: (path: string, levels?: number) => Promise<void>;
   depth?: number;
 }
 
@@ -23,7 +23,7 @@ export function Tree({ node, current, onSelect, onLoadChildren, depth = 0 }: Pro
   // How this node presents in the TOC: the rows to show, whether it expands, and
   // whether those rows are loaded yet (a renderer may unwrap/filter; default is
   // the node's own children, fetched lazily on first expand).
-  const { children: kids, expandable, loaded } = tocView(node);
+  const { children: kids, expandable, loaded, loadDepth } = tocView(node);
   // Loaded branches start open (so the first levels show expanded); a branch
   // whose children are not loaded yet starts closed and loads when opened.
   const [open, setOpen] = useState(kids.length > 0);
@@ -40,13 +40,15 @@ export function Tree({ node, current, onSelect, onLoadChildren, depth = 0 }: Pro
     if (selected) rowRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [selected]);
 
-  const ti = typeIcon(node.type, node.format);
+  const ti = typeIcon(node.type, node.format, node.concrete);
+  // a folder (plain `dir` concrete) shows open vs closed like a normal file manager
+  const glyph = open && ti.glyph === "📁" ? "📂" : ti.glyph;
 
   const toggle = async () => {
     if (!open && expandable && !loaded) {
       setLoading(true);
       try {
-        await onLoadChildren(node.path);
+        await onLoadChildren(node.path, loadDepth);
       } finally {
         setLoading(false);
       }
@@ -72,7 +74,7 @@ export function Tree({ node, current, onSelect, onLoadChildren, depth = 0 }: Pro
         ) : (
           <span className="toggle leaf" />
         )}
-        <span className={"icon " + ti.cls} title={ti.title}>{ti.glyph}</span>
+        <span className={"icon " + ti.cls} title={ti.title}>{glyph}</span>
         <span className="tree-label" onClick={() => onSelect(node.path)} title={`${node.path} (${node.type})`}>
           {node.label}
         </span>

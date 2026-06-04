@@ -16,8 +16,13 @@
 - 005 Page #fragment links for PDFs and DJVUs
 - 006 Support #fragment links for MDs and ADOCs
 - 007 SVGs are stretched +DONE
-- 008 Links in MDs and ADOCs are not working; prepare endpoint, that redirects from these links into our  space
+- 008 Links in MDs and ADOCs are not working; prepare endpoint, that redirects from these links into our space
 - 007 Tag diagrams are centered, should also be left aligned +DONE
 - 010 Support XML, DOC, DOCX
 - 011 Support CSV
 - 012 Support links in EPUB
+- 013 Bug: if click chevron only (just after page refresh), children don't appear +DONE
+- 014 Support PlantUML (text/x-plantuml) source strings, rendered as diagrams +DONE
+- 015 Chapter chunks should respect their (type, format): images and PlantUML, not just markdown +DONE
+- 016 Make empty folder icons in TOC as normal OS folder icons +DONE
+- 017 Make chapter icons in TOC as section sign (§) +DONE

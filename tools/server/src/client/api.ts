@@ -5,6 +5,7 @@ export interface TreeNode {
   label: string;
   type: string;
   format: string | null;
+  concrete: string | null; // how it is stored; `dir` → a plain-folder icon
   hasChildren: boolean;
   children: TreeNode[];
 }

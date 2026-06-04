@@ -1,5 +1,7 @@
 // Type/format icon for a TOC node — chosen by the schema `format`, falling back
-// to `type`. The tree is agnostic to *concrete* (how the node is stored).
+// to `type`. One exception to being concrete-agnostic: a node stored as a plain
+// on-disk directory (the `dir` concrete — a folder with no `.yamlover/` marker)
+// gets a normal folder icon, since it really is a filesystem folder.
 
 export interface Glyph {
   glyph: string;
@@ -47,7 +49,7 @@ const FORMAT: Record<string, string> = {
 
 // Media-type / binary-encoding / custom formats → an icon, chosen by prefix.
 function mediaIcon(format: string): string | null {
-  if (format === "x-yamlover-chapter") return "📖";
+  if (format === "x-yamlover-chapter") return "§"; // a chapter — the section sign
   if (format === "x-yamlover-tag") return "🏷️";
   if (format.startsWith("x-yamlover-")) return "🧩"; // a custom yamlover renderer
   if (format === "application/pdf") return "📕";
@@ -57,6 +59,7 @@ function mediaIcon(format: string): string | null {
   if (format.startsWith("image/")) return "🖼️";
   if (format === "text/markdown") return "📝";
   if (format === "text/asciidoc") return "📃";
+  if (format === "text/x-plantuml") return "📊"; // source that compiles to a diagram
   if (format.startsWith("text/")) return "📄";
   if (format.startsWith("audio/")) return "🔊";
   if (format.startsWith("video/")) return "🎬";
@@ -64,12 +67,15 @@ function mediaIcon(format: string): string | null {
   return null;
 }
 
-/** The type/format icon for a node — `format` wins, else `type`. */
-export function typeIcon(type: string, format: string | null): Glyph {
+/** The type/format icon for a node — `format` wins, then a plain-directory
+ *  (`dir`) concrete shows a folder, else `type`. */
+export function typeIcon(type: string, format: string | null, concrete?: string | null): Glyph {
   if (format) {
     const g = FORMAT[format] ?? mediaIcon(format);
     if (g) return { glyph: g, cls: "t-fmt", title: format };
   }
+  // a plain directory (no `.yamlover/`) — a real OS folder
+  if (concrete === "dir") return { glyph: "📁", cls: "t-struct", title: "folder" };
   const t = TYPE[type];
   if (t) return { glyph: t.glyph, cls: t.cls, title: type };
   return { glyph: "•", cls: "t-bin", title: type || "unknown" };

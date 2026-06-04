@@ -163,7 +163,7 @@ Two implementation notes:
   **lazy-loaded** (`React.lazy`) — importing the registry, as the TOC and the
   tests do, never pulls them in until a PDF/DjVu node is actually shown.
 
-`examples/16-pdf-tags` exercises this: a library of real papers stored as PDFs
+`examples/18-pdf-tags` exercises this: a library of real papers stored as PDFs
 and one saved HTML page, each rendered in place.
 
 ## Requirements

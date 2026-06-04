@@ -1,0 +1,83 @@
+# A **chapter whose numbered chunks are one of each renderable format** — the same
+# catalogue as [15-all-formats-object], but flowing down a single readable page
+# instead of sitting under object keys. It proves the chapter renderer delegates
+# *every* chunk to the renderer for its own `(type, format)`: the `chunks` `items`
+# base is `string`/`text/markdown` (so a bare `const:` is prose), and a chunk
+# overrides `format`/`type` to become an AsciiDoc block, a PlantUML diagram, or any
+# binary file (image, html, pdf, fb2, epub, psd, tiff, …) — each rendered inline.
+# The `chapter` shape is the recursive `$defs/chapter` from [17-doc-tree]; here it
+# carries only `chunks` (no subchapters).
+x-yamlover:
+  concrete: yamlover
+$ref: '#/$defs/chapter'
+title: All Supported Formats — as chapter chunks
+description: A chapter body with one numbered chunk per renderable (type, format)
+properties:
+  chunks:
+    prefixItems:
+      - const: |                         # markdown — the items base, no override needed
+          # Markdown chunk
+          Rendered inline with **marked**.
+      - format: text/asciidoc            # override the base format → AsciiDoc
+        const: |
+          == AsciiDoc chunk
+
+          Rendered inline by Asciidoctor.
+
+          * one
+          * two
+      - format: text/x-plantuml          # → a PlantUML diagram
+        const: |
+          @startuml
+          Alice -> Bob : hello
+          Bob --> Alice : hi
+          @enduml
+      - type: binary                     # → binary chunks: each reuses its full renderer inline
+        format: image/png
+        x-yamlover: { concrete: file/binary, os: { path: sample.png } }
+      - type: binary
+        format: image/svg+xml
+        x-yamlover: { concrete: file/binary, os: { path: sample.svg } }
+      - type: binary
+        format: image/gif
+        x-yamlover: { concrete: file/binary, os: { path: sample.gif } }
+      - type: binary
+        format: image/bmp
+        x-yamlover: { concrete: file/binary, os: { path: sample.bmp } }
+      - type: binary
+        format: image/x-icon
+        x-yamlover: { concrete: file/binary, os: { path: sample.ico } }
+      - type: binary
+        format: image/tiff
+        x-yamlover: { concrete: file/binary, os: { path: sample.tiff } }
+      - type: binary
+        format: text/html
+        x-yamlover: { concrete: file/binary, os: { path: sample.html } }
+      - type: binary
+        format: application/pdf
+        x-yamlover: { concrete: file/binary, os: { path: sample.pdf } }
+      - type: binary
+        format: application/x-fictionbook+xml
+        x-yamlover: { concrete: file/binary, os: { path: sample.fb2 } }
+      - type: binary
+        format: application/epub+zip
+        x-yamlover: { concrete: file/binary, os: { path: sample.epub } }
+      - type: binary
+        format: image/vnd.adobe.photoshop
+        x-yamlover: { concrete: file/binary, os: { path: sample.psd } }
+
+$defs:
+  chapter:
+    type: object
+    format: x-yamlover-chapter
+    properties:
+      chunks:                            # the body, read as numbered blocks
+        type: array
+        items:
+          type: string
+          format: text/markdown          # the base chunk (type, format); a chunk overrides
+                                         # it to be any other renderable format
+      children:                          # subchapters (unused here) — the recursion
+        type: array
+        items:
+          $ref: '#/$defs/chapter'

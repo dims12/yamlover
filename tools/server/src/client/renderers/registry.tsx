@@ -3,10 +3,11 @@ import { NodeJson, TreeNode } from "../api";
 import { ChapterView } from "./chapter";
 import { TextView, TextChunk } from "./text";
 import { AsciidocView, AsciidocChunk } from "./asciidoc";
+import { PlantumlView, PlantumlChunk } from "./plantuml";
 import { TagView } from "./tag";
 import { Fb2View } from "./fb2";
 import { EpubView } from "./epub";
-import { ImageView, HtmlView } from "./media";
+import { ImageView, ImageChunk, HtmlView } from "./media";
 
 // pdf.js and DjVu.js are heavy and browser-only (they reach for canvas globals at
 // import time). Load them lazily so the registry — imported by the TOC and by
@@ -17,6 +18,21 @@ const PsdView = lazy(() => import("./psd").then((m) => ({ default: m.PsdView }))
 const TiffView = lazy(() => import("./tiff").then((m) => ({ default: m.TiffView })));
 const HeicView = lazy(() => import("./heic").then((m) => ({ default: m.HeicView })));
 const lazily = (el: JSX.Element) => <Suspense fallback={<div className="loading">…</div>}>{el}</Suspense>;
+
+/** Synthesize a minimal `NodeJson` from a chunk so a file-backed renderer (which
+ *  only needs the node's `path`/`value`) can be reused *inline* as a chapter
+ *  chunk — the same view, addressed by the chunk's own node path. This is how a
+ *  PDF / DjVu / PSD / TIFF / HEIC / FB2 / EPUB / HTML chunk renders in a chapter
+ *  body, not just a full page. */
+const chunkNode = (chunk: Chunk): NodeJson => ({
+  path: chunk.path,
+  type: chunk.type,
+  format: chunk.format,
+  concrete: null,
+  title: null,
+  description: null,
+  value: chunk.value,
+});
 
 /**
  * A renderer turns a node into a React element for the RHS pane. It is selected
@@ -50,11 +66,16 @@ export interface Chunk {
 
 /** How a node appears in the TOC. `children` are the rows shown beneath it;
  *  `expandable` shows a chevron; `loaded` false means the children must be
- *  fetched (by `node.path`) on first expand. */
+ *  fetched (by `node.path`) on first expand. `loadDepth` is how many levels that
+ *  expand fetch must pull (default 1) — more when a renderer's TOC rows live
+ *  deeper than the node's direct children (a chapter surfaces its subchapters
+ *  from *under* its `children` wrapper, and fetches one further level so each
+ *  revealed subchapter's own chevron is accurate — so it needs 3). */
 export interface TocView {
   children: TreeNode[];
   expandable: boolean;
   loaded: boolean;
+  loadDepth?: number;
 }
 
 export interface Renderer {
@@ -93,6 +114,14 @@ const REGISTRY: Renderer[] = [
     renderChunk: (chunk) => <AsciidocChunk chunk={chunk} />,
   },
   {
+    // PlantUML source (a string) shown as the diagram it compiles to, both as a
+    // whole node and inline as a chapter chunk.
+    name: "plantuml",
+    accepts: [["string", "text/x-plantuml"]],
+    render: (node) => <PlantumlView node={node} />,
+    renderChunk: (chunk) => <PlantumlChunk chunk={chunk} />,
+  },
+  {
     name: "tag",
     accepts: [["object", "x-yamlover-tag"]],
     render: (node, onNavigate) => <TagView node={node} onNavigate={onNavigate} />,
@@ -111,46 +140,55 @@ const REGISTRY: Renderer[] = [
       ["binary", "image/svg+xml"],
     ],
     render: (node) => <ImageView node={node} />,
+    renderChunk: (chunk) => <ImageChunk chunk={chunk} />,
   },
   {
     name: "html",
     accepts: [["binary", "text/html"]],
     render: (node) => <HtmlView node={node} />,
+    renderChunk: (chunk) => <HtmlView node={chunkNode(chunk)} />,
   },
   {
     name: "fb2",
     accepts: [["binary", "application/x-fictionbook+xml"]],
     render: (node) => <Fb2View node={node} />,
+    renderChunk: (chunk) => <Fb2View node={chunkNode(chunk)} />,
   },
   {
     name: "epub",
     accepts: [["binary", "application/epub+zip"]],
     render: (node) => <EpubView node={node} />,
+    renderChunk: (chunk) => <EpubView node={chunkNode(chunk)} />,
   },
   {
     name: "pdf",
     accepts: [["binary", "application/pdf"]],
     render: (node) => lazily(<PdfView node={node} />),
+    renderChunk: (chunk) => lazily(<PdfView node={chunkNode(chunk)} />),
   },
   {
     name: "djvu",
     accepts: [["binary", "image/vnd.djvu"]],
     render: (node) => lazily(<DjvuView node={node} />),
+    renderChunk: (chunk) => lazily(<DjvuView node={chunkNode(chunk)} />),
   },
   {
     name: "psd",
     accepts: [["binary", "image/vnd.adobe.photoshop"]],
     render: (node) => lazily(<PsdView node={node} />),
+    renderChunk: (chunk) => lazily(<PsdView node={chunkNode(chunk)} />),
   },
   {
     name: "tiff",
     accepts: [["binary", "image/tiff"]],
     render: (node) => lazily(<TiffView node={node} />),
+    renderChunk: (chunk) => lazily(<TiffView node={chunkNode(chunk)} />),
   },
   {
     name: "heic",
     accepts: [["binary", "image/heic"]],
     render: (node) => lazily(<HeicView node={node} />),
+    renderChunk: (chunk) => lazily(<HeicView node={chunkNode(chunk)} />),
   },
 ];
 
@@ -165,15 +203,24 @@ function basename(path: string): string {
  *  sits one level below the chapter, so its items are loaded one level deeper —
  *  expandability follows the wrapper's own `hasChildren`. */
 function chapterTocView(node: TreeNode): TocView {
+  // Subchapters live under the `children` wrapper, one level below the chapter, so
+  // revealing them costs a level (chapter → children → subchapters). We fetch one
+  // more (→ each subchapter's own `children` wrapper) so a revealed subchapter's
+  // chevron is decided from its real subchapter list, not the generic `hasChildren`
+  // hint (which is always true for a chapter — it has `chunks`/`children` arrays).
+  // Hence 3, so a childless chapter (only chunks) shows no chevron from the start.
   const wrap = node.children.find((c) => basename(c.path) === "children");
   if (!wrap) {
     // the chapter itself is not loaded yet — defer to the server's hint
-    return { children: [], expandable: node.hasChildren, loaded: node.children.length > 0 };
+    return { children: [], expandable: node.hasChildren, loaded: node.children.length > 0, loadDepth: 3 };
   }
+  // expandable iff the `children` wrapper actually holds subchapters (chunks-only
+  // chapters have an empty wrapper → no chevron)
   return {
     children: wrap.children,
     expandable: wrap.hasChildren,
     loaded: wrap.children.length > 0 || !wrap.hasChildren,
+    loadDepth: 3,
   };
 }
 

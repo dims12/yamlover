@@ -9,8 +9,9 @@ vi.mock("../../src/client/api", () => ({
     label: "root",
     type: "object",
     format: null,
+    concrete: null,
     hasChildren: true,
-    children: [{ path: "/a", label: "a", type: "string", format: null, hasChildren: false, children: [] }],
+    children: [{ path: "/a", label: "a", type: "string", format: null, concrete: null, hasChildren: false, children: [] }],
   }),
   fetchNode: vi.fn().mockResolvedValue({
     path: "/",

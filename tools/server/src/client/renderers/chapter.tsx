@@ -6,12 +6,14 @@ import { Chunk, rendererFor } from "./registry";
  * The renderer for an `object`/`x-yamlover-chapter`: a chapter shown as a readable
  * page. A chapter is a heading (`title`/`description`) plus two arrays:
  *
- *   - `chunks`   — the prose body, rendered as numbered blocks. Each chunk is
- *                  delegated to the renderer for its own (type, format) (a
- *                  `string`/`text/markdown` chunk → the text renderer; an image
- *                  chunk would route to an image renderer, no change here), and
- *                  prefixed with its zero-based index, hyperlinked to the chunk's
- *                  own node — the same numbering an array view shows.
+ *   - `chunks`   — the body, rendered as numbered blocks. Each chunk is delegated
+ *                  to the renderer for its own (type, format), so a chapter is not
+ *                  prose-only: a `text/markdown` chunk routes to the text renderer,
+ *                  a `text/x-plantuml` chunk to the diagram renderer, and any
+ *                  file-backed binary (image, html, pdf, fb2, epub, psd, tiff, …)
+ *                  to its own renderer via `renderChunk` — each prefixed with its
+ *                  zero-based index, hyperlinked to the chunk's own node (the same
+ *                  numbering an array view shows). See 16-all-formats-chunks.
  *   - `children` — the subchapters, rendered as heading links to each nested
  *                  chapter (and surfaced in the TOC; see `chapterTocView`).
  *
@@ -93,10 +95,10 @@ function ChunkBlock({
             onNavigate(chunk.path);
           }}
         >
-          {index}
+          §{index}
         </a>
       ) : (
-        <span className="chunk-index">{index}</span>
+        <span className="chunk-index">§{index}</span>
       )}
       <div className="chunk-body">{body}</div>
     </div>

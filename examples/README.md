@@ -6,10 +6,11 @@ they sort into reading order.
 The first four (`01`–`04`) hold the **same object** `{name, age, isAdmin}` in the
 four core concretes — pinned in the schema, collapsed into a YAML file, collapsed
 into a JSON file, and expanded into a directory — so the representations can be
-compared directly. The rest (`05`–`16`) use trivial data (the value **30**, alone
+compared directly. The rest (`05`–`18`) use trivial data (the value **30**, alone
 or under a key) or richer data — a binary value, an array, a mid-tree concrete
 switch, an image with markup, `$ref`/`$defs`, a two-parent genealogy DAG, a
-recursive document tree, a tagged library of papers — to isolate one further
+catalogue of every renderable format (as object properties and as chapter chunks),
+a recursive document tree, a tagged library of papers — to isolate one further
 feature each.
 
 # 01-object-in-schema
@@ -789,22 +790,108 @@ How the relations read:
   azura  null    rel → /adam/azura
   ```
 
-# 15-doc-tree
+# 15-all-formats-object
+
+This entity is a **catalogue of every renderable format**, laid out as a plain
+object with **one property per `(type, format)`** the web viewer knows how to show.
+It is the breadth counterpart to the single-format examples above: where each of
+those isolates one feature, this one puts the whole renderer registry side by side.
+
+Three properties are **string** formats pinned inline with `const` — `markdown`
+(`text/markdown`), `asciidoc` (`text/asciidoc`), and `plantuml` (`text/x-plantuml`).
+The remaining eleven are **binary** sample files in the directory, each a
+`concrete: file/binary` node tagged with the MIME `format` that keys its renderer:
+
+| property | format | renderer |
+|----------|--------|----------|
+| `png` `svg` `gif` `bmp` `ico` | `image/png`, `image/svg+xml`, `image/gif`, `image/bmp`, `image/x-icon` | native `<img>` |
+| `tiff` | `image/tiff` | UTIF → canvas |
+| `psd` | `image/vnd.adobe.photoshop` | ag-psd → canvas |
+| `html` | `text/html` | sandboxed `<iframe>` |
+| `pdf` | `application/pdf` | pdf.js |
+| `fb2` | `application/x-fictionbook+xml` | FictionBook XML |
+| `epub` | `application/epub+zip` | unzip + spine |
+
+How it reads:
+
+- **Every value is reached the same way** — navigate into a property and it renders
+  through the renderer its `(type, format)` selects. The object view itself is the
+  ordinary one-level YAML/JSON representation, each property a link to descend.
+- **Storage is mixed, deliberately.** The three text formats live in the schema
+  (`const`), the rest are real files claimed by `x-yamlover.os.path` — the same
+  "described, not duplicated" pattern as [12-image-with-markup](#12-image-with-markup),
+  scaled to the whole format set.
+- It doubles as a **smoke test for the registry**: if a renderer regresses, the
+  property for its format stops rendering. Its sibling
+  [16-all-formats-chunks](#16-all-formats-chunks) puts the identical set into a
+  chapter's `chunks`.
+
+# 16-all-formats-chunks
+
+This entity is the **same format catalogue as a readable page**: a single
+**chapter** whose numbered `chunks` are one of each renderable format, top to
+bottom. Where [15-all-formats-object](#15-all-formats-object) hangs the formats off
+object keys, here they flow down a chapter body — proving the chapter renderer
+delegates **every** chunk to the renderer for *its own* `(type, format)`, not just
+prose.
+
+The mechanism is the chunks array's `items` base, `string`/`text/markdown`: a bare
+`const:` string is prose, and a chunk **overrides** `format`/`type` to become
+anything else — an AsciiDoc block, a PlantUML diagram, or any of the eleven binary
+files (image, html, pdf, fb2, epub, psd, tiff, …). Each binary chunk reuses its
+full-page renderer **inline**, addressed by the chunk's own node path:
+
+```yaml
+chunks:
+  prefixItems:
+    - const: "# Markdown chunk\n…"           # the items base — prose
+    - { format: text/asciidoc,   const: "== AsciiDoc chunk\n…" }
+    - { format: text/x-plantuml, const: "@startuml\nAlice -> Bob : hello\n@enduml" }
+    - { type: binary, format: image/png, x-yamlover: { concrete: file/binary, os: { path: sample.png } } }
+    - { type: binary, format: application/pdf, x-yamlover: { concrete: file/binary, os: { path: sample.pdf } } }
+    # … svg, gif, bmp, ico, tiff, html, fb2, epub, psd …
+```
+
+How it reads:
+
+- **One delegation rule, every format.** The chapter prefixes each chunk with its
+  zero-based index (a hyperlink to the chunk's own node) and renders the body via
+  `rendererFor(type, format).renderChunk` — the text renderer for Markdown, the
+  PlantUML renderer for the diagram, and each file-backed renderer (PDF, FB2, EPUB,
+  PSD, TIFF, HTML, …) reused inline. This is the general form of the mixed media in
+  [17-doc-tree](#17-doc-tree), taken to the full format set.
+- **The `chapter` shape is reused verbatim** from [17-doc-tree](#17-doc-tree) — the
+  recursive `$defs/chapter` — but here it carries only `chunks` (no subchapters).
+- It is the **end-to-end test** that the registry and the chapter compose: the same
+  fourteen formats as [15-all-formats-object](#15-all-formats-object), now rendered
+  one after another on a single page.
+
+# 17-doc-tree
 
 This entity is a **recursive document tree** — a help/book structure (here, a small
 pet-keeping handbook), the kind of thing you might otherwise keep as a folder of
 Markdown or AsciiDoc files. A **chapter** is an object with two arrays: **`chunks`**
-(its prose body, read as numbered paragraphs) and **`children`** (its subchapters —
+(its body, read as numbered blocks) and **`children`** (its subchapters —
 the recursion). The two are deliberately *separate*: a chapter is heading + body +
 subchapters, and subchapters are **terminal** — there is no returning to a parent's
 prose after one, the way real documents read. The recursion is expressed once, in
 `$defs`, and pulled in by `$ref` — the same schema-coordinate mechanism as
 [13-defs-and-refs](#13-defs-and-refs), here pointing at *itself*.
 
-It is **fully self-contained**: every prose chunk is pinned inline with `const`, so
-**no `.md` files exist** — the whole handbook lives in the schema (concrete
-`yaml-schema/instantiate` throughout). Because a chunk is just a `const` value, any
-one of them could later be externalized to a `file` with no change to the logical
+A chapter's body is **not prose-only**. Each chunk routes by its own `(type, format)`,
+so the same numbered body interleaves three kinds of block: a Markdown paragraph
+(`string`/`text/markdown`), a **PlantUML diagram** (`string`/`text/x-plantuml`,
+rendered as the picture its source compiles to), and an **image** (`binary`/`image/png`,
+a real PNG file in the directory). The chunks' `items` base declares
+`string`/`text/markdown`, so a bare `const:` string is prose; a chunk overrides
+`format`/`type` only when it is a diagram or an image.
+
+The prose and the diagrams are **pinned inline with `const`** (concrete
+`yaml-schema/instantiate`) — they live in the schema, no `.md` or `.puml` files
+exist. The only files on disk are the five illustration PNGs (`cover-paw.png`,
+`dog-bone.png`, `puppy-paw.png`, `cat-face.png`, `fish-tank.png`), each a
+`concrete: file/binary` chunk. Because a text chunk is just a `const` value, any one
+of them could equally be externalized to a `file` with no change to the logical
 tree — self-containment is a per-chunk choice, not a global mode.
 
 YAML concrete representation (the materialized value — a chapter object, abbreviated):
@@ -839,9 +926,19 @@ description: A friendly guide to living with animals   # subtitle
 properties:
   chunks:
     prefixItems:
-      - const: "Pets share our homes, our routines, and a surprising amount of our furniture."
-      - const: "This handbook collects what every keeper learns sooner or later, one species at a time."
-      - const: "Read the chapter for your companion, but the first rule is universal: watch, listen, and be patient."
+      - const: "**Pets share our homes…** This handbook collects what every keeper learns."   # markdown
+      - const: "Read the chapter for your companion, but the first rule is universal: *watch, listen, and be patient.*"
+      - type: binary                         # an image chunk — overrides the markdown base
+        format: image/png
+        x-yamlover: { concrete: file/binary, os: { path: cover-paw.png } }
+      - format: text/x-plantuml              # a diagram chunk — overrides only the format
+        const: |
+          @startmindmap
+          * Pet keeping
+          ** Dogs
+          ** Cats
+          ** Fish
+          @endmindmap
   children:
     prefixItems:
       - title: Dogs                          # a subchapter (the $defs/chapter base is merged in via `items`)
@@ -869,11 +966,12 @@ $defs:
     type: object
     format: x-yamlover-chapter            # keys the server's `chapter` renderer
     properties:
-      chunks:                              # prose body, read as numbered paragraphs
+      chunks:                              # body, read as numbered blocks
         type: array
         items:
           type: string
-          format: text/markdown            # each chunk's (type, format) — routes to the text renderer
+          format: text/markdown            # the base chunk (type, format); a chunk overrides
+                                           # it to be a text/x-plantuml diagram or an image
       children:                            # subchapters — the recursion
         type: array
         items:
@@ -898,11 +996,13 @@ How it reads:
   subchapters as title hyperlinks. In the TOC it surfaces the subchapters *directly*
   (unwrapping the `children` array, hiding `chunks`) so the tree reads as a table of
   contents.
-- **Renderers compose by `(type, format)`** — the chapter doesn't render prose itself;
-  it delegates each chunk to the renderer for that chunk's tuple. A
-  `string`/`text/markdown` chunk routes to the **text** renderer; an image or formula
-  chunk would route to its own renderer with no change to the chapter. The same tuple
-  that selects a node's full-page view also selects its inline form.
+- **Renderers compose by `(type, format)`** — the chapter doesn't render its body
+  itself; it delegates each chunk to the renderer for that chunk's tuple. A
+  `string`/`text/markdown` chunk routes to the **text** renderer, a
+  `string`/`text/x-plantuml` chunk to the **PlantUML** renderer (its source shown as
+  the diagram it compiles to), a `binary`/`image/png` chunk to the **image** renderer —
+  all in one body, no change to the chapter. The same tuple that selects a node's
+  full-page view also selects its inline form.
 - **Ordering is free** — the `prefixItems` order *is* the reading order, the natural
   answer to sequencing a document.
 
@@ -910,7 +1010,7 @@ Walking in shows the structure — the `Dogs` chapter (`children[0]`) holds its 
 `chunks` and `children`:
 
 ```console
-$ printf 'cd children[0]\nls\ncat chunks[0]\n' | python ../../tools/walker/walker.py 15-doc-tree
+$ printf 'cd children[0]\nls\ncat chunks[0]\n' | python ../../tools/walker/walker.py 17-doc-tree
 NAME      TYPE   CONCRETE
 chunks    array  yaml-schema/instantiate
 children  array  yaml-schema/instantiate
@@ -923,7 +1023,7 @@ pointer in `x-yamlover` (resolved against the enclosing entity, like
 navigation). Inline-`const` self-containment is what lets those links resolve within
 one document instead of chasing files.
 
-# 16-pdf-tags
+# 18-pdf-tags
 
 This entity is a small **library of papers, classified by tags** — and the tags
 live in the *same document* as the things they classify. It is built in three
