@@ -37,19 +37,23 @@ describe("ChapterView", () => {
     expect(subtitle.className).toContain("chapter-subtitle");
   });
 
-  it("renders each chunk as a paragraph, numbered zero-based with a link to its node", () => {
+  it("flattens each chunk into the page with a §N fragment-anchor link to its in-page location", () => {
     const onNav = vi.fn();
     render(<ChapterView node={chapter} onNavigate={onNav} />);
 
     const prose = screen.getByText("Welcome to the handbook.");
     expect(prose.tagName).toBe("P"); // a chunk is delegated to the text renderer → paragraph
 
-    // the index §0 links to the chunk's own node
-    const idx0 = screen.getByText("§0");
-    expect((idx0 as HTMLAnchorElement).getAttribute("href")).toBe("/chunks[0]");
-    expect(screen.getByText("§1")).toBeTruthy(); // second chunk numbered 1
+    // §N is an in-page fragment anchor whose syntax mirrors the chunk's path
+    // continuation (chapter path "/" + "/chunks[0]"), not a full-navigation link
+    const idx0 = screen.getByText("§0") as HTMLAnchorElement;
+    expect(idx0.getAttribute("href")).toBe("#/chunks[0]");
+    expect((screen.getByText("§1") as HTMLAnchorElement).getAttribute("href")).toBe("#/chunks[1]");
+    // the chunk element carries the matching id, so `<chapter>#/chunks[1]` scrolls to it
+    expect(document.getElementById("/chunks[1]")).not.toBeNull();
+    // clicking the in-page anchor does not trigger app navigation
     fireEvent.click(idx0);
-    expect(onNav).toHaveBeenCalledWith("/chunks[0]");
+    expect(onNav).not.toHaveBeenCalled();
   });
 
   it("routes a non-prose chunk to the renderer for its (type, format)", () => {

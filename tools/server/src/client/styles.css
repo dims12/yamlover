@@ -336,6 +336,10 @@ body {
   display: flex;
   gap: 12px;
   align-items: flex-start;
+  scroll-margin-top: 12px; /* a chunk targeted via #/chunks[n] isn't flush to the top */
+}
+a.chunk-index {
+  text-decoration: none;
 }
 .chunk-index {
   flex: 0 0 auto;

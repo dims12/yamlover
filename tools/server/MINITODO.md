@@ -26,3 +26,4 @@
 - 015 Chapter chunks should respect their (type, format): images and PlantUML, not just markdown +DONE
 - 016 Make empty folder icons in TOC as normal OS folder icons +DONE
 - 017 Make chapter icons in TOC as section sign (§) +DONE
+- 018 Chevrons in TOC are kindof 1-2 pixels lover than the icons
