@@ -3,6 +3,7 @@ import { fetchNode, fetchSchema, NodeJson } from "./api";
 import { getRenderer } from "./renderers/registry";
 import { TagBadges, splitTagRefs } from "./renderers/tag";
 import { Render } from "./render";
+import { strToSegs } from "./paths";
 
 // yaml-schema (ours) is the default. Tabs are grouped by syntax: the YAML pair
 // (yaml-schema, then the yaml data) then the JSON pair (json-schema, then the
@@ -26,6 +27,15 @@ function effectiveFormat(format: Format, renderer: { name: string } | null): For
   if (isStandard(format)) return format;
   if (renderer && format === renderer.name) return format;
   return renderer ? renderer.name : DEFAULT_FORMAT;
+}
+
+/** A node's bare name: its last path segment (a decoded key or `[index]`), or ""
+ *  for the root. Used as the document title when the node has no schema title. */
+function nodeName(path: string): string {
+  const segs = strToSegs(path);
+  const last = segs[segs.length - 1];
+  if (last === undefined) return "";
+  return typeof last === "number" ? `[${last}]` : last;
 }
 
 interface Props {
@@ -63,6 +73,14 @@ export function NodeView({ path, format, onFormat, onNavigate }: Props) {
       cancelled = true;
     };
   }, [path]);
+
+  // The browser tab reflects where you are: the node's schema title if it has one,
+  // else its bare name (the last path segment), falling back to the app name at the
+  // (titleless) root. Re-set whenever the node settles.
+  useEffect(() => {
+    if (!node) return;
+    document.title = node.title?.trim() || nodeName(path) || "yamlover";
+  }, [node, path]);
 
   useEffect(() => {
     setSchema(null);
