@@ -32,10 +32,27 @@ const pkgRoot = resolve(__dirname, ".."); // tools/server
 // 'createRoot'" — createRoot is React 18+). Best-effort: if resolution fails we
 // leave Vite to its defaults.
 const reactAlias = {};
+// Directories Vite is allowed to serve over `/@fs` (its file-system allowlist).
+// Start with this package; below we add the node_modules that actually holds the
+// heavy deps. Under `npx`, deps hoist to a `_npx/<hash>/node_modules` *outside*
+// `pkgRoot`, and Vite's default workspace-root detection misses it — so a raw asset
+// fetch (notably pdf.js's `pdf.worker.min.mjs`) gets denied and falls through to
+// index.html, surfacing as the "non-JavaScript MIME type text/html" worker error.
+const fsAllow = [pkgRoot];
 try {
   const req = createRequire(join(pkgRoot, "package.json"));
   reactAlias["react"] = dirname(req.resolve("react/package.json"));
   reactAlias["react-dom"] = dirname(req.resolve("react-dom/package.json"));
+  // Allow whichever node_modules each heavy dep resolves from (hoisted under npx,
+  // or nested in dev) so Vite serves their worker/asset files over `/@fs`.
+  for (const dep of ["pdfjs-dist", "react-pdf", "leaflet"]) {
+    try {
+      const nodeModules = dirname(dirname(req.resolve(`${dep}/package.json`)));
+      if (!fsAllow.includes(nodeModules)) fsAllow.push(nodeModules);
+    } catch {
+      /* dep not resolvable from here — skip */
+    }
+  }
 } catch {
   /* fall back to default resolution */
 }
@@ -109,11 +126,27 @@ vite = await createServer({
   // serve them un-interopped — the "does not provide an export named …" failure.
   // Listing them forces a clean CJS→ESM bundle before any renderer mounts.
   optimizeDeps: {
-    include: ["react-pdf", "marked", "@asciidoctor/core", "ag-psd", "utif", "heic2any"],
+    include: [
+      "react-pdf",
+      "marked",
+      "@asciidoctor/core",
+      "ag-psd",
+      "utif",
+      "heic2any",
+      // the office/map renderer deps (all CJS/UMD — they need the CJS→ESM interop
+      // a pre-bundle gives, or they are served raw and fail with "does not provide
+      // an export named 'default'", e.g. `import L from "leaflet"`)
+      "leaflet",
+      "xlsx",
+      "mammoth/mammoth.browser",
+      "@tmcw/togeojson",
+    ],
   },
   // `allowedHosts: true` lifts Vite's Host-header allowlist so the SPA is
   // reachable from the network (any hostname/IP), matching the 0.0.0.0 bind.
-  server: { middlewareMode: true, allowedHosts: true, hmr: { server } },
+  // `fs.allow` is widened (above) to the dirs holding the heavy deps so their
+  // `/@fs` assets — chiefly pdf.js's worker — are served, not 404'd to index.html.
+  server: { middlewareMode: true, allowedHosts: true, hmr: { server }, fs: { allow: fsAllow } },
 });
 
 // Load the server-side materializer through Vite (transpiled on the fly).
