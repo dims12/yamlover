@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Sample Overlay — Berlin</name>
+    <description>A point, a path, and a styled area, drawn over an OpenStreetMap base.</description>
+    <Placemark>
+      <name>Brandenburg Gate</name>
+      <description><![CDATA[A famous <b>landmark</b> in Berlin.]]></description>
+      <Point><coordinates>13.37770,52.51627,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>A short walk</name>
+      <description>A path of a few points.</description>
+      <LineString>
+        <coordinates>
+          13.37770,52.51627,0
+          13.38100,52.51700,0
+          13.38600,52.51650,0
+          13.39000,52.51750,0
+        </coordinates>
+      </LineString>
+    </Placemark>
+    <Placemark>
+      <name>An area</name>
+      <description>A translucent red polygon.</description>
+      <Style>
+        <LineStyle><color>ff0000ff</color><width>2</width></LineStyle>
+        <PolyStyle><color>553333ff</color></PolyStyle>
+      </Style>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              13.3700,52.5140,0
+              13.3850,52.5140,0
+              13.3850,52.5200,0
+              13.3700,52.5200,0
+              13.3700,52.5140,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>

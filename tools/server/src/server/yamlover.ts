@@ -499,6 +499,8 @@ const EXT_FORMAT: Record<string, string> = {
   ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ".xls": "application/vnd.ms-excel",
   ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".kml": "application/vnd.google-earth.kml+xml",
+  ".kmz": "application/vnd.google-earth.kmz",
   ".puml": "text/x-plantuml",
   ".plantuml": "text/x-plantuml",
   ".iuml": "text/x-plantuml",

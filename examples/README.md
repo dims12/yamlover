@@ -1276,3 +1276,19 @@ chosen from its extension-inferred `(type, format)`:
 Legacy `.doc` (Word 97–2003) has its own `doc` renderer, but the old binary format
 has no reliable in-browser parser, so it is shown as a download link rather than a
 (broken) conversion — faithful rendering would need a server-side step (LibreOffice).
+
+# 22-kml-map
+
+A **plain directory of geographic overlays** — `.kml` and `.kmz` (zipped KML) —
+served without a schema (like [06-plain-dir](#06-plain-dir)). The `map` renderer
+converts the file to GeoJSON (`@tmcw/togeojson`; `.kmz` is unzipped first with
+`fflate`) and draws it on a [Leaflet](https://leafletjs.com) slippy map over
+OpenStreetMap tiles, fitting the view to the data. Points become circle markers,
+lines/polygons keep their KML colours, and a feature's name/description pop up on
+click. `sample.kml` and `sample.kmz` hold the same point + path + translucent
+polygon over Berlin.
+
+**Network note:** parsing and the vector overlay are fully local, but the *base
+tiles* are fetched from a tile server (OpenStreetMap by default). Set
+`VITE_MAP_TILE_URL` (and optionally `VITE_MAP_TILE_ATTRIBUTION`) to a self-hosted
+tile server to keep map traffic off the public one.

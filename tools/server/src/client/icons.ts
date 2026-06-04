@@ -66,6 +66,7 @@ function mediaIcon(format: string): string | null {
   if (format === "application/rtf") return "📄";
   if (format === "application/msword") return "📄"; // legacy .doc
   if (format === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return "📄"; // .docx
+  if (format === "application/vnd.google-earth.kml+xml" || format === "application/vnd.google-earth.kmz") return "🗺️"; // map overlay
   if (format.startsWith("text/")) return "📄";
   if (format.startsWith("audio/")) return "🔊";
   if (format.startsWith("video/")) return "🎬";

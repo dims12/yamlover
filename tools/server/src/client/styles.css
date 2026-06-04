@@ -575,6 +575,25 @@ a.chunk-index:hover {
   color: var(--fg);
 }
 
+/* ---- kml / kmz map renderer (Leaflet) ------------------------------------ */
+.filemap {
+  width: 100%;
+  height: calc(100vh - 160px);
+  min-height: 360px;
+  border: 1px solid var(--border, #313244);
+  border-radius: 6px;
+}
+/* a map embedded inline as a chapter chunk: cap the height so the page stays readable */
+.chunk-body .filemap.chunk-map {
+  height: 380px;
+}
+/* Leaflet popups carry the feature's (often HTML) KML description */
+.map-popup-desc {
+  margin-top: 4px;
+  max-height: 200px;
+  overflow: auto;
+}
+
 /* ---- legacy .doc download fallback --------------------------------------- */
 .office-fallback {
   max-width: 60ch;

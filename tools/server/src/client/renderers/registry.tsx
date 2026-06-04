@@ -27,6 +27,9 @@ const DocxView = lazy(() => import("./docx").then((m) => ({ default: m.DocxView 
 const DocxChunk = lazy(() => import("./docx").then((m) => ({ default: m.DocxChunk })));
 const SpreadsheetView = lazy(() => import("./spreadsheet").then((m) => ({ default: m.SpreadsheetView })));
 const SpreadsheetChunk = lazy(() => import("./spreadsheet").then((m) => ({ default: m.SpreadsheetChunk })));
+// Leaflet (KML/KMZ maps) is heavy and browser-only; load it on first use.
+const MapView = lazy(() => import("./map").then((m) => ({ default: m.MapView })));
+const MapChunk = lazy(() => import("./map").then((m) => ({ default: m.MapChunk })));
 const lazily = (el: JSX.Element) => <Suspense fallback={<div className="loading">…</div>}>{el}</Suspense>;
 
 /** Synthesize a minimal `NodeJson` from a chunk so a file-backed renderer (which
@@ -176,6 +179,16 @@ const REGISTRY: Renderer[] = [
     accepts: [["binary", "application/msword"]],
     render: (node) => <DocView node={node} />,
     renderChunk: (chunk) => <DocChunk chunk={chunk} />,
+  },
+  {
+    // KML / KMZ geographic overlays drawn on a Leaflet map (lazily loaded).
+    name: "map",
+    accepts: [
+      ["binary", "application/vnd.google-earth.kml+xml"],
+      ["binary", "application/vnd.google-earth.kmz"],
+    ],
+    render: (node) => lazily(<MapView node={node} />),
+    renderChunk: (chunk) => lazily(<MapChunk chunk={chunk} />),
   },
   {
     // LaTeX math (a string) typeset with KaTeX, both whole and inline. marklower

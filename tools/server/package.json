@@ -1,6 +1,6 @@
 {
   "name": "yamlover",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Browse a yamlover tree in the web: npx yamlover <root> serves a React SPA over a directory.",
   "type": "module",
   "bin": {
@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@asciidoctor/core": "^3.0.4",
+    "@tmcw/togeojson": "^7.1.2",
     "@vitejs/plugin-react": "^4.3.4",
     "ag-psd": "^28.5.1",
     "fflate": "^0.8.3",
@@ -28,6 +29,7 @@
     "ignore": "^6.0.2",
     "js-yaml": "^4.1.0",
     "katex": "^0.16.47",
+    "leaflet": "^1.9.4",
     "mammoth": "^1.12.0",
     "marked": "^18.0.4",
     "react": "^18.3.1",
@@ -42,6 +44,7 @@
     "@testing-library/react": "^16.1.0",
     "@types/js-yaml": "^4.0.9",
     "@types/katex": "^0.16.8",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^22.10.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
