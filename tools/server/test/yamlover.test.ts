@@ -6,6 +6,7 @@ import {
   strToSegs,
   toPlain,
   toSchema,
+  documentPath,
   buildRelations,
   buildTree,
   binaryContent,
@@ -263,6 +264,21 @@ describe("table of contents (buildTree)", () => {
     const img = t.children.find((c) => c.label === "object_detection.png")!;
     expect(img.format).toBe("image/png");
     expect(img.hasChildren).toBe(false);
+  });
+});
+
+describe("documentPath (the anchor a document-relative `/…` link resolves against)", () => {
+  it("is the nearest yamlover entity, even when served from a parent directory", () => {
+    const root = loadEntity(path.join(REPO, "examples")); // a plain dir of entities
+    // a chunk deep inside the chapter resolves to the chapter entity, not the served root
+    expect(documentPath(root, strToSegs("/19-math-chapter/chunks[2]"))).toBe("/19-math-chapter");
+    // a subchapter chunk still resolves to the one enclosing document (17-doc-tree)
+    expect(documentPath(root, strToSegs("/17-doc-tree/children[0]/chunks[0]"))).toBe("/17-doc-tree");
+  });
+
+  it("is `/` (root) when the served entity is itself the document", () => {
+    const root = loadEntity(ex("19-math-chapter"));
+    expect(documentPath(root, strToSegs("/chunks[2]"))).toBe("/");
   });
 });
 

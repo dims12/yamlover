@@ -727,6 +727,13 @@ function entityRootSegs(root: YNode, segs: Seg[]): Seg[] {
   return [];
 }
 
+/** The JSON-space path of the *document* the node at `segs` belongs to: the nearest
+ *  yamlover entity (or the served root). This is the anchor a document-relative
+ *  (`/…`) link or `rel` pointer resolves against — see {@link entityRootSegs}. */
+export function documentPath(root: YNode, segs: Seg[]): string {
+  return segsToStr(entityRootSegs(root, segs));
+}
+
 /** Walk *up* a named parent edge (`^name`) from the node at `segs`. */
 function ascend(root: YNode, segs: Seg[], name: string): Seg[] {
   const rel = getNode(root, segs).rel || {};

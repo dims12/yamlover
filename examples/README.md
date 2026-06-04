@@ -1196,3 +1196,66 @@ How it reads:
 - **One math engine, two entry points.** marklower's inline `$$…$$` and the
   `text/x-latex` renderer both call the same KaTeX path, so an inline fragment and a
   standalone block render identically — only the surrounding context differs.
+
+# 20-marklower-links
+
+A documentation tree that is **about its own links**: nested subchapters, each
+demonstrating one flavour of marklower link. Links live in the app's **JSON
+instance space** — the same space the tree, breadcrumbs, and URL navigate — and
+take their addressing from how an `x-yamlover` `rel` pointer is written:
+
+Resolving against the repo served as root (so this guide is at
+`/examples/20-marklower-links`):
+
+| marklower            | anchor                                   | example resolves to                       |
+| -------------------- | ---------------------------------------- | ----------------------------------------- |
+| `[t](/path)`         | **document** root (nearest yamlover entity) | `/examples/20-marklower-links/path`    |
+| `[t](//path)`        | **project** root (served directory)      | `/path`                                   |
+| `[t](https://…)` `mailto:` | external                           | opens in a new tab                        |
+
+The links use the path itself as the visible label, so the marklower code is on
+display: `document-relative links at [/children[0]](/children[0])`.
+
+```yaml
+$ref: '#/$defs/chapter'
+title: A Tour of marklower Links
+properties:
+  chunks:
+    prefixItems:
+      - const: >-
+          Jump to document-relative links at [/children[0]](/children[0]) …, or
+          leave for the KaTeX project at [https://katex.org](https://katex.org).
+  children:
+    prefixItems:
+      - title: Project-root links
+        properties:
+          chunks:
+            prefixItems:
+              - const: "… a sibling example at [//examples/19-math-chapter](//examples/19-math-chapter)."
+$defs:
+  chapter:
+    type: object
+    format: x-yamlover-chapter
+    properties:
+      chunks:   { type: array, items: { type: string } }  # marklower
+      children: { type: array, items: { $ref: '#/$defs/chapter' } }
+```
+
+How it reads:
+
+- **"Document" means the literal document — the entity, not the page you are on.**
+  A `/…` link resolves the same from a chunk three subchapters deep as from the top:
+  `[the guide's intro](/chunks[0])` always lands on the document's first chunk,
+  never on a local one. The anchor is the nearest yamlover entity, reported by the
+  server as the node's `documentPath` (the same `entityRootSegs` an absolute `/…`
+  rel pointer already uses).
+- **`//` reaches across documents, and counts from the served root.** A sibling
+  example is `//examples/19-math-chapter` *when the repo is served* — a single `/`
+  would have stayed inside this guide. The catch: the prefix depends on where
+  yamlover was launched (serve `examples/` directly and it is just
+  `//19-math-chapter`), so `//` links are only as portable as the mount point.
+  Document-relative `/…` links, anchored at the entity, are mount-independent.
+- **One link interpreter, shared.** Every marklower link goes through the same
+  `resolveLink` seam, the place refs and rels are expected to adopt later (gaining
+  the full pointer grammar — `..`, `^name`, virtual children) without each renderer
+  re-deciding what a target means.

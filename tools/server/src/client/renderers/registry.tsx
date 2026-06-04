@@ -64,6 +64,10 @@ export interface Chunk {
   path: string;
   type: string;
   format: string | null;
+  /** The JSON-space path of the document this chunk belongs to (the enclosing
+   *  chapter's `documentPath`) — the anchor a document-relative (`/…`) marklower
+   *  link in the chunk resolves against. */
+  documentPath?: string;
 }
 
 /** How a node appears in the TOC. `children` are the rows shown beneath it;
@@ -108,8 +112,8 @@ const REGISTRY: Renderer[] = [
     // notch below Markdown. A chapter's unformatted prose chunks route here.
     name: "marklower",
     accepts: [["string", null]],
-    render: (node) => <MarklowerView node={node} />,
-    renderChunk: (chunk) => <MarklowerChunk chunk={chunk} />,
+    render: (node, onNavigate) => <MarklowerView node={node} onNavigate={onNavigate} />,
+    renderChunk: (chunk, onNavigate) => <MarklowerChunk chunk={chunk} onNavigate={onNavigate} />,
   },
   {
     name: "text",

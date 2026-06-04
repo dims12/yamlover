@@ -15,6 +15,8 @@ export interface NodeJson {
   type: string;
   format?: string | null; // schema `format`; with `type` it keys the renderer
   concrete: string | null;
+  documentPath?: string; // the document (nearest yamlover entity) this node is in —
+                         // the anchor a document-relative (`/…`) link resolves against
   title: string | null;
   description: string | null;
   value: unknown;

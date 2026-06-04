@@ -281,6 +281,15 @@ body {
 .descend:hover {
   background: var(--sel);
 }
+/* an external (off-tree) marklower link — solid underline marks it leaves the app */
+.extlink {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.extlink:hover {
+  background: var(--sel);
+}
 /* divider between the relations panel and the value, in the data views */
 .reldiv {
   border: none;

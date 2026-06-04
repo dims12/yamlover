@@ -28,6 +28,7 @@ import {
   buildRelations,
   binaryContent,
   displayTypeLabel,
+  documentPath,
   formatFromExt,
   setIgnoreFilter,
   YNode,
@@ -111,6 +112,9 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
           type,
           format: node.format ?? null, // with `type`, the (type, format) renderer key
           concrete: node.concrete,
+          // the document (nearest yamlover entity) this node belongs to — the anchor
+          // a document-relative (`/…`) marklower link resolves against
+          documentPath: documentPath(root(), segs),
           title: node.title ?? null,
           description: node.description ?? null,
           // virtual children are merged into the value; named up-edges (+ `..`)

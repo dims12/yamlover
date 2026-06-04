@@ -37,7 +37,7 @@ export function ChapterView({
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
 
       {chunks.map((item, i) => (
-        <ChunkBlock key={i} index={i} item={item} onNavigate={onNavigate} />
+        <ChunkBlock key={i} index={i} item={item} documentPath={node.documentPath} onNavigate={onNavigate} />
       ))}
 
       {children.map((item, i) => {
@@ -67,10 +67,12 @@ export function ChapterView({
 function ChunkBlock({
   index,
   item,
+  documentPath,
   onNavigate,
 }: {
   index: number;
   item: unknown;
+  documentPath?: string;
   onNavigate: (path: string) => void;
 }) {
   const link = asLink(item);
@@ -79,6 +81,7 @@ function ChunkBlock({
     path: link?.path ?? "",
     type: link?.type ?? "string",
     format: link?.format ?? null,
+    documentPath, // carried so a marklower chunk's `/…` link resolves to its document
   };
   const renderer = rendererFor(chunk.type, chunk.format);
   const body = renderer?.renderChunk
