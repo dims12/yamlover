@@ -36,6 +36,16 @@ export function pathFromUrl(): string {
   return segsToStr(strToSegs(window.location.pathname));
 }
 
+/** A human-readable form of a canonical path: each key decoded (so a
+ *  percent-encoded segment like `%D0%9F…` shows as its actual characters) and
+ *  array indices as `[i]`. For display only — tooltips, labels — never for URLs or
+ *  navigation, which use the canonical (encoded) path. */
+export function displayPath(path: string): string {
+  const segs = strToSegs(path);
+  if (!segs.length) return "/";
+  return segs.map((s) => (typeof s === "number" ? `[${s}]` : `/${s}`)).join("");
+}
+
 /** Whether canonical path `a` is a (strict) ancestor of `p`. Root `/` is an
  *  ancestor of everything; otherwise `p` must continue past `a` at a `/` or `[`. */
 export function isAncestorPath(a: string, p: string): boolean {
@@ -50,9 +60,13 @@ export function formatFromUrl(fallback: string): string {
 }
 
 /** Write the JSON path (a canonical, URL-safe string) plus `?format=` into the
- *  URL. Path navigation pushes a history entry; switching format replaces. */
+ *  URL. Path navigation pushes a history entry; switching format replaces. Any
+ *  other query params already present are kept (e.g. a renderer's own options such
+ *  as the CSV `sep`/`header`), so only `format` is overwritten here. */
 export function writeUrl(path: string, format: string, replace = false): void {
-  const url = `${path || "/"}?format=${encodeURIComponent(format)}`;
+  const params = new URLSearchParams(window.location.search);
+  params.set("format", format);
+  const url = `${path || "/"}?${params.toString()}`;
   if (url === window.location.pathname + window.location.search) return;
   if (replace) window.history.replaceState({}, "", url);
   else window.history.pushState({}, "", url);

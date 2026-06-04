@@ -496,6 +496,95 @@ a.chunk-index:hover {
   color: var(--dim);
 }
 
+/* ---- csv / tsv table renderer -------------------------------------------- */
+.csv-toolbar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin: 10px 0 12px;
+  color: var(--dim);
+  font-size: 12px;
+}
+.csv-toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.csv-toolbar select {
+  background: var(--bg-alt);
+  color: var(--fg);
+  border: 1px solid var(--border, #313244);
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  font-family: var(--font);
+}
+.csv-scroll {
+  overflow: auto;
+  max-width: 100%;
+}
+.csv-table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.csv-table th,
+.csv-table td {
+  border: 1px solid var(--border, #313244);
+  padding: 3px 8px;
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-wrap;
+}
+.csv-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-alt);
+  color: var(--fg);
+  font-weight: 600;
+}
+.csv-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.025); /* faint zebra striping */
+}
+.csv-empty {
+  color: var(--dim);
+}
+
+/* ---- spreadsheet (xls/xlsx) sheet tabs ----------------------------------- */
+.sheet-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 12px;
+}
+.sheet-tab {
+  background: var(--bg-alt);
+  color: var(--dim);
+  border: 1px solid var(--border, #313244);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font: inherit;
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+}
+.sheet-tab.active {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+.sheet-tab:hover {
+  color: var(--fg);
+}
+
+/* ---- legacy .doc download fallback --------------------------------------- */
+.office-fallback {
+  max-width: 60ch;
+  line-height: 1.55;
+  color: var(--fg);
+}
+.office-fallback a.descend {
+  color: var(--accent);
+}
+
 /* ---- fb2 ebook renderer -------------------------------------------------- */
 .fb2-body {
   font-family: var(--mono, monospace);

@@ -1259,3 +1259,20 @@ How it reads:
   `resolveLink` seam, the place refs and rels are expected to adopt later (gaining
   the full pointer grammar — `..`, `^name`, virtual children) without each renderer
   re-deciding what a target means.
+
+# 21-office-docs
+
+A **plain directory of office documents**, one per supported binary format, served
+without a schema (like [06-plain-dir](#06-plain-dir)) — each file's renderer is
+chosen from its extension-inferred `(type, format)`:
+
+| file          | format                                                                     | renderer                                  |
+| ------------- | -------------------------------------------------------------------------- | ----------------------------------------- |
+| `sample.docx` | `application/vnd.openxmlformats-officedocument.wordprocessingml.document`   | `docx` — [mammoth](https://github.com/mwilliamson/mammoth.js) → HTML |
+| `sample.xlsx` | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`         | `spreadsheet` — [SheetJS](https://sheetjs.com), sheet tabs + table |
+| `sample.xls`  | `application/vnd.ms-excel`                                                  | `spreadsheet` (legacy BIFF, same renderer) |
+| `sample.rtf`  | `application/rtf`                                                           | `rtf` — a small dependency-free converter |
+
+Legacy `.doc` (Word 97–2003) has its own `doc` renderer, but the old binary format
+has no reliable in-browser parser, so it is shown as a download link rather than a
+(broken) conversion — faithful rendering would need a server-side step (LibreOffice).

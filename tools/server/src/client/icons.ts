@@ -59,7 +59,13 @@ function mediaIcon(format: string): string | null {
   if (format.startsWith("image/")) return "🖼️";
   if (format === "text/markdown") return "📝";
   if (format === "text/asciidoc") return "📃";
+  if (format === "text/csv" || format === "text/tab-separated-values") return "▦"; // a table
   if (format === "text/x-plantuml") return "📊"; // source that compiles to a diagram
+  if (format === "application/vnd.ms-excel") return "▦"; // legacy .xls workbook
+  if (format === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") return "▦"; // .xlsx
+  if (format === "application/rtf") return "📄";
+  if (format === "application/msword") return "📄"; // legacy .doc
+  if (format === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return "📄"; // .docx
   if (format.startsWith("text/")) return "📄";
   if (format.startsWith("audio/")) return "🔊";
   if (format.startsWith("video/")) return "🎬";

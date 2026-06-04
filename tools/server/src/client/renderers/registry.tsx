@@ -5,6 +5,9 @@ import { TextView, TextChunk } from "./text";
 import { MarklowerView, MarklowerChunk } from "./marklower";
 import { LatexView, LatexChunk } from "./latex";
 import { AsciidocView, AsciidocChunk } from "./asciidoc";
+import { CsvView, CsvChunk } from "./csv";
+import { RtfView, RtfChunk } from "./rtf";
+import { DocView, DocChunk } from "./doc";
 import { PlantumlView, PlantumlChunk } from "./plantuml";
 import { TagView } from "./tag";
 import { Fb2View } from "./fb2";
@@ -19,6 +22,11 @@ const DjvuView = lazy(() => import("./djvu").then((m) => ({ default: m.DjvuView 
 const PsdView = lazy(() => import("./psd").then((m) => ({ default: m.PsdView })));
 const TiffView = lazy(() => import("./tiff").then((m) => ({ default: m.TiffView })));
 const HeicView = lazy(() => import("./heic").then((m) => ({ default: m.HeicView })));
+// mammoth (.docx) and SheetJS (.xls/.xlsx) are heavy; load each on first use.
+const DocxView = lazy(() => import("./docx").then((m) => ({ default: m.DocxView })));
+const DocxChunk = lazy(() => import("./docx").then((m) => ({ default: m.DocxChunk })));
+const SpreadsheetView = lazy(() => import("./spreadsheet").then((m) => ({ default: m.SpreadsheetView })));
+const SpreadsheetChunk = lazy(() => import("./spreadsheet").then((m) => ({ default: m.SpreadsheetChunk })));
 const lazily = (el: JSX.Element) => <Suspense fallback={<div className="loading">…</div>}>{el}</Suspense>;
 
 /** Synthesize a minimal `NodeJson` from a chunk so a file-backed renderer (which
@@ -126,6 +134,48 @@ const REGISTRY: Renderer[] = [
     accepts: [["string", "text/asciidoc"]],
     render: (node) => <AsciidocView node={node} />,
     renderChunk: (chunk) => <AsciidocChunk chunk={chunk} />,
+  },
+  {
+    // Delimited text (CSV/TSV, a string) shown as a table; its parsing options
+    // (separator, header) ride in the URL query — see csv.tsx.
+    name: "csv",
+    accepts: [
+      ["string", "text/csv"],
+      ["string", "text/tab-separated-values"],
+    ],
+    render: (node) => <CsvView node={node} />,
+    renderChunk: (chunk) => <CsvChunk chunk={chunk} />,
+  },
+  {
+    // RTF — a dependency-free converter to HTML (see rtf.tsx).
+    name: "rtf",
+    accepts: [["binary", "application/rtf"]],
+    render: (node) => <RtfView node={node} />,
+    renderChunk: (chunk) => <RtfChunk chunk={chunk} />,
+  },
+  {
+    // .docx (Office Open XML) via mammoth, lazily loaded.
+    name: "docx",
+    accepts: [["binary", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]],
+    render: (node) => lazily(<DocxView node={node} />),
+    renderChunk: (chunk) => lazily(<DocxChunk chunk={chunk} />),
+  },
+  {
+    // Excel workbooks — .xlsx and legacy .xls — via SheetJS, lazily loaded.
+    name: "spreadsheet",
+    accepts: [
+      ["binary", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+      ["binary", "application/vnd.ms-excel"],
+    ],
+    render: (node) => lazily(<SpreadsheetView node={node} />),
+    renderChunk: (chunk) => lazily(<SpreadsheetChunk chunk={chunk} />),
+  },
+  {
+    // Legacy .doc (Word 97–2003 binary) — no in-browser parser; download fallback.
+    name: "doc",
+    accepts: [["binary", "application/msword"]],
+    render: (node) => <DocView node={node} />,
+    renderChunk: (chunk) => <DocChunk chunk={chunk} />,
   },
   {
     // LaTeX math (a string) typeset with KaTeX, both whole and inline. marklower

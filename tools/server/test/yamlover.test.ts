@@ -288,6 +288,7 @@ describe("all-supported-formats catalogue examples (15 & 16)", () => {
     "text/markdown",
     "text/asciidoc",
     "text/x-plantuml",
+    "text/csv",
     "image/png",
     "image/svg+xml",
     "image/gif",

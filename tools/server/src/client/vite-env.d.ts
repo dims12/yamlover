@@ -16,3 +16,16 @@ declare module "utif" {
   };
   export default UTIF;
 }
+
+// mammoth's browser build ships no types. Declare the one call our docx renderer
+// makes: convert a .docx ArrayBuffer to an HTML string. See https://github.com/mwilliamson/mammoth.js.
+declare module "mammoth/mammoth.browser" {
+  interface ConvertResult {
+    value: string;
+    messages: { type: string; message: string }[];
+  }
+  const mammoth: {
+    convertToHtml(input: { arrayBuffer: ArrayBuffer }): Promise<ConvertResult>;
+  };
+  export default mammoth;
+}

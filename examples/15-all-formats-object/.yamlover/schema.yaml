@@ -43,6 +43,14 @@ properties:
       Alice -> Bob : hello
       Bob --> Alice : hi
       @enduml
+  csv:                                   # string / text/csv — shown as a table
+    type: string
+    format: text/csv
+    const: |
+      name,role,city
+      Alice,Engineer,Berlin
+      Bob,"Designer, UX",Lisbon
+      Carol,Manager,Oslo
   png:                                   # binary files below — each claims a file in this dir
     type: binary
     format: image/png

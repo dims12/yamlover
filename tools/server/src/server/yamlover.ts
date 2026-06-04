@@ -492,6 +492,13 @@ const EXT_FORMAT: Record<string, string> = {
   ".adoc": "text/asciidoc",
   ".asciidoc": "text/asciidoc",
   ".asc": "text/asciidoc",
+  ".csv": "text/csv",
+  ".tsv": "text/tab-separated-values",
+  ".rtf": "application/rtf",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ".puml": "text/x-plantuml",
   ".plantuml": "text/x-plantuml",
   ".iuml": "text/x-plantuml",
@@ -506,7 +513,13 @@ export function formatFromExt(filePath: string | null): string | null {
 
 // Formats whose nodes carry their content as a *string* value (rendered from the
 // text). Everything else inferable (images, pdf, djvu, html) is served as bytes.
-const TEXT_FORMATS = new Set(["text/markdown", "text/asciidoc", "text/x-plantuml"]);
+const TEXT_FORMATS = new Set([
+  "text/markdown",
+  "text/asciidoc",
+  "text/x-plantuml",
+  "text/csv",
+  "text/tab-separated-values",
+]);
 
 /** Capture a fragment's annotations onto a node: `title`/`description` (tree
  *  labels) and `type`/`format` (the (type, format) renderer key — read without

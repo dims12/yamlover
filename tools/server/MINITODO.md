@@ -19,7 +19,7 @@
 - 008 Links in MDs and ADOCs are not working; prepare endpoint, that redirects from these links into our space
 - 007 Tag diagrams are centered, should also be left aligned +DONE
 - 010 Support XML, DOC, DOCX
-- 011 Support CSV
+- 011 Support CSV +DONE
 - 012 Support links in EPUB
 - 013 Bug: if click chevron only (just after page refresh), children don't appear +DONE
 - 014 Support PlantUML (text/x-plantuml) source strings, rendered as diagrams +DONE
@@ -28,3 +28,4 @@
 - 017 Make chapter icons in TOC as section sign (§) +DONE
 - 018 Chevrons in TOC are kindof 1-2 pixels lover than the icons
 - 019 Absent format shows strange http://calculon:5173/README.md
+- 020 TXT files shown in markdown format and glitching: http://calculon:5173/53.%20%D0%A4%D0%B8%D0%B7%D0%B8%D0%BA%D0%B0/The%20Theoretical%20Minimum/Torrent%20downloaded%20from%20Darkside%20RG.txt?format=marklower

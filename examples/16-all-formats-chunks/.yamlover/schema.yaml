@@ -32,6 +32,12 @@ properties:
           Alice -> Bob : hello
           Bob --> Alice : hi
           @enduml
+      - format: text/csv                 # → a CSV table
+        const: |
+          name,role,city
+          Alice,Engineer,Berlin
+          Bob,"Designer, UX",Lisbon
+          Carol,Manager,Oslo
       - type: binary                     # → binary chunks: each reuses its full renderer inline
         format: image/png
         x-yamlover: { concrete: file/binary, os: { path: sample.png } }

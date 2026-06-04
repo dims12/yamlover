@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { TreeNode } from "./api";
 import { tocView } from "./renderers/registry";
 import { typeIcon } from "./icons";
-import { isAncestorPath } from "./paths";
+import { isAncestorPath, displayPath } from "./paths";
 
 interface Props {
   node: TreeNode;
@@ -75,7 +75,7 @@ export function Tree({ node, current, onSelect, onLoadChildren, depth = 0 }: Pro
           <span className="toggle leaf" />
         )}
         <span className={"icon " + ti.cls} title={ti.title}>{glyph}</span>
-        <span className="tree-label" onClick={() => onSelect(node.path)} title={`${node.path} (${node.type})`}>
+        <span className="tree-label" onClick={() => onSelect(node.path)} title={`${displayPath(node.path)} (${node.type})`}>
           {node.label}
         </span>
       </div>
