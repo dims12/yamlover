@@ -16,7 +16,11 @@ properties:
     format: text/markdown
     const: |
       # Markdown
-      Rendered with **marked** — *emphasis*, lists, and `code`.
+      Rendered with **marked** — *emphasis*, lists, and `code`. Each heading gets a
+      `§` link, so `#markdown` and `#anchors` jump straight to a section.
+
+      ## Anchors
+      Hover a heading to reveal its `§`; the URL fragment is the heading's slug.
   asciidoc:                              # string / text/asciidoc
     type: string
     format: text/asciidoc
@@ -27,6 +31,10 @@ properties:
 
       * one
       * two
+
+      === Anchors
+
+      Each heading gets a `§` link; Asciidoctor's own section id is the fragment.
   plantuml:                              # string / text/x-plantuml
     type: string
     format: text/x-plantuml

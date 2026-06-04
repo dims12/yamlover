@@ -1,6 +1,7 @@
 import { marked } from "marked";
 import { NodeJson } from "../api";
 import { Chunk } from "./registry";
+import { anchorizeHeadings, useHashScroll } from "./headings";
 
 /**
  * The renderer for a `string`/`text/markdown` node: prose shown as rendered
@@ -13,13 +14,16 @@ import { Chunk } from "./registry";
  *     page, e.g. one paragraph of a chapter.
  *
  * Markdown is parsed with `marked`; the value is whatever string the node holds,
- * so the same renderer covers an inline `const` chunk and a whole `.md` file.
+ * so the same renderer covers an inline `const` chunk and a whole `.md` file. Each
+ * heading is then given an id and a `§` anchor link (see {@link anchorizeHeadings})
+ * so a section is addressable as `<page>#<slug>`.
  */
 function md(value: unknown): string {
-  return marked.parse(String(value ?? ""), { async: false }) as string;
+  return anchorizeHeadings(marked.parse(String(value ?? ""), { async: false }) as string);
 }
 
 export function TextView({ node }: { node: NodeJson }) {
+  useHashScroll(node);
   return (
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}

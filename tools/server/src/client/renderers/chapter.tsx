@@ -1,8 +1,8 @@
-import { useEffect } from "react";
 import { NodeJson } from "../api";
 import { asLink, Link } from "../render";
 import { segsToStr, strToSegs } from "../paths";
 import { Chunk, rendererFor } from "./registry";
+import { useHashScroll } from "./headings";
 
 /**
  * The renderer for an `object`/`x-yamlover-chapter`: a chapter shown as a readable
@@ -44,10 +44,7 @@ export function ChapterView({
   // A deep link to a flattened chunk (`<chapter>#/chunks[1]`) lands on the chapter
   // page, so scroll to the anchored chunk once it has rendered (the browser's own
   // scroll fires before the async value arrives). Re-runs when the chapter changes.
-  useEffect(() => {
-    const id = decodeURIComponent(window.location.hash.slice(1));
-    if (id) document.getElementById(id)?.scrollIntoView();
-  }, [node]);
+  useHashScroll(node);
 
   return (
     <div className="chapter">

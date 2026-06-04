@@ -142,6 +142,14 @@ spelled exactly like the path suffix (`/chunks[1]`), so the two notations agree 
 the *same* chunk where it was flattened in. Deeper flattening simply yields longer
 continuations (e.g. `#/children[0]/chunks[2]`).
 
+A rendered prose document has the same need at a finer grain. A `.md`/`.adoc` file
+is one HTML blob, so its **headings** would otherwise have no address. The `text`
+and `asciidoc` renderers therefore give every heading an `id` and a small `§` link
+to it (the way GitHub renders the same documents), so a section is reachable as
+`<page>#<slug>` — the prose-document counterpart of the chapter's `§N` chunk
+anchors. Asciidoctor's own section ids are kept, so the anchors line up with the
+document's internal cross-references.
+
 ## The schema, and where values live
 
 `.yamlover/schema.yaml` is a **JSON Schema written in YAML** that describes the

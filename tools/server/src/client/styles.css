@@ -30,7 +30,9 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font);
-  font-size: 13px;
+  /* base reading size — TOC labels, breadcrumb, and rendered prose all inherit it.
+     14px sits closer to the larger default size of the PDF/DjVu page renderers. */
+  font-size: 14px;
 }
 
 .app {
@@ -426,6 +428,7 @@ a.chunk-index:hover {
   line-height: 1.55;
   word-break: break-word;
   max-width: 72ch; /* a readable measure — don't run the full pane width (001) */
+  padding-left: 1.6rem; /* a gutter to hold the per-heading `§` anchors (like a chunk's) */
 }
 .markup :first-child {
   margin-top: 0;
@@ -436,7 +439,35 @@ a.chunk-index:hover {
   color: var(--fg);
   margin: 18px 0 8px;
 }
+/* a heading targeted via #slug isn't flush to the top (mirrors .chunk); relative
+   so its `§` anchor can sit in the left gutter (like a chunk's index) */
+.markup :is(h1, h2, h3, h4, h5, h6) {
+  position: relative;
+  scroll-margin-top: 12px;
+}
 .markup a {
+  color: var(--accent);
+}
+/* the per-heading `§` fragment anchor: a marker right-aligned in the left gutter,
+   matching a chapter chunk's §N index (same 12px size and `--dim` colour, accent on
+   hover). A fixed rem offset (not em) so every heading level lines up in the same
+   gutter instead of scaling with its font size. */
+.markup .header-anchor {
+  position: absolute;
+  left: -1.6rem;
+  width: 1.6rem;
+  box-sizing: border-box;
+  padding-right: 0.45rem; /* the gap before the heading text */
+  text-align: right;
+  font-size: 12px; /* a constant size, not the heading's, so all gutters match (= .chunk-index) */
+  font-weight: normal;
+  line-height: inherit;
+  color: var(--dim);
+  text-decoration: none;
+  user-select: none;
+}
+.markup :is(h1, h2, h3, h4, h5, h6):hover .header-anchor,
+.markup .header-anchor:hover {
   color: var(--accent);
 }
 .markup code {

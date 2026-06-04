@@ -14,7 +14,7 @@
 - 003 PDF icon should be normal PDF icon +DONE
 - 004 Images are centered, should be left aligned as other resources +DONE
 - 005 Page #fragment links for PDFs and DJVUs
-- 006 Support #fragment links for MDs and ADOCs
+- 006 Support #fragment links for MDs and ADOCs +DONE
 - 007 SVGs are stretched +DONE
 - 008 Links in MDs and ADOCs are not working; prepare endpoint, that redirects from these links into our space
 - 007 Tag diagrams are centered, should also be left aligned +DONE
@@ -27,3 +27,4 @@
 - 016 Make empty folder icons in TOC as normal OS folder icons +DONE
 - 017 Make chapter icons in TOC as section sign (§) +DONE
 - 018 Chevrons in TOC are kindof 1-2 pixels lover than the icons
+- 019 Absent format shows strange http://calculon:5173/README.md
