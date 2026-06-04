@@ -959,22 +959,26 @@ export function toSchema(
   if ((k === "object" || k === "array") && depth != null && depth <= 0) return linkMarker(node, segs);
   if (k === "binary" && !top) return linkMarker(node, segs); // a binary child links to its page
 
-  let schema: Schema;
+  // Lead with the (type, format) tuple a node routes on — the same key the TOC,
+  // icons, and renderers use — in the JSON Schema order (`type`, then `format`), so
+  // the schema view mirrors the source. `type` is the declared schema `type` when
+  // pinned, else the inferred kind; `format` is whatever the node carries (a
+  // source-pinned `text/markdown` or an extension-inferred one). Without these the
+  // representation silently dropped a leaf's `type:`/`format:`.
+  const schema: Schema = { type: node.schemaType ?? typeLabel(node) };
+  if (node.format) schema.format = node.format;
   if (k === "object") {
     const properties: Schema = {};
     for (const [key, c] of Object.entries(node.value as Record<string, YNode>))
       properties[key] = toSchema(c, descend(depth), [...segs, key], false, root);
-    schema = { type: "object", properties };
+    schema.properties = properties;
   } else if (k === "array") {
-    schema = {
-      type: "array",
-      prefixItems: (node.value as YNode[]).map((c, i) => toSchema(c, descend(depth), [...segs, i], false, root)),
-      items: false,
-    };
+    schema.prefixItems = (node.value as YNode[]).map((c, i) => toSchema(c, descend(depth), [...segs, i], false, root));
+    schema.items = false;
   } else if (k === "binary") {
-    schema = { const: (node.value as Binary).repr() };
+    schema.const = (node.value as Binary).repr();
   } else {
-    schema = { const: node.value };
+    schema.const = node.value;
   }
   if (node.title) schema.title = node.title;
   if (node.description) schema.description = node.description;

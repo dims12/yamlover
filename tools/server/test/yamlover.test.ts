@@ -95,6 +95,13 @@ describe("instance schema (toSchema)", () => {
     expect(s.title).toBe("The Pet Keeper's Handbook");
   });
 
+  it("surfaces a leaf's `type` and `format` (the renderer key), not just its `const`", () => {
+    const s = toSchema(loadEntity(ex("15-all-formats-object")), 2) as any;
+    expect(s.properties.markdown).toMatchObject({ type: "string", format: "text/markdown" });
+    expect(s.properties.markdown.const).toContain("# Markdown");
+    expect(s.properties.asciidoc).toMatchObject({ type: "string", format: "text/asciidoc" });
+  });
+
   it("surfaces x-yamlover for a schema-only node (no filesystem path)", () => {
     const root = loadEntity(ex("14-genealogy-dag"));
     const s = toSchema(getNode(root, ["eve"]), null, ["eve"], true, root) as any;

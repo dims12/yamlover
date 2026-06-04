@@ -36,6 +36,12 @@ describe("renderer registry (keyed on (type, format))", () => {
     expect(r?.renderChunk).toBeTypeOf("function"); // routable as a chapter chunk
   });
 
+  it("claims LaTeX math (a string) and offers an inline (chunk) form", () => {
+    const r = getRenderer(node({ type: "string", format: "text/x-latex", value: "E = mc^2" }));
+    expect(r?.name).toBe("latex");
+    expect(r?.renderChunk).toBeTypeOf("function");
+  });
+
   it("an image renderer offers an inline (chunk) form, so it can sit in a chapter", () => {
     expect(getRenderer(node({ type: "binary", format: "image/png" }))?.renderChunk).toBeTypeOf("function");
   });
@@ -68,7 +74,11 @@ describe("renderer registry (keyed on (type, format))", () => {
   it("returns null when no renderer claims the tuple (default tabbed view)", () => {
     expect(getRenderer(node({ type: "array", format: null, value: [] }))).toBeNull();
     expect(getRenderer(node({ type: "object", format: null }))).toBeNull();
-    expect(getRenderer(node({ type: "string", format: null, value: "x" }))).toBeNull(); // a bare string is not hijacked
+  });
+
+  it("claims a bare, format-less string as marklower (the default prose format)", () => {
+    expect(getRenderer(node({ type: "string", format: null, value: "x" }))?.name).toBe("marklower");
+    expect(rendererName("string", null)).toBe("marklower");
   });
 
   it("exposes the renderer name as the representation key", () => {

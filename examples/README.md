@@ -1151,3 +1151,48 @@ This "absolute pointer = inside the current document" reading is the seed of a
 larger idea: letting a `rel` edge also be written as a full URI — a tree-wide scope
 (`https://<tree>/tags/…`) or a built-in, universal tag vocabulary
 (`https://schemas.yamlover.org/…`) — without changing what a paper→tag edge *is*.
+
+# 19-math-chapter
+
+A small chapter that shows the **two ways math appears**, side by side in one
+body — the same KaTeX engine behind both.
+
+1. **Inline math, in *marklower* prose.** marklower is the default chunk format: a
+   bare `string` with no `format`. The chunks' `items` base declares only
+   `type: string` (no `format:`), so a plain `const:` routes to the marklower
+   renderer, which typesets any `$$…$$` span inline and passes the rest of the text
+   through. Euler's identity $$e^{i\pi} + 1 = 0$$ sits *inside* a sentence this way.
+2. **Whole standalone formulas, as LaTeX chunks.** A chunk that overrides
+   `format: text/x-latex` is typeset *in its entirety* as one display block by the
+   LaTeX renderer (e.g. the Gaussian integral, a summation). No `$$` delimiters —
+   the whole string is the formula.
+
+```yaml
+$ref: '#/$defs/chapter'
+title: A Pinch of Math
+properties:
+  chunks:
+    prefixItems:
+      - const: >-                            # marklower: inline $$…$$ in prose
+          … Euler's identity $$e^{i\pi} + 1 = 0$$ ties together five constants …
+      - format: text/x-latex                 # a whole standalone formula
+        const: \int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}
+$defs:
+  chapter:
+    type: object
+    format: x-yamlover-chapter
+    properties:
+      chunks:
+        type: array
+        items: { type: string }              # no `format:` → marklower default
+```
+
+How it reads:
+
+- **marklower is the floor, not a format you opt into.** Any chunk that names no
+  format lands here, so prose is the path of least resistance and inline math comes
+  for free. Reaching for `text/x-latex` is the deliberate act — it says "this
+  formula is the whole chunk."
+- **One math engine, two entry points.** marklower's inline `$$…$$` and the
+  `text/x-latex` renderer both call the same KaTeX path, so an inline fragment and a
+  standalone block render identically — only the surrounding context differs.

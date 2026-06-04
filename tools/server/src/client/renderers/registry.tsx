@@ -2,6 +2,8 @@ import { lazy, Suspense } from "react";
 import { NodeJson, TreeNode } from "../api";
 import { ChapterView } from "./chapter";
 import { TextView, TextChunk } from "./text";
+import { MarklowerView, MarklowerChunk } from "./marklower";
+import { LatexView, LatexChunk } from "./latex";
 import { AsciidocView, AsciidocChunk } from "./asciidoc";
 import { PlantumlView, PlantumlChunk } from "./plantuml";
 import { TagView } from "./tag";
@@ -102,6 +104,14 @@ const REGISTRY: Renderer[] = [
     render: (node, onNavigate) => <ChapterView node={node} onNavigate={onNavigate} />,
   },
   {
+    // Our default for a bare, format-less string: marklower, a markup language a
+    // notch below Markdown. A chapter's unformatted prose chunks route here.
+    name: "marklower",
+    accepts: [["string", null]],
+    render: (node) => <MarklowerView node={node} />,
+    renderChunk: (chunk) => <MarklowerChunk chunk={chunk} />,
+  },
+  {
     name: "text",
     accepts: [["string", "text/markdown"]],
     render: (node) => <TextView node={node} />,
@@ -112,6 +122,14 @@ const REGISTRY: Renderer[] = [
     accepts: [["string", "text/asciidoc"]],
     render: (node) => <AsciidocView node={node} />,
     renderChunk: (chunk) => <AsciidocChunk chunk={chunk} />,
+  },
+  {
+    // LaTeX math (a string) typeset with KaTeX, both whole and inline. marklower
+    // reuses the same engine for its `$$…$$` spans.
+    name: "latex",
+    accepts: [["string", "text/x-latex"]],
+    render: (node) => <LatexView node={node} />,
+    renderChunk: (chunk) => <LatexChunk chunk={chunk} />,
   },
   {
     // PlantUML source (a string) shown as the diagram it compiles to, both as a
