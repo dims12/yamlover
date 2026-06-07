@@ -1,6 +1,0 @@
-properties:
-  age:
-    type: binary
-    format: int32/le
-    x-yamlover:
-      concrete: file/binary

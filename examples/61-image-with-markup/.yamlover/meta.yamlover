@@ -1,0 +1,5 @@
+properties:
+  object_detection.png:
+    type: binary
+    format: image/png
+    concrete: file/binary

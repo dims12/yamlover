@@ -1,0 +1,11 @@
+{
+  "name": "@yamlover/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "yamlover engine (TS): pointer resolver over the IR; SQLite-backed graph to come.",
+  "scripts": {
+    "test": "node --test test/resolve.test.ts test/graph.test.ts"
+  },
+  "engines": { "node": ">=22" }
+}

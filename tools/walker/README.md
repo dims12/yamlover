@@ -1,5 +1,11 @@
 # walker
 
+> ⚠️ **DEPRECATED (2026-06-07).** This Python tool is superseded by `tools/parser/`
+> (json5p & yamlover → the IR) and `tools/engine/` (resolver; SQLite graph + directory
+> walker to come). It encodes the **old schema-as-storage / `rel`-DAG model** and the old
+> example numbering. Kept for reference only — do not extend. Durable knowledge extracted
+> to [`../LEGACY.md`](../LEGACY.md).
+
 Explore a yamlover tree with shell-style `cd` and `ls`.
 
 A yamlover entity can be stored in several [concrete

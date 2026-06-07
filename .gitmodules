@@ -1,0 +1,10 @@
+[submodule "tools/parser/test/conformance/json"]
+	path = tools/parser/conformance/json
+	url = https://github.com/nst/JSONTestSuite.git
+[submodule "tools/parser/test/conformance/json5"]
+	path = tools/parser/conformance/json5
+	url = https://github.com/json5/json5-tests.git
+[submodule "tools/parser/test/conformance/yaml"]
+	path = tools/parser/conformance/yaml
+	url = https://github.com/yaml/yaml-test-suite.git
+	branch = data

@@ -1,5 +1,0 @@
-type: object
-x-yamlover:
-  concrete: file/yaml
-  os:
-    path: somefile.yaml

@@ -1,0 +1,23 @@
+# Type/format metadata — the (type, format) catalogue that drives the renderer registry.
+# Textual CONTENT lives in body.yamlover; the binary entries are the files in this
+# directory, keyed by filename (concrete `file/binary` is inferable, so it is omitted).
+title: All Supported Formats — as object properties
+description: One property per renderable (type, format) the viewer knows how to show
+properties:
+  # textual (content in body.yamlover)
+  markdown: { type: string, format: text/markdown }
+  asciidoc: { type: string, format: text/asciidoc }
+  plantuml: { type: string, format: text/x-plantuml }
+  csv:      { type: string, format: text/csv }
+  # binary samples (files on disk)
+  sample.png:  { type: binary, format: image/png }
+  sample.svg:  { type: binary, format: image/svg+xml }
+  sample.gif:  { type: binary, format: image/gif }
+  sample.bmp:  { type: binary, format: image/bmp }
+  sample.ico:  { type: binary, format: image/x-icon }
+  sample.tiff: { type: binary, format: image/tiff }
+  sample.html: { type: binary, format: text/html }
+  sample.pdf:  { type: binary, format: application/pdf }
+  sample.fb2:  { type: binary, format: application/x-fictionbook+xml }
+  sample.epub: { type: binary, format: application/epub+zip }
+  sample.psd:  { type: binary, format: image/vnd.adobe.photoshop }

@@ -1,0 +1,8 @@
+<idea-plugin>
+    <!-- Loaded only when org.intellij.plugins.markdown is present (optional depends). -->
+    <extensions defaultExtensionNs="org.intellij.markdown">
+        <!-- EP qualifiedName is org.intellij.markdown.fenceLanguageProvider (NOT codeFenceLanguageProvider). -->
+        <fenceLanguageProvider
+            implementation="net.inthemoon.yamlover.YamloverCodeFenceLanguageProvider"/>
+    </extensions>
+</idea-plugin>

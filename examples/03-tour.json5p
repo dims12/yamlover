@@ -1,0 +1,47 @@
+// ============================================================================
+// 03 — json5p.  JSON5 ⊂ json5p.  Same data as 02-tour.json5, plus POINTERS.
+// json5p = ALL of JSON5 (see 02) + the pointer layer: * dereference, keys-as-
+// pointers, ~ back-edges, and & anchors. Nothing else is added.
+// Spec: ../JSON5P.md   ·   Pointer grammar: ../URIs.md   ·   Model: ../IR.md
+// ============================================================================
+{
+  pets: [
+    { name: 'Rex',      species: 'dog'  },
+    { name: 'Whiskers', species: 'cat'  },
+    { name: 'Bubbles',  species: 'fish' },
+  ],
+
+  humans: [
+    {
+      name: 'Alice',
+      // Instead of 02's COPY, * makes manager a SHARED edge to pets position 1.
+      manager: *'/pets[1]',    // /  = current document root  ->  the Whiskers node itself
+    },
+  ],
+
+  // ---- pointer scopes (a key is itself a pointer; * follows it) -----------
+  feline: *'pets[1]',          // no sigil -> base is the current mapping (a sibling)
+  topDog: *'/pets[0]',         // /  -> current document root
+  // proj: *'//my.project/config/db',     // // -> a LINK (project / sibling doc); scheme optional
+  // wild: *'https://pet.store.com/pets',  // a link with a scheme (ignored; never fetched)
+
+  // ---- & anchors: name a node; * references it (shared, not copied) -------
+  boss: &chief { name: 'Rex', species: 'dog' },
+  team: { lead: *'chief' },    // same node as `boss` — a shared edge, not a copy
+
+  // ---- one ordered container: [n] = integer key, /x = string key ---------
+  secondPet:  *'pets[1]',       // [1] selects position 1 (an integer key)
+  secondName: *'pets[1]/name',  // then /name selects the string key "name"
+
+  // ---- ~ back-edges: reverse of the forward relation named by the key ----
+  // eve has a forward "cain" edge; the shared cain node carries its reverse.
+  eve:  { cain: *'/adam/cain' },       // forward:  eve --cain--> the shared node
+  adam: { cain: { ~cain: *'/eve' } },  // reverse of eve's cain-edge -> eve
+                                       // (~ is the sigil, OUTSIDE the key; quote only the key
+                                       //  if it needs it, e.g. ~'odd/key')
+
+  // ---- escaping: \\ in the JSON5 string delivers one \ to the pointer ----
+  'odd/key': { n: 1 },
+  oddRef:  *'odd\\/key/n',      // pointer text  odd\/key/n  -> literal key "odd/key", then /n
+  dotsRef: *'\\.\\.',           // pointer text  \.\.        -> the literal key ".." (not parent)
+}

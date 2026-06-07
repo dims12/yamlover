@@ -1,0 +1,53 @@
+# ============================================================================
+# 06 — yamlover.  YAML ⊂ yamlover.  Same data as 05-tour.yaml, plus POINTERS.
+# yamlover = ALL of YAML (including & anchors / * aliases) + the EXTENDED * (paths,
+# scopes, links), ~ back-edges, and the keys-as-pointers model.
+#
+# This is a single .yamlover FILE — the "file" instance concrete. A directory whose
+# layout IS the data, overlaid by .yamlover/body.yamlover, is the other concrete.
+# (NB: yamlover deliberately breaks YAML — `*/pets[1]` is a path pointer, not a YAML
+#  alias name — so it needs the yamlover parser, not a stock YAML one.)
+# Spec: ../URIs.md   ·   json5p twin: ../JSON5P.md   ·   Model: ../IR.md
+# ============================================================================
+pets:
+  - name: Rex
+    species: dog
+  - name: Whiskers
+    species: cat
+  - name: Bubbles
+    species: fish
+
+humans:
+  - name: Alice
+    manager: */pets[1]      # EXTENDED *: a path pointer (document root) -> the Whiskers node
+
+# ---- pointer scopes (a key is itself a pointer; * follows it) ----------------
+feline: *pets[1]            # no sigil -> base is the current mapping (a sibling)
+topDog: */pets[0]           # /  -> current document root
+# proj: *//my.project/config/db     # // -> a LINK (project / sibling doc); scheme optional
+# wild: *https://pet.store.com/pets  # a link with a scheme (ignored; never fetched)
+
+# ---- & anchors still work (plain YAML); * reuses them (an anchor wins over a key) ----
+boss: &chief
+  name: Rex
+  species: dog
+team:
+  lead: *chief              # same node as `boss` — a shared edge, not a copy
+
+# ---- one ordered container: [n] = integer key (position), /x = string key ----
+secondPet: *pets[1]
+secondName: *pets[1]/name
+
+# ---- ~ back-edges: the ~ sigil sits OUTSIDE the key (reverse of the named relation) ----
+eve:
+  cain: */adam/cain         # forward: eve --cain--> the shared node
+adam:
+  cain:
+    ~cain: */eve            # reverse of eve's cain-edge -> eve  (~ = sigil, key = "cain")
+
+# ---- escaping: backslash suppresses a metachar in a literal key (not quote-based) ----
+weird:
+  cat\/dog:                 # the literal key "cat/dog"
+    n: 1
+ref:  *weird/cat\/dog/n     # second step is the literal key "cat/dog", then /n
+dots: *\.\.                 # the literal key ".." (not the parent scope)

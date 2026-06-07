@@ -1,0 +1,46 @@
+// ============================================================================
+// 02 — JSON5.  JSON ⊂ JSON5.  Same data as 01-tour.json, with JSON5 ergonomics.
+// JSON5 adds comments, unquoted keys, single quotes, trailing commas, and number
+// niceties — but NO references, so shared data must still be COPIED.
+// ============================================================================
+{
+  // unquoted keys + single quotes + // line comments  /* and block comments */
+  pets: [
+    {
+      name: 'Rex',
+      species: 'dog'
+    },
+    {
+      name: 'Whiskers',
+      species: 'cat'
+    },
+    {
+      name: 'Bubbles',
+      species: 'fish'
+    },
+    // <- trailing comma is allowed
+  ],
+  humans: [
+    // JSON5 has no pointers: Alice's manager is a verbatim COPY of Whiskers,
+    // not a reference to pets[1]. (03-tour.json5p fixes this.)
+    {
+      name: 'Alice',
+      manager: {
+        name: 'Whiskers',
+        species: 'cat'
+      }
+    },
+  ],
+  // JSON5 number niceties:
+  stats: {
+    count: 0xCAFE,
+    // hexadecimal
+    ratio: .5,
+    // leading-dot number (0.5)
+    rounded: 5.,
+    // trailing-dot number (5.0)
+    max: Infinity,
+    // Infinity / -Infinity / NaN are literals
+    missing: NaN,
+  },
+}

@@ -3,20 +3,20 @@ different **concrete representation** — a different way the same kind of data 
 live on the filesystem, in a YAML file, or in a JSON file. They are numbered so
 they sort into reading order.
 
-The first four (`01`–`04`) hold the **same object** `{name, age, isAdmin}` in the
+The first four (`50`–`53`) hold the **same object** `{name, age, isAdmin}` in the
 four core concretes — pinned in the schema, collapsed into a YAML file, collapsed
 into a JSON file, and expanded into a directory — so the representations can be
-compared directly. The rest (`05`–`18`) use trivial data (the value **30**, alone
+compared directly. The rest (`54`–`67`) use trivial data (the value **30**, alone
 or under a key) or richer data — a binary value, an array, a mid-tree concrete
 switch, an image with markup, `$ref`/`$defs`, a two-parent genealogy DAG, a
 catalogue of every renderable format (as object properties and as chapter chunks),
 a recursive document tree, a tagged library of papers — to isolate one further
 feature each.
 
-# 01-object-in-schema
+# 50-object-in-schema
 
 This entity is in the **yamlover** concrete representation. It is the *schema*
-counterpart of [04-object-in-dir](#04-object-in-dir) and [02-object-in-yaml](#02-object-in-yaml): the **same**
+counterpart of [53-object-in-dir](#53-object-in-dir) and [51-object-in-yaml](#51-object-in-yaml): the **same**
 object is stored entirely **inside the schema**, pinned value-by-value with
 `const:`, so no data file exists at all.
 
@@ -55,20 +55,20 @@ A directory that contains *only*:
       const: true
   ```
 
-There are no `name`, `age`, or `isAdmin` files (as in [04-object-in-dir](#04-object-in-dir)), and
-no collapsed `somefile.yaml` (as in [02-object-in-yaml](#02-object-in-yaml)) either — the directory
+There are no `name`, `age`, or `isAdmin` files (as in [53-object-in-dir](#53-object-in-dir)), and
+no collapsed `somefile.yaml` (as in [51-object-in-yaml](#51-object-in-yaml)) either — the directory
 holds nothing but its `.yamlover/`. Every value lives in the schema. This is the
-object-sized version of [07-scalar-in-schema](#07-scalar-in-schema), which pins a bare scalar with
-`const: 30`: where 07-scalar-in-schema pins one value, 01-object-in-schema pins a whole mapping.
+object-sized version of [56-scalar-in-schema](#56-scalar-in-schema), which pins a bare scalar with
+`const: 30`: where 56-scalar-in-schema pins one value, 50-object-in-schema pins a whole mapping.
 
 The three entities close a triangle over the *same* data
 `{name: Alice, age: 30, isAdmin: true}` — three ways to materialize one object:
 
-| entity | where the values live | form |
-|--------|----------------------|------|
-| [04-object-in-dir](#04-object-in-dir) | one file per child (`name`, `age`, `isAdmin`) | expanded **directory** |
-| [02-object-in-yaml](#02-object-in-yaml) | a single collapsed file (`somefile.yaml`) | one **YAML file** |
-| **01-object-in-schema** | the schema itself (`const:` per property) | the **schema** |
+| entity                                  | where the values live                         | form                   |
+|-----------------------------------------|-----------------------------------------------|------------------------|
+| [53-object-in-dir](#53-object-in-dir)   | one file per child (`name`, `age`, `isAdmin`) | expanded **directory** |
+| [51-object-in-yaml](#51-object-in-yaml) | a single collapsed file (`somefile.yaml`)     | one **YAML file**      |
+| **50-object-in-schema**                 | the schema itself (`const:` per property)     | the **schema**         |
 
 All three are the **yamlover** concrete representation; what differs is *where the
 bytes sit*. Because a JSON Schema whose leaves are all `const:` **is** the
@@ -77,12 +77,12 @@ correspondence](../README.md#schema--instance-correspondence)*), the schema can
 carry the data outright — the limiting case where the description and the thing
 described coincide.
 
-# 02-object-in-yaml
+# 51-object-in-yaml
 
 This entity is in the **yamlover** concrete representation. It is the *object*
-counterpart of [08-scalar-file-overlay](#08-scalar-file-overlay): a whole mapping is collapsed into a single
+counterpart of [57-scalar-file-overlay](#57-scalar-file-overlay): a whole mapping is collapsed into a single
 overlaid file instead of being expanded into one file per child (as in
-[04-object-in-dir](#04-object-in-dir)).
+[53-object-in-dir](#53-object-in-dir)).
 
 YAML concrete representation:
 
@@ -126,19 +126,19 @@ A directory that contains:
   ```
 
 The node is an *object* (`type: object`), but rather than giving it `properties`
-mapped to per-child files (as [04-object-in-dir](#04-object-in-dir) does), the schema declares
+mapped to per-child files (as [53-object-in-dir](#53-object-in-dir) does), the schema declares
 `x-yamlover.concrete: file/yaml` with `x-yamlover.os.path: somefile.yaml` — so the
 entire mapping is stored *collapsed* inside one YAML file. Whereas
-[04-object-in-dir](#04-object-in-dir) expands the same object into one file per child, here all
+[53-object-in-dir](#53-object-in-dir) expands the same object into one file per child, here all
 the keys live together in a single file. Per the spec, a file and a subdirectory
 are equivalent ways to represent the same node; this is the collapsed-into-a-file
 form, and `os.path` lets that file keep an arbitrary name while the `.yamlover/`
 schema overlays it.
 
-# 03-object-in-json
+# 52-object-in-json
 
 This entity is in the **yamlover** concrete representation. It is the JSON-file
-twin of [02-object-in-yaml](#02-object-in-yaml): the same mapping is collapsed into a single
+twin of [51-object-in-yaml](#51-object-in-yaml): the same mapping is collapsed into a single
 overlaid file, but that file is **JSON** (`somefile.json`) rather than YAML.
 
 YAML concrete representation:
@@ -184,15 +184,15 @@ A directory that contains:
       path: somefile.json
   ```
 
-The only difference from [02-object-in-yaml](#02-object-in-yaml) is the data file's encoding:
+The only difference from [51-object-in-yaml](#51-object-in-yaml) is the data file's encoding:
 `x-yamlover.concrete` is `file/json` rather than `file/yaml`, so the collapsed file
 is read by a strict JSON parser. Everything *inside* that file is therefore in the
 **json** concrete representation (the interior of a JSON file), just as
-[02-object-in-yaml](#02-object-in-yaml)'s keys are in the **yaml** concrete — the walker reports
+[51-object-in-yaml](#51-object-in-yaml)'s keys are in the **yaml** concrete — the walker reports
 `json` for `name`/`age`/`isAdmin` here and `yaml` there. The schema stays YAML
 (`.yamlover/schema.yaml`); only the encoding of the overlaid data file changes.
 
-# 04-object-in-dir
+# 53-object-in-dir
 
 This entity is in the **yamlover** concrete representation, but the scalar children
 are stored as files in YAML format.
@@ -244,13 +244,13 @@ A directory that contains:
   ```
 
 `x-yamlover.concrete: file/yaml` says each child lives in its own file, encoded as
-YAML text. Unlike [09-scalar-as-binary](#09-scalar-as-binary)'s `file/binary`, the bytes are parsed as
+YAML text. Unlike [58-scalar-as-binary](#58-scalar-as-binary)'s `file/binary`, the bytes are parsed as
 YAML — the file content is itself a valid YAML scalar (`"Alice"`, `30`, `true`),
 so no `format` is needed. The `type` of each property (`string`, `integer`,
 `boolean`) is a standard JSON Schema keyword, while the `x-yamlover` namespace is
 the yamlover extension that points the child at its own file.
 
-# 05-scalar-as-file
+# 54-scalar-as-file
 
 This entity is in the **file** concrete representation.
 
@@ -268,9 +268,9 @@ JSON concrete representation:
 
 file concrete representation:
 
-A regular text file named `05-scalar-as-file` with content `30`, which is valid YAML.
+A regular text file named `54-scalar-as-file` with content `30`, which is valid YAML.
 
-# 06-plain-dir
+# 55-plain-dir
 
 This entity is in the **dir** concrete representation — a directory
 *without* a `.yamlover/` subdirectory.
@@ -294,7 +294,7 @@ dir concrete representation:
 The directory contains one text file named `age`, whose content is the valid
 YAML scalar `30`.
 
-# 07-scalar-in-schema
+# 56-scalar-in-schema
 
 This entity is in the **yamlover** concrete representation — a directory with a
 `.yamlover/` subdirectory.
@@ -317,10 +317,11 @@ A directory that contains a `.yamlover/schema.yaml` file. This file is a
 Yamlover JSON Schema, expressed in YAML format. The schema (`const: 30`)
 describes that the only possible value is 30.
 
-# 08-scalar-file-overlay
+# 57-scalar-file-overlay
 
-This entity is in the **yamlover** concrete representation, used here to
-*overlay* an existing directory that already contains a YAML file.
+This entity is the **scalar counterpart of [50-object-in-overlay](#50-object-in-overlay)**:
+a directory whose `.yamlover/body.yamlover` overlay carries the whole instance — here just
+a bare scalar.
 
 YAML concrete representation:
 
@@ -336,29 +337,19 @@ JSON concrete representation:
 
 yamlover concrete representation:
 
-A directory that contains:
+A directory that contains only:
 
-- `somefile.yaml` — a text file holding the YAML scalar `30`.
-- `.yamlover/schema.yaml` — a Yamlover JSON Schema, expressed in YAML, describing
-  the entity:
+- `.yamlover/body.yamlover` — a yamlover document holding the instance, here the scalar `30`:
 
-  ```yaml
-  type: integer
-  x-yamlover:
-    concrete: file/yaml
-    os:
-      path: somefile.yaml
+  ```yamlover
+  30
   ```
 
-Here the whole entity is a *scalar* (an integer), so the schema sits at the root
-rather than under `properties`. `x-yamlover.concrete: file/yaml` says the value
-lives in its own file, encoded as YAML, and `x-yamlover.os.path: somefile.yaml`
-names exactly which file.
-That explicit `os.path` is what makes this an overlay: the data file can keep
-any name it already had (`somefile.yaml`), and the `.yamlover/` schema is dropped
-alongside it to describe how to read it — without renaming or moving the file.
+The overlay *is* the instance (instance-only — no schema-as-storage). Where
+[50-object-in-overlay](#50-object-in-overlay) overlays a *mapping*, this overlays a single
+*scalar*, so `body.yamlover` is just `30`.
 
-# 09-scalar-as-binary
+# 58-scalar-as-binary
 
 This entity is in the **yamlover** concrete representation, but the scalar child
 `age` is stored as a *binary* file rather than as inline text.
@@ -402,11 +393,11 @@ used here for a binary interpretation, while `type: binary` and the `x-yamlover`
 namespace are yamlover extensions (a binary value has no JSON form — hence the
 `// impossible` above — but YAML carries it via `!!binary`).
 
-# 10-array-of-files
+# 59-array-of-files
 
 This entity is in the **yamlover** concrete representation and shows how an
 **array** (sequence) is encoded: the node is `type: array`, and each element is
-stored in its own file. Whereas [12-image-with-markup](#12-image-with-markup)'s `markup` array is pinned
+stored in its own file. Whereas [61-image-with-markup](#61-image-with-markup)'s `markup` array is pinned
 inline in the schema, here the elements live on disk.
 
 YAML concrete representation:
@@ -420,7 +411,11 @@ YAML concrete representation:
 JSON concrete representation:
 
 ```json
-["Alice", 42, true]
+[
+  "Alice",
+  42,
+  true
+]
 ```
 
 yamlover concrete representation:
@@ -467,7 +462,7 @@ Each element also carries its own `concrete` encoding, and they need not match:
 (its `true` is read by a strict JSON parser). Finally, `items: false` closes the
 tuple — no elements beyond the three listed in `prefixItems` are allowed.
 
-# 11-switch-schema-file-yaml
+# 60-switch-schema-file-yaml
 
 This entity shows that the **concrete can change partway down the tree** — the
 model continues from the middle in a *different* representation. Most of it is
@@ -524,7 +519,7 @@ A directory that contains:
 Walking in shows the switch on a single child:
 
 ```console
-$ printf 'cd user\nls\n' | python ../../tools/walker/walker.py 11-switch-schema-file-yaml
+$ printf 'cd user\nls\n' | python ../../tools/walker/walker.py 60-switch-schema-file-yaml
 NAME     TYPE    CONCRETE
 name     string  yaml-schema/instantiate
 contact  object  file/yaml
@@ -537,7 +532,7 @@ side by side, one level down. Because `continuation.yaml` is *claimed* by
 hand-off point where a schema-pinned tree resumes as on-disk data, in either
 direction.
 
-# 12-image-with-markup
+# 61-image-with-markup
 
 This entity is in the **yamlover** concrete representation. It is a more
 realistic mix: one child is a **binary file** (a PNG image), and a sibling child
@@ -604,36 +599,36 @@ A directory that contains:
 
 Two storage strategies sit side by side here:
 
-- **`object_detection.png` lives in a file.** As in [09-scalar-as-binary](#09-scalar-as-binary),
+- **`object_detection.png` lives in a file.** As in [58-scalar-as-binary](#58-scalar-as-binary),
   `type: binary` + `x-yamlover.concrete: file/binary` say the child is raw bytes in
   its own file; `format: image/png` is the standard JSON Schema keyword giving the binary
-  interpretation (a real MIME type, rather than 09-scalar-as-binary's synthetic
+  interpretation (a real MIME type, rather than 58-scalar-as-binary's synthetic
   `int32/le`). Because it is binary, the entity has no JSON form — hence the
   `// impossible` above — though YAML can carry it via `!!binary`.
 - **`markup` is pinned in the schema.** No `markup` file exists on disk; the whole
   array is fixed inline with `const:`, the same "pinned in the schema" path the
-  spec describes for scalars (see [07-scalar-in-schema](#07-scalar-in-schema)), extended here to
+  spec describes for scalars (see [56-scalar-in-schema](#56-scalar-in-schema)), extended here to
   structured data. `prefixItems` validates the array position-by-position (a
   two-element tuple), and each item's `description` (`bus`, `car`) labels which
   detected object that box belongs to. The box coordinates `x`/`y`/`dx`/`dy` are
   the pinned values.
 
-# 13-defs-and-refs
+# 62-defs-and-refs
 
 This entity is the **`$ref`/`$defs`** version of
-[12-image-with-markup](#12-image-with-markup): the same image-plus-markup data,
+[61-image-with-markup](#61-image-with-markup): the same image-plus-markup data,
 but each region's *shape* is pulled in by a `$ref` to a shared definition rather
 than spelled out twice. `$ref` and `$defs` live in **schema coordinates** — they
 are JSON Pointers within the schema document, never filesystem paths.
 
 It materializes to exactly the same value as
-[12-image-with-markup](#12-image-with-markup):
+[61-image-with-markup](#61-image-with-markup):
 
 ```yaml
 markup:
   - { x: 25, y: 40, dx: 25, dy: 40 }   # bus
   - { x: 25, y: 40, dx: 25, dy: 40 }   # car
-# object_detection.png omitted here — a 1×1 placeholder PNG stands in for 12's image
+# object_detection.png omitted here — a 1×1 placeholder PNG stands in for 61's image
 ```
 
 yamlover concrete representation:
@@ -641,7 +636,7 @@ yamlover concrete representation:
 A directory that contains:
 
 - `object_detection.png` — a minimal 1×1 placeholder PNG (the example is about
-  the markup; 12's real 780 KB image isn't duplicated).
+  the markup; 61's real 780 KB image isn't duplicated).
 - `.yamlover/schema.yaml` — a Yamlover JSON Schema defining the region shape once,
   under the standard JSON Schema `$defs`, and referencing it per region:
 
@@ -693,7 +688,7 @@ How it resolves:
   rectangle pinned to `(25, 40, 25, 40)`. The walker resolves the `$ref` while
   reading the tree, so `ls`/`cat`/`yaml` show the fully expanded regions.
 
-# 14-genealogy-dag
+# 63-genealogy-dag
 
 This entity is a **DAG**: every person has *two* parents — a `father` and a
 `mother` — so a node is reached from more than one place. The trick is that one
@@ -723,7 +718,7 @@ adam:
     enoch: ~
   seth: ~
   azura: ~
-eve: {}
+eve: { }
 ```
 
 yamlover concrete representation — `.yamlover/schema.yaml` pins the people inline
@@ -731,7 +726,7 @@ and records each one's parents under `x-yamlover.rel`:
 
 ```yaml
 properties:
-  adam:                       # root male — no parents, so no rel
+  adam: # root male — no parents, so no rel
     properties:
       cain:
         x-yamlover:
@@ -746,13 +741,13 @@ properties:
                 mother: "/adam/azura" # the DAG edge: enoch's mother is adam's daughter
       seth:
         x-yamlover: { rel: { father: "..", mother: "/eve" } }
-      azura:                  # adam's daughter; also enoch's mother
+      azura: # adam's daughter; also enoch's mother
         x-yamlover:
           rel:
             father: ".."
             mother: "/eve"
             .enoch: "/adam/cain/enoch"   # virtual child (down-edge)
-  eve:                        # root female; childless in containment, given
+  eve: # root female; childless in containment, given
     type: object              # her children back as virtual down-edges
     x-yamlover:
       rel:
@@ -780,17 +775,17 @@ How the relations read:
   resolves these, anchoring an absolute `rel` pointer at the enclosing entity:
 
   ```console
-  $ printf 'cd adam/cain/enoch\ncd ^mother\npwd\n' | python ../../tools/walker/walker.py 14-genealogy-dag
+  $ printf 'cd adam/cain/enoch\ncd ^mother\npwd\n' | python ../../tools/walker/walker.py 63-genealogy-dag
   /adam/azura
 
-  $ printf 'cd eve\nls\n' | python ../../tools/walker/walker.py 14-genealogy-dag
+  $ printf 'cd eve\nls\n' | python ../../tools/walker/walker.py 63-genealogy-dag
   NAME   TYPE    CONCRETE
   cain   object  rel → /adam/cain
   seth   null    rel → /adam/seth
   azura  null    rel → /adam/azura
   ```
 
-# 15-all-formats-object
+# 64-all-formats-object
 
 This entity is a **catalogue of every renderable format**, laid out as a plain
 object with **one property per `(type, format)`** the web viewer knows how to show.
@@ -802,15 +797,15 @@ Three properties are **string** formats pinned inline with `const` — `markdown
 The remaining eleven are **binary** sample files in the directory, each a
 `concrete: file/binary` node tagged with the MIME `format` that keys its renderer:
 
-| property | format | renderer |
-|----------|--------|----------|
-| `png` `svg` `gif` `bmp` `ico` | `image/png`, `image/svg+xml`, `image/gif`, `image/bmp`, `image/x-icon` | native `<img>` |
-| `tiff` | `image/tiff` | UTIF → canvas |
-| `psd` | `image/vnd.adobe.photoshop` | ag-psd → canvas |
-| `html` | `text/html` | sandboxed `<iframe>` |
-| `pdf` | `application/pdf` | pdf.js |
-| `fb2` | `application/x-fictionbook+xml` | FictionBook XML |
-| `epub` | `application/epub+zip` | unzip + spine |
+| property                      | format                                                                 | renderer             |
+|-------------------------------|------------------------------------------------------------------------|----------------------|
+| `png` `svg` `gif` `bmp` `ico` | `image/png`, `image/svg+xml`, `image/gif`, `image/bmp`, `image/x-icon` | native `<img>`       |
+| `tiff`                        | `image/tiff`                                                           | UTIF → canvas        |
+| `psd`                         | `image/vnd.adobe.photoshop`                                            | ag-psd → canvas      |
+| `html`                        | `text/html`                                                            | sandboxed `<iframe>` |
+| `pdf`                         | `application/pdf`                                                      | pdf.js               |
+| `fb2`                         | `application/x-fictionbook+xml`                                        | FictionBook XML      |
+| `epub`                        | `application/epub+zip`                                                 | unzip + spine        |
 
 How it reads:
 
@@ -819,18 +814,18 @@ How it reads:
   ordinary one-level YAML/JSON representation, each property a link to descend.
 - **Storage is mixed, deliberately.** The three text formats live in the schema
   (`const`), the rest are real files claimed by `x-yamlover.os.path` — the same
-  "described, not duplicated" pattern as [12-image-with-markup](#12-image-with-markup),
+  "described, not duplicated" pattern as [61-image-with-markup](#61-image-with-markup),
   scaled to the whole format set.
 - It doubles as a **smoke test for the registry**: if a renderer regresses, the
   property for its format stops rendering. Its sibling
-  [16-all-formats-chunks](#16-all-formats-chunks) puts the identical set into a
+  [65-all-formats-chunks](#65-all-formats-chunks) puts the identical set into a
   chapter's `chunks`.
 
-# 16-all-formats-chunks
+# 65-all-formats-chunks
 
 This entity is the **same format catalogue as a readable page**: a single
 **chapter** whose numbered `chunks` are one of each renderable format, top to
-bottom. Where [15-all-formats-object](#15-all-formats-object) hangs the formats off
+bottom. Where [64-all-formats-object](#64-all-formats-object) hangs the formats off
 object keys, here they flow down a chapter body — proving the chapter renderer
 delegates **every** chunk to the renderer for *its own* `(type, format)`, not just
 prose.
@@ -859,14 +854,14 @@ How it reads:
   `rendererFor(type, format).renderChunk` — the text renderer for Markdown, the
   PlantUML renderer for the diagram, and each file-backed renderer (PDF, FB2, EPUB,
   PSD, TIFF, HTML, …) reused inline. This is the general form of the mixed media in
-  [17-doc-tree](#17-doc-tree), taken to the full format set.
-- **The `chapter` shape is reused verbatim** from [17-doc-tree](#17-doc-tree) — the
+  [66-doc-tree](#66-doc-tree), taken to the full format set.
+- **The `chapter` shape is reused verbatim** from [66-doc-tree](#66-doc-tree) — the
   recursive `$defs/chapter` — but here it carries only `chunks` (no subchapters).
 - It is the **end-to-end test** that the registry and the chapter compose: the same
-  fourteen formats as [15-all-formats-object](#15-all-formats-object), now rendered
+  fourteen formats as [64-all-formats-object](#64-all-formats-object), now rendered
   one after another on a single page.
 
-# 17-doc-tree
+# 66-doc-tree
 
 This entity is a **recursive document tree** — a help/book structure (here, a small
 pet-keeping handbook), the kind of thing you might otherwise keep as a folder of
@@ -876,7 +871,7 @@ the recursion). The two are deliberately *separate*: a chapter is heading + body
 subchapters, and subchapters are **terminal** — there is no returning to a parent's
 prose after one, the way real documents read. The recursion is expressed once, in
 `$defs`, and pulled in by `$ref` — the same schema-coordinate mechanism as
-[13-defs-and-refs](#13-defs-and-refs), here pointing at *itself*.
+[62-defs-and-refs](#62-defs-and-refs), here pointing at *itself*.
 
 A chapter's body is **not prose-only**. Each chunk routes by its own `(type, format)`,
 so the same numbered body interleaves three kinds of block: a Markdown paragraph
@@ -966,13 +961,13 @@ $defs:
     type: object
     format: x-yamlover-chapter            # keys the server's `chapter` renderer
     properties:
-      chunks:                              # body, read as numbered blocks
+      chunks: # body, read as numbered blocks
         type: array
         items:
           type: string
           format: text/markdown            # the base chunk (type, format); a chunk overrides
-                                           # it to be a text/x-plantuml diagram or an image
-      children:                            # subchapters — the recursion
+          # it to be a text/x-plantuml diagram or an image
+      children: # subchapters — the recursion
         type: array
         items:
           $ref: '#/$defs/chapter'
@@ -1010,7 +1005,7 @@ Walking in shows the structure — the `Dogs` chapter (`children[0]`) holds its 
 `chunks` and `children`:
 
 ```console
-$ printf 'cd children[0]\nls\ncat chunks[0]\n' | python ../../tools/walker/walker.py 17-doc-tree
+$ printf 'cd children[0]\nls\ncat chunks[0]\n' | python ../../tools/walker/walker.py 66-doc-tree
 NAME      TYPE   CONCRETE
 chunks    array  yaml-schema/instantiate
 children  array  yaml-schema/instantiate
@@ -1019,11 +1014,11 @@ A dog is a social animal that adopts your family as its pack.
 
 A planned next step is **hyperlinks** between chunks: a leaf carrying a JSON-path
 pointer in `x-yamlover` (resolved against the enclosing entity, like
-[14-genealogy-dag](#14-genealogy-dag)'s `rel` pointers and the `^`/virtual-child
+[63-genealogy-dag](#63-genealogy-dag)'s `rel` pointers and the `^`/virtual-child
 navigation). Inline-`const` self-containment is what lets those links resolve within
 one document instead of chasing files.
 
-# 18-pdf-tags
+# 67-pdf-tags
 
 This entity is a small **library of papers, classified by tags** — and the tags
 live in the *same document* as the things they classify. It is built in three
@@ -1034,7 +1029,7 @@ layers, bottom-up:
    the directory, given a `concrete: file/binary` declaration and a human title;
 3. **classification by `rel`** — each paper carries `x-yamlover.rel` edges that
    point at tag nodes, the same up-edge mechanism as
-   [14-genealogy-dag](#14-genealogy-dag)'s `mother`, here used to mean "is tagged".
+   [63-genealogy-dag](#63-genealogy-dag)'s `mother`, here used to mean "is tagged".
 
 The six papers are real, and all famously short or deadpan: Lander & Parkin's
 two-sentence *Counterexample to Euler's Conjecture*; Upper's entirely blank *The
@@ -1053,7 +1048,7 @@ properties:
   tags:
     type: object
     properties:
-      field:                                  # axis 1 — subject
+      field: # axis 1 — subject
         type: object
         properties:
           mathematics:
@@ -1063,7 +1058,7 @@ properties:
           physics:
             type: object
             properties:
-              quantum:  { type: object, description: Quantum mechanics and measurement }
+              quantum: { type: object, description: Quantum mechanics and measurement }
               particle: { type: object, description: Neutrinos and the like }
           earth-science:
             type: object
@@ -1074,20 +1069,20 @@ properties:
             type: object
             properties:
               behavior-analysis: { type: object }
-      genre:                                  # axis 2 — how it is short
+      genre: # axis 2 — how it is short
         type: object
         properties:
           brevity:
             type: object
             properties:
-              shortest-paper:  { type: object, description: Famously the shortest in its journal }
+              shortest-paper: { type: object, description: Famously the shortest in its journal }
               one-word-answer: { type: object, description: A title that is a question; a one-word abstract }
-              empty-body:      { type: object, description: The body is (almost) entirely blank }
+              empty-body: { type: object, description: The body is (almost) entirely blank }
           humor:
             type: object
             properties:
               deadpan: { type: object, description: Plays it completely straight }
-              satire:  { type: object, description: Mocks its target }
+              satire: { type: object, description: Mocks its target }
           annotation: { type: object, description: A derivative edition of another paper }
 ```
 
@@ -1110,11 +1105,11 @@ into the tag tree:
           concrete: file/binary
           os:
             path: 1110.2832v2.pdf            # the actual file in this directory
-          rel:                               # ↓ classification — each edge a tag
-            quantum:         /tags/field/physics/quantum
-            particle:        /tags/field/physics/particle
+          rel: # ↓ classification — each edge a tag
+            quantum: /tags/field/physics/quantum
+            particle: /tags/field/physics/particle
             one-word-answer: /tags/genre/brevity/one-word-answer
-            deadpan:         /tags/genre/humor/deadpan
+            deadpan: /tags/genre/humor/deadpan
 
       fermat-library-annotated:
         type: binary
@@ -1126,15 +1121,15 @@ into the tag tree:
             path: "Fermat's Library _ Shortest paper ever … annotated_explained version..html"
           rel:
             number-theory: /tags/field/mathematics/number-theory
-            annotation:    /tags/genre/annotation
-            source:        /papers/euler-counterexample   # not a tag — a paper→paper edge
+            annotation: /tags/genre/annotation
+            source: /papers/euler-counterexample   # not a tag — a paper→paper edge
 ```
 
 How it reads:
 
 - **A tag is just a node, and tagging is just a `rel` edge.** There is no special
   "tag" machinery — the taxonomy is ordinary containment, and classification reuses
-  the same up-edge table as [14-genealogy-dag](#14-genealogy-dag). A paper can carry
+  the same up-edge table as [63-genealogy-dag](#63-genealogy-dag). A paper can carry
   as many edges as it has tags; the edge *name* is the tag's own name, so the
   relation reads off the schema (`one-word-answer: /tags/genre/brevity/one-word-answer`).
 - **The pointers are absolute (`/…`), anchored at the enclosing entity** — here the
@@ -1152,7 +1147,7 @@ larger idea: letting a `rel` edge also be written as a full URI — a tree-wide 
 (`https://<tree>/tags/…`) or a built-in, universal tag vocabulary
 (`https://schemas.yamlover.org/…`) — without changing what a paper→tag edge *is*.
 
-# 19-math-chapter
+# 68-math-chapter
 
 A small chapter that shows the **two ways math appears**, side by side in one
 body — the same KaTeX engine behind both.
@@ -1197,7 +1192,7 @@ How it reads:
   `text/x-latex` renderer both call the same KaTeX path, so an inline fragment and a
   standalone block render identically — only the surrounding context differs.
 
-# 20-marklower-links
+# 69-marklower-links
 
 A documentation tree that is **about its own links**: nested subchapters, each
 demonstrating one flavour of marklower link. Links live in the app's **JSON
@@ -1205,13 +1200,13 @@ instance space** — the same space the tree, breadcrumbs, and URL navigate — 
 take their addressing from how an `x-yamlover` `rel` pointer is written:
 
 Resolving against the repo served as root (so this guide is at
-`/examples/20-marklower-links`):
+`/examples/69-marklower-links`):
 
-| marklower            | anchor                                   | example resolves to                       |
-| -------------------- | ---------------------------------------- | ----------------------------------------- |
-| `[t](/path)`         | **document** root (nearest yamlover entity) | `/examples/20-marklower-links/path`    |
-| `[t](//path)`        | **project** root (served directory)      | `/path`                                   |
-| `[t](https://…)` `mailto:` | external                           | opens in a new tab                        |
+| marklower                  | anchor                                      | example resolves to                 |
+|----------------------------|---------------------------------------------|-------------------------------------|
+| `[t](/path)`               | **document** root (nearest yamlover entity) | `/examples/69-marklower-links/path` |
+| `[t](//path)`              | **project** root (served directory)         | `/path`                             |
+| `[t](https://…)` `mailto:` | external                                    | opens in a new tab                  |
 
 The links use the path itself as the visible label, so the marklower code is on
 display: `document-relative links at [/children[0]](/children[0])`.
@@ -1231,13 +1226,13 @@ properties:
         properties:
           chunks:
             prefixItems:
-              - const: "… a sibling example at [//examples/19-math-chapter](//examples/19-math-chapter)."
+              - const: "… a sibling example at [//examples/68-math-chapter](//examples/68-math-chapter)."
 $defs:
   chapter:
     type: object
     format: x-yamlover-chapter
     properties:
-      chunks:   { type: array, items: { type: string } }  # marklower
+      chunks: { type: array, items: { type: string } }  # marklower
       children: { type: array, items: { $ref: '#/$defs/chapter' } }
 ```
 
@@ -1250,37 +1245,37 @@ How it reads:
   server as the node's `documentPath` (the same `entityRootSegs` an absolute `/…`
   rel pointer already uses).
 - **`//` reaches across documents, and counts from the served root.** A sibling
-  example is `//examples/19-math-chapter` *when the repo is served* — a single `/`
+  example is `//examples/68-math-chapter` *when the repo is served* — a single `/`
   would have stayed inside this guide. The catch: the prefix depends on where
   yamlover was launched (serve `examples/` directly and it is just
-  `//19-math-chapter`), so `//` links are only as portable as the mount point.
+  `//68-math-chapter`), so `//` links are only as portable as the mount point.
   Document-relative `/…` links, anchored at the entity, are mount-independent.
 - **One link interpreter, shared.** Every marklower link goes through the same
   `resolveLink` seam, the place refs and rels are expected to adopt later (gaining
   the full pointer grammar — `..`, `^name`, virtual children) without each renderer
   re-deciding what a target means.
 
-# 21-office-docs
+# 70-office-docs
 
 A **plain directory of office documents**, one per supported binary format, served
-without a schema (like [06-plain-dir](#06-plain-dir)) — each file's renderer is
+without a schema (like [55-plain-dir](#55-plain-dir)) — each file's renderer is
 chosen from its extension-inferred `(type, format)`:
 
-| file          | format                                                                     | renderer                                  |
-| ------------- | -------------------------------------------------------------------------- | ----------------------------------------- |
-| `sample.docx` | `application/vnd.openxmlformats-officedocument.wordprocessingml.document`   | `docx` — [mammoth](https://github.com/mwilliamson/mammoth.js) → HTML |
-| `sample.xlsx` | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`         | `spreadsheet` — [SheetJS](https://sheetjs.com), sheet tabs + table |
-| `sample.xls`  | `application/vnd.ms-excel`                                                  | `spreadsheet` (legacy BIFF, same renderer) |
-| `sample.rtf`  | `application/rtf`                                                           | `rtf` — a small dependency-free converter |
+| file          | format                                                                    | renderer                                                             |
+|---------------|---------------------------------------------------------------------------|----------------------------------------------------------------------|
+| `sample.docx` | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | `docx` — [mammoth](https://github.com/mwilliamson/mammoth.js) → HTML |
+| `sample.xlsx` | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`       | `spreadsheet` — [SheetJS](https://sheetjs.com), sheet tabs + table   |
+| `sample.xls`  | `application/vnd.ms-excel`                                                | `spreadsheet` (legacy BIFF, same renderer)                           |
+| `sample.rtf`  | `application/rtf`                                                         | `rtf` — a small dependency-free converter                            |
 
 Legacy `.doc` (Word 97–2003) has its own `doc` renderer, but the old binary format
 has no reliable in-browser parser, so it is shown as a download link rather than a
 (broken) conversion — faithful rendering would need a server-side step (LibreOffice).
 
-# 22-kml-map
+# 71-kml-map
 
 A **plain directory of geographic overlays** — `.kml` and `.kmz` (zipped KML) —
-served without a schema (like [06-plain-dir](#06-plain-dir)). The `map` renderer
+served without a schema (like [55-plain-dir](#55-plain-dir)). The `map` renderer
 converts the file to GeoJSON (`@tmcw/togeojson`; `.kmz` is unzipped first with
 `fflate`) and draws it on a [Leaflet](https://leafletjs.com) slippy map over
 OpenStreetMap tiles, fitting the view to the data. Points become circle markers,

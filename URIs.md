@@ -1,5 +1,28 @@
 # Global JSON space and graph-like references
 
+## Languages: json5p and yamlover
+
+Two surface notations appear below; both denote the same data + pointer model.
+
+**json5p** — *JSON5 + pointers*. JSON5 already adds comments, trailing commas,
+unquoted keys and single-quoted strings to JSON; **json5p** further adds
+**pointers** — the `*` dereference family and keys-as-pointers, `~` back-edges, and
+`&` anchors. It is a strict superset:
+
+    JSON  ⊂  JSON5  ⊂  json5p
+
+**yamlover** — a *language* that is a superset of **YAML**. It adds the same
+**pointers** (extended `*`; `&` stays a plain YAML anchor), and it supports
+multiple **concretes** — concrete materializations of one logical document —
+including the **filesystem** (a directory is a mapping, a file is a value / blob),
+not only a single text file:
+
+    YAML  ⊂  yamlover
+
+So json5p is to JSON what yamlover is to YAML: the brace-notation surface and the
+indentation / filesystem surface over one shared pointer model. Any of them can
+be materialized into the others — including onto a filesystem tree — and back.
+
 ## Dictionary key
 
 Key of json can be a string, for example, `"cat"`
@@ -159,31 +182,71 @@ humans:
   manager: *../../pets[2]
 ```
 
-One can use # to startfrom current document root
+One can use a leading `/` to start from the current document root
 
 ```yamlover
-pets: *https://pet.store.com/pets
+pets: *//pet.store.com/pets
 humans:
 - name: Alice Johnson
   age: 34
   gender: female
-  manager: *#/pets[1]
+  manager: */pets[1]
 - name: Marcus Lee
   age: 28
   gender: male
-  manager: *#/pets[0]
+  manager: */pets[0]
 - name: Priya Patel
   age: 45
   gender: female
-  manager: *#/pets[2]
+  manager: */pets[2]
 ```
 
 
+## Lists and dicts are one ordered mapping
+
+There is no separate list type. A mapping is **ordered**, and its **positions are
+integer keys** added as pointers — so a "list" is just a mapping whose keys are
+`0, 1, 2, …`. A keyless entry, written with a leading `:`, takes only its position.
+This dict:
+
+```yamlover
+key0: value0
+: value1
+key2: value2
+```
+
+*means*:
+
+```yamlover
+key0: value0
+0: *key0        # position 0 aliases the keyed entry
+1: value1       # keyless entry — its value lives at its integer key
+key2: value2
+2: *key2
+```
+
+A **keyed** entry's position is a `*`-alias to it; a **keyless** entry's value lives
+directly at its integer key. It is all one mapping with integer ∪ string keys —
+"YAML with pointers." (A YAML `- value` sequence item is the same keyless entry; `:`
+is just its mapping-style spelling.) Two access syntaxes keep the axes apart:
+
+- **`[n]`** selects the **integer key** `n` (position).
+- **`/x`** selects the **string key** `x`.
+
+Ordering is data: in a file it follows text order; for a directory it is imposed by
+the `body.yamlover` overlay (an array of `*`-pointers to the files), or left to the
+filesystem if there is no overlay.
+
 ## Pointer grammar & resolution
 
-Every key is a pointer. `*` **dereferences** a pointer; `&` **defines / relocates**
-one. Resolution is lazy and yields a **graph edge, not a copy** — `*` shares the
-target node, so a YAMLOVER tree is really a DAG.
+Every key is a pointer. `*` **dereferences** a pointer (and is the only thing that
+creates an edge); `&` is an ordinary **YAML anchor** that declares a name. Resolution
+is lazy and yields a **graph edge, not a copy** — `*` shares the target node.
+
+Containment (a key holding its value) is an **acyclic spine** — the tree. The `*` and
+`~` edges laid on top of it may point anywhere, including back to an ancestor, so the
+full structure is a **general graph, not a DAG**. Traversal is therefore cycle-safe,
+and a `*` edge is never expanded inline to infinity.
 
 ### Where a pointer starts (the base)
 
@@ -194,77 +257,126 @@ A pointer with no leading scope sigil is resolved **against the current mapping*
 - `*../x` → `..` is the parent **node**; walk up, then descend.
 
 There is **no implicit search up the ancestors**: a bare name is current-mapping
-only. Reach outward explicitly with `..`, `#`, `/`, or a URI. (This avoids
-fragile dynamic-scope capture.)
+only. Reach outward explicitly with `..`, `/` (the document root), or a **link**
+(a URI authority). (This avoids fragile dynamic-scope capture.)
 
-### Four scopes (the ladder)
+### The scopes (the ladder)
 
-| Form               | Base                          | Example                          |
-|--------------------|-------------------------------|----------------------------------|
-| `*name`, `*../…`   | current mapping / its parents | `*cat`, `*../../pets[1]`          |
-| `*#/…`             | current **document** root     | `*#/pets[1]`                     |
-| `*/…`              | current **project/tree** root | `*/config/db`                    |
-| `*scheme://auth/…` | external graph (virtual id)   | `*https://pet.store.com/pets`    |
+| Form                            | Base                                                                  | Example                  |
+|---------------------------------|-----------------------------------------------------------------------|--------------------------|
+| `*name`, `*../…`                | current mapping / its parents                                         | `*cat`, `*../../pets[1]` |
+| `*/…`                           | current **document** root                                             | `*/pets[1]`              |
+| `*//auth/…`, `*scheme://auth/…` | a **link** — any *other* start (project, sibling doc, external graph) | `*//pet.store.com/pets`  |
 
-Well-known names: `*project` = current project root (≡ `/`), `*yamlover` = the
+A **link** is a URI authority; the scheme is optional and ignored (a link is an
+identifier, not a fetch). Everything that is neither current-mapping-relative nor the
+document root (`/`) is reached as a link — **including the project/tree root**. The
+single leading `/` is the document root; a leading `//` introduces a link authority.
+Well-known names: `*project` = the current project root (a link), `*yamlover` = the
 yamlover project itself.
 
 ### Grammar (ABNF-ish)
 
 ```
-deref    = "*" pointer
-define   = "&" pointer            ; binds a node so *pointer resolves to it
-pointer  = scope *( "/" step )
-scope    = authority              ; scheme://proj.company   (external)
-         / "#"                    ; current document root
-         / "/"                    ; project / tree root
-         / step                   ; relative to current mapping (name or "..")
-step     = ( name / ".." ) [ "[" index "]" ]
-index    = 1*DIGIT
-name     = bareword / "'" literal "'"
+deref    = "*" pointer            ; dereference → a graph edge to the target
+define   = "&" name               ; anchor (intra-document, single name); yamlover & json5p
+backedge = "~" name               ; key prefix: a back / non-owning edge (see below)
+pointer  = scope *( "/" ( name / ".." ) / index )
+scope    = link                   ; any OTHER start: project, sibling doc, external
+         / "/"                    ; current document root  (a single leading "/")
+         / ".."                   ; parent node
+         / name                   ; STRING key in the current mapping
+         / index                  ; INTEGER key (position) in the current mapping
+link     = ( scheme "://" / "//" ) authority   ; scheme optional & ignored
+index    = "[" 1*DIGIT "]"        ; selects the integer key n
+name     = 1*( nchar / "\" CHAR ) ; selects a string key; "\" escapes a metachar
+nchar    = <any char except unescaped  / [ ] * & # ~  or whitespace>
 ```
 
-`[n]` is array indexing, kept distinct from `/n` on purpose: in YAMLOVER an
-integer key `1:` and a string key `"1":` can both live in one mapping, so `/1`
-would be ambiguous while `[1]` never is.
+`[n]` selects the **integer key** `n` (a position); `/x` selects the **string key**
+`x`. With one ordered container (see *Lists and dicts are one ordered mapping*), this
+is the only distinction needed — the old worry of an integer key `1:` versus a string
+key `"1":` is simply `[1]` versus `/1`.
 
-### Literal segments (escaping)
+### Literal characters (escaping)
 
-A key may itself contain `/`, `..`, `*`, brackets, etc. Wrap a segment in single
-quotes to take it **literally**, with no metacharacter interpretation:
+A key may itself contain a metacharacter — `/ [ ] * & # ~ \` or the literal segment
+`..`. Escape it with a **backslash**, which suppresses the pointer meaning of the next
+character. Escaping is backslash-based, **not** quote-based: in JSON5 and YAML `'` and
+`"` are interchangeable string delimiters, so they cannot carry a "literal vs.
+interpreted" distinction — `*".."` and `*'..'` are the same string, both meaning
+*parent*.
 
 ```yamlover
-weird: *../'cat/dog'/x   # second step is the literal key "cat/dog"
-dots:  *'..'             # the literal key ".." (not "parent")
+weird: *../cat\/dog/x    # second step is the literal key "cat/dog"
+dots:  *\.\.             # the literal key ".." (not "parent")
+star:  *\*boss           # the literal key "*boss"
 ```
 
-`''` inside a quoted segment is a literal quote. (For JSON-Schema `$ref` interop
-a resolver may additionally accept JSON-Pointer escaping: `~1`=`/`, `~0`=`~`.)
+(For JSON-Schema `$ref` interop a resolver may additionally accept JSON-Pointer
+escaping: `~1`=`/`, `~0`=`~`.)
 
-### `&` — define / relocate by path
+### `&` — plain YAML anchors
 
-`&` is the write-side twin of `*`. `&name value` is the familiar anchor (binds
-`name` in the current mapping). With a **path**, `&<pointer> value` publishes the
-node at that location in the graph — so a node can be defined in one place and
-live (logically) in another:
+`&` declares a single name (anchor) for a node, within one document, and `*name`
+reuses it. No paths — anything cross-position or cross-document is the job of the
+extended `*` (paths, `/`, links). In **yamlover** it is exactly a YAML anchor; in
+**json5p** it is the same idea added to JSON5 (`boss: &chief { … }`). The *definition*
+side stays familiar in both surfaces; only `*` is extended.
 
 ```yamlover
-# define Rex once; publish him at the project path /managers/boss
-boss: &/managers/boss
+boss: &chief
   name: Rex
   species: dog
 
-# elsewhere, reach him through that path (same node, shared edge)
 team:
-  lead: */managers/boss
+  lead: *chief        # same node, shared edge
 ```
 
-Because edges are shared, anchoring a `*` edge under a `&` path **relocates** what
-that path points to:
+**Relocation is just an edge** — there is no special `&` form for it; point a new
+place at the existing node with `*`:
 
 ```yamlover
-acting_boss: &/managers/boss */pets[0]   # /managers/boss now resolves to pets[0]
+acting_boss: */pets[0]
 ```
 
-> **Open:** conflict policy when two `&` bind the same path — last-wins vs. error.
+**Precedence.** A bare `*name` could mean a declared anchor *or* a structural sibling
+key, so the rule is: **a declared anchor wins; otherwise `*name` is a structural
+pointer.** Real YAML docs thus behave identically — anchors shadow sibling keys.
+
+### `~` — reverse edges
+
+The key name always denotes the **forward** relation; a `~` prefix **reverses** it.
+So `~X` on a node is "the source of the forward `X`-edge that lands here" — and it
+works whether the forward `X` is a containment edge or a `*` reference:
+
+```yamlover
+eve:
+  cain: */adam/cain      # forward:  eve --cain--> cain
+adam:
+  cain:
+    ~cain: */eve         # reverse of eve's "cain" edge → eve
 ```
+
+A `~` edge is **up / non-owning**: it is not part of the containment spine (so the
+*tree* stays acyclic while the *graph* gains the back-link), is **never expanded
+inline**, may point to an ancestor, and materializes on a filesystem as a **symlink**.
+
+**Containment and `*` are the same relation kind, keyed by the child's name.** A
+parent's child-edge is labelled by the child (`eve --cain--> cain`) whether it is drawn
+by *containment* (the spine — the structural parent) or by a `*` pointer (a second parent
+off the spine). So "two parents" is just **two same-named child-edges into one node** —
+which is what makes a graph a DAG (see `examples/63-genealogy-dag`: the spine is the
+paternal line, a `*` edge is the maternal one, both `descends` the child). `~name: *parent`
+is then exactly the reverse view of `parent.name: *child` — "parent descends me, as
+`name`".
+
+The model is a **graph kept exactly as written.** Placement is yours (a node lives
+where it is written inline and is reused elsewhere by `*` alias), and for any relation
+you may author the forward edge, its `~` reverse, or **both** — valid as long as the
+two do not contradict. Since `~X` is by definition the inverse of `X`, one side is
+always derivable; the engine keeps what you wrote and offers a `normalize` command to
+reduce a tree to a canonical **forwards-only** form (see `ENGINE.md`).
+
+`~` is a single, dedicated sigil. Like `* & # /`, a `~` that is part of a literal key
+must be backslash-escaped (`\~`).

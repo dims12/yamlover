@@ -1,0 +1,190 @@
+# PLAN — instance-only yamlover: grammars, parsers, engine
+
+Working plan for the next build phase. Companion to `URIs.md` (pointer model),
+`ENGINE.md` (engine), `FUTURE.md` (platform/language). Living document.
+
+## Decisions locked this round
+
+- **Instance-only.** Schema is *validation*, not a stored concrete. The only thing
+  stored is the **instance graph**, in some concrete.
+- **Concretes are a supersession lattice, not isomorphic.** `json ⊂ json5 ⊂ json5p`
+  and `yaml ⊂ yamlover`; **json5p / yamlover / directory+`body.yamlover`** are the
+  full-graph concretes (first-class pointers). Plain **json / yaml are tree-only** —
+  a graph serialized to them is **lossy**.
+- **One ordered container** (not two). No separate list/dict: a mapping is ordered and
+  its **positions are integer keys** (added as `*`-aliases to keyed entries; a keyless
+  `:` entry's value lives at its integer key). `[n]` = integer key, `/x` = string key.
+  Order is data — text order in a file; a `body.yamlover` pointer-array for a directory.
+- **`.yamlover/` holds two overlays** (+ engine cache), both keyed by node path:
+  **`body.yamlover`** = the *instance* (data; replaces the old `schema.yaml`-as-storage),
+  and **`meta.yamlover`** = the *metadata schema*. A bare dir has neither.
+- **Schema kept as METADATA, not storage** (refined 2026-06-07; see `META.md`). A
+  **JSON-Schema-equivalent for yamlover** — same/close vocab (`properties`, `type`,
+  `format`, `prefixItems`, …), written *in yamlover*, **purpose = metadata** (typing,
+  `format`/decoding, `concrete`, presentation — the server renders by `(type,format)`),
+  **validation secondary/optional**. What was dropped is schema-*as-storage* (`const`
+  pinning). References use `*` pointers, not `$ref`; keep meta minimal (`concrete` is
+  inferable). Used now in `58-scalar-as-binary`.
+- **Deprecate `tools/walker` and `tools/collector`** (Python); the engine's walker
+  supersedes them. **DONE 2026-06-07** — banners added; durable knowledge (concrete
+  taxonomy, directory→node mapping, binary/ordering/depth, test-scenario checklist)
+  extracted to `tools/LEGACY.md`. Kept for reference; removable once the engine's
+  directory walker covers the scenarios.
+- **Engine v1 = TypeScript in the existing server + better-sqlite3** (FUTURE.md:
+  keep core TS, JetBrains is a thin client/sidecar not in-process). Rust/Cozo later.
+- **Parsers hand-written** (recursive descent); **json5p first**.
+- **JetBrains support = a standalone Kotlin/Gradle module** (`tools/jetbrains-plugin/`),
+  not an in-process core; filetype + highlighting now, engine-protocol client later.
+
+## Phase 1 — Foundations & specs (design before code)
+
+1a. **Finalize the pointer/path grammar** in `URIs.md` — scopes (`# / ..` + URI
+   authority), `* ~ &`, `[n]` indexing, backslash escaping, name rules. One ABNF,
+   shared by both surface languages.
+1b. **AST / IR contract** — **DRAFTED in `IR.md`** (2026-06-07). The in-memory
+   instance-graph model the parsers emit and the engine consumes: `Node` =
+   Mapping|Scalar|Blob; `Entry` carries an optional string key + `EdgeKind`
+   (contain|ref|back); pointers are **unresolved `Pointer` edges, not nodes**;
+   positional integer-key aliases (`[n]`) are **derived, not double-stored**; `&`
+   anchors recorded for the resolver; bytes externalized by hash. Includes the
+   IR→engine table mapping and the genealogy worked example. **Review before the
+   json5p parser builds against it.**
+1c. **Directory-overlay semantics** *(addition, core)* — exactly how
+   `body.yamlover` overlays a real directory: file → node/blob mapping, scalar/inline
+   overrides, precedence when a key and a file collide, how a file's bytes attach to a
+   node. **Ordering**: files supply the string keys (filenames → blobs); the overlay
+   is a **pointer-array** (`- *file1.ext …`) that assigns the integer-key positions; a
+   pure directory with no overlay takes filesystem order. This is the heart of "YAML
+   overlay over the filesystem."
+1d. **`.yamlover/` directory contract** — `body.yamlover` (instance) **and**
+   `meta.yamlover` (metadata schema, `META.md`); plus reserved names for the SQLite cache.
+
+## Phase 2 — Grammars & parsers
+
+> **Started 2026-06-07** in `tools/parser/` — layout is **per implementation language**:
+> `tools/parser/ts/` (TypeScript, current; dependency-light, Node ≥22 native
+> type-stripping, `node:test`) and a future `tools/parser/rust/`, over **shared**
+> conformance corpora at `tools/parser/conformance/` (JSON, JSON5, YAML submodules).
+> Surface languages (json5p, yamlover) are modules inside each impl. Specs written:
+> `JSON5P.md`, `YAMLOVER.md`.
+
+2a. **Pointer parser** (shared) — **DONE** (`ts/src/pointer.ts`): pointer expr →
+   `{base, steps[], raw}`, backslash escaping, scopes (`/`=doc, `//`=link, `..`, current).
+2b. **json5p**: **DONE** (`ts/src/json5p.ts` → IR). Passes **188 tests**: unit + JSON
+   (`nst/JSONTestSuite`, all 95 `y_` accept & match `JSON.parse`) + JSON5
+   (`json5/json5-tests`, all positive `.json`/`.json5`). Anchors `&`, back-edges `~`.
+2c. **yamlover**: **DECIDED hand-write** (`ts/src/yamlover.ts` → IR; consistent with
+   json5p — no stock YAML parser exposes hooks to reinterpret `*alias`/`~key`, and the
+   Rust port wants a spec-driven parser). **Practical subset DONE** (199 tests total):
+   block maps/sequences (incl. compact `- key:`, `- &anchor`), flow `{}`/`[]`, plain &
+   quoted scalars, `#` comments, plus extended `*`, `&` anchors, `~` back-edges; parses
+   `examples/05-tour.yaml` & `06-tour.yamlover`. **Remaining:** block scalars (`|`/`>`),
+   tags, multi-doc, merge keys; then wire the `yaml-test-suite` gate with the §3
+   divergence allowlist (`YAMLOVER.md`).
+2d. **Serializers** *(addition)* — IR → yamlover / json5p / directory. Needed early:
+   `mv` rewrites refs, `normalize`, and round-tripping all require graph → concrete.
+   Define lossy behavior when targeting plain yaml/json (refuse? inline? warn).
+2e. **Parser/serializer test suites** — round-trip fixtures; the genealogy DAG is the
+   canonical graph fixture.
+
+## Phase 3 — Engine + SQLite (first version)
+
+> **Started 2026-06-07** in `tools/engine/ts/` (per-impl layout like the parser; imports
+> the parser's IR; Node ≥22 + `node:test`).
+
+3a. **SQLite schema** — `node(path, type, format, content_hash, meta)`,
+   `edge(from_path, to_path, label, kind ∈ {contain,ref,back,derived})`.
+3b. **Walker** — walk directory + `body.yamlover` overlays → IR → populate SQLite.
+   Replaces the Python walker.
+3c. **Resolver** — **DONE** (`ts/src/resolve.ts`, in-memory over the IR; SQLite-backed
+   variant later). Scopes (current / `..` / `/` document / `//` link), transitive
+   `*`-following, cycle-safe, anchor precedence. `resolveDocument()` resolves every `*`/`~`.
+   6 tests green incl. resolving the `03-tour.json5p` & `06-tour.yamlover` pointers.
+3d. **Derive + normalize** — **DONE** (`ts/src/graph.ts`): `buildGraph` (containment +
+   resolved ref/back; external/unresolved split), `deriveInverses` (on-demand reverse
+   edges for incoming queries), `normalize` → **forwards-only** (folds each `~` back-edge
+   into the forward `ref` it reverses, deduped). 6 graph tests green; json5p & yamlover
+   agree on the shared normalized edges. (Transitive closure: later, as needed.)
+3e. **FS sync** — watcher + 3-tier reconcile (mediated / watched / offline), per
+   `ENGINE.md`. Can be a later milestone within the phase.
+3f. **Engine API** — `resolve/node/toc/relationships/derive/blob` + `mv/rm/put/link/
+   normalize` + `changed/added/removed` events, as the versioned contract.
+
+> **Language decision (recommend):** build engine v1 in **TypeScript inside the
+> existing server** with **SQLite (better-sqlite3)** — the server is already TS, and
+> `FUTURE.md` says language-per-component behind a spec'd protocol. Defer the
+> Rust/Cozo core until derivation/embedding demands it. Confirm.
+
+## Phase 4 — Server integration
+
+Back `tools/server` with the engine: replace its ad-hoc walk with engine queries;
+keep the React client and its in-browser renderers; expose the engine API as the
+versioned HTTP protocol. Keep published `npx yamlover` working throughout (build the
+engine path alongside, then switch).
+
+## Phase 5 — Migrate samples (one by one; some retire)
+
+Per sample: `.yamlover/schema.yaml` → `.yamlover/body.yamlover`, extracting real
+instance data; drop schema-as-storage ceremony.
+- **14-genealogy-dag** first — the reference graph example (`~X` reverse edges).
+- **18-pdf-tags** — `rel` tables → `*`-pointer tag edges; inverses derived.
+- **19 / 20** — fix the slash-convention flip (`#/` = document, `/` = project root)
+  and the `//` vs URI-authority collision.
+- **Audit for retirement** — samples that only demonstrated schema-pinning, `rel`,
+  or `$ref`-in-schema may go or be reframed.
+
+## Phase 6 — Schema: metadata now, validation later
+
+**Reframed 2026-06-07 (see `META.md`):** the schema is **not** deferred — it returns as a
+**metadata layer** (`.yamlover/meta.yamlover`), a JSON-Schema-equivalent for yamlover whose
+job is typing / `format`-decoding / `concrete` / presentation (the engine & server consume
+it). It exists now (`58-scalar-as-binary`). Remaining spec work:
+- **`META.md` vocabulary** — pin `type` (+`binary`), `format`, `concrete` (inferable),
+  `properties`/`prefixItems` nesting, `*`-refs (not `$ref`); meta-path → instance-path map.
+- **Optional validation pass** (later) — the *same* document checked over the resolved
+  graph: `concrete` keyword, graph constraints (edge target types, cardinality,
+  `~`-inverse consistency). Design after the engine exists.
+
+## Phase J — JetBrains filetype plugin (parallel track)
+
+Independent of the engine (pure editor support), so it runs alongside Phases 1–3.
+Scaffolded under `tools/jetbrains-plugin/` (Kotlin + IntelliJ Platform Gradle Plugin).
+
+- **J1 (done, builds):** `.yamlover` **and `.json5p`** file types + icons;
+  heuristic lexers (`YamloverLexer`, `Json5pLexer`) driving syntax highlighting; plus
+  **Markdown code-fence injection** (` ```yamlover `/` ```json5p ` highlighted in
+  `.md` via `CodeFenceLanguageProvider`, optional on the Markdown plugin). One plugin
+  covers the whole family. **Builds clean** (2026-06-07) on Gradle 8.14.5 + Kotlin
+  2.0.21, toolchain JDK 17 → `build/distributions/yamlover-jetbrains-0.1.0.zip`; wrapper
+  checked in. The Markdown `CodeFenceLanguageProvider` API is version-sensitive.
+- **J2:** swap the heuristic lexer for the **shared yamlover lexer/grammar** (Phase 2),
+  add PSI + parser → structure view, folding, brace matching.
+- **J3:** pointer **reference resolution & navigation** (go-to-def, find-usages) via
+  the **engine protocol** (thin client), per FUTURE.md.
+
+## What else (gaps I'd add to your list)
+
+- **IR/AST contract** (1b) and **overlay semantics** (1c) — the two specs everything
+  else hangs on.
+- **Serializers / write-back** (2d) — graph → concrete; required by `mv`/`normalize`.
+- **File identity** — extensions/MIME for `.yamlover`, json5p; how the engine knows a
+  file's concrete.
+- **Directory child ordering** — disk has none; the overlay must define it.
+- **Lossy-projection policy** — what happens serializing a graph to plain yaml/json.
+- **Test migration** — `tools/walker/test_walker.py` coverage moves to engine tests.
+- **Transition safety** — don't break the published `npx yamlover` while rebuilding.
+- **Materialization** — the graph → concrete direction (defaults/instantiation) is the
+  inverse of parsing and underpins serving and `normalize`.
+
+## Risks / open decisions
+
+1. **yamlover parser approach** (2c) — extend an existing YAML parser vs hand-write.
+   Biggest engineering risk.
+2. **Engine language** — TS-v1 (recommended) vs starting the Rust/Cozo core.
+3. **Lossy concretes** — define behavior when a graph can't fit plain yaml/json.
+4. **Overlay precedence** — file vs overlay-key collisions, ordering, scalar overrides.
+
+## Suggested immediate next step
+
+Phase **1a + 1b + 1c** (grammar finalize, IR contract, overlay semantics), then start
+the **json5p** parser (smaller grammar) to validate the IR before tackling yamlover.

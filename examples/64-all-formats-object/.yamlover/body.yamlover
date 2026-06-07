@@ -1,0 +1,31 @@
+# Textual content (the string-typed entries). Their formats live in meta.yamlover; the
+# binary entries are the files in this directory (sample.*). Together they form one object
+# with one property per renderable (type, format).
+markdown: |
+  # Markdown
+  Rendered with **marked** — *emphasis*, lists, and `code`. Each heading gets a
+  `§` link, so `#markdown` and `#anchors` jump straight to a section.
+
+  ## Anchors
+  Hover a heading to reveal its `§`; the URL fragment is the heading's slug.
+asciidoc: |
+  == AsciiDoc
+
+  Rendered with Asciidoctor.
+
+  * one
+  * two
+
+  === Anchors
+
+  Each heading gets a `§` link; Asciidoctor's own section id is the fragment.
+plantuml: |
+  @startuml
+  Alice -> Bob : hello
+  Bob --> Alice : hi
+  @enduml
+csv: |
+  name,role,city
+  Alice,Engineer,Berlin
+  Bob,"Designer, UX",Lisbon
+  Carol,Manager,Oslo

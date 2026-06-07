@@ -1,7 +1,0 @@
-properties:
-  name:
-    const: Alice
-  age:
-    const: 30
-  isAdmin:
-    const: true

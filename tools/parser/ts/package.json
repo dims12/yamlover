@@ -1,0 +1,13 @@
+{
+  "name": "@yamlover/parser",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Hand-written parsers for json5p and yamlover → the yamlover IR (see ../../IR.md).",
+  "scripts": {
+    "test": "node --test test/json5p.test.ts test/yamlover.test.ts test/conformance.json.test.ts test/conformance.json5.test.ts",
+    "test:unit": "node --test test/json5p.test.ts test/yamlover.test.ts",
+    "test:conformance": "node --test test/conformance.json.test.ts test/conformance.json5.test.ts"
+  },
+  "engines": { "node": ">=22" }
+}

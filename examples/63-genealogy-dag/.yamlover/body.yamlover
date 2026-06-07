@@ -1,0 +1,24 @@
+# Genealogy as a DAG — one spine relation, `descends` (parent → child), NAMED BY THE CHILD.
+# Both fathers AND mothers descend their children (the *same* relation kind), so a child has
+# two descends-parents → a graph, not a tree.
+#
+#   father's descends = CONTAINMENT      (the nesting spine: adam ⊃ cain ⊃ enoch)
+#   mother's descends = a `*` edge        keyed by the child's name (eve.cain …, azura.enoch)
+#   ~name: *parent    = the reverse view  — "parent descends me, as `name`" (≡ parent.name: *me)
+#
+# Both directions are written here; `normalize` folds each forward+reverse pair into one
+# edge. `azura` is reached twice (Adam's daughter, and Enoch's mother) — that is the DAG.
+adam:
+  cain:
+    ~cain: */eve
+    enoch:
+      ~enoch: */adam/azura
+  seth:
+    ~seth: */eve
+  azura:
+    ~azura: */eve
+    enoch: */adam/cain/enoch
+eve:
+    cain: */adam/cain
+    seth: */adam/seth
+    azura: */adam/azura

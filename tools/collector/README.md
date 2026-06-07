@@ -1,5 +1,9 @@
 # collector
 
+> ⚠️ **DEPRECATED (2026-06-07).** Superseded by `tools/parser/` + `tools/engine/`. It builds
+> a **Yamlover JSON Schema** (the old schema-as-storage model), which the instance-only
+> design retired. Kept for reference only — do not extend. See [`../LEGACY.md`](../LEGACY.md).
+
 Assemble a yamlover tree into a single **Yamlover JSON Schema**.
 
 Where [`walker`](../walker/) materializes the *values* of a yamlover tree,

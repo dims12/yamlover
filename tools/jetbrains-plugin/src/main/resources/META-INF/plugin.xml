@@ -1,0 +1,52 @@
+<idea-plugin>
+    <id>net.inthemoon.yamlover</id>
+    <name>yamlover</name>
+    <vendor email="dimskraft@gmail.com" url="https://yamlover.inthemoon.net">inthemoon</vendor>
+
+    <description><![CDATA[
+        Support for the <b>yamlover</b> language and file type
+        (<code>.yamlover</code>) — a YAML/JSON superset with graph pointers
+        (<code>*</code> dereference, <code>~</code> reverse edges, <code>&amp;</code>
+        anchors, <code>#/</code> and <code>/</code> scopes, <code>[n]</code> indices).
+        <br/><br/>
+        Also supports <b>json5p</b> (<code>.json5p</code>, JSON5 + pointers) and
+        highlights <code>yamlover</code>/<code>json5p</code> fenced code blocks inside
+        Markdown.
+        <br/><br/>
+        <b>v1</b> provides file-type recognition and syntax highlighting. Richer
+        support — real lexer/PSI, reference resolution and navigation, and live
+        integration with the yamlover engine — is planned.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <!-- Optional: only loads the Markdown code-fence injection when the Markdown plugin is present. -->
+    <depends optional="true" config-file="yamlover-markdown.xml">org.intellij.plugins.markdown</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType
+            name="yamlover"
+            implementationClass="net.inthemoon.yamlover.YamloverFileType"
+            fieldName="INSTANCE"
+            language="yamlover"
+            extensions="yamlover"/>
+        <lang.parserDefinition
+            language="yamlover"
+            implementationClass="net.inthemoon.yamlover.YamloverParserDefinition"/>
+        <lang.syntaxHighlighterFactory
+            language="yamlover"
+            implementationClass="net.inthemoon.yamlover.YamloverSyntaxHighlighterFactory"/>
+
+        <fileType
+            name="json5p"
+            implementationClass="net.inthemoon.yamlover.Json5pFileType"
+            fieldName="INSTANCE"
+            language="json5p"
+            extensions="json5p"/>
+        <lang.parserDefinition
+            language="json5p"
+            implementationClass="net.inthemoon.yamlover.Json5pParserDefinition"/>
+        <lang.syntaxHighlighterFactory
+            language="json5p"
+            implementationClass="net.inthemoon.yamlover.Json5pSyntaxHighlighterFactory"/>
+    </extensions>
+</idea-plugin>
