@@ -114,15 +114,19 @@ children:
   chunks: [ … ]
 ```
 
-- `!!<…>` borrows YAML's tag syntax; its contents are a **normal yamlover pointer path**
-  (a leading `*` is implied), so it can dereference. `*yamlover/$defs/chapter` references
-  the `chapter` schema **hosted by the yamlover project under `$defs`**; an absolute URI
-  (`https://yamlover.inthemoon.net/$defs/chapter`) is equivalent (a link — an identifier).
+- `!!<…>` borrows YAML's tag syntax, and **its contents are themselves yamlover**. Since a
+  schema (yamlover/meta) is also yamlover, the tag holds *either*:
+  - **a pointer** to a hosted schema — `!!<*yamlover/$defs/chapter>` references the `chapter`
+    schema under the project's `$defs`; an absolute URI (`https://…/$defs/chapter`) is an
+    equivalent link. (A bare `*…` is the deref.)
+  - **an inline schema literal** — `!!<format: text/x-plantuml>` *is* a one-line yamlover/meta
+    document (`{format: text/x-plantuml}`); flow form `!!<{type: string, format: text/x-latex}>`
+    works too. No named `$defs` entry needed for one-off formats.
 - The tag attaches the schema to the value that follows it (after `key:` or `- `), or — on
   its own line at the top of a file — to the **document root**.
 - The schema is **metadata-first, not validation** (`META.md`): it gives the node its
-  shape/type/format (e.g. `chapter` = `title` + `chunks` + `children`). In the IR it is
-  `NodeMeta.schema` (a `Pointer`), stored unresolved.
+  shape/type/format. In the IR it is `NodeMeta.schema`, a `Value` (a `Pointer` *or* an inline
+  schema `Node`), stored unresolved.
 
 This is the file-concrete counterpart to a directory's `.yamlover/meta.yamlover`. (json5p
 has no tags; inline schema attachment is yamlover-only.)

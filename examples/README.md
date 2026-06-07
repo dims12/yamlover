@@ -50,6 +50,7 @@ overlay needed), or via a directory's `.yamlover/meta.yamlover`. See `../YAMLOVE
 | 65 | `65-all-formats-chunks`      | a **directory** chapter — chunks are textual (block scalars) + `*sample.*` pointers to binary files; per-chunk formats + file types in `meta.yamlover` |
 | 68 | `68-math-chapter`            | a **directory** chapter — marklower prose (inline `$$…$$`) + standalone LaTeX chunks (`format: text/x-latex` in `meta`) |
 | 69 | `69-marklower-links.yamlover`| a tagged **file** — nested chapters demonstrating `/`, `//`, and external marklower links (all default format, no meta) |
+| 66 | `66-doc-tree`                | a recursive **directory** chapter — prose + `*png` image chunks + PlantUML chunks tagged per-chunk `!!<*yamlover/$defs/plantuml>` (no meta needed: png by extension, plantuml by tag) |
 
 ## Plain directories (format by extension)
 
@@ -60,5 +61,5 @@ No `.yamlover/` — each file's `(type, format)` comes from its recognized exten
 ## Legacy (pending rework)
 
 Still in the **old schema-as-storage model** (`.yamlover/schema.yaml` with `const`/`rel`/
-`x-yamlover`): `66-doc-tree` (recursive chapter w/ image chunks) · `67-pdf-tags` (tag
-taxonomy + papers tagged by `*` pointers).
+`x-yamlover`): `67-pdf-tags` (a tag taxonomy + papers classified by `*` pointers) — pending
+a design decision (see below).

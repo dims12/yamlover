@@ -120,6 +120,15 @@ test('schema tag !!<…> on a value attaches to that node', () => {
   assert.deepEqual(toPlain(doc), { title: 'T' });
 });
 
+test('inline schema tag !!<format: …> attaches an inline schema Node (not a pointer)', () => {
+  const d = parseYamlover('chunks:\n- !!<format: text/x-plantuml> |\n    @startuml\n    @enduml\n');
+  const chunk = (entry(asMap(d.root), 'chunks').value as Mapping).entries[0].value as Scalar;
+  const sch = chunk.meta?.schema;
+  assert.ok(sch && !isPointer(sch), 'schema is an inline Node');
+  assert.deepEqual(toPlain(sch as any), { format: 'text/x-plantuml' });
+  assert.equal(chunk.value, '@startuml\n@enduml\n'); // the block scalar after the tag
+});
+
 test('parses examples/60-simple-chapter.yamlover (tagged file)', () => {
   const d = parseYamlover(readFileSync(join(examples, '60-simple-chapter.yamlover'), 'utf8'), '60');
   assert.ok(asMap(d.root).meta?.schema, 'root tagged with chapter schema');

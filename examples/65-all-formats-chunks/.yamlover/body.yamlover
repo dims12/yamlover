@@ -1,24 +1,25 @@
 # The format catalogue as a CHAPTER — one chunk per renderable (type, format), top to
 # bottom. Textual chunks are inline (block scalars); binary chunks point at the sample
-# files in this directory. Per-chunk formats + the binary file types live in meta.yamlover.
+# files in this directory. Each non-default textual chunk carries an inline schema
+# (`!!<format: …>`); the binary file types live in meta.yamlover.
 !!<*yamlover/$defs/chapter>
 title: All Supported Formats — as a chapter
 chunks:
 - |
   # Markdown chunk
   Rendered with **marked** — *emphasis*, lists, and `code`.
-- |
+- !!<format: text/asciidoc> |
   == AsciiDoc chunk
 
   Rendered with Asciidoctor.
 
   * one
   * two
-- |
+- !!<format: text/x-plantuml> |
   @startuml
   Alice -> Bob : hello
   @enduml
-- |
+- !!<format: text/csv> |
   name,role,city
   Alice,Engineer,Berlin
   Bob,"Designer, UX",Lisbon

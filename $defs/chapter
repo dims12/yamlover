@@ -7,6 +7,8 @@ type: object
 properties:
   title:
     type: string
+  description:                     # optional subtitle / heading annotation
+    type: string
   chunks:                          # the body — a sequence of chunks, read top to bottom
     type: array
     items: *yamlover/$defs/chunk

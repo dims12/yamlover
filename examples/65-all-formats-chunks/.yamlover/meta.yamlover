@@ -1,6 +1,6 @@
-# Metadata for the chapter (the chapter schema itself is attached in body.yamlover via the
-# !!<…> tag). Here: the binary chunk files' types, and per-chunk format overrides for the
-# inline textual chunks (chunk 0 is markdown — the chunk default — so it needs no override).
+# Metadata for the chapter (the chapter schema is attached in body.yamlover via the !!<…>
+# tag, and each non-default textual chunk carries its own inline !!<format: …> schema). Here
+# we only declare the binary chunk files' types (those that aren't obvious from extension).
 properties:
   sample.png:  { type: binary, format: image/png }
   sample.svg:  { type: binary, format: image/svg+xml }
@@ -13,10 +13,3 @@ properties:
   sample.fb2:  { type: binary, format: application/x-fictionbook+xml }
   sample.epub: { type: binary, format: application/epub+zip }
   sample.psd:  { type: binary, format: image/vnd.adobe.photoshop }
-chunks:
-  prefixItems:
-  - {}                            # 0: markdown (the chunk default)
-  - { format: text/asciidoc }     # 1
-  - { format: text/x-plantuml }   # 2
-  - { format: text/csv }          # 3
-  # 4+ : binary chunks — `*sample.*` pointers; format comes from each file's entry above

@@ -17,7 +17,7 @@ export function parseYamlover(src: string, uri = '<yamlover>'): Document {
   const raw = src.split(/\r\n|\r|\n/);
   const p = new Block(lex(raw), raw);
   // a document-root schema tag on its own line: `!!<*yamlover/$defs/chapter>`
-  let rootSchema: Pointer | undefined;
+  let rootSchema: Value | undefined;
   const first = p.peek();
   if (first && /^!!<[^>]*>$/.test(first.text.trim())) {
     rootSchema = parseSchemaRef(first.text.trim().slice(3, -1));
@@ -113,8 +113,9 @@ class Block {
       let value: Value;
       if (rest === '') {
         value = this.node(indent + 1) ?? nul();
-      } else if (splitKV(rest)) {
+      } else if (!rest.startsWith('!!<') && splitKV(rest)) {
         // compact `- key: value`: re-read this line (and deeper siblings) as a map at contentCol
+        // (a `!!<…>` tag is a value, not a key — its inner `: ` must not look like a compact map)
         this.i--;
         this.lines[this.i] = { indent: contentCol, text: rest, n: l.n };
         value = this.map(contentCol);
@@ -129,7 +130,7 @@ class Block {
   /** The value after `key:` or `- ` (inline `rest`, with a possible deeper block). */
   valueAfter(rest: string, parentIndent: number, srcLineN: number): Value {
     rest = rest.trim();
-    let schema: Pointer | undefined;
+    let schema: Value | undefined;
     if (rest.startsWith('!!<')) {
       const close = rest.indexOf('>');
       if (close < 0) this.fail('unterminated "!!<…>" schema tag');
@@ -347,12 +348,13 @@ function splitKV(text: string): { key: string; rest: string } | null {
   return null;
 }
 
-/** The contents of a `!!<…>` schema tag — a yamlover pointer path (a leading `*` is
- *  implied and stripped): `*yamlover/$defs/chapter` or `https://…/$defs/chapter`. */
-function parseSchemaRef(path: string): Pointer {
-  path = path.trim();
-  if (path.startsWith('*')) path = path.slice(1);
-  return parsePointer(path);
+/** The contents of a `!!<…>` schema tag are themselves yamlover, yielding the attached
+ *  schema as a Value: a Pointer to a hosted schema (`*yamlover/$defs/chapter`, or a link
+ *  `https://…`) OR an inline schema Node (`format: text/x-plantuml`, `{type: string}`). */
+function parseSchemaRef(src: string): Value {
+  src = src.trim();
+  if (src.startsWith('*')) return parsePointer(src.slice(1)); // a pointer to a hosted schema
+  return parseYamlover(src).root;                              // inline yamlover/meta literal
 }
 
 /** Fold `>` block lines: a single line break between non-empty lines becomes a space; a

@@ -19,9 +19,11 @@ export type Node = Mapping | Scalar | Blob;
 
 export interface NodeMeta {
   span?: Span;
-  /** A schema/meta attached inline via the `!!<…>` tag (yamlover) — a pointer to a schema
-   *  def, e.g. `*yamlover/$defs/chapter`. Stored unresolved (see URIs.md / META.md). */
-  schema?: Pointer;
+  /** A schema/meta attached via the `!!<…>` tag (yamlover). Its contents are themselves
+   *  yamlover, so the schema is any Value: a Pointer to a hosted schema
+   *  (`!!<*yamlover/$defs/chapter>`) OR an inline schema Node (`!!<format: text/x-plantuml>`).
+   *  Stored unresolved (see URIs.md / META.md). */
+  schema?: Value;
 }
 export interface Span { uri: string; start: number; end: number; }
 

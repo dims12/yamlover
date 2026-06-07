@@ -54,6 +54,13 @@ class YamloverLexerTest {
     }
 
     @Test
+    fun `inline schema tag with spaces is one TAG token`() {
+        val src = "- !!<format: text/x-plantuml> |\n"
+        val tags = ofType(src, "YAMLOVER_TAG")
+        assertTrue("expected full tag incl spaces: $tags", tags.any { it == "!!<format: text/x-plantuml>" })
+    }
+
+    @Test
     fun `comment ends the line, sigil and path precede it`() {
         val src = "x: *a/b  # note\n"
         val toks = tokens(src)

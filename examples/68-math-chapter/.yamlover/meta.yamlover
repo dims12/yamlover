@@ -1,9 +1,0 @@
-# Per-chunk format overrides. The chunk default is markdown/marklower (inline $$…$$ math),
-# so the prose chunks need no entry; only the two standalone LaTeX chunks override format.
-chunks:
-  prefixItems:
-  - {}                          # 0 — marklower prose
-  - {}                          # 1 — marklower prose
-  - { format: text/x-latex }    # 2 — standalone LaTeX (the Gaussian integral)
-  - {}                          # 3 — marklower prose
-  - { format: text/x-latex }    # 4 — standalone LaTeX (the summation)

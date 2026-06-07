@@ -36,11 +36,12 @@ file, the meta says how to read it).
 ## Two ways to attach a schema
 
 1. **Directory overlay** — `.yamlover/meta.yamlover` (above), keyed by node path.
-2. **Inline tag** (yamlover files) — the **`!!<…>`** tag attaches a schema to a node in a
-   plain `.yamlover` file, no overlay needed. Its contents are a yamlover pointer path
-   (leading `*` implied): `!!<*yamlover/$defs/chapter>` references a schema the **yamlover
-   project hosts under `$defs`**. See `YAMLOVER.md`; in the IR it is `NodeMeta.schema` (a
-   `Pointer`, unresolved). json5p has no tags → directory overlay only.
+2. **Inline tag** (yamlover files) — the **`!!<…>`** tag attaches a schema to a node, no
+   overlay needed. Its contents are **themselves yamlover**, so they are either a **pointer**
+   to a hosted schema (`!!<*yamlover/$defs/chapter>`) or an **inline schema literal**
+   (`!!<format: text/x-plantuml>` — a one-line yamlover/meta document). The latter means a
+   one-off chunk format needs no named `$defs` entry. See `YAMLOVER.md`; in the IR it is
+   `NodeMeta.schema`, a `Value` (Pointer *or* Node), unresolved. json5p has no tags → overlay only.
 
 ## Hosted schemas (`$defs`) — `chapter` & `chunk`
 

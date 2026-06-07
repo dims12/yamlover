@@ -79,10 +79,11 @@ class YamloverLexer : LexerBase() {
             }
             '#' -> { consumeToEol(); tokenType = YamloverTokenTypes.COMMENT }
             '!' -> {
-                // a schema tag `!!<…>` (the contents are a pointer path; kept as one token)
+                // a schema tag `!!<…>` — contents are yamlover (a pointer OR an inline schema
+                // like `format: text/x-plantuml`), so allow spaces; stop at `>` or end of line
                 if (peek(1) == '!' && peek(2) == '<') {
                     tokenEnd = tokenStart + 3
-                    while (tokenEnd < endOffset && buffer[tokenEnd] != '>' && !buffer[tokenEnd].isSpaceOrEol()) tokenEnd++
+                    while (tokenEnd < endOffset && buffer[tokenEnd] != '>' && buffer[tokenEnd] != '\n' && buffer[tokenEnd] != '\r') tokenEnd++
                     if (tokenEnd < endOffset && buffer[tokenEnd] == '>') tokenEnd++
                     tokenType = YamloverTokenTypes.TAG
                 } else {

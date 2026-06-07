@@ -1,6 +1,6 @@
 # A chapter mixing two ways of showing math: inline formulas in marklower prose ($$…$$),
-# and whole standalone LaTeX chunks. The chapter schema is attached via the tag; the LaTeX
-# chunks' format override lives in meta.yamlover (chunks 2 and 4).
+# and whole standalone LaTeX chunks. The chapter schema is attached via the tag; each LaTeX
+# chunk carries its own inline schema, !!<format: text/x-latex> — no meta overlay needed.
 !!<*yamlover/$defs/chapter>
 title: A Pinch of Math
 chunks:
@@ -13,10 +13,10 @@ chunks:
   When a formula deserves a line of its own, give it a whole chunk — see the Gaussian
   integral at [/chunks[2]](/chunks[2]), a standalone LaTeX block (that link is relative to
   this document).
-- |
+- !!<format: text/x-latex> |
   \int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}
 - |
   Inline math also handles the everyday: the area of a circle is $$A = \pi r^2$$ and the
   quadratic formula $$x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$$ both flow through the prose.
-- |
+- !!<format: text/x-latex> |
   \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
