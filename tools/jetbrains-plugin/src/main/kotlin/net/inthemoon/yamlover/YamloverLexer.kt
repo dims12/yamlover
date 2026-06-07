@@ -86,6 +86,11 @@ class YamloverLexer : LexerBase() {
                     while (tokenEnd < endOffset && buffer[tokenEnd] != '>' && buffer[tokenEnd] != '\n' && buffer[tokenEnd] != '\r') tokenEnd++
                     if (tokenEnd < endOffset && buffer[tokenEnd] == '>') tokenEnd++
                     tokenType = YamloverTokenTypes.TAG
+                } else if (peek(1) == '!') {
+                    // a YAML-style type tag: !!mix / !!omni — up to a word boundary
+                    tokenEnd = tokenStart + 2
+                    while (tokenEnd < endOffset && !buffer[tokenEnd].isSpaceOrEol() && buffer[tokenEnd] != ':') tokenEnd++
+                    tokenType = YamloverTokenTypes.TAG
                 } else {
                     consumeWord()
                 }

@@ -30,7 +30,7 @@ export function resolveDocument(doc: Document): ResolvedEdge[] {
   const chains = buildChains(doc.root);
   const out: ResolvedEdge[] = [];
   const walk = (node: Node): void => {
-    if (node.kind !== 'mapping') return;
+    if (!node.entries) return; // any node may carry fields (scalar/blob too)
     const chain = chains.get(node)!;
     const base = pathOf(chain);
     const prefix = base === '/' ? '' : base; // root is '/', so a top-level entry is "/key" not "//key"
@@ -87,7 +87,7 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
       continue;
     }
     const node = chain[chain.length - 1];
-    if (node.kind !== 'mapping') return { kind: 'unresolved', reason: 'step into a non-mapping node' };
+    if (!node.entries) return { kind: 'unresolved', reason: 'step into a node with no fields' };
     const entry = st.sel === 'key'
       ? node.entries.find((e) => e.key === st.name)
       : node.entries[st.n];
@@ -115,7 +115,7 @@ function buildChains(root: Node): Map<Node, Node[]> {
   const walk = (node: Node, chain: Node[]): void => {
     const c = [...chain, node];
     m.set(node, c);
-    if (node.kind === 'mapping') {
+    if (node.entries) {
       for (const e of node.entries) if (!isPointer(e.value)) walk(e.value, c);
     }
   };
@@ -128,7 +128,7 @@ export function pathOf(chain: Node[]): string {
   let s = '';
   for (let i = 1; i < chain.length; i++) {
     const parent = chain[i - 1];
-    if (parent.kind !== 'mapping') { s += '/?'; continue; }
+    if (!parent.entries) { s += '/?'; continue; }
     const idx = parent.entries.findIndex((e) => e.value === chain[i]);
     const e = parent.entries[idx];
     s += e && e.key != null ? '/' + e.key : '[' + idx + ']';

@@ -27,6 +27,7 @@ export function parseYamlover(src: string, uri = '<yamlover>'): Document {
   if (p.i < p.lines.length) p.fail('unexpected content');
   if (isPointer(root)) throw new SyntaxError('yamlover: a top-level pointer is not allowed');
   if (rootSchema !== undefined) root.meta = { ...root.meta, schema: rootSchema };
+  p.validateMixtures(root); // mixtures require an explicit !!mix / !!omni tag
   return { root, anchors: p.anchors, source: { concrete: 'yamlover', uri } };
 }
 
@@ -63,8 +64,25 @@ class Block {
   raw: string[];      // all source lines (for block scalars, which keep blanks and `#`)
   i = 0;
   anchors = new Map<string, Node>();
+  typed = new WeakMap<Node, 'mix' | 'omni'>(); // nodes opted into a mixture via `!!mix`/`!!omni`
 
   constructor(lines: Line[], raw: string[]) { this.lines = lines; this.raw = raw; }
+
+  /** Enforce: mixing keyed+keyless entries needs `!!mix`; a scalar/blob value WITH fields
+   *  needs `!!omni`. Plain (pure seq / pure map / pure scalar) needs no tag. */
+  validateMixtures(node: Node): void {
+    const ents = node.entries;
+    if (!ents || ents.length === 0) return;
+    const tag = this.typed.get(node);
+    if (node.kind !== 'mapping') {
+      // a scalar/blob carrying fields = the unified "omni" node
+      if (tag !== 'omni') this.fail('a node with a scalar value AND fields must be tagged !!omni');
+    } else if (ents.some((e) => e.key !== null) && ents.some((e) => e.key === null)) {
+      // a mapping mixing keyed and keyless entries
+      if (tag !== 'mix' && tag !== 'omni') this.fail('a container mixing keyed and keyless entries must be tagged !!mix');
+    }
+    for (const e of ents) if (!isPointer(e.value)) this.validateMixtures(e.value);
+  }
 
   peek(): Line | undefined { return this.lines[this.i]; }
   fail(msg: string): never {
@@ -76,55 +94,70 @@ class Block {
   node(minIndent: number): Node | Pointer | null {
     const l = this.peek();
     if (!l || l.indent < minIndent) return null;
-    if (isSeqLine(l.text)) return this.seq(l.indent);
-    if (splitKV(l.text)) return this.map(l.indent);
+    // a lone type tag (no preceding key): `!!omni 5` / `!!mix` at the document root or as a
+    // block value. Hand to valueAfter with the block one column shallower so the tag's own
+    // line (its inline value, plus the fields/entries below it) parses as that value.
+    if (/^!!(mix|omni)(?=\s|$)/.test(l.text)) {
+      this.i++;
+      return this.valueAfter(l.text, l.indent - 1, l.n);
+    }
+    if (isSeqLine(l.text) || splitKV(l.text)) return this.container(l.indent);
     // a lone scalar/flow/pointer/anchor occupying the line
     this.i++;
     return this.valueInline(l.text, l.indent, /*allowBlock*/ true);
   }
 
-  map(indent: number): Mapping {
+  /**
+   * One ordered container at `indent` — yamlover's single container model. Entries keep
+   * their order (→ integer keys [0],[1],…); each MAY also carry a string key. So keyless
+   * (`- value`) and keyed (`key: value`) entries can be MIXED in one node ("partially
+   * ordered, partially keyed"). `array` is just a projection hint: true iff all-keyless.
+   *
+   * `keylessOnly` is for the same-indent sequence-under-a-key case, where a keyed line at
+   * this indent is a SIBLING of the outer key, not a member — so we stop at it.
+   */
+  container(indent: number, keylessOnly = false): Mapping {
     const entries: Entry[] = [];
     for (;;) {
       const l = this.peek();
-      if (!l || l.indent !== indent || isSeqLine(l.text)) break;
-      const kv = splitKV(l.text);
-      if (!kv) break;
-      this.i++;
-      let key = kv.key;
-      let back = false;
-      if (key.startsWith('~')) { back = true; key = key.slice(1); }
-      const value = this.valueAfter(kv.rest, indent, l.n);
-      entries.push({ key: unquoteKey(key), edge: back ? 'back' : isPointer(value) ? 'ref' : 'contain', value });
-    }
-    return { kind: 'mapping', entries, array: false };
-  }
-
-  seq(indent: number): Mapping {
-    const entries: Entry[] = [];
-    for (;;) {
-      const l = this.peek();
-      if (!l || l.indent !== indent || !isSeqLine(l.text)) break;
-      this.i++;
-      const afterDash = l.text.slice(1);
-      const lead = afterDash.length - afterDash.trimStart().length;
-      const contentCol = l.indent + 1 + lead;
-      const rest = afterDash.trim();
+      if (!l || l.indent !== indent) break;
       let value: Value;
-      if (rest === '') {
-        value = this.node(indent + 1) ?? nul();
-      } else if (!rest.startsWith('!!<') && splitKV(rest)) {
-        // compact `- key: value`: re-read this line (and deeper siblings) as a map at contentCol
-        // (a `!!<…>` tag is a value, not a key — its inner `: ` must not look like a compact map)
-        this.i--;
-        this.lines[this.i] = { indent: contentCol, text: rest, n: l.n };
-        value = this.map(contentCol);
+      let entry: Entry;
+      if (isSeqLine(l.text)) {
+        // a keyless (positional) entry
+        this.i++;
+        const afterDash = l.text.slice(1);
+        const lead = afterDash.length - afterDash.trimStart().length;
+        const contentCol = l.indent + 1 + lead;
+        const rest = afterDash.trim();
+        if (rest === '') {
+          value = this.node(indent + 1) ?? nul();
+        } else if (!rest.startsWith('!!<') && splitKV(rest)) {
+          // compact `- key: value`: re-read this line (+ deeper siblings) as a container
+          // (a `!!<…>` tag is a value, not a key — its inner `: ` must not look like a key)
+          this.i--;
+          this.lines[this.i] = { indent: contentCol, text: rest, n: l.n };
+          value = this.container(contentCol);
+        } else {
+          value = this.valueAfter(rest, indent, l.n);
+        }
+        entry = { key: null, edge: isPointer(value) ? 'ref' : 'contain', value };
       } else {
-        value = this.valueAfter(rest, indent, l.n);
+        // a keyed entry
+        if (keylessOnly) break;
+        const kv = splitKV(l.text);
+        if (!kv) break;
+        this.i++;
+        let key = kv.key;
+        let back = false;
+        if (key.startsWith('~')) { back = true; key = key.slice(1); }
+        value = this.valueAfter(kv.rest, indent, l.n);
+        entry = { key: unquoteKey(key), edge: back ? 'back' : isPointer(value) ? 'ref' : 'contain', value };
       }
-      entries.push({ key: null, edge: isPointer(value) ? 'ref' : 'contain', value });
+      entries.push(entry);
     }
-    return { kind: 'mapping', entries, array: true };
+    const array = entries.length > 0 && entries.every((e) => e.key === null);
+    return { kind: 'mapping', entries, array };
   }
 
   /** The value after `key:` or `- ` (inline `rest`, with a possible deeper block). */
@@ -137,6 +170,11 @@ class Block {
       schema = parseSchemaRef(rest.slice(3, close));
       rest = rest.slice(close + 1).trim();
     }
+    // an opt-in mixture tag in value position: `key: !!mix` (mixed container) or
+    // `key: !!omni 5` (scalar value + fields). It types the value that follows.
+    let typeTag: 'mix' | 'omni' | undefined;
+    const tag = /^!!(mix|omni)(?=\s|$)/.exec(rest);
+    if (tag) { typeTag = tag[1] as 'mix' | 'omni'; rest = rest.slice(tag[0].length).trim(); }
     let anchor: string | undefined;
     if (rest.startsWith('&')) {
       const r = readName(rest.slice(1));
@@ -146,6 +184,10 @@ class Block {
     let value: Value;
     if (/^[|>][+-]?\d*$/.test(rest)) {
       value = this.blockScalar(rest, parentIndent, srcLineN); // `|` literal, `>` folded
+      // an `!!omni` node whose value is a block scalar: lines that dedent BELOW the block's
+      // content (but stay deeper than the key) are the node's fields. The block scalar is
+      // bounded by its own content indent (YAML's rule), so the fields read cleanly after it.
+      value = this.attachFields(value, parentIndent);
     } else if (rest === '') {
       // YAML allows a block SEQUENCE value at the SAME indent as its key:
       //   markup:
@@ -153,18 +195,32 @@ class Block {
       // (mappings must be deeper; sequences may be level). Otherwise a deeper block, or null.
       const nxt = this.peek();
       if (nxt && nxt.indent === parentIndent && isSeqLine(nxt.text)) {
-        value = this.seq(parentIndent);
+        value = this.container(parentIndent, /*keylessOnly*/ true);
       } else {
         value = this.node(parentIndent + 1) ?? nul();
       }
     } else {
       value = this.valueInline(rest, parentIndent, /*allowBlock*/ false);
+      value = this.attachFields(value, parentIndent);
     }
     if (anchor !== undefined) {
       if (isPointer(value)) this.fail('cannot anchor a pointer');
       this.anchors.set(anchor, value);
     }
+    if (typeTag !== undefined && !isPointer(value)) this.typed.set(value, typeTag);
     if (schema !== undefined && !isPointer(value)) value.meta = { ...value.meta, schema };
+    return value;
+  }
+
+  /** A node = value + fields: a scalar value (inline OR a block scalar) followed by a DEEPER
+   *  block attaches that block's (positional and/or keyed) entries onto the scalar — one node
+   *  carrying its value and its fields (the `!!omni` shape). Non-scalars/pointers pass through. */
+  attachFields(value: Value, parentIndent: number): Value {
+    const nxt = this.peek();
+    if (nxt && nxt.indent > parentIndent && !isPointer(value) && value.kind === 'scalar') {
+      const fields = this.container(nxt.indent);
+      return { ...value, entries: fields.entries, array: fields.array };
+    }
     return value;
   }
 
@@ -184,7 +240,8 @@ class Block {
       let ind = 0;
       while (ind < r.length && r[ind] === ' ') ind++;
       if (ind >= r.length) { lines.push(''); lastN = n; continue; } // blank line
-      if (ind <= parentIndent) break;                               // dedent → block ends
+      if (ind <= parentIndent) break;                               // dedent to/under key → ends
+      if (blockIndent >= 0 && ind < blockIndent) break;             // dedent under content → !!omni fields begin
       if (blockIndent < 0) blockIndent = ind;                       // first content line sets indent
       lines.push(r.slice(blockIndent));
       lastN = n;

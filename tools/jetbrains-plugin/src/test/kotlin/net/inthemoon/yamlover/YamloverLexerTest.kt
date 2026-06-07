@@ -54,6 +54,18 @@ class YamloverLexerTest {
     }
 
     @Test
+    fun `value-position type tag mix is a TAG token`() {
+        val src = "playlist: !!mix\n  - a\n"
+        assertTrue(ofType(src, "YAMLOVER_TAG").any { it == "!!mix" })
+    }
+
+    @Test
+    fun `omni tag before a scalar value is a TAG token`() {
+        val src = "rating: !!omni 5\n  - solid\n"
+        assertTrue(ofType(src, "YAMLOVER_TAG").any { it == "!!omni" })
+    }
+
+    @Test
     fun `inline schema tag with spaces is one TAG token`() {
         val src = "- !!<format: text/x-plantuml> |\n"
         val tags = ofType(src, "YAMLOVER_TAG")

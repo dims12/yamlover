@@ -14,8 +14,13 @@ decisions.
   resolved/normalized view. `*`/`~` edges are stored **unresolved**; the engine resolves
   lazily and derives inverses on demand. A parser never chases a pointer, never inlines a
   target, never invents the reverse of a `~` edge.
-- **One ordered container.** No list type. A `Mapping` is an **ordered** list of entries;
-  each entry has an *optional* string key. A "list" is a mapping of keyless entries.
+- **One ordered container, and a node is *value + fields*.** No list type: entries are an
+  **ordered** list, each with an *optional* string key, so keyless (positional) and keyed
+  entries can **mix** in one node. And `entries` lives on `NodeBase`, so a `Scalar` or `Blob`
+  may *also* carry entries — a single node can be at once a scalar value, partially positioned,
+  and partially keyed. A pure list/dict/scalar is just the degenerate case. (The *surface*
+  gates these: yamlover requires an explicit `!!mix` / `!!omni` tag to write a mixture — see
+  `YAMLOVER.md` — but the IR itself just represents the result.)
 - **Positions are derived, not stored.** The integer-key aliases (`[n]`, the `0: *key0`
   expansion in `URIs.md`) are a *view* the engine materializes from entry order. The IR
   stores order (the array) once; it does **not** double-store integer keys.
@@ -46,18 +51,22 @@ export interface SourceInfo {
 export type Node = Mapping | Scalar | Blob;
 
 export interface NodeBase {
+  // ANY node may carry ordered fields — so a Scalar/Blob can have fields too (value + fields).
+  entries?: Entry[];                // ORDERED; index = the integer position (derived key)
+  array?: boolean;                  // projection hint: true ⇒ all-keyless (a pure sequence)
   meta?: NodeMeta;                  // optional; diagnostics, format, source span
 }
 
 export interface Mapping extends NodeBase {
   kind: "mapping";
-  entries: Entry[];                 // ORDERED; index = the integer position (derived key)
+  entries: Entry[];                 // a mapping always has the container (narrows NodeBase)
 }
 
 export interface Scalar extends NodeBase {
   kind: "scalar";
   value: string | number | boolean | null;
   raw: string;                      // verbatim source token (lossless round-trip)
+  // may ALSO carry `entries` (inherited) — a scalar with fields
 }
 
 /** Opaque/foreign bytes — a file in a directory that is not itself yamlover/json5p. */

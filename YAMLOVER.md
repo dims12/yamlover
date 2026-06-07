@@ -76,6 +76,48 @@ entry's position is a `*`-alias to it. Access: **`[n]`** = integer key (position
 overlay imposes it (§5). Full treatment in `URIs.md` (*Lists and dicts are one ordered
 mapping*).
 
+Concretely, keyless (`- value`) and keyed (`key: value`) entries can be **mixed in one node** —
+*partially ordered, partially keyed* — which plain YAML forbids. Because it *is* forbidden by
+default, mixing is **opt-in via a type tag**, so plain yamlover stays a clean YAML superset:
+
+- **`!!mix`** — a container that mixes keyless and keyed entries (a dict ∪ list).
+- **`!!omni`** — a node that carries a scalar value **and** fields at once (scalar ⊕ `mix`).
+
+The tag sits in **value position** — right after the `key:` (or `- `) whose value it types,
+exactly where a YAML tag goes. `!!mix` precedes a (mixed) block; `!!omni` precedes the
+node's own scalar value, with the fields in the block below:
+
+```yamlover
+playlist: !!mix
+  - Intro                 # [0]            keyless / positional
+  - Verse                 # [1]            keyless
+  title: Greatest Hits    # [2], key=title keyed — AND still positioned
+  - Chorus                # [3]            keyless
+# *playlist[2] (by position) and *playlist/title (by key) resolve to the SAME node.
+
+rating: !!omni 5          # the node's own scalar value …
+  - solid                 # [0] … and positional + keyed fields together
+  scale: 10
+```
+
+An `!!omni` value may also be a **block scalar** (`|` / `>`), just as a YAML tag can precede
+one. Since a block scalar is bounded by *its own content indent* (YAML's rule — `|2` can pin
+it), the fields simply sit at a **shallower** indent than the block content (but still deeper
+than the key):
+
+```yamlover
+review: !!omni |
+      multi-line text is
+      the node's value
+  stars: 5                # a field — shallower than the block content, deeper than the key
+```
+
+A lone tag with no preceding key (`!!omni 5` / `!!mix` on the first line) types the
+**document root** (see `examples/07-omni.yamlover`). Without the tag, a mixed container or a
+scalar-with-fields is a **parse error**. (See `examples/06-tour.yamlover`.) The block must be
+indented under its key; a same-indent `- …` sequence stays sequence-only, since a same-indent
+`key:` there is a sibling.
+
 ## 5. Concretes: one file, or a directory
 
 yamlover instances materialize two ways (same logical graph):

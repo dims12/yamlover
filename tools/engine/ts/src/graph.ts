@@ -30,7 +30,7 @@ export function buildGraph(doc: Document): Graph {
   const unresolved: Graph['unresolved'] = [];
 
   const walk = (node: Node, path: string): void => {
-    if (node.kind !== 'mapping') return;
+    if (!node.entries) return; // any node may carry fields (scalar/blob too)
     node.entries.forEach((e, i) => {
       if (isPointer(e.value)) return; // pointers handled below, via the resolver
       const childPath = (path === '/' ? '' : path) + (e.key != null ? '/' + e.key : '[' + i + ']');

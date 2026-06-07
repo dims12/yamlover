@@ -27,28 +27,36 @@ export interface NodeMeta {
 }
 export interface Span { uri: string; start: number; end: number; }
 
-export interface Mapping {
-  kind: 'mapping';
-  entries: Entry[];
-  // surface hint: written as a sequence ([..]) vs a mapping ({..}). The model is one
-  // ordered container; this only aids round-trip and plain-JSON projection.
+/**
+ * Every node may carry, INDEPENDENTLY of its `kind`:
+ *  - `entries`: ordered fields — keyless (positional) and/or keyed — the "one ordered
+ *    container". So a Scalar or Blob can ALSO have fields: a node is *value + fields*, and a
+ *    single node can be at once a scalar, partially positioned, and partially keyed.
+ *  - `array`: projection hint (true ⇒ all-keyless, a pure sequence).
+ * A pure scalar/mapping/blob is the degenerate case (only a value, or only entries).
+ */
+export interface NodeBase {
+  entries?: Entry[];
   array?: boolean;
   meta?: NodeMeta;
 }
 
-export interface Scalar {
+export interface Mapping extends NodeBase {
+  kind: 'mapping';
+  entries: Entry[]; // a mapping's defining trait: it always has the ordered container
+}
+
+export interface Scalar extends NodeBase {
   kind: 'scalar';
   value: string | number | boolean | null;
   raw: string; // verbatim source token (lossless round-trip)
-  meta?: NodeMeta;
 }
 
-export interface Blob {
+export interface Blob extends NodeBase {
   kind: 'blob';
   format: string;
   contentHash: string;
   size: number;
-  meta?: NodeMeta;
 }
 
 export type EdgeKind = 'contain' | 'ref' | 'back';
@@ -85,21 +93,25 @@ export function isPointer(v: Value): v is Pointer {
   return (v as Pointer).kind === 'pointer';
 }
 
-/** Project a pointer-free Node to a plain JS value (for JSON comparison / debugging). */
+/** Project a pointer-free Node to a plain JS value (for JSON comparison / debugging).
+ *  A node with both a scalar value and fields projects to an object with the self-value under
+ *  the reserved `$value` key; keyless entries project under their integer position. */
 export function toPlain(node: Node): unknown {
-  switch (node.kind) {
-    case 'scalar':
-      return node.value;
-    case 'blob':
-      throw new Error('toPlain: a blob has no plain JSON form');
-    case 'mapping': {
-      const isArr = node.array ?? (node.entries.length > 0 && node.entries.every((e) => e.key === null));
-      if (isArr) return node.entries.map(entryPlain);
-      const o: Record<string, unknown> = {};
-      for (const e of node.entries) o[e.key ?? ''] = entryPlain(e);
-      return o;
-    }
+  const ents = node.entries ?? [];
+  if (ents.length === 0) {
+    if (node.kind === 'scalar') return node.value;
+    if (node.kind === 'blob') throw new Error('toPlain: a blob has no plain JSON form');
+    return node.array ? [] : {}; // empty array vs empty mapping (keep the projection hint)
   }
+  // pure sequence (a mapping projected as an array): all-keyless and no scalar self-value
+  if (node.kind === 'mapping' && (node.array ?? ents.every((e) => e.key === null))) {
+    return ents.map(entryPlain);
+  }
+  // object: keyed entries by key, keyless by position; a scalar self-value under $value
+  const o: Record<string, unknown> = {};
+  if (node.kind === 'scalar') o.$value = node.value;
+  ents.forEach((e, i) => { o[e.key ?? String(i)] = entryPlain(e); });
+  return o;
 }
 
 function entryPlain(e: Entry): unknown {

@@ -1,4 +1,4 @@
-# ============================================================================
+# ============================================================================Firs
 # 06 — yamlover.  YAML ⊂ yamlover.  Same data as 05-tour.yaml, plus POINTERS.
 # yamlover = ALL of YAML (including & anchors / * aliases) + the EXTENDED * (paths,
 # scopes, links), ~ back-edges, and the keys-as-pointers model.
@@ -37,6 +37,36 @@ team:
 # ---- one ordered container: [n] = integer key (position), /x = string key ----
 secondPet: *pets[1]
 secondName: *pets[1]/name
+
+# ---- partially ordered, partially keyed: keyless and keyed entries in ONE node ----
+# Plain YAML forces a node to be EITHER a sequence (all `- `) OR a mapping (all `key:`).
+# yamlover has ONE ordered container: every entry has an integer position [0],[1],… and MAY
+# also carry a string key. So keyless (positional) and keyed entries coexist in one node.
+# Mixing is OPT-IN: a node that mixes them must be tagged `!!mix` (plain yamlover otherwise
+# keeps YAML's rule — a node is a scalar XOR a sequence XOR a mapping).
+playlist: !!mix
+  - Intro                  # [0]            keyless / positional
+  - Verse                  # [1]            keyless
+  title: Greatest Hits     # [2], key=title keyed — AND still positioned
+  - Chorus                 # [3]            keyless
+  encore: *pets[0]         # [4], key=encore a keyed pointer, still in order
+firstTrack: *playlist[0]       # [n] -> by POSITION         -> "Intro"
+mixTitle:   *playlist/title    # /x -> by STRING KEY        -> "Greatest Hits"
+samePos:    *playlist[2]       # position 2 IS the keyed entry -> "Greatest Hits" (== mixTitle)
+
+# ---- a node can be EVERYTHING at once: a scalar value AND positional AND keyed fields ----
+# Plain YAML makes a node a scalar XOR a sequence XOR a mapping. yamlover unifies all three:
+# an inline scalar value, then a DEEPER block of mixed entries, is ONE node that carries its
+# value and its fields together. Like `!!mix`, this is OPT-IN: tag the node `!!omni`.
+
+rating: !!omni 5                  # the node's own scalar value …
+  - solid                  # [0]  a positional field
+  - recommended            # [1]  positional
+  scale: 10                # [2]  keyed field
+  author: *humans[0]       # [3]  keyed field (a pointer edge)
+ratingValue: *rating       # *rating       -> the node (its scalar value is 5)
+ratingTag:   *rating[0]    # *rating[0]    -> a positional field -> "solid"
+ratingScale: *rating/scale # *rating/scale -> a keyed field      -> 10
 
 # ---- ~ back-edges: the ~ sigil sits OUTSIDE the key (reverse of the named relation) ----
 eve:

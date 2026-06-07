@@ -1,0 +1,4 @@
+!!omni 5                  # the node's own scalar value …
+- solid                  # [0]  a positional field
+- recommended            # [1]  positional
+scale: 10

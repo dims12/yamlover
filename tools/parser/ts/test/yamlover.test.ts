@@ -163,4 +163,64 @@ test('parses examples/06-tour.yamlover (full pointer layer)', () => {
   assert.deepEqual((entry(root, 'ref').value as any).steps, [
     { sel: 'key', name: 'weird' }, { sel: 'key', name: 'cat/dog' }, { sel: 'key', name: 'n' },
   ]);
+  // partially ordered, partially keyed: `playlist` mixes keyless and keyed entries
+  const playlist = entry(root, 'playlist').value as Mapping;
+  assert.equal(playlist.array, false); // has string keys → not a pure array projection
+  assert.deepEqual(playlist.entries.map((e) => e.key), [null, null, 'title', null, 'encore']);
+  // unified node: `rating` is a scalar (value 5) that ALSO carries positional + keyed fields
+  const rating = entry(root, 'rating').value as Scalar;
+  assert.equal(rating.kind, 'scalar');
+  assert.equal(rating.value, 5);
+  assert.deepEqual(rating.entries?.map((e) => e.key), [null, null, 'scale', 'author']);
+});
+
+test('one ordered container mixes keyless (positional) and keyed entries', () => {
+  const d = parseYamlover('m: !!mix\n  - a\n  - b\n  title: T\n  - c\n  count: 2\n');
+  const m = entry(asMap(d.root), 'm').value as Mapping;
+  assert.equal(m.array, false);
+  assert.deepEqual(m.entries.map((e) => e.key), [null, null, 'title', null, 'count']);
+  assert.deepEqual(m.entries.map((e) => (e.value as any).value), ['a', 'b', 'T', 'c', 2]);
+  // a pure sequence is still array=true; a pure mapping array=false
+  assert.equal((entry(asMap(parseYamlover('s:\n  - a\n  - b\n').root), 's').value as Mapping).array, true);
+  assert.equal((entry(asMap(parseYamlover('o:\n  x: 1\n  y: 2\n').root), 'o').value as Mapping).array, false);
+});
+
+test('a node can be a scalar AND carry positional + keyed fields (unified node)', () => {
+  const d = parseYamlover('rating: !!omni 5\n  - solid\n  - good\n  scale: 10\n');
+  const r = entry(asMap(d.root), 'rating').value as Scalar;
+  assert.equal(r.kind, 'scalar');
+  assert.equal(r.value, 5); // it keeps its scalar value …
+  assert.deepEqual(r.entries?.map((e) => e.key), [null, null, 'scale']); // … and has fields
+  assert.deepEqual(r.entries?.map((e) => (e.value as any).value), ['solid', 'good', 10]);
+  // toPlain: self-value under $value; keyless fields under their position
+  assert.deepEqual(toPlain(r), { $value: 5, '0': 'solid', '1': 'good', scale: 10 });
+});
+
+test('an !!omni node may have a block-scalar value plus fields (deeper content, shallower fields)', () => {
+  const d = parseYamlover('rating: !!omni |\n      Multi-line\n      review text\n  - solid\n  scale: 10\n');
+  const r = entry(asMap(d.root), 'rating').value as Scalar;
+  assert.equal(r.kind, 'scalar');
+  assert.equal(r.value, 'Multi-line\nreview text\n'); // block scalar bounded by its content indent
+  assert.deepEqual(r.entries?.map((e) => e.key), [null, 'scale']); // shallower lines = fields
+  assert.deepEqual(r.entries?.map((e) => (e.value as any).value), ['solid', 10]);
+  // a plain (untagged) block scalar is unaffected — no fields attached
+  const plain = entry(asMap(parseYamlover('msg: |\n  hello\n  world\nother: 1\n').root), 'msg').value as Scalar;
+  assert.equal(plain.value, 'hello\nworld\n');
+  assert.equal(plain.entries, undefined);
+});
+
+test('a root-level type tag (no preceding key) tags the document root', () => {
+  const r = parseYamlover('!!omni 5\n- solid\n- recommended\nscale: 10\n').root as Scalar;
+  assert.equal(r.kind, 'scalar');
+  assert.equal(r.value, 5);
+  assert.deepEqual(r.entries?.map((e) => e.key), [null, null, 'scale']);
+});
+
+test('mixtures are forbidden without an explicit !!mix / !!omni tag', () => {
+  assert.throws(() => parseYamlover('m:\n  - a\n  title: T\n'), /must be tagged !!mix/);
+  assert.throws(() => parseYamlover('r: 5\n  x: 1\n'), /must be tagged !!omni/);
+  // pure seq / map / scalar remain tag-free
+  parseYamlover('s:\n  - a\n  - b\n');
+  parseYamlover('o:\n  x: 1\n');
+  parseYamlover('n: 5\n');
 });
