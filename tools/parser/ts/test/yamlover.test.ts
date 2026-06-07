@@ -34,7 +34,7 @@ test('compact sequence of mappings', () => {
 });
 
 test('block sequence at the SAME indent as its key (zero-indent seq)', () => {
-  // YAML allows `key:` then `- …` at the parent's column (the 61-image-with-markup shape)
+  // YAML allows `key:` then `- …` at the parent's column (the 57-image-with-markup shape)
   const d = parseYamlover('markup:\n- x: 1\n  y: 2\n- x: 3\n  y: 4\nother: 9\n');
   assert.deepEqual(toPlain(d.root), { markup: [{ x: 1, y: 2 }, { x: 3, y: 4 }], other: 9 });
 });
@@ -82,6 +82,48 @@ test('escaping: literal key with slash, and \\.\\.', () => {
   ]);
   const dots = entry(asMap(d.root), 'dots');
   assert.deepEqual((dots.value as any).steps, [{ sel: 'key', name: '..' }]);
+});
+
+test('block scalar | (literal) preserves newlines and a leading #', () => {
+  const d = parseYamlover('md: |\n  # Heading\n  line two\nother: 1\n');
+  assert.equal((toPlain(d.root) as any).md, '# Heading\nline two\n');
+  assert.equal((toPlain(d.root) as any).other, 1); // block ended at the dedent
+});
+
+test('block scalar > (folded) joins lines; blank → newline', () => {
+  const d = parseYamlover('p: >\n  a\n  b\n\n  c\n');
+  assert.equal((toPlain(d.root) as any).p, 'a b\n\nc\n');
+});
+
+test('block scalar in a sequence item', () => {
+  const d = parseYamlover('chunks:\n- |\n  one\n  two\n- second\n');
+  assert.deepEqual(toPlain(d.root), { chunks: ['one\ntwo\n', 'second'] });
+});
+
+test('block scalar chomping: clip (default) vs strip (-)', () => {
+  assert.equal((toPlain(parseYamlover('a: |\n  x\n').root) as any).a, 'x\n');
+  assert.equal((toPlain(parseYamlover('b: |-\n  x\n').root) as any).b, 'x');
+});
+
+test('schema tag !!<…> on the document root attaches a schema ref', () => {
+  const d = parseYamlover('!!<*yamlover/$defs/chapter>\ntitle: T\nchunks:\n- a\n- b\n');
+  const ptr = asMap(d.root).meta?.schema;
+  assert.ok(ptr && isPointer(ptr), 'root has a schema pointer');
+  assert.deepEqual((ptr as any).steps.map((s: any) => s.name ?? s.sel), ['yamlover', '$defs', 'chapter']);
+  assert.deepEqual(toPlain(d.root), { title: 'T', chunks: ['a', 'b'] });
+});
+
+test('schema tag !!<…> on a value attaches to that node', () => {
+  const d = parseYamlover('doc: !!<*yamlover/$defs/chapter>\n  title: T\n');
+  const doc = entry(asMap(d.root), 'doc').value as Mapping;
+  assert.ok(doc.meta?.schema && isPointer(doc.meta.schema));
+  assert.deepEqual(toPlain(doc), { title: 'T' });
+});
+
+test('parses examples/60-simple-chapter.yamlover (tagged file)', () => {
+  const d = parseYamlover(readFileSync(join(examples, '60-simple-chapter.yamlover'), 'utf8'), '60');
+  assert.ok(asMap(d.root).meta?.schema, 'root tagged with chapter schema');
+  assert.deepEqual(asMap(d.root).entries.map((e) => e.key), ['title', 'chunks', 'children']);
 });
 
 test('parses examples/05-tour.yaml (YAML anchors/aliases)', () => {

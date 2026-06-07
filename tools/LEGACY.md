@@ -61,7 +61,7 @@ future **directory-walker** tests (examples since renumbered 01–15 → **50–
 - scalar as file / plain dir / binary file (`int32/le`, PNG bytes) — blob handling;
 - mid-tree **concrete switch** (a node continues in a separate file);
 - **array of files** with order fixed by the overlay;
-- the **genealogy DAG** (now `63-genealogy-dag`) re-expressed with `~` back-edges (the
+- the **genealogy DAG** (now `58-genealogy-dag`) re-expressed with `~` back-edges (the
   canonical graph fixture, `../IR.md`);
 - a **recursive doc tree** (chapters/chunks);
 - **stray-file surfacing** and **hidden-entry omission**.

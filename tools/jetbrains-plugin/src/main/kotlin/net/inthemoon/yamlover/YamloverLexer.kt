@@ -78,6 +78,17 @@ class YamloverLexer : LexerBase() {
                 tokenType = TokenType.WHITE_SPACE
             }
             '#' -> { consumeToEol(); tokenType = YamloverTokenTypes.COMMENT }
+            '!' -> {
+                // a schema tag `!!<…>` (the contents are a pointer path; kept as one token)
+                if (peek(1) == '!' && peek(2) == '<') {
+                    tokenEnd = tokenStart + 3
+                    while (tokenEnd < endOffset && buffer[tokenEnd] != '>' && !buffer[tokenEnd].isSpaceOrEol()) tokenEnd++
+                    if (tokenEnd < endOffset && buffer[tokenEnd] == '>') tokenEnd++
+                    tokenType = YamloverTokenTypes.TAG
+                } else {
+                    consumeWord()
+                }
+            }
             '*', '&' -> {
                 // emit just the sigil; the path that follows is tokenized in path mode
                 // (name segments → REF, `/ [ ]` → sign, index digits → number)
@@ -109,6 +120,7 @@ class YamloverLexer : LexerBase() {
     }
 
     private fun Char.isSpaceOrEol() = this == '\n' || this == '\r' || this == ' ' || this == '\t'
+    private fun peek(o: Int): Char = if (tokenStart + o < endOffset) buffer[tokenStart + o] else ' '
 
     private fun consumeToEol() {
         tokenEnd = tokenStart + 1

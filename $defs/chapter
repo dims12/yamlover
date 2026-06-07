@@ -1,0 +1,15 @@
+# $defs/chapter — a document node: a title, a body of chunks, and recursive subchapters.
+#
+# This replaces the old split (title from the schema concrete, chunks from the instance):
+# it is a normal schema with `title`, `chunks`, and `children` fields. Attach it to a
+# yamlover node with the tag  !!<*yamlover/$defs/chapter>.
+type: object
+properties:
+  title:
+    type: string
+  chunks:                          # the body — a sequence of chunks, read top to bottom
+    type: array
+    items: *yamlover/$defs/chunk
+  children:                        # subchapters — the recursion
+    type: array
+    items: *yamlover/$defs/chapter

@@ -17,7 +17,12 @@ export interface SourceInfo {
 
 export type Node = Mapping | Scalar | Blob;
 
-export interface NodeMeta { span?: Span; }
+export interface NodeMeta {
+  span?: Span;
+  /** A schema/meta attached inline via the `!!<…>` tag (yamlover) — a pointer to a schema
+   *  def, e.g. `*yamlover/$defs/chapter`. Stored unresolved (see URIs.md / META.md). */
+  schema?: Pointer;
+}
 export interface Span { uri: string; start: number; end: number; }
 
 export interface Mapping {

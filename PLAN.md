@@ -24,7 +24,7 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
   `format`/decoding, `concrete`, presentation — the server renders by `(type,format)`),
   **validation secondary/optional**. What was dropped is schema-*as-storage* (`const`
   pinning). References use `*` pointers, not `$ref`; keep meta minimal (`concrete` is
-  inferable). Used now in `58-scalar-as-binary`.
+  inferable). Used now in `55-scalar-as-binary`.
 - **Deprecate `tools/walker` and `tools/collector`** (Python); the engine's walker
   supersedes them. **DONE 2026-06-07** — banners added; durable knowledge (concrete
   taxonomy, directory→node mapping, binary/ordering/depth, test-scenario checklist)
@@ -138,7 +138,7 @@ instance data; drop schema-as-storage ceremony.
 **Reframed 2026-06-07 (see `META.md`):** the schema is **not** deferred — it returns as a
 **metadata layer** (`.yamlover/meta.yamlover`), a JSON-Schema-equivalent for yamlover whose
 job is typing / `format`-decoding / `concrete` / presentation (the engine & server consume
-it). It exists now (`58-scalar-as-binary`). Remaining spec work:
+it). It exists now (`55-scalar-as-binary`). Remaining spec work:
 - **`META.md` vocabulary** — pin `type` (+`binary`), `format`, `concrete` (inferable),
   `properties`/`prefixItems` nesting, `*`-refs (not `$ref`); meta-path → instance-path map.
 - **Optional validation pass** (later) — the *same* document checked over the resolved

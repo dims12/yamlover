@@ -1,0 +1,19 @@
+# A whole article in ONE .yamlover file — no directory or .yamlover/ overlay needed.
+# The `!!<…>` tag attaches a schema inline; its contents are a normal yamlover pointer
+# path (a leading `*` is implied), so `*yamlover/$defs/chapter` references the chapter
+# schema hosted by the yamlover project. Spec: ../YAMLOVER.md, ../META.md.
+!!<*yamlover/$defs/chapter>
+title: Getting Started with yamlover
+chunks:
+- yamlover is a YAML layer over the filesystem — data lives in files and directories.
+- An entire article fits in a single .yamlover file when it is tagged with a schema.
+- The chapter schema gives it a title, a body of chunks, and optional subchapters.
+children:
+- title: Why one file
+  chunks:
+  - No .yamlover/ overlay or directory is needed for a self-contained document.
+  - The tag is inline; the schema lives in the yamlover project under $defs.
+- title: Chunks
+  chunks:
+  - Each chunk is a renderable block; by default it is markdown prose.
+  - A chunk can override its (type, format) to be a diagram, image, and so on.

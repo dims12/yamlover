@@ -98,6 +98,35 @@ yamlover instances materialize two ways (same logical graph):
 
 A file and a subdirectory are equivalent ways to represent the same node.
 
+### Attaching a schema inline — the `!!<…>` tag
+
+A node can carry a **schema/metadata** reference inline via a tag, so a plain `.yamlover`
+file needs no `.yamlover/` overlay:
+
+```yamlover
+!!<*yamlover/$defs/chapter>      # tag on the document root
+title: My Article
+chunks:
+- The first paragraph.
+- The second.
+children:
+- title: A subsection
+  chunks: [ … ]
+```
+
+- `!!<…>` borrows YAML's tag syntax; its contents are a **normal yamlover pointer path**
+  (a leading `*` is implied), so it can dereference. `*yamlover/$defs/chapter` references
+  the `chapter` schema **hosted by the yamlover project under `$defs`**; an absolute URI
+  (`https://yamlover.inthemoon.net/$defs/chapter`) is equivalent (a link — an identifier).
+- The tag attaches the schema to the value that follows it (after `key:` or `- `), or — on
+  its own line at the top of a file — to the **document root**.
+- The schema is **metadata-first, not validation** (`META.md`): it gives the node its
+  shape/type/format (e.g. `chapter` = `title` + `chunks` + `children`). In the IR it is
+  `NodeMeta.schema` (a `Pointer`), stored unresolved.
+
+This is the file-concrete counterpart to a directory's `.yamlover/meta.yamlover`. (json5p
+has no tags; inline schema attachment is yamlover-only.)
+
 ## 6. Escaping
 
 Backslash-based, **not** quote-based (in YAML `'` and `"` are interchangeable, so they

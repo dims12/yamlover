@@ -30,8 +30,32 @@ Both are keyed by node path, but with different shapes:
   instance node `age`).
 
 Either overlay is optional: a plain directory has neither; `50-object-in-overlay` has only
-`body.yamlover`; `58-scalar-as-binary` has only `meta.yamlover` (the data is the on-disk
+`body.yamlover`; `55-scalar-as-binary` has only `meta.yamlover` (the data is the on-disk
 file, the meta says how to read it).
+
+## Two ways to attach a schema
+
+1. **Directory overlay** — `.yamlover/meta.yamlover` (above), keyed by node path.
+2. **Inline tag** (yamlover files) — the **`!!<…>`** tag attaches a schema to a node in a
+   plain `.yamlover` file, no overlay needed. Its contents are a yamlover pointer path
+   (leading `*` implied): `!!<*yamlover/$defs/chapter>` references a schema the **yamlover
+   project hosts under `$defs`**. See `YAMLOVER.md`; in the IR it is `NodeMeta.schema` (a
+   `Pointer`, unresolved). json5p has no tags → directory overlay only.
+
+## Hosted schemas (`$defs`) — `chapter` & `chunk`
+
+The yamlover project hosts reusable schema definitions under **`$defs`** (in the repo:
+`$defs/`):
+
+- **`$defs/chunk`** — one renderable content block: a typed value whose `(type, format)`
+  selects the renderer; default `string`/`text/markdown` (prose), overridable per chunk.
+- **`$defs/chapter`** — a document node: `title`, `chunks` (a sequence of `chunk`s — the
+  body, read top to bottom) and `children` (a sequence of `chapter`s — the recursion).
+  Inter-schema references use `*` pointers (`items: *yamlover/$defs/chunk`), not `$ref`.
+
+This **replaces the old chapter encoding** (title from the schema concrete, chunks from the
+instance): a `chapter` is now a normal schema with `title`/`chunks`/`children`, attachable
+inline (`60-simple-chapter.yamlover`) or via a directory overlay.
 
 ## Why metadata-first (not validation-first)
 
@@ -39,6 +63,17 @@ The metadata is what the system *acts on*:
 
 - **Decoding** — a leaf's `type`/`format` says how to turn bytes into a value: `type:
   binary` + `format: int32/le` decodes a 4-byte file; `format: image/png` marks an image.
+  `format` also names a **sub-document encoding** — how to parse a file's text into a node:
+  `yamlover` / `yaml` / `json` / `json5p` for an instance, and a `…/meta` variant for a
+  **schema** doc (`yamlover/meta`, like `json/schema`). E.g. `$defs/.yamlover/meta.yamlover`
+  declares its `chapter`/`chunk` entries `{type: string, format: yamlover/meta}`, so those
+  extensionless files parse as yamlover schema docs (their keys must match the
+  `*yamlover/$defs/chapter` pointer; the dot is just a character — extensions are *allowed* in
+  keys, they just aren't required).
+- **Format resolution order:** (1) the meta `format:` if present; else (2) a **recognized file
+  extension** (a known set — `.png`→`image/png`, `.yaml`→`yaml`, `.yamlover`→`yamlover`, …);
+  else (3) no meta **and** no extension → **`binary`** by default. (`$defs` schema files drop
+  the `.yamlover` extension to keep pointer paths short, and declare `format` in meta instead.)
 - **Rendering** — the web viewer's renderer registry keys on the `(type, format)` tuple
   (see `tools/server`); `format: text/markdown`, `x-yamlover-chapter`, etc. select a view.
 - **Presentation** — `title`, `description` annotate a node without living in its data.
@@ -62,13 +97,13 @@ yamlover specifics:
 - **`concrete`** (how/where stored: `file/binary` · `file/yaml` · `file/json` · `dir` · …)
   is **inferable from the filesystem** — state it only when ambiguous. Keep meta minimal.
 - **References use `*` pointers, not `$ref`.** Reusable fragments go under a `$defs` (or
-  `defs`) key and are referenced with a normal pointer — `*/$defs/box` (document root) —
+  `$defs`) key and are referenced with a normal pointer — `*/$defs/box` (document root) —
   so there is **one** reference mechanism across yamlover (`URIs.md`), not a second
   JSON-Pointer dialect.
 
 ## Examples
 
-`58-scalar-as-binary` — the on-disk file `age` is the instance; meta decodes it:
+`55-scalar-as-binary` — the on-disk file `age` is the instance; meta decodes it:
 
 ```yamlover
 # .yamlover/meta.yamlover
@@ -79,7 +114,7 @@ properties:
     # concrete: file/binary  # inferable from the FS — omit unless ambiguous
 ```
 
-An array whose elements live in files (cf. `59-array-of-files`) — `prefixItems` gives the
+An array whose elements live in files (cf. `56-array-of-files`) — `prefixItems` gives the
 per-element type/format/order; the values are the files:
 
 ```yamlover

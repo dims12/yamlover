@@ -8,6 +8,7 @@ object YamloverTokenTypes {
     @JvmField val COMMENT = YamloverTokenType("YAMLOVER_COMMENT")
     @JvmField val POINTER = YamloverTokenType("YAMLOVER_POINTER")   // the sigil char * & ~
     @JvmField val REF     = YamloverTokenType("YAMLOVER_REF")       // a pointer's path/target after * &
+    @JvmField val TAG     = YamloverTokenType("YAMLOVER_TAG")       // a schema tag !!<…>
     @JvmField val KEY     = YamloverTokenType("YAMLOVER_KEY")       // name before ':'
     @JvmField val STRING  = YamloverTokenType("YAMLOVER_STRING")
     @JvmField val NUMBER  = YamloverTokenType("YAMLOVER_NUMBER")

@@ -1,0 +1,35 @@
+# The format catalogue as a CHAPTER — one chunk per renderable (type, format), top to
+# bottom. Textual chunks are inline (block scalars); binary chunks point at the sample
+# files in this directory. Per-chunk formats + the binary file types live in meta.yamlover.
+!!<*yamlover/$defs/chapter>
+title: All Supported Formats — as a chapter
+chunks:
+- |
+  # Markdown chunk
+  Rendered with **marked** — *emphasis*, lists, and `code`.
+- |
+  == AsciiDoc chunk
+
+  Rendered with Asciidoctor.
+
+  * one
+  * two
+- |
+  @startuml
+  Alice -> Bob : hello
+  @enduml
+- |
+  name,role,city
+  Alice,Engineer,Berlin
+  Bob,"Designer, UX",Lisbon
+- *sample.png
+- *sample.svg
+- *sample.gif
+- *sample.bmp
+- *sample.ico
+- *sample.tiff
+- *sample.html
+- *sample.pdf
+- *sample.fb2
+- *sample.epub
+- *sample.psd

@@ -1,0 +1,7 @@
+properties:
+    chapter:
+        type: string
+        format: yamlover/meta
+    chunk:
+        type: string
+        format: yamlover/meta

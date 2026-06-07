@@ -172,7 +172,7 @@ A walk of the IR populates `node` and `edge` (path = identity, no ids):
 
 ## Worked example (genealogy, the canonical graph fixture)
 
-The old schema-storage form (`examples/63-genealogy-dag/.yamlover/schema.yaml`,
+The old schema-storage form (`examples/58-genealogy-dag/.yamlover/schema.yaml`,
 `properties:`/`x-yamlover.rel`) becomes instance yamlover with `*`/`~`:
 
 ```yamlover

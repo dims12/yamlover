@@ -19,6 +19,8 @@ class YamloverSyntaxHighlighter : SyntaxHighlighterBase() {
             YamloverTokenTypes.INDEX -> SIGN_KEYS
             // the pointer's path/target — a distinct color from the sigil (cf. YAML alias)
             YamloverTokenTypes.REF -> REF_KEYS
+            YamloverTokenTypes.TAG -> TAG_KEYS   // schema tag !!<…>
+
             YamloverTokenTypes.KEY -> KEY_KEYS
             YamloverTokenTypes.STRING -> STRING_KEYS
             YamloverTokenTypes.NUMBER -> NUMBER_KEYS
@@ -34,6 +36,7 @@ class YamloverSyntaxHighlighter : SyntaxHighlighterBase() {
         // shared "sign" color for sigils (* ~ &) AND structural punctuation (: - , { } [ ])
         val SIGN_KEYS = keys("YAMLOVER_SIGN", DefaultLanguageHighlighterColors.OPERATION_SIGN)
         val REF_KEYS = keys("YAMLOVER_REF", DefaultLanguageHighlighterColors.METADATA)
+        val TAG_KEYS = keys("YAMLOVER_TAG", DefaultLanguageHighlighterColors.MARKUP_TAG)
         val KEY_KEYS = keys("YAMLOVER_KEY", DefaultLanguageHighlighterColors.INSTANCE_FIELD)
         val STRING_KEYS = keys("YAMLOVER_STRING", DefaultLanguageHighlighterColors.STRING)
         val NUMBER_KEYS = keys("YAMLOVER_NUMBER", DefaultLanguageHighlighterColors.NUMBER)

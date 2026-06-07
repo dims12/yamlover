@@ -366,7 +366,7 @@ inline**, may point to an ancestor, and materializes on a filesystem as a **syml
 parent's child-edge is labelled by the child (`eve --cain--> cain`) whether it is drawn
 by *containment* (the spine — the structural parent) or by a `*` pointer (a second parent
 off the spine). So "two parents" is just **two same-named child-edges into one node** —
-which is what makes a graph a DAG (see `examples/63-genealogy-dag`: the spine is the
+which is what makes a graph a DAG (see `examples/58-genealogy-dag`: the spine is the
 paternal line, a `*` edge is the maternal one, both `descends` the child). `~name: *parent`
 is then exactly the reverse view of `parent.name: *child` — "parent descends me, as
 `name`".

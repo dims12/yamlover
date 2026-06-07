@@ -47,6 +47,13 @@ class YamloverLexerTest {
     }
 
     @Test
+    fun `schema tag is one TAG token`() {
+        val src = "doc: !!<*yamlover/\$defs/chapter>\n  title: T\n"
+        val tags = ofType(src, "YAMLOVER_TAG")
+        assertTrue("expected a TAG token: $tags", tags.any { it.startsWith("!!<") && it.endsWith(">") })
+    }
+
+    @Test
     fun `comment ends the line, sigil and path precede it`() {
         val src = "x: *a/b  # note\n"
         val toks = tokens(src)

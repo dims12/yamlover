@@ -14,17 +14,25 @@ import { parsePointer } from './pointer.ts';
 interface Line { indent: number; text: string; n: number }
 
 export function parseYamlover(src: string, uri = '<yamlover>'): Document {
-  const p = new Block(lex(src));
+  const raw = src.split(/\r\n|\r|\n/);
+  const p = new Block(lex(raw), raw);
+  // a document-root schema tag on its own line: `!!<*yamlover/$defs/chapter>`
+  let rootSchema: Pointer | undefined;
+  const first = p.peek();
+  if (first && /^!!<[^>]*>$/.test(first.text.trim())) {
+    rootSchema = parseSchemaRef(first.text.trim().slice(3, -1));
+    p.i++;
+  }
   const root = p.node(0) ?? nul();
   if (p.i < p.lines.length) p.fail('unexpected content');
   if (isPointer(root)) throw new SyntaxError('yamlover: a top-level pointer is not allowed');
+  if (rootSchema !== undefined) root.meta = { ...root.meta, schema: rootSchema };
   return { root, anchors: p.anchors, source: { concrete: 'yamlover', uri } };
 }
 
 // ---- line lexing: indentation + quote-aware comment stripping ----------------
-function lex(src: string): Line[] {
+function lex(raw: string[]): Line[] {
   const out: Line[] = [];
-  const raw = src.split(/\r\n|\r|\n/);
   for (let n = 0; n < raw.length; n++) {
     const line = raw[n];
     let indent = 0;
@@ -52,10 +60,11 @@ function stripComment(s: string): string {
 
 class Block {
   lines: Line[];
+  raw: string[];      // all source lines (for block scalars, which keep blanks and `#`)
   i = 0;
   anchors = new Map<string, Node>();
 
-  constructor(lines: Line[]) { this.lines = lines; }
+  constructor(lines: Line[], raw: string[]) { this.lines = lines; this.raw = raw; }
 
   peek(): Line | undefined { return this.lines[this.i]; }
   fail(msg: string): never {
@@ -85,7 +94,7 @@ class Block {
       let key = kv.key;
       let back = false;
       if (key.startsWith('~')) { back = true; key = key.slice(1); }
-      const value = this.valueAfter(kv.rest, indent);
+      const value = this.valueAfter(kv.rest, indent, l.n);
       entries.push({ key: unquoteKey(key), edge: back ? 'back' : isPointer(value) ? 'ref' : 'contain', value });
     }
     return { kind: 'mapping', entries, array: false };
@@ -110,7 +119,7 @@ class Block {
         this.lines[this.i] = { indent: contentCol, text: rest, n: l.n };
         value = this.map(contentCol);
       } else {
-        value = this.valueAfter(rest, indent);
+        value = this.valueAfter(rest, indent, l.n);
       }
       entries.push({ key: null, edge: isPointer(value) ? 'ref' : 'contain', value });
     }
@@ -118,8 +127,15 @@ class Block {
   }
 
   /** The value after `key:` or `- ` (inline `rest`, with a possible deeper block). */
-  valueAfter(rest: string, parentIndent: number): Value {
+  valueAfter(rest: string, parentIndent: number, srcLineN: number): Value {
     rest = rest.trim();
+    let schema: Pointer | undefined;
+    if (rest.startsWith('!!<')) {
+      const close = rest.indexOf('>');
+      if (close < 0) this.fail('unterminated "!!<…>" schema tag');
+      schema = parseSchemaRef(rest.slice(3, close));
+      rest = rest.slice(close + 1).trim();
+    }
     let anchor: string | undefined;
     if (rest.startsWith('&')) {
       const r = readName(rest.slice(1));
@@ -127,7 +143,9 @@ class Block {
       rest = r.rest.trim();
     }
     let value: Value;
-    if (rest === '') {
+    if (/^[|>][+-]?\d*$/.test(rest)) {
+      value = this.blockScalar(rest, parentIndent, srcLineN); // `|` literal, `>` folded
+    } else if (rest === '') {
       // YAML allows a block SEQUENCE value at the SAME indent as its key:
       //   markup:
       //   - a
@@ -145,7 +163,40 @@ class Block {
       if (isPointer(value)) this.fail('cannot anchor a pointer');
       this.anchors.set(anchor, value);
     }
+    if (schema !== undefined && !isPointer(value)) value.meta = { ...value.meta, schema };
     return value;
+  }
+
+  /** A block scalar (`|` literal / `>` folded, with `-`/`+` chomping) introduced by the
+   *  indicator on line `srcLineN`. Reads RAW lines (blanks + `#` are significant), de-indents
+   *  by the block's own indent, and advances past the consumed lines. */
+  blockScalar(indicator: string, parentIndent: number, srcLineN: number): Scalar {
+    const folded = indicator[0] === '>';
+    let chomp: 'clip' | 'strip' | 'keep' = 'clip';
+    for (const ch of indicator.slice(1)) { if (ch === '-') chomp = 'strip'; else if (ch === '+') chomp = 'keep'; }
+
+    const lines: string[] = []; // de-indented content lines, including blanks
+    let blockIndent = -1;
+    let lastN = srcLineN;
+    for (let n = srcLineN + 1; n < this.raw.length; n++) {
+      const r = this.raw[n];
+      let ind = 0;
+      while (ind < r.length && r[ind] === ' ') ind++;
+      if (ind >= r.length) { lines.push(''); lastN = n; continue; } // blank line
+      if (ind <= parentIndent) break;                               // dedent → block ends
+      if (blockIndent < 0) blockIndent = ind;                       // first content line sets indent
+      lines.push(r.slice(blockIndent));
+      lastN = n;
+    }
+    while (this.peek() && this.peek()!.n <= lastN) this.i++;        // skip consumed lines
+
+    let last = -1;
+    for (let i = 0; i < lines.length; i++) if (lines[i] !== '') last = i;
+    const core = lines.slice(0, last + 1);
+    let body = folded ? foldLines(core) : core.join('\n');
+    if (chomp === 'keep') body += '\n'.repeat(lines.length - (last + 1) + (last >= 0 ? 1 : 0));
+    else if (chomp === 'clip' && last >= 0) body += '\n';          // strip → nothing
+    return { kind: 'scalar', value: body, raw: body };
   }
 
   /** Parse a single-line inline value: flow, pointer, anchor, quoted or plain scalar. */
@@ -294,6 +345,25 @@ function splitKV(text: string): { key: string; rest: string } | null {
     }
   }
   return null;
+}
+
+/** The contents of a `!!<…>` schema tag — a yamlover pointer path (a leading `*` is
+ *  implied and stripped): `*yamlover/$defs/chapter` or `https://…/$defs/chapter`. */
+function parseSchemaRef(path: string): Pointer {
+  path = path.trim();
+  if (path.startsWith('*')) path = path.slice(1);
+  return parsePointer(path);
+}
+
+/** Fold `>` block lines: a single line break between non-empty lines becomes a space; a
+ *  blank line becomes a newline. (Simplified — enough for prose/doc chunks.) */
+function foldLines(lines: string[]): string {
+  let out = '';
+  for (let i = 0; i < lines.length; i++) {
+    if (i > 0) out += lines[i] === '' || lines[i - 1] === '' ? '\n' : ' ';
+    out += lines[i];
+  }
+  return out;
 }
 
 function readName(s: string): { name: string; rest: string } {
