@@ -64,3 +64,27 @@ export function fetchSchema(path: string, depth?: number): Promise<unknown> {
   if (depth != null) q.set("depth", String(depth));
   return getJson<unknown>(`/api/schema?${q}`);
 }
+
+/** An annotation of a material — a marked segment + optional note, reverse-linked server-side. */
+export interface Annotation {
+  path: string; // the annotation's own node path
+  selector?: { type?: string; exact?: string; prefix?: string; suffix?: string; [k: string]: unknown };
+  body?: string;
+  created?: string;
+}
+
+/** The annotations whose `target` is the material at `path` (the engine's reverse link). */
+export function fetchAnnotations(path: string): Promise<Annotation[]> {
+  return getJson<Annotation[]>(`/api/annotations?path=${encodeURIComponent(path)}`);
+}
+
+/** Save a new annotation of the material at `target` (its JSON path); returns the created path. */
+export function saveAnnotation(a: { target: string; selector: Record<string, unknown>; body?: string }): Promise<{ path: string }> {
+  return fetch("/api/annotate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(a) }).then(
+    async (res) => {
+      const body = await res.json();
+      if (!res.ok) throw new Error((body && body.error) || `HTTP ${res.status}`);
+      return body as { path: string };
+    },
+  );
+}

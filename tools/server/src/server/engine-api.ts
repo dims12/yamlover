@@ -57,15 +57,36 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
   rebuild();
   const store = (): Store => current;
 
-  return (_req, res, url) => {
+  return (req, res, url) => {
     try {
       const s = store();
+
+      // Create an annotation (the only WRITE path): persist it as a yamlover file under the
+      // served root's `annotations/`, then re-index so it joins the graph (reverse-linked to its
+      // material). Body: { target, selector, body? } — target is the material's JSON path.
+      if (req.method === "POST" && url.pathname === "/api/annotate") {
+        readBody(req)
+          .then((data) => {
+            const annPath = writeAnnotation(dataRoot, data as AnnotationInput);
+            rebuild();
+            sendJson(res, 201, { path: annPath });
+          })
+          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
+        return;
+      }
+
       const segs = strToSegs(url.searchParams.get("path") || "/");
       const p = storePath(segs);
       const depth = parseDepth(url.searchParams.get("depth"));
 
       if (url.pathname === "/api/info") {
         sendJson(res, 200, { root: rootName });
+        return;
+      }
+
+      // The annotations whose `target` is this material (the engine's reverse link).
+      if (url.pathname === "/api/annotations") {
+        sendJson(res, 200, annotationsFor(s, segs));
         return;
       }
 
@@ -273,6 +294,71 @@ function labelFor(s: Store, p: string, keyOrIdx: Seg): string {
   const t = titleOf(s, p);
   if (t) return t;
   return typeof keyOrIdx === "number" ? `[${keyOrIdx}]` : keyOrIdx;
+}
+
+// --------------------------------------------------------------------------- //
+// Annotations — graph-native: each is a yamlover object under `<root>/annotations/`, pointing
+// (`target: *//…`) at its material; a material's annotations are the inverse of those edges.
+// --------------------------------------------------------------------------- //
+
+interface AnnotationInput {
+  target: string; // the material's JSON path (e.g. "/60-simple-chapter.yamlover")
+  selector: Record<string, unknown>; // { type: "text", exact, prefix, suffix } | { type:"rect", … }
+  body?: string;
+}
+
+/** The annotations whose `target` resolves to this material — the incoming `ref` edges from
+ *  `x-yamlover-annotation` nodes — each projected to its full object (selector, body, created). */
+function annotationsFor(s: Store, segs: Seg[]): unknown[] {
+  const p = storePath(segs);
+  const out: unknown[] = [];
+  for (const e of s.relationships(p).in) {
+    if (e.kind !== "ref") continue;
+    const src = s.node(e.from);
+    if (src?.format !== "x-yamlover-annotation") continue;
+    const aSegs = storePathToSegs(e.from);
+    out.push({ path: segsToStr(aSegs), ...(projectValue(s, aSegs, 6, true) as Record<string, unknown>) });
+  }
+  return out;
+}
+
+/** Serialize a value as a yamlover scalar (double-quoted strings round-trip through the parser). */
+function yScalar(v: unknown): string {
+  return typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(String(v ?? ""));
+}
+
+/** Persist a new annotation as a yamlover file under `<root>/annotations/`; returns its filename.
+ *  The material is referenced with a project-scoped deref pointer so the engine reverse-links it
+ *  on re-index (a leading star + a "//path" project path). */
+function writeAnnotation(dataRoot: string, a: AnnotationInput): string {
+  if (!a?.target || !a?.selector) throw new Error("annotation needs a target and a selector");
+  const dir = path.join(dataRoot, "annotations");
+  fs.mkdirSync(dir, { recursive: true });
+  const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const file = `${id}.yamlover`;
+  const lines = [
+    "!!<*yamlover/$defs/annotation>",
+    `target: *//${a.target.replace(/^\//, "")}`,
+    "selector:",
+    ...Object.entries(a.selector).map(([k, v]) => `  ${k}: ${yScalar(v)}`),
+  ];
+  if (a.body) lines.push(`body: ${yScalar(a.body)}`);
+  lines.push(`created: ${new Date().toISOString()}`, "");
+  fs.writeFileSync(path.join(dir, file), lines.join("\n"));
+  return `/annotations/${file}`;
+}
+
+/** Read a request body and parse it as JSON. */
+function readBody(req: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => chunks.push(c));
+    req.on("end", () => {
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}")); }
+      catch (e) { reject(e); }
+    });
+    req.on("error", reject);
+  });
 }
 
 /** The nearest enclosing DOCUMENT root for `segs` — the closest ancestor (or self) whose node

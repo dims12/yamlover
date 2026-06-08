@@ -8,3 +8,6 @@ properties:
     tag:
         type: string
         format: yamlover/meta
+    annotation:
+        type: string
+        format: yamlover/meta

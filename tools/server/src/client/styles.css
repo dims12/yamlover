@@ -611,6 +611,50 @@ a.chunk-index:hover {
 .chunk-body .filemap.chunk-map {
   height: 380px;
 }
+/* annotations: the per-material action bar + the inline highlight mark */
+.annotate-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.annotate-btn {
+  background: var(--bg-alt);
+  color: var(--dim);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font: inherit;
+  font-family: var(--font);
+  font-size: 12px;
+  cursor: pointer;
+}
+.annotate-btn:hover {
+  color: var(--fg);
+}
+.annotate-count {
+  color: var(--dim);
+  font-size: 12px;
+}
+/* a region annotation drawn over a PDF page (the image overlay uses a Leaflet rectangle) */
+.pdf-page {
+  position: relative;
+}
+.pdf-region {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #f9e2af;
+  background: rgba(249, 226, 175, 0.18);
+  cursor: help;
+}
+mark.yo-annotation {
+  background: rgba(249, 226, 175, 0.30); /* a soft highlight; the note rides in the title tooltip */
+  color: inherit;
+  border-bottom: 2px solid #f9e2af;
+  border-radius: 2px;
+  cursor: help;
+}
+
 /* the pan/zoom image viewer reuses the map container; its backdrop is the page background, so a
    picture panned/zoomed past the edges sits on the same canvas as the rest of the page. The
    compound `.leaflet-container` selector overrides Leaflet's own default gray (#ddd) backdrop. */

@@ -1,0 +1,65 @@
+# Annotations of THIS directory's materials. An annotation is just an ordinary yamlover object
+# (the $defs/annotation schema); they need not live in any special place — these sit right here,
+# beside the materials they mark. Each `target` is a RELATIVE pointer that escapes this file
+# (`..` → out of annotations.yamlover, `..` → the directory) and lands on a sibling property, so
+# the links hold no matter where the project is served from. The engine derives each material's
+# annotations as the inverse of these edges, and the viewer highlights the text ones in place.
+#
+# Coverage spans the formats implemented so far: text quotes for the markdown / asciidoc / chapter
+# materials (highlighted on display), and region selectors for the image / pdf materials (the
+# selector model already covers them; overlay rendering for non-text is a follow-up).
+
+markdown-phrase: !!<*yamlover/$defs/annotation>
+  target: *../../markdown
+  selector:
+    type: text
+    exact: Hover a heading to reveal its
+    prefix: "## Anchors\n"
+    suffix: " `§`"
+  body: How the anchor affordance works.
+  created: 2026-06-09T10:00:00Z
+
+asciidoc-phrase: !!<*yamlover/$defs/annotation>
+  target: *../../asciidoc
+  selector:
+    type: text
+    exact: Rendered with Asciidoctor
+    prefix: "== AsciiDoc\n\n"
+    suffix: "."
+  body: The AsciiDoc backend.
+  created: 2026-06-09T10:01:00Z
+
+chapter-sentence: !!<*yamlover/$defs/annotation>
+  target: *../../chapter
+  selector:
+    type: text
+    exact: this sentence is the segment an annotation marks
+    prefix: "Each chunk defaults to marklower; "
+    suffix: "."
+  body: A marked chunk inside a chapter.
+  created: 2026-06-09T10:02:00Z
+
+# rect selector — pixel coords in the image's own space (240×160), origin top-left
+png-region: !!<*yamlover/$defs/annotation>
+  target: *../../sample.png
+  selector:
+    type: rect
+    x: 40
+    y: 30
+    w: 140
+    h: 80
+  body: A region of interest in the PNG.
+  created: 2026-06-09T10:03:00Z
+
+# pdf selector — point coords on the given page (the MediaBox is 240×160 pt), origin top-left
+pdf-region: !!<*yamlover/$defs/annotation>
+  target: *../../sample.pdf
+  selector:
+    type: pdf
+    page: 1
+    x: 30
+    y: 40
+    w: 150
+    h: 70
+  body: A passage on the first page.
+  created: 2026-06-09T10:04:00Z

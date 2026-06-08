@@ -1,6 +1,11 @@
 import { Fragment, useEffect, useReducer, useState } from "react";
 import { fetchNode, fetchSchema, NodeJson } from "./api";
 import { getRenderer } from "./renderers/registry";
+import { AnnotatedMaterial } from "./renderers/annotate";
+
+// Renderers whose output is prose — they get the (text) annotation layer: highlight existing
+// annotations and mark new selections. Image/map/pdf region annotation is a follow-up.
+const TEXT_MATERIALS = new Set(["chapter", "text", "asciidoc", "marklower"]);
 import { TagBadges, splitTagRefs } from "./renderers/tag";
 import { Render } from "./render";
 import { strToSegs } from "./paths";
@@ -157,7 +162,11 @@ export function NodeView({ path, format, onFormat, onNavigate }: Props) {
       {!showRendered && node.description && <p className="nodedesc">{node.description}</p>}
 
       {showRendered ? (
-        renderer!.render(node, onNavigate)
+        TEXT_MATERIALS.has(renderer!.name) ? (
+          <AnnotatedMaterial path={path}>{renderer!.render(node, onNavigate)}</AnnotatedMaterial>
+        ) : (
+          renderer!.render(node, onNavigate)
+        )
       ) : (
         <pre className="code">
           {/* data views lead with the relations panel (non-tag up-edges + `..`),

@@ -49,3 +49,18 @@ test('58-genealogy-dag: every pointer resolves (no dangling)', () => {
 test('67-pdf-tags: every tag membership pointer resolves (no dangling)', () => {
   assert.deepEqual(buildGraph(load('67-pdf-tags')).unresolved, []);
 });
+
+test('59-all-formats-object: annotations.yamlover reverse-links materials to their annotations', () => {
+  // load the example in isolation — its annotations point at materials with RELATIVE pointers
+  // (`../../<key>`), so they resolve without depending on where the project is served from.
+  const s = new Store(':memory:');
+  s.indexDocument(load('59-all-formats-object'));
+  const ann = '/annotations.yamlover/markdown-phrase';
+  assert.equal(s.node(ann)?.format, 'x-yamlover-annotation'); // the $defs/annotation schema
+  assert.equal(s.node(ann + '/selector/exact')?.value, 'Hover a heading to reveal its');
+  // the markdown material sees the annotation as an incoming ref edge — the reverse link
+  const into = s.relationships('/markdown').in;
+  assert.ok(into.some((e) => e.kind === 'ref' && e.from === ann), 'markdown ← its annotation');
+  // every annotation's target resolves (no dangling), incl. the chapter/image/pdf ones
+  assert.deepEqual(buildGraph(load('59-all-formats-object')).unresolved, []);
+});

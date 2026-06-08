@@ -58,10 +58,21 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
   const root = doc.root;
   let steps: Step[] = ptr.steps;
   let chain: Node[];
+  const linkAuthority = ptr.base.scope === 'link' ? ptr.base.authority : '';
+  let isLink = false; // a `//…` whose first segment names a project node resolves; else external
+  const external = (): Located => ({ kind: 'external', authority: linkAuthority, steps: ptr.steps });
 
   switch (ptr.base.scope) {
-    case 'link':
-      return { kind: 'external', authority: ptr.base.authority, steps: ptr.steps };
+    case 'link': {
+      // `//authority/…` is PROJECT-root relative (URIs.md: `/`=document, `//`=project): resolve
+      // `authority` + steps from the top-level (served) document root. If it lands on a node it is
+      // an intra-project link (e.g. an annotation → its material); otherwise it is a genuine
+      // external reference (a real host/scheme) and stays external.
+      isLink = true;
+      chain = chains.get(root) ?? [root];
+      steps = [{ sel: 'key', name: ptr.base.authority }, ...ptr.steps];
+      break;
+    }
     case 'document': {
       // the nearest enclosing DOCUMENT root (a parsed file / a `.yamlover` dir / the served
       // root), so `/file` is relative to the chapter (or other instance) it sits in — not the
@@ -91,16 +102,16 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
 
   for (const st of steps) {
     if (st.sel === 'parent') {
-      if (chain.length <= 1) return { kind: 'unresolved', reason: '".." above the document root' };
+      if (chain.length <= 1) return isLink ? external() : { kind: 'unresolved', reason: '".." above the document root' };
       chain = chain.slice(0, -1);
       continue;
     }
     const node = chain[chain.length - 1];
-    if (!node.entries) return { kind: 'unresolved', reason: 'step into a node with no fields' };
+    if (!node.entries) return isLink ? external() : { kind: 'unresolved', reason: 'step into a node with no fields' };
     const entry = st.sel === 'key'
       ? node.entries.find((e) => e.key === st.name)
       : node.entries[st.n];
-    if (!entry) return { kind: 'unresolved', reason: `no ${st.sel === 'key' ? `key "${st.name}"` : `index [${st.n}]`}` };
+    if (!entry) return isLink ? external() : { kind: 'unresolved', reason: `no ${st.sel === 'key' ? `key "${st.name}"` : `index [${st.n}]`}` };
 
     if (isPointer(entry.value)) {
       if (visited.has(entry.value)) return { kind: 'unresolved', reason: 'pointer cycle' };
