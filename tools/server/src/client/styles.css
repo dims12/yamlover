@@ -191,11 +191,35 @@ body {
 .nodehead {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-start; /* dock chips + tabs to the LEFT (text is left-aligned) */
+  flex-wrap: wrap;
+  gap: 8px 12px;
   border-bottom: 1px solid var(--line);
   padding-bottom: 8px;
   margin-bottom: 10px;
+}
+/* separates the type/format chips from the representation tabs in the node bar */
+.bar-sep {
+  color: var(--dim);
+  opacity: 0.5;
+  user-select: none;
+}
+/* the markdown/asciidoc reading-width control, beside its renderer tab; red when invalid */
+.markup-width {
+  width: 5ch;
+  background: var(--bg-alt);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  font-family: var(--font);
+  font-size: 12px;
+  text-align: right;
+}
+.markup-width.invalid {
+  border-color: #f38ba8;
+  color: #f38ba8;
 }
 .nodemeta {
   display: flex;
@@ -586,6 +610,13 @@ a.chunk-index:hover {
 /* a map embedded inline as a chapter chunk: cap the height so the page stays readable */
 .chunk-body .filemap.chunk-map {
   height: 380px;
+}
+/* the pan/zoom image viewer reuses the map container; its backdrop is the page background, so a
+   picture panned/zoomed past the edges sits on the same canvas as the rest of the page. The
+   compound `.leaflet-container` selector overrides Leaflet's own default gray (#ddd) backdrop. */
+.fileimagemap,
+.fileimagemap.leaflet-container {
+  background: var(--bg);
 }
 /* Leaflet popups carry the feature's (often HTML) KML description */
 .map-popup-desc {

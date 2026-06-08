@@ -3,3 +3,7 @@
 - Jetbrains plugins: reformat code
 - Disambiguate `manager: *whiskers`: either it refers local member or global alias; usually local has precedence, but here for YAML compatibility we need global precedence?
 - Plugins? L markdown preview functionality lost
+- Invent type names for omni and mix for schema/meta language
+- Design reverse tag into unkwonn location of an array?
+- Support configurable depth for json/json5p/yaml/yamlover renderers
+- Support configurable depth for chapter renderers

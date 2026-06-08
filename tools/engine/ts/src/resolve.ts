@@ -20,6 +20,7 @@ export interface ResolvedEdge {
   from: string;            // path of the entry holding the pointer
   holder: string;          // path of the mapping that holds it
   label: string | null;    // the entry's key (the relation name); null if keyless
+  pos: number;             // the entry's index in the holder (so positional pointers keep order)
   raw: string;             // the pointer text
   edge: 'ref' | 'back';
   target: Located;
@@ -38,7 +39,7 @@ export function resolveDocument(doc: Document): ResolvedEdge[] {
       const seg = e.key != null ? '/' + e.key : '[' + i + ']';
       if (isPointer(e.value)) {
         const target = resolve(doc, chains, chain, e.value, new Set([e.value]));
-        out.push({ from: prefix + seg, holder: base, label: e.key, raw: e.value.raw, edge: e.edge as 'ref' | 'back', target });
+        out.push({ from: prefix + seg, holder: base, label: e.key, pos: i, raw: e.value.raw, edge: e.edge as 'ref' | 'back', target });
       } else {
         walk(e.value);
       }
@@ -61,9 +62,17 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
   switch (ptr.base.scope) {
     case 'link':
       return { kind: 'external', authority: ptr.base.authority, steps: ptr.steps };
-    case 'document':
-      chain = chains.get(root) ?? [root];
+    case 'document': {
+      // the nearest enclosing DOCUMENT root (a parsed file / a `.yamlover` dir / the served
+      // root), so `/file` is relative to the chapter (or other instance) it sits in — not the
+      // whole served tree. Falls back to the overall root when nothing in the chain is marked.
+      let docRoot = root;
+      for (let k = fromChain.length - 1; k >= 0; k--) {
+        if (fromChain[k].meta?.documentRoot) { docRoot = fromChain[k]; break; }
+      }
+      chain = chains.get(docRoot) ?? [docRoot];
       break;
+    }
     case 'parent':
       chain = fromChain.slice(0, -1);
       break;

@@ -23,14 +23,14 @@ chunks:
   name,role,city
   Alice,Engineer,Berlin
   Bob,"Designer, UX",Lisbon
-- *sample.png
-- *sample.svg
-- *sample.gif
-- *sample.bmp
-- *sample.ico
-- *sample.tiff
-- *sample.html
-- *sample.pdf
-- *sample.fb2
-- *sample.epub
-- *sample.psd
+- */sample.png
+- */sample.svg
+- */sample.gif
+- */sample.bmp
+- */sample.ico
+- */sample.tiff
+- */sample.html
+- */sample.pdf
+- */sample.fb2
+- */sample.epub
+- */sample.psd

@@ -2,6 +2,7 @@ import Asciidoctor from "@asciidoctor/core";
 import { NodeJson } from "../api";
 import { Chunk } from "./registry";
 import { anchorizeHeadings, useHashScroll } from "./headings";
+import { Markup } from "./markup";
 
 // One processor instance for the app; `convert` is pure per call.
 const processor = Asciidoctor();
@@ -24,7 +25,7 @@ export function AsciidocView({ node }: { node: NodeJson }) {
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <div className="markup" dangerouslySetInnerHTML={{ __html: adoc(node.value) }} />
+      <Markup html={adoc(node.value)} />
     </div>
   );
 }

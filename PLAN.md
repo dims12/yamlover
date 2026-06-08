@@ -92,10 +92,20 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
 > **Started 2026-06-07** in `tools/engine/ts/` (per-impl layout like the parser; imports
 > the parser's IR; Node ≥22 + `node:test`).
 
-3a. **SQLite schema** — `node(path, type, format, content_hash, meta)`,
-   `edge(from_path, to_path, label, kind ∈ {contain,ref,back,derived})`.
-3b. **Walker** — walk directory + `body.yamlover` overlays → IR → populate SQLite.
-   Replaces the Python walker.
+3a. **SQLite schema** — **DONE (2026-06-08)** `tools/engine/ts/src/store.ts`:
+   `node(path, type, format, value, content_hash, size, is_array, meta)` +
+   `edge(from_path, to_path, label, kind ∈ {contain,ref,back,derived}, pos)`. `Store`
+   class: `indexDocument(doc)` (IR→tables, one txn), `node(path)`, `toc(root, depth)` (recursive
+   CTE over `contain`), `relationships(path)` (in/out + on-demand `derived` inverses). Uses Node's
+   built-in **`node:sqlite` (DatabaseSync)** — zero dependency, supersedes the planned better-sqlite3
+   on Node ≥22. Positions stay a *derived view* (keyed entries store under their string key; keyless
+   under `[i]`; `[n]` for keyed is a resolver alias, not double-stored).
+3b. **Walker** — **DONE (2026-06-08)** `tools/engine/ts/src/walk.ts`: `walkDir(dir)`→IR Document,
+   `buildIndex(dir)`→writes `<dir>/.yamlover/index.db`. Mirrors the legacy server's file→value rule
+   (text-format ext → string scalar; binary/opaque ext → Blob{format,sha256,size}; no/unknown ext →
+   sniff NUL/size, else parse as yamlover) + `meta.yamlover` `properties.<name>.{type,format}` override
+   + `body.yamlover` overlay (mapping merge: override/add; pointer-array: impose order ⇒ `array`).
+   Replaces the Python walker. 22 engine tests (incl. 50/51/53/56/65 dir examples).
 3c. **Resolver** — **DONE** (`ts/src/resolve.ts`, in-memory over the IR; SQLite-backed
    variant later). Scopes (current / `..` / `/` document / `//` link), transitive
    `*`-following, cycle-safe, anchor precedence. `resolveDocument()` resolves every `*`/`~`.

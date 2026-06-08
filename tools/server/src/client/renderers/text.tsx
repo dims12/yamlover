@@ -2,6 +2,7 @@ import { marked } from "marked";
 import { NodeJson } from "../api";
 import { Chunk } from "./registry";
 import { anchorizeHeadings, useHashScroll } from "./headings";
+import { Markup } from "./markup";
 
 /**
  * The renderer for a `string`/`text/markdown` node: prose shown as rendered
@@ -28,7 +29,7 @@ export function TextView({ node }: { node: NodeJson }) {
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <div className="markup" dangerouslySetInnerHTML={{ __html: md(node.value) }} />
+      <Markup html={md(node.value)} />
     </div>
   );
 }

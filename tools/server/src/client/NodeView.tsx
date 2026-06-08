@@ -1,23 +1,22 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useReducer, useState } from "react";
 import { fetchNode, fetchSchema, NodeJson } from "./api";
 import { getRenderer } from "./renderers/registry";
 import { TagBadges, splitTagRefs } from "./renderers/tag";
 import { Render } from "./render";
 import { strToSegs } from "./paths";
 
-// yaml-schema (ours) is the default. Tabs are grouped by syntax: the YAML pair
-// (yaml-schema, then the yaml data) then the JSON pair (json-schema, then the
-// json data) — schema before data within each. Each is one level deep with
-// nested containers as links. A node with a renderer also offers a tab keyed by
-// the renderer's *name* (e.g. `chapter`) — the rendered view, and that node's
-// default representation.
-export type Format = "yaml-schema" | "yaml" | "json" | "json-schema" | (string & {});
-export const FORMATS: Format[] = ["yaml-schema", "yaml", "json-schema", "json"];
-export const DEFAULT_FORMAT: Format = "yaml-schema";
+// The data representations, in order: `yamlover` (the default, YAML-family syntax), `json5p`
+// (JSON-family syntax), then `yamlover/schema` (the instance schema, YAML-family). Each is one
+// level deep with nested containers as links. A node with a renderer also offers a tab keyed by
+// the renderer's *name* (e.g. `chapter`) — the rendered view, and that node's default.
+export type Format = "yamlover" | "json5p" | "yamlover/schema" | (string & {});
+export const FORMATS: Format[] = ["yamlover", "json5p", "yamlover/schema"];
+export const DEFAULT_FORMAT: Format = "yamlover";
 
 const isStandard = (f: Format) => (FORMATS as string[]).includes(f);
-const isSchema = (f: Format) => f.includes("schema");
-const syntaxOf = (f: Format): "yaml" | "json" => (f.startsWith("json") ? "json" : "yaml");
+const isSchema = (f: Format) => f.endsWith("schema");
+// Serialization syntax: json5p renders JSON-family; yamlover (+ its schema) renders YAML-family.
+const syntaxOf = (f: Format): "yaml" | "json" => (f === "json5p" ? "json" : "yaml");
 
 /** The representation actually shown: the requested `format` if it is a standard
  *  view or this node's renderer name; otherwise the node's default (its renderer's
@@ -53,6 +52,9 @@ export function NodeView({ path, format, onFormat, onNavigate }: Props) {
   const [schema, setSchema] = useState<unknown>(null);
   const [bin, setBin] = useState<unknown>(null); // base64 payload for a binary leaf
   const [error, setError] = useState<string | null>(null);
+  // Bumped by a renderer's bar `config` control (e.g. the markup width) after it writes a URL
+  // param, so the whole node view re-renders and the rendered body picks up the new setting.
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
 
   useEffect(() => {
     setError(null);
@@ -135,11 +137,17 @@ export function NodeView({ path, format, onFormat, onNavigate }: Props) {
           {/* the tags this node is filed under, inline among the chips */}
           <TagBadges tags={tags} onNavigate={onNavigate} />
         </div>
+        {/* the representation tabs dock LEFT, after the chips, set off by a separator; a
+            renderer's own bar control (e.g. markup width) sits right after its button */}
+        <span className="bar-sep" aria-hidden="true">|</span>
         <div className="tabs">
           {tabs.map((f) => (
-            <button key={f} className={"tab" + (effective === f ? " active" : "")} onClick={() => onFormat(f)}>
-              {f}
-            </button>
+            <Fragment key={f}>
+              <button className={"tab" + (effective === f ? " active" : "")} onClick={() => onFormat(f)}>
+                {f}
+              </button>
+              {showRendered && renderer && f === renderer.name && renderer.config?.(rerender)}
+            </Fragment>
           ))}
         </div>
       </div>

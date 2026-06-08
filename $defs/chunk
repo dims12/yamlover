@@ -3,4 +3,4 @@
 # A chunk is a typed value; its (type, format) selects the renderer. The default is
 # markdown prose; a chunk overrides type/format to be a diagram, image, LaTeX, CSV, etc.
 type: string
-format: text/markdown
+format: text/marklower

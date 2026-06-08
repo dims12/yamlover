@@ -1,0 +1,97 @@
+# A heap of famously short / deadpan academic papers — the real files, with their real
+# (messy) names — organized by a tag taxonomy. This `.yamlover/body.yamlover` overlay turns the
+# bare directory into an instance: it adds the `tags` tree and gives each file (a blob) its tag
+# membership (so a blob carries members). Spec: ../../YAMLOVER.md.
+#
+# Membership is authored BOTH ways (the genealogy trick): a tag links a paper forward and the
+# paper records the reverse under the SAME relation NAME; the engine reconciles the pair into one
+# edge (normalize / derived inverses). The edge name is a meaningful SLUG (`euler-conjecture`,
+# `writers-block`, …), independent of the paper's file key — a tag links `slug: */<file>`, the
+# paper mirrors `~slug: */<tag>`. Keys/slugs are bare; a messy file key is quoted; the `*/…`
+# VALUE is a pointer path. `/` is document-relative — this directory.
+
+tags: !!<*yamlover/$defs/tag>
+  description: A small taxonomy for short / deadpan papers — two axes, field and genre
+  field:
+    description: What the paper is about
+    mathematics:
+      description: Mathematics
+      number-theory:
+        description: Number theory — Diophantine equations, sums of powers
+        euler-conjecture: */S0002-9904-1966-11654-3.pdf
+    physics:
+      description: Physics
+      quantum:
+        description: Quantum mechanics and measurement
+        superluminal-neutrino: */1110.2832v2.pdf
+      particle:
+        description: Particle physics — neutrinos and the like
+        superluminal-neutrino: */1110.2832v2.pdf
+    earth-science:
+      description: Earth science
+      seismology:
+        description: Seismology — earthquakes and their statistics
+        earthquakes-poissonian: */1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf
+    chemistry:
+      description: Chemistry
+      chemical-free: */Chemical-Free.pdf
+    psychology:
+      description: Psychology
+      behavior-analysis:
+        description: Applied behavior analysis
+        writers-block: */jaba00061-0143a.pdf
+  genre:
+    description: How the paper is short
+    brevity:
+      description: The paper is famously short
+      shortest-paper:
+        description: Famously the shortest paper in its journal
+        euler-conjecture: */S0002-9904-1966-11654-3.pdf
+      one-word-answer:
+        description: The title is a question; the abstract answers it in a word
+        superluminal-neutrino: */1110.2832v2.pdf
+        earthquakes-poissonian: */1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf
+      empty-body:
+        description: The body of the paper is (almost) entirely blank
+        writers-block: */jaba00061-0143a.pdf
+        chemical-free: */Chemical-Free.pdf
+    humor:
+      description: The paper is a joke
+      deadpan:
+        description: Plays it completely straight
+        writers-block: */jaba00061-0143a.pdf
+        superluminal-neutrino: */1110.2832v2.pdf
+        earthquakes-poissonian: */1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf
+      satire:
+        description: Mocks its target
+        chemical-free: */Chemical-Free.pdf
+    annotation:
+      description: A secondary / derivative edition of another paper
+
+# --- the papers: each is the real file (a blob), recording its tag membership as the reverse
+#     of the tag's forward link — `~<slug>: */tag` back-edges into the taxonomy ---
+
+"S0002-9904-1966-11654-3.pdf":
+  ~euler-conjecture: */tags/field/mathematics/number-theory
+  ~euler-conjecture: */tags/genre/brevity/shortest-paper
+
+"jaba00061-0143a.pdf":
+  ~writers-block: */tags/field/psychology/behavior-analysis
+  ~writers-block: */tags/genre/brevity/empty-body
+  ~writers-block: */tags/genre/humor/deadpan
+
+"Chemical-Free.pdf":
+  ~chemical-free: */tags/field/chemistry
+  ~chemical-free: */tags/genre/brevity/empty-body
+  ~chemical-free: */tags/genre/humor/satire
+
+"1110.2832v2.pdf":
+  ~superluminal-neutrino: */tags/field/physics/quantum
+  ~superluminal-neutrino: */tags/field/physics/particle
+  ~superluminal-neutrino: */tags/genre/brevity/one-word-answer
+  ~superluminal-neutrino: */tags/genre/humor/deadpan
+
+"1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf":
+  ~earthquakes-poissonian: */tags/field/earth-science/seismology
+  ~earthquakes-poissonian: */tags/genre/brevity/one-word-answer
+  ~earthquakes-poissonian: */tags/genre/humor/deadpan

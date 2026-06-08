@@ -1,0 +1,14 @@
+{
+  "name": "yamlover-workspace",
+  "private": true,
+  "type": "module",
+  "description": "yamlover monorepo root. Run tests and the dev server from HERE (the project root).",
+  "scripts": {
+    "test": "node --test tools/parser/ts/test/*.test.ts tools/engine/ts/test/*.test.ts",
+    "test:parser": "node --test tools/parser/ts/test/*.test.ts",
+    "test:engine": "node --test tools/engine/ts/test/*.test.ts",
+    "typecheck": "tools/server/node_modules/.bin/tsc -p tools/server/tsconfig.json --noEmit",
+    "start": "node tools/server/bin/yamlover.js",
+    "serve": "node tools/server/bin/yamlover.js"
+  }
+}

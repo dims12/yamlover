@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { NodeJson, blobUrl } from "../api";
+import { PanZoomImage } from "./imagemap";
 
 /**
  * Shared scaffold for the file formats the browser cannot display natively but
  * that we can decode client-side to ordinary raster images (PSD, TIFF, HEIC).
  * It fetches the node's bytes from `/api/blob`, hands them to a format-specific
- * `decode` that returns one PNG `Blob` per page, and shows each as an `<img>` —
- * reusing the same `.filemedia`/`.fileimage` styling as the native image view.
+ * `decode` that returns one PNG `Blob` per page, and shows each in the same
+ * pan/zoom viewer as a native image (each decoded page is its own object-URL).
  * Object-URLs are revoked on unmount / path change so decoded pages don't leak.
  */
 export function DecodedImageView({
@@ -42,11 +43,11 @@ export function DecodedImageView({
   if (error) return <div className="error">{label}: {error}</div>;
   if (!urls.length) return <div className="loading">decoding {label}…</div>;
   return (
-    <div className="filemedia">
+    <>
       {urls.map((url, i) => (
-        <img key={i} className="fileimage" src={url} alt={node.title ?? node.path} />
+        <PanZoomImage key={i} src={url} className="filemap fileimagemap" />
       ))}
-    </div>
+    </>
   );
 }
 

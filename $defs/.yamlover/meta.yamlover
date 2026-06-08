@@ -5,3 +5,6 @@ properties:
     chunk:
         type: string
         format: yamlover/meta
+    tag:
+        type: string
+        format: yamlover/meta

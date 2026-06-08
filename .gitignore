@@ -14,3 +14,7 @@ node_modules/
 
 # Playwright MCP scratch (screenshots, traces)
 .playwright-mcp/
+
+# yamlover engine SQLite cache (derived, rebuildable)
+.yamlover/*.db
+.yamlover/*.db-*

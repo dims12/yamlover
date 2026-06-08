@@ -1,0 +1,158 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import { walkDir } from '../src/walk.ts';
+import { Store } from '../src/store.ts';
+import { parseYamlover } from '../../../parser/ts/src/yamlover.ts';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const examples = join(here, '..', '..', '..', '..', 'examples');
+
+function indexedDir(name: string): Store {
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(join(examples, name)));
+  return s;
+}
+
+test('plain directory: each file is an entry keyed by filename (51-object-in-dir)', () => {
+  const s = indexedDir('51-object-in-dir');
+  assert.equal(s.node('/name')?.value, 'Alice'); // "Alice" parsed
+  assert.equal(s.node('/age')?.value, 30); // 30 parsed as a number
+  assert.equal(s.node('/isAdmin')?.value, true);
+  s.close();
+});
+
+test('overlay-only directory: body.yamlover supplies the content (50-object-in-overlay)', () => {
+  const s = indexedDir('50-object-in-overlay');
+  assert.equal(s.node('/name')?.value, 'Alice');
+  assert.equal(s.node('/age')?.value, 30);
+  assert.equal(s.node('/isAdmin')?.value, true);
+  s.close();
+});
+
+test('single-file directory parses its scalar (53-plain-dir)', () => {
+  const s = indexedDir('53-plain-dir');
+  assert.equal(s.node('/age')?.value, 30);
+  s.close();
+});
+
+test('pointer-array body imposes order; the directory projects as an array (56-array-of-files)', () => {
+  const s = indexedDir('56-array-of-files');
+  // body order is anyfile01, alsoany02, andany03.json — TOC reflects it
+  const top = s.toc('/');
+  assert.deepEqual(
+    top.map((n) => n.label),
+    ['anyfile01', 'alsoany02', 'andany03.json'],
+  );
+  assert.equal(s.node('/')?.is_array, true);
+  assert.equal(s.node('/anyfile01')?.value, 'Alice');
+  assert.equal(s.node('/andany03.json')?.value, true);
+  s.close();
+});
+
+test('the ignore predicate skips matching children (e.g. node_modules at the root)', () => {
+  const s = new Store(':memory:');
+  // ignore anything named "isAdmin" — it should not appear as a node
+  s.indexDocument(walkDir(join(examples, '51-object-in-dir'), { ignore: (abs) => abs.endsWith('/isAdmin') }));
+  assert.equal(s.node('/name')?.value, 'Alice');
+  assert.equal(s.node('/isAdmin'), null); // filtered out
+  s.close();
+});
+
+test('meta.yamlover format attaches to body-overlay text entries (59-all-formats-object)', () => {
+  const s = indexedDir('59-all-formats-object');
+  // these live in body.yamlover (block scalars); their formats are in meta.yamlover
+  assert.equal(s.node('/markdown')?.format, 'text/markdown');
+  assert.equal(s.node('/asciidoc')?.format, 'text/asciidoc');
+  assert.equal(s.node('/plantuml')?.format, 'text/x-plantuml');
+  assert.equal(s.node('/csv')?.format, 'text/csv');
+  s.close();
+});
+
+test('a file is parsed by extension: .json/.json5p via json5p, else yamlover', () => {
+  // a directory holding multi-line JSON — the YAML parser would choke; json5p handles it
+  const s = new Store(':memory:');
+  // examples/ root has 01-tour.json (multi-line) and 03-tour.json5p
+  s.indexDocument(walkDir(join(examples)));
+  assert.equal(s.node('/01-tour.json')?.type, 'mapping'); // parsed as structure, not a text scalar
+  assert.equal(s.node('/03-tour.json5p')?.type, 'mapping');
+  assert.ok(s.hasChildren('/01-tour.json'));
+  s.close();
+});
+
+test('a chapter file gets format x-yamlover-chapter from its $defs pointer schema (60)', () => {
+  const s = new Store(':memory:');
+  s.indexDocument(parseYamlover(readFileSync(join(examples, '60-simple-chapter.yamlover'), 'utf8')));
+  assert.equal(s.node('/')?.format, 'x-yamlover-chapter');
+  s.close();
+});
+
+test('the attached chapter schema propagates down: subchapters & chunks get their format (60)', () => {
+  // via walkDir, which runs the schema-application pass ($defs found by walking up from examples/)
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(examples));
+  const ch = '/60-simple-chapter.yamlover';
+  assert.equal(s.node(ch)?.format, 'x-yamlover-chapter'); // root (tagged)
+  assert.equal(s.node(ch + '/children[0]')?.format, 'x-yamlover-chapter'); // subchapter — NOT tagged, inherited
+  assert.equal(s.node(ch + '/chunks[0]')?.format, 'text/marklower'); // chunk — from $defs/chunk
+  assert.equal(s.node(ch + '/children[0]/chunks[0]')?.format, 'text/marklower'); // recursive
+  s.close();
+});
+
+test('`*/file` resolves to the nearest DOCUMENT root, depth-independently (66 nested chunks)', () => {
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(examples));
+  // a deeply nested subchapter chunk `*/puppy-paw.png` resolves to the 66 chapter root's file,
+  // NOT the served (examples) root — the directory-with-body is a document boundary.
+  const deep = s.entries('/66-doc-tree/children[0]/children[0]/chunks').find((c) => c.kind === 'ref');
+  assert.equal(deep?.to, '/66-doc-tree/puppy-paw.png');
+  // a top-level chapter's `*/sample.png` resolves within that chapter too
+  const top = s.entries('/65-all-formats-chunks/chunks').find((c) => c.kind === 'ref');
+  assert.equal(top?.to, '/65-all-formats-chunks/sample.png');
+  s.close();
+});
+
+test('a directory chapter: the body.yamlover root schema tag attaches to the dir (66-doc-tree)', () => {
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(examples));
+  const ch = '/66-doc-tree';
+  assert.equal(s.node(ch)?.format, 'x-yamlover-chapter'); // schema carried from body.yamlover root
+  assert.equal(s.node(ch + '/children[0]')?.format, 'x-yamlover-chapter'); // subchapter (Dogs)
+  assert.equal(s.node(ch + '/children[0]/children[0]')?.format, 'x-yamlover-chapter'); // Puppies (depth 2)
+  assert.equal(s.node(ch + '/chunks[0]')?.format, 'text/marklower'); // prose chunk
+  s.close();
+});
+
+test('67-pdf-tags (instance): omni-blobs (file + members) + a tag taxonomy via additionalProperties', () => {
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(examples));
+  const R = '/67-pdf-tags';
+  // the tag taxonomy gets x-yamlover-tag propagated down the open-keyed tree
+  assert.equal(s.node(R + '/tags')?.format, 'x-yamlover-tag');
+  assert.equal(s.node(R + '/tags/field/mathematics/number-theory')?.format, 'x-yamlover-tag');
+  // a paper is the real file (a blob) AUGMENTED with members: a title + forward tag edges
+  const euler = R + '/S0002-9904-1966-11654-3.pdf';
+  assert.equal(s.node(euler)?.type, 'blob');
+  assert.equal(s.node(euler)?.format, 'application/pdf');
+  // tag membership is authored BOTH ways, under a relation NAME that is FREE of the paper's key:
+  // euler's edge is named `euler-conjecture`, not its filename. Reverse `~euler-conjecture` on
+  // the paper, forward `euler-conjecture` on the tag — same label both ends.
+  const backs = s.relationships(euler).out.filter((e) => e.kind === 'back');
+  assert.ok(backs.some((e) => e.label === 'euler-conjecture' && e.to === R + '/tags/field/mathematics/number-theory'));
+  assert.ok(backs.some((e) => e.label === 'euler-conjecture' && e.to === R + '/tags/genre/brevity/shortest-paper'));
+  const nt = R + '/tags/field/mathematics/number-theory';
+  assert.ok(s.entries(nt).some((e) => e.kind === 'ref' && e.label === 'euler-conjecture' && e.to === euler));
+  s.close();
+});
+
+test('binary files become blobs with format + content hash (65-all-formats-chunks)', () => {
+  const s = indexedDir('65-all-formats-chunks');
+  const png = s.node('/sample.png');
+  assert.equal(png?.type, 'blob');
+  assert.equal(png?.format, 'image/png');
+  assert.ok(png?.content_hash?.startsWith('sha256:'));
+  assert.ok((png?.size ?? 0) > 0);
+  s.close();
+});

@@ -24,6 +24,10 @@ export interface NodeMeta {
    *  (`!!<*yamlover/$defs/chapter>`) OR an inline schema Node (`!!<format: text/x-plantuml>`).
    *  Stored unresolved (see URIs.md / META.md). */
   schema?: Value;
+  /** This node is a DOCUMENT root — a self-contained instance: a parsed file, a directory with
+   *  a `.yamlover/` overlay, or the served root. The `/` pointer scope resolves to the nearest
+   *  enclosing such node (URIs.md: `/` = document root), so a reference is depth-independent. */
+  documentRoot?: boolean;
 }
 export interface Span { uri: string; start: number; end: number; }
 

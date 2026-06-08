@@ -15,7 +15,7 @@ export function parseJson5p(src: string, uri = '<json5p>'): Document {
   const root = p.value();
   p.ws();
   if (p.i < src.length) p.fail('trailing characters');
-  if (isPointer(root)) p.fail('a top-level pointer is not allowed');
+  if (isPointer(root)) return p.fail('a top-level pointer is not allowed'); // narrows root → Node
   return { root, anchors: p.anchors, source: { concrete: 'json5p', uri } };
 }
 

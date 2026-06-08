@@ -1,0 +1,11 @@
+# $defs/tag — a node in a tag taxonomy. A tag carries a `description`; every OTHER key is a
+# sub-tag, so the taxonomy recurses to any depth (`additionalProperties` → tag). The format
+# `x-yamlover-tag` makes the server render each one as a tag (a badge wired to its super/sub-tags).
+# Attach to the taxonomy root with the tag  !!<*yamlover/$defs/tag>  — it propagates down.
+type: object
+format: x-yamlover-tag
+properties:
+  description:
+    type: string
+    format: text/marklower
+additionalProperties: *yamlover/$defs/tag

@@ -12,7 +12,8 @@ import { PlantumlView, PlantumlChunk } from "./plantuml";
 import { TagView } from "./tag";
 import { Fb2View } from "./fb2";
 import { EpubView } from "./epub";
-import { ImageView, ImageChunk, HtmlView } from "./media";
+import { HtmlView } from "./media";
+import { MarkupWidthControl } from "./markup";
 
 // pdf.js and DjVu.js are heavy and browser-only (they reach for canvas globals at
 // import time). Load them lazily so the registry — imported by the TOC and by
@@ -27,9 +28,11 @@ const DocxView = lazy(() => import("./docx").then((m) => ({ default: m.DocxView 
 const DocxChunk = lazy(() => import("./docx").then((m) => ({ default: m.DocxChunk })));
 const SpreadsheetView = lazy(() => import("./spreadsheet").then((m) => ({ default: m.SpreadsheetView })));
 const SpreadsheetChunk = lazy(() => import("./spreadsheet").then((m) => ({ default: m.SpreadsheetChunk })));
-// Leaflet (KML/KMZ maps) is heavy and browser-only; load it on first use.
+// Leaflet (KML/KMZ maps; and the pan/zoom image viewer) is heavy and browser-only; lazy-load.
 const MapView = lazy(() => import("./map").then((m) => ({ default: m.MapView })));
 const MapChunk = lazy(() => import("./map").then((m) => ({ default: m.MapChunk })));
+const ImageView = lazy(() => import("./imagemap").then((m) => ({ default: m.ImageView })));
+const ImageChunk = lazy(() => import("./imagemap").then((m) => ({ default: m.ImageChunk })));
 const lazily = (el: JSX.Element) => <Suspense fallback={<div className="loading">…</div>}>{el}</Suspense>;
 
 /** Synthesize a minimal `NodeJson` from a chunk so a file-backed renderer (which
@@ -108,6 +111,10 @@ export interface Renderer {
   render: (node: NodeJson, onNavigate: (path: string) => void) => JSX.Element;
   /** This renderer's inline form, for embedding a single value in another page. */
   renderChunk?: (chunk: Chunk, onNavigate: (path: string) => void) => JSX.Element;
+  /** An optional control shown in the tab bar beside this renderer's button (only while its
+   *  view is active) — e.g. the markdown/asciidoc reading-width input. `rerender` refreshes
+   *  the node view after the control changes a URL parameter. */
+  config?: (rerender: () => void) => JSX.Element;
 }
 
 const REGISTRY: Renderer[] = [
@@ -120,9 +127,13 @@ const REGISTRY: Renderer[] = [
   },
   {
     // Our default for a bare, format-less string: marklower, a markup language a
-    // notch below Markdown. A chapter's unformatted prose chunks route here.
+    // notch below Markdown. A chapter's prose chunks route here — both the bare
+    // (string, null) form and the explicit `text/marklower` the chunk schema applies.
     name: "marklower",
-    accepts: [["string", null]],
+    accepts: [
+      ["string", null],
+      ["string", "text/marklower"],
+    ],
     render: (node, onNavigate) => <MarklowerView node={node} onNavigate={onNavigate} />,
     renderChunk: (chunk, onNavigate) => <MarklowerChunk chunk={chunk} onNavigate={onNavigate} />,
   },
@@ -131,12 +142,14 @@ const REGISTRY: Renderer[] = [
     accepts: [["string", "text/markdown"]],
     render: (node) => <TextView node={node} />,
     renderChunk: (chunk) => <TextChunk chunk={chunk} />,
+    config: (rerender) => <MarkupWidthControl rerender={rerender} />,
   },
   {
     name: "asciidoc",
     accepts: [["string", "text/asciidoc"]],
     render: (node) => <AsciidocView node={node} />,
     renderChunk: (chunk) => <AsciidocChunk chunk={chunk} />,
+    config: (rerender) => <MarkupWidthControl rerender={rerender} />,
   },
   {
     // Delimited text (CSV/TSV, a string) shown as a table; its parsing options
@@ -224,8 +237,8 @@ const REGISTRY: Renderer[] = [
       ["binary", "image/x-icon"],
       ["binary", "image/svg+xml"],
     ],
-    render: (node) => <ImageView node={node} />,
-    renderChunk: (chunk) => <ImageChunk chunk={chunk} />,
+    render: (node) => lazily(<ImageView node={node} />),
+    renderChunk: (chunk) => lazily(<ImageChunk chunk={chunk} />),
   },
   {
     name: "html",

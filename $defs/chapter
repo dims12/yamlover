@@ -7,8 +7,10 @@ type: object
 properties:
   title:
     type: string
+    format: text/marklower
   description:                     # optional subtitle / heading annotation
     type: string
+    format: text/marklower
   chunks:                          # the body — a sequence of chunks, read top to bottom
     type: array
     items: *yamlover/$defs/chunk
