@@ -40,6 +40,7 @@ export function wireGestures(map: L.Map, opts: GestureOptions): () => void {
   let panPrev: L.Point | null = null;
 
   const onDown = (e: L.LeafletMouseEvent) => {
+    if (e.originalEvent.button !== 0) return; // left button only — right/middle never select or pan
     if (hasMod(e.originalEvent)) {
       if (!selectable) return; // dragging still enabled → Leaflet pans natively
       panning = true; // modifier-drag → manual pan

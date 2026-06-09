@@ -96,6 +96,22 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
         return;
       }
 
+      // Upload a pasted file (a WRITE path). Onto a DIRECTORY page → the file lands in that
+      // directory. Onto a CHAPTER page → the file lands in the chapter's owning directory AND a
+      // `*…` pointer to it is appended as the chapter's last chunk. Body: { path, filename,
+      // contentBase64 }. A new file / edited chapter source needs the full graph re-walked, so we
+      // rebuild the index (paste is a rare, deliberate action — unlike a click).
+      if (req.method === "POST" && url.pathname === "/api/paste") {
+        readBody(req)
+          .then((data) => {
+            const result = handlePaste(dataRoot, s, data as PasteInput);
+            rebuild();
+            sendJson(res, 201, result);
+          })
+          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
+        return;
+      }
+
       const segs = strToSegs(url.searchParams.get("path") || "/");
       const p = storePath(segs);
       const depth = parseDepth(url.searchParams.get("depth"));
@@ -434,6 +450,186 @@ function deleteAnnotation(dataRoot: string, annPath: string): void {
   const file = path.resolve(dataRoot, ...segs.map(String));
   if (file !== annDir && !file.startsWith(annDir + path.sep)) throw new Error("outside the annotations dir");
   fs.rmSync(file, { force: true });
+}
+
+// --------------------------------------------------------------------------- //
+// Paste / upload — drop a clipboard file into the tree. A directory target takes the file as a
+// new child; a chapter target takes it into its owning directory and gains a `*…` pointer chunk.
+// --------------------------------------------------------------------------- //
+
+interface PasteInput {
+  path: string; // the page's node path (a directory or a chapter)
+  filename: string; // the source filename (sanitized + de-duplicated server-side)
+  contentBase64: string; // the file bytes, base64
+}
+
+/** Handle a paste/upload onto the node at `input.path`. Returns the new file's node path and,
+ *  for a chapter, the chapter path + the chunk pointer appended to it. */
+function handlePaste(dataRoot: string, s: Store, input: PasteInput): Record<string, unknown> {
+  const segs = strToSegs(input.path || "/");
+  const row = s.node(storePath(segs));
+  if (!row) throw new Error(`no such node: ${input.path}`);
+  const bytes = Buffer.from(input.contentBase64 || "", "base64");
+  if (bytes.length === 0) throw new Error("empty paste (no file bytes)");
+  const name = sanitizeName(input.filename);
+
+  if (row.format === "x-yamlover-chapter") return pasteIntoChapter(dataRoot, s, segs, name, bytes);
+
+  // a plain directory page: the file becomes a child of that directory.
+  const dir = path.resolve(dataRoot, ...segs.map(String));
+  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+    throw new Error("paste target is neither a directory nor a chapter");
+  }
+  const final = uniqueName(dir, name);
+  writeInside(dataRoot, dir, final, bytes);
+  return { path: segsToStr([...segs, final]) };
+}
+
+/** A chapter paste: write the file into the chapter's owning directory, then append a pointer to
+ *  it as the chapter's last chunk (editing the .yamlover source). The chapter is either directory-
+ *  backed (`.yamlover/body.yamlover`) or a standalone `*.yamlover` file. */
+function pasteIntoChapter(dataRoot: string, s: Store, segs: Seg[], name: string, bytes: Buffer): Record<string, unknown> {
+  const docSegs = documentRootSegs(s, segs);
+  const docFs = path.resolve(dataRoot, ...docSegs.map(String));
+  const dirBacked = fs.existsSync(docFs) && fs.statSync(docFs).isDirectory();
+
+  const bodyFile = dirBacked ? path.join(docFs, ".yamlover", "body.yamlover") : docFs;
+  if (!bodyFile.endsWith(".yamlover") || !fs.existsSync(bodyFile)) {
+    throw new Error("unsupported chapter source (need a .yamlover body)");
+  }
+  // the file lands in the doc-root dir (directory-backed) or beside the standalone chapter file.
+  const writeDirSegs = dirBacked ? docSegs : docSegs.slice(0, -1);
+  const writeDir = path.resolve(dataRoot, ...writeDirSegs.map(String));
+  const final = uniqueName(writeDir, name);
+  writeInside(dataRoot, writeDir, final, bytes);
+
+  // The chunk pointer: document-scoped (`*/file`) when the file sits inside the chapter's own
+  // document (directory-backed); else a project-root link (`*//dir/file`) reaching the sibling.
+  const fileSegs = [...writeDirSegs, final];
+  const pointer = dirBacked ? `*/${final}` : `*/${segsToStr(fileSegs)}`;
+  // The chapter's location WITHIN its document — alternating `children`,N pairs (empty = top-level).
+  const within = segs.slice(docSegs.length);
+  const src = fs.readFileSync(bodyFile, "utf8");
+  fs.writeFileSync(bodyFile, appendChunkPointer(src, within, pointer));
+  return { path: segsToStr(fileSegs), chapter: segsToStr(segs), pointer };
+}
+
+/** A safe filename: basename only, restricted charset, never hidden; defaults when empty. */
+function sanitizeName(raw: string): string {
+  const base = path.basename(String(raw || "")).replace(/[^A-Za-z0-9._-]/g, "_").replace(/^\.+/, "");
+  return base || "pasted";
+}
+
+/** `name`, or `name-1`/`name-2`/… if it already exists in `dir` (extension kept). */
+function uniqueName(dir: string, name: string): string {
+  if (!fs.existsSync(path.join(dir, name))) return name;
+  const ext = path.extname(name);
+  const stem = name.slice(0, name.length - ext.length);
+  for (let i = 1; ; i++) {
+    const cand = `${stem}-${i}${ext}`;
+    if (!fs.existsSync(path.join(dir, cand))) return cand;
+  }
+}
+
+/** Write `bytes` to `dir/name`, refusing any path that escapes the served root. */
+function writeInside(dataRoot: string, dir: string, name: string, bytes: Buffer): void {
+  const root = path.resolve(dataRoot);
+  const target = path.resolve(dir, name);
+  if (target !== root && !target.startsWith(root + path.sep)) throw new Error("target escapes the data root");
+  fs.writeFileSync(target, bytes);
+}
+
+// --- chapter chunk insertion (indentation-aware; the parser does not track spans) ------------ //
+// A directory body / standalone chapter is YAML-shaped: a mapping's keys at one indent, a
+// sequence's `- ` items at the SAME indent as their key, an item's mapping body at key-indent+2.
+// To reach a subchapter we descend `children:` sequences by index; then we append to `chunks:`.
+
+const indentOf = (line: string): number => { let i = 0; while (line[i] === " ") i++; return i; };
+const isContentLine = (line: string): boolean => { const t = line.trim(); return t.length > 0 && !t.startsWith("#"); };
+
+/** Append `- <pointer>` to the `chunks` list of the chapter at `chapterPath` (alternating
+ *  ["children", N, …] pairs; empty = the top-level chapter) within a .yamlover source. */
+function appendChunkPointer(text: string, chapterPath: Seg[], pointer: string): string {
+  const lines = text.split("\n");
+  let lo = 0;
+  let hi = lines.length;
+  let indent = firstContentIndent(lines); // the chapter mapping's key indent
+
+  for (let i = 0; i < chapterPath.length; i += 2) {
+    const idx = Number(chapterPath[i + 1]);
+    const key = findKeyLine(lines, lo, hi, indent, "children");
+    if (key < 0) throw new Error(`no 'children:' at indent ${indent}`);
+    const items = seqItems(lines, key + 1, hi, indent);
+    if (!(idx >= 0 && idx < items.length)) throw new Error(`children[${idx}] out of range (${items.length})`);
+    hi = idx + 1 < items.length ? items[idx + 1] : seqEnd(lines, key + 1, hi, indent);
+    lo = items[idx] + 1; // body starts past the `- ` marker (its inline key sits at the parent indent)
+    indent += 2;
+  }
+
+  const chunksKey = findKeyLine(lines, lo, hi, indent, "chunks");
+  if (chunksKey < 0) throw new Error(`no 'chunks:' at indent ${indent}`);
+  const end = seqEnd(lines, chunksKey + 1, hi, indent);
+  lines.splice(end, 0, `${" ".repeat(indent)}- ${pointer}`);
+  return lines.join("\n");
+}
+
+/** The indent of the first content line — the chapter mapping's key column. */
+function firstContentIndent(lines: string[]): number {
+  for (const l of lines) if (isContentLine(l)) return indentOf(l);
+  return 0;
+}
+
+/** Line index of `key:` at exactly `indent` within [lo,hi); -1 once the mapping ends (a dedent). */
+function findKeyLine(lines: string[], lo: number, hi: number, indent: number, key: string): number {
+  for (let i = lo; i < hi; i++) {
+    if (!isContentLine(lines[i])) continue;
+    const ind = indentOf(lines[i]);
+    if (ind < indent) return -1; // left the mapping
+    if (ind !== indent) continue; // deeper (a nested value / block scalar)
+    const t = lines[i].trim();
+    if (t === `${key}:` || t.startsWith(`${key}:`)) return i;
+  }
+  return -1;
+}
+
+/** Start lines of the `- ` items of a sequence whose items sit at `indent`, from `from`. */
+function seqItems(lines: string[], from: number, hi: number, indent: number): number[] {
+  const out: number[] = [];
+  for (let i = from; i < hi; i++) {
+    if (!isContentLine(lines[i])) continue;
+    const ind = indentOf(lines[i]);
+    if (ind < indent) break; // dedent → sequence ended
+    if (ind !== indent) continue; // deeper → the current item's body
+    const t = lines[i].trim();
+    if (t === "-" || t.startsWith("- ")) out.push(i);
+    else break; // a sibling key at the same indent → sequence ended
+  }
+  return out;
+}
+
+/** The line index that ends the sequence starting at `from` (a dedent below `indent`, or a
+ *  non-item sibling key at `indent`), skipping back over trailing blank lines. */
+function seqEnd(lines: string[], from: number, hi: number, indent: number): number {
+  let last = from;
+  for (let i = from; i < hi; i++) {
+    if (!isContentLine(lines[i])) continue;
+    const ind = indentOf(lines[i]);
+    if (ind < indent) return trimBack(lines, last, i);
+    if (ind === indent) {
+      const t = lines[i].trim();
+      if (t === "-" || t.startsWith("- ")) { last = i; continue; }
+      return trimBack(lines, last, i); // sibling key
+    }
+    last = i; // deeper: part of the current item
+  }
+  return trimBack(lines, last, hi);
+}
+
+/** Walk an end index back over trailing blank lines, so we insert right after the last item. */
+function trimBack(lines: string[], lastItemLine: number, end: number): number {
+  let e = end;
+  while (e > lastItemLine + 1 && !isContentLine(lines[e - 1])) e--;
+  return e;
 }
 
 /** Read a request body and parse it as JSON. */

@@ -89,6 +89,27 @@ export function saveAnnotation(a: { target: string; selector: Record<string, unk
   );
 }
 
+/** The result of pasting/uploading a file: the new file's node path, and (for a chapter) the
+ *  chapter it was added to plus the chunk pointer appended. */
+export interface PasteResult {
+  path: string; // the uploaded file's node path
+  chapter?: string; // the chapter the chunk was appended to (chapter paste only)
+  pointer?: string; // the `*…` chunk pointer appended (chapter paste only)
+}
+
+/** Upload a pasted file onto the page at `target` (a directory or a chapter). */
+export function pasteFile(target: string, filename: string, contentBase64: string): Promise<PasteResult> {
+  return fetch("/api/paste", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: target, filename, contentBase64 }),
+  }).then(async (res) => {
+    const body = await res.json();
+    if (!res.ok) throw new Error((body && body.error) || `HTTP ${res.status}`);
+    return body as PasteResult;
+  });
+}
+
 /** Delete the annotation at its node path (`/annotations/<id>.yamlover`). */
 export function deleteAnnotation(path: string): Promise<void> {
   return fetch(`/api/annotate?path=${encodeURIComponent(path)}`, { method: "DELETE" }).then(async (res) => {

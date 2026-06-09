@@ -147,6 +147,16 @@ export function App() {
     [current],
   );
 
+  // A paste/upload added a file (and maybe a chapter chunk) at `p`. Reload that branch of the TOC
+  // so a new directory child shows up; fall back to the root when the branch isn't loaded yet.
+  const onContentChanged = useCallback(
+    (p: string) => {
+      const target = tree ? findNode(tree, p) : null;
+      loadChildren(target ? p : "/").catch(() => {});
+    },
+    [tree, loadChildren],
+  );
+
   // --- draggable splitter -------------------------------------------------- //
   const dragging = useRef(false);
   useEffect(() => {
@@ -204,7 +214,7 @@ export function App() {
           }}
         />
         <main className="pane right">
-          <NodeView path={current} format={format} onFormat={changeFormat} onNavigate={navigate} />
+          <NodeView path={current} format={format} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} />
         </main>
       </div>
     </div>

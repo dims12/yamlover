@@ -409,6 +409,20 @@ a.chunk-index:hover {
   color: var(--dim);
   padding: 12px;
 }
+/* transient paste/upload status, pinned to the corner of the right pane */
+.paste-toast {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 1000;
+  padding: 8px 14px;
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font-size: 13px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
 
 /* ---- file renderers: image / html / pdf / djvu / markup ------------------ */
 .filemedia {

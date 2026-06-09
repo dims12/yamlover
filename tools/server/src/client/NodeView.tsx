@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useReducer, useState } from "react";
-import { fetchNode, fetchSchema, NodeJson } from "./api";
+import { fetchNode, fetchSchema, NodeJson, pasteFile } from "./api";
 import { getRenderer } from "./renderers/registry";
 import { AnnotatedMaterial } from "./renderers/annotate";
 
@@ -48,16 +48,54 @@ interface Props {
   format: Format;
   onFormat: (f: Format) => void;
   onNavigate: (path: string) => void;
+  /** Called after a paste/upload changed the tree at `path`, so the TOC branch can refresh. */
+  onContentChanged?: (path: string) => void;
+}
+
+const MIME_EXT: Record<string, string> = {
+  "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp",
+  "image/svg+xml": "svg", "image/bmp": "bmp", "image/tiff": "tiff", "application/pdf": "pdf",
+};
+
+/** The files carried by a clipboard paste (a file-manager copy fills `files`; a copied image
+ *  arrives as an `items` entry of kind "file"). */
+function clipboardFiles(e: ClipboardEvent): File[] {
+  const dt = e.clipboardData;
+  if (!dt) return [];
+  if (dt.files && dt.files.length) return Array.from(dt.files);
+  const out: File[] = [];
+  for (const it of Array.from(dt.items || [])) {
+    if (it.kind === "file") { const f = it.getAsFile(); if (f) out.push(f); }
+  }
+  return out;
+}
+
+/** A name for a pasted file — its own, else a synthesized one from its MIME type. */
+function pastedName(f: File): string {
+  if (f.name) return f.name;
+  return `pasted.${MIME_EXT[f.type] || "bin"}`;
+}
+
+/** Read a File as base64 (the bare payload, no data-URL prefix). */
+function fileToBase64(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1] || "");
+    r.onerror = () => reject(new Error("could not read file"));
+    r.readAsDataURL(f);
+  });
 }
 
 /** The RHS pane: one node shown in the selected representation. Every
  *  representation is one level deep; nested objects/arrays appear as
  *  `{ N keys }` / `[ M elements ]` hyperlinks you click to descend. */
-export function NodeView({ path, format, onFormat, onNavigate }: Props) {
+export function NodeView({ path, format, onFormat, onNavigate, onContentChanged }: Props) {
   const [node, setNode] = useState<NodeJson | null>(null); // header + data value
   const [schema, setSchema] = useState<unknown>(null);
   const [bin, setBin] = useState<unknown>(null); // base64 payload for a binary leaf
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0); // bumped to re-fetch the node after a paste
+  const [pasteMsg, setPasteMsg] = useState<string | null>(null); // transient upload status
   // Bumped by a renderer's bar `config` control (e.g. the markup width) after it writes a URL
   // param, so the whole node view re-renders and the rendered body picks up the new setting.
   const [, rerender] = useReducer((n: number) => n + 1, 0);
@@ -80,7 +118,42 @@ export function NodeView({ path, format, onFormat, onNavigate }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [path, reloadKey]);
+
+  // Paste-to-upload: on a directory or chapter page, pasting clipboard file(s) uploads them — the
+  // server drops the file into the directory, or appends it as a chapter chunk. Skipped while the
+  // focus is in a text field (so annotation notes still paste text normally).
+  useEffect(() => {
+    if (!node || node.type !== "object") return; // directories and chapters are object nodes
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      const files = clipboardFiles(e);
+      if (files.length === 0) return; // a plain text paste — leave it alone
+      e.preventDefault();
+      void uploadFiles(files);
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node, path]);
+
+  const uploadFiles = async (files: File[]) => {
+    try {
+      setPasteMsg(`uploading ${files.length} file${files.length > 1 ? "s" : ""}…`);
+      for (const f of files) {
+        const b64 = await fileToBase64(f);
+        await pasteFile(path, pastedName(f), b64);
+      }
+      setPasteMsg(files.length > 1 ? `uploaded ${files.length} files` : "uploaded");
+      setReloadKey((k) => k + 1); // re-fetch this page (new chunk / new directory child)
+      onContentChanged?.(path); // refresh the TOC branch
+      window.setTimeout(() => setPasteMsg(null), 1500);
+    } catch (err) {
+      setPasteMsg("paste failed: " + (err as Error).message);
+      window.setTimeout(() => setPasteMsg(null), 4000);
+    }
+  };
 
   // The browser tab reflects where you are: the node's schema title if it has one,
   // else its bare name (the last path segment), falling back to the app name at the
@@ -136,6 +209,7 @@ export function NodeView({ path, format, onFormat, onNavigate }: Props) {
 
   return (
     <div className="nodeview">
+      {pasteMsg && <div className="paste-toast">{pasteMsg}</div>}
       <div className="nodehead">
         <div className="nodemeta">
           <span className="tag">{node.type}</span>
