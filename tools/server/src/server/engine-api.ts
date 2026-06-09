@@ -475,14 +475,26 @@ function handlePaste(dataRoot: string, s: Store, input: PasteInput): Record<stri
 
   if (row.format === "x-yamlover-chapter") return pasteIntoChapter(dataRoot, s, segs, name, bytes);
 
-  // a plain directory page: the file becomes a child of that directory.
-  const dir = path.resolve(dataRoot, ...segs.map(String));
-  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
-    throw new Error("paste target is neither a directory nor a chapter");
-  }
+  // a directory page, or a MEMBER of one (any non-chapter node): the file lands in the nearest
+  // enclosing directory. `open` marks the member case — the page is not the directory, so the
+  // client opens the new file (on a directory page it just refreshes in place).
+  const dirSegs = nearestDirSegs(dataRoot, segs);
+  if (!dirSegs) throw new Error("no enclosing directory to paste into");
+  const dir = path.resolve(dataRoot, ...dirSegs.map(String));
   const final = uniqueName(dir, name);
   writeInside(dataRoot, dir, final, bytes);
-  return { path: segsToStr([...segs, final]) };
+  return { path: segsToStr([...dirSegs, final]), dir: segsToStr(dirSegs), open: dirSegs.length !== segs.length };
+}
+
+/** The nearest enclosing filesystem directory at or above `segs` (the node itself when it is a
+ *  directory, else its closest ancestor that is one), as segments; null if none under the root. */
+function nearestDirSegs(dataRoot: string, segs: Seg[]): Seg[] | null {
+  for (let i = segs.length; i >= 0; i--) {
+    const sub = segs.slice(0, i);
+    const abs = path.resolve(dataRoot, ...sub.map(String));
+    if (fs.existsSync(abs) && fs.statSync(abs).isDirectory()) return sub;
+  }
+  return null;
 }
 
 /** A chapter paste: write the file into the chapter's owning directory, then append a pointer to

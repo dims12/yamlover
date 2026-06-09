@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useReducer, useState } from "react";
-import { fetchNode, fetchSchema, NodeJson, pasteFile } from "./api";
+import { fetchNode, fetchSchema, NodeJson, pasteFile, PasteResult } from "./api";
 import { getRenderer } from "./renderers/registry";
 import { AnnotatedMaterial } from "./renderers/annotate";
 
@@ -120,11 +120,12 @@ export function NodeView({ path, format, onFormat, onNavigate, onContentChanged 
     };
   }, [path, reloadKey]);
 
-  // Paste-to-upload: on a directory or chapter page, pasting clipboard file(s) uploads them — the
-  // server drops the file into the directory, or appends it as a chapter chunk. Skipped while the
-  // focus is in a text field (so annotation notes still paste text normally).
+  // Paste-to-upload: pasting clipboard file(s) uploads them — the server drops the file into this
+  // directory (a directory page), appends it as a chapter chunk (a chapter page), or drops it into
+  // the nearest enclosing directory (any other page, i.e. a MEMBER of a directory). Skipped while
+  // the focus is in a text field (so annotation notes still paste text normally).
   useEffect(() => {
-    if (!node || node.type !== "object") return; // directories and chapters are object nodes
+    if (!node) return;
     const onPaste = (e: ClipboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
@@ -141,14 +142,23 @@ export function NodeView({ path, format, onFormat, onNavigate, onContentChanged 
   const uploadFiles = async (files: File[]) => {
     try {
       setPasteMsg(`uploading ${files.length} file${files.length > 1 ? "s" : ""}…`);
+      let last: PasteResult | null = null;
       for (const f of files) {
         const b64 = await fileToBase64(f);
-        await pasteFile(path, pastedName(f), b64);
+        last = await pasteFile(path, pastedName(f), b64);
       }
       setPasteMsg(files.length > 1 ? `uploaded ${files.length} files` : "uploaded");
-      setReloadKey((k) => k + 1); // re-fetch this page (new chunk / new directory child)
-      onContentChanged?.(path); // refresh the TOC branch
       window.setTimeout(() => setPasteMsg(null), 1500);
+      if (last?.open) {
+        // a member page: the file went to the enclosing directory — refresh its TOC branch and
+        // open the new file.
+        onContentChanged?.(last.dir ?? path);
+        onNavigate(last.path);
+      } else {
+        // a directory or chapter page: refresh in place so the new file / chunk shows.
+        setReloadKey((k) => k + 1);
+        onContentChanged?.(path);
+      }
     } catch (err) {
       setPasteMsg("paste failed: " + (err as Error).message);
       window.setTimeout(() => setPasteMsg(null), 4000);

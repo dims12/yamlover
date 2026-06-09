@@ -95,6 +95,8 @@ export interface PasteResult {
   path: string; // the uploaded file's node path
   chapter?: string; // the chapter the chunk was appended to (chapter paste only)
   pointer?: string; // the `*…` chunk pointer appended (chapter paste only)
+  dir?: string; // the enclosing directory the file landed in (directory/member paste)
+  open?: boolean; // true when the page was a MEMBER of a directory → open the new file
 }
 
 /** Upload a pasted file onto the page at `target` (a directory or a chapter). */
