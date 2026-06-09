@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchInfo, fetchTree, TreeNode } from "./api";
+import { fetchInfo, fetchTree, PasteResult, TreeNode } from "./api";
 import { Tree } from "./Tree";
 import { NodeView, Format, FORMATS, DEFAULT_FORMAT } from "./NodeView";
 import { rendererName } from "./renderers/registry";
@@ -157,6 +157,28 @@ export function App() {
     [tree, loadChildren],
   );
 
+  // A file pasted/dropped onto a directory MEMBER landed in the enclosing dir — open it. We fetch
+  // the dir's branch first (so the TOC shows the file AND we learn its type/format), then navigate
+  // to it in its renderer's view (an image opens as an image, not as data). Falls back to a plain
+  // navigate if the branch fetch fails.
+  const onOpenUploaded = useCallback(
+    async (result: PasteResult) => {
+      const dir = result.dir ?? "/";
+      try {
+        const sub = await fetchTree(dir, INITIAL_DEPTH);
+        setTree((t) => (t ? replaceChildren(t, dir, sub.children) : t));
+        const fileNode = sub.children.find((c) => c.path === result.path);
+        const f: Format = (fileNode ? rendererName(fileNode.type, fileNode.format) : null) ?? DEFAULT_FORMAT;
+        writeUrl(result.path, f, false);
+        setCurrent(result.path);
+        setFormat(f);
+      } catch {
+        navigate(result.path);
+      }
+    },
+    [navigate],
+  );
+
   // --- draggable splitter -------------------------------------------------- //
   const dragging = useRef(false);
   useEffect(() => {
@@ -214,7 +236,7 @@ export function App() {
           }}
         />
         <main className="pane right">
-          <NodeView path={current} format={format} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} />
+          <NodeView path={current} format={format} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} onOpenUploaded={onOpenUploaded} />
         </main>
       </div>
     </div>

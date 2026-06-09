@@ -409,6 +409,22 @@ a.chunk-index:hover {
   color: var(--dim);
   padding: 12px;
 }
+/* a full-window hint shown while dragging file(s) over the page (drop = upload). pointer-events:
+   none so the drag/drop events still reach the document listeners underneath. */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(24, 24, 37, 0.55);
+  border: 3px dashed var(--accent);
+  color: var(--fg);
+  font-size: 18px;
+  letter-spacing: 0.02em;
+}
 /* transient paste/upload status, pinned to the corner of the right pane */
 .paste-toast {
   position: fixed;

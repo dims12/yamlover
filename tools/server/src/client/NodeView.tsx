@@ -50,6 +50,8 @@ interface Props {
   onNavigate: (path: string) => void;
   /** Called after a paste/upload changed the tree at `path`, so the TOC branch can refresh. */
   onContentChanged?: (path: string) => void;
+  /** Called after a file was uploaded onto a directory MEMBER, to open the new file. */
+  onOpenUploaded?: (result: PasteResult) => void;
 }
 
 const MIME_EXT: Record<string, string> = {
@@ -89,13 +91,14 @@ function fileToBase64(f: File): Promise<string> {
 /** The RHS pane: one node shown in the selected representation. Every
  *  representation is one level deep; nested objects/arrays appear as
  *  `{ N keys }` / `[ M elements ]` hyperlinks you click to descend. */
-export function NodeView({ path, format, onFormat, onNavigate, onContentChanged }: Props) {
+export function NodeView({ path, format, onFormat, onNavigate, onContentChanged, onOpenUploaded }: Props) {
   const [node, setNode] = useState<NodeJson | null>(null); // header + data value
   const [schema, setSchema] = useState<unknown>(null);
   const [bin, setBin] = useState<unknown>(null); // base64 payload for a binary leaf
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0); // bumped to re-fetch the node after a paste
   const [pasteMsg, setPasteMsg] = useState<string | null>(null); // transient upload status
+  const [dragging, setDragging] = useState(false); // a file is being dragged over the window
   // Bumped by a renderer's bar `config` control (e.g. the markup width) after it writes a URL
   // param, so the whole node view re-renders and the rendered body picks up the new setting.
   const [, rerender] = useReducer((n: number) => n + 1, 0);
@@ -139,6 +142,39 @@ export function NodeView({ path, format, onFormat, onNavigate, onContentChanged 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node, path]);
 
+  // Drag-and-drop upload: dropping file(s) anywhere on the page uploads them by the SAME rules as
+  // paste (server decides: into this directory, as a chapter chunk, or into the enclosing folder).
+  // Listeners are document-wide so a drop is caught everywhere (and the browser's "open the file"
+  // default is suppressed); a `depth` counter keeps the overlay steady as the cursor crosses nested
+  // elements.
+  useEffect(() => {
+    if (!node) return;
+    const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types || []).includes("Files");
+    let depth = 0;
+    const onEnter = (e: DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); depth++; setDragging(true); };
+    const onOver = (e: DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = "copy"; };
+    const onLeave = () => { depth = Math.max(0, depth - 1); if (depth === 0) setDragging(false); };
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth = 0;
+      setDragging(false);
+      const files = Array.from(e.dataTransfer?.files || []);
+      if (files.length) void uploadFiles(files);
+    };
+    document.addEventListener("dragenter", onEnter);
+    document.addEventListener("dragover", onOver);
+    document.addEventListener("dragleave", onLeave);
+    document.addEventListener("drop", onDrop);
+    return () => {
+      document.removeEventListener("dragenter", onEnter);
+      document.removeEventListener("dragover", onOver);
+      document.removeEventListener("dragleave", onLeave);
+      document.removeEventListener("drop", onDrop);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node, path]);
+
   const uploadFiles = async (files: File[]) => {
     try {
       setPasteMsg(`uploading ${files.length} file${files.length > 1 ? "s" : ""}…`);
@@ -150,10 +186,9 @@ export function NodeView({ path, format, onFormat, onNavigate, onContentChanged 
       setPasteMsg(files.length > 1 ? `uploaded ${files.length} files` : "uploaded");
       window.setTimeout(() => setPasteMsg(null), 1500);
       if (last?.open) {
-        // a member page: the file went to the enclosing directory — refresh its TOC branch and
-        // open the new file.
-        onContentChanged?.(last.dir ?? path);
-        onNavigate(last.path);
+        // a member page: the file went to the enclosing directory — open it (App refreshes the TOC
+        // branch and navigates to the new file in its renderer view).
+        onOpenUploaded?.(last);
       } else {
         // a directory or chapter page: refresh in place so the new file / chunk shows.
         setReloadKey((k) => k + 1);
@@ -220,6 +255,7 @@ export function NodeView({ path, format, onFormat, onNavigate, onContentChanged 
   return (
     <div className="nodeview">
       {pasteMsg && <div className="paste-toast">{pasteMsg}</div>}
+      {dragging && <div className="drop-overlay">Drop file to upload</div>}
       <div className="nodehead">
         <div className="nodemeta">
           <span className="tag">{node.type}</span>
