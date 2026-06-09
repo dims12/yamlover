@@ -3,20 +3,23 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { NodeJson, blobUrl } from "../api";
 import { Chunk } from "./registry";
-import { DEFAULT_COLOR, useAnnotations, useRegionAnnotator } from "./annotate";
+import { Annotation } from "../api";
+import { DEFAULT_COLOR, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 import { wireGestures } from "./panzoom";
 
-/** A rectangular annotation region in the image's own pixel space (origin top-left). */
-export interface ImageRegion { x: number; y: number; w: number; h: number; title?: string; color?: string }
+/** A rectangular annotation region in the image's own pixel space (origin top-left). `ann` is the
+ *  source annotation when it is a real saved one (→ clickable to edit); absent for the live preview. */
+export interface ImageRegion { x: number; y: number; w: number; h: number; title?: string; color?: string; ann?: Annotation }
 
 const num = (v: unknown): number => Number(v) || 0;
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+const editable = (a: Annotation): boolean => !!a.path && a.path !== "(pending)" && a.path !== "(preview)";
 
-/** The `rect`-type annotations of `path`, as pixel regions to overlay on the image. */
-function useImageRegions(path: string, bump: number): ImageRegion[] {
-  return useAnnotations(path, bump)
+/** The `rect`-type annotations, as pixel regions to overlay on the image. */
+function imageRegions(anns: Annotation[]): ImageRegion[] {
+  return anns
     .filter((a) => a.selector?.type === "rect")
-    .map((a) => ({ x: num(a.selector!.x), y: num(a.selector!.y), w: num(a.selector!.w), h: num(a.selector!.h), title: a.body, color: str(a.selector!.color) }));
+    .map((a) => ({ x: num(a.selector!.x), y: num(a.selector!.y), w: num(a.selector!.w), h: num(a.selector!.h), title: a.body, color: str(a.selector!.color), ann: editable(a) ? a : undefined }));
 }
 
 /**
@@ -27,12 +30,13 @@ function useImageRegions(path: string, bump: number): ImageRegion[] {
  * wheel zooms. The map is built once (per `src`); regions redraw in place without resetting the view.
  */
 export function PanZoomImage({
-  src, className, regions, onSelectRegion, selectColor,
+  src, className, regions, onSelectRegion, onRegionClick, selectColor,
 }: {
   src: string;
   className: string;
   regions?: ImageRegion[];
   onSelectRegion?: (selector: Record<string, unknown>, screen: { x: number; y: number }) => void;
+  onRegionClick?: (ann: Annotation, screen: { x: number; y: number }) => void;
   selectColor?: () => string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -40,13 +44,14 @@ export function PanZoomImage({
   const layerRef = useRef<L.LayerGroup | null>(null);
   const sizeRef = useRef({ w: 1, h: 1 });
   const onSelectRef = useRef(onSelectRegion);
+  const onRegionClickRef = useRef(onRegionClick);
   const colorRef = useRef(selectColor);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(0); // bumps once the map (and its overlay layer) exist
   const regionsKey = JSON.stringify(regions ?? []);
   const selectable = !!onSelectRegion; // fixed per instance: full view annotates, chunk doesn't
 
-  useEffect(() => { onSelectRef.current = onSelectRegion; colorRef.current = selectColor; });
+  useEffect(() => { onSelectRef.current = onSelectRegion; onRegionClickRef.current = onRegionClick; colorRef.current = selectColor; });
 
   // Build the map once per src; gestures + the overlay layer live with it.
   useEffect(() => {
@@ -104,9 +109,13 @@ export function PanZoomImage({
       const c = r.color || DEFAULT_COLOR;
       // image y is from the top; CRS.Simple lat from the bottom, so flip y
       const rect = L.rectangle([[h - r.y, r.x], [h - (r.y + r.h), r.x + r.w]], {
-        className: "yo-region", color: c, weight: 2, fillColor: c, fillOpacity: 0.15,
+        className: "yo-region", color: c, weight: 3, fillColor: c, fillOpacity: 0.25,
       });
       if (r.title) rect.bindTooltip(r.title);
+      if (r.ann) {
+        const ann = r.ann;
+        rect.on("click", (ev) => { L.DomEvent.stop(ev); onRegionClickRef.current?.(ann, { x: ev.originalEvent.clientX, y: ev.originalEvent.clientY }); });
+      }
       rect.addTo(lg);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -121,17 +130,21 @@ export function PanZoomImage({
 }
 
 export function ImageView({ node }: { node: NodeJson }) {
-  const [bump, setBump] = useState(0);
-  const regions = useImageRegions(node.path, bump);
-  const { open, palette, color } = useRegionAnnotator(node.path, () => setBump((b) => b + 1));
+  const material = useMaterialAnnotations(node.path);
+  const { openCreate, openEdit, palette, preview, color } = useAnnotationMenu(material);
+  // include the live PREVIEW selector so the rectangle stays drawn while the menu is open
+  const shown = preview
+    ? [...material.annotations, { path: "(preview)", selector: { ...preview.selector, color: preview.color } } as Annotation]
+    : material.annotations;
   return (
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
       <PanZoomImage
         src={blobUrl(node.path)}
-        regions={regions}
-        onSelectRegion={open}
+        regions={imageRegions(shown)}
+        onSelectRegion={openCreate}
+        onRegionClick={openEdit}
         selectColor={() => color}
         className="filemap fileimagemap"
       />

@@ -88,3 +88,10 @@ export function saveAnnotation(a: { target: string; selector: Record<string, unk
     },
   );
 }
+
+/** Delete the annotation at its node path (`/annotations/<id>.yamlover`). */
+export function deleteAnnotation(path: string): Promise<void> {
+  return fetch(`/api/annotate?path=${encodeURIComponent(path)}`, { method: "DELETE" }).then(async (res) => {
+    if (!res.ok) throw new Error(((await res.json().catch(() => null))?.error) || `HTTP ${res.status}`);
+  });
+}

@@ -1,21 +1,20 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Annotation, fetchAnnotations, saveAnnotation } from "../api";
+import { Annotation, fetchAnnotations, saveAnnotation, deleteAnnotation } from "../api";
 
 /**
- * The annotation layer, shared across materials. The model is uniform everywhere (URIs.md / the
- * UI guide): you SELECT to annotate — drag-select text in prose, drag a rectangle on an image or
- * map — and a small floating palette appears by the selection:
+ * The annotation layer, shared across materials (the UI guide). You SELECT to annotate — drag-
+ * select text in prose or a PDF, drag a rectangle on an image or map — and a floating menu appears:
  *
- *   - a PALETTE of highlight colors; the last-used color is pre-selected and remembered.
- *   - (text only) a COPY button — copies the selected text, creates nothing.
- *   - a CANCEL (✕) button — dismisses, creates nothing.
+ *   - a PALETTE of colors; the last-used color is pre-selected. Click a swatch to annotate in it.
+ *   - a ✓ CONFIRM button — annotate in the pre-selected color (the explicit alternative to
+ *     clicking outside, which also commits).
+ *   - (text only) a ⧉ COPY button — copies the selected text, creates nothing.
+ *   - a 🗑 DISCARD button — drops the pending mark.
  *
- * The default is to KEEP the mark: clicking outside the menu commits in the pre-selected color;
- * only Copy or Cancel skip creation. Annotations are graph-native — saved server-side as yamlover
- * objects, reverse-linked to the material — so they persist across reload. This module owns the
- * shared palette (`AnnotationPalette`), the remembered color (`useAnnotationColor`), the save
- * helper (`createAnnotation`), and the TEXT wrapper (`AnnotatedMaterial`); the image/map/pdf
- * renderers import the palette + color + helper to offer the same flow over a dragged region.
+ * Clicking an EXISTING annotation reopens the menu in "edit" mode: a swatch RECOLORS it, 🗑 DELETES
+ * it, clicking away just closes. A new/edited mark renders IMMEDIATELY (optimistically) — it does
+ * not wait for the server round-trip (which reindexes). Annotations are graph-native — saved
+ * server-side as yamlover objects, reverse-linked to the material — so they persist on reload.
  */
 
 // Highlight palette (Catppuccin accents). The first is the historical default; the last-used color
@@ -24,9 +23,12 @@ export const PALETTE = ["#f9e2af", "#a6e3a1", "#89dceb", "#cba6f7", "#f5c2e7", "
 const COLOR_KEY = "yo-annotate-color";
 export const DEFAULT_COLOR = PALETTE[0];
 
-/** The remembered highlight color (persisted in localStorage) + a setter that persists it. The
- *  text wrapper and the region renderers share one remembered color, so picking green anywhere
- *  pre-selects green everywhere. */
+/** An annotation's saved color, or the default for legacy marks. */
+export function colorOf(a: Annotation): string {
+  return typeof a.selector?.color === "string" ? a.selector.color : DEFAULT_COLOR;
+}
+
+/** The remembered highlight color (persisted in localStorage) + a setter that persists it. */
 export function useAnnotationColor(): [string, (c: string) => void] {
   const [color, set] = useState<string>(() => localStorage.getItem(COLOR_KEY) || DEFAULT_COLOR);
   const setColor = (c: string) => { localStorage.setItem(COLOR_KEY, c); set(c); };
@@ -38,80 +40,7 @@ export function createAnnotation(target: string, selector: Record<string, unknow
   return saveAnnotation({ target, selector: { ...selector, color } });
 }
 
-/** The floating color menu, anchored at viewport point (x, y). `onPick(color)` commits in that
- *  color; `onCancel` dismisses; `onCopy` (text only) is shown when provided. The `color` prop is
- *  the pre-selected swatch (ringed). It is `position: fixed`, so x/y are viewport coordinates. */
-export function AnnotationPalette({
-  x, y, color, onPick, onCancel, onCopy, menuRef,
-}: {
-  x: number; y: number; color: string;
-  onPick: (c: string) => void; onCancel: () => void; onCopy?: () => void;
-  menuRef?: React.Ref<HTMLDivElement>;
-}) {
-  return (
-    <div ref={menuRef} className="annotate-menu" style={{ left: x, top: y }} role="menu">
-      <div className="annotate-palette">
-        {PALETTE.map((c) => (
-          <button
-            key={c}
-            type="button"
-            className={"annotate-swatch" + (c === color ? " sel" : "")}
-            style={{ background: c }}
-            title={"highlight " + c}
-            onClick={() => onPick(c)}
-          />
-        ))}
-      </div>
-      {onCopy && <button type="button" className="annotate-tool" title="copy text to clipboard (don't annotate)" onClick={onCopy}>⧉</button>}
-      <button type="button" className="annotate-tool" title="cancel (don't annotate)" onClick={onCancel}>✕</button>
-    </div>
-  );
-}
-
-/** Drives the floating palette for a dragged REGION (image / map), mirroring the text flow. The
- *  renderer calls `open(selector, screen)` when a rectangle is dragged; the returned `palette` node
- *  shows the swatches at that point. Picking a swatch — OR clicking outside the menu — commits in
- *  that / the pre-selected color (the default is to keep the mark); ✕ cancels. `onSaved` runs after
- *  a successful save so the renderer can refetch and redraw. Returns the live `color` too (for the
- *  rubber-band). No Copy button — a region has no text to copy. */
-export function useRegionAnnotator(
-  path: string,
-  onSaved: () => void,
-): { open: (selector: Record<string, unknown>, screen: { x: number; y: number }) => void; palette: ReactNode; color: string } {
-  const [color, setColor] = useAnnotationColor();
-  const [pending, setPending] = useState<{ selector: Record<string, unknown>; x: number; y: number } | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  const close = () => setPending(null);
-  const commit = (c: string) => {
-    if (!pending) return;
-    setColor(c);
-    createAnnotation(path, pending.selector, c).then(onSaved).catch((e) => window.alert("save failed: " + (e as Error).message));
-    close();
-  };
-
-  // Click outside the open menu → commit in the pre-selected color (default is to keep the mark).
-  useEffect(() => {
-    if (!pending) return;
-    const onDown = (e: MouseEvent) => {
-      if (menuRef.current?.contains(e.target as Node)) return;
-      commit(color);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pending, color]);
-
-  const open = (selector: Record<string, unknown>, screen: { x: number; y: number }) =>
-    setPending({ selector, x: screen.x, y: screen.y });
-  const palette = pending ? (
-    <AnnotationPalette menuRef={menuRef} x={pending.x} y={pending.y} color={color} onPick={commit} onCancel={close} />
-  ) : null;
-  return { open, palette, color };
-}
-
-/** Read-only fetch of a material's annotations; `bump` (a changing number) forces a refetch.
- *  The text wrapper, the image overlay, and the pdf overlay all source annotations through this. */
+/** Read-only fetch of a material's annotations; `bump` (a changing number) forces a refetch. */
 export function useAnnotations(path: string, bump = 0): Annotation[] {
   const [anns, setAnns] = useState<Annotation[]>([]);
   useEffect(() => {
@@ -124,99 +53,213 @@ export function useAnnotations(path: string, bump = 0): Annotation[] {
   return anns;
 }
 
-/** A captured text selection (resolved to a quote selector) plus where to float the menu. */
-interface PendingMark {
-  exact: string;
-  prefix: string;
-  suffix: string;
-  x: number; // viewport coords (the menu is position:fixed)
-  y: number;
+/** The actions every renderer needs over a material's annotations, with OPTIMISTIC rendering: a
+ *  create/recolor shows at once and a delete hides at once, before the (slow, reindexing) server
+ *  round-trip lands. */
+export interface MaterialAnnotations {
+  annotations: Annotation[];
+  create: (selector: Record<string, unknown>, color: string) => void;
+  remove: (annPath?: string) => void;
+  recolor: (ann: Annotation, color: string) => void;
+}
+
+/** A material's annotations + optimistic create/delete/recolor. The displayed list merges the
+ *  server's annotations with pending creations (shown until the refetch holds them) minus pending
+ *  deletions (hidden until the refetch drops them) — so every change is reflected instantly. */
+export function useMaterialAnnotations(path: string): MaterialAnnotations {
+  const [bump, setBump] = useState(0);
+  const fetched = useAnnotations(path, bump);
+  const [optimistic, setOptimistic] = useState<Annotation[]>([]); // created, not yet in `fetched`
+  const [deleted, setDeleted] = useState<Set<string>>(new Set());  // paths hidden, not yet dropped
+
+  // Reconcile when the server list refreshes: drop optimistic creations it now holds, and keep a
+  // path "deleted" only while the server still lists it (so a recolor's old copy can't flash back).
+  useEffect(() => {
+    const keys = new Set(fetched.map((a) => JSON.stringify(a.selector ?? {})));
+    setOptimistic((o) => o.filter((a) => !keys.has(JSON.stringify(a.selector ?? {}))));
+    const present = new Set(fetched.map((a) => a.path).filter(Boolean) as string[]);
+    setDeleted((d) => new Set([...d].filter((p) => present.has(p))));
+  }, [fetched]);
+
+  const refresh = () => setBump((b) => b + 1);
+  const create = (selector: Record<string, unknown>, color: string) => {
+    setOptimistic((o) => [...o, { path: "(pending)", selector: { ...selector, color } } as Annotation]);
+    createAnnotation(path, selector, color).then(refresh).catch((e) => window.alert("save failed: " + (e as Error).message));
+  };
+  const remove = (annPath?: string) => {
+    if (!annPath || annPath === "(pending)") return;
+    setDeleted((d) => new Set(d).add(annPath));
+    deleteAnnotation(annPath).then(refresh).catch((e) => window.alert("delete failed: " + (e as Error).message));
+  };
+  const recolor = (ann: Annotation, color: string) => {
+    const sel: Record<string, unknown> = { ...(ann.selector ?? {}) };
+    delete sel.color;
+    remove(ann.path); // hide + delete the old
+    create(sel, color); // show + save the new color
+  };
+
+  const seen = new Set<string>();
+  const annotations: Annotation[] = [];
+  for (const a of [...optimistic, ...fetched]) {
+    if (a.path && deleted.has(a.path)) continue;
+    const k = JSON.stringify(a.selector ?? {});
+    if (seen.has(k)) continue;
+    seen.add(k);
+    annotations.push(a);
+  }
+  return { annotations, create, remove, recolor };
+}
+
+/** The floating menu — a palette plus action buttons. Mode decides which buttons show (the hook
+ *  wires what each does): `create` gets ✓ confirm + optional ⧉ copy + 🗑 discard; `edit` gets just
+ *  🗑 delete (a swatch recolors). `position: fixed`, so x/y are viewport coords. */
+export function AnnotationMenu({
+  x, y, color, mode, onPick, onConfirm, onCopy, onTrash, menuRef,
+}: {
+  x: number; y: number; color: string; mode: "create" | "edit";
+  onPick: (c: string) => void; onConfirm?: () => void; onCopy?: () => void; onTrash: () => void;
+  menuRef?: React.Ref<HTMLDivElement>;
+}) {
+  return (
+    <div ref={menuRef} className="annotate-menu" style={{ left: x, top: y }} role="menu">
+      <div className="annotate-palette">
+        {PALETTE.map((c) => (
+          <button
+            key={c}
+            type="button"
+            className={"annotate-swatch" + (c === color ? " sel" : "")}
+            style={{ background: c }}
+            title={mode === "edit" ? "recolor " + c : "highlight " + c}
+            onClick={() => onPick(c)}
+          />
+        ))}
+      </div>
+      {onConfirm && <button type="button" className="annotate-tool ok" title="annotate (keep the mark)" onClick={onConfirm}>✓</button>}
+      {onCopy && <button type="button" className="annotate-tool" title="copy text to clipboard (don't annotate)" onClick={onCopy}>⧉</button>}
+      <button type="button" className="annotate-tool danger" title={mode === "edit" ? "delete this annotation" : "discard (don't annotate)"} onClick={onTrash}>🗑</button>
+    </div>
+  );
+}
+
+type MenuState =
+  | { mode: "create"; selector: Record<string, unknown>; copy?: () => void; x: number; y: number }
+  | { mode: "edit"; ann: Annotation; x: number; y: number };
+
+/** Drives the floating menu for a material: `openCreate` after a fresh selection, `openEdit` on a
+ *  click on an existing mark. Returns the rendered `palette`, and a `preview` selector (the pending
+ *  CREATE, so a renderer can keep the rectangle drawn while the menu is open). Outside-click commits
+ *  a create (in the pre-selected color) but only closes an edit. */
+export function useAnnotationMenu(a: MaterialAnnotations): {
+  openCreate: (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void) => void;
+  openEdit: (ann: Annotation, screen: { x: number; y: number }) => void;
+  palette: ReactNode;
+  preview: { selector: Record<string, unknown>; color: string } | null;
+  color: string;
+} {
+  const [color, setColor] = useAnnotationColor();
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const close = () => setMenu(null);
+
+  const openCreate = (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void) =>
+    setMenu({ mode: "create", selector, copy, x: screen.x, y: screen.y });
+  const openEdit = (ann: Annotation, screen: { x: number; y: number }) =>
+    setMenu({ mode: "edit", ann, x: screen.x, y: screen.y });
+
+  const commitCreate = (c: string, m: MenuState) => { if (m.mode !== "create") return; setColor(c); a.create(m.selector, c); close(); };
+  const commitRecolor = (c: string, m: MenuState) => { if (m.mode !== "edit") return; setColor(c); a.recolor(m.ann, c); close(); };
+
+  // Outside-click: a create commits in the pre-selected color (default keeps the mark); an edit closes.
+  useEffect(() => {
+    if (!menu) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current?.contains(e.target as Node)) return;
+      if (menu.mode === "create") commitCreate(color, menu);
+      else close();
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menu, color]);
+
+  let palette: ReactNode = null;
+  if (menu?.mode === "create") {
+    palette = (
+      <AnnotationMenu
+        menuRef={menuRef} x={menu.x} y={menu.y} color={color} mode="create"
+        onPick={(c) => commitCreate(c, menu)}
+        onConfirm={() => commitCreate(color, menu)}
+        onCopy={menu.copy ? () => { menu.copy!(); close(); } : undefined}
+        onTrash={close}
+      />
+    );
+  } else if (menu?.mode === "edit") {
+    palette = (
+      <AnnotationMenu
+        menuRef={menuRef} x={menu.x} y={menu.y} color={colorOf(menu.ann)} mode="edit"
+        onPick={(c) => commitRecolor(c, menu)}
+        onTrash={() => { a.remove(menu.ann.path); close(); }}
+      />
+    );
+  }
+  const preview = menu?.mode === "create" ? { selector: menu.selector, color } : null;
+  return { openCreate, openEdit, palette, preview, color };
 }
 
 export function AnnotatedMaterial({ path, children }: { path: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [bump, setBump] = useState(0);
-  const [pending, setPending] = useState<PendingMark | null>(null);
-  const [color, setColor] = useAnnotationColor();
-  const anns = useAnnotations(path, bump);
+  const material = useMaterialAnnotations(path);
+  const { openCreate, openEdit, palette } = useAnnotationMenu(material);
+  const { annotations } = material;
 
   // Re-highlight after each render: the material (esp. a chapter's chunks) may settle a tick
   // after mount, so do it on a frame and clear any prior marks first.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const raf = requestAnimationFrame(() => highlight(el, anns));
+    const raf = requestAnimationFrame(() => highlight(el, annotations));
     return () => cancelAnimationFrame(raf);
   });
 
-  // Selecting text inside the material raises the menu by the selection. We listen on `mouseup`
-  // (the selection is final by then); a mouseup landing inside the open menu is ignored so its
-  // own buttons fire normally.
+  // A finished text selection inside the material raises the CREATE menu by the selection.
   useEffect(() => {
     const onUp = (e: MouseEvent) => {
       const el = ref.current;
       if (!el) return;
-      if (menuRef.current?.contains(e.target as Node)) return; // a click within the menu, not a new selection
+      if ((e.target as HTMLElement)?.closest?.(".annotate-menu")) return; // a menu click, not a selection
+      if ((e.target as HTMLElement)?.closest?.("mark.yo-annotation")) return; // a mark click → handled by onClick
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed || !sel.anchorNode || !el.contains(sel.anchorNode)) return;
       const cap = capture(sel);
       if (!cap) return;
       const rect = sel.getRangeAt(0).getBoundingClientRect();
-      setPending({ ...cap, x: rect.left, y: rect.bottom + 6 });
+      const copy = () => navigator.clipboard?.writeText(cap.exact).catch(() => { /* clipboard blocked */ });
+      openCreate({ type: "text", exact: cap.exact, prefix: cap.prefix, suffix: cap.suffix }, { x: rect.left, y: rect.bottom + 6 }, copy);
     };
     document.addEventListener("mouseup", onUp);
     return () => document.removeEventListener("mouseup", onUp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const close = () => {
-    window.getSelection()?.removeAllRanges();
-    setPending(null);
+  // Clicking an existing highlight opens the EDIT menu for that annotation.
+  const onClickMark = (e: React.MouseEvent) => {
+    const mark = (e.target as HTMLElement).closest("mark.yo-annotation") as HTMLElement | null;
+    if (!mark) return;
+    const ann = annotations.find((x) => JSON.stringify(x.selector ?? {}) === mark.dataset.annSel);
+    if (!ann || !ann.path || ann.path === "(pending)") return;
+    e.preventDefault();
+    openEdit(ann, { x: e.clientX, y: e.clientY });
   };
-
-  /** Persist the pending mark in `c` and remember `c` as the new default color. */
-  const commit = (c: string) => {
-    if (!pending) return;
-    setColor(c);
-    createAnnotation(path, { type: "text", exact: pending.exact, prefix: pending.prefix, suffix: pending.suffix }, c)
-      .then(() => setBump((b) => b + 1))
-      .catch((e) => window.alert("save failed: " + (e as Error).message));
-    close();
-  };
-
-  const onCopy = () => {
-    if (pending) navigator.clipboard?.writeText(pending.exact).catch(() => { /* clipboard blocked — no-op */ });
-    close();
-  };
-
-  // While the menu is open, a mousedown OUTSIDE it commits the mark in the pre-selected color —
-  // the default is to keep the highlight. (A mousedown inside the menu is a button press; its own
-  // onClick handles it.) Re-subscribed on [pending, color] so it commits the current pending/color.
-  useEffect(() => {
-    if (!pending) return;
-    const onDown = (e: MouseEvent) => {
-      if (menuRef.current?.contains(e.target as Node)) return;
-      commit(color);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pending, color]);
 
   return (
     <div className="annotated">
-      {anns.length > 0 && (
+      {annotations.length > 0 && (
         <div className="annotate-bar">
-          <span className="annotate-count">{anns.length} annotation{anns.length > 1 ? "s" : ""}</span>
+          <span className="annotate-count">{annotations.length} annotation{annotations.length > 1 ? "s" : ""}</span>
         </div>
       )}
-      <div ref={ref}>{children}</div>
-      {pending && (
-        <AnnotationPalette
-          menuRef={menuRef} x={pending.x} y={pending.y} color={color}
-          onPick={commit} onCopy={onCopy} onCancel={close}
-        />
-      )}
+      <div ref={ref} onClick={onClickMark}>{children}</div>
+      {palette}
     </div>
   );
 }
@@ -243,13 +286,14 @@ function highlight(container: HTMLElement, anns: Annotation[]): void {
   });
   for (const a of anns) {
     if (a.selector?.type !== "text" || !a.selector.exact) continue;
-    wrapFirst(container, a.selector.exact, a.body, typeof a.selector.color === "string" ? a.selector.color : undefined);
+    wrapFirst(container, a.selector.exact, a);
   }
 }
 
-/** Wrap the first text occurrence of `exact` (within a single text node) in a colored `<mark>`. */
-function wrapFirst(container: HTMLElement, exact: string, body?: string, color?: string): void {
-  const c = color || DEFAULT_COLOR;
+/** Wrap the first text occurrence of an annotation's `exact` (within one text node) in a colored,
+ *  clickable `<mark>` carrying its selector key (so a click maps back to the annotation). */
+function wrapFirst(container: HTMLElement, exact: string, a: Annotation): void {
+  const c = colorOf(a);
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   let n: Node | null;
   while ((n = walker.nextNode())) {
@@ -262,7 +306,8 @@ function wrapFirst(container: HTMLElement, exact: string, body?: string, color?:
     mark.className = "yo-annotation";
     mark.style.backgroundColor = c + "4d"; // ~30% alpha (#rrggbb → #rrggbbAA)
     mark.style.borderBottomColor = c;
-    if (body) mark.title = body;
+    mark.dataset.annSel = JSON.stringify(a.selector ?? {});
+    mark.title = a.body || "click to recolor or delete";
     try {
       range.surroundContents(mark); // works when the match is within one text node (v1)
       return;

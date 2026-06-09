@@ -63,7 +63,7 @@ plus **⌘** on a Mac).
 
 | Gesture | Prose (text) | Image / Map | PDF / DjVu |
 |---|---|---|---|
-| **drag** | select text → annotate | drag a rectangle → annotate the region | (PDF) select text |
+| **drag** | select text → annotate | drag a rectangle → annotate the region | (PDF) select text → annotate |
 | **Ctrl/Alt + drag** | — | **pan** the canvas | — |
 | **wheel** | scroll | **pan vertically** | scroll |
 | **Ctrl/Alt + wheel** | — | **zoom** (around the cursor) | **zoom** (page width) |
@@ -84,24 +84,31 @@ Notes:
 
 An annotation marks a piece of a material and is saved as a first-class node in the graph
 (a `$defs/annotation` object), reverse-linked to the material — so it persists across reloads
-and shows up wherever the material is read. The flow is the **same for prose, images, and
-maps**: you **select**, then pick a color.
+and shows up wherever the material is read. The flow is the **same for prose, images, maps,
+and PDFs**: you **select**, then pick a color.
 
 1. **Select** the thing to mark:
-   - **Prose** — drag to select text.
+   - **Prose / PDF** — drag to select text.
    - **Image / Map** — drag a rectangle over the region.
-2. A small **palette** pops up by the selection:
+2. A small **palette** pops up by the selection. The selected text / dragged rectangle stays
+   shown while it's open, so it's clear what you're marking. The buttons:
    - **Color swatches** — click one to create the annotation in that color. The **last color
      you used is pre-selected** and remembered, so repeated marks stay one color.
+   - **✓ Confirm** — create in the pre-selected color (the explicit alternative to clicking away).
    - **⧉ Copy** (prose only) — copies the selected text to the clipboard and creates **no**
      annotation.
-   - **✕ Cancel** — dismisses without creating anything.
-3. **The default is to keep the mark:** clicking anywhere outside the menu commits the
-   annotation in the pre-selected color. Only **Copy** or **Cancel** skip creation.
+   - **🗑 Discard** — drops the pending mark, creating nothing.
+3. **The default is to keep the mark:** clicking anywhere outside the menu also commits in the
+   pre-selected color. Only **Copy** or **Discard** skip creation.
 
-Saved marks render in their color — a highlight under prose, a colored rectangle over an
-image, map, PDF, or DjVu region — and a count shows above the material. Hover a mark to see
-its note (when it has one).
+A new mark appears **immediately** — it doesn't wait for the save round-trip. Saved marks
+render in their color — a highlight under prose, a colored rectangle over an image, map, PDF,
+or DjVu region — and a count shows above the material.
+
+**To recolor or delete an annotation, click it.** The same palette reopens in *edit* mode, with
+the annotation's current color pre-selected: click a swatch to **recolor**, or **🗑** to **delete**
+it; clicking away just closes. (Only annotations made here — files under `<root>/annotations/` —
+can be edited this way.)
 
 Annotations are written under `<root>/annotations/` as ordinary `.yamlover` files (one per
 annotation), pointing at the material with a project-scoped pointer. They are data: you can

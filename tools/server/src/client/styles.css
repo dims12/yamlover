@@ -666,19 +666,40 @@ a.chunk-index:hover {
   outline-offset: 1px;
 }
 .annotate-tool {
-  background: none;
-  border: none;
-  color: var(--dim);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 24px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--fg);
   font: inherit;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1;
-  padding: 2px 4px;
-  border-radius: 4px;
+  padding: 0 6px;
+  border-radius: 5px;
   cursor: pointer;
 }
 .annotate-tool:hover {
-  color: var(--fg);
-  background: var(--bg);
+  border-color: var(--dim);
+}
+/* the explicit ✓ confirm (commit) and 🗑 discard/delete — clearly distinct, accent-tinted */
+.annotate-tool.ok {
+  color: #a6e3a1;
+  border-color: rgba(166, 227, 161, 0.5);
+}
+.annotate-tool.ok:hover {
+  background: rgba(166, 227, 161, 0.18);
+  border-color: #a6e3a1;
+}
+.annotate-tool.danger {
+  color: #f38ba8;
+  border-color: rgba(243, 139, 168, 0.5);
+}
+.annotate-tool.danger:hover {
+  background: rgba(243, 139, 168, 0.18);
+  border-color: #f38ba8;
 }
 /* a region annotation drawn over a PDF page (the image overlay uses a Leaflet rectangle) */
 .pdf-page {
@@ -689,7 +710,11 @@ a.chunk-index:hover {
   box-sizing: border-box;
   border: 2px solid #f9e2af;
   background: rgba(249, 226, 175, 0.18);
-  cursor: help;
+  pointer-events: none; /* the live preview must not block selecting text under it */
+}
+.pdf-region.editable {
+  pointer-events: auto; /* a saved region is clickable → the edit menu */
+  cursor: pointer;
 }
 mark.yo-annotation {
   /* background-color + border-bottom-color are set inline from the annotation's selector.color
@@ -715,7 +740,7 @@ mark.yo-annotation {
   cursor: crosshair;
 }
 .leaflet-interactive.yo-region {
-  cursor: help;
+  cursor: pointer; /* click a region → the edit menu (recolor / delete) */
 }
 /* Leaflet popups carry the feature's (often HTML) KML description */
 .map-popup-desc {

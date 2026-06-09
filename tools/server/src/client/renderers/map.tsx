@@ -4,7 +4,8 @@ import "leaflet/dist/leaflet.css";
 import { NodeJson, blobUrl } from "../api";
 import { Chunk } from "./registry";
 import { bytesToGeoJSON, GeoJSON } from "./kml";
-import { DEFAULT_COLOR, useAnnotations, useRegionAnnotator } from "./annotate";
+import { Annotation } from "../api";
+import { DEFAULT_COLOR, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 import { wireGestures } from "./panzoom";
 
 /**
@@ -31,16 +32,18 @@ const TILE_ATTRIBUTION =
   ((import.meta as any).env?.VITE_MAP_TILE_ATTRIBUTION as string | undefined) ??
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
-/** A rectangular annotation region on the map, in geographic edges (degrees). */
-interface MapRegion { n: number; s: number; e: number; w: number; title?: string; color?: string }
+/** A rectangular annotation region on the map, in geographic edges (degrees). `ann` is the source
+ *  annotation when it is a real saved one (→ clickable to edit); absent for the live preview. */
+interface MapRegion { n: number; s: number; e: number; w: number; title?: string; color?: string; ann?: Annotation }
 const num = (v: unknown): number => Number(v) || 0;
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+const editable = (a: Annotation): boolean => !!a.path && a.path !== "(pending)" && a.path !== "(preview)";
 
-/** The `map`-type annotations of `path`, as geographic rectangles to overlay. */
-function useMapRegions(path: string, bump: number): MapRegion[] {
-  return useAnnotations(path, bump)
+/** The `map`-type annotations, as geographic rectangles to overlay. */
+function mapRegions(anns: Annotation[]): MapRegion[] {
+  return anns
     .filter((a) => a.selector?.type === "map")
-    .map((a) => ({ n: num(a.selector!.n), s: num(a.selector!.s), e: num(a.selector!.e), w: num(a.selector!.w), title: a.body, color: str(a.selector!.color) }));
+    .map((a) => ({ n: num(a.selector!.n), s: num(a.selector!.s), e: num(a.selector!.e), w: num(a.selector!.w), title: a.body, color: str(a.selector!.color), ann: editable(a) ? a : undefined }));
 }
 
 function escapeHtml(s: string): string {
@@ -96,18 +99,20 @@ function drawMap(el: HTMLElement, geo: GeoJSON): L.Map {
 /** Fetch the file, convert to GeoJSON, and render a Leaflet map into `className`.
  *  Shared by the full page and the inline chunk (which only differ in height/CSS + annotation). */
 function MapBody({
-  path, className, regions, onSelectRegion, selectColor,
+  path, className, regions, onSelectRegion, onRegionClick, selectColor,
 }: {
   path: string;
   className: string;
   regions?: MapRegion[];
   onSelectRegion?: (selector: Record<string, unknown>, screen: { x: number; y: number }) => void;
+  onRegionClick?: (ann: Annotation, screen: { x: number; y: number }) => void;
   selectColor?: () => string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
   const onSelectRef = useRef(onSelectRegion);
+  const onRegionClickRef = useRef(onRegionClick);
   const colorRef = useRef(selectColor);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,7 +120,7 @@ function MapBody({
   const regionsKey = JSON.stringify(regions ?? []);
   const selectable = !!onSelectRegion;
 
-  useEffect(() => { onSelectRef.current = onSelectRegion; colorRef.current = selectColor; });
+  useEffect(() => { onSelectRef.current = onSelectRegion; onRegionClickRef.current = onRegionClick; colorRef.current = selectColor; });
 
   useEffect(() => {
     let cancelled = false;
@@ -161,8 +166,12 @@ function MapBody({
     lg.clearLayers();
     for (const r of regions ?? []) {
       const c = r.color || DEFAULT_COLOR;
-      const rect = L.rectangle([[r.s, r.w], [r.n, r.e]], { className: "yo-region", color: c, weight: 2, fillColor: c, fillOpacity: 0.15 });
+      const rect = L.rectangle([[r.s, r.w], [r.n, r.e]], { className: "yo-region", color: c, weight: 3, fillColor: c, fillOpacity: 0.25 });
       if (r.title) rect.bindTooltip(r.title);
+      if (r.ann) {
+        const ann = r.ann;
+        rect.on("click", (ev) => { L.DomEvent.stop(ev); onRegionClickRef.current?.(ann, { x: ev.originalEvent.clientX, y: ev.originalEvent.clientY }); });
+      }
       rect.addTo(lg);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -178,14 +187,16 @@ function MapBody({
 }
 
 export function MapView({ node }: { node: NodeJson }) {
-  const [bump, setBump] = useState(0);
-  const regions = useMapRegions(node.path, bump);
-  const { open, palette, color } = useRegionAnnotator(node.path, () => setBump((b) => b + 1));
+  const material = useMaterialAnnotations(node.path);
+  const { openCreate, openEdit, palette, preview, color } = useAnnotationMenu(material);
+  const shown = preview
+    ? [...material.annotations, { path: "(preview)", selector: { ...preview.selector, color: preview.color } } as Annotation]
+    : material.annotations;
   return (
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <MapBody path={node.path} regions={regions} onSelectRegion={open} selectColor={() => color} className="filemap" />
+      <MapBody path={node.path} regions={mapRegions(shown)} onSelectRegion={openCreate} onRegionClick={openEdit} selectColor={() => color} className="filemap" />
       {palette}
     </div>
   );

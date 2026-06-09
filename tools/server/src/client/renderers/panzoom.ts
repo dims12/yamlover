@@ -49,7 +49,8 @@ export function wireGestures(map: L.Map, opts: GestureOptions): () => void {
       start = e.latlng; // plain drag → rubber-band a selection
       startPt = e.containerPoint;
       const c = opts.color?.() ?? "#f9e2af";
-      band = L.rectangle(L.latLngBounds(e.latlng, e.latlng), { className: "yo-band", color: c, weight: 1, fillColor: c, fillOpacity: 0.18, interactive: false }).addTo(map);
+      // a bold dashed "marching ants" rubber-band so the selection is clearly visible over a busy map
+      band = L.rectangle(L.latLngBounds(e.latlng, e.latlng), { className: "yo-band", color: c, weight: 3, dashArray: "6 4", fillColor: c, fillOpacity: 0.25, interactive: false }).addTo(map);
       L.DomUtil.disableTextSelection();
     }
   };
