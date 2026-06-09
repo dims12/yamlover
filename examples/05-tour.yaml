@@ -1,6 +1,8 @@
 # ============================================================================
-# 05 — YAML.  YAML ⊂ yamlover.  Same data as the json trio, as a plain YAML file.
-# This is the "file" instance concrete: one text file holds the whole instance.
+# 05 — YAML.  YAML ⊂ yamlover.  The "file" instance concrete: one text file holds
+# the whole instance. The `pets` / `humans` core is the SAME data as the json trio
+# (01–03); the `types` section below tours YAML's scalar & collection types — all of
+# which yamlover inherits unchanged.
 #
 # YAML already has anchors (&) and aliases (*) for INTRA-document sharing — a real
 # reference, not a copy. But that is YAML's ceiling: no path pointers, no scopes/
@@ -19,3 +21,35 @@ humans:
   - name: Alice
     manager: *whiskers # YAML alias: the SAME node as pets[1], shared by anchor name
                        # (YAML can share by &/* name, but cannot say "*/pets[1]" by path)
+
+# ---- a tour of YAML scalar & collection types (the JSON types, plus YAML's own) ----
+types:
+  # scalars — the type is INFERRED from the plain form
+  integer:    42                  # int
+  negative:   -7
+  float:      3.14                # float
+  scientific: 6.022e23            # exponent form
+  hex:        0xFF                # hexadecimal (= 255)
+  boolean:    true                # true / false
+  disabled:   false
+  nothing:    ~                   # null, written as `~`
+  empty:      null                # null, written out
+
+  # strings — three inline styles
+  plain:      just text           # plain (unquoted)
+  single:     'single ''quoted''' # single-quoted (doubled '' = one ')
+  double:     "she said \"hi\" — ok" # double-quoted (escapes: \" = quote, — = em dash)
+
+  # strings — block styles
+  literal: |                      # literal block: newlines KEPT
+    line one
+    line two
+  folded: >                       # folded block: newlines become spaces
+    these three lines
+    fold into
+    one paragraph
+
+  # collections — flow (inline) form
+  flowseq: [red, green, blue]     # flow sequence
+  flowmap: {x: 1, y: 2}           # flow mapping
+  mixed:   [1, two, true, ~]      # a sequence of mixed scalar types

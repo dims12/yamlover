@@ -46,10 +46,11 @@ function lex(raw: string[]): Line[] {
 }
 
 function stripComment(s: string): string {
-  let inS = false;
-  let inD = false;
+  let inS = false; // inside a single-quoted scalar ('' is the only escape — net no toggle)
+  let inD = false; // inside a double-quoted scalar (backslash escapes the next char, incl. \" and \\)
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
+    if (inD && c === '\\') { i++; continue; } // skip the escaped char so \" / \\ don't end the string
     if (c === "'" && !inD) inS = !inS;
     else if (c === '"' && !inS) inD = !inD;
     else if (c === '#' && !inS && !inD && (i === 0 || s[i - 1] === ' ' || s[i - 1] === '\t')) {

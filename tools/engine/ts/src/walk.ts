@@ -34,10 +34,15 @@ export interface WalkOptions {
 
 /** Walk a directory (absolute path) into an IR Document (concrete: "directory"). */
 export function walkDir(absDir: string, opts: WalkOptions = {}): Document {
-  const root = dirNode(absDir, opts);
+  // Anchors live per parsed file (YAML `&name`), but resolution runs over the whole assembled
+  // tree — so collect every file's anchors here, keyed by name → the anchored Node (the same
+  // object that ends up in the tree). Names are treated as tree-global (a YAML anchor is really
+  // intra-document; collisions across files would shadow — unique in practice).
+  const anchors = new Map<string, Node>();
+  const root = dirNode(absDir, opts, anchors);
   root.meta = { ...root.meta, documentRoot: true }; // the served root is always a document root
   applySchemas(root, findDefsRoot(absDir)); // propagate attached !!<…> schemas down the instance
-  return { root, anchors: new Map(), source: { concrete: 'directory', uri: absDir } };
+  return { root, anchors, source: { concrete: 'directory', uri: absDir } };
 }
 
 /** Build the index DB for a directory tree: walk → IR → SQLite at <root>/.yamlover/index.db.
@@ -67,8 +72,9 @@ function loadMeta(dir: string): Meta {
   }
 }
 
-/** A directory → a Mapping node: one entry per file/subdir, then the body.yamlover overlay. */
-function dirNode(dir: string, opts: WalkOptions): Node {
+/** A directory → a Mapping node: one entry per file/subdir, then the body.yamlover overlay.
+ *  Collected anchors from any parsed children/overlay are merged into `anchors`. */
+function dirNode(dir: string, opts: WalkOptions, anchors: Map<string, Node>): Node {
   const meta = loadMeta(dir);
   const names = fs
     .readdirSync(dir)
@@ -78,18 +84,18 @@ function dirNode(dir: string, opts: WalkOptions): Node {
 
   const entries: Entry[] = [];
   for (const name of names) {
-    const child = childNode(path.join(dir, name), meta[name], opts);
+    const child = childNode(path.join(dir, name), meta[name], opts, anchors);
     entries.push({ key: name, edge: 'contain', value: child });
   }
 
   let node: Mapping = { kind: 'mapping', entries, array: false };
-  node = applyBody(dir, node);
+  node = applyBody(dir, node, anchors);
   return applyMeta(node, meta); // attach meta `format` to entries (incl. body-overlay ones)
 }
 
 /** A single filesystem child (file or subdir) → a Node, honoring meta type/format overrides. */
-function childNode(abs: string, m: { type?: string; format?: string } | undefined, opts: WalkOptions): Node {
-  if (fs.statSync(abs).isDirectory()) return dirNode(abs, opts);
+function childNode(abs: string, m: { type?: string; format?: string } | undefined, opts: WalkOptions, anchors: Map<string, Node>): Node {
+  if (fs.statSync(abs).isDirectory()) return dirNode(abs, opts, anchors);
 
   const ext = path.extname(abs).toLowerCase();
   // format resolution order: meta `format:` → a recognized extension → (none → sniff/parse).
@@ -98,7 +104,7 @@ function childNode(abs: string, m: { type?: string; format?: string } | undefine
   if (fmt && TEXT_FORMATS.has(fmt)) return textScalar(abs, fmt); // markdown/adoc/plantuml/csv → string + format
   if (fmt) return blob(abs, fmt); // a known but non-text format = opaque bytes
   if (looksBinary(abs)) return blob(abs, 'application/octet-stream');
-  return parsedScalar(abs, ext); // text, no format → parse by extension (json5p for .json*, else yamlover)
+  return parsedScalar(abs, ext, anchors); // text, no format → parse by extension (json5p for .json*, else yamlover)
 }
 
 /** Apply `meta.yamlover` `properties.<key>.format` to the matching entries, so a body-overlay
@@ -131,10 +137,12 @@ function textScalar(abs: string, format: string): Node {
  *  which the YAML parser does not), everything else (`.yaml`/`.yamlover`/no extension) → yamlover,
  *  the DEFAULT. So `30`→number, `"Alice"`→string, a JSON doc → a structure. Falls back to a raw
  *  string if parsing fails. */
-function parsedScalar(abs: string, ext: string): Node {
+function parsedScalar(abs: string, ext: string, anchors: Map<string, Node>): Node {
   const text = fs.readFileSync(abs, 'utf8');
   try {
-    const root = (ext === '.json' || ext === '.json5' || ext === '.json5p' ? parseJson5p(text, abs) : parseYamlover(text, abs)).root;
+    const doc = ext === '.json' || ext === '.json5' || ext === '.json5p' ? parseJson5p(text, abs) : parseYamlover(text, abs);
+    for (const [name, node] of doc.anchors) anchors.set(name, node); // the file's `&` anchors, tree-global
+    const root = doc.root;
     root.meta = { ...root.meta, documentRoot: true }; // a parsed file is its own document
     return root;
   } catch {
@@ -238,10 +246,12 @@ function inlineFormat(format: string): Value {
  *  - a pointer-array body (`- *file …`) imposes ORDER over the existing children.
  *  The body root's `meta` (e.g. a `!!<*yamlover/$defs/chapter>` tag attaching a schema to the
  *  whole directory) is carried onto the merged node, so a directory CHAPTER is recognized. */
-function applyBody(dir: string, node: Mapping): Mapping {
+function applyBody(dir: string, node: Mapping, anchors: Map<string, Node>): Mapping {
   const file = path.join(dir, YAMLOVER_DIR, 'body.yamlover');
   if (!fs.existsSync(file)) return node;
-  const body = parseYamlover(fs.readFileSync(file, 'utf8'), file).root;
+  const bodyDoc = parseYamlover(fs.readFileSync(file, 'utf8'), file);
+  for (const [name, n] of bodyDoc.anchors) anchors.set(name, n); // overlay `&` anchors, tree-global
+  const body = bodyDoc.root;
   if (body.kind !== 'mapping' || !body.entries) return node;
   // a directory with a body.yamlover overlay is a self-contained instance = a DOCUMENT root
   // (so `*/file` inside it resolves to this directory, at any nesting depth).

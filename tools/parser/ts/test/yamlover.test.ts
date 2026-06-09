@@ -95,6 +95,22 @@ test('block scalar > (folded) joins lines; blank → newline', () => {
   assert.equal((toPlain(d.root) as any).p, 'a b\n\nc\n');
 });
 
+test('quoted scalars: trailing comment stripped, # inside the string kept', () => {
+  const d = parseYamlover(
+    [
+      'plain: just text         # a comment',
+      "single: 'a # b'          # not a comment inside ''",
+      'double: "x # y"          # nor inside \"\"',
+      'esc: "she said \\"hi\\"" # \\" must NOT end the string early',
+    ].join('\n'),
+  );
+  const m = toPlain(d.root) as any;
+  assert.equal(m.plain, 'just text');
+  assert.equal(m.single, 'a # b'); // `#` inside single quotes is literal
+  assert.equal(m.double, 'x # y'); // `#` inside double quotes is literal
+  assert.equal(m.esc, 'she said "hi"'); // \" is an escaped quote, the comment is still stripped
+});
+
 test('block scalar in a sequence item', () => {
   const d = parseYamlover('chunks:\n- |\n  one\n  two\n- second\n');
   assert.deepEqual(toPlain(d.root), { chunks: ['one\ntwo\n', 'second'] });
