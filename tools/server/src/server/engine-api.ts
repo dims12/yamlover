@@ -21,7 +21,7 @@ import path from "node:path";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Store, buildIndex } from "../../../engine/ts/src/index.ts";
-import type { NodeRow } from "../../../engine/ts/src/index.ts";
+import type { NodeRow, EdgeRow } from "../../../engine/ts/src/index.ts";
 import { buildGitIgnore } from "./gitignore.js";
 
 type Handler = (req: IncomingMessage, res: ServerResponse, url: URL) => void;
@@ -29,7 +29,6 @@ interface Options { gitignore?: boolean } // honor .gitignore for stray files (d
 
 // Marker keys + types the client recognizes (must match src/client expectations).
 const LINK_KEY = "$yamloverLink";
-const REF_KEY = "$yamloverRef";
 const BINARY_KEY = "$yamloverBinary";
 type Seg = string | number;
 type Kind = "object" | "array" | "scalar" | "binary";
@@ -166,6 +165,36 @@ function scalarType(v: unknown): string {
   return "string";
 }
 
+// --------------------------------------------------------------------------- //
+// Relation direction. A relation has ONE natural direction (upstream → downstream), regardless of
+// which side authored it: a forward `*` ref / containment runs from→to; a `~` back-edge is stored
+// reversed (it is authored on the downstream side, pointing back up), so its nature is to→from.
+// A node's DOWNSTREAM relations (it is the natural source) are its children/value, shown below the
+// <hr>; its UPSTREAM relations (it is the natural target) are shown above it. Authoring a relation
+// both ways (forward at the parent AND `~` at the child) yields two stored edges for ONE relation,
+// so each direction is de-duplicated by (label, other end). This split is used everywhere — the
+// value/schema projections and the relations panel — so nothing has to special-case `~`.
+// --------------------------------------------------------------------------- //
+
+const relKey = (label: string | null, other: string): string => `${label ?? ""} ${other}`;
+
+/** A node's DOWNSTREAM entries (it is the natural source), in source order: its containment
+ *  children and forward `*` refs (authored here, positioned), then any `~` back-edges that target
+ *  it from elsewhere (authored on the downstream node, so unpositioned → appended). A relation
+ *  authored both ways collapses to one entry (deduped by label + target). */
+function downstreamEntries(s: Store, p: string): { to: string; label: string | null; pos: number | null; kind: EdgeRow["kind"] }[] {
+  const out = s.entries(p).filter((e) => e.kind !== "back"); // contain + forward ref, ordered by pos
+  const seen = new Set(out.map((e) => relKey(e.label, e.to)));
+  for (const e of s.relationships(p).in) {
+    if (e.kind !== "back" || !e.from) continue; // back-edge INTO p: its natural source is p (downstream)
+    const k = relKey(e.label, e.from); // natural target of a back-edge is its `from`
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ to: e.from, label: e.label, pos: null, kind: "ref" });
+  }
+  return out;
+}
+
 /** A node value as plain JSON-able data. `depth` limits nesting; a container past the budget,
  *  or any non-top binary, becomes a `$yamloverLink` marker the client navigates on click. */
 function projectValue(s: Store, segs: Seg[], depth: number, top: boolean): unknown {
@@ -175,9 +204,10 @@ function projectValue(s: Store, segs: Seg[], depth: number, top: boolean): unkno
   if (!top && depth <= 0) return linkMarker(s, segs);
   if (k === "binary" && !top) return linkMarker(s, segs);
   if (k === "binary") return { size: row.size, format: row.format }; // top binary header
-  // ALL entries in order — containment recursed, a `*`/`~` pointer entry shown as a link marker
-  // to its target (so a `chunks` array mixing inline blocks and `*sample.png` pointers is whole).
-  const kids = s.entries(p);
+  // DOWNSTREAM entries in order — containment recursed, a forward `*` ref or an incoming `~`
+  // back-edge shown as a link marker to the downstream node (so a `chunks` array mixing inline
+  // blocks and `*sample.png` pointers is whole, and a child reached only by `~` still appears).
+  const kids = downstreamEntries(s, p);
   const project = (c: { to: string; label: string | null; pos: number | null; kind: string }) =>
     c.kind === "contain"
       ? projectValue(s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false)
@@ -201,7 +231,7 @@ function projectSchema(s: Store, segs: Seg[], depth: number, top: boolean): unkn
   if (k === "binary" && !top) return linkMarker(s, segs);
   const schema: Record<string, unknown> = { type: k === "scalar" ? scalarType(row.value) : k };
   if (row.format) schema.format = row.format;
-  const kids = s.entries(p);
+  const kids = downstreamEntries(s, p);
   const sub = (c: { to: string; label: string | null; pos: number | null; kind: string }) =>
     c.kind === "contain" ? projectSchema(s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false) : linkMarker(s, storePathToSegs(c.to));
   if (k === "object") {
@@ -236,10 +266,24 @@ function linkMarker(s: Store, segs: Seg[]): Record<string, unknown> {
   return { [LINK_KEY]: info };
 }
 
-/** The relations panel: the node's outgoing `*`/`~` edges (named), led by the parent `..`. A
- *  relation NAME may repeat — a paper tagged under two tags carries two `~slug` edges with the
- *  same slug to different targets — so colliding names are de-duplicated with a ` (n)` suffix,
- *  keeping every edge (the client keys tag badges by the target, so the suffix is invisible). */
+const segsEqual = (a: Seg[], b: Seg[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
+
+/** An upstream node's path written in the scope it has FROM the current node's document frame:
+ *  document-relative (`/eve`) when it lives in the same document, else a link from the project/
+ *  tree root (`//examples/…`) — mirroring the pointer scopes in URIs.md (`/` = document root,
+ *  `//` = link). */
+function scopedPath(s: Store, src: Seg[], currentDoc: Seg[]): string {
+  if (segsEqual(documentRootSegs(s, src), currentDoc)) return segsToStr(src.slice(currentDoc.length)); // `/…`
+  return "/" + segsToStr(src); // `//…` — a link from the project/tree root
+}
+
+/** The relations panel: this node's UPSTREAM relations — those for which it is the natural target.
+ *  Led by the containment parent as `..`, then each `*`/`~` upstream source: a forward ref authored
+ *  AT the source (stored into this node) or a `~` back-edge authored here pointing at the source
+ *  (stored out of it) — the same relation either way, so deduped by source + label. Each is keyed
+ *  by the path it has from this node's document frame, with a link to its summary; a source that is
+ *  a tag node is peeled into a header badge by splitTagRefs. (A tag is upstream of what it files —
+ *  the membership `~tag` back-edge lands here naturally, no special-casing.) */
 function buildRelations(s: Store, segs: Seg[]): Record<string, unknown> {
   const p = storePath(segs);
   const out: Record<string, unknown> = {};
@@ -248,9 +292,24 @@ function buildRelations(s: Store, segs: Seg[]): Record<string, unknown> {
     for (let i = 2; k in out; i++) k = `${label} (${i})`;
     out[k] = marker;
   };
+
+  // The containment parent — the upstream containment relation, always the primary way up.
   if (segs.length > 0) put("..", linkMarker(s, segs.slice(0, -1)));
-  for (const e of s.relationships(p).out) {
-    if (e.label && e.kind !== "derived") put(e.label, e.to ? linkMarker(s, storePathToSegs(e.to)) : { [REF_KEY]: { text: e.label, path: null } });
+
+  // Upstream `*`/`~` sources (this node is the natural target), deduped across forward+reverse
+  // authoring. A forward ref INTO p has its source at `from`; a `~` back-edge OUT of p (stored
+  // reversed) has its source at `to`.
+  const currentDoc = documentRootSegs(s, segs);
+  const { out: outEdges, in: inEdges } = s.relationships(p);
+  const upstream = new Map<string, string>(); // relKey → source store-path
+  const addUp = (src: string | null, label: string | null) => {
+    if (src) upstream.set(relKey(label, src), src);
+  };
+  for (const e of inEdges) if (e.kind === "ref") addUp(e.from, e.label); // forward ref INTO p
+  for (const e of outEdges) if (e.kind === "back") addUp(e.to, e.label); // `~` back-edge OUT of p
+  for (const src of upstream.values()) {
+    const segs2 = storePathToSegs(src);
+    put(scopedPath(s, segs2, currentDoc), linkMarker(s, segs2));
   }
   return out;
 }
@@ -362,14 +421,19 @@ function readBody(req: IncomingMessage): Promise<unknown> {
 }
 
 /** The nearest enclosing DOCUMENT root for `segs` — the closest ancestor (or self) whose node
- *  is flagged `documentRoot` (a parsed file / `.yamlover` dir / served root). It is the anchor a
- *  document-relative (`/…`) marklower link resolves against, mirroring the `/` pointer scope. */
-function documentPath(s: Store, segs: Seg[]): string {
+ *  is flagged `documentRoot` (a parsed file / `.yamlover` dir / served root), as segments. It is
+ *  the anchor a document-relative (`/…`) pointer resolves against, mirroring the `/` pointer scope. */
+function documentRootSegs(s: Store, segs: Seg[]): Seg[] {
   for (let i = segs.length; i >= 0; i--) {
     const anc = segs.slice(0, i);
-    if (s.node(storePath(anc))?.meta?.documentRoot) return segsToStr(anc);
+    if (s.node(storePath(anc))?.meta?.documentRoot) return anc;
   }
-  return "/";
+  return [];
+}
+
+/** The nearest enclosing document root as a client JSON path (`/…`). */
+function documentPath(s: Store, segs: Seg[]): string {
+  return segsToStr(documentRootSegs(s, segs));
 }
 
 /** A node's `title` child value (a scalar), if any — used as a friendly label. */

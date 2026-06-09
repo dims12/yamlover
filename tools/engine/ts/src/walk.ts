@@ -166,8 +166,9 @@ function applySchemas(root: Node, defsRoot: string): void {
   const cache = new Map<string, Node | null>();
   const loadDef = (name: string): Node | null => {
     if (!cache.has(name)) {
+      const defFile = path.join(defsRoot, '$defs', name);
       try {
-        cache.set(name, parseYamlover(fs.readFileSync(path.join(defsRoot, '$defs', name), 'utf8')).root);
+        cache.set(name, parseYamlover(fs.readFileSync(defFile, 'utf8'), defFile).root);
       } catch {
         cache.set(name, null);
       }

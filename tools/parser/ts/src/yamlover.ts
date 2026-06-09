@@ -15,7 +15,7 @@ interface Line { indent: number; text: string; n: number }
 
 export function parseYamlover(src: string, uri = '<yamlover>'): Document {
   const raw = src.split(/\r\n|\r|\n/);
-  const p = new Block(lex(raw), raw);
+  const p = new Block(lex(raw), raw, uri);
   // a document-root schema tag on its own line: `!!<*yamlover/$defs/chapter>`
   let rootSchema: Value | undefined;
   const first = p.peek();
@@ -25,7 +25,7 @@ export function parseYamlover(src: string, uri = '<yamlover>'): Document {
   }
   const root = p.node(0) ?? nul();
   if (p.i < p.lines.length) p.fail('unexpected content');
-  if (isPointer(root)) throw new SyntaxError('yamlover: a top-level pointer is not allowed');
+  if (isPointer(root)) throw new SyntaxError(`yamlover: a top-level pointer is not allowed in ${uri}`);
   if (rootSchema !== undefined) root.meta = { ...root.meta, schema: rootSchema };
   p.validateMixtures(root); // mixtures require an explicit !!mix / !!omni tag
   return { root, anchors: p.anchors, source: { concrete: 'yamlover', uri } };
@@ -62,11 +62,12 @@ function stripComment(s: string): string {
 class Block {
   lines: Line[];
   raw: string[];      // all source lines (for block scalars, which keep blanks and `#`)
+  uri: string;        // source path/id, surfaced in parse-error messages
   i = 0;
   anchors = new Map<string, Node>();
   typed = new WeakMap<Node, 'mix' | 'omni'>(); // nodes opted into a mixture via `!!mix`/`!!omni`
 
-  constructor(lines: Line[], raw: string[]) { this.lines = lines; this.raw = raw; }
+  constructor(lines: Line[], raw: string[], uri = '<yamlover>') { this.lines = lines; this.raw = raw; this.uri = uri; }
 
   /** Enforce: mixing keyed+keyless entries needs `!!mix`; a scalar/blob value WITH fields
    *  needs `!!omni`. Plain (pure seq / pure map / pure scalar) needs no tag. */
@@ -87,7 +88,9 @@ class Block {
   peek(): Line | undefined { return this.lines[this.i]; }
   fail(msg: string): never {
     const l = this.lines[this.i] ?? this.lines[this.i - 1];
-    throw new SyntaxError(`yamlover: ${msg}${l ? ` at line ${l.n + 1}` : ''}`);
+    const where = l ? `${this.uri}:${l.n + 1}` : this.uri;
+    const ctx = l ? `\n  ${l.n + 1} | ${this.raw[l.n]}` : '';
+    throw new SyntaxError(`yamlover: ${msg} at ${where}${ctx}`);
   }
 
   /** Parse a block node whose content lives at a column >= minIndent (null if none). */

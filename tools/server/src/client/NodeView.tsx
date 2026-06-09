@@ -169,7 +169,7 @@ export function NodeView({ path, format, onFormat, onNavigate }: Props) {
         )
       ) : (
         <pre className="code">
-          {/* data views lead with the relations panel (non-tag up-edges + `..`),
+          {/* data views lead with the relations panel (reverse members / `..`),
               an <hr/>, then the value; schema views embed rel inline already */}
           {!isSchema(effective) && Object.keys(rest).length > 0 && (
             <>
