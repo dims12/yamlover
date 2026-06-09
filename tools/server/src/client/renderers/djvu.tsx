@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NodeJson, blobUrl } from "../api";
 // The DjVu.js library (GPL-v2), vendored as a prebuilt IIFE bundle. Loaded as a
 // classic <script> so its `var DjVu = (…)()` lands on the global scope; see
@@ -31,12 +31,29 @@ function loadDjVu(): Promise<any> {
  * Renders an `image/vnd.djvu` document. The browser has no native DjVu support,
  * so we decode it client-side with DjVu.js: fetch the bytes from `/api/blob`,
  * build a `DjVu.Document`, and render each page to a PNG object-URL shown as an
- * `<img>` (cheaper than holding every page as a full-resolution canvas).
+ * `<img>` (cheaper than holding every page as a full-resolution canvas). A plain
+ * wheel scrolls the document; ctrl/alt-wheel zooms (scales the page width), matching
+ * the image/map/pdf viewers (see the UI guide).
  */
 export function DjvuView({ node }: { node: NodeJson }) {
+  const ref = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<string[]>([]);
   const [count, setCount] = useState(0);
+  const [zoom, setZoom] = useState(1);
   const [error, setError] = useState<string | null>(null);
+
+  // ctrl/alt-wheel zooms; a plain wheel is left alone so the pane keeps scrolling.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.altKey || e.metaKey)) return;
+      e.preventDefault();
+      setZoom((z) => Math.min(5, Math.max(0.4, z * (e.deltaY < 0 ? 1.1 : 1 / 1.1))));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,13 +84,13 @@ export function DjvuView({ node }: { node: NodeJson }) {
 
   if (error) return <div className="error">djvu: {error}</div>;
   return (
-    <div className="filedjvu">
+    <div className="filedjvu yo-zoomable" ref={ref}>
       {count > 0 && pages.length < count && (
         <div className="loading">decoding djvu… page {pages.length + 1} of {count}</div>
       )}
       {count === 0 && pages.length === 0 && <div className="loading">decoding djvu…</div>}
       {pages.map((url, i) => (
-        <img key={i} className="fileimage" src={url} alt={`page ${i + 1}`} />
+        <img key={i} className="djvu-page" style={{ width: `${zoom * 100}%` }} src={url} alt={`page ${i + 1}`} />
       ))}
     </div>
   );

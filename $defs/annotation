@@ -2,8 +2,9 @@
 # to the material. `target` is a project-scoped pointer (//…) at the annotated material; the
 # engine derives the material's annotations as the inverse of these edges (same machinery as
 # tags). `selector` locates the segment WITHIN the material — its `type` says how: a text quote
-# {exact, prefix, suffix}, an image/pdf rect {x,y,w,h}, a map region {bounds}, … `body` is an
-# optional note. Attach with the tag  !!<*yamlover/$defs/annotation>.
+# {type:text, exact, prefix, suffix}, an image/pdf rect {type:rect|pdf, x,y,w,h (pdf adds page)},
+# a map region {type:map, n,s,e,w (geographic edges)}, … plus an optional `color` (the highlight
+# color the UI saves). `body` is an optional note. Attach with the tag !!<*yamlover/$defs/annotation>.
 type: object
 format: x-yamlover-annotation
 properties:

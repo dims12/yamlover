@@ -396,6 +396,7 @@ a.chunk-index:hover {
   height: 340px;
 }
 .chunk-body .filepdf {
+  height: auto; /* a chapter-embedded pdf is capped, not the full-viewport frame */
   max-height: 460px;
   overflow: auto;
 }
@@ -410,12 +411,19 @@ a.chunk-index:hover {
 }
 
 /* ---- file renderers: image / html / pdf / djvu / markup ------------------ */
-.filemedia,
-.filepdf,
-.filedjvu {
+.filemedia {
   padding: 12px 0;
   overflow: auto;
   max-width: 900px; /* don't span the whole pane (001) */
+}
+/* PDF / DjVu are a stable scroll VIEWPORT (like the Leaflet map), so ctrl/alt-wheel zoom enlarges
+   the pages and they scroll in BOTH axes within the frame — never clipped to a fixed-width column. */
+.filepdf,
+.filedjvu {
+  padding: 12px;
+  overflow: auto;
+  height: calc(100vh - 160px);
+  min-height: 360px;
 }
 .fileimage {
   /* keep the image's own aspect ratio — never stretch (007) */
@@ -442,9 +450,15 @@ a.chunk-index:hover {
   background: #fff;
 }
 .filepdf .react-pdf__Page,
-.filedjvu .fileimage {
+.djvu-page {
   margin: 0 0 12px; /* left-aligned (004) */
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+/* a decoded DjVu page — width is driven inline by the zoom factor (ctrl/alt-wheel) */
+.djvu-page {
+  display: block;
+  max-width: none;
+  background: #fff;
 }
 
 /* rendered Markdown / AsciiDoc body */
@@ -618,23 +632,53 @@ a.chunk-index:hover {
   gap: 10px;
   margin-bottom: 10px;
 }
-.annotate-btn {
-  background: var(--bg-alt);
-  color: var(--dim);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 2px 10px;
-  font: inherit;
-  font-family: var(--font);
-  font-size: 12px;
-  cursor: pointer;
-}
-.annotate-btn:hover {
-  color: var(--fg);
-}
 .annotate-count {
   color: var(--dim);
   font-size: 12px;
+}
+/* the floating menu raised by a text selection: a color palette + copy + cancel */
+.annotate-menu {
+  position: fixed;
+  z-index: 1000; /* above Leaflet panes (≤700) so it floats over an image/map selection */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+.annotate-palette {
+  display: flex;
+  gap: 4px;
+}
+.annotate-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.annotate-swatch.sel {
+  outline: 2px solid var(--fg); /* the pre-selected / last-used color */
+  outline-offset: 1px;
+}
+.annotate-tool {
+  background: none;
+  border: none;
+  color: var(--dim);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.annotate-tool:hover {
+  color: var(--fg);
+  background: var(--bg);
 }
 /* a region annotation drawn over a PDF page (the image overlay uses a Leaflet rectangle) */
 .pdf-page {
@@ -648,7 +692,9 @@ a.chunk-index:hover {
   cursor: help;
 }
 mark.yo-annotation {
-  background: rgba(249, 226, 175, 0.30); /* a soft highlight; the note rides in the title tooltip */
+  /* background-color + border-bottom-color are set inline from the annotation's selector.color
+     (fallbacks here for marks saved before colors existed) */
+  background-color: rgba(249, 226, 175, 0.30); /* a soft highlight; the note rides in the title tooltip */
   color: inherit;
   border-bottom: 2px solid #f9e2af;
   border-radius: 2px;
@@ -661,6 +707,15 @@ mark.yo-annotation {
 .fileimagemap,
 .fileimagemap.leaflet-container {
   background: var(--bg);
+}
+/* a view where plain-drag SELECTS (image/map full view): the crosshair signals "drag to annotate";
+   hold ctrl/alt to pan. The live rubber-band + saved region rectangles carry their highlight color
+   inline (Leaflet path options); a saved region shows a help cursor for its note tooltip. */
+.yo-selectable.leaflet-container {
+  cursor: crosshair;
+}
+.leaflet-interactive.yo-region {
+  cursor: help;
 }
 /* Leaflet popups carry the feature's (often HTML) KML description */
 .map-popup-desc {

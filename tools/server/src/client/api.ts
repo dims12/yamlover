@@ -68,7 +68,7 @@ export function fetchSchema(path: string, depth?: number): Promise<unknown> {
 /** An annotation of a material — a marked segment + optional note, reverse-linked server-side. */
 export interface Annotation {
   path: string; // the annotation's own node path
-  selector?: { type?: string; exact?: string; prefix?: string; suffix?: string; [k: string]: unknown };
+  selector?: { type?: string; exact?: string; prefix?: string; suffix?: string; color?: string; [k: string]: unknown };
   body?: string;
   created?: string;
 }

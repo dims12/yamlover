@@ -4,6 +4,8 @@ import "leaflet/dist/leaflet.css";
 import { NodeJson, blobUrl } from "../api";
 import { Chunk } from "./registry";
 import { bytesToGeoJSON, GeoJSON } from "./kml";
+import { DEFAULT_COLOR, useAnnotations, useRegionAnnotator } from "./annotate";
+import { wireGestures } from "./panzoom";
 
 /**
  * Renderer for geographic overlays — `.kml` and `.kmz` (zipped KML). The file is
@@ -11,6 +13,10 @@ import { bytesToGeoJSON, GeoJSON } from "./kml";
  * Leaflet slippy map over OpenStreetMap tiles, fitting the view to the data.
  * Points become circle markers, lines/polygons keep their KML colours, and a
  * feature's name/description show in a popup.
+ *
+ * Gestures follow the unified model (see {@link wireGestures} / the UI guide): plain drag selects a
+ * geographic region to annotate, ctrl/alt-drag pans, plain wheel pans vertically, ctrl/alt-wheel
+ * zooms.
  *
  * **Network note:** the vector overlay and KML/KMZ parsing are fully local, but the
  * *map tiles* are fetched from a tile server — by default OpenStreetMap. Point
@@ -24,6 +30,18 @@ const TILE_URL =
 const TILE_ATTRIBUTION =
   ((import.meta as any).env?.VITE_MAP_TILE_ATTRIBUTION as string | undefined) ??
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+/** A rectangular annotation region on the map, in geographic edges (degrees). */
+interface MapRegion { n: number; s: number; e: number; w: number; title?: string; color?: string }
+const num = (v: unknown): number => Number(v) || 0;
+const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
+
+/** The `map`-type annotations of `path`, as geographic rectangles to overlay. */
+function useMapRegions(path: string, bump: number): MapRegion[] {
+  return useAnnotations(path, bump)
+    .filter((a) => a.selector?.type === "map")
+    .map((a) => ({ n: num(a.selector!.n), s: num(a.selector!.s), e: num(a.selector!.e), w: num(a.selector!.w), title: a.body, color: str(a.selector!.color) }));
+}
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -76,22 +94,48 @@ function drawMap(el: HTMLElement, geo: GeoJSON): L.Map {
 }
 
 /** Fetch the file, convert to GeoJSON, and render a Leaflet map into `className`.
- *  Shared by the full page and the inline chunk (which only differ in height/CSS). */
-function MapBody({ path, className }: { path: string; className: string }) {
+ *  Shared by the full page and the inline chunk (which only differ in height/CSS + annotation). */
+function MapBody({
+  path, className, regions, onSelectRegion, selectColor,
+}: {
+  path: string;
+  className: string;
+  regions?: MapRegion[];
+  onSelectRegion?: (selector: Record<string, unknown>, screen: { x: number; y: number }) => void;
+  selectColor?: () => string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const layerRef = useRef<L.LayerGroup | null>(null);
+  const onSelectRef = useRef(onSelectRegion);
+  const colorRef = useRef(selectColor);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState(0);
+  const regionsKey = JSON.stringify(regions ?? []);
+  const selectable = !!onSelectRegion;
+
+  useEffect(() => { onSelectRef.current = onSelectRegion; colorRef.current = selectColor; });
 
   useEffect(() => {
     let cancelled = false;
-    let map: L.Map | null = null;
+    let dispose: (() => void) | null = null;
     setError(null);
     setLoading(true);
     fetch(blobUrl(path))
       .then((r) => r.arrayBuffer())
       .then((buf) => {
         if (cancelled || !ref.current) return;
-        map = drawMap(ref.current, bytesToGeoJSON(new Uint8Array(buf)));
+        const map = drawMap(ref.current, bytesToGeoJSON(new Uint8Array(buf)));
+        layerRef.current = L.layerGroup().addTo(map);
+        mapRef.current = map;
+        dispose = wireGestures(map, {
+          color: () => colorRef.current?.() ?? DEFAULT_COLOR,
+          onSelect: selectable
+            ? (b, screen) => onSelectRef.current?.({ type: "map", n: b.getNorth(), s: b.getSouth(), e: b.getEast(), w: b.getWest() }, screen)
+            : undefined,
+        });
+        setReady((x) => x + 1);
         setLoading(false);
       })
       .catch((e) => {
@@ -102,25 +146,47 @@ function MapBody({ path, className }: { path: string; className: string }) {
       });
     return () => {
       cancelled = true;
-      map?.remove();
+      dispose?.();
+      mapRef.current?.remove();
+      mapRef.current = null;
+      layerRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
+
+  // Draw region rectangles into the overlay layer — in place, so creating one keeps the view.
+  useEffect(() => {
+    const lg = layerRef.current;
+    if (!lg) return;
+    lg.clearLayers();
+    for (const r of regions ?? []) {
+      const c = r.color || DEFAULT_COLOR;
+      const rect = L.rectangle([[r.s, r.w], [r.n, r.e]], { className: "yo-region", color: c, weight: 2, fillColor: c, fillOpacity: 0.15 });
+      if (r.title) rect.bindTooltip(r.title);
+      rect.addTo(lg);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regionsKey, ready]);
 
   return (
     <>
       {error && <div className="error">map: {error}</div>}
-      <div ref={ref} className={className} />
+      <div ref={ref} className={className + (selectable ? " yo-selectable" : "")} />
       {loading && !error && <div className="loading">loading map…</div>}
     </>
   );
 }
 
 export function MapView({ node }: { node: NodeJson }) {
+  const [bump, setBump] = useState(0);
+  const regions = useMapRegions(node.path, bump);
+  const { open, palette, color } = useRegionAnnotator(node.path, () => setBump((b) => b + 1));
   return (
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <MapBody path={node.path} className="filemap" />
+      <MapBody path={node.path} regions={regions} onSelectRegion={open} selectColor={() => color} className="filemap" />
+      {palette}
     </div>
   );
 }

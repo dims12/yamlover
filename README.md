@@ -22,7 +22,8 @@ The project has the following goals
 > the read side. This document describes the model; [`tools/`](tools/) holds the
 > reference tools — [`walker`](tools/walker/) (navigate a tree with `cd`/`ls`),
 > [`collector`](tools/collector/) (assemble a tree into one schema), and
-> [`server`](tools/server/) (`npx yamlover <root>` — browse a tree in the web).
+> [`server`](tools/server/) (`npx yamlover <root>` — browse a tree in the web; see
+> [`UI.md`](UI.md) for how to drive it — navigation, views, pan/zoom, annotations).
 > Writing data back onto the filesystem, and the instance-side references in
 > *Open questions*, are not yet implemented.
 
