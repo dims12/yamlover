@@ -5,7 +5,8 @@ import { TextView, TextChunk } from "./text";
 import { MarklowerView, MarklowerChunk } from "./marklower";
 import { LatexView, LatexChunk } from "./latex";
 import { AsciidocView, AsciidocChunk } from "./asciidoc";
-import { CsvView, CsvChunk } from "./csv";
+import { CsvView, CsvChunk, CsvControls } from "./csv";
+import { PlaintextView, PlaintextChunk, EncodingControl } from "./plaintext";
 import { RtfView, RtfChunk } from "./rtf";
 import { DocView, DocChunk } from "./doc";
 import { PlantumlView, PlantumlChunk } from "./plantuml";
@@ -161,6 +162,17 @@ const REGISTRY: Renderer[] = [
     ],
     render: (node) => <CsvView node={node} />,
     renderChunk: (chunk) => <CsvChunk chunk={chunk} />,
+    config: (rerender) => <CsvControls rerender={rerender} />,
+  },
+  {
+    // Plain text shown verbatim (no markup), with a node-bar encoding selector —
+    // CP866 / Windows-1251 / KOI8-R / UTF-8 (see plaintext.tsx). Served as raw
+    // bytes so the encoding is the client's to choose.
+    name: "plaintext",
+    accepts: [["binary", "text/plain"]],
+    render: (node) => <PlaintextView node={node} />,
+    renderChunk: (chunk) => <PlaintextChunk chunk={chunk} />,
+    config: (rerender) => <EncodingControl rerender={rerender} />,
   },
   {
     // RTF — a dependency-free converter to HTML (see rtf.tsx).

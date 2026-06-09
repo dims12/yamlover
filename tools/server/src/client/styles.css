@@ -535,13 +535,42 @@ a.chunk-index:hover {
 }
 
 /* ---- csv / tsv table renderer -------------------------------------------- */
+/* the CSV parsing controls (separator + header), inline in the node bar beside the
+   renderer tab — like the markdown/asciidoc width input */
 .csv-toolbar {
-  display: flex;
-  gap: 16px;
+  display: inline-flex;
+  gap: 12px;
   align-items: center;
-  margin: 10px 0 12px;
   color: var(--dim);
   font-size: 12px;
+}
+
+/* plain text, shown verbatim (no markup, no re-flow) */
+.plaintext {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--fg);
+}
+/* the plaintext encoding selector, inline in the node bar beside its tab */
+.enc-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--dim);
+  font-size: 12px;
+}
+.enc-control select {
+  background: var(--bg-alt);
+  color: var(--fg);
+  border: 1px solid var(--border, #313244);
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  font-family: var(--font);
 }
 .csv-toolbar label {
   display: inline-flex;

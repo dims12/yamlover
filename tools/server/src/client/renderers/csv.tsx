@@ -1,4 +1,3 @@
-import { useReducer } from "react";
 import { NodeJson } from "../api";
 import { Chunk } from "./registry";
 
@@ -16,10 +15,11 @@ import { Chunk } from "./registry";
  *                the first line; `\t` for a `.tsv`).
  *   - `header` — whether the first row is a header (default true; `false`/`0` off).
  *
- * The full-page view exposes these as a small toolbar that writes the same query
- * params (via `history.replaceState`, preserving the path + `format`), so the URL
- * stays the single source of truth — editing it by hand and reloading is equivalent
- * to using the controls.
+ * The full-page view exposes these in the node bar beside the renderer's tab (the
+ * {@link CsvControls} `config` control, like the markdown/asciidoc width input),
+ * writing the same query params (via `history.replaceState`, preserving the path +
+ * `format`), so the URL stays the single source of truth — editing it by hand and
+ * reloading is equivalent to using the controls.
  */
 
 /** Parse delimited text into rows of fields, RFC-4180-ish: fields may be wrapped in
@@ -158,51 +158,64 @@ function Table({ rows, header }: { rows: string[][]; header: boolean }) {
 }
 
 export function CsvView({ node }: { node: NodeJson }) {
-  // Options are read straight from the URL each render; a control updates the URL
-  // and bumps this counter to re-read (the URL is the source of truth, not state).
-  const [, bump] = useReducer((n: number) => n + 1, 0);
+  // Options are read straight from the URL each render; the node bar's CsvControls
+  // (see registry `config`) write them and re-render the node view, so the URL stays
+  // the single source of truth — this view holds no parsing state of its own.
+  const p = params();
+  const header = headerOn(p);
+  const text = String(node.value ?? "");
+  const sep = decodeSep(p.get("sep")) ?? autoSep(text, node.format ?? null);
+  const rows = parseDelimited(text, sep);
+
+  return (
+    <div className="csv">
+      {node.title && <h1 className="chapter-title">{node.title}</h1>}
+      {node.description && <p className="chapter-subtitle">{node.description}</p>}
+      <Table rows={rows} header={header} />
+    </div>
+  );
+}
+
+/**
+ * The CSV parsing controls (separator + header row) shown in the node bar beside
+ * the renderer's tab — the `config` hook, mirroring the markdown/asciidoc width
+ * input. Each writes a query param (preserving the path + other params) and calls
+ * `rerender` so {@link CsvView} re-reads the URL and re-parses.
+ */
+export function CsvControls({ rerender }: { rerender: () => void }) {
   const p = params();
   const sepParam = p.get("sep") ?? "";
   const header = headerOn(p);
-  const text = String(node.value ?? "");
-  const sep = decodeSep(sepParam) ?? autoSep(text, node.format ?? null);
-  const rows = parseDelimited(text, sep);
 
-  // Update one query param (preserving path + the other params) and re-render.
   const setParam = (key: string, value: string) => {
     const q = params();
     if (value) q.set(key, value);
     else q.delete(key);
     const qs = q.toString();
     window.history.replaceState({}, "", window.location.pathname + (qs ? "?" + qs : ""));
-    bump();
+    rerender();
   };
 
   return (
-    <div className="csv">
-      {node.title && <h1 className="chapter-title">{node.title}</h1>}
-      {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <div className="csv-toolbar">
-        <label>
-          separator{" "}
-          <select value={sepParam} onChange={(e) => setParam("sep", e.target.value)}>
-            {SEP_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={header}
-            onChange={(e) => setParam("header", e.target.checked ? "" : "false")}
-          />{" "}
-          header row
-        </label>
-      </div>
-      <Table rows={rows} header={header} />
+    <div className="csv-toolbar">
+      <label>
+        separator{" "}
+        <select value={sepParam} onChange={(e) => setParam("sep", e.target.value)}>
+          {SEP_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={header}
+          onChange={(e) => setParam("header", e.target.checked ? "" : "false")}
+        />{" "}
+        header row
+      </label>
     </div>
   );
 }

@@ -344,6 +344,10 @@ const EXT_FORMAT: Record<string, string> = {
   '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   '.kml': 'application/vnd.google-earth.kml+xml', '.kmz': 'application/vnd.google-earth.kmz',
   '.puml': 'text/x-plantuml', '.plantuml': 'text/x-plantuml', '.iuml': 'text/x-plantuml', '.pu': 'text/x-plantuml',
+  // Plain text kept as RAW BYTES (text/plain is deliberately NOT in TEXT_FORMATS), so the
+  // client decodes it under a chosen encoding (CP866/Win-1251/KOI8-R/UTF-8) — legacy
+  // Cyrillic .txt files are common — rather than the server fixing UTF-8.
+  '.txt': 'text/plain', '.text': 'text/plain', '.log': 'text/plain',
 };
 
 const TEXT_FORMATS = new Set(['text/markdown', 'text/asciidoc', 'text/x-plantuml', 'text/csv', 'text/tab-separated-values']);

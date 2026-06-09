@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
-import { parseDelimited, CsvView } from "../../src/client/renderers/csv";
+import { parseDelimited, CsvView, CsvControls } from "../../src/client/renderers/csv";
 import { getRenderer } from "../../src/client/renderers/registry";
 import type { NodeJson } from "../../src/client/api";
 
@@ -74,11 +74,15 @@ describe("csv renderer", () => {
     expect(container.querySelectorAll("tbody tr").length).toBe(2);
   });
 
-  it("a toolbar change writes the option back into the URL", () => {
+  it("a node-bar control change writes the option back into the URL", () => {
     window.history.replaceState({}, "", "/data?format=csv");
-    const { container } = render(<CsvView node={node("a,b\n1,2")} />);
+    const { container } = render(<CsvControls rerender={() => {}} />);
     fireEvent.click(container.querySelector('input[type="checkbox"]')!); // turn header off
     expect(new URLSearchParams(window.location.search).get("header")).toBe("false");
     expect(window.location.pathname).toBe("/data"); // path preserved
+  });
+
+  it("the csv renderer exposes the controls as its node-bar config", () => {
+    expect(getRenderer(node("a,b"))?.config).toBeTypeOf("function");
   });
 });
