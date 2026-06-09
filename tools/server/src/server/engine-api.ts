@@ -30,8 +30,12 @@ interface Options { gitignore?: boolean } // honor .gitignore for stray files (d
 // Marker keys + types the client recognizes (must match src/client expectations).
 const LINK_KEY = "$yamloverLink";
 const BINARY_KEY = "$yamloverBinary";
+const MIXED_KEY = "$yamloverMixed"; // an omni/mix node: a self-value and/or interleaved items+fields
 type Seg = string | number;
-type Kind = "object" | "array" | "scalar" | "binary";
+// One ordered container, classified for display: a pure-keyed mapping is `object`, a pure-keyless
+// one `array`; a mapping mixing keyed + keyless entries is `mix`; a scalar/blob that ALSO carries
+// fields is `omni` (the `!!mix`/`!!omni` shapes); plain scalars and blobs are `scalar`/`binary`.
+type Kind = "object" | "array" | "scalar" | "binary" | "omni" | "mix";
 
 export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
   const rootName = path.basename(path.resolve(dataRoot)) || "/";
@@ -141,21 +145,33 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
 // Projection (Store rows → the client's value / schema / tree / marker shapes)
 // --------------------------------------------------------------------------- //
 
-/** A node's display kind: a container (mapping/with-children) is object|array; a blob is
- *  binary; a childless scalar is scalar. (An `!!omni` scalar-with-fields reads as a container.) */
+/** A node's display kind (see {@link Kind}). A scalar/blob carrying fields is `omni`; a mapping
+ *  that mixes keyed and keyless entries is `mix`; otherwise object|array|scalar|binary. The
+ *  `is_array` flag marks a pure-keyless container; a keyless entry among an otherwise-keyed
+ *  mapping makes it a mix. (Back-edges authored here are always keyed, so they never force a mix.) */
 function displayKind(s: Store, p: string, row: NodeRow): Kind {
-  if (row.type === "blob") return "binary";
-  if (s.hasChildren(p)) return row.is_array ? "array" : "object";
-  if (row.type === "scalar") return "scalar";
-  return row.is_array ? "array" : "object"; // empty container
+  const ents = s.entries(p);
+  if (row.type === "blob") return ents.length ? "omni" : "binary";
+  if (row.type === "scalar") return ents.length ? "omni" : "scalar";
+  if (!ents.length) return row.is_array ? "array" : "object"; // empty container
+  if (row.is_array) return "array";
+  return ents.some((e) => e.label === null) ? "mix" : "object";
 }
 
-/** The (type) label shown in the TOC/header: object|array|binary for containers/blobs, else
- *  the scalar's JSON-ish type (string/integer/number/boolean/null). */
-function tocType(s: Store, p: string, row: NodeRow): string {
+// Internal kind → the JSON-Schema-style `type:` name shown in the header/TOC and the schema view.
+// The YAML-tag shapes `!!mix`/`!!omni` get full-word schema names (cf. !!seq→array, !!map→object):
+// `mix` → "mixed", `omni` → "variant". Scalars resolve to their JSON-ish primitive type.
+function typeName(s: Store, p: string, row: NodeRow): string {
   const k = displayKind(s, p, row);
-  if (k === "object" || k === "array" || k === "binary") return k;
-  return scalarType(row.value);
+  if (k === "scalar") return scalarType(row.value);
+  if (k === "mix") return "mixed";
+  if (k === "omni") return "variant";
+  return k; // object | array | binary
+}
+
+/** The (type) label shown in the TOC/header. */
+function tocType(s: Store, p: string, row: NodeRow): string {
+  return typeName(s, p, row);
 }
 
 function scalarType(v: unknown): string {
@@ -213,9 +229,16 @@ function projectValue(s: Store, segs: Seg[], depth: number, top: boolean): unkno
       ? projectValue(s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false)
       : linkMarker(s, storePathToSegs(c.to)); // pointer → a marker to where it resolves
   if (k === "array") return kids.map(project);
+  if (k === "omni" || k === "mix") {
+    // A `$yamloverMixed` marker preserving source order: each entry is positional (`key: null` →
+    // a `- item`) or keyed (`key: "scale"` → `scale: …`); an omni also carries its self-value.
+    const entries = kids.map((c) => ({ key: c.label, value: project(c) }));
+    const marker: Record<string, unknown> = { kind: k, entries };
+    if (k === "omni") marker.value = row.value; // the node's own scalar self-value (the `!!omni 5`)
+    return { [MIXED_KEY]: marker };
+  }
   if (k === "object") {
     const out: Record<string, unknown> = {};
-    if (row.type === "scalar") out.$value = row.value; // omni: keep the scalar self-value
     for (const c of kids) out[c.label ?? String(c.pos)] = project(c);
     return out;
   }
@@ -227,17 +250,20 @@ function projectSchema(s: Store, segs: Seg[], depth: number, top: boolean): unkn
   const p = storePath(segs);
   const row = s.node(p)!;
   const k = displayKind(s, p, row);
-  if ((k === "object" || k === "array") && depth <= 0) return linkMarker(s, segs);
+  if ((k === "object" || k === "array" || k === "mix" || k === "omni") && depth <= 0) return linkMarker(s, segs);
   if (k === "binary" && !top) return linkMarker(s, segs);
-  const schema: Record<string, unknown> = { type: k === "scalar" ? scalarType(row.value) : k };
+  const schema: Record<string, unknown> = { type: typeName(s, p, row) }; // object|array|binary|mixed|variant|<scalar>
   if (row.format) schema.format = row.format;
   const kids = downstreamEntries(s, p);
   const sub = (c: { to: string; label: string | null; pos: number | null; kind: string }) =>
     c.kind === "contain" ? projectSchema(s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false) : linkMarker(s, storePathToSegs(c.to));
-  if (k === "object") {
+  if (k === "object" || k === "mix" || k === "omni") {
+    // mixed/variant fields: keyless entries keep their `[pos]` key, keyed ones their name; a
+    // variant (omni) also pins its self-value. (Order is the property insertion order.)
     const props: Record<string, unknown> = {};
-    for (const c of kids) props[c.label ?? String(c.pos)] = sub(c);
+    for (const c of kids) props[c.label ?? `[${c.pos}]`] = sub(c);
     schema.properties = props;
+    if (k === "omni") schema.value = row.value;
   } else if (k === "array") {
     schema.prefixItems = kids.map(sub);
     schema.items = false;
@@ -262,7 +288,10 @@ function linkMarker(s: Store, segs: Seg[]): Record<string, unknown> {
   if (title) info.title = title;
   if (k === "binary") info.size = row.size;
   else if (k === "scalar") info.value = row.value;
-  else info.count = s.children(p).length;
+  else if (k === "omni" || k === "mix") {
+    info.count = s.entries(p).length; // items + fields
+    if (k === "omni") info.value = row.value; // the self-scalar, for the link label
+  } else info.count = s.children(p).length;
   return { [LINK_KEY]: info };
 }
 

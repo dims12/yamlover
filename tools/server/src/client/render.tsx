@@ -15,9 +15,13 @@ import { ReactNode } from "react";
 const LINK_KEY = "$yamloverLink";
 const BINARY_KEY = "$yamloverBinary";
 const REF_KEY = "$yamloverRef";
+// An omni/mix node (a `!!omni` self-value + fields, or a `!!mix` of items + fields) arrives as
+// `{ [MIXED_KEY]: {kind, value?, entries:[{key,value}]} }`, rendered in yamlover as a leading
+// scalar (omni) then each entry positional (`- v`, key=null) or keyed (`k: v`).
+const MIXED_KEY = "$yamloverMixed";
 
 export interface Link {
-  kind: "object" | "array" | "scalar" | "binary";
+  kind: "object" | "array" | "scalar" | "binary" | "omni" | "mix";
   type?: string; // the target's JSON-Schema type; with `format`, the routing key
   path: string;
   title?: string; // the target's schema title, when set (used as a link label)
@@ -30,6 +34,12 @@ export interface Link {
 interface Ref {
   text: string;
   path: string | null;
+}
+
+interface Mixed {
+  kind: "omni" | "mix";
+  value?: unknown; // omni: the node's own scalar self-value
+  entries: { key: string | null; value: unknown }[]; // key=null ⇒ positional item, else keyed field
 }
 
 interface BinaryPayload {
@@ -52,6 +62,7 @@ function asSingle<T>(v: unknown, key: string): T | null {
 export const asLink = (v: unknown) => asSingle<Link>(v, LINK_KEY);
 const asBinary = (v: unknown) => asSingle<BinaryPayload>(v, BINARY_KEY);
 const asRef = (v: unknown) => asSingle<Ref>(v, REF_KEY);
+const asMixed = (v: unknown) => asSingle<Mixed>(v, MIXED_KEY);
 
 type Syntax = "yaml" | "json";
 
@@ -151,6 +162,8 @@ function linkLabel(link: Link): string {
   const n = link.count ?? 0;
   if (link.kind === "array") return `[ array with ${n} ${n === 1 ? "item" : "items"} ]`;
   if (link.kind === "binary") return `< binary of ${link.size ?? 0} bytes >`;
+  if (link.kind === "mix") return `{ mixed with ${n} ${n === 1 ? "entry" : "entries"} }`;
+  if (link.kind === "omni") return `{ variant ${scalarLabel(link.value, "yaml")} + ${n} ${n === 1 ? "field" : "fields"} }`;
   return `{ object with ${n} ${n === 1 ? "property" : "properties"} }`;
 }
 
@@ -177,6 +190,22 @@ function emitYaml(value: unknown, indent: number, out: ReactNode[], kc: KC, nav:
   const ref = asRef(value);
   if (ref) {
     out.push(refNode(ref, "yaml", kc, nav), "\n");
+    return;
+  }
+  const mixed = asMixed(value);
+  if (mixed) {
+    const pad = " ".repeat(indent);
+    // omni: the node's own scalar value on its own line first (`!!omni 5` → `5`)
+    if (mixed.kind === "omni") out.push(pad, scalarNode(mixed.value, "yaml", kc), "\n");
+    for (const e of mixed.entries) {
+      if (e.key === null) {
+        out.push(pad, <span className="punct" key={kc.n++}>{"- "}</span>);
+        emitYamlChild(e.value, indent, out, kc, nav, true);
+      } else {
+        out.push(pad, <span className="k" key={kc.n++}>{e.key}</span>, <span className="punct" key={kc.n++}>:</span>);
+        emitYamlChild(e.value, indent, out, kc, nav);
+      }
+    }
     return;
   }
   if (isObj(value)) {
@@ -251,8 +280,17 @@ function emitJson(value: unknown, indent: number, out: ReactNode[], kc: KC, nav:
     out.push(refNode(ref, "json", kc, nav));
     return;
   }
-  if (isObj(value)) {
-    const entries = Object.entries(value);
+  const mixed = asMixed(value);
+  const objEntries: [string, unknown][] | null = mixed
+    ? [
+        ...(mixed.kind === "omni" ? ([["$value", mixed.value]] as [string, unknown][]) : []),
+        ...mixed.entries.map((e, i): [string, unknown] => [e.key ?? String(i), e.value]),
+      ]
+    : isObj(value)
+      ? Object.entries(value)
+      : null;
+  if (objEntries) {
+    const entries = objEntries;
     if (!entries.length) {
       out.push(<span className="punct" key={kc.n++}>{"{}"}</span>);
       return;

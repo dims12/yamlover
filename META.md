@@ -90,9 +90,16 @@ the optional validation use).
 
 yamlover specifics:
 
-- **`type`** adds **`binary`** (a blob) to the JSON types (`object`/`array`/`string`/
-  `integer`/`number`/`boolean`/`null`). One ordered container: `object`/`array` are the
-  same model, distinguished only for projection (see `IR.md`).
+- **`type`** adds **`binary`** (a blob), **`mixed`**, and **`variant`** to the JSON types
+  (`object`/`array`/`string`/`integer`/`number`/`boolean`/`null`). One ordered container:
+  `object`/`array` are the same model, distinguished only for projection (see `IR.md`).
+  - **`mixed`** — the schema name for the **`!!mix`** shape: one ordered container whose
+    entries are **both** keyless/positional (array-like) and keyed/named (object-like). It
+    is the union of `object` and `array` (cf. the YAML-tag/JSON-Schema pairs `!!seq`/`array`,
+    `!!map`/`object`).
+  - **`variant`** — the schema name for the **`!!omni`** shape: a node that carries a scalar
+    (or `binary`) **self-value** *and* fields (positional and/or keyed) at once. The self-value
+    is given as `value:` (alongside `properties:`), the most general node shape.
 - **`format`** is open: a MIME type (`image/png`, `application/pdf`, `text/markdown`), a
   codec (`int32/le`), or a yamlover-defined view (`x-yamlover-chapter`).
 - **`concrete`** (how/where stored: `file/binary` · `file/yaml` · `file/json` · `dir` · …)
