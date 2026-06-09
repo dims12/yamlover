@@ -87,3 +87,30 @@ test('indexes the 06-tour example (mix/omni nodes included)', () => {
   assert.equal(s.node('/playlist/title')?.value, 'Greatest Hits'); // keyed → string-key path
   s.close();
 });
+
+// Incremental annotation indexing — the path the server uses on each save/delete instead of a full
+// rebuild (which re-hashes every blob and stalls the next click). addAnnotation must make the
+// material's backlink findable; removeAnnotation must erase the annotation completely.
+test('addAnnotation / removeAnnotation update the index incrementally', () => {
+  const s = indexed('pic: !!<format: image/png> placeholder\n'); // a tiny tree with a target node
+  const annPath = '/annotations/x.yamlover';
+  const target = '/pic';
+  const doc = parseYamlover(
+    ['!!<*yamlover/$defs/annotation>', 'target: *//pic', 'selector:', '  type: "rect"', '  x: 1', '  color: "#a6e3a1"', 'created: "t"', ''].join('\n'),
+  );
+
+  s.addAnnotation(annPath, target, doc);
+  // the root is stamped as an annotation, its selector subtree is indexed…
+  assert.equal(s.node(annPath)?.format, 'x-yamlover-annotation');
+  assert.equal(s.node(annPath + '/selector/x')?.value, 1);
+  // …and the material gains exactly one incoming `target` ref edge (the derived backlink source)
+  const refs = s.relationships(target).in.filter((e) => e.kind === 'ref' && e.from === annPath);
+  assert.equal(refs.length, 1);
+  assert.equal(refs[0].label, 'target');
+
+  s.removeAnnotation(annPath);
+  assert.equal(s.node(annPath), null);
+  assert.equal(s.node(annPath + '/selector/x'), null);
+  assert.equal(s.relationships(target).in.filter((e) => e.from === annPath).length, 0);
+  s.close();
+});

@@ -5,7 +5,7 @@ import { NodeJson, blobUrl } from "../api";
 import { Chunk } from "./registry";
 import { bytesToGeoJSON, GeoJSON } from "./kml";
 import { Annotation } from "../api";
-import { DEFAULT_COLOR, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
+import { DEFAULT_COLOR, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 import { wireGestures } from "./panzoom";
 
 /**
@@ -37,7 +37,6 @@ const TILE_ATTRIBUTION =
 interface MapRegion { n: number; s: number; e: number; w: number; title?: string; color?: string; ann?: Annotation }
 const num = (v: unknown): number => Number(v) || 0;
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
-const editable = (a: Annotation): boolean => !!a.path && a.path !== "(pending)" && a.path !== "(preview)";
 
 /** The `map`-type annotations, as geographic rectangles to overlay. */
 function mapRegions(anns: Annotation[]): MapRegion[] {

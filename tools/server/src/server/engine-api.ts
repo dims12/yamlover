@@ -22,6 +22,7 @@ import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Store, buildIndex } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow } from "../../../engine/ts/src/index.ts";
+import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { buildGitIgnore } from "./gitignore.js";
 import { displayKind, ownedEntries, typeName } from "./node-kind.js";
 
@@ -69,8 +70,12 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
       if (req.method === "POST" && url.pathname === "/api/annotate") {
         readBody(req)
           .then((data) => {
-            const annPath = writeAnnotation(dataRoot, data as AnnotationInput);
-            rebuild();
+            const a = data as AnnotationInput;
+            const annPath = writeAnnotation(dataRoot, a);
+            // Update the index INCREMENTALLY (not a full rebuild — that re-hashes every blob and
+            // blocks the next click). Add just this annotation's nodes + its `target` edge.
+            const doc = parseYamlover(fs.readFileSync(path.join(dataRoot, ...strToSegs(annPath).map(String)), "utf8"), annPath);
+            s.addAnnotation(storePath(strToSegs(annPath)), storePath(strToSegs(a.target)), doc);
             sendJson(res, 201, { path: annPath });
           })
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
@@ -78,11 +83,12 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
       }
 
       // Delete an annotation by its node path (recolor = delete + create, client-side). Removes the
-      // file under `annotations/`, then re-indexes. `?path=/annotations/<id>.yamlover`.
+      // file under `annotations/` and its index rows — incrementally. `?path=/annotations/<id>.yamlover`.
       if (req.method === "DELETE" && url.pathname === "/api/annotate") {
         try {
-          deleteAnnotation(dataRoot, url.searchParams.get("path") || "");
-          rebuild();
+          const annPath = url.searchParams.get("path") || "";
+          deleteAnnotation(dataRoot, annPath);
+          s.removeAnnotation(storePath(strToSegs(annPath)));
           sendJson(res, 200, { ok: true });
         } catch (e) {
           sendJson(res, 400, { error: String((e as Error).message || e) });

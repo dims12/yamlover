@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 import { NodeJson, blobUrl } from "../api";
 import { Chunk } from "./registry";
 import { Annotation } from "../api";
-import { DEFAULT_COLOR, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
+import { DEFAULT_COLOR, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 import { wireGestures } from "./panzoom";
 
 /** A rectangular annotation region in the image's own pixel space (origin top-left). `ann` is the
@@ -13,7 +13,6 @@ export interface ImageRegion { x: number; y: number; w: number; h: number; title
 
 const num = (v: unknown): number => Number(v) || 0;
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
-const editable = (a: Annotation): boolean => !!a.path && a.path !== "(pending)" && a.path !== "(preview)";
 
 /** The `rect`-type annotations, as pixel regions to overlay on the image. */
 function imageRegions(anns: Annotation[]): ImageRegion[] {

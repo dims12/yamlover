@@ -28,6 +28,13 @@ export function colorOf(a: Annotation): string {
   return typeof a.selector?.color === "string" ? a.selector.color : DEFAULT_COLOR;
 }
 
+/** Whether an annotation can be edited/deleted here — only those CREATED through the UI (files
+ *  under `<root>/annotations/`). Excludes the optimistic pending/preview placeholders and "frozen"
+ *  example annotations authored in shared files (which the server can't delete). */
+export function editable(a: Annotation): boolean {
+  return typeof a.path === "string" && a.path.startsWith("/annotations/");
+}
+
 /** The remembered highlight color (persisted in localStorage) + a setter that persists it. */
 export function useAnnotationColor(): [string, (c: string) => void] {
   const [color, set] = useState<string>(() => localStorage.getItem(COLOR_KEY) || DEFAULT_COLOR);
@@ -83,13 +90,18 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
 
   const refresh = () => setBump((b) => b + 1);
   const create = (selector: Record<string, unknown>, color: string) => {
-    setOptimistic((o) => [...o, { path: "(pending)", selector: { ...selector, color } } as Annotation]);
-    createAnnotation(path, selector, color).then(refresh).catch((e) => window.alert("save failed: " + (e as Error).message));
+    const entry = { path: "(pending)", selector: { ...selector, color } } as Annotation;
+    setOptimistic((o) => [...o, entry]);
+    createAnnotation(path, selector, color)
+      .then(refresh)
+      .catch((e) => { setOptimistic((o) => o.filter((x) => x !== entry)); window.alert("save failed: " + (e as Error).message); }); // roll back the unsaved mark
   };
   const remove = (annPath?: string) => {
     if (!annPath || annPath === "(pending)") return;
     setDeleted((d) => new Set(d).add(annPath));
-    deleteAnnotation(annPath).then(refresh).catch((e) => window.alert("delete failed: " + (e as Error).message));
+    deleteAnnotation(annPath)
+      .then(refresh)
+      .catch((e) => { setDeleted((d) => { const n = new Set(d); n.delete(annPath); return n; }); window.alert("delete failed: " + (e as Error).message); }); // un-hide on failure
   };
   const recolor = (ann: Annotation, color: string) => {
     const sel: Record<string, unknown> = { ...(ann.selector ?? {}) };
@@ -246,7 +258,7 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
     const mark = (e.target as HTMLElement).closest("mark.yo-annotation") as HTMLElement | null;
     if (!mark) return;
     const ann = annotations.find((x) => JSON.stringify(x.selector ?? {}) === mark.dataset.annSel);
-    if (!ann || !ann.path || ann.path === "(pending)") return;
+    if (!ann || !editable(ann)) return;
     e.preventDefault();
     openEdit(ann, { x: e.clientX, y: e.clientY });
   };

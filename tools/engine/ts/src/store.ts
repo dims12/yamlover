@@ -108,6 +108,56 @@ export class Store {
     }
   }
 
+  /** Incrementally add ONE annotation document at `annStorePath`, with a forward `target` ref edge
+   *  to `targetStorePath`. This avoids a full re-walk/rebuild (which re-reads and re-hashes every
+   *  blob in the served tree, blocking the server) on every save. The root is FORCED to the
+   *  annotation format so the material's backlink lookup ({@link relationships} `.in`) finds it; the
+   *  `target` pointer can't resolve in isolation (it is project-scoped `//…`), so its edge is added
+   *  directly from the known target. */
+  addAnnotation(annStorePath: string, targetStorePath: string, doc: Document): void {
+    const insNode = this.db.prepare(
+      `INSERT OR REPLACE INTO node (path, type, format, value, content_hash, size, is_array, meta)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const insEdge = this.db.prepare(
+      `INSERT INTO edge (from_path, to_path, label, kind, pos) VALUES (?, ?, ?, ?, ?)`,
+    );
+    this.db.exec('BEGIN');
+    try {
+      walkNodes(doc.root, annStorePath, (p, node, parent, label, pos) => {
+        const meta = node.meta ? JSON.stringify(node.meta) : null;
+        const isArray = node.array || (node.kind === 'mapping' && (node.entries?.every((e) => e.key === null) ?? false));
+        const value = node.kind === 'scalar' ? JSON.stringify(node.value) : null;
+        const format = p === annStorePath ? 'x-yamlover-annotation' : node.kind === 'blob' ? node.format : formatFromMeta(node);
+        const hash = node.kind === 'blob' ? node.contentHash : null;
+        const size = node.kind === 'blob' ? node.size : null;
+        insNode.run(p, node.kind, format, value, hash, size, isArray ? 1 : 0, meta);
+        if (parent !== null) insEdge.run(parent, p, label, 'contain', pos);
+      });
+      insEdge.run(annStorePath, targetStorePath, 'target', 'ref', 0);
+      this.db.exec('COMMIT');
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
+  }
+
+  /** Incrementally remove one annotation: its node subtree and every edge touching it. */
+  removeAnnotation(annStorePath: string): void {
+    const like = annStorePath + '/%';
+    this.db.exec('BEGIN');
+    try {
+      this.db.prepare('DELETE FROM node WHERE path = ? OR path LIKE ?').run(annStorePath, like);
+      this.db
+        .prepare('DELETE FROM edge WHERE from_path = ? OR from_path LIKE ? OR to_path = ? OR to_path LIKE ?')
+        .run(annStorePath, like, annStorePath, like);
+      this.db.exec('COMMIT');
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
+  }
+
   /** A node's attributes (null if no such path). */
   node(path: string): NodeRow | null {
     const row = this.db.prepare('SELECT * FROM node WHERE path = ?').get(path) as

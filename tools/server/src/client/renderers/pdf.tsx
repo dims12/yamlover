@@ -3,14 +3,13 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import { Annotation, NodeJson, blobUrl } from "../api";
-import { DEFAULT_COLOR, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
+import { DEFAULT_COLOR, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 
 /** A rectangular annotation region on a PDF page, in points (origin top-left). `ann` is the source
  *  annotation when real/saved (→ clickable to edit); absent for the live preview. */
 interface PdfRegion { page: number; x: number; y: number; w: number; h: number; title?: string; color?: string; ann?: Annotation }
 const num = (v: unknown): number => Number(v) || 0;
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
-const editable = (a: Annotation): boolean => !!a.path && a.path !== "(pending)" && a.path !== "(preview)";
 
 // pdf.js renders in a Web Worker; point it at the bundled worker (the version
 // react-pdf depends on) resolved through Vite. Done once at module load.
