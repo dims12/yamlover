@@ -46,6 +46,8 @@ function nodeName(path: string): string {
 interface Props {
   path: string;
   format: Format;
+  /** Bumped by App when a server-pushed change touches this node — re-fetch it. */
+  refreshSignal?: number;
   onFormat: (f: Format) => void;
   onNavigate: (path: string) => void;
   /** Called after a paste/upload changed the tree at `path`, so the TOC branch can refresh. */
@@ -91,7 +93,7 @@ function fileToBase64(f: File): Promise<string> {
 /** The RHS pane: one node shown in the selected representation. Every
  *  representation is one level deep; nested objects/arrays appear as
  *  `{ N keys }` / `[ M elements ]` hyperlinks you click to descend. */
-export function NodeView({ path, format, onFormat, onNavigate, onContentChanged, onOpenUploaded }: Props) {
+export function NodeView({ path, format, refreshSignal = 0, onFormat, onNavigate, onContentChanged, onOpenUploaded }: Props) {
   const [node, setNode] = useState<NodeJson | null>(null); // header + data value
   const [schema, setSchema] = useState<unknown>(null);
   const [bin, setBin] = useState<unknown>(null); // base64 payload for a binary leaf
@@ -121,7 +123,7 @@ export function NodeView({ path, format, onFormat, onNavigate, onContentChanged,
     return () => {
       cancelled = true;
     };
-  }, [path, reloadKey]);
+  }, [path, reloadKey, refreshSignal]);
 
   // Paste-to-upload: pasting clipboard file(s) uploads them — the server drops the file into this
   // directory (a directory page), appends it as a chapter chunk (a chapter page), or drops it into

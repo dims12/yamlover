@@ -4,6 +4,13 @@
 //   node(path, type, format, value, content_hash, size, is_array, meta)   -- path IS identity
 //   edge(from_path, to_path, label, kind, pos)   kind ∈ {contain, ref, back, derived}
 //
+// Two reconcile-era side tables (Phase 3e):
+//   file(path, hash, size, mtime_ms)  -- the FILE MANIFEST: every filesystem file the walk read,
+//     keyed by root-relative path. It is the hash cache that makes a re-index cheap (unchanged
+//     blobs are never re-read) and the diff base for change detection / offline reconcile.
+//   dangling(from_path, raw, reason)  -- `*`/`~` pointers that did not resolve at index time;
+//     reported, never silently dropped (ENGINE.md).
+//
 // The DB is a DERIVED cache — always rebuildable from the filesystem (identity is the path,
 // no durable ids; ENGINE.md). v1 keeps ONE top-level DB at <root>/.yamlover/index.db; the
 // nested-`.yamlover` federation (each DB owns its subtree, stopping at the next) is future.
@@ -15,6 +22,10 @@ import { DatabaseSync } from 'node:sqlite';
 import type { Document, Node } from '../../../parser/ts/src/ir.ts';
 import { isPointer } from '../../../parser/ts/src/ir.ts';
 import { resolveDocument } from './resolve.ts';
+
+// Bump when the table shapes change: a mismatched on-disk index is dropped and rebuilt from
+// the filesystem (the DB is a derived cache, so this is always safe).
+const SCHEMA_VERSION = 2;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS node (
@@ -36,6 +47,17 @@ CREATE TABLE IF NOT EXISTS edge (
 );
 CREATE INDEX IF NOT EXISTS edge_from ON edge (from_path);
 CREATE INDEX IF NOT EXISTS edge_to   ON edge (to_path);
+CREATE TABLE IF NOT EXISTS file (
+  path     TEXT PRIMARY KEY,             -- filesystem path relative to the indexed root (POSIX)
+  hash     TEXT NOT NULL,                -- sha256:… of the file bytes
+  size     INTEGER NOT NULL,
+  mtime_ms REAL NOT NULL                 -- (size, mtime) match ⇒ reuse hash without re-reading
+);
+CREATE TABLE IF NOT EXISTS dangling (
+  from_path TEXT NOT NULL,               -- the entry holding the pointer
+  raw       TEXT NOT NULL,               -- the pointer text as authored
+  reason    TEXT NOT NULL                -- why it did not resolve
+);
 `;
 
 export interface NodeRow {
@@ -57,22 +79,51 @@ export interface EdgeRow {
   pos: number | null;
 }
 
+/** One file the walk read: root-relative POSIX path + content identity. */
+export interface FileRecord {
+  path: string;
+  hash: string;
+  size: number;
+  mtimeMs: number;
+}
+
+/** A `*`/`~` pointer that did not resolve at index time. */
+export interface DanglingRef {
+  from: string;
+  raw: string;
+  reason: string;
+}
+
 /** Open (creating if needed) the store DB at an absolute file path, with the schema applied. */
 export class Store {
   readonly db: DatabaseSync;
+  /** True while the DB holds no usable index (a new file, or a schema-version mismatch dropped
+   *  it) — the caller must run a full re-index before serving from it. Cleared by the first
+   *  successful {@link indexDocument}. */
+  private _stale: boolean;
+  get stale(): boolean { return this._stale; }
 
   constructor(dbPath: string) {
     this.db = new DatabaseSync(dbPath);
     this.db.exec('PRAGMA journal_mode = WAL;');
+    const ver = (this.db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
+    if (ver !== SCHEMA_VERSION) {
+      // a derived cache from another era: drop whatever shape it had and start clean
+      this.db.exec('DROP TABLE IF EXISTS node; DROP TABLE IF EXISTS edge; DROP TABLE IF EXISTS file; DROP TABLE IF EXISTS dangling;');
+      this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
+    }
     this.db.exec(SCHEMA);
+    this._stale = ver !== SCHEMA_VERSION;
   }
 
   close(): void { this.db.close(); }
 
   /** Rebuild the whole index from one resolved document: clear, then insert nodes + edges in
    *  a single transaction. (v1 = one document per DB; the directory walker feeds it; ENGINE.md
-   *  derived/cache contract — re-runnable from scratch at any time.) */
-  indexDocument(doc: Document): void {
+   *  derived/cache contract — re-runnable from scratch at any time.) `files` is the walk's file
+   *  manifest (hash cache + diff base — replaced wholesale); pointers that fail to resolve are
+   *  recorded in `dangling` instead of being silently dropped. */
+  indexDocument(doc: Document, files?: FileRecord[]): void {
     const insNode = this.db.prepare(
       `INSERT OR REPLACE INTO node (path, type, format, value, content_hash, size, is_array, meta)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -82,7 +133,8 @@ export class Store {
     );
     this.db.exec('BEGIN');
     try {
-      this.db.exec('DELETE FROM node; DELETE FROM edge;');
+      this.db.exec('DELETE FROM node; DELETE FROM edge; DELETE FROM dangling;');
+      if (files) this.db.exec('DELETE FROM file;');
       // nodes + containment edges (one walk; the path scheme matches resolve.ts / buildGraph)
       walkNodes(doc.root, '/', (path, node, parent, label, pos) => {
         const meta = node.meta ? JSON.stringify(node.meta) : null;
@@ -101,10 +153,18 @@ export class Store {
       // resolved `*` / `~` reference edges (containment already emitted above). `pos` is the
       // entry's index in its holder, so a positional pointer (`- *file`) keeps its place in an
       // array alongside the inline entries.
+      const insDangling = this.db.prepare('INSERT INTO dangling (from_path, raw, reason) VALUES (?, ?, ?)');
       for (const r of resolveDocument(doc)) {
         if (r.target.kind === 'node') insEdge.run(r.holder, r.target.path, r.label, r.edge, r.pos);
+        else if (r.target.kind === 'unresolved') insDangling.run(r.from, r.raw, r.target.reason);
+        // 'external' targets are legitimate out-of-tree links, not dangling
+      }
+      if (files) {
+        const insFile = this.db.prepare('INSERT OR REPLACE INTO file (path, hash, size, mtime_ms) VALUES (?, ?, ?, ?)');
+        for (const f of files) insFile.run(f.path, f.hash, f.size, f.mtimeMs);
       }
       this.db.exec('COMMIT');
+      this._stale = false;
     } catch (e) {
       this.db.exec('ROLLBACK');
       throw e;
@@ -159,6 +219,23 @@ export class Store {
       this.db.exec('ROLLBACK');
       throw e;
     }
+  }
+
+  /** The persisted file manifest, keyed by root-relative path — the previous walk's view of the
+   *  filesystem. Feeds the walker's hash cache and the change diff. */
+  manifest(): Map<string, FileRecord> {
+    const out = new Map<string, FileRecord>();
+    for (const r of this.db.prepare('SELECT * FROM file').all() as Record<string, unknown>[]) {
+      out.set(r.path as string, { path: r.path as string, hash: r.hash as string, size: r.size as number, mtimeMs: r.mtime_ms as number });
+    }
+    return out;
+  }
+
+  /** The pointers that failed to resolve at index time (ENGINE.md: reported, never dropped). */
+  dangling(): DanglingRef[] {
+    return (this.db.prepare('SELECT * FROM dangling').all() as Record<string, unknown>[]).map((r) => ({
+      from: r.from_path as string, raw: r.raw as string, reason: r.reason as string,
+    }));
   }
 
   /** A node's attributes (null if no such path). */

@@ -12,22 +12,30 @@
  *   GET /api/json?path&depth&binary       the node value (depth-limited; nested = link markers)
  *   GET /api/schema?path&depth            the instance schema
  *   GET /api/blob?path                    a file-backed node's raw bytes
+ *   GET /api/events                       SSE stream of {added,changed,removed} client paths
+ *   GET /api/dangling                     pointers that did not resolve at index time
+ *   POST /api/reindex                     manual reconcile (the watcher's fallback)
  *
- * The on-disk index lives at <root>/.yamlover/index.db (created on startup); it is a derived
- * cache, rebuilt on a short TTL so external edits show up on reload.
+ * The on-disk index lives at <root>/.yamlover/index.db. It is a derived cache with a persistent
+ * FILE MANIFEST (path + hash + size + mtime): startup re-indexes against it (the offline
+ * reconcile — unchanged blobs are never re-read, so it is cheap), and an FS watcher re-indexes
+ * on external edits (the watched-live tier), broadcasting what changed over /api/events.
  */
 
 import path from "node:path";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Store, buildIndex, loadSettings } from "../../../engine/ts/src/index.ts";
-import type { NodeRow, EdgeRow, Settings } from "../../../engine/ts/src/index.ts";
+import { Store, reindex, watchTree, loadSettings } from "../../../engine/ts/src/index.ts";
+import type { NodeRow, EdgeRow, Settings, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { buildGitIgnore } from "./gitignore.js";
 import { displayKind, ownedEntries, typeName } from "./node-kind.js";
 
 type Handler = (req: IncomingMessage, res: ServerResponse, url: URL) => void;
-interface Options { gitignore?: boolean } // honor .gitignore for stray files (default: true)
+interface Options {
+  gitignore?: boolean; // honor .gitignore for stray files (default: true)
+  watch?: boolean; // watch the tree and re-index on external edits (default: false; bin turns it on)
+}
 
 // Marker keys + types the client recognizes (must match src/client expectations).
 const LINK_KEY = "$yamloverLink";
@@ -37,7 +45,7 @@ type Seg = string | number;
 // Node-KIND classification (object|array|scalar|binary|omni|mix → the client `type:`) lives in
 // ./node-kind.ts so it can be unit-tested against a Store without the HTTP layer.
 
-export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
+export function createHandlers(dataRoot: string, opts: Options = {}): Handler & { close: () => void } {
   const rootName = path.basename(path.resolve(dataRoot)) || "/";
   const dbPath = path.join(dataRoot, ".yamlover", "index.db");
   // Project configuration (<root>/.yamlover/settings.yamlover) — defaults for WRITE paths
@@ -46,26 +54,63 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
   // Skip git-ignored strays (node_modules, build output, …) so serving the project root works.
   const ignore = opts.gitignore === false ? undefined : buildGitIgnore(dataRoot);
 
-  // Build the index ONCE at startup; then every request is answered from the open SQLite Store
-  // (indexed lookups — sub-millisecond). The index is the SOURCE OF TRUTH, not a per-request
-  // cache: we do NOT re-walk the filesystem on a timer — that made a click block on a full
-  // re-walk + re-hash. Picking up external edits live is the FS-watcher milestone (ENGINE.md
-  // Phase 3e); for now a restart (or a future /api/reindex) refreshes. `rebuild()` is kept for
-  // that, invoked once here.
-  let current: Store;
-  const rebuild = (): void => {
-    buildIndex(dataRoot, { ignore }); // walk → IR → write <root>/.yamlover/index.db
-    const fresh = new Store(dbPath);
-    const old = current;
-    current = fresh;
-    old?.close();
-  };
-  rebuild();
-  const store = (): Store => current;
+  // ONE Store, open for the server's lifetime; every request is answered from it (indexed
+  // lookups — sub-millisecond). Freshness is the reconcile loop, not a per-request re-walk:
+  // `reindex` re-walks against the persisted file manifest (an unchanged blob is never
+  // re-read — the cost that once made refresh block on a click), swaps the tables in one
+  // transaction, and reports what changed. It runs at startup (the OFFLINE reconcile: external
+  // edits made while the server was down show up immediately) and on every FS-watcher batch
+  // (the WATCHED-LIVE tier), with POST /api/reindex as the manual fallback. Changes are pushed
+  // to clients over GET /api/events (SSE). Move inference / relinking waits on the serializers.
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  const store0 = new Store(dbPath);
+  const store = (): Store => store0;
+  const doReindex = (): IndexDiff => reindex(store0, dataRoot, { ignore });
+  doReindex();
 
-  return (req, res, url) => {
+  // SSE subscribers; each reindex that found changes broadcasts its diff as client JSON paths.
+  const sseClients = new Set<ServerResponse>();
+  const broadcast = (diff: IndexDiff): void => {
+    if (diff.added.length + diff.changed.length + diff.removed.length === 0) return;
+    const toClient = (rel: string): string => segsToStr(rel.split("/"));
+    const payload = JSON.stringify({
+      added: diff.added.map(toClient), changed: diff.changed.map(toClient), removed: diff.removed.map(toClient),
+    });
+    for (const res of sseClients) res.write(`data: ${payload}\n\n`);
+  };
+  const stopWatch = opts.watch ? watchTree(dataRoot, () => broadcast(doReindex()), { ignore }) : null;
+
+  const handler: Handler = (req, res, url) => {
     try {
       const s = store();
+
+      // Server-pushed change notifications: an SSE stream of reindex diffs (client JSON
+      // paths). The comment pings keep idle proxies from reaping the connection.
+      if (req.method === "GET" && url.pathname === "/api/events") {
+        res.statusCode = 200;
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+        res.write(": connected\n\n");
+        sseClients.add(res);
+        const ping = setInterval(() => res.write(": ping\n\n"), 30_000);
+        req.on("close", () => { clearInterval(ping); sseClients.delete(res); });
+        return;
+      }
+
+      // Manual reconcile — the watcher's fallback; responds with what changed.
+      if (req.method === "POST" && url.pathname === "/api/reindex") {
+        const diff = doReindex();
+        broadcast(diff);
+        sendJson(res, 200, diff);
+        return;
+      }
+
+      // Pointers that did not resolve at index time (ENGINE.md: reported, never dropped).
+      if (url.pathname === "/api/dangling") {
+        sendJson(res, 200, s.dangling().map((d) => ({ from: segsToStr(storePathToSegs(d.from)), raw: d.raw, reason: d.reason })));
+        return;
+      }
 
       // Create an annotation (a WRITE path): persist it as a yamlover file under the project's
       // default annotation location (settings.yamlover; `/annotations` by default), then index it
@@ -106,13 +151,13 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
       // Upload a pasted file (a WRITE path). Onto a DIRECTORY page → the file lands in that
       // directory. Onto a CHAPTER page → the file lands in the chapter's owning directory AND a
       // `*…` pointer to it is appended as the chapter's last chunk. Body: { path, filename,
-      // contentBase64 }. A new file / edited chapter source needs the full graph re-walked, so we
-      // rebuild the index (paste is a rare, deliberate action — unlike a click).
+      // contentBase64 }. A new file / edited chapter source needs the graph re-walked — a
+      // manifest-cached reconcile, so only the new/edited files are read.
       if (req.method === "POST" && url.pathname === "/api/paste") {
         readBody(req)
           .then((data) => {
             const result = handlePaste(dataRoot, s, data as PasteInput);
-            rebuild();
+            broadcast(doReindex());
             sendJson(res, 201, result);
           })
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
@@ -180,6 +225,15 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
       sendJson(res, 400, { error: (exc as Error).message || String(exc) });
     }
   };
+  // Tear-down for embedders/tests: stop the watcher, drop SSE subscribers, close the DB.
+  return Object.assign(handler, {
+    close: (): void => {
+      stopWatch?.();
+      for (const r of sseClients) r.end();
+      sseClients.clear();
+      store0.close();
+    },
+  });
 }
 
 // --------------------------------------------------------------------------- //

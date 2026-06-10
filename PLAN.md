@@ -124,13 +124,26 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    into the forward `ref` it reverses, deduped). 6 graph tests green; json5p & yamlover
    agree on the shared normalized edges. (Transitive closure: later, as needed.)
 3e. **FS sync** — watcher + 3-tier reconcile (mediated / watched / offline), per
-   `ENGINE.md`. Can be a later milestone within the phase.
+   `ENGINE.md`. **Watched-live + offline tiers DONE (2026-06-10):** the index gained a
+   persistent **file manifest** (`file(path, hash, size, mtime_ms)`) that doubles as a
+   **hash cache** — `reindex(store, root)` re-walks against it (an unchanged blob is
+   never re-read), swaps the tables in one transaction, and returns an
+   `{added, changed, removed}` diff; a schema-version pragma invalidates old-era DBs.
+   The server (`engine-api.ts`) reindexes at startup (offline reconcile — edits made
+   while down show up) and on FS-watcher batches (`engine/ts/src/watch.ts`: recursive,
+   debounced, gitignore- and `.yamlover`-internal-filtered), broadcasting diffs over
+   `GET /api/events` (SSE) — the client refreshes its TOC branches + current node;
+   `POST /api/reindex` is the manual fallback. Unresolved pointers persist in a
+   `dangling` table (`GET /api/dangling`) — reported, never dropped. **Remaining for
+   the milestone:** move INFERENCE (removed+added with one hash ⇒ a move) and the
+   MEDIATED tier (`mv` rewriting inbound refs) — both wait on the serializers (2d)
+   and IR source spans (the parsers don't track them yet).
 3f. **Engine API** — `resolve/node/toc/relationships/derive/blob` + `mv/rm/put/link/
    normalize` + `changed/added/removed` events, as the versioned contract.
    **Read side DONE in practice** (the server's `engine-api.ts` exposes node/toc/
-   relationships/blob over HTTP, backed by the `Store`); **write side partial** —
-   ad-hoc `annotate`/`paste` endpoints exist, but `mv/rm/put/link/normalize` and the
-   event stream wait on the **serializers (2d)** and the FS watcher (3e).
+   relationships/blob over HTTP, backed by the `Store`); the **change events exist**
+   (3e's reindex diff over SSE); **write side partial** — ad-hoc `annotate`/`paste`
+   endpoints exist, but `mv/rm/put/link/normalize` waits on the **serializers (2d)**.
 
 > **Language decision — CONFIRMED & DONE:** engine v1 is **TypeScript inside the
 > existing server**, on Node's built-in **`node:sqlite`** (superseded the planned
@@ -145,9 +158,10 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
 it indexes via `buildIndex`/`Store` and answers every request from SQLite; no ad-hoc
 walking remains on the live path. The React client and its renderers are unchanged;
 `npx yamlover` kept working throughout (v0.3.0 published). The legacy walker port
-(`src/server/yamlover.ts`, `api.ts`) is kept for reference only. **Remaining from this
-phase:** the engine API as a *versioned* protocol (OpenAPI), and server tests against
-`engine-api.ts` (current tests still target the legacy path).
+(`src/server/yamlover.ts`, `api.ts`) is kept for reference only. Server tests target
+`engine-api.ts` (`tools/server/test/api.test.ts`, `engine-api-write.test.ts`,
+`reconcile.test.ts`). **Remaining from this phase:** the engine API as a *versioned*
+protocol (OpenAPI).
 
 ## Phase 5 — Migrate samples (one by one; some retire)
 

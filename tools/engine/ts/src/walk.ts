@@ -21,6 +21,7 @@ import { isPointer, toPlain } from '../../../parser/ts/src/ir.ts';
 import { parseYamlover } from '../../../parser/ts/src/yamlover.ts';
 import { parseJson5p } from '../../../parser/ts/src/json5p.ts';
 import { Store } from './store.ts';
+import type { FileRecord } from './store.ts';
 
 const YAMLOVER_DIR = '.yamlover';
 const MAX_TEXT_BYTES = 1 << 20; // 1 MiB: above this we never slurp a file to sniff/parse it
@@ -30,19 +31,55 @@ export interface WalkOptions {
    *  matcher, so a project-root walk does not descend into `node_modules`). Hidden dotfiles and
    *  the `.yamlover/` overlay dir are always skipped regardless. */
   ignore?: (absPath: string) => boolean;
+  /** Hash cache: given a file's root-relative path and its current (size, mtimeMs), return its
+   *  known content hash, or null to force a read. Lets a re-index skip re-reading unchanged
+   *  blobs — the cost that made the old per-request rebuild block. Fed from the previous walk's
+   *  manifest (Store.manifest()) by {@link reindex}. */
+  cache?: (relPath: string, size: number, mtimeMs: number) => string | null;
+}
+
+/** A walk's two products: the IR Document and the file manifest (every file read, with its
+ *  content identity) — the diff base for change detection and the next walk's hash cache. */
+export interface WalkResult {
+  doc: Document;
+  files: FileRecord[];
+}
+
+/** What a re-index found changed on disk, as root-relative file paths. */
+export interface IndexDiff {
+  added: string[];
+  changed: string[];
+  removed: string[];
+}
+
+/** Everything a walk threads along: the root (for manifest-relative paths), the options, the
+ *  tree-global anchors, and the manifest accumulator (a Map to dedupe re-reads). */
+interface Ctx {
+  root: string;
+  opts: WalkOptions;
+  anchors: Map<string, Node>;
+  files: Map<string, FileRecord>;
 }
 
 /** Walk a directory (absolute path) into an IR Document (concrete: "directory"). */
 export function walkDir(absDir: string, opts: WalkOptions = {}): Document {
+  return walkTree(absDir, opts).doc;
+}
+
+/** Walk a directory into an IR Document AND its file manifest. */
+export function walkTree(absDir: string, opts: WalkOptions = {}): WalkResult {
   // Anchors live per parsed file (YAML `&name`), but resolution runs over the whole assembled
   // tree — so collect every file's anchors here, keyed by name → the anchored Node (the same
   // object that ends up in the tree). Names are treated as tree-global (a YAML anchor is really
   // intra-document; collisions across files would shadow — unique in practice).
-  const anchors = new Map<string, Node>();
-  const root = dirNode(absDir, opts, anchors);
+  const ctx: Ctx = { root: path.resolve(absDir), opts, anchors: new Map(), files: new Map() };
+  const root = dirNode(ctx.root, ctx);
   root.meta = { ...root.meta, documentRoot: true }; // the served root is always a document root
   applySchemas(root, findDefsRoot(absDir)); // propagate attached !!<…> schemas down the instance
-  return { root, anchors, source: { concrete: 'directory', uri: absDir } };
+  return {
+    doc: { root, anchors: ctx.anchors, source: { concrete: 'directory', uri: absDir } },
+    files: [...ctx.files.values()],
+  };
 }
 
 /** Build the index DB for a directory tree: walk → IR → SQLite at <root>/.yamlover/index.db.
@@ -52,20 +89,62 @@ export function buildIndex(absDir: string, opts: WalkOptions = {}): string {
   fs.mkdirSync(overlay, { recursive: true });
   const dbPath = path.join(overlay, 'index.db');
   const store = new Store(dbPath);
-  store.indexDocument(walkDir(absDir, opts));
+  reindex(store, absDir, opts);
   store.close();
   return dbPath;
+}
+
+/** Re-index a tree into an OPEN store and report what changed on disk since the last index.
+ *  The previous manifest doubles as the hash cache — a file whose (size, mtime) is unchanged is
+ *  not re-read — so this is cheap enough to run on every watcher batch / startup (the offline
+ *  reconcile: ENGINE.md tier 3, minus move inference, which waits on the serializers). The
+ *  swap is atomic (one transaction), so concurrent readers never see a half-built index. */
+export function reindex(store: Store, absDir: string, opts: WalkOptions = {}): IndexDiff {
+  const prev = store.stale ? new Map<string, FileRecord>() : store.manifest();
+  const cache =
+    opts.cache ??
+    ((rel: string, size: number, mtimeMs: number): string | null => {
+      const r = prev.get(rel);
+      return r && r.size === size && r.mtimeMs === mtimeMs ? r.hash : null;
+    });
+  const { doc, files } = walkTree(absDir, { ...opts, cache });
+  store.indexDocument(doc, files);
+  const added: string[] = [], changed: string[] = [], removed: string[] = [];
+  const next = new Set(files.map((f) => f.path));
+  for (const f of files) {
+    const old = prev.get(f.path);
+    if (!old) added.push(f.path);
+    else if (old.hash !== f.hash) changed.push(f.path);
+  }
+  for (const p of prev.keys()) if (!next.has(p)) removed.push(p);
+  return { added, changed, removed };
+}
+
+/** Record a file the walk read (or hash-cache-hit) into the manifest. Files outside the walked
+ *  root (e.g. a `$defs` host found above it) are not manifested — the watcher cannot see them. */
+function record(ctx: Ctx, abs: string, hash: string, size: number, mtimeMs: number): void {
+  const rel = path.relative(ctx.root, abs).split(path.sep).join('/');
+  if (rel.startsWith('..')) return;
+  ctx.files.set(rel, { path: rel, hash, size, mtimeMs });
+}
+
+/** Read a file's bytes, recording its content identity in the manifest. */
+function readTracked(ctx: Ctx, abs: string): Buffer {
+  const stat = fs.statSync(abs);
+  const bytes = fs.readFileSync(abs);
+  record(ctx, abs, 'sha256:' + createHash('sha256').update(bytes).digest('hex'), stat.size, stat.mtimeMs);
+  return bytes;
 }
 
 /** Per-child metadata from `.yamlover/meta.yamlover` `properties`:
  *  { name → {type, format, uniqueItems} }. */
 type Meta = Record<string, { type?: string; format?: string; uniqueItems?: boolean }>;
 
-function loadMeta(dir: string): Meta {
+function loadMeta(dir: string, ctx: Ctx): Meta {
   const file = path.join(dir, YAMLOVER_DIR, 'meta.yamlover');
   if (!fs.existsSync(file)) return {};
   try {
-    const plain = toPlain(parseYamlover(fs.readFileSync(file, 'utf8'), file).root) as Record<string, unknown>;
+    const plain = toPlain(parseYamlover(readTracked(ctx, file).toString('utf8'), file).root) as Record<string, unknown>;
     const props = (plain?.properties ?? {}) as Meta;
     return props && typeof props === 'object' ? props : {};
   } catch {
@@ -74,39 +153,39 @@ function loadMeta(dir: string): Meta {
 }
 
 /** A directory → a Mapping node: one entry per file/subdir, then the body.yamlover overlay.
- *  Collected anchors from any parsed children/overlay are merged into `anchors`. */
-function dirNode(dir: string, opts: WalkOptions, anchors: Map<string, Node>): Node {
-  const meta = loadMeta(dir);
+ *  Collected anchors from any parsed children/overlay are merged into `ctx.anchors`. */
+function dirNode(dir: string, ctx: Ctx): Node {
+  const meta = loadMeta(dir, ctx);
   const names = fs
     .readdirSync(dir)
     .filter((n) => n !== YAMLOVER_DIR && !n.startsWith('.')) // skip the overlay dir + hidden
-    .filter((n) => !opts.ignore?.(path.join(dir, n))) // skip git-ignored (e.g. node_modules)
+    .filter((n) => !ctx.opts.ignore?.(path.join(dir, n))) // skip git-ignored (e.g. node_modules)
     .sort(); // filesystem order = sorted names (stable; body.yamlover can re-impose order)
 
   const entries: Entry[] = [];
   for (const name of names) {
-    const child = childNode(path.join(dir, name), meta[name], opts, anchors);
+    const child = childNode(path.join(dir, name), meta[name], ctx);
     entries.push({ key: name, edge: 'contain', value: child });
   }
 
   let node: Mapping = { kind: 'mapping', entries, array: false };
-  node = applyBody(dir, node, anchors);
+  node = applyBody(dir, node, ctx);
   return applyMeta(node, meta); // attach meta `format` to entries (incl. body-overlay ones)
 }
 
 /** A single filesystem child (file or subdir) → a Node, honoring meta type/format overrides. */
-function childNode(abs: string, m: { type?: string; format?: string } | undefined, opts: WalkOptions, anchors: Map<string, Node>): Node {
-  if (fs.statSync(abs).isDirectory()) return dirNode(abs, opts, anchors);
+function childNode(abs: string, m: { type?: string; format?: string } | undefined, ctx: Ctx): Node {
+  if (fs.statSync(abs).isDirectory()) return dirNode(abs, ctx);
 
   const ext = path.extname(abs).toLowerCase();
   // format resolution order: meta `format:` → a recognized extension → (none → sniff/parse).
   const fmt = m?.format ?? EXT_FORMAT[ext] ?? null;
-  if (m?.type === 'binary') return blob(abs, fmt ?? 'application/octet-stream');
-  if (fmt && DOC_FORMATS[fmt]) return parsedDoc(abs, DOC_FORMATS[fmt], anchors); // a sub-document encoding → parse (META.md)
-  if (fmt && TEXT_FORMATS.has(fmt)) return textScalar(abs, fmt); // markdown/adoc/plantuml/csv → string + format
-  if (fmt) return blob(abs, fmt); // a known but non-text format = opaque bytes
-  if (looksBinary(abs)) return blob(abs, 'application/octet-stream');
-  return parsedScalar(abs, ext, anchors); // text, no format → parse by extension (json5p for .json*, else yamlover)
+  if (m?.type === 'binary') return blob(abs, fmt ?? 'application/octet-stream', ctx);
+  if (fmt && DOC_FORMATS[fmt]) return parsedDoc(abs, DOC_FORMATS[fmt], ctx); // a sub-document encoding → parse (META.md)
+  if (fmt && TEXT_FORMATS.has(fmt)) return textScalar(abs, fmt, ctx); // markdown/adoc/plantuml/csv → string + format
+  if (fmt) return blob(abs, fmt, ctx); // a known but non-text format = opaque bytes
+  if (looksBinary(abs)) return blob(abs, 'application/octet-stream', ctx);
+  return parsedScalar(abs, ext, ctx); // text, no format → parse by extension (json5p for .json*, else yamlover)
 }
 
 /** Apply `meta.yamlover` `properties.<key>.format` to the matching entries, so a body-overlay
@@ -125,16 +204,26 @@ function applyMeta(node: Mapping, meta: Meta): Mapping {
   return node;
 }
 
-/** A Blob node: format + content hash + size; bytes live in the store, not the IR (IR.md). */
-function blob(abs: string, format: string): Blob {
+/** A Blob node: format + content hash + size; bytes live in the store, not the IR (IR.md).
+ *  The hash cache short-circuits the read: an unchanged (size, mtime) reuses the known hash,
+ *  so a re-index does not re-read every blob in the tree. */
+function blob(abs: string, format: string, ctx: Ctx): Blob {
+  const stat = fs.statSync(abs);
+  const rel = path.relative(ctx.root, abs).split(path.sep).join('/');
+  const cached = ctx.opts.cache?.(rel, stat.size, stat.mtimeMs) ?? null;
+  if (cached) {
+    record(ctx, abs, cached, stat.size, stat.mtimeMs);
+    return { kind: 'blob', format, contentHash: cached, size: stat.size };
+  }
   const bytes = fs.readFileSync(abs);
   const contentHash = 'sha256:' + createHash('sha256').update(bytes).digest('hex');
+  record(ctx, abs, contentHash, stat.size, stat.mtimeMs);
   return { kind: 'blob', format, contentHash, size: bytes.length };
 }
 
 /** A textual file kept as a raw string scalar (markdown/asciidoc/plantuml/csv …). */
-function textScalar(abs: string, format: string): Node {
-  const text = fs.readFileSync(abs, 'utf8');
+function textScalar(abs: string, format: string, ctx: Ctx): Node {
+  const text = readTracked(ctx, abs).toString('utf8');
   return { kind: 'scalar', value: text, raw: text, meta: { schema: inlineFormat(format) } };
 }
 
@@ -143,16 +232,16 @@ function textScalar(abs: string, format: string): Node {
  *  which the YAML parser does not), everything else (`.yaml`/`.yamlover`/no extension) → yamlover,
  *  the DEFAULT. So `30`→number, `"Alice"`→string, a JSON doc → a structure. Falls back to a raw
  *  string if parsing fails. */
-function parsedScalar(abs: string, ext: string, anchors: Map<string, Node>): Node {
-  return parsedDoc(abs, ext === '.json' || ext === '.json5' || ext === '.json5p' ? 'json5p' : 'yamlover', anchors);
+function parsedScalar(abs: string, ext: string, ctx: Ctx): Node {
+  return parsedDoc(abs, ext === '.json' || ext === '.json5' || ext === '.json5p' ? 'json5p' : 'yamlover', ctx);
 }
 
 /** Parse a file as a sub-document in the given surface language; falls back to a raw string. */
-function parsedDoc(abs: string, lang: 'yamlover' | 'json5p', anchors: Map<string, Node>): Node {
-  const text = fs.readFileSync(abs, 'utf8');
+function parsedDoc(abs: string, lang: 'yamlover' | 'json5p', ctx: Ctx): Node {
+  const text = readTracked(ctx, abs).toString('utf8');
   try {
     const doc = lang === 'json5p' ? parseJson5p(text, abs) : parseYamlover(text, abs);
-    for (const [name, node] of doc.anchors) anchors.set(name, node); // the file's `&` anchors, tree-global
+    for (const [name, node] of doc.anchors) ctx.anchors.set(name, node); // the file's `&` anchors, tree-global
     const root = doc.root;
     root.meta = { ...root.meta, documentRoot: true }; // a parsed file is its own document
     return root;
@@ -257,11 +346,11 @@ function inlineFormat(format: string): Value {
  *  - a pointer-array body (`- *file …`) imposes ORDER over the existing children.
  *  The body root's `meta` (e.g. a `!!<*yamlover/$defs/chapter>` tag attaching a schema to the
  *  whole directory) is carried onto the merged node, so a directory CHAPTER is recognized. */
-function applyBody(dir: string, node: Mapping, anchors: Map<string, Node>): Mapping {
+function applyBody(dir: string, node: Mapping, ctx: Ctx): Mapping {
   const file = path.join(dir, YAMLOVER_DIR, 'body.yamlover');
   if (!fs.existsSync(file)) return node;
-  const bodyDoc = parseYamlover(fs.readFileSync(file, 'utf8'), file);
-  for (const [name, n] of bodyDoc.anchors) anchors.set(name, n); // overlay `&` anchors, tree-global
+  const bodyDoc = parseYamlover(readTracked(ctx, file).toString('utf8'), file);
+  for (const [name, n] of bodyDoc.anchors) ctx.anchors.set(name, n); // overlay `&` anchors, tree-global
   const body = bodyDoc.root;
   if (body.kind !== 'mapping' || !body.entries) return node;
   // a directory with a body.yamlover overlay is a self-contained instance = a DOCUMENT root

@@ -152,7 +152,7 @@ vite = await createServer({
 // Load the server-side materializer through Vite (transpiled on the fly). The engine-backed
 // handler (engine-api.ts) supersedes the legacy loadEntity materializer (api.ts kept for ref).
 const { createHandlers } = await vite.ssrLoadModule("/src/server/engine-api.ts");
-handle = createHandlers(dataRoot, { gitignore });
+handle = createHandlers(dataRoot, { gitignore, watch: true }); // watch: re-index + push on external edits
 
 // Listen on `port`; if it is already in use, fall back to the next port (up to
 // `MAX_PORT_TRIES`), so two instances — or a leftover one — don't collide.

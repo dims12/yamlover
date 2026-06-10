@@ -5,7 +5,7 @@ import { NodeView, Format, FORMATS, DEFAULT_FORMAT } from "./NodeView";
 import { rendererName } from "./renderers/registry";
 
 const isStandardFormat = (f: Format) => (FORMATS as string[]).includes(f);
-import { crumbs, formatFromUrl, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
+import { crumbs, formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
 
 // Levels of the TOC fetched at once — initially and on each lazy expand. One
 // level keeps every fetch cheap on a huge/slow tree (a fetch only reads the
@@ -17,6 +17,28 @@ function replaceChildren(tree: TreeNode, path: string, children: TreeNode[]): Tr
   if (tree.path === path) return { ...tree, children };
   if (!tree.children.length) return tree;
   return { ...tree, children: tree.children.map((c) => replaceChildren(c, path, children)) };
+}
+
+/** Merge a freshly fetched branch over the old one at the same path: the fresh rows win
+ *  (labels, flags, order, additions/removals), but a row that already had its children
+ *  loaded keeps them (recursively) when the fresh fetch didn't reach that deep — so a live
+ *  refresh never collapses what the user has expanded. */
+function mergeBranch(old: TreeNode | undefined, fresh: TreeNode): TreeNode {
+  if (!old) return fresh;
+  const byPath = new Map(old.children.map((c) => [c.path, c] as const));
+  const children = fresh.children.length
+    ? fresh.children.map((c) => mergeBranch(byPath.get(c.path), c))
+    : fresh.hasChildren
+      ? old.children // past the fetch depth — keep the loaded subtree
+      : [];
+  return { ...fresh, children };
+}
+
+/** Return a copy of `tree` with the fresh subtree merged in at `path` (see mergeBranch). */
+function mergeAt(tree: TreeNode, path: string, fresh: TreeNode): TreeNode {
+  if (tree.path === path) return mergeBranch(tree, fresh);
+  if (!tree.children.length) return tree;
+  return { ...tree, children: tree.children.map((c) => mergeAt(c, path, fresh)) };
 }
 
 /** Find the node at `path` in the (partially loaded) tree. */
@@ -107,6 +129,60 @@ export function App() {
     const next = nextToLoad(tree, current);
     if (next) loadChildren(next).catch(() => {});
   }, [tree, current, loadChildren]);
+
+  // Live refresh: the server watches the filesystem and pushes each reindex diff over SSE
+  // (/api/events). For every changed path we re-fetch its deepest LOADED tree branch (merged
+  // in, so expanded subtrees stay open), and re-fetch the node pane when the current node is
+  // touched. Unloaded branches need nothing — they fetch fresh on expand anyway.
+  const treeRef = useRef(tree);
+  treeRef.current = tree;
+  const currentRef = useRef(current);
+  currentRef.current = current;
+  const [refreshSignal, setRefreshSignal] = useState(0);
+
+  const refreshBranches = useCallback(async (paths: string[]) => {
+    const t = treeRef.current;
+    if (!t) return;
+    const targets = new Set<string>();
+    for (const p of paths) {
+      const segs = strToSegs(p);
+      let best = "/";
+      for (let k = 0; k < segs.length; k++) {
+        const anc = segsToStr(segs.slice(0, k));
+        const node = findNode(t, anc);
+        if (!node) break;
+        if (anc === "/" || node.children.length > 0) best = anc;
+      }
+      targets.add(best);
+    }
+    const list = [...targets].filter((a) => ![...targets].some((b) => b !== a && isAncestorPath(b, a)));
+    await Promise.all(
+      list.map(async (p) => {
+        const sub = await fetchTree(p, INITIAL_DEPTH);
+        setTree((prev) => (prev ? mergeAt(prev, p, sub) : prev));
+      }),
+    );
+  }, []);
+
+  useEffect(() => {
+    if (typeof EventSource === "undefined") return; // test envs (jsdom) have no SSE
+    const es = new EventSource("/api/events");
+    es.onmessage = (ev) => {
+      try {
+        const diff = JSON.parse(ev.data) as { added: string[]; changed: string[]; removed: string[] };
+        const paths = [...diff.added, ...diff.changed, ...diff.removed];
+        if (!paths.length) return;
+        refreshBranches(paths).catch(() => {});
+        const cur = currentRef.current;
+        if (paths.some((p) => p === cur || isAncestorPath(p, cur) || isAncestorPath(cur, p))) {
+          setRefreshSignal((s) => s + 1);
+        }
+      } catch {
+        // a malformed frame — ignore
+      }
+    };
+    return () => es.close();
+  }, [refreshBranches]);
 
   // Keep state in sync with the browser's back/forward buttons.
   useEffect(() => {
@@ -236,7 +312,7 @@ export function App() {
           }}
         />
         <main className="pane right">
-          <NodeView path={current} format={format} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} onOpenUploaded={onOpenUploaded} />
+          <NodeView path={current} format={format} refreshSignal={refreshSignal} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} onOpenUploaded={onOpenUploaded} />
         </main>
       </div>
     </div>
