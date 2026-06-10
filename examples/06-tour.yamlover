@@ -1,4 +1,4 @@
-# ============================================================================Firs
+# ============================================================================
 # 06 — yamlover.  YAML ⊂ yamlover.  Same data as 05-tour.yaml, plus POINTERS.
 # yamlover = ALL of YAML (including & anchors / * aliases) + the EXTENDED * (paths,
 # scopes, links), ~ back-edges, and the keys-as-pointers model.
@@ -74,6 +74,20 @@ eve:
 adam:
   cain:
     ~cain: */eve            # reverse of eve's cain-edge -> eve  (~ = sigil, key = "cain")
+
+# ---- ~- : reverse positional MEMBERSHIP (keyless back-edge; sigil TIGHT against -) ----
+# A member can declare "that container holds me" — no key, and NO INDEX: order stays the
+# container's own data. ADDITIVE: every ~- appends one element after the container's own
+# entries (lists may repeat) — except into a !!set, where duplicate memberships
+# (authored forward and/or reverse) collapse by target. Spec: ../URIs.md §~-.
+favorites:
+  - */pets[0]               # forward: favorites holds Rex …
+fan:
+  name: Bob
+  ~- */favorites            # … and ALSO Bob — appended by Bob himself (the reverse side)
+  ~- */crew                 # the reverse half of a both-ways membership (see crew)
+crew: !!set                 # a SET (= uniqueItems: true in meta): membership by identity
+  - */fan                   # the forward half — !!set collapses the pair to ONE element
 
 # ---- escaping: backslash suppresses a metachar in a literal key (not quote-based) ----
 weird:

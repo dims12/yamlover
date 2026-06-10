@@ -74,6 +74,9 @@ test('yamlover and json5p agree on the shared normalized edges (06 vs 03)', () =
     '/humans[0] -manager-> /pets[1]',
     '/team -lead-> /boss',
     '/eve -cain-> /adam/cain',
+    '/favorites -null-> /pets[0]', // forward keyless element
+    '/favorites -null-> /fan',     // fan's ~- membership, folded forward
+    '/crew -null-> /fan',          // both-ways keyless membership
   ];
   for (const s of shared) {
     assert.ok(j.has(s), `json5p missing: ${s}`);

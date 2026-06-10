@@ -13,9 +13,12 @@
         highlights <code>yamlover</code>/<code>json5p</code> fenced code blocks inside
         Markdown.
         <br/><br/>
-        <b>v1</b> provides file-type recognition and syntax highlighting. Richer
-        support — real lexer/PSI, reference resolution and navigation, and live
-        integration with the yamlover engine — is planned.
+        Provides file-type recognition, syntax highlighting, and <b>Ctrl+click /
+        Ctrl+B navigation on pointers</b> (heuristic, in-file: paths, <code>[n]</code>
+        positions, <code>..</code>, <code>/</code> document scope, anchors; a
+        <code>body.yamlover</code> overlay also reaches the overlaid directory's
+        files). Richer support — real lexer/PSI, cross-tree link resolution via the
+        yamlover engine — is planned.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -48,5 +51,10 @@
         <lang.syntaxHighlighterFactory
             language="json5p"
             implementationClass="net.inthemoon.yamlover.Json5pSyntaxHighlighterFactory"/>
+
+        <!-- Ctrl+B / Ctrl+click on a *pointer → its target (heuristic in-file resolution;
+             body.yamlover document-scope segments also reach the overlaid dir's files). -->
+        <gotoDeclarationHandler
+            implementation="net.inthemoon.yamlover.PointerGotoDeclarationHandler"/>
     </extensions>
 </idea-plugin>

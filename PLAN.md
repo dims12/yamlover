@@ -189,6 +189,11 @@ Scaffolded under `tools/jetbrains-plugin/` (Kotlin + IntelliJ Platform Gradle Pl
   add PSI + parser → structure view, folding, brace matching.
 - **J3:** pointer **reference resolution & navigation** (go-to-def, find-usages) via
   the **engine protocol** (thin client), per FUTURE.md.
+  **Heuristic v1 SHIPPED (2026-06-10, plugin 0.2.0):** Ctrl+click / Ctrl+B on a `*pointer`
+  navigates via a pure-text path index of the same file (`PointerNavigation.kt` +
+  `PointerGotoDeclarationHandler`) — current/`..`/`/` scopes, `[n]` positions, anchors,
+  escapes; `body.yamlover` document-scope segments also reach the overlaid directory's
+  files. `//` links and cross-document resolution stay for the engine-protocol J3.
 
 ## What else (gaps I'd add to your list)
 

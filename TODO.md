@@ -1,4 +1,3 @@
-- Jetbrains plugins: Ctrl-click navigate to definitions in json5p and yamlover
 - Jetbrains plugins: structure window?
 - Jetbrains plugins: reformat code
 - Disambiguate `manager: *whiskers`: either it refers local member or global alias; usually local has precedence, but here for YAML compatibility we need global precedence?

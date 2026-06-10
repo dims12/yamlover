@@ -40,6 +40,18 @@
                                        // (~ is the sigil, OUTSIDE the key; quote only the key
                                        //  if it needs it, e.g. ~'odd/key')
 
+  // ---- ~* : reverse positional MEMBERSHIP (keyless back member; no key, no colon) ----
+  // The member declares "that container holds me" — unpositioned (no reverse index) and
+  // ADDITIVE (lists may repeat); see ../URIs.md §~-. json5p has no tags, so SET semantics
+  // (dedup by target) come from the metadata layer (uniqueItems: true), not a !!set tag.
+  favorites: [ *'/pets[0]' ],          // forward: favorites holds Rex …
+  fan: {
+    name: 'Bob',
+    ~*'/favorites',                    // … and ALSO Bob — appended by Bob himself (reverse)
+    ~*'/crew',                         // the reverse half of a both-ways membership
+  },
+  crew: [ *'/fan' ],                   // the forward half (set-ness would live in meta)
+
   // ---- escaping: \\ in the JSON5 string delivers one \ to the pointer ----
   'odd/key': { n: 1 },
   oddRef:  *'odd\\/key/n',      // pointer text  odd\/key/n  -> literal key "odd/key", then /n
