@@ -52,8 +52,12 @@
             language="json5p"
             implementationClass="net.inthemoon.yamlover.Json5pSyntaxHighlighterFactory"/>
 
-        <!-- Ctrl+B / Ctrl+click on a *pointer → its target (heuristic in-file resolution;
-             body.yamlover document-scope segments also reach the overlaid dir's files). -->
+        <!-- Ctrl+click / Ctrl+B on a *pointer → its target (heuristic in-file resolution;
+             body.yamlover document-scope segments also reach the overlaid dir's files).
+             The directNavigationProvider is what paints the Ctrl+hover link underline —
+             the legacy handler alone navigates but shows no visual hint. -->
+        <lang.directNavigationProvider
+            implementation="net.inthemoon.yamlover.PointerDirectNavigationProvider"/>
         <gotoDeclarationHandler
             implementation="net.inthemoon.yamlover.PointerGotoDeclarationHandler"/>
     </extensions>

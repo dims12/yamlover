@@ -111,3 +111,25 @@ class PointerNavigationTest {
         assertNull(ix.resolve(Pointers.parse("/fan[1]")!!, 0))
     }
 }
+
+class SpacedPointerTest {
+    private val LONG = "1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf"
+
+    @Test
+    fun `a block pointer path keeps interior spaces and commas (runs to EOL)`() {
+        val src = "earthquakes-poissonian: */$LONG\nnext: 1\n"
+        val mid = src.indexOf("California") + 3
+        assertEquals("/$LONG", Pointers.yamloverPointerAt(src, mid))
+        // and it parses to ONE key step holding the full name
+        val expr = Pointers.parse("/$LONG")!!
+        assertEquals(listOf<Step>(Step.Key(LONG)), expr.steps)
+    }
+
+    @Test
+    fun `a comment still ends the path and flow pointers still end at space or comma`() {
+        val src = "x: */a b # trailing\n"
+        assertEquals("/a b", Pointers.yamloverPointerAt(src, src.indexOf("a")))
+        val flow = "m: {a: *one two, b: 2}\n"
+        assertEquals("one", Pointers.yamloverPointerAt(flow, flow.indexOf("one") + 1))
+    }
+}

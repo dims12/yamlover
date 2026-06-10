@@ -20,6 +20,8 @@ class YamloverLexer : LexerBase() {
     private var tokenType: IElementType? = null
     private var inPath = false    // tokenizing a pointer's path/target after a `*`/`&` sigil
     private var inIndex = false   // inside `[ … ]` within a path
+    private var flowDepth = 0     // inside `{…}` / `[…]` flow — pointer boundaries differ there
+    private var pathToEol = false // a `*` pointer path (runs to EOL in block); `&` names end at a space
 
     override fun start(buffer: CharSequence, startOffset: Int, endOffset: Int, initialState: Int) {
         this.buffer = buffer
@@ -28,6 +30,7 @@ class YamloverLexer : LexerBase() {
         this.tokenEnd = startOffset
         inPath = false
         inIndex = false
+        flowDepth = 0
         advance()
     }
 
@@ -47,6 +50,14 @@ class YamloverLexer : LexerBase() {
         if (inPath) {
             val c = buffer[tokenStart]
             when {
+                (c == ' ' || c == '\t') && !spacesEndPath(tokenStart) -> {
+                    // an interior space of a BLOCK pointer path (an unquoted pointer runs to
+                    // EOL — messy filenames keep their spaces): stay in path mode
+                    tokenEnd = tokenStart + 1
+                    while (tokenEnd < endOffset && (buffer[tokenEnd] == ' ' || buffer[tokenEnd] == '\t')) tokenEnd++
+                    tokenType = TokenType.WHITE_SPACE
+                    return
+                }
                 isPathBoundary(c) -> { inPath = false; inIndex = false }   // path ended → normal dispatch
                 c == '/' -> { tokenEnd = tokenStart + 1; tokenType = YamloverTokenTypes.PUNCT; return }
                 c == '[' -> { tokenEnd = tokenStart + 1; inIndex = true; tokenType = YamloverTokenTypes.PUNCT; return }
@@ -62,7 +73,7 @@ class YamloverLexer : LexerBase() {
                     while (tokenEnd < endOffset) {
                         val ch = buffer[tokenEnd]
                         if (ch == '\\' && tokenEnd + 1 < endOffset) { tokenEnd += 2; continue }
-                        if (ch == '/' || ch == '[' || ch == ']' || isPathBoundary(ch)) break
+                        if (ch == ' ' || ch == '\t' || ch == '/' || ch == '[' || ch == ']' || isPathBoundary(ch)) break
                         tokenEnd++
                     }
                     tokenType = YamloverTokenTypes.REF
@@ -101,6 +112,7 @@ class YamloverLexer : LexerBase() {
                 tokenEnd = tokenStart + 1
                 tokenType = YamloverTokenTypes.POINTER
                 inPath = true
+                pathToEol = c == '*' // only a `*` pointer keeps interior spaces (block)
             }
             '~' -> {
                 // `~name:` is a back-edge KEY: emit just the `~` sigil so the key NAME that
@@ -116,8 +128,14 @@ class YamloverLexer : LexerBase() {
             }
             '"' -> { consumeString('"'); tokenType = YamloverTokenTypes.STRING }
             '\'' -> { consumeString('\''); tokenType = YamloverTokenTypes.STRING }
-            '[' -> consumeIndexOrPunct()
-            ':', ',', '{', '}', ']', '-' -> {
+            '[' -> { consumeIndexOrPunct(); if (tokenType == YamloverTokenTypes.PUNCT) flowDepth++ }
+            '{' -> { tokenEnd = tokenStart + 1; tokenType = YamloverTokenTypes.PUNCT; flowDepth++ }
+            '}', ']' -> {
+                tokenEnd = tokenStart + 1
+                tokenType = YamloverTokenTypes.PUNCT
+                if (flowDepth > 0) flowDepth--
+            }
+            ':', ',', '-' -> {
                 tokenEnd = tokenStart + 1
                 tokenType = YamloverTokenTypes.PUNCT
             }
@@ -133,9 +151,25 @@ class YamloverLexer : LexerBase() {
         while (tokenEnd < endOffset && buffer[tokenEnd] != '\n' && buffer[tokenEnd] != '\r') tokenEnd++
     }
 
-    /** A pointer's path/target runs up to whitespace, a flow delimiter, or a `#` comment. */
+    /** A pointer path's hard boundaries. In BLOCK context an unquoted pointer runs to end of
+     *  line (or a ` #` comment) — spaces and commas are path content (the real parser takes
+     *  the whole rest of the line). Inside FLOW (`{…}` / `[…]`) the usual delimiters end it. */
     private fun isPathBoundary(c: Char): Boolean =
-        c.isSpaceOrEol() || c == ',' || c == '{' || c == '}' || c == '#'
+        if (flowDepth > 0) c.isSpaceOrEol() || c == ',' || c == '{' || c == '}' || c == '#'
+        else c == '\n' || c == '\r' || c == ' ' || c == '\t' || c == '#'
+        // NB: space/tab reach here only when spacesEndPath() said the path is over
+
+    /** Run-of-spaces at `at`: does it END a block pointer path (trailing spaces before EOL /
+     *  a comment), or is it interior (a spaced filename)? Flow paths and `&` anchor names
+     *  always end on a space. */
+    private fun spacesEndPath(at: Int): Boolean {
+        if (flowDepth > 0 || !pathToEol) return true
+        var j = at
+        while (j < endOffset && (buffer[j] == ' ' || buffer[j] == '\t')) j++
+        if (j >= endOffset) return true
+        val c = buffer[j]
+        return c == '\n' || c == '\r' || c == '#'
+    }
 
     private fun consumeString(quote: Char) {
         tokenEnd = tokenStart + 1

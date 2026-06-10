@@ -82,4 +82,26 @@ class YamloverLexerTest {
         assertTrue(ofType(src, "YAMLOVER_REF").contains("b"))
         assertTrue(ofType(src, "YAMLOVER_PUNCT").contains("/"))
     }
+
+    @Test
+    fun `a block pointer path with spaces and commas stays REF to end of line`() {
+        val src = "slug: */1105-2_abstract_Is the sequence, with spaces removed.pdf\nnext: 1\n"
+        val refs = ofType(src, "YAMLOVER_REF")
+        assertTrue("first word: $refs", refs.contains("1105-2_abstract_Is"))
+        assertTrue("interior word kept in path: $refs", refs.contains("sequence,"))
+        assertTrue("last word: $refs", refs.contains("removed.pdf"))
+        // nothing of the path leaks into SCALAR, and the next line is still a key
+        assertTrue(ofType(src, "YAMLOVER_SCALAR").isEmpty())
+        assertTrue(tokens(src).any { it.first == "YAMLOVER_KEY" && it.second == "next" })
+    }
+
+    @Test
+    fun `comments and flow still bound a pointer path and anchors keep ending at a space`() {
+        val src = "a: */x y # note\nb: {c: *one two}\nboss: &chief {nm: 1}\n"
+        assertTrue(ofType(src, "YAMLOVER_COMMENT").contains("# note"))
+        val refs = ofType(src, "YAMLOVER_REF")
+        assertTrue("flow path ends at space: $refs", refs.contains("one") && !refs.contains("two"))
+        assertTrue("anchor name ends at space", refs.contains("chief") && !refs.contains("{nm"))
+        assertTrue("flow value after anchor lexes as key", tokens(src).any { it.first == "YAMLOVER_KEY" && it.second == "nm" })
+    }
 }

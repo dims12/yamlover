@@ -56,20 +56,40 @@ object Pointers {
         return if (steps.isEmpty() && !document) null else PointerExpr(document, steps)
     }
 
-    private fun isYRunBoundary(c: Char) =
-        c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == ',' || c == '{' || c == '}' || c == '#'
-
-    /** The unquoted pointer path around `offset` in yamlover text (the run after a `*`). */
+    /** The unquoted pointer path around `offset` in yamlover text. In BLOCK context an
+     *  unquoted `*` pointer runs to end of line (minus a ` #` comment) — interior spaces and
+     *  commas are path content (spaced filenames), matching the real parser. Inside FLOW
+     *  (`{…}`/`[…]`), space/comma/closing delimiters end it. */
     fun yamloverPointerAt(text: String, offset: Int): String? {
-        var start = offset.coerceIn(0, text.length)
-        if (start == text.length || isYRunBoundary(text[start])) start-- // caret at run end
-        if (start < 0) return null
-        while (start > 0 && !isYRunBoundary(text[start - 1])) start--
-        var end = start
-        while (end < text.length && !isYRunBoundary(text[end])) end++
-        val run = text.substring(start, end)
-        if (!run.startsWith("*")) return null
-        return run.substring(1)
+        if (offset < 0 || offset > text.length) return null
+        val ls = if (offset == 0) 0 else (text.lastIndexOf('\n', offset - 1) + 1)
+        var le = text.indexOf('\n', ls)
+        if (le < 0) le = text.length
+        var line = text.substring(ls, le)
+        // strip a ` #comment`
+        for (i in line.indices) {
+            if (line[i] == '#' && (i == 0 || line[i - 1] == ' ' || line[i - 1] == '\t')) { line = line.substring(0, i); break }
+        }
+        val col = (offset - ls).coerceAtMost(line.length)
+        // the `*` opening the run the caret is in: the last value-position `*` at or before it
+        var star = -1
+        for (i in line.indices) {
+            if (i > col) break
+            if (line[i] == '*' && (i == 0 || line[i - 1] == ' ' || line[i - 1] == '\t' ||
+                    line[i - 1] == '{' || line[i - 1] == '[' || line[i - 1] == ',')) star = i
+        }
+        if (star < 0) return null
+        var depth = 0 // flow context = unmatched { / [ before the sigil
+        for (i in 0 until star) when (line[i]) { '{', '[' -> depth++; '}', ']' -> depth-- }
+        var end = line.length
+        if (depth > 0) {
+            var j = star + 1
+            while (j < end && line[j] != ' ' && line[j] != '\t' && line[j] != ',' && line[j] != '}' && line[j] != ']') j++
+            end = j
+        }
+        val path = line.substring(star + 1, end).trimEnd()
+        if (path.isEmpty() || col < star || col > star + 1 + path.length) return null
+        return path
     }
 
     /** The pointer path around `offset` in json5p text: `*'…'` / `*"…"` (the usual, quoted
