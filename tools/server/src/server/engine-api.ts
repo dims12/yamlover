@@ -112,21 +112,27 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Create an annotation (a WRITE path): persist it as a yamlover file under the project's
-      // default annotation location (settings.yamlover; `/annotations` by default), then index it
-      // so it joins the graph (reverse-linked to its material). An annotation is NOT tied to that
-      // location — it may be moved to (or authored in) any directory and keeps working; the
-      // setting only says where NEW ones land. Body: { target, selector, body? } — target is the
-      // material's JSON path.
+      // Create an annotation — ONE TAG APPLICATION (a WRITE path): persist it as a yamlover file
+      // under the project's default annotation location (settings.yamlover; `/annotations` by
+      // default), then index it so it joins the graph (reverse-linked to its material, member of
+      // its tag). An annotation is NOT tied to that location — it may be moved to (or authored
+      // in) any directory and keeps working; the setting only says where NEW ones land. Body:
+      // { target, tag, selector?, description? } — target/tag are the material's and the applied
+      // tag's JSON paths; no selector applies the tag to the WHOLE node.
       if (req.method === "POST" && url.pathname === "/api/annotate") {
         readBody(req)
           .then((data) => {
             const a = data as AnnotationInput;
+            const tagStore = storePath(strToSegs(a.tag ?? ""));
+            if (!a?.tag || s.node(tagStore)?.format !== TAG_FORMAT) {
+              sendJson(res, 400, { error: "annotation needs a `tag` that is an x-yamlover-tag node" });
+              return;
+            }
             const annPath = writeAnnotation(dataRoot, settings.annotations.location, a);
             // Update the index INCREMENTALLY (not a full rebuild — that re-hashes every blob and
-            // blocks the next click). Add just this annotation's nodes + its `target` edge.
+            // blocks the next click). Add just this annotation's nodes + its `target`/tag edges.
             const doc = parseYamlover(fs.readFileSync(path.join(dataRoot, ...strToSegs(annPath).map(String)), "utf8"), annPath);
-            s.addAnnotation(storePath(strToSegs(annPath)), storePath(strToSegs(a.target)), doc);
+            s.addAnnotation(storePath(strToSegs(annPath)), storePath(strToSegs(a.target)), doc, tagStore);
             sendJson(res, 201, { path: annPath });
           })
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
@@ -373,6 +379,11 @@ function linkMarker(s: Store, segs: Seg[]): Record<string, unknown> {
     info.count = ownedEntries(s, p).length; // owned items + fields (reverse members excluded)
     if (k === "omni") info.value = row.value; // the self-scalar, for the link label
   } else info.count = s.children(p).length;
+  if (row.format === TAG_FORMAT) {
+    // a pure color tag's explicit color rides the link, so badges color correctly everywhere
+    const c = s.node(p + "/color")?.value;
+    if (typeof c === "string") info.color = c;
+  }
   return { [LINK_KEY]: info };
 }
 
@@ -466,18 +477,36 @@ function labelFor(s: Store, p: string, keyOrIdx: Seg): string {
 }
 
 // --------------------------------------------------------------------------- //
-// Annotations — graph-native: each is a yamlover object under `<root>/annotations/`, pointing
-// (`target: *//…`) at its material; a material's annotations are the inverse of those edges.
+// Annotations — graph-native TAG APPLICATIONS: each is a yamlover object under
+// `<root>/annotations/`, pointing (`target: *//…`) at its material and holding a keyless `~-`
+// membership in its applied tag; a material's annotations are the inverse of the target edges.
 // --------------------------------------------------------------------------- //
+
+const TAG_FORMAT = "x-yamlover-tag";
 
 interface AnnotationInput {
   target: string; // the material's JSON path (e.g. "/60-simple-chapter.yamlover")
-  selector: Record<string, unknown>; // { type: "text", exact, prefix, suffix } | { type:"rect", … }
-  body?: string;
+  tag: string; // the applied tag's JSON path (e.g. "/yamlover/tags/colors/yellow")
+  selector?: Record<string, unknown>; // { type: "text", exact, prefix, suffix } | { type:"rect", … }; absent = whole node
+  description?: string; // the per-application comment
+}
+
+/** The tag an annotation applies — its keyless `back` edge to an `x-yamlover-tag` node —
+ *  projected as { path, name, color } (color = the tag's explicit `color`, else null: the
+ *  client derives a hue from the name). Null for a legacy annotation with no tag. */
+function appliedTag(s: Store, annStorePath: string): { path: string; name: string; color: string | null } | null {
+  const e = s.relationships(annStorePath).out.find(
+    (t) => t.kind === "back" && t.label === null && s.node(t.to)?.format === TAG_FORMAT,
+  );
+  if (!e) return null;
+  const segs = storePathToSegs(e.to);
+  const color = s.node(e.to + "/color")?.value;
+  return { path: segsToStr(segs), name: String(segs[segs.length - 1] ?? ""), color: typeof color === "string" ? color : null };
 }
 
 /** The annotations whose `target` resolves to this material — the incoming `ref` edges from
- *  `x-yamlover-annotation` nodes — each projected to its full object (selector, body, created). */
+ *  `x-yamlover-annotation` nodes — each projected to its full object (selector, description,
+ *  created) plus its applied `tag` { path, name, color }. */
 function annotationsFor(s: Store, segs: Seg[]): unknown[] {
   const p = storePath(segs);
   const out: unknown[] = [];
@@ -486,7 +515,11 @@ function annotationsFor(s: Store, segs: Seg[]): unknown[] {
     const src = s.node(e.from);
     if (src?.format !== "x-yamlover-annotation") continue;
     const aSegs = storePathToSegs(e.from);
-    out.push({ path: segsToStr(aSegs), ...(projectValue(s, aSegs, 6, true) as Record<string, unknown>) });
+    out.push({
+      path: segsToStr(aSegs),
+      tag: appliedTag(s, e.from),
+      ...(projectValue(s, aSegs, 6, true) as Record<string, unknown>),
+    });
   }
   return out;
 }
@@ -496,13 +529,14 @@ function yScalar(v: unknown): string {
   return typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(String(v ?? ""));
 }
 
-/** Persist a new annotation as a yamlover file under the project's default annotation location
- *  (`settings.yamlover`; `/annotations` unless configured); returns its node path. The material is
- *  referenced with a project-scoped deref pointer so the engine reverse-links it on re-index (a
- *  leading star + a "//path" project path). The location is only the CREATION default — an
- *  annotation file works from any directory. */
+/** Persist a new annotation (one tag application) as a yamlover file under the project's default
+ *  annotation location (`settings.yamlover`; `/annotations` unless configured); returns its node
+ *  path. The material and the applied tag are referenced with project-scoped deref pointers so
+ *  the engine reverse-links them on re-index (a leading star + a "//path" project path; the tag
+ *  as a keyless `~-` membership). The location is only the CREATION default — an annotation file
+ *  works from any directory. */
 function writeAnnotation(dataRoot: string, location: string, a: AnnotationInput): string {
-  if (!a?.target || !a?.selector) throw new Error("annotation needs a target and a selector");
+  if (!a?.target || !a?.tag) throw new Error("annotation needs a target and a tag");
   const dir = path.resolve(dataRoot, ...strToSegs(location).map(String));
   const root = path.resolve(dataRoot);
   if (dir !== root && !dir.startsWith(root + path.sep)) throw new Error("annotation location escapes the data root");
@@ -512,10 +546,10 @@ function writeAnnotation(dataRoot: string, location: string, a: AnnotationInput)
   const lines = [
     "!!<*yamlover/$defs/annotation>",
     `target: *//${a.target.replace(/^\//, "")}`,
-    "selector:",
-    ...Object.entries(a.selector).map(([k, v]) => `  ${k}: ${yScalar(v)}`),
+    `~- *//${a.tag.replace(/^\//, "")}`,
   ];
-  if (a.body) lines.push(`body: ${yScalar(a.body)}`);
+  if (a.selector) lines.push("selector:", ...Object.entries(a.selector).map(([k, v]) => `  ${k}: ${yScalar(v)}`));
+  if (a.description) lines.push(`description: ${yScalar(a.description)}`);
   lines.push(`created: ${new Date().toISOString()}`, "");
   fs.writeFileSync(path.join(dir, file), lines.join("\n"));
   return `${location}/${file}`;

@@ -90,27 +90,34 @@ test('indexes the 06-tour example (mix/omni nodes included)', () => {
 
 // Incremental annotation indexing — the path the server uses on each save/delete instead of a full
 // rebuild (which re-hashes every blob and stalls the next click). addAnnotation must make the
-// material's backlink findable; removeAnnotation must erase the annotation completely.
+// material's backlink findable and file the annotation under its tag; removeAnnotation must erase
+// the annotation completely.
 test('addAnnotation / removeAnnotation update the index incrementally', () => {
-  const s = indexed('pic: !!<format: image/png> placeholder\n'); // a tiny tree with a target node
+  const s = indexed('pic: !!<format: image/png> placeholder\nyellow: !!<*yamlover/$defs/tag>\n  color: "#f9e2af"\n');
   const annPath = '/annotations/x.yamlover';
   const target = '/pic';
+  const tag = '/yellow';
   const doc = parseYamlover(
-    ['!!<*yamlover/$defs/annotation>', 'target: *//pic', 'selector:', '  type: "rect"', '  x: 1', '  color: "#a6e3a1"', 'created: "t"', ''].join('\n'),
+    ['!!<*yamlover/$defs/annotation>', 'target: *//pic', '~- *//yellow', 'selector:', '  type: "rect"', '  x: 1', 'created: "t"', ''].join('\n'),
   );
 
-  s.addAnnotation(annPath, target, doc);
+  s.addAnnotation(annPath, target, doc, tag);
   // the root is stamped as an annotation, its selector subtree is indexed…
   assert.equal(s.node(annPath)?.format, 'x-yamlover-annotation');
   assert.equal(s.node(annPath + '/selector/x')?.value, 1);
-  // …and the material gains exactly one incoming `target` ref edge (the derived backlink source)
+  // …the material gains exactly one incoming `target` ref edge (the derived backlink source)…
   const refs = s.relationships(target).in.filter((e) => e.kind === 'ref' && e.from === annPath);
   assert.equal(refs.length, 1);
   assert.equal(refs[0].label, 'target');
+  // …and the annotation is a keyless reverse member of its tag (the `~-` application edge)
+  const memb = s.relationships(tag).in.filter((e) => e.kind === 'back' && e.from === annPath);
+  assert.equal(memb.length, 1);
+  assert.equal(memb[0].label, null);
 
   s.removeAnnotation(annPath);
   assert.equal(s.node(annPath), null);
   assert.equal(s.node(annPath + '/selector/x'), null);
   assert.equal(s.relationships(target).in.filter((e) => e.from === annPath).length, 0);
+  assert.equal(s.relationships(tag).in.filter((e) => e.from === annPath).length, 0);
   s.close();
 });

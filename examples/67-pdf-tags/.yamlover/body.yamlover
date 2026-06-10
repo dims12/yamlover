@@ -10,63 +10,45 @@
 # paper mirrors `~slug: */<tag>`. Keys/slugs are bare; a messy file key is quoted; the `*/…`
 # VALUE is a pointer path. `/` is document-relative — this directory.
 
-tags: !!<*yamlover/$defs/tag>
-  description: A small taxonomy for short / deadpan papers — two axes, field and genre
-  field:
-    description: What the paper is about
-    mathematics:
-      description: Mathematics
-      number-theory:
-        description: Number theory — Diophantine equations, sums of powers
+# A tag's description is its BODY (the node's own value): `name: <text>` with the sub-tags
+# in the deeper block — the schema ($defs/tag, type: variant) declares the value-plus-fields
+# shape, so no `!!omni` tag is needed (YAMLOVER.md §4: the shape itself is the intention).
+tags: !!<*yamlover/$defs/tag> A small taxonomy for short / deadpan papers — two axes, field and genre
+  field: What the paper is about
+    mathematics: Mathematics
+      number-theory: Number theory — Diophantine equations, sums of powers
         euler-conjecture: */S0002-9904-1966-11654-3.pdf
-    physics:
-      description: Physics
-      quantum:
-        description: Quantum mechanics and measurement
+    physics: Physics
+      quantum: Quantum mechanics and measurement
         superluminal-neutrino: */1110.2832v2.pdf
-      particle:
-        description: Particle physics — neutrinos and the like
+      particle: Particle physics — neutrinos and the like
         superluminal-neutrino: */1110.2832v2.pdf
-    earth-science:
-      description: Earth science
-      seismology:
-        description: Seismology — earthquakes and their statistics
+    earth-science: Earth science
+      seismology: Seismology — earthquakes and their statistics
         earthquakes-poissonian: */1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf
-    chemistry:
-      description: Chemistry
+    chemistry: Chemistry
       chemical-free: */Chemical-Free.pdf
-    psychology:
-      description: Psychology
-      behavior-analysis:
-        description: Applied behavior analysis
+    psychology: Psychology
+      behavior-analysis: Applied behavior analysis
         writers-block: */jaba00061-0143a.pdf
-  genre:
-    description: How the paper is short
-    brevity:
-      description: The paper is famously short
-      shortest-paper:
-        description: Famously the shortest paper in its journal
+  genre: How the paper is short
+    brevity: The paper is famously short
+      shortest-paper: Famously the shortest paper in its journal
         euler-conjecture: */S0002-9904-1966-11654-3.pdf
-      one-word-answer:
-        description: The title is a question; the abstract answers it in a word
+      one-word-answer: The title is a question; the abstract answers it in a word
         superluminal-neutrino: */1110.2832v2.pdf
         earthquakes-poissonian: */1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf
-      empty-body:
-        description: The body of the paper is (almost) entirely blank
+      empty-body: The body of the paper is (almost) entirely blank
         writers-block: */jaba00061-0143a.pdf
         chemical-free: */Chemical-Free.pdf
-    humor:
-      description: The paper is a joke
-      deadpan:
-        description: Plays it completely straight
+    humor: The paper is a joke
+      deadpan: Plays it completely straight
         writers-block: */jaba00061-0143a.pdf
         superluminal-neutrino: */1110.2832v2.pdf
         earthquakes-poissonian: */1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf
-      satire:
-        description: Mocks its target
+      satire: Mocks its target
         chemical-free: */Chemical-Free.pdf
-    annotation:
-      description: A secondary / derivative edition of another paper
+    annotation: A secondary / derivative edition of another paper
 
 # --- the papers: each is the real file (a blob), recording its tag membership as the reverse
 #     of the tag's forward link — `~<slug>: */tag` back-edges into the taxonomy ---

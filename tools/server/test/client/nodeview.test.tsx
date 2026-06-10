@@ -5,6 +5,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 vi.mock("../../src/client/api", () => ({
   fetchNode: vi.fn(),
   fetchSchema: vi.fn(),
+  fetchAnnotations: vi.fn().mockResolvedValue([]), // header badges hop via /api/annotations
 }));
 import { fetchNode, fetchSchema } from "../../src/client/api";
 import { NodeView } from "../../src/client/NodeView";

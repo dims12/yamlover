@@ -232,9 +232,14 @@ test('a root-level type tag (no preceding key) tags the document root', () => {
   assert.deepEqual(r.entries?.map((e) => e.key), [null, null, 'scale']);
 });
 
-test('mixtures are forbidden without an explicit !!mix / !!omni tag', () => {
+test('keyed+keyless mixing is forbidden without !!mix; scalar+fields (omni) needs no tag', () => {
   assert.throws(() => parseYamlover('m:\n  - a\n  title: T\n'), /must be tagged !!mix/);
-  assert.throws(() => parseYamlover('r: 5\n  x: 1\n'), /must be tagged !!omni/);
+  // a deeper block under a scalar value is invalid YAML, so reading it as the node's fields
+  // is unambiguous — the omni shape needs no tag (YAMLOVER.md §4; `!!omni` stays legal)
+  const r = entry(asMap(parseYamlover('r: 5\n  x: 1\n').root), 'r').value as Mapping & { value?: unknown };
+  assert.equal(r.value, 5);
+  assert.equal(r.entries?.length, 1);
+  assert.equal(r.entries?.[0].key, 'x');
   // pure seq / map / scalar remain tag-free
   parseYamlover('s:\n  - a\n  - b\n');
   parseYamlover('o:\n  x: 1\n');

@@ -172,12 +172,13 @@ export class Store {
   }
 
   /** Incrementally add ONE annotation document at `annStorePath`, with a forward `target` ref edge
-   *  to `targetStorePath`. This avoids a full re-walk/rebuild (which re-reads and re-hashes every
+   *  to `targetStorePath` and (when given) a keyless `back` edge to `tagStorePath` — the applied
+   *  tag's `~-` membership. This avoids a full re-walk/rebuild (which re-reads and re-hashes every
    *  blob in the served tree, blocking the server) on every save. The root is FORCED to the
    *  annotation format so the material's backlink lookup ({@link relationships} `.in`) finds it; the
-   *  `target` pointer can't resolve in isolation (it is project-scoped `//…`), so its edge is added
-   *  directly from the known target. */
-  addAnnotation(annStorePath: string, targetStorePath: string, doc: Document): void {
+   *  `target`/`~-` pointers can't resolve in isolation (they are project-scoped `//…`), so their
+   *  edges are added directly from the known targets. */
+  addAnnotation(annStorePath: string, targetStorePath: string, doc: Document, tagStorePath?: string): void {
     const insNode = this.db.prepare(
       `INSERT OR REPLACE INTO node (path, type, format, value, content_hash, size, is_array, meta)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -198,6 +199,10 @@ export class Store {
         if (parent !== null) insEdge.run(parent, p, label, 'contain', pos);
       });
       insEdge.run(annStorePath, targetStorePath, 'target', 'ref', 0);
+      if (tagStorePath) {
+        const pos = (doc.root.entries ?? []).findIndex((e) => e.edge === 'back' && e.key === null);
+        insEdge.run(annStorePath, tagStorePath, null, 'back', pos >= 0 ? pos : 0);
+      }
       this.db.exec('COMMIT');
     } catch (e) {
       this.db.exec('ROLLBACK');

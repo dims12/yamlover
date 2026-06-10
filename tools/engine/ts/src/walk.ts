@@ -75,7 +75,19 @@ export function walkTree(absDir: string, opts: WalkOptions = {}): WalkResult {
   const ctx: Ctx = { root: path.resolve(absDir), opts, anchors: new Map(), files: new Map() };
   const root = dirNode(ctx.root, ctx);
   root.meta = { ...root.meta, documentRoot: true }; // the served root is always a document root
-  applySchemas(root, findDefsRoot(absDir)); // propagate attached !!<…> schemas down the instance
+  // Graft the BUILT-IN `yamlover/` subtree (color tags, …) hosted next to `$defs` into the
+  // served tree, so `*//yamlover/…` pointers resolve from any served root. Serving the host
+  // itself walks `yamlover/` naturally (the key already exists); trees with no `$defs` host
+  // above them get no graft; a root that PROJECTS AS AN ARRAY (all-keyless) is left alone —
+  // a keyed graft would flip its kind to mix. Grafted files live outside `ctx.root`, so —
+  // like `$defs` hosts — they are not manifested and the watcher cannot see them.
+  const defsRoot = findDefsRoot(absDir);
+  const builtin = path.join(defsRoot, 'yamlover');
+  const arrayRoot = root.array || (root.entries?.length ? root.entries.every((e) => e.key === null) : false);
+  if (defsRoot !== ctx.root && !arrayRoot && fs.existsSync(builtin) && root.entries && !root.entries.some((e) => e.key === 'yamlover')) {
+    root.entries.push({ key: 'yamlover', edge: 'contain', value: dirNode(builtin, ctx) });
+  }
+  applySchemas(root, defsRoot); // propagate attached !!<…> schemas down the instance
   return {
     doc: { root, anchors: ctx.anchors, source: { concrete: 'directory', uri: absDir } },
     files: [...ctx.files.values()],
@@ -168,9 +180,8 @@ function dirNode(dir: string, ctx: Ctx): Node {
     entries.push({ key: name, edge: 'contain', value: child });
   }
 
-  let node: Mapping = { kind: 'mapping', entries, array: false };
-  node = applyBody(dir, node, ctx);
-  return applyMeta(node, meta); // attach meta `format` to entries (incl. body-overlay ones)
+  const node: Mapping = { kind: 'mapping', entries, array: false };
+  return applyMeta(applyBody(dir, node, ctx), meta); // attach meta `format` to entries (incl. body-overlay ones)
 }
 
 /** A single filesystem child (file or subdir) → a Node, honoring meta type/format overrides. */
@@ -192,8 +203,8 @@ function childNode(abs: string, m: { type?: string; format?: string } | undefine
  *  text entry (e.g. 59's `markdown:`) gets its (type, format) just like a file child does. A
  *  Blob already carries its format; a node with a format already wins; binary stays a Blob.
  *  `uniqueItems: true` marks the child a SET (≡ the `!!set` tag — META.md): NodeMeta.set. */
-function applyMeta(node: Mapping, meta: Meta): Mapping {
-  for (const e of node.entries) {
+function applyMeta(node: Node, meta: Meta): Node {
+  for (const e of node.entries ?? []) {
     if (e.key == null || isPointer(e.value)) continue;
     const m = meta[e.key];
     if (!m) continue;
@@ -311,9 +322,12 @@ function applySchemas(root: Node, defsRoot: string): void {
     // object schema hosted as `$defs/<name>` → `x-yamlover-<name>` (chapter, tag, …).
     const fmt = str(s, 'format') ?? (name && str(s, 'type') === 'object' ? `x-yamlover-${name}` : null);
     if (fmt && !hasFormat(inst)) inst.meta = { ...inst.meta, schema: inlineFormat(fmt) };
-    // recurse structurally
+    // recurse structurally — `variant`/`mixed` carry keyed fields exactly like `object`
+    // (META.md vocabulary: variant = !!omni, mixed = !!mix), so `properties`/
+    // `additionalProperties` propagate through them too (e.g. a tag taxonomy whose tags
+    // hold their description as a BODY still tags every sub-tag).
     const stype = str(s, 'type');
-    if (stype === 'object') {
+    if (stype === 'object' || stype === 'variant' || stype === 'mixed') {
       const props = field(s, 'properties');
       const addl = field(s, 'additionalProperties'); // a schema for keys not in `properties`
       for (const e of inst.entries ?? []) {
@@ -343,22 +357,24 @@ function inlineFormat(format: string): Value {
 
 /** Merge `.yamlover/body.yamlover` over the directory mapping (YAMLOVER.md §5):
  *  - a mapping body OVERRIDES same-key children and ADDS overlay-only keys (scalars/pointers);
- *  - a pointer-array body (`- *file …`) imposes ORDER over the existing children.
+ *  - a pointer-array body (`- *file …`) imposes ORDER over the existing children;
+ *  - a SCALAR body root with fields (the omni shape, e.g. `!!omni A taxonomy` over a tag
+ *    directory) gives the directory that scalar as its own BODY, fields merged as above.
  *  The body root's `meta` (e.g. a `!!<*yamlover/$defs/chapter>` tag attaching a schema to the
  *  whole directory) is carried onto the merged node, so a directory CHAPTER is recognized. */
-function applyBody(dir: string, node: Mapping, ctx: Ctx): Mapping {
+function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
   const file = path.join(dir, YAMLOVER_DIR, 'body.yamlover');
   if (!fs.existsSync(file)) return node;
   const bodyDoc = parseYamlover(readTracked(ctx, file).toString('utf8'), file);
   for (const [name, n] of bodyDoc.anchors) ctx.anchors.set(name, n); // overlay `&` anchors, tree-global
   const body = bodyDoc.root;
-  if (body.kind !== 'mapping' || !body.entries) return node;
+  if ((body.kind !== 'mapping' && body.kind !== 'scalar') || !body.entries) return node;
   // a directory with a body.yamlover overlay is a self-contained instance = a DOCUMENT root
   // (so `*/file` inside it resolves to this directory, at any nesting depth).
   const meta = { ...node.meta, ...body.meta, documentRoot: true };
 
   // a pure pointer/positional array → reorder existing children to match
-  if (body.array || (body.entries.length > 0 && body.entries.every((e) => e.key === null))) {
+  if (body.kind === 'mapping' && (body.array || (body.entries.length > 0 && body.entries.every((e) => e.key === null)))) {
     const byKey = new Map(node.entries.map((e) => [e.key, e] as const));
     const ordered: Entry[] = [];
     for (const e of body.entries) {
@@ -381,7 +397,10 @@ function applyBody(dir: string, node: Mapping, ctx: Ctx): Mapping {
     if (!existing) { order.push(e.key); merged.set(e.key, e); }
     else merged.set(e.key, augmentEntry(existing, e));
   }
-  return { kind: 'mapping', entries: order.map((k) => merged.get(k)!), array: false, meta };
+  const entries = order.map((k) => merged.get(k)!);
+  // a scalar body root → the directory node carries that scalar as its own value (omni)
+  if (body.kind === 'scalar') return { kind: 'scalar', value: body.value, raw: body.raw, entries, array: false, meta };
+  return { kind: 'mapping', entries, array: false, meta };
 }
 
 /** Overlay `body`'s entry onto the directory's: keep the dir node's value/kind/format (the file

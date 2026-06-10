@@ -29,6 +29,7 @@ export interface Link {
   size?: number;
   format?: string | null;
   value?: unknown; // for a link to a scalar: its value, shown as the label
+  color?: string | null; // for a link to a pure color tag: its explicit color (badges)
 }
 
 interface Ref {

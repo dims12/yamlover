@@ -22,6 +22,7 @@ vi.mock("../../src/client/api", () => ({
     value: {},
   }),
   fetchSchema: vi.fn().mockResolvedValue({ type: "object" }),
+  fetchAnnotations: vi.fn().mockResolvedValue([]), // header badges hop via /api/annotations
 }));
 import { App } from "../../src/client/App";
 

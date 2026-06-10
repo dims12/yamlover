@@ -3,13 +3,12 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import { Annotation, NodeJson, blobUrl } from "../api";
-import { DEFAULT_COLOR, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
+import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 
 /** A rectangular annotation region on a PDF page, in points (origin top-left). `ann` is the source
  *  annotation when real/saved (→ clickable to edit); absent for the live preview. */
 interface PdfRegion { page: number; x: number; y: number; w: number; h: number; title?: string; color?: string; ann?: Annotation }
 const num = (v: unknown): number => Number(v) || 0;
-const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
 // pdf.js renders in a Web Worker; point it at the bundled worker (the version
 // react-pdf depends on) resolved through Vite. Done once at module load.
@@ -37,11 +36,11 @@ export function PdfView({ node }: { node: NodeJson }) {
   const { openCreate, openEdit, palette, preview } = useAnnotationMenu(material);
   // include the live PREVIEW so the rectangle stays drawn while the menu is open
   const shown = preview
-    ? [...material.annotations, { path: "(preview)", selector: { ...preview.selector, color: preview.color } } as Annotation]
+    ? [...material.annotations, { path: "(preview)", selector: preview.selector, tag: preview.tag } as Annotation]
     : material.annotations;
   const regions: PdfRegion[] = shown
     .filter((a) => a.selector?.type === "pdf")
-    .map((a) => ({ page: num(a.selector!.page) || 1, x: num(a.selector!.x), y: num(a.selector!.y), w: num(a.selector!.w), h: num(a.selector!.h), title: a.body, color: str(a.selector!.color), ann: editable(a) ? a : undefined }));
+    .map((a) => ({ page: num(a.selector!.page) || 1, x: num(a.selector!.x), y: num(a.selector!.y), w: num(a.selector!.w), h: num(a.selector!.h), title: a.description, color: colorOf(a), ann: editable(a) ? a : undefined }));
 
   // Track the pane width so pages re-flow on resize.
   useLayoutEffect(() => {

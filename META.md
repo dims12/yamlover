@@ -136,6 +136,25 @@ yamlover specifics:
   so there is **one** reference mechanism across yamlover (`URIs.md`), not a second
   JSON-Pointer dialect.
 
+## Built-in schemas: tags and annotations
+
+The repo hosts two schemas the server acts on (and a built-in instance tree):
+
+- **`$defs/tag`** — a node in a tag taxonomy (`type: variant`): its description is its **BODY**
+  (the node's own scalar value — `name: <text>` with the sub-tags in the deeper block; no
+  `!!omni` needed, YAMLOVER.md §4), an optional explicit **`color`** (`"#rrggbb"` — a *pure
+  color tag*; absent ⇒ the UI derives a stable hue from the tag's name), and every other key a
+  sub-tag (`additionalProperties` recurses). Applied to a whole node as a `~name: */tags/…`
+  reverse membership.
+- **`$defs/annotation`** — **one tag application**: a `target` pointer at the material, an
+  optional `selector` narrowing it to a region (absent = the whole node), an optional
+  per-application `description`, and the applied tag as a keyless `~- *//path/to/tag`
+  membership. Display color always comes from the applied tag. Two tags on the same region =
+  two annotations.
+- **`yamlover/tags/colors`** — the built-in pure color tags (the annotation palette), grafted
+  into every served root by the engine (found like `$defs`: the nearest ancestor directory
+  holding `$defs/`).
+
 ## Examples
 
 `55-scalar-as-binary` — the on-disk file `age` is the instance; meta decodes it:

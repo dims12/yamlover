@@ -82,33 +82,46 @@ Notes:
 
 ## Annotations
 
-An annotation marks a piece of a material and is saved as a first-class node in the graph
-(a `$defs/annotation` object), reverse-linked to the material — so it persists across reloads
-and shows up wherever the material is read. The flow is the **same for prose, images, maps,
-and PDFs**: you **select**, then pick a color.
+An annotation is **a tag applied to a piece of a material** — one tag application, saved as a
+first-class node in the graph (a `$defs/annotation` object), reverse-linked to the material and
+a member of its tag — so it persists across reloads, shows up wherever the material is read, and
+is listed on the tag's own page among the tag's members. Its display color is **the applied
+tag's**: a built-in **pure color tag** (`yamlover/tags/colors/…`) carries an explicit color, and
+any **named tag** gets its stable name-derived hue (the same hue its badges use everywhere). The
+flow is the **same for prose, images, maps, and PDFs**: you **select**, then pick a tag.
 
 1. **Select** the thing to mark:
    - **Prose / PDF** — drag to select text.
    - **Image / Map** — drag a rectangle over the region.
-2. A small **palette** pops up by the selection. The selected text / dragged rectangle stays
-   shown while it's open, so it's clear what you're marking. The buttons:
-   - **Color swatches** — click one to create the annotation in that color. The **last color
-     you used is pre-selected** and remembered, so repeated marks stay one color.
-   - **✓ Confirm** — create in the pre-selected color (the explicit alternative to clicking away).
+2. A small **tag picker** pops up by the selection. The selected text / dragged rectangle stays
+   shown while it's open, so it's clear what you're marking. The controls:
+   - **Color-tag swatches** — the six built-in pure color tags; click one to apply it. The
+     **last tag you used is pre-selected** and remembered, so repeated marks stay one tag.
+   - **Recent named tags** — badges of the named tags you applied lately; click to re-apply.
+   - **A tag path input** — type any tag's node path (e.g.
+     `/examples/67-pdf-tags/tags/genre/humor/deadpan`) and press **Enter** to apply that tag.
+   - **✓ Confirm** — apply the pre-selected tag (the explicit alternative to clicking away).
    - **⧉ Copy** (prose only) — copies the selected text to the clipboard and creates **no**
      annotation.
    - **🗑 Discard** — drops the pending mark, creating nothing.
-3. **The default is to keep the mark:** clicking anywhere outside the menu also commits in the
-   pre-selected color. Only **Copy** or **Discard** skip creation.
+3. **The default is to keep the mark:** clicking anywhere outside the picker also commits with
+   the pre-selected tag. Only **Copy** or **Discard** skip creation.
 
 A new mark appears **immediately** — it doesn't wait for the save round-trip. Saved marks
-render in their color — a highlight under prose, a colored rectangle over an image, map, PDF,
-or DjVu region — and a count shows above the material.
+render in their tag's color — a highlight under prose, a colored rectangle over an image, map,
+PDF, or DjVu region — and a count shows above the material. The same region can carry several
+tags — each application is its own annotation.
 
-**To recolor or delete an annotation, click it.** The same palette reopens in *edit* mode, with
-the annotation's current color pre-selected: click a swatch to **recolor**, or **🗑** to **delete**
+**To re-tag or delete an annotation, click it.** The same picker reopens in *edit* mode, with
+the annotation's current tag pre-selected: pick a tag to **re-tag**, or **🗑** to **delete**
 it; clicking away just closes. (Any *standalone* annotation file can be edited this way, wherever
 it lives; an annotation authored inline in a shared document is shown but frozen.)
+
+The built-in tags live under the **`yamlover` node** at the project root — when the served root
+is not the yamlover repo itself, the engine grafts the repo's `yamlover/` subtree there (found
+like `$defs`: the nearest ancestor directory holding `$defs/`), so `/yamlover/tags/colors/…`
+resolves in every project. Whole-node tagging stays as it was: a `~tag: */tags/…` entry on the
+node itself (no annotation object needed when there's no region and no comment).
 
 New annotations are written as ordinary `.yamlover` files (one per annotation) under the
 project's **default annotation location** — `<root>/annotations/` unless

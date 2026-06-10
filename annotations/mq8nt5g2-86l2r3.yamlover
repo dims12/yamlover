@@ -1,0 +1,10 @@
+!!<*yamlover/$defs/annotation>
+target: *//examples/71-kml-map/sample.kml
+~- *//yamlover/tags/colors/yellow
+selector:
+  type: "map"
+  n: 52.5163016588896
+  s: 52.514721641628164
+  e: 13.367507457733156
+  w: 13.36439609527588
+created: 2026-06-10T22:47:51.506Z

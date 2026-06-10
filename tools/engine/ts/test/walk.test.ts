@@ -176,6 +176,33 @@ test('a sub-document encoding format (yamlover/meta) parses the file — never a
   rmSync(root, { recursive: true, force: true });
 });
 
+// The BUILT-IN graft: serving a subdir of a `$defs` host (the repo) grafts the host's
+// `yamlover/` subtree into the walked root, so `*//yamlover/tags/colors/…` (the pure color
+// tags every annotation may apply) resolves from any served root.
+test('built-in yamlover/ subtree is grafted when serving below a $defs host', () => {
+  const s = indexedDir('59-all-formats-object'); // a subdir of the repo (the $defs host)
+  assert.equal(s.node('/yamlover/tags/colors')?.format, 'x-yamlover-tag');
+  assert.equal(s.node('/yamlover/tags/colors/yellow')?.format, 'x-yamlover-tag');
+  assert.equal(s.node('/yamlover/tags/colors/yellow/color')?.value, '#f9e2af');
+  s.close();
+});
+
+test('no graft outside a $defs host, and none into an array-projecting root', () => {
+  // a temp tree has no `$defs/` ancestor → no `yamlover` key appears
+  const root = mkdtempSync(join(tmpdir(), 'yo-nograft-'));
+  writeFileSync(join(root, 'name'), 'Alice\n');
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(root));
+  assert.equal(s.node('/yamlover'), null);
+  s.close();
+  rmSync(root, { recursive: true, force: true });
+  // an all-keyless root under the repo stays a pure array — a keyed graft would flip it to mix
+  const arr = indexedDir('56-array-of-files');
+  assert.equal(arr.node('/')?.is_array, true);
+  assert.equal(arr.node('/yamlover'), null);
+  arr.close();
+});
+
 test('~- membership in a body overlay: stored as a keyless back edge; !!set / uniqueItems mark sets', () => {
   const root = mkdtempSync(join(tmpdir(), 'yo-backseq-'));
   mkdirSync(join(root, '.yamlover'));

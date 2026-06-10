@@ -27,7 +27,7 @@ const dir = join(here, '..', '..', 'conformance', 'yaml');
 // --- known gaps: cases yamlover does not yet read, grouped by the missing YAML feature ---------
 // Keep grouped by cause; the union is what the gate consults. Shrink as features land.
 const MULTI_DOC = ['27NA','2LFX','2XXW','33X3','36F6','3MYT','4Q9F','4V8U','52DL','5MUD','6CK3','6FWR','6JQW','6KGN','6LVF','6WPF','753E','7BMT','7BUB','7TMG','7ZZ5','82AN','8CWC','8KB6','8XYN','93WF','96L6','9BXH','9SA2','9TFX','9U5K','B3HG','BEC7','C4HZ','CC74','CPZ3','DK3J','EX5H','EXG3','F3CP','F6MC','FP8R','FTA2','H3Z8','J7PZ','J9HZ','K3WX','M29M','M7NX','MYW6','NAT4','NJ66','P76L','Q8AD','R52L','RTP8','S4T7','S7BG','SKE5','SSW6','T26H','T4YY','T5N4','U3C3','U3XV','UGM3','X8DW','XLQ9','Y2GN','Z9M4','ZWK4'];
-const TAGS = ['565N','57H4','6JWB','735Y','BU8L','EHF6','M5C3','WZ62','Z67P'];
+const TAGS = ['565N','57H4','6JWB','BU8L','EHF6','M5C3','WZ62','Z67P'];
 const EXPLICIT_KEY = ['5WE3','7W2P','A2M4','CT4Q','GH63','JTV5','L94M','RR7F','S9E8'];
 // otherParse = scalar/flow/folding/tab gaps that error; mismatch = parses but the value differs.
 const OTHER_PARSE = ['2EBW','3ALJ','3R3P','4CQQ','4ZYM','5GBF','5T43','652Z','6BCT','6CA3','6HB6','6VJK','7A4E','7T8X','87E4','8UDB','9YRD','A984','AB8U','C2DT','CN3R','D83L','DBG4','DWX9','FBC9','G992','HS5T','JR7V','K527','L9U5','LP6E','LQZ7','M9B4','MJS9','NB6Z','NP9H','P2AD','PRH3','QF4Y','TL85','TS54','UV7Q','W42U','XV9V','YD5X','ZF4X','ZK9H'];

@@ -65,11 +65,22 @@ export function fetchSchema(path: string, depth?: number): Promise<unknown> {
   return getJson<unknown>(`/api/schema?${q}`);
 }
 
-/** An annotation of a material — a marked segment + optional note, reverse-linked server-side. */
+/** A tag as the annotation API hands it around: its node path, display name (the taxonomy key),
+ *  and explicit color — null for a named tag, whose hue the client derives from the name. */
+export interface TagRef {
+  path: string;
+  name: string;
+  color: string | null;
+}
+
+/** An annotation of a material — ONE TAG APPLICATION: a marked segment (or the whole node, when
+ *  `selector` is absent) tagged by `tag`, with an optional per-application comment. `tag` is
+ *  null only for legacy annotations saved before tags carried the color. */
 export interface Annotation {
   path: string; // the annotation's own node path
-  selector?: { type?: string; exact?: string; prefix?: string; suffix?: string; color?: string; [k: string]: unknown };
-  body?: string;
+  tag?: TagRef | null;
+  selector?: { type?: string; exact?: string; prefix?: string; suffix?: string; [k: string]: unknown };
+  description?: string;
   created?: string;
 }
 
@@ -78,8 +89,9 @@ export function fetchAnnotations(path: string): Promise<Annotation[]> {
   return getJson<Annotation[]>(`/api/annotations?path=${encodeURIComponent(path)}`);
 }
 
-/** Save a new annotation of the material at `target` (its JSON path); returns the created path. */
-export function saveAnnotation(a: { target: string; selector: Record<string, unknown>; body?: string }): Promise<{ path: string }> {
+/** Save a new annotation — apply the tag at `tag` to the material at `target` (JSON paths),
+ *  optionally narrowed to `selector` and commented by `description`; returns the created path. */
+export function saveAnnotation(a: { target: string; tag: string; selector?: Record<string, unknown>; description?: string }): Promise<{ path: string }> {
   return fetch("/api/annotate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(a) }).then(
     async (res) => {
       const body = await res.json();

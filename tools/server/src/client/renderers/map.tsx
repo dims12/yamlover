@@ -5,7 +5,7 @@ import { NodeJson, blobUrl } from "../api";
 import { Chunk } from "./registry";
 import { bytesToGeoJSON, GeoJSON } from "./kml";
 import { Annotation } from "../api";
-import { DEFAULT_COLOR, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
+import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 import { wireGestures } from "./panzoom";
 
 /**
@@ -36,13 +36,12 @@ const TILE_ATTRIBUTION =
  *  annotation when it is a real saved one (→ clickable to edit); absent for the live preview. */
 interface MapRegion { n: number; s: number; e: number; w: number; title?: string; color?: string; ann?: Annotation }
 const num = (v: unknown): number => Number(v) || 0;
-const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
 /** The `map`-type annotations, as geographic rectangles to overlay. */
 function mapRegions(anns: Annotation[]): MapRegion[] {
   return anns
     .filter((a) => a.selector?.type === "map")
-    .map((a) => ({ n: num(a.selector!.n), s: num(a.selector!.s), e: num(a.selector!.e), w: num(a.selector!.w), title: a.body, color: str(a.selector!.color), ann: editable(a) ? a : undefined }));
+    .map((a) => ({ n: num(a.selector!.n), s: num(a.selector!.s), e: num(a.selector!.e), w: num(a.selector!.w), title: a.description, color: colorOf(a), ann: editable(a) ? a : undefined }));
 }
 
 function escapeHtml(s: string): string {
@@ -189,7 +188,7 @@ export function MapView({ node }: { node: NodeJson }) {
   const material = useMaterialAnnotations(node.path);
   const { openCreate, openEdit, palette, preview, color } = useAnnotationMenu(material);
   const shown = preview
-    ? [...material.annotations, { path: "(preview)", selector: { ...preview.selector, color: preview.color } } as Annotation]
+    ? [...material.annotations, { path: "(preview)", selector: preview.selector, tag: preview.tag } as Annotation]
     : material.annotations;
   return (
     <div className="text">

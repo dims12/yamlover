@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 import { NodeJson, blobUrl } from "../api";
 import { Chunk } from "./registry";
 import { Annotation } from "../api";
-import { DEFAULT_COLOR, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
+import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 import { wireGestures } from "./panzoom";
 
 /** A rectangular annotation region in the image's own pixel space (origin top-left). `ann` is the
@@ -12,13 +12,12 @@ import { wireGestures } from "./panzoom";
 export interface ImageRegion { x: number; y: number; w: number; h: number; title?: string; color?: string; ann?: Annotation }
 
 const num = (v: unknown): number => Number(v) || 0;
-const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
 /** The `rect`-type annotations, as pixel regions to overlay on the image. */
 function imageRegions(anns: Annotation[]): ImageRegion[] {
   return anns
     .filter((a) => a.selector?.type === "rect")
-    .map((a) => ({ x: num(a.selector!.x), y: num(a.selector!.y), w: num(a.selector!.w), h: num(a.selector!.h), title: a.body, color: str(a.selector!.color), ann: editable(a) ? a : undefined }));
+    .map((a) => ({ x: num(a.selector!.x), y: num(a.selector!.y), w: num(a.selector!.w), h: num(a.selector!.h), title: a.description, color: colorOf(a), ann: editable(a) ? a : undefined }));
 }
 
 /**
@@ -133,7 +132,7 @@ export function ImageView({ node }: { node: NodeJson }) {
   const { openCreate, openEdit, palette, preview, color } = useAnnotationMenu(material);
   // include the live PREVIEW selector so the rectangle stays drawn while the menu is open
   const shown = preview
-    ? [...material.annotations, { path: "(preview)", selector: { ...preview.selector, color: preview.color } } as Annotation]
+    ? [...material.annotations, { path: "(preview)", selector: preview.selector, tag: preview.tag } as Annotation]
     : material.annotations;
   return (
     <div className="text">

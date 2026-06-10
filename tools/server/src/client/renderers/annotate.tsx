@@ -1,31 +1,56 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Annotation, fetchAnnotations, saveAnnotation, deleteAnnotation } from "../api";
+import { Annotation, TagRef, fetchAnnotations, fetchNode, saveAnnotation, deleteAnnotation } from "../api";
+import { TAG_FORMAT, explicitColor, resolveTagColor, tagFields } from "./tag";
+import { strToSegs } from "../paths";
 
 /**
- * The annotation layer, shared across materials (the UI guide). You SELECT to annotate — drag-
- * select text in prose or a PDF, drag a rectangle on an image or map — and a floating menu appears:
+ * The annotation layer, shared across materials (the UI guide). An annotation is ONE TAG
+ * APPLICATION: a region of the material tagged by a tag, optionally commented. You SELECT to
+ * annotate — drag-select text in prose or a PDF, drag a rectangle on an image or map — and a
+ * floating tag picker appears:
  *
- *   - a PALETTE of colors; the last-used color is pre-selected. Click a swatch to annotate in it.
- *   - a ✓ CONFIRM button — annotate in the pre-selected color (the explicit alternative to
- *     clicking outside, which also commits).
+ *   - the PURE COLOR TAGS (built-in `yamlover/tags/colors/…`) as swatches; the last-used tag is
+ *     pre-selected. Click a swatch to apply that tag.
+ *   - the recently used NAMED tags as badges, plus a path input to apply ANY tag by its node
+ *     path (a named tag's hue derives from its name; a color tag carries its color).
+ *   - a ✓ CONFIRM button — apply the pre-selected tag (the explicit alternative to clicking
+ *     outside, which also commits).
  *   - (text only) a ⧉ COPY button — copies the selected text, creates nothing.
  *   - a 🗑 DISCARD button — drops the pending mark.
  *
- * Clicking an EXISTING annotation reopens the menu in "edit" mode: a swatch RECOLORS it, 🗑 DELETES
- * it, clicking away just closes. A new/edited mark renders IMMEDIATELY (optimistically) — it does
- * not wait for the server round-trip (which reindexes). Annotations are graph-native — saved
- * server-side as yamlover objects, reverse-linked to the material — so they persist on reload.
+ * Clicking an EXISTING annotation reopens the picker in "edit" mode: picking a tag RE-TAGS it,
+ * 🗑 DELETES it, clicking away just closes. A new/edited mark renders IMMEDIATELY
+ * (optimistically) — it does not wait for the server round-trip (which reindexes). Annotations
+ * are graph-native — saved server-side as yamlover objects, reverse-linked to the material and
+ * members of their tag — so they persist on reload.
  */
 
-// Highlight palette (Catppuccin accents). The first is the historical default; the last-used color
-// is remembered in localStorage and pre-selected, so a reader who picks green keeps getting green.
-export const PALETTE = ["#f9e2af", "#a6e3a1", "#89dceb", "#cba6f7", "#f5c2e7", "#fab387"];
-const COLOR_KEY = "yo-annotate-color";
-export const DEFAULT_COLOR = PALETTE[0];
+// The built-in pure color tags (the palette). This constant is the OFFLINE fallback — the picker
+// fetches the real `/yamlover/tags/colors` nodes once per session (useColorTags) so a project
+// that re-themes them wins; the paths and hexes here mirror yamlover/tags/.yamlover/body.yamlover.
+export const COLOR_TAGS: TagRef[] = [
+  { path: "/yamlover/tags/colors/yellow", name: "yellow", color: "#f9e2af" },
+  { path: "/yamlover/tags/colors/green", name: "green", color: "#a6e3a1" },
+  { path: "/yamlover/tags/colors/sky", name: "sky", color: "#89dceb" },
+  { path: "/yamlover/tags/colors/mauve", name: "mauve", color: "#cba6f7" },
+  { path: "/yamlover/tags/colors/pink", name: "pink", color: "#f5c2e7" },
+  { path: "/yamlover/tags/colors/peach", name: "peach", color: "#fab387" },
+];
+export const DEFAULT_TAG = COLOR_TAGS[0];
+export const DEFAULT_COLOR = DEFAULT_TAG.color!;
+const TAG_KEY = "yo-annotate-tag";
+const RECENT_KEY = "yo-annotate-recent-tags";
 
-/** An annotation's saved color, or the default for legacy marks. */
+/** An annotation's display color — its applied tag's (explicit color, else name-derived hue);
+ *  the default for legacy marks saved before annotations carried a tag. */
 export function colorOf(a: Annotation): string {
-  return typeof a.selector?.color === "string" ? a.selector.color : DEFAULT_COLOR;
+  return a.tag ? resolveTagColor(a.tag) : DEFAULT_COLOR;
+}
+
+/** An annotation's identity for optimistic reconcile/dedup: the same region tagged by two tags
+ *  is TWO annotations, so the key is (selector, tag path) — not the selector alone. */
+function annKey(a: Annotation): string {
+  return JSON.stringify([a.selector ?? null, a.tag?.path ?? null]);
 }
 
 /** Whether an annotation can be edited/deleted here — any STANDALONE annotation file (its node
@@ -37,16 +62,65 @@ export function editable(a: Annotation): boolean {
   return typeof a.path === "string" && a.path.endsWith(".yamlover");
 }
 
-/** The remembered highlight color (persisted in localStorage) + a setter that persists it. */
-export function useAnnotationColor(): [string, (c: string) => void] {
-  const [color, set] = useState<string>(() => localStorage.getItem(COLOR_KEY) || DEFAULT_COLOR);
-  const setColor = (c: string) => { localStorage.setItem(COLOR_KEY, c); set(c); };
-  return [color, setColor];
+// The color tags as indexed (fetched once per session; the constant covers offline/legacy roots).
+let colorTagsPromise: Promise<TagRef[]> | null = null;
+export function useColorTags(): TagRef[] {
+  const [tags, setTags] = useState<TagRef[]>(COLOR_TAGS);
+  useEffect(() => {
+    colorTagsPromise ??= fetchNode("/yamlover/tags/colors", 2)
+      .then((n) => {
+        const out: TagRef[] = [];
+        for (const [name, child] of tagFields(n.value)) {
+          const color = explicitColor(child);
+          if (color) out.push({ path: `${n.path}/${encodeURIComponent(name)}`, name, color });
+        }
+        return out.length ? out : COLOR_TAGS;
+      })
+      .catch(() => COLOR_TAGS);
+    let cancelled = false;
+    colorTagsPromise.then((t) => { if (!cancelled) setTags(t); });
+    return () => { cancelled = true; };
+  }, []);
+  return tags;
 }
 
-/** Save a `selector` annotation of the material at `target`, in `color`; resolves when persisted. */
-export function createAnnotation(target: string, selector: Record<string, unknown>, color: string): Promise<unknown> {
-  return saveAnnotation({ target, selector: { ...selector, color } });
+/** The remembered last-applied tag (persisted in localStorage) + a setter that persists it and
+ *  files a NAMED tag among the recents (color tags live in the swatch row already). */
+export function useAnnotationTag(): [TagRef, (t: TagRef) => void] {
+  const [tag, set] = useState<TagRef>(() => {
+    try {
+      const t = JSON.parse(localStorage.getItem(TAG_KEY) || "") as TagRef;
+      if (t?.path && t?.name) return t;
+    } catch { /* no/invalid stored tag */ }
+    return DEFAULT_TAG;
+  });
+  const setTag = (t: TagRef) => {
+    localStorage.setItem(TAG_KEY, JSON.stringify(t));
+    rememberRecent(t);
+    set(t);
+  };
+  return [tag, setTag];
+}
+
+/** The recently applied NAMED tags (newest first, capped). */
+export function recentTags(): TagRef[] {
+  try {
+    const r = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]") as TagRef[];
+    if (Array.isArray(r)) return r.filter((t) => t?.path && t?.name);
+  } catch { /* no/invalid recents */ }
+  return [];
+}
+
+function rememberRecent(t: TagRef): void {
+  if (t.path.startsWith("/yamlover/tags/colors/")) return; // the swatch row already shows these
+  const next = [t, ...recentTags().filter((r) => r.path !== t.path)].slice(0, 6);
+  localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+}
+
+/** Apply `tag` to the material at `target`, narrowed to `selector` when given (null = the whole
+ *  node); resolves when persisted. */
+export function createAnnotation(target: string, selector: Record<string, unknown> | null, tag: TagRef): Promise<unknown> {
+  return saveAnnotation({ target, tag: tag.path, ...(selector ? { selector } : {}) });
 }
 
 /** Read-only fetch of a material's annotations; `bump` (a changing number) forces a refetch. */
@@ -63,16 +137,16 @@ export function useAnnotations(path: string, bump = 0): Annotation[] {
 }
 
 /** The actions every renderer needs over a material's annotations, with OPTIMISTIC rendering: a
- *  create/recolor shows at once and a delete hides at once, before the (slow, reindexing) server
+ *  create/re-tag shows at once and a delete hides at once, before the (slow, reindexing) server
  *  round-trip lands. */
 export interface MaterialAnnotations {
   annotations: Annotation[];
-  create: (selector: Record<string, unknown>, color: string) => void;
+  create: (selector: Record<string, unknown> | null, tag: TagRef) => void;
   remove: (annPath?: string) => void;
-  recolor: (ann: Annotation, color: string) => void;
+  retag: (ann: Annotation, tag: TagRef) => void;
 }
 
-/** A material's annotations + optimistic create/delete/recolor. The displayed list merges the
+/** A material's annotations + optimistic create/delete/re-tag. The displayed list merges the
  *  server's annotations with pending creations (shown until the refetch holds them) minus pending
  *  deletions (hidden until the refetch drops them) — so every change is reflected instantly. */
 export function useMaterialAnnotations(path: string): MaterialAnnotations {
@@ -82,19 +156,19 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
   const [deleted, setDeleted] = useState<Set<string>>(new Set());  // paths hidden, not yet dropped
 
   // Reconcile when the server list refreshes: drop optimistic creations it now holds, and keep a
-  // path "deleted" only while the server still lists it (so a recolor's old copy can't flash back).
+  // path "deleted" only while the server still lists it (so a re-tag's old copy can't flash back).
   useEffect(() => {
-    const keys = new Set(fetched.map((a) => JSON.stringify(a.selector ?? {})));
-    setOptimistic((o) => o.filter((a) => !keys.has(JSON.stringify(a.selector ?? {}))));
+    const keys = new Set(fetched.map(annKey));
+    setOptimistic((o) => o.filter((a) => !keys.has(annKey(a))));
     const present = new Set(fetched.map((a) => a.path).filter(Boolean) as string[]);
     setDeleted((d) => new Set([...d].filter((p) => present.has(p))));
   }, [fetched]);
 
   const refresh = () => setBump((b) => b + 1);
-  const create = (selector: Record<string, unknown>, color: string) => {
-    const entry = { path: "(pending)", selector: { ...selector, color } } as Annotation;
+  const create = (selector: Record<string, unknown> | null, tag: TagRef) => {
+    const entry = { path: "(pending)", selector: selector ?? undefined, tag } as Annotation;
     setOptimistic((o) => [...o, entry]);
-    createAnnotation(path, selector, color)
+    createAnnotation(path, selector, tag)
       .then(refresh)
       .catch((e) => { setOptimistic((o) => o.filter((x) => x !== entry)); window.alert("save failed: " + (e as Error).message); }); // roll back the unsaved mark
   };
@@ -105,52 +179,91 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
       .then(refresh)
       .catch((e) => { setDeleted((d) => { const n = new Set(d); n.delete(annPath); return n; }); window.alert("delete failed: " + (e as Error).message); }); // un-hide on failure
   };
-  const recolor = (ann: Annotation, color: string) => {
-    const sel: Record<string, unknown> = { ...(ann.selector ?? {}) };
-    delete sel.color;
-    remove(ann.path); // hide + delete the old
-    create(sel, color); // show + save the new color
+  const retag = (ann: Annotation, tag: TagRef) => {
+    remove(ann.path); // hide + delete the old application
+    create(ann.selector ?? null, tag); // show + save the new one
   };
 
   const seen = new Set<string>();
   const annotations: Annotation[] = [];
   for (const a of [...optimistic, ...fetched]) {
     if (a.path && deleted.has(a.path)) continue;
-    const k = JSON.stringify(a.selector ?? {});
+    const k = annKey(a);
     if (seen.has(k)) continue;
     seen.add(k);
     annotations.push(a);
   }
-  return { annotations, create, remove, recolor };
+  return { annotations, create, remove, retag };
 }
 
-/** The floating menu — a palette plus action buttons. Mode decides which buttons show (the hook
- *  wires what each does): `create` gets ✓ confirm + optional ⧉ copy + 🗑 discard; `edit` gets just
- *  🗑 delete (a swatch recolors). `position: fixed`, so x/y are viewport coords. */
+/** A tag's display name from its node path (its last segment). */
+function tagNameOf(path: string): string {
+  const segs = strToSegs(path);
+  return segs.length ? String(segs[segs.length - 1]) : path;
+}
+
+/** The floating tag picker — color-tag swatches, recent named-tag badges, a tag-path input, plus
+ *  action buttons. Mode decides which buttons show (the hook wires what each does): `create` gets
+ *  ✓ confirm + optional ⧉ copy + 🗑 discard; `edit` gets just 🗑 delete (picking a tag re-tags).
+ *  `position: fixed`, so x/y are viewport coords. */
 export function AnnotationMenu({
-  x, y, color, mode, onPick, onConfirm, onCopy, onTrash, menuRef,
+  x, y, tag, mode, onPick, onConfirm, onCopy, onTrash, menuRef,
 }: {
-  x: number; y: number; color: string; mode: "create" | "edit";
-  onPick: (c: string) => void; onConfirm?: () => void; onCopy?: () => void; onTrash: () => void;
+  x: number; y: number; tag: TagRef; mode: "create" | "edit";
+  onPick: (t: TagRef) => void; onConfirm?: () => void; onCopy?: () => void; onTrash: () => void;
   menuRef?: React.Ref<HTMLDivElement>;
 }) {
+  const colorTags = useColorTags();
+  const recents = recentTags();
+  const [path, setPath] = useState("");
+  const verb = mode === "edit" ? "re-tag" : "tag";
+
+  // Apply an arbitrary tag by its node path: fetch, verify it IS a tag, pick it.
+  const pickPath = () => {
+    const p = path.trim();
+    if (!p) return;
+    fetchNode(p.startsWith("/") ? p : "/" + p, 1)
+      .then((n) => {
+        if (n.format !== TAG_FORMAT) throw new Error("not a tag node");
+        onPick({ path: n.path, name: n.title || tagNameOf(n.path), color: explicitColor(n.value) });
+      })
+      .catch((e) => window.alert(`cannot ${verb} with "${p}": ` + (e as Error).message));
+  };
+
   return (
     <div ref={menuRef} className="annotate-menu" style={{ left: x, top: y }} role="menu">
       <div className="annotate-palette">
-        {PALETTE.map((c) => (
+        {colorTags.map((t) => (
           <button
-            key={c}
+            key={t.path}
             type="button"
-            className={"annotate-swatch" + (c === color ? " sel" : "")}
-            style={{ background: c }}
-            title={mode === "edit" ? "recolor " + c : "highlight " + c}
-            onClick={() => onPick(c)}
+            className={"annotate-swatch" + (t.path === tag.path ? " sel" : "")}
+            style={{ background: resolveTagColor(t) }}
+            title={`${verb} ${t.name}`}
+            onClick={() => onPick(t)}
           />
         ))}
       </div>
-      {onConfirm && <button type="button" className="annotate-tool ok" title="annotate (keep the mark)" onClick={onConfirm}>✓</button>}
+      {onConfirm && <button type="button" className="annotate-tool ok" title={`${verb} ${tag.name} (keep the mark)`} onClick={onConfirm}>✓</button>}
       {onCopy && <button type="button" className="annotate-tool" title="copy text to clipboard (don't annotate)" onClick={onCopy}>⧉</button>}
       <button type="button" className="annotate-tool danger" title={mode === "edit" ? "delete this annotation" : "discard (don't annotate)"} onClick={onTrash}>🗑</button>
+      {recents.length > 0 && (
+        <div className="annotate-recents">
+          {recents.map((t) => (
+            <button key={t.path} type="button" className="tagtag" style={{ background: resolveTagColor(t) }} title={`${verb} ${t.name}`} onClick={() => onPick(t)}>
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
+      <input
+        className="annotate-taginput"
+        type="text"
+        placeholder={`${verb} by tag path… ⏎`}
+        value={path}
+        onChange={(e) => setPath(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") pickPath(); }}
+      />
     </div>
   );
 }
@@ -159,18 +272,18 @@ type MenuState =
   | { mode: "create"; selector: Record<string, unknown>; copy?: () => void; x: number; y: number }
   | { mode: "edit"; ann: Annotation; x: number; y: number };
 
-/** Drives the floating menu for a material: `openCreate` after a fresh selection, `openEdit` on a
- *  click on an existing mark. Returns the rendered `palette`, and a `preview` selector (the pending
- *  CREATE, so a renderer can keep the rectangle drawn while the menu is open). Outside-click commits
- *  a create (in the pre-selected color) but only closes an edit. */
+/** Drives the floating picker for a material: `openCreate` after a fresh selection, `openEdit` on
+ *  a click on an existing mark. Returns the rendered `palette`, and a `preview` (the pending
+ *  CREATE's selector + tag, so a renderer can keep the rectangle drawn while the picker is open).
+ *  Outside-click commits a create (with the pre-selected tag) but only closes an edit. */
 export function useAnnotationMenu(a: MaterialAnnotations): {
   openCreate: (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void) => void;
   openEdit: (ann: Annotation, screen: { x: number; y: number }) => void;
   palette: ReactNode;
-  preview: { selector: Record<string, unknown>; color: string } | null;
+  preview: { selector: Record<string, unknown>; tag: TagRef; color: string } | null;
   color: string;
 } {
-  const [color, setColor] = useAnnotationColor();
+  const [tag, setTag] = useAnnotationTag();
   const [menu, setMenu] = useState<MenuState | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const close = () => setMenu(null);
@@ -180,29 +293,29 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
   const openEdit = (ann: Annotation, screen: { x: number; y: number }) =>
     setMenu({ mode: "edit", ann, x: screen.x, y: screen.y });
 
-  const commitCreate = (c: string, m: MenuState) => { if (m.mode !== "create") return; setColor(c); a.create(m.selector, c); close(); };
-  const commitRecolor = (c: string, m: MenuState) => { if (m.mode !== "edit") return; setColor(c); a.recolor(m.ann, c); close(); };
+  const commitCreate = (t: TagRef, m: MenuState) => { if (m.mode !== "create") return; setTag(t); a.create(m.selector, t); close(); };
+  const commitRetag = (t: TagRef, m: MenuState) => { if (m.mode !== "edit") return; setTag(t); a.retag(m.ann, t); close(); };
 
-  // Outside-click: a create commits in the pre-selected color (default keeps the mark); an edit closes.
+  // Outside-click: a create commits with the pre-selected tag (default keeps the mark); an edit closes.
   useEffect(() => {
     if (!menu) return;
     const onDown = (e: MouseEvent) => {
       if (menuRef.current?.contains(e.target as Node)) return;
-      if (menu.mode === "create") commitCreate(color, menu);
+      if (menu.mode === "create") commitCreate(tag, menu);
       else close();
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menu, color]);
+  }, [menu, tag]);
 
   let palette: ReactNode = null;
   if (menu?.mode === "create") {
     palette = (
       <AnnotationMenu
-        menuRef={menuRef} x={menu.x} y={menu.y} color={color} mode="create"
-        onPick={(c) => commitCreate(c, menu)}
-        onConfirm={() => commitCreate(color, menu)}
+        menuRef={menuRef} x={menu.x} y={menu.y} tag={tag} mode="create"
+        onPick={(t) => commitCreate(t, menu)}
+        onConfirm={() => commitCreate(tag, menu)}
         onCopy={menu.copy ? () => { menu.copy!(); close(); } : undefined}
         onTrash={close}
       />
@@ -210,14 +323,14 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
   } else if (menu?.mode === "edit") {
     palette = (
       <AnnotationMenu
-        menuRef={menuRef} x={menu.x} y={menu.y} color={colorOf(menu.ann)} mode="edit"
-        onPick={(c) => commitRecolor(c, menu)}
+        menuRef={menuRef} x={menu.x} y={menu.y} tag={menu.ann.tag ?? DEFAULT_TAG} mode="edit"
+        onPick={(t) => commitRetag(t, menu)}
         onTrash={() => { a.remove(menu.ann.path); close(); }}
       />
     );
   }
-  const preview = menu?.mode === "create" ? { selector: menu.selector, color } : null;
-  return { openCreate, openEdit, palette, preview, color };
+  const preview = menu?.mode === "create" ? { selector: menu.selector, tag, color: resolveTagColor(tag) } : null;
+  return { openCreate, openEdit, palette, preview, color: resolveTagColor(tag) };
 }
 
 export function AnnotatedMaterial({ path, children }: { path: string; children: ReactNode }) {
@@ -259,7 +372,7 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
   const onClickMark = (e: React.MouseEvent) => {
     const mark = (e.target as HTMLElement).closest("mark.yo-annotation") as HTMLElement | null;
     if (!mark) return;
-    const ann = annotations.find((x) => JSON.stringify(x.selector ?? {}) === mark.dataset.annSel);
+    const ann = annotations.find((x) => annKey(x) === mark.dataset.annSel);
     if (!ann || !editable(ann)) return;
     e.preventDefault();
     openEdit(ann, { x: e.clientX, y: e.clientY });
@@ -305,7 +418,7 @@ function highlight(container: HTMLElement, anns: Annotation[]): void {
 }
 
 /** Wrap the first text occurrence of an annotation's `exact` (within one text node) in a colored,
- *  clickable `<mark>` carrying its selector key (so a click maps back to the annotation). */
+ *  clickable `<mark>` carrying its identity key (so a click maps back to the annotation). */
 function wrapFirst(container: HTMLElement, exact: string, a: Annotation): void {
   const c = colorOf(a);
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
@@ -318,10 +431,10 @@ function wrapFirst(container: HTMLElement, exact: string, a: Annotation): void {
     range.setEnd(n, i + exact.length);
     const mark = document.createElement("mark");
     mark.className = "yo-annotation";
-    mark.style.backgroundColor = c + "4d"; // ~30% alpha (#rrggbb → #rrggbbAA)
+    mark.style.backgroundColor = `color-mix(in srgb, ${c} 30%, transparent)`; // works for hex AND a named tag's hsl()
     mark.style.borderBottomColor = c;
-    mark.dataset.annSel = JSON.stringify(a.selector ?? {});
-    mark.title = a.body || "click to recolor or delete";
+    mark.dataset.annSel = annKey(a);
+    mark.title = a.description || "click to re-tag or delete";
     try {
       range.surroundContents(mark); // works when the match is within one text node (v1)
       return;

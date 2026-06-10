@@ -234,8 +234,14 @@ const REGISTRY: Renderer[] = [
     renderChunk: (chunk) => <PlantumlChunk chunk={chunk} />,
   },
   {
+    // A tag projects as `object` (fields only), `variant` (description BODY + fields) or
+    // `string` (a leaf tag that is just its description) — all route to the tag view.
     name: "tag",
-    accepts: [["object", "x-yamlover-tag"]],
+    accepts: [
+      ["object", "x-yamlover-tag"],
+      ["variant", "x-yamlover-tag"],
+      ["string", "x-yamlover-tag"],
+    ],
     render: (node, onNavigate) => <TagView node={node} onNavigate={onNavigate} />,
   },
   {

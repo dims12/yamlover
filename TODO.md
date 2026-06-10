@@ -7,3 +7,4 @@
 - Support configurable depth for json/json5p/yaml/yamlover renderers
 - Support configurable depth for chapter renderers
 - When images, maps etc are inside chapters, not need to complex leaflet controls
+- Annotations-as-tag-applications follow-up: richer tag search in the picker (autocomplete over indexed tags, not just a path input)

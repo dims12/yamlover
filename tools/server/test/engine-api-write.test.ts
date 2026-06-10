@@ -9,51 +9,87 @@ import { call, callBody } from "./http";
 // repo. Fixtures are minimal and explicit, so they cannot break when examples/ evolves.
 
 const SELECTOR = { type: "text", exact: "Alice" };
+// A local tag the fixtures apply — the `!!<…$defs/tag>` attach makes it an `x-yamlover-tag`
+// node (format derives from the pointer's last step; the schema file itself isn't needed).
+const TAG_FILE = { "tags.yamlover": 'yellow: !!<*yamlover/$defs/tag>\n  color: "#f9e2af"\n' };
+const TAG = "/tags.yamlover/yellow";
 
 describe("/api/annotate (create)", () => {
-  it("creates the annotation file under the default location and reverse-links the material", async () => {
-    const root = tmpTree({ name: "Alice" });
+  it("creates the annotation file (one tag application) and reverse-links the material", async () => {
+    const root = tmpTree({ name: "Alice", ...TAG_FILE });
     const h = createHandlers(root, { gitignore: false });
 
-    const r = await callBody(h, "POST", "/api/annotate", { target: "/name", selector: SELECTOR });
+    const r = await callBody(h, "POST", "/api/annotate", { target: "/name", tag: TAG, selector: SELECTOR });
     expect(r.status).toBe(201);
     expect(r.json.path).toMatch(/^\/annotations\/[^/]+\.yamlover$/);
-    expect(fs.existsSync(path.join(root, r.json.path.slice(1)))).toBe(true);
+    const file = fs.readFileSync(path.join(root, r.json.path.slice(1)), "utf8");
+    expect(file).toContain("~- *//tags.yamlover/yellow"); // the keyless tag membership
 
-    // the material lists it (the incoming `target` edge), with the selector intact
+    // the material lists it (the incoming `target` edge), with the selector AND the tag
     const list = call(h, "/api/annotations", { path: "/name" }).json;
     expect(list).toHaveLength(1);
     expect(list[0].path).toBe(r.json.path);
     expect(list[0].selector.exact).toBe("Alice");
+    expect(list[0].tag).toMatchObject({ path: TAG, name: "yellow", color: "#f9e2af" });
+  });
+
+  it("the tag survives a full reindex (the `~-` pointer resolves on the walk)", async () => {
+    const root = tmpTree({ name: "Alice", ...TAG_FILE });
+    const h = createHandlers(root, { gitignore: false });
+    await callBody(h, "POST", "/api/annotate", { target: "/name", tag: TAG, selector: SELECTOR });
+
+    expect((await callBody(h, "POST", "/api/reindex", {})).status).toBe(200);
+    const list = call(h, "/api/annotations", { path: "/name" }).json;
+    expect(list).toHaveLength(1);
+    expect(list[0].tag).toMatchObject({ path: TAG, name: "yellow", color: "#f9e2af" });
+  });
+
+  it("applies to the WHOLE node when no selector is given", async () => {
+    const root = tmpTree({ name: "Alice", ...TAG_FILE });
+    const h = createHandlers(root, { gitignore: false });
+    const r = await callBody(h, "POST", "/api/annotate", { target: "/name", tag: TAG, description: "the whole thing" });
+    expect(r.status).toBe(201);
+    const list = call(h, "/api/annotations", { path: "/name" }).json;
+    expect(list).toHaveLength(1);
+    expect(list[0].selector).toBeUndefined();
+    expect(list[0].description).toBe("the whole thing");
   });
 
   it("honors the settings.yamlover annotation location", async () => {
     const root = tmpTree({
       name: "Alice",
+      ...TAG_FILE,
       ".yamlover/settings.yamlover": "annotations:\n  location: /notes/marks\n",
     });
     const h = createHandlers(root, { gitignore: false });
 
-    const r = await callBody(h, "POST", "/api/annotate", { target: "/name", selector: SELECTOR });
+    const r = await callBody(h, "POST", "/api/annotate", { target: "/name", tag: TAG, selector: SELECTOR });
     expect(r.status).toBe(201);
     expect(r.json.path).toMatch(/^\/notes\/marks\/[^/]+\.yamlover$/);
     expect(fs.existsSync(path.join(root, "notes", "marks", path.basename(r.json.path)))).toBe(true);
     expect(call(h, "/api/annotations", { path: "/name" }).json).toHaveLength(1);
   });
 
-  it("rejects an annotation without a target or selector", async () => {
-    const h = createHandlers(tmpTree({ name: "Alice" }), { gitignore: false });
-    const r = await callBody(h, "POST", "/api/annotate", { target: "/name" });
-    expect(r.status).toBe(400);
-    expect(r.json.error).toBeTruthy();
+  it("rejects an annotation without a target, without a tag, or with a non-tag tag path", async () => {
+    const h = createHandlers(tmpTree({ name: "Alice", ...TAG_FILE }), { gitignore: false });
+    for (const body of [
+      { tag: TAG, selector: SELECTOR }, // no target
+      { target: "/name", selector: SELECTOR }, // no tag
+      { target: "/name", tag: "/name", selector: SELECTOR }, // tag is not an x-yamlover-tag node
+      { target: "/name", tag: "/nowhere", selector: SELECTOR }, // tag does not exist
+    ]) {
+      const r = await callBody(h, "POST", "/api/annotate", body);
+      expect(r.status, JSON.stringify(body)).toBe(400);
+      expect(r.json.error).toBeTruthy();
+    }
   });
 });
 
 describe("/api/annotate (delete)", () => {
-  it("deletes a created annotation (file + index rows)", async () => {
-    const root = tmpTree({ name: "Alice" });
+  it("deletes a created annotation (file + index rows, incl. the tag membership)", async () => {
+    const root = tmpTree({ name: "Alice", ...TAG_FILE });
     const h = createHandlers(root, { gitignore: false });
-    const created = await callBody(h, "POST", "/api/annotate", { target: "/name", selector: SELECTOR });
+    const created = await callBody(h, "POST", "/api/annotate", { target: "/name", tag: TAG, selector: SELECTOR });
 
     const r = await callBody(h, "DELETE", "/api/annotate", undefined, { path: created.json.path });
     expect(r.status).toBe(200);

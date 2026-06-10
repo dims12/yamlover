@@ -3,11 +3,12 @@ import { NodeJson } from "../api";
 import { asLink } from "../render";
 import { strToSegs } from "../paths";
 
-const TAG_FORMAT = "x-yamlover-tag";
+export const TAG_FORMAT = "x-yamlover-tag";
 
-interface TagLink {
+export interface TagLink {
   path: string;
   label: string;
+  color?: string | null; // a pure color tag's explicit color (else the hue derives from label)
 }
 
 /**
@@ -27,7 +28,7 @@ export function splitTagRefs(relations?: Record<string, unknown>): {
   for (const [name, v] of Object.entries(relations || {})) {
     const link = asLink(v);
     if (link && link.format === TAG_FORMAT) {
-      tags.push({ path: link.path, label: tagLabel(link.path, link.title) });
+      tags.push({ path: link.path, label: tagLabel(link.path, link.title), color: link.color ?? null });
     } else {
       rest[name] = v;
     }
@@ -43,6 +44,42 @@ export function tagColor(name: string): string {
   return `hsl(${h % 360} 52% 42%)`;
 }
 
+/** A tag's display color: its explicit `color` (a "pure color tag"), else the
+ *  stable hue derived from its name. */
+export function resolveTagColor(t: { name: string; color?: string | null }): string {
+  return t.color ?? tagColor(t.name);
+}
+
+// A tag node's projected value arrives in one of two shapes: a plain object (a tag with only
+// fields), or a `$yamloverMixed` marker (a tag whose description is its BODY — the variant/omni
+// shape: `{kind:"omni", value: <body>, entries: [{key, value}]}`). The helpers below read both.
+const MIXED_KEY = "$yamloverMixed";
+type MixedMarker = { kind?: string; value?: unknown; entries?: { key: string | null; value: unknown }[] };
+
+/** A tag value's keyed fields as [key, value] pairs — from either projection shape. */
+export function tagFields(value: unknown): [string, unknown][] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  const marker = (value as Record<string, unknown>)[MIXED_KEY] as MixedMarker | undefined;
+  if (marker?.entries) return marker.entries.filter((e) => e.key != null).map((e) => [e.key!, e.value]);
+  return Object.entries(value as Record<string, unknown>);
+}
+
+/** A tag's BODY (its description — the node's own scalar value), or null. */
+export function tagBody(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  const marker = (value as Record<string, unknown> | null | undefined)?.[MIXED_KEY] as MixedMarker | undefined;
+  return typeof marker?.value === "string" ? marker.value : null;
+}
+
+/** A tag node value's explicit `color`, if any. Depth-limited projection may hand the color
+ *  scalar as a `$yamloverLink` marker instead of a plain string — both shapes are read. */
+export function explicitColor(value: unknown): string | null {
+  const raw = tagFields(value).find(([k]) => k === "color")?.[1];
+  if (typeof raw === "string") return raw;
+  const linked = (raw as { $yamloverLink?: { value?: unknown } } | null | undefined)?.$yamloverLink?.value;
+  return typeof linked === "string" ? linked : null;
+}
+
 /** The tags a node is classified under, each a colored luggage-tag shape (one end
  *  rectangular, the other a pierced triangular point), shown inline in the node's
  *  header bar on every representation. Returns the tags directly (a fragment) so
@@ -55,7 +92,7 @@ export function TagBadges({ tags, onNavigate }: { tags: TagLink[]; onNavigate: (
         <a
           key={t.path}
           className="tagtag"
-          style={{ background: tagColor(t.label) }}
+          style={{ background: resolveTagColor({ name: t.label, color: t.color }) }}
           href={t.path}
           title={t.label}
           onClick={(e) => {
@@ -78,14 +115,12 @@ function tagLabel(path: string, title?: string | null): string {
 }
 
 /** The child tags of `node` — its one-level link-marker children whose format is
- *  `x-yamlover-tag`. */
+ *  `x-yamlover-tag` (read through either projection shape — see {@link tagFields}). */
 function subtagsOf(node: NodeJson): TagLink[] {
-  const v = node.value;
-  if (!v || typeof v !== "object" || Array.isArray(v)) return [];
   const out: TagLink[] = [];
-  for (const child of Object.values(v as Record<string, unknown>)) {
+  for (const [, child] of tagFields(node.value)) {
     const link = asLink(child);
-    if (link && link.format === TAG_FORMAT) out.push({ path: link.path, label: tagLabel(link.path, link.title) });
+    if (link && link.format === TAG_FORMAT) out.push({ path: link.path, label: tagLabel(link.path, link.title), color: link.color ?? null });
   }
   return out;
 }
@@ -141,6 +176,8 @@ export function TagView({ node, onNavigate }: { node: NodeJson; onNavigate: (pat
   }, [node.path, subtags.length]);
 
   const currentName = tagLabel(node.path, node.title);
+  // a pure color tag shows its explicit color; a named tag its name-derived hue
+  const currentColor = resolveTagColor({ name: currentName, color: explicitColor(node.value) });
 
   return (
     <div className="tagview" ref={boxRef}>
@@ -151,7 +188,7 @@ export function TagView({ node, onNavigate }: { node: NodeJson; onNavigate: (pat
       </svg>
 
       <div className="tagrow tagrow-current">
-        <div className="tagtag tagtag-current" style={{ background: tagColor(currentName) }} ref={currentRef}>
+        <div className="tagtag tagtag-current" style={{ background: currentColor }} ref={currentRef}>
           {currentName}
         </div>
       </div>
@@ -163,7 +200,7 @@ export function TagView({ node, onNavigate }: { node: NodeJson; onNavigate: (pat
               key={t.path}
               ref={(el) => (subRefs.current[i] = el)}
               className="tagtag"
-              style={{ background: tagColor(t.label) }}
+              style={{ background: resolveTagColor({ name: t.label, color: t.color }) }}
               href={t.path}
               onClick={(e) => {
                 e.preventDefault();
@@ -176,7 +213,7 @@ export function TagView({ node, onNavigate }: { node: NodeJson; onNavigate: (pat
         </div>
       )}
 
-      {node.description && <p className="tagdesc">{node.description}</p>}
+      {(tagBody(node.value) ?? node.description) && <p className="tagdesc">{tagBody(node.value) ?? node.description}</p>}
     </div>
   );
 }

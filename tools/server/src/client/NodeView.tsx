@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useReducer, useState } from "react";
 import { fetchNode, fetchSchema, NodeJson, pasteFile, PasteResult } from "./api";
 import { getRenderer } from "./renderers/registry";
-import { AnnotatedMaterial } from "./renderers/annotate";
+import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
 
 // Renderers whose output is prose — they get the TEXT annotation layer (drag-select → palette →
 // highlight). Image and map renderers carry their OWN region annotation layer (drag-rectangle →
@@ -104,6 +104,10 @@ export function NodeView({ path, format, refreshSignal = 0, onFormat, onNavigate
   // Bumped by a renderer's bar `config` control (e.g. the markup width) after it writes a URL
   // param, so the whole node view re-renders and the rendered body picks up the new setting.
   const [, rerender] = useReducer((n: number) => n + 1, 0);
+  // The tags APPLIED to this material via annotations — they join the header badges (the
+  // upstream relation is the annotation node, so the hop to its tag comes from /api/annotations).
+  // Unconditional: hooks must run on every render, including the loading ones.
+  const anns = useAnnotations(path);
 
   useEffect(() => {
     setError(null);
@@ -251,8 +255,15 @@ export function NodeView({ path, format, refreshSignal = 0, onFormat, onNavigate
   }
 
   // Tag references (rel edges to x-yamlover-tag nodes) show as badges on every
-  // representation; the remaining relations stay in the data-view panel.
-  const { tags, rest } = splitTagRefs(node.relations);
+  // representation, JOINED by the tags applied via annotations (deduped by path);
+  // the remaining relations stay in the data-view panel.
+  const { tags: relTags, rest } = splitTagRefs(node.relations);
+  const tags = [...relTags];
+  for (const a of anns) {
+    if (a.tag && !tags.some((t) => t.path === a.tag!.path)) {
+      tags.push({ path: a.tag.path, label: a.tag.name, color: a.tag.color });
+    }
+  }
 
   return (
     <div className="nodeview">

@@ -71,18 +71,18 @@ class Block {
 
   constructor(lines: Line[], raw: string[], uri = '<yamlover>') { this.lines = lines; this.raw = raw; this.uri = uri; }
 
-  /** Enforce: mixing keyed+keyless entries needs `!!mix`; a scalar/blob value WITH fields
-   *  needs `!!omni`. Plain (pure seq / pure map / pure scalar) needs no tag. Back-edge
-   *  entries (`~key:` / `~-`) are not OWNED members and never count toward the mixture. */
+  /** Enforce: mixing keyed+keyless entries needs `!!mix`. A scalar/blob value WITH fields (the
+   *  omni shape) needs NO tag: a deeper-indented block under a scalar value is invalid YAML, so
+   *  reading it as the node's fields extends YAML without ambiguity — the shape itself is the
+   *  intention (`!!omni` stays legal as optional explicitness; schemas declare it as
+   *  `type: variant`, META.md). Plain (pure seq / pure map / pure scalar) needs no tag.
+   *  Back-edge entries (`~key:` / `~-`) are not OWNED members and never count. */
   validateMixtures(node: Node): void {
     const ents = node.entries;
     if (!ents || ents.length === 0) return;
     const tag = this.typed.get(node);
     const owned = ents.filter((e) => e.edge !== 'back');
-    if (node.kind !== 'mapping') {
-      // a scalar/blob carrying fields = the unified "omni" node
-      if (owned.length > 0 && tag !== 'omni') this.fail('a node with a scalar value AND fields must be tagged !!omni');
-    } else if (owned.some((e) => e.key !== null) && owned.some((e) => e.key === null)) {
+    if (node.kind === 'mapping' && owned.some((e) => e.key !== null) && owned.some((e) => e.key === null)) {
       // a mapping mixing keyed and keyless entries
       if (tag !== 'mix' && tag !== 'omni') this.fail('a container mixing keyed and keyless entries must be tagged !!mix');
     }

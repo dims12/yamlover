@@ -91,11 +91,16 @@ overlay imposes it (§5). Full treatment in `URIs.md` (*Lists and dicts are one 
 mapping*).
 
 Concretely, keyless (`- value`) and keyed (`key: value`) entries can be **mixed in one node** —
-*partially ordered, partially keyed* — which plain YAML forbids. Because it *is* forbidden by
-default, mixing is **opt-in via a type tag**, so plain yamlover stays a clean YAML superset:
+*partially ordered, partially keyed* — which plain YAML forbids. Mixing keyed and keyless in a
+container is **opt-in via a type tag**, so plain yamlover stays a clean YAML superset:
 
 - **`!!mix`** — a container that mixes keyless and keyed entries (a dict ∪ list).
 - **`!!omni`** — a node that carries a scalar value **and** fields at once (scalar ⊕ `mix`).
+  Unlike `!!mix`, the tag is **optional**: a deeper-indented block under a scalar value is
+  invalid YAML outright, so reading it as the node's fields is unambiguous — the shape itself
+  is the intention (`key: value` + a deeper block just works; write `!!omni` for explicitness,
+  or declare the shape once in a schema as `type: variant`, META.md). The one place the tag is
+  still required is the **document root**, where a bare scalar cannot precede the keys.
 - **`!!set`** — a container with **set semantics**: an element appears at most once, so
   duplicate memberships — forward+forward, forward+`~-` reverse, reverse+reverse — collapse
   to one (dedup by target). The inline spelling of the schema keyword `uniqueItems: true`
