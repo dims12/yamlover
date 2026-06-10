@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { walkDir } from '../src/walk.ts';
@@ -155,4 +156,22 @@ test('binary files become blobs with format + content hash (65-all-formats-chunk
   assert.ok(png?.content_hash?.startsWith('sha256:'));
   assert.ok((png?.size ?? 0) > 0);
   s.close();
+});
+
+test('a sub-document encoding format (yamlover/meta) parses the file — never an opaque blob', () => {
+  // The repo's own `$defs/` is the real-world case (TODO bug "rendered as binary despite
+  // meta"): extensionless schema files typed `{type: string, format: yamlover/meta}` must
+  // come out as parsed structure, not bytes.
+  const root = mkdtempSync(join(tmpdir(), 'yo-docfmt-'));
+  mkdirSync(join(root, '.yamlover'));
+  writeFileSync(join(root, '.yamlover', 'meta.yamlover'), 'properties:\n  tag:\n    type: string\n    format: yamlover/meta\n');
+  writeFileSync(join(root, 'tag'), 'type: object\nformat: x-yamlover-tag\nproperties:\n  description:\n    type: string\n');
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(root));
+  const tag = s.node('/tag');
+  assert.notEqual(tag?.type, 'blob'); // the bug rendered this as binary
+  assert.equal(s.node('/tag/type')?.value, 'object'); // parsed structure is reachable
+  assert.equal(s.node('/tag/properties/description/type')?.value, 'string');
+  s.close();
+  rmSync(root, { recursive: true, force: true });
 });

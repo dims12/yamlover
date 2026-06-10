@@ -1,0 +1,28 @@
+# CI quality gate: the full test suite (parser + engine, incl. the conformance corpora
+# from the submodules) and the server typecheck, on every push / PR. Node 22 is required
+# (native .ts type-stripping + the built-in node:sqlite the engine runs on).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: docker
+    container:
+      image: node:22-bookworm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true # the JSON/JSON5/YAML conformance corpora (tests skip them if absent)
+
+      - name: Tests (parser + engine)
+        run: npm test
+
+      - name: Typecheck (server)
+        run: |
+          npm ci --prefix tools/server
+          npm run typecheck
+
+      - name: Tests (server — vitest)
+        run: npm --prefix tools/server test

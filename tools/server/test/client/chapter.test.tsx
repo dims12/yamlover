@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 import { ChapterView } from "../../src/client/renderers/chapter";
 import type { NodeJson } from "../../src/client/api";
 
@@ -56,7 +56,7 @@ describe("ChapterView", () => {
     expect(onNav).not.toHaveBeenCalled();
   });
 
-  it("routes a non-prose chunk to the renderer for its (type, format)", () => {
+  it("routes a non-prose chunk to the renderer for its (type, format)", async () => {
     // a chapter whose body interleaves Markdown, an image, and a PlantUML diagram
     const mixed: NodeJson = {
       ...chapter,
@@ -71,14 +71,13 @@ describe("ChapterView", () => {
     };
     const { container } = render(<ChapterView node={mixed} onNavigate={vi.fn()} />);
 
-    expect(screen.getByText("Intro.").tagName).toBe("P"); // markdown → text renderer
-    const imgs = container.querySelectorAll("img");
-    expect(imgs.length).toBe(2); // the image chunk + the PlantUML diagram chunk
-    // the image chunk points at its own node's blob
-    expect(imgs[0].getAttribute("src")).toContain("/api/blob");
-    expect(imgs[0].getAttribute("src")).toContain(encodeURIComponent("/chunks[1]"));
-    // the diagram chunk points at a PlantUML server, not the blob endpoint
-    expect(imgs[1].getAttribute("src")).toMatch(/\/plantuml\/svg\//);
+    expect(screen.getByText("Intro.").tagName).toBe("P"); // markdown → markdown renderer
+    // the image chunk routes to the (lazily loaded) pan/zoom image renderer — wait for
+    // its container to mount (Leaflet builds the actual <img> itself, beyond jsdom)
+    await waitFor(() => expect(container.querySelector(".fileimagemap")).not.toBeNull());
+    // the diagram chunk is an <img> pointing at a PlantUML server, not the blob endpoint
+    const img = container.querySelector("img");
+    expect(img?.getAttribute("src")).toMatch(/\/plantuml\/svg\//);
   });
 
   it("renders a subchapter as a title hyperlink", () => {

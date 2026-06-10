@@ -6,7 +6,7 @@ import { AnnotatedMaterial } from "./renderers/annotate";
 // Renderers whose output is prose — they get the TEXT annotation layer (drag-select → palette →
 // highlight). Image and map renderers carry their OWN region annotation layer (drag-rectangle →
 // palette), and pdf/djvu render saved region overlays; see annotate.tsx and the UI guide.
-const TEXT_MATERIALS = new Set(["chapter", "text", "asciidoc", "marklower"]);
+const TEXT_MATERIALS = new Set(["chapter", "markdown", "asciidoc", "marklower"]);
 import { TagBadges, splitTagRefs } from "./renderers/tag";
 import { Render } from "./render";
 import { strToSegs } from "./paths";

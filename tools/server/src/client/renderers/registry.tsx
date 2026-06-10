@@ -139,7 +139,9 @@ const REGISTRY: Renderer[] = [
     renderChunk: (chunk, onNavigate) => <MarklowerChunk chunk={chunk} onNavigate={onNavigate} />,
   },
   {
-    name: "text",
+    // Markdown (the component file is text.tsx for historical reasons; the renderer —
+    // its tab label and `?format=` key — is named for what it renders).
+    name: "markdown",
     accepts: [["string", "text/markdown"]],
     render: (node) => <TextView node={node} />,
     renderChunk: (chunk) => <TextChunk chunk={chunk} />,

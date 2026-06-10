@@ -5,3 +5,5 @@ export type { Graph, Edge, EdgeKind } from './graph.ts';
 export { Store } from './store.ts';
 export type { NodeRow, EdgeRow, TocNode } from './store.ts';
 export { walkDir, buildIndex } from './walk.ts';
+export { loadSettings, DEFAULT_SETTINGS } from './settings.ts';
+export type { Settings } from './settings.ts';

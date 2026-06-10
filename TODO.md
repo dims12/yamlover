@@ -7,5 +7,4 @@
 - Design reverse tag into unkwonn location of an array?
 - Support configurable depth for json/json5p/yaml/yamlover renderers
 - Support configurable depth for chapter renderers
-- Bug: rendered as binary despite meta: /%24defs/tag
-- Bug: shows "text" renderer, while it is markdown
+- When images, maps etc are inside chapters, not need to complex leaflet controls

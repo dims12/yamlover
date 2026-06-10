@@ -56,10 +56,12 @@ overlay needed), or via a directory's `.yamlover/meta.yamlover`. See `../YAMLOVE
 
 No `.yamlover/` — each file's `(type, format)` comes from its recognized extension:
 
-`70-office-docs` (docx/xls/xlsx/rtf) · `71-kml-map` (kml/kmz)
+`70-office-docs` (docx/xls/xlsx/rtf) · `71-kml-map` (kml/kmz) · `72-images` (JPG/HEIC photos)
 
-## Legacy (pending rework)
+## Tags
 
-Still in the **old schema-as-storage model** (`.yamlover/schema.yaml` with `const`/`rel`/
-`x-yamlover`): `67-pdf-tags` (a tag taxonomy + papers classified by `*` pointers) — pending
-a design decision (see below).
+| # | example | concrete / shows |
+|---|---------|------------------|
+| 67 | `67-pdf-tags` | real PDFs (messy names) + a `body.yamlover` overlay: a `!!<*yamlover/$defs/tag>` taxonomy whose slugs link papers by `*` pointer, with the paper mirroring `~slug:` back — membership authored both ways, reconciled by the engine |
+
+No examples remain in the old schema-as-storage model (`.yamlover/schema.yaml`).

@@ -1,5 +1,15 @@
 # ENGINE — the yamlover core
 
+> **Status (2026-06-10).** Stage 1 exists: `tools/engine/ts/` implements the
+> node+edge SQLite store (`store.ts`, on built-in `node:sqlite` — not better-sqlite3),
+> the directory walker (`walk.ts`), the pointer resolver (`resolve.ts`), and
+> derive/normalize (`graph.ts`); the server (`tools/server/src/server/engine-api.ts`)
+> runs on it and exposes the read queries (node/toc/relationships/blob) over HTTP.
+> **Not yet built:** serializers (graph → concrete; blocks the `mv`/`rm`/`put`/
+> `normalize` write path), the FS watcher / 3-tier reconcile (external edits need a
+> server restart), the event stream, and the versioned protocol. The rest of this
+> document is the design those pieces build toward.
+
 Forward-looking design, not a commitment (companion to [`FUTURE.md`](FUTURE.md) and
 the pointer model in [`URIs.md`](URIs.md)). Where `FUTURE.md` covers *serving* a
 tree and the implementation-language axis, this document describes the **stateful

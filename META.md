@@ -17,9 +17,10 @@ A directory's `.yamlover/` holds up to two complementary overlays, plus engine s
 
 ```
 .yamlover/
-  body.yamlover   — the INSTANCE overlay (data values added over the directory)
-  meta.yamlover   — the METADATA schema (types, formats, concrete, presentation)
-  …               — engine cache / index (later; see ENGINE.md)
+  body.yamlover     — the INSTANCE overlay (data values added over the directory)
+  meta.yamlover     — the METADATA schema (types, formats, concrete, presentation)
+  settings.yamlover — PROJECT CONFIGURATION (root .yamlover/ only; §Settings below)
+  index.db          — engine cache / index (derived; see ENGINE.md)
 ```
 
 Both are keyed by node path, but with different shapes:
@@ -57,6 +58,28 @@ The yamlover project hosts reusable schema definitions under **`$defs`** (in the
 This **replaces the old chapter encoding** (title from the schema concrete, chunks from the
 instance): a `chapter` is now a normal schema with `title`/`chunks`/`children`, attachable
 inline (`60-simple-chapter.yamlover`) or via a directory overlay.
+
+## Settings — project configuration (`settings.yamlover`)
+
+The served **root**'s `.yamlover/` may also hold `settings.yamlover` — the **project
+configuration** (added 2026-06-10). It is yamlover like everything else, read by the engine
+at startup; a missing file means all defaults.
+
+The governing rule: **settings are defaults, never constraints.** A graph node is identified
+by what it *is* (its schema), not by where it sits — so the project maintainer may move, say,
+an annotation into any directory and it keeps working (it is found through its edges). A
+setting only tells the server where to *create* things when the user doesn't say.
+
+Current vocabulary:
+
+```yamlover
+# .yamlover/settings.yamlover (served root)
+annotations:
+  location: /annotations   # project path where NEW annotations are created (the default)
+```
+
+Planned: when nodes become freely movable (`ENGINE.md` `mv`), the last location a node of a
+kind was moved to is remembered (here) and becomes the creation default for that kind.
 
 ## Why metadata-first (not validation-first)
 

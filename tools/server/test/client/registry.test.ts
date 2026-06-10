@@ -27,7 +27,7 @@ const tnode = (over: Partial<TreeNode>): TreeNode => ({
 describe("renderer registry (keyed on (type, format))", () => {
   it("selects a renderer by the (type, format) tuple", () => {
     expect(getRenderer(node({ type: "object", format: "x-yamlover-chapter" }))?.name).toBe("chapter");
-    expect(getRenderer(node({ type: "string", format: "text/markdown", value: "hi" }))?.name).toBe("text");
+    expect(getRenderer(node({ type: "string", format: "text/markdown", value: "hi" }))?.name).toBe("markdown");
   });
 
   it("claims PlantUML source (a string) and offers an inline (chunk) form", () => {
@@ -83,7 +83,7 @@ describe("renderer registry (keyed on (type, format))", () => {
 
   it("exposes the renderer name as the representation key", () => {
     expect(rendererName("object", "x-yamlover-chapter")).toBe("chapter");
-    expect(rendererName("string", "text/markdown")).toBe("text");
+    expect(rendererName("string", "text/markdown")).toBe("markdown");
     expect(rendererName("array", null)).toBeNull();
   });
 

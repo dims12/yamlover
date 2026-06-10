@@ -16,7 +16,7 @@ jobs:
   release:
     runs-on: docker
     container:
-      image: node:20-bookworm
+      image: node:22-bookworm # 22+: native .ts type-stripping + node:sqlite (the tests need both)
     defaults:
       run:
         working-directory: tools/server
@@ -24,6 +24,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # need the full tag history for the "already released?" check
+          submodules: true # conformance corpora, so the test gate runs in full
+
+      - name: Test gate (nothing is tagged or published if this fails)
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          npm test
+          npm ci --prefix tools/server
+          npm --prefix tools/server test
 
       - name: Read version from package.json
         id: v

@@ -29,13 +29,13 @@ describe("NodeView", () => {
       value: { name: "Alice", child: { $yamloverLink: { kind: "object", count: 2, path: "/x/child" } } },
     });
     const onFormat = vi.fn();
-    render(<NodeView path="/x" format="yaml" onFormat={onFormat} onNavigate={() => {}} />);
+    render(<NodeView path="/x" format="yamlover" onFormat={onFormat} onNavigate={() => {}} />);
 
     expect(await screen.findByText("{ object with 2 properties }")).toBeTruthy();
     expect(screen.getByText("Alice")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "json" }));
-    expect(onFormat).toHaveBeenCalledWith("json");
+    fireEvent.click(screen.getByRole("button", { name: "json5p" }));
+    expect(onFormat).toHaveBeenCalledWith("json5p");
   });
 
   it("shows the relations panel (standard-title hyperlinks) above the value in a data view", async () => {
@@ -77,7 +77,7 @@ describe("NodeView", () => {
       relations: { "..": { $yamloverLink: { kind: "object", count: 3, path: "/adam" } } },
     });
     mSchema.mockResolvedValue({ type: "object", properties: { enoch: { const: null } } });
-    render(<NodeView path="/adam/cain" format="yaml-schema" onFormat={() => {}} onNavigate={() => {}} />);
+    render(<NodeView path="/adam/cain" format="yamlover/schema" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("enoch");
     expect(document.querySelector("hr.reldiv")).toBeNull();
   });
@@ -108,10 +108,10 @@ describe("NodeView", () => {
     expect(await screen.findByText(/!!binary/)).toBeTruthy();
   });
 
-  it("renders the instance schema in the yaml-schema tab", async () => {
+  it("renders the instance schema in the yamlover/schema tab", async () => {
     mNode.mockResolvedValue({ path: "/x", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
     mSchema.mockResolvedValue({ type: "object", properties: { name: { const: "Alice" } } });
-    render(<NodeView path="/x" format="yaml-schema" onFormat={() => {}} onNavigate={() => {}} />);
+    render(<NodeView path="/x" format="yamlover/schema" onFormat={() => {}} onNavigate={() => {}} />);
     expect(await screen.findByText("Alice")).toBeTruthy();
   });
 

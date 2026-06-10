@@ -18,3 +18,9 @@ node_modules/
 # yamlover engine SQLite cache (derived, rebuildable)
 **/.yamlover/*.db
 **/.yamlover/*.db-*
+
+# Dev scratch at the repo root (created while serving the repo itself)
+/.screenshots/
+/annotations/
+/bad/
+/aaa.*

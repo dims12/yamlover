@@ -57,7 +57,12 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    pure directory with no overlay takes filesystem order. This is the heart of "YAML
    overlay over the filesystem."
 1d. **`.yamlover/` directory contract** — `body.yamlover` (instance) **and**
-   `meta.yamlover` (metadata schema, `META.md`); plus reserved names for the SQLite cache.
+   `meta.yamlover` (metadata schema, `META.md`); plus reserved names for the SQLite cache;
+   plus, in the **project root** only, `settings.yamlover` — the **project configuration**
+   (added 2026-06-10, see `META.md` §Settings): e.g. the *default* location for new
+   annotations. Settings never constrain *where* a node may live (a maintainer may put
+   annotations in any directory and they keep working — that's the point of the graph);
+   they only set defaults for where the server *creates* things.
 
 ## Phase 2 — Grammars & parsers
 
@@ -75,12 +80,15 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    (`json5/json5-tests`, all positive `.json`/`.json5`). Anchors `&`, back-edges `~`.
 2c. **yamlover**: **DECIDED hand-write** (`ts/src/yamlover.ts` → IR; consistent with
    json5p — no stock YAML parser exposes hooks to reinterpret `*alias`/`~key`, and the
-   Rust port wants a spec-driven parser). **Practical subset DONE** (199 tests total):
+   Rust port wants a spec-driven parser). **Practical subset DONE** (280 tests total):
    block maps/sequences (incl. compact `- key:`, `- &anchor`), flow `{}`/`[]`, plain &
-   quoted scalars, `#` comments, plus extended `*`, `&` anchors, `~` back-edges; parses
-   `examples/05-tour.yaml` & `06-tour.yamlover`. **Remaining:** block scalars (`|`/`>`),
-   tags, multi-doc, merge keys; then wire the `yaml-test-suite` gate with the §3
-   divergence allowlist (`YAMLOVER.md`).
+   quoted scalars, basic block scalars (`|`/`>` with `-`/`+` chomping), `#` comments,
+   yamlover tags (`!!mix`/`!!omni`/`!!<…>`), plus extended `*`, `&` anchors, `~`
+   back-edges; parses `examples/05-tour.yaml` & `06-tour.yamlover`. **Gate WIRED**
+   (2026-06-08): `yaml-test-suite` conformance at **43/208** must-accept cases, locked
+   shrink-only allowlist + roadmap in `tools/parser/YAML-CONFORMANCE.md`. **Remaining**
+   (by corpus impact): multi-doc (~71 cases), standard YAML tags, block-scalar
+   headers/multi-line scalars, multi-line flow, merge keys.
 2d. **Serializers** *(addition)* — IR → yamlover / json5p / directory. Needed early:
    `mv` rewrites refs, `normalize`, and round-tripping all require graph → concrete.
    Define lossy behavior when targeting plain yaml/json (refuse? inline? warn).
@@ -119,29 +127,39 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    `ENGINE.md`. Can be a later milestone within the phase.
 3f. **Engine API** — `resolve/node/toc/relationships/derive/blob` + `mv/rm/put/link/
    normalize` + `changed/added/removed` events, as the versioned contract.
+   **Read side DONE in practice** (the server's `engine-api.ts` exposes node/toc/
+   relationships/blob over HTTP, backed by the `Store`); **write side partial** —
+   ad-hoc `annotate`/`paste` endpoints exist, but `mv/rm/put/link/normalize` and the
+   event stream wait on the **serializers (2d)** and the FS watcher (3e).
 
-> **Language decision (recommend):** build engine v1 in **TypeScript inside the
-> existing server** with **SQLite (better-sqlite3)** — the server is already TS, and
-> `FUTURE.md` says language-per-component behind a spec'd protocol. Defer the
-> Rust/Cozo core until derivation/embedding demands it. Confirm.
+> **Language decision — CONFIRMED & DONE:** engine v1 is **TypeScript inside the
+> existing server**, on Node's built-in **`node:sqlite`** (superseded the planned
+> better-sqlite3 — zero dependency on Node ≥22). `FUTURE.md`'s
+> language-per-component rule holds; the Rust/Cozo core is deferred until
+> derivation/embedding demands it.
 
 ## Phase 4 — Server integration
 
-Back `tools/server` with the engine: replace its ad-hoc walk with engine queries;
-keep the React client and its in-browser renderers; expose the engine API as the
-versioned HTTP protocol. Keep published `npx yamlover` working throughout (build the
-engine path alongside, then switch).
+**DONE (2026-06-08, commit `c2d8772`).** `tools/server` runs on the engine:
+`src/server/engine-api.ts` is the only live API handler (`bin/yamlover.js` loads it) —
+it indexes via `buildIndex`/`Store` and answers every request from SQLite; no ad-hoc
+walking remains on the live path. The React client and its renderers are unchanged;
+`npx yamlover` kept working throughout (v0.3.0 published). The legacy walker port
+(`src/server/yamlover.ts`, `api.ts`) is kept for reference only. **Remaining from this
+phase:** the engine API as a *versioned* protocol (OpenAPI), and server tests against
+`engine-api.ts` (current tests still target the legacy path).
 
 ## Phase 5 — Migrate samples (one by one; some retire)
 
-Per sample: `.yamlover/schema.yaml` → `.yamlover/body.yamlover`, extracting real
-instance data; drop schema-as-storage ceremony.
-- **14-genealogy-dag** first — the reference graph example (`~X` reverse edges).
-- **18-pdf-tags** — `rel` tables → `*`-pointer tag edges; inverses derived.
-- **19 / 20** — fix the slash-convention flip (`#/` = document, `/` = project root)
-  and the `//` vs URI-authority collision.
-- **Audit for retirement** — samples that only demonstrated schema-pinning, `rel`,
-  or `$ref`-in-schema may go or be reframed.
+**DONE (0.2.0 examples rework + follow-ups).** The corpus was renumbered (tours
+01–06; instance dirs 50–59; chapters 60–69; plain dirs 70–72) and no
+`.yamlover/schema.yaml` remains in `examples/` — schema-as-storage ceremony is gone.
+- **58-genealogy-dag** (was 14) — migrated; the reference graph example, single
+  `body.yamlover` with `*` cross-edges + `~` reverses.
+- **67-pdf-tags** (was 18) — migrated (commit `c2d8772`): `rel` tables → a
+  `!!<*yamlover/$defs/tag>` taxonomy with `*`-pointer membership authored both ways.
+- Schema-pinning / `rel` / `$ref`-in-schema demos retired (`62-defs-and-refs`
+  dropped pending the meta-authoring rethink, see `META.md`).
 
 ## Phase 6 — Schema: metadata now, validation later
 

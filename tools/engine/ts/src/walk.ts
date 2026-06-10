@@ -101,6 +101,7 @@ function childNode(abs: string, m: { type?: string; format?: string } | undefine
   // format resolution order: meta `format:` → a recognized extension → (none → sniff/parse).
   const fmt = m?.format ?? EXT_FORMAT[ext] ?? null;
   if (m?.type === 'binary') return blob(abs, fmt ?? 'application/octet-stream');
+  if (fmt && DOC_FORMATS[fmt]) return parsedDoc(abs, DOC_FORMATS[fmt], anchors); // a sub-document encoding → parse (META.md)
   if (fmt && TEXT_FORMATS.has(fmt)) return textScalar(abs, fmt); // markdown/adoc/plantuml/csv → string + format
   if (fmt) return blob(abs, fmt); // a known but non-text format = opaque bytes
   if (looksBinary(abs)) return blob(abs, 'application/octet-stream');
@@ -138,9 +139,14 @@ function textScalar(abs: string, format: string): Node {
  *  the DEFAULT. So `30`→number, `"Alice"`→string, a JSON doc → a structure. Falls back to a raw
  *  string if parsing fails. */
 function parsedScalar(abs: string, ext: string, anchors: Map<string, Node>): Node {
+  return parsedDoc(abs, ext === '.json' || ext === '.json5' || ext === '.json5p' ? 'json5p' : 'yamlover', anchors);
+}
+
+/** Parse a file as a sub-document in the given surface language; falls back to a raw string. */
+function parsedDoc(abs: string, lang: 'yamlover' | 'json5p', anchors: Map<string, Node>): Node {
   const text = fs.readFileSync(abs, 'utf8');
   try {
-    const doc = ext === '.json' || ext === '.json5' || ext === '.json5p' ? parseJson5p(text, abs) : parseYamlover(text, abs);
+    const doc = lang === 'json5p' ? parseJson5p(text, abs) : parseYamlover(text, abs);
     for (const [name, node] of doc.anchors) anchors.set(name, node); // the file's `&` anchors, tree-global
     const root = doc.root;
     root.meta = { ...root.meta, documentRoot: true }; // a parsed file is its own document
@@ -351,3 +357,12 @@ const EXT_FORMAT: Record<string, string> = {
 };
 
 const TEXT_FORMATS = new Set(['text/markdown', 'text/asciidoc', 'text/x-plantuml', 'text/csv', 'text/tab-separated-values']);
+
+// A `format` naming a SUB-DOCUMENT ENCODING (META.md): the file's text parses into a node in
+// that surface language — `yamlover`/`yaml`/`json`/… for an instance, `…/meta` for a schema doc
+// (e.g. the extensionless `$defs/*` files). These must never fall into the opaque-Blob branch.
+const DOC_FORMATS: Record<string, 'yamlover' | 'json5p'> = {
+  'yamlover': 'yamlover', 'yaml': 'yamlover', 'yamlover/meta': 'yamlover', 'yaml/meta': 'yamlover',
+  'json': 'json5p', 'json5': 'json5p', 'json5p': 'json5p',
+  'json/meta': 'json5p', 'json5p/meta': 'json5p', 'json/schema': 'json5p',
+};

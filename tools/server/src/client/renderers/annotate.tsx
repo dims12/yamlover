@@ -28,11 +28,13 @@ export function colorOf(a: Annotation): string {
   return typeof a.selector?.color === "string" ? a.selector.color : DEFAULT_COLOR;
 }
 
-/** Whether an annotation can be edited/deleted here — only those CREATED through the UI (files
- *  under `<root>/annotations/`). Excludes the optimistic pending/preview placeholders and "frozen"
- *  example annotations authored in shared files (which the server can't delete). */
+/** Whether an annotation can be edited/deleted here — any STANDALONE annotation file (its node
+ *  path is the `.yamlover` file itself), wherever it lives in the tree: annotations are graph
+ *  nodes, not residents of a fixed folder, so one moved to another directory stays editable.
+ *  Excludes the optimistic `(pending)` placeholders and "frozen" annotations authored inline in
+ *  shared documents (which the server can't delete without editing that document). */
 export function editable(a: Annotation): boolean {
-  return typeof a.path === "string" && a.path.startsWith("/annotations/");
+  return typeof a.path === "string" && a.path.endsWith(".yamlover");
 }
 
 /** The remembered highlight color (persisted in localStorage) + a setter that persists it. */

@@ -1,0 +1,8 @@
+# .yamlover/meta.yamlover — metadata for the repo root's own children (see META.md).
+# Replaces the old schema-as-storage `.yamlover/schema.yaml` (descriptions buried in
+# `x-yamlover`/`concrete`/`os.path` ceremony): the data IS the tree; this only describes it.
+properties:
+  $defs:
+    description: Hosted reusable schema definitions (chapter, chunk, tag, annotation), written as yamlover/meta documents
+  examples:
+    description: Example yamlover entities across every concrete of the supersession lattice — see examples/README.md

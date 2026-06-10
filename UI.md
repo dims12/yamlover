@@ -107,12 +107,31 @@ or DjVu region — and a count shows above the material.
 
 **To recolor or delete an annotation, click it.** The same palette reopens in *edit* mode, with
 the annotation's current color pre-selected: click a swatch to **recolor**, or **🗑** to **delete**
-it; clicking away just closes. (Only annotations made here — files under `<root>/annotations/` —
-can be edited this way.)
+it; clicking away just closes. (Any *standalone* annotation file can be edited this way, wherever
+it lives; an annotation authored inline in a shared document is shown but frozen.)
 
-Annotations are written under `<root>/annotations/` as ordinary `.yamlover` files (one per
-annotation), pointing at the material with a project-scoped pointer. They are data: you can
-read, move, version, or hand-edit them like anything else in the tree.
+New annotations are written as ordinary `.yamlover` files (one per annotation) under the
+project's **default annotation location** — `<root>/annotations/` unless
+`.yamlover/settings.yamlover` configures `annotations: {location: …}`. The location is only a
+creation default: annotations are graph nodes, pointing at their material with a project-scoped
+pointer, so you can read, **move to any directory**, version, or hand-edit them like anything
+else in the tree and they keep working.
+
+## Paste & drag-and-drop upload
+
+A file can be added to the tree straight from the clipboard (**Ctrl+V** on a node page) or
+by **dropping** it onto the page — both follow the same rules, by what the current node is:
+
+- **A directory** — the file lands in that directory (the page refreshes in place).
+- **A member of a directory** (any non-chapter node) — the file lands in the nearest
+  enclosing directory, and the new file opens in its renderer.
+- **A chapter** — the file lands in the chapter's owning directory **and** a `*…` pointer
+  to it is appended as the chapter's last chunk, so it appears inline at the bottom of the
+  page.
+
+Filenames are sanitized and de-duplicated (`name-1.ext`, …); pasted images get a generated
+name. Everything is an ordinary file on disk afterwards — move or rename it like anything
+else.
 
 ## Tips
 

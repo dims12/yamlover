@@ -64,6 +64,6 @@ export function anchorizeHeadings(html: string): string {
 export function useHashScroll(dep: unknown): void {
   useEffect(() => {
     const id = decodeURIComponent(window.location.hash.slice(1));
-    if (id) document.getElementById(id)?.scrollIntoView();
+    if (id) document.getElementById(id)?.scrollIntoView?.(); // optional-call: absent in jsdom
   }, [dep]);
 }

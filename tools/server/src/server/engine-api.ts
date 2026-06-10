@@ -20,8 +20,8 @@
 import path from "node:path";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Store, buildIndex } from "../../../engine/ts/src/index.ts";
-import type { NodeRow, EdgeRow } from "../../../engine/ts/src/index.ts";
+import { Store, buildIndex, loadSettings } from "../../../engine/ts/src/index.ts";
+import type { NodeRow, EdgeRow, Settings } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { buildGitIgnore } from "./gitignore.js";
 import { displayKind, ownedEntries, typeName } from "./node-kind.js";
@@ -40,6 +40,9 @@ type Seg = string | number;
 export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
   const rootName = path.basename(path.resolve(dataRoot)) || "/";
   const dbPath = path.join(dataRoot, ".yamlover", "index.db");
+  // Project configuration (<root>/.yamlover/settings.yamlover) — defaults for WRITE paths
+  // (e.g. where new annotations are created). Read once at startup, like the index.
+  const settings: Settings = loadSettings(dataRoot);
   // Skip git-ignored strays (node_modules, build output, …) so serving the project root works.
   const ignore = opts.gitignore === false ? undefined : buildGitIgnore(dataRoot);
 
@@ -64,14 +67,17 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
     try {
       const s = store();
 
-      // Create an annotation (the only WRITE path): persist it as a yamlover file under the
-      // served root's `annotations/`, then re-index so it joins the graph (reverse-linked to its
-      // material). Body: { target, selector, body? } — target is the material's JSON path.
+      // Create an annotation (a WRITE path): persist it as a yamlover file under the project's
+      // default annotation location (settings.yamlover; `/annotations` by default), then index it
+      // so it joins the graph (reverse-linked to its material). An annotation is NOT tied to that
+      // location — it may be moved to (or authored in) any directory and keeps working; the
+      // setting only says where NEW ones land. Body: { target, selector, body? } — target is the
+      // material's JSON path.
       if (req.method === "POST" && url.pathname === "/api/annotate") {
         readBody(req)
           .then((data) => {
             const a = data as AnnotationInput;
-            const annPath = writeAnnotation(dataRoot, a);
+            const annPath = writeAnnotation(dataRoot, settings.annotations.location, a);
             // Update the index INCREMENTALLY (not a full rebuild — that re-hashes every blob and
             // blocks the next click). Add just this annotation's nodes + its `target` edge.
             const doc = parseYamlover(fs.readFileSync(path.join(dataRoot, ...strToSegs(annPath).map(String)), "utf8"), annPath);
@@ -82,12 +88,13 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler {
         return;
       }
 
-      // Delete an annotation by its node path (recolor = delete + create, client-side). Removes the
-      // file under `annotations/` and its index rows — incrementally. `?path=/annotations/<id>.yamlover`.
+      // Delete an annotation by its node path (recolor = delete + create, client-side). Removes
+      // the annotation FILE and its index rows — incrementally. Works wherever the annotation
+      // lives: the guard is its schema (`x-yamlover-annotation`), not a directory.
       if (req.method === "DELETE" && url.pathname === "/api/annotate") {
         try {
           const annPath = url.searchParams.get("path") || "";
-          deleteAnnotation(dataRoot, annPath);
+          deleteAnnotation(dataRoot, s, annPath);
           s.removeAnnotation(storePath(strToSegs(annPath)));
           sendJson(res, 200, { ok: true });
         } catch (e) {
@@ -418,12 +425,16 @@ function yScalar(v: unknown): string {
   return typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(String(v ?? ""));
 }
 
-/** Persist a new annotation as a yamlover file under `<root>/annotations/`; returns its filename.
- *  The material is referenced with a project-scoped deref pointer so the engine reverse-links it
- *  on re-index (a leading star + a "//path" project path). */
-function writeAnnotation(dataRoot: string, a: AnnotationInput): string {
+/** Persist a new annotation as a yamlover file under the project's default annotation location
+ *  (`settings.yamlover`; `/annotations` unless configured); returns its node path. The material is
+ *  referenced with a project-scoped deref pointer so the engine reverse-links it on re-index (a
+ *  leading star + a "//path" project path). The location is only the CREATION default — an
+ *  annotation file works from any directory. */
+function writeAnnotation(dataRoot: string, location: string, a: AnnotationInput): string {
   if (!a?.target || !a?.selector) throw new Error("annotation needs a target and a selector");
-  const dir = path.join(dataRoot, "annotations");
+  const dir = path.resolve(dataRoot, ...strToSegs(location).map(String));
+  const root = path.resolve(dataRoot);
+  if (dir !== root && !dir.startsWith(root + path.sep)) throw new Error("annotation location escapes the data root");
   fs.mkdirSync(dir, { recursive: true });
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const file = `${id}.yamlover`;
@@ -436,19 +447,21 @@ function writeAnnotation(dataRoot: string, a: AnnotationInput): string {
   if (a.body) lines.push(`body: ${yScalar(a.body)}`);
   lines.push(`created: ${new Date().toISOString()}`, "");
   fs.writeFileSync(path.join(dir, file), lines.join("\n"));
-  return `/annotations/${file}`;
+  return `${location}/${file}`;
 }
 
-/** Delete an annotation file given its node path (`/annotations/<id>.yamlover`). Guarded to the
- *  `annotations/` folder under the served root so it can only remove annotation files. */
-function deleteAnnotation(dataRoot: string, annPath: string): void {
+/** Delete an annotation file given its node path. The guard is the GRAPH, not a directory: the
+ *  node must be indexed as an `x-yamlover-annotation` and be a whole standalone `.yamlover` file
+ *  (an annotation authored inline in a shared document cannot be deleted this way), inside the
+ *  served root. So an annotation moved to any directory remains deletable. */
+function deleteAnnotation(dataRoot: string, s: Store, annPath: string): void {
   const segs = strToSegs(annPath);
-  if (segs[0] !== "annotations" || !String(segs[segs.length - 1]).endsWith(".yamlover")) {
-    throw new Error("not an annotation path");
-  }
-  const annDir = path.resolve(dataRoot, "annotations");
+  if (!String(segs[segs.length - 1] ?? "").endsWith(".yamlover")) throw new Error("not an annotation file");
+  if (s.node(storePath(segs))?.format !== "x-yamlover-annotation") throw new Error("not an annotation node");
+  const root = path.resolve(dataRoot);
   const file = path.resolve(dataRoot, ...segs.map(String));
-  if (file !== annDir && !file.startsWith(annDir + path.sep)) throw new Error("outside the annotations dir");
+  if (!file.startsWith(root + path.sep)) throw new Error("outside the served root");
+  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) throw new Error("not an annotation file");
   fs.rmSync(file, { force: true });
 }
 

@@ -1,0 +1,54 @@
+# examples/.yamlover/meta.yamlover — per-example descriptions (presentation metadata, META.md).
+# Ported from the retired root schema.yaml, re-keyed to the current corpus; the prose
+# counterpart lives in README.md. Types/formats are inferred — only descriptions here.
+properties:
+  01-tour.json:
+    description: strict JSON — the austere base of the lattice; no sharing
+  02-tour.json5:
+    description: JSON5 — comments, unquoted keys, trailing commas; a shared node is still a copy
+  03-tour.json5p:
+    description: json5p — JSON5 plus pointers — `*` deref, `~` back-edges, `&` anchors, scopes
+  05-tour.yaml:
+    description: plain YAML — native `&`/`*` anchor sharing, its ceiling
+  06-tour.yamlover:
+    description: yamlover — YAML plus the full pointer layer (`*`, `~`, `&`, `[n]`/`/x`, links)
+  07-omni.yamlover:
+    description: the unified node — `!!omni`/`!!mix` — a scalar self-value plus positional and keyed fields at once
+  50-object-in-overlay:
+    description: a directory whose `body.yamlover` overlay holds the whole object instance
+  51-object-in-dir:
+    description: an object as one file per child (name/age/isAdmin); an empty `.yamlover/` marker
+  52-scalar-as-file:
+    description: a bare scalar stored as a plain file
+  53-plain-dir:
+    description: a plain directory with no `.yamlover/` — the files are the data
+  54-scalar-file-overlay:
+    description: a scalar carried in `body.yamlover` (the scalar twin of 50)
+  55-scalar-as-binary:
+    description: a binary file decoded by `meta.yamlover` (`type binary`, `format int32/le`)
+  56-array-of-files:
+    description: a sequence whose elements live in files — order and per-element format from meta
+  57-image-with-markup:
+    description: a PNG typed via meta plus structured `markup` data in body
+  58-genealogy-dag:
+    description: the canonical DAG — containment is the paternal line, `*` the maternal cross-edge, `~` the reverses
+  59-all-formats-object:
+    description: a catalogue of every renderable (type, format) the viewer supports
+  60-simple-chapter.yamlover:
+    description: the minimal chapter — a single `!!<…>`-tagged file with title/chunks/children
+  65-all-formats-chunks:
+    description: a directory chapter interleaving textual chunks with `*`-pointer binary chunks
+  66-doc-tree:
+    description: a recursive directory chapter — prose, image and per-chunk-tagged PlantUML chunks
+  67-pdf-tags:
+    description: real papers organized by a tag taxonomy — `*`-pointer membership authored both ways
+  68-math-chapter:
+    description: a chapter mixing marklower prose with standalone LaTeX chunks
+  69-marklower-links.yamlover:
+    description: nested chapters demonstrating `/`, `//` and external marklower links
+  70-office-docs:
+    description: office documents typed by extension (docx/xls/xlsx/rtf)
+  71-kml-map:
+    description: KML/KMZ maps drawn over an OpenStreetMap overlay
+  72-images:
+    description: photographs typed by extension (JPG/HEIC), shown in the pan/zoom image viewer
