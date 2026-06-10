@@ -2,7 +2,8 @@
 //
 // Covers a practical YAML subset: block mappings & sequences (incl. compact `- key:` and
 // `- &anchor`), flow `{}`/`[]`, plain/single/double-quoted scalars, `#` comments. Plus the
-// yamlover extensions: value `*pointer` (unquoted), `&anchor`, and `~key:` back-edges.
+// yamlover extensions: value `*pointer` (unquoted), `&anchor`, `~key:` back-edges, and
+// `~-` keyless back-edges (reverse positional membership, URIs.md §`~-`).
 //
 // NOT yet handled (Phase 2c TODO): block scalars (`|`, `>`), tags (`!!`), multi-document
 // (`---`), merge keys (`<<`), and flow that spans multiple lines.
@@ -66,20 +67,22 @@ class Block {
   uri: string;        // source path/id, surfaced in parse-error messages
   i = 0;
   anchors = new Map<string, Node>();
-  typed = new WeakMap<Node, 'mix' | 'omni'>(); // nodes opted into a mixture via `!!mix`/`!!omni`
+  typed = new WeakMap<Node, 'mix' | 'omni' | 'set'>(); // nodes typed via `!!mix`/`!!omni`/`!!set`
 
   constructor(lines: Line[], raw: string[], uri = '<yamlover>') { this.lines = lines; this.raw = raw; this.uri = uri; }
 
   /** Enforce: mixing keyed+keyless entries needs `!!mix`; a scalar/blob value WITH fields
-   *  needs `!!omni`. Plain (pure seq / pure map / pure scalar) needs no tag. */
+   *  needs `!!omni`. Plain (pure seq / pure map / pure scalar) needs no tag. Back-edge
+   *  entries (`~key:` / `~-`) are not OWNED members and never count toward the mixture. */
   validateMixtures(node: Node): void {
     const ents = node.entries;
     if (!ents || ents.length === 0) return;
     const tag = this.typed.get(node);
+    const owned = ents.filter((e) => e.edge !== 'back');
     if (node.kind !== 'mapping') {
       // a scalar/blob carrying fields = the unified "omni" node
-      if (tag !== 'omni') this.fail('a node with a scalar value AND fields must be tagged !!omni');
-    } else if (ents.some((e) => e.key !== null) && ents.some((e) => e.key === null)) {
+      if (owned.length > 0 && tag !== 'omni') this.fail('a node with a scalar value AND fields must be tagged !!omni');
+    } else if (owned.some((e) => e.key !== null) && owned.some((e) => e.key === null)) {
       // a mapping mixing keyed and keyless entries
       if (tag !== 'mix' && tag !== 'omni') this.fail('a container mixing keyed and keyless entries must be tagged !!mix');
     }
@@ -98,14 +101,14 @@ class Block {
   node(minIndent: number): Node | Pointer | null {
     const l = this.peek();
     if (!l || l.indent < minIndent) return null;
-    // a lone type tag (no preceding key): `!!omni 5` / `!!mix` at the document root or as a
-    // block value. Hand to valueAfter with the block one column shallower so the tag's own
-    // line (its inline value, plus the fields/entries below it) parses as that value.
-    if (/^!!(mix|omni)(?=\s|$)/.test(l.text)) {
+    // a lone type tag (no preceding key): `!!omni 5` / `!!mix` / `!!set` at the document root
+    // or as a block value. Hand to valueAfter with the block one column shallower so the tag's
+    // own line (its inline value, plus the fields/entries below it) parses as that value.
+    if (/^!!(mix|omni|set)(?=\s|$)/.test(l.text)) {
       this.i++;
       return this.valueAfter(l.text, l.indent - 1, l.n);
     }
-    if (isSeqLine(l.text) || splitKV(l.text)) return this.container(l.indent);
+    if (isSeqLine(l.text) || isBackSeqLine(l.text) || splitKV(l.text)) return this.container(l.indent);
     // a lone scalar/flow/pointer/anchor occupying the line
     this.i++;
     return this.valueInline(l.text, l.indent, /*allowBlock*/ true);
@@ -146,9 +149,19 @@ class Block {
           value = this.valueAfter(rest, indent, l.n);
         }
         entry = { key: null, edge: isPointer(value) ? 'ref' : 'contain', value };
+      } else if (isBackSeqLine(l.text)) {
+        // a KEYLESS back-edge — reverse positional membership (URIs.md §`~-`): the value
+        // names the container that holds this node, so it must be a pointer.
+        if (keylessOnly) break;
+        this.i++;
+        const rest = l.text.slice(2).trim();
+        if (!rest.startsWith('*')) this.fail('a "~-" entry needs a pointer value (the container that holds this node)');
+        value = parsePointer(unquoteIfQuoted(rest.slice(1)));
+        entry = { key: null, edge: 'back', value };
       } else {
         // a keyed entry
         if (keylessOnly) break;
+        if (/^~[ \t]/.test(l.text)) this.fail('the "~" sigil must sit tight against the key or "-" marker (write "~key:" or "~-")');
         const kv = splitKV(l.text);
         if (!kv) break;
         this.i++;
@@ -160,7 +173,10 @@ class Block {
       }
       entries.push(entry);
     }
-    const array = entries.length > 0 && entries.every((e) => e.key === null);
+    // projection hint: a pure sequence — judged over OWNED entries only (a `~-` back-edge
+    // is not a member of THIS node and must not make it look like an array).
+    const owned = entries.filter((e) => e.edge !== 'back');
+    const array = owned.length > 0 && owned.every((e) => e.key === null);
     return { kind: 'mapping', entries, array };
   }
 
@@ -174,11 +190,11 @@ class Block {
       schema = parseSchemaRef(rest.slice(3, close));
       rest = rest.slice(close + 1).trim();
     }
-    // an opt-in mixture tag in value position: `key: !!mix` (mixed container) or
-    // `key: !!omni 5` (scalar value + fields). It types the value that follows.
-    let typeTag: 'mix' | 'omni' | undefined;
-    const tag = /^!!(mix|omni)(?=\s|$)/.exec(rest);
-    if (tag) { typeTag = tag[1] as 'mix' | 'omni'; rest = rest.slice(tag[0].length).trim(); }
+    // an opt-in type tag in value position: `key: !!mix` (mixed container), `key: !!omni 5`
+    // (scalar value + fields), or `key: !!set` (set-semantics container — NodeMeta.set).
+    let typeTag: 'mix' | 'omni' | 'set' | undefined;
+    const tag = /^!!(mix|omni|set)(?=\s|$)/.exec(rest);
+    if (tag) { typeTag = tag[1] as 'mix' | 'omni' | 'set'; rest = rest.slice(tag[0].length).trim(); }
     let anchor: string | undefined;
     if (rest.startsWith('&')) {
       const r = readName(rest.slice(1));
@@ -212,6 +228,7 @@ class Block {
       this.anchors.set(anchor, value);
     }
     if (typeTag !== undefined && !isPointer(value)) this.typed.set(value, typeTag);
+    if (typeTag === 'set' && !isPointer(value)) value.meta = { ...value.meta, set: true }; // survives into the graph
     if (schema !== undefined && !isPointer(value)) value.meta = { ...value.meta, schema };
     return value;
   }
@@ -389,6 +406,11 @@ class Flow {
 // ---- helpers -----------------------------------------------------------------
 function isSeqLine(text: string): boolean {
   return text === '-' || text.startsWith('- ');
+}
+
+/** A `~-` keyless back-edge entry line (the sigil tight against the `-` marker). */
+function isBackSeqLine(text: string): boolean {
+  return text === '~-' || text.startsWith('~- ');
 }
 
 /** Find the `key:` split: the first unquoted `:` followed by space or EOL. */

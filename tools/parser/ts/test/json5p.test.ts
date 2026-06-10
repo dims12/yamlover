@@ -88,3 +88,26 @@ test('top-level scalar', () => {
   assert.equal(toPlain(parseJson5p('42').root), 42);
   assert.equal(toPlain(parseJson5p('"hi"').root), 'hi');
 });
+
+// ---- `~*'…'` keyless back members (reverse positional membership) ---------------
+
+test('~*… in an object: a keyless back-edge member (no key, no colon)', () => {
+  const d = parseJson5p("{ my_node: { name: 'x', ~*'/some/list' } }");
+  const my = (d.root as Mapping).entries[0].value as Mapping;
+  const back = my.entries.find((e) => e.edge === 'back')!;
+  assert.equal(back.key, null);
+  assert.ok(isPointer(back.value));
+  assert.equal((back.value as { raw: string }).raw, '/some/list');
+});
+
+test('~*… among array elements: a back member that takes no position', () => {
+  const d = parseJson5p("[1, ~*'/some/list', 2]");
+  const m = d.root as Mapping;
+  assert.equal(m.array, true);
+  assert.deepEqual(m.entries.map((e) => e.edge), ['contain', 'back', 'contain']);
+  assert.equal(m.entries[1].key, null);
+});
+
+test('~ in an array must introduce a pointer', () => {
+  assert.throws(() => parseJson5p('[~1]'), /expected a pointer/);
+});

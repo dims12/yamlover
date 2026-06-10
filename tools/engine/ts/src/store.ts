@@ -86,7 +86,10 @@ export class Store {
       // nodes + containment edges (one walk; the path scheme matches resolve.ts / buildGraph)
       walkNodes(doc.root, '/', (path, node, parent, label, pos) => {
         const meta = node.meta ? JSON.stringify(node.meta) : null;
-        const isArray = node.array || (node.kind === 'mapping' && (node.entries?.every((e) => e.key === null) ?? false));
+        // the array hint is judged over OWNED entries only — a `~-` back-edge (reverse
+        // membership) is not a member of this node and must not make it look like an array
+        const owned = node.entries?.filter((e) => e.edge !== 'back') ?? [];
+        const isArray = node.array || (node.kind === 'mapping' && owned.length > 0 && owned.every((e) => e.key === null));
         const value =
           node.kind === 'scalar' ? JSON.stringify(node.value) : null;
         const format = node.kind === 'blob' ? node.format : formatFromMeta(node);

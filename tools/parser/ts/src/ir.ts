@@ -28,6 +28,11 @@ export interface NodeMeta {
    *  a `.yamlover/` overlay, or the served root. The `/` pointer scope resolves to the nearest
    *  enclosing such node (URIs.md: `/` = document root), so a reference is depth-independent. */
   documentRoot?: boolean;
+  /** SET semantics (`!!set` tag / `uniqueItems: true` in meta): an element appears at most
+   *  once, so duplicate memberships — forward+forward, forward+`~-` reverse, reverse+reverse —
+   *  collapse to one (URIs.md §`~-`). Unlike `!!mix`/`!!omni` (parse permissions visible in the
+   *  node's shape), this must survive into the graph. */
+  set?: boolean;
 }
 export interface Span { uri: string; start: number; end: number; }
 

@@ -81,8 +81,11 @@ When read *as yamlover*, these YAML spellings change meaning by design (see `URI
 - `*alias` extends to **path pointers** (`*/pets[1]`, `*a/b`) and scopes/links — a plain anchor
   alias still resolves, but the syntax space is yamlover's.
 - A key prefixed with `~` (`~name:`) is a **back-edge**, not a literal key.
-- `!!mix` / `!!omni` / `!!<…>` are **yamlover tags** (mixed/variant containers, inline schema),
-  occupying the `!!` space that YAML uses for type tags.
+- A `~-` entry (`~- *…`) is a **keyless back-edge** (reverse positional membership,
+  `URIs.md` §`~-`), not the plain scalar `~-`.
+- `!!mix` / `!!omni` / `!!<…>` / `!!set` are **yamlover tags** (mixed/variant containers,
+  inline schema, set-semantics container), occupying the `!!` space that YAML uses for type
+  tags — `!!set` in particular diverges from YAML's null-valued-mapping meaning.
 
 These are not on the roadmap above; the YAML-mode reader (item-by-item, once built) is what
 should accept the YAML meaning, while yamlover-mode keeps the reinterpretation.

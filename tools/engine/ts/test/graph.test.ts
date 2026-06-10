@@ -80,3 +80,23 @@ test('yamlover and json5p agree on the shared normalized edges (06 vs 03)', () =
     assert.ok(y.has(s), `yamlover missing: ${s}`);
   }
 });
+
+test('normalize: a keyless ~- membership is ADDITIVE — folds beside the forward, never deduped', () => {
+  // forward `- *member` AND reverse `~- */items`: with no label there is no identity to
+  // dedup on, so normalize keeps BOTH forward keyless refs (URIs.md §~- — lists repeat).
+  const d = parseYamlover('items:\n- */member\nmember:\n  name: m\n  ~- */items\n');
+  const n = normalize(buildGraph(d));
+  const memberships = n.filter((e) => e.from === '/items' && e.to === '/member' && e.label === null && e.kind === 'ref');
+  assert.equal(memberships.length, 2);
+  assert.ok(!n.some((e) => e.kind === 'back'));
+});
+
+test('normalize: keyless forward repetitions survive; labeled pairs still dedup', () => {
+  const d = parseYamlover('items:\n- */m\n- */m\nm: x\nowner:\n  pet: */m\npet2: &z 1\n');
+  const n = normalize(buildGraph(d));
+  assert.equal(n.filter((e) => e.from === '/items' && e.to === '/m' && e.label === null && e.kind === 'ref').length, 2);
+  // labeled both-ways still reconciles to ONE (existing behavior, unchanged)
+  const d2 = parseYamlover('eve:\n  cain: */adam\nadam:\n  ~cain: */eve\n');
+  const n2 = normalize(buildGraph(d2));
+  assert.equal(n2.filter((e) => e.label === 'cain' && e.kind === 'ref').length, 1);
+});

@@ -74,13 +74,19 @@ class Parser {
       if (c === undefined) this.fail('unterminated object');
       let back = false;
       if (this.peek() === '~') { back = true; this.i++; }
-      const key = this.key();
-      this.ws();
-      if (this.peek() !== ':') this.fail('expected ":" after key');
-      this.i++;
-      this.ws();
-      const v = this.value();
-      entries.push(makeEntry(key, back, v));
+      if (back && this.peek() === '*') {
+        // `~*'…'` — a KEYLESS back member (reverse positional membership, URIs.md §`~-`):
+        // no key, no colon; the pointer names the container that holds this node.
+        entries.push({ key: null, edge: 'back', value: this.pointer() });
+      } else {
+        const key = this.key();
+        this.ws();
+        if (this.peek() !== ':') this.fail('expected ":" after key');
+        this.i++;
+        this.ws();
+        const v = this.value();
+        entries.push(makeEntry(key, back, v));
+      }
       this.ws();
       const n = this.peek();
       if (n === ',') { this.i++; continue; }
@@ -98,8 +104,15 @@ class Parser {
       const c = this.peek();
       if (c === ']') { this.i++; break; }
       if (c === undefined) this.fail('unterminated array');
-      const v = this.value();
-      entries.push(makeEntry(null, false, v));
+      if (c === '~') {
+        // `~*'…'` — a keyless back member, allowed among array elements too (it is NOT an
+        // element: a back-edge takes no position).
+        this.i++;
+        if (this.peek() !== '*') this.fail('expected a pointer after "~" (keyless back member)');
+        entries.push({ key: null, edge: 'back', value: this.pointer() });
+      } else {
+        entries.push(makeEntry(null, false, this.value()));
+      }
       this.ws();
       const n = this.peek();
       if (n === ',') { this.i++; continue; }

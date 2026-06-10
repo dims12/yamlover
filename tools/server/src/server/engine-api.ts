@@ -206,16 +206,33 @@ const relKey = (label: string | null, other: string): string => `${label ?? ""} 
 
 /** A node's DOWNSTREAM entries (it is the natural source), in source order: its containment
  *  children and forward `*` refs (authored here, positioned), then any `~` back-edges that target
- *  it from elsewhere (authored on the downstream node, so unpositioned → appended). A relation
- *  authored both ways collapses to one entry (deduped by label + target). */
+ *  it from elsewhere (authored on the downstream node, so unpositioned → appended, ordered
+ *  lexicographically by the member's path — URIs.md §`~-`).
+ *
+ *  Dedup is by identity, which only a LABEL provides: a same-label both-ways pair (`L: *x` +
+ *  `~L: …`) is one relation authored twice → one entry. A KEYLESS membership (label null, the
+ *  `~-` form) has no identity and is ADDITIVE — every declaration appends an element, even
+ *  alongside a forward `- *member` (lists repeat) — unless the container is a `!!set` /
+ *  `uniqueItems: true` (NodeMeta.set), where membership is by target and ALL duplicates
+ *  (forward+forward, forward+reverse, reverse+reverse) collapse. */
 function downstreamEntries(s: Store, p: string): { to: string; label: string | null; pos: number | null; kind: EdgeRow["kind"] }[] {
-  const out = s.entries(p).filter((e) => e.kind !== "back"); // contain + forward ref, ordered by pos
-  const seen = new Set(out.map((e) => relKey(e.label, e.to)));
-  for (const e of s.relationships(p).in) {
-    if (e.kind !== "back" || !e.from) continue; // back-edge INTO p: its natural source is p (downstream)
+  const isSet = !!s.node(p)?.meta?.set;
+  let own = s.entries(p).filter((e) => e.kind !== "back"); // contain + forward ref, ordered by pos
+  const seen = new Set(own.map((e) => relKey(e.label, e.to)));
+  if (isSet) {
+    const kept = new Set<string>(); // set semantics: an element appears at most once
+    own = own.filter((e) => { const k = relKey(e.label, e.to); if (kept.has(k)) return false; kept.add(k); return true; });
+  }
+  const out: { to: string; label: string | null; pos: number | null; kind: EdgeRow["kind"] }[] = [...own];
+  const backs = s.relationships(p).in
+    .filter((e) => e.kind === "back" && e.from)
+    .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0)); // lexicographic by member path
+  for (const e of backs) {
     const k = relKey(e.label, e.from); // natural target of a back-edge is its `from`
-    if (seen.has(k)) continue;
-    seen.add(k);
+    if (e.label != null || isSet) {
+      if (seen.has(k)) continue;
+      seen.add(k);
+    }
     out.push({ to: e.from, label: e.label, pos: null, kind: "ref" });
   }
   return out;

@@ -125,6 +125,10 @@ yamlover specifics:
     is given as `value:` (alongside `properties:`), the most general node shape.
 - **`format`** is open: a MIME type (`image/png`, `application/pdf`, `text/markdown`), a
   codec (`int32/le`), or a yamlover-defined view (`x-yamlover-chapter`).
+- **`uniqueItems: true`** marks a container as a **set** — membership is by identity, so
+  duplicate memberships (forward+forward, forward+`~-` reverse, reverse+reverse) collapse
+  to one (`URIs.md` §`~-`). In yamlover files the inline spelling is the **`!!set`** tag;
+  this keyword is the route for json5p and directory overlays, which have no tags.
 - **`concrete`** (how/where stored: `file/binary` · `file/yaml` · `file/json` · `dir` · …)
   is **inferable from the filesystem** — state it only when ambiguous. Keep meta minimal.
 - **References use `*` pointers, not `$ref`.** Reusable fragments go under a `$defs` (or

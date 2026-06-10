@@ -378,5 +378,50 @@ two do not contradict. Since `~X` is by definition the inverse of `X`, one side 
 always derivable; the engine keeps what you wrote and offers a `normalize` command to
 reduce a tree to a canonical **forwards-only** form (see `ENGINE.md`).
 
+#### `~-` — reverse *positional* membership (keyless)
+
+A forward entry need not be keyed — `- *me` is a keyless, positional member. Its
+reverse follows the same sigil rule: **`~` tight against what the forward entry starts
+with** — a key (`~name:`) or the `-` marker (`~-`):
+
+```yamlover
+my_node:
+  ~- */some/other/location   # ⇒ the container at /some/other/location has  - *…/my_node
+```
+
+(In json5p, which has no `-` marker, the sigil prefixes the pointer directly:
+`~*'/some/other/location'`.) A `~-` entry's value must be a pointer — a back-edge needs
+a target.
+
+Keyless reversal differs from keyed reversal in two deliberate ways:
+
+- **No reverse index — `~[n]:` is rejected.** Order is the *container's* data (text
+  order in its source; the `body.yamlover` pointer-array for a directory). A remote
+  node claiming "I am element `[3]`" would be a second writer for single-writer data:
+  any insertion in the container silently invalidates the claim, and two members can
+  claim the same slot. If an exact position matters, author it forward — the container
+  lists `- *member` where it wants it. A `~-` membership is **unpositioned**: it
+  declares *that* the container holds me, never *where*.
+- **Additive, not deduplicated.** A keyed pair (`X: *b` at `a` and `~X: *a` at `b`)
+  is one relation authored twice — the label gives it identity, and the engine
+  reconciles the pair. A keyless membership has no label and no index, hence **no
+  identity to match on**: every `~-` declaration ADDS one element to the container,
+  even when a forward `- *member` (or another `~-`) to the same node already exists —
+  lists may contain repetitions, and collapsing them would silently destroy data. The
+  cost: redundant both-ways authoring of *one* membership is not available keyless —
+  unless the container is a **`!!set`**.
+
+Reverse-authored members are projected **after** all of the container's own in-place
+entries, ordered **lexicographically by the member's path** (deterministic and
+reconstructible from the graph alone). They never affect the container's *kind* —
+a container's type comes from its owned entries only.
+
+**`!!set`** (a value-position tag, like `!!mix`/`!!omni`; the inline spelling of the
+schema keyword `uniqueItems: true`, which is the route for json5p and overlays) opts a
+container into **set semantics**: membership is by identity, so duplicate memberships —
+forward+forward, forward+reverse, reverse+reverse — collapse to one. (yamlover
+reinterprets YAML's `!!set` tag; see the divergence list in
+`tools/parser/YAML-CONFORMANCE.md`.)
+
 `~` is a single, dedicated sigil. Like `* & # /`, a `~` that is part of a literal key
 must be backslash-escaped (`\~`).

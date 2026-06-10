@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createHandlers } from "../src/server/engine-api";
-import { tmpExample } from "./helpers";
+import { tmpExample, tmpTree } from "./helpers";
 import { call } from "./http";
 
 // Read endpoints, against DISPOSABLE COPIES of the example fixtures (indexing writes the
@@ -45,5 +45,38 @@ describe("api endpoints (engine-backed)", () => {
     const { status, json } = call(h, "/api/json", { path: "/nope" });
     expect(status).toBe(404);
     expect(json.error).toBeTruthy();
+  });
+});
+
+describe("reverse positional membership (~-) projection", () => {
+  const tree = () =>
+    tmpTree({
+      ".yamlover/body.yamlover":
+        "items:\n- alpha\nmember:\n  name: m\n  ~- */items\n  ~- */unique\n" +
+        "dup:\n  ~- */items\n  ~- */items\nunique: !!set\n- */member\n",
+    });
+
+  it("appends reverse members after owned entries, lexicographically, ADDITIVE (repetition kept)", () => {
+    const h = createHandlers(tree(), { gitignore: false });
+    const { json } = call(h, "/api/json", { path: "/items", depth: "2" });
+    const items = json.value as any[];
+    expect(items[0]).toBe("alpha"); // owned entry first
+    // then /dup twice (two ~- declarations — lists repeat), then /member
+    expect(items.slice(1).map((v) => v.$yamloverLink.path)).toEqual(["/dup", "/dup", "/member"]);
+  });
+
+  it("a !!set container dedups forward+reverse authoring to one membership", () => {
+    const h = createHandlers(tree(), { gitignore: false });
+    const { json } = call(h, "/api/json", { path: "/unique", depth: "2" });
+    const items = json.value as any[];
+    expect(items).toHaveLength(1);
+    expect(items[0].$yamloverLink.path).toBe("/member");
+  });
+
+  it("reverse declarations do not change the member's own type", () => {
+    const h = createHandlers(tree(), { gitignore: false });
+    const { json } = call(h, "/api/json", { path: "/member", depth: "2" });
+    expect(json.type).toBe("object");
+    expect(json.value.name).toBe("m");
   });
 });

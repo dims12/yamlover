@@ -175,3 +175,24 @@ test('a sub-document encoding format (yamlover/meta) parses the file — never a
   s.close();
   rmSync(root, { recursive: true, force: true });
 });
+
+test('~- membership in a body overlay: stored as a keyless back edge; !!set / uniqueItems mark sets', () => {
+  const root = mkdtempSync(join(tmpdir(), 'yo-backseq-'));
+  mkdirSync(join(root, '.yamlover'));
+  writeFileSync(join(root, '.yamlover', 'body.yamlover'),
+    'items:\n- plain\nmember:\n  name: m\n  ~- */items\nfixed: !!set\n- */member\n');
+  writeFileSync(join(root, '.yamlover', 'meta.yamlover'), 'properties:\n  items:\n    uniqueItems: true\n');
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(root));
+  // the membership is a keyless back edge from the member to the container
+  const back = s.relationships('/items').in.find((e) => e.kind === 'back');
+  assert.ok(back && back.from === '/member' && back.label === null);
+  // the member's own kind is untouched by its reverse declaration
+  assert.equal(s.node('/member')?.type, 'mapping');
+  assert.equal(s.node('/member')?.is_array, false);
+  // !!set tag and meta uniqueItems both land as NodeMeta.set
+  assert.equal(s.node('/fixed')?.meta?.set, true);
+  assert.equal(s.node('/items')?.meta?.set, true);
+  s.close();
+  rmSync(root, { recursive: true, force: true });
+});

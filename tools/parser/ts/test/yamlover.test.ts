@@ -240,3 +240,47 @@ test('mixtures are forbidden without an explicit !!mix / !!omni tag', () => {
   parseYamlover('o:\n  x: 1\n');
   parseYamlover('n: 5\n');
 });
+
+// ---- `~-` keyless back-edges (reverse positional membership) + `!!set` ----------
+
+test('~- entry: a keyless back-edge with a pointer value (URIs.md §~-)', () => {
+  const d = parseYamlover('my_node:\n  name: x\n  ~- */some/other/location\n');
+  const my = asMap(entry(asMap(d.root), 'my_node').value);
+  const back = my.entries.find((e) => e.edge === 'back')!;
+  assert.equal(back.key, null);
+  assert.ok(isPointer(back.value));
+  assert.equal((back.value as { raw: string }).raw, '/some/other/location');
+  // the reverse declaration is NOT an owned member: no !!mix needed, not an array
+  assert.equal(my.array, false);
+});
+
+test('~- entries do not make a node look like a sequence, but real items still do', () => {
+  const list = parseYamlover('- a\n- b\n~- */elsewhere\n');
+  const m = asMap(list.root);
+  assert.equal(m.array, true); // owned entries are all keyless
+  assert.equal(m.entries.filter((e) => e.edge === 'back').length, 1);
+  const backOnly = asMap(parseYamlover('~- */elsewhere\n').root);
+  assert.equal(backOnly.array, false); // membership declarations alone are not a sequence
+});
+
+test('~- requires a pointer; the sigil must sit tight', () => {
+  assert.throws(() => parseYamlover('a:\n  ~- not_a_pointer\n'), /needs a pointer/);
+  assert.throws(() => parseYamlover('a:\n  x: 1\n  ~ - */x\n'), /sit tight/); // entry position
+  assert.throws(() => parseYamlover('a:\n  ~ key: */x\n'), /sit tight/);
+  // value position is untouched YAML: a lone `~ -…` line is a plain scalar
+  assert.deepEqual(toPlain(parseYamlover('a: ~ - x\n').root), { a: '~ - x' });
+});
+
+test('~ in value position is still YAML null', () => {
+  assert.deepEqual(toPlain(parseYamlover('a: ~\n').root), { a: null });
+});
+
+test('!!set tags a container with set semantics (NodeMeta.set)', () => {
+  const d = parseYamlover('members: !!set\n- *a\n- *b\n');
+  const members = entry(asMap(d.root), 'members').value;
+  assert.ok(!isPointer(members) && members.meta?.set === true);
+  // lone root tag form
+  const root = parseYamlover('!!set\n- 1\n- 2\n').root;
+  assert.equal(root.meta?.set, true);
+  assert.deepEqual(toPlain(root), [1, 2]);
+});

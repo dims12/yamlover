@@ -49,6 +49,18 @@ The pointer layer, identical in meaning to json5p (grammar in `URIs.md`):
     cain:
       ~cain: */eve        # reverse of eve's "cain" edge → eve   (~ = sigil, key = "cain")
   ```
+- **`~-` — reverse *positional* membership (keyless back-edge).** The sigil sits tight
+  against what the forward entry starts with — a key (`~cain:`) or the `-` marker (`~-`;
+  a spaced `~ -` is an error, as is `~ cain:`). The value **must be a pointer** — it names
+  the container that holds me:
+  ```yamlover
+  my_node:
+    ~- */some/other/location   # ⇒ that container has an element  - *…/my_node
+  ```
+  A `~-` membership is **unpositioned** (no `~[n]:` — order is the container's data) and
+  **additive**: with no label and no index there is no identity to dedup on, so every `~-`
+  adds one element, even alongside a forward `- *me` (lists repeat) — unless the container
+  is a `!!set` (§4). Semantics in `URIs.md` §`~-`.
 - **`&` anchors — unchanged.** Exactly YAML anchors: a single intra-document name, no
   paths; `*name` reuses the node (precedence: a declared anchor wins over a sibling key).
 
@@ -60,7 +72,9 @@ These are the *only* incompatibilities — everything else is YAML:
 |---|---|---|
 | `*alias` | alias to anchor `alias` (name only) | **pointer** — a path/scope expression (`*a` still hits anchor `a` by precedence, but `*a/b`, `*/x`, `*pets[1]` are new) |
 | `~key:` (key position) | the plain-scalar key `"~key"` | **back-edge** sigil on key `key` |
+| `~-` (entry position) | the plain scalar `~-` (rare) | **keyless back-edge** — reverse positional membership (§2) |
 | `~` (value position) | null | **unchanged — still null** |
+| `!!set` | a mapping of null-valued keys | a **set-semantics container** — memberships dedup by identity (§4) |
 
 So a YAML file whose anchor names contain pointer metacharacters (`&a/b` … `*a/b`), or
 whose **plain keys begin with `~`**, will read differently. Everything else round-trips.
@@ -82,6 +96,11 @@ default, mixing is **opt-in via a type tag**, so plain yamlover stays a clean YA
 
 - **`!!mix`** — a container that mixes keyless and keyed entries (a dict ∪ list).
 - **`!!omni`** — a node that carries a scalar value **and** fields at once (scalar ⊕ `mix`).
+- **`!!set`** — a container with **set semantics**: an element appears at most once, so
+  duplicate memberships — forward+forward, forward+`~-` reverse, reverse+reverse — collapse
+  to one (dedup by target). The inline spelling of the schema keyword `uniqueItems: true`
+  (`META.md`), which is the route for json5p and directory overlays (no tags there).
+  Reinterprets YAML's `!!set` (whose meaning is a null-valued mapping) — see §3.
 
 The tag sits in **value position** — right after the `key:` (or `- `) whose value it types,
 exactly where a YAML tag goes. `!!mix` precedes a (mixed) block; `!!omni` precedes the

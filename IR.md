@@ -143,6 +143,13 @@ A `~`-prefixed key produces `edge:"back"` with `key` holding the **forward** rel
 value: Pointer(document-root → eve) }`. The IR records the back-edge as written; it does **not**
 synthesize the matching forward edge (that's `normalize`/`derive` in the engine).
 
+The **keyless** form — yamlover `~- *…`, json5p `~*'…'` (reverse positional membership,
+`URIs.md` §`~-`) — is `Entry { key: null, edge:"back", value: Pointer }`: the same nullable
+`key` a keyless forward entry uses, with `edge:"back"`. The value is always a `Pointer`
+(the `Value` contract already requires it for `ref`/`back`). Unlike `!!mix`/`!!omni` —
+parse *permissions* whose effect is visible in the node's shape — `!!set` (≡
+`uniqueItems: true`) must survive into the graph, so it is recorded as `NodeMeta.set`.
+
 ### `&` anchors
 An anchor declaration is recorded both in `Document.anchors` (name → the owned node) and on
 the owning entry as `EntryMeta.anchor`. A `*name` referencing an anchor stays a `Pointer`

@@ -95,6 +95,29 @@ and materializes on a filesystem as a symlink. The graph is **kept exactly as wr
 author the forward edge, its `~` reverse, or both; the engine's `normalize` reduces a pair
 to forwards-only.
 
+### `~*` — reverse *positional* membership (keyless)
+
+The keyless counterpart: a member of an object or array of the form **`~*'…'`** — the
+sigil tight against a pointer, no key, no colon — declares that the pointed-at container
+holds a positional element pointing back at this node (yamlover spells it `~- *…`; json5p
+has no `-` marker, so the sigil prefixes the pointer directly):
+
+```json5p
+{
+  my_node: {
+    name: 'x',
+    ~*'/some/other/location',   // ⇒ that container has an element pointing at my_node
+  },
+}
+```
+
+It is **unpositioned** (a member never claims the container's order — no reverse index)
+and **additive**: with no label and no index there is no identity to dedup on, so each
+declaration adds one element, even alongside a forward element pointing at the same node —
+unless the container's metadata says `uniqueItems: true` (the schema-keyword route to set
+semantics; json5p has no tags, so yamlover's `!!set` is unavailable here). Full semantics
+in `URIs.md` §`~-`.
+
 ### `&` — anchors (in value position)
 
 `&name` declares an **anchor** — a reusable name for the value that follows — and `*name`

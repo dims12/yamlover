@@ -68,6 +68,12 @@ export function deriveInverses(g: Graph): Edge[] {
  * and forward `ref` edges; fold every `~` back-edge into the forward `ref` it is the
  * reverse of (`B --~L--> A`  means  `A --L--> B`), de-duplicating against existing refs.
  * The result has no `back` (or `derived`) edges.
+ *
+ * Dedup applies to LABELED edges only — a label gives a relation identity, so a same-label
+ * pair is one relation authored twice. A KEYLESS edge (label null — positional membership)
+ * has no identity and is ADDITIVE: lists may contain repetitions, so every keyless ref and
+ * every folded `~-` membership is kept (URIs.md §`~-`). A `!!set` container's dedup is a
+ * projection/validation concern over node meta, which a bare edge list does not carry.
  */
 export function normalize(g: Graph): Edge[] {
   const out: Edge[] = [];
@@ -77,11 +83,13 @@ export function normalize(g: Graph): Edge[] {
   for (const e of g.edges) if (e.kind === 'contain') out.push(e);
   for (const e of g.edges) {
     if (e.kind !== 'ref') continue;
+    if (e.label == null) { out.push(e); continue; } // keyless: additive, never deduped
     if (!seen.has(key(e))) { seen.add(key(e)); out.push(e); }
   }
   for (const e of g.edges) {
     if (e.kind !== 'back') continue;
     const fwd: Edge = { from: e.to, to: e.from, label: e.label, kind: 'ref' };
+    if (e.label == null) { out.push(fwd); continue; } // `~-` membership: additive
     if (!seen.has(key(fwd))) { seen.add(key(fwd)); out.push(fwd); }
   }
   return out;

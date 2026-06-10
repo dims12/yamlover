@@ -57,15 +57,16 @@ export function buildIndex(absDir: string, opts: WalkOptions = {}): string {
   return dbPath;
 }
 
-/** Per-child metadata from `.yamlover/meta.yamlover` `properties`: { name → {type, format} }. */
-type Meta = Record<string, { type?: string; format?: string }>;
+/** Per-child metadata from `.yamlover/meta.yamlover` `properties`:
+ *  { name → {type, format, uniqueItems} }. */
+type Meta = Record<string, { type?: string; format?: string; uniqueItems?: boolean }>;
 
 function loadMeta(dir: string): Meta {
   const file = path.join(dir, YAMLOVER_DIR, 'meta.yamlover');
   if (!fs.existsSync(file)) return {};
   try {
     const plain = toPlain(parseYamlover(fs.readFileSync(file, 'utf8'), file).root) as Record<string, unknown>;
-    const props = (plain?.properties ?? {}) as Record<string, { type?: string; format?: string }>;
+    const props = (plain?.properties ?? {}) as Meta;
     return props && typeof props === 'object' ? props : {};
   } catch {
     return {};
@@ -110,12 +111,16 @@ function childNode(abs: string, m: { type?: string; format?: string } | undefine
 
 /** Apply `meta.yamlover` `properties.<key>.format` to the matching entries, so a body-overlay
  *  text entry (e.g. 59's `markdown:`) gets its (type, format) just like a file child does. A
- *  Blob already carries its format; a node with a format already wins; binary stays a Blob. */
+ *  Blob already carries its format; a node with a format already wins; binary stays a Blob.
+ *  `uniqueItems: true` marks the child a SET (≡ the `!!set` tag — META.md): NodeMeta.set. */
 function applyMeta(node: Mapping, meta: Meta): Mapping {
   for (const e of node.entries) {
-    if (e.key == null || isPointer(e.value) || e.value.kind === 'blob') continue;
-    const fmt = meta[e.key]?.format;
-    if (fmt && !e.value.meta?.schema) e.value = { ...e.value, meta: { ...e.value.meta, schema: inlineFormat(fmt) } };
+    if (e.key == null || isPointer(e.value)) continue;
+    const m = meta[e.key];
+    if (!m) continue;
+    if (m.uniqueItems) e.value = { ...e.value, meta: { ...e.value.meta, set: true } };
+    if (e.value.kind === 'blob') continue;
+    if (m.format && !e.value.meta?.schema) e.value = { ...e.value, meta: { ...e.value.meta, schema: inlineFormat(m.format) } };
   }
   return node;
 }
