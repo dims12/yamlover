@@ -145,7 +145,8 @@ a declared anchor wins, else `*name` is a structural sibling pointer. Both surfa
 
 ## 4. Escaping: two layers
 
-A literal key may contain a metacharacter (`/ [ ] * & # ~ \` or the segment `..`). It is
+A literal key may contain a metacharacter (`/ [ ] * & # ~ \`, the query characters
+`? ! ( ) < > = |` — see `QUERY.md` — or an all-dots segment `..` / `...`). It is
 escaped with a **backslash inside the pointer expression**. But the pointer lives inside a
 **JSON5 string**, which has its *own* backslash escaping — so a literal backslash reaching
 the pointer layer must be written `\\` in the source string:

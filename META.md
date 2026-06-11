@@ -8,8 +8,8 @@ YAML/yamlover**: the same/close vocabulary (`properties`, `type`, `format`, `pre
 This is the thing we did *not* drop. What we dropped is **schema-as-storage** — pinning
 data with `const:` so the schema *is* the instance (the old `.yamlover/schema.yaml` model).
 Data now lives in the instance (files and/or `body.yamlover`); the schema only *describes*
-it. Companion specs: `URIs.md` (pointers), `IR.md` (instance graph), `YAMLOVER.md` /
-`JSON5P.md` (surfaces).
+it. Companion specs: `URIs.md` (pointers), `QUERY.md` (queries), `IR.md` (instance
+graph), `YAMLOVER.md` / `JSON5P.md` (surfaces).
 
 ## Where it lives — the `.yamlover/` contract
 

@@ -20,7 +20,8 @@ The project has the following goals
 - define a way to navigate JSONs and YAMLs in cd/ls manner
 
 > **Status:** specs + a working implementation of the read side.
-> [`URIs.md`](URIs.md) (pointer model), [`JSON5P.md`](JSON5P.md) /
+> [`URIs.md`](URIs.md) (pointer model), [`QUERY.md`](QUERY.md) (query language —
+> pointers are its singleton fragment), [`JSON5P.md`](JSON5P.md) /
 > [`YAMLOVER.md`](YAMLOVER.md) (the two surface languages), [`IR.md`](IR.md)
 > (instance-graph contract), [`META.md`](META.md) (metadata schema),
 > [`ENGINE.md`](ENGINE.md) / [`FUTURE.md`](FUTURE.md) (core design),

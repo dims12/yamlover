@@ -53,7 +53,9 @@ feline: *cat
 
 ## JSON Path
 
-JSON path is also both string and pointer
+JSON path is also both string and pointer. (This section is about *paths as
+pointers* — single-target addressing. Multi-match *querying* — wildcards, descent,
+graph axes — is `QUERY.md`, which extends this same grammar.)
 
 ```json5p
 {
@@ -242,6 +244,8 @@ filesystem if there is no overlay.
 Every key is a pointer. `*` **dereferences** a pointer (and is the only thing that
 creates an edge); `&` is an ordinary **YAML anchor** that declares a name. Resolution
 is lazy and yields a **graph edge, not a copy** — `*` shares the target node.
+Pointers are the **singleton fragment of the query language** — every pointer is a
+query with at most one result; see `QUERY.md`.
 
 Containment (a key holding its value) is an **acyclic spine** — the tree. The `*` and
 `~` edges laid on top of it may point anywhere, including back to an ancestor, so the
@@ -290,7 +294,7 @@ scope    = link                   ; any OTHER start: project, sibling doc, exter
 link     = ( scheme "://" / "//" ) authority   ; scheme optional & ignored
 index    = "[" 1*DIGIT "]"        ; selects the integer key n
 name     = 1*( nchar / "\" CHAR ) ; selects a string key; "\" escapes a metachar
-nchar    = <any char except unescaped  / [ ] * & # ~  or whitespace>
+nchar    = <any char except unescaped  / [ ] * & # ~ ? ! ( ) < > = |  or whitespace>
 ```
 
 `[n]` selects the **integer key** `n` (a position); `/x` selects the **string key**
@@ -300,8 +304,10 @@ key `"1":` is simply `[1]` versus `/1`.
 
 ### Literal characters (escaping)
 
-A key may itself contain a metacharacter — `/ [ ] * & # ~ \` or the literal segment
-`..`. Escape it with a **backslash**, which suppresses the pointer meaning of the next
+A key may itself contain a metacharacter — `/ [ ] * & # ~ \`, the query characters
+`? ! ( ) < > = |` (reserved for `QUERY.md`; pointers and queries share one lexical
+space), or an all-dots segment `..` / `...` (parent / query descent). Escape it with
+a **backslash**, which suppresses the pointer meaning of the next
 character. Escaping is backslash-based, **not** quote-based: in JSON5 and YAML `'` and
 `"` are interchangeable string delimiters, so they cannot carry a "literal vs.
 interpreted" distinction — `*".."` and `*'..'` are the same string, both meaning

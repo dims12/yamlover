@@ -200,8 +200,9 @@ has no tags; inline schema attachment is yamlover-only.)
 ## 6. Escaping
 
 Backslash-based, **not** quote-based (in YAML `'` and `"` are interchangeable, so they
-cannot carry a literal-vs-interpreted distinction). A literal metachar (`/ [ ] * & # ~ \`
-or the segment `..`) in a key is escaped with `\`:
+cannot carry a literal-vs-interpreted distinction). A literal metachar (`/ [ ] * & # ~ \`,
+the query characters `? ! ( ) < > = |` — see `QUERY.md` — or an all-dots segment
+`..` / `...`) in a key is escaped with `\`:
 
 ```yamlover
 weird: *../cat\/dog/x    # second step is the literal key "cat/dog"
