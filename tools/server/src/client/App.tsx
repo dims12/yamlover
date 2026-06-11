@@ -7,6 +7,7 @@ import { rendererName } from "./renderers/registry";
 
 const isStandardFormat = (f: Format) => (FORMATS as string[]).includes(f);
 import { crumbs, formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
+import { broadcastDiff } from "./live";
 
 // Levels of the TOC fetched at once — initially and on each lazy expand. One
 // level keeps every fetch cheap on a huge/slow tree (a fetch only reads the
@@ -119,7 +120,7 @@ export function App() {
     const n = findNode(tree, current);
     if (!n) return; // not loaded along the path yet — wait for the next pass
     resolvedLanding.current = true;
-    const rn = rendererName(n.type, n.format);
+    const rn = rendererName(n.type, n.format, n.concrete);
     if (rn) {
       setFormat(rn);
       writeUrl(current, rn, true);
@@ -212,6 +213,9 @@ export function App() {
         const paths = [...diff.added, ...diff.changed, ...diff.removed,
           ...(diff.moved ?? []).flatMap((m) => [m.from, m.to])];
         if (!paths.length) return;
+        // Re-broadcast for the useDiffBump subscribers (live.ts — the unified change flow):
+        // hooks outside this component's prop reach refetch from the same diff currency.
+        broadcastDiff({ paths, removed: diff.removed });
         refreshBranches(paths).catch(() => {});
         const cur = currentRef.current;
         if (paths.some((p) => p === cur || isAncestorPath(p, cur) || isAncestorPath(cur, p))) {
@@ -245,7 +249,7 @@ export function App() {
       const target = tree ? findNode(tree, p) : null;
       let f: Format = format;
       if (target) {
-        const rn = rendererName(target.type, target.format);
+        const rn = rendererName(target.type, target.format, target.concrete);
         f = rn ?? (isStandardFormat(format) ? format : DEFAULT_FORMAT);
       }
       writeUrl(p, f, false);
@@ -284,7 +288,7 @@ export function App() {
         const sub = await fetchTree(dir, INITIAL_DEPTH);
         setTree((t) => (t ? replaceChildren(t, dir, sub.children) : t));
         const fileNode = sub.children.find((c) => c.path === result.path);
-        const f: Format = (fileNode ? rendererName(fileNode.type, fileNode.format) : null) ?? DEFAULT_FORMAT;
+        const f: Format = (fileNode ? rendererName(fileNode.type, fileNode.format, fileNode.concrete) : null) ?? DEFAULT_FORMAT;
         writeUrl(result.path, f, false);
         setCurrent(result.path);
         setFormat(f);

@@ -1,4 +1,5 @@
 import { Readable } from "node:stream";
+import { EventEmitter } from "node:events";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 type Handler = (req: IncomingMessage, res: ServerResponse, url: URL) => void;
@@ -40,6 +41,26 @@ export function call(handler: Handler, pathname: string, params: Record<string, 
   }) as ServerResponse["end"];
   handler({} as IncomingMessage, res, urlFor(pathname, params));
   return captured;
+}
+
+/** Subscribe to the handler's SSE endpoint (/api/events) and capture every pushed frame —
+ *  asserts the unified change flow: writes must announce their diffs. Call `close()` when done
+ *  (it clears the server's keep-alive ping for this subscriber). */
+export function sseCapture(handler: Handler): { frames: () => any[]; close: () => void } {
+  const req = new EventEmitter() as unknown as IncomingMessage;
+  (req as { method?: string }).method = "GET";
+  const raw: string[] = [];
+  const res = {
+    statusCode: 200,
+    setHeader() {},
+    write(s: string) { raw.push(s); },
+    end() {},
+  } as unknown as ServerResponse;
+  handler(req, res, urlFor("/api/events", {}));
+  return {
+    frames: () => raw.filter((s) => s.startsWith("data: ")).map((s) => JSON.parse(s.slice("data: ".length))),
+    close: () => (req as unknown as EventEmitter).emit("close"),
+  };
 }
 
 /** Invoke a handler with a method + JSON body (the async write endpoints); awaits the response. */

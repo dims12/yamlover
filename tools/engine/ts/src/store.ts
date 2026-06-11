@@ -228,6 +228,46 @@ export class Store {
     }
   }
 
+  /** Incrementally add ONE named tag under a taxonomy node (tag creation's write path — the
+   *  {@link addAnnotation} of tags): upsert any missing taxonomy ancestors as plain mappings (a
+   *  fresh `/tags` has no rows yet), then the tag's subtree and its containment edge. Approximate
+   *  by design — the next reconcile re-walks the edited taxonomy body and trues everything up;
+   *  these rows only have to answer queries until then. */
+  addTag(taxonomyStorePath: string, name: string, pos: number, node: Node): void {
+    const insNode = this.db.prepare(
+      `INSERT OR REPLACE INTO node (path, type, format, value, content_hash, size, is_array, meta)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const insEdge = this.db.prepare(
+      `INSERT INTO edge (from_path, to_path, label, kind, pos) VALUES (?, ?, ?, ?, ?)`,
+    );
+    const hasNode = this.db.prepare('SELECT 1 FROM node WHERE path = ?');
+    this.db.exec('BEGIN');
+    try {
+      const segs = taxonomyStorePath === '/' ? [] : taxonomyStorePath.slice(1).split('/');
+      for (let i = 1; i <= segs.length; i++) {
+        const p = '/' + segs.slice(0, i).join('/');
+        if (hasNode.get(p)) continue;
+        insNode.run(p, 'mapping', null, null, null, null, 0, null);
+        insEdge.run(i === 1 ? '/' : '/' + segs.slice(0, i - 1).join('/'), p, segs[i - 1], 'contain', null);
+      }
+      const tagPath = (taxonomyStorePath === '/' ? '' : taxonomyStorePath) + '/' + name;
+      walkNodes(node, tagPath, (p, n, parent, label, ps) => {
+        const meta = n.meta ? JSON.stringify(n.meta) : null;
+        const isArray = n.array || (n.kind === 'mapping' && (n.entries?.every((e) => e.key === null) ?? false));
+        const value = n.kind === 'scalar' ? JSON.stringify(n.value) : null;
+        const format = n.kind === 'blob' ? n.format : formatFromMeta(n);
+        insNode.run(p, n.kind, format, value, n.kind === 'blob' ? n.contentHash : null, n.kind === 'blob' ? n.size : null, isArray ? 1 : 0, meta);
+        if (parent !== null) insEdge.run(parent, p, label, 'contain', ps);
+      });
+      insEdge.run(taxonomyStorePath, tagPath, name, 'contain', pos);
+      this.db.exec('COMMIT');
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
+  }
+
   /** The persisted file manifest, keyed by root-relative path — the previous walk's view of the
    *  filesystem. Feeds the walker's hash cache and the change diff. */
   manifest(): Map<string, FileRecord> {

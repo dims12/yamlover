@@ -117,16 +117,17 @@ describe("NodeView", () => {
   });
 
   it("sets the document title to the node's schema title when it has one", async () => {
+    // a dir-concrete node now defaults to the explorer view (an empty grid here)
     mNode.mockResolvedValue({ path: "/book", type: "object", concrete: "yamlover", title: "My Book", description: null, value: {} });
     render(<NodeView path="/book" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
-    await screen.findByText("{}");
+    await screen.findByText("empty");
     expect(document.title).toBe("My Book");
   });
 
   it("falls back to the node's path name when it has no title", async () => {
     mNode.mockResolvedValue({ path: "/chapters[2]", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
     render(<NodeView path="/chapters[2]" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
-    await screen.findByText("{}");
+    await screen.findByText("empty");
     expect(document.title).toBe("[2]");
   });
 });

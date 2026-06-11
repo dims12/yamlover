@@ -6,6 +6,7 @@ import {
   isAncestorPath,
   crumbs,
   displayPath,
+  displayKey,
   pathFromUrl,
   formatFromUrl,
   writeUrl,
@@ -25,6 +26,12 @@ describe("client paths", () => {
     expect(enc).toBe("/00.%20%D0%9F%D0%B5%D1%80%D0%B8%D0%BE%D0%B4%D0%B8%D0%BA%D0%B0[3]/a%2Fb");
     expect(displayPath(enc)).toBe("/00. Периодика[3]/a/b");
     expect(displayPath("/")).toBe("/");
+  });
+
+  it("displayKey decodes a relation key in place, keeping its structure verbatim", () => {
+    expect(displayKey("..")).toBe(".."); // displayPath would mangle these two
+    expect(displayKey("//%D0%9F%D0%B0%D0%BF%D0%BA%D0%B0/file")).toBe("//Папка/file");
+    expect(displayKey("/eve")).toBe("/eve");
   });
 
   it("isAncestorPath", () => {

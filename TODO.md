@@ -8,3 +8,5 @@
 - Support configurable depth for chapter renderers
 - When images, maps etc are inside chapters, not need to complex leaflet controls
 - Annotations-as-tag-applications follow-up: richer tag search in the picker (autocomplete over indexed tags, not just a path input)
+- Ctrl-PgDn and Ctrl-PgUp to switch to next element in the viewer
+- Once LHS TOC entry clicked, focus should go to RHS

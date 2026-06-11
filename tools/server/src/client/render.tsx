@@ -30,6 +30,7 @@ export interface Link {
   format?: string | null;
   value?: unknown; // for a link to a scalar: its value, shown as the label
   color?: string | null; // for a link to a pure color tag: its explicit color (badges)
+  concrete?: string | null; // how the target is stored; `dir`/`yamlover` → a folder icon
 }
 
 interface Ref {

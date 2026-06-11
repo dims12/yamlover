@@ -1,0 +1,9 @@
+# .yamlover/settings.yamlover — project settings for the served root (engine/ts/src/settings.ts).
+# Settings are DEFAULTS, never constraints: they only say where the server CREATES things when
+# the user does not; reading is location-independent (a node is recognized by its schema,
+# wherever it sits). A missing file or field silently falls back to these same defaults.
+# A location is a *-pointer into the served tree, resolved against the served root.
+annotations:
+  location: *annotations
+tags:
+  location: *tags

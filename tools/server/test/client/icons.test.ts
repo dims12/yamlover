@@ -20,9 +20,9 @@ describe("typeIcon", () => {
     expect(typeIcon("array", "x-yamlover-future").glyph).toBe("🧩");
   });
 
-  it("shows a folder for a plain directory (`dir` concrete), but not other objects", () => {
+  it("shows a folder for a directory concrete, but not other objects", () => {
     expect(typeIcon("object", null, "dir").glyph).toBe("📁"); // a real OS folder
-    expect(typeIcon("object", null, "yamlover").glyph).toBe("{}"); // has .yamlover → not a plain folder
+    expect(typeIcon("object", null, "yamlover").glyph).toBe("🗂️"); // a folder with .yamlover/
     expect(typeIcon("object", null, "yaml-schema/instantiate").glyph).toBe("{}");
     // a format still wins over the dir concrete
     expect(typeIcon("object", "x-yamlover-chapter", "dir").glyph).toBe("§");

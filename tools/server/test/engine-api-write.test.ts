@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHandlers } from "../src/server/engine-api";
 import { tmpTree } from "./helpers";
-import { call, callBody } from "./http";
+import { call, callBody, sseCapture } from "./http";
 
 // The WRITE endpoints (/api/annotate, /api/paste), against synthetic temp trees — never the
 // repo. Fixtures are minimal and explicit, so they cannot break when examples/ evolves.
@@ -131,6 +131,138 @@ describe("/api/annotate (delete)", () => {
     }
     expect(fs.existsSync(path.join(root, "plain.yamlover"))).toBe(true);
     expect(fs.existsSync(path.join(root, "name"))).toBe(true);
+  });
+});
+
+describe("/api/tag (create)", () => {
+  it("creates a named tag at the default location and it is immediately applicable", async () => {
+    const root = tmpTree({ name: "Alice" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const NAME = "исаакиевский собор";
+    const ENC = "/tags/" + encodeURIComponent(NAME); // client JSON paths percent-encode keys
+    const r = await callBody(h, "POST", "/api/tag", { name: NAME });
+    expect(r.status).toBe(201);
+    expect(r.json).toMatchObject({ path: ENC, name: NAME, color: null, created: true });
+    const body = fs.readFileSync(path.join(root, "tags", ".yamlover", "body.yamlover"), "utf8");
+    expect(body).toContain(`${NAME}: !!<*yamlover/$defs/tag>`);
+    expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-tag");
+
+    // the freshly created tag can be applied right away
+    const a = await callBody(h, "POST", "/api/annotate", { target: "/name", tag: r.json.path, selector: SELECTOR });
+    expect(a.status).toBe(201);
+    expect(call(h, "/api/annotations", { path: "/name" }).json[0].tag).toMatchObject({ path: ENC, name: NAME });
+  });
+
+  it("is idempotent — the same name twice returns the same tag, written once", async () => {
+    const root = tmpTree({ name: "Alice" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    await callBody(h, "POST", "/api/tag", { name: "twice" });
+    const r = await callBody(h, "POST", "/api/tag", { name: "twice" });
+    expect(r.status).toBe(201);
+    expect(r.json).toMatchObject({ path: "/tags/twice", name: "twice", created: false });
+    const body = fs.readFileSync(path.join(root, "tags", ".yamlover", "body.yamlover"), "utf8");
+    expect(body.match(/^twice:/gm)).toHaveLength(1);
+  });
+
+  it("appends to an existing taxonomy body without clobbering it", async () => {
+    const root = tmpTree({ "tags/.yamlover/body.yamlover": "old: !!<*yamlover/$defs/tag>\n" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const r = await callBody(h, "POST", "/api/tag", { name: "new" });
+    expect(r.status).toBe(201);
+    const body = fs.readFileSync(path.join(root, "tags", ".yamlover", "body.yamlover"), "utf8");
+    expect(body).toContain("old: !!<*yamlover/$defs/tag>");
+    expect(body).toContain("new: !!<*yamlover/$defs/tag>");
+    expect(call(h, "/api/json", { path: "/tags/old" }).json.format).toBe("x-yamlover-tag");
+  });
+
+  it("honors a *-pointer tags location from settings.yamlover", async () => {
+    const root = tmpTree({
+      name: "Alice",
+      ".yamlover/settings.yamlover": "tags:\n  location: *taxonomy/places\n",
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const r = await callBody(h, "POST", "/api/tag", { name: "спб" });
+    expect(r.status).toBe(201);
+    expect(r.json.path).toBe("/taxonomy/places/" + encodeURIComponent("спб"));
+    expect(fs.existsSync(path.join(root, "taxonomy", "places", ".yamlover", "body.yamlover"))).toBe(true);
+  });
+
+  it("rejects empty and unwritable names", async () => {
+    const root = tmpTree({ name: "Alice" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    for (const name of ["", "   ", "a/b", "a: b", "line\nbreak", "# comment"]) {
+      const r = await callBody(h, "POST", "/api/tag", { name });
+      expect(r.status, JSON.stringify(name)).toBe(400);
+      expect(r.json.error).toBeTruthy();
+    }
+    expect(fs.existsSync(path.join(root, "tags"))).toBe(false); // nothing was written
+  });
+
+  it("writes raw (un-encoded) pointer keys, so everything survives a full reindex", async () => {
+    // Cyrillic + spaces everywhere: the client sends PERCENT-ENCODED JSON paths, but the
+    // pointers must be written with the real key text — encoded keys go dangling on re-walk.
+    const root = tmpTree({ "Санкт-Петербург/img.txt": "x" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const t = await callBody(h, "POST", "/api/tag", { name: "исаакиевский собор" });
+    const target = "/" + encodeURIComponent("Санкт-Петербург") + "/img.txt";
+    const a = await callBody(h, "POST", "/api/annotate", { target, tag: t.json.path, selector: SELECTOR });
+    expect(a.status).toBe(201);
+    const file = fs.readFileSync(path.join(root, "annotations", path.basename(a.json.path)), "utf8");
+    expect(file).toContain("target: *//Санкт-Петербург/img.txt");
+    expect(file).toContain("~- *//tags/исаакиевский собор");
+
+    expect((await callBody(h, "POST", "/api/reindex", {})).status).toBe(200);
+    const list = call(h, "/api/annotations", { path: target }).json;
+    expect(list).toHaveLength(1);
+    expect(list[0].tag).toMatchObject({ path: t.json.path, name: "исаакиевский собор" });
+    const tagged = call(h, "/api/tagged", { path: t.json.path }).json;
+    expect(tagged).toHaveLength(1);
+    expect(tagged[0].$yamloverLink.path).toBe(target);
+  });
+
+  it("refuses when a non-tag node already occupies the path", async () => {
+    const root = tmpTree({ "tags/busy": "plain file" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const r = await callBody(h, "POST", "/api/tag", { name: "busy" });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toMatch(/not a tag/);
+  });
+});
+
+describe("unified change flow — every write announces its diff over SSE", () => {
+  it("tag create, annotate create and annotate delete each broadcast the touched file", async () => {
+    const root = tmpTree({ name: "Alice" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const sse = sseCapture(h);
+
+    const t = await callBody(h, "POST", "/api/tag", { name: "first" });
+    await callBody(h, "POST", "/api/tag", { name: "second" });
+    const a = await callBody(h, "POST", "/api/annotate", { target: "/name", tag: t.json.path });
+    await callBody(h, "DELETE", "/api/annotate", undefined, { path: a.json.path });
+
+    const diffs = sse.frames().filter((f) => f.type === "diff");
+    expect(diffs.map((d) => ({ added: d.added, changed: d.changed, removed: d.removed }))).toEqual([
+      { added: ["/tags/.yamlover/body.yamlover"], changed: [], removed: [] }, // first tag creates the body
+      { added: [], changed: ["/tags/.yamlover/body.yamlover"], removed: [] }, // second appends to it
+      { added: [a.json.path], changed: [], removed: [] },
+      { added: [], changed: [], removed: [a.json.path] },
+    ]);
+    sse.close();
   });
 });
 

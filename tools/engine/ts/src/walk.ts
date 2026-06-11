@@ -655,7 +655,7 @@ const EXT_FORMAT: Record<string, string> = {
   // Plain text kept as RAW BYTES (text/plain is deliberately NOT in TEXT_FORMATS), so the
   // client decodes it under a chosen encoding (CP866/Win-1251/KOI8-R/UTF-8) — legacy
   // Cyrillic .txt files are common — rather than the server fixing UTF-8.
-  '.txt': 'text/plain', '.text': 'text/plain', '.log': 'text/plain',
+  '.txt': 'text/plain', '.text': 'text/plain', '.log': 'text/plain', '.ini': 'text/plain',
 };
 
 const TEXT_FORMATS = new Set(['text/markdown', 'text/asciidoc', 'text/x-plantuml', 'text/csv', 'text/tab-separated-values']);

@@ -76,6 +76,28 @@ describe("renderer registry (keyed on (type, format))", () => {
     expect(getRenderer(node({ type: "object", format: null }))).toBeNull();
   });
 
+  it("falls back to the explorer for a node stored as a filesystem directory", () => {
+    expect(getRenderer(node({ type: "object", concrete: "dir" }))?.name).toBe("explorer");
+    expect(getRenderer(node({ type: "object", concrete: "yamlover" }))?.name).toBe("explorer");
+    expect(rendererName("object", null, "dir")).toBe("explorer");
+    expect(rendererName("object", null, "yamlover")).toBe("explorer");
+    // other concretes don't (the legacy materializer's labels included file/yaml-schema ones)
+    expect(getRenderer(node({ type: "object", concrete: "yaml-schema/instantiate" }))).toBeNull();
+  });
+
+  it("a (type, format) renderer wins over the dir concrete (a dir-backed chapter stays a chapter)", () => {
+    expect(getRenderer(node({ type: "object", format: "x-yamlover-chapter", concrete: "yamlover" }))?.name).toBe("chapter");
+    expect(rendererName("object", "x-yamlover-chapter", "yamlover")).toBe("chapter");
+  });
+
+  it("claims tags (all four projection shapes) for the explorer", () => {
+    expect(getRenderer(node({ type: "object", format: "x-yamlover-tag" }))?.name).toBe("explorer");
+    expect(getRenderer(node({ type: "variant", format: "x-yamlover-tag" }))?.name).toBe("explorer");
+    expect(getRenderer(node({ type: "string", format: "x-yamlover-tag" }))?.name).toBe("explorer");
+    // a BARE tag — no description, no fields, the shape the picker's create-on-miss writes
+    expect(getRenderer(node({ type: "null", format: "x-yamlover-tag", value: null }))?.name).toBe("explorer");
+  });
+
   it("claims a bare, format-less string as marklower (the default prose format)", () => {
     expect(getRenderer(node({ type: "string", format: null, value: "x" }))?.name).toBe("marklower");
     expect(rendererName("string", null)).toBe("marklower");

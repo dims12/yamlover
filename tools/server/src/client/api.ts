@@ -106,6 +106,12 @@ export function fetchAnnotations(path: string): Promise<Annotation[]> {
   return getJson<Annotation[]>(`/api/annotations?path=${encodeURIComponent(path)}`);
 }
 
+/** The materials filed under the tag at `path` — `$yamloverLink` markers, annotations already
+ *  resolved to their `target` and deduped (the explorer's member list for a tag page). */
+export function fetchTagged(path: string): Promise<unknown[]> {
+  return getJson<unknown[]>(`/api/tagged?path=${encodeURIComponent(path)}`);
+}
+
 /** Save a new annotation — apply the tag at `tag` to the material at `target` (JSON paths),
  *  optionally narrowed to `selector` and commented by `description`; returns the created path. */
 export function saveAnnotation(a: { target: string; tag: string; selector?: Record<string, unknown>; description?: string }): Promise<{ path: string }> {
@@ -114,6 +120,19 @@ export function saveAnnotation(a: { target: string; tag: string; selector?: Reco
       const body = await res.json();
       if (!res.ok) throw new Error((body && body.error) || `HTTP ${res.status}`);
       return body as { path: string };
+    },
+  );
+}
+
+/** Create a named tag at the project's default tags location (settings.yamlover; `/tags` by
+ *  default) — the picker's create-on-miss. Idempotent: an existing tag at that path is returned
+ *  as-is; a non-tag node already occupying the path is an error. */
+export function createTag(name: string): Promise<TagRef> {
+  return fetch("/api/tag", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }).then(
+    async (res) => {
+      const body = await res.json();
+      if (!res.ok) throw new Error((body && body.error) || `HTTP ${res.status}`);
+      return body as TagRef;
     },
   );
 }

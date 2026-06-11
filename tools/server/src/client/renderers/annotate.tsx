@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Annotation, TagRef, fetchAnnotations, fetchNode, saveAnnotation, deleteAnnotation } from "../api";
+import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, saveAnnotation, deleteAnnotation } from "../api";
 import { TAG_FORMAT, explicitColor, resolveTagColor, tagFields } from "./tag";
 import { strToSegs } from "../paths";
+import { touchesYamlover, useDiffBump } from "../live";
 
 /**
  * The annotation layer, shared across materials (the UI guide). An annotation is ONE TAG
@@ -117,22 +118,45 @@ function rememberRecent(t: TagRef): void {
   localStorage.setItem(RECENT_KEY, JSON.stringify(next));
 }
 
+/** Drop remembered tags whose node is GONE (or stopped being a tag): localStorage outlives the
+ *  tags themselves, so a deleted tag would linger as a clickable badge forever. Each recent (and
+ *  the remembered last-applied tag) is checked against the server; survivors are written back.
+ *  Resolves to the live recents — the menu shows those. */
+function pruneRememberedTags(): Promise<TagRef[]> {
+  const isLive = (t: TagRef): Promise<boolean> =>
+    fetchNode(t.path, 0).then((n) => n.format === TAG_FORMAT).catch(() => false);
+  try {
+    const t = JSON.parse(localStorage.getItem(TAG_KEY) || "") as TagRef;
+    if (t?.path) void isLive(t).then((live) => { if (!live) localStorage.removeItem(TAG_KEY); });
+  } catch { /* no/invalid stored tag */ }
+  const recents = recentTags();
+  return Promise.all(recents.map((t) => isLive(t).then((live) => (live ? t : null)))).then((kept) => {
+    const live = kept.filter(Boolean) as TagRef[];
+    if (live.length !== recents.length) localStorage.setItem(RECENT_KEY, JSON.stringify(live));
+    return live;
+  });
+}
+
 /** Apply `tag` to the material at `target`, narrowed to `selector` when given (null = the whole
  *  node); resolves when persisted. */
 export function createAnnotation(target: string, selector: Record<string, unknown> | null, tag: TagRef): Promise<unknown> {
   return saveAnnotation({ target, tag: tag.path, ...(selector ? { selector } : {}) });
 }
 
-/** Read-only fetch of a material's annotations; `bump` (a changing number) forces a refetch. */
+/** Read-only fetch of a material's annotations; `bump` (a changing number) forces a refetch.
+ *  Also refetches whenever a diff (live.ts — the unified change flow) touches a `.yamlover`
+ *  file: an annotation written/deleted ANYWHERE (this page's own save, another tab, a shell rm
+ *  reconciled by the watcher) or an edited taxonomy must redraw the marks without a reload. */
 export function useAnnotations(path: string, bump = 0): Annotation[] {
   const [anns, setAnns] = useState<Annotation[]>([]);
+  const extBump = useDiffBump(touchesYamlover);
   useEffect(() => {
     let cancelled = false;
     fetchAnnotations(path)
       .then((a) => !cancelled && setAnns(a))
       .catch(() => !cancelled && setAnns([]));
     return () => { cancelled = true; };
-  }, [path, bump]);
+  }, [path, bump, extBump]);
   return anns;
 }
 
@@ -214,20 +238,47 @@ export function AnnotationMenu({
   menuRef?: React.Ref<HTMLDivElement>;
 }) {
   const colorTags = useColorTags();
-  const recents = recentTags();
+  const [recents, setRecents] = useState(recentTags); // shown at once; pruned against the server
   const [path, setPath] = useState("");
+  const [busy, setBusy] = useState(false); // a lookup/create round-trip is in flight
   const verb = mode === "edit" ? "re-tag" : "tag";
 
-  // Apply an arbitrary tag by its node path: fetch, verify it IS a tag, pick it.
+  // A deleted tag must not survive as a badge: on open, drop remembered tags the server no
+  // longer holds (the stored list is shown immediately; the pruned one replaces it quietly).
+  useEffect(() => {
+    let on = true;
+    pruneRememberedTags().then((live) => { if (on) setRecents(live); });
+    return () => { on = false; };
+  }, []);
+
+  // The badge row must always include THE tag this menu is about (`sel`-framed, like the
+  // selected color swatch) — which tag is assigned/pre-selected must be visible at a glance,
+  // even when it has aged out of the recents.
+  const badges = colorTags.some((c) => c.path === tag.path) || recents.some((r) => r.path === tag.path)
+    ? recents
+    : [tag, ...recents];
+
+  // Apply an arbitrary tag by its node path: fetch, verify it IS a tag, pick it. A bare NAME
+  // (no `/`) that matches no node is CREATED at the project's tags location and then picked —
+  // typing a fresh name is how a new named tag is born. A missed multi-segment path stays an
+  // error: a typo'd path must not silently mint a tag named like a path.
   const pickPath = () => {
     const p = path.trim();
-    if (!p) return;
+    if (!p || busy) return;
+    setBusy(true);
     fetchNode(p.startsWith("/") ? p : "/" + p, 1)
       .then((n) => {
         if (n.format !== TAG_FORMAT) throw new Error("not a tag node");
         onPick({ path: n.path, name: n.title || tagNameOf(n.path), color: explicitColor(n.value) });
       })
-      .catch((e) => window.alert(`cannot ${verb} with "${p}": ` + (e as Error).message));
+      .catch((e) => {
+        if (p.includes("/")) throw new Error(`cannot ${verb} with "${p}": ` + (e as Error).message);
+        return createTag(p)
+          .then(onPick)
+          .catch((e2) => { throw new Error(`cannot create tag "${p}": ` + (e2 as Error).message); });
+      })
+      .catch((e) => window.alert((e as Error).message))
+      .finally(() => setBusy(false));
   };
 
   return (
@@ -247,20 +298,31 @@ export function AnnotationMenu({
       {onConfirm && <button type="button" className="annotate-tool ok" title={`${verb} ${tag.name} (keep the mark)`} onClick={onConfirm}>✓</button>}
       {onCopy && <button type="button" className="annotate-tool" title="copy text to clipboard (don't annotate)" onClick={onCopy}>⧉</button>}
       <button type="button" className="annotate-tool danger" title={mode === "edit" ? "delete this annotation" : "discard (don't annotate)"} onClick={onTrash}>🗑</button>
-      {recents.length > 0 && (
+      {badges.length > 0 && (
         <div className="annotate-recents">
-          {recents.map((t) => (
-            <button key={t.path} type="button" className="tagtag" style={{ background: resolveTagColor(t) }} title={`${verb} ${t.name}`} onClick={() => onPick(t)}>
-              {t.name}
-            </button>
+          {badges.map((t) => (
+            // the frame is a WRAPPER: filter applies before clip-path on the same element, so a
+            // ring drawn on the clipped .tagtag itself would be clipped away with it (styles.css)
+            <span key={t.path} className={"tagframe" + (t.path === tag.path ? " sel" : "")}>
+              <button
+                type="button"
+                className="tagtag"
+                style={{ background: resolveTagColor(t) }}
+                title={`${verb} ${t.name}`}
+                onClick={() => onPick(t)}
+              >
+                {t.name}
+              </button>
+            </span>
           ))}
         </div>
       )}
       <input
         className="annotate-taginput"
         type="text"
-        placeholder={`${verb} by tag path… ⏎`}
+        placeholder={busy ? "creating tag…" : `${verb}: tag path or new name… ⏎`}
         value={path}
+        disabled={busy}
         onChange={(e) => setPath(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") pickPath(); }}
       />

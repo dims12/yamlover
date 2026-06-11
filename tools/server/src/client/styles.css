@@ -202,8 +202,10 @@ body {
 .t-fmt {
   color: var(--dim);
 }
-/* binary type glyph: the bits "0110" boxed into a little square */
-.icon.binsq {
+/* binary type glyph: the bits "0110" boxed into a little square (the TOC icon and
+   the explorer grid render the same mark) */
+.icon.binsq,
+.dirview-icon.binsq {
   width: auto;
   font-family: var(--mono, monospace);
   font-size: 6px;
@@ -212,6 +214,10 @@ body {
   border: 1px solid currentColor;
   border-radius: 2px;
   padding: 2px 2px;
+}
+.dirview-icon.binsq {
+  flex: none;
+  margin: 0 2px; /* keep the label column roughly aligned with the 22px emoji icons */
 }
 .toggle {
   display: inline-flex;
@@ -643,7 +649,7 @@ a.chunk-index:hover {
   line-height: 1.55;
   color: var(--fg);
 }
-/* the plaintext encoding selector, inline in the node bar beside its tab */
+/* a node-bar selector beside a renderer's tab (plaintext encoding, explorer view) */
 .enc-control {
   display: inline-flex;
   align-items: center;
@@ -833,6 +839,26 @@ a.chunk-index:hover {
   font-size: 11px;
   cursor: pointer;
 }
+/* the assigned / pre-selected tag, framed EXACTLY like the selected color swatch: a ring with a
+   gap (the swatch's outline-offset). The ring cannot live on .tagtag itself: filter is applied
+   BEFORE clip-path on the same element, so the luggage-tag clip would cut it away. On the
+   unclipped WRAPPER the child is clipped first; then a first round of hard offset drop-shadows
+   in the MENU BACKGROUND color grows the silhouette by 1px (the gap), and a second round in
+   the foreground color rings that — gap + ring, both following the actual tag shape. */
+.annotate-recents .tagframe {
+  display: inline-flex;
+}
+.annotate-recents .tagframe.sel {
+  filter:
+    drop-shadow(1px 0 0 var(--bg-alt))
+    drop-shadow(-1px 0 0 var(--bg-alt))
+    drop-shadow(0 1px 0 var(--bg-alt))
+    drop-shadow(0 -1px 0 var(--bg-alt))
+    drop-shadow(1.5px 0 0 var(--fg))
+    drop-shadow(-1.5px 0 0 var(--fg))
+    drop-shadow(0 1.5px 0 var(--fg))
+    drop-shadow(0 -1.5px 0 var(--fg));
+}
 /* apply ANY tag by its node path (Enter commits) */
 .annotate-taginput {
   flex-basis: 100%;
@@ -966,60 +992,89 @@ mark.yo-annotation {
   border-top: 1px solid var(--line);
 }
 
-/* ---- tag renderer: a small supertag / tag / subtag hierarchy diagram ----- */
-.tagview {
-  position: relative;
-  padding: 28px 16px 16px;
+/* ---- explorer renderer: a file-manager icon grid of a node's members, uplinks
+   (the `..` parent and upstream `*`/`~` sources) leading it. Also the tag page
+   (the materials filed under the tag, its description in the header). ---- */
+.dirhead {
+  padding: 14px 8px 0;
 }
-.tagwires {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none; /* clicks fall through to the badges */
-  z-index: 0;
-}
-.tagwires line {
-  stroke: var(--dim);
-  stroke-width: 1.5;
-}
-.tagrow {
-  position: relative;
-  z-index: 1;
+.dirview {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-start; /* left-aligned, like every other view (007) */
-  gap: 12px;
-  margin: 34px 0;
+  align-content: flex-start;
+  gap: 6px;
+  padding: 12px 8px;
 }
-/* the diagram reuses the same luggage-tag shape (.tagtag, below) at a larger
-   size, each in its own stable hash color (so a tag matches its header badge).
-   The current tag is larger still, so it reads as the focus. */
-.tagview .tagtag {
+.dirview-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 210px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: var(--fg);
+  text-decoration: none;
+  border-bottom: 0; /* override the global link underline */
+  cursor: pointer;
+}
+.dirview-item:hover {
+  background: var(--panel);
+}
+.dirview-icon {
+  flex: none;
+  width: 22px;
+  text-align: center;
+}
+.dirview-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 13px;
-  padding: 4px 13px 4px 22px;
-  clip-path: polygon(14px 0, 100% 0, 100% 100%, 14px 100%, 0 50%);
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
 }
-.tagview .tagtag::before {
-  left: 6px;
-  width: 5px;
-  height: 5px;
-  margin-top: -2.5px;
+.dirview-label .val {
+  color: var(--dim);
 }
-.tagview .tagtag:hover {
-  filter: brightness(1.14) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+/* an uplink (a relation: `..`, an upstream ref/tag) — the way OUT, drawn apart */
+.dirview-up {
+  border: 1px dashed var(--line);
+  color: var(--dim);
 }
-.tagview .tagtag-current {
-  font-size: 17px;
-  font-weight: 700;
-  padding: 7px 18px 7px 30px;
-  clip-path: polygon(20px 0, 100% 0, 100% 100%, 20px 100%, 0 50%);
+.dirview-up:hover {
+  border-color: var(--accent);
 }
-.tagview .tagtag-current::before {
-  left: 8px;
-  width: 6px;
-  height: 6px;
-  margin-top: -3px;
+.dirview-empty {
+  color: var(--dim);
+  font-style: italic;
+}
+/* large icons (the default view): tiles, the icon above a centered label */
+.dirview.dirview-lg {
+  gap: 10px;
+}
+.dirview-lg .dirview-item {
+  flex-direction: column;
+  justify-content: flex-start;
+  width: 120px;
+  padding: 10px 6px 8px;
+  gap: 7px;
+  text-align: center;
+}
+.dirview-lg .dirview-icon {
+  width: auto;
+  font-size: 36px;
+  line-height: 1;
+}
+.dirview-lg .dirview-icon.binsq {
+  font-size: 11px;
+  padding: 6px 5px;
+  margin: 9px 0; /* keep tile icon rows level with the 36px glyphs */
+}
+.dirview-lg .dirview-label {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2; /* a long name wraps to two lines, then ellipsizes */
+  -webkit-box-orient: vertical;
 }
 
 /* tag references shown in a node's header bar: a colored luggage-tag shape — one

@@ -12,6 +12,7 @@
  *   GET /api/json?path&depth&binary       the node value (depth-limited; nested = link markers)
  *   GET /api/schema?path&depth            the instance schema
  *   GET /api/blob?path                    a file-backed node's raw bytes
+ *   GET /api/tagged?path                  the materials filed under a tag (annotations → targets)
  *   GET /api/events                       SSE: {type:"diff",…} reindex diffs + {type:"task",…} progress
  *   GET /api/tasks                        long-running tasks in flight (snapshot for a fresh page)
  *   GET /api/dangling                     pointers that did not resolve at index time
@@ -35,6 +36,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { Store, reindex, reindexAsync, hashFileAsync, watchTree, loadSettings, mv, relinkMoved } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
+import { pointerToken } from "../../../parser/ts/src/serialize-yamlover.ts";
+import { isPointer } from "../../../parser/ts/src/ir.ts";
+import type { Node as IrNode } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
 import { displayKind, ownedEntries, typeName } from "./node-kind.js";
 import { TaskRegistry } from "./tasks.js";
@@ -95,6 +99,14 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       moved: diff.moved.map((m) => ({ from: toClient(m.from), to: toClient(m.to) })),
     });
   };
+  // ONE change currency for every write path: a mediated endpoint announces the file-level
+  // change it just made in the same IndexDiff shape the reconcile broadcasts, so every client
+  // surface (TOC, node pane, marks, tag pages) refreshes through the SAME SSE flow — never a
+  // per-endpoint push path. Incremental writes (annotate, tag) call this with the one file
+  // they touched; full-reindex writes (paste, mv) broadcast their reconcile diff directly.
+  const announce = (d: Partial<IndexDiff>): void => broadcast({ added: [], changed: [], removed: [], moved: [], ...d });
+  // a client JSON path (keys percent-encoded) as the root-relative FILE path diffs speak
+  const relFileOf = (clientPath: string): string => strToSegs(clientPath).map(String).join("/");
   const tasks = new TaskRegistry((t) => sseWrite({ type: "task", task: t }));
 
   // ONE WRITER at a time: every job that mutates the Store or needs a consistent manifest
@@ -306,6 +318,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               // file and blocks the next click). Add just this annotation's nodes + its edges.
               const doc = parseYamlover(fs.readFileSync(path.join(dataRoot, ...strToSegs(annPath).map(String)), "utf8"), annPath);
               s.addAnnotation(storePath(strToSegs(annPath)), storePath(strToSegs(a.target)), doc, tagStore);
+              announce({ added: [relFileOf(annPath)] });
               return { path: annPath };
             }),
           )
@@ -322,8 +335,45 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         enqueue(() => {
           deleteAnnotation(dataRoot, s, annPath);
           s.removeAnnotation(storePath(strToSegs(annPath)));
+          announce({ removed: [relFileOf(annPath)] });
         })
           .then(() => sendJson(res, 200, { ok: true }))
+          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
+        return;
+      }
+
+      // Create a NAMED TAG (a WRITE path — the picker's create-on-miss): add
+      // `<name>: !!<*yamlover/$defs/tag>` to the taxonomy body at the project's default tags
+      // location (settings.yamlover; `/tags` by default → `<location>/.yamlover/body.yamlover`),
+      // then reconcile so it joins the graph. The direct schema attach makes the node an
+      // `x-yamlover-tag` wherever the taxonomy lives — like an annotation, a created tag may be
+      // moved anywhere and keeps working. Idempotent: a tag already at that path is returned
+      // as-is. Body: { name }.
+      if (req.method === "POST" && url.pathname === "/api/tag") {
+        readBody(req)
+          .then((data) =>
+            enqueue(async () => {
+              const name = String((data as { name?: unknown })?.name ?? "").trim();
+              if (!name) throw new Error("tag needs a non-empty name");
+              const segs = [...strToSegs(settings.tags.location), name];
+              const tagPath = segsToStr(segs);
+              const existing = s.node(storePath(segs));
+              if (existing) {
+                if (existing.format !== TAG_FORMAT) throw new Error(`a node already exists at ${tagPath} and is not a tag`);
+                const color = s.node(storePath(segs) + "/color")?.value;
+                return { path: tagPath, name, color: typeof color === "string" ? color : null, created: false };
+              }
+              // Index INCREMENTALLY (the annotate pattern — not a full rebuild, which stats the
+              // whole tree and blocks the picker for seconds on a big root); the watcher's
+              // reconcile re-walks the edited body and trues the rows up moments later.
+              const written = writeTag(dataRoot, settings.tags.location, name);
+              s.addTag(storePath(strToSegs(settings.tags.location)), name, written.pos, written.node);
+              if (s.node(storePath(segs))?.format !== TAG_FORMAT) throw new Error(`the created tag did not index as a tag: ${tagPath}`);
+              announce(written.createdFile ? { added: [written.file] } : { changed: [written.file] });
+              return { path: tagPath, name, color: null, created: true };
+            }),
+          )
+          .then((body) => sendJson(res, 201, body))
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
         return;
       }
@@ -385,7 +435,16 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
 
       // The annotations whose `target` is this material (the engine's reverse link).
       if (url.pathname === "/api/annotations") {
-        sendJson(res, 200, annotationsFor(s, segs));
+        sendJson(res, 200, annotationsFor(dataRoot, s, segs));
+        return;
+      }
+
+      // The materials filed under this tag (annotations resolved to their `target`; deduped) —
+      // the explorer renderer's member list for a tag page.
+      if (url.pathname === "/api/tagged") {
+        const row = s.node(p);
+        if (!row || row.format !== TAG_FORMAT) return notFound(res, url);
+        sendJson(res, 200, taggedMaterials(dataRoot, s, p));
         return;
       }
 
@@ -393,7 +452,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         const row = s.node(p);
         if (!row) return notFound(res, url);
         const label = segs.length === 0 ? rootName : labelFor(s, p, segs[segs.length - 1]);
-        sendJson(res, 200, buildTree(s, segs, label, depth ?? 3));
+        sendJson(res, 200, buildTree(dataRoot, s, segs, label, depth ?? 3));
         return;
       }
 
@@ -422,15 +481,15 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           path: segsToStr(segs),
           type: tocType(s, p, row),
           format: row.format ?? null,
-          concrete: null, // per-node concrete not yet tracked by the engine (icon falls back to type)
+          concrete: concreteOf(dataRoot, segs, row), // dir | yamlover | null (stat-derived; engine tracks no per-node concrete yet)
           documentPath: documentPath(s, segs), // nearest enclosing document root (for `/…` links)
           title: titleOf(s, p),
           description: null,
-          value: wantBytes ? binaryContent(dataRoot, segs, row) : projectValue(s, segs, viewDepth, true),
-          relations: buildRelations(s, segs),
+          value: wantBytes ? binaryContent(dataRoot, segs, row) : projectValue(dataRoot, s, segs, viewDepth, true),
+          relations: buildRelations(dataRoot, s, segs),
         });
       } else if (url.pathname === "/api/schema") {
-        sendJson(res, 200, projectSchema(s, segs, viewDepth, true));
+        sendJson(res, 200, projectSchema(dataRoot, s, segs, viewDepth, true));
       } else {
         notFound(res, url);
       }
@@ -460,6 +519,21 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
 /** The (type) label shown in the TOC/header — the schema-style {@link typeName}. */
 function tocType(s: Store, p: string, row: NodeRow): string {
   return typeName(s, p, row);
+}
+
+/** How the node at `segs` is stored on disk, as far as a stat can tell: `"yamlover"` (a directory
+ *  with a `.yamlover/` marker), `"dir"` (a plain folder), or null (not a filesystem directory —
+ *  files and interior nodes alike; the engine does not track per-node concrete yet). Only a
+ *  mapping can be a directory, and positional segments never name FS entries, so most nodes
+ *  short-circuit without touching the disk. */
+function concreteOf(dataRoot: string, segs: Seg[], row: NodeRow): "dir" | "yamlover" | null {
+  if (row.type !== "mapping") return null;
+  if (segs.some((g) => typeof g === "number")) return null;
+  const abs = path.resolve(dataRoot, ...segs.map(String));
+  let st: fs.Stats | undefined;
+  try { st = fs.statSync(abs); } catch { return null; }
+  if (!st.isDirectory()) return null;
+  return fs.existsSync(path.join(abs, ".yamlover")) ? "yamlover" : "dir";
 }
 
 // --------------------------------------------------------------------------- //
@@ -511,12 +585,12 @@ function downstreamEntries(s: Store, p: string): { to: string; label: string | n
 
 /** A node value as plain JSON-able data. `depth` limits nesting; a container past the budget,
  *  or any non-top binary, becomes a `$yamloverLink` marker the client navigates on click. */
-function projectValue(s: Store, segs: Seg[], depth: number, top: boolean): unknown {
+function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, top: boolean): unknown {
   const p = storePath(segs);
   const row = s.node(p)!;
   const k = displayKind(s, p, row);
-  if (!top && depth <= 0) return linkMarker(s, segs);
-  if (k === "binary" && !top) return linkMarker(s, segs);
+  if (!top && depth <= 0) return linkMarker(dataRoot, s, segs);
+  if (k === "binary" && !top) return linkMarker(dataRoot, s, segs);
   if (k === "binary") return { size: row.size, format: row.format }; // top binary header
   // DOWNSTREAM entries in order — containment recursed, a forward `*` ref or an incoming `~`
   // back-edge shown as a link marker to the downstream node (so a `chunks` array mixing inline
@@ -524,8 +598,8 @@ function projectValue(s: Store, segs: Seg[], depth: number, top: boolean): unkno
   const kids = downstreamEntries(s, p);
   const project = (c: { to: string; label: string | null; pos: number | null; kind: string }) =>
     c.kind === "contain"
-      ? projectValue(s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false)
-      : linkMarker(s, storePathToSegs(c.to)); // pointer → a marker to where it resolves
+      ? projectValue(dataRoot, s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false)
+      : linkMarker(dataRoot, s, storePathToSegs(c.to)); // pointer → a marker to where it resolves
   if (k === "array") return kids.map(project);
   if (k === "omni" || k === "mix") {
     // A `$yamloverMixed` marker preserving source order: each entry is positional (`key: null` →
@@ -544,17 +618,17 @@ function projectValue(s: Store, segs: Seg[], depth: number, top: boolean): unkno
 }
 
 /** The instance schema (every value `v` → `{const: v}`); containers past depth = link markers. */
-function projectSchema(s: Store, segs: Seg[], depth: number, top: boolean): unknown {
+function projectSchema(dataRoot: string, s: Store, segs: Seg[], depth: number, top: boolean): unknown {
   const p = storePath(segs);
   const row = s.node(p)!;
   const k = displayKind(s, p, row);
-  if ((k === "object" || k === "array" || k === "mix" || k === "omni") && depth <= 0) return linkMarker(s, segs);
-  if (k === "binary" && !top) return linkMarker(s, segs);
+  if ((k === "object" || k === "array" || k === "mix" || k === "omni") && depth <= 0) return linkMarker(dataRoot, s, segs);
+  if (k === "binary" && !top) return linkMarker(dataRoot, s, segs);
   const schema: Record<string, unknown> = { type: typeName(s, p, row) }; // object|array|binary|mixed|variant|<scalar>
   if (row.format) schema.format = row.format;
   const kids = downstreamEntries(s, p);
   const sub = (c: { to: string; label: string | null; pos: number | null; kind: string }) =>
-    c.kind === "contain" ? projectSchema(s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false) : linkMarker(s, storePathToSegs(c.to));
+    c.kind === "contain" ? projectSchema(dataRoot, s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false) : linkMarker(dataRoot, s, storePathToSegs(c.to));
   if (k === "object" || k === "mix" || k === "omni") {
     // mixed/variant fields: keyless entries keep their `[pos]` key, keyed ones their name; a
     // variant (omni) also pins its self-value. (Order is the property insertion order.)
@@ -576,12 +650,14 @@ function projectSchema(s: Store, segs: Seg[], depth: number, top: boolean): unkn
 }
 
 /** A `$yamloverLink` marker for the node at `segs` (a navigable summary). */
-function linkMarker(s: Store, segs: Seg[]): Record<string, unknown> {
+function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unknown> {
   const p = storePath(segs);
   const row = s.node(p)!;
   const k = displayKind(s, p, row);
   const info: Record<string, unknown> = { kind: k, type: tocType(s, p, row), path: segsToStr(segs) };
   if (row.format) info.format = row.format;
+  const concrete = concreteOf(dataRoot, segs, row);
+  if (concrete) info.concrete = concrete; // a folder child renders with a folder icon
   const title = titleOf(s, p);
   if (title) info.title = title;
   if (k === "binary") info.size = row.size;
@@ -616,7 +692,7 @@ function scopedPath(s: Store, src: Seg[], currentDoc: Seg[]): string {
  *  by the path it has from this node's document frame, with a link to its summary; a source that is
  *  a tag node is peeled into a header badge by splitTagRefs. (A tag is upstream of what it files —
  *  the membership `~tag` back-edge lands here naturally, no special-casing.) */
-function buildRelations(s: Store, segs: Seg[]): Record<string, unknown> {
+function buildRelations(dataRoot: string, s: Store, segs: Seg[]): Record<string, unknown> {
   const p = storePath(segs);
   const out: Record<string, unknown> = {};
   const put = (label: string, marker: unknown) => {
@@ -626,7 +702,7 @@ function buildRelations(s: Store, segs: Seg[]): Record<string, unknown> {
   };
 
   // The containment parent — the upstream containment relation, always the primary way up.
-  if (segs.length > 0) put("..", linkMarker(s, segs.slice(0, -1)));
+  if (segs.length > 0) put("..", linkMarker(dataRoot, s, segs.slice(0, -1)));
 
   // Upstream `*`/`~` sources (this node is the natural target), deduped across forward+reverse
   // authoring. A forward ref INTO p has its source at `from`; a `~` back-edge OUT of p (stored
@@ -641,7 +717,7 @@ function buildRelations(s: Store, segs: Seg[]): Record<string, unknown> {
   for (const e of outEdges) if (e.kind === "back") addUp(e.to, e.label); // `~` back-edge OUT of p
   for (const src of upstream.values()) {
     const segs2 = storePathToSegs(src);
-    put(scopedPath(s, segs2, currentDoc), linkMarker(s, segs2));
+    put(scopedPath(s, segs2, currentDoc), linkMarker(dataRoot, s, segs2));
   }
   return out;
 }
@@ -659,7 +735,7 @@ interface TreeNode {
 }
 
 /** The TOC subtree rooted at `segs`, `depth` levels deep (every node listed). */
-function buildTree(s: Store, segs: Seg[], label: string, depth: number): TreeNode {
+function buildTree(dataRoot: string, s: Store, segs: Seg[], label: string, depth: number): TreeNode {
   const p = storePath(segs);
   const row = s.node(p)!;
   const node: TreeNode = {
@@ -667,14 +743,14 @@ function buildTree(s: Store, segs: Seg[], label: string, depth: number): TreeNod
     label,
     type: tocType(s, p, row),
     format: row.format ?? null,
-    concrete: null,
+    concrete: concreteOf(dataRoot, segs, row),
     hasChildren: s.hasChildren(p),
     children: [],
   };
   if (s.hasChildren(p) && depth > 0) {
     for (const c of s.children(p)) {
       const seg = c.label ?? c.pos ?? 0;
-      node.children.push(buildTree(s, [...segs, seg], labelFor(s, c.to, seg), depth - 1));
+      node.children.push(buildTree(dataRoot, s, [...segs, seg], labelFor(s, c.to, seg), depth - 1));
     }
   }
   return node;
@@ -718,7 +794,7 @@ function appliedTag(s: Store, annStorePath: string): { path: string; name: strin
 /** The annotations whose `target` resolves to this material — the incoming `ref` edges from
  *  `x-yamlover-annotation` nodes — each projected to its full object (selector, description,
  *  created) plus its applied `tag` { path, name, color }. */
-function annotationsFor(s: Store, segs: Seg[]): unknown[] {
+function annotationsFor(dataRoot: string, s: Store, segs: Seg[]): unknown[] {
   const p = storePath(segs);
   const out: unknown[] = [];
   for (const e of s.relationships(p).in) {
@@ -729,10 +805,45 @@ function annotationsFor(s: Store, segs: Seg[]): unknown[] {
     out.push({
       path: segsToStr(aSegs),
       tag: appliedTag(s, e.from),
-      ...(projectValue(s, aSegs, 6, true) as Record<string, unknown>),
+      ...(projectValue(dataRoot, s, aSegs, 6, true) as Record<string, unknown>),
     });
   }
   return out;
+}
+
+/** The MATERIALS filed under a tag — every node holding a `~` membership in it, with an
+ *  annotation (one tag APPLICATION) resolved to its `target` material. Deduped by material:
+ *  two annotations applying the same tag to one node, or a direct `~- *tag` alongside an
+ *  annotation, show the material once. Subtags are containment children, not memberships —
+ *  they never appear here. Ordered lexicographically by the member's path, like
+ *  {@link downstreamEntries}' back-edge tail. */
+function taggedMaterials(dataRoot: string, s: Store, tagStorePath: string): unknown[] {
+  const seen = new Set<string>();
+  const out: unknown[] = [];
+  const backs = s.relationships(tagStorePath).in
+    .filter((e) => e.kind === "back" && e.from)
+    .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+  for (const e of backs) {
+    let material = e.from;
+    if (s.node(e.from)?.format === "x-yamlover-annotation") {
+      const t = s.relationships(e.from).out.find((o) => o.kind === "ref" && o.label === "target");
+      if (!t) continue; // a dangling annotation — no resolvable material
+      material = t.to;
+    }
+    if (seen.has(material) || !s.node(material)) continue;
+    seen.add(material);
+    out.push(linkMarker(dataRoot, s, storePathToSegs(material)));
+  }
+  return out;
+}
+
+/** A client JSON path (`/key[0]/x`, keys PERCENT-ENCODED) as project-scoped pointer raw text
+ *  (`//key[0]/x`, keys RAW): pointer steps are matched against store keys verbatim — an encoded
+ *  key would go dangling on the next re-walk (`%D0%A1…` is not a key in any document). */
+function pointerRaw(clientPath: string): string {
+  let out = "";
+  for (const seg of strToSegs(clientPath)) out += typeof seg === "number" ? `[${seg}]` : (out === "" ? "" : "/") + seg;
+  return "//" + out;
 }
 
 /** Serialize a value as a yamlover scalar (double-quoted strings round-trip through the parser). */
@@ -756,14 +867,44 @@ function writeAnnotation(dataRoot: string, location: string, a: AnnotationInput)
   const file = `${id}.yamlover`;
   const lines = [
     "!!<*yamlover/$defs/annotation>",
-    `target: *//${a.target.replace(/^\//, "")}`,
-    `~- *//${a.tag.replace(/^\//, "")}`,
+    `target: ${pointerToken(pointerRaw(a.target))}`,
+    `~- ${pointerToken(pointerRaw(a.tag))}`,
   ];
   if (a.selector) lines.push("selector:", ...Object.entries(a.selector).map(([k, v]) => `  ${k}: ${yScalar(v)}`));
   if (a.description) lines.push(`description: ${yScalar(a.description)}`);
   lines.push(`created: ${new Date().toISOString()}`, "");
   fs.writeFileSync(path.join(dir, file), lines.join("\n"));
   return `${location}/${file}`;
+}
+
+/** Persist a NEW named tag as a key of the tag-taxonomy body at the project's default tags
+ *  location (`settings.yamlover`; `/tags` unless configured): `<location>/.yamlover/body.yamlover`
+ *  gains a `<name>: !!<*yamlover/$defs/tag>` entry. The would-be body is PARSED before
+ *  committing, so a name the yamlover syntax cannot hold as a plain key (one that vanishes into
+ *  a comment, say) is refused instead of corrupting the taxonomy. */
+function writeTag(
+  dataRoot: string,
+  location: string,
+  name: string,
+): { node: IrNode; pos: number; file: string; createdFile: boolean } {
+  if (/[/\\\r\n:]/.test(name)) throw new Error("a tag name cannot contain '/', '\\', ':' or line breaks");
+  const root = path.resolve(dataRoot);
+  const dir = path.resolve(dataRoot, ...strToSegs(location).map(String), ".yamlover");
+  if (!dir.startsWith(root + path.sep)) throw new Error("tags location escapes the data root");
+  const file = path.join(dir, "body.yamlover");
+  const createdFile = !fs.existsSync(file);
+  const head = "# Named tags created from the annotation picker (settings.yamlover: tags.location).\n";
+  const existing = createdFile ? head : fs.readFileSync(file, "utf8");
+  const body = (existing === "" || existing.endsWith("\n") ? existing : existing + "\n") + `${name}: !!<*yamlover/$defs/tag>\n`;
+  const entries = parseYamlover(body, file).root.entries ?? [];
+  const pos = entries.findIndex((e) => e.key === name);
+  const entry = pos >= 0 ? entries[pos] : undefined;
+  if (!entry || isPointer(entry.value) || entry.value.meta?.schema === undefined) {
+    throw new Error(`cannot write a tag named ${JSON.stringify(name)}`);
+  }
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(file, body);
+  return { node: entry.value, pos, file: [...strToSegs(location).map(String), ".yamlover", "body.yamlover"].join("/"), createdFile };
 }
 
 /** Delete an annotation file given its node path. The guard is the GRAPH, not a directory: the

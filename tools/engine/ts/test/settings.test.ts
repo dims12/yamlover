@@ -39,3 +39,33 @@ test('an unparsable settings file yields the defaults (never breaks serving)', (
   assert.deepEqual(loadSettings(root), DEFAULT_SETTINGS);
   rmSync(root, { recursive: true, force: true });
 });
+
+test('tags.location is authored as a *-pointer', () => {
+  const root = projectWith('tags:\n  location: *taxonomy/places\n');
+  assert.equal(loadSettings(root).tags.location, '/taxonomy/places');
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('a *-pointer works for annotations.location too; document scope (*/x) equals current scope', () => {
+  const root = projectWith('annotations:\n  location: */notes\ntags:\n  location: *tags\n');
+  const s = loadSettings(root);
+  assert.equal(s.annotations.location, '/notes');
+  assert.equal(s.tags.location, '/tags');
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('pointers that cannot name a place inside the root fall back to the default', () => {
+  for (const bad of ['tags:\n  location: *../outside\n', 'tags:\n  location: *//other/tags\n']) {
+    const root = projectWith(bad);
+    assert.equal(loadSettings(root).tags.location, DEFAULT_SETTINGS.tags.location, bad);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('one odd field does not sink the others', () => {
+  const root = projectWith('annotations:\n  location: marks\ntags:\n  location: 7\n');
+  const s = loadSettings(root);
+  assert.equal(s.annotations.location, '/marks');
+  assert.equal(s.tags.location, DEFAULT_SETTINGS.tags.location);
+  rmSync(root, { recursive: true, force: true });
+});

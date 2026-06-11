@@ -10,7 +10,7 @@ import { PlaintextView, PlaintextChunk, EncodingControl } from "./plaintext";
 import { RtfView, RtfChunk } from "./rtf";
 import { DocView, DocChunk } from "./doc";
 import { PlantumlView, PlantumlChunk } from "./plantuml";
-import { TagView } from "./tag";
+import { ExplorerView, ExplorerViewControl } from "./explorer";
 import { Fb2View } from "./fb2";
 import { EpubView } from "./epub";
 import { HtmlView } from "./media";
@@ -117,6 +117,30 @@ export interface Renderer {
    *  the node view after the control changes a URL parameter. */
   config?: (rerender: () => void) => JSX.Element;
 }
+
+/**
+ * The EXPLORER — a file-manager "small icons" grid of a node's members, uplinks first. It is
+ * claimed two ways: by (type, format) for tags (a tag projects as `object` — fields only,
+ * `variant` — description BODY + fields, `string` — a leaf tag that is just its description,
+ * or `null` — a bare tag with neither, the shape the picker's create-on-miss writes;
+ * the grid shows the tagged MATERIALS), and as the CONCRETE fallback for any node stored as a
+ * filesystem directory (`dir`/`yamlover`) that no (type, format) renderer claims — see
+ * {@link getRenderer}. Hoisted so the fallback can reference the same instance.
+ */
+const EXPLORER: Renderer = {
+  name: "explorer",
+  accepts: [
+    ["object", "x-yamlover-tag"],
+    ["variant", "x-yamlover-tag"],
+    ["string", "x-yamlover-tag"],
+    ["null", "x-yamlover-tag"],
+  ],
+  render: (node, onNavigate) => <ExplorerView node={node} onNavigate={onNavigate} />,
+  config: (rerender) => <ExplorerViewControl rerender={rerender} />, // large/small icons (`?view=`)
+};
+
+/** A directory-stored node (`dir` = a plain folder, `yamlover` = a folder with `.yamlover/`). */
+const isDirConcrete = (concrete: string | null | undefined): boolean => concrete === "dir" || concrete === "yamlover";
 
 const REGISTRY: Renderer[] = [
   {
@@ -233,17 +257,7 @@ const REGISTRY: Renderer[] = [
     render: (node) => <PlantumlView node={node} />,
     renderChunk: (chunk) => <PlantumlChunk chunk={chunk} />,
   },
-  {
-    // A tag projects as `object` (fields only), `variant` (description BODY + fields) or
-    // `string` (a leaf tag that is just its description) — all route to the tag view.
-    name: "tag",
-    accepts: [
-      ["object", "x-yamlover-tag"],
-      ["variant", "x-yamlover-tag"],
-      ["string", "x-yamlover-tag"],
-    ],
-    render: (node, onNavigate) => <TagView node={node} onNavigate={onNavigate} />,
-  },
+  EXPLORER,
   {
     // File-backed binaries the server tags with an inferred image format.
     name: "image",
@@ -347,15 +361,22 @@ export function rendererFor(type: string, format: string | null): Renderer | nul
   return REGISTRY.find((r) => r.accepts.some(([t, f]) => t === type && f === format)) ?? null;
 }
 
-/** The renderer for a node's (type, format), or null → the default tabbed view. */
+/** The renderer for a node: its (type, format) claim, else — for a node stored as a
+ *  filesystem directory that no format renderer claims (a dir-backed chapter stays a
+ *  chapter) — the explorer, else null → the default tabbed view. */
 export function getRenderer(node: NodeJson): Renderer | null {
-  return rendererFor(node.type, node.format ?? null);
+  const r = rendererFor(node.type, node.format ?? null);
+  if (r) return r;
+  return isDirConcrete(node.concrete) ? EXPLORER : null;
 }
 
 /** The name (= representation key / `?format=` value) of the renderer for
- *  `(type, format)`, or null when none claims it. */
-export function rendererName(type: string, format: string | null): string | null {
-  return rendererFor(type, format)?.name ?? null;
+ *  `(type, format)` — with the same directory-concrete explorer fallback as
+ *  {@link getRenderer} — or null when none claims it. */
+export function rendererName(type: string, format: string | null, concrete?: string | null): string | null {
+  const r = rendererFor(type, format);
+  if (r) return r.name;
+  return isDirConcrete(concrete) ? EXPLORER.name : null;
 }
 
 /** How `node` appears in the TOC: its renderer's `tocView`, or — when no renderer

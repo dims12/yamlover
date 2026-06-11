@@ -46,6 +46,13 @@ export function displayPath(path: string): string {
   return segs.map((s) => (typeof s === "number" ? `[${s}]` : `/${s}`)).join("");
 }
 
+/** A human-readable form of a path-LIKE key whose structure must survive verbatim —
+ *  a relations key (`..`, `/eve`, `//a/b`), where {@link displayPath} would mangle the
+ *  leading `//` or a bare `..`. Each key token is decoded in place; display only. */
+export function displayKey(key: string): string {
+  return key.replace(/[^/\[\]]+/g, (tok) => safeDecode(tok));
+}
+
 /** Whether canonical path `a` is a (strict) ancestor of `p`. Root `/` is an
  *  ancestor of everything; otherwise `p` must continue past `a` at a `/` or `[`. */
 export function isAncestorPath(a: string, p: string): boolean {

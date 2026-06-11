@@ -1,7 +1,7 @@
 // Type/format icon for a TOC node — chosen by the schema `format`, falling back
-// to `type`. One exception to being concrete-agnostic: a node stored as a plain
-// on-disk directory (the `dir` concrete — a folder with no `.yamlover/` marker)
-// gets a normal folder icon, since it really is a filesystem folder.
+// to `type`. One exception to being concrete-agnostic: a node stored as an
+// on-disk directory gets a folder icon, since it really is a filesystem folder —
+// plain (`dir`, no `.yamlover/` marker) or a yamlover entity (`yamlover`).
 
 export interface Glyph {
   glyph: string;
@@ -74,8 +74,8 @@ function mediaIcon(format: string): string | null {
   return null;
 }
 
-/** The type/format icon for a node — `format` wins, then a plain-directory
- *  (`dir`) concrete shows a folder, else `type`. */
+/** The type/format icon for a node — `format` wins, then a directory concrete
+ *  (`dir`/`yamlover`) shows a folder, else `type`. */
 export function typeIcon(type: string, format: string | null, concrete?: string | null): Glyph {
   if (format) {
     const g = FORMAT[format] ?? mediaIcon(format);
@@ -83,6 +83,8 @@ export function typeIcon(type: string, format: string | null, concrete?: string 
   }
   // a plain directory (no `.yamlover/`) — a real OS folder
   if (concrete === "dir") return { glyph: "📁", cls: "t-struct", title: "folder" };
+  // a yamlover entity stored as a directory (a folder with a `.yamlover/` marker)
+  if (concrete === "yamlover") return { glyph: "🗂️", cls: "t-struct", title: "yamlover folder" };
   const t = TYPE[type];
   if (t) return { glyph: t.glyph, cls: t.cls, title: type };
   return { glyph: "•", cls: "t-bin", title: type || "unknown" };

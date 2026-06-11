@@ -53,6 +53,17 @@ test('pointer-array body imposes order; the directory projects as an array (56-a
   s.close();
 });
 
+test('an .ini file is an opaque text/plain blob (the plaintext renderer claims it)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'yamlover-walk-'));
+  writeFileSync(join(dir, 'config.ini'), '[core]\nname = Alice\n');
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(dir));
+  assert.equal(s.node('/config.ini')?.type, 'blob');
+  assert.equal(s.node('/config.ini')?.format, 'text/plain');
+  s.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
 test('the ignore predicate skips matching children (e.g. node_modules at the root)', () => {
   const s = new Store(':memory:');
   // ignore anything named "isAdmin" — it should not appear as a node
