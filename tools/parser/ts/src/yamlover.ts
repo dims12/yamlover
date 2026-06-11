@@ -413,8 +413,9 @@ function isBackSeqLine(text: string): boolean {
   return text === '~-' || text.startsWith('~- ');
 }
 
-/** Find the `key:` split: the first unquoted `:` followed by space or EOL. */
-function splitKV(text: string): { key: string; rest: string } | null {
+/** Find the `key:` split: the first unquoted `:` followed by space or EOL.
+ *  (Exported for the serializer: a plain token that splits here must be quoted.) */
+export function splitKV(text: string): { key: string; rest: string } | null {
   let inS = false;
   let inD = false;
   for (let i = 0; i < text.length; i++) {
@@ -497,7 +498,8 @@ function quotedScalar(text: string): Scalar {
   return { kind: 'scalar', value: out, raw: text };
 }
 
-function plainScalar(text: string): Scalar {
+/** (Exported for the serializer: a string emitted plain must reparse to itself.) */
+export function plainScalar(text: string): Scalar {
   const t = text.trim();
   if (t === '' || t === '~' || t === 'null' || t === 'Null' || t === 'NULL') return { kind: 'scalar', value: null, raw: text };
   if (t === 'true' || t === 'True' || t === 'TRUE') return { kind: 'scalar', value: true, raw: text };

@@ -89,11 +89,29 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    shrink-only allowlist + roadmap in `tools/parser/YAML-CONFORMANCE.md`. **Remaining**
    (by corpus impact): multi-doc (~71 cases), standard YAML tags, block-scalar
    headers/multi-line scalars, multi-line flow, merge keys.
-2d. **Serializers** *(addition)* — IR → yamlover / json5p / directory. Needed early:
-   `mv` rewrites refs, `normalize`, and round-tripping all require graph → concrete.
-   Define lossy behavior when targeting plain yaml/json (refuse? inline? warn).
+2d. **Serializers** — IR → yamlover / json5p / directory. Needed early: `mv` rewrites
+   refs, `normalize`, and round-tripping all require graph → concrete. **Text concretes
+   DONE (2026-06-11):** `serialize-yamlover.ts` / `serialize-json5p.ts` — FREE-FORM
+   canonical emission (the IR keeps the graph, not the typography: comments/quote
+   styles/block layout re-render; reparse is **IR-equal**). Pointer `raw` verbatim,
+   anchors re-placed by node identity, `!!set`/`!!<…>` carried, `!!mix` re-derived
+   from shape, `!!omni` implied (explicit only at the root). **Lossy policy = REFUSE**
+   (`LossyError`, never drop): blobs / non-finite numbers (yamlover); `!!mix`/`!!omni`/
+   `!!set`/`!!<…>` (json5p → route via the meta layer, as 03-tour already documents).
+   **Remaining:** the *directory* concrete (graph → tree + `body.yamlover`);
+   **inlined binary** — a blob must also be emittable INLINE in a text concrete
+   (YAML-`!!binary`-style base64; META.md already has `type: binary` + codec
+   `format`, cf. `55-scalar-as-binary`) — the same node in a different concrete,
+   file-on-disk vs inline scalar; needs a byte source (the IR carries only the hash —
+   the engine's blob store/manifest resolves it), at which point the blob refusal
+   becomes an emission *choice*; and span-preserving surgical edits (for `mv` in
+   hand-authored files — needs IR source spans, see 3e).
 2e. **Parser/serializer test suites** — round-trip fixtures; the genealogy DAG is the
-   canonical graph fixture.
+   canonical graph fixture. **Round-trip suite DONE (2026-06-11):**
+   `test/serialize.test.ts` (42 tests) — IR-equality (canon ignoring typography) over
+   unit cases + EVERY repo fixture (tours 01/02/03/05/06, every
+   `examples/*/.yamlover/body.yamlover`, `yamlover/tags`), plus cross-concrete
+   (03-tour → yamlover, genealogy → json5p) and lossy-refusal cases.
 
 ## Phase 3 — Engine + SQLite (first version)
 
@@ -136,14 +154,35 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    `POST /api/reindex` is the manual fallback. Unresolved pointers persist in a
    `dangling` table (`GET /api/dangling`) — reported, never dropped. **Remaining for
    the milestone:** move INFERENCE (removed+added with one hash ⇒ a move) and the
-   MEDIATED tier (`mv` rewriting inbound refs) — both wait on the serializers (2d)
-   and IR source spans (the parsers don't track them yet).
-3f. **Engine API** — `resolve/node/toc/relationships/derive/blob` + `mv/rm/put/link/
-   normalize` + `changed/added/removed` events, as the versioned contract.
+   MEDIATED tier (`mv` rewriting inbound refs) — the serializers exist (2d,
+   2026-06-11); what's still missing is **IR source spans** (the parsers don't track
+   them yet), needed to rewrite a pointer inside a hand-authored file without
+   re-rendering it.
+3f. **Engine API** — `resolve/node/toc/relationships/derive/blob/query` + `mv/rm/put/
+   link/normalize` + `changed/added/removed` events, as the versioned contract.
    **Read side DONE in practice** (the server's `engine-api.ts` exposes node/toc/
    relationships/blob over HTTP, backed by the `Store`); the **change events exist**
    (3e's reindex diff over SSE); **write side partial** — ad-hoc `annotate`/`paste`
-   endpoints exist, but `mv/rm/put/link/normalize` waits on the **serializers (2d)**.
+   endpoints exist; the **serializers landed (2d, 2026-06-11)**, so `put`/`normalize`
+   (free-form re-render) are unblocked now, while `mv`'s ref-rewriting still wants IR
+   source spans (3e).
+
+3g. **Query language** *(added 2026-06-11)* — JSONPath-inspired selectors, specced as
+   a **strict superset of the pointer grammar** (`URIs.md`): every pointer is a valid
+   query with at most one result. **Spec DONE (2026-06-11): `QUERY.md`** — core model
+   is the **match template** (a query walks the graph; success returns a capture).
+   v1 constructs: `?` / `[?]` wildcards, `...` descent (contain-only), the `~` sigil
+   as the **reverse axis** (`~name` / `~?` find-usages / `~-`), bracket **filters**
+   (kind, `contain`/`ref`, `!!tag`, `format=`). `? ! ( ) < > = |` joined the shared
+   metachar set (URIs.md amended) — `! ( ) < > = |` are reserved for the sketched
+   future constructs (comparison steps `age/>30`, capture `!`, branching
+   `(… && …)`, projection). **Remaining: the evaluator** — in the engine over the
+   store (the `edge` table + `deriveInverses` already make reverse axes cheap),
+   exposed as `query` (3f); acceptance gate = QUERY.md §6 conformance obligations
+   over the existing resolve.test.ts corpus (and `pointer.ts` catching up to the
+   enlarged metachar set). Pure read-side — runs **parallel to the serializers
+   (2d)**. First consumers: the tag-picker autocomplete (TODO) and JetBrains
+   find-usages (J3).
 
 > **Language decision — CONFIRMED & DONE:** engine v1 is **TypeScript inside the
 > existing server**, on Node's built-in **`node:sqlite`** (superseded the planned
