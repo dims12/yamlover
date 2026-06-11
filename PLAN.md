@@ -104,8 +104,18 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    `format`, cf. `55-scalar-as-binary`) — the same node in a different concrete,
    file-on-disk vs inline scalar; needs a byte source (the IR carries only the hash —
    the engine's blob store/manifest resolves it), at which point the blob refusal
-   becomes an emission *choice*; and span-preserving surgical edits (for `mv` in
-   hand-authored files — needs IR source spans, see 3e).
+   becomes an emission *choice*; **per-node concrete / mid-tree switches** (added
+   2026-06-11) — concrete is a property of the NODE, not the document: YAML already
+   embeds JSON as flow style, a directory switches concrete at every file boundary,
+   and inline-binary-vs-blob-file is the same choice again. Today the parsers ACCEPT
+   the switch (flow inside block) but the IR forgets it, so SeDe normalizes everything
+   to one style. The work: record the authored concrete on the node
+   (`NodeMeta.concrete`, aligning with META.md's `concrete` keyword — there it is
+   *prescribed*, here it is *observed*), have the serializers honor it on re-emission
+   (a flow/json5p subtree re-emits as flow inside a block yamlover doc), and define
+   the legal switch lattice (which concrete may nest in which — `json ⊂ json5 ⊂
+   json5p` / `yaml ⊂ yamlover` constrains it); and span-preserving surgical edits
+   (for `mv` in hand-authored files — needs IR source spans, see 3e).
 2e. **Parser/serializer test suites** — round-trip fixtures; the genealogy DAG is the
    canonical graph fixture. **Round-trip suite DONE (2026-06-11):**
    `test/serialize.test.ts` (42 tests) — IR-equality (canon ignoring typography) over
