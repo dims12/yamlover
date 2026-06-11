@@ -162,20 +162,29 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    debounced, gitignore- and `.yamlover`-internal-filtered), broadcasting diffs over
    `GET /api/events` (SSE) — the client refreshes its TOC branches + current node;
    `POST /api/reindex` is the manual fallback. Unresolved pointers persist in a
-   `dangling` table (`GET /api/dangling`) — reported, never dropped. **Remaining for
-   the milestone:** move INFERENCE (removed+added with one hash ⇒ a move) and the
-   MEDIATED tier (`mv` rewriting inbound refs) — the serializers exist (2d,
-   2026-06-11); what's still missing is **IR source spans** (the parsers don't track
-   them yet), needed to rewrite a pointer inside a hand-authored file without
-   re-rendering it.
+   `dangling` table (`GET /api/dangling`) — reported, never dropped. **Milestone
+   COMPLETE (2026-06-11):** (i) **pointer source spans** — both parsers record
+   `Pointer.span` (the whole `*…` deref token; yamlover via exact column threading,
+   json5p via offsets); (ii) the **MEDIATED tier** — `POST /api/mv` / `engine/ts/src/
+   mv.ts` moves a file/dir and **surgically rewrites inbound refs** at their spans
+   (`rewrite.ts` `planRewrites`: scope-form-preserving, metachar-escaping, anchor-
+   skipping; unrewritable refs REPORTED, no tombstones); (iii) **move INFERENCE** —
+   `IndexDiff.moved` (removed+added with one unambiguous hash), and the server
+   **auto-relinks** inferred moves via nominal-path matching (`relinkMoved`), so an
+   external `mv` in a shell heals refs too. **Known deferral:** a `body.yamlover`
+   key that augments a moved file BY NAME is not renamed (a key edit needs ENTRY
+   spans — `EntryMeta.span` is still unfilled); the leftover key keeps its reverse
+   edges on a phantom node. Also deferred: intra-document key moves, `!!<…>` schema-
+   pointer rewriting, tombstones for unreachable external refs.
 3f. **Engine API** — `resolve/node/toc/relationships/derive/blob/query` + `mv/rm/put/
    link/normalize` + `changed/added/removed` events, as the versioned contract.
    **Read side DONE in practice** (the server's `engine-api.ts` exposes node/toc/
    relationships/blob over HTTP, backed by the `Store`); the **change events exist**
-   (3e's reindex diff over SSE); **write side partial** — ad-hoc `annotate`/`paste`
-   endpoints exist; the **serializers landed (2d, 2026-06-11)**, so `put`/`normalize`
-   (free-form re-render) are unblocked now, while `mv`'s ref-rewriting still wants IR
-   source spans (3e).
+   (3e's reindex diff over SSE; `moved` included); **write side:** `annotate`/`paste`
+   and now **`mv` LIVE (2026-06-11** — `POST /api/mv`, the mediated move with
+   inbound-ref rewriting**)**; `rm/put/link/normalize` remain — `put`/`normalize`
+   are unblocked by the serializers (2d), `rm` is mostly the mv plumbing minus the
+   rename.
 
 3g. **Query language** *(added 2026-06-11)* — JSONPath-inspired selectors, specced as
    a **strict superset of the pointer grammar** (`URIs.md`): every pointer is a valid
