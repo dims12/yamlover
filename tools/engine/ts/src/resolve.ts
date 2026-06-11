@@ -24,28 +24,31 @@ export interface ResolvedEdge {
   raw: string;             // the pointer text
   edge: 'ref' | 'back';
   target: Located;
+  ptr: Pointer;            // the unresolved pointer itself: base, steps, raw — and its source span
+  docRoot: string;         // path of the holder's nearest enclosing DOCUMENT root (its `/` scope)
 }
 
 /** Resolve every `*`/`~` pointer in a document; useful for tests and graph building. */
 export function resolveDocument(doc: Document): ResolvedEdge[] {
   const chains = buildChains(doc.root);
   const out: ResolvedEdge[] = [];
-  const walk = (node: Node): void => {
+  const walk = (node: Node, docRoot: string): void => {
     if (!node.entries) return; // any node may carry fields (scalar/blob too)
     const chain = chains.get(node)!;
     const base = pathOf(chain);
+    const dr = node.meta?.documentRoot ? base : docRoot;
     const prefix = base === '/' ? '' : base; // root is '/', so a top-level entry is "/key" not "//key"
     node.entries.forEach((e, i) => {
       const seg = e.key != null ? '/' + e.key : '[' + i + ']';
       if (isPointer(e.value)) {
         const target = resolve(doc, chains, chain, e.value, new Set([e.value]));
-        out.push({ from: prefix + seg, holder: base, label: e.key, pos: i, raw: e.value.raw, edge: e.edge as 'ref' | 'back', target });
+        out.push({ from: prefix + seg, holder: base, label: e.key, pos: i, raw: e.value.raw, edge: e.edge as 'ref' | 'back', target, ptr: e.value, docRoot: dr });
       } else {
-        walk(e.value);
+        walk(e.value, dr);
       }
     });
   };
-  walk(doc.root);
+  walk(doc.root, '/');
   return out;
 }
 

@@ -107,3 +107,11 @@ function unescape(s: string): string {
   }
   return out;
 }
+
+/** Render a key as ONE pointer path segment — the inverse of `unescape`/`segToSteps`:
+ *  backslash-escape the metachars (incl. the QUERY.md reservations) and spell the
+ *  literal-`..` key `\.\.` so it does not read as the parent step. */
+export function escapeSegment(name: string): string {
+  if (name === '..') return '\\.\\.';
+  return name.replace(/[\\/[\]*&#~?!()<>=|]/g, (c) => '\\' + c);
+}

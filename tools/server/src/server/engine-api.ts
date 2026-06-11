@@ -25,7 +25,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Store, reindex, watchTree, loadSettings } from "../../../engine/ts/src/index.ts";
+import { Store, reindex, watchTree, loadSettings, mv } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { buildGitIgnore } from "./gitignore.js";
@@ -165,6 +165,29 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             const result = handlePaste(dataRoot, s, data as PasteInput);
             broadcast(doReindex());
             sendJson(res, 201, result);
+          })
+          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
+        return;
+      }
+
+      // Move/rename a file or directory (a WRITE path — the engine-MEDIATED tier): the engine
+      // relocates the FS object AND rewrites every inbound `*`/`~` pointer in the source files
+      // (surgical span edits; ENGINE.md "a move rewrites references"). Body: { from, to } as
+      // JSON paths addressing FS-level nodes (keyed segments only — no positions).
+      if (req.method === "POST" && url.pathname === "/api/mv") {
+        readBody(req)
+          .then((data) => {
+            const { from, to } = data as { from?: string; to?: string };
+            const rel = (p: string, what: string): string => {
+              const segs = strToSegs(p);
+              if (segs.length === 0) throw new Error(`mv: ${what} must name a file or directory`);
+              if (segs.some((g) => typeof g === "number")) throw new Error(`mv: ${what} must be a file/directory path (no positions)`);
+              return segs.join("/");
+            };
+            const report = mv(dataRoot, rel(from ?? "", "from"), rel(to ?? "", "to"), { ignore });
+            const diff = doReindex();
+            broadcast(diff);
+            sendJson(res, 200, { ...report, diff });
           })
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
         return;

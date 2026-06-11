@@ -172,12 +172,8 @@ class Emitter {
     return `'${v.replace(/'/g, "''")}'`;
   }
 
-  /** The text after `*`. The raw pointer is kept verbatim; quote it only when the line
-   *  context would eat it (a ` #` comment, leading quote, outer whitespace). */
   ptrText(p: Pointer): string {
-    const r = p.raw;
-    if (r !== r.trim() || /(^|[ \t])#/.test(r) || /^['"]/.test(r)) return `'${r.replace(/'/g, "''")}'`;
-    return r;
+    return pointerToken(p.raw).slice(1); // pointerToken includes the `*`; head adds it
   }
 
   /** The contents of a `!!<…>` tag: a pointer (`*…`) or an inline node. The contents are
@@ -196,6 +192,16 @@ class Emitter {
 
 function joinLine(head: string, parts: string[]): string {
   return parts.length === 0 ? head : head + ' ' + parts.join(' ');
+}
+
+/** The full yamlover deref token for a pointer raw: `*` + the raw verbatim, quoted only
+ *  when the line context would eat it (a ` #` comment, leading quote, outer whitespace).
+ *  Exported for the engine's `mv` ref-rewriter, which replaces exactly this token. */
+export function pointerToken(raw: string): string {
+  if (raw !== raw.trim() || /(^|[ \t])#/.test(raw) || /^['"]/.test(raw)) {
+    return `*'${raw.replace(/'/g, "''")}'`;
+  }
+  return '*' + raw;
 }
 
 /** A string is safe to emit as a PLAIN scalar iff the reparse (in every context we emit:
