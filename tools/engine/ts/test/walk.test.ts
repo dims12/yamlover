@@ -102,7 +102,7 @@ test('a chapter file gets format x-yamlover-chapter from its $defs pointer schem
 });
 
 test('the attached chapter schema propagates down: subchapters & chunks get their format (60)', () => {
-  // via walkDir, which runs the schema-application pass ($defs found by walking up from examples/)
+  // via walkDir, which runs the schema-application pass (yamlover/$defs found by walking up from examples/)
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
   const ch = '/60-simple-chapter.yamlover';
@@ -187,19 +187,21 @@ test('a sub-document encoding format (yamlover/meta) parses the file — never a
   rmSync(root, { recursive: true, force: true });
 });
 
-// The BUILT-IN graft: serving a subdir of a `$defs` host (the repo) grafts the host's
-// `yamlover/` subtree into the walked root, so `*//yamlover/tags/colors/…` (the pure color
-// tags every annotation may apply) resolves from any served root.
-test('built-in yamlover/ subtree is grafted when serving below a $defs host', () => {
-  const s = indexedDir('59-all-formats-object'); // a subdir of the repo (the $defs host)
+// The BUILT-IN graft: serving a subdir of a `yamlover/$defs` host (the repo) grafts the host's
+// `yamlover/` subtree into the walked root, so `*yamlover/$defs/…` (the hosted schemas) and
+// `*//yamlover/tags/colors/…` (the pure color tags every annotation may apply) resolve from
+// any served root.
+test('built-in yamlover/ subtree is grafted when serving below a yamlover/$defs host', () => {
+  const s = indexedDir('59-all-formats-object'); // a subdir of the repo (the yamlover/$defs host)
   assert.equal(s.node('/yamlover/tags/colors')?.format, 'x-yamlover-tag');
   assert.equal(s.node('/yamlover/tags/colors/yellow')?.format, 'x-yamlover-tag');
   assert.equal(s.node('/yamlover/tags/colors/yellow/color')?.value, '#f9e2af');
+  assert.equal(s.node('/yamlover/$defs/chapter/type')?.value, 'object'); // the schemas ride along
   s.close();
 });
 
-test('no graft outside a $defs host, and none into an array-projecting root', () => {
-  // a temp tree has no `$defs/` ancestor → no `yamlover` key appears
+test('no graft outside a yamlover/$defs host, and none into an array-projecting root', () => {
+  // a temp tree has no `yamlover/$defs/` ancestor → no `yamlover` key appears
   const root = mkdtempSync(join(tmpdir(), 'yo-nograft-'));
   writeFileSync(join(root, 'name'), 'Alice\n');
   const s = new Store(':memory:');

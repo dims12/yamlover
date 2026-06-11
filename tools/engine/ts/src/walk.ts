@@ -142,12 +142,12 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
   const ctx: Ctx = { root: path.resolve(absDir), opts, anchors: new Map(), files: new Map(), count: 0 };
   const root = yield* dirNode(ctx.root, ctx);
   root.meta = { ...root.meta, documentRoot: true }; // the served root is always a document root
-  // Graft the BUILT-IN `yamlover/` subtree (color tags, …) hosted next to `$defs` into the
-  // served tree, so `*//yamlover/…` pointers resolve from any served root. Serving the host
-  // itself walks `yamlover/` naturally (the key already exists); trees with no `$defs` host
-  // above them get no graft; a root that PROJECTS AS AN ARRAY (all-keyless) is left alone —
-  // a keyed graft would flip its kind to mix. Grafted files live outside `ctx.root`, so —
-  // like `$defs` hosts — they are not manifested and the watcher cannot see them.
+  // Graft the BUILT-IN `yamlover/` subtree (the hosted `$defs/` schemas, color tags, …) into
+  // the served tree, so `*yamlover/$defs/…` and `*//yamlover/…` pointers resolve from any
+  // served root. Serving the host itself walks `yamlover/` naturally (the key already exists);
+  // trees with no `yamlover/$defs` host above them get no graft; a root that PROJECTS AS AN
+  // ARRAY (all-keyless) is left alone — a keyed graft would flip its kind to mix. Grafted files
+  // live outside `ctx.root`, so they are not manifested and the watcher cannot see them.
   const defsRoot = findDefsRoot(absDir);
   const builtin = path.join(defsRoot, 'yamlover');
   const arrayRoot = root.array || (root.entries?.length ? root.entries.every((e) => e.key === null) : false);
@@ -458,12 +458,13 @@ function parsedDoc(abs: string, lang: 'yamlover' | 'json5p', ctx: Ctx): Node {
 // validation. Schema resolution was deferred — this is the first, targeted slice of it.)
 // --------------------------------------------------------------------------- //
 
-/** The nearest ancestor of `dir` (incl. itself) that holds a `$defs/` dir — the yamlover
- *  project root that hosts schemas; falls back to `dir`. */
+/** The nearest ancestor of `dir` (incl. itself) that holds the built-in `yamlover/$defs/`
+ *  subtree — the host whose `yamlover/` gets grafted and whose schemas `*yamlover/$defs/<name>`
+ *  pointers name; falls back to `dir`. */
 function findDefsRoot(dir: string): string {
   let d = path.resolve(dir);
   for (;;) {
-    if (fs.existsSync(path.join(d, '$defs'))) return d;
+    if (fs.existsSync(path.join(d, 'yamlover', '$defs'))) return d;
     const up = path.dirname(d);
     if (up === d) return path.resolve(dir);
     d = up;
@@ -474,7 +475,7 @@ function applySchemas(root: Node, defsRoot: string): void {
   const cache = new Map<string, Node | null>();
   const loadDef = (name: string): Node | null => {
     if (!cache.has(name)) {
-      const defFile = path.join(defsRoot, '$defs', name);
+      const defFile = path.join(defsRoot, 'yamlover', '$defs', name);
       try {
         cache.set(name, parseYamlover(fs.readFileSync(defFile, 'utf8'), defFile).root);
       } catch {

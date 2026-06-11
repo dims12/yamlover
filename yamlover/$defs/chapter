@@ -13,7 +13,7 @@ properties:
     format: text/marklower
   chunks:                          # the body — a sequence of chunks, read top to bottom
     type: array
-    items: *yamlover/$defs/chunk
+    items: *//yamlover/$defs/chunk
   children:                        # subchapters — the recursion
     type: array
-    items: *yamlover/$defs/chapter
+    items: *//yamlover/$defs/chapter

@@ -46,14 +46,16 @@ file, the meta says how to read it).
 
 ## Hosted schemas (`$defs`) — `chapter` & `chunk`
 
-The yamlover project hosts reusable schema definitions under **`$defs`** (in the repo:
-`$defs/`):
+The yamlover project hosts reusable schema definitions under **`yamlover/$defs`** — inside
+the built-in `yamlover/` subtree the engine grafts into every served root, so it is exactly
+what the `!!<*yamlover/$defs/chapter>` tag pointers name:
 
 - **`$defs/chunk`** — one renderable content block: a typed value whose `(type, format)`
   selects the renderer; default `string`/`text/markdown` (prose), overridable per chunk.
 - **`$defs/chapter`** — a document node: `title`, `chunks` (a sequence of `chunk`s — the
   body, read top to bottom) and `children` (a sequence of `chapter`s — the recursion).
-  Inter-schema references use `*` pointers (`items: *yamlover/$defs/chunk`), not `$ref`.
+  Inter-schema references use `*` pointers (`items: *//yamlover/$defs/chunk` — link scope,
+  since each schema file is a document of its own), not `$ref`.
 
 This **replaces the old chapter encoding** (title from the schema concrete, chunks from the
 instance): a `chapter` is now a normal schema with `title`/`chunks`/`children`, attachable

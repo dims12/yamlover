@@ -118,9 +118,9 @@ it; clicking away just closes. (Any *standalone* annotation file can be edited t
 it lives; an annotation authored inline in a shared document is shown but frozen.)
 
 The built-in tags live under the **`yamlover` node** at the project root — when the served root
-is not the yamlover repo itself, the engine grafts the repo's `yamlover/` subtree there (found
-like `$defs`: the nearest ancestor directory holding `$defs/`), so `/yamlover/tags/colors/…`
-resolves in every project. Whole-node tagging stays as it was: a `~tag: */tags/…` entry on the
+is not the yamlover repo itself, the engine grafts the repo's `yamlover/` subtree there (the
+nearest ancestor directory holding `yamlover/$defs/`), so `/yamlover/tags/colors/…` and
+`/yamlover/$defs/…` resolve in every project. Whole-node tagging stays as it was: a `~tag: */tags/…` entry on the
 node itself (no annotation object needed when there's no region and no comment).
 
 New annotations are written as ordinary `.yamlover` files (one per annotation) under the

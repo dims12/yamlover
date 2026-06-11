@@ -14,4 +14,4 @@ properties:
   color:
     type: string
     description: An explicit display color ("#rrggbb"); absent ⇒ derived from the tag's name
-additionalProperties: *yamlover/$defs/tag
+additionalProperties: *//yamlover/$defs/tag
