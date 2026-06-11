@@ -6,16 +6,25 @@ vi.mock("../../src/client/api", () => ({
   fetchNode: vi.fn(),
   fetchSchema: vi.fn(),
   fetchAnnotations: vi.fn().mockResolvedValue([]), // header badges hop via /api/annotations
+  pasteFile: vi.fn(),
+  pasteText: vi.fn(),
+  pasteRich: vi.fn(),
 }));
-import { fetchNode, fetchSchema } from "../../src/client/api";
+import { fetchNode, fetchSchema, pasteFile, pasteRich, pasteText } from "../../src/client/api";
 import { NodeView } from "../../src/client/NodeView";
 
 const mNode = fetchNode as unknown as ReturnType<typeof vi.fn>;
 const mSchema = fetchSchema as unknown as ReturnType<typeof vi.fn>;
+const mPasteFile = pasteFile as unknown as ReturnType<typeof vi.fn>;
+const mPasteText = pasteText as unknown as ReturnType<typeof vi.fn>;
+const mPasteRich = pasteRich as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   mNode.mockReset();
   mSchema.mockReset();
+  mPasteFile.mockReset();
+  mPasteText.mockReset();
+  mPasteRich.mockReset();
 });
 afterEach(cleanup);
 
@@ -129,5 +138,118 @@ describe("NodeView", () => {
     render(<NodeView path="/chapters[2]" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("empty");
     expect(document.title).toBe("[2]");
+  });
+});
+
+describe("link paste (arXiv, tweets)", () => {
+  it("pasting an arXiv link downloads the PDF and uploads it via the file-paste flow", async () => {
+    mNode.mockResolvedValue({ path: "/papers", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    mPasteFile.mockResolvedValue({ path: "/papers/arxiv-2605.00615.pdf", dir: "/papers", open: false });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(["PDF"], { type: "application/pdf" }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      const onContentChanged = vi.fn();
+      render(<NodeView path="/papers" format="yaml" onFormat={() => {}} onNavigate={() => {}} onContentChanged={onContentChanged} />);
+      await screen.findByText("empty");
+
+      fireEvent.paste(document, { clipboardData: { files: [], items: [], getData: () => "https://arxiv.org/abs/2605.00615" } });
+
+      await screen.findByText("uploaded"); // the toast settles once the file-paste flow finished
+      expect(fetchMock).toHaveBeenCalledWith("https://arxiv.org/pdf/2605.00615");
+      expect(mPasteFile).toHaveBeenCalledTimes(1);
+      const [path, name, b64] = mPasteFile.mock.calls[0];
+      expect([path, name]).toEqual(["/papers", "arxiv-2605.00615.pdf"]);
+      expect(atob(b64)).toBe("PDF"); // the downloaded bytes, base64'd by the normal flow
+      expect(onContentChanged).toHaveBeenCalledWith("/papers");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("a failed download reports and never uploads", async () => {
+    mNode.mockResolvedValue({ path: "/papers", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+
+    try {
+      render(<NodeView path="/papers" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
+      await screen.findByText("empty");
+      fireEvent.paste(document, { clipboardData: { files: [], items: [], getData: () => "https://arxiv.org/abs/2605.99999" } });
+      await screen.findByText(/download failed: HTTP 404/);
+      expect(mPasteFile).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("pasting an HTML selection with an image and a heading goes through the RICH flow", async () => {
+    mNode.mockResolvedValue({ path: "/wiki", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    mPasteRich.mockResolvedValue({ path: "/wiki", chapter: "/wiki" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(["JPG"], { type: "image/jpeg" }) }));
+
+    try {
+      render(<NodeView path="/wiki" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
+      await screen.findByText("empty");
+      const html = '<p>intro</p><img src="https://upload.wikimedia.org/cat.jpg" alt="cat"><h2>Etymology</h2><p>From Latin.</p>';
+      fireEvent.paste(document, {
+        clipboardData: { files: [], items: [], getData: (t: string) => (t === "text/html" ? html : "intro Etymology From Latin.") },
+      });
+
+      await screen.findByText("chunks added");
+      expect(mPasteText).not.toHaveBeenCalled(); // the html flavor won over the plain text
+      const [target, rich] = mPasteRich.mock.calls[0];
+      expect(target).toBe("/wiki");
+      expect(rich.chunks[0]).toEqual({ text: "intro" });
+      expect(rich.chunks[1].file.name).toBe("cat.jpg");
+      expect(atob(rich.chunks[1].file.contentBase64)).toBe("JPG");
+      expect(rich.children).toEqual([{ title: "Etymology", chunks: [{ text: "From Latin." }], children: [] }]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("formatted HTML without images or headings still pastes as plain TEXT", async () => {
+    mNode.mockResolvedValue({ path: "/notes", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    mPasteText.mockResolvedValue({ path: "/notes", chapter: "/notes" });
+
+    render(<NodeView path="/notes" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("empty");
+    fireEvent.paste(document, {
+      clipboardData: { files: [], items: [], getData: (t: string) => (t === "text/html" ? "<p>just <b>bold</b></p>" : "just bold") },
+    });
+
+    await screen.findByText("chunk added");
+    expect(mPasteRich).not.toHaveBeenCalled();
+    expect(mPasteText).toHaveBeenCalledWith("/notes", "just bold");
+  });
+
+  it("pasting a tweet link fetches the full message via oEmbed and pastes it as TEXT", async () => {
+    mNode.mockResolvedValue({ path: "/notes", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    mPasteText.mockResolvedValue({ path: "/notes", chapter: "/notes" });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        url: "https://x.com/tsoding/status/2065098226374443051",
+        author_name: "Тsфdiиg",
+        author_url: "https://x.com/tsoding",
+        html: '<blockquote><p>claude code spawning subagents</p>&mdash; Тsфdiиg (@tsoding) <a href="#">June 11, 2026</a></blockquote>',
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    try {
+      render(<NodeView path="/notes" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
+      await screen.findByText("empty");
+      fireEvent.paste(document, { clipboardData: { files: [], items: [], getData: () => "https://x.com/tsoding/status/2065098226374443051" } });
+
+      await screen.findByText("chunk added");
+      expect(fetchMock.mock.calls[0][0]).toContain("publish.x.com/oembed");
+      expect(mPasteText).toHaveBeenCalledWith(
+        "/notes",
+        "claude code spawning subagents\n\n— Тsфdiиg @tsoding, June 11, 2026\nhttps://x.com/tsoding/status/2065098226374443051",
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

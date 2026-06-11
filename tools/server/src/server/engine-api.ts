@@ -378,12 +378,15 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Upload a pasted file or TEXT (a WRITE path). A file onto a DIRECTORY page → it lands in
-      // that directory; onto a CHAPTER page → it lands in the chapter's owning directory AND a
-      // `*…` pointer to it is appended as the chapter's last chunk. TEXT onto a chapter → the
-      // text itself is appended as a new chunk (no file); anywhere else → a new chapter
-      // .yamlover file in the nearest directory. Body: { path, filename, contentBase64 } or
-      // { path, text }. A new file / edited chapter source needs the graph re-walked — a
+      // Upload a pasted file, TEXT, or RICH content (a WRITE path). A file onto a DIRECTORY
+      // page → it lands in that directory; onto a CHAPTER page → it lands in the chapter's
+      // owning directory AND a `*…` pointer to it is appended as the chapter's last chunk.
+      // TEXT onto a chapter → the text itself is appended as a new chunk (no file); anywhere
+      // else → a new chapter .yamlover file in the nearest directory. RICH (an HTML selection:
+      // text + image chunks + heading-nested subchapters) onto a chapter → chunks append to
+      // `chunks:`, subchapters to `children:`; anywhere else → a new chapter (directory-backed
+      // when it carries files). Body: { path, filename, contentBase64 } | { path, text } |
+      // { path, rich }. A new file / edited chapter source needs the graph re-walked — a
       // manifest-cached reconcile, so only the new/edited files are read.
       if (req.method === "POST" && url.pathname === "/api/paste") {
         readBody(req)
@@ -935,7 +938,9 @@ interface PasteInput {
   path: string; // the page's node path (a directory or a chapter)
   filename?: string; // file mode: the source filename (sanitized + de-duplicated server-side)
   contentBase64?: string; // file mode: the file bytes, base64
-  text?: string; // text mode: the clipboard's plain text (mutually exclusive with the above)
+  text?: string; // text mode: the clipboard's plain text
+  rich?: unknown; // rich mode: an HTML selection as a chapter tree (see parseRich) — text +
+  // inline-file chunks, heading-nested children; the modes are mutually exclusive
 }
 
 /** Handle a paste/upload onto the node at `input.path`. Returns the new file's node path and,
@@ -944,6 +949,12 @@ function handlePaste(dataRoot: string, s: Store, input: PasteInput): Record<stri
   const segs = strToSegs(input.path || "/");
   const row = s.node(storePath(segs));
   if (!row) throw new Error(`no such node: ${input.path}`);
+
+  if (input.rich != null) {
+    const rich = parseRich(input.rich);
+    if (row.format === "x-yamlover-chapter") return pasteRichIntoChapter(dataRoot, s, segs, rich);
+    return pasteRichAsChapter(dataRoot, segs, rich);
+  }
 
   if (typeof input.text === "string") {
     const text = input.text.replace(/\r\n?/g, "\n");
@@ -1010,7 +1021,7 @@ function pasteIntoChapter(dataRoot: string, s: Store, segs: Seg[], name: string,
   // The chapter's location WITHIN its document — alternating `children`,N pairs (empty = top-level).
   const within = segs.slice(docSegs.length);
   const src = fs.readFileSync(bodyFile, "utf8");
-  fs.writeFileSync(bodyFile, appendChunk(src, within, (indent) => [`${" ".repeat(indent)}- ${pointer}`]));
+  fs.writeFileSync(bodyFile, appendToList(src, within, "chunks", (indent) => [`${" ".repeat(indent)}- ${pointer}`]));
   return { path: segsToStr(fileSegs), chapter: segsToStr(segs), pointer };
 }
 
@@ -1020,7 +1031,7 @@ function pasteTextIntoChapter(dataRoot: string, s: Store, segs: Seg[], text: str
   const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
   const within = segs.slice(docSegs.length);
   const src = fs.readFileSync(bodyFile, "utf8");
-  fs.writeFileSync(bodyFile, appendChunk(src, within, (indent) => textChunkLines(text, indent)));
+  fs.writeFileSync(bodyFile, appendToList(src, within, "chunks", (indent) => textChunkLines(text, indent)));
   return { path: segsToStr(segs), chapter: segsToStr(segs) };
 }
 
@@ -1035,6 +1046,131 @@ function pasteTextAsChapterFile(dataRoot: string, segs: Seg[], text: string): Re
   const src = ["!!<*yamlover/$defs/chapter>", `title: ${JSON.stringify(title)}`, "chunks:", ...textChunkLines(text, 0), ""].join("\n");
   writeInside(dataRoot, dir, final, Buffer.from(src, "utf8"));
   return { path: segsToStr([...dirSegs, final]), dir: segsToStr(dirSegs), open: dirSegs.length !== segs.length };
+}
+
+// --- rich paste: an HTML selection as a chapter tree (text + image chunks, subchapters) ----- //
+
+type RichItem = { text: string } | { name: string; bytes: Buffer };
+interface Rich {
+  title: string | null;
+  chunks: RichItem[];
+  children: Array<Rich & { title: string }>;
+}
+
+/** Validate + normalize the wire `rich` payload: chunks are {text} or {file:{name,
+ *  contentBase64}}, children recurse (each titled). Whitespace-only texts are dropped. */
+function parseRich(raw: unknown, depth = 0): Rich {
+  if (depth > 8) throw new Error("rich paste: nesting too deep");
+  const r = (raw ?? {}) as { title?: unknown; chunks?: unknown; children?: unknown };
+  const chunks: RichItem[] = [];
+  for (const c of Array.isArray(r.chunks) ? (r.chunks as Array<Record<string, unknown>>) : []) {
+    if (typeof c?.text === "string") {
+      if (c.text.trim()) chunks.push({ text: c.text.replace(/\r\n?/g, "\n") });
+      continue;
+    }
+    const f = c?.file as { name?: unknown; contentBase64?: unknown } | undefined;
+    if (f && typeof f.name === "string") {
+      const bytes = Buffer.from(String(f.contentBase64 ?? ""), "base64");
+      if (bytes.length === 0) throw new Error("rich paste: empty file chunk");
+      chunks.push({ name: sanitizeName(f.name), bytes });
+      continue;
+    }
+    throw new Error("rich paste: a chunk must be {text} or {file}");
+  }
+  const children = (Array.isArray(r.children) ? r.children : []).map((k) => {
+    const sub = parseRich(k, depth + 1);
+    const title = typeof (k as { title?: unknown })?.title === "string" ? String((k as { title: string }).title).trim() : "";
+    return { ...sub, title: title || "Untitled" };
+  });
+  if (depth === 0 && chunks.length === 0 && children.length === 0) throw new Error("empty rich paste");
+  return { title: typeof r.title === "string" && r.title.trim() ? r.title.trim() : null, chunks, children };
+}
+
+/** One chunk item's source lines: a text becomes a block scalar, a file is written through
+ *  `pointerFor` (which yields its `*…` pointer). */
+function richItemLines(item: RichItem, indent: number, pointerFor: (name: string, bytes: Buffer) => string): string[] {
+  if ("text" in item) return textChunkLines(item.text, indent);
+  return [`${" ".repeat(indent)}- ${pointerFor(item.name, item.bytes)}`];
+}
+
+/** A subchapter as a `children:` list item (title + chunks + recursive children), at the
+ *  list's indent — the item body keys sit 2 deeper, matching the chapter examples. */
+function richChildLines(node: Rich & { title: string }, indent: number, pointerFor: (name: string, bytes: Buffer) => string): string[] {
+  const pad = " ".repeat(indent);
+  const lines = [`${pad}- title: ${JSON.stringify(node.title)}`];
+  if (node.chunks.length) lines.push(`${pad}  chunks:`, ...node.chunks.flatMap((c) => richItemLines(c, indent + 2, pointerFor)));
+  if (node.children.length) lines.push(`${pad}  children:`, ...node.children.flatMap((k) => richChildLines(k, indent + 2, pointerFor)));
+  return lines;
+}
+
+/** A rich paste onto a chapter: files land in the chapter's owning directory, the chunks
+ *  (text + pointers, order kept) append to `chunks:` and the subchapters to `children:` —
+ *  either list is created when the chapter source lacks it. */
+function pasteRichIntoChapter(dataRoot: string, s: Store, segs: Seg[], rich: Rich): Record<string, unknown> {
+  const { docSegs, bodyFile, dirBacked } = chapterSource(dataRoot, s, segs);
+  const writeDirSegs = dirBacked ? docSegs : docSegs.slice(0, -1);
+  const writeDir = path.resolve(dataRoot, ...writeDirSegs.map(String));
+  const files: string[] = [];
+  const pointerFor = (name: string, bytes: Buffer): string => {
+    const final = uniqueName(writeDir, name);
+    writeInside(dataRoot, writeDir, final, bytes);
+    files.push(segsToStr([...writeDirSegs, final]));
+    return dirBacked ? `*/${final}` : `*/${segsToStr([...writeDirSegs, final])}`;
+  };
+  const within = segs.slice(docSegs.length);
+  let src = fs.readFileSync(bodyFile, "utf8");
+  if (rich.chunks.length) src = appendToList(src, within, "chunks", (ind) => rich.chunks.flatMap((c) => richItemLines(c, ind, pointerFor)));
+  if (rich.children.length) src = appendToList(src, within, "children", (ind) => rich.children.flatMap((k) => richChildLines(k, ind, pointerFor)));
+  fs.writeFileSync(bodyFile, src);
+  return { path: segsToStr(segs), chapter: segsToStr(segs), files };
+}
+
+/** A rich paste onto anything that is NOT a chapter: a new chapter in the nearest enclosing
+ *  directory — DIRECTORY-BACKED when it carries files (the images live inside it), else a
+ *  standalone .yamlover file. A selection that STARTS with its own heading IS the chapter:
+ *  the sole top child is promoted to the root (its title names the chapter). */
+function pasteRichAsChapter(dataRoot: string, segs: Seg[], rich: Rich): Record<string, unknown> {
+  const dirSegs = nearestDirSegs(dataRoot, segs);
+  if (!dirSegs) throw new Error("no enclosing directory to paste into");
+  const dir = path.resolve(dataRoot, ...dirSegs.map(String));
+  if (!rich.title && rich.chunks.length === 0 && rich.children.length === 1) rich = rich.children[0];
+  const firstText = rich.chunks.find((c): c is { text: string } => "text" in c);
+  const title = rich.title ?? (firstText ? titleFromText(firstText.text) : rich.children[0]?.title ?? "Pasted content");
+
+  if (!richHasFiles(rich)) {
+    const final = uniqueName(dir, chapterFileName(title));
+    const src = renderChapterSource(title, rich, () => {
+      throw new Error("unreachable: no files");
+    });
+    writeInside(dataRoot, dir, final, Buffer.from(src, "utf8"));
+    return { path: segsToStr([...dirSegs, final]), dir: segsToStr(dirSegs), open: dirSegs.length !== segs.length };
+  }
+
+  // directory-backed: <name>/.yamlover/body.yamlover + the image files inside <name>/
+  const name = uniqueName(dir, chapterFileName(title).replace(/\.yamlover$/, ""));
+  const chDir = path.join(dir, name);
+  if (!path.resolve(chDir).startsWith(path.resolve(dataRoot) + path.sep)) throw new Error("target escapes the data root");
+  fs.mkdirSync(path.join(chDir, ".yamlover"), { recursive: true });
+  const pointerFor = (fname: string, bytes: Buffer): string => {
+    const final = uniqueName(chDir, fname);
+    writeInside(dataRoot, chDir, final, bytes);
+    return `*/${final}`;
+  };
+  const src = renderChapterSource(title, rich, pointerFor);
+  writeInside(dataRoot, path.join(chDir, ".yamlover"), "body.yamlover", Buffer.from(src, "utf8"));
+  return { path: segsToStr([...dirSegs, name]), dir: segsToStr(dirSegs), open: dirSegs.length !== segs.length };
+}
+
+/** The whole .yamlover source of a new rich chapter (the tag, the title, chunks, children). */
+function renderChapterSource(title: string, rich: Rich, pointerFor: (name: string, bytes: Buffer) => string): string {
+  const lines = ["!!<*yamlover/$defs/chapter>", `title: ${JSON.stringify(title)}`];
+  if (rich.chunks.length) lines.push("chunks:", ...rich.chunks.flatMap((c) => richItemLines(c, 0, pointerFor)));
+  if (rich.children.length) lines.push("children:", ...rich.children.flatMap((k) => richChildLines(k, 0, pointerFor)));
+  return lines.join("\n") + "\n";
+}
+
+function richHasFiles(rich: Rich): boolean {
+  return rich.chunks.some((c) => "bytes" in c) || rich.children.some(richHasFiles);
 }
 
 /** A title for a pasted-text chapter: the first content line, sans any markdown heading
@@ -1077,10 +1213,11 @@ function writeInside(dataRoot: string, dir: string, name: string, bytes: Buffer)
   fs.writeFileSync(target, bytes);
 }
 
-// --- chapter chunk insertion (indentation-aware; the parser does not track spans) ------------ //
+// --- chapter list insertion (indentation-aware; the parser does not track spans) ------------- //
 // A directory body / standalone chapter is YAML-shaped: a mapping's keys at one indent, a
 // sequence's `- ` items at the SAME indent as their key, an item's mapping body at key-indent+2.
-// To reach a subchapter we descend `children:` sequences by index; then we append to `chunks:`.
+// To reach a subchapter we descend `children:` sequences by index; then we append to a list key
+// (`chunks:` for content, `children:` for pasted subchapters), creating it when absent.
 
 const indentOf = (line: string): number => { let i = 0; while (line[i] === " ") i++; return i; };
 const isContentLine = (line: string): boolean => { const t = line.trim(); return t.length > 0 && !t.startsWith("#"); };
@@ -1098,10 +1235,11 @@ function textChunkLines(text: string, indent: number): string[] {
   return [`${pad}- ${head}`, ...body.split("\n").map((l) => (l.trim().length ? `${pad}  ${l}` : ""))];
 }
 
-/** Append one item (rendered by `renderItem` at the list's indent) to the `chunks` list of the
+/** Append items (rendered by `renderItems` at the list's indent) to the `key:` list of the
  *  chapter at `chapterPath` (alternating ["children", N, …] pairs; empty = the top-level
- *  chapter) within a .yamlover source. */
-function appendChunk(text: string, chapterPath: Seg[], renderItem: (indent: number) => string[]): string {
+ *  chapter) within a .yamlover source. A chapter authored without the list gains the key at
+ *  the end of its mapping. */
+function appendToList(text: string, chapterPath: Seg[], key: string, renderItems: (indent: number) => string[]): string {
   const lines = text.split("\n");
   let lo = 0;
   let hi = lines.length;
@@ -1109,19 +1247,23 @@ function appendChunk(text: string, chapterPath: Seg[], renderItem: (indent: numb
 
   for (let i = 0; i < chapterPath.length; i += 2) {
     const idx = Number(chapterPath[i + 1]);
-    const key = findKeyLine(lines, lo, hi, indent, "children");
-    if (key < 0) throw new Error(`no 'children:' at indent ${indent}`);
-    const items = seqItems(lines, key + 1, hi, indent);
+    const kids = findKeyLine(lines, lo, hi, indent, "children");
+    if (kids < 0) throw new Error(`no 'children:' at indent ${indent}`);
+    const items = seqItems(lines, kids + 1, hi, indent);
     if (!(idx >= 0 && idx < items.length)) throw new Error(`children[${idx}] out of range (${items.length})`);
-    hi = idx + 1 < items.length ? items[idx + 1] : seqEnd(lines, key + 1, hi, indent);
+    hi = idx + 1 < items.length ? items[idx + 1] : seqEnd(lines, kids + 1, hi, indent);
     lo = items[idx] + 1; // body starts past the `- ` marker (its inline key sits at the parent indent)
     indent += 2;
   }
 
-  const chunksKey = findKeyLine(lines, lo, hi, indent, "chunks");
-  if (chunksKey < 0) throw new Error(`no 'chunks:' at indent ${indent}`);
-  const end = seqEnd(lines, chunksKey + 1, hi, indent);
-  lines.splice(end, 0, ...renderItem(indent));
+  const keyLine = findKeyLine(lines, lo, hi, indent, key);
+  if (keyLine < 0) {
+    const end = trimBack(lines, lo - 1, hi); // the chapter mapping's end, sans trailing blanks
+    lines.splice(end, 0, `${" ".repeat(indent)}${key}:`, ...renderItems(indent));
+  } else {
+    const end = seqEnd(lines, keyLine + 1, hi, indent);
+    lines.splice(end, 0, ...renderItems(indent));
+  }
   return lines.join("\n");
 }
 

@@ -170,6 +170,14 @@ export function pasteText(target: string, text: string): Promise<PasteResult> {
   return postPaste({ path: target, text });
 }
 
+/** Paste RICH content (an HTML selection: text + images + heading-nested subchapters) onto the
+ *  page at `target`. A chapter appends the chunks and subchapters; anywhere else a new chapter
+ *  is created — directory-backed when files are present, a standalone .yamlover file otherwise.
+ *  `rich` is the RichNode tree from paste-html.ts (images already inline as base64 files). */
+export function pasteRich(target: string, rich: unknown): Promise<PasteResult> {
+  return postPaste({ path: target, rich });
+}
+
 /** Delete the annotation at its node path (a standalone `<…>.yamlover` file, any directory). */
 export function deleteAnnotation(path: string): Promise<void> {
   return fetch(`/api/annotate?path=${encodeURIComponent(path)}`, { method: "DELETE" }).then(async (res) => {

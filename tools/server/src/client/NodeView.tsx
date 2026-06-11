@@ -1,5 +1,7 @@
 import { Fragment, memo, useEffect, useReducer, useState } from "react";
-import { fetchNode, fetchSchema, NodeJson, pasteFile, pasteText, PasteResult } from "./api";
+import { fetchNode, fetchSchema, NodeJson, pasteFile, pasteRich, pasteText, PasteResult } from "./api";
+import { arxivPdf, tweetUrl, fetchTweetText } from "./paste-links";
+import { countImages, htmlToRich, resolveImages, RichDraft } from "./paste-html";
 import { getRenderer } from "./renderers/registry";
 import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
 
@@ -149,9 +151,28 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
         void uploadFiles(files);
         return;
       }
+      // a web-page selection: its text/html flavor keeps the images and headings that the
+      // plain-text flavor drops — paste those as image chunks and subchapters
+      const html = e.clipboardData?.getData("text/html") ?? "";
+      const rich = html ? htmlToRich(html) : null;
+      if (rich) {
+        e.preventDefault();
+        void uploadRich(rich);
+        return;
+      }
       const text = e.clipboardData?.getData("text/plain") ?? "";
       if (!text.trim()) return;
       e.preventDefault();
+      const arxiv = arxivPdf(text);
+      if (arxiv) {
+        void uploadRemotePdf(arxiv);
+        return;
+      }
+      const tweet = tweetUrl(text);
+      if (tweet) {
+        void uploadTweet(tweet);
+        return;
+      }
       void uploadText(text);
     };
     document.addEventListener("paste", onPaste);
@@ -213,6 +234,57 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
       }
     } catch (err) {
       setPasteMsg("paste failed: " + (err as Error).message);
+      window.setTimeout(() => setPasteMsg(null), 4000);
+    }
+  };
+
+  // A pasted arXiv link: download the paper's PDF in the browser, then hand it to the normal
+  // file-paste flow (chapter → pointer chunk, directory → child, member → open).
+  const uploadRemotePdf = async ({ url, name }: { url: string; name: string }) => {
+    try {
+      setPasteMsg(`downloading ${name}…`);
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching ${url}`);
+      const blob = await resp.blob();
+      await uploadFiles([new File([blob], name, { type: "application/pdf" })]);
+    } catch (err) {
+      setPasteMsg("download failed: " + (err as Error).message);
+      window.setTimeout(() => setPasteMsg(null), 4000);
+    }
+  };
+
+  // A rich (HTML) paste: download its images in the browser, then send ONE structured payload —
+  // a chapter appends the chunks/subchapters; a directory gains a new chapter (directory-backed
+  // when images are present, so they live inside it).
+  const uploadRich = async (draft: RichDraft) => {
+    try {
+      const n = countImages(draft);
+      if (n) setPasteMsg(`downloading ${n} image${n > 1 ? "s" : ""}…`);
+      const rich = await resolveImages(draft);
+      setPasteMsg("pasting…");
+      const result = await pasteRich(path, rich);
+      setPasteMsg(result.chapter ? "chunks added" : "chapter created");
+      window.setTimeout(() => setPasteMsg(null), 1500);
+      if (result.open) {
+        onOpenUploaded?.(result);
+      } else {
+        setReloadKey((k) => k + 1);
+        onContentChanged?.(path);
+      }
+    } catch (err) {
+      setPasteMsg("paste failed: " + (err as Error).message);
+      window.setTimeout(() => setPasteMsg(null), 4000);
+    }
+  };
+
+  // A pasted tweet link: fetch the FULL message via X's public oEmbed (your Telegram-style
+  // preview, but the whole text) and paste it as TEXT — chapter chunk or new chapter file.
+  const uploadTweet = async (statusUrl: string) => {
+    try {
+      setPasteMsg("fetching tweet…");
+      await uploadText(await fetchTweetText(statusUrl));
+    } catch (err) {
+      setPasteMsg("tweet fetch failed: " + (err as Error).message);
       window.setTimeout(() => setPasteMsg(null), 4000);
     }
   };
