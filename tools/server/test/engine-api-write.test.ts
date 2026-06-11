@@ -327,3 +327,88 @@ describe("/api/paste", () => {
     expect(r.status).toBe(400);
   });
 });
+
+describe("/api/paste (text)", () => {
+  const CHAPTER = "!!<*yamlover/$defs/chapter>\n" + 'title: "T"\nchunks:\n- "Hello"\nchildren:\n- title: "Sub"\n  chunks:\n  - "First"\n';
+
+  it("text onto a directory: a new chapter .yamlover file, titled from the first line", async () => {
+    const root = tmpTree({ "dir/keep.txt": "x" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const r = await callBody(h, "POST", "/api/paste", { path: "/dir", text: "# Hello World\n\nFirst paragraph.\n" });
+    expect(r.status).toBe(201);
+    expect(r.json).toMatchObject({ path: "/dir/Hello%20World.yamlover", dir: "/dir", open: false });
+    const src = fs.readFileSync(path.join(root, "dir", "Hello World.yamlover"), "utf8");
+    expect(src).toBe('!!<*yamlover/$defs/chapter>\ntitle: "Hello World"\nchunks:\n- |\n  # Hello World\n\n  First paragraph.\n');
+
+    // the new file indexed as a chapter holding the text as its one chunk
+    const node = call(h, "/api/json", { path: "/dir/Hello%20World.yamlover", depth: "3" });
+    expect(node.json.format).toBe("x-yamlover-chapter");
+    expect(node.json.value.chunks).toEqual(["# Hello World\n\nFirst paragraph.\n"]);
+  });
+
+  it("text onto a chapter: appended as an inline chunk (no file)", async () => {
+    const root = tmpTree({ "doc/.yamlover/body.yamlover": CHAPTER });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const r = await callBody(h, "POST", "/api/paste", { path: "/doc", text: "New paragraph\nwith two lines\n" });
+    expect(r.status).toBe(201);
+    expect(r.json).toMatchObject({ path: "/doc", chapter: "/doc" });
+    expect(fs.readdirSync(path.join(root, "doc"))).toEqual([".yamlover"]); // no file landed
+
+    // the chunk sits after the existing one, before `children:` — and round-trips
+    const body = fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8");
+    expect(body).toContain('- "Hello"\n- |\n  New paragraph\n  with two lines\nchildren:');
+    const node = call(h, "/api/json", { path: "/doc", depth: "3" });
+    expect(node.json.value.chunks[1]).toBe("New paragraph\nwith two lines\n");
+  });
+
+  it("text onto a SUBCHAPTER: appended to that subchapter's chunks", async () => {
+    // subchapters get their chapter format by SCHEMA PROPAGATION (walk.ts applySchemas), which
+    // loads the hosted yamlover/$defs/chapter — so the fixture hosts a minimal one.
+    const root = tmpTree({
+      "doc/.yamlover/body.yamlover": CHAPTER,
+      "yamlover/$defs/chapter": "type: object\nproperties:\n  children:\n    type: array\n    items: *//yamlover/$defs/chapter\n",
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const r = await callBody(h, "POST", "/api/paste", { path: "/doc/children[0]", text: "deep note" });
+    expect(r.json).toMatchObject({ path: "/doc/children[0]", chapter: "/doc/children[0]" });
+    const node = call(h, "/api/json", { path: "/doc/children[0]", depth: "3" });
+    expect(node.json.value.chunks).toEqual(["First", "deep note"]);
+  });
+
+  it("text whose first line is indented falls back to a quoted scalar (block indent detection)", async () => {
+    const root = tmpTree({ "doc/.yamlover/body.yamlover": CHAPTER });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const text = "    indented first line\nplain second";
+    await callBody(h, "POST", "/api/paste", { path: "/doc", text });
+    const body = fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8");
+    expect(body).toContain(`- ${JSON.stringify(text)}`);
+    const node = call(h, "/api/json", { path: "/doc", depth: "3" });
+    expect(node.json.value.chunks[1]).toBe(text);
+  });
+
+  it("non-ASCII first line names the chapter file (Cyrillic + space)", async () => {
+    const root = tmpTree({ "dir/keep.txt": "x" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const r = await callBody(h, "POST", "/api/paste", { path: "/dir", text: "Привет мир\n\nтекст" });
+    expect(r.json.path).toBe(`/dir/${encodeURIComponent("Привет мир")}.yamlover`);
+    expect(fs.existsSync(path.join(root, "dir", "Привет мир.yamlover"))).toBe(true);
+  });
+
+  it("rejects an empty text paste", async () => {
+    const h = createHandlers(tmpTree({ name: "Alice" }), { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/paste", { path: "/", text: "   \n " });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toMatch(/empty/);
+  });
+});

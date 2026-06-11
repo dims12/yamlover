@@ -1,5 +1,5 @@
 import { Fragment, memo, useEffect, useReducer, useState } from "react";
-import { fetchNode, fetchSchema, NodeJson, pasteFile, PasteResult } from "./api";
+import { fetchNode, fetchSchema, NodeJson, pasteFile, pasteText, PasteResult } from "./api";
 import { getRenderer } from "./renderers/registry";
 import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
 
@@ -134,17 +134,25 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
 
   // Paste-to-upload: pasting clipboard file(s) uploads them — the server drops the file into this
   // directory (a directory page), appends it as a chapter chunk (a chapter page), or drops it into
-  // the nearest enclosing directory (any other page, i.e. a MEMBER of a directory). Skipped while
-  // the focus is in a text field (so annotation notes still paste text normally).
+  // the nearest enclosing directory (any other page, i.e. a MEMBER of a directory). Plain TEXT is
+  // pasted too: a chapter gains it as a new chunk; anywhere else it becomes a new chapter
+  // .yamlover file in the nearest directory. Skipped while the focus is in a text field (so
+  // annotation notes still paste text normally).
   useEffect(() => {
     if (!node) return;
     const onPaste = (e: ClipboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
       const files = clipboardFiles(e);
-      if (files.length === 0) return; // a plain text paste — leave it alone
+      if (files.length > 0) {
+        e.preventDefault();
+        void uploadFiles(files);
+        return;
+      }
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      if (!text.trim()) return;
       e.preventDefault();
-      void uploadFiles(files);
+      void uploadText(text);
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
@@ -200,6 +208,26 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
         onOpenUploaded?.(last);
       } else {
         // a directory or chapter page: refresh in place so the new file / chunk shows.
+        setReloadKey((k) => k + 1);
+        onContentChanged?.(path);
+      }
+    } catch (err) {
+      setPasteMsg("paste failed: " + (err as Error).message);
+      window.setTimeout(() => setPasteMsg(null), 4000);
+    }
+  };
+
+  // Paste TEXT by the same navigation rules: a chapter page gains a chunk (refresh in place); a
+  // member page gets a sibling chapter file the App then opens; a directory page refreshes.
+  const uploadText = async (text: string) => {
+    try {
+      setPasteMsg("pasting text…");
+      const result = await pasteText(path, text);
+      setPasteMsg(result.chapter ? "chunk added" : "chapter created");
+      window.setTimeout(() => setPasteMsg(null), 1500);
+      if (result.open) {
+        onOpenUploaded?.(result);
+      } else {
         setReloadKey((k) => k + 1);
         onContentChanged?.(path);
       }

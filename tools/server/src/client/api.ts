@@ -137,27 +137,37 @@ export function createTag(name: string): Promise<TagRef> {
   );
 }
 
-/** The result of pasting/uploading a file: the new file's node path, and (for a chapter) the
- *  chapter it was added to plus the chunk pointer appended. */
+/** The result of pasting/uploading a file or text: the new file's node path (for a text chunk,
+ *  the chapter it joined), and (for a chapter) the chapter path plus any chunk pointer appended. */
 export interface PasteResult {
-  path: string; // the uploaded file's node path
+  path: string; // the new file's node path (a text chunk: the chapter's own path)
   chapter?: string; // the chapter the chunk was appended to (chapter paste only)
-  pointer?: string; // the `*…` chunk pointer appended (chapter paste only)
+  pointer?: string; // the `*…` chunk pointer appended (chapter FILE paste only)
   dir?: string; // the enclosing directory the file landed in (directory/member paste)
   open?: boolean; // true when the page was a MEMBER of a directory → open the new file
 }
 
-/** Upload a pasted file onto the page at `target` (a directory or a chapter). */
-export function pasteFile(target: string, filename: string, contentBase64: string): Promise<PasteResult> {
+function postPaste(body: Record<string, unknown>): Promise<PasteResult> {
   return fetch("/api/paste", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: target, filename, contentBase64 }),
+    body: JSON.stringify(body),
   }).then(async (res) => {
-    const body = await res.json();
-    if (!res.ok) throw new Error((body && body.error) || `HTTP ${res.status}`);
-    return body as PasteResult;
+    const json = await res.json();
+    if (!res.ok) throw new Error((json && json.error) || `HTTP ${res.status}`);
+    return json as PasteResult;
   });
+}
+
+/** Upload a pasted file onto the page at `target` (a directory or a chapter). */
+export function pasteFile(target: string, filename: string, contentBase64: string): Promise<PasteResult> {
+  return postPaste({ path: target, filename, contentBase64 });
+}
+
+/** Paste plain TEXT onto the page at `target`: a chapter gains it as a new chunk; anywhere else
+ *  it becomes a new chapter .yamlover file in the nearest enclosing directory. */
+export function pasteText(target: string, text: string): Promise<PasteResult> {
+  return postPaste({ path: target, text });
 }
 
 /** Delete the annotation at its node path (a standalone `<…>.yamlover` file, any directory). */

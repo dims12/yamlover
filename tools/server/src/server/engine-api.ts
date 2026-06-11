@@ -378,10 +378,12 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Upload a pasted file (a WRITE path). Onto a DIRECTORY page → the file lands in that
-      // directory. Onto a CHAPTER page → the file lands in the chapter's owning directory AND a
-      // `*…` pointer to it is appended as the chapter's last chunk. Body: { path, filename,
-      // contentBase64 }. A new file / edited chapter source needs the graph re-walked — a
+      // Upload a pasted file or TEXT (a WRITE path). A file onto a DIRECTORY page → it lands in
+      // that directory; onto a CHAPTER page → it lands in the chapter's owning directory AND a
+      // `*…` pointer to it is appended as the chapter's last chunk. TEXT onto a chapter → the
+      // text itself is appended as a new chunk (no file); anywhere else → a new chapter
+      // .yamlover file in the nearest directory. Body: { path, filename, contentBase64 } or
+      // { path, text }. A new file / edited chapter source needs the graph re-walked — a
       // manifest-cached reconcile, so only the new/edited files are read.
       if (req.method === "POST" && url.pathname === "/api/paste") {
         readBody(req)
@@ -923,14 +925,17 @@ function deleteAnnotation(dataRoot: string, s: Store, annPath: string): void {
 }
 
 // --------------------------------------------------------------------------- //
-// Paste / upload — drop a clipboard file into the tree. A directory target takes the file as a
-// new child; a chapter target takes it into its owning directory and gains a `*…` pointer chunk.
+// Paste / upload — drop a clipboard file OR plain text into the tree. A file: a directory target
+// takes it as a new child; a chapter target takes it into its owning directory and gains a `*…`
+// pointer chunk. Text: a chapter target gains it as an inline chunk (no file); any other target
+// gets a new chapter .yamlover file in the nearest directory, the text as its one chunk.
 // --------------------------------------------------------------------------- //
 
 interface PasteInput {
   path: string; // the page's node path (a directory or a chapter)
-  filename: string; // the source filename (sanitized + de-duplicated server-side)
-  contentBase64: string; // the file bytes, base64
+  filename?: string; // file mode: the source filename (sanitized + de-duplicated server-side)
+  contentBase64?: string; // file mode: the file bytes, base64
+  text?: string; // text mode: the clipboard's plain text (mutually exclusive with the above)
 }
 
 /** Handle a paste/upload onto the node at `input.path`. Returns the new file's node path and,
@@ -939,9 +944,17 @@ function handlePaste(dataRoot: string, s: Store, input: PasteInput): Record<stri
   const segs = strToSegs(input.path || "/");
   const row = s.node(storePath(segs));
   if (!row) throw new Error(`no such node: ${input.path}`);
+
+  if (typeof input.text === "string") {
+    const text = input.text.replace(/\r\n?/g, "\n");
+    if (text.trim().length === 0) throw new Error("empty paste (no text)");
+    if (row.format === "x-yamlover-chapter") return pasteTextIntoChapter(dataRoot, s, segs, text);
+    return pasteTextAsChapterFile(dataRoot, segs, text);
+  }
+
   const bytes = Buffer.from(input.contentBase64 || "", "base64");
   if (bytes.length === 0) throw new Error("empty paste (no file bytes)");
-  const name = sanitizeName(input.filename);
+  const name = sanitizeName(input.filename ?? "");
 
   if (row.format === "x-yamlover-chapter") return pasteIntoChapter(dataRoot, s, segs, name, bytes);
 
@@ -967,18 +980,23 @@ function nearestDirSegs(dataRoot: string, segs: Seg[]): Seg[] | null {
   return null;
 }
 
-/** A chapter paste: write the file into the chapter's owning directory, then append a pointer to
- *  it as the chapter's last chunk (editing the .yamlover source). The chapter is either directory-
- *  backed (`.yamlover/body.yamlover`) or a standalone `*.yamlover` file. */
-function pasteIntoChapter(dataRoot: string, s: Store, segs: Seg[], name: string, bytes: Buffer): Record<string, unknown> {
+/** The .yamlover source holding the chapter at `segs` — directory-backed
+ *  (`.yamlover/body.yamlover`) or a standalone `*.yamlover` file — plus its document root. */
+function chapterSource(dataRoot: string, s: Store, segs: Seg[]): { docSegs: Seg[]; bodyFile: string; dirBacked: boolean } {
   const docSegs = documentRootSegs(s, segs);
   const docFs = path.resolve(dataRoot, ...docSegs.map(String));
   const dirBacked = fs.existsSync(docFs) && fs.statSync(docFs).isDirectory();
-
   const bodyFile = dirBacked ? path.join(docFs, ".yamlover", "body.yamlover") : docFs;
   if (!bodyFile.endsWith(".yamlover") || !fs.existsSync(bodyFile)) {
     throw new Error("unsupported chapter source (need a .yamlover body)");
   }
+  return { docSegs, bodyFile, dirBacked };
+}
+
+/** A chapter paste: write the file into the chapter's owning directory, then append a pointer to
+ *  it as the chapter's last chunk (editing the .yamlover source). */
+function pasteIntoChapter(dataRoot: string, s: Store, segs: Seg[], name: string, bytes: Buffer): Record<string, unknown> {
+  const { docSegs, bodyFile, dirBacked } = chapterSource(dataRoot, s, segs);
   // the file lands in the doc-root dir (directory-backed) or beside the standalone chapter file.
   const writeDirSegs = dirBacked ? docSegs : docSegs.slice(0, -1);
   const writeDir = path.resolve(dataRoot, ...writeDirSegs.map(String));
@@ -992,8 +1010,46 @@ function pasteIntoChapter(dataRoot: string, s: Store, segs: Seg[], name: string,
   // The chapter's location WITHIN its document — alternating `children`,N pairs (empty = top-level).
   const within = segs.slice(docSegs.length);
   const src = fs.readFileSync(bodyFile, "utf8");
-  fs.writeFileSync(bodyFile, appendChunkPointer(src, within, pointer));
+  fs.writeFileSync(bodyFile, appendChunk(src, within, (indent) => [`${" ".repeat(indent)}- ${pointer}`]));
   return { path: segsToStr(fileSegs), chapter: segsToStr(segs), pointer };
+}
+
+/** A text paste onto a chapter: the text itself becomes the chapter's last chunk — no file is
+ *  written, only the .yamlover source gains an item. */
+function pasteTextIntoChapter(dataRoot: string, s: Store, segs: Seg[], text: string): Record<string, unknown> {
+  const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
+  const within = segs.slice(docSegs.length);
+  const src = fs.readFileSync(bodyFile, "utf8");
+  fs.writeFileSync(bodyFile, appendChunk(src, within, (indent) => textChunkLines(text, indent)));
+  return { path: segsToStr(segs), chapter: segsToStr(segs) };
+}
+
+/** A text paste onto anything that is NOT a chapter: a new chapter .yamlover file lands in the
+ *  nearest enclosing directory — title from the text's first line, the text as its one chunk. */
+function pasteTextAsChapterFile(dataRoot: string, segs: Seg[], text: string): Record<string, unknown> {
+  const dirSegs = nearestDirSegs(dataRoot, segs);
+  if (!dirSegs) throw new Error("no enclosing directory to paste into");
+  const dir = path.resolve(dataRoot, ...dirSegs.map(String));
+  const title = titleFromText(text);
+  const final = uniqueName(dir, chapterFileName(title));
+  const src = ["!!<*yamlover/$defs/chapter>", `title: ${JSON.stringify(title)}`, "chunks:", ...textChunkLines(text, 0), ""].join("\n");
+  writeInside(dataRoot, dir, final, Buffer.from(src, "utf8"));
+  return { path: segsToStr([...dirSegs, final]), dir: segsToStr(dirSegs), open: dirSegs.length !== segs.length };
+}
+
+/** A title for a pasted-text chapter: the first content line, sans any markdown heading
+ *  marker, clipped to 80 chars. */
+function titleFromText(text: string): string {
+  const first = text.split("\n").find((l) => l.trim().length > 0)?.trim() ?? "";
+  const t = first.replace(/^#{1,6}\s+/, "").trim();
+  return (t.length > 80 ? t.slice(0, 79).trimEnd() + "…" : t) || "Pasted text";
+}
+
+/** A filename for a new chapter file, from its title: unicode letters/digits/space/dot/dash kept
+ *  (non-ASCII names are first-class — see uniqueName for collisions), never hidden. */
+function chapterFileName(title: string): string {
+  const base = title.replace(/[^\p{L}\p{N} ._-]+/gu, " ").replace(/\s+/g, " ").trim().slice(0, 60).trim().replace(/^\.+/, "");
+  return `${base || "pasted"}.yamlover`;
 }
 
 /** A safe filename: basename only, restricted charset, never hidden; defaults when empty. */
@@ -1029,9 +1085,23 @@ function writeInside(dataRoot: string, dir: string, name: string, bytes: Buffer)
 const indentOf = (line: string): number => { let i = 0; while (line[i] === " ") i++; return i; };
 const isContentLine = (line: string): boolean => { const t = line.trim(); return t.length > 0 && !t.startsWith("#"); };
 
-/** Append `- <pointer>` to the `chunks` list of the chapter at `chapterPath` (alternating
- *  ["children", N, …] pairs; empty = the top-level chapter) within a .yamlover source. */
-function appendChunkPointer(text: string, chapterPath: Seg[], pointer: string): string {
+/** Render a pasted text as the lines of one `- ` chunk item at `indent`. A literal block scalar
+ *  when the text round-trips — the parser detects the block indent from the FIRST content line,
+ *  so it must be unindented; else one double-quoted line (JSON escapes — exactly the subset
+ *  quotedScalar reads back). */
+function textChunkLines(text: string, indent: number): string[] {
+  const pad = " ".repeat(indent);
+  const first = text.split("\n").find((l) => l.trim().length > 0);
+  if (!first || /^\s/.test(first)) return [`${pad}- ${JSON.stringify(text)}`];
+  const body = text.endsWith("\n") ? text.slice(0, -1) : text;
+  const head = text.endsWith("\n") ? "|" : "|-"; // the chomping matches the text's own ending
+  return [`${pad}- ${head}`, ...body.split("\n").map((l) => (l.trim().length ? `${pad}  ${l}` : ""))];
+}
+
+/** Append one item (rendered by `renderItem` at the list's indent) to the `chunks` list of the
+ *  chapter at `chapterPath` (alternating ["children", N, …] pairs; empty = the top-level
+ *  chapter) within a .yamlover source. */
+function appendChunk(text: string, chapterPath: Seg[], renderItem: (indent: number) => string[]): string {
   const lines = text.split("\n");
   let lo = 0;
   let hi = lines.length;
@@ -1051,7 +1121,7 @@ function appendChunkPointer(text: string, chapterPath: Seg[], pointer: string): 
   const chunksKey = findKeyLine(lines, lo, hi, indent, "chunks");
   if (chunksKey < 0) throw new Error(`no 'chunks:' at indent ${indent}`);
   const end = seqEnd(lines, chunksKey + 1, hi, indent);
-  lines.splice(end, 0, `${" ".repeat(indent)}- ${pointer}`);
+  lines.splice(end, 0, ...renderItem(indent));
   return lines.join("\n");
 }
 
