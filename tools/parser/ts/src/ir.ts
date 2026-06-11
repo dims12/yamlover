@@ -76,7 +76,7 @@ export interface Entry {
   value: Value;
   meta?: EntryMeta;
 }
-export interface EntryMeta { span?: Span; anchor?: string; }
+export interface EntryMeta { span?: Span; anchor?: string; } // span: not yet populated (pointer spans first)
 
 export type Value = Node | Pointer; // Node iff edge==='contain'; Pointer iff ref/back
 
@@ -85,6 +85,10 @@ export interface Pointer {
   base: PointerBase;
   steps: Step[];
   raw: string; // verbatim pointer text after `*` (round-trip + diagnostics)
+  /** Source extent of the WHOLE deref token — from the `*` sigil through the end of the
+   *  (possibly quoted) pointer text — as absolute offsets into `span.uri`. Filled by the
+   *  parsers; the engine's `mv` rewrites exactly this range (surgical, format-preserving). */
+  span?: Span;
 }
 
 export type PointerBase =

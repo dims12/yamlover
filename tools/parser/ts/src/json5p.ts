@@ -10,7 +10,7 @@ import { parsePointer } from './pointer.ts';
 const WS = new Set([' ', '\t', '\n', '\r', '\v', '\f', ' ', '﻿']);
 
 export function parseJson5p(src: string, uri = '<json5p>'): Document {
-  const p = new Parser(src);
+  const p = new Parser(src, uri);
   p.ws();
   const root = p.value();
   p.ws();
@@ -21,10 +21,11 @@ export function parseJson5p(src: string, uri = '<json5p>'): Document {
 
 class Parser {
   src: string;
+  uri: string;
   i = 0;
   anchors = new Map<string, Node>();
 
-  constructor(src: string) { this.src = src; }
+  constructor(src: string, uri: string) { this.src = src; this.uri = uri; }
 
   fail(msg: string): never {
     throw new SyntaxError(`json5p: ${msg} at offset ${this.i}`);
@@ -138,11 +139,14 @@ class Parser {
   }
 
   pointer(): import('./ir.ts').Pointer {
-    this.i++; // *
+    const start = this.i; // at '*'
+    this.i++;
     const c = this.peek();
     if (c !== '"' && c !== "'") this.fail('a json5p pointer must be a quoted string after "*"');
     const s = this.string();
-    return parsePointer(s.value as string);
+    const p = parsePointer(s.value as string);
+    p.span = { uri: this.uri, start, end: this.i }; // `*` + the quoted pointer string
+    return p;
   }
 
   anchored(): Node {

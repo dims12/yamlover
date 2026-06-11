@@ -8,20 +8,31 @@
 // NOT yet handled (Phase 2c TODO): block scalars (`|`, `>`), tags (`!!`), multi-document
 // (`---`), merge keys (`<<`), and flow that spans multiple lines.
 
-import type { Document, Node, Mapping, Scalar, Entry, Value, Pointer } from './ir.ts';
+import type { Document, Node, Mapping, Scalar, Entry, Value, Pointer, Span } from './ir.ts';
 import { isPointer } from './ir.ts';
 import { parsePointer } from './pointer.ts';
 
 interface Line { indent: number; text: string; n: number }
 
 export function parseYamlover(src: string, uri = '<yamlover>'): Document {
-  const raw = src.split(/\r\n|\r|\n/);
-  const p = new Block(lex(raw), raw, uri);
+  // one pass: lines + their absolute start offsets (separators vary — \r\n is 2 chars)
+  const raw: string[] = [];
+  const lineStarts: number[] = [];
+  const sep = /\r\n|\r|\n/g;
+  let at = 0;
+  for (let m = sep.exec(src); m !== null; m = sep.exec(src)) {
+    raw.push(src.slice(at, m.index));
+    lineStarts.push(at);
+    at = m.index + m[0].length;
+  }
+  raw.push(src.slice(at));
+  lineStarts.push(at);
+  const p = new Block(lex(raw), raw, uri, lineStarts);
   // a document-root schema tag on its own line: `!!<*yamlover/$defs/chapter>`
   let rootSchema: Value | undefined;
   const first = p.peek();
   if (first && /^!!<[^>]*>$/.test(first.text.trim())) {
-    rootSchema = parseSchemaRef(first.text.trim().slice(3, -1));
+    rootSchema = parseSchemaRef(first.text.trim().slice(3, -1), { block: p, lineN: first.n, col: first.indent + 3 });
     p.i++;
   }
   const root = p.node(0) ?? nul();
@@ -65,11 +76,22 @@ class Block {
   lines: Line[];
   raw: string[];      // all source lines (for block scalars, which keep blanks and `#`)
   uri: string;        // source path/id, surfaced in parse-error messages
+  lineStarts: number[]; // absolute offset of each raw line's first character
   i = 0;
   anchors = new Map<string, Node>();
   typed = new WeakMap<Node, 'mix' | 'omni' | 'set'>(); // nodes typed via `!!mix`/`!!omni`/`!!set`
 
-  constructor(lines: Line[], raw: string[], uri = '<yamlover>') { this.lines = lines; this.raw = raw; this.uri = uri; }
+  constructor(lines: Line[], raw: string[], uri = '<yamlover>', lineStarts: number[] = []) {
+    this.lines = lines; this.raw = raw; this.uri = uri; this.lineStarts = lineStarts;
+  }
+
+  /** Absolute span of `len` chars starting at column `col` of raw line `lineN`. Valid
+   *  because every Line.text is a prefix-aligned slice of its raw line (lex strips only
+   *  the comment/trailing-ws SUFFIX), so tracked columns are raw-line columns. */
+  spanAt(lineN: number, col: number, len: number): Span {
+    const start = (this.lineStarts[lineN] ?? 0) + col;
+    return { uri: this.uri, start, end: start + len };
+  }
 
   /** Enforce: mixing keyed+keyless entries needs `!!mix`. A scalar/blob value WITH fields (the
    *  omni shape) needs NO tag: a deeper-indented block under a scalar value is invalid YAML, so
@@ -106,12 +128,12 @@ class Block {
     // own line (its inline value, plus the fields/entries below it) parses as that value.
     if (/^!!(mix|omni|set)(?=\s|$)/.test(l.text)) {
       this.i++;
-      return this.valueAfter(l.text, l.indent - 1, l.n);
+      return this.valueAfter(l.text, l.indent - 1, l.n, l.indent);
     }
     if (isSeqLine(l.text) || isBackSeqLine(l.text) || splitKV(l.text)) return this.container(l.indent);
     // a lone scalar/flow/pointer/anchor occupying the line
     this.i++;
-    return this.valueInline(l.text, l.indent, /*allowBlock*/ true);
+    return this.valueInline(l.text, l.indent, /*allowBlock*/ true, l.n, l.indent);
   }
 
   /**
@@ -146,7 +168,7 @@ class Block {
           this.lines[this.i] = { indent: contentCol, text: rest, n: l.n };
           value = this.container(contentCol);
         } else {
-          value = this.valueAfter(rest, indent, l.n);
+          value = this.valueAfter(rest, indent, l.n, contentCol);
         }
         entry = { key: null, edge: isPointer(value) ? 'ref' : 'contain', value };
       } else if (isBackSeqLine(l.text)) {
@@ -154,9 +176,12 @@ class Block {
         // names the container that holds this node, so it must be a pointer.
         if (keylessOnly) break;
         this.i++;
-        const rest = l.text.slice(2).trim();
+        const a = adv(l.text, 2, l.indent); // past the `~-` marker, to the pointer token
+        const rest = a.rest;
         if (!rest.startsWith('*')) this.fail('a "~-" entry needs a pointer value (the container that holds this node)');
-        value = parsePointer(unquoteIfQuoted(rest.slice(1)));
+        const ptr = parsePointer(unquoteIfQuoted(rest.slice(1)));
+        ptr.span = this.spanAt(l.n, a.col, rest.length);
+        value = ptr;
         entry = { key: null, edge: 'back', value };
       } else {
         // a keyed entry
@@ -168,7 +193,7 @@ class Block {
         let key = kv.key;
         let back = false;
         if (key.startsWith('~')) { back = true; key = key.slice(1); }
-        value = this.valueAfter(kv.rest, indent, l.n);
+        value = this.valueAfter(kv.rest, indent, l.n, l.indent + kv.restCol);
         entry = { key: unquoteKey(key), edge: back ? 'back' : isPointer(value) ? 'ref' : 'contain', value };
       }
       entries.push(entry);
@@ -180,26 +205,27 @@ class Block {
     return { kind: 'mapping', entries, array };
   }
 
-  /** The value after `key:` or `- ` (inline `rest`, with a possible deeper block). */
-  valueAfter(rest: string, parentIndent: number, srcLineN: number): Value {
-    rest = rest.trim();
+  /** The value after `key:` or `- ` (inline `rest`, with a possible deeper block).
+   *  `col` = the column of `rest` in raw line `srcLineN` (span tracking). */
+  valueAfter(rest: string, parentIndent: number, srcLineN: number, col: number): Value {
+    ({ rest, col } = adv(rest, 0, col));
     let schema: Value | undefined;
     if (rest.startsWith('!!<')) {
       const close = rest.indexOf('>');
       if (close < 0) this.fail('unterminated "!!<…>" schema tag');
-      schema = parseSchemaRef(rest.slice(3, close));
-      rest = rest.slice(close + 1).trim();
+      schema = parseSchemaRef(rest.slice(3, close), { block: this, lineN: srcLineN, col: col + 3 });
+      ({ rest, col } = adv(rest, close + 1, col));
     }
     // an opt-in type tag in value position: `key: !!mix` (mixed container), `key: !!omni 5`
     // (scalar value + fields), or `key: !!set` (set-semantics container — NodeMeta.set).
     let typeTag: 'mix' | 'omni' | 'set' | undefined;
     const tag = /^!!(mix|omni|set)(?=\s|$)/.exec(rest);
-    if (tag) { typeTag = tag[1] as 'mix' | 'omni' | 'set'; rest = rest.slice(tag[0].length).trim(); }
+    if (tag) { typeTag = tag[1] as 'mix' | 'omni' | 'set'; ({ rest, col } = adv(rest, tag[0].length, col)); }
     let anchor: string | undefined;
     if (rest.startsWith('&')) {
       const r = readName(rest.slice(1));
       anchor = r.name;
-      rest = r.rest.trim();
+      ({ rest, col } = adv(rest, 1 + r.name.length, col));
     }
     let value: Value;
     if (/^[|>][+-]?\d*$/.test(rest)) {
@@ -220,7 +246,7 @@ class Block {
         value = this.node(parentIndent + 1) ?? nul();
       }
     } else {
-      value = this.valueInline(rest, parentIndent, /*allowBlock*/ false);
+      value = this.valueInline(rest, parentIndent, /*allowBlock*/ false, srcLineN, col);
       value = this.attachFields(value, parentIndent);
     }
     if (anchor !== undefined) {
@@ -278,16 +304,25 @@ class Block {
     return { kind: 'scalar', value: body, raw: body };
   }
 
-  /** Parse a single-line inline value: flow, pointer, anchor, quoted or plain scalar. */
-  valueInline(text: string, parentIndent: number, allowBlock: boolean): Value {
-    text = text.trim();
+  /** Parse a single-line inline value: flow, pointer, anchor, quoted or plain scalar.
+   *  `col` = the column of `text` in raw line `lineN` (span tracking). */
+  valueInline(text: string, parentIndent: number, allowBlock: boolean, lineN: number, col: number): Value {
+    ({ rest: text, col } = adv(text, 0, col));
     const c = text[0];
-    if (c === '{' || c === '[') return new Flow(text, this.anchors).parse();
-    if (c === '*') return parsePointer(unquoteIfQuoted(text.slice(1)));
+    if (c === '{' || c === '[') {
+      return new Flow(text, this.anchors, this.uri, (this.lineStarts[lineN] ?? 0) + col).parse();
+    }
+    if (c === '*') {
+      const p = parsePointer(unquoteIfQuoted(text.slice(1)));
+      p.span = this.spanAt(lineN, col, text.length); // the whole `*…` deref token
+      return p;
+    }
     if (c === '&') {
       const r = readName(text.slice(1));
-      const rest = r.rest.trim();
-      const v = rest === '' && allowBlock ? (this.node(parentIndent + 1) ?? nul()) : this.valueInline(rest, parentIndent, allowBlock);
+      const a = adv(text, 1 + r.name.length, col);
+      const v = a.rest === '' && allowBlock
+        ? (this.node(parentIndent + 1) ?? nul())
+        : this.valueInline(a.rest, parentIndent, allowBlock, lineN, a.col);
       if (isPointer(v)) this.fail('cannot anchor a pointer');
       this.anchors.set(r.name, v);
       return v;
@@ -302,8 +337,12 @@ class Flow {
   s: string;
   i = 0;
   anchors: Map<string, Node>;
+  uri: string;
+  base: number; // absolute offset of s[0] in the source (span tracking)
 
-  constructor(s: string, anchors: Map<string, Node>) { this.s = s; this.anchors = anchors; }
+  constructor(s: string, anchors: Map<string, Node>, uri = '<flow>', base = 0) {
+    this.s = s; this.anchors = anchors; this.uri = uri; this.base = base;
+  }
 
   fail(msg: string): never { throw new SyntaxError(`yamlover (flow): ${msg} at offset ${this.i}`); }
 
@@ -321,7 +360,13 @@ class Flow {
     const c = this.s[this.i];
     if (c === '{') return this.map();
     if (c === '[') return this.seq();
-    if (c === '*') { this.i++; return parsePointer(unquoteIfQuoted(this.readPlain())); }
+    if (c === '*') {
+      const start = this.i;
+      this.i++;
+      const p = parsePointer(unquoteIfQuoted(this.readPlain()));
+      p.span = { uri: this.uri, start: this.base + start, end: this.base + this.i };
+      return p;
+    }
     if (c === '&') {
       this.i++;
       const r = readName(this.s.slice(this.i));
@@ -413,9 +458,10 @@ function isBackSeqLine(text: string): boolean {
   return text === '~-' || text.startsWith('~- ');
 }
 
-/** Find the `key:` split: the first unquoted `:` followed by space or EOL.
+/** Find the `key:` split: the first unquoted `:` followed by space or EOL. `restCol` is
+ *  the offset of `rest` WITHIN `text` (for span tracking).
  *  (Exported for the serializer: a plain token that splits here must be quoted.) */
-export function splitKV(text: string): { key: string; rest: string } | null {
+export function splitKV(text: string): { key: string; rest: string; restCol: number } | null {
   let inS = false;
   let inD = false;
   for (let i = 0; i < text.length; i++) {
@@ -425,19 +471,35 @@ export function splitKV(text: string): { key: string; rest: string } | null {
     else if (c === ':' && !inS && !inD) {
       const next = text[i + 1];
       if (next === undefined || next === ' ' || next === '\t') {
-        return { key: text.slice(0, i).trim(), rest: text.slice(i + 1).trim() };
+        const after = text.slice(i + 1);
+        const lead = after.length - after.trimStart().length;
+        return { key: text.slice(0, i).trim(), rest: after.trim(), restCol: i + 1 + lead };
       }
     }
   }
   return null;
 }
 
+/** s.slice(k).trim(), advancing the column past `k` and the leading whitespace —
+ *  the span-tracking twin of the parser's re-slice+trim steps. */
+function adv(s: string, k: number, col: number): { rest: string; col: number } {
+  const sliced = s.slice(k);
+  const lead = sliced.length - sliced.trimStart().length;
+  return { rest: sliced.trim(), col: col + k + lead };
+}
+
 /** The contents of a `!!<…>` schema tag are themselves yamlover, yielding the attached
  *  schema as a Value: a Pointer to a hosted schema (`*yamlover/$defs/chapter`, or a link
- *  `https://…`) OR an inline schema Node (`format: text/x-plantuml`, `{type: string}`). */
-function parseSchemaRef(src: string): Value {
+ *  `https://…`) OR an inline schema Node (`format: text/x-plantuml`, `{type: string}`).
+ *  `at` (when known) locates `src` in its raw line, so a schema pointer gets a span too. */
+function parseSchemaRef(src: string, at?: { block: Block; lineN: number; col: number }): Value {
+  const lead = src.length - src.trimStart().length;
   src = src.trim();
-  if (src.startsWith('*')) return parsePointer(src.slice(1)); // a pointer to a hosted schema
+  if (src.startsWith('*')) {
+    const p = parsePointer(src.slice(1)); // a pointer to a hosted schema
+    if (at !== undefined) p.span = at.block.spanAt(at.lineN, at.col + lead, src.length);
+    return p;
+  }
   return parseYamlover(src).root;                              // inline yamlover/meta literal
 }
 
