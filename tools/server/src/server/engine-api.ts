@@ -25,7 +25,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Store, reindex, watchTree, loadSettings, mv } from "../../../engine/ts/src/index.ts";
+import { Store, reindex, watchTree, loadSettings, mv, relinkMoved } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { buildGitIgnore } from "./gitignore.js";
@@ -71,14 +71,30 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   // SSE subscribers; each reindex that found changes broadcasts its diff as client JSON paths.
   const sseClients = new Set<ServerResponse>();
   const broadcast = (diff: IndexDiff): void => {
-    if (diff.added.length + diff.changed.length + diff.removed.length === 0) return;
+    if (diff.added.length + diff.changed.length + diff.removed.length + diff.moved.length === 0) return;
     const toClient = (rel: string): string => segsToStr(rel.split("/"));
     const payload = JSON.stringify({
       added: diff.added.map(toClient), changed: diff.changed.map(toClient), removed: diff.removed.map(toClient),
+      moved: diff.moved.map((m) => ({ from: toClient(m.from), to: toClient(m.to) })),
     });
     for (const res of sseClients) res.write(`data: ${payload}\n\n`);
   };
-  const stopWatch = opts.watch ? watchTree(dataRoot, () => broadcast(doReindex()), { ignore }) : null;
+  // An UNMEDIATED move (mv in a shell, a file manager) shows up as an inferred `moved` —
+  // relink the inbound refs the way the mediated tier would (ENGINE.md tier 2: "inferred
+  // as a move and relinked"), then reconcile once more so the rewritten files re-index.
+  const reconcile = (): IndexDiff => {
+    const diff = doReindex();
+    if (diff.moved.length > 0) {
+      const r = relinkMoved(dataRoot, diff.moved, { ignore });
+      if (r.editedFiles.length > 0) {
+        const follow = doReindex();
+        diff.changed = [...new Set([...diff.changed, ...follow.changed])];
+      }
+    }
+    broadcast(diff);
+    return diff;
+  };
+  const stopWatch = opts.watch ? watchTree(dataRoot, () => reconcile(), { ignore }) : null;
 
   const handler: Handler = (req, res, url) => {
     try {
@@ -98,11 +114,10 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Manual reconcile — the watcher's fallback; responds with what changed.
+      // Manual reconcile — the watcher's fallback; responds with what changed (inferred
+      // moves are relinked, like the watcher path).
       if (req.method === "POST" && url.pathname === "/api/reindex") {
-        const diff = doReindex();
-        broadcast(diff);
-        sendJson(res, 200, diff);
+        sendJson(res, 200, reconcile());
         return;
       }
 

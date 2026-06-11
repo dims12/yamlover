@@ -34,7 +34,7 @@ test('reindex reports added / changed / removed files across runs', () => {
 
   // no edits → an empty diff (and the index still answers)
   const second = reindex(s, root);
-  assert.deepEqual(second, { added: [], changed: [], removed: [] });
+  assert.deepEqual(second, { added: [], changed: [], removed: [], moved: [] });
   assert.equal(s.node('/b.yamlover/x')?.value, 1);
 
   // one modified, one new, one gone
@@ -42,7 +42,7 @@ test('reindex reports added / changed / removed files across runs', () => {
   writeFileSync(join(root, 'c.md'), '# c');
   rmSync(join(root, 'a.md'));
   const third = reindex(s, root);
-  assert.deepEqual(third, { added: ['c.md'], changed: ['b.yamlover'], removed: ['a.md'] });
+  assert.deepEqual(third, { added: ['c.md'], changed: ['b.yamlover'], removed: ['a.md'], moved: [] });
   assert.equal(s.node('/b.yamlover/x')?.value, 2);
   assert.equal(s.node('/a.md'), null);
 });
@@ -80,8 +80,54 @@ test('hash cache: an unchanged (size, mtime) blob is not re-read', () => {
   writeFileSync(png, Buffer.from([0x00, 0x01, 0x02, 0x03]));
   utimesSync(png, T, T);
   const diff = reindex(s, root);
-  assert.deepEqual(diff, { added: [], changed: [], removed: [] });
+  assert.deepEqual(diff, { added: [], changed: [], removed: [], moved: [] });
   assert.equal(s.node('/pic.png')?.content_hash, hash1);
+});
+
+// --------------------------------------------------------------------------- //
+// move inference (ENGINE.md tiers 2/3): removed + added with one hash ⇒ moved
+// --------------------------------------------------------------------------- //
+
+test('move inference: an unambiguous rename is reported as moved, not added+removed', () => {
+  const root = tmpRoot();
+  writeFileSync(join(root, 'old.md'), '# unique content');
+  const s = new Store(':memory:');
+  reindex(s, root);
+
+  rmSync(join(root, 'old.md'));
+  writeFileSync(join(root, 'new.md'), '# unique content');
+  const diff = reindex(s, root);
+  assert.deepEqual(diff, { added: [], changed: [], removed: [], moved: [{ from: 'old.md', to: 'new.md' }] });
+});
+
+test('move inference: duplicate content is ambiguous — the engine declines to guess', () => {
+  const root = tmpRoot();
+  writeFileSync(join(root, 'a.md'), 'same');
+  writeFileSync(join(root, 'b.md'), 'same');
+  const s = new Store(':memory:');
+  reindex(s, root);
+
+  rmSync(join(root, 'a.md'));
+  rmSync(join(root, 'b.md'));
+  writeFileSync(join(root, 'c.md'), 'same');
+  const diff = reindex(s, root);
+  assert.deepEqual(diff.moved, []);
+  assert.deepEqual(diff.added, ['c.md']);
+  assert.deepEqual(new Set(diff.removed), new Set(['a.md', 'b.md']));
+});
+
+test('move inference: a rename-plus-edit stays added+removed (hash differs)', () => {
+  const root = tmpRoot();
+  writeFileSync(join(root, 'old.md'), 'v1');
+  const s = new Store(':memory:');
+  reindex(s, root);
+
+  rmSync(join(root, 'old.md'));
+  writeFileSync(join(root, 'new.md'), 'v2');
+  const diff = reindex(s, root);
+  assert.deepEqual(diff.moved, []);
+  assert.deepEqual(diff.added, ['new.md']);
+  assert.deepEqual(diff.removed, ['old.md']);
 });
 
 // --------------------------------------------------------------------------- //

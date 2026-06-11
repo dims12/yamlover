@@ -169,8 +169,12 @@ export function App() {
     const es = new EventSource("/api/events");
     es.onmessage = (ev) => {
       try {
-        const diff = JSON.parse(ev.data) as { added: string[]; changed: string[]; removed: string[] };
-        const paths = [...diff.added, ...diff.changed, ...diff.removed];
+        const diff = JSON.parse(ev.data) as {
+          added: string[]; changed: string[]; removed: string[];
+          moved?: { from: string; to: string }[]; // inferred moves (frame-compatible: optional)
+        };
+        const paths = [...diff.added, ...diff.changed, ...diff.removed,
+          ...(diff.moved ?? []).flatMap((m) => [m.from, m.to])];
         if (!paths.length) return;
         refreshBranches(paths).catch(() => {});
         const cur = currentRef.current;

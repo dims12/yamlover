@@ -29,7 +29,7 @@ describe("reconcile: external edits reach the index", () => {
 
     const r = await callBody(h, "POST", "/api/reindex");
     expect(r.status).toBe(200);
-    expect(r.json).toEqual({ added: ["b.md"], changed: [], removed: [] });
+    expect(r.json).toEqual({ added: ["b.md"], changed: [], removed: [], moved: [] });
     expect(treeLabels(h)).toEqual(["a.md", "b.md"]);
     expect(call(h, "/api/json", { path: "/b.md" }).json.value).toBe("# b");
   });
@@ -41,7 +41,7 @@ describe("reconcile: external edits reach the index", () => {
     fs.writeFileSync(path.join(root, "b.yamlover"), "x: 2\n");
 
     const r = await callBody(h, "POST", "/api/reindex");
-    expect(r.json).toEqual({ added: [], changed: ["b.yamlover"], removed: ["a.md"] });
+    expect(r.json).toEqual({ added: [], changed: ["b.yamlover"], removed: ["a.md"], moved: [] });
     expect(treeLabels(h)).toEqual(["b.yamlover"]);
     expect(call(h, "/api/json", { path: "/b.yamlover/x" }).json.value).toBe(2);
   });
@@ -53,6 +53,21 @@ describe("reconcile: external edits reach the index", () => {
     fs.writeFileSync(path.join(root, "b.md"), "# b"); // an edit while "down"
     const h2 = handlers(root); // startup reconcile picks it up
     expect(treeLabels(h2)).toEqual(["a.md", "b.md"]);
+  });
+
+  it("an external rename is inferred as a move and the inbound refs are RELINKED", async () => {
+    const root = tmpTree({ "old.md": "# unique doc", "refs.yamlover": "link: *//old.md\n" });
+    const h = handlers(root);
+
+    // an external actor renames the file — no engine mediation
+    fs.renameSync(path.join(root, "old.md"), path.join(root, "new.md"));
+    const r = await callBody(h, "POST", "/api/reindex");
+    expect(r.json.moved).toEqual([{ from: "old.md", to: "new.md" }]);
+    expect(r.json.added).toEqual([]);
+    expect(r.json.removed).toEqual([]);
+    // the mediated-tier rewrite ran on the inferred move (ENGINE.md tier 2: "relinked")
+    expect(fs.readFileSync(path.join(root, "refs.yamlover"), "utf8")).toBe("link: *//new.md\n");
+    expect(call(h, "/api/dangling").json).toEqual([]);
   });
 
   it("GET /api/dangling reports a pointer whose target is missing", async () => {

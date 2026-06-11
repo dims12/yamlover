@@ -45,11 +45,15 @@ export interface WalkResult {
   files: FileRecord[];
 }
 
-/** What a re-index found changed on disk, as root-relative file paths. */
+/** What a re-index found changed on disk, as root-relative file paths. `moved` is the
+ *  INFERRED moves (ENGINE.md tiers 2/3): a removed and an added path sharing one content
+ *  hash, matched only when unambiguous — duplicate content on either side, or a content
+ *  edit during the move, makes the engine decline to guess (those stay added/removed). */
 export interface IndexDiff {
   added: string[];
   changed: string[];
   removed: string[];
+  moved: { from: string; to: string }[];
 }
 
 /** Everything a walk threads along: the root (for manifest-relative paths), the options, the
@@ -109,8 +113,9 @@ export function buildIndex(absDir: string, opts: WalkOptions = {}): string {
 /** Re-index a tree into an OPEN store and report what changed on disk since the last index.
  *  The previous manifest doubles as the hash cache — a file whose (size, mtime) is unchanged is
  *  not re-read — so this is cheap enough to run on every watcher batch / startup (the offline
- *  reconcile: ENGINE.md tier 3, minus move inference, which waits on the serializers). The
- *  swap is atomic (one transaction), so concurrent readers never see a half-built index. */
+ *  reconcile: ENGINE.md tier 3, move inference included: same hash gone here + appeared there
+ *  ⇒ `moved`). The swap is atomic (one transaction), so concurrent readers never see a
+ *  half-built index. */
 export function reindex(store: Store, absDir: string, opts: WalkOptions = {}): IndexDiff {
   const prev = store.stale ? new Map<string, FileRecord>() : store.manifest();
   const cache =
@@ -121,15 +126,45 @@ export function reindex(store: Store, absDir: string, opts: WalkOptions = {}): I
     });
   const { doc, files } = walkTree(absDir, { ...opts, cache });
   store.indexDocument(doc, files);
-  const added: string[] = [], changed: string[] = [], removed: string[] = [];
-  const next = new Set(files.map((f) => f.path));
+  let added: string[] = [], removed: string[] = [];
+  const changed: string[] = [];
+  const hashOf = new Map(files.map((f) => [f.path, f.hash]));
   for (const f of files) {
     const old = prev.get(f.path);
     if (!old) added.push(f.path);
     else if (old.hash !== f.hash) changed.push(f.path);
   }
-  for (const p of prev.keys()) if (!next.has(p)) removed.push(p);
-  return { added, changed, removed };
+  for (const p of prev.keys()) if (!hashOf.has(p)) removed.push(p);
+
+  // Move inference: one removed ↔ one added with the SAME content hash, only when the
+  // match is unambiguous (duplicate content on either side ⇒ decline to guess).
+  const moved: { from: string; to: string }[] = [];
+  if (removed.length > 0 && added.length > 0) {
+    const removedByHash = new Map<string, string[]>();
+    for (const p of removed) {
+      const h = prev.get(p)!.hash;
+      removedByHash.set(h, [...(removedByHash.get(h) ?? []), p]);
+    }
+    const addedByHash = new Map<string, string[]>();
+    for (const p of added) {
+      const h = hashOf.get(p)!;
+      addedByHash.set(h, [...(addedByHash.get(h) ?? []), p]);
+    }
+    const matched = new Set<string>();
+    for (const [h, outs] of removedByHash) {
+      const ins = addedByHash.get(h);
+      if (outs.length === 1 && ins?.length === 1) {
+        moved.push({ from: outs[0], to: ins[0] });
+        matched.add(outs[0]);
+        matched.add(ins[0]);
+      }
+    }
+    if (matched.size > 0) {
+      added = added.filter((p) => !matched.has(p));
+      removed = removed.filter((p) => !matched.has(p));
+    }
+  }
+  return { added, changed, removed, moved };
 }
 
 /** Record a file the walk read (or hash-cache-hit) into the manifest. Files outside the walked

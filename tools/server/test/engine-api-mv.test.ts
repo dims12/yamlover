@@ -21,7 +21,9 @@ describe("POST /api/mv", () => {
     expect(r.json.to).toBe("new.md");
     expect(r.json.rewritten).toHaveLength(1);
     expect(r.json.unrewritten).toHaveLength(0);
-    expect(r.json.diff.added).toContain("new.md"); // the diff carries manifest-relative paths
+    // the reindex sees the rename as an inferred move (manifest-relative paths)
+    expect(r.json.diff.moved).toEqual([{ from: "old.md", to: "new.md" }]);
+    expect(r.json.diff.changed).toContain("refs.yamlover"); // the rewritten referrer
     expect(fs.readFileSync(path.join(root, "refs.yamlover"), "utf8")).toBe("link: *//new.md\n");
     expect(fs.existsSync(path.join(root, "old.md"))).toBe(false);
 
