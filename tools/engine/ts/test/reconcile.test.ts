@@ -73,7 +73,7 @@ test('hash cache: an unchanged (size, mtime) blob is not re-read', () => {
   const s = new Store(':memory:');
   reindex(s, root);
   const hash1 = s.node('/pic.png')?.content_hash;
-  assert.ok(hash1?.startsWith('sha256:'));
+  assert.ok(hash1?.startsWith('xxh64:'));
 
   // rewrite with DIFFERENT bytes but the SAME size and mtime: a cache hit must reuse the old
   // hash (proving the bytes were not re-read) and the diff must be empty

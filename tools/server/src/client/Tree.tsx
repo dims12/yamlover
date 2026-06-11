@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { TreeNode } from "./api";
 import { tocView } from "./renderers/registry";
 import { typeIcon } from "./icons";
@@ -19,7 +19,9 @@ interface Props {
  * node is *expandable* when it has such children; past the initially loaded
  * levels, children are fetched on first expand. Selecting a row navigates the RHS.
  */
-export function Tree({ node, current, onSelect, onLoadChildren, depth = 0 }: Props) {
+// memo: App re-renders on every SSE task-progress frame (background indexing/hashing — several
+// per second); the TOC must only re-render when its own props change.
+export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren, depth = 0 }: Props) {
   // How this node presents in the TOC: the rows to show, whether it expands, and
   // whether those rows are loaded yet (a renderer may unwrap/filter; default is
   // the node's own children, fetched lazily on first expand).
@@ -92,4 +94,4 @@ export function Tree({ node, current, onSelect, onLoadChildren, depth = 0 }: Pro
         ))}
     </div>
   );
-}
+});

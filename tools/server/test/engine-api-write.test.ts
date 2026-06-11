@@ -18,6 +18,7 @@ describe("/api/annotate (create)", () => {
   it("creates the annotation file (one tag application) and reverse-links the material", async () => {
     const root = tmpTree({ name: "Alice", ...TAG_FILE });
     const h = createHandlers(root, { gitignore: false });
+    await h.ready;
 
     const r = await callBody(h, "POST", "/api/annotate", { target: "/name", tag: TAG, selector: SELECTOR });
     expect(r.status).toBe(201);
@@ -36,6 +37,7 @@ describe("/api/annotate (create)", () => {
   it("the tag survives a full reindex (the `~-` pointer resolves on the walk)", async () => {
     const root = tmpTree({ name: "Alice", ...TAG_FILE });
     const h = createHandlers(root, { gitignore: false });
+    await h.ready;
     await callBody(h, "POST", "/api/annotate", { target: "/name", tag: TAG, selector: SELECTOR });
 
     expect((await callBody(h, "POST", "/api/reindex", {})).status).toBe(200);
@@ -47,6 +49,7 @@ describe("/api/annotate (create)", () => {
   it("applies to the WHOLE node when no selector is given", async () => {
     const root = tmpTree({ name: "Alice", ...TAG_FILE });
     const h = createHandlers(root, { gitignore: false });
+    await h.ready;
     const r = await callBody(h, "POST", "/api/annotate", { target: "/name", tag: TAG, description: "the whole thing" });
     expect(r.status).toBe(201);
     const list = call(h, "/api/annotations", { path: "/name" }).json;
@@ -62,6 +65,7 @@ describe("/api/annotate (create)", () => {
       ".yamlover/settings.yamlover": "annotations:\n  location: /notes/marks\n",
     });
     const h = createHandlers(root, { gitignore: false });
+    await h.ready;
 
     const r = await callBody(h, "POST", "/api/annotate", { target: "/name", tag: TAG, selector: SELECTOR });
     expect(r.status).toBe(201);
@@ -72,6 +76,7 @@ describe("/api/annotate (create)", () => {
 
   it("rejects an annotation without a target, without a tag, or with a non-tag tag path", async () => {
     const h = createHandlers(tmpTree({ name: "Alice", ...TAG_FILE }), { gitignore: false });
+    await h.ready;
     for (const body of [
       { tag: TAG, selector: SELECTOR }, // no target
       { target: "/name", selector: SELECTOR }, // no tag
@@ -89,6 +94,7 @@ describe("/api/annotate (delete)", () => {
   it("deletes a created annotation (file + index rows, incl. the tag membership)", async () => {
     const root = tmpTree({ name: "Alice", ...TAG_FILE });
     const h = createHandlers(root, { gitignore: false });
+    await h.ready;
     const created = await callBody(h, "POST", "/api/annotate", { target: "/name", tag: TAG, selector: SELECTOR });
 
     const r = await callBody(h, "DELETE", "/api/annotate", undefined, { path: created.json.path });
@@ -105,6 +111,7 @@ describe("/api/annotate (delete)", () => {
         "!!<*yamlover/$defs/annotation>\n" + 'target: *//name\nselector:\n  type: "text"\n  exact: "Alice"\n',
     });
     const h = createHandlers(root, { gitignore: false });
+    await h.ready;
     expect(call(h, "/api/annotations", { path: "/name" }).json).toHaveLength(1); // found from anywhere
 
     const r = await callBody(h, "DELETE", "/api/annotate", undefined, { path: "/deep/dir/a1.yamlover" });
@@ -116,6 +123,7 @@ describe("/api/annotate (delete)", () => {
   it("refuses to delete anything that is not an annotation node", async () => {
     const root = tmpTree({ name: "Alice", "plain.yamlover": "a: 1\n" });
     const h = createHandlers(root, { gitignore: false });
+    await h.ready;
 
     for (const p of ["/plain.yamlover", "/name", "/../escape.yamlover"]) {
       const r = await callBody(h, "DELETE", "/api/annotate", undefined, { path: p });
@@ -132,6 +140,7 @@ describe("/api/paste", () => {
   it("onto a directory: the file lands in it (no auto-open)", async () => {
     const root = tmpTree({ "dir/keep.txt": "x" });
     const h = createHandlers(root, { gitignore: false });
+    await h.ready;
 
     const r = await callBody(h, "POST", "/api/paste", { path: "/dir", filename: "note.txt", contentBase64: b64("hello") });
     expect(r.status).toBe(201);
@@ -142,6 +151,7 @@ describe("/api/paste", () => {
   it("onto a directory MEMBER: the file lands in the enclosing directory and opens", async () => {
     const root = tmpTree({ "dir/keep.txt": "x" });
     const h = createHandlers(root, { gitignore: false });
+    await h.ready;
 
     const r = await callBody(h, "POST", "/api/paste", { path: "/dir/keep.txt", filename: "note.txt", contentBase64: b64("hi") });
     expect(r.json).toMatchObject({ path: "/dir/note.txt", dir: "/dir", open: true });
@@ -150,6 +160,7 @@ describe("/api/paste", () => {
   it("de-duplicates filenames (note.txt → note-1.txt)", async () => {
     const root = tmpTree({ "dir/keep.txt": "x" });
     const h = createHandlers(root, { gitignore: false });
+    await h.ready;
     const body = { path: "/dir", filename: "note.txt", contentBase64: b64("one") };
 
     await callBody(h, "POST", "/api/paste", body);
@@ -164,6 +175,7 @@ describe("/api/paste", () => {
         "!!<*yamlover/$defs/chapter>\n" + 'title: "T"\nchunks:\n- "Hello"\nchildren: []\n',
     });
     const h = createHandlers(root, { gitignore: false });
+    await h.ready;
 
     const r = await callBody(h, "POST", "/api/paste", { path: "/doc", filename: "pic.png", contentBase64: b64("PNG") });
     expect(r.status).toBe(201);
@@ -178,6 +190,7 @@ describe("/api/paste", () => {
 
   it("rejects an empty paste", async () => {
     const h = createHandlers(tmpTree({ name: "Alice" }), { gitignore: false });
+    await h.ready;
     const r = await callBody(h, "POST", "/api/paste", { path: "/", filename: "x.txt", contentBase64: "" });
     expect(r.status).toBe(400);
   });

@@ -70,6 +70,64 @@ body {
   margin: 0 6px;
 }
 
+/* --- long-running server tasks (indexing, hashing, …) ---------------------- */
+.task-strip {
+  margin-left: auto; /* park the chips at the topbar's right edge */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.task-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 320px;
+  font-size: 12px;
+  color: var(--dim);
+}
+.task-chip.error {
+  color: var(--null);
+}
+.task-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.task-counts {
+  color: var(--fg);
+}
+.task-bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+  position: relative;
+}
+.task-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+.task-chip.done .task-bar-fill {
+  background: var(--string);
+}
+.task-chip.error .task-bar-fill {
+  background: var(--null);
+  width: 100%;
+}
+.task-bar-fill.indeterminate {
+  width: 40%;
+  position: absolute;
+  animation: task-sweep 1.2s ease-in-out infinite;
+}
+@keyframes task-sweep {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+
 /* --- body split ----------------------------------------------------------- */
 .body {
   display: flex;

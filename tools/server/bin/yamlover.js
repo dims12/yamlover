@@ -151,8 +151,16 @@ vite = await createServer({
 
 // Load the server-side materializer through Vite (transpiled on the fly). The engine-backed
 // handler (engine-api.ts) supersedes the legacy loadEntity materializer (api.ts kept for ref).
+// The initial index runs as a BACKGROUND task — the server listens immediately (serving the
+// previous on-disk index, or an empty tree on a cold start) while progress lands here and in
+// the web UI (SSE task frames + GET /api/tasks).
 const { createHandlers } = await vite.ssrLoadModule("/src/server/engine-api.ts");
-handle = createHandlers(dataRoot, { gitignore, watch: true }); // watch: re-index + push on external edits
+handle = createHandlers(dataRoot, {
+  gitignore,
+  watch: true, // re-index + push on external edits
+  log: (line) => console.log(`yamlover  ${line}`),
+});
+handle.ready.catch((e) => console.error("yamlover: indexing failed:", e));
 
 // Listen on `port`; if it is already in use, fall back to the next port (up to
 // `MAX_PORT_TRIES`), so two instances — or a leftover one — don't collide.

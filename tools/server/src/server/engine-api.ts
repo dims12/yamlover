@@ -12,7 +12,8 @@
  *   GET /api/json?path&depth&binary       the node value (depth-limited; nested = link markers)
  *   GET /api/schema?path&depth            the instance schema
  *   GET /api/blob?path                    a file-backed node's raw bytes
- *   GET /api/events                       SSE stream of {added,changed,removed} client paths
+ *   GET /api/events                       SSE: {type:"diff",…} reindex diffs + {type:"task",…} progress
+ *   GET /api/tasks                        long-running tasks in flight (snapshot for a fresh page)
  *   GET /api/dangling                     pointers that did not resolve at index time
  *   POST /api/reindex                     manual reconcile (the watcher's fallback)
  *
@@ -20,21 +21,30 @@
  * FILE MANIFEST (path + hash + size + mtime): startup re-indexes against it (the offline
  * reconcile — unchanged blobs are never re-read, so it is cheap), and an FS watcher re-indexes
  * on external edits (the watched-live tier), broadcasting what changed over /api/events.
+ *
+ * LONG-RUNNING WORK runs as background tasks (./tasks.ts): the initial index starts the moment
+ * createHandlers returns (the HTTP server can listen immediately and serve the PREVIOUS index —
+ * or an empty one on a cold start), and the background hasher then fills in content hashes for
+ * the large blobs the walk no longer reads. Store-mutating jobs (index, mv, paste, annotate)
+ * serialize through one writer queue; reads never wait.
  */
 
 import path from "node:path";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Store, reindex, watchTree, loadSettings, mv, relinkMoved } from "../../../engine/ts/src/index.ts";
+import { Store, reindex, reindexAsync, hashFileAsync, watchTree, loadSettings, mv, relinkMoved } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { buildGitIgnore } from "./gitignore.js";
 import { displayKind, ownedEntries, typeName } from "./node-kind.js";
+import { TaskRegistry } from "./tasks.js";
+import type { TaskHandle } from "./tasks.js";
 
 type Handler = (req: IncomingMessage, res: ServerResponse, url: URL) => void;
 interface Options {
   gitignore?: boolean; // honor .gitignore for stray files (default: true)
   watch?: boolean; // watch the tree and re-index on external edits (default: false; bin turns it on)
+  log?: (line: string) => void; // server-side progress lines (the bin wires console.log; tests stay silent)
 }
 
 // Marker keys + types the client recognizes (must match src/client expectations).
@@ -45,7 +55,7 @@ type Seg = string | number;
 // Node-KIND classification (object|array|scalar|binary|omni|mix → the client `type:`) lives in
 // ./node-kind.ts so it can be unit-tested against a Store without the HTTP layer.
 
-export function createHandlers(dataRoot: string, opts: Options = {}): Handler & { close: () => void } {
+export function createHandlers(dataRoot: string, opts: Options = {}): Handler & { close: () => void; ready: Promise<IndexDiff> } {
   const rootName = path.basename(path.resolve(dataRoot)) || "/";
   const dbPath = path.join(dataRoot, ".yamlover", "index.db");
   // Project configuration (<root>/.yamlover/settings.yamlover) — defaults for WRITE paths
@@ -65,36 +75,173 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const store0 = new Store(dbPath);
   const store = (): Store => store0;
-  const doReindex = (): IndexDiff => reindex(store0, dataRoot, { ignore });
-  doReindex();
+  const log = opts.log ?? ((): void => {});
+  let closed = false;
 
-  // SSE subscribers; each reindex that found changes broadcasts its diff as client JSON paths.
+  // SSE subscribers. Frames are typed: `{type:"diff", added,changed,removed,moved}` (a reindex
+  // that found changes, as client JSON paths) and `{type:"task", task}` (long-running task
+  // lifecycle — see ./tasks.ts).
   const sseClients = new Set<ServerResponse>();
+  const sseWrite = (frame: unknown): void => {
+    const payload = JSON.stringify(frame);
+    for (const res of sseClients) res.write(`data: ${payload}\n\n`);
+  };
   const broadcast = (diff: IndexDiff): void => {
     if (diff.added.length + diff.changed.length + diff.removed.length + diff.moved.length === 0) return;
     const toClient = (rel: string): string => segsToStr(rel.split("/"));
-    const payload = JSON.stringify({
+    sseWrite({
+      type: "diff",
       added: diff.added.map(toClient), changed: diff.changed.map(toClient), removed: diff.removed.map(toClient),
       moved: diff.moved.map((m) => ({ from: toClient(m.from), to: toClient(m.to) })),
     });
-    for (const res of sseClients) res.write(`data: ${payload}\n\n`);
   };
+  const tasks = new TaskRegistry((t) => sseWrite({ type: "task", task: t }));
+
+  // ONE WRITER at a time: every job that mutates the Store or needs a consistent manifest
+  // (indexing, mv, paste, annotations) chains here, so e.g. an annotation cannot be swallowed
+  // by a concurrently-committing full walk whose disk snapshot predates it. Read endpoints
+  // never queue — they answer from the current index (stale-but-instant during a reindex).
+  let chain: Promise<unknown> = Promise.resolve();
+  const enqueue = <T,>(fn: () => T | Promise<T>): Promise<T> => {
+    const p = chain.then(fn);
+    chain = p.catch(() => {}); // a failed job must not poison the queue
+    return p;
+  };
+
+  // The background HASHER: fills in content hashes the walk skipped (blobs over the inline
+  // limit), smallest-first, as a visible task. A singleton loop OUTSIDE the write queue — it
+  // only reads bytes; each tiny manifest update enqueues on its own, so a multi-GB file never
+  // holds the queue. It re-queries the store every step, so files added by later reconciles
+  // are picked up; a file that changed or vanished mid-hash fails the (size, mtime) guard and
+  // is skipped (the next reconcile re-queues it with fresh identity).
+  const gib = (b: number): string => (b / 2 ** 30).toFixed(1);
+  const BIG_FILE_BYTES = 256 * 2 ** 20; // show within-file byte progress above this
+  let hashing = false;
+  const scheduleHasher = (): void => {
+    if (hashing || closed) return;
+    if (store0.unhashedFiles(1).length === 0) return;
+    hashing = true;
+    void (async () => {
+      const skip = new Set<string>();
+      let done = 0;
+      let lastLog = 0;
+      const t0 = Date.now();
+      let h: TaskHandle | null = null;
+      try {
+        for (;;) {
+          if (closed) break;
+          const pending = store0.unhashedFiles().filter((f) => !skip.has(f.path));
+          if (pending.length === 0) break;
+          h ??= tasks.start("hashing large files");
+          const next = pending[0];
+          const total = done + pending.length;
+          h.progress(done, total, next.path);
+          const abs = path.join(dataRoot, ...next.path.split("/"));
+          let hash: string | null = null;
+          try {
+            hash = await hashFileAsync(abs, (bytes) => {
+              if (next.size >= BIG_FILE_BYTES) h?.progress(done, total, `${next.path} — ${gib(bytes)}/${gib(next.size)} GiB`);
+            });
+          } catch {
+            // unreadable or vanished — skip; a later reconcile re-queues it if it still exists
+          }
+          const st = hash !== null ? fs.statSync(abs, { throwIfNoEntry: false }) : undefined;
+          const fresh = st !== undefined && st.size === next.size && st.mtimeMs === next.mtimeMs;
+          const ok = hash !== null && fresh && !closed
+            ? await enqueue(() => store0.setFileHash(next.path, hash, next.size, next.mtimeMs))
+            : false;
+          if (!ok) {
+            skip.add(next.path);
+            continue;
+          }
+          done++;
+          const now = Date.now();
+          if (now - lastLog >= 500) {
+            lastLog = now;
+            log(`hashing ${done}/${total} — ${next.path}`);
+          }
+        }
+        h?.done();
+        if (h) log(`hashing done — ${done} file(s) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+      } catch (e) {
+        h?.fail(e);
+        log(`hashing FAILED — ${String((e as Error)?.message ?? e)}`);
+      } finally {
+        hashing = false;
+      }
+    })();
+  };
+
+  // A reindex usable inside an already-queued job (NOT queued itself — callers queue).
+  const doReindex = (): Promise<IndexDiff> => reindexAsync(store0, dataRoot, { ignore });
+
+  // The INITIAL index, as a background task: the server listens (and serves the previous
+  // on-disk index — or an empty one, cold) while the walk runs. Progress is determinate
+  // (an enumeration pre-pass counts the tree) and lands in SSE + the log.
+  const runIndexTask = (label: string): Promise<IndexDiff> =>
+    enqueue(async () => {
+      const h = tasks.start(label);
+      const t0 = Date.now();
+      let lastLog = 0;
+      log(`${label}…`);
+      try {
+        const diff = await reindexAsync(store0, dataRoot, {
+          ignore,
+          onProgress: (p) => {
+            h.progress(p.done, p.total, p.message);
+            const now = Date.now();
+            if (now - lastLog >= 500) {
+              lastLog = now;
+              log(`${label} ${p.done}/${p.total ?? "?"}${p.message ? ` — ${p.message}` : ""}`);
+            }
+          },
+        });
+        h.done();
+        log(
+          `${label} done in ${((Date.now() - t0) / 1000).toFixed(1)}s` +
+            ` (+${diff.added.length} ~${diff.changed.length} −${diff.removed.length} →${diff.moved.length})`,
+        );
+        broadcast(diff);
+        scheduleHasher();
+        return diff;
+      } catch (e) {
+        h.fail(e);
+        log(`${label} FAILED — ${String((e as Error)?.message ?? e)}`);
+        throw e;
+      }
+    });
+
   // An UNMEDIATED move (mv in a shell, a file manager) shows up as an inferred `moved` —
   // relink the inbound refs the way the mediated tier would (ENGINE.md tier 2: "inferred
   // as a move and relinked"), then reconcile once more so the rewritten files re-index.
-  const reconcile = (): IndexDiff => {
-    const diff = doReindex();
-    if (diff.moved.length > 0) {
-      const r = relinkMoved(dataRoot, diff.moved, { ignore });
-      if (r.editedFiles.length > 0) {
-        const follow = doReindex();
-        diff.changed = [...new Set([...diff.changed, ...follow.changed])];
+  const reconcile = (): Promise<IndexDiff> =>
+    enqueue(async () => {
+      const h = tasks.start("reconciling");
+      try {
+        const diff = await doReindex();
+        if (diff.moved.length > 0) {
+          const r = relinkMoved(dataRoot, diff.moved, { ignore });
+          if (r.editedFiles.length > 0) {
+            const follow = reindex(store0, dataRoot, { ignore });
+            diff.changed = [...new Set([...diff.changed, ...follow.changed])];
+          }
+        }
+        h.done();
+        broadcast(diff);
+        scheduleHasher();
+        return diff;
+      } catch (e) {
+        h.fail(e);
+        throw e;
       }
-    }
-    broadcast(diff);
-    return diff;
-  };
-  const stopWatch = opts.watch ? watchTree(dataRoot, () => reconcile(), { ignore }) : null;
+    });
+
+  const ready = runIndexTask(`indexing ${rootName}`);
+  const stopWatch = opts.watch
+    ? watchTree(dataRoot, () => {
+        reconcile().catch((e) => log(`reconcile FAILED — ${String((e as Error)?.message ?? e)}`));
+      }, { ignore })
+    : null;
 
   const handler: Handler = (req, res, url) => {
     try {
@@ -115,9 +262,18 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       }
 
       // Manual reconcile — the watcher's fallback; responds with what changed (inferred
-      // moves are relinked, like the watcher path).
+      // moves are relinked, like the watcher path). Queued behind any in-flight index.
       if (req.method === "POST" && url.pathname === "/api/reindex") {
-        sendJson(res, 200, reconcile());
+        reconcile()
+          .then((diff) => sendJson(res, 200, diff))
+          .catch((e) => sendJson(res, 500, { error: String((e as Error).message || e) }));
+        return;
+      }
+
+      // Long-running server tasks (indexing, hashing, …) currently in flight (or just
+      // finished) — the snapshot a freshly loaded page needs; updates ride /api/events.
+      if (url.pathname === "/api/tasks") {
+        sendJson(res, 200, tasks.list());
         return;
       }
 
@@ -136,20 +292,24 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       // tag's JSON paths; no selector applies the tag to the WHOLE node.
       if (req.method === "POST" && url.pathname === "/api/annotate") {
         readBody(req)
-          .then((data) => {
-            const a = data as AnnotationInput;
-            const tagStore = storePath(strToSegs(a.tag ?? ""));
-            if (!a?.tag || s.node(tagStore)?.format !== TAG_FORMAT) {
-              sendJson(res, 400, { error: "annotation needs a `tag` that is an x-yamlover-tag node" });
-              return;
-            }
-            const annPath = writeAnnotation(dataRoot, settings.annotations.location, a);
-            // Update the index INCREMENTALLY (not a full rebuild — that re-hashes every blob and
-            // blocks the next click). Add just this annotation's nodes + its `target`/tag edges.
-            const doc = parseYamlover(fs.readFileSync(path.join(dataRoot, ...strToSegs(annPath).map(String)), "utf8"), annPath);
-            s.addAnnotation(storePath(strToSegs(annPath)), storePath(strToSegs(a.target)), doc, tagStore);
-            sendJson(res, 201, { path: annPath });
-          })
+          .then((data) =>
+            // Queued: an incremental row added while a full walk (whose disk snapshot predates
+            // this annotation) is committing would be silently swapped away.
+            enqueue(() => {
+              const a = data as AnnotationInput;
+              const tagStore = storePath(strToSegs(a.tag ?? ""));
+              if (!a?.tag || s.node(tagStore)?.format !== TAG_FORMAT) {
+                throw new Error("annotation needs a `tag` that is an x-yamlover-tag node");
+              }
+              const annPath = writeAnnotation(dataRoot, settings.annotations.location, a);
+              // Update the index INCREMENTALLY (not a full rebuild — that re-reads every changed
+              // file and blocks the next click). Add just this annotation's nodes + its edges.
+              const doc = parseYamlover(fs.readFileSync(path.join(dataRoot, ...strToSegs(annPath).map(String)), "utf8"), annPath);
+              s.addAnnotation(storePath(strToSegs(annPath)), storePath(strToSegs(a.target)), doc, tagStore);
+              return { path: annPath };
+            }),
+          )
+          .then((body) => sendJson(res, 201, body))
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
         return;
       }
@@ -158,14 +318,13 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       // the annotation FILE and its index rows — incrementally. Works wherever the annotation
       // lives: the guard is its schema (`x-yamlover-annotation`), not a directory.
       if (req.method === "DELETE" && url.pathname === "/api/annotate") {
-        try {
-          const annPath = url.searchParams.get("path") || "";
+        const annPath = url.searchParams.get("path") || "";
+        enqueue(() => {
           deleteAnnotation(dataRoot, s, annPath);
           s.removeAnnotation(storePath(strToSegs(annPath)));
-          sendJson(res, 200, { ok: true });
-        } catch (e) {
-          sendJson(res, 400, { error: String((e as Error).message || e) });
-        }
+        })
+          .then(() => sendJson(res, 200, { ok: true }))
+          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
         return;
       }
 
@@ -176,11 +335,15 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       // manifest-cached reconcile, so only the new/edited files are read.
       if (req.method === "POST" && url.pathname === "/api/paste") {
         readBody(req)
-          .then((data) => {
-            const result = handlePaste(dataRoot, s, data as PasteInput);
-            broadcast(doReindex());
-            sendJson(res, 201, result);
-          })
+          .then((data) =>
+            enqueue(async () => {
+              const result = handlePaste(dataRoot, s, data as PasteInput);
+              broadcast(await doReindex());
+              scheduleHasher();
+              return result;
+            }),
+          )
+          .then((result) => sendJson(res, 201, result))
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
         return;
       }
@@ -191,19 +354,22 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       // JSON paths addressing FS-level nodes (keyed segments only — no positions).
       if (req.method === "POST" && url.pathname === "/api/mv") {
         readBody(req)
-          .then((data) => {
-            const { from, to } = data as { from?: string; to?: string };
-            const rel = (p: string, what: string): string => {
-              const segs = strToSegs(p);
-              if (segs.length === 0) throw new Error(`mv: ${what} must name a file or directory`);
-              if (segs.some((g) => typeof g === "number")) throw new Error(`mv: ${what} must be a file/directory path (no positions)`);
-              return segs.join("/");
-            };
-            const report = mv(dataRoot, rel(from ?? "", "from"), rel(to ?? "", "to"), { ignore });
-            const diff = doReindex();
-            broadcast(diff);
-            sendJson(res, 200, { ...report, diff });
-          })
+          .then((data) =>
+            enqueue(async () => {
+              const { from, to } = data as { from?: string; to?: string };
+              const rel = (p: string, what: string): string => {
+                const segs = strToSegs(p);
+                if (segs.length === 0) throw new Error(`mv: ${what} must name a file or directory`);
+                if (segs.some((g) => typeof g === "number")) throw new Error(`mv: ${what} must be a file/directory path (no positions)`);
+                return segs.join("/");
+              };
+              const report = mv(dataRoot, rel(from ?? "", "from"), rel(to ?? "", "to"), { ignore });
+              const diff = await doReindex();
+              broadcast(diff);
+              return { ...report, diff };
+            }),
+          )
+          .then((body) => sendJson(res, 200, body))
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
         return;
       }
@@ -269,9 +435,13 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       sendJson(res, 400, { error: (exc as Error).message || String(exc) });
     }
   };
-  // Tear-down for embedders/tests: stop the watcher, drop SSE subscribers, close the DB.
+  // Tear-down for embedders/tests: stop the watcher + hasher, drop SSE subscribers, close the
+  // DB. `ready` resolves when the initial background index lands (tests await it; the bin
+  // catches it so a failed index cannot crash as an unhandled rejection).
   return Object.assign(handler, {
+    ready,
     close: (): void => {
+      closed = true;
       stopWatch?.();
       for (const r of sseClients) r.end();
       sseClients.clear();

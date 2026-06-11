@@ -15,7 +15,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
+import { setImmediate as yieldLoop } from 'node:timers/promises';
+import xxhash from 'xxhash-wasm';
 import type { Document, Node, Mapping, Blob, Entry, Value } from '../../../parser/ts/src/ir.ts';
 import { isPointer, toPlain } from '../../../parser/ts/src/ir.ts';
 import { parseYamlover } from '../../../parser/ts/src/yamlover.ts';
@@ -23,8 +24,17 @@ import { parseJson5p } from '../../../parser/ts/src/json5p.ts';
 import { Store } from './store.ts';
 import type { FileRecord } from './store.ts';
 
+// xxh64 (xxhash-wasm) is the content/manifest hash: identity, not security — chosen for SPEED
+// (multiple GB/s, far above disk throughput). The `xxh64:` prefix keeps the algorithm swappable.
+// The WASM module instantiates once at import (top-level await — milliseconds).
+const { h64Raw, create64 } = await xxhash();
+const hashBytes = (bytes: Uint8Array): string => 'xxh64:' + h64Raw(bytes).toString(16).padStart(16, '0');
+
 const YAMLOVER_DIR = '.yamlover';
 const MAX_TEXT_BYTES = 1 << 20; // 1 MiB: above this we never slurp a file to sniff/parse it
+const MAX_DOC_BYTES = 64 << 20; // 64 MiB: a format-matched text/doc file above this stays a Blob (never slurped)
+const HASH_INLINE_MAX = 1 << 20; // 1 MiB: a blob at or under this is read + hashed inline by the walk
+const HASH_CHUNK = 8 << 20; // 8 MiB: streaming-hash chunk — constant memory at any file size
 
 export interface WalkOptions {
   /** Skip a filesystem child when this returns true for its absolute path (e.g. a `.gitignore`
@@ -36,6 +46,32 @@ export interface WalkOptions {
    *  blobs — the cost that made the old per-request rebuild block. Fed from the previous walk's
    *  manifest (Store.manifest()) by {@link reindex}. */
   cache?: (relPath: string, size: number, mtimeMs: number) => string | null;
+  /** Blobs at or under this byte size are read + hashed INLINE by the walk — small files are
+   *  the ones likely to collide on (size, mtime), and hashing them costs microseconds. Larger
+   *  blobs are stat-only: contentHash stays null until the background hasher fills it in.
+   *  Default 1 MiB. */
+  hashInlineMax?: number;
+}
+
+/** One walk progress tick: `done` filesystem children processed so far, `path` the latest
+ *  (root-relative). Yielded by {@link walkTreeGen} once per file/subdir. */
+export interface WalkProgress {
+  done: number;
+  path: string;
+}
+
+/** Progress of an async reindex: `done`/`total` in walk units (filesystem children), plus a
+ *  human-readable `message` (the current path, "writing index…", …). */
+export interface ReindexProgress {
+  done: number;
+  total?: number;
+  message?: string;
+}
+
+export interface AsyncWalkOptions extends WalkOptions {
+  onProgress?: (p: ReindexProgress) => void;
+  /** Walk steps between event-loop yields in the async drivers (default 50). */
+  yieldEvery?: number;
 }
 
 /** A walk's two products: the IR Document and the file manifest (every file read, with its
@@ -57,12 +93,14 @@ export interface IndexDiff {
 }
 
 /** Everything a walk threads along: the root (for manifest-relative paths), the options, the
- *  tree-global anchors, and the manifest accumulator (a Map to dedupe re-reads). */
+ *  tree-global anchors, the manifest accumulator (a Map to dedupe re-reads), and the running
+ *  progress count (filesystem children processed). */
 interface Ctx {
   root: string;
   opts: WalkOptions;
   anchors: Map<string, Node>;
   files: Map<string, FileRecord>;
+  count: number;
 }
 
 /** Walk a directory (absolute path) into an IR Document (concrete: "directory"). */
@@ -70,14 +108,39 @@ export function walkDir(absDir: string, opts: WalkOptions = {}): Document {
   return walkTree(absDir, opts).doc;
 }
 
-/** Walk a directory into an IR Document AND its file manifest. */
+/** Walk a directory into an IR Document AND its file manifest (synchronously — drains
+ *  {@link walkTreeGen}; the generator exists so async drivers can interleave progress
+ *  reporting and event-loop yields without a second implementation). */
 export function walkTree(absDir: string, opts: WalkOptions = {}): WalkResult {
+  const g = walkTreeGen(absDir, opts);
+  let r = g.next();
+  while (!r.done) r = g.next();
+  return r.value;
+}
+
+/** {@link walkTree} that yields the event loop every `yieldEvery` steps and reports progress —
+ *  so an HTTP server stays responsive while a big tree indexes in the background. */
+export async function walkTreeAsync(absDir: string, opts: AsyncWalkOptions = {}): Promise<WalkResult> {
+  const g = walkTreeGen(absDir, opts);
+  const every = Math.max(1, opts.yieldEvery ?? 50);
+  let r = g.next();
+  while (!r.done) {
+    opts.onProgress?.({ done: r.value.done, message: r.value.path });
+    if (r.value.done % every === 0) await yieldLoop();
+    r = g.next();
+  }
+  return r.value;
+}
+
+/** The walk as a generator: yields one {@link WalkProgress} per filesystem child processed,
+ *  returns the {@link WalkResult}. */
+export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<WalkProgress, WalkResult, void> {
   // Anchors live per parsed file (YAML `&name`), but resolution runs over the whole assembled
   // tree — so collect every file's anchors here, keyed by name → the anchored Node (the same
   // object that ends up in the tree). Names are treated as tree-global (a YAML anchor is really
   // intra-document; collisions across files would shadow — unique in practice).
-  const ctx: Ctx = { root: path.resolve(absDir), opts, anchors: new Map(), files: new Map() };
-  const root = dirNode(ctx.root, ctx);
+  const ctx: Ctx = { root: path.resolve(absDir), opts, anchors: new Map(), files: new Map(), count: 0 };
+  const root = yield* dirNode(ctx.root, ctx);
   root.meta = { ...root.meta, documentRoot: true }; // the served root is always a document root
   // Graft the BUILT-IN `yamlover/` subtree (color tags, …) hosted next to `$defs` into the
   // served tree, so `*//yamlover/…` pointers resolve from any served root. Serving the host
@@ -89,7 +152,7 @@ export function walkTree(absDir: string, opts: WalkOptions = {}): WalkResult {
   const builtin = path.join(defsRoot, 'yamlover');
   const arrayRoot = root.array || (root.entries?.length ? root.entries.every((e) => e.key === null) : false);
   if (defsRoot !== ctx.root && !arrayRoot && fs.existsSync(builtin) && root.entries && !root.entries.some((e) => e.key === 'yamlover')) {
-    root.entries.push({ key: 'yamlover', edge: 'contain', value: dirNode(builtin, ctx) });
+    root.entries.push({ key: 'yamlover', edge: 'contain', value: yield* dirNode(builtin, ctx) });
   }
   applySchemas(root, defsRoot); // propagate attached !!<…> schemas down the instance
   return {
@@ -118,45 +181,93 @@ export function buildIndex(absDir: string, opts: WalkOptions = {}): string {
  *  half-built index. */
 export function reindex(store: Store, absDir: string, opts: WalkOptions = {}): IndexDiff {
   const prev = store.stale ? new Map<string, FileRecord>() : store.manifest();
-  const cache =
-    opts.cache ??
-    ((rel: string, size: number, mtimeMs: number): string | null => {
-      const r = prev.get(rel);
-      return r && r.size === size && r.mtimeMs === mtimeMs ? r.hash : null;
-    });
-  const { doc, files } = walkTree(absDir, { ...opts, cache });
+  const { doc, files } = walkTree(absDir, { ...opts, cache: opts.cache ?? manifestCache(prev) });
   store.indexDocument(doc, files);
+  return diffManifest(prev, files);
+}
+
+/** {@link reindex}, asynchronously: a cheap enumeration pre-pass gives a determinate `total`,
+ *  then the walk yields the event loop between steps and reports progress. The final
+ *  `indexDocument` transaction is still one synchronous commit (flagged by its own message). */
+export async function reindexAsync(store: Store, absDir: string, opts: AsyncWalkOptions = {}): Promise<IndexDiff> {
+  const prev = store.stale ? new Map<string, FileRecord>() : store.manifest();
+  const onProgress = opts.onProgress;
+  const total = onProgress ? await countChildren(path.resolve(absDir), opts) : undefined;
+  const { doc, files } = await walkTreeAsync(absDir, {
+    ...opts,
+    cache: opts.cache ?? manifestCache(prev),
+    onProgress: onProgress && ((p) => onProgress({ ...p, total })),
+  });
+  onProgress?.({ done: total ?? files.length, total, message: 'writing index…' });
+  await yieldLoop(); // let the message out before the blocking commit
+  store.indexDocument(doc, files);
+  return diffManifest(prev, files);
+}
+
+/** The default walk cache: the previous manifest — an unchanged (size, mtime) reuses the known
+ *  hash (which may itself be null for a large blob the hasher has not reached). */
+function manifestCache(prev: Map<string, FileRecord>): NonNullable<WalkOptions['cache']> {
+  return (rel, size, mtimeMs) => {
+    const r = prev.get(rel);
+    return r && r.size === size && r.mtimeMs === mtimeMs ? r.hash : null;
+  };
+}
+
+/** Count the filesystem children a walk will process (same skip rules as {@link dirNode}) —
+ *  the determinate `total` for progress. readdir-only; trivially cheap next to the walk. */
+async function countChildren(absRoot: string, opts: WalkOptions): Promise<number> {
+  let n = 0;
+  const visit = async (dir: string): Promise<void> => {
+    let entries;
+    try {
+      entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.name === YAMLOVER_DIR || e.name.startsWith('.')) continue;
+      const abs = path.join(dir, e.name);
+      if (opts.ignore?.(abs)) continue;
+      n++;
+      const isDir = e.isDirectory() || (e.isSymbolicLink() && (await fs.promises.stat(abs).catch(() => null))?.isDirectory());
+      if (isDir) await visit(abs);
+    }
+  };
+  await visit(absRoot);
+  return n;
+}
+
+/** Diff the new manifest against the previous. `changed` is STAT-based (size or mtime differs).
+ *  Move inference matches a removed ↔ an added path by content hash when both sides have one,
+ *  else by (size, mtimeMs) — a rename preserves both — and only when the match is unambiguous
+ *  (duplicates on either side ⇒ decline to guess, exactly the old hash-only policy). */
+export function diffManifest(prev: Map<string, FileRecord>, files: FileRecord[]): IndexDiff {
   let added: string[] = [], removed: string[] = [];
   const changed: string[] = [];
-  const hashOf = new Map(files.map((f) => [f.path, f.hash]));
+  const current = new Map(files.map((f) => [f.path, f]));
   for (const f of files) {
     const old = prev.get(f.path);
     if (!old) added.push(f.path);
-    else if (old.hash !== f.hash) changed.push(f.path);
+    else if (old.size !== f.size || old.mtimeMs !== f.mtimeMs) changed.push(f.path);
   }
-  for (const p of prev.keys()) if (!hashOf.has(p)) removed.push(p);
+  for (const p of prev.keys()) if (!current.has(p)) removed.push(p);
 
-  // Move inference: one removed ↔ one added with the SAME content hash, only when the
-  // match is unambiguous (duplicate content on either side ⇒ decline to guess).
   const moved: { from: string; to: string }[] = [];
   if (removed.length > 0 && added.length > 0) {
-    const removedByHash = new Map<string, string[]>();
-    for (const p of removed) {
-      const h = prev.get(p)!.hash;
-      removedByHash.set(h, [...(removedByHash.get(h) ?? []), p]);
-    }
-    const addedByHash = new Map<string, string[]>();
-    for (const p of added) {
-      const h = hashOf.get(p)!;
-      addedByHash.set(h, [...(addedByHash.get(h) ?? []), p]);
-    }
     const matched = new Set<string>();
-    for (const [h, outs] of removedByHash) {
-      const ins = addedByHash.get(h);
-      if (outs.length === 1 && ins?.length === 1) {
-        moved.push({ from: outs[0], to: ins[0] });
-        matched.add(outs[0]);
-        matched.add(ins[0]);
+    // identity tiers: content hash (skipping unhashed), then the stat pair
+    const tiers: ((f: FileRecord) => string | null)[] = [(f) => f.hash, (f) => `${f.size}:${f.mtimeMs}`];
+    for (const key of tiers) {
+      const outs = groupBy(removed.filter((p) => !matched.has(p)).map((p) => prev.get(p)!), key);
+      const ins = groupBy(added.filter((p) => !matched.has(p)).map((p) => current.get(p)!), key);
+      for (const [k, o] of outs) {
+        const i = ins.get(k);
+        if (o.length !== 1 || i?.length !== 1) continue;
+        const [from, to] = [o[0], i[0]];
+        if (from.hash && to.hash && from.hash !== to.hash) continue; // stat tier: hashes prove different content
+        moved.push({ from: from.path, to: to.path });
+        matched.add(from.path);
+        matched.add(to.path);
       }
     }
     if (matched.size > 0) {
@@ -167,9 +278,42 @@ export function reindex(store: Store, absDir: string, opts: WalkOptions = {}): I
   return { added, changed, removed, moved };
 }
 
-/** Record a file the walk read (or hash-cache-hit) into the manifest. Files outside the walked
- *  root (e.g. a `$defs` host found above it) are not manifested — the watcher cannot see them. */
-function record(ctx: Ctx, abs: string, hash: string, size: number, mtimeMs: number): void {
+function groupBy(list: FileRecord[], key: (f: FileRecord) => string | null): Map<string, FileRecord[]> {
+  const m = new Map<string, FileRecord[]>();
+  for (const f of list) {
+    const k = key(f);
+    if (k != null) m.set(k, [...(m.get(k) ?? []), f]);
+  }
+  return m;
+}
+
+/** Stream-hash a file in fixed-size chunks — constant memory at ANY size (a multi-GB blob never
+ *  lands in RAM whole, and never hits Node's 2 GiB buffer cap). `onChunk` reports cumulative
+ *  bytes; the awaits between chunks keep the event loop responsive. The background hasher's
+ *  workhorse. */
+export async function hashFileAsync(abs: string, onChunk?: (bytesDone: number) => void): Promise<string> {
+  const fh = await fs.promises.open(abs, 'r');
+  try {
+    const hasher = create64();
+    const buf = Buffer.alloc(HASH_CHUNK);
+    let done = 0;
+    for (;;) {
+      const { bytesRead } = await fh.read(buf, 0, buf.length);
+      if (bytesRead === 0) break;
+      hasher.update(bytesRead === buf.length ? buf : buf.subarray(0, bytesRead));
+      done += bytesRead;
+      onChunk?.(done);
+    }
+    return 'xxh64:' + hasher.digest().toString(16).padStart(16, '0');
+  } finally {
+    await fh.close();
+  }
+}
+
+/** Record a file the walk saw into the manifest (`hash` is null for a large blob the walk did
+ *  not read). Files outside the walked root (e.g. a `$defs` host found above it) are not
+ *  manifested — the watcher cannot see them. */
+function record(ctx: Ctx, abs: string, hash: string | null, size: number, mtimeMs: number): void {
   const rel = path.relative(ctx.root, abs).split(path.sep).join('/');
   if (rel.startsWith('..')) return;
   ctx.files.set(rel, { path: rel, hash, size, mtimeMs });
@@ -179,7 +323,7 @@ function record(ctx: Ctx, abs: string, hash: string, size: number, mtimeMs: numb
 function readTracked(ctx: Ctx, abs: string): Buffer {
   const stat = fs.statSync(abs);
   const bytes = fs.readFileSync(abs);
-  record(ctx, abs, 'sha256:' + createHash('sha256').update(bytes).digest('hex'), stat.size, stat.mtimeMs);
+  record(ctx, abs, hashBytes(bytes), stat.size, stat.mtimeMs);
   return bytes;
 }
 
@@ -200,8 +344,9 @@ function loadMeta(dir: string, ctx: Ctx): Meta {
 }
 
 /** A directory → a Mapping node: one entry per file/subdir, then the body.yamlover overlay.
- *  Collected anchors from any parsed children/overlay are merged into `ctx.anchors`. */
-function dirNode(dir: string, ctx: Ctx): Node {
+ *  Collected anchors from any parsed children/overlay are merged into `ctx.anchors`.
+ *  A generator: yields one progress tick per child processed (subtree ticks ride through). */
+function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
   const meta = loadMeta(dir, ctx);
   const names = fs
     .readdirSync(dir)
@@ -211,8 +356,10 @@ function dirNode(dir: string, ctx: Ctx): Node {
 
   const entries: Entry[] = [];
   for (const name of names) {
-    const child = childNode(path.join(dir, name), meta[name], ctx);
+    const abs = path.join(dir, name);
+    const child = yield* childNode(abs, meta[name], ctx);
     entries.push({ key: name, edge: 'contain', value: child });
+    yield { done: ++ctx.count, path: path.relative(ctx.root, abs).split(path.sep).join('/') };
   }
 
   const node: Mapping = { kind: 'mapping', entries, array: false };
@@ -220,15 +367,20 @@ function dirNode(dir: string, ctx: Ctx): Node {
 }
 
 /** A single filesystem child (file or subdir) → a Node, honoring meta type/format overrides. */
-function childNode(abs: string, m: { type?: string; format?: string } | undefined, ctx: Ctx): Node {
-  if (fs.statSync(abs).isDirectory()) return dirNode(abs, ctx);
+function* childNode(abs: string, m: { type?: string; format?: string } | undefined, ctx: Ctx): Generator<WalkProgress, Node, void> {
+  const stat = fs.statSync(abs);
+  if (stat.isDirectory()) return yield* dirNode(abs, ctx);
 
   const ext = path.extname(abs).toLowerCase();
   // format resolution order: meta `format:` → a recognized extension → (none → sniff/parse).
   const fmt = m?.format ?? EXT_FORMAT[ext] ?? null;
   if (m?.type === 'binary') return blob(abs, fmt ?? 'application/octet-stream', ctx);
-  if (fmt && DOC_FORMATS[fmt]) return parsedDoc(abs, DOC_FORMATS[fmt], ctx); // a sub-document encoding → parse (META.md)
-  if (fmt && TEXT_FORMATS.has(fmt)) return textScalar(abs, fmt, ctx); // markdown/adoc/plantuml/csv → string + format
+  if (fmt && (DOC_FORMATS[fmt] || TEXT_FORMATS.has(fmt))) {
+    // a format-matched doc/text file is slurped to parse — unless it is too big to slurp
+    if (stat.size > MAX_DOC_BYTES) return blob(abs, fmt, ctx);
+    if (DOC_FORMATS[fmt]) return parsedDoc(abs, DOC_FORMATS[fmt], ctx); // a sub-document encoding → parse (META.md)
+    return textScalar(abs, fmt, ctx); // markdown/adoc/plantuml/csv → string + format
+  }
   if (fmt) return blob(abs, fmt, ctx); // a known but non-text format = opaque bytes
   if (looksBinary(abs)) return blob(abs, 'application/octet-stream', ctx);
   return parsedScalar(abs, ext, ctx); // text, no format → parse by extension (json5p for .json*, else yamlover)
@@ -251,8 +403,10 @@ function applyMeta(node: Node, meta: Meta): Node {
 }
 
 /** A Blob node: format + content hash + size; bytes live in the store, not the IR (IR.md).
- *  The hash cache short-circuits the read: an unchanged (size, mtime) reuses the known hash,
- *  so a re-index does not re-read every blob in the tree. */
+ *  The hash cache short-circuits the read: an unchanged (size, mtime) reuses the known hash.
+ *  On a miss, only a SMALL blob (≤ hashInlineMax) is read + hashed inline — small files are
+ *  the ones likely to collide on (size, mtime). A larger blob is stat-only: its identity is
+ *  (size, mtime) and contentHash stays null until the background hasher fills it in. */
 function blob(abs: string, format: string, ctx: Ctx): Blob {
   const stat = fs.statSync(abs);
   const rel = path.relative(ctx.root, abs).split(path.sep).join('/');
@@ -261,10 +415,10 @@ function blob(abs: string, format: string, ctx: Ctx): Blob {
     record(ctx, abs, cached, stat.size, stat.mtimeMs);
     return { kind: 'blob', format, contentHash: cached, size: stat.size };
   }
-  const bytes = fs.readFileSync(abs);
-  const contentHash = 'sha256:' + createHash('sha256').update(bytes).digest('hex');
+  const inlineMax = ctx.opts.hashInlineMax ?? HASH_INLINE_MAX;
+  const contentHash = stat.size <= inlineMax ? hashBytes(fs.readFileSync(abs)) : null;
   record(ctx, abs, contentHash, stat.size, stat.mtimeMs);
-  return { kind: 'blob', format, contentHash, size: bytes.length };
+  return { kind: 'blob', format, contentHash, size: stat.size };
 }
 
 /** A textual file kept as a raw string scalar (markdown/asciidoc/plantuml/csv …). */

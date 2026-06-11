@@ -7,5 +7,10 @@
   "scripts": {
     "test": "node --test test/resolve.test.ts test/graph.test.ts"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "xxhash-wasm": "^1.1.0"
+  }
 }

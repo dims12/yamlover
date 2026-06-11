@@ -25,7 +25,7 @@ import { resolveDocument } from './resolve.ts';
 
 // Bump when the table shapes change: a mismatched on-disk index is dropped and rebuilt from
 // the filesystem (the DB is a derived cache, so this is always safe).
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS node (
@@ -49,7 +49,7 @@ CREATE INDEX IF NOT EXISTS edge_from ON edge (from_path);
 CREATE INDEX IF NOT EXISTS edge_to   ON edge (to_path);
 CREATE TABLE IF NOT EXISTS file (
   path     TEXT PRIMARY KEY,             -- filesystem path relative to the indexed root (POSIX)
-  hash     TEXT NOT NULL,                -- sha256:… of the file bytes
+  hash     TEXT,                         -- xxh64:… of the bytes; NULL until the hasher reaches a large blob
   size     INTEGER NOT NULL,
   mtime_ms REAL NOT NULL                 -- (size, mtime) match ⇒ reuse hash without re-reading
 );
@@ -79,10 +79,12 @@ export interface EdgeRow {
   pos: number | null;
 }
 
-/** One file the walk read: root-relative POSIX path + content identity. */
+/** One file the walk saw: root-relative POSIX path + content identity. `hash` is null for a
+ *  large blob the walk did not read — (size, mtimeMs) is the identity until the background
+ *  hasher fills the hash in. */
 export interface FileRecord {
   path: string;
-  hash: string;
+  hash: string | null;
   size: number;
   mtimeMs: number;
 }
@@ -231,9 +233,39 @@ export class Store {
   manifest(): Map<string, FileRecord> {
     const out = new Map<string, FileRecord>();
     for (const r of this.db.prepare('SELECT * FROM file').all() as Record<string, unknown>[]) {
-      out.set(r.path as string, { path: r.path as string, hash: r.hash as string, size: r.size as number, mtimeMs: r.mtime_ms as number });
+      out.set(r.path as string, { path: r.path as string, hash: (r.hash as string) ?? null, size: r.size as number, mtimeMs: r.mtime_ms as number });
     }
     return out;
+  }
+
+  /** Manifest entries still lacking a content hash (large blobs the walk never read), smallest
+   *  first so the background hasher shows progress early. */
+  unhashedFiles(limit = -1): FileRecord[] {
+    return (
+      this.db.prepare('SELECT * FROM file WHERE hash IS NULL ORDER BY size ASC, path ASC LIMIT ?').all(limit) as Record<string, unknown>[]
+    ).map((r) => ({ path: r.path as string, hash: null, size: r.size as number, mtimeMs: r.mtime_ms as number }));
+  }
+
+  /** Fill in one file's content hash after the fact (the background hasher): updates the
+   *  manifest row and the matching blob node, guarded by (size, mtimeMs) — returns false
+   *  (writing nothing) when the file changed since it was queued. */
+  setFileHash(relPath: string, hash: string, size: number, mtimeMs: number): boolean {
+    this.db.exec('BEGIN');
+    try {
+      const r = this.db
+        .prepare('UPDATE file SET hash = ? WHERE path = ? AND size = ? AND mtime_ms = ?')
+        .run(hash, relPath, size, mtimeMs);
+      if (Number(r.changes) === 0) {
+        this.db.exec('ROLLBACK');
+        return false;
+      }
+      this.db.prepare("UPDATE node SET content_hash = ? WHERE path = ? AND type = 'blob'").run(hash, '/' + relPath);
+      this.db.exec('COMMIT');
+      return true;
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
   }
 
   /** The pointers that failed to resolve at index time (ENGINE.md: reported, never dropped). */

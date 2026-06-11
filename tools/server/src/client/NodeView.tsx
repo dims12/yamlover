@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useReducer, useState } from "react";
+import { Fragment, memo, useEffect, useReducer, useState } from "react";
 import { fetchNode, fetchSchema, NodeJson, pasteFile, PasteResult } from "./api";
 import { getRenderer } from "./renderers/registry";
 import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
@@ -93,7 +93,10 @@ function fileToBase64(f: File): Promise<string> {
 /** The RHS pane: one node shown in the selected representation. Every
  *  representation is one level deep; nested objects/arrays appear as
  *  `{ N keys }` / `[ M elements ]` hyperlinks you click to descend. */
-export function NodeView({ path, format, refreshSignal = 0, onFormat, onNavigate, onContentChanged, onOpenUploaded }: Props) {
+// memo: App re-renders on every SSE task-progress frame (background indexing/hashing — several
+// per second); the node pane — incl. a mounted PDF with all its pages — must only re-render
+// when its own props change, or scrolling a long document JANKS while a task runs.
+export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0, onFormat, onNavigate, onContentChanged, onOpenUploaded }: Props) {
   const [node, setNode] = useState<NodeJson | null>(null); // header + data value
   const [schema, setSchema] = useState<unknown>(null);
   const [bin, setBin] = useState<unknown>(null); // base64 payload for a binary leaf
@@ -316,4 +319,4 @@ export function NodeView({ path, format, refreshSignal = 0, onFormat, onNavigate
       )}
     </div>
   );
-}
+});

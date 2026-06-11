@@ -35,6 +35,23 @@ export function fetchInfo(): Promise<{ root: string }> {
   return getJson<{ root: string }>("/api/info");
 }
 
+/** A long-running server task (indexing, hashing, …) — mirrors server/tasks.ts. Updates ride
+ *  /api/events as `{type:"task", task}` frames; this shape is also what GET /api/tasks lists. */
+export interface TaskInfo {
+  id: string;
+  label: string;
+  state: "running" | "done" | "error";
+  progress: { done: number; total?: number; message?: string };
+  startedAt: number;
+  finishedAt?: number;
+  error?: string;
+}
+
+/** Server tasks in flight (or just finished) — the snapshot a freshly loaded page needs. */
+export function fetchTasks(): Promise<TaskInfo[]> {
+  return getJson<TaskInfo[]>("/api/tasks");
+}
+
 /** The TOC subtree rooted at `path`, `depth` levels deep (server default 3). */
 export function fetchTree(path = "/", depth?: number): Promise<TreeNode> {
   const q = new URLSearchParams({ path });

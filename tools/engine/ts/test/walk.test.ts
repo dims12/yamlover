@@ -153,7 +153,7 @@ test('binary files become blobs with format + content hash (65-all-formats-chunk
   const png = s.node('/sample.png');
   assert.equal(png?.type, 'blob');
   assert.equal(png?.format, 'image/png');
-  assert.ok(png?.content_hash?.startsWith('sha256:'));
+  assert.ok(png?.content_hash?.startsWith('xxh64:'));
   assert.ok((png?.size ?? 0) > 0);
   s.close();
 });

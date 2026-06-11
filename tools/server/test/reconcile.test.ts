@@ -9,9 +9,10 @@ import { createHandlers } from "../src/server/engine-api.ts";
 import { tmpTree } from "./helpers.ts";
 import { call, callBody } from "./http.ts";
 
-function handlers(root: string, opts: Parameters<typeof createHandlers>[1] = {}) {
+async function handlers(root: string, opts: Parameters<typeof createHandlers>[1] = {}) {
   const h = createHandlers(root, { gitignore: false, ...opts });
   onTestFinished(() => h.close());
+  await h.ready; // the initial index runs in the background — tests assert against a settled one
   return h;
 }
 
@@ -21,7 +22,7 @@ const treeLabels = (h: ReturnType<typeof createHandlers>): string[] =>
 describe("reconcile: external edits reach the index", () => {
   it("a file created after startup appears once /api/reindex runs", async () => {
     const root = tmpTree({ "a.md": "# a" });
-    const h = handlers(root);
+    const h = await handlers(root);
     expect(treeLabels(h)).toEqual(["a.md"]);
 
     fs.writeFileSync(path.join(root, "b.md"), "# b");
@@ -36,7 +37,7 @@ describe("reconcile: external edits reach the index", () => {
 
   it("a deleted file disappears, an edited one re-reads", async () => {
     const root = tmpTree({ "a.md": "# a", "b.yamlover": "x: 1\n" });
-    const h = handlers(root);
+    const h = await handlers(root);
     fs.rmSync(path.join(root, "a.md"));
     fs.writeFileSync(path.join(root, "b.yamlover"), "x: 2\n");
 
@@ -48,16 +49,16 @@ describe("reconcile: external edits reach the index", () => {
 
   it("the persisted index survives a restart without a re-walk being wrong", async () => {
     const root = tmpTree({ "a.md": "# a" });
-    handlers(root); // first run writes <root>/.yamlover/index.db + the manifest
+    await handlers(root); // first run writes <root>/.yamlover/index.db + the manifest
 
     fs.writeFileSync(path.join(root, "b.md"), "# b"); // an edit while "down"
-    const h2 = handlers(root); // startup reconcile picks it up
+    const h2 = await handlers(root); // startup reconcile picks it up
     expect(treeLabels(h2)).toEqual(["a.md", "b.md"]);
   });
 
   it("an external rename is inferred as a move and the inbound refs are RELINKED", async () => {
     const root = tmpTree({ "old.md": "# unique doc", "refs.yamlover": "link: *//old.md\n" });
-    const h = handlers(root);
+    const h = await handlers(root);
 
     // an external actor renames the file — no engine mediation
     fs.renameSync(path.join(root, "old.md"), path.join(root, "new.md"));
@@ -72,7 +73,7 @@ describe("reconcile: external edits reach the index", () => {
 
   it("GET /api/dangling reports a pointer whose target is missing", async () => {
     const root = tmpTree({ "doc.yamlover": "friend: *missing\n" });
-    const h = handlers(root);
+    const h = await handlers(root);
     expect(call(h, "/api/dangling").json).toEqual([
       { from: "/doc.yamlover/friend", raw: "missing", reason: expect.stringContaining("missing") },
     ]);
@@ -86,7 +87,7 @@ describe("reconcile: external edits reach the index", () => {
 describe("watch: true — the FS watcher reindexes and pushes SSE", () => {
   it("a new file is indexed and broadcast without any client call", async () => {
     const root = tmpTree({ "a.md": "# a" });
-    const h = handlers(root, { watch: true });
+    const h = await handlers(root, { watch: true });
 
     // a minimal SSE subscriber: collect data frames written to the fake response
     const frames: string[] = [];
@@ -100,12 +101,15 @@ describe("watch: true — the FS watcher reindexes and pushes SSE", () => {
     h(req, res, new URL("http://localhost/api/events"));
 
     fs.writeFileSync(path.join(root, "b.md"), "# b");
+    // task frames ({type:"task"} — the reconcile's lifecycle) interleave with the diff
+    const diffFrame = (): string | undefined =>
+      frames.find((f) => f.startsWith("data: ") && JSON.parse(f.slice(6)).type === "diff");
     const t0 = Date.now();
-    while (!frames.some((f) => f.startsWith("data: "))) {
+    while (!diffFrame()) {
       if (Date.now() - t0 > 5000) throw new Error("no SSE broadcast within 5s");
       await new Promise((r) => setTimeout(r, 50));
     }
-    const payload = JSON.parse(frames.find((f) => f.startsWith("data: "))!.slice(6));
+    const payload = JSON.parse(diffFrame()!.slice(6));
     expect(payload.added).toEqual(["/b.md"]); // client JSON paths, not file paths
     expect(treeLabels(h)).toEqual(["a.md", "b.md"]); // and the index is already fresh
   });

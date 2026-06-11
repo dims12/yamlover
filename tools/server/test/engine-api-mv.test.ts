@@ -15,6 +15,7 @@ describe("POST /api/mv", () => {
       "refs.yamlover": "link: *//old.md\n",
     });
     const h = createHandlers(root, { gitignore: false });
+    await h.ready;
     const r = await callBody(h, "POST", "/api/mv", { from: "/old.md", to: "/new.md" });
     expect(r.status).toBe(200);
     expect(r.json.from).toBe("old.md");
@@ -37,6 +38,7 @@ describe("POST /api/mv", () => {
   it("rejects positional segments, missing sources, and existing targets", async () => {
     const root = tmpTree({ "a.md": "A", "b.md": "B" });
     const h = createHandlers(root, { gitignore: false });
+    await h.ready;
     expect((await callBody(h, "POST", "/api/mv", { from: "/a.md[0]", to: "/x.md" })).status).toBe(400);
     expect((await callBody(h, "POST", "/api/mv", { from: "/nope.md", to: "/x.md" })).status).toBe(400);
     expect((await callBody(h, "POST", "/api/mv", { from: "/a.md", to: "/b.md" })).status).toBe(400);

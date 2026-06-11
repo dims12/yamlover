@@ -64,7 +64,9 @@ export interface Scalar extends NodeBase {
 export interface Blob extends NodeBase {
   kind: 'blob';
   format: string;
-  contentHash: string;
+  /** Content hash (`xxh64:…`), or null when the bytes have not been hashed yet — a large
+   *  blob's identity is (path, size, mtime); the engine's background hasher fills this in. */
+  contentHash: string | null;
   size: number;
 }
 

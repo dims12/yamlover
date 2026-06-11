@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchInfo, fetchTree, PasteResult, TreeNode } from "./api";
+import { fetchInfo, fetchTasks, fetchTree, PasteResult, TaskInfo, TreeNode } from "./api";
 import { Tree } from "./Tree";
+import { TaskStrip } from "./TaskStrip";
 import { NodeView, Format, FORMATS, DEFAULT_FORMAT } from "./NodeView";
 import { rendererName } from "./renderers/registry";
 
@@ -75,6 +76,19 @@ export function App() {
   // The breadcrumb head is the ROOT given on the command line (blank if omitted).
   useEffect(() => {
     fetchInfo().then((i) => setRootLabel(i.root)).catch(() => {});
+  }, []);
+
+  // Long-running server tasks (indexing, hashing, …): seeded from /api/tasks (a page loaded
+  // mid-task), updated by `{type:"task"}` SSE frames; finished ones linger ~3s then drop.
+  const [tasks, setTasks] = useState<TaskInfo[]>([]);
+  useEffect(() => {
+    fetchTasks().then(setTasks).catch(() => {});
+  }, []);
+  const upsertTask = useCallback((t: TaskInfo) => {
+    setTasks((prev) => [...prev.filter((x) => x.id !== t.id), t].sort((a, b) => a.startedAt - b.startedAt));
+    if (t.state !== "running") {
+      setTimeout(() => setTasks((prev) => prev.filter((x) => x.id !== t.id)), 3000);
+    }
   }, []);
 
   // Whether the initial URL pinned a representation; if not, a landing node that
@@ -164,15 +178,37 @@ export function App() {
     );
   }, []);
 
+  // Cold-start recovery: a page opened before the FIRST index landed has no tree (the initial
+  // fetch 404'd on an empty store). When the index task finishes — or any diff arrives —
+  // retry the initial fetches and clear the stale error.
+  const retryInitial = useCallback(() => {
+    if (treeRef.current) return;
+    fetchTree("/", INITIAL_DEPTH)
+      .then((t) => {
+        setTree(t);
+        setError(null);
+      })
+      .catch(() => {});
+    fetchInfo().then((i) => setRootLabel(i.root)).catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (typeof EventSource === "undefined") return; // test envs (jsdom) have no SSE
     const es = new EventSource("/api/events");
     es.onmessage = (ev) => {
       try {
-        const diff = JSON.parse(ev.data) as {
+        const msg = JSON.parse(ev.data) as { type?: string };
+        if (msg.type === "task") {
+          const t = (msg as unknown as { task: TaskInfo }).task;
+          upsertTask(t);
+          if (t.state === "done") retryInitial(); // no-op once the tree is loaded
+          return;
+        }
+        const diff = msg as unknown as {
           added: string[]; changed: string[]; removed: string[];
           moved?: { from: string; to: string }[]; // inferred moves (frame-compatible: optional)
         };
+        retryInitial(); // no-op once the tree is loaded
         const paths = [...diff.added, ...diff.changed, ...diff.removed,
           ...(diff.moved ?? []).flatMap((m) => [m.from, m.to])];
         if (!paths.length) return;
@@ -186,7 +222,7 @@ export function App() {
       }
     };
     return () => es.close();
-  }, [refreshBranches]);
+  }, [refreshBranches, upsertTask, retryInitial]);
 
   // Keep state in sync with the browser's back/forward buttons.
   useEffect(() => {
@@ -298,15 +334,23 @@ export function App() {
             </span>
           ))}
         </nav>
+        <TaskStrip tasks={tasks} />
       </header>
 
       <div className="body">
         <aside className="pane left" style={{ width: leftWidth }}>
-          {error && <div className="error">{error}</div>}
-          {!error && !tree && <div className="loading">loading…</div>}
-          {tree && (
-            <Tree node={tree} current={current} onSelect={navigate} onLoadChildren={loadChildren} />
-          )}
+          {(() => {
+            // no tree yet + a server task running ⇒ the index is still being built — show
+            // its progress instead of a stale fetch error / a bare "loading…"
+            const running = !tree ? tasks.find((t) => t.state === "running") : undefined;
+            if (running) {
+              const { done, total } = running.progress;
+              return <div className="loading">{running.label}… {total ? `${done}/${total}` : ""}</div>;
+            }
+            if (error) return <div className="error">{error}</div>;
+            if (!tree) return <div className="loading">loading…</div>;
+            return <Tree node={tree} current={current} onSelect={navigate} onLoadChildren={loadChildren} />;
+          })()}
         </aside>
         <div
           className="splitter"
