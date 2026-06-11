@@ -30,7 +30,37 @@ export function PdfView({ node }: { node: NodeJson }) {
   const [width, setWidth] = useState(0);
   const [pages, setPages] = useState(0);
   const [zoom, setZoom] = useState(1); // ctrl/alt-wheel scale factor
-  const [orig, setOrig] = useState<Record<number, number>>({}); // each page's natural width in points
+  const [orig, setOrig] = useState<Record<number, { w: number; h: number }>>({}); // each page's natural size in points
+
+  // WINDOWED RENDERING: every page keeps a wrapper (so the scroll height is right), but only
+  // pages near the viewport mount a real <Page> — mounting ALL of them queues every canvas
+  // through the pdf.js worker at open (and again on each zoom), which saturates the main
+  // thread and janks scrolling on long documents. Far pages are fixed-height placeholders.
+  const wraps = useRef(new Map<number, HTMLElement>());
+  const [near, setNear] = useState<Set<number>>(() => new Set());
+  useEffect(() => {
+    if (!pages) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        setNear((prev) => {
+          const next = new Set(prev);
+          for (const e of entries) {
+            const pn = Number((e.target as HTMLElement).dataset.page);
+            if (e.isIntersecting) next.add(pn);
+            else next.delete(pn);
+          }
+          return next.size === prev.size && [...next].every((p) => prev.has(p)) ? prev : next;
+        });
+      },
+      // root = the .filepdf scroller (the pane scrolls INSIDE it — a viewport root would
+      // never see pages clipped below its fold); pre-render ~2 screens above/below
+      { root: ref.current, rootMargin: "2000px 0px" },
+    );
+    for (const el of wraps.current.values()) obs.observe(el);
+    return () => obs.disconnect();
+    // wrappers exist only once BOTH the page count and the pane width are known
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pages, width > 0]);
 
   const material = useMaterialAnnotations(node.path);
   const { openCreate, openEdit, palette, preview } = useAnnotationMenu(material);
@@ -74,7 +104,7 @@ export function PdfView({ node }: { node: NodeJson }) {
     const pageEl = host?.closest(".pdf-page") as HTMLElement | null;
     if (!pageEl || !ref.current?.contains(pageEl)) return;
     const pn = Number(pageEl.dataset.page);
-    const sc = orig[pn] ? pageWidth / orig[pn] : 0; // rendered px per point
+    const sc = orig[pn] ? pageWidth / orig[pn].w : 0; // rendered px per point
     if (!sc) return;
     const pr = pageEl.getBoundingClientRect();
     const sr = sel.getRangeAt(0).getBoundingClientRect();
@@ -97,28 +127,44 @@ export function PdfView({ node }: { node: NodeJson }) {
           {width > 0 &&
             Array.from({ length: pages }, (_, i) => {
               const pn = i + 1;
-              const sc = orig[pn] ? pageWidth / orig[pn] : 0; // rendered px per point — tracks zoom
+              const sc = orig[pn] ? pageWidth / orig[pn].w : 0; // rendered px per point — tracks zoom
+              // a far page's placeholder: its measured aspect when known, A4 portrait until then
+              const estHeight = pageWidth * (orig[pn] ? orig[pn].h / orig[pn].w : Math.SQRT2);
               return (
-                <div key={i} className="pdf-page" data-page={pn}>
-                  <Page
-                    pageNumber={pn}
-                    width={pageWidth}
-                    onLoadSuccess={(p) => setOrig((o) => (o[pn] ? o : { ...o, [pn]: p.originalWidth || pageWidth }))}
-                    loading={<div className="loading">page {pn}…</div>}
-                  />
-                  {sc > 0 &&
-                    regions.filter((r) => r.page === pn).map((r, j) => {
-                      const c = r.color || DEFAULT_COLOR;
-                      return (
-                        <div
-                          key={j}
-                          className={"pdf-region" + (r.ann ? " editable" : "")}
-                          title={r.ann ? r.title || "click to recolor or delete" : r.title}
-                          onClick={r.ann ? (e) => { e.stopPropagation(); openEdit(r.ann!, { x: e.clientX, y: e.clientY }); } : undefined}
-                          style={{ left: r.x * sc, top: r.y * sc, width: r.w * sc, height: r.h * sc, borderColor: c, background: c + "2e" }}
-                        />
-                      );
-                    })}
+                <div
+                  key={i}
+                  className="pdf-page"
+                  data-page={pn}
+                  ref={(el) => {
+                    if (el) wraps.current.set(pn, el);
+                    else wraps.current.delete(pn);
+                  }}
+                >
+                  {near.has(pn) ? (
+                    <>
+                      <Page
+                        pageNumber={pn}
+                        width={pageWidth}
+                        onLoadSuccess={(p) => setOrig((o) => (o[pn] ? o : { ...o, [pn]: { w: p.originalWidth || pageWidth, h: p.originalHeight || pageWidth * Math.SQRT2 } }))}
+                        loading={<div className="loading" style={{ height: estHeight }}>page {pn}…</div>}
+                      />
+                      {sc > 0 &&
+                        regions.filter((r) => r.page === pn).map((r, j) => {
+                          const c = r.color || DEFAULT_COLOR;
+                          return (
+                            <div
+                              key={j}
+                              className={"pdf-region" + (r.ann ? " editable" : "")}
+                              title={r.ann ? r.title || "click to recolor or delete" : r.title}
+                              onClick={r.ann ? (e) => { e.stopPropagation(); openEdit(r.ann!, { x: e.clientX, y: e.clientY }); } : undefined}
+                              style={{ left: r.x * sc, top: r.y * sc, width: r.w * sc, height: r.h * sc, borderColor: c, background: c + "2e" }}
+                            />
+                          );
+                        })}
+                    </>
+                  ) : (
+                    <div className="pdf-placeholder" style={{ width: pageWidth, height: estHeight }} />
+                  )}
                 </div>
               );
             })}

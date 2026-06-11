@@ -400,11 +400,14 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       if (url.pathname === "/api/blob") {
         const file = path.join(dataRoot, ...segs.map(String));
         if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) return notFound(res, url);
-        const data = fs.readFileSync(file);
+        // STREAM the bytes — a readFileSync of a big PDF/video would block the event loop
+        // (and with it every other request and the Vite HMR socket) for its whole read.
         res.statusCode = 200;
         res.setHeader("Content-Type", s.node(p)?.format ?? formatFromExt(file) ?? "application/octet-stream");
-        res.setHeader("Content-Length", String(data.length));
-        res.end(data);
+        res.setHeader("Content-Length", String(fs.statSync(file).size));
+        const stream = fs.createReadStream(file);
+        stream.on("error", () => res.destroy());
+        stream.pipe(res);
         return;
       }
 
