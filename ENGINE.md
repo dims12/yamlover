@@ -14,11 +14,13 @@
 > (`tools/server/src/server/engine-api.ts`) runs on it: read queries
 > (node/toc/relationships/blob) over HTTP, the **event stream** over SSE
 > (`/api/events`: `{type: diff}` index diffs + `{type: task}` progress), a task
-> registry (`/api/tasks`), and the first write commands (`mv`, `annotate`, `tag`,
-> `paste`). **Not yet built:** the query evaluator (`QUERY.md`), the directory
-> serializer (blocks `put`/`normalize`), `rm`/`put`/`link`/`normalize`, and the
-> versioned protocol. The rest of this document is the design those pieces build
-> toward.
+> registry (`/api/tasks`), the first write commands (`mv`, `annotate`, `tag`,
+> `paste`), and the **query op** (the 3g evaluator — colon-grammar match templates
+> over the store, `engine/ts/src/query.ts`, exposed as `GET /api/query`, gated by
+> the 77-case corpus in `query.cases.ts`). **Not yet built:** the directory
+> serializer (blocks `put`/`normalize`), `rm`/`put`/`link`/`normalize`, the
+> authoring-time link/query ARITY check (SEPARATOR.md §5), and the versioned
+> protocol. The rest of this document is the design those pieces build toward.
 
 Forward-looking design, not a commitment (companion to [`FUTURE.md`](FUTURE.md) and
 the pointer model in [`URIs.md`](URIs.md)). Where `FUTURE.md` covers *serving* a

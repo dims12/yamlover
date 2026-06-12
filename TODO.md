@@ -6,6 +6,6 @@
 - Support configurable depth for json/json5p/yaml/yamlover renderers
 - Support configurable depth for chapter renderers
 - When images, maps etc are inside chapters, not need to complex leaflet controls
-- Tag picker: autocomplete over indexed tags (the path input + bare-name create-on-miss exist; search/completion doesn't — a first consumer of the QUERY.md evaluator, PLAN 3g)
+- Tag picker: autocomplete over indexed tags (the path input + bare-name create-on-miss exist; search/completion doesn't — the evaluator is LIVE now: wire the picker to `GET /api/query` with `:: ...: !!<format: x-yamlover-tag>`-style queries)
 - Ctrl-PgDn and Ctrl-PgUp to switch to next element in the viewer
 - Once LHS TOC entry clicked, focus should go to RHS

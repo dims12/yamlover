@@ -15,6 +15,7 @@
  *   GET /api/tagged?path                  the materials filed under a tag (annotations → targets)
  *   GET /api/events                       SSE: {type:"diff",…} reindex diffs + {type:"task",…} progress
  *   GET /api/tasks                        long-running tasks in flight (snapshot for a fresh page)
+ *   GET /api/query?q&path                 the 3g query evaluator (colon match templates)
  *   GET /api/dangling                     pointers that did not resolve at index time
  *   POST /api/reindex                     manual reconcile (the watcher's fallback)
  *
@@ -33,7 +34,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Store, reindex, reindexAsync, hashFileAsync, watchTree, loadSettings, mv, relinkMoved } from "../../../engine/ts/src/index.ts";
+import { Store, reindex, reindexAsync, hashFileAsync, watchTree, loadSettings, mv, relinkMoved, evalQuery } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { pointerToken, anchorToken } from "../../../parser/ts/src/serialize-yamlover.ts";
@@ -287,6 +288,20 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       // finished) — the snapshot a freshly loaded page needs; updates ride /api/events.
       if (url.pathname === "/api/tasks") {
         sendJson(res, 200, tasks.list());
+        return;
+      }
+
+      // The QUERY evaluator (PLAN.md 3g / QUERY.md): a colon-grammar match template,
+      // evaluated at `path` (default: the root). Results are client JSON paths.
+      if (url.pathname === "/api/query") {
+        const q = url.searchParams.get("q") || "";
+        const at = storePath(strToSegs(url.searchParams.get("path") || ":"));
+        try {
+          const results = evalQuery(s, q, at).map((p) => segsToStr(storePathToSegs(p)));
+          sendJson(res, 200, { results });
+        } catch (e) {
+          sendJson(res, 400, { error: String((e as Error).message || e) });
+        }
         return;
       }
 

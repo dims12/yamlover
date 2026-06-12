@@ -52,7 +52,7 @@ playlist: !!mix
   - Verse                  # [1]            keyless
   title: Greatest Hits     # [2], key=title keyed — AND still positioned
   - Chorus                 # [3]            keyless
-  encore: *pets[0]         # [4], key=encore a keyed pointer, still in order
+  encore: *: pets[0]       # [4], key=encore a keyed pointer, still in order
 firstTrack: *playlist[0]       # [n]  -> by POSITION        -> "Intro"
 mixTitle:   *playlist: title   # : x  -> by STRING KEY       -> "Greatest Hits"
 samePos:    *playlist[2]       # position 2 IS the keyed entry -> "Greatest Hits" (== mixTitle)
@@ -66,7 +66,7 @@ rating: !!omni 5                  # the node's own scalar value …
   - solid                  # [0]  a positional field
   - recommended            # [1]  positional
   scale: 10                # [2]  keyed field
-  author: *humans[0]       # [3]  keyed field (a pointer edge)
+  author: *: humans[0]     # [3]  keyed field (a pointer edge)
 ratingValue: *rating       # *rating       -> the node (its scalar value is 5)
 ratingTag:   *rating[0]    # *rating[0]    -> a positional field -> "solid"
 ratingScale: *rating: scale # *rating: scale -> a keyed field     -> 10

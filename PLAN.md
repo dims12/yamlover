@@ -287,7 +287,7 @@ A6. **Conformance** — yaml-test-suite anchor/alias cases reclassified to a
    (kind, `contain`/`ref`, `!!tag`, `format=`). `? ! ( ) < > = |` joined the shared
    metachar set (URIs.md amended) — `! ( ) < > = |` are reserved for the sketched
    future constructs (comparison steps `age/>30`, capture `!`, branching
-   `(… && …)`, projection). **Remaining: the evaluator** — in the engine over the
+   `(… && …)`, projection). **DONE (2026-06-13): the evaluator** — in the engine over the
    store (the `edge` table + `deriveInverses` already make reverse axes cheap),
    exposed as `query` (3f); acceptance gate = QUERY.md §6 conformance obligations
    over the existing resolve.test.ts corpus (and `pointer.ts` catching up to the
@@ -400,16 +400,19 @@ Scaffolded under `tools/jetbrains-plugin/` (Kotlin + IntelliJ Platform Gradle Pl
 
 *(Updated 2026-06-13 — Phases 1, 2a–2c/2e, 3a–3e, 4, 5 done; Phase A implemented;
 **SEPARATOR.md dual window IMPLEMENTED** — colon grammar parses alongside legacy
-slash, serializers emit colon, corpus migrated (16 files, span-surgical), `mv` is
-style-preserving; see SEPARATOR.md's status block. **M1–M4 are RULED and M4 is
-IMPLEMENTED** (compact colon on every machine surface INCLUDING store keys —
-schema v4, root `:`; API payloads + breadcrumbs colon; the browser URL is the one
-slash-transported surface, converted in client paths.ts; M3's canonical own-line
-anchor placement is emitted). The frontier is now: (i) regenerate `query.cases.ts`
-in colon syntax and build the **3g evaluator** with the matcher portions + static
-link/query arity classes; (ii) window close later: `/` leaves the metachar set,
-URIs.md/QUERY.md grammars rewritten. The layout restructure ($defs at root,
-tags/colors merge, self-import graft) is DONE.)*
+slash, serializers emit colon, corpus migrated, `mv` style-preserving; M1–M4 ruled
+and implemented — see SEPARATOR.md. **3g IS DONE (2026-06-13):** the evaluator
+(`tools/engine/ts/src/query.ts`) runs the colon grammar over the Store — wildcards,
+descent, the `..` uplink family, value/`!!<…>` matchers, combos — gated by the
+77-case corpus (`query.cases.ts` + `query.test.ts`, all green) and exposed as
+`GET /api/query`. The gate caught and fixed two latent dangling pointers in
+06-tour (`encore`/`author` were current-scope from inside their containers).
+The frontier is now: (i) wire the first consumers — tag-picker autocomplete over
+/api/query, JetBrains find-usages (J3); (ii) the static link/query ARITY check at
+authoring time (ambiguous-after-`*`/`&` = parse error — SEPARATOR.md §5, not yet
+enforced); (iii) window close: `/` leaves the metachar set, URIs.md/QUERY.md
+grammars rewritten; (iv) the older backlog — 2d remaining, 3f write side,
+EntryMeta.span, YAML conformance. Layout restructure DONE.)*
 
 0. **Anchor refactor A1 (parsers + IR)** — the spec landed this round; A1 is the
    gate for everything else in Phase A and changes the IR other work builds on,

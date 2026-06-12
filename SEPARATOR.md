@@ -16,8 +16,10 @@ closes, not patched twice.
 > span-surgical, edge-set-verified); 05-tour stays the plain-YAML baseline; untracked
 > annotations keep parsing via the window. yaml-test-suite case W5VH (an anchor NAME
 > containing `:`) reclassified diverges-by-design. NOT yet done: `/` still in the
-> metachar set (leaves at window close); queries/matchers/arity classes (land with
-> the 3g evaluator). M4 is IMPLEMENTED: store keys, API payloads and display are
+> metachar set (leaves at window close); the authoring-time ARITY check (§5).
+> The 3g EVALUATOR shipped 2026-06-13 on this grammar (matcher portions, the
+> uplink family, `!!<…>` matchers — `engine/ts/src/query.ts`, `GET /api/query`,
+> 77-case gate). M4 is IMPLEMENTED: store keys, API payloads and display are
 > compact colon (`:team:alice:age`, root `:`, store schema v4); the browser URL is
 > the one slash-transported surface, converted in client paths.ts.
 

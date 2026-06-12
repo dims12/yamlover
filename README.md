@@ -36,9 +36,11 @@ The project has the following goals
 > The write side has begun: serializers for the text concretes (IR → yamlover /
 > json5p, round-trip-gated), `mv` with surgical inbound-pointer rewriting, the
 > FS watcher with three-tier reconcile, and SSE live refresh are implemented.
-> Still missing: the *directory* serializer, inline-binary emission,
-> `rm`/`put`/`normalize`, and the query evaluator (`QUERY.md`). The Python
-> `walker`/`collector` are deprecated (see [`tools/LEGACY.md`](tools/LEGACY.md)).
+> The **query evaluator** is live too (colon-grammar match templates per
+> [`SEPARATOR.md`](SEPARATOR.md), evaluated over the index, `GET /api/query`).
+> Still missing: the *directory* serializer, inline-binary emission, and
+> `rm`/`put`/`normalize`. The Python `walker`/`collector` are deprecated
+> (see [`tools/LEGACY.md`](tools/LEGACY.md)).
 
 ## Isomorphisms briefly
 

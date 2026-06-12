@@ -14,3 +14,4 @@ export { watchTree } from './watch.ts';
 export type { WatchOptions } from './watch.ts';
 export { loadSettings, DEFAULT_SETTINGS } from './settings.ts';
 export type { Settings } from './settings.ts';
+export { evalQuery, parseQuery } from './query.ts';

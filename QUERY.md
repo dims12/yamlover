@@ -2,9 +2,17 @@
 
 Selectors over the instance graph. Companion to `URIs.md` (the pointer model this
 language extends), `IR.md` (the graph being queried), `ENGINE.md` (the evaluator's
-home). **Status: spec only** — the evaluator lands in the engine per `PLAN.md` 3g and
-is exposed as the `query` op of the engine API (3f). First consumers: the tag-picker
-autocomplete, find-usages (JetBrains J3), ad-hoc graph exploration.
+home).
+
+> **Status (2026-06-13): the evaluator SHIPPED** — on the COLON grammar of
+> `SEPARATOR.md` (matcher portions, the `..` uplink family replacing the `~` axis,
+> `!!<…>` metadata matchers replacing this doc's bracket filters), implemented in
+> `tools/engine/ts/src/query.ts` over the Store and exposed as `GET /api/query`.
+> The acceptance corpus is `tools/engine/ts/test/query.cases.ts` (77 green). This
+> document's §2–§4 grammar is SUPERSEDED by SEPARATOR.md §4–§6 and will be
+> rewritten when the dual-separator window closes; §1 (the template-walk model),
+> §5's binding semantics and §9's sketches remain the design record. First
+> consumers: the tag-picker autocomplete, find-usages (JetBrains J3).
 
 JSONPath (RFC 9535) is the inspiration, but not the syntax: JSONPath's two core
 sigils are already spoken for in yamlover — `*` is dereference and `..` is the parent
