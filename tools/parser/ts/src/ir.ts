@@ -6,7 +6,6 @@
 
 export interface Document {
   root: Node;
-  anchors: Map<string, Node>; // & declarations in this document (intra-doc)
   source: SourceInfo;
 }
 
@@ -19,6 +18,11 @@ export type Node = Mapping | Scalar | Blob;
 
 export interface NodeMeta {
   span?: Span;
+  /** Path anchors (`&P/k` / `&P[]`, URIs.md §`&`): this node ALSO lives at that path —
+   *  the container at the path's parent gains an entry (the last segment as key; a
+   *  positional member for `[]`) that is a ref edge to this node. Anchors are NOT
+   *  entries: they never count toward the node's kind. Realized by the resolver. */
+  anchors?: Anchor[];
   /** A schema/meta attached via the `!!<…>` tag (yamlover). Its contents are themselves
    *  yamlover, so the schema is any Value: a Pointer to a hosted schema
    *  (`!!<*yamlover/$defs/chapter>`) OR an inline schema Node (`!!<format: text/x-plantuml>`).
@@ -35,6 +39,16 @@ export interface NodeMeta {
   set?: boolean;
 }
 export interface Span { uri: string; start: number; end: number; }
+
+/** One `&` path-anchor declaration (URIs.md §`&`). For a keyed anchor the path's LAST
+ *  step is the key the target container gains; an ordinal anchor (`&path[]`) points at
+ *  the container itself and appends a keyless member. `path.span` covers the whole
+ *  `&…` token; `path.raw` is the authored path text (without the trailing `[]`). */
+export interface Anchor {
+  path: Pointer;
+  /** True for `&path[]` — keyless appended membership. */
+  ordinal?: boolean;
+}
 
 /**
  * Every node may carry, INDEPENDENTLY of its `kind`:
@@ -78,7 +92,7 @@ export interface Entry {
   value: Value;
   meta?: EntryMeta;
 }
-export interface EntryMeta { span?: Span; anchor?: string; } // span: not yet populated (pointer spans first)
+export interface EntryMeta { span?: Span; } // span: not yet populated (pointer spans first)
 
 export type Value = Node | Pointer; // Node iff edge==='contain'; Pointer iff ref/back
 
@@ -95,9 +109,13 @@ export interface Pointer {
 
 export type PointerBase =
   | { scope: 'current' }                       // bare name/index: current mapping
-  | { scope: 'document' }                       // "/"  — current document root
+  | { scope: 'document' }                       // ":" (legacy "/") — current document root
   | { scope: 'parent' }                         // ".." — parent node (then steps)
-  | { scope: 'link'; authority: string };       // [scheme]"//"authority — any other start
+  /** "::" (legacy "//") — project scope: authority = the first portion, resolved as a
+   *  root key (an import or a mounted authority), else external. `world: true` marks
+   *  the ":::"-spelled WORLD scope (an AWS-like project URI, SEPARATOR.md §2) — same
+   *  resolution semantics in v1, kept so re-emission preserves the ladder rung. */
+  | { scope: 'link'; authority: string; world?: boolean };
 
 export type Step =
   | { sel: 'key'; name: string }                // /x  — string key

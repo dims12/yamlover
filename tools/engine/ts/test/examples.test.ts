@@ -34,7 +34,7 @@ for (const name of entries) {
     assert.ok(doc.root, 'has a root node');
     const s = new Store(':memory:');
     s.indexDocument(doc); // IR → node/edge tables
-    s.toc('/'); // TOC projects
+    s.toc(':'); // TOC projects
     buildGraph(doc); // every `*`/`~` resolves (or is recorded), no throw
     s.close();
   });
@@ -54,13 +54,13 @@ test('67-pdf-tags: a tag description is its BODY — the node value, untagged sc
   const s = new Store(':memory:');
   s.indexDocument(load('67-pdf-tags'));
   // a mid-taxonomy tag: body + sub-tags, authored WITHOUT !!omni (the schema declares variant)
-  const math = s.node('/tags/field/mathematics');
+  const math = s.node(':tags:field:mathematics');
   assert.equal(math?.format, 'x-yamlover-tag');
   assert.equal(math?.value, 'Mathematics');
-  assert.equal(s.node('/tags/field/mathematics/number-theory')?.value, 'Number theory — Diophantine equations, sums of powers');
+  assert.equal(s.node(':tags:field:mathematics:number-theory')?.value, 'Number theory — Diophantine equations, sums of powers');
   // a leaf tag that is JUST its description (a plain scalar) still carries the tag format
-  assert.equal(s.node('/tags/genre/annotation')?.format, 'x-yamlover-tag');
-  assert.equal(s.node('/tags/genre/annotation')?.value, 'A secondary / derivative edition of another paper');
+  assert.equal(s.node(':tags:genre:annotation')?.format, 'x-yamlover-tag');
+  assert.equal(s.node(':tags:genre:annotation')?.value, 'A secondary / derivative edition of another paper');
   s.close();
 });
 
@@ -69,17 +69,17 @@ test('59-all-formats-object: annotations.yamlover reverse-links materials to the
   // (`../../<key>`), so they resolve without depending on where the project is served from.
   const s = new Store(':memory:');
   s.indexDocument(load('59-all-formats-object'));
-  const ann = '/annotations.yamlover/markdown-phrase';
+  const ann = ':annotations.yamlover:markdown-phrase';
   assert.equal(s.node(ann)?.format, 'x-yamlover-annotation'); // the $defs/annotation schema
-  assert.equal(s.node(ann + '/selector/exact')?.value, 'Hover a heading to reveal its');
+  assert.equal(s.node(ann + ':selector:exact')?.value, 'Hover a heading to reveal its');
   // the markdown material sees the annotation as an incoming ref edge — the reverse link
-  const into = s.relationships('/markdown').in;
+  const into = s.relationships(':markdown').in;
   assert.ok(into.some((e) => e.kind === 'ref' && e.from === ann), 'markdown ← its annotation');
   // each annotation is a TAG APPLICATION: a keyless `~-` membership in a built-in color tag,
   // resolvable because the walker grafts the repo's `yamlover/` subtree into the served root
-  const tag = '/yamlover/tags/colors/yellow';
+  const tag = ':yamlover:tags:colors:yellow';
   assert.equal(s.node(tag)?.format, 'x-yamlover-tag');
-  assert.equal(s.node(tag + '/color')?.value, '#f9e2af');
+  assert.equal(s.node(tag + ':color')?.value, '#f9e2af');
   assert.ok(
     s.relationships(tag).in.some((e) => e.kind === 'back' && e.from === ann && e.label === null),
     'the annotation is a keyless reverse member of its color tag',

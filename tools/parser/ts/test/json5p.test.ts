@@ -62,13 +62,21 @@ test('back-edge: ~ sits outside the key', () => {
   assert.deepEqual(e.value.base, { scope: 'document' });
 });
 
-test('& anchor recorded; *name is a current-scope pointer', () => {
-  const d = parseJson5p(`{ boss: &chief { n: 1 }, ref: *'chief' }`);
-  assert.ok(d.anchors.has('chief'));
+test('& path anchor: quoted form, ordinal [], legacy bare name; *name is a pure path', () => {
+  const d = parseJson5p(`{ boss: &'/chief' { n: 1 }, ref: *'chief' }`);
+  const boss = (d.root as any).entries[0].value;
+  assert.deepEqual(boss.meta.anchors.map((a: any) => a.path.raw), ['/chief']);
   const ref = (d.root as any).entries[1];
   assert.equal(ref.edge, 'ref');
   assert.deepEqual(ref.value.base, { scope: 'current' });
   assert.deepEqual(ref.value.steps, [{ sel: 'key', name: 'chief' }]);
+  // ordinal + stacking + the legacy bare-identifier spelling (a current-scope path)
+  const e = parseJson5p(`{ thirty: &'/tags/whole[]' &legacy 30 }`);
+  const thirty = (e.root as any).entries[0].value;
+  assert.deepEqual(
+    thirty.meta.anchors.map((a: any) => [a.path.raw, a.ordinal === true]),
+    [['/tags/whole', true], ['legacy', false]],
+  );
 });
 
 test('escaping: backslash makes a metachar literal (two layers)', () => {

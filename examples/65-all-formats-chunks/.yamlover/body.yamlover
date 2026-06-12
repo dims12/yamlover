@@ -3,7 +3,7 @@
 # files in this directory. The first chunk is the DEFAULT format, marklower; every other
 # non-default textual chunk carries an inline schema (`!!<format: …>`); the binary file
 # types live in meta.yamlover.
-!!<*yamlover/$defs/chapter>
+!!<*yamlover: $defs: chapter>
 title: All Supported Formats — as a chapter
 chunks:
 - |
@@ -28,14 +28,14 @@ chunks:
   name,role,city
   Alice,Engineer,Berlin
   Bob,"Designer, UX",Lisbon
-- */sample.png
-- */sample.svg
-- */sample.gif
-- */sample.bmp
-- */sample.ico
-- */sample.tiff
-- */sample.html
-- */sample.pdf
-- */sample.fb2
-- */sample.epub
-- */sample.psd
+- *: sample.png
+- *: sample.svg
+- *: sample.gif
+- *: sample.bmp
+- *: sample.ico
+- *: sample.tiff
+- *: sample.html
+- *: sample.pdf
+- *: sample.fb2
+- *: sample.epub
+- *: sample.psd

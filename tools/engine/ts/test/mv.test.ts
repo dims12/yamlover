@@ -79,6 +79,18 @@ test('mv: anchor-named refs are untouched and still resolve', () => {
   assert.deepEqual(s.dangling(), []);
 });
 
+test('mv: a link-scoped ordinal anchor is rewritten when its tag container moves (A4)', () => {
+  const root = tmpRoot();
+  mkdirSync(join(root, 'tags'));
+  writeFileSync(join(root, 'tags', 'chem.yamlover'), 'Chemistry\n');
+  writeFileSync(join(root, 'ann.yamlover'), '30\n&//tags/chem.yamlover[]\n');
+  mv(root, 'tags', 'labels');
+  assert.equal(readFileSync(join(root, 'ann.yamlover'), 'utf8'), '30\n&//labels/chem.yamlover[]\n');
+  const s = new Store(':memory:');
+  reindex(s, root);
+  assert.deepEqual(s.dangling(), []);
+});
+
 test('mv: refusals — missing source, existing target, dir into itself, hidden segments, escapes', () => {
   const root = tmpRoot();
   mkdirSync(join(root, 'dir'));

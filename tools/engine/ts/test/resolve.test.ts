@@ -28,48 +28,50 @@ test('json5p 03-tour: pointers resolve to the right nodes', () => {
   const edges = resolveDocument(doc);
 
   // feline = *'pets[1]'  -> the Whiskers node, at /pets[1]
-  const feline = find(edges, '/feline').target;
+  const feline = find(edges, ':feline').target;
   assert.equal(feline.kind, 'node');
-  assert.equal((feline as any).path, '/pets[1]');
+  assert.equal((feline as any).path, ':pets[1]');
   assert.equal(scalarAt(feline, 'name'), 'Whiskers');
 
-  // topDog = *'/pets[0]' -> Rex
-  assert.equal(scalarAt(find(edges, '/topDog').target, 'name'), 'Rex');
+  // topDog = *':pets[0]' -> Rex
+  assert.equal(scalarAt(find(edges, ':topDog').target, 'name'), 'Rex');
 
-  // humans[0].manager = *'/pets[1]' -> Whiskers
-  assert.equal(scalarAt(find(edges, '/humans[0]/manager').target, 'name'), 'Whiskers');
+  // humans[0].manager = *':pets[1]' -> Whiskers
+  assert.equal(scalarAt(find(edges, ':humans[0]:manager').target, 'name'), 'Whiskers');
 
   // team.lead = *'chief' -> the &chief anchor (boss = Rex), by anchor precedence
-  assert.equal(scalarAt(find(edges, '/team/lead').target, 'name'), 'Rex');
+  assert.equal(scalarAt(find(edges, ':team:lead').target, 'name'), 'Rex');
 
   // secondName = *'pets[1]/name' -> the scalar "Whiskers"
-  const sn = find(edges, '/secondName').target;
+  const sn = find(edges, ':secondName').target;
   assert.equal((sn as any).node.value, 'Whiskers');
 
-  // ~cain back-edge = */eve -> the eve node (a mapping)
-  const back = find(edges, '/adam/cain/cain'); // entry key is "cain" (sigil stripped)
+  // the reverse edge is anchor-spelled (&':eve:cain' on cain) — realized as a back edge
+  const back = find(edges, ':adam:cain');
   assert.equal(back.edge, 'back');
-  assert.equal((back.target as any).path, '/eve');
+  assert.equal(back.anchor, true);
+  assert.equal(back.label, 'cain');
+  assert.equal((back.target as any).path, ':eve');
 
   // escaping: ref = *'odd\\/key/n' -> literal key "odd/key", then /n -> scalar 1
-  assert.equal((find(edges, '/oddRef').target as any).node.value, 1);
+  assert.equal((find(edges, ':oddRef').target as any).node.value, 1);
 });
 
 test('yamlover 06-tour: same pointers resolve', () => {
   const doc = parseYamlover(readFileSync(join(examples, '06-tour.yamlover'), 'utf8'), '06-tour.yamlover');
   const edges = resolveDocument(doc);
-  assert.equal(scalarAt(find(edges, '/feline').target, 'name'), 'Whiskers');
-  assert.equal(scalarAt(find(edges, '/topDog').target, 'name'), 'Rex');
-  assert.equal(scalarAt(find(edges, '/team/lead').target, 'name'), 'Rex'); // *chief anchor
-  assert.equal((find(edges, '/secondName').target as any).node.value, 'Whiskers');
+  assert.equal(scalarAt(find(edges, ':feline').target, 'name'), 'Whiskers');
+  assert.equal(scalarAt(find(edges, ':topDog').target, 'name'), 'Rex');
+  assert.equal(scalarAt(find(edges, ':team:lead').target, 'name'), 'Rex'); // *chief anchor
+  assert.equal((find(edges, ':secondName').target as any).node.value, 'Whiskers');
   // ref: *weird/cat\/dog/n -> 1  (literal key "cat/dog")
-  assert.equal((find(edges, '/ref').target as any).node.value, 1);
+  assert.equal((find(edges, ':ref').target as any).node.value, 1);
 });
 
 test('parent scope (..) walks up the containment chain', () => {
   const doc = parseJson5p(`{ a: { b: { up: *'../../x' }, }, x: 42 }`);
   const edges = resolveDocument(doc);
-  assert.equal((find(edges, '/a/b/up').target as any).node.value, 42);
+  assert.equal((find(edges, ':a:b:up').target as any).node.value, 42);
 });
 
 test('link scope is external (not resolved locally)', () => {

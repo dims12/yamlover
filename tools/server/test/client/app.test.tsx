@@ -5,16 +5,16 @@ import { render, screen, cleanup } from "@testing-library/react";
 vi.mock("../../src/client/api", () => ({
   fetchInfo: vi.fn().mockResolvedValue({ root: "myroot" }),
   fetchTree: vi.fn().mockResolvedValue({
-    path: "/",
+    path: ":",
     label: "root",
     type: "object",
     format: null,
     concrete: null,
     hasChildren: true,
-    children: [{ path: "/a", label: "a", type: "string", format: null, concrete: null, hasChildren: false, children: [] }],
+    children: [{ path: ":a", label: "a", type: "string", format: null, concrete: null, hasChildren: false, children: [] }],
   }),
   fetchNode: vi.fn().mockResolvedValue({
-    path: "/",
+    path: ":",
     type: "object",
     concrete: "yamlover",
     title: null,

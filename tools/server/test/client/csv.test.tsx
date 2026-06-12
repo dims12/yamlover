@@ -8,7 +8,7 @@ import type { NodeJson } from "../../src/client/api";
 afterEach(cleanup);
 
 const node = (value: string, format = "text/csv"): NodeJson => ({
-  path: "/data",
+  path: ":data",
   type: "string",
   format,
   concrete: null,
@@ -79,7 +79,7 @@ describe("csv renderer", () => {
     const { container } = render(<CsvControls rerender={() => {}} />);
     fireEvent.click(container.querySelector('input[type="checkbox"]')!); // turn header off
     expect(new URLSearchParams(window.location.search).get("header")).toBe("false");
-    expect(window.location.pathname).toBe("/data"); // path preserved
+    expect(window.location.pathname).toBe("/data"); // path preserved (URL stays slash)
   });
 
   it("the csv renderer exposes the controls as its node-bar config", () => {

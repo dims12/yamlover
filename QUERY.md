@@ -131,6 +131,13 @@ reverse of relation `X`; in a query, the step `~X` *walks* it. (A `~`-prefixed p
 segment is illegal in pointers — `~` is excluded from `nchar` — so this is free
 syntax space, not an overload.)
 
+> **Note (2026-06-12):** the *authoring* `~` forms are deprecated in data syntax in
+> favor of path anchors (`~X: *P` ≡ `&P/X`, `~- *P` ≡ `&P[]` — `ANCHOR_REFACTOR.md`,
+> `URIs.md` §`&`). The query axis here is **unchanged** — and once the migration
+> window closes, `~` will mean "reverse" only in the query language, which removes
+> the last data/query overload of the sigil. The axis walks the same edges however
+> they were authored: forward, `~`-reverse, or anchor-created.
+
 - `x/~name` — every holder of a `name`-labelled edge landing on `x`. Containment and
   `*` refs are the same relation kind (`URIs.md` §`~`), so both arrive.
 - `x/~?` — every incoming edge, any label: "**what points here**" (find-usages),

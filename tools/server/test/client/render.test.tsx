@@ -19,24 +19,24 @@ describe("Render", () => {
     const onNav = vi.fn();
     render(
       <Render
-        value={{ child: { $yamloverLink: { kind: "object", count: 3, path: "/child" } } }}
+        value={{ child: { $yamloverLink: { kind: "object", count: 3, path: ":child" } } }}
         syntax="yaml"
         onNavigate={onNav}
       />,
     );
     const link = screen.getByText("{ object with 3 properties }");
-    expect(link.getAttribute("href")).toBe("/child");
+    expect(link.getAttribute("href")).toBe(":child");
     fireEvent.click(link);
-    expect(onNav).toHaveBeenCalledWith("/child");
+    expect(onNav).toHaveBeenCalledWith(":child");
   });
 
   it("labels array/binary markers and handles singular/plural", () => {
     render(
       <Render
         value={{
-          a: { $yamloverLink: { kind: "array", count: 1, path: "/a" } },
-          b: { $yamloverLink: { kind: "binary", size: 1234, path: "/b" } },
-          c: { $yamloverLink: { kind: "object", count: 1, path: "/c" } },
+          a: { $yamloverLink: { kind: "array", count: 1, path: ":a" } },
+          b: { $yamloverLink: { kind: "binary", size: 1234, path: ":b" } },
+          c: { $yamloverLink: { kind: "object", count: 1, path: ":c" } },
         }}
         syntax="yaml"
         onNavigate={() => {}}
@@ -52,21 +52,21 @@ describe("Render", () => {
     // null → `~` in YAML
     const { rerender } = render(
       <Render
-        value={{ seth: { $yamloverLink: { kind: "scalar", value: null, path: "/adam/seth" } } }}
+        value={{ seth: { $yamloverLink: { kind: "scalar", value: null, path: ":adam:seth" } } }}
         syntax="yaml"
         onNavigate={onNav}
       />,
     );
     const yamlLink = screen.getByText("~");
     expect(yamlLink.tagName).toBe("A");
-    expect(yamlLink.getAttribute("href")).toBe("/adam/seth");
+    expect(yamlLink.getAttribute("href")).toBe(":adam:seth");
     fireEvent.click(yamlLink);
-    expect(onNav).toHaveBeenCalledWith("/adam/seth");
+    expect(onNav).toHaveBeenCalledWith(":adam:seth");
 
     // null → `null`, string quoted in JSON
     rerender(
       <Render
-        value={{ seth: { $yamloverLink: { kind: "scalar", value: null, path: "/adam/seth" } }, name: { $yamloverLink: { kind: "scalar", value: "Alice", path: "/name" } } }}
+        value={{ seth: { $yamloverLink: { kind: "scalar", value: null, path: ":adam:seth" } }, name: { $yamloverLink: { kind: "scalar", value: "Alice", path: ":name" } } }}
         syntax="json"
         onNavigate={onNav}
       />,
@@ -93,16 +93,16 @@ describe("Render", () => {
     const onNav = vi.fn();
     render(
       <Render
-        value={{ "x-yamlover": { rel: { mother: { $yamloverRef: { text: "/eve", path: "/eve" } } } } }}
+        value={{ "x-yamlover": { rel: { mother: { $yamloverRef: { text: ":eve", path: ":eve" } } } } }}
         syntax="yaml"
         onNavigate={onNav}
       />,
     );
-    const link = screen.getByText("/eve");
+    const link = screen.getByText(":eve");
     expect(link.tagName).toBe("A");
-    expect(link.getAttribute("href")).toBe("/eve");
+    expect(link.getAttribute("href")).toBe(":eve");
     fireEvent.click(link);
-    expect(onNav).toHaveBeenCalledWith("/eve");
+    expect(onNav).toHaveBeenCalledWith(":eve");
   });
 
   it("renders an unresolved rel ref as plain text (no link)", () => {

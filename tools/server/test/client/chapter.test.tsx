@@ -9,7 +9,7 @@ afterEach(cleanup);
 // A chapter two levels deep: `chunks` are scalar link markers (text/markdown,
 // text in `value`); `children` are object link markers carrying their `title`.
 const chapter: NodeJson = {
-  path: "/",
+  path: ":",
   type: "object",
   format: "x-yamlover-chapter",
   concrete: "yamlover",
@@ -17,11 +17,11 @@ const chapter: NodeJson = {
   description: "A friendly guide",
   value: {
     chunks: [
-      { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: "/chunks[0]", value: "Welcome to the handbook." } },
-      { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: "/chunks[1]", value: "Read on." } },
+      { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":chunks[0]", value: "Welcome to the handbook." } },
+      { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":chunks[1]", value: "Read on." } },
     ],
     children: [
-      { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: "/children[0]", title: "Installation", count: 2 } },
+      { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: ":children[0]", title: "Installation", count: 2 } },
     ],
   },
 };
@@ -47,10 +47,10 @@ describe("ChapterView", () => {
     // §N is an in-page fragment anchor whose syntax mirrors the chunk's path
     // continuation (chapter path "/" + "/chunks[0]"), not a full-navigation link
     const idx0 = screen.getByText("§0") as HTMLAnchorElement;
-    expect(idx0.getAttribute("href")).toBe("#/chunks[0]");
-    expect((screen.getByText("§1") as HTMLAnchorElement).getAttribute("href")).toBe("#/chunks[1]");
-    // the chunk element carries the matching id, so `<chapter>#/chunks[1]` scrolls to it
-    expect(document.getElementById("/chunks[1]")).not.toBeNull();
+    expect(idx0.getAttribute("href")).toBe("#:chunks[0]");
+    expect((screen.getByText("§1") as HTMLAnchorElement).getAttribute("href")).toBe("#:chunks[1]");
+    // the chunk element carries the matching id, so `<chapter>#:chunks[1]` scrolls to it
+    expect(document.getElementById(":chunks[1]")).not.toBeNull();
     // clicking the in-page anchor does not trigger app navigation
     fireEvent.click(idx0);
     expect(onNav).not.toHaveBeenCalled();
@@ -62,9 +62,9 @@ describe("ChapterView", () => {
       ...chapter,
       value: {
         chunks: [
-          { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: "/chunks[0]", value: "Intro." } },
-          { $yamloverLink: { kind: "binary", type: "binary", format: "image/png", path: "/chunks[1]", size: 1234 } },
-          { $yamloverLink: { kind: "scalar", type: "string", format: "text/x-plantuml", path: "/chunks[2]", value: "@startuml\nA -> B\n@enduml" } },
+          { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":chunks[0]", value: "Intro." } },
+          { $yamloverLink: { kind: "binary", type: "binary", format: "image/png", path: ":chunks[1]", size: 1234 } },
+          { $yamloverLink: { kind: "scalar", type: "string", format: "text/x-plantuml", path: ":chunks[2]", value: "@startuml\nA -> B\n@enduml" } },
         ],
         children: [],
       },
@@ -85,8 +85,8 @@ describe("ChapterView", () => {
     render(<ChapterView node={chapter} onNavigate={onNav} />);
 
     const link = screen.getByText("Installation"); // subchapter by its title
-    expect((link as HTMLAnchorElement).getAttribute("href")).toBe("/children[0]");
+    expect((link as HTMLAnchorElement).getAttribute("href")).toBe(":children[0]");
     fireEvent.click(link);
-    expect(onNav).toHaveBeenCalledWith("/children[0]");
+    expect(onNav).toHaveBeenCalledWith(":children[0]");
   });
 });

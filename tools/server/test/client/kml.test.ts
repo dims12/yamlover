@@ -12,7 +12,7 @@ const KML = `<?xml version="1.0" encoding="UTF-8"?>
 </Document></kml>`;
 
 const bin = (format: string): NodeJson => ({
-  path: "/f",
+  path: ":f",
   type: "binary",
   format,
   concrete: null,

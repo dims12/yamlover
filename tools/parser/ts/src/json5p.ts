@@ -1,11 +1,14 @@
 // Hand-written recursive-descent parser for json5p (JSON5 + pointers) → the IR.
 // Spec: JSON5P.md. JSON ⊂ JSON5 ⊂ json5p, so this also accepts all JSON/JSON5.
 //
-// Adds over JSON5: `*'<pointer>'` (deref), `&name <value>` (anchor), `~key:` (back-edge).
+// Adds over JSON5: `*'<pointer>'` (deref), `&'<path>' <value>` (PATH anchor — URIs.md §`&`;
+// quoted like a pointer, trailing `[]` = ordinal membership, several may stack; a legacy
+// bare `&name` reads as the current-scope path `name`), and the deprecated `~key:` /
+// `~*'…'` back-edges (≡ `&'P/key'` / `&'P[]'`).
 
 import type { Document, Node, Mapping, Scalar, Entry, Value } from './ir.ts';
 import { isPointer } from './ir.ts';
-import { parsePointer } from './pointer.ts';
+import { parsePointer, makeAnchor } from './pointer.ts';
 
 const WS = new Set([' ', '\t', '\n', '\r', '\v', '\f', ' ', '﻿']);
 
@@ -16,14 +19,13 @@ export function parseJson5p(src: string, uri = '<json5p>'): Document {
   p.ws();
   if (p.i < src.length) p.fail('trailing characters');
   if (isPointer(root)) return p.fail('a top-level pointer is not allowed'); // narrows root → Node
-  return { root, anchors: p.anchors, source: { concrete: 'json5p', uri } };
+  return { root, source: { concrete: 'json5p', uri } };
 }
 
 class Parser {
   src: string;
   uri: string;
   i = 0;
-  anchors = new Map<string, Node>();
 
   constructor(src: string, uri: string) { this.src = src; this.uri = uri; }
 
@@ -150,12 +152,19 @@ class Parser {
   }
 
   anchored(): Node {
-    this.i++; // &
-    const name = this.identifier();
+    const start = this.i; // at '&'
+    this.i++;
+    const c = this.peek();
+    // quoted = the canonical path form; a bare identifier is the legacy spelling, read as
+    // the current-scope path `name` (the container gains the sibling key `name`)
+    const body = c === '"' || c === "'" ? (this.string().value as string) : this.identifier();
+    const anchor = makeAnchor(body, (m) => this.fail(m));
+    anchor.path.span = { uri: this.uri, start, end: this.i }; // the whole `&…` token
     this.ws();
-    const v = this.value();
+    const v = this.value(); // several anchors stack via recursion (`&'a' &'b' 30`)
     if (isPointer(v)) this.fail('cannot anchor a pointer');
-    this.anchors.set(name, v);
+    // recursion attaches inner anchors first — PREPEND to keep the authored order
+    v.meta = { ...v.meta, anchors: [anchor, ...(v.meta?.anchors ?? [])] };
     return v;
   }
 

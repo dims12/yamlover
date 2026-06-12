@@ -25,7 +25,7 @@ import { resolveDocument } from './resolve.ts';
 
 // Bump when the table shapes change: a mismatched on-disk index is dropped and rebuilt from
 // the filesystem (the DB is a derived cache, so this is always safe).
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4; // 4: store paths are COLON-form (':team:alice', root ':') — SEPARATOR.md M4
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS node (
@@ -138,7 +138,7 @@ export class Store {
       this.db.exec('DELETE FROM node; DELETE FROM edge; DELETE FROM dangling;');
       if (files) this.db.exec('DELETE FROM file;');
       // nodes + containment edges (one walk; the path scheme matches resolve.ts / buildGraph)
-      walkNodes(doc.root, '/', (path, node, parent, label, pos) => {
+      walkNodes(doc.root, ':', (path, node, parent, label, pos) => {
         const meta = node.meta ? JSON.stringify(node.meta) : null;
         // the array hint is judged over OWNED entries only — a `~-` back-edge (reverse
         // membership) is not a member of this node and must not make it look like an array
@@ -214,7 +214,7 @@ export class Store {
 
   /** Incrementally remove one annotation: its node subtree and every edge touching it. */
   removeAnnotation(annStorePath: string): void {
-    const like = annStorePath + '/%';
+    const like = annStorePath + ':%';
     this.db.exec('BEGIN');
     try {
       this.db.prepare('DELETE FROM node WHERE path = ? OR path LIKE ?').run(annStorePath, like);
@@ -244,14 +244,14 @@ export class Store {
     const hasNode = this.db.prepare('SELECT 1 FROM node WHERE path = ?');
     this.db.exec('BEGIN');
     try {
-      const segs = taxonomyStorePath === '/' ? [] : taxonomyStorePath.slice(1).split('/');
+      const segs = taxonomyStorePath === ':' ? [] : taxonomyStorePath.slice(1).split(':');
       for (let i = 1; i <= segs.length; i++) {
-        const p = '/' + segs.slice(0, i).join('/');
+        const p = ':' + segs.slice(0, i).join(':');
         if (hasNode.get(p)) continue;
         insNode.run(p, 'mapping', null, null, null, null, 0, null);
-        insEdge.run(i === 1 ? '/' : '/' + segs.slice(0, i - 1).join('/'), p, segs[i - 1], 'contain', null);
+        insEdge.run(i === 1 ? ':' : ':' + segs.slice(0, i - 1).join(':'), p, segs[i - 1], 'contain', null);
       }
-      const tagPath = (taxonomyStorePath === '/' ? '' : taxonomyStorePath) + '/' + name;
+      const tagPath = (taxonomyStorePath === ':' ? '' : taxonomyStorePath) + ':' + name;
       walkNodes(node, tagPath, (p, n, parent, label, ps) => {
         const meta = n.meta ? JSON.stringify(n.meta) : null;
         const isArray = n.array || (n.kind === 'mapping' && (n.entries?.every((e) => e.key === null) ?? false));
@@ -299,7 +299,7 @@ export class Store {
         this.db.exec('ROLLBACK');
         return false;
       }
-      this.db.prepare("UPDATE node SET content_hash = ? WHERE path = ? AND type = 'blob'").run(hash, '/' + relPath);
+      this.db.prepare("UPDATE node SET content_hash = ? WHERE path = ? AND type = 'blob'").run(hash, ':' + relPath.split('/').join(':'));
       this.db.exec('COMMIT');
       return true;
     } catch (e) {
@@ -352,7 +352,7 @@ export class Store {
 
   /** The containment subtree rooted at `path`, up to `depth` levels (TOC). A recursive CTE
    *  over `contain` edges — the acyclic spine; ordered by `pos` at each level. */
-  toc(path = '/', depth = Infinity): TocNode[] {
+  toc(path = ':', depth = Infinity): TocNode[] {
     const rows = this.db
       .prepare(
         `WITH RECURSIVE sub(from_path, to_path, label, pos, lvl) AS (
@@ -408,7 +408,7 @@ export interface TocNode {
 }
 
 /** Walk every Node depth-first, emitting (path, node, parentPath|null, label|null, pos). The
- *  path scheme matches resolve.ts/buildGraph: root '/', keyed child '/key', keyless '[i]'. */
+ *  path scheme matches resolve.ts/buildGraph: root ':', keyed child ':key', keyless '[i]'. */
 function walkNodes(
   node: Node,
   path: string,
@@ -421,7 +421,7 @@ function walkNodes(
   if (!node.entries) return;
   node.entries.forEach((e, i) => {
     if (isPointer(e.value)) return; // pointers are edges, not owned child nodes
-    const childPath = (path === '/' ? '' : path) + (e.key != null ? '/' + e.key : '[' + i + ']');
+    const childPath = (path === ':' ? '' : path) + (e.key != null ? ':' + e.key : '[' + i + ']');
     walkNodes(e.value, childPath, visit, path, e.key, i);
   });
 }

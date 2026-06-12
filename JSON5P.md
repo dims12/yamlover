@@ -73,7 +73,12 @@ in `URIs.md` — summarized:
 | `*'/…'` | current **document** root |
 | `*'//auth/…'`, `*'scheme://auth/…'` | a **link** — any *other* start (project, sibling doc, external); a **virtual identifier**, scheme ignored, never fetched |
 
-### `~` — back-edges (in key position)
+### `~` — back-edges (in key position; DEPRECATED → path anchors)
+
+> **Deprecated 2026-06-12** in favor of path anchors (§`&` below; `URIs.md` §`&`):
+> `~key: *'P'` ≡ `&'P/key'`, and the keyless `~*'P'` ≡ `&'P[]'`. Both forms produce
+> identical normalized edges; parsers keep accepting `~` through the migration
+> window (PLAN.md Phase A), serializers will emit anchors only.
 
 A key prefixed with `~` is the **reverse** of the forward relation named by the key. The
 `~` is a **sigil that sits *outside* the key**, so the key part is written normally —
@@ -95,7 +100,7 @@ and materializes on a filesystem as a symlink. The graph is **kept exactly as wr
 author the forward edge, its `~` reverse, or both; the engine's `normalize` reduces a pair
 to forwards-only.
 
-### `~*` — reverse *positional* membership (keyless)
+### `~*` — reverse *positional* membership (keyless; DEPRECATED → `&'path[]'`)
 
 The keyless counterpart: a member of an object or array of the form **`~*'…'`** — the
 sigil tight against a pointer, no key, no colon — declares that the pointed-at container
@@ -118,23 +123,32 @@ unless the container's metadata says `uniqueItems: true` (the schema-keyword rou
 semantics; json5p has no tags, so yamlover's `!!set` is unavailable here). Full semantics
 in `URIs.md` §`~-`.
 
-### `&` — anchors (in value position)
+### `&` — path anchors (in value position)
 
-`&name` declares an **anchor** — a reusable name for the value that follows — and `*name`
-references it (the YAML idea, added to JSON5). An anchored node is *shared*, not copied:
+> **Spec'd 2026-06-12 (`ANCHOR_REFACTOR.md`); implementation pending** — the parser
+> still implements the previous name-only anchor until PLAN.md Phase A lands.
+
+`&'path'` declares that the value that follows **also lives at that path**: the
+path's parent gains the last segment as a key, a ref edge to this node (the push
+side of `*`'s pull — full semantics, ordinal `[]`, multiplicity, and collision
+rules in `URIs.md` §`&`). On the json5p surface the anchor path is a **quoted
+string** after the sigil, like a pointer's; multiple anchors may precede one value,
+and a keyless membership is a trailing `[]` inside the path string:
 
 ```json5p
 {
-  boss: &chief { name: 'Rex', species: 'dog' },
-  team: { lead: *'chief' },   // same node as boss — a shared edge, not a copy
+  humans: [
+    { age: 30, pet: &'/supercat' { species: 'cat', color: 'pink' } },
+    { age: 10, pet: *'/supercat' },          // plain path — no anchor namespace
+  ],
+  thirty: &'/tags/whole[]' 30,               // keyless: the tag container holds this node
 }
 ```
 
-Anchors are **intra-document** and name-only (no paths); anything cross-position or
-cross-document is the job of `*` with a scope (`/`, links). Precedence follows `URIs.md`:
-a declared anchor wins, else `*name` is a structural sibling pointer. Both surfaces share
-`&`; only `*` differs — unquoted in yamlover (`*chief`), a quoted string in json5p
-(`*'chief'`).
+Anchors create **real keys** — `*'name'` is pure path lookup; the old
+anchor-wins-over-sibling precedence rule is gone. Both surfaces share `&`; the
+operand is unquoted in yamlover (`&/supercat`), a quoted string in json5p
+(`&'/supercat'`).
 
 ## 3. One container, no schema
 

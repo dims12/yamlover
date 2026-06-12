@@ -645,18 +645,18 @@ export function displayTypeLabel(node: YNode): string {
 
 export type Seg = string | number;
 
-/** Render path segments JSON-path style: `/key[0]/other` (root → `/`). Each key
- *  is percent-encoded so a `/`, `[`, or `]` *inside* a key (e.g.
- *  `@vitejs/plugin-react`) does not read as a separator. */
+/** Render path segments JSON-path style: `:key[0]:other` (root → `:`, colon-form —
+ *  SEPARATOR.md M4). Each key is percent-encoded so a `:`, `[`, or `]` *inside* a
+ *  key (e.g. `@vitejs/plugin-react`) does not read as a separator. */
 export function segsToStr(segs: Seg[]): string {
   return (
     segs
-      .map((s) => (typeof s === "number" ? `[${s}]` : `/${encodeURIComponent(s)}`))
-      .join("") || "/"
+      .map((s) => (typeof s === "number" ? `[${s}]` : `:${encodeURIComponent(s)}`))
+      .join("") || ":"
   );
 }
 
-const PATH_TOKEN = /\[\d+\]|[^/\[\]]+/g;
+const PATH_TOKEN = /\[\d+\]|[^:\[\]]+/g;
 
 /** Parse a JSON-path string into segments (`[n]` → number, else decoded key). */
 export function strToSegs(str: string): Seg[] {

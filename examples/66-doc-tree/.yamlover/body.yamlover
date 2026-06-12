@@ -2,7 +2,7 @@
 # their (type, format): prose (default markdown), image chunks (`*…png` pointers — format
 # from the .png extension), and PlantUML diagrams (tagged with an inline schema,
 # `!!<format: text/x-plantuml>`). Subchapters recurse via `children`. Spec: ../YAMLOVER.md.
-!!<*yamlover/$defs/chapter>
+!!<*yamlover: $defs: chapter>
 title: The Pet Keeper's Handbook
 description: A friendly guide to living with animals
 chunks:
@@ -12,7 +12,7 @@ chunks:
 - |
   Read the chapter for your companion, but the first rule is universal: *watch, listen, and
   be patient.*
-- */cover-paw.png
+- *: cover-paw.png
 - |
   Three needs run through every chapter — **company, exercise, and a clean environment** —
   weighted differently for each animal:
@@ -35,7 +35,7 @@ children:
   chunks:
   - |
     A dog is a **social animal** that adopts your family as its pack.
-  - */dog-bone.png
+  - *: dog-bone.png
   - |
     Daily walks are not optional; they are how a dog reads the news of the neighbourhood.
     Consistency matters more than severity — the same word should always mean the same thing.
@@ -57,7 +57,7 @@ children:
     chunks:
     - |
       Puppies sleep most of the day and chew most of the rest.
-    - */puppy-paw.png
+    - *: puppy-paw.png
     - |
       Begin house training the day they arrive, reward every success generously, and give
       early, gentle exposure to people and places — it shapes a calm adult dog.
@@ -77,7 +77,7 @@ children:
   chunks:
   - |
     A cat tolerates your presence on terms it renews daily.
-  - */cat-face.png
+  - *: cat-face.png
   - |
     Vertical space — shelves, perches, a tall scratching post — keeps a cat content. And a
     clean litter box is the single most important thing you can offer a cat.
@@ -97,7 +97,7 @@ children:
   chunks:
   - |
     An aquarium is a small ecosystem, and **water quality is everything.**
-  - */fish-tank.png
+  - *: fish-tank.png
   - |
     Cycle a new tank for weeks before adding fish, so helpful bacteria can establish. Feed
     sparingly: uneaten food fouls the water faster than anything else.

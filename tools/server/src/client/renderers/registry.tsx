@@ -324,9 +324,9 @@ const REGISTRY: Renderer[] = [
   },
 ];
 
-/** The last path segment (a property key or `[index]`). */
+/** The last path segment (a property key or `[index]`) of a colon-form client path. */
 function basename(path: string): string {
-  const i = path.lastIndexOf("/");
+  const i = path.lastIndexOf(":");
   return i < 0 ? path : path.slice(i + 1);
 }
 

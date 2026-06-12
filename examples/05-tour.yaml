@@ -21,6 +21,9 @@ humans:
   - name: Alice
     manager: *whiskers # YAML alias: the SAME node as pets[1], shared by anchor name
                        # (YAML can share by &/* name, but cannot say "*/pets[1]" by path)
+                       # NB: yamlover reads &/* differently — an anchor is a PATH creating
+                       # a real key in the current scope — so this CROSS-scope alias is a
+                       # documented divergence (YAMLOVER.md §3); the 06 twin says */pets[1].
 
 # ---- a tour of YAML scalar & collection types (the JSON types, plus YAML's own) ----
 types:

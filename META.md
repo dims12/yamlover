@@ -46,9 +46,12 @@ file, the meta says how to read it).
 
 ## Hosted schemas (`$defs`) — `chapter` & `chunk`
 
-The yamlover project hosts reusable schema definitions under **`yamlover/$defs`** — inside
-the built-in `yamlover/` subtree the engine grafts into every served root, so it is exactly
-what the `!!<*yamlover/$defs/chapter>` tag pointers name:
+The yamlover project (URI `::: yamlover.inthemoon.net`, SEPARATOR.md §2) hosts reusable
+schema definitions at its project root, under **`$defs/`** — a project's tree IS its URI's
+tree (layout restructured 2026-06-13; previously a `yamlover/` wrapper dir). The engine
+grafts the **self-import key `yamlover`** → {`$defs`, `tags`} into every served root —
+including the yamlover project itself, where `//X` ≡ `//yamlover/X` — so
+`!!<*yamlover/$defs/chapter>` tag pointers resolve from any project:
 
 - **`$defs/chunk`** — one renderable content block: a typed value whose `(type, format)`
   selects the renderer; default `string`/`text/markdown` (prose), overridable per chunk.
@@ -153,9 +156,9 @@ The repo hosts two schemas the server acts on (and a built-in instance tree):
   per-application `description`, and the applied tag as a keyless `~- *//path/to/tag`
   membership. Display color always comes from the applied tag. Two tags on the same region =
   two annotations.
-- **`yamlover/tags/colors`** — the built-in pure color tags (the annotation palette), grafted
-  into every served root by the engine (found like `$defs`: the nearest ancestor directory
-  holding `$defs/`).
+- **`tags/colors`** (reachable everywhere as `//yamlover/tags/colors`) — the built-in pure
+  color tags (the annotation palette), living at the yamlover project root beside `$defs/`
+  and grafted into every served root via the `yamlover` self-import key.
 
 ## Examples
 

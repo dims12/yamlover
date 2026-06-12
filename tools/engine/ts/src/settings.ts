@@ -28,8 +28,8 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  annotations: { location: '/annotations' },
-  tags: { location: '/tags' },
+  annotations: { location: ':annotations' },
+  tags: { location: ':tags' },
 };
 
 /** Read `<absRoot>/.yamlover/settings.yamlover`, overlaying DEFAULT_SETTINGS. A missing or
@@ -79,14 +79,14 @@ function pointerPath(p: Pointer): string | null {
   if (p.steps.length === 0 || !p.steps.every((s) => s.sel === 'key')) return null;
   const segs = p.steps.map((s) => (s as { sel: 'key'; name: string }).name);
   if (segs.some((seg) => seg === '..' || seg === '')) return null;
-  return '/' + segs.join('/');
+  return ':' + segs.join(':');
 }
 
-/** Normalize a plain-string location: forced to one leading `/`, trailing `/` stripped, and
- *  refusing `..` segments (a settings path must stay inside the served root). */
+/** Normalize a plain-string location to a COLON project path (legacy `/`-spellings are
+ *  accepted), refusing `..` segments (a settings path must stay inside the served root). */
 function stringPath(v: string, dflt: string): string {
   if (v.trim() === '') return dflt;
-  const p = '/' + v.trim().replace(/^\/+/, '').replace(/\/+$/, '');
-  if (p === '/' || p.split('/').some((seg) => seg === '..')) return dflt;
-  return p;
+  const segs = v.trim().split(/[/:]/).filter((seg) => seg !== '');
+  if (segs.length === 0 || segs.some((seg) => seg === '..')) return dflt;
+  return ':' + segs.join(':');
 }

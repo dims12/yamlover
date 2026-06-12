@@ -35,7 +35,7 @@ test('reindex reports added / changed / removed files across runs', () => {
   // no edits → an empty diff (and the index still answers)
   const second = reindex(s, root);
   assert.deepEqual(second, { added: [], changed: [], removed: [], moved: [] });
-  assert.equal(s.node('/b.yamlover/x')?.value, 1);
+  assert.equal(s.node(':b.yamlover:x')?.value, 1);
 
   // one modified, one new, one gone
   writeFileSync(join(root, 'b.yamlover'), 'x: 2\n');
@@ -43,8 +43,8 @@ test('reindex reports added / changed / removed files across runs', () => {
   rmSync(join(root, 'a.md'));
   const third = reindex(s, root);
   assert.deepEqual(third, { added: ['c.md'], changed: ['b.yamlover'], removed: ['a.md'], moved: [] });
-  assert.equal(s.node('/b.yamlover/x')?.value, 2);
-  assert.equal(s.node('/a.md'), null);
+  assert.equal(s.node(':b.yamlover:x')?.value, 2);
+  assert.equal(s.node(':a.md'), null);
 });
 
 test('reindex manifests overlay files, so a body.yamlover edit is a change', () => {
@@ -54,12 +54,12 @@ test('reindex manifests overlay files, so a body.yamlover edit is a change', () 
   writeFileSync(join(root, 'd', '.yamlover', 'body.yamlover'), 'title: First\n');
   const s = new Store(':memory:');
   reindex(s, root);
-  assert.equal(s.node('/d/title')?.value, 'First');
+  assert.equal(s.node(':d:title')?.value, 'First');
 
   writeFileSync(join(root, 'd', '.yamlover', 'body.yamlover'), 'title: Second\n');
   const diff = reindex(s, root);
   assert.deepEqual(diff.changed, ['d/.yamlover/body.yamlover']);
-  assert.equal(s.node('/d/title')?.value, 'Second');
+  assert.equal(s.node(':d:title')?.value, 'Second');
 });
 
 test('hash cache: an unchanged (size, mtime) blob is not re-read', () => {
@@ -72,7 +72,7 @@ test('hash cache: an unchanged (size, mtime) blob is not re-read', () => {
   utimesSync(png, T, T);
   const s = new Store(':memory:');
   reindex(s, root);
-  const hash1 = s.node('/pic.png')?.content_hash;
+  const hash1 = s.node(':pic.png')?.content_hash;
   assert.ok(hash1?.startsWith('xxh64:'));
 
   // rewrite with DIFFERENT bytes but the SAME size and mtime: a cache hit must reuse the old
@@ -81,7 +81,7 @@ test('hash cache: an unchanged (size, mtime) blob is not re-read', () => {
   utimesSync(png, T, T);
   const diff = reindex(s, root);
   assert.deepEqual(diff, { added: [], changed: [], removed: [], moved: [] });
-  assert.equal(s.node('/pic.png')?.content_hash, hash1);
+  assert.equal(s.node(':pic.png')?.content_hash, hash1);
 });
 
 // --------------------------------------------------------------------------- //
@@ -143,12 +143,12 @@ test('a schema-version mismatch drops the on-disk index and marks the store stal
   assert.equal(s1.stale, true); // a brand-new DB has no usable index…
   reindex(s1, root);
   assert.equal(s1.stale, false); // …until the first successful index
-  assert.ok(s1.node('/a.md'));
+  assert.ok(s1.node(':a.md'));
   s1.close();
 
   const s2 = new Store(dbPath);
   assert.equal(s2.stale, false); // same era → the persisted index is usable as-is
-  assert.ok(s2.node('/a.md'));
+  assert.ok(s2.node(':a.md'));
   assert.ok(s2.manifest().has('a.md'));
   s2.close();
 
@@ -158,10 +158,10 @@ test('a schema-version mismatch drops the on-disk index and marks the store stal
   raw.close();
   const s3 = new Store(dbPath);
   assert.equal(s3.stale, true);
-  assert.equal(s3.node('/a.md'), null); // dropped — caller must reindex
+  assert.equal(s3.node(':a.md'), null); // dropped — caller must reindex
   assert.equal(s3.manifest().size, 0); // stale manifest gone with it (no poisoned cache)
   reindex(s3, root);
-  assert.ok(s3.node('/a.md'));
+  assert.ok(s3.node(':a.md'));
   s3.close();
 });
 
@@ -176,7 +176,7 @@ test('an unresolved pointer is persisted as dangling, and clears once it resolve
   reindex(s, root);
   const d = s.dangling();
   assert.equal(d.length, 1);
-  assert.equal(d[0].from, '/doc.yamlover/friend');
+  assert.equal(d[0].from, ':doc.yamlover:friend');
   assert.equal(d[0].raw, 'missing'); // Pointer.raw is the path text, sans the `*` sigil
   assert.match(d[0].reason, /missing/);
 

@@ -24,7 +24,7 @@ yamlover keeps the YAML surface you know:
 | Comments | `# note` |
 | Scalars (plain/quoted/folded/literal) | `a`, `'a'`, `"a"`, `>`, `\|` |
 | `null` spellings, incl. `~` **in value position** | `key: ~`  → null |
-| `&` anchors and `*` aliases | `&a {…}` … `*a` |
+| `&` anchors and `*` aliases | `&a {…}` … `*a` — syntax kept, **meaning extended** (§2, §3) |
 
 A YAML `- item` sequence entry is the same thing as a keyless `:` entry in the one-ordered
 container (§4) — both are an entry with no string key.
@@ -33,8 +33,9 @@ container (§4) — both are an entry with no string key.
 
 The pointer layer, identical in meaning to json5p (grammar in `URIs.md`):
 
-- **Extended `*` — dereference.** Beyond a plain anchor name, `*` takes a **pointer
-  expression**: a path with scopes. Unquoted on this surface.
+- **Extended `*` — dereference.** Beyond YAML's bare alias word, `*` takes a **pointer
+  expression**: a path with scopes, resolved purely structurally (a bare `*a` is the
+  sibling key `a`). Unquoted on this surface.
   ```yamlover
   feline: *pets[1]        # current mapping (a sibling) — a shared edge, not a copy
   manager: */pets[1]      # / = current document root
@@ -42,44 +43,67 @@ The pointer layer, identical in meaning to json5p (grammar in `URIs.md`):
   ```
 - **Keys are pointers; `[n]` vs `/x`.** Positions are integer keys (`*pets[1]`), names are
   string keys (`*pets[1]/name`). Arrays and mappings are the **one ordered container** (§4).
-- **`~` — back-edges (key sigil).** A key prefixed with `~` is the reverse of the forward
-  relation it names. The `~` is a **sigil outside the key**:
+- **`&` — path anchors (the push side of `*`).** *Spec'd 2026-06-12
+  (`ANCHOR_REFACTOR.md`); parsers still implement the old name-only anchor until
+  PLAN.md Phase A lands.* An anchor's name is a full pointer path: `&P/k` on a node
+  means the container at `P` gains the key `k` → a ref edge to **this node** ("I also
+  live there"). A trailing `[]` makes it a keyless, appended membership (`&P[]`). A
+  node may carry **multiple** anchors — on the value's line, or on their own lines
+  inside the node's block (before or after the value line; order irrelevant). Anchors
+  are **not entries**: they never change a node's kind (a scalar with anchors stays a
+  scalar). There is **no anchor namespace** — anchors create real keys, and `*name` is
+  pure path lookup. Full semantics (ordinal rules, collisions): `URIs.md` §`&`.
+  ```yamlover
+  pet: &/supercat       # this node is ALSO the document-root key "supercat"
+    species: cat
+  friend: */supercat    # plain path reaches it
+  ```
+- **`~` — back-edges (key sigil). DEPRECATED → path anchors** (`~key: *P` ≡ `&P/key`).
+  Still parsed through the migration window. A key prefixed with `~` is the reverse of
+  the forward relation it names; the `~` is a **sigil outside the key**:
   ```yamlover
   adam:
     cain:
-      ~cain: */eve        # reverse of eve's "cain" edge → eve   (~ = sigil, key = "cain")
+      ~cain: */eve        # ≡ &/eve/cain — reverse of eve's "cain" edge → eve
   ```
-- **`~-` — reverse *positional* membership (keyless back-edge).** The sigil sits tight
-  against what the forward entry starts with — a key (`~cain:`) or the `-` marker (`~-`;
-  a spaced `~ -` is an error, as is `~ cain:`). The value **must be a pointer** — it names
-  the container that holds me:
+- **`~-` — reverse *positional* membership (keyless back-edge). DEPRECATED →
+  `&path[]`.** The sigil sits tight against what the forward entry starts with — a key
+  (`~cain:`) or the `-` marker (`~-`; a spaced `~ -` is an error, as is `~ cain:`).
+  The value **must be a pointer** — it names the container that holds me:
   ```yamlover
   my_node:
-    ~- */some/other/location   # ⇒ that container has an element  - *…/my_node
+    ~- */some/other/location   # ≡ &/some/other/location[] — that container holds me
   ```
   A `~-` membership is **unpositioned** (no `~[n]:` — order is the container's data) and
   **additive**: with no label and no index there is no identity to dedup on, so every `~-`
   adds one element, even alongside a forward `- *me` (lists repeat) — unless the container
-  is a `!!set` (§4). Semantics in `URIs.md` §`~-`.
-- **`&` anchors — unchanged.** Exactly YAML anchors: a single intra-document name, no
-  paths; `*name` reuses the node (precedence: a declared anchor wins over a sibling key).
+  is a `!!set` (§4). Semantics in `URIs.md` §`~-` — and identically for `&path[]`.
 
 ## 3. Where yamlover deliberately breaks YAML
 
-These are the *only* incompatibilities — everything else is YAML:
+These are the *only* incompatibilities — everything else is YAML. With the anchor
+change (2026-06-12), yamlover stops being a strict YAML superset and becomes an
+**improved YAML**: a superset for anchor-free documents, deliberately divergent on
+anchors:
 
 | Construct | YAML means | yamlover means |
 |---|---|---|
-| `*alias` | alias to anchor `alias` (name only) | **pointer** — a path/scope expression (`*a` still hits anchor `a` by precedence, but `*a/b`, `*/x`, `*pets[1]` are new) |
-| `~key:` (key position) | the plain-scalar key `"~key"` | **back-edge** sigil on key `key` |
-| `~-` (entry position) | the plain scalar `~-` (rare) | **keyless back-edge** — reverse positional membership (§2) |
+| `&anchor` | a reusable intra-document name for the node | **path anchor** — "this node also lives at that path"; the path's parent gains a real key (§2, `URIs.md` §`&`) |
+| `*alias` | alias to anchor `alias` (name only) | **pointer** — a pure path/scope expression (`*a` = the sibling key `a`; no anchor namespace, no precedence rule) |
+| `~key:` (key position) | the plain-scalar key `"~key"` | **back-edge** sigil on key `key` (deprecated → `&P/key`, §2) |
+| `~-` (entry position) | the plain scalar `~-` (rare) | **keyless back-edge** (deprecated → `&P[]`, §2) |
 | `~` (value position) | null | **unchanged — still null** |
 | `!!set` | a mapping of null-valued keys | a **set-semantics container** — memberships dedup by identity (§4) |
+| scalar + fields / mixed keyed+keyless | invalid / two node kinds | **one node** — omni by default (§4) |
 
-So a YAML file whose anchor names contain pointer metacharacters (`&a/b` … `*a/b`), or
-whose **plain keys begin with `~`**, will read differently. Everything else round-trips.
-This is the documented divergence set our conformance harness allowlists (see
-`URIs.md` and the conformance notes).
+The anchor row is the consequential one: a plain-YAML `&a` … `*a` pair at different
+nesting depths **changes meaning** — `&a` now grafts the node as key `a` of the
+*current* scope, and `*a` looks up a sibling key. Port such documents by rooting the
+name: `&/a` … `*/a` (one shared key at the document root). A YAML file using no
+anchors, no `~`-prefixed plain keys, and no `!!set` round-trips unchanged. This is
+the documented divergence set our conformance harness allowlists; the anchor/alias
+cases of `yaml-test-suite` move to a *diverges-by-design* group when Phase A lands
+(`tools/parser/YAML-CONFORMANCE.md`).
 
 ## 4. One ordered container
 
@@ -91,21 +115,31 @@ overlay imposes it (§5). Full treatment in `URIs.md` (*Lists and dicts are one 
 mapping*).
 
 Concretely, keyless (`- value`) and keyed (`key: value`) entries can be **mixed in one node** —
-*partially ordered, partially keyed* — which plain YAML forbids. Mixing keyed and keyless in a
-container is **opt-in via a type tag**, so plain yamlover stays a clean YAML superset:
+*partially ordered, partially keyed* — which plain YAML forbids. **Mixtures are the default**
+(spec'd 2026-06-12, `ANCHOR_REFACTOR.md`; the parsers still require the opt-in tags until
+PLAN.md Phase A lands): an untagged node may mix keyed and keyless entries, and may carry a
+scalar value alongside fields. The former opt-in tags remain parseable as **optional, no-op
+markers** — existing files round-trip, and they stay useful as documentation:
 
-- **`!!mix`** — a container that mixes keyless and keyed entries (a dict ∪ list).
-- **`!!omni`** — a node that carries a scalar value **and** fields at once (scalar ⊕ `mix`).
-  Unlike `!!mix`, the tag is **optional**: a deeper-indented block under a scalar value is
-  invalid YAML outright, so reading it as the node's fields is unambiguous — the shape itself
-  is the intention (`key: value` + a deeper block just works; write `!!omni` for explicitness,
-  or declare the shape once in a schema as `type: variant`, META.md). The one place the tag is
-  still required is the **document root**, where a bare scalar cannot precede the keys.
+- **`!!mix`** — marks a container that mixes keyless and keyed entries (a dict ∪ list).
+- **`!!omni`** — marks a node that carries a scalar value **and** fields at once (scalar ⊕
+  `mix`); the schema spelling of the shape is `type: variant` (META.md). The node's **scalar
+  value line** may sit at any position among the entries — first, last, or between; at most
+  **one** scalar line per block, and line order does not change the data:
+  ```yamlover
+  30            # the node's own value …
+  - one         # … may precede or follow its fields; same node either way
+  two: three
+  ```
+  This holds at the **document root** too — a bare root scalar may be followed by entries
+  and anchors (no tag needed), which is what makes the two-line tagged-scalar file legal
+  (`URIs.md` §`&`).
 - **`!!set`** — a container with **set semantics**: an element appears at most once, so
-  duplicate memberships — forward+forward, forward+`~-` reverse, reverse+reverse — collapse
-  to one (dedup by target). The inline spelling of the schema keyword `uniqueItems: true`
-  (`META.md`), which is the route for json5p and directory overlays (no tags there).
-  Reinterprets YAML's `!!set` (whose meaning is a null-valued mapping) — see §3.
+  duplicate memberships — forward+forward, forward+reverse (`~-` or `&…[]`), reverse+reverse —
+  collapse to one (dedup by target). The inline spelling of the schema keyword
+  `uniqueItems: true` (`META.md`), which is the route for json5p and directory overlays (no
+  tags there). Reinterprets YAML's `!!set` (whose meaning is a null-valued mapping) — see §3.
+  Unlike `!!mix`/`!!omni`, `!!set` is **not** a no-op: it carries real (dedup) semantics.
 
 The tag sits in **value position** — right after the `key:` (or `- `) whose value it types,
 exactly where a YAML tag goes. `!!mix` precedes a (mixed) block; `!!omni` precedes the
@@ -136,11 +170,12 @@ review: !!omni |
   stars: 5                # a field — shallower than the block content, deeper than the key
 ```
 
-A lone tag with no preceding key (`!!omni 5` / `!!mix` on the first line) types the
-**document root** (see `examples/07-omni.yamlover`). Without the tag, a mixed container or a
-scalar-with-fields is a **parse error**. (See `examples/06-tour.yamlover`.) The block must be
-indented under its key; a same-indent `- …` sequence stays sequence-only, since a same-indent
-`key:` there is a sibling.
+A lone tag with no preceding key (`!!omni 5` / `!!mix` on the first line) marks the
+**document root** (see `examples/07-omni.yamlover`); with omni as the default the root tag,
+like the tags everywhere else, is optional. (Under the *current* parsers — until PLAN.md
+Phase A — an untagged mixture is still a parse error; see `examples/06-tour.yamlover`.) The
+block must be indented under its key; a same-indent `- …` sequence stays sequence-only,
+since a same-indent `key:` there is a sibling.
 
 ## 5. Concretes: one file, or a directory
 

@@ -60,7 +60,7 @@ describe("background initial index", () => {
     expect(taskFrames.some((f) => f.task.state === "running")).toBe(true);
     expect(taskFrames.some((f) => f.task.state === "done")).toBe(true);
     const diffFrame = frames().find((f) => f.type === "diff");
-    expect(diffFrame.added).toEqual(["/a.md"]); // client JSON paths
+    expect(diffFrame.added).toEqual([":a.md"]); // client JSON paths
   });
 
   it("the tree endpoint answers (from the previous index) before ready", async () => {
@@ -70,10 +70,10 @@ describe("background initial index", () => {
     fs.writeFileSync(path.join(root, "b.md"), "# b"); // an offline edit
     const h2 = handlers(root);
     // immediately — before the background reindex commits — yesterday's index answers
-    const labels = call(h2, "/api/tree", { path: "/", depth: "1" }).json.children.map((c: any) => c.label);
+    const labels = call(h2, "/api/tree", { path: ":", depth: "1" }).json.children.map((c: any) => c.label);
     expect(labels).toEqual(["a.md"]);
     await h2.ready;
-    const fresh = call(h2, "/api/tree", { path: "/", depth: "1" }).json.children.map((c: any) => c.label);
+    const fresh = call(h2, "/api/tree", { path: ":", depth: "1" }).json.children.map((c: any) => c.label);
     expect(fresh).toEqual(["a.md", "b.md"]);
   });
 });
@@ -90,8 +90,8 @@ describe("background hasher", () => {
     // poll the SAME on-disk store (WAL allows a second reader) until the hasher lands
     const probe = new Store(path.join(root, ".yamlover", "index.db"));
     onTestFinished(() => probe.close());
-    await until(() => probe.node("/big.png")?.content_hash != null, "the background hash");
-    expect(probe.node("/big.png")!.content_hash).toMatch(/^xxh64:/);
+    await until(() => probe.node(":big.png")?.content_hash != null, "the background hash");
+    expect(probe.node(":big.png")!.content_hash).toMatch(/^xxh64:/);
     expect(probe.unhashedFiles()).toEqual([]);
 
     // and the hasher reported itself as a task
@@ -113,13 +113,13 @@ describe("write serialization", () => {
 
     // queue a reconcile and, WITHOUT waiting, an annotation right behind it
     const reconcile = callBody(h, "POST", "/api/reindex");
-    const annotate = callBody(h, "POST", "/api/annotate", { target: "/doc.md", tag: "/tags.yamlover/yellow" });
+    const annotate = callBody(h, "POST", "/api/annotate", { target: ":doc.md", tag: ":tags.yamlover:yellow" });
     const [r1, r2] = await Promise.all([reconcile, annotate]);
     expect(r1.status).toBe(200);
     expect(r2.status).toBe(201);
 
     // the annotation is in the index (it queued behind the full walk, not under it)
-    const anns = call(h, "/api/annotations", { path: "/doc.md" }).json;
+    const anns = call(h, "/api/annotations", { path: ":doc.md" }).json;
     expect(anns).toHaveLength(1);
   });
 });

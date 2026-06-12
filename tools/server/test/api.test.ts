@@ -24,7 +24,7 @@ describe("api endpoints (engine-backed)", () => {
   it("/api/json is one level deep with link markers", async () => {
     const h = createHandlers(tmpExample("57-image-with-markup"), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: "/" });
+    const { json } = call(h, "/api/json", { path: ":" });
     expect(json.type).toBe("object");
     expect(json.value.markup.$yamloverLink.kind).toBe("array");
   });
@@ -32,7 +32,7 @@ describe("api endpoints (engine-backed)", () => {
   it("/api/json?binary=1 returns base64 for a binary leaf", async () => {
     const h = createHandlers(tmpExample("57-image-with-markup"), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: "/object_detection.png", binary: "1" });
+    const { json } = call(h, "/api/json", { path: ":object_detection.png", binary: "1" });
     expect(json.type).toBe("binary");
     expect(json.value.$yamloverBinary.format).toBe("image/png");
   });
@@ -40,7 +40,7 @@ describe("api endpoints (engine-backed)", () => {
   it("/api/schema returns the instance schema", async () => {
     const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/schema", { path: "/" });
+    const { json } = call(h, "/api/schema", { path: ":" });
     expect(json.type).toBe("object");
     expect(json.properties.name.const).toBe("Alice");
   });
@@ -48,7 +48,7 @@ describe("api endpoints (engine-backed)", () => {
   it("reports an unknown path as a 404", async () => {
     const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
     await h.ready;
-    const { status, json } = call(h, "/api/json", { path: "/nope" });
+    const { status, json } = call(h, "/api/json", { path: ":nope" });
     expect(status).toBe(404);
     expect(json.error).toBeTruthy();
   });
@@ -65,26 +65,26 @@ describe("reverse positional membership (~-) projection", () => {
   it("appends reverse members after owned entries, lexicographically, ADDITIVE (repetition kept)", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: "/items", depth: "2" });
+    const { json } = call(h, "/api/json", { path: ":items", depth: "2" });
     const items = json.value as any[];
     expect(items[0]).toBe("alpha"); // owned entry first
     // then /dup twice (two ~- declarations — lists repeat), then /member
-    expect(items.slice(1).map((v) => v.$yamloverLink.path)).toEqual(["/dup", "/dup", "/member"]);
+    expect(items.slice(1).map((v) => v.$yamloverLink.path)).toEqual([":dup", ":dup", ":member"]);
   });
 
   it("a !!set container dedups forward+reverse authoring to one membership", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: "/unique", depth: "2" });
+    const { json } = call(h, "/api/json", { path: ":unique", depth: "2" });
     const items = json.value as any[];
     expect(items).toHaveLength(1);
-    expect(items[0].$yamloverLink.path).toBe("/member");
+    expect(items[0].$yamloverLink.path).toBe(":member");
   });
 
   it("reverse declarations do not change the member's own type", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: "/member", depth: "2" });
+    const { json } = call(h, "/api/json", { path: ":member", depth: "2" });
     expect(json.type).toBe("object");
     expect(json.value.name).toBe("m");
   });

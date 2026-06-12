@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { parseYamlover } from '../src/yamlover.ts';
+import { serializeYamlover } from '../src/serialize-yamlover.ts';
 import { toPlain, isPointer } from '../src/ir.ts';
 import type { Mapping } from '../src/ir.ts';
 
@@ -55,12 +56,31 @@ test('pointer value → ref edge with parsed base/steps (unquoted)', () => {
   ]);
 });
 
-test('& anchor on a block value; alias is a pointer', () => {
-  const d = parseYamlover('boss: &chief\n  name: Rex\nteam:\n  lead: *chief\n');
-  assert.ok(d.anchors.has('chief'));
+test('& path anchor on a block value; * reaches the anchor-created key', () => {
+  const d = parseYamlover('boss: &/chief\n  name: Rex\nteam:\n  lead: */chief\n');
+  const boss = entry(asMap(d.root), 'boss').value as Mapping;
+  assert.deepEqual(boss.meta?.anchors?.map((a) => a.path.raw), ['/chief']);
+  assert.equal(boss.meta?.anchors?.[0].ordinal, undefined);
   const lead = entry(asMap(entry(asMap(d.root), 'team').value as Mapping), 'lead');
   assert.equal(lead.edge, 'ref');
   assert.deepEqual((lead.value as any).steps, [{ sel: 'key', name: 'chief' }]);
+});
+
+test('& anchors: own-line, multiple, ordinal []', () => {
+  // the two-line tagged-scalar file (URIs.md §&) — order-free
+  const a = parseYamlover('30\n&//tags/whole[]\n').root as any;
+  assert.equal(a.value, 30);
+  assert.deepEqual(a.meta.anchors.map((x: any) => [x.path.raw, x.ordinal === true]), [['//tags/whole', true]]);
+  const b = parseYamlover('&//tags/whole[]\n30\n').root as any;
+  assert.equal(b.value, 30);
+  assert.equal(b.meta.anchors.length, 1);
+  // multiple anchors on their own lines inside a node's block
+  const c = parseYamlover('child:\n  &/p/kid\n  &/q/kid\n  x: 1\n');
+  const child = entry(asMap(c.root), 'child').value as Mapping;
+  assert.deepEqual(child.meta?.anchors?.map((x) => x.path.raw), ['/p/kid', '/q/kid']);
+  assert.equal(child.entries.length, 1);
+  // a position may not be claimed
+  assert.throws(() => parseYamlover('12\n&/seq[3]\n'), /may not claim a position/);
 });
 
 test('~ back-edge key (sigil outside the key)', () => {
@@ -153,11 +173,13 @@ test('parses examples/60-simple-chapter.yamlover (tagged file)', () => {
 
 test('parses examples/05-tour.yaml (YAML anchors/aliases)', () => {
   const d = parseYamlover(readFileSync(join(examples, '05-tour.yaml'), 'utf8'), '05-tour.yaml');
-  assert.ok(d.anchors.has('whiskers'));
   const pets = entry(asMap(d.root), 'pets').value as Mapping;
   assert.equal(pets.array, true);
   assert.equal(pets.entries.length, 3);
-  // humans[0].manager is an alias (pointer) to the whiskers anchor
+  // `&whiskers` reads as a PATH anchor on pets[1] (current-scope key "whiskers")
+  assert.deepEqual((pets.entries[1].value as any).meta?.anchors?.map((a: any) => a.path.raw), ['whiskers']);
+  // humans[0].manager parses as a current-scope pointer; resolving it CROSS-scope is the
+  // documented YAML divergence (YAMLOVER.md §3) — the 06 twin uses */pets[1]
   const humans = entry(asMap(d.root), 'humans').value as Mapping;
   const mgr = entry(humans.entries[0].value as Mapping, 'manager');
   assert.equal(mgr.edge, 'ref');
@@ -167,17 +189,24 @@ test('parses examples/05-tour.yaml (YAML anchors/aliases)', () => {
 test('parses examples/06-tour.yamlover (full pointer layer)', () => {
   const d = parseYamlover(readFileSync(join(examples, '06-tour.yamlover'), 'utf8'), '06-tour.yamlover');
   const root = asMap(d.root);
-  assert.ok(d.anchors.has('chief'));
+  // boss carries the `&/chief` path anchor (a real document-root key, no namespace)
+  assert.deepEqual((entry(root, 'boss').value as any).meta?.anchors?.map((a: any) => a.path.raw), [': chief']);
   // a representative set of edges
   assert.equal(entry(root, 'feline').edge, 'ref');
   assert.equal(entry(root, 'topDog').edge, 'ref');
   assert.equal(entry(root, 'secondName').edge, 'ref');
-  // back-edge deep in adam.cain
+  // the reverse edge deep in adam.cain is anchor-spelled: &/eve/cain on the cain node
   const cain = entry(asMap(entry(root, 'adam').value as Mapping), 'cain').value as Mapping;
-  assert.equal(cain.entries[0].edge, 'back');
-  // escaping resolved to the literal key "cat/dog"
+  assert.deepEqual(cain.meta?.anchors?.map((a) => a.path.raw), [': eve: cain']);
+  // fan's memberships are ordinal anchors (were `~-`)
+  const fan = entry(root, 'fan').value as Mapping;
+  assert.deepEqual(fan.meta?.anchors?.map((a) => a.path.raw + (a.ordinal ? '[]' : '')), [': favorites[]', ': crew[]']);
+  // escaping: `\:` yields the literal key "cat:dog"; `/` rides bare in colon portions
   assert.deepEqual((entry(root, 'ref').value as any).steps, [
-    { sel: 'key', name: 'weird' }, { sel: 'key', name: 'cat/dog' }, { sel: 'key', name: 'n' },
+    { sel: 'key', name: 'weird' }, { sel: 'key', name: 'cat:dog' }, { sel: 'key', name: 'n' },
+  ]);
+  assert.deepEqual((entry(root, 'slsh').value as any).steps, [
+    { sel: 'key', name: 'weird' }, { sel: 'key', name: 'cat/dog' },
   ]);
   // partially ordered, partially keyed: `playlist` mixes keyless and keyed entries
   const playlist = entry(root, 'playlist').value as Mapping;
@@ -232,15 +261,21 @@ test('a root-level type tag (no preceding key) tags the document root', () => {
   assert.deepEqual(r.entries?.map((e) => e.key), [null, null, 'scale']);
 });
 
-test('keyed+keyless mixing is forbidden without !!mix; scalar+fields (omni) needs no tag', () => {
-  assert.throws(() => parseYamlover('m:\n  - a\n  title: T\n'), /must be tagged !!mix/);
-  // a deeper block under a scalar value is invalid YAML, so reading it as the node's fields
-  // is unambiguous — the omni shape needs no tag (YAMLOVER.md §4; `!!omni` stays legal)
+test('omni is the default: untagged mixing and scalar+fields are legal (tags are no-ops)', () => {
+  // keyed+keyless in one untagged container (was: required !!mix)
+  const m = entry(asMap(parseYamlover('m:\n  - a\n  title: T\n').root), 'm').value as Mapping;
+  assert.deepEqual(m.entries.map((e) => e.key), [null, 'title']);
+  // scalar value + fields, untagged
   const r = entry(asMap(parseYamlover('r: 5\n  x: 1\n').root), 'r').value as Mapping & { value?: unknown };
   assert.equal(r.value, 5);
   assert.equal(r.entries?.length, 1);
   assert.equal(r.entries?.[0].key, 'x');
-  // pure seq / map / scalar remain tag-free
+  // the value line may sit anywhere in the block — and at most ONE is allowed
+  const root = parseYamlover('- one\n30\ntwo: three\n').root as Mapping & { value?: unknown };
+  assert.equal(root.value, 30);
+  assert.deepEqual(root.entries?.map((e) => e.key), [null, 'two']);
+  assert.throws(() => parseYamlover('30\n40\n'), /at most one scalar value line/);
+  // pure seq / map / scalar unchanged
   parseYamlover('s:\n  - a\n  - b\n');
   parseYamlover('o:\n  x: 1\n');
   parseYamlover('n: 5\n');
@@ -288,4 +323,51 @@ test('!!set tags a container with set semantics (NodeMeta.set)', () => {
   const root = parseYamlover('!!set\n- 1\n- 2\n').root;
   assert.equal(root.meta?.set, true);
   assert.deepEqual(toPlain(root), [1, 2]);
+});
+
+// ---- the colon round (SEPARATOR.md): `:` separators, the scope ladder, dual window ----
+
+test('colon paths: the scope ladder — bare, :, ::, :::', () => {
+  const d = parseYamlover([
+    'a: *tiny: object',                              // current scope
+    'b: *: pets[1]: name',                           // document root
+    'c: *:: $defs: tag',                             // project root / import key
+    'd: *::: yamlover.inthemoon.net: $defs: tag',    // the world (AWS-like URI)
+  ].join('\n') + '\n');
+  const at = (k: string) => entry(asMap(d.root), k).value as any;
+  assert.deepEqual(at('a').base, { scope: 'current' });
+  assert.deepEqual(at('a').steps.map((s: any) => s.name), ['tiny', 'object']);
+  assert.deepEqual(at('b').base, { scope: 'document' });
+  assert.deepEqual(at('b').steps, [{ sel: 'key', name: 'pets' }, { sel: 'index', n: 1 }, { sel: 'key', name: 'name' }]);
+  assert.deepEqual(at('c').base, { scope: 'link', authority: '$defs' });
+  assert.deepEqual(at('d').base, { scope: 'link', authority: 'yamlover.inthemoon.net', world: true });
+});
+
+test('colon paths: spacing is styling; quoted spacey portions; \\: escape; / is literal', () => {
+  const spaced = parseYamlover('x: *: tags: y\n').root as Mapping;
+  const compact = parseYamlover('x: *:tags:y\n').root as Mapping;
+  assert.deepEqual((entry(spaced, 'x').value as any).steps, (entry(compact, 'x').value as any).steps);
+  const q = parseYamlover("t: *: tags: 'дорожный знак'\n").root as Mapping;
+  assert.deepEqual((entry(q, 't').value as any).steps.map((s: any) => s.name), ['tags', 'дорожный знак']);
+  assert.throws(() => parseYamlover('t: *: tags: дорожный знак\n'), /must be quoted/);
+  const e = parseYamlover('t: *sched: 09\\:30\nu: *formats: text/html\n').root as Mapping;
+  assert.deepEqual((entry(e, 't').value as any).steps.map((s: any) => s.name), ['sched', '09:30']);
+  assert.deepEqual((entry(e, 'u').value as any).steps.map((s: any) => s.name), ['formats', 'text/html']);
+});
+
+test('colon anchors: own-line form runs to end of line', () => {
+  const d = parseYamlover('fan:\n  &: favorites[]\n  name: Bob\nthirty: 30\n  &:: tags: whole[]\n');
+  const fan = entry(asMap(d.root), 'fan').value as Mapping;
+  assert.deepEqual(fan.meta?.anchors?.map((a) => [a.path.base.scope, a.ordinal === true]), [['document', true]]);
+  const thirty = entry(asMap(d.root), 'thirty').value as any;
+  assert.equal(thirty.value, 30);
+  assert.deepEqual(thirty.meta.anchors[0].path.base, { scope: 'link', authority: 'tags' });
+});
+
+test('colon round-trip: legacy slash input re-emits as colon, IR-equal', () => {
+  const src = 'pets:\n  - name: Rex\nref: */pets[0]/name\nanch: &/alias 1\n';
+  const doc = parseYamlover(src);
+  const out: string = serializeYamlover(doc);
+  assert.match(out, /\*: pets\[0\]: name/);
+  assert.doesNotMatch(out, /\*\/pets/);
 });

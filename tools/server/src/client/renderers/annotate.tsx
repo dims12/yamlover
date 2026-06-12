@@ -30,12 +30,12 @@ import { touchesYamlover, useDiffBump } from "../live";
 // fetches the real `/yamlover/tags/colors` nodes once per session (useColorTags) so a project
 // that re-themes them wins; the paths and hexes here mirror yamlover/tags/.yamlover/body.yamlover.
 export const COLOR_TAGS: TagRef[] = [
-  { path: "/yamlover/tags/colors/yellow", name: "yellow", color: "#f9e2af" },
-  { path: "/yamlover/tags/colors/green", name: "green", color: "#a6e3a1" },
-  { path: "/yamlover/tags/colors/sky", name: "sky", color: "#89dceb" },
-  { path: "/yamlover/tags/colors/mauve", name: "mauve", color: "#cba6f7" },
-  { path: "/yamlover/tags/colors/pink", name: "pink", color: "#f5c2e7" },
-  { path: "/yamlover/tags/colors/peach", name: "peach", color: "#fab387" },
+  { path: ":yamlover:tags:colors:yellow", name: "yellow", color: "#f9e2af" },
+  { path: ":yamlover:tags:colors:green", name: "green", color: "#a6e3a1" },
+  { path: ":yamlover:tags:colors:sky", name: "sky", color: "#89dceb" },
+  { path: ":yamlover:tags:colors:mauve", name: "mauve", color: "#cba6f7" },
+  { path: ":yamlover:tags:colors:pink", name: "pink", color: "#f5c2e7" },
+  { path: ":yamlover:tags:colors:peach", name: "peach", color: "#fab387" },
 ];
 export const DEFAULT_TAG = COLOR_TAGS[0];
 export const DEFAULT_COLOR = DEFAULT_TAG.color!;
@@ -68,7 +68,7 @@ let colorTagsPromise: Promise<TagRef[]> | null = null;
 export function useColorTags(): TagRef[] {
   const [tags, setTags] = useState<TagRef[]>(COLOR_TAGS);
   useEffect(() => {
-    colorTagsPromise ??= fetchNode("/yamlover/tags/colors", 2)
+    colorTagsPromise ??= fetchNode(":yamlover:tags:colors", 2)
       .then((n) => {
         const out: TagRef[] = [];
         for (const [name, child] of tagFields(n.value)) {
@@ -113,7 +113,7 @@ export function recentTags(): TagRef[] {
 }
 
 function rememberRecent(t: TagRef): void {
-  if (t.path.startsWith("/yamlover/tags/colors/")) return; // the swatch row already shows these
+  if (t.path.startsWith(":yamlover:tags:colors:")) return; // the swatch row already shows these
   const next = [t, ...recentTags().filter((r) => r.path !== t.path)].slice(0, 6);
   localStorage.setItem(RECENT_KEY, JSON.stringify(next));
 }
@@ -266,13 +266,13 @@ export function AnnotationMenu({
     const p = path.trim();
     if (!p || busy) return;
     setBusy(true);
-    fetchNode(p.startsWith("/") ? p : "/" + p, 1)
+    fetchNode(p.startsWith(":") ? p : p.startsWith("/") ? ":" + p.slice(1).split("/").join(":") : ":" + p, 1)
       .then((n) => {
         if (n.format !== TAG_FORMAT) throw new Error("not a tag node");
         onPick({ path: n.path, name: n.title || tagNameOf(n.path), color: explicitColor(n.value) });
       })
       .catch((e) => {
-        if (p.includes("/")) throw new Error(`cannot ${verb} with "${p}": ` + (e as Error).message);
+        if (p.includes(":") || p.includes("/")) throw new Error(`cannot ${verb} with "${p}": ` + (e as Error).message);
         return createTag(p)
           .then(onPick)
           .catch((e2) => { throw new Error(`cannot create tag "${p}": ` + (e2 as Error).message); });

@@ -53,7 +53,7 @@ export function fetchTasks(): Promise<TaskInfo[]> {
 }
 
 /** The TOC subtree rooted at `path`, `depth` levels deep (server default 3). */
-export function fetchTree(path = "/", depth?: number): Promise<TreeNode> {
+export function fetchTree(path = ":", depth?: number): Promise<TreeNode> {
   const q = new URLSearchParams({ path });
   if (depth != null) q.set("depth", String(depth));
   return getJson<TreeNode>(`/api/tree?${q}`);

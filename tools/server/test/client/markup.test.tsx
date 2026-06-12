@@ -8,7 +8,7 @@ import type { NodeJson } from "../../src/client/api";
 afterEach(cleanup);
 
 const node = (value: string, format: string): NodeJson => ({
-  path: "/doc",
+  path: ":doc",
   type: "string",
   format,
   concrete: null,

@@ -12,7 +12,8 @@
 import type { Document, Node, Entry, Value, Scalar, Pointer } from './ir.ts';
 import { isPointer } from './ir.ts';
 import { plainScalar, splitKV } from './yamlover.ts';
-import { LossyError, anchorIndex } from './serialize-common.ts';
+import { renderPointer } from './pointer.ts';
+import { LossyError, anchorBody, isAnchorizableBack, backAnchorBody } from './serialize-common.ts';
 
 const STEP = 2;
 
@@ -23,45 +24,60 @@ export function serializeYamlover(doc: Document): string {
 class Emitter {
   out: string[] = [];
   doc: Document;
-  anchorOf: WeakMap<Node, string>;
-  pending: Set<string>; // anchor names not yet written
 
   constructor(doc: Document) {
     this.doc = doc;
-    this.anchorOf = anchorIndex(doc);
-    this.pending = new Set(doc.anchors.keys());
   }
 
   serialize(): string {
     const root = this.doc.root;
     if (root.kind === 'blob') throw new LossyError('a blob has no yamlover text form (its bytes live in a file)');
-    if (this.anchorOf.get(root) !== undefined) throw new LossyError('cannot serialize an anchor on the document root');
     if (root.meta?.schema !== undefined) this.out.push(`!!<${this.schemaText(root.meta.schema)}>`);
     const ents = root.entries ?? [];
+    const kept = ents.filter((e) => !isAnchorizableBack(e)); // conv backs re-emit as anchors
     if (root.kind === 'scalar') {
-      // The root value must be inline (block indicators are read only after a key); with
-      // fields it needs the explicit `!!omni` — at the root the shape alone cannot say it.
-      const tok = this.inline(root, /*needToken*/ ents.length > 0);
-      this.out.push(ents.length > 0 ? `!!omni ${tok}` : tok);
+      // The root value is inline (block indicators are read only after a key); the `!!omni`
+      // marker is a no-op but kept for readability when fields follow.
+      const tok = this.inline(root, /*needToken*/ kept.length > 0);
+      this.out.push(kept.length > 0 ? `!!omni ${tok}` : tok);
+      this.rootAnchors(root);
       this.entries(ents, 0);
-    } else if (ents.length === 0) {
+    } else if (kept.length === 0) {
       this.out.push(root.array ? '[]' : '{}');
+      this.rootAnchors(root);
     } else {
       const tag = this.containerTag(root);
       if (tag !== null) this.out.push(tag);
+      this.rootAnchors(root);
       this.entries(ents, 0);
     }
-    if (this.pending.size > 0) {
-      throw new LossyError(`anchored node(s) not reachable in the tree: &${[...this.pending].join(', &')}`);
-    }
     return this.out.join('\n') + '\n';
+  }
+
+  /** Root anchors go on their own lines (there is no key line to share) — the node's own
+   *  `&` anchors plus its deprecated `~` back entries re-emitted in anchor form. Own-line
+   *  colon-form anchors ride UNQUOTED (the token runs to end of line). */
+  rootAnchors(root: Node): void {
+    for (const t of this.anchorTokens(root, /*ownLine*/ true)) this.out.push(t);
+  }
+
+  /** Every anchor token a node carries: meta anchors + anchorizable `~` back entries
+   *  (ANCHOR_REFACTOR — serializers emit anchors, never `~`, for absolute scopes).
+   *  `ownLine` tokens run to EOL so colon bodies ride bare; same-line tokens (the
+   *  decorations on a key line) quote them (SEPARATOR.md M3). */
+  anchorTokens(node: Node, ownLine = false): string[] {
+    const bodies = (node.meta?.anchors ?? []).map(anchorBody);
+    for (const e of node.entries ?? []) if (isAnchorizableBack(e)) bodies.push(backAnchorBody(e));
+    return bodies.map((b) => (ownLine ? '&' + b : anchorToken(b)));
   }
 
   entries(ents: Entry[], indent: number): void {
     const pad = ' '.repeat(indent);
     for (const e of ents) {
-      if (e.key === null && e.edge === 'back') {
-        // reverse positional membership — the value is by definition a pointer (URIs.md §`~-`)
+      if (isAnchorizableBack(e)) {
+        continue; // re-emitted as an `&` anchor in decorations()/rootAnchors(), not as `~`
+      } else if (e.key === null && e.edge === 'back') {
+        // a RELATIVE-scoped keyless back-edge keeps the `~-` spelling (see isAnchorizableBack)
         if (!isPointer(e.value)) throw new LossyError('a keyless back-edge ("~-") must hold a pointer');
         this.out.push(`${pad}~- *${this.ptrText(e.value)}`);
       } else if (e.key === null) {
@@ -84,24 +100,29 @@ class Emitter {
     if (value.kind === 'blob') throw new LossyError('a blob has no yamlover text form (its bytes live in a file)');
     const parts = this.decorations(value);
     const ents = value.entries ?? [];
+    const kept = ents.filter((e) => !isAnchorizableBack(e)); // conv backs ride `parts` as anchors
     if (value.kind === 'scalar') {
       const block = typeof value.value === 'string' && value.value.includes('\n')
         ? blockLines(value.value) : null;
       if (block !== null) {
         // block-scalar content sits DEEPER than any `!!omni` fields, so the fields'
         // dedent ends the block (the parser's rule) while staying deeper than the key
-        const inner = indent + STEP + (ents.length > 0 ? STEP : 0);
+        const inner = indent + STEP + (kept.length > 0 ? STEP : 0);
         this.out.push(joinLine(pad + head, [...parts, block.header]));
         for (const l of block.lines) this.out.push(l === '' ? '' : ' '.repeat(inner) + l);
+        // (anchors follow below, after the block — the dedent ends the scalar)
       } else {
-        const tok = this.inline(value, /*needToken*/ ents.length > 0 || parts.length > 0);
+        const tok = this.inline(value, /*needToken*/ kept.length > 0 || parts.length > 0);
         this.out.push(joinLine(pad + head, tok === '' ? parts : [...parts, tok]));
       }
+      this.anchorLines(value, indent + STEP);
       this.entries(ents, indent + STEP);
-    } else if (ents.length === 0) {
+    } else if (kept.length === 0) {
       this.out.push(joinLine(pad + head, [...parts, value.array ? '[]' : '{}']));
+      this.anchorLines(value, indent + STEP);
     } else {
       this.out.push(joinLine(pad + head, parts));
+      this.anchorLines(value, indent + STEP);
       this.entries(ents, indent + STEP);
     }
   }
@@ -111,11 +132,14 @@ class Emitter {
     if (!isPointer(value) && value.kind === 'mapping') {
       const parts = this.decorations(value);
       const ents = value.entries;
-      if (ents.length === 0) {
-        this.out.push(`${pad}- ${value.array ? '[]' : '{}'}`);
+      const kept = ents.filter((e) => !isAnchorizableBack(e));
+      if (kept.length === 0) {
+        this.out.push(joinLine(pad + '-', [...parts, value.array ? '[]' : '{}']));
+        this.anchorLines(value, indent + STEP);
         return;
       }
-      if (parts.length === 0 && ents[0].key !== null) {
+      const anchored = this.anchorTokens(value).length > 0;
+      if (parts.length === 0 && !anchored && kept[0].key !== null) {
         // compact `- key: …`: render the entries, then fold the first line onto the dash
         // (STEP === the `- ` marker width, so the columns line up exactly)
         const at = this.out.length;
@@ -123,7 +147,8 @@ class Emitter {
         this.out[at] = pad + '- ' + this.out[at].slice(indent + STEP);
         return;
       }
-      this.out.push(joinLine(pad + '-', parts)); // `- !!mix` / `- &a` / bare `-`
+      this.out.push(joinLine(pad + '-', parts)); // `- !!mix` / bare `-`
+      this.anchorLines(value, indent + STEP);
       this.entries(ents, indent + STEP);
       return;
     }
@@ -131,18 +156,21 @@ class Emitter {
   }
 
   /** Value-position prefixes, in the parser's reading order: `!!<…>` schema, `!!mix`/
-   *  `!!set` (shape/meta), `&anchor`. */
+   *  `!!set` (shape/meta). Anchors are NOT here — canonical style (SEPARATOR.md M3)
+   *  puts them on their own lines inside the node's block. */
   decorations(node: Node): string[] {
     const parts: string[] = [];
     if (node.meta?.schema !== undefined) parts.push(`!!<${this.schemaText(node.meta.schema)}>`);
     const tag = this.containerTag(node);
     if (tag !== null) parts.push(tag);
-    const anchor = this.anchorOf.get(node);
-    if (anchor !== undefined) {
-      parts.push(`&${anchor}`);
-      this.pending.delete(anchor);
-    }
     return parts;
+  }
+
+  /** The canonical anchor placement: own lines at `indent`, right after the value line
+   *  (SEPARATOR.md M3 — `path: 12` then `  &: another: path`). */
+  anchorLines(node: Node, indent: number): void {
+    const pad = ' '.repeat(indent);
+    for (const t of this.anchorTokens(node, /*ownLine*/ true)) this.out.push(pad + t);
   }
 
   containerTag(node: Node): string | null {
@@ -173,7 +201,8 @@ class Emitter {
   }
 
   ptrText(p: Pointer): string {
-    return pointerToken(p.raw).slice(1); // pointerToken includes the `*`; head adds it
+    // the dual window emits CANONICAL colon form (spaced) regardless of authoring style
+    return pointerToken(renderPointer(p)).slice(1); // pointerToken includes the `*`; head adds it
   }
 
   /** The contents of a `!!<…>` tag: a pointer (`*…`) or an inline node. The contents are
@@ -182,7 +211,7 @@ class Emitter {
    *  `key: value`, which holds exactly one top-level entry. `>` would close the tag early —
    *  refuse it. */
   schemaText(v: Value): string {
-    const text = isPointer(v) ? `*${v.raw}` : schemaNodeText(v);
+    const text = isPointer(v) ? `*${renderPointer(v)}` : schemaNodeText(v);
     if (/[>\n]/.test(text)) throw new LossyError(`a !!<…> schema tag cannot contain ">" or a newline: ${text}`);
     return text;
   }
@@ -194,14 +223,34 @@ function joinLine(head: string, parts: string[]): string {
   return parts.length === 0 ? head : head + ' ' + parts.join(' ');
 }
 
-/** The full yamlover deref token for a pointer raw: `*` + the raw verbatim, quoted only
- *  when the line context would eat it (a ` #` comment, leading quote, outer whitespace).
- *  Exported for the engine's `mv` ref-rewriter, which replaces exactly this token. */
+/** The full yamlover deref token for a pointer raw: `*` + the raw, quoted only when
+ *  outer whitespace could not survive the line (rendered colon raws self-delimit:
+ *  spacey keys arrive PORTION-quoted, `#` arrives escaped — both from renderPointer /
+ *  escapeSegment). Exported for the engine's `mv` ref-rewriter. */
 export function pointerToken(raw: string): string {
-  if (raw !== raw.trim() || /(^|[ \t])#/.test(raw) || /^['"]/.test(raw)) {
-    return `*'${raw.replace(/'/g, "''")}'`;
-  }
+  if (raw !== raw.trim()) return `*'${raw.replace(/'/g, "''")}'`;
   return '*' + raw;
+}
+
+/** The full yamlover anchor token for a path body (`raw` + optional `[]`): `&` + body,
+ *  quoted when the plain token would be cut — anchor tokens end at whitespace, so a path
+ *  with spaces (e.g. a Cyrillic tag name) needs the quoted form. Exported for `mv`. */
+export function anchorToken(body: string): string {
+  if (/^['"]/.test(body) || hasUnquotedSpace(body)) return `&'${body.replace(/'/g, "''")}'`;
+  return '&' + body;
+}
+
+/** Whitespace OUTSIDE quoted portions — a space inside a quoted key rides fine. */
+function hasUnquotedSpace(s: string): boolean {
+  let q: string | null = null;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q !== null) { if (c === q) q = null; continue; }
+    if (c === '\\') { i++; continue; }
+    if (c === "'" || c === '"') { q = c; continue; }
+    if (c === ' ' || c === '\t') return true;
+  }
+  return false;
 }
 
 /** A string is safe to emit as a PLAIN scalar iff the reparse (in every context we emit:
@@ -310,9 +359,11 @@ function flowTok(s: Scalar): string {
 }
 
 function flowPtr(p: Pointer): string {
-  // flow plain tokens stop at `,:[]{}` and whitespace — a raw that contains them cannot ride
-  if (!/^[^,:[\]{}'"\s]+$/.test(p.raw)) throw new LossyError(`pointer "*${p.raw}" does not fit a flow context`);
-  return `*${p.raw}`;
+  // flow plain pointers read to the next , } ] at depth 0 — emit COMPACT colon form;
+  // a quoted portion (spacey key) cannot ride plain in flow
+  const compact = renderPointer(p, { spaced: false });
+  if (/['"\s]/.test(compact)) throw new LossyError(`pointer "*${compact}" does not fit a flow context`);
+  return `*${compact}`;
 }
 
 function flowKey(k: string): string {

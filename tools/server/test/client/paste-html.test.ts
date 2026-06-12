@@ -44,7 +44,7 @@ describe("htmlToRich", () => {
   });
 
   it("an image inside a link still becomes its own chunk; relative srcs are dropped", () => {
-    const rich = htmlToRich('<h2>T</h2><a href="https://a.b"><img src="https://a.b/i.png" alt=""></a><img src="/w/rel.png">')!;
+    const rich = htmlToRich('<h2>T</h2><a href="https://a.b"><img src="https://a.b/i.png" alt=""></a><img src=":w:rel.png">')!;
     expect(rich.children[0].chunks).toEqual([{ image: { url: "https://a.b/i.png", alt: "" } }]);
   });
 });

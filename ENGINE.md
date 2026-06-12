@@ -1,14 +1,24 @@
 # ENGINE — the yamlover core
 
-> **Status (2026-06-10).** Stage 1 exists: `tools/engine/ts/` implements the
-> node+edge SQLite store (`store.ts`, on built-in `node:sqlite` — not better-sqlite3),
-> the directory walker (`walk.ts`), the pointer resolver (`resolve.ts`), and
-> derive/normalize (`graph.ts`); the server (`tools/server/src/server/engine-api.ts`)
-> runs on it and exposes the read queries (node/toc/relationships/blob) over HTTP.
-> **Not yet built:** serializers (graph → concrete; blocks the `mv`/`rm`/`put`/
-> `normalize` write path), the FS watcher / 3-tier reconcile (external edits need a
-> server restart), the event stream, and the versioned protocol. The rest of this
-> document is the design those pieces build toward.
+> **Status (2026-06-12).** Stage 1 plus the beginnings of the write path exist in
+> `tools/engine/ts/`: the node+edge SQLite store (`store.ts`, on built-in
+> `node:sqlite` — not better-sqlite3; plus a `file` manifest and a `dangling` table),
+> the directory walker (`walk.ts`) with **stat-first indexing** — files are
+> identified by `(size, mtime)` and content hashes (size-tiered xxh64) are filled in
+> by a background task — the pointer resolver (`resolve.ts`), derive/normalize
+> (`graph.ts`), **text serializers** (IR → yamlover / json5p, round-trip-gated, in
+> `tools/parser/ts/`), and **mediated `mv`** (`mv.ts`/`rewrite.ts` — moves a
+> file/dir and surgically rewrites inbound refs at their source spans). All three
+> sync tiers below run: the FS watcher (`watch.ts`), offline reconcile at startup,
+> and move inference with auto-relink. The server
+> (`tools/server/src/server/engine-api.ts`) runs on it: read queries
+> (node/toc/relationships/blob) over HTTP, the **event stream** over SSE
+> (`/api/events`: `{type: diff}` index diffs + `{type: task}` progress), a task
+> registry (`/api/tasks`), and the first write commands (`mv`, `annotate`, `tag`,
+> `paste`). **Not yet built:** the query evaluator (`QUERY.md`), the directory
+> serializer (blocks `put`/`normalize`), `rm`/`put`/`link`/`normalize`, and the
+> versioned protocol. The rest of this document is the design those pieces build
+> toward.
 
 Forward-looking design, not a commitment (companion to [`FUTURE.md`](FUTURE.md) and
 the pointer model in [`URIs.md`](URIs.md)). Where `FUTURE.md` covers *serving* a
@@ -106,6 +116,13 @@ Once this is a versioned protocol (OpenAPI + JSON-Schema, extending the implicit
 `tools/server` API), the storage choice below becomes a swappable detail and any
 host — web, JetBrains, desktop — speaks the same engine API.
 
+**Unified change flow (implemented).** Every write — engine-mediated or detected by
+the watcher/reconciler — `announce()`s a file-level **IndexDiff**
+(`{added, changed, removed, moved}`) over the SSE event stream, and every client
+surface refreshes from that one signal (`live.ts`). There are no ad-hoc push or
+refresh paths; long-running work (indexing, background hashing) additionally
+reports progress as `{type: task}` events backed by a task registry.
+
 ## Build vs. buy: an embeddable engine, staged
 
 Do **not** hand-roll graph traversal, caching, and invalidation — "derive
@@ -196,6 +213,15 @@ Move inference is a heuristic: **duplicate content** (one hash in several places
 a content edit *during* a move, makes it ambiguous — there the engine declines to
 guess and the affected links are treated as lost. Graceful degradation, not silent
 corruption.
+
+**Stat-first indexing (implemented).** Hashing every file on every walk does not
+scale, so file identity is two-tiered: the manifest records `(size, mtime)` per
+file, and a re-walk treats a matching stat as unchanged without reading bytes.
+Content hashes (xxh64, size-tiered — small files hashed inline, large ones
+streamed) are filled in by a **background hashing task** after the index is
+already serving; until a file's hash lands, move inference simply has less to work
+with. Long-running walks and the hasher report through the task registry
+(`/api/tasks` + `{type: task}` SSE events), so clients can show live progress.
 
 **Decided — a move rewrites references.** The engine edits every file holding an
 inbound `*` / `~` pointer to the new path (an IDE-style rename refactor). One move can

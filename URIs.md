@@ -282,9 +282,10 @@ yamlover project itself.
 ### Grammar (ABNF-ish)
 
 ```
-deref    = "*" pointer            ; dereference → a graph edge to the target
-define   = "&" name               ; anchor (intra-document, single name); yamlover & json5p
-backedge = "~" name               ; key prefix: a back / non-owning edge (see below)
+deref    = "*" pointer            ; dereference → a graph edge to the target (pull)
+define   = "&" pointer [ "[]" ]   ; PATH anchor: this node is ALSO at that path (push);
+                                  ;   trailing "[]" = ordinal membership (append)
+backedge = "~" name               ; DEPRECATED key prefix (see §~): ~key: *P ≡ &P/key
 pointer  = scope *( "/" ( name / ".." ) / index )
 scope    = link                   ; any OTHER start: project, sibling doc, external
          / "/"                    ; current document root  (a single leading "/")
@@ -301,6 +302,10 @@ nchar    = <any char except unescaped  / [ ] * & # ~ ? ! ( ) < > = |  or whitesp
 `x`. With one ordered container (see *Lists and dicts are one ordered mapping*), this
 is the only distinction needed — the old worry of an integer key `1:` versus a string
 key `"1":` is simply `[1]` versus `/1`.
+
+The empty brackets `[]` are legal only as the **last** token of an anchor (`&…[]`,
+ordinal membership — see §`&`); they never appear in a `*` pointer. The query
+wildcard `[?]` belongs to `QUERY.md` only.
 
 ### Literal characters (escaping)
 
@@ -322,22 +327,78 @@ star:  *\*boss           # the literal key "*boss"
 (For JSON-Schema `$ref` interop a resolver may additionally accept JSON-Pointer
 escaping: `~1`=`/`, `~0`=`~`.)
 
-### `&` — plain YAML anchors
+### `&` — path anchors (the push side of `*`)
 
-`&` declares a single name (anchor) for a node, within one document, and `*name`
-reuses it. No paths — anything cross-position or cross-document is the job of the
-extended `*` (paths, `/`, links). In **yamlover** it is exactly a YAML anchor; in
-**json5p** it is the same idea added to JSON5 (`boss: &chief { … }`). The *definition*
-side stays familiar in both surfaces; only `*` is extended.
+> **Spec'd 2026-06-12 (`ANCHOR_REFACTOR.md`); implementation pending.** The parsers
+> still implement the previous `&` (a single intra-document NAME — plain YAML's
+> anchor, with anchor-over-sibling-key precedence in the resolver) until PLAN.md
+> Phase A lands. This section is the target semantics.
+
+`*path` **pulls** — "my value lives there". `&path` **pushes** — "I *also* live
+there". An anchor's name is a full pointer path (same scopes — current / `..` /
+`/` document / `//` link — same metachars, same backslash escaping). Declaring
+`&P/k` on a node means: the container at `P` gains the entry `k`, a **ref edge to
+this node**. The authored position stays the containment spine and the node's
+identity path; anchor-created entries are ordinary non-owning ref edges, exactly
+what a forward `k: *me` authored at `P` would produce — `normalize` folds the two
+authorings of one edge together (see *Collisions* below).
 
 ```yamlover
-boss: &chief
-  name: Rex
-  species: dog
-
-team:
-  lead: *chief        # same node, shared edge
+humans:
+  - age: 30
+    pet: &/supercat     # this pet node is ALSO the document-root key "supercat"
+      species: cat
+      color: pink
+  - age: 10
+    pet: */supercat     # plain path — no anchor namespace involved
 ```
+
+**Anchors are real keys, not a separate namespace.** `*name` is pure path lookup;
+the old precedence rule (a declared anchor shadows a sibling key) is gone, and with
+it the `*whiskers` local-vs-global ambiguity. This deliberately changes the meaning
+of plain-YAML `&a` … `*a` pairs — see `YAMLOVER.md` §3.
+
+**Anchors are not entries.** They never count toward a node's kind: a scalar with
+anchors is still a scalar, a blob is still a blob — the same rule that keeps a
+reverse-tagged PDF `binary`. No `!!omni` is needed to anchor a scalar. An anchor
+attaches to a NODE; a pointer entry (`k: *p`) cannot carry one.
+
+**Multiplicity & placement.** A node may declare any number of anchors: on the
+value's line (the YAML anchor position) or on their own lines inside the node's
+block — before or after the value line; line order is irrelevant. A whole-document
+scalar can therefore be tagged in two bare lines:
+
+```yamlover
+30
+&//tags/field/mathematics/numbers/whole[]
+```
+
+**Ordinal anchors — `&path[]`.** A trailing `[]` makes the membership **keyless**:
+the container at `path` gains this node as a positional member. The rules carry
+over from `~-` verbatim: **no position may be claimed** (`&path[3]` is rejected —
+order is the container's own data; an anchor declares *that* it holds me, never
+*where*); membership is **additive** (each `[]` appends one element; lists may
+repeat) **except into a `!!set`**, where duplicates — forward, anchored, or both —
+collapse by target. Anchor-created members project after the container's own
+entries, lexicographically by member path.
+
+**Collisions.** An anchor-created entry may meet an authored one at the same path.
+That is *valid* iff they denote the same thing — the same target node, or
+structurally equal values (this is the both-ways authoring the genealogy uses,
+folded by `normalize` like any forward+reverse pair):
+
+```yamlover
+some:
+  path: &/another/path 12
+
+another:
+  path: 12              # same value — the two declarations agree; one node
+```
+
+Unequal declarations are a **reported conflict** — surfaced like dangling
+pointers, never silently dropped. Anchors within one document are checked at
+parse/resolve time; cross-document anchors (`//` links, document-root scopes
+across files) are realized and checked by the engine at index time.
 
 **Relocation is just an edge** — there is no special `&` form for it; point a new
 place at the existing node with `*`:
@@ -346,11 +407,31 @@ place at the existing node with `*`:
 acting_boss: */pets[0]
 ```
 
-**Precedence.** A bare `*name` could mean a declared anchor *or* a structural sibling
-key, so the rule is: **a declared anchor wins; otherwise `*name` is a structural
-pointer.** Real YAML docs thus behave identically — anchors shadow sibling keys.
+### `~` — reverse edges (DEPRECATED → path anchors)
 
-### `~` — reverse edges
+> **Deprecated 2026-06-12 (`ANCHOR_REFACTOR.md`)** in favor of path anchors:
+>
+> ```
+> ~key: *P     ≡   &P/key        (keyed reverse edge)
+> ~- *P        ≡   &P[]          (keyless reverse membership)
+> ```
+>
+> Both forms produce identical normalized edges. The acceptance example — the
+> 67-pdf-tags blob, whose three `~` lines become three anchors with the same
+> three edges:
+>
+> ```yamlover
+> "Chemical-Free.pdf":                                "Chemical-Free.pdf":
+>   ~chemical-free: */tags/field/chemistry              &/tags/field/chemistry/chemical-free
+>   ~chemical-free: */tags/genre/brevity/empty-body     &/tags/genre/brevity/empty-body/chemical-free
+>   ~chemical-free: */tags/genre/humor/satire           &/tags/genre/humor/satire/chemical-free
+> ```
+>
+> Parsers keep accepting `~` through the migration window (PLAN.md Phase A);
+> serializers will emit anchors only. The `~` reverse **axis** in `QUERY.md` is
+> unaffected — after the window, `~` means "reverse" only in the query language.
+> The text below remains authoritative for the shared *semantics* (the graph
+> edges are the same either way).
 
 The key name always denotes the **forward** relation; a `~` prefix **reverses** it.
 So `~X` on a node is "the source of the forward `X`-edge that lands here" — and it
@@ -384,7 +465,7 @@ two do not contradict. Since `~X` is by definition the inverse of `X`, one side 
 always derivable; the engine keeps what you wrote and offers a `normalize` command to
 reduce a tree to a canonical **forwards-only** form (see `ENGINE.md`).
 
-#### `~-` — reverse *positional* membership (keyless)
+#### `~-` — reverse *positional* membership (keyless; DEPRECATED → `&path[]`)
 
 A forward entry need not be keyed — `- *me` is a keyless, positional member. Its
 reverse follows the same sigil rule: **`~` tight against what the forward entry starts

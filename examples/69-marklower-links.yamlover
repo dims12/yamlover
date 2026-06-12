@@ -1,7 +1,7 @@
 # A documentation tree about its own links — nested chapters of marklower prose, the whole
 # thing one tagged .yamlover file (all chunks are the default markdown/marklower format, so
 # no meta overlay is needed). Spec: ../YAMLOVER.md.
-!!<*yamlover/$defs/chapter>
+!!<*yamlover: $defs: chapter>
 title: A Tour of marklower Links
 chunks:
 - |

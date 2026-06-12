@@ -33,12 +33,12 @@ export function buildGraph(doc: Document): Graph {
     if (!node.entries) return; // any node may carry fields (scalar/blob too)
     node.entries.forEach((e, i) => {
       if (isPointer(e.value)) return; // pointers handled below, via the resolver
-      const childPath = (path === '/' ? '' : path) + (e.key != null ? '/' + e.key : '[' + i + ']');
+      const childPath = (path === ':' ? '' : path) + (e.key != null ? ':' + e.key : '[' + i + ']');
       edges.push({ from: path, to: childPath, label: e.key, kind: 'contain' });
       walk(e.value, childPath);
     });
   };
-  walk(doc.root, '/');
+  walk(doc.root, ':');
 
   for (const r of resolveDocument(doc)) {
     if (r.target.kind === 'node') edges.push({ from: r.holder, to: r.target.path, label: r.label, kind: r.edge });

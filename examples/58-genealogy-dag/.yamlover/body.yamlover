@@ -4,21 +4,22 @@
 #
 #   father's descends = CONTAINMENT      (the nesting spine: adam ⊃ cain ⊃ enoch)
 #   mother's descends = a `*` edge        keyed by the child's name (eve.cain …, azura.enoch)
-#   ~name: *parent    = the reverse view  — "parent descends me, as `name`" (≡ parent.name: *me)
+#   &parent: name    = the reverse view  — "parent descends me, as `name`" (≡ parent.name: *me;
+#                       a PATH ANCHOR — the deprecated spelling was `~name: *parent`)
 #
 # Both directions are written here; `normalize` folds each forward+reverse pair into one
 # edge. `azura` is reached twice (Adam's daughter, and Enoch's mother) — that is the DAG.
 adam:
   cain:
-    ~cain: */eve
+    &: eve: cain
     enoch:
-      ~enoch: */adam/azura
+      &: adam: azura: enoch
   seth:
-    ~seth: */eve
+    &: eve: seth
   azura:
-    ~azura: */eve
-    enoch: */adam/cain/enoch
+    &: eve: azura
+    enoch: *: adam: cain: enoch
 eve:
-    cain: */adam/cain
-    seth: */adam/seth
-    azura: */adam/azura
+    cain: *: adam: cain
+    seth: *: adam: seth
+    azura: *: adam: azura

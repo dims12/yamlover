@@ -7,73 +7,74 @@
 # paper records the reverse under the SAME relation NAME; the engine reconciles the pair into one
 # edge (normalize / derived inverses). The edge name is a meaningful SLUG (`euler-conjecture`,
 # `writers-block`, …), independent of the paper's file key — a tag links `slug: */<file>`, the
-# paper mirrors `~slug: */<tag>`. Keys/slugs are bare; a messy file key is quoted; the `*/…`
-# VALUE is a pointer path. `/` is document-relative — this directory.
+# paper mirrors it with a PATH ANCHOR `&: <tag-path>: slug` ("I also live there" — URIs.md §&;
+# the deprecated spelling was `~slug: */<tag>`). Keys/slugs are bare; a messy file key is
+# quoted. `/` is document-relative — this directory.
 
 # A tag's description is its BODY (the node's own value): `name: <text>` with the sub-tags
 # in the deeper block — the schema ($defs/tag, type: variant) declares the value-plus-fields
 # shape, so no `!!omni` tag is needed (YAMLOVER.md §4: the shape itself is the intention).
-tags: !!<*yamlover/$defs/tag> A small taxonomy for short / deadpan papers — two axes, field and genre
+tags: !!<*yamlover: $defs: tag> A small taxonomy for short / deadpan papers — two axes, field and genre
   field: What the paper is about
     mathematics: Mathematics
       number-theory: Number theory — Diophantine equations, sums of powers
-        euler-conjecture: */S0002-9904-1966-11654-3.pdf
+        euler-conjecture: *: S0002-9904-1966-11654-3.pdf
     physics: Physics
       quantum: Quantum mechanics and measurement
-        superluminal-neutrino: */1110.2832v2.pdf
+        superluminal-neutrino: *: 1110.2832v2.pdf
       particle: Particle physics — neutrinos and the like
-        superluminal-neutrino: */1110.2832v2.pdf
+        superluminal-neutrino: *: 1110.2832v2.pdf
     earth-science: Earth science
       seismology: Seismology — earthquakes and their statistics
-        earthquakes-poissonian: */1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf
+        earthquakes-poissonian: *: '1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf'
     chemistry: Chemistry
-      chemical-free: */Chemical-Free.pdf
+      chemical-free: *: Chemical-Free.pdf
     psychology: Psychology
       behavior-analysis: Applied behavior analysis
-        writers-block: */jaba00061-0143a.pdf
+        writers-block: *: jaba00061-0143a.pdf
   genre: How the paper is short
     brevity: The paper is famously short
       shortest-paper: Famously the shortest paper in its journal
-        euler-conjecture: */S0002-9904-1966-11654-3.pdf
+        euler-conjecture: *: S0002-9904-1966-11654-3.pdf
       one-word-answer: The title is a question; the abstract answers it in a word
-        superluminal-neutrino: */1110.2832v2.pdf
-        earthquakes-poissonian: */1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf
+        superluminal-neutrino: *: 1110.2832v2.pdf
+        earthquakes-poissonian: *: '1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf'
       empty-body: The body of the paper is (almost) entirely blank
-        writers-block: */jaba00061-0143a.pdf
-        chemical-free: */Chemical-Free.pdf
+        writers-block: *: jaba00061-0143a.pdf
+        chemical-free: *: Chemical-Free.pdf
     humor: The paper is a joke
       deadpan: Plays it completely straight
-        writers-block: */jaba00061-0143a.pdf
-        superluminal-neutrino: */1110.2832v2.pdf
-        earthquakes-poissonian: */1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf
+        writers-block: *: jaba00061-0143a.pdf
+        superluminal-neutrino: *: 1110.2832v2.pdf
+        earthquakes-poissonian: *: '1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf'
       satire: Mocks its target
-        chemical-free: */Chemical-Free.pdf
+        chemical-free: *: Chemical-Free.pdf
     annotation: A secondary / derivative edition of another paper
 
 # --- the papers: each is the real file (a blob), recording its tag membership as the reverse
-#     of the tag's forward link — `~<slug>: */tag` back-edges into the taxonomy ---
+#     of the tag's forward link — `&: tags: …: <slug>` path anchors into the taxonomy ---
 
 "S0002-9904-1966-11654-3.pdf":
-  ~euler-conjecture: */tags/field/mathematics/number-theory
-  ~euler-conjecture: */tags/genre/brevity/shortest-paper
+  &: tags: field: mathematics: number-theory: euler-conjecture
+  &: tags: genre: brevity: shortest-paper: euler-conjecture
 
 "jaba00061-0143a.pdf":
-  ~writers-block: */tags/field/psychology/behavior-analysis
-  ~writers-block: */tags/genre/brevity/empty-body
-  ~writers-block: */tags/genre/humor/deadpan
+  &: tags: field: psychology: behavior-analysis: writers-block
+  &: tags: genre: brevity: empty-body: writers-block
+  &: tags: genre: humor: deadpan: writers-block
 
 "Chemical-Free.pdf":
-  ~chemical-free: */tags/field/chemistry
-  ~chemical-free: */tags/genre/brevity/empty-body
-  ~chemical-free: */tags/genre/humor/satire
+  &: tags: field: chemistry: chemical-free
+  &: tags: genre: brevity: empty-body: chemical-free
+  &: tags: genre: humor: satire: chemical-free
 
 "1110.2832v2.pdf":
-  ~superluminal-neutrino: */tags/field/physics/quantum
-  ~superluminal-neutrino: */tags/field/physics/particle
-  ~superluminal-neutrino: */tags/genre/brevity/one-word-answer
-  ~superluminal-neutrino: */tags/genre/humor/deadpan
+  &: tags: field: physics: quantum: superluminal-neutrino
+  &: tags: field: physics: particle: superluminal-neutrino
+  &: tags: genre: brevity: one-word-answer: superluminal-neutrino
+  &: tags: genre: humor: deadpan: superluminal-neutrino
 
 "1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf":
-  ~earthquakes-poissonian: */tags/field/earth-science/seismology
-  ~earthquakes-poissonian: */tags/genre/brevity/one-word-answer
-  ~earthquakes-poissonian: */tags/genre/humor/deadpan
+  &: tags: field: earth-science: seismology: earthquakes-poissonian
+  &: tags: genre: brevity: one-word-answer: earthquakes-poissonian
+  &: tags: genre: humor: deadpan: earthquakes-poissonian

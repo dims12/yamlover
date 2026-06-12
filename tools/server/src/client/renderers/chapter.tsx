@@ -20,8 +20,8 @@ import { useHashScroll } from "./headings";
  *                  tiff, …) to its own renderer via `renderChunk`. A flattened chunk
  *                  exposes its location as a **fragment anchor** whose syntax is the
  *                  chunk's path continuation: chunk `[1]`, still reachable in full at
- *                  `<chapter>/chunks[1]`, is anchored here at `#/chunks[1]` (so
- *                  `<chapter>#/chunks[1]` scrolls to it). The `§N` marker is that
+ *                  `<chapter>:chunks[1]`, is anchored here at `#:chunks[1]` (so
+ *                  `<chapter>#:chunks[1]` scrolls to it). The `§N` marker is that
  *                  in-page anchor link. See 16-all-formats-chunks.
  *   - `children` — the subchapters, *not* flattened: rendered as heading links you
  *                  navigate to (and surfaced in the TOC; see `chapterTocView`).

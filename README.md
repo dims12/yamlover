@@ -33,9 +33,12 @@ The project has the following goals
 > tree in the web, backed by the engine; see [`UI.md`](UI.md) for navigation,
 > views, pan/zoom, annotations, paste/drag-and-drop upload), and a
 > [JetBrains plugin](tools/jetbrains-plugin/) (filetypes + highlighting).
-> **Writing the graph back** to the filesystem (serializers, `mv`/`normalize`)
-> and the FS watcher are not yet implemented. The Python `walker`/`collector`
-> are deprecated (see [`tools/LEGACY.md`](tools/LEGACY.md)).
+> The write side has begun: serializers for the text concretes (IR → yamlover /
+> json5p, round-trip-gated), `mv` with surgical inbound-pointer rewriting, the
+> FS watcher with three-tier reconcile, and SSE live refresh are implemented.
+> Still missing: the *directory* serializer, inline-binary emission,
+> `rm`/`put`/`normalize`, and the query evaluator (`QUERY.md`). The Python
+> `walker`/`collector` are deprecated (see [`tools/LEGACY.md`](tools/LEGACY.md)).
 
 ## Isomorphisms briefly
 
@@ -194,9 +197,11 @@ everywhere.
 
 ## Open questions
 
-- **Serializers / write-back** — graph → concrete (and the lossy-projection
-  policy when targeting plain yaml/json) is specified but not built; it gates
-  `mv` / `normalize` / round-tripping (`PLAN.md` 2d).
+- **Serializers / write-back** — the text concretes are built (IR → yamlover /
+  json5p, reparse-IR-equal; lossy targets refuse rather than drop). Still open:
+  the *directory* concrete (graph → tree + `body.yamlover`), inline-binary
+  emission, and per-node concrete tracking for mid-tree style switches
+  (`PLAN.md` 2d remaining); they gate `put` / `normalize`.
 - **Meta authoring shape** — the exact keyword set and reuse/cross-ref story of
   the metadata schema is provisional (`META.md` §Status).
 - **Free node moves** — moving a node anywhere in the graph with inbound

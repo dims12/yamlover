@@ -7,8 +7,8 @@ import { AnnotationMenu, useAnnotations, DEFAULT_TAG } from "../../src/client/re
 // `yamlover:diff` window event (App re-broadcasts SSE diffs), and localStorage recents are
 // pruned against the server so a deleted tag cannot linger as a clickable badge.
 
-const ALIVE = { path: "/tags/alive", name: "alive", color: null };
-const DEAD = { path: "/tags/dead", name: "dead", color: null };
+const ALIVE = { path: ":tags:alive", name: "alive", color: null };
+const DEAD = { path: ":tags:dead", name: "dead", color: null };
 const RECENT_KEY = "yo-annotate-recent-tags";
 const TAG_KEY = "yo-annotate-tag";
 
@@ -43,15 +43,15 @@ function Probe({ path }: { path: string }) {
 
 describe("useAnnotations live refresh", () => {
   it("refetches when a diff touches a .yamlover file (an external delete clears the marks)", async () => {
-    const routes: Record<string, unknown> = { "annotations:/img.png": [{ path: "/annotations/a1.yamlover" }] };
+    const routes: Record<string, unknown> = { "annotations::img.png": [{ path: ":annotations:a1.yamlover" }] };
     const fetchFn = mockFetch(routes);
-    const { container } = render(<Probe path="/img.png" />);
+    const { container } = render(<Probe path=":img.png" />);
     await waitFor(() => expect(container.querySelector("output")!.textContent).toBe("1"));
 
-    routes["annotations:/img.png"] = []; // the annotation file vanished server-side
+    routes["annotations::img.png"] = []; // the annotation file vanished server-side
     act(() => {
       window.dispatchEvent(new CustomEvent("yamlover:diff", {
-        detail: { paths: ["/annotations/a1.yamlover"], removed: ["/annotations/a1.yamlover"] },
+        detail: { paths: [":annotations:a1.yamlover"], removed: [":annotations:a1.yamlover"] },
       }));
     });
     await waitFor(() => expect(container.querySelector("output")!.textContent).toBe("0"));
@@ -59,13 +59,13 @@ describe("useAnnotations live refresh", () => {
   });
 
   it("ignores diffs that touch no .yamlover file (a photo import must not refetch)", async () => {
-    const fetchFn = mockFetch({ "annotations:/img.png": [] });
-    render(<Probe path="/img.png" />);
+    const fetchFn = mockFetch({ "annotations::img.png": [] });
+    render(<Probe path=":img.png" />);
     await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
 
     act(() => {
       window.dispatchEvent(new CustomEvent("yamlover:diff", {
-        detail: { paths: ["/photos/new.jpg"], removed: [] },
+        detail: { paths: [":photos:new.jpg"], removed: [] },
       }));
     });
     await new Promise((r) => setTimeout(r, 20));
@@ -77,7 +77,7 @@ describe("AnnotationMenu remembered-tag pruning", () => {
   it("drops recents (and the remembered tag) whose node is gone; live ones stay", async () => {
     localStorage.setItem(RECENT_KEY, JSON.stringify([ALIVE, DEAD]));
     localStorage.setItem(TAG_KEY, JSON.stringify(DEAD));
-    mockFetch({ "/tags/alive": { path: "/tags/alive", format: "x-yamlover-tag", value: {} } }); // /tags/dead → 404
+    mockFetch({ ":tags:alive": { path: ":tags:alive", format: "x-yamlover-tag", value: {} } }); // /tags/dead → 404
 
     const { container } = render(
       <AnnotationMenu x={0} y={0} tag={DEFAULT_TAG} mode="create" onPick={vi.fn()} onTrash={vi.fn()} />,
@@ -91,10 +91,10 @@ describe("AnnotationMenu remembered-tag pruning", () => {
   });
 
   it("frames the assigned named tag (`sel`, like the selected color swatch)", async () => {
-    localStorage.setItem(RECENT_KEY, JSON.stringify([ALIVE, { path: "/tags/other", name: "other", color: null }]));
+    localStorage.setItem(RECENT_KEY, JSON.stringify([ALIVE, { path: ":tags:other", name: "other", color: null }]));
     mockFetch({
-      "/tags/alive": { path: "/tags/alive", format: "x-yamlover-tag", value: {} },
-      "/tags/other": { path: "/tags/other", format: "x-yamlover-tag", value: {} },
+      ":tags:alive": { path: ":tags:alive", format: "x-yamlover-tag", value: {} },
+      ":tags:other": { path: ":tags:other", format: "x-yamlover-tag", value: {} },
     });
 
     const { container } = render(
@@ -106,8 +106,8 @@ describe("AnnotationMenu remembered-tag pruning", () => {
 
   it("shows the assigned named tag even when it aged out of the recents", async () => {
     localStorage.setItem(RECENT_KEY, JSON.stringify([ALIVE]));
-    mockFetch({ "/tags/alive": { path: "/tags/alive", format: "x-yamlover-tag", value: {} } });
-    const assigned = { path: "/tags/forgotten", name: "forgotten", color: null };
+    mockFetch({ ":tags:alive": { path: ":tags:alive", format: "x-yamlover-tag", value: {} } });
+    const assigned = { path: ":tags:forgotten", name: "forgotten", color: null };
 
     const { container } = render(
       <AnnotationMenu x={0} y={0} tag={assigned} mode="edit" onPick={vi.fn()} onTrash={vi.fn()} />,
@@ -118,8 +118,8 @@ describe("AnnotationMenu remembered-tag pruning", () => {
   });
 
   it("keeps a recent that exists but only while it IS a tag node", async () => {
-    localStorage.setItem(RECENT_KEY, JSON.stringify([{ path: "/notes", name: "notes", color: null }]));
-    mockFetch({ "/notes": { path: "/notes", format: null, value: {} } }); // exists, not a tag
+    localStorage.setItem(RECENT_KEY, JSON.stringify([{ path: ":notes", name: "notes", color: null }]));
+    mockFetch({ ":notes": { path: ":notes", format: null, value: {} } }); // exists, not a tag
 
     const { container } = render(
       <AnnotationMenu x={0} y={0} tag={DEFAULT_TAG} mode="create" onPick={vi.fn()} onTrash={vi.fn()} />,

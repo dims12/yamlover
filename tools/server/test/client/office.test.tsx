@@ -5,7 +5,7 @@ import { getRenderer } from "../../src/client/renderers/registry";
 import type { NodeJson } from "../../src/client/api";
 
 const bin = (format: string): NodeJson => ({
-  path: "/f",
+  path: ":f",
   type: "binary",
   format,
   concrete: null,

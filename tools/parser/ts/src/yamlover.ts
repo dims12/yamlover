@@ -2,15 +2,18 @@
 //
 // Covers a practical YAML subset: block mappings & sequences (incl. compact `- key:` and
 // `- &anchor`), flow `{}`/`[]`, plain/single/double-quoted scalars, `#` comments. Plus the
-// yamlover extensions: value `*pointer` (unquoted), `&anchor`, `~key:` back-edges, and
-// `~-` keyless back-edges (reverse positional membership, URIs.md §`~-`).
+// yamlover extensions: value `*pointer` (unquoted), PATH anchors `&path` / `&path[]`
+// (URIs.md §`&` — same line as the value or on their own lines; multiple per node), the
+// deprecated `~key:` back-edges and `~-` keyless back-edges (≡ `&P/key` / `&P[]`), and
+// omni-by-default: an untagged node may mix keyed+keyless entries and carry a scalar
+// value line anywhere in its block (`!!mix`/`!!omni` parse as no-op markers).
 //
-// NOT yet handled (Phase 2c TODO): block scalars (`|`, `>`), tags (`!!`), multi-document
-// (`---`), merge keys (`<<`), and flow that spans multiple lines.
+// NOT yet handled (Phase 2c TODO): multi-document (`---`), merge keys (`<<`), and flow
+// that spans multiple lines.
 
-import type { Document, Node, Mapping, Scalar, Entry, Value, Pointer, Span } from './ir.ts';
+import type { Document, Node, Mapping, Scalar, Entry, Value, Pointer, Span, Anchor } from './ir.ts';
 import { isPointer } from './ir.ts';
-import { parsePointer } from './pointer.ts';
+import { parsePointer, makeAnchor } from './pointer.ts';
 
 interface Line { indent: number; text: string; n: number }
 
@@ -28,6 +31,16 @@ export function parseYamlover(src: string, uri = '<yamlover>'): Document {
   raw.push(src.slice(at));
   lineStarts.push(at);
   const p = new Block(lex(raw), raw, uri, lineStarts);
+  // YAML document markers are reserved until multi-document lands (Phase 2c). Without this
+  // guard, omni-by-default would read a `---` line as the node's scalar VALUE — a misparse
+  // that can accidentally project to the right value. Refuse instead.
+  for (let k = 0; k < p.lines.length; k++) {
+    const l = p.lines[k];
+    if (l.indent === 0 && (l.text === '---' || l.text.startsWith('--- ') || l.text === '...')) {
+      p.i = k;
+      p.fail('multi-document streams ("---" / "...") are not yet supported (Phase 2c)');
+    }
+  }
   // a document-root schema tag on its own line: `!!<*yamlover/$defs/chapter>`
   let rootSchema: Value | undefined;
   const first = p.peek();
@@ -35,12 +48,17 @@ export function parseYamlover(src: string, uri = '<yamlover>'): Document {
     rootSchema = parseSchemaRef(first.text.trim().slice(3, -1), { block: p, lineN: first.n, col: first.indent + 3 });
     p.i++;
   }
-  const root = p.node(0) ?? nul();
-  if (p.i < p.lines.length) p.fail('unexpected content');
+  let root = p.node(0) ?? nul();
   if (isPointer(root)) throw new SyntaxError(`yamlover: a top-level pointer is not allowed in ${uri}`);
+  // Omni by default: a root that began as a lone scalar (or flow) line may CONTINUE with
+  // entries and/or anchor lines at the root indent — `30` + `&//tags/…[]` is the two-line
+  // tagged-scalar file (URIs.md §`&`); `30` + `- one` + `two: three` is a root omni node.
+  if (p.i < p.lines.length && p.peek()!.indent === 0) {
+    root = p.mergeCont(root, p.container(0));
+  }
+  if (p.i < p.lines.length) p.fail('unexpected content');
   if (rootSchema !== undefined) root.meta = { ...root.meta, schema: rootSchema };
-  p.validateMixtures(root); // mixtures require an explicit !!mix / !!omni tag
-  return { root, anchors: p.anchors, source: { concrete: 'yamlover', uri } };
+  return { root, source: { concrete: 'yamlover', uri } };
 }
 
 // ---- line lexing: indentation + quote-aware comment stripping ----------------
@@ -78,8 +96,6 @@ class Block {
   uri: string;        // source path/id, surfaced in parse-error messages
   lineStarts: number[]; // absolute offset of each raw line's first character
   i = 0;
-  anchors = new Map<string, Node>();
-  typed = new WeakMap<Node, 'mix' | 'omni' | 'set'>(); // nodes typed via `!!mix`/`!!omni`/`!!set`
 
   constructor(lines: Line[], raw: string[], uri = '<yamlover>', lineStarts: number[] = []) {
     this.lines = lines; this.raw = raw; this.uri = uri; this.lineStarts = lineStarts;
@@ -93,25 +109,66 @@ class Block {
     return { uri: this.uri, start, end: start + len };
   }
 
-  /** Enforce: mixing keyed+keyless entries needs `!!mix`. A scalar/blob value WITH fields (the
-   *  omni shape) needs NO tag: a deeper-indented block under a scalar value is invalid YAML, so
-   *  reading it as the node's fields extends YAML without ambiguity — the shape itself is the
-   *  intention (`!!omni` stays legal as optional explicitness; schemas declare it as
-   *  `type: variant`, META.md). Plain (pure seq / pure map / pure scalar) needs no tag.
-   *  Back-edge entries (`~key:` / `~-`) are not OWNED members and never count. */
-  validateMixtures(node: Node): void {
-    const ents = node.entries;
-    if (!ents || ents.length === 0) return;
-    const tag = this.typed.get(node);
-    const owned = ents.filter((e) => e.edge !== 'back');
-    if (node.kind === 'mapping' && owned.some((e) => e.key !== null) && owned.some((e) => e.key === null)) {
-      // a mapping mixing keyed and keyless entries
-      if (tag !== 'mix' && tag !== 'omni') this.fail('a container mixing keyed and keyless entries must be tagged !!mix');
+  peek(): Line | undefined { return this.lines[this.i]; }
+
+  /** Read ONE `&` anchor token at the head of `text` (URIs.md §`&`): `&path`, `&path[]`,
+   *  or the quoted form `&'path with spaces'`. Plain tokens run to unescaped whitespace.
+   *  Returns the Anchor plus the remaining text/column. */
+  anchorToken(text: string, lineN: number, col: number): { anchor: Anchor; rest: string; col: number } {
+    let body: string;
+    let tokenLen: number;
+    if (text[1] === "'" || text[1] === '"') {
+      const q = text[1];
+      let j = 2;
+      while (j < text.length) {
+        if (q === '"' && text[j] === '\\') { j += 2; continue; }
+        if (text[j] === q) { if (q === "'" && text[j + 1] === "'") { j += 2; continue; } break; }
+        j++;
+      }
+      if (j >= text.length) this.fail('unterminated quoted anchor path');
+      body = quotedScalar(text.slice(1, j + 1)).value as string;
+      tokenLen = j + 1;
+    } else if (hasSeparatorColon(text.slice(1))) {
+      // COLON-form anchor (SEPARATOR.md): the `: ` styling holds spaces, so the token
+      // runs to END OF LINE — a same-line value needs the quoted form (M3).
+      body = text.slice(1).trim();
+      tokenLen = text.length;
+    } else {
+      let j = 1;
+      while (j < text.length && text[j] !== ' ' && text[j] !== '\t') {
+        if (text[j] === '\\' && j + 1 < text.length) j++;
+        j++;
+      }
+      body = text.slice(1, j);
+      tokenLen = j;
     }
-    for (const e of ents) if (!isPointer(e.value)) this.validateMixtures(e.value);
+    const anchor = makeAnchor(body, (m) => this.fail(m));
+    anchor.path.span = this.spanAt(lineN, col, tokenLen); // the whole `&…` token
+    const a = adv(text, tokenLen, col);
+    return { anchor, rest: a.rest, col: a.col };
   }
 
-  peek(): Line | undefined { return this.lines[this.i]; }
+  /** Attach anchors to a (non-pointer) node's meta, appending to any it already has. */
+  attachAnchors(value: Value, anchors: Anchor[]): void {
+    if (anchors.length === 0) return;
+    if (isPointer(value)) this.fail('cannot anchor a pointer');
+    value.meta = { ...value.meta, anchors: [...(value.meta?.anchors ?? []), ...anchors] };
+  }
+
+  /** Merge a container() CONTINUATION into a node that already holds its value: entries
+   *  and anchors append. A continuation carrying its own value line is a second value —
+   *  an error — except the bare anchors-only case (a synthesized null with no raw). */
+  mergeCont(v: Node, cont: Node): Node {
+    const bare = cont.kind === 'scalar' && cont.value === null && cont.raw === '' && (cont.entries?.length ?? 0) === 0;
+    if (cont.kind === 'scalar' && !bare) this.fail('a node may carry at most one scalar value line');
+    const entries = [...(v.entries ?? []), ...(cont.entries ?? [])];
+    const out: Node = {
+      ...v,
+      ...(entries.length > 0 ? { entries, array: cont.kind === 'mapping' ? cont.array : v.array } : {}),
+    };
+    this.attachAnchors(out, cont.meta?.anchors ?? []);
+    return out;
+  }
   fail(msg: string): never {
     const l = this.lines[this.i] ?? this.lines[this.i - 1];
     const where = l ? `${this.uri}:${l.n + 1}` : this.uri;
@@ -130,10 +187,18 @@ class Block {
       this.i++;
       return this.valueAfter(l.text, l.indent - 1, l.n, l.indent);
     }
-    if (isSeqLine(l.text) || isBackSeqLine(l.text) || splitKV(l.text)) return this.container(l.indent);
-    // a lone scalar/flow/pointer/anchor occupying the line
+    if (isSeqLine(l.text) || isBackSeqLine(l.text) || l.text.startsWith('&') || splitKV(l.text)) {
+      return this.container(l.indent);
+    }
+    // a lone scalar/flow/pointer occupying the line
     this.i++;
-    return this.valueInline(l.text, l.indent, /*allowBlock*/ true, l.n, l.indent);
+    let v = this.valueInline(l.text, l.indent, /*allowBlock*/ true, l.n, l.indent);
+    // omni by default: a scalar value line may CONTINUE with entries/anchors at the same indent
+    const nxt = this.peek();
+    if (nxt && nxt.indent === l.indent && nxt.indent >= minIndent && !isPointer(v) && v.kind === 'scalar') {
+      v = this.mergeCont(v, this.container(l.indent));
+    }
+    return v;
   }
 
   /**
@@ -145,13 +210,33 @@ class Block {
    * `keylessOnly` is for the same-indent sequence-under-a-key case, where a keyed line at
    * this indent is a SIBLING of the outer key, not a member — so we stop at it.
    */
-  container(indent: number, keylessOnly = false): Mapping {
+  container(indent: number, keylessOnly = false): Node {
     const entries: Entry[] = [];
+    const anchors: Anchor[] = [];           // own-line `&…` anchors — they belong to THIS node
+    let self: Scalar | undefined;           // the node's scalar value line (at most one; any position)
     for (;;) {
       const l = this.peek();
       if (!l || l.indent !== indent) break;
       let value: Value;
       let entry: Entry;
+      if (l.text.startsWith('&')) {
+        // own-line anchor(s); a trailing inline value makes this also the self-value line
+        if (keylessOnly) break;
+        this.i++;
+        let { rest, col } = { rest: l.text, col: l.indent };
+        while (rest.startsWith('&')) {
+          const r = this.anchorToken(rest, l.n, col);
+          anchors.push(r.anchor);
+          ({ rest, col } = r);
+        }
+        if (rest !== '') {
+          const v = this.valueInline(rest, indent, /*allowBlock*/ false, l.n, col);
+          if (isPointer(v) || v.kind !== 'scalar') this.fail('only a scalar value may share a line with an own-line anchor');
+          if (self !== undefined) this.fail('a node may carry at most one scalar value line');
+          self = v;
+        }
+        continue;
+      }
       if (isSeqLine(l.text)) {
         // a keyless (positional) entry
         this.i++;
@@ -161,9 +246,10 @@ class Block {
         const rest = afterDash.trim();
         if (rest === '') {
           value = this.node(indent + 1) ?? nul();
-        } else if (!rest.startsWith('!!<') && splitKV(rest)) {
+        } else if (!/^(!!<|\*|&)/.test(rest) && splitKV(rest)) {
           // compact `- key: value`: re-read this line (+ deeper siblings) as a container
-          // (a `!!<…>` tag is a value, not a key — its inner `: ` must not look like a key)
+          // (a `!!<…>` tag, a `*` pointer, or a `&` anchor is a VALUE — a colon-form
+          // token's inner `: ` must not look like a key)
           this.i--;
           this.lines[this.i] = { indent: contentCol, text: rest, n: l.n };
           value = this.container(contentCol);
@@ -184,11 +270,19 @@ class Block {
         value = ptr;
         entry = { key: null, edge: 'back', value };
       } else {
-        // a keyed entry
+        // a keyed entry — or, failing the `key:` split, the node's scalar VALUE line
+        // (omni by default: the value line may sit anywhere among the entries)
         if (keylessOnly) break;
         if (/^~[ \t]/.test(l.text)) this.fail('the "~" sigil must sit tight against the key or "-" marker (write "~key:" or "~-")');
         const kv = splitKV(l.text);
-        if (!kv) break;
+        if (!kv) {
+          this.i++;
+          const v = this.valueInline(l.text, indent, /*allowBlock*/ false, l.n, l.indent);
+          if (isPointer(v) || v.kind !== 'scalar') this.fail('unexpected content (expected an entry, an anchor, or a scalar value line)');
+          if (self !== undefined) this.fail('a node may carry at most one scalar value line');
+          self = v;
+          continue;
+        }
         this.i++;
         let key = kv.key;
         let back = false;
@@ -202,7 +296,13 @@ class Block {
     // is not a member of THIS node and must not make it look like an array).
     const owned = entries.filter((e) => e.edge !== 'back');
     const array = owned.length > 0 && owned.every((e) => e.key === null);
-    return { kind: 'mapping', entries, array };
+    const node: Node = self !== undefined
+      ? { ...self, entries, array }                 // value + fields: one omni node
+      : entries.length === 0
+        ? nul()                                     // only anchor lines — a null scalar, NOT a mapping
+        : { kind: 'mapping', entries, array };
+    this.attachAnchors(node, anchors);
+    return node;
   }
 
   /** The value after `key:` or `- ` (inline `rest`, with a possible deeper block).
@@ -221,11 +321,11 @@ class Block {
     let typeTag: 'mix' | 'omni' | 'set' | undefined;
     const tag = /^!!(mix|omni|set)(?=\s|$)/.exec(rest);
     if (tag) { typeTag = tag[1] as 'mix' | 'omni' | 'set'; ({ rest, col } = adv(rest, tag[0].length, col)); }
-    let anchor: string | undefined;
-    if (rest.startsWith('&')) {
-      const r = readName(rest.slice(1));
-      anchor = r.name;
-      ({ rest, col } = adv(rest, 1 + r.name.length, col));
+    const anchors: Anchor[] = [];
+    while (rest.startsWith('&')) {
+      const r = this.anchorToken(rest, srcLineN, col);
+      anchors.push(r.anchor);
+      ({ rest, col } = r);
     }
     let value: Value;
     if (/^[|>][+-]?\d*$/.test(rest)) {
@@ -249,11 +349,8 @@ class Block {
       value = this.valueInline(rest, parentIndent, /*allowBlock*/ false, srcLineN, col);
       value = this.attachFields(value, parentIndent);
     }
-    if (anchor !== undefined) {
-      if (isPointer(value)) this.fail('cannot anchor a pointer');
-      this.anchors.set(anchor, value);
-    }
-    if (typeTag !== undefined && !isPointer(value)) this.typed.set(value, typeTag);
+    this.attachAnchors(value, anchors);
+    // `!!mix`/`!!omni` are no-op markers (omni is the default); `!!set` carries real semantics
     if (typeTag === 'set' && !isPointer(value)) value.meta = { ...value.meta, set: true }; // survives into the graph
     if (schema !== undefined && !isPointer(value)) value.meta = { ...value.meta, schema };
     return value;
@@ -264,9 +361,11 @@ class Block {
    *  carrying its value and its fields (the `!!omni` shape). Non-scalars/pointers pass through. */
   attachFields(value: Value, parentIndent: number): Value {
     const nxt = this.peek();
-    if (nxt && nxt.indent > parentIndent && !isPointer(value) && value.kind === 'scalar') {
-      const fields = this.container(nxt.indent);
-      return { ...value, entries: fields.entries, array: fields.array };
+    if (nxt && nxt.indent > parentIndent && !isPointer(value) && value.kind !== 'blob') {
+      // a deeper block after an inline value CONTINUES the node: fields for a scalar
+      // (the omni shape), and — since M3 puts anchors own-line in the block — anchors
+      // (and further entries) for a flow mapping/sequence too
+      return this.mergeCont(value, this.container(nxt.indent));
     }
     return value;
   }
@@ -310,7 +409,7 @@ class Block {
     ({ rest: text, col } = adv(text, 0, col));
     const c = text[0];
     if (c === '{' || c === '[') {
-      return new Flow(text, this.anchors, this.uri, (this.lineStarts[lineN] ?? 0) + col).parse();
+      return new Flow(text, this.uri, (this.lineStarts[lineN] ?? 0) + col).parse();
     }
     if (c === '*') {
       const p = parsePointer(unquoteIfQuoted(text.slice(1)));
@@ -318,13 +417,18 @@ class Block {
       return p;
     }
     if (c === '&') {
-      const r = readName(text.slice(1));
-      const a = adv(text, 1 + r.name.length, col);
-      const v = a.rest === '' && allowBlock
-        ? (this.node(parentIndent + 1) ?? nul())
-        : this.valueInline(a.rest, parentIndent, allowBlock, lineN, a.col);
-      if (isPointer(v)) this.fail('cannot anchor a pointer');
-      this.anchors.set(r.name, v);
+      const anchors: Anchor[] = [];
+      let rest = text;
+      let acol = col;
+      while (rest.startsWith('&')) {
+        const r = this.anchorToken(rest, lineN, acol);
+        anchors.push(r.anchor);
+        ({ rest, col: acol } = r);
+      }
+      const v = rest === ''
+        ? (allowBlock ? (this.node(parentIndent + 1) ?? nul()) : nul())
+        : this.valueInline(rest, parentIndent, allowBlock, lineN, acol);
+      this.attachAnchors(v, anchors);
       return v;
     }
     if (c === "'" || c === '"') return quotedScalar(text);
@@ -336,12 +440,11 @@ class Block {
 class Flow {
   s: string;
   i = 0;
-  anchors: Map<string, Node>;
   uri: string;
   base: number; // absolute offset of s[0] in the source (span tracking)
 
-  constructor(s: string, anchors: Map<string, Node>, uri = '<flow>', base = 0) {
-    this.s = s; this.anchors = anchors; this.uri = uri; this.base = base;
+  constructor(s: string, uri = '<flow>', base = 0) {
+    this.s = s; this.uri = uri; this.base = base;
   }
 
   fail(msg: string): never { throw new SyntaxError(`yamlover (flow): ${msg} at offset ${this.i}`); }
@@ -363,18 +466,49 @@ class Flow {
     if (c === '*') {
       const start = this.i;
       this.i++;
-      const p = parsePointer(unquoteIfQuoted(this.readPlain()));
+      // a flow pointer reads to the next , } or ] at bracket depth 0 — colon-form
+      // raws contain `:`/`[n]`/styling spaces, which the generic plain stop-set eats
+      let txt: string;
+      if (this.s[this.i] === "'" || this.s[this.i] === '"') {
+        txt = this.quoted().value as string;
+      } else {
+        const st = this.i;
+        let depth = 0;
+        while (this.i < this.s.length) {
+          const ch = this.s[this.i];
+          if (ch === '\\' && this.i + 1 < this.s.length) { this.i += 2; continue; }
+          if (ch === '[') depth++;
+          else if (ch === ']') { if (depth === 0) break; depth--; }
+          else if (ch === ',' || ch === '}') break;
+          this.i++;
+        }
+        txt = this.s.slice(st, this.i).trim();
+      }
+      const p = parsePointer(txt);
       p.span = { uri: this.uri, start: this.base + start, end: this.base + this.i };
       return p;
     }
     if (c === '&') {
+      // a path anchor in flow: `&'path'` (quoted — needed for `[]`/`[n]`) or a plain run
+      const start = this.i;
       this.i++;
-      const r = readName(this.s.slice(this.i));
-      this.i += this.s.slice(this.i).length - r.rest.length;
+      let body: string;
+      if (this.s[this.i] === "'" || this.s[this.i] === '"') {
+        body = this.quoted().value as string;
+      } else {
+        const st = this.i;
+        while (this.i < this.s.length && !' \t,]}'.includes(this.s[this.i])) {
+          if (this.s[this.i] === '\\' && this.i + 1 < this.s.length) this.i++;
+          this.i++;
+        }
+        body = this.s.slice(st, this.i);
+      }
+      const anchor = makeAnchor(body, (m) => this.fail(m));
+      anchor.path.span = { uri: this.uri, start: this.base + start, end: this.base + this.i };
       this.ws();
       const v = this.value();
       if (isPointer(v)) this.fail('cannot anchor a pointer');
-      this.anchors.set(r.name, v);
+      v.meta = { ...v.meta, anchors: [...(v.meta?.anchors ?? []), anchor] };
       return v;
     }
     if (c === "'" || c === '"') return this.quoted();
@@ -514,16 +648,24 @@ function foldLines(lines: string[]): string {
   return out;
 }
 
-function readName(s: string): { name: string; rest: string } {
-  let i = 0;
-  while (i < s.length && !' \t,[]{}'.includes(s[i])) i++;
-  return { name: s.slice(0, i), rest: s.slice(i) };
-}
 
 function unquoteIfQuoted(s: string): string {
   s = s.trim();
   if ((s[0] === "'" || s[0] === '"') && s[s.length - 1] === s[0]) return quotedScalar(s).value as string;
   return s;
+}
+
+/** An unescaped, unquoted `:` anywhere — marks a colon-form (SEPARATOR.md) token. */
+function hasSeparatorColon(s: string): boolean {
+  let q: string | null = null;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q !== null) { if (c === q) q = null; continue; }
+    if (c === '\\') { i++; continue; }
+    if (c === "'" || c === '"') { q = c; continue; }
+    if (c === ':') return true;
+  }
+  return false;
 }
 
 function unquoteKey(key: string): string {

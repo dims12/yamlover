@@ -1,12 +1,11 @@
 - Jetbrains plugins: structure window?
 - Jetbrains plugins: reformat code
-- Disambiguate `manager: *whiskers`: either it refers local member or global alias; usually local has precedence, but here for YAML compatibility we need global precedence?
+- ~~Disambiguate `manager: *whiskers`: local member vs global alias precedence~~ — resolved by design (ANCHOR_REFACTOR, 2026-06-12): the anchor namespace is eliminated, anchors are real keys, `*name` is pure path lookup (URIs.md §`&`); lands with PLAN Phase A
 - Plugins? L markdown preview functionality lost
-- Invent type names for omni and mix for schema/meta language
 - Design reverse tag into unkwonn location of an array?
 - Support configurable depth for json/json5p/yaml/yamlover renderers
 - Support configurable depth for chapter renderers
 - When images, maps etc are inside chapters, not need to complex leaflet controls
-- Annotations-as-tag-applications follow-up: richer tag search in the picker (autocomplete over indexed tags, not just a path input)
+- Tag picker: autocomplete over indexed tags (the path input + bare-name create-on-miss exist; search/completion doesn't — a first consumer of the QUERY.md evaluator, PLAN 3g)
 - Ctrl-PgDn and Ctrl-PgUp to switch to next element in the viewer
 - Once LHS TOC entry clicked, focus should go to RHS

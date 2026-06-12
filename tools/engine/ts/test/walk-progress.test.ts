@@ -54,10 +54,10 @@ test('setFileHash fills the manifest + blob node, guarded by (size, mtime)', asy
   assert.ok(hash.startsWith('xxh64:'));
   assert.equal(s.setFileHash(rec.path, hash, rec.size, rec.mtimeMs), true);
   assert.equal(s.unhashedFiles().length, 0);
-  assert.equal(s.node('/big.png')?.content_hash, hash);
+  assert.equal(s.node(':big.png')?.content_hash, hash);
   // a stale (size, mtime) writes nothing
   assert.equal(s.setFileHash(rec.path, 'xxh64:0000000000000000', rec.size + 1, rec.mtimeMs), false);
-  assert.equal(s.node('/big.png')?.content_hash, hash);
+  assert.equal(s.node(':big.png')?.content_hash, hash);
 });
 
 test('the chunked hasher and the inline hash agree on the same bytes', async () => {

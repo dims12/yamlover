@@ -44,14 +44,26 @@ function joinDoc(documentPath: string, rel: string): string {
   return segsToStr([...strToSegs(documentPath), ...strToSegs(rel)]);
 }
 
+/** Tokenize a LEGACY slash-spelled link target (`/a/b[0]`) into segments. */
+function slashSegs(str: string): (string | number)[] {
+  const out: (string | number)[] = [];
+  for (const tok of str.match(/\[\d+\]|[^/\[\]]+/g) || []) {
+    out.push(/^\[\d+\]$/.test(tok) ? Number(tok.slice(1, -1)) : tok);
+  }
+  return out;
+}
+
 /** Interpret a link `target` against the `documentPath` it appears in (the JSON-space
- *  path of its document; defaults to root). See the module note for the grammar. */
-export function resolveLink(target: string, documentPath = "/"): ResolvedLink {
+ *  path of its document; defaults to root). Colon spellings (`:a:b`, `::a:b` —
+ *  SEPARATOR.md) are canonical; legacy slash spellings (`/a/b`, `//a/b`) still parse. */
+export function resolveLink(target: string, documentPath = ":"): ResolvedLink {
   const raw = target.trim();
   if (!raw) return UNRESOLVED;
-  if (raw.startsWith("//")) return { path: segsToStr(strToSegs(raw.slice(1))), href: null }; // project root
+  if (raw.startsWith("::")) return { path: segsToStr(strToSegs(raw.slice(2))), href: null }; // project root
+  if (raw.startsWith(":")) return { path: joinDoc(documentPath, raw), href: null }; // document-relative
+  if (raw.startsWith("//")) return { path: segsToStr(slashSegs(raw)), href: null }; // legacy project root
   if (hasScheme(raw)) return { path: null, href: raw }; // external (http(s)/mailto/…)
-  if (raw.startsWith("/")) return { path: joinDoc(documentPath, raw), href: null }; // document-relative
+  if (raw.startsWith("/")) return { path: segsToStr([...strToSegs(documentPath), ...slashSegs(raw)]), href: null }; // legacy doc-relative
   return UNRESOLVED; // anything else is not (yet) a recognized link target
 }
 

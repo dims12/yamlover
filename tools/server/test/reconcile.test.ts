@@ -17,7 +17,7 @@ async function handlers(root: string, opts: Parameters<typeof createHandlers>[1]
 }
 
 const treeLabels = (h: ReturnType<typeof createHandlers>): string[] =>
-  call(h, "/api/tree", { path: "/", depth: "1" }).json.children.map((c: { label: string }) => c.label);
+  call(h, "/api/tree", { path: ":", depth: "1" }).json.children.map((c: { label: string }) => c.label);
 
 describe("reconcile: external edits reach the index", () => {
   it("a file created after startup appears once /api/reindex runs", async () => {
@@ -32,7 +32,7 @@ describe("reconcile: external edits reach the index", () => {
     expect(r.status).toBe(200);
     expect(r.json).toEqual({ added: ["b.md"], changed: [], removed: [], moved: [] });
     expect(treeLabels(h)).toEqual(["a.md", "b.md"]);
-    expect(call(h, "/api/json", { path: "/b.md" }).json.value).toBe("# b");
+    expect(call(h, "/api/json", { path: ":b.md" }).json.value).toBe("# b");
   });
 
   it("a deleted file disappears, an edited one re-reads", async () => {
@@ -44,7 +44,7 @@ describe("reconcile: external edits reach the index", () => {
     const r = await callBody(h, "POST", "/api/reindex");
     expect(r.json).toEqual({ added: [], changed: ["b.yamlover"], removed: ["a.md"], moved: [] });
     expect(treeLabels(h)).toEqual(["b.yamlover"]);
-    expect(call(h, "/api/json", { path: "/b.yamlover/x" }).json.value).toBe(2);
+    expect(call(h, "/api/json", { path: ":b.yamlover:x" }).json.value).toBe(2);
   });
 
   it("the persisted index survives a restart without a re-walk being wrong", async () => {
@@ -75,7 +75,7 @@ describe("reconcile: external edits reach the index", () => {
     const root = tmpTree({ "doc.yamlover": "friend: *missing\n" });
     const h = await handlers(root);
     expect(call(h, "/api/dangling").json).toEqual([
-      { from: "/doc.yamlover/friend", raw: "missing", reason: expect.stringContaining("missing") },
+      { from: ":doc.yamlover:friend", raw: "missing", reason: expect.stringContaining("missing") },
     ]);
 
     fs.writeFileSync(path.join(root, "doc.yamlover"), "missing: 1\nfriend: *missing\n");
@@ -110,7 +110,7 @@ describe("watch: true — the FS watcher reindexes and pushes SSE", () => {
       await new Promise((r) => setTimeout(r, 50));
     }
     const payload = JSON.parse(diffFrame()!.slice(6));
-    expect(payload.added).toEqual(["/b.md"]); // client JSON paths, not file paths
+    expect(payload.added).toEqual([":b.md"]); // client JSON paths, not file paths
     expect(treeLabels(h)).toEqual(["a.md", "b.md"]); // and the index is already fresh
   });
 });

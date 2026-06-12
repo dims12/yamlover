@@ -16,7 +16,7 @@ describe("POST /api/mv", () => {
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const r = await callBody(h, "POST", "/api/mv", { from: "/old.md", to: "/new.md" });
+    const r = await callBody(h, "POST", "/api/mv", { from: ":old.md", to: ":new.md" });
     expect(r.status).toBe(200);
     expect(r.json.from).toBe("old.md");
     expect(r.json.to).toBe("new.md");
@@ -28,7 +28,7 @@ describe("POST /api/mv", () => {
     expect(fs.readFileSync(path.join(root, "refs.yamlover"), "utf8")).toBe("link: *//new.md\n");
     expect(fs.existsSync(path.join(root, "old.md"))).toBe(false);
 
-    const node = call(h, "/api/json", { path: "/new.md" });
+    const node = call(h, "/api/json", { path: ":new.md" });
     expect(node.status).toBe(200);
     const dangling = call(h, "/api/dangling", {});
     expect(dangling.json).toEqual([]);
@@ -39,9 +39,9 @@ describe("POST /api/mv", () => {
     const root = tmpTree({ "a.md": "A", "b.md": "B" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    expect((await callBody(h, "POST", "/api/mv", { from: "/a.md[0]", to: "/x.md" })).status).toBe(400);
-    expect((await callBody(h, "POST", "/api/mv", { from: "/nope.md", to: "/x.md" })).status).toBe(400);
-    expect((await callBody(h, "POST", "/api/mv", { from: "/a.md", to: "/b.md" })).status).toBe(400);
+    expect((await callBody(h, "POST", "/api/mv", { from: ":a.md[0]", to: ":x.md" })).status).toBe(400);
+    expect((await callBody(h, "POST", "/api/mv", { from: ":nope.md", to: ":x.md" })).status).toBe(400);
+    expect((await callBody(h, "POST", "/api/mv", { from: ":a.md", to: ":b.md" })).status).toBe(400);
     expect(fs.existsSync(path.join(root, "a.md"))).toBe(true);
     h.close();
   });

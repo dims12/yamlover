@@ -28,10 +28,30 @@ function canonValue(v: Value): unknown {
 }
 
 function canonPtr(p: Pointer): unknown {
-  return { ptr: { base: p.base, steps: p.steps, raw: p.raw } };
+  // the dual window re-renders raws in colon form — identity is base + steps, not text
+  return { ptr: { base: p.base, steps: p.steps } };
+}
+
+/** A deprecated `~` back entry with an absolute-scoped pointer is EQUIVALENT to a `&`
+ *  path anchor (`~k: *P` ≡ `&P/k`, `~- *P` ≡ `&P[]`) — and the serializers emit the
+ *  anchor form. Canon folds both authorings into one anchor set (semantic identity =
+ *  base+steps+ordinal; raw differs between the spellings by construction). */
+function convBack(e: { key: string | null; edge: string; value: Value }): boolean {
+  return e.edge === 'back' && isPointer(e.value) &&
+    ((e.value as Pointer).base.scope === 'document' || (e.value as Pointer).base.scope === 'link');
 }
 
 function canonNode(n: Node): unknown {
+  const ents = n.entries ?? [];
+  const anchors = [
+    ...(n.meta?.anchors ?? []).map((a) => ({ base: a.path.base, steps: a.path.steps, ordinal: a.ordinal === true })),
+    ...ents.filter(convBack).map((e) => {
+      const p = e.value as Pointer;
+      return e.key === null
+        ? { base: p.base, steps: p.steps, ordinal: true }
+        : { base: p.base, steps: [...p.steps, { sel: 'key' as const, name: e.key }], ordinal: false };
+    }),
+  ].sort((a, b) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1));
   return {
     kind: n.kind,
     value: n.kind === 'scalar' ? n.value : undefined,
@@ -39,17 +59,13 @@ function canonNode(n: Node): unknown {
     array: n.array === true,
     set: n.meta?.set === true,
     schema: n.meta?.schema !== undefined ? canonValue(n.meta.schema) : undefined,
-    entries: (n.entries ?? []).map((e) => ({ key: e.key, edge: e.edge, value: canonValue(e.value) })),
+    anchors,
+    entries: ents.filter((e) => !convBack(e)).map((e) => ({ key: e.key, edge: e.edge, value: canonValue(e.value) })),
   };
 }
 
 function canonDoc(d: Document): unknown {
-  return {
-    root: canonNode(d.root),
-    anchors: [...d.anchors.entries()]
-      .map(([name, node]) => [name, canonNode(node)] as const)
-      .sort((a, b) => (a[0] < b[0] ? -1 : 1)),
-  };
+  return { root: canonNode(d.root) };
 }
 
 function rtYamlover(src: string, label = '<test>'): string {
@@ -78,15 +94,16 @@ test('yamlover rt: nested mappings and sequences', () => {
   rtYamlover('user:\n  name: Alice\n  pets:\n    - Rex\n    - name: Whiskers\n      species: cat\n');
 });
 
-test('yamlover rt: pointers keep their raw text', () => {
+test('yamlover rt: pointers re-render in canonical colon form', () => {
   const out = rtYamlover('pets:\n  - name: Rex\nfeline: *pets[0]\ntop: */pets[0]/name\nrx: *pets[0]\n');
   assert.match(out, /\*pets\[0\]/);
-  assert.match(out, /\*\/pets\[0\]\/name/);
+  assert.match(out, /\*: pets\[0\]: name/);
 });
 
 test('yamlover rt: anchors and anchor references', () => {
   const out = rtYamlover('boss: &chief\n  name: Rex\nteam:\n  lead: *chief\n');
-  assert.match(out, /boss: &chief/);
+  // canonical M3 placement: the anchor moves to its own line inside the block
+  assert.match(out, /boss:\n {2}&chief\n {2}name: Rex/);
 });
 
 test('yamlover rt: keyed back-edges and ~- membership', () => {
@@ -131,21 +148,24 @@ test('yamlover rt: strings that look like other types get quoted', () => {
 
 test('yamlover rt: schema tags — pointer, inline node, root', () => {
   const out = rtYamlover('!!<*yamlover/$defs/tag>\ntags: !!<*yamlover/$defs/tag> A taxonomy\n  field: About\nchunk: !!<format: text/x-plantuml> diagram\n');
-  assert.match(out, /^!!<\*yamlover\/\$defs\/tag>$/m);
+  assert.match(out, /^!!<\*yamlover: \$defs: tag>$/m);
 });
 
-test('yamlover rt: duplicate keys are preserved in order', () => {
+test('yamlover rt: duplicate back keys re-emit as distinct anchors', () => {
+  // two same-named `~slug` memberships (the 67-pdf-tags shape) → two `&` anchor tokens
   const out = rtYamlover('"a.pdf":\n  ~slug: */tags/x\n  ~slug: */tags/y\ntags:\n  x: one\n  y: two\n');
-  assert.equal(out.match(/~slug:/g)?.length, 2);
+  assert.match(out, /^ {2}&: tags: x: slug$/m);
+  assert.match(out, /^ {2}&: tags: y: slug$/m);
+  assert.doesNotMatch(out, /~slug/);
 });
 
 test('yamlover rt: empty containers, flow source', () => {
   rtYamlover('emptyMap: {}\nemptyArr: []\nflowMap: {a: 1, b: two}\nflowArr: [1, 2, three]\n');
 });
 
-test('yamlover rt: pointers with spaces and comment-looking raws', () => {
+test('yamlover rt: spacey keys re-render as quoted portions', () => {
   const out = rtYamlover('ref: */some file with spaces.pdf\nodd: *\'has #comment\'\n');
-  assert.match(out, /\*\/some file with spaces\.pdf/);
+  assert.match(out, /\*: 'some file with spaces\.pdf'/);
   assert.match(out, /\*'has #comment'/);
 });
 
@@ -159,7 +179,7 @@ test('yamlover lossy: non-finite numbers are refused', () => {
 const yamloverFiles: string[] = [
   join(examples, '05-tour.yaml'),
   join(examples, '06-tour.yamlover'),
-  join(root, 'yamlover', 'tags', '.yamlover', 'body.yamlover'),
+  join(root, 'tags', '.yamlover', 'body.yamlover'),
 ];
 for (const dir of readdirSync(examples, { withFileTypes: true })) {
   if (!dir.isDirectory()) continue;
@@ -180,10 +200,13 @@ test('json5p rt: object/array nesting, odd keys, escapes', () => {
 });
 
 test('json5p rt: pointers, anchors, back-edges (keyed and keyless)', () => {
-  const out = rtJson5p("{ boss: &chief {name: 'Rex'}, team: {lead: *'chief'}, eve: {cain: *'/adam/cain'}, adam: {cain: {~cain: *'/eve'}}, favorites: [*'/adam'], fan: {name: 'Bob', ~*'/favorites'} }");
-  assert.match(out, /&chief \{/);
-  assert.match(out, /~cain: \*"\/eve"/);
-  assert.match(out, /~\*"\/favorites"/);
+  const out = rtJson5p("{ boss: &'/chief' {name: 'Rex'}, team: {lead: *'/chief'}, eve: {cain: *'/adam/cain'}, adam: {cain: {~cain: *'/eve'}}, favorites: [*'/adam'], fan: {name: 'Bob', ~*'/favorites'}, thirty: &'/tags/whole[]' 30 }");
+  assert.match(out, /&": chief" \{/);
+  assert.match(out, /&": tags: whole\[\]" 30/);
+  // deprecated `~` forms re-emit as anchors (absolute scopes), colon-rendered
+  assert.match(out, /&": eve: cain"/);
+  assert.match(out, /&": favorites\[\]"/);
+  assert.doesNotMatch(out, /~/);
 });
 
 test('json5p rt: numbers keep their spelling (hex, Infinity, NaN)', () => {
@@ -194,7 +217,7 @@ test('json5p rt: numbers keep their spelling (hex, Infinity, NaN)', () => {
 
 test('json5p rt: pointer raw with backslash escapes', () => {
   const out = rtJson5p("{ oddRef: *'odd\\\\/key/n' }");
-  assert.match(out, /\*"odd\\\\\/key\/n"/);
+  assert.match(out, /\*"odd\/key: n"/); // `/` is literal in colon portions
 });
 
 test('json5p lossy: yamlover tags are refused with a pointer to the meta layer', () => {

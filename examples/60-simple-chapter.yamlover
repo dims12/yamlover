@@ -2,7 +2,7 @@
 # The `!!<…>` tag attaches a schema inline; its contents are a normal yamlover pointer
 # path (a leading `*` is implied), so `*yamlover/$defs/chapter` references the chapter
 # schema hosted by the yamlover project. Spec: ../YAMLOVER.md, ../META.md.
-!!<*yamlover/$defs/chapter>
+!!<*yamlover: $defs: chapter>
 title: Getting Started with yamlover
 chunks:
 - yamlover is a YAML layer over the filesystem — data lives in files and directories.

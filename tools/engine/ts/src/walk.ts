@@ -92,13 +92,12 @@ export interface IndexDiff {
   moved: { from: string; to: string }[];
 }
 
-/** Everything a walk threads along: the root (for manifest-relative paths), the options, the
- *  tree-global anchors, the manifest accumulator (a Map to dedupe re-reads), and the running
- *  progress count (filesystem children processed). */
+/** Everything a walk threads along: the root (for manifest-relative paths), the options,
+ *  the manifest accumulator (a Map to dedupe re-reads), and the running progress count
+ *  (filesystem children processed). */
 interface Ctx {
   root: string;
   opts: WalkOptions;
-  anchors: Map<string, Node>;
   files: Map<string, FileRecord>;
   count: number;
 }
@@ -135,28 +134,27 @@ export async function walkTreeAsync(absDir: string, opts: AsyncWalkOptions = {})
 /** The walk as a generator: yields one {@link WalkProgress} per filesystem child processed,
  *  returns the {@link WalkResult}. */
 export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<WalkProgress, WalkResult, void> {
-  // Anchors live per parsed file (YAML `&name`), but resolution runs over the whole assembled
-  // tree — so collect every file's anchors here, keyed by name → the anchored Node (the same
-  // object that ends up in the tree). Names are treated as tree-global (a YAML anchor is really
-  // intra-document; collisions across files would shadow — unique in practice).
-  const ctx: Ctx = { root: path.resolve(absDir), opts, anchors: new Map(), files: new Map(), count: 0 };
+  const ctx: Ctx = { root: path.resolve(absDir), opts, files: new Map(), count: 0 };
   const root = yield* dirNode(ctx.root, ctx);
   root.meta = { ...root.meta, documentRoot: true }; // the served root is always a document root
-  // Graft the BUILT-IN `yamlover/` subtree (the hosted `$defs/` schemas, color tags, …) into
-  // the served tree, so `*yamlover/$defs/…` and `*//yamlover/…` pointers resolve from any
-  // served root. Serving the host itself walks `yamlover/` naturally (the key already exists);
-  // trees with no `yamlover/$defs` host above them get no graft; a root that PROJECTS AS AN
-  // ARRAY (all-keyless) is left alone — a keyed graft would flip its kind to mix. Grafted files
-  // live outside `ctx.root`, so they are not manifested and the watcher cannot see them.
+  // Graft the SELF-IMPORT key `yamlover` — the yamlover project ({`$defs/` schemas,
+  // `tags/` palette} at the project root, URI `::: yamlover.inthemoon.net`) — into the
+  // served tree, so `*yamlover/$defs/…` and `*//yamlover/…` pointers resolve from ANY
+  // served root, including the host project itself (there, `//X` ≡ `//yamlover/X` —
+  // the import is the project, SEPARATOR.md §2). A root that PROJECTS AS AN ARRAY
+  // (all-keyless) is left alone — a keyed graft would flip its kind to mix.
   const defsRoot = findDefsRoot(absDir);
-  const builtin = path.join(defsRoot, 'yamlover');
+  const defsDir = path.join(defsRoot, '$defs');
   const arrayRoot = root.array || (root.entries?.length ? root.entries.every((e) => e.key === null) : false);
-  if (defsRoot !== ctx.root && !arrayRoot && fs.existsSync(builtin) && root.entries && !root.entries.some((e) => e.key === 'yamlover')) {
-    root.entries.push({ key: 'yamlover', edge: 'contain', value: yield* dirNode(builtin, ctx) });
+  if (!arrayRoot && fs.existsSync(defsDir) && root.entries && !root.entries.some((e) => e.key === 'yamlover')) {
+    const shared: Entry[] = [{ key: '$defs', edge: 'contain', value: yield* dirNode(defsDir, ctx) }];
+    const tagsDir = path.join(defsRoot, 'tags');
+    if (fs.existsSync(tagsDir)) shared.push({ key: 'tags', edge: 'contain', value: yield* dirNode(tagsDir, ctx) });
+    root.entries.push({ key: 'yamlover', edge: 'contain', value: { kind: 'mapping', entries: shared, array: false } });
   }
   applySchemas(root, defsRoot); // propagate attached !!<…> schemas down the instance
   return {
-    doc: { root, anchors: ctx.anchors, source: { concrete: 'directory', uri: absDir } },
+    doc: { root, source: { concrete: 'directory', uri: absDir } },
     files: [...ctx.files.values()],
   };
 }
@@ -344,7 +342,6 @@ function loadMeta(dir: string, ctx: Ctx): Meta {
 }
 
 /** A directory → a Mapping node: one entry per file/subdir, then the body.yamlover overlay.
- *  Collected anchors from any parsed children/overlay are merged into `ctx.anchors`.
  *  A generator: yields one progress tick per child processed (subtree ticks ride through). */
 function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
   const meta = loadMeta(dir, ctx);
@@ -441,7 +438,6 @@ function parsedDoc(abs: string, lang: 'yamlover' | 'json5p', ctx: Ctx): Node {
   const text = readTracked(ctx, abs).toString('utf8');
   try {
     const doc = lang === 'json5p' ? parseJson5p(text, abs) : parseYamlover(text, abs);
-    for (const [name, node] of doc.anchors) ctx.anchors.set(name, node); // the file's `&` anchors, tree-global
     const root = doc.root;
     root.meta = { ...root.meta, documentRoot: true }; // a parsed file is its own document
     return root;
@@ -458,13 +454,13 @@ function parsedDoc(abs: string, lang: 'yamlover' | 'json5p', ctx: Ctx): Node {
 // validation. Schema resolution was deferred — this is the first, targeted slice of it.)
 // --------------------------------------------------------------------------- //
 
-/** The nearest ancestor of `dir` (incl. itself) that holds the built-in `yamlover/$defs/`
- *  subtree — the host whose `yamlover/` gets grafted and whose schemas `*yamlover/$defs/<name>`
- *  pointers name; falls back to `dir`. */
+/** The nearest ancestor of `dir` (incl. itself) that holds a `$defs/` subtree — the
+ *  yamlover-project root whose {$defs, tags} get grafted as the `yamlover` self-import
+ *  key and whose schemas `*yamlover/$defs/<name>` pointers name; falls back to `dir`. */
 function findDefsRoot(dir: string): string {
   let d = path.resolve(dir);
   for (;;) {
-    if (fs.existsSync(path.join(d, 'yamlover', '$defs'))) return d;
+    if (fs.existsSync(path.join(d, '$defs'))) return d;
     const up = path.dirname(d);
     if (up === d) return path.resolve(dir);
     d = up;
@@ -475,7 +471,7 @@ function applySchemas(root: Node, defsRoot: string): void {
   const cache = new Map<string, Node | null>();
   const loadDef = (name: string): Node | null => {
     if (!cache.has(name)) {
-      const defFile = path.join(defsRoot, 'yamlover', '$defs', name);
+      const defFile = path.join(defsRoot, '$defs', name);
       try {
         cache.set(name, parseYamlover(fs.readFileSync(defFile, 'utf8'), defFile).root);
       } catch {
@@ -556,7 +552,6 @@ function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
   const file = path.join(dir, YAMLOVER_DIR, 'body.yamlover');
   if (!fs.existsSync(file)) return node;
   const bodyDoc = parseYamlover(readTracked(ctx, file).toString('utf8'), file);
-  for (const [name, n] of bodyDoc.anchors) ctx.anchors.set(name, n); // overlay `&` anchors, tree-global
   const body = bodyDoc.root;
   if ((body.kind !== 'mapping' && body.kind !== 'scalar') || !body.entries) return node;
   // a directory with a body.yamlover overlay is a self-contained instance = a DOCUMENT root

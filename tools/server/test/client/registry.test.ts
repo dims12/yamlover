@@ -3,7 +3,7 @@ import { getRenderer, rendererName, tocView } from "../../src/client/renderers/r
 import type { NodeJson, TreeNode } from "../../src/client/api";
 
 const node = (over: Partial<NodeJson>): NodeJson => ({
-  path: "/",
+  path: ":",
   type: "object",
   format: null,
   concrete: null,
@@ -14,7 +14,7 @@ const node = (over: Partial<NodeJson>): NodeJson => ({
 });
 
 const tnode = (over: Partial<TreeNode>): TreeNode => ({
-  path: "/",
+  path: ":",
   label: "x",
   type: "string",
   format: null,
@@ -111,19 +111,19 @@ describe("renderer registry (keyed on (type, format))", () => {
 
   it("a chapter's TOC view unwraps `children` (subchapters direct) and hides `chunks`", () => {
     const chapter = tnode({
-      path: "/",
+      path: ":",
       type: "object",
       format: "x-yamlover-chapter",
       hasChildren: true,
       children: [
-        tnode({ path: "/chunks", type: "array", hasChildren: true, children: [tnode({ path: "/chunks[0]" })] }),
+        tnode({ path: ":chunks", type: "array", hasChildren: true, children: [tnode({ path: ":chunks[0]" })] }),
         tnode({
-          path: "/children",
+          path: ":children",
           type: "array",
           hasChildren: true,
           children: [
-            tnode({ path: "/children[0]", label: "Dogs", type: "object", format: "x-yamlover-chapter", hasChildren: true }),
-            tnode({ path: "/children[1]", label: "Cats", type: "object", format: "x-yamlover-chapter", hasChildren: true }),
+            tnode({ path: ":children[0]", label: "Dogs", type: "object", format: "x-yamlover-chapter", hasChildren: true }),
+            tnode({ path: ":children[1]", label: "Cats", type: "object", format: "x-yamlover-chapter", hasChildren: true }),
           ],
         }),
       ],
@@ -142,14 +142,14 @@ describe("renderer registry (keyed on (type, format))", () => {
     // a chunks-only chapter: its `children` wrapper is present but holds no
     // subchapters, so it must show as a leaf rather than a misleading chevron
     const chapter = tnode({
-      path: "/children[2]",
+      path: ":children[2]",
       label: "Fish",
       type: "object",
       format: "x-yamlover-chapter",
       hasChildren: true, // generic hint (it has chunks) — must NOT drive expandability
       children: [
-        tnode({ path: "/children[2]/chunks", type: "array", hasChildren: true }),
-        tnode({ path: "/children[2]/children", type: "array", hasChildren: false, children: [] }), // empty
+        tnode({ path: ":children[2]:chunks", type: "array", hasChildren: true }),
+        tnode({ path: ":children[2]:children", type: "array", hasChildren: false, children: [] }), // empty
       ],
     });
     const view = tocView(chapter);
@@ -163,8 +163,8 @@ describe("renderer registry (keyed on (type, format))", () => {
       format: "x-yamlover-chapter",
       hasChildren: true,
       children: [
-        tnode({ path: "/chunks", type: "array", hasChildren: true }),
-        tnode({ path: "/children", type: "array", hasChildren: true, children: [] }), // boundary
+        tnode({ path: ":chunks", type: "array", hasChildren: true }),
+        tnode({ path: ":children", type: "array", hasChildren: true, children: [] }), // boundary
       ],
     });
     const view = tocView(chapter);

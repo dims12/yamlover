@@ -123,6 +123,84 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    `examples/*/.yamlover/body.yamlover`, `yamlover/tags`), plus cross-concrete
    (03-tour → yamlover, genealogy → json5p) and lossy-refusal cases.
 
+## Phase A — anchor refactor: path anchors absorb `~`, omni by default
+
+> **Spec DONE (2026-06-12)** — `ANCHOR_REFACTOR.md` (decision log) + the amended
+> specs: `URIs.md` §`&` (normative), `YAMLOVER.md` §2/§3/§4, `JSON5P.md` §`&`,
+> `QUERY.md` §4.3 note. Summary: `&` takes a full pointer path — `&P/k` = "the
+> container at `P` gains key `k` → ref to me" (push, the dual of `*`'s pull);
+> `&P[]` = keyless appended membership; multiple anchors per node, own-line
+> placement; anchors are NOT entries (never affect node kind); the anchor
+> namespace + resolver precedence are gone (anchors are real keys); collisions
+> valid iff equal, else reported; `~key:*P` ≡ `&P/k` and `~- *P` ≡ `&P[]` —
+> the `~` forms are DEPRECATED but parse through the migration window; `!!omni`
+> becomes the default (`!!mix`/`!!omni` = optional no-op markers, `!!set` keeps
+> its dedup semantics). Implementation phases:
+
+> **Landed 2026-06-12 (A1+A3 complete; A2/A4/A5 partial; 408 tests green):**
+> IR: `NodeMeta.anchors?: Anchor[]` ({path: Pointer, ordinal?}), `Document.anchors`
+> map + `EntryMeta.anchor` REMOVED. Parsers: yamlover `&path`/`&path[]`/`&'quoted'`
+> same-line + own-line + multiple + flow; json5p `&'path'` (+ legacy bare name =
+> current-scope path); omni default (validateMixtures gone, root continuation,
+> value-line-anywhere, one per block) — with a guard REFUSING `---`/`...` marker
+> lines (else omni would misread doc markers as values; keeps the conformance gate
+> honest until 2c). Resolver: precedence DELETED; anchors realized as back-style
+> edges from the parent chain (store/graph/node-kind unchanged by construction);
+> `*` steps traverse anchor-created keys; dangling anchors reported. Serializers
+> emit `&` tokens; back ENTRIES still emit `~` (exact round-trip — the anchors-only
+> flip happens with the corpus migration). rewrite/mv: split-move anchors REPORTED
+> (A4 pending); refs that moved together keep their authored raw. Corpus: 06/03
+> tours migrated (`&/chief`); 05-tour documents the YAML divergence. Conformance:
+> NO passing anchor case broke (same-container aliases resolve through the
+> anchor-created key) — the allowlist only SHRANK (3R3P now reads correctly).
+> Acceptance tests in `tools/engine/ts/test/anchors.test.ts` (equivalence ≡,
+> two-line tagged scalar stays `integer`, dangling anchor reported).
+>
+> **Round 2 (2026-06-12, same day — A2/A4/A5 COMPLETE; 411+207 tests green):**
+> **A2 flip:** serializers emit `&` anchors for every ABSOLUTE-scoped back entry
+> (`~k: *P` → `&P/k` same-line via decorations — kind-preserving for all-back
+> mappings like the 67 papers (`"x.pdf": &/tags/… {}`); `~- *P` → `&P[]`);
+> relative-scoped back entries (none in the corpus) keep `~` — an anchor path
+> resolves from the CONTAINER, a back pointer from the node, so a relative raw
+> cannot transplant verbatim. Round-trip canon treats back-entry ≡ anchor
+> (identity = base+steps+ordinal). `anchorToken` quotes bodies with spaces
+> (Cyrillic tag names). **A4:** planRewrites rebuilds anchor tokens when the
+> container moves (scope-aware from the holder's PARENT; keyed + `[]` tails;
+> json5p quoted form); moved-together spellings survive verbatim; document-
+> scoped anchors naming a moved root ARE rewritten. **A5:** corpus migrated —
+> 58-genealogy, 67-pdf-tags, 06/03 tours, 59 annotations fixture; the server's
+> `writeAnnotation` emits `&'//tags/…[]'`; existing `annotations/*` files keep
+> parsing via the deprecation window. **Still open:** JetBrains lexer polish
+> for `&'quoted'` anchor paths (J-track); auto-relink of anchors after
+> UNMEDIATED moves (nominalPath returns null for anchors — they surface as
+> dangling instead).
+
+A1. **Parsers + IR** — `NodeMeta.anchors?: Pointer[]` replaces `EntryMeta.anchor`
+   (ir.ts:81) and the flat `Document.anchors` map (ir.ts:9); yamlover lexes
+   `&<pointer>[[]]` incl. own-line anchors before/after the value line; json5p
+   takes `&'path'`/`&'path[]'` (quoted, multiple); keep parsing deprecated `~`/
+   `~-`/`~*` into the same IR back-edges; omni-default = drop `validateMixtures`
+   (yamlover.ts:102-112) + allow root-scalar continuation (yamlover.ts:39) +
+   scalar-line-anywhere (one per block); `!!mix`/`!!omni` become no-ops.
+A2. **Serializers** — emit anchors only (never `~`); multi-anchor placement;
+   re-derive nothing from the old anchor map; round-trip suite extended with
+   old-form → new-form equivalence fixtures (Chemical-Free, genealogy, 06-tour).
+A3. **Resolver + engine** — delete anchor precedence (resolve.ts:95-98); realize
+   anchor edges (intra-doc at resolve, cross-doc at index time in walk/store);
+   collision check (equal = fold via normalize, unequal = reported like
+   dangling); node-kind unaffected by anchors (extend node-kind.test.ts).
+A4. **rewrite/mv** — anchors join `planRewrites` as rewritable path text
+   (rewrite.ts:44 currently SKIPS them as node-invariant names — inverted now).
+A5. **Writers + corpus + plugin** — annotate/tag/paste emit anchors; migrate the
+   corpus by re-serialization (03/06 tours, 58, 67, 07-omni, annotations/,
+   59-annotations); JetBrains lexers (`&` path runs like `*`).
+A6. **Conformance** — yaml-test-suite anchor/alias cases reclassified to a
+   *diverges-by-design* group; amend YAML-CONFORMANCE.md's shrink-only note to
+   record this one-time, design-driven reclassification.
+
+> **Deferred from the same sketch:** imports/exports (project-level keys like
+> `yamlover: *https://…`, `$defs` export control) — own design round.
+
 ## Phase 3 — Engine + SQLite (first version)
 
 > **Started 2026-06-07** in `tools/engine/ts/` (per-impl layout like the parser; imports
@@ -175,14 +253,28 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    key that augments a moved file BY NAME is not renamed (a key edit needs ENTRY
    spans — `EntryMeta.span` is still unfilled); the leftover key keeps its reverse
    edges on a phantom node. Also deferred: intra-document key moves, `!!<…>` schema-
-   pointer rewriting, tombstones for unreachable external refs.
+   pointer rewriting, tombstones for unreachable external refs. **Stat-first
+   upgrade (2026-06-11, commit `06bf5cb`):** file identity in the manifest is now
+   `(size, mtime)` — a re-walk never reads an unchanged file's bytes; content
+   hashes (size-tiered xxh64, streamed for large files) are filled in by a
+   **background hashing task** after the index serves. Long-running work reports
+   through a **task registry**: `GET /api/tasks` snapshot + `{type: task}` SSE
+   events, rendered by the client's TaskStrip (server tests `await h.ready`).
 3f. **Engine API** — `resolve/node/toc/relationships/derive/blob/query` + `mv/rm/put/
    link/normalize` + `changed/added/removed` events, as the versioned contract.
    **Read side DONE in practice** (the server's `engine-api.ts` exposes node/toc/
    relationships/blob over HTTP, backed by the `Store`); the **change events exist**
-   (3e's reindex diff over SSE; `moved` included); **write side:** `annotate`/`paste`
-   and now **`mv` LIVE (2026-06-11** — `POST /api/mv`, the mediated move with
-   inbound-ref rewriting**)**; `rm/put/link/normalize` remain — `put`/`normalize`
+   (3e's reindex diff over SSE; `moved` included; tasks added by `06bf5cb`).
+   **Eventing contract = the unified change flow (2026-06-11, `6f09b37`):** every
+   write `announce()`s a file-level IndexDiff over SSE and every client surface
+   refreshes from that one signal (`live.ts` `useDiffBump`) — no ad-hoc push paths.
+   **Write side:** `annotate`, `paste` (files; then TEXT — inline chunk in a
+   chapter, else a new chapter file, `ecb7212`; then links + rich HTML — arXiv
+   PDFs, tweets, image chunks, subchapters, `2f04550`), **`tag` create-on-miss**
+   (`POST /api/tag`, `6f09b37` — picker bare-name input appends
+   `<name>: !!<*$defs/tag>` to the taxonomy at the settings `tags.location`), and
+   **`mv` LIVE (2026-06-11** — `POST /api/mv`, the mediated move with inbound-ref
+   rewriting**)**; `rm/put/link/normalize` remain — `put`/`normalize`
    are unblocked by the serializers (2d), `rm` is mostly the mv plumbing minus the
    rename.
 
@@ -201,7 +293,14 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    over the existing resolve.test.ts corpus (and `pointer.ts` catching up to the
    enlarged metachar set). Pure read-side — runs **parallel to the serializers
    (2d)**. First consumers: the tag-picker autocomplete (TODO) and JetBrains
-   find-usages (J3).
+   find-usages (J3). **Acceptance cases AUTHORED (2026-06-12, awaiting manual
+   review before the evaluator starts):** `tools/engine/ts/test/query.cases.ts` —
+   68 hand-derived query→result cases (inline fixture + 06/58/67/graft), simple →
+   complex, NOT yet wired to a runner. They surface three spec questions to
+   settle first: (O1) §5 document-order vs §8's entry-order examples contradict;
+   (O2) the `?`-excludes-keyed-anchor-grafts / `[?]`-includes-ordinal-members
+   asymmetry; (O3) §5/§6 still describe the deleted anchor-precedence rule
+   (stale post-ANCHOR_REFACTOR wording).
 
 > **Language decision — CONFIRMED & DONE:** engine v1 is **TypeScript inside the
 > existing server**, on Node's built-in **`node:sqlite`** (superseded the planned
@@ -241,6 +340,14 @@ job is typing / `format`-decoding / `concrete` / presentation (the engine & serv
 it). It exists now (`55-scalar-as-binary`). Remaining spec work:
 - **`META.md` vocabulary** — pin `type` (+`binary`), `format`, `concrete` (inferable),
   `properties`/`prefixItems` nesting, `*`-refs (not `$ref`); meta-path → instance-path map.
+- **Built-in schemas live at the PROJECT ROOT, grafted as the self-import key
+  (restructured 2026-06-13; supersedes the `yamlover/` wrapper of `8872299`):**
+  a project's tree IS its URI's tree (`::: yamlover.inthemoon.net`, SEPARATOR.md
+  §2), so `$defs/` and `tags/colors` sit at the repo root, and the engine grafts
+  the key `yamlover` → {$defs, tags} into EVERY served root — including this
+  project itself (self-import: `//X` ≡ `//yamlover/X`). All `*yamlover/$defs/…`
+  pointer texts keep resolving; sharing config (.share/.ignore) and declarative
+  imports stay TBD.
 - **Optional validation pass** (later) — the *same* document checked over the resolved
   graph: `concrete` keyword, graph constraints (edge target types, cardinality,
   `~`-inverse consistency). Design after the engine exists.
@@ -291,5 +398,34 @@ Scaffolded under `tools/jetbrains-plugin/` (Kotlin + IntelliJ Platform Gradle Pl
 
 ## Suggested immediate next step
 
-Phase **1a + 1b + 1c** (grammar finalize, IR contract, overlay semantics), then start
-the **json5p** parser (smaller grammar) to validate the IR before tackling yamlover.
+*(Updated 2026-06-13 — Phases 1, 2a–2c/2e, 3a–3e, 4, 5 done; Phase A implemented;
+**SEPARATOR.md dual window IMPLEMENTED** — colon grammar parses alongside legacy
+slash, serializers emit colon, corpus migrated (16 files, span-surgical), `mv` is
+style-preserving; see SEPARATOR.md's status block. **M1–M4 are RULED and M4 is
+IMPLEMENTED** (compact colon on every machine surface INCLUDING store keys —
+schema v4, root `:`; API payloads + breadcrumbs colon; the browser URL is the one
+slash-transported surface, converted in client paths.ts; M3's canonical own-line
+anchor placement is emitted). The frontier is now: (i) regenerate `query.cases.ts`
+in colon syntax and build the **3g evaluator** with the matcher portions + static
+link/query arity classes; (ii) window close later: `/` leaves the metachar set,
+URIs.md/QUERY.md grammars rewritten. The layout restructure ($defs at root,
+tags/colors merge, self-import graft) is DONE.)*
+
+0. **Anchor refactor A1 (parsers + IR)** — the spec landed this round; A1 is the
+   gate for everything else in Phase A and changes the IR other work builds on,
+   so it should land before (or alongside) new evaluator/serializer work.
+1. **Query evaluator (3g)** — the headline. The spec is done (`QUERY.md`), it is
+   pure read-side over the existing store (the `edge` table + `deriveInverses`
+   already make reverse axes cheap), and the acceptance gate is pre-defined
+   (QUERY.md §6 obligations over the resolve.test.ts corpus, plus `pointer.ts`
+   catching up to the enlarged metachar set). It unblocks the tag-picker
+   autocomplete (TODO.md) and JetBrains find-usages (J3).
+2. **2d remaining** (parallel-friendly) — the **directory serializer**
+   (graph → tree + `body.yamlover`), then inline-binary emission, then per-node
+   concrete (`NodeMeta.concrete`); these gate `put`/`normalize`.
+3. **3f write side** — `rm` first (mostly the mv plumbing minus the rename), then
+   `put`/`normalize` once 2d's directory concrete exists.
+4. **`EntryMeta.span`** — fills 3e's known deferral (a `body.yamlover` key that
+   augments a moved file by name is currently not renamed).
+5. Background track: the **YAML conformance climb** (multi-document streams,
+   ~71 cases, is the biggest single chunk).

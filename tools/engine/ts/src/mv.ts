@@ -45,7 +45,7 @@ export function mv(absRoot: string, fromRel: string, toRel: string, opts: WalkOp
   // plan against the CURRENT tree (fresh walk — spans are exact, never stale)
   const { doc } = walkTree(root, opts);
   const edges = resolveDocument(doc);
-  const plan = planRewrites(doc, edges, '/' + relFrom, '/' + relTo, { root });
+  const plan = planRewrites(doc, edges, storeOf(relFrom), storeOf(relTo), { root });
 
   // apply text edits BEFORE the rename — spans point at the old file locations
   const editedFiles: string[] = [];
@@ -76,7 +76,7 @@ export function relinkMoved(
   // pass would invalidate the first plan's spans
   const merged = new Map<string, { start: number; end: number; text: string }[]>();
   for (const m of moved) {
-    const oldStore = '/' + m.from;
+    const oldStore = storeOf(m.from);
     // only refs that still NOMINALLY address the old location (they broke with the move);
     // refs already pointing at the new path (or unrelated) are left alone
     const stale = edges.filter((e) => {
@@ -87,7 +87,7 @@ export function relinkMoved(
     // planRewrites matches by RESOLVED target; for stale refs synthesize the match by
     // treating the nominal path as the target frame — reuse the planner with a shim
     const shimmed = stale.map((e) => ({ ...e, target: { kind: 'node' as const, node: doc.root, path: nominalPath(doc, e)! } }));
-    const plan = planRewrites(doc, shimmed, oldStore, '/' + m.to, { root });
+    const plan = planRewrites(doc, shimmed, oldStore, storeOf(m.to), { root });
     for (const [uri, edits] of plan.edits) merged.set(uri, [...(merged.get(uri) ?? []), ...edits]);
     rewritten.push(...plan.rewritten);
     unrewritten.push(...plan.unrewritten);
@@ -106,4 +106,9 @@ function relInside(root: string, abs: string, what: string): string {
     throw new Error(`mv: ${what} escapes the served root`);
   }
   return rel.split(path.sep).join('/');
+}
+
+/** A root-relative FS path as a COLON-form store path (':dir:file.md'). */
+function storeOf(rel: string): string {
+  return ':' + rel.split('/').join(':');
 }

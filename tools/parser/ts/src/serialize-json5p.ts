@@ -7,39 +7,23 @@
 
 import type { Document, Node, Entry, Value, Scalar, Pointer } from './ir.ts';
 import { isPointer } from './ir.ts';
-import { LossyError, anchorIndex } from './serialize-common.ts';
+import { LossyError, anchorBody, isAnchorizableBack, backAnchorBody } from './serialize-common.ts';
+import { renderPointer } from './pointer.ts';
 
 const STEP = 2;
 
 export function serializeJson5p(doc: Document): string {
-  const e = new Emitter(doc);
-  const text = e.value(doc.root, 0);
-  if (e.pending.size > 0) {
-    throw new LossyError(`anchored node(s) not reachable in the tree: &${[...e.pending].join(', &')}`);
-  }
-  return text + '\n';
+  return new Emitter().value(doc.root, 0) + '\n';
 }
 
 class Emitter {
-  anchorOf: WeakMap<Node, string>;
-  pending: Set<string>;
-
-  constructor(doc: Document) {
-    this.anchorOf = anchorIndex(doc);
-    this.pending = new Set(doc.anchors.keys());
-  }
-
   value(v: Value, indent: number): string {
     if (isPointer(v)) return ptr(v);
+    // `&` path anchors stack before the value, each in the canonical quoted form — the
+    // node's own anchors plus its deprecated `~` back entries re-emitted as anchors
     let prefix = '';
-    const anchor = this.anchorOf.get(v);
-    if (anchor !== undefined) {
-      if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(anchor)) {
-        throw new LossyError(`anchor name "&${anchor}" is not a json5p identifier`);
-      }
-      prefix = `&${anchor} `;
-      this.pending.delete(anchor);
-    }
+    for (const a of v.meta?.anchors ?? []) prefix += '&' + JSON.stringify(anchorBody(a)) + ' ';
+    for (const e of v.entries ?? []) if (isAnchorizableBack(e)) prefix += '&' + JSON.stringify(backAnchorBody(e)) + ' ';
     return prefix + this.node(v, indent);
   }
 
@@ -48,12 +32,12 @@ class Emitter {
     if (n.meta?.schema !== undefined) throw new LossyError('json5p has no !!<…> schema tag — attach the schema via the meta layer (META.md)');
     if (n.meta?.set === true) throw new LossyError('json5p has no !!set — set semantics come from the meta layer (uniqueItems: true)');
     if (n.kind === 'scalar') {
-      if ((n.entries ?? []).length > 0) {
+      if ((n.entries ?? []).filter((e) => !isAnchorizableBack(e)).length > 0) {
         throw new LossyError('a value-plus-fields node (!!omni) is not expressible in json5p');
       }
       return scalarTok(n);
     }
-    const ents = n.entries;
+    const ents = n.entries.filter((e) => !isAnchorizableBack(e)); // conv backs ride the & prefix
     if (ents.length === 0) return n.array ? '[]' : '{}';
     const owned = ents.filter((e) => e.edge !== 'back');
     const keyed = owned.filter((e) => e.key !== null);
@@ -69,7 +53,7 @@ class Emitter {
 
   entry(e: Entry, inArray: boolean, indent: number): string {
     if (e.key === null && e.edge === 'back') {
-      // `~*'…'` — a keyless back member (reverse positional membership), legal in both forms
+      // a RELATIVE-scoped keyless back member keeps `~*'…'` (see isAnchorizableBack)
       if (!isPointer(e.value)) throw new LossyError('a keyless back-edge ("~") must hold a pointer');
       return '~' + ptr(e.value);
     }
@@ -82,7 +66,8 @@ class Emitter {
 // ---- tokens --------------------------------------------------------------------
 
 function ptr(p: Pointer): string {
-  return '*' + JSON.stringify(p.raw);
+  // canonical colon form inside the JSON string (the dual window's emission side)
+  return '*' + JSON.stringify(renderPointer(p));
 }
 
 function keyText(key: string): string {

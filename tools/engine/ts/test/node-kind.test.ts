@@ -32,7 +32,7 @@ test('67-pdf-tags: a PDF filed under tags by REVERSE members stays a binary', ()
   const s = new Store(':memory:');
   s.indexDocument(walkDir(join(examples, '67-pdf-tags')));
   for (const file of PAPERS) {
-    const p = '/' + file;
+    const p = ':' + file;
     const row = s.node(p);
     assert.ok(row, `indexed ${file}`);
     // sanity: the paper's ONLY entries are reverse `~tag` memberships (nothing owned)
@@ -48,10 +48,10 @@ test('67-pdf-tags: a PDF filed under tags by REVERSE members stays a binary', ()
 test('a node that OWNS fields is a variant (omni) — 07-omni.yamlover', () => {
   const s = new Store(':memory:');
   s.indexDocument(parseYamlover(readFileSync(join(examples, '07-omni.yamlover'), 'utf8'), '07-omni.yamlover'));
-  const row = s.node('/');
+  const row = s.node(':');
   assert.ok(row);
-  assert.ok(s.entries('/').some((e) => e.kind !== 'back'), 'owns at least one forward/contain entry');
-  assert.equal(displayKind(s, '/', row!), 'omni');
-  assert.equal(typeName(s, '/', row!), 'variant');
+  assert.ok(s.entries(':').some((e) => e.kind !== 'back'), 'owns at least one forward/contain entry');
+  assert.equal(displayKind(s, ':', row!), 'omni');
+  assert.equal(typeName(s, ':', row!), 'variant');
   s.close();
 });

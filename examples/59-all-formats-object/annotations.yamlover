@@ -1,10 +1,10 @@
 # Annotations of THIS directory's materials. An annotation is ONE TAG APPLICATION — an ordinary
 # yamlover object (the $defs/annotation schema): a region of a material tagged by a tag (the
-# keyless `~-` membership), optionally commented (`description`). They need not live in any
+# ordinal `&…[]` anchor), optionally commented (`description`). They need not live in any
 # special place — these sit right here, beside the materials they mark. Each `target` is a
 # RELATIVE pointer that escapes this file (`..` → out of annotations.yamlover, `..` → the
 # directory) and lands on a sibling property, so the links hold no matter where the project is
-# served from; each `~-` is a project-scoped pointer at a built-in PURE COLOR TAG
+# served from; each `&…[]` is a project-scoped path at a built-in PURE COLOR TAG
 # (yamlover/tags/colors — tags carrying an explicit `color`; a named tag would derive its hue
 # from its name). The engine derives each material's annotations as the inverse of the target
 # edges, colors them by their tag, and the viewer highlights the text ones in place.
@@ -12,9 +12,9 @@
 # Coverage spans the formats implemented so far: text quotes for the markdown / asciidoc / chapter
 # materials (highlighted on display), and region selectors for the image / pdf materials.
 
-markdown-phrase: !!<*yamlover/$defs/annotation>
-  target: *../../markdown
-  ~- *//yamlover/tags/colors/yellow
+markdown-phrase: !!<*yamlover: $defs: annotation>
+  target: *..: ..: markdown
+  &:: yamlover: tags: colors: yellow[]
   selector:
     type: text
     exact: Hover a heading to reveal its
@@ -23,9 +23,9 @@ markdown-phrase: !!<*yamlover/$defs/annotation>
   description: How the anchor affordance works.
   created: 2026-06-09T10:00:00Z
 
-asciidoc-phrase: !!<*yamlover/$defs/annotation>
-  target: *../../asciidoc
-  ~- *//yamlover/tags/colors/green
+asciidoc-phrase: !!<*yamlover: $defs: annotation>
+  target: *..: ..: asciidoc
+  &:: yamlover: tags: colors: green[]
   selector:
     type: text
     exact: Rendered with Asciidoctor
@@ -34,9 +34,9 @@ asciidoc-phrase: !!<*yamlover/$defs/annotation>
   description: The AsciiDoc backend.
   created: 2026-06-09T10:01:00Z
 
-chapter-sentence: !!<*yamlover/$defs/annotation>
-  target: *../../chapter
-  ~- *//yamlover/tags/colors/sky
+chapter-sentence: !!<*yamlover: $defs: annotation>
+  target: *..: ..: chapter
+  &:: yamlover: tags: colors: sky[]
   selector:
     type: text
     exact: this sentence is the segment an annotation marks
@@ -46,9 +46,9 @@ chapter-sentence: !!<*yamlover/$defs/annotation>
   created: 2026-06-09T10:02:00Z
 
 # rect selector — pixel coords in the image's own space (240×160), origin top-left
-png-region: !!<*yamlover/$defs/annotation>
-  target: *../../sample.png
-  ~- *//yamlover/tags/colors/mauve
+png-region: !!<*yamlover: $defs: annotation>
+  target: *..: ..: sample.png
+  &:: yamlover: tags: colors: mauve[]
   selector:
     type: rect
     x: 40
@@ -59,9 +59,9 @@ png-region: !!<*yamlover/$defs/annotation>
   created: 2026-06-09T10:03:00Z
 
 # pdf selector — point coords on the given page (the MediaBox is 240×160 pt), origin top-left
-pdf-region: !!<*yamlover/$defs/annotation>
-  target: *../../sample.pdf
-  ~- *//yamlover/tags/colors/peach
+pdf-region: !!<*yamlover: $defs: annotation>
+  target: *..: ..: sample.pdf
+  &:: yamlover: tags: colors: peach[]
   selector:
     type: pdf
     page: 1

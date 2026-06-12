@@ -104,7 +104,7 @@ export function App() {
 
   // Load the TOC's first few levels; deeper branches load on expand.
   useEffect(() => {
-    fetchTree("/", INITIAL_DEPTH)
+    fetchTree(":", INITIAL_DEPTH)
       .then(setTree)
       .catch((e) => setError(e.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -161,12 +161,12 @@ export function App() {
     const targets = new Set<string>();
     for (const p of paths) {
       const segs = strToSegs(p);
-      let best = "/";
+      let best = ":";
       for (let k = 0; k < segs.length; k++) {
         const anc = segsToStr(segs.slice(0, k));
         const node = findNode(t, anc);
         if (!node) break;
-        if (anc === "/" || node.children.length > 0) best = anc;
+        if (anc === ":" || node.children.length > 0) best = anc;
       }
       targets.add(best);
     }
@@ -184,7 +184,7 @@ export function App() {
   // retry the initial fetches and clear the stale error.
   const retryInitial = useCallback(() => {
     if (treeRef.current) return;
-    fetchTree("/", INITIAL_DEPTH)
+    fetchTree(":", INITIAL_DEPTH)
       .then((t) => {
         setTree(t);
         setError(null);
@@ -272,7 +272,7 @@ export function App() {
   const onContentChanged = useCallback(
     (p: string) => {
       const target = tree ? findNode(tree, p) : null;
-      loadChildren(target ? p : "/").catch(() => {});
+      loadChildren(target ? p : ":").catch(() => {});
     },
     [tree, loadChildren],
   );
@@ -283,7 +283,7 @@ export function App() {
   // navigate if the branch fetch fails.
   const onOpenUploaded = useCallback(
     async (result: PasteResult) => {
-      const dir = result.dir ?? "/";
+      const dir = result.dir ?? ":";
       try {
         const sub = await fetchTree(dir, INITIAL_DEPTH);
         setTree((t) => (t ? replaceChildren(t, dir, sub.children) : t));

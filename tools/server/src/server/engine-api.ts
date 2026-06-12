@@ -36,7 +36,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { Store, reindex, reindexAsync, hashFileAsync, watchTree, loadSettings, mv, relinkMoved } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
-import { pointerToken } from "../../../parser/ts/src/serialize-yamlover.ts";
+import { pointerToken, anchorToken } from "../../../parser/ts/src/serialize-yamlover.ts";
+import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
 import type { Node as IrNode } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
@@ -360,7 +361,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               const existing = s.node(storePath(segs));
               if (existing) {
                 if (existing.format !== TAG_FORMAT) throw new Error(`a node already exists at ${tagPath} and is not a tag`);
-                const color = s.node(storePath(segs) + "/color")?.value;
+                const color = s.node(storePath(segs) + ":color")?.value;
                 return { path: tagPath, name, color: typeof color === "string" ? color : null, created: false };
               }
               // Index INCREMENTALLY (the annotate pattern — not a full rebuild, which stats the
@@ -429,7 +430,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      const segs = strToSegs(url.searchParams.get("path") || "/");
+      const segs = strToSegs(url.searchParams.get("path") || ":");
       const p = storePath(segs);
       const depth = parseDepth(url.searchParams.get("depth"));
 
@@ -673,7 +674,7 @@ function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unk
   } else info.count = s.children(p).length;
   if (row.format === TAG_FORMAT) {
     // a pure color tag's explicit color rides the link, so badges color correctly everywhere
-    const c = s.node(p + "/color")?.value;
+    const c = s.node(p + ":color")?.value;
     if (typeof c === "string") info.color = c;
   }
   return { [LINK_KEY]: info };
@@ -682,12 +683,12 @@ function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unk
 const segsEqual = (a: Seg[], b: Seg[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 
 /** An upstream node's path written in the scope it has FROM the current node's document frame:
- *  document-relative (`/eve`) when it lives in the same document, else a link from the project/
- *  tree root (`//examples/…`) — mirroring the pointer scopes in URIs.md (`/` = document root,
- *  `//` = link). */
+ *  document-relative (`:eve`) when it lives in the same document, else a project-scope link
+ *  (`::examples:…`) — mirroring the colon scope ladder (SEPARATOR.md: `:` = document root,
+ *  `::` = project). */
 function scopedPath(s: Store, src: Seg[], currentDoc: Seg[]): string {
-  if (segsEqual(documentRootSegs(s, src), currentDoc)) return segsToStr(src.slice(currentDoc.length)); // `/…`
-  return "/" + segsToStr(src); // `//…` — a link from the project/tree root
+  if (segsEqual(documentRootSegs(s, src), currentDoc)) return segsToStr(src.slice(currentDoc.length)); // `:…`
+  return "::" + segsToStr(src).slice(1); // `::…` — a project-scope link
 }
 
 /** The relations panel: this node's UPSTREAM relations — those for which it is the natural target.
@@ -792,7 +793,7 @@ function appliedTag(s: Store, annStorePath: string): { path: string; name: strin
   );
   if (!e) return null;
   const segs = storePathToSegs(e.to);
-  const color = s.node(e.to + "/color")?.value;
+  const color = s.node(e.to + ":color")?.value;
   return { path: segsToStr(segs), name: String(segs[segs.length - 1] ?? ""), color: typeof color === "string" ? color : null };
 }
 
@@ -842,13 +843,15 @@ function taggedMaterials(dataRoot: string, s: Store, tagStorePath: string): unkn
   return out;
 }
 
-/** A client JSON path (`/key[0]/x`, keys PERCENT-ENCODED) as project-scoped pointer raw text
- *  (`//key[0]/x`, keys RAW): pointer steps are matched against store keys verbatim — an encoded
- *  key would go dangling on the next re-walk (`%D0%A1…` is not a key in any document). */
+/** A client JSON path (`:key[0]:x`, keys PERCENT-ENCODED) as project-scoped COLON pointer
+ *  raw text (`::key[0]:x`, keys RAW — quoted when spacey): pointer steps are matched against
+ *  store keys verbatim — an encoded key would go dangling on the next re-walk. */
 function pointerRaw(clientPath: string): string {
   let out = "";
-  for (const seg of strToSegs(clientPath)) out += typeof seg === "number" ? `[${seg}]` : (out === "" ? "" : "/") + seg;
-  return "//" + out;
+  for (const seg of strToSegs(clientPath)) {
+    out += typeof seg === "number" ? `[${seg}]` : (out === "" ? "" : ":") + colonSegment(seg);
+  }
+  return "::" + out;
 }
 
 /** Serialize a value as a yamlover scalar (double-quoted strings round-trip through the parser). */
@@ -860,8 +863,8 @@ function yScalar(v: unknown): string {
  *  annotation location (`settings.yamlover`; `/annotations` unless configured); returns its node
  *  path. The material and the applied tag are referenced with project-scoped deref pointers so
  *  the engine reverse-links them on re-index (a leading star + a "//path" project path; the tag
- *  as a keyless `~-` membership). The location is only the CREATION default — an annotation file
- *  works from any directory. */
+ *  as an ordinal path anchor `&//path/to/tag[]` — the deprecated `~-` spelling still parses).
+ *  The location is only the CREATION default — an annotation file works from any directory. */
 function writeAnnotation(dataRoot: string, location: string, a: AnnotationInput): string {
   if (!a?.target || !a?.tag) throw new Error("annotation needs a target and a tag");
   const dir = path.resolve(dataRoot, ...strToSegs(location).map(String));
@@ -873,13 +876,13 @@ function writeAnnotation(dataRoot: string, location: string, a: AnnotationInput)
   const lines = [
     "!!<*yamlover/$defs/annotation>",
     `target: ${pointerToken(pointerRaw(a.target))}`,
-    `~- ${pointerToken(pointerRaw(a.tag))}`,
+    anchorToken(`${pointerRaw(a.tag)}[]`), // the applied tag holds me (ordinal path anchor)
   ];
   if (a.selector) lines.push("selector:", ...Object.entries(a.selector).map(([k, v]) => `  ${k}: ${yScalar(v)}`));
   if (a.description) lines.push(`description: ${yScalar(a.description)}`);
   lines.push(`created: ${new Date().toISOString()}`, "");
   fs.writeFileSync(path.join(dir, file), lines.join("\n"));
-  return `${location}/${file}`;
+  return `${location}:${file}`;
 }
 
 /** Persist a NEW named tag as a key of the tag-taxonomy body at the project's default tags
@@ -946,7 +949,7 @@ interface PasteInput {
 /** Handle a paste/upload onto the node at `input.path`. Returns the new file's node path and,
  *  for a chapter, the chapter path + the chunk pointer appended to it. */
 function handlePaste(dataRoot: string, s: Store, input: PasteInput): Record<string, unknown> {
-  const segs = strToSegs(input.path || "/");
+  const segs = strToSegs(input.path || ":");
   const row = s.node(storePath(segs));
   if (!row) throw new Error(`no such node: ${input.path}`);
 
@@ -1357,7 +1360,7 @@ function documentPath(s: Store, segs: Seg[]): string {
 
 /** A node's `title` child value (a scalar), if any — used as a friendly label. */
 function titleOf(s: Store, p: string): string | null {
-  const titlePath = (p === "/" ? "" : p) + "/title";
+  const titlePath = (p === ":" ? "" : p) + ":title";
   const t = s.node(titlePath);
   if (t && t.type === "scalar" && !s.hasChildren(titlePath) && t.value != null) return String(t.value);
   return null;
@@ -1367,11 +1370,12 @@ function titleOf(s: Store, p: string): string | null {
 // Path handling (JSON space; matches the client + the Store path scheme)
 // --------------------------------------------------------------------------- //
 
-const PATH_TOKEN = /\[\d+\]|[^/\[\]]+/g;
+const PATH_TOKEN = /\[\d+\]|[^:\[\]]+/g;
 
-/** Render segments as a client-facing JSON path (`/key[0]/x`), percent-encoding keys. */
+/** Render segments as a client-facing JSON path (`:key[0]:x`, colon-form — SEPARATOR.md M4),
+ *  percent-encoding keys. */
 function segsToStr(segs: Seg[]): string {
-  return segs.map((seg) => (typeof seg === "number" ? `[${seg}]` : `/${encodeURIComponent(seg)}`)).join("") || "/";
+  return segs.map((seg) => (typeof seg === "number" ? `[${seg}]` : `:${encodeURIComponent(seg)}`)).join("") || ":";
 }
 
 /** Parse a client JSON path into segments (`[n]` → number, else a decoded key). */
@@ -1383,7 +1387,7 @@ function strToSegs(str: string): Seg[] {
 
 /** Build the raw Store path (un-encoded keys) the index uses, from decoded segments. */
 function storePath(segs: Seg[]): string {
-  return segs.map((seg) => (typeof seg === "number" ? `[${seg}]` : `/${seg}`)).join("") || "/";
+  return segs.map((seg) => (typeof seg === "number" ? `[${seg}]` : `:${seg}`)).join("") || ":";
 }
 
 /** Parse a raw Store path back into segments (keys are raw — no decode). */

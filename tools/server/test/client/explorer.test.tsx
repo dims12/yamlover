@@ -18,7 +18,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 const node = (over: Partial<NodeJson>): NodeJson => ({
-  path: "/dir",
+  path: ":dir",
   type: "object",
   format: null,
   concrete: "dir",
@@ -35,18 +35,18 @@ const items = () => Array.from(document.querySelectorAll(".dirview-item"));
 describe("ExplorerView (a directory)", () => {
   const dir = node({
     value: {
-      age: link({ kind: "scalar", type: "integer", path: "/dir/age", value: 42 }),
-      sub: link({ kind: "object", type: "object", path: "/dir/sub", count: 1, concrete: "dir" }),
-      "pic.png": link({ kind: "binary", type: "binary", path: "/dir/pic.png", size: 5, format: "image/png" }),
+      age: link({ kind: "scalar", type: "integer", path: ":dir:age", value: 42 }),
+      sub: link({ kind: "object", type: "object", path: ":dir:sub", count: 1, concrete: "dir" }),
+      "pic.png": link({ kind: "binary", type: "binary", path: ":dir:pic.png", size: 5, format: "image/png" }),
       "FUTURE.md": link({
-        kind: "scalar", type: "string", path: "/dir/FUTURE.md", format: "text/markdown",
+        kind: "scalar", type: "string", path: ":dir:FUTURE.md", format: "text/markdown",
         value: "# FUTURE — plans\n\nlots of prose…",
       }),
-      "blob.fdmdownload": link({ kind: "binary", type: "binary", path: "/dir/blob.fdmdownload", size: 9 }),
+      "blob.fdmdownload": link({ kind: "binary", type: "binary", path: ":dir:blob.fdmdownload", size: 9 }),
     },
     relations: {
-      "..": link({ kind: "object", type: "object", path: "/", count: 3 }),
-      "//eve": link({ kind: "object", type: "object", path: "/eve", count: 2 }),
+      "..": link({ kind: "object", type: "object", path: ":", count: 3 }),
+      "//eve": link({ kind: "object", type: "object", path: ":eve", count: 2 }),
     },
   });
 
@@ -56,7 +56,7 @@ describe("ExplorerView (a directory)", () => {
     expect(all).toHaveLength(7);
     expect(all[0].className).toContain("dirview-up");
     expect(all[0].textContent).toContain("..");
-    expect(all[0].getAttribute("href")).toBe("/");
+    expect(all[0].getAttribute("href")).toBe(":");
     expect(all[1].className).toContain("dirview-up");
     expect(all[1].textContent).toContain("//eve");
     expect(all[2].className).not.toContain("dirview-up");
@@ -89,17 +89,17 @@ describe("ExplorerView (a directory)", () => {
     const onNav = vi.fn();
     render(<ExplorerView node={dir} onNavigate={onNav} />);
     fireEvent.click(items().find((el) => el.textContent?.includes("sub"))!);
-    expect(onNav).toHaveBeenCalledWith("/dir/sub");
+    expect(onNav).toHaveBeenCalledWith(":dir:sub");
   });
 
   it("tooltips show the decoded path (the href keeps the canonical encoded one)", () => {
     const cyr = node({
-      value: { "Папка": link({ kind: "object", type: "object", path: "/dir/%D0%9F%D0%B0%D0%BF%D0%BA%D0%B0", count: 1, concrete: "dir" }) },
+      value: { "Папка": link({ kind: "object", type: "object", path: ":dir:%D0%9F%D0%B0%D0%BF%D0%BA%D0%B0", count: 1, concrete: "dir" }) },
     });
     render(<ExplorerView node={cyr} onNavigate={() => {}} />);
     const it_ = items().find((el) => el.textContent?.includes("Папка"))!;
-    expect(it_.getAttribute("title")).toBe("/dir/Папка");
-    expect(it_.getAttribute("href")).toBe("/dir/%D0%9F%D0%B0%D0%BF%D0%BA%D0%B0");
+    expect(it_.getAttribute("title")).toBe(":dir:Папка");
+    expect(it_.getAttribute("href")).toBe(":dir:%D0%9F%D0%B0%D0%BF%D0%BA%D0%B0");
   });
 
   it("notes an empty directory", () => {
@@ -112,47 +112,47 @@ describe("ExplorerView (a directory)", () => {
     expect(document.querySelector(".dirview")!.className).toContain("dirview-lg");
     cleanup();
 
-    window.history.replaceState({}, "", "/dir?view=small");
+    window.history.replaceState({}, "", ":dir?view=small");
     try {
       render(<ExplorerView node={dir} onNavigate={() => {}} />);
       expect(document.querySelector(".dirview")!.className).not.toContain("dirview-lg");
     } finally {
-      window.history.replaceState({}, "", "/dir");
+      window.history.replaceState({}, "", ":dir");
     }
   });
 });
 
 describe("ExplorerView (a tag)", () => {
   const tag = node({
-    path: "/tags.yamlover/yellow",
+    path: ":tags.yamlover:yellow",
     format: "x-yamlover-tag",
     concrete: null,
     description: "things to revisit",
     value: {
-      color: link({ kind: "scalar", type: "string", path: "/tags.yamlover/yellow/color", value: "#f9e2af" }),
+      color: link({ kind: "scalar", type: "string", path: ":tags.yamlover:yellow:color", value: "#f9e2af" }),
       pale: link({
         kind: "object", type: "object", format: "x-yamlover-tag",
-        path: "/tags.yamlover/yellow/pale", count: 0, color: "#fdf3c4",
+        path: ":tags.yamlover:yellow:pale", count: 0, color: "#fdf3c4",
       }),
       // the raw back-edge member downstreamEntries appends — the mediating annotation node
-      a1: link({ kind: "object", type: "object", format: "x-yamlover-annotation", path: "/annotations/a1.yamlover", count: 3 }),
+      a1: link({ kind: "object", type: "object", format: "x-yamlover-annotation", path: ":annotations:a1.yamlover", count: 3 }),
     },
   });
 
   it("shows the materials from /api/tagged instead of the annotation nodes, deduped", async () => {
     mTagged.mockResolvedValue([
-      link({ kind: "scalar", type: "string", path: "/name", value: "Alice" }),
+      link({ kind: "scalar", type: "string", path: ":name", value: "Alice" }),
       // a directly-tagged subtag-like member already present as an owned field — dedup by path
-      link({ kind: "object", type: "object", format: "x-yamlover-tag", path: "/tags.yamlover/yellow/pale", count: 0 }),
+      link({ kind: "object", type: "object", format: "x-yamlover-tag", path: ":tags.yamlover:yellow:pale", count: 0 }),
     ]);
     render(<ExplorerView node={tag} onNavigate={() => {}} />);
-    expect(mTagged).toHaveBeenCalledWith("/tags.yamlover/yellow");
+    expect(mTagged).toHaveBeenCalledWith(":tags.yamlover:yellow");
     await screen.findByText("name:"); // the material arrived
 
     const hrefs = items().map((el) => el.getAttribute("href"));
-    expect(hrefs).toContain("/name");
-    expect(hrefs).not.toContain("/annotations/a1.yamlover"); // the annotation stays out
-    expect(hrefs.filter((h) => h === "/tags.yamlover/yellow/pale")).toHaveLength(1); // deduped
+    expect(hrefs).toContain(":name");
+    expect(hrefs).not.toContain(":annotations:a1.yamlover"); // the annotation stays out
+    expect(hrefs.filter((h) => h === ":tags.yamlover:yellow:pale")).toHaveLength(1); // deduped
   });
 
   it("shows the description in the header (no badge — the bar already names the tag) and badge-styled subtags", () => {

@@ -30,7 +30,7 @@ csv: |
   Bob,"Designer, UX",Lisbon
   Carol,Manager,Oslo
 # a chapter is a renderable too — here it is one property of this object (inline schema tag)
-chapter: !!<*yamlover/$defs/chapter>
+chapter: !!<*yamlover: $defs: chapter>
   title: A chapter, as one property
   chunks:
   - A **chapter** is also a renderable format — here it sits as one property of this object.
