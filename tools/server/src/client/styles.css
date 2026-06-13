@@ -544,15 +544,46 @@ a.chunk-index:hover {
   background: #fff;
 }
 .filepdf .react-pdf__Page,
-.djvu-page {
+.djvu-page-wrap {
   margin: 0 0 12px; /* left-aligned (004) */
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
 }
-/* a decoded DjVu page — width is driven inline by the zoom factor (ctrl/alt-wheel) */
+/* a DjVu page: a positioned wrapper (sized inline to the display width) holding the decoded page
+   <canvas>, its OCR text layer (selectable), the marquee overlay, and the annotation region divs */
+.djvu-page-wrap {
+  position: relative;
+}
 .djvu-page {
   display: block;
+  width: 100%;
   max-width: none;
   background: #fff;
+}
+/* a not-yet-decoded page (windowed rendering) — fills the wrapper's estimated height */
+.djvu-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #888;
+  font-size: 12px;
+}
+/* OCR text layer: transparent positioned spans over the page → native browser text selection */
+.djvu-textlayer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  line-height: 1;
+}
+.djvu-textlayer span {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  transform-origin: 0 0;
+  cursor: text;
 }
 
 /* rendered Markdown / AsciiDoc body */
@@ -884,23 +915,43 @@ a.chunk-index:hover {
   background: #fff;
   opacity: 0.06;
 }
-/* drag-marquee overlay for pages whose pdf.js text layer is unusable (scanned/pathological) —
-   above the text layer (z 2), below the editable region divs so saved regions stay clickable */
-.pdf-marquee {
+/* Zoom is a CSS transform on .pdf-content (scales the rendered pages with NO re-raster → no
+   blink). The transformed content is taken out of flow, so .pdf-sizer reserves its scaled
+   footprint to keep the scroll height correct. */
+.pdf-sizer {
+  position: relative;
+}
+.pdf-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* drag-marquee overlay for pages with no usable text layer (scanned/pathological PDF, or a DjVu
+   with no OCR) — above the text layer (z 2), below the editable region divs so saved regions
+   stay clickable */
+.pdf-marquee,
+.djvu-marquee {
   position: absolute;
   inset: 0;
   z-index: 3;
   cursor: crosshair;
   user-select: none;
 }
-.pdf-region {
+.pdf-region,
+.djvu-region {
   position: absolute;
   box-sizing: border-box;
+  /* above the text layer (z 2) and the marquee overlay (z 3) so a saved region is the topmost
+     element at its rectangle — otherwise a text-layer span or the marquee swallows the click and
+     the edit/delete menu never opens */
+  z-index: 4;
   border: 2px solid #f9e2af;
   background: rgba(249, 226, 175, 0.18);
   pointer-events: none; /* the live preview must not block selecting text under it */
 }
-.pdf-region.editable {
+.pdf-region.editable,
+.djvu-region.editable {
   pointer-events: auto; /* a saved region is clickable → the edit menu */
   cursor: pointer;
 }

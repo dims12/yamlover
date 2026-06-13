@@ -87,6 +87,25 @@ export function formatFromUrl(fallback: string): string {
   return new URLSearchParams(window.location.search).get("format") || fallback;
 }
 
+/** The current page from the URL's `?page=` (1-based). 1 when absent, ≤1, or not an integer —
+ *  used by paged viewers (PDF/DjVu) to restore where the reader left off. */
+export function pageFromUrl(): number {
+  const n = Number(new URLSearchParams(window.location.search).get("page"));
+  return Number.isInteger(n) && n > 1 ? n : 1;
+}
+
+/** Record the current page in `?page=` via replaceState — preserving every other param, and
+ *  DROPPING the param at page 1 (the implicit default). This does NOT remount the renderer (only
+ *  path/format/refreshSignal do), so a paged viewer can update it freely while scrolling. */
+export function writePageToUrl(n: number): void {
+  const params = new URLSearchParams(window.location.search);
+  if (n > 1) params.set("page", String(n));
+  else params.delete("page");
+  const qs = params.toString();
+  const url = window.location.pathname + (qs ? "?" + qs : "");
+  if (url !== window.location.pathname + window.location.search) window.history.replaceState({}, "", url);
+}
+
 /** Write the JSON path (canonical colon form, converted to the slash-transport URL)
  *  plus `?format=` into the URL. Path navigation pushes a history entry; switching
  *  format replaces. Any other query params already present are kept (e.g. a renderer's
@@ -94,6 +113,9 @@ export function formatFromUrl(fallback: string): string {
 export function writeUrl(path: string, format: string, replace = false): void {
   const params = new URLSearchParams(window.location.search);
   params.set("format", format);
+  // `?page=` is node-specific: a format switch (replace) keeps it, but navigating to another node
+  // (push) must not carry the old node's page over — drop it there.
+  if (!replace) params.delete("page");
   const url = `${urlOfPath(path || ":")}?${params.toString()}`;
   if (url === window.location.pathname + window.location.search) return;
   if (replace) window.history.replaceState({}, "", url);

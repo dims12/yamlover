@@ -237,7 +237,7 @@ function tagNameOf(path: string): string {
 
 /** The floating tag picker — color-tag swatches, recent named-tag badges, a tag-path input, plus
  *  action buttons. Mode decides which buttons show (the hook wires what each does): `create` gets
- *  ✓ confirm + optional ⧉ copy + 🗑 discard; `edit` gets just 🗑 delete (picking a tag re-tags).
+ *  ✓ confirm + optional ⧉ copy + 🗑 discard; `edit` gets ✓ close + 🗑 delete (picking a tag re-tags).
  *  `position: fixed`, so x/y are viewport coords. */
 export function AnnotationMenu({
   x, y, tag, mode, onPick, onConfirm, onCopy, onTrash, menuRef,
@@ -308,7 +308,7 @@ export function AnnotationMenu({
           />
         ))}
       </div>
-      {onConfirm && <button type="button" className="annotate-tool ok" title={`${verb} ${tag.name} (keep the mark)`} onClick={onConfirm}>✓</button>}
+      {onConfirm && <button type="button" className="annotate-tool ok" title={mode === "edit" ? "close (keep this annotation)" : `${verb} ${tag.name} (keep the mark)`} onClick={onConfirm}>✓</button>}
       {onCopy && <button type="button" className="annotate-tool" title="copy text to clipboard (don't annotate)" onClick={onCopy}>⧉</button>}
       <button type="button" className="annotate-tool danger" title={mode === "edit" ? "delete this annotation" : "discard (don't annotate)"} onClick={onTrash}>🗑</button>
       {badges.length > 0 && (
@@ -400,6 +400,7 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
       <AnnotationMenu
         menuRef={menuRef} x={menu.x} y={menu.y} tag={menu.ann.tag ?? DEFAULT_TAG} mode="edit"
         onPick={(t) => commitRetag(t, menu)}
+        onConfirm={close} // ✓ closes the popup without deleting or re-tagging
         onTrash={() => { a.remove(menu.ann.path); close(); }}
       />
     );

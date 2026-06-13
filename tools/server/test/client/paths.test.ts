@@ -10,6 +10,8 @@ import {
   pathFromUrl,
   formatFromUrl,
   writeUrl,
+  pageFromUrl,
+  writePageToUrl,
 } from "../../src/client/paths";
 
 describe("client paths", () => {
@@ -58,5 +60,27 @@ describe("client paths", () => {
   it("canonicalizes an encoded pathname on read", () => {
     writeUrl(segsToStr(["@vitejs/plugin-react"]), "yaml");
     expect(pathFromUrl()).toBe(":%40vitejs%2Fplugin-react");
+  });
+
+  it("tracks the page in ?page= (1 is implicit, never written)", () => {
+    writeUrl(":doc.pdf", "pdf"); // start clean — no ?page=
+    expect(pageFromUrl()).toBe(1);
+    writePageToUrl(12);
+    expect(window.location.search).toBe("?format=pdf&page=12");
+    expect(pageFromUrl()).toBe(12);
+    writePageToUrl(1); // back to page 1 → param dropped
+    expect(window.location.search).toBe("?format=pdf");
+    expect(pageFromUrl()).toBe(1);
+  });
+
+  it("page survives a format switch (replace) but is dropped on navigation (push)", () => {
+    writeUrl(":doc.pdf", "pdf");
+    writePageToUrl(7);
+    writeUrl(":doc.pdf", "yamlover", true); // format switch (replace) keeps the page
+    expect(formatFromUrl("x")).toBe("yamlover");
+    expect(pageFromUrl()).toBe(7);
+    writeUrl(":other.pdf", "pdf"); // navigate to another node (push) drops it
+    expect(pageFromUrl()).toBe(1);
+    expect(window.location.search).toBe("?format=pdf");
   });
 });

@@ -4,6 +4,7 @@ import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import { Annotation, NodeJson, blobUrl } from "../api";
 import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
+import { usePagedScroll } from "./paged";
 
 /** A rectangular annotation region on a PDF page, in points (origin top-left). `ann` is the source
  *  annotation when real/saved (→ clickable to edit); absent for the live preview. */
@@ -36,6 +37,11 @@ export function PdfView({ node }: { node: NodeJson }) {
   // selection's geometry is garbage). Such pages fall back to a drag-marquee, like images.
   const [marquee, setMarquee] = useState<Set<number>>(() => new Set());
   const [drag, setDrag] = useState<{ page: number; x0: number; y0: number; x1: number; y1: number } | null>(null);
+  // Zoom scales the page content via a CSS transform (no re-raster → no blink). The transformed
+  // `.pdf-content` is out of flow, so a `.pdf-sizer` reserves the SCALED footprint to keep the
+  // scrollbar/height right; `contentH` is the content's natural (unscaled) height, measured below.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [contentH, setContentH] = useState(0);
 
   // WINDOWED RENDERING: every page keeps a wrapper (so the scroll height is right), but only
   // pages near the viewport mount a real <Page> — mounting ALL of them queues every canvas
@@ -77,6 +83,19 @@ export function PdfView({ node }: { node: NodeJson }) {
     .filter((a) => a.selector?.type === "pdf")
     .map((a) => ({ page: num(a.selector!.page) || 1, x: num(a.selector!.x), y: num(a.selector!.y), w: num(a.selector!.w), h: num(a.selector!.h), title: a.description, color: colorOf(a), ann: editable(a) ? a : undefined }));
 
+  // Page tracking + zoom-anchoring (`?page=` in the URL; same page stays put across a zoom). Every
+  // page has a `.pdf-page` wrapper (windowing swaps only the CONTENT), so the list is dense 1..N.
+  const getPageEls = () => {
+    const out: HTMLElement[] = [];
+    for (let i = 1; i <= pages; i++) { const el = wraps.current.get(i); if (el) out.push(el); }
+    return out;
+  };
+  const paged = usePagedScroll(ref, getPageEls, width > 0 && pages > 0);
+  const pagedRef = useRef(paged);
+  pagedRef.current = paged;
+  // After a zoom COMMIT reflows the pages, restore the captured reading position.
+  useLayoutEffect(() => { paged.restoreAnchor(); }, [zoom]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Track the pane width so pages re-flow on resize.
   useLayoutEffect(() => {
     const el = ref.current;
@@ -86,20 +105,44 @@ export function PdfView({ node }: { node: NodeJson }) {
     return () => ro.disconnect();
   }, []);
 
-  // ctrl/alt-wheel zooms; a plain wheel is left alone so the pane keeps scrolling.
+  // Measure the content's natural (unscaled) height so the sizer can reserve `height*disp`.
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setContentH(el.offsetHeight));
+    ro.observe(el);
+    setContentH(el.offsetHeight);
+    return () => ro.disconnect();
+  }, [pages, width > 0]);
+
+  // ctrl/alt-wheel zooms; a plain wheel is left alone so the pane keeps scrolling. Zoom is applied
+  // as a CSS scale on the content (below) — NOT by re-rastering the pages — so it never blinks; the
+  // reading position is anchored at the start of a wheel burst and restored after each step.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    let bursting = false;
+    let end = 0;
     const onWheel = (e: WheelEvent) => {
       if (!(e.ctrlKey || e.altKey || e.metaKey)) return;
       e.preventDefault();
+      if (!bursting) { pagedRef.current.captureAnchor(); bursting = true; }
+      clearTimeout(end);
+      end = window.setTimeout(() => (bursting = false), 250);
       setZoom((z) => Math.min(5, Math.max(0.4, z * (e.deltaY < 0 ? 1.1 : 1 / 1.1))));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    return () => { el.removeEventListener("wheel", onWheel); clearTimeout(end); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const pageWidth = Math.min(width, 1000) * zoom;
+  // RASTER the pages at a FIXED, zoom-independent width (supersampled by QUALITY so CSS zoom-in
+  // stays crisp to ~QUALITY×), and apply the user's zoom as a CSS scale on the content wrapper.
+  // Because the <Page width> never changes with zoom, pdf.js never re-rasterises (no canvas remount,
+  // no white flash) and the windowed `near` set doesn't churn — zoom is a pure, blink-free reflow.
+  const QUALITY = 2;
+  const pageWidth = Math.min(width, 1000) * QUALITY; // the raster width fed to <Page>
+  const disp = zoom / QUALITY; // CSS zoom on the content; display width = pageWidth*disp = base*zoom
   const previewColor = preview?.color ?? DEFAULT_COLOR;
 
   // Judge a page's text layer once it has rendered: unusable when there is no real text (< 3
@@ -126,13 +169,14 @@ export function PdfView({ node }: { node: NodeJson }) {
     });
   };
 
-  // Marquee drag on an unusable-text-layer page: draw a box (coords are wrapper-relative px), then
-  // on release convert to page points (the same `sc` as the text path) → a `pdf` region.
+  // Marquee drag on an unusable-text-layer page. The wrapper rect is in DISPLAY (CSS-zoomed) px;
+  // divide by `disp` so coords are in RASTER (content-local) px — the same space the preview rect
+  // and saved regions render in (they live inside the zoomed content), and `/sc` then gives points.
   const dragStart = (pn: number, e: React.MouseEvent) => {
     const wrap = wraps.current.get(pn);
     if (!wrap) return;
     const pr = wrap.getBoundingClientRect();
-    const x = e.clientX - pr.left, y = e.clientY - pr.top;
+    const x = (e.clientX - pr.left) / disp, y = (e.clientY - pr.top) / disp;
     setDrag({ page: pn, x0: x, y0: y, x1: x, y1: y });
   };
   const dragMove = (e: React.MouseEvent) =>
@@ -140,22 +184,22 @@ export function PdfView({ node }: { node: NodeJson }) {
       const wrap = d && wraps.current.get(d.page);
       if (!wrap) return d;
       const pr = wrap.getBoundingClientRect();
-      return { ...d!, x1: e.clientX - pr.left, y1: e.clientY - pr.top };
+      return { ...d!, x1: (e.clientX - pr.left) / disp, y1: (e.clientY - pr.top) / disp };
     });
   const dragEnd = (pn: number, e: React.MouseEvent) => {
     const d = drag;
     setDrag(null);
     if (!d || d.page !== pn) return;
-    const sc = orig[pn] ? pageWidth / orig[pn].w : 0;
+    const sc = orig[pn] ? pageWidth / orig[pn].w : 0; // raster px per point
     const wrap = wraps.current.get(pn);
     if (!sc || !wrap) return;
     const pr = wrap.getBoundingClientRect();
-    const x1 = e.clientX - pr.left, y1 = e.clientY - pr.top;
+    const x1 = (e.clientX - pr.left) / disp, y1 = (e.clientY - pr.top) / disp; // raster px
     const left = Math.min(d.x0, x1), top = Math.min(d.y0, y1), w = Math.abs(x1 - d.x0), h = Math.abs(y1 - d.y0);
-    if (w < 3 || h < 3) return; // a click, not a drag
+    if (w * disp < 3 || h * disp < 3) return; // a click, not a drag (threshold in display px)
     openCreate(
       { type: "pdf", page: pn, x: Math.round(left / sc), y: Math.round(top / sc), w: Math.round(w / sc), h: Math.round(h / sc) },
-      { x: pr.left + left, y: pr.top + top + h + 6 },
+      { x: pr.left + left * disp, y: pr.top + (top + h) * disp + 6 }, // menu position in viewport px
     );
   };
 
@@ -167,13 +211,15 @@ export function PdfView({ node }: { node: NodeJson }) {
     const pageEl = host?.closest(".pdf-page") as HTMLElement | null;
     if (!pageEl || !ref.current?.contains(pageEl)) return;
     const pn = Number(pageEl.dataset.page);
-    const sc = orig[pn] ? pageWidth / orig[pn].w : 0; // rendered px per point
+    const sc = orig[pn] ? pageWidth / orig[pn].w : 0; // raster px per point
     if (!sc) return;
-    const pr = pageEl.getBoundingClientRect();
+    const pr = pageEl.getBoundingClientRect(); // display (CSS-zoomed) px
     const sr = sel.getRangeAt(0).getBoundingClientRect();
     if (sr.width < 2 || sr.height < 2) return;
+    // sr/pr are display px → ÷disp to raster (content-local) px, then ÷sc to points.
+    const k = sc * disp; // display px per point
     openCreate(
-      { type: "pdf", page: pn, x: Math.round((sr.left - pr.left) / sc), y: Math.round((sr.top - pr.top) / sc), w: Math.round(sr.width / sc), h: Math.round(sr.height / sc) },
+      { type: "pdf", page: pn, x: Math.round((sr.left - pr.left) / k), y: Math.round((sr.top - pr.top) / k), w: Math.round(sr.width / k), h: Math.round(sr.height / k) },
       { x: sr.left, y: sr.bottom + 6 },
     );
   };
@@ -187,10 +233,12 @@ export function PdfView({ node }: { node: NodeJson }) {
           loading={<div className="loading">loading PDF…</div>}
           error={<div className="error">could not load PDF</div>}
         >
-          {width > 0 &&
-            Array.from({ length: pages }, (_, i) => {
+          {width > 0 && (
+            <div className="pdf-sizer" style={{ width: pageWidth * disp, height: contentH * disp }}>
+            <div className="pdf-content" ref={contentRef} style={{ width: pageWidth, transform: `scale(${disp})`, transformOrigin: "top left" }}>
+            {Array.from({ length: pages }, (_, i) => {
               const pn = i + 1;
-              const sc = orig[pn] ? pageWidth / orig[pn].w : 0; // rendered px per point — tracks zoom
+              const sc = orig[pn] ? pageWidth / orig[pn].w : 0; // RASTER px per point (regions render inside the CSS-zoomed content)
               // a far page's placeholder: its measured aspect when known, A4 portrait until then
               const estHeight = pageWidth * (orig[pn] ? orig[pn].h / orig[pn].w : Math.SQRT2);
               return (
@@ -249,6 +297,9 @@ export function PdfView({ node }: { node: NodeJson }) {
                 </div>
               );
             })}
+            </div>
+            </div>
+          )}
         </Document>
       </div>
       {palette}
