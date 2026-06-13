@@ -3,7 +3,7 @@ import { fetchInfo, fetchTasks, fetchTree, PasteResult, TaskInfo, TreeNode } fro
 import { Tree } from "./Tree";
 import { TaskStrip } from "./TaskStrip";
 import { NodeView, Format, FORMATS, DEFAULT_FORMAT } from "./NodeView";
-import { rendererName } from "./renderers/registry";
+import { rendererName, tocView } from "./renderers/registry";
 
 const isStandardFormat = (f: Format) => (FORMATS as string[]).includes(f);
 import { crumbs, formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
@@ -66,6 +66,24 @@ function nextToLoad(tree: TreeNode, current: string): string | null {
   return null;
 }
 
+/** The TOC rows in document (pre-order) order, mirroring exactly what `Tree`
+ *  shows — `tocView` applies the same per-renderer unwrap/filter (chapters
+ *  surface subchapters, dirs show children). Used by Ctrl-PgDn/PgUp to step the
+ *  selection to the neighbouring entry. Covers only the LOADED tree: per-branch
+ *  collapse state lives in each `Tree`'s local `open`, not here — but a branch
+ *  starts open once its children are loaded, so loaded ≈ visible in practice;
+ *  deep unloaded branches simply aren't reachable until expanded (lazy load). */
+function flattenToc(tree: TreeNode | null): string[] {
+  if (!tree) return [];
+  const out: string[] = [];
+  const walk = (n: TreeNode) => {
+    out.push(n.path);
+    for (const c of tocView(n).children) walk(c);
+  };
+  walk(tree);
+  return out;
+}
+
 export function App() {
   const [tree, setTree] = useState<TreeNode | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +91,7 @@ export function App() {
   const [format, setFormat] = useState<Format>(formatFromUrl(DEFAULT_FORMAT) as Format);
   const [rootLabel, setRootLabel] = useState<string>(""); // CLI ROOT (breadcrumb head)
   const [leftWidth, setLeftWidth] = useState<number>(320);
+  const mainRef = useRef<HTMLElement>(null); // RHS pane — focused on TOC click so the keyboard drives the viewer
 
   // The breadcrumb head is the ROOT given on the command line (blank if omitted).
   useEffect(() => {
@@ -259,6 +278,39 @@ export function App() {
     [format, tree],
   );
 
+  // Selecting a TOC row navigates AND hands keyboard focus to the RHS pane, so
+  // Ctrl-PgDn/PgUp (and plain scroll keys) drive the viewer right after a click.
+  // Scoped to the tree — crumbs and in-content links keep plain `navigate`.
+  const selectFromToc = useCallback(
+    (p: string) => {
+      navigate(p);
+      mainRef.current?.focus();
+    },
+    [navigate],
+  );
+
+  // Ctrl/Alt + Down / Up step the selection to the next / previous TOC entry in
+  // document order (Alt as well as Ctrl because Ctrl+Up/Down is taken by macOS
+  // Mission Control). Attached once; reads live state through refs so the listener
+  // stays stable. `navigate` reveals + scrolls the new row (Tree's selected effect).
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.altKey) || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      const order = flattenToc(treeRef.current);
+      const i = order.indexOf(currentRef.current);
+      if (i < 0) return; // current not in the loaded TOC yet — nothing to step from
+      const next = Math.min(Math.max(i + (e.key === "ArrowDown" ? 1 : -1), 0), order.length - 1);
+      e.preventDefault();
+      if (next !== i) navigateRef.current(order[next]);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const changeFormat = useCallback(
     (f: Format) => {
       writeUrl(current, f, true);
@@ -324,7 +376,7 @@ export function App() {
         <nav className="crumbs">
           {crumbs(current, rootLabel).map((c, i) => (
             <span key={c.path}>
-              {i > 0 && <span className="crumb-sep">/</span>}
+              {i > 0 && <span className="crumb-sep">:</span>}
               <a
                 className="crumb"
                 href={c.path}
@@ -353,7 +405,7 @@ export function App() {
             }
             if (error) return <div className="error">{error}</div>;
             if (!tree) return <div className="loading">loading…</div>;
-            return <Tree node={tree} current={current} onSelect={navigate} onLoadChildren={loadChildren} />;
+            return <Tree node={tree} current={current} onSelect={selectFromToc} onLoadChildren={loadChildren} />;
           })()}
         </aside>
         <div
@@ -363,7 +415,7 @@ export function App() {
             document.body.style.userSelect = "none";
           }}
         />
-        <main className="pane right">
+        <main className="pane right" ref={mainRef} tabIndex={-1}>
           <NodeView path={current} format={format} refreshSignal={refreshSignal} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} onOpenUploaded={onOpenUploaded} />
         </main>
       </div>

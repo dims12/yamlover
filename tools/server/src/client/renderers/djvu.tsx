@@ -67,6 +67,13 @@ export function DjvuView({ node }: { node: NodeJson }) {
   pagedRef.current = paged;
   useLayoutEffect(() => { paged.restoreAnchor(); }, [zoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Focus the `.filedjvu` scroller on mount so arrows / space / PageUp-Down scroll the document
+  // natively (it's a nested scroller the focused RHS pane can't reach). Skip when chunk-embedded.
+  useEffect(() => {
+    const el = ref.current;
+    if (el && !el.closest(".chunk-body")) el.focus({ preventScroll: true });
+  }, []);
+
   // Track the pane width so a page fits but is capped (≤1000px) like the PDF viewer.
   useLayoutEffect(() => {
     const el = ref.current;
@@ -205,7 +212,7 @@ export function DjvuView({ node }: { node: NodeJson }) {
   if (error) return <div className="error">djvu: {error}</div>;
   return (
     <>
-      <div className="filedjvu yo-zoomable" ref={ref} onMouseUp={onMouseUp}>
+      <div className="filedjvu yo-zoomable" ref={ref} tabIndex={0} onMouseUp={onMouseUp}>
         {count === 0 && <div className="loading">opening djvu…</div>}
         {width > 0 &&
           Array.from({ length: count }, (_, i) => {

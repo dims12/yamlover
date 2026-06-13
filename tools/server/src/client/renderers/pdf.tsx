@@ -96,6 +96,14 @@ export function PdfView({ node }: { node: NodeJson }) {
   // After a zoom COMMIT reflows the pages, restore the captured reading position.
   useLayoutEffect(() => { paged.restoreAnchor(); }, [zoom]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The `.filepdf` scroller is its OWN scroll container nested in the (focused) RHS pane, so the
+  // pane's focus can't drive it — focus it on mount so arrows / space / PageUp-Down / Home-End
+  // scroll the document natively. Skip when embedded as a chapter chunk (several would fight + jump).
+  useEffect(() => {
+    const el = ref.current;
+    if (el && !el.closest(".chunk-body")) el.focus({ preventScroll: true });
+  }, []);
+
   // Track the pane width so pages re-flow on resize.
   useLayoutEffect(() => {
     const el = ref.current;
@@ -226,7 +234,7 @@ export function PdfView({ node }: { node: NodeJson }) {
 
   return (
     <>
-      <div className="filepdf yo-zoomable" ref={ref} onMouseUp={onMouseUp}>
+      <div className="filepdf yo-zoomable" ref={ref} tabIndex={0} onMouseUp={onMouseUp}>
         <Document
           file={blobUrl(node.path)}
           onLoadSuccess={({ numPages }) => setPages(numPages)}

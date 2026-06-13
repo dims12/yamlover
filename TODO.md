@@ -1,11 +1,12 @@
 - Jetbrains plugins: structure window?
 - Jetbrains plugins: reformat code
 - ~~Disambiguate `manager: *whiskers`: local member vs global alias precedence~~ — resolved by design (ANCHOR_REFACTOR, 2026-06-12): the anchor namespace is eliminated, anchors are real keys, `*name` is pure path lookup (URIs.md §`&`); lands with PLAN Phase A
-- Plugins? L markdown preview functionality lost
-- Design reverse tag into unkwonn location of an array?
+- Plugins? L markdown preview functionality lost - DONE?
+- Design reverse tag into unkwonn location of an array? - DONE
 - Support configurable depth for json/json5p/yaml/yamlover renderers
 - Support configurable depth for chapter renderers
 - When images, maps etc are inside chapters, not need to complex leaflet controls
 - Tag picker: autocomplete over indexed tags (the path input + bare-name create-on-miss exist; search/completion doesn't — the evaluator is LIVE now: wire the picker to `GET /api/query` with `:: ...: !!<format: x-yamlover-tag>`-style queries)
-- Ctrl-PgDn and Ctrl-PgUp to switch to next element in the viewer
-- Once LHS TOC entry clicked, focus should go to RHS
+- ~~Ctrl-PgDn and Ctrl-PgUp to switch to next element in the viewer~~ — DONE as Ctrl/Alt + Down/Up (Ctrl+PgDn/PgUp is a browser tab shortcut; Alt aliases Ctrl for macOS Mission Control): steps the selection through the TOC in document order (App.tsx `flattenToc` + global keydown)
+- ~~Once LHS TOC entry clicked, focus should go to RHS~~ — DONE: tree click navigates and focuses the RHS pane (App.tsx `selectFromToc`, `<main tabIndex={-1}>`)
+- KML+KMZ render as XML or plaintext

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NodeJson, fetchTagged } from "../api";
 import { asLink, Link } from "../render";
 import { typeIcon } from "../icons";
@@ -117,12 +117,46 @@ function isDocFormat(f?: string | null): boolean {
   return !!f && (f.includes("/") || f.startsWith("x-yamlover-"));
 }
 
-function Item({ it, onNavigate }: { it: ExplorerItem; onNavigate: (path: string) => void }) {
+/** The grid item to move to from `cur` for an arrow key. Left/Right step in reading
+ *  order; Up/Down pick the nearest item in the adjacent row, preferring the same
+ *  column — measured from live geometry, so it's correct for the wrapping flex grid
+ *  (variable columns, a short last row) without knowing the column count. */
+function arrowTarget(els: (HTMLElement | null)[], cur: number, key: string, count: number): number {
+  if (key === "ArrowRight") return Math.min(cur + 1, count - 1);
+  if (key === "ArrowLeft") return Math.max(cur - 1, 0);
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  const a = els[cur];
+  if (!a) return cur;
+  const r = a.getBoundingClientRect();
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const down = key === "ArrowDown";
+  let best = cur, bestScore = Infinity;
+  for (let i = 0; i < count; i++) {
+    const el = els[i];
+    if (!el || i === cur) continue;
+    const ri = el.getBoundingClientRect();
+    const ix = ri.left + ri.width / 2, iy = ri.top + ri.height / 2;
+    if (down ? iy <= cy + 1 : iy >= cy - 1) continue; // must lie in the arrow's direction
+    const score = Math.abs(ix - cx) * 2 + Math.abs(iy - cy); // prefer same column, nearest row
+    if (score < bestScore) { bestScore = score; best = i; }
+  }
+  return best;
+}
+
+function Item({ it, active, setRef, onFocus, onNavigate }: {
+  it: ExplorerItem;
+  active: boolean;
+  setRef: (el: HTMLElement | null) => void;
+  onFocus: () => void;
+  onNavigate: (path: string) => void;
+}) {
   const link = it.link;
+  const tabIndex = active ? 0 : -1; // roving tabindex: only the selected item is in the tab order
   if (!link) {
     // not a marker (unexpected at depth 1) — an inert label, no navigation
     return (
-      <span className="dirview-item">
+      <span className="dirview-item" ref={setRef} tabIndex={tabIndex} onFocus={onFocus}>
         <span className="dirview-icon t-bin">•</span>
         <span className="dirview-label">{it.key}: {scalarText(it.raw)}</span>
       </span>
@@ -147,6 +181,9 @@ function Item({ it, onNavigate }: { it: ExplorerItem; onNavigate: (path: string)
       className={"dirview-item" + (it.up ? " dirview-up" : "")}
       href={link.path}
       title={displayPath(link.path)}
+      ref={setRef}
+      tabIndex={tabIndex}
+      onFocus={onFocus}
       onClick={(e) => {
         e.preventDefault();
         onNavigate(link.path);
@@ -189,6 +226,43 @@ export function ExplorerView({ node, onNavigate }: { node: NodeJson; onNavigate:
   }
   const items = [...ups, ...members];
 
+  // Roving keyboard focus over the grid: plain arrows walk the icons, Enter opens the
+  // selected one. The item elements are tracked by index for the geometry-based row moves.
+  const gridRef = useRef<HTMLDivElement>(null);
+  const itemEls = useRef<(HTMLElement | null)[]>([]);
+  itemEls.current.length = items.length; // drop stale refs when the member list shrinks
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    if (active > items.length - 1) setActive(Math.max(0, items.length - 1));
+  }, [items.length, active]);
+
+  // On navigating to a new directory, reset the selection and re-arm autofocus (this
+  // component is reused across nodes, not remounted, so the flag must follow `node.path`).
+  const wantFocus = useRef(true);
+  useEffect(() => { setActive(0); wantFocus.current = true; }, [node.path]);
+  // Focus the first item once the grid has members (a tag's load async), so arrows work right
+  // after navigating here (the RHS pane handed us focus) — once per node, and never when
+  // embedded as a chapter chunk (several grids would fight over focus).
+  useEffect(() => {
+    if (!wantFocus.current || !items.length) return;
+    wantFocus.current = false;
+    if (gridRef.current?.closest(".chunk-body")) return; // embedded — don't steal focus
+    itemEls.current[0]?.focus({ preventScroll: true });
+  }, [items.length, node.path]);
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.ctrlKey || e.altKey || e.metaKey || !items.length) return; // Ctrl/Alt+arrows = TOC nav (App)
+    if (e.key === "Enter") {
+      const link = items[active]?.link;
+      if (link) { e.preventDefault(); onNavigate(link.path); }
+      return;
+    }
+    if (!/^(Arrow(Up|Down|Left|Right)|Home|End)$/.test(e.key)) return;
+    e.preventDefault(); // don't also scroll the pane
+    const next = arrowTarget(itemEls.current, active, e.key, items.length);
+    if (next !== active) { setActive(next); itemEls.current[next]?.focus(); }
+  };
+
   // a tag page's description is its BODY (the header bar already names the node)
   const desc = (isTag ? tagBody(node.value) : null) ?? node.description;
   return (
@@ -198,9 +272,20 @@ export function ExplorerView({ node, onNavigate }: { node: NodeJson; onNavigate:
           <p className="tagdesc">{desc}</p>
         </div>
       )}
-      <div className={"dirview" + (explorerViewMode() === "large" ? " dirview-lg" : "")}>
+      <div
+        ref={gridRef}
+        className={"dirview" + (explorerViewMode() === "large" ? " dirview-lg" : "")}
+        onKeyDown={onKeyDown}
+      >
         {items.map((it, i) => (
-          <Item key={`${it.up ? "^" : ""}${it.link?.path ?? it.key}#${i}`} it={it} onNavigate={onNavigate} />
+          <Item
+            key={`${it.up ? "^" : ""}${it.link?.path ?? it.key}#${i}`}
+            it={it}
+            active={i === active}
+            setRef={(el) => { itemEls.current[i] = el; }}
+            onFocus={() => setActive(i)}
+            onNavigate={onNavigate}
+          />
         ))}
         {items.length === 0 && <span className="dirview-empty">empty</span>}
       </div>

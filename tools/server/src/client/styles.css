@@ -148,6 +148,10 @@ body {
   flex: 1 1 auto;
   padding: 14px 18px;
 }
+/* programmatically focused on TOC click (so the keyboard drives the viewer) — no focus ring */
+.right:focus {
+  outline: none;
+}
 .splitter {
   flex: 0 0 5px;
   cursor: col-resize;
@@ -518,6 +522,11 @@ a.chunk-index:hover {
   overflow: auto;
   height: calc(100vh - 160px);
   min-height: 360px;
+}
+/* focused on mount so the keyboard scrolls the document — no focus ring on the scroller */
+.filepdf:focus,
+.filedjvu:focus {
+  outline: none;
 }
 .fileimage {
   /* keep the image's own aspect ratio — never stretch (007) */
@@ -1079,6 +1088,12 @@ mark.yo-annotation {
 }
 .dirview-item:hover {
   background: var(--panel);
+}
+/* keyboard selection (roving focus — arrows walk, Enter opens) */
+.dirview-item:focus {
+  outline: none;
+  background: var(--panel);
+  box-shadow: 0 0 0 2px var(--accent) inset;
 }
 .dirview-icon {
   flex: none;

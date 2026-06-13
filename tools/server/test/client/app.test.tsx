@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 
 vi.mock("../../src/client/api", () => ({
   fetchInfo: vi.fn().mockResolvedValue({ root: "myroot" }),
@@ -34,5 +34,24 @@ describe("App", () => {
     render(<App />);
     expect(await screen.findByText("myroot")).toBeTruthy(); // breadcrumb head (from /api/info)
     expect(await screen.findByText("a")).toBeTruthy(); // TOC entry
+  });
+
+  it("Ctrl/Alt + Down/Up step the selection to the next/previous TOC entry", async () => {
+    render(<App />);
+    // the label of the currently-selected TOC row (scoped to the left pane — the
+    // breadcrumb also echoes the node label, so a bare getByText would be ambiguous)
+    const selected = () => document.querySelector(".left .tree-row.selected .tree-label")?.textContent;
+    await screen.findByText("a");
+    expect(selected()).toBe("root"); // starts on the root node ":" (default URL → ":")
+
+    fireEvent.keyDown(document, { key: "ArrowDown", ctrlKey: true });
+    await waitFor(() => expect(selected()).toBe("a"));
+
+    fireEvent.keyDown(document, { key: "ArrowUp", ctrlKey: true });
+    await waitFor(() => expect(selected()).toBe("root"));
+
+    // Alt is an accepted alias (Ctrl+Up/Down clashes with macOS Mission Control)
+    fireEvent.keyDown(document, { key: "ArrowDown", altKey: true });
+    await waitFor(() => expect(selected()).toBe("a"));
   });
 });

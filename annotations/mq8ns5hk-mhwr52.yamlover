@@ -1,9 +1,0 @@
-!!<*yamlover/$defs/annotation>
-target: *//examples/68-math-chapter
-~- *//yamlover/tags/colors/yellow
-selector:
-  type: "text"
-  exact: "standalone"
-  prefix: ", a "
-  suffix: " LaTeX block (that link "
-created: 2026-06-10T22:47:04.904Z

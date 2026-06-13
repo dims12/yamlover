@@ -6,6 +6,10 @@ supports both file and filesystem storage of tree- and DAG-like data structeres.
 **yamlover** stands for **YAML Overlay** — not "Yam lover". It means YAML layer
 laid *over* the filesystem.
 
+![image](images/directory.jpg)
+
+![image](images/06-pinch-of-math.jpg)
+
 The project has the following goals
 
 - define a way to store JSON-like data structures in a filesystem trees

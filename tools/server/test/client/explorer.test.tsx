@@ -92,6 +92,34 @@ describe("ExplorerView (a directory)", () => {
     expect(onNav).toHaveBeenCalledWith(":dir:sub");
   });
 
+  it("autofocuses the first item; arrows walk the grid and Enter opens the selected one", () => {
+    // (Up/Down are geometry-based — jsdom has no layout, so only the index moves are asserted here)
+    const onNav = vi.fn();
+    render(<ExplorerView node={dir} onNavigate={onNav} />);
+    const all = items();
+    expect(document.activeElement).toBe(all[0]); // grabbed focus so arrows work immediately
+
+    fireEvent.keyDown(all[0], { key: "ArrowRight" });
+    expect(document.activeElement).toBe(all[1]);
+    fireEvent.keyDown(all[1], { key: "End" });
+    expect(document.activeElement).toBe(all[all.length - 1]);
+    fireEvent.keyDown(all[all.length - 1], { key: "Home" });
+    expect(document.activeElement).toBe(all[0]);
+    fireEvent.keyDown(all[0], { key: "ArrowLeft" }); // clamps at the first item
+    expect(document.activeElement).toBe(all[0]);
+
+    fireEvent.keyDown(all[0], { key: "Enter" }); // opens the active item (the `..` uplink → ":")
+    expect(onNav).toHaveBeenCalledWith(":");
+  });
+
+  it("leaves Ctrl/Alt+arrows alone so the global TOC nav handles them", () => {
+    render(<ExplorerView node={dir} onNavigate={() => {}} />);
+    const all = items();
+    expect(document.activeElement).toBe(all[0]);
+    fireEvent.keyDown(all[0], { key: "ArrowRight", ctrlKey: true });
+    expect(document.activeElement).toBe(all[0]); // selection unchanged — the window handler steps the TOC
+  });
+
   it("tooltips show the decoded path (the href keeps the canonical encoded one)", () => {
     const cyr = node({
       value: { "Папка": link({ kind: "object", type: "object", path: ":dir:%D0%9F%D0%B0%D0%BF%D0%BA%D0%B0", count: 1, concrete: "dir" }) },
