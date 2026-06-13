@@ -12,6 +12,12 @@ __pycache__/
 # Node
 node_modules/
 
+# Bundled server handler (generated at prepack — see tools/server/scripts/build.mjs)
+tools/server/dist/
+
+# Personal photo fixtures (carry EXIF GPS/device data — keep local only)
+/examples/72-images/
+
 # Playwright MCP scratch (screenshots, traces)
 .playwright-mcp/
 

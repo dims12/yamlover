@@ -1,0 +1,61 @@
+# npmjs counterpart of .forgejo/workflows/release.yml. Same single source of truth: the
+# version in tools/server/package.json. Bump it, push main, and this publishes that version
+# to npmjs — but ONLY when running on real GitHub (the `if` below), never on the Forgejo
+# mirror that shares this file. Forgejo keeps publishing to Nexus and owns git tagging; this
+# job does neither. Re-pushing main is idempotent: it publishes only when the version is not
+# already on npmjs (the registry analog of release.yml's "does the v<version> tag exist?").
+on:
+  push:
+    branches: [main]
+    paths: ['tools/server/package.json']
+  workflow_dispatch:
+
+jobs:
+  publish:
+    # Real GitHub only. The Forgejo runner reports its own server_url, so this whole job is
+    # skipped there — Nexus stays release.yml's job, npmjs stays this one's.
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: tools/server
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true # conformance corpora, so the test gate runs in full
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22' # 22+: native .ts type-stripping + node:sqlite (the tests need both)
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Read version from package.json
+        id: v
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Is this version already on npmjs?
+        id: check
+        run: |
+          if npm view "yamlover@${{ steps.v.outputs.version }}" version >/dev/null 2>&1; then
+            echo "yamlover@${{ steps.v.outputs.version }} already published — nothing to do"
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test gate (nothing is published if this fails)
+        if: steps.check.outputs.new == 'true'
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          npm test
+          npm ci --prefix tools/server
+          npm --prefix tools/server test
+
+      - name: Publish to npmjs
+        if: steps.check.outputs.new == 'true'
+        # prepack (scripts/build.mjs) bundles dist/server.js from the checked-out engine+parser.
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

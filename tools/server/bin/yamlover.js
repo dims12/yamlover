@@ -18,7 +18,7 @@
 import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
 import { createServer as createHttpServer } from "node:http";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import fs from "node:fs";
@@ -149,12 +149,21 @@ vite = await createServer({
   server: { middlewareMode: true, allowedHosts: true, hmr: { server }, fs: { allow: fsAllow } },
 });
 
-// Load the server-side materializer through Vite (transpiled on the fly). The engine-backed
-// handler (engine-api.ts) supersedes the legacy loadEntity materializer (api.ts kept for ref).
+// Load the server-side materializer. The engine-backed handler (engine-api.ts) supersedes the
+// legacy loadEntity materializer (api.ts kept for ref). It reaches OUTSIDE this package
+// (../../../engine, ../../../parser), which the npm tarball cannot carry — so at prepack we bundle
+// that import graph into a self-contained `dist/server.js` (scripts/build.mjs). We pick the loader
+// by whether the engine SOURCE is reachable: in the repo CHECKOUT it is, so we use Vite's
+// `ssrLoadModule` to transpile the TS live (edits take effect with no rebuild — never a stale
+// bundle); in the PUBLISHED package the source is absent, so we import the prebuilt bundle. Either
+// way the client SPA is still served by Vite from src.
 // The initial index runs as a BACKGROUND task — the server listens immediately (serving the
 // previous on-disk index, or an empty tree on a cold start) while progress lands here and in
 // the web UI (SSE task frames + GET /api/tasks).
-const { createHandlers } = await vite.ssrLoadModule("/src/server/engine-api.ts");
+const engineSrc = resolve(pkgRoot, "../engine/ts/src/index.ts"); // present only in the monorepo
+const { createHandlers } = fs.existsSync(engineSrc)
+  ? await vite.ssrLoadModule("/src/server/engine-api.ts") // repo: live TS, no rebuild needed
+  : await import(pathToFileURL(join(pkgRoot, "dist/server.js")).href); // published: prebuilt bundle
 handle = createHandlers(dataRoot, {
   gitignore,
   watch: true, // re-index + push on external edits

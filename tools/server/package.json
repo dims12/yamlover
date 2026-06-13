@@ -3,21 +3,36 @@
   "version": "0.3.0",
   "description": "Browse a yamlover tree in the web: npx yamlover <root> serves a React SPA over a directory.",
   "type": "module",
+  "license": "MIT",
+  "author": "dims",
+  "keywords": [
+    "yamlover",
+    "yaml",
+    "json5",
+    "viewer",
+    "browser",
+    "spa",
+    "knowledge-graph",
+    "pointers"
+  ],
   "bin": {
     "yamlover": "bin/yamlover.js"
   },
   "files": [
     "bin",
+    "dist",
     "src",
     "index.html"
   ],
   "scripts": {
     "start": "node bin/yamlover.js",
+    "build": "node scripts/build.mjs",
+    "prepack": "node scripts/build.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
     "@asciidoctor/core": "^3.0.4",
@@ -43,6 +58,8 @@
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.1.0",
     "@types/js-yaml": "^4.0.9",
+    "esbuild": "^0.21.5",
+    "xxhash-wasm": "^1.1.0",
     "@types/katex": "^0.16.8",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^22.10.1",
