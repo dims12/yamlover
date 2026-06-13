@@ -17,7 +17,9 @@ jobs:
           submodules: true # the JSON/JSON5/YAML conformance corpora (tests skip them if absent)
 
       - name: Tests (parser + engine)
-        run: npm test
+        run: |
+          npm ci --prefix tools/engine/ts   # engine deps (xxhash-wasm) the root test gate imports
+          npm test
 
       - name: Typecheck (server)
         run: |
