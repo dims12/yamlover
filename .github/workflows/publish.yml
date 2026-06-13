@@ -49,6 +49,7 @@ jobs:
         if: steps.check.outputs.new == 'true'
         run: |
           cd "$GITHUB_WORKSPACE"
+          npm ci --prefix tools/engine/ts   # engine deps (xxhash-wasm) the root test gate imports
           npm test
           npm ci --prefix tools/server
           npm --prefix tools/server test
