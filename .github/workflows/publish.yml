@@ -18,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write # npm trusted publishing (OIDC) — no NPM_TOKEN; provenance is auto
     defaults:
       run:
         working-directory: tools/server
@@ -30,6 +31,9 @@ jobs:
         with:
           node-version: '22' # 22+: native .ts type-stripping + node:sqlite (the tests need both)
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Upgrade npm for trusted publishing (OIDC needs >= 11.5.1; node 22 ships npm 10)
+        run: npm install -g npm@latest
 
       - name: Read version from package.json
         id: v
@@ -57,6 +61,6 @@ jobs:
       - name: Publish to npmjs
         if: steps.check.outputs.new == 'true'
         # prepack (scripts/build.mjs) bundles dist/server.js from the checked-out engine+parser.
+        # Auth is OIDC trusted publishing (id-token above) — no token; provenance is generated
+        # automatically, which is why package.json carries a github.com `repository` field.
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

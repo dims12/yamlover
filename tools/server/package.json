@@ -5,6 +5,11 @@
   "type": "module",
   "license": "MIT",
   "author": "dims",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dims12/yamlover.git",
+    "directory": "tools/server"
+  },
   "keywords": [
     "yamlover",
     "yaml",
