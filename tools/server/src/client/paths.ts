@@ -25,6 +25,14 @@ export function strToSegs(str: string): Seg[] {
   return out;
 }
 
+/** Canonical key for cross-SCOPE comparison: collapse the colon scope ladder so a
+ *  project ref (`::yamlover:…`), a document ref (`:yamlover:…`), and a server-echoed
+ *  `:`-form path all compare equal. The ladder colons are not tokens (PATH_TOKEN), so
+ *  re-emitting drops them; keys are normalized through one decode→encode pass. */
+export function canonPath(p: string): string {
+  return segsToStr(strToSegs(p));
+}
+
 function safeDecode(s: string): string {
   try {
     return decodeURIComponent(s);

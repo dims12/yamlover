@@ -200,13 +200,15 @@ test('built-in yamlover/ subtree is grafted when serving below a yamlover/$defs 
   s.close();
 });
 
-test('no graft outside a yamlover/$defs host, and none into an array-projecting root', () => {
-  // a temp tree has no `yamlover/$defs/` ancestor → no `yamlover` key appears
-  const root = mkdtempSync(join(tmpdir(), 'yo-nograft-'));
+test('built-in graft outside a yamlover/$defs host (palette always available); none into an array-projecting root', () => {
+  // a temp tree has no `yamlover/$defs/` ancestor → the BUILT-IN yamlover/ (the color palette +
+  // the tag schema) is grafted, so the pure color tags resolve and annotations validate anywhere
+  const root = mkdtempSync(join(tmpdir(), 'yo-builtin-'));
   writeFileSync(join(root, 'name'), 'Alice\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
-  assert.equal(s.node(':yamlover'), null);
+  assert.equal(s.node(':yamlover:tags:colors:yellow')?.format, 'x-yamlover-tag');
+  assert.equal(s.node(':yamlover:tags:colors:yellow:color')?.value, '#f9e2af');
   s.close();
   rmSync(root, { recursive: true, force: true });
   // an all-keyless root under the repo stays a pure array — a keyed graft would flip it to mix

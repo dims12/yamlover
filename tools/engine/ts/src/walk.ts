@@ -131,6 +131,43 @@ export async function walkTreeAsync(absDir: string, opts: AsyncWalkOptions = {})
   return r.value;
 }
 
+// The BUILT-IN yamlover taxonomy, embedded as source (NOT read from disk — so it survives
+// bundling and ships with no data files): the `$defs/tag` schema (format x-yamlover-tag, with
+// recursive sub-tags) and the `tags/colors` palette. It is grafted as the `yamlover` self-import
+// into any served tree that has no `$defs/` of its own, so `*yamlover/tags/colors/…` resolves —
+// and color-tag annotations validate — in a PLAIN directory, not only a yamlover project. Mirrors
+// the on-disk taxonomy at the repo root; the palette hexes mirror COLOR_TAGS in annotate.tsx.
+const BUILTIN_TAG_SCHEMA = 'type: object\nformat: x-yamlover-tag\nproperties:\n  color:\n    type: string\nadditionalProperties: *:: yamlover: $defs: tag\n';
+const BUILTIN_TAGS_BODY =
+  '!!<*yamlover:$defs:tag>\ncolors: The palette\n' +
+  '  yellow:\n    color: "#f9e2af"\n' +
+  '  green:\n    color: "#a6e3a1"\n' +
+  '  sky:\n    color: "#89dceb"\n' +
+  '  mauve:\n    color: "#cba6f7"\n' +
+  '  pink:\n    color: "#f5c2e7"\n' +
+  '  peach:\n    color: "#fab387"\n';
+
+let builtinTemplate: { tag: Node; tags: Node } | null = null;
+/** The built-in `yamlover` graft node + its `$defs` map (for {@link applySchemas} to resolve
+ *  `*yamlover:$defs:tag` without a disk read). Parsed once, then cloned per graft so a walk never
+ *  mutates the shared template (applySchemas attaches derived meta to the instance it grafts). */
+function builtinYamloverGraft(): { node: Node; defs: Map<string, Node> } {
+  builtinTemplate ??= {
+    tag: parseYamlover(BUILTIN_TAG_SCHEMA, '$defs/tag').root,
+    tags: parseYamlover(BUILTIN_TAGS_BODY, 'tags/.yamlover/body.yamlover').root,
+  };
+  const tagCopy = structuredClone(builtinTemplate.tag);
+  const node: Node = {
+    kind: 'mapping',
+    array: false,
+    entries: [
+      { key: '$defs', edge: 'contain', value: { kind: 'mapping', array: false, entries: [{ key: 'tag', edge: 'contain', value: tagCopy }] } },
+      { key: 'tags', edge: 'contain', value: structuredClone(builtinTemplate.tags) },
+    ],
+  };
+  return { node, defs: new Map([['tag', tagCopy]]) };
+}
+
 /** The walk as a generator: yields one {@link WalkProgress} per filesystem child processed,
  *  returns the {@link WalkResult}. */
 export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<WalkProgress, WalkResult, void> {
@@ -146,13 +183,22 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
   const defsRoot = findDefsRoot(absDir);
   const defsDir = path.join(defsRoot, '$defs');
   const arrayRoot = root.array || (root.entries?.length ? root.entries.every((e) => e.key === null) : false);
-  if (!arrayRoot && fs.existsSync(defsDir) && root.entries && !root.entries.some((e) => e.key === 'yamlover')) {
-    const shared: Entry[] = [{ key: '$defs', edge: 'contain', value: yield* dirNode(defsDir, ctx) }];
-    const tagsDir = path.join(defsRoot, 'tags');
-    if (fs.existsSync(tagsDir)) shared.push({ key: 'tags', edge: 'contain', value: yield* dirNode(tagsDir, ctx) });
-    root.entries.push({ key: 'yamlover', edge: 'contain', value: { kind: 'mapping', entries: shared, array: false } });
+  let builtinDefs: Map<string, Node> | undefined; // the in-memory $defs for a BUILT-IN graft (no disk)
+  if (!arrayRoot && root.entries && !root.entries.some((e) => e.key === 'yamlover')) {
+    if (fs.existsSync(defsDir)) {
+      const shared: Entry[] = [{ key: '$defs', edge: 'contain', value: yield* dirNode(defsDir, ctx) }];
+      const tagsDir = path.join(defsRoot, 'tags');
+      if (fs.existsSync(tagsDir)) shared.push({ key: 'tags', edge: 'contain', value: yield* dirNode(tagsDir, ctx) });
+      root.entries.push({ key: 'yamlover', edge: 'contain', value: { kind: 'mapping', entries: shared, array: false } });
+    } else {
+      // No project taxonomy on disk: graft the BUILT-IN one (the `$defs/tag` schema + `tags/colors`
+      // palette), so the color tags resolve and annotations validate in a plain served directory.
+      const built = builtinYamloverGraft();
+      root.entries.push({ key: 'yamlover', edge: 'contain', value: built.node });
+      builtinDefs = built.defs;
+    }
   }
-  applySchemas(root, defsRoot); // propagate attached !!<…> schemas down the instance
+  applySchemas(root, defsRoot, builtinDefs); // propagate attached !!<…> schemas down the instance
   return {
     doc: { root, source: { concrete: 'directory', uri: absDir } },
     files: [...ctx.files.values()],
@@ -467,7 +513,7 @@ function findDefsRoot(dir: string): string {
   }
 }
 
-function applySchemas(root: Node, defsRoot: string): void {
+function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, Node>): void {
   const cache = new Map<string, Node | null>();
   const loadDef = (name: string): Node | null => {
     if (!cache.has(name)) {
@@ -475,7 +521,8 @@ function applySchemas(root: Node, defsRoot: string): void {
       try {
         cache.set(name, parseYamlover(fs.readFileSync(defFile, 'utf8'), defFile).root);
       } catch {
-        cache.set(name, null);
+        // no on-disk $defs/<name> → fall back to the built-in def (the graft case)
+        cache.set(name, builtinDefs?.get(name) ?? null);
       }
     }
     return cache.get(name)!;

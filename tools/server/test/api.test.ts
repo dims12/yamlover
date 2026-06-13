@@ -17,8 +17,9 @@ describe("api endpoints (engine-backed)", () => {
     const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
     await h.ready;
     const { json } = call(h, "/api/tree", { depth: "3" });
-    // filesystem order = sorted names (no body.yamlover to impose another)
-    expect(json.children.map((c: any) => c.label)).toEqual(["age", "isAdmin", "name"]);
+    // filesystem order = sorted names (no body.yamlover to impose another); the built-in palette
+    // graft (`yamlover`) is always appended — ignore it here
+    expect(json.children.map((c: any) => c.label).filter((l: string) => l !== "yamlover")).toEqual(["age", "isAdmin", "name"]);
   });
 
   it("/api/json is one level deep with link markers", async () => {

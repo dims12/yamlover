@@ -70,10 +70,10 @@ describe("background initial index", () => {
     fs.writeFileSync(path.join(root, "b.md"), "# b"); // an offline edit
     const h2 = handlers(root);
     // immediately — before the background reindex commits — yesterday's index answers
-    const labels = call(h2, "/api/tree", { path: ":", depth: "1" }).json.children.map((c: any) => c.label);
+    const labels = call(h2, "/api/tree", { path: ":", depth: "1" }).json.children.map((c: any) => c.label).filter((l: string) => l !== "yamlover"); // ignore the built-in palette graft
     expect(labels).toEqual(["a.md"]);
     await h2.ready;
-    const fresh = call(h2, "/api/tree", { path: ":", depth: "1" }).json.children.map((c: any) => c.label);
+    const fresh = call(h2, "/api/tree", { path: ":", depth: "1" }).json.children.map((c: any) => c.label).filter((l: string) => l !== "yamlover"); // ignore the built-in palette graft
     expect(fresh).toEqual(["a.md", "b.md"]);
   });
 });

@@ -17,7 +17,9 @@ async function handlers(root: string, opts: Parameters<typeof createHandlers>[1]
 }
 
 const treeLabels = (h: ReturnType<typeof createHandlers>): string[] =>
-  call(h, "/api/tree", { path: ":", depth: "1" }).json.children.map((c: { label: string }) => c.label);
+  call(h, "/api/tree", { path: ":", depth: "1" }).json.children
+    .map((c: { label: string }) => c.label)
+    .filter((l: string) => l !== "yamlover"); // ignore the built-in palette graft (always present)
 
 describe("reconcile: external edits reach the index", () => {
   it("a file created after startup appears once /api/reindex runs", async () => {

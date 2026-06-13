@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, saveAnnotation, deleteAnnotation } from "../api";
 import { TAG_FORMAT, explicitColor, resolveTagColor, tagFields } from "./tag";
-import { strToSegs } from "../paths";
+import { canonPath, strToSegs } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
 
 /**
@@ -30,12 +30,12 @@ import { touchesYamlover, useDiffBump } from "../live";
 // fetches the real `/yamlover/tags/colors` nodes once per session (useColorTags) so a project
 // that re-themes them wins; the paths and hexes here mirror yamlover/tags/.yamlover/body.yamlover.
 export const COLOR_TAGS: TagRef[] = [
-  { path: ":yamlover:tags:colors:yellow", name: "yellow", color: "#f9e2af" },
-  { path: ":yamlover:tags:colors:green", name: "green", color: "#a6e3a1" },
-  { path: ":yamlover:tags:colors:sky", name: "sky", color: "#89dceb" },
-  { path: ":yamlover:tags:colors:mauve", name: "mauve", color: "#cba6f7" },
-  { path: ":yamlover:tags:colors:pink", name: "pink", color: "#f5c2e7" },
-  { path: ":yamlover:tags:colors:peach", name: "peach", color: "#fab387" },
+  { path: "::yamlover:tags:colors:yellow", name: "yellow", color: "#f9e2af" },
+  { path: "::yamlover:tags:colors:green", name: "green", color: "#a6e3a1" },
+  { path: "::yamlover:tags:colors:sky", name: "sky", color: "#89dceb" },
+  { path: "::yamlover:tags:colors:mauve", name: "mauve", color: "#cba6f7" },
+  { path: "::yamlover:tags:colors:pink", name: "pink", color: "#f5c2e7" },
+  { path: "::yamlover:tags:colors:peach", name: "peach", color: "#fab387" },
 ];
 export const DEFAULT_TAG = COLOR_TAGS[0];
 export const DEFAULT_COLOR = DEFAULT_TAG.color!;
@@ -68,12 +68,15 @@ let colorTagsPromise: Promise<TagRef[]> | null = null;
 export function useColorTags(): TagRef[] {
   const [tags, setTags] = useState<TagRef[]>(COLOR_TAGS);
   useEffect(() => {
-    colorTagsPromise ??= fetchNode(":yamlover:tags:colors", 2)
+    colorTagsPromise ??= fetchNode("::yamlover:tags:colors", 2)
       .then((n) => {
         const out: TagRef[] = [];
         for (const [name, child] of tagFields(n.value)) {
           const color = explicitColor(child);
-          if (color) out.push({ path: `${n.path}/${encodeURIComponent(name)}`, name, color });
+          // PROJECT-scope ref pinned to `::yamlover:tags:colors:<name>` — NOT derived from
+          // `n.path` (the API echoes that in `:`-form, which would mismatch COLOR_TAGS and
+          // resurrect the ghost badge); and `:` not `/` (the pre-SEPARATOR separator bug).
+          if (color) out.push({ path: `::yamlover:tags:colors:${encodeURIComponent(name)}`, name, color });
         }
         return out.length ? out : COLOR_TAGS;
       })
@@ -113,7 +116,7 @@ export function recentTags(): TagRef[] {
 }
 
 function rememberRecent(t: TagRef): void {
-  if (t.path.startsWith(":yamlover:tags:colors:")) return; // the swatch row already shows these
+  if (canonPath(t.path).startsWith(":yamlover:tags:colors:")) return; // the swatch row already shows these
   const next = [t, ...recentTags().filter((r) => r.path !== t.path)].slice(0, 6);
   localStorage.setItem(RECENT_KEY, JSON.stringify(next));
 }
@@ -165,7 +168,7 @@ export function useAnnotations(path: string, bump = 0): Annotation[] {
  *  round-trip lands. */
 export interface MaterialAnnotations {
   annotations: Annotation[];
-  create: (selector: Record<string, unknown> | null, tag: TagRef) => void;
+  create: (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean }) => void;
   remove: (annPath?: string) => void;
   retag: (ann: Annotation, tag: TagRef) => void;
 }
@@ -189,12 +192,18 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
   }, [fetched]);
 
   const refresh = () => setBump((b) => b + 1);
-  const create = (selector: Record<string, unknown> | null, tag: TagRef) => {
+  const create = (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean }) => {
     const entry = { path: "(pending)", selector: selector ?? undefined, tag } as Annotation;
     setOptimistic((o) => [...o, entry]);
     createAnnotation(path, selector, tag)
       .then(refresh)
-      .catch((e) => { setOptimistic((o) => o.filter((x) => x !== entry)); window.alert("save failed: " + (e as Error).message); }); // roll back the unsaved mark
+      .catch((e) => {
+        setOptimistic((o) => o.filter((x) => x !== entry)); // roll back the unsaved mark
+        // An IMPLICIT save (clicking away with the pre-selected tag) is best-effort — e.g. the
+        // default tag may not exist in this tree — so it rolls back QUIETLY. Only an explicit
+        // pick (a swatch/badge/✓) reports the failure.
+        if (!opts?.silent) window.alert("save failed: " + (e as Error).message);
+      });
   };
   const remove = (annPath?: string) => {
     if (!annPath || annPath === "(pending)") return;
@@ -251,10 +260,14 @@ export function AnnotationMenu({
     return () => { on = false; };
   }, []);
 
+  // Compare tag paths on a CANONICAL key — a palette ref is project-scope (`::yamlover:…`)
+  // while a selected/edited tag may arrive `:`-form (the API echoes paths in `:`-form, and
+  // older localStorage holds `:`-form); raw `===` would miss the match and duplicate the tag.
+  const same = (a: string, b: string) => canonPath(a) === canonPath(b);
   // The badge row must always include THE tag this menu is about (`sel`-framed, like the
   // selected color swatch) — which tag is assigned/pre-selected must be visible at a glance,
-  // even when it has aged out of the recents.
-  const badges = colorTags.some((c) => c.path === tag.path) || recents.some((r) => r.path === tag.path)
+  // even when it has aged out of the recents. A PALETTE tag is shown as a swatch, not a badge.
+  const badges = colorTags.some((c) => same(c.path, tag.path)) || recents.some((r) => same(r.path, tag.path))
     ? recents
     : [tag, ...recents];
 
@@ -288,7 +301,7 @@ export function AnnotationMenu({
           <button
             key={t.path}
             type="button"
-            className={"annotate-swatch" + (t.path === tag.path ? " sel" : "")}
+            className={"annotate-swatch" + (same(t.path, tag.path) ? " sel" : "")}
             style={{ background: resolveTagColor(t) }}
             title={`${verb} ${t.name}`}
             onClick={() => onPick(t)}
@@ -303,7 +316,7 @@ export function AnnotationMenu({
           {badges.map((t) => (
             // the frame is a WRAPPER: filter applies before clip-path on the same element, so a
             // ring drawn on the clipped .tagtag itself would be clipped away with it (styles.css)
-            <span key={t.path} className={"tagframe" + (t.path === tag.path ? " sel" : "")}>
+            <span key={t.path} className={"tagframe" + (same(t.path, tag.path) ? " sel" : "")}>
               <button
                 type="button"
                 className="tagtag"
@@ -355,7 +368,7 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
   const openEdit = (ann: Annotation, screen: { x: number; y: number }) =>
     setMenu({ mode: "edit", ann, x: screen.x, y: screen.y });
 
-  const commitCreate = (t: TagRef, m: MenuState) => { if (m.mode !== "create") return; setTag(t); a.create(m.selector, t); close(); };
+  const commitCreate = (t: TagRef, m: MenuState, silent = false) => { if (m.mode !== "create") return; setTag(t); a.create(m.selector, t, { silent }); close(); };
   const commitRetag = (t: TagRef, m: MenuState) => { if (m.mode !== "edit") return; setTag(t); a.retag(m.ann, t); close(); };
 
   // Outside-click: a create commits with the pre-selected tag (default keeps the mark); an edit closes.
@@ -363,7 +376,7 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
     if (!menu) return;
     const onDown = (e: MouseEvent) => {
       if (menuRef.current?.contains(e.target as Node)) return;
-      if (menu.mode === "create") commitCreate(tag, menu);
+      if (menu.mode === "create") commitCreate(tag, menu, true); // implicit → best-effort, no error popup
       else close();
     };
     document.addEventListener("mousedown", onDown);

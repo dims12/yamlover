@@ -884,6 +884,15 @@ a.chunk-index:hover {
   background: #fff;
   opacity: 0.06;
 }
+/* drag-marquee overlay for pages whose pdf.js text layer is unusable (scanned/pathological) —
+   above the text layer (z 2), below the editable region divs so saved regions stay clickable */
+.pdf-marquee {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  cursor: crosshair;
+  user-select: none;
+}
 .pdf-region {
   position: absolute;
   box-sizing: border-box;

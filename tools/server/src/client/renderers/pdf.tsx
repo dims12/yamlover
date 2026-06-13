@@ -31,6 +31,11 @@ export function PdfView({ node }: { node: NodeJson }) {
   const [pages, setPages] = useState(0);
   const [zoom, setZoom] = useState(1); // ctrl/alt-wheel scale factor
   const [orig, setOrig] = useState<Record<number, { w: number; h: number }>>({}); // each page's natural size in points
+  // Pages whose pdf.js TEXT LAYER is unusable for selection — absent (a scanned PDF has no text)
+  // or pathological (some fonts make pdf.js emit glyph boxes many times a line tall, so a text
+  // selection's geometry is garbage). Such pages fall back to a drag-marquee, like images.
+  const [marquee, setMarquee] = useState<Set<number>>(() => new Set());
+  const [drag, setDrag] = useState<{ page: number; x0: number; y0: number; x1: number; y1: number } | null>(null);
 
   // WINDOWED RENDERING: every page keeps a wrapper (so the scroll height is right), but only
   // pages near the viewport mount a real <Page> — mounting ALL of them queues every canvas
@@ -95,6 +100,64 @@ export function PdfView({ node }: { node: NodeJson }) {
   }, []);
 
   const pageWidth = Math.min(width, 1000) * zoom;
+  const previewColor = preview?.color ?? DEFAULT_COLOR;
+
+  // Judge a page's text layer once it has rendered: unusable when there is no real text (< 3
+  // spans) or a typical glyph box is an implausible fraction of the page height (a normal line is
+  // ~1–2%; the pathological case is ~30%). Unusable pages switch to the marquee overlay below.
+  const judgeTextLayer = (pn: number) => {
+    const wrap = wraps.current.get(pn);
+    const tl = wrap?.querySelector(".textLayer");
+    const pageH = wrap?.getBoundingClientRect().height || 0;
+    let unusable = true;
+    if (tl && pageH) {
+      const hs = [...tl.querySelectorAll("span")]
+        .filter((s) => s.textContent?.trim())
+        .map((s) => s.getBoundingClientRect().height)
+        .sort((a, b) => a - b);
+      unusable = hs.length < 3 || hs[hs.length >> 1] / pageH > 0.05;
+    }
+    setMarquee((m) => {
+      if (unusable === m.has(pn)) return m;
+      const next = new Set(m);
+      if (unusable) next.add(pn);
+      else next.delete(pn);
+      return next;
+    });
+  };
+
+  // Marquee drag on an unusable-text-layer page: draw a box (coords are wrapper-relative px), then
+  // on release convert to page points (the same `sc` as the text path) → a `pdf` region.
+  const dragStart = (pn: number, e: React.MouseEvent) => {
+    const wrap = wraps.current.get(pn);
+    if (!wrap) return;
+    const pr = wrap.getBoundingClientRect();
+    const x = e.clientX - pr.left, y = e.clientY - pr.top;
+    setDrag({ page: pn, x0: x, y0: y, x1: x, y1: y });
+  };
+  const dragMove = (e: React.MouseEvent) =>
+    setDrag((d) => {
+      const wrap = d && wraps.current.get(d.page);
+      if (!wrap) return d;
+      const pr = wrap.getBoundingClientRect();
+      return { ...d!, x1: e.clientX - pr.left, y1: e.clientY - pr.top };
+    });
+  const dragEnd = (pn: number, e: React.MouseEvent) => {
+    const d = drag;
+    setDrag(null);
+    if (!d || d.page !== pn) return;
+    const sc = orig[pn] ? pageWidth / orig[pn].w : 0;
+    const wrap = wraps.current.get(pn);
+    if (!sc || !wrap) return;
+    const pr = wrap.getBoundingClientRect();
+    const x1 = e.clientX - pr.left, y1 = e.clientY - pr.top;
+    const left = Math.min(d.x0, x1), top = Math.min(d.y0, y1), w = Math.abs(x1 - d.x0), h = Math.abs(y1 - d.y0);
+    if (w < 3 || h < 3) return; // a click, not a drag
+    openCreate(
+      { type: "pdf", page: pn, x: Math.round(left / sc), y: Math.round(top / sc), w: Math.round(w / sc), h: Math.round(h / sc) },
+      { x: pr.left + left, y: pr.top + top + h + 6 },
+    );
+  };
 
   // A finished text selection on a page → a `pdf` region (its bounding box, converted to points).
   const onMouseUp = () => {
@@ -146,8 +209,26 @@ export function PdfView({ node }: { node: NodeJson }) {
                         pageNumber={pn}
                         width={pageWidth}
                         onLoadSuccess={(p) => setOrig((o) => (o[pn] ? o : { ...o, [pn]: { w: p.originalWidth || pageWidth, h: p.originalHeight || pageWidth * Math.SQRT2 } }))}
+                        onRenderTextLayerSuccess={() => judgeTextLayer(pn)}
                         loading={<div className="loading" style={{ height: estHeight }}>page {pn}…</div>}
                       />
+                      {/* unusable text layer → a crosshair marquee over the page (drag a box). It
+                          sits ABOVE the text layer but BELOW the region divs (rendered next), so
+                          existing editable regions stay clickable while empty areas start a drag. */}
+                      {marquee.has(pn) && sc > 0 && (
+                        <div className="pdf-marquee" onMouseDown={(e) => dragStart(pn, e)} onMouseMove={dragMove} onMouseUp={(e) => dragEnd(pn, e)}>
+                          {drag?.page === pn && (
+                            <div
+                              className="pdf-region"
+                              style={{
+                                left: Math.min(drag.x0, drag.x1), top: Math.min(drag.y0, drag.y1),
+                                width: Math.abs(drag.x1 - drag.x0), height: Math.abs(drag.y1 - drag.y0),
+                                borderColor: previewColor, background: previewColor + "2e",
+                              }}
+                            />
+                          )}
+                        </div>
+                      )}
                       {sc > 0 &&
                         regions.filter((r) => r.page === pn).map((r, j) => {
                           const c = r.color || DEFAULT_COLOR;
