@@ -13,7 +13,7 @@ properties:
   06-tour.yamlover:
     description: yamlover — YAML plus the full pointer layer (`*`, `~`, `&`, `[n]`/`/x`, links)
   07-omni.yamlover:
-    description: the unified node — `!!omni`/`!!mix` — a scalar self-value plus positional and keyed fields at once
+    description: the unified node — `!!var`/`!!mix` — a scalar self-value plus positional and keyed fields at once
   50-object-in-overlay:
     description: a directory whose `body.yamlover` overlay holds the whole object instance
   51-object-in-dir:

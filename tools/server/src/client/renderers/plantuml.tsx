@@ -1,5 +1,6 @@
 import { deflateSync } from "fflate";
 import { NodeJson } from "../api";
+import { scalarValue } from "../render";
 import { Chunk } from "./registry";
 
 /**
@@ -71,7 +72,7 @@ export function PlantumlView({ node }: { node: NodeJson }) {
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <Diagram source={String(node.value ?? "")} />
+      <Diagram source={String(scalarValue(node.value) ?? "")} />
     </div>
   );
 }

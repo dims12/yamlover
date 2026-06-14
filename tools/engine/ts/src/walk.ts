@@ -138,6 +138,10 @@ export async function walkTreeAsync(absDir: string, opts: AsyncWalkOptions = {})
 // and color-tag annotations validate — in a PLAIN directory, not only a yamlover project. Mirrors
 // the on-disk taxonomy at the repo root; the palette hexes mirror COLOR_TAGS in annotate.tsx.
 const BUILTIN_TAG_SCHEMA = 'type: object\nformat: x-yamlover-tag\nproperties:\n  color:\n    type: string\nadditionalProperties: *:: yamlover: $defs: tag\n';
+// embedded fragments / annotations (ANNOTATIONS.md) — minimal so the `!!<*::yamlover/$defs/…>`
+// tags resolve (and the nodes index as x-yamlover-fragment / -annotation) in a plain served tree.
+const BUILTIN_FRAGMENT_SCHEMA = 'type: object\nformat: x-yamlover-fragment\n';
+const BUILTIN_ANNOTATION_SCHEMA = 'type: variant\nformat: x-yamlover-annotation\n';
 const BUILTIN_TAGS_BODY =
   '!!<*yamlover:$defs:tag>\ncolors: The palette\n' +
   '  yellow:\n    color: "#f9e2af"\n' +
@@ -157,15 +161,27 @@ function builtinYamloverGraft(): { node: Node; defs: Map<string, Node> } {
     tags: parseYamlover(BUILTIN_TAGS_BODY, 'tags/.yamlover/body.yamlover').root,
   };
   const tagCopy = structuredClone(builtinTemplate.tag);
+  const fragCopy = parseYamlover(BUILTIN_FRAGMENT_SCHEMA, '$defs/fragment').root;
+  const annCopy = parseYamlover(BUILTIN_ANNOTATION_SCHEMA, '$defs/annotation').root;
   const node: Node = {
     kind: 'mapping',
     array: false,
     entries: [
-      { key: '$defs', edge: 'contain', value: { kind: 'mapping', array: false, entries: [{ key: 'tag', edge: 'contain', value: tagCopy }] } },
+      {
+        key: '$defs', edge: 'contain',
+        value: {
+          kind: 'mapping', array: false,
+          entries: [
+            { key: 'tag', edge: 'contain', value: tagCopy },
+            { key: 'fragment', edge: 'contain', value: fragCopy },
+            { key: 'annotation', edge: 'contain', value: annCopy },
+          ],
+        },
+      },
       { key: 'tags', edge: 'contain', value: structuredClone(builtinTemplate.tags) },
     ],
   };
-  return { node, defs: new Map([['tag', tagCopy]]) };
+  return { node, defs: new Map([['tag', tagCopy], ['fragment', fragCopy], ['annotation', annCopy]]) };
 }
 
 /** The walk as a generator: yields one {@link WalkProgress} per filesystem child processed,
@@ -556,7 +572,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     const fmt = str(s, 'format') ?? (name && str(s, 'type') === 'object' ? `x-yamlover-${name}` : null);
     if (fmt && !hasFormat(inst)) inst.meta = { ...inst.meta, schema: inlineFormat(fmt) };
     // recurse structurally — `variant`/`mixed` carry keyed fields exactly like `object`
-    // (META.md vocabulary: variant = !!omni, mixed = !!mix), so `properties`/
+    // (META.md vocabulary: variant = !!var, mixed = !!mix), so `properties`/
     // `additionalProperties` propagate through them too (e.g. a tag taxonomy whose tags
     // hold their description as a BODY still tags every sub-tag).
     const stype = str(s, 'type');
@@ -591,7 +607,7 @@ function inlineFormat(format: string): Value {
 /** Merge `.yamlover/body.yamlover` over the directory mapping (YAMLOVER.md §5):
  *  - a mapping body OVERRIDES same-key children and ADDS overlay-only keys (scalars/pointers);
  *  - a pointer-array body (`- *file …`) imposes ORDER over the existing children;
- *  - a SCALAR body root with fields (the omni shape, e.g. `!!omni A taxonomy` over a tag
+ *  - a SCALAR body root with fields (the omni shape, e.g. `!!var A taxonomy` over a tag
  *    directory) gives the directory that scalar as its own BODY, fields merged as above.
  *  The body root's `meta` (e.g. a `!!<*yamlover/$defs/chapter>` tag attaching a schema to the
  *  whole directory) is carried onto the merged node, so a directory CHAPTER is recognized. */

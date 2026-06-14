@@ -125,7 +125,7 @@ yamlover specifics:
     entries are **both** keyless/positional (array-like) and keyed/named (object-like). It
     is the union of `object` and `array` (cf. the YAML-tag/JSON-Schema pairs `!!seq`/`array`,
     `!!map`/`object`).
-  - **`variant`** — the schema name for the **`!!omni`** shape: a node that carries a scalar
+  - **`variant`** — the schema name for the **`!!var`** shape: a node that carries a scalar
     (or `binary`) **self-value** *and* fields (positional and/or keyed) at once. The self-value
     is given as `value:` (alongside `properties:`), the most general node shape.
 - **`format`** is open: a MIME type (`image/png`, `application/pdf`, `text/markdown`), a
@@ -147,7 +147,7 @@ The repo hosts two schemas the server acts on (and a built-in instance tree):
 
 - **`$defs/tag`** — a node in a tag taxonomy (`type: variant`): its description is its **BODY**
   (the node's own scalar value — `name: <text>` with the sub-tags in the deeper block; no
-  `!!omni` needed, YAMLOVER.md §4), an optional explicit **`color`** (`"#rrggbb"` — a *pure
+  `!!var` needed, YAMLOVER.md §4), an optional explicit **`color`** (`"#rrggbb"` — a *pure
   color tag*; absent ⇒ the UI derives a stable hue from the tag's name), and every other key a
   sub-tag (`additionalProperties` recurses). Applied to a whole node as a `~name: */tags/…`
   reverse membership.

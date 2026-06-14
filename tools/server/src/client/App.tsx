@@ -139,7 +139,7 @@ export function App() {
     const n = findNode(tree, current);
     if (!n) return; // not loaded along the path yet — wait for the next pass
     resolvedLanding.current = true;
-    const rn = rendererName(n.type, n.format, n.concrete);
+    const rn = rendererName(n, n.concrete);
     if (rn) {
       setFormat(rn);
       writeUrl(current, rn, true);
@@ -268,7 +268,7 @@ export function App() {
       const target = tree ? findNode(tree, p) : null;
       let f: Format = format;
       if (target) {
-        const rn = rendererName(target.type, target.format, target.concrete);
+        const rn = rendererName(target, target.concrete);
         f = rn ?? (isStandardFormat(format) ? format : DEFAULT_FORMAT);
       }
       writeUrl(p, f, false);
@@ -340,7 +340,7 @@ export function App() {
         const sub = await fetchTree(dir, INITIAL_DEPTH);
         setTree((t) => (t ? replaceChildren(t, dir, sub.children) : t));
         const fileNode = sub.children.find((c) => c.path === result.path);
-        const f: Format = (fileNode ? rendererName(fileNode.type, fileNode.format, fileNode.concrete) : null) ?? DEFAULT_FORMAT;
+        const f: Format = (fileNode ? rendererName(fileNode, fileNode.concrete) : null) ?? DEFAULT_FORMAT;
         writeUrl(result.path, f, false);
         setCurrent(result.path);
         setFormat(f);

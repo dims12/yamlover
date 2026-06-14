@@ -1,4 +1,5 @@
 import { NodeJson } from "../api";
+import { scalarValue } from "../render";
 import { Chunk } from "./registry";
 
 /**
@@ -163,7 +164,7 @@ export function CsvView({ node }: { node: NodeJson }) {
   // the single source of truth — this view holds no parsing state of its own.
   const p = params();
   const header = headerOn(p);
-  const text = String(node.value ?? "");
+  const text = String(scalarValue(node.value) ?? "");
   const sep = decodeSep(p.get("sep")) ?? autoSep(text, node.format ?? null);
   const rows = parseDelimited(text, sep);
 

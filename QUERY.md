@@ -92,7 +92,7 @@ filter   = "[" fbody "]"          ; (q) extends the index bracket  (§4.4)
 fbody    = "?"                    ; (q) any position (fan-out, navigating)
          / kind                   ; (q) node-kind test
          / ekind                  ; (q) via-edge-kind test
-         / "!!" name              ; (q) yamlover-tag test (!!mix / !!omni / !!set)
+         / "!!" name              ; (q) yamlover-tag test (!!mix / !!var / !!set)
          / "format=" *fchar       ; (q) format test
 kind     = "mapping" / "scalar" / "blob"
 ekind    = "contain" / "ref"
@@ -178,7 +178,7 @@ scalar values.)
 |---|---|
 | `[mapping]` `[scalar]` `[blob]` | the node is of that kind |
 | `[contain]` `[ref]` | the edge that *produced* this match is containment / a `*` ref (vacuous at scope position) |
-| `[!!mix]` `[!!omni]` `[!!set]` | the node carries that yamlover tag |
+| `[!!mix]` `[!!var]` `[!!set]` | the node carries that yamlover tag |
 | `[format=x-yamlover-tag]` | the node's `format` (authored or schema-derived) equals the text |
 
 ```text
@@ -285,7 +285,7 @@ result order.
 /playlist[?]         → /playlist[0], /playlist[1], /playlist/title,
                        /playlist[3], /pets[0]             (encore deref'd to Rex)
 /playlist/?          → /playlist/title, /pets[0]
-/rating[?]           → /rating[0], /rating[1], /rating/scale, /humans[0]  (!!omni fields; author deref'd)
+/rating[?]           → /rating[0], /rating[1], /rating/scale, /humans[0]  (!!var fields; author deref'd)
 /boss/~lead          → /team
 /boss/~?             → /, /team                            (containment from /, ref via the &chief anchor)
 /pets[1]/~?          → /, /pets, /humans[0]                (feline+secondPet both bind /; deduped)

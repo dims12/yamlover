@@ -1,6 +1,7 @@
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import { NodeJson } from "../api";
+import { scalarValue } from "../render";
 import { Chunk } from "./registry";
 
 /**
@@ -24,7 +25,7 @@ export function LatexView({ node }: { node: NodeJson }) {
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <div className="markup" dangerouslySetInnerHTML={{ __html: renderMath(node.value, true) }} />
+      <div className="markup" dangerouslySetInnerHTML={{ __html: renderMath(scalarValue(node.value), true) }} />
     </div>
   );
 }

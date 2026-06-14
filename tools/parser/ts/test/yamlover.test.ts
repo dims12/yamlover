@@ -231,7 +231,7 @@ test('one ordered container mixes keyless (positional) and keyed entries', () =>
 });
 
 test('a node can be a scalar AND carry positional + keyed fields (unified node)', () => {
-  const d = parseYamlover('rating: !!omni 5\n  - solid\n  - good\n  scale: 10\n');
+  const d = parseYamlover('rating: !!var 5\n  - solid\n  - good\n  scale: 10\n');
   const r = entry(asMap(d.root), 'rating').value as Scalar;
   assert.equal(r.kind, 'scalar');
   assert.equal(r.value, 5); // it keeps its scalar value …
@@ -241,8 +241,8 @@ test('a node can be a scalar AND carry positional + keyed fields (unified node)'
   assert.deepEqual(toPlain(r), { $value: 5, '0': 'solid', '1': 'good', scale: 10 });
 });
 
-test('an !!omni node may have a block-scalar value plus fields (deeper content, shallower fields)', () => {
-  const d = parseYamlover('rating: !!omni |\n      Multi-line\n      review text\n  - solid\n  scale: 10\n');
+test('an !!var node may have a block-scalar value plus fields (deeper content, shallower fields)', () => {
+  const d = parseYamlover('rating: !!var |\n      Multi-line\n      review text\n  - solid\n  scale: 10\n');
   const r = entry(asMap(d.root), 'rating').value as Scalar;
   assert.equal(r.kind, 'scalar');
   assert.equal(r.value, 'Multi-line\nreview text\n'); // block scalar bounded by its content indent
@@ -255,10 +255,17 @@ test('an !!omni node may have a block-scalar value plus fields (deeper content, 
 });
 
 test('a root-level type tag (no preceding key) tags the document root', () => {
-  const r = parseYamlover('!!omni 5\n- solid\n- recommended\nscale: 10\n').root as Scalar;
+  const r = parseYamlover('!!var 5\n- solid\n- recommended\nscale: 10\n').root as Scalar;
   assert.equal(r.kind, 'scalar');
   assert.equal(r.value, 5);
   assert.deepEqual(r.entries?.map((e) => e.key), [null, null, 'scale']);
+});
+
+test('`!!omni` is a deprecated alias of `!!var` — same IR, in value AND root position', () => {
+  const v = parseYamlover('rating: !!omni 5\n  scale: 10\n');
+  const w = parseYamlover('rating: !!var 5\n  scale: 10\n');
+  assert.deepEqual(toPlain(v.root), toPlain(w.root));
+  assert.deepEqual(toPlain(parseYamlover('!!omni 5\nx: 1\n').root), toPlain(parseYamlover('!!var 5\nx: 1\n').root));
 });
 
 test('omni is the default: untagged mixing and scalar+fields are legal (tags are no-ops)', () => {

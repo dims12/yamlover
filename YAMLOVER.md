@@ -122,10 +122,12 @@ scalar value alongside fields. The former opt-in tags remain parseable as **opti
 markers** — existing files round-trip, and they stay useful as documentation:
 
 - **`!!mix`** — marks a container that mixes keyless and keyed entries (a dict ∪ list).
-- **`!!omni`** — marks a node that carries a scalar value **and** fields at once (scalar ⊕
-  `mix`); the schema spelling of the shape is `type: variant` (META.md). The node's **scalar
-  value line** may sit at any position among the entries — first, last, or between; at most
-  **one** scalar line per block, and line order does not change the data:
+- **`!!var`** (formerly **`!!omni`**, still accepted as a deprecated alias) — marks a node that
+  carries a scalar value **and** fields at once (scalar ⊕ `mix`); the schema spelling of the shape
+  is `type: variant` (META.md). (The tag was renamed to free the word "omni": the *type* `omni` is
+  the top `true` — TYPES.md — while this tag marks the specific `variant` shape.) The node's
+  **scalar value line** may sit at any position among the entries — first, last, or between; at
+  most **one** scalar line per block, and line order does not change the data:
   ```yamlover
   30            # the node's own value …
   - one         # … may precede or follow its fields; same node either way
@@ -139,10 +141,10 @@ markers** — existing files round-trip, and they stay useful as documentation:
   collapse to one (dedup by target). The inline spelling of the schema keyword
   `uniqueItems: true` (`META.md`), which is the route for json5p and directory overlays (no
   tags there). Reinterprets YAML's `!!set` (whose meaning is a null-valued mapping) — see §3.
-  Unlike `!!mix`/`!!omni`, `!!set` is **not** a no-op: it carries real (dedup) semantics.
+  Unlike `!!mix`/`!!var`, `!!set` is **not** a no-op: it carries real (dedup) semantics.
 
 The tag sits in **value position** — right after the `key:` (or `- `) whose value it types,
-exactly where a YAML tag goes. `!!mix` precedes a (mixed) block; `!!omni` precedes the
+exactly where a YAML tag goes. `!!mix` precedes a (mixed) block; `!!var` precedes the
 node's own scalar value, with the fields in the block below:
 
 ```yamlover
@@ -153,24 +155,24 @@ playlist: !!mix
   - Chorus                # [3]            keyless
 # *playlist[2] (by position) and *playlist/title (by key) resolve to the SAME node.
 
-rating: !!omni 5          # the node's own scalar value …
+rating: !!var 5          # the node's own scalar value …
   - solid                 # [0] … and positional + keyed fields together
   scale: 10
 ```
 
-An `!!omni` value may also be a **block scalar** (`|` / `>`), just as a YAML tag can precede
+An `!!var` value may also be a **block scalar** (`|` / `>`), just as a YAML tag can precede
 one. Since a block scalar is bounded by *its own content indent* (YAML's rule — `|2` can pin
 it), the fields simply sit at a **shallower** indent than the block content (but still deeper
 than the key):
 
 ```yamlover
-review: !!omni |
+review: !!var |
       multi-line text is
       the node's value
   stars: 5                # a field — shallower than the block content, deeper than the key
 ```
 
-A lone tag with no preceding key (`!!omni 5` / `!!mix` on the first line) marks the
+A lone tag with no preceding key (`!!var 5` / `!!mix` on the first line) marks the
 **document root** (see `examples/07-omni.yamlover`); with omni as the default the root tag,
 like the tags everywhere else, is optional. (Under the *current* parsers — until PLAN.md
 Phase A — an untagged mixture is still a parse error; see `examples/06-tour.yamlover`.) The

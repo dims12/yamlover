@@ -5,7 +5,7 @@ import type { NodeRow, Store } from "../../../engine/ts/src/index.ts";
 
 // One ordered container, classified for display: a pure-keyed mapping is `object`, a pure-keyless
 // one `array`; a mapping mixing keyed + keyless OWNED entries is `mix`; a scalar/blob that ALSO
-// carries OWNED fields is `omni` (the `!!mix`/`!!omni` shapes); plain scalars/blobs are
+// carries OWNED fields is `omni` (the `!!mix`/`!!var` shapes); plain scalars/blobs are
 // `scalar`/`binary`.
 export type Kind = "object" | "array" | "scalar" | "binary" | "omni" | "mix";
 
@@ -30,7 +30,7 @@ export function displayKind(s: Store, p: string, row: NodeRow): Kind {
 }
 
 // Internal kind → the JSON-Schema-style `type:` name shown in the header/TOC and the schema view.
-// The YAML-tag shapes `!!mix`/`!!omni` get full-word schema names (cf. !!seq→array, !!map→object):
+// The YAML-tag shapes `!!mix`/`!!var` get full-word schema names (cf. !!seq→array, !!map→object):
 // `mix` → "mixed", `omni` → "variant". Scalars resolve to their JSON-ish primitive type.
 export function typeName(s: Store, p: string, row: NodeRow): string {
   const k = displayKind(s, p, row);
@@ -45,4 +45,17 @@ export function scalarType(v: unknown): string {
   if (typeof v === "boolean") return "boolean";
   if (typeof v === "number") return Number.isInteger(v) ? "integer" : "number";
   return "string";
+}
+
+/** The three TYPE FACETS the client dispatches on (TYPES.md §1): the scalar self-VALUE's type
+ *  (`null|boolean|integer|number|string|binary`, or null when there is no value facet), and
+ *  whether the node OWNS any KEYED / ORDINAL (keyless) elements. Reverse `~` members are excluded
+ *  (ownedEntries) — a tagged node keeps its facets, so a renderer can tolerate the extra keys. */
+export function facetsOf(s: Store, p: string, row: NodeRow): { valueType: string | null; hasKeyed: boolean; hasOrdinal: boolean } {
+  const ents = ownedEntries(s, p);
+  return {
+    valueType: row.type === "scalar" ? scalarType(row.value) : row.type === "blob" ? "binary" : null,
+    hasKeyed: ents.some((e) => e.label !== null),
+    hasOrdinal: ents.some((e) => e.label === null),
+  };
 }

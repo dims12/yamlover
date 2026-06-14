@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { NodeJson } from "../api";
+import { scalarValue } from "../render";
 import { Chunk } from "./registry";
 import { renderMath } from "./latex";
 import { NavLink } from "../links";
@@ -107,7 +108,7 @@ export function MarklowerView({ node, onNavigate }: { node: NodeJson; onNavigate
     <div className="marklower">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <p className="chapter-prose">{parse(node.value, onNavigate, node.documentPath)}</p>
+      <p className="chapter-prose">{parse(scalarValue(node.value), onNavigate, node.documentPath)}</p>
     </div>
   );
 }

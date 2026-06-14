@@ -1,0 +1,44 @@
+# $defs/fragment — a user-marked REGION inside a document (the locate/highlight data only; no
+# description or color). Stored under the host node's `yamlover-fragments` mapping, keyed by a
+# slug. `type` selects the locator: a text quote {type:text, exact, prefix, suffix}, an image /
+# pdf / djvu rect {type:rect|pdf|djvu, x,y,w,h (pdf/djvu add page)}, or a map box
+# {type:map, n,s,e,w (geographic edges)}. Image-like fragments also carry an `image` — a PNG crop
+# of the region (a sidecar blob, referenced by a `*` pointer). A fragment may itself be tagged via
+# its own `yamlover-annotations`. Attach with the tag  !!<*::yamlover/$defs/fragment>.
+type: object
+format: x-yamlover-fragment
+properties:
+  type:
+    type: string
+    description: The locator kind — text | rect | pdf | djvu | map
+  exact:
+    type: string
+  prefix:
+    type: string
+  suffix:
+    type: string
+  page:
+    type: integer
+  x:
+    type: number
+  y:
+    type: number
+  w:
+    type: number                     # rect/pdf/djvu width — OR the map's west edge
+  h:
+    type: number
+  n:
+    type: number                     # map north edge
+  s:
+    type: number                     # map south edge
+  e:
+    type: number                     # map east edge
+  image:
+    type: binary
+    format: image/png
+    description: A PNG crop of the region (image-like fragments only); a sidecar blob by pointer
+  created:
+    type: string
+  yamlover-annotations:
+    type: array
+    items: *:: yamlover: $defs: annotation

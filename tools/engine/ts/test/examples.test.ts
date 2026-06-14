@@ -53,7 +53,7 @@ test('67-pdf-tags: every tag membership pointer resolves (no dangling)', () => {
 test('67-pdf-tags: a tag description is its BODY — the node value, untagged scalar+fields', () => {
   const s = new Store(':memory:');
   s.indexDocument(load('67-pdf-tags'));
-  // a mid-taxonomy tag: body + sub-tags, authored WITHOUT !!omni (the schema declares variant)
+  // a mid-taxonomy tag: body + sub-tags, authored WITHOUT !!var (the schema declares variant)
   const math = s.node(':tags:field:mathematics');
   assert.equal(math?.format, 'x-yamlover-tag');
   assert.equal(math?.value, 'Mathematics');

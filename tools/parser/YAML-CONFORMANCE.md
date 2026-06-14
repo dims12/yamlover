@@ -39,7 +39,7 @@ Ordered roughly by impact (corpus cases) × independence. Counts are positive-co
 
 2. **Standard YAML tags** — `!!str !!int !!float !!bool !!null !!seq !!map !!binary`, local
    `!foo`, verbatim `!<…>`, and non-specific `!` (~9 parse failures + several value mismatches,
-   e.g. `!!str 12` → the string `"12"`). Must **coexist** with yamlover's own `!!mix` / `!!omni`
+   e.g. `!!str 12` → the string `"12"`). Must **coexist** with yamlover's own `!!mix` / `!!var`
    / `!!<…>` tags. This is the YAML-tag ↔ JSON-Schema-type mapping (`!!int`→integer, `!!seq`→
    array, …); see `META.md`.
 
@@ -83,7 +83,7 @@ When read *as yamlover*, these YAML spellings change meaning by design (see `URI
 - A key prefixed with `~` (`~name:`) is a **back-edge**, not a literal key.
 - A `~-` entry (`~- *…`) is a **keyless back-edge** (reverse positional membership,
   `URIs.md` §`~-`), not the plain scalar `~-`.
-- `!!mix` / `!!omni` / `!!<…>` / `!!set` are **yamlover tags** (mixed/variant containers,
+- `!!mix` / `!!var` / `!!<…>` / `!!set` are **yamlover tags** (mixed/variant containers,
   inline schema, set-semantics container), occupying the `!!` space that YAML uses for type
   tags — `!!set` in particular diverges from YAML's null-valued-mapping meaning.
 

@@ -100,9 +100,13 @@ function ChunkBlock({
     path: link?.path ?? "",
     type: link?.type ?? "string",
     format: link?.format ?? null,
+    // the renderer-dispatch facets (TYPES.md §9): a link carries them; a bare inline chunk is a string
+    valueType: link?.valueType ?? "string",
+    hasKeyed: link?.hasKeyed ?? false,
+    hasOrdinal: link?.hasOrdinal ?? false,
     documentPath, // carried so a marklower chunk's `/…` link resolves to its document
   };
-  const renderer = rendererFor(chunk.type, chunk.format);
+  const renderer = rendererFor(chunk);
   const body = renderer?.renderChunk
     ? renderer.renderChunk(chunk, onNavigate)
     : <p className="chapter-prose">{String(chunk.value ?? "")}</p>;

@@ -119,9 +119,11 @@ test('yamlover rt: !!set survives via meta', () => {
   assert.match(out, /crew: !!set/);
 });
 
-test('yamlover rt: root omni needs the explicit tag', () => {
-  const out = rtYamlover('!!omni Built-in tags\ncolors: palette\n');
-  assert.match(out, /^!!omni Built-in tags$/m);
+test('yamlover rt: root omni needs the explicit tag (canonical !!var)', () => {
+  const out = rtYamlover('!!var Built-in tags\ncolors: palette\n');
+  assert.match(out, /^!!var Built-in tags$/m);
+  // the deprecated `!!omni` alias parses to the same shape and also re-emits as `!!var`
+  assert.match(rtYamlover('!!omni Built-in tags\ncolors: palette\n'), /^!!var Built-in tags$/m);
 });
 
 test('yamlover rt: escaped keys (pointer metachars) and quoted keys', () => {

@@ -137,25 +137,28 @@ test('a directory chapter: the body.yamlover root schema tag attaches to the dir
   s.close();
 });
 
-test('67-pdf-tags (instance): omni-blobs (file + members) + a tag taxonomy via additionalProperties', () => {
+test('67-pdf-tags (instance): omni-blobs (file + embedded annotations) + a tag taxonomy', () => {
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
   const R = ':67-pdf-tags';
   // the tag taxonomy gets x-yamlover-tag propagated down the open-keyed tree
   assert.equal(s.node(R + ':tags')?.format, 'x-yamlover-tag');
   assert.equal(s.node(R + ':tags:field:mathematics:number-theory')?.format, 'x-yamlover-tag');
-  // a paper is the real file (a blob) AUGMENTED with members: a title + forward tag edges
+  // a paper is the real file (a blob) AUGMENTED with an owned `yamlover-annotations` array — an
+  // omni-blob (binary value + a field), the EMBEDDED tagging model (ANNOTATIONS.md).
   const euler = R + ':S0002-9904-1966-11654-3.pdf';
   assert.equal(s.node(euler)?.type, 'blob');
   assert.equal(s.node(euler)?.format, 'application/pdf');
-  // tag membership is authored BOTH ways, under a relation NAME that is FREE of the paper's key:
-  // euler's edge is named `euler-conjecture`, not its filename. Reverse `~euler-conjecture` on
-  // the paper, forward `euler-conjecture` on the tag — same label both ends.
-  const backs = s.relationships(euler).out.filter((e) => e.kind === 'back');
-  assert.ok(backs.some((e) => e.label === 'euler-conjecture' && e.to === R + ':tags:field:mathematics:number-theory'));
-  assert.ok(backs.some((e) => e.label === 'euler-conjecture' && e.to === R + ':tags:genre:brevity:shortest-paper'));
+  assert.ok(s.entries(euler).some((e) => e.kind === 'contain' && e.label === 'yamlover-annotations'));
+  // a tag application is a FORWARD ref from the paper's array straight to the leaf tag (no slug
+  // label) — the reverse direction of the old `&`-anchor membership.
+  const anns = euler + ':yamlover-annotations';
+  const tags = s.entries(anns).filter((e) => e.kind === 'ref').map((e) => e.to);
+  assert.ok(tags.includes(R + ':tags:field:mathematics:number-theory'));
+  assert.ok(tags.includes(R + ':tags:genre:brevity:shortest-paper'));
+  // the tag sees the paper's array as an incoming ref (the derived reverse → "materials under a tag")
   const nt = R + ':tags:field:mathematics:number-theory';
-  assert.ok(s.entries(nt).some((e) => e.kind === 'ref' && e.label === 'euler-conjecture' && e.to === euler));
+  assert.ok(s.relationships(nt).in.some((e) => e.kind === 'ref' && e.from === anns));
   s.close();
 });
 

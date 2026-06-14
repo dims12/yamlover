@@ -37,12 +37,13 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { Store, reindex, reindexAsync, hashFileAsync, watchTree, loadSettings, mv, relinkMoved, evalQuery } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
-import { pointerToken, anchorToken } from "../../../parser/ts/src/serialize-yamlover.ts";
+import { pointerToken } from "../../../parser/ts/src/serialize-yamlover.ts";
+import { appendAnnotation, upsertFragment, removeAnnotation as removeAnnotationItem, keyToken } from "./embed.js";
 import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
 import type { Node as IrNode } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
-import { displayKind, ownedEntries, typeName } from "./node-kind.js";
+import { displayKind, ownedEntries, typeName, facetsOf } from "./node-kind.js";
 import { TaskRegistry } from "./tasks.js";
 import type { TaskHandle } from "./tasks.js";
 
@@ -311,31 +312,27 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Create an annotation — ONE TAG APPLICATION (a WRITE path): persist it as a yamlover file
-      // under the project's default annotation location (settings.yamlover; `/annotations` by
-      // default), then index it so it joins the graph (reverse-linked to its material, member of
-      // its tag). An annotation is NOT tied to that location — it may be moved to (or authored
-      // in) any directory and keeps working; the setting only says where NEW ones land. Body:
-      // { target, tag, selector?, description? } — target/tag are the material's and the applied
-      // tag's JSON paths; no selector applies the tag to the WHOLE node.
+      // Create an annotation — TAG a target (a WRITE path; ANNOTATIONS.md). The tag application is
+      // appended to the target's own `yamlover-annotations` array, embedded in the target's host
+      // body (a `*.yamlover` document, or a directory's `.yamlover/body.yamlover` overlay keyed by
+      // filename). The target may be a whole node OR a fragment (`…:yamlover-fragments:<slug>`).
+      // Body: { target, tag, description?, params? } — target/tag are JSON paths; description/params
+      // make it a PARAMETRIZED annotation (an object element), else it is a bare tag pointer.
       if (req.method === "POST" && url.pathname === "/api/annotate") {
         readBody(req)
           .then((data) =>
-            // Queued: an incremental row added while a full walk (whose disk snapshot predates
-            // this annotation) is committing would be silently swapped away.
-            enqueue(() => {
-              const a = data as AnnotationInput;
+            enqueue(async () => {
+              const a = data as AnnotateInput;
               const tagStore = storePath(strToSegs(a.tag ?? ""));
               if (!a?.tag || s.node(tagStore)?.format !== TAG_FORMAT) {
                 throw new Error("annotation needs a `tag` that is an x-yamlover-tag node");
               }
-              const annPath = writeAnnotation(dataRoot, settings.annotations.location, a);
-              // Update the index INCREMENTALLY (not a full rebuild — that re-reads every changed
-              // file and blocks the next click). Add just this annotation's nodes + its edges.
-              const doc = parseYamlover(fs.readFileSync(path.join(dataRoot, ...strToSegs(annPath).map(String)), "utf8"), annPath);
-              s.addAnnotation(storePath(strToSegs(annPath)), storePath(strToSegs(a.target)), doc, tagStore);
-              announce({ added: [relFileOf(annPath)] });
-              return { path: annPath };
+              embedAnnotation(dataRoot, s, a);
+              // A surgical body edit changes a file's hash; the manifest-cached reconcile re-reads
+              // only the edited body (the /api/paste pattern), so the graph trues up in one pass.
+              broadcast(await doReindex());
+              scheduleHasher();
+              return { ok: true };
             }),
           )
           .then((body) => sendJson(res, 201, body))
@@ -343,15 +340,36 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Delete an annotation by its node path (recolor = delete + create, client-side). Removes
-      // the annotation FILE and its index rows — incrementally. Works wherever the annotation
-      // lives: the guard is its schema (`x-yamlover-annotation`), not a directory.
+      // Create a FRAGMENT — a user-marked region inside a target (a WRITE path; ANNOTATIONS.md).
+      // Stored under the target's `yamlover-fragments` mapping keyed by a fresh slug; for an
+      // image-like selection the optional `imageBase64` crop is written as a sidecar blob the
+      // fragment references. Body: { target, selector, imageBase64? } → { slug, fragmentPath }.
+      if (req.method === "POST" && url.pathname === "/api/fragment") {
+        readBody(req)
+          .then((data) =>
+            enqueue(async () => {
+              const f = data as FragmentInput;
+              if (!f?.selector || typeof f.selector !== "object") throw new Error("a fragment needs a selector");
+              const made = embedFragment(dataRoot, s, f);
+              broadcast(await doReindex());
+              scheduleHasher();
+              return made;
+            }),
+          )
+          .then((body) => sendJson(res, 201, body))
+          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
+        return;
+      }
+
+      // Delete an annotation (recolor = delete + create, client-side): remove the matching element
+      // from the target's `yamlover-annotations`. Body/query: { target, tag } (JSON paths).
       if (req.method === "DELETE" && url.pathname === "/api/annotate") {
-        const annPath = url.searchParams.get("path") || "";
-        enqueue(() => {
-          deleteAnnotation(dataRoot, s, annPath);
-          s.removeAnnotation(storePath(strToSegs(annPath)));
-          announce({ removed: [relFileOf(annPath)] });
+        const target = url.searchParams.get("target") ?? "";
+        const tag = url.searchParams.get("tag") || "";
+        enqueue(async () => {
+          if (!tag) throw new Error("delete needs a `tag`");
+          unembedAnnotation(dataRoot, s, target, tag);
+          broadcast(await doReindex());
         })
           .then(() => sendJson(res, 200, { ok: true }))
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
@@ -502,6 +520,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           path: segsToStr(segs),
           type: tocType(s, p, row),
           format: row.format ?? null,
+          ...facetsOf(s, p, row), // valueType / hasKeyed / hasOrdinal — the renderer dispatch facets (TYPES.md §9)
           concrete: concreteOf(dataRoot, segs, row), // dir | yamlover | null (stat-derived; engine tracks no per-node concrete yet)
           documentPath: documentPath(s, segs), // nearest enclosing document root (for `/…` links)
           title: titleOf(s, p),
@@ -675,7 +694,7 @@ function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unk
   const p = storePath(segs);
   const row = s.node(p)!;
   const k = displayKind(s, p, row);
-  const info: Record<string, unknown> = { kind: k, type: tocType(s, p, row), path: segsToStr(segs) };
+  const info: Record<string, unknown> = { kind: k, type: tocType(s, p, row), ...facetsOf(s, p, row), path: segsToStr(segs) };
   if (row.format) info.format = row.format;
   const concrete = concreteOf(dataRoot, segs, row);
   if (concrete) info.concrete = concrete; // a folder child renders with a folder icon
@@ -752,6 +771,7 @@ function binaryContent(dataRoot: string, segs: Seg[], row: NodeRow): Record<stri
 
 interface TreeNode {
   path: string; label: string; type: string; format: string | null;
+  valueType?: string | null; hasKeyed?: boolean; hasOrdinal?: boolean; // renderer dispatch facets (TYPES.md §9)
   concrete: string | null; hasChildren: boolean; children: TreeNode[];
 }
 
@@ -764,6 +784,7 @@ function buildTree(dataRoot: string, s: Store, segs: Seg[], label: string, depth
     label,
     type: tocType(s, p, row),
     format: row.format ?? null,
+    ...facetsOf(s, p, row),
     concrete: concreteOf(dataRoot, segs, row),
     hasChildren: s.hasChildren(p),
     children: [],
@@ -785,75 +806,123 @@ function labelFor(s: Store, p: string, keyOrIdx: Seg): string {
 }
 
 // --------------------------------------------------------------------------- //
-// Annotations — graph-native TAG APPLICATIONS: each is a yamlover object under
-// `<root>/annotations/`, pointing (`target: *//…`) at its material and holding a keyless `~-`
-// membership in its applied tag; a material's annotations are the inverse of the target edges.
+// Tags, fragments & annotations — EMBEDDED in the target (ANNOTATIONS.md). A user-marked region
+// is a FRAGMENT under the target's `yamlover-fragments` mapping (keyed by slug; selector + an
+// optional binary crop). TAGGING a target — a whole node or a fragment — appends to its
+// `yamlover-annotations` array: a bare tag pointer (`- *::tag`) or a `{tag, …params}` object. The
+// applied tag drives the color. A material's annotations / a tag's materials are derived from
+// these forward `*` edges. Writes edit the target's host body (a `*.yamlover` doc or a directory
+// `.yamlover/body.yamlover` overlay) surgically — see ./embed.ts.
 // --------------------------------------------------------------------------- //
 
 const TAG_FORMAT = "x-yamlover-tag";
+const ANN_KEY = "yamlover-annotations";
+const FRAG_KEY = "yamlover-fragments";
+const CROP_DIR = "fragments"; // crop sidecar blobs live here (a normal, indexable dir) at the served root
 
-interface AnnotationInput {
-  target: string; // the material's JSON path (e.g. "/60-simple-chapter.yamlover")
-  tag: string; // the applied tag's JSON path (e.g. "/yamlover/tags/colors/yellow")
-  selector?: Record<string, unknown>; // { type: "text", exact, prefix, suffix } | { type:"rect", … }; absent = whole node
-  description?: string; // the per-application comment
+interface AnnotateInput {
+  target: string; // the target's JSON path — a node, or a fragment (`…:yamlover-fragments:<slug>`)
+  tag: string; // the applied tag's JSON path
+  description?: string; // a parametrized annotation's comment
+  params?: Record<string, unknown>; // any other parameters (parametrized form)
 }
 
-/** The tag an annotation applies — its keyless `back` edge to an `x-yamlover-tag` node —
- *  projected as { path, name, color } (color = the tag's explicit `color`, else null: the
- *  client derives a hue from the name). Null for a legacy annotation with no tag. */
-function appliedTag(s: Store, annStorePath: string): { path: string; name: string; color: string | null } | null {
-  const e = s.relationships(annStorePath).out.find(
-    (t) => t.kind === "back" && t.label === null && s.node(t.to)?.format === TAG_FORMAT,
-  );
-  if (!e) return null;
-  const segs = storePathToSegs(e.to);
-  const color = s.node(e.to + ":color")?.value;
+interface FragmentInput {
+  target: string; // the node the region lives in (its JSON path)
+  selector: Record<string, unknown>; // { type:"text", exact, … } | { type:"pdf", page, x, y, w, h } | …
+  imageBase64?: string; // an optional PNG crop (image-like selections)
+}
+
+/** A child store-path: `parent` + `:key` (root `:` has no leading owner). */
+const childPath = (parent: string, key: string): string => (parent === ":" ? "" : parent) + ":" + key;
+
+/** A tag store-path projected as { path, name, color } — color = its explicit `color`, else null
+ *  (the client derives a hue from the name). Null when `tagStore` is not an x-yamlover-tag node. */
+function projectTag(s: Store, tagStore: string): { path: string; name: string; color: string | null } | null {
+  if (s.node(tagStore)?.format !== TAG_FORMAT) return null;
+  const segs = storePathToSegs(tagStore);
+  const color = s.node(tagStore + ":color")?.value;
   return { path: segsToStr(segs), name: String(segs[segs.length - 1] ?? ""), color: typeof color === "string" ? color : null };
 }
 
-/** The annotations whose `target` resolves to this material — the incoming `ref` edges from
- *  `x-yamlover-annotation` nodes — each projected to its full object (selector, description,
- *  created) plus its applied `tag` { path, name, color }. */
-function annotationsFor(dataRoot: string, s: Store, segs: Seg[]): unknown[] {
-  const p = storePath(segs);
-  const out: unknown[] = [];
-  for (const e of s.relationships(p).in) {
-    if (e.kind !== "ref") continue;
-    const src = s.node(e.from);
-    if (src?.format !== "x-yamlover-annotation") continue;
-    const aSegs = storePathToSegs(e.from);
-    out.push({
-      path: segsToStr(aSegs),
-      tag: appliedTag(s, e.from),
-      ...(projectValue(dataRoot, s, aSegs, 6, true) as Record<string, unknown>),
-    });
+/** The tag applications in a host node's `yamlover-annotations` array: a bare tag pointer (a `ref`
+ *  entry straight to the tag) or a `{tag, …params}` object (a `contain` entry whose `tag` field
+ *  refs the tag and whose scalar children are parameters). */
+function readAnnotations(s: Store, hostStore: string): { tag: ReturnType<typeof projectTag>; description?: string; params?: Record<string, unknown> }[] {
+  const arr = childPath(hostStore, ANN_KEY);
+  if (!s.node(arr)) return [];
+  const out: { tag: ReturnType<typeof projectTag>; description?: string; params?: Record<string, unknown> }[] = [];
+  for (const e of s.entries(arr)) {
+    if (e.kind === "ref") {
+      const tag = projectTag(s, e.to);
+      if (tag) out.push({ tag });
+    } else if (e.kind === "contain") {
+      const tagEdge = s.relationships(e.to).out.find((o) => o.kind === "ref" && o.label === "tag");
+      const tag = tagEdge ? projectTag(s, tagEdge.to) : null;
+      if (!tag) continue;
+      const params: Record<string, unknown> = {};
+      let description: string | undefined;
+      for (const c of s.children(e.to)) {
+        const v = s.node(c.to)?.value;
+        if (c.label === "description") description = v == null ? undefined : String(v);
+        else if (c.label) params[c.label] = v;
+      }
+      out.push({ tag, description, params: Object.keys(params).length ? params : undefined });
+    }
   }
   return out;
 }
 
-/** The MATERIALS filed under a tag — every node holding a `~` membership in it, with an
- *  annotation (one tag APPLICATION) resolved to its `target` material. Deduped by material:
- *  two annotations applying the same tag to one node, or a direct `~- *tag` alongside an
- *  annotation, show the material once. Subtags are containment children, not memberships —
- *  they never appear here. Ordered lexicographically by the member's path, like
- *  {@link downstreamEntries}' back-edge tail. */
+/** A host node's fragments: each slug's selector fields (geometry / text quote) + its crop URL,
+ *  read from the `yamlover-fragments` mapping. `image` is a `*` pointer (a ref edge) to the crop. */
+function readFragments(s: Store, hostStore: string): { slug: string; node: string; selector: Record<string, unknown>; imageUrl?: string }[] {
+  const frags = childPath(hostStore, FRAG_KEY);
+  if (!s.node(frags)) return [];
+  const out: { slug: string; node: string; selector: Record<string, unknown>; imageUrl?: string }[] = [];
+  for (const fc of s.children(frags)) {
+    if (!fc.label) continue;
+    const selector: Record<string, unknown> = {};
+    for (const c of s.children(fc.to)) {
+      if (c.label && c.label !== ANN_KEY && c.label !== "created") selector[c.label] = s.node(c.to)?.value;
+    }
+    const imgEdge = s.relationships(fc.to).out.find((o) => o.kind === "ref" && o.label === "image");
+    const imageUrl = imgEdge ? `/api/blob?path=${encodeURIComponent(segsToStr(storePathToSegs(imgEdge.to)))}` : undefined;
+    out.push({ slug: fc.label, node: fc.to, selector, imageUrl });
+  }
+  return out;
+}
+
+/** The annotations ON this material: its own whole-node tags, plus each fragment's tags carrying
+ *  that fragment's selector + crop (so the client highlights the region and colors by tag). */
+function annotationsFor(dataRoot: string, s: Store, segs: Seg[]): unknown[] {
+  void dataRoot;
+  const p = storePath(segs);
+  const out: unknown[] = [];
+  for (const a of readAnnotations(s, p)) out.push({ ...a });
+  for (const f of readFragments(s, p)) {
+    for (const a of readAnnotations(s, f.node)) {
+      out.push({ ...a, selector: f.selector, fragmentSlug: f.slug, ...(f.imageUrl ? { imageUrl: f.imageUrl } : {}) });
+    }
+  }
+  return out;
+}
+
+/** The MATERIALS filed under a tag — the reverse of the forward `*::tag` pointers authored in
+ *  `yamlover-annotations` arrays (a bare element's edge from the array, an object element's `tag`
+ *  field, or a legacy direct `~`/`&` membership). Each is climbed to its owning material or
+ *  fragment and deduped, ordered lexicographically by path. */
 function taggedMaterials(dataRoot: string, s: Store, tagStorePath: string): unknown[] {
   const seen = new Set<string>();
   const out: unknown[] = [];
-  const backs = s.relationships(tagStorePath).in
-    .filter((e) => e.kind === "back" && e.from)
+  const ins = s.relationships(tagStorePath).in
+    .filter((e) => (e.kind === "ref" || e.kind === "back") && e.from)
     .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
-  for (const e of backs) {
-    let material = e.from;
-    if (s.node(e.from)?.format === "x-yamlover-annotation") {
-      const t = s.relationships(e.from).out.find((o) => o.kind === "ref" && o.label === "target");
-      if (!t) continue; // a dangling annotation — no resolvable material
-      material = t.to;
-    }
-    if (seen.has(material) || !s.node(material)) continue;
-    seen.add(material);
-    out.push(linkMarker(dataRoot, s, storePathToSegs(material)));
+  for (const e of ins) {
+    const arrOwner = e.from.replace(/\[\d+\]$/, "").match(/^(.*):yamlover-annotations$/);
+    const owner = arrOwner ? arrOwner[1] || ":" : e.from; // an annotation array → its host; else a direct member
+    if (owner === tagStorePath || seen.has(owner) || !s.node(owner)) continue;
+    seen.add(owner);
+    out.push(linkMarker(dataRoot, s, storePathToSegs(owner)));
   }
   return out;
 }
@@ -874,30 +943,97 @@ function yScalar(v: unknown): string {
   return typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(String(v ?? ""));
 }
 
-/** Persist a new annotation (one tag application) as a yamlover file under the project's default
- *  annotation location (`settings.yamlover`; `/annotations` unless configured); returns its node
- *  path. The material and the applied tag are referenced with project-scoped deref pointers so
- *  the engine reverse-links them on re-index (a leading star + a "//path" project path; the tag
- *  as an ordinal path anchor `&//path/to/tag[]` — the deprecated `~-` spelling still parses).
- *  The location is only the CREATION default — an annotation file works from any directory. */
-function writeAnnotation(dataRoot: string, location: string, a: AnnotationInput): string {
-  if (!a?.target || !a?.tag) throw new Error("annotation needs a target and a tag");
-  const dir = path.resolve(dataRoot, ...strToSegs(location).map(String));
-  const root = path.resolve(dataRoot);
-  if (dir !== root && !dir.startsWith(root + path.sep)) throw new Error("annotation location escapes the data root");
-  fs.mkdirSync(dir, { recursive: true });
-  const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const file = `${id}.yamlover`;
-  const lines = [
-    "!!<*yamlover/$defs/annotation>",
-    `target: ${pointerToken(pointerRaw(a.target))}`,
-    anchorToken(`${pointerRaw(a.tag)}[]`), // the applied tag holds me (ordinal path anchor)
-  ];
-  if (a.selector) lines.push("selector:", ...Object.entries(a.selector).map(([k, v]) => `  ${k}: ${yScalar(v)}`));
-  if (a.description) lines.push(`description: ${yScalar(a.description)}`);
-  lines.push(`created: ${new Date().toISOString()}`, "");
-  fs.writeFileSync(path.join(dir, file), lines.join("\n"));
-  return `${location}:${file}`;
+/** The yamlover host body holding the node at `segs`, and the mapping-key path WITHIN it to that
+ *  node (ANNOTATIONS.md §3). A standalone `*.yamlover` document → the file itself (within = the
+ *  path inside it); a directory → its `.yamlover/body.yamlover` overlay; an on-disk blob (a PDF) →
+ *  the ENCLOSING directory's overlay, keyed by the filename. */
+function hostFor(dataRoot: string, s: Store, segs: Seg[]): { bodyFile: string; within: string[] } {
+  for (let i = segs.length; i >= 0; i--) {
+    const sub = segs.slice(0, i);
+    const abs = path.resolve(dataRoot, ...sub.map(String));
+    let st: fs.Stats | undefined;
+    try { st = fs.statSync(abs); } catch { continue; }
+    if (st.isDirectory()) return { bodyFile: path.join(abs, ".yamlover", "body.yamlover"), within: segs.slice(i).map(String) };
+    if (st.isFile()) {
+      const node = s.node(storePath(sub));
+      // Edit a MAPPING document in place (a new top-level key is valid). A leaf file — scalar,
+      // blob, or array — would become an UNTAGGED omni/mix if a key were appended to its source
+      // (a parse error under the current parser), so route it through the enclosing directory's
+      // overlay keyed by the filename: the engine merges the fields onto the file at IR level
+      // (augmentEntry — omni-blob), never reparsing a mixed source. ANNOTATIONS.md §3.
+      if (node?.meta?.documentRoot && node.type === "mapping" && !node.is_array) {
+        return { bodyFile: abs, within: segs.slice(i).map(String) };
+      }
+      const dir = path.resolve(dataRoot, ...sub.slice(0, -1).map(String));
+      return { bodyFile: path.join(dir, ".yamlover", "body.yamlover"), within: segs.slice(i - 1).map(String) };
+    }
+  }
+  return { bodyFile: path.join(dataRoot, ".yamlover", "body.yamlover"), within: segs.map(String) };
+}
+
+/** One `yamlover-annotations` element's source lines at the list `indent`: a bare tag pointer when
+ *  there are no parameters, else a `{tag, …}` object (block form). */
+function annotationItemLines(a: AnnotateInput, indent: number): string[] {
+  const pad = " ".repeat(indent);
+  const ptr = pointerToken(pointerRaw(a.tag));
+  const params: Record<string, unknown> = { ...(a.params ?? {}) };
+  if (a.description != null && a.description !== "") params.description = a.description;
+  const keys = Object.keys(params);
+  if (keys.length === 0) return [`${pad}- ${ptr}`];
+  return [`${pad}- tag: ${ptr}`, ...keys.map((k) => `${pad}  ${keyToken(k)}: ${yScalar(params[k])}`)];
+}
+
+/** A fragment's source lines at the fragments-map `indent` (`<slug>:` + selector + crop + created),
+ *  tagged so it indexes as an x-yamlover-fragment node. */
+function fragmentBlockLines(slug: string, selector: Record<string, unknown>, imagePtr: string | null, indent: number): string[] {
+  const pad = " ".repeat(indent);
+  const lines = [`${pad}${keyToken(slug)}: !!<*::yamlover:$defs:fragment>`];
+  for (const [k, v] of Object.entries(selector)) lines.push(`${pad}  ${keyToken(k)}: ${yScalar(v)}`);
+  if (imagePtr) lines.push(`${pad}  image: ${imagePtr}`);
+  lines.push(`${pad}  created: ${new Date().toISOString()}`);
+  return lines;
+}
+
+/** Embed a tag application into the target's `yamlover-annotations` array (editing the target's
+ *  host body in place — ANNOTATIONS.md). */
+function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): void {
+  const { bodyFile, within } = hostFor(dataRoot, s, strToSegs(a.target || ":"));
+  fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
+  const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
+  fs.writeFileSync(bodyFile, appendAnnotation(src, within, (indent) => annotationItemLines(a, indent)));
+}
+
+/** Embed a fragment under the target's `yamlover-fragments` mapping; for an image-like selection,
+ *  write the PNG crop as a sidecar blob the fragment references. Returns its slug + node path. */
+function embedFragment(dataRoot: string, s: Store, f: FragmentInput): { slug: string; fragmentPath: string } {
+  const segs = strToSegs(f.target || ":");
+  const { bodyFile, within } = hostFor(dataRoot, s, segs);
+  const slug = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  let imagePtr: string | null = null;
+  if (f.imageBase64) {
+    const bytes = Buffer.from(String(f.imageBase64).replace(/^data:[^,]*,/, ""), "base64");
+    if (bytes.length > 0) {
+      const cropDir = path.join(dataRoot, CROP_DIR);
+      fs.mkdirSync(cropDir, { recursive: true });
+      const cropName = `${slug}.png`;
+      writeInside(dataRoot, cropDir, cropName, bytes);
+      imagePtr = pointerToken(pointerRaw(segsToStr([CROP_DIR, cropName])));
+    }
+  }
+  fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
+  const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
+  fs.writeFileSync(bodyFile, upsertFragment(src, within, slug, (indent) => fragmentBlockLines(slug, f.selector, imagePtr, indent)));
+  return { slug, fragmentPath: segsToStr([...segs, FRAG_KEY, slug]) };
+}
+
+/** Remove a tag application from the target's `yamlover-annotations` array — the first element
+ *  referencing `tag` (bare pointer or object `tag:` field). */
+function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: string): void {
+  const { bodyFile, within } = hostFor(dataRoot, s, strToSegs(target || ":"));
+  if (!fs.existsSync(bodyFile)) return;
+  const needle = pointerRaw(tag); // ::path:to:tag — present in both the bare and object forms
+  const src = fs.readFileSync(bodyFile, "utf8");
+  fs.writeFileSync(bodyFile, removeAnnotationItem(src, within, (itemText) => itemText.includes(needle)));
 }
 
 /** Persist a NEW named tag as a key of the tag-taxonomy body at the project's default tags
@@ -918,7 +1054,7 @@ function writeTag(
   const createdFile = !fs.existsSync(file);
   const head = "# Named tags created from the annotation picker (settings.yamlover: tags.location).\n";
   const existing = createdFile ? head : fs.readFileSync(file, "utf8");
-  const body = (existing === "" || existing.endsWith("\n") ? existing : existing + "\n") + `${name}: !!<*yamlover/$defs/tag>\n`;
+  const body = (existing === "" || existing.endsWith("\n") ? existing : existing + "\n") + `${name}: !!<*::yamlover:$defs:tag>\n`;
   const entries = parseYamlover(body, file).root.entries ?? [];
   const pos = entries.findIndex((e) => e.key === name);
   const entry = pos >= 0 ? entries[pos] : undefined;
@@ -928,21 +1064,6 @@ function writeTag(
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(file, body);
   return { node: entry.value, pos, file: [...strToSegs(location).map(String), ".yamlover", "body.yamlover"].join("/"), createdFile };
-}
-
-/** Delete an annotation file given its node path. The guard is the GRAPH, not a directory: the
- *  node must be indexed as an `x-yamlover-annotation` and be a whole standalone `.yamlover` file
- *  (an annotation authored inline in a shared document cannot be deleted this way), inside the
- *  served root. So an annotation moved to any directory remains deletable. */
-function deleteAnnotation(dataRoot: string, s: Store, annPath: string): void {
-  const segs = strToSegs(annPath);
-  if (!String(segs[segs.length - 1] ?? "").endsWith(".yamlover")) throw new Error("not an annotation file");
-  if (s.node(storePath(segs))?.format !== "x-yamlover-annotation") throw new Error("not an annotation node");
-  const root = path.resolve(dataRoot);
-  const file = path.resolve(dataRoot, ...segs.map(String));
-  if (!file.startsWith(root + path.sep)) throw new Error("outside the served root");
-  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) throw new Error("not an annotation file");
-  fs.rmSync(file, { force: true });
 }
 
 // --------------------------------------------------------------------------- //
@@ -1061,7 +1182,7 @@ function pasteTextAsChapterFile(dataRoot: string, segs: Seg[], text: string): Re
   const dir = path.resolve(dataRoot, ...dirSegs.map(String));
   const title = titleFromText(text);
   const final = uniqueName(dir, chapterFileName(title));
-  const src = ["!!<*yamlover/$defs/chapter>", `title: ${JSON.stringify(title)}`, "chunks:", ...textChunkLines(text, 0), ""].join("\n");
+  const src = ["!!<*::yamlover:$defs:chapter>", `title: ${JSON.stringify(title)}`, "chunks:", ...textChunkLines(text, 0), ""].join("\n");
   writeInside(dataRoot, dir, final, Buffer.from(src, "utf8"));
   return { path: segsToStr([...dirSegs, final]), dir: segsToStr(dirSegs), open: dirSegs.length !== segs.length };
 }
@@ -1181,7 +1302,7 @@ function pasteRichAsChapter(dataRoot: string, segs: Seg[], rich: Rich): Record<s
 
 /** The whole .yamlover source of a new rich chapter (the tag, the title, chunks, children). */
 function renderChapterSource(title: string, rich: Rich, pointerFor: (name: string, bytes: Buffer) => string): string {
-  const lines = ["!!<*yamlover/$defs/chapter>", `title: ${JSON.stringify(title)}`];
+  const lines = ["!!<*::yamlover:$defs:chapter>", `title: ${JSON.stringify(title)}`];
   if (rich.chunks.length) lines.push("chunks:", ...rich.chunks.flatMap((c) => richItemLines(c, 0, pointerFor)));
   if (rich.children.length) lines.push("children:", ...rich.children.flatMap((k) => richChildLines(k, 0, pointerFor)));
   return lines.join("\n") + "\n";

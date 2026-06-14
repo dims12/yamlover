@@ -1,25 +1,18 @@
-# $defs/annotation — ONE TAG APPLICATION: a region of a material (or the whole material) tagged
-# by exactly one tag, saved as its own object and reverse-linked to the material. `target` is a
-# project-scoped pointer (//…) at the annotated material; the engine derives the material's
-# annotations as the inverse of these edges. The applied TAG is a keyless reverse membership —
-# `~- *//path/to/tag` — so the annotation is a member of its tag like any tagged node; two tags
-# on the same region = two annotation nodes. `selector` (optional — absent applies the tag to the
-# WHOLE node) locates the segment WITHIN the material — its `type` says how: a text quote
-# {type:text, exact, prefix, suffix}, an image/pdf rect {type:rect|pdf, x,y,w,h (pdf adds page)},
-# a map region {type:map, n,s,e,w (geographic edges)}. The display color always comes from the
-# applied tag (its `color`, else its name-derived hue) — never from the selector. `description`
-# is an optional per-application comment. Attach with the tag !!<*yamlover/$defs/annotation>.
-type: object
+# $defs/annotation — ONE TAG APPLICATION on the host node (a whole document, or a fragment within
+# it). It lives as an element of the host's `yamlover-annotations` array. Two forms:
+#   • parameterless — a bare tag pointer (`- *::tags:…`): the host simply HAS this tag.
+#   • parametrized  — an object carrying `tag: *::tags:…` plus parameters (e.g. `description`).
+# The applied tag drives the display color (its `color`, else a name-derived hue). The region, if
+# any, is the host fragment's selector — an annotation carries no selector of its own. This
+# replaces the old separate-file annotation (a `target` pointer + `selector` + reverse tag
+# membership). The tag pointer IS the data (a forward ref edge into the tag); the schema tag
+# !!<*::yamlover/$defs/annotation> is optional, for the parametrized object form.
+type: variant
 format: x-yamlover-annotation
+value: *:: yamlover: $defs: tag          # the parameterless case: the self-value IS a tag (by ref)
 properties:
-  target:
-    type: string
-    description: A project-scoped pointer (//…) to the annotated material
-  selector:
-    type: object
-    description: How to find the segment within the material; absent = the whole node
+  tag: *:: yamlover: $defs: tag          # the parametrized case: the applied tag, by pointer
   description:
     type: string
     format: text/marklower
-  created:
-    type: string
+additionalProperties: true               # any other field is a free-form parameter

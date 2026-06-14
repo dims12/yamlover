@@ -34,7 +34,7 @@ export interface NodeMeta {
   documentRoot?: boolean;
   /** SET semantics (`!!set` tag / `uniqueItems: true` in meta): an element appears at most
    *  once, so duplicate memberships — forward+forward, forward+`~-` reverse, reverse+reverse —
-   *  collapse to one (URIs.md §`~-`). Unlike `!!mix`/`!!omni` (parse permissions visible in the
+   *  collapse to one (URIs.md §`~-`). Unlike `!!mix`/`!!var` (parse permissions visible in the
    *  node's shape), this must survive into the graph. */
   set?: boolean;
 }

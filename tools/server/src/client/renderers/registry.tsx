@@ -79,6 +79,9 @@ export interface Chunk {
   path: string;
   type: string;
   format: string | null;
+  valueType?: string | null; // renderer dispatch facets (TYPES.md §9) — so a tagged chunk still routes
+  hasKeyed?: boolean;
+  hasOrdinal?: boolean;
   /** The JSON-space path of the document this chunk belongs to (the enclosing
    *  chapter's `documentPath`) — the anchor a document-relative (`/…`) marklower
    *  link in the chunk resolves against. */
@@ -99,11 +102,32 @@ export interface TocView {
   loadDepth?: number;
 }
 
+/** The three TYPE FACETS a renderer dispatches on (TYPES.md §9): the scalar self-VALUE's type,
+ *  the node's `format`, and whether it owns keyed/ordinal elements. */
+export interface TypeFacets {
+  valueType: string | null;
+  format: string | null;
+  hasKeyed: boolean;
+  hasOrdinal: boolean;
+}
+/** A renderer's acceptance predicate — a hand-coded type formula. What it does NOT test, it
+ *  TOLERATES: a `byFormat("text/markdown")` matcher ignores the keyed/ordinal facets, so a
+ *  markdown chunk that gained `yamlover-annotations` keys (an omni node) still matches. */
+export type Accepts = (f: TypeFacets) => boolean;
+
+/** Any projected node/chunk/link shape carrying the facet fields. */
+type FacetSource = { type?: string; format?: string | null; valueType?: string | null; hasKeyed?: boolean; hasOrdinal?: boolean };
+const facetsFrom = (n: FacetSource): TypeFacets => ({ valueType: n.valueType ?? null, format: n.format ?? null, hasKeyed: !!n.hasKeyed, hasOrdinal: !!n.hasOrdinal });
+/** The common matcher: claims a node whose `format` is one of `fmts` — tolerant of all structure. */
+const byFormat = (...fmts: string[]): Accepts => (f) => f.format !== null && fmts.includes(f.format);
+
 export interface Renderer {
   name: string;
-  /** The (type, format) tuples this renderer claims. A `null` format matches a
-   *  node that carries no `format`; a string format matches that format exactly. */
-  accepts: ReadonlyArray<readonly [type: string, format: string | null]>;
+  /** Whether this renderer claims a node, from its {@link TypeFacets}. */
+  accepts: Accepts;
+  /** Tie-break among matches — the highest wins. Format matchers are 2; the bare-string
+   *  default (marklower) is 1. */
+  specificity: number;
   /** Value depth `NodeView` must fetch for this renderer (default 1). A chapter
    *  needs 2: its `chunks`/`children` arrays one level, their elements the next. */
   depth?: number;
@@ -129,12 +153,10 @@ export interface Renderer {
  */
 const EXPLORER: Renderer = {
   name: "explorer",
-  accepts: [
-    ["object", "x-yamlover-tag"],
-    ["variant", "x-yamlover-tag"],
-    ["string", "x-yamlover-tag"],
-    ["null", "x-yamlover-tag"],
-  ],
+  // a tag, whatever shape it projects (object / variant / leaf string / bare null) — the format
+  // alone identifies it; the grid shows the tagged MATERIALS. Also the dir-concrete fallback below.
+  accepts: byFormat("x-yamlover-tag"),
+  specificity: 2,
   render: (node, onNavigate) => <ExplorerView node={node} onNavigate={onNavigate} />,
   config: (rerender) => <ExplorerViewControl rerender={rerender} />, // large/small icons (`?view=`)
 };
@@ -145,7 +167,8 @@ const isDirConcrete = (concrete: string | null | undefined): boolean => concrete
 const REGISTRY: Renderer[] = [
   {
     name: "chapter",
-    accepts: [["object", "x-yamlover-chapter"]],
+    accepts: byFormat("x-yamlover-chapter"),
+    specificity: 2,
     depth: 2, // reach the chunk/subchapter elements (arrays one level, items the next)
     tocView: chapterTocView,
     render: (node, onNavigate) => <ChapterView node={node} onNavigate={onNavigate} />,
@@ -155,10 +178,8 @@ const REGISTRY: Renderer[] = [
     // notch below Markdown. A chapter's prose chunks route here — both the bare
     // (string, null) form and the explicit `text/marklower` the chunk schema applies.
     name: "marklower",
-    accepts: [
-      ["string", null],
-      ["string", "text/marklower"],
-    ],
+    accepts: (f) => f.format === "text/marklower" || (f.format === null && f.valueType === "string"),
+    specificity: 1, // the bare-string default — a tagged bare string (format-less) still routes here
     render: (node, onNavigate) => <MarklowerView node={node} onNavigate={onNavigate} />,
     renderChunk: (chunk, onNavigate) => <MarklowerChunk chunk={chunk} onNavigate={onNavigate} />,
   },
@@ -166,14 +187,16 @@ const REGISTRY: Renderer[] = [
     // Markdown (the component file is text.tsx for historical reasons; the renderer —
     // its tab label and `?format=` key — is named for what it renders).
     name: "markdown",
-    accepts: [["string", "text/markdown"]],
+    accepts: byFormat("text/markdown"),
+    specificity: 2,
     render: (node) => <TextView node={node} />,
     renderChunk: (chunk) => <TextChunk chunk={chunk} />,
     config: (rerender) => <MarkupWidthControl rerender={rerender} />,
   },
   {
     name: "asciidoc",
-    accepts: [["string", "text/asciidoc"]],
+    accepts: byFormat("text/asciidoc"),
+    specificity: 2,
     render: (node) => <AsciidocView node={node} />,
     renderChunk: (chunk) => <AsciidocChunk chunk={chunk} />,
     config: (rerender) => <MarkupWidthControl rerender={rerender} />,
@@ -182,10 +205,8 @@ const REGISTRY: Renderer[] = [
     // Delimited text (CSV/TSV, a string) shown as a table; its parsing options
     // (separator, header) ride in the URL query — see csv.tsx.
     name: "csv",
-    accepts: [
-      ["string", "text/csv"],
-      ["string", "text/tab-separated-values"],
-    ],
+    accepts: byFormat("text/csv", "text/tab-separated-values"),
+    specificity: 2,
     render: (node) => <CsvView node={node} />,
     renderChunk: (chunk) => <CsvChunk chunk={chunk} />,
     config: (rerender) => <CsvControls rerender={rerender} />,
@@ -195,7 +216,8 @@ const REGISTRY: Renderer[] = [
     // CP866 / Windows-1251 / KOI8-R / UTF-8 (see plaintext.tsx). Served as raw
     // bytes so the encoding is the client's to choose.
     name: "plaintext",
-    accepts: [["binary", "text/plain"]],
+    accepts: byFormat("text/plain"),
+    specificity: 2,
     render: (node) => <PlaintextView node={node} />,
     renderChunk: (chunk) => <PlaintextChunk chunk={chunk} />,
     config: (rerender) => <EncodingControl rerender={rerender} />,
@@ -203,41 +225,40 @@ const REGISTRY: Renderer[] = [
   {
     // RTF — a dependency-free converter to HTML (see rtf.tsx).
     name: "rtf",
-    accepts: [["binary", "application/rtf"]],
+    accepts: byFormat("application/rtf"),
+    specificity: 2,
     render: (node) => <RtfView node={node} />,
     renderChunk: (chunk) => <RtfChunk chunk={chunk} />,
   },
   {
     // .docx (Office Open XML) via mammoth, lazily loaded.
     name: "docx",
-    accepts: [["binary", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]],
+    accepts: byFormat("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    specificity: 2,
     render: (node) => lazily(<DocxView node={node} />),
     renderChunk: (chunk) => lazily(<DocxChunk chunk={chunk} />),
   },
   {
     // Excel workbooks — .xlsx and legacy .xls — via SheetJS, lazily loaded.
     name: "spreadsheet",
-    accepts: [
-      ["binary", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
-      ["binary", "application/vnd.ms-excel"],
-    ],
+    accepts: byFormat("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel"),
+    specificity: 2,
     render: (node) => lazily(<SpreadsheetView node={node} />),
     renderChunk: (chunk) => lazily(<SpreadsheetChunk chunk={chunk} />),
   },
   {
     // Legacy .doc (Word 97–2003 binary) — no in-browser parser; download fallback.
     name: "doc",
-    accepts: [["binary", "application/msword"]],
+    accepts: byFormat("application/msword"),
+    specificity: 2,
     render: (node) => <DocView node={node} />,
     renderChunk: (chunk) => <DocChunk chunk={chunk} />,
   },
   {
     // KML / KMZ geographic overlays drawn on a Leaflet map (lazily loaded).
     name: "map",
-    accepts: [
-      ["binary", "application/vnd.google-earth.kml+xml"],
-      ["binary", "application/vnd.google-earth.kmz"],
-    ],
+    accepts: byFormat("application/vnd.google-earth.kml+xml", "application/vnd.google-earth.kmz"),
+    specificity: 2,
     render: (node) => lazily(<MapView node={node} />),
     renderChunk: (chunk) => lazily(<MapChunk chunk={chunk} />),
   },
@@ -245,7 +266,8 @@ const REGISTRY: Renderer[] = [
     // LaTeX math (a string) typeset with KaTeX, both whole and inline. marklower
     // reuses the same engine for its `$$…$$` spans.
     name: "latex",
-    accepts: [["string", "text/x-latex"]],
+    accepts: byFormat("text/x-latex"),
+    specificity: 2,
     render: (node) => <LatexView node={node} />,
     renderChunk: (chunk) => <LatexChunk chunk={chunk} />,
   },
@@ -253,7 +275,8 @@ const REGISTRY: Renderer[] = [
     // PlantUML source (a string) shown as the diagram it compiles to, both as a
     // whole node and inline as a chapter chunk.
     name: "plantuml",
-    accepts: [["string", "text/x-plantuml"]],
+    accepts: byFormat("text/x-plantuml"),
+    specificity: 2,
     render: (node) => <PlantumlView node={node} />,
     renderChunk: (chunk) => <PlantumlChunk chunk={chunk} />,
   },
@@ -261,64 +284,64 @@ const REGISTRY: Renderer[] = [
   {
     // File-backed binaries the server tags with an inferred image format.
     name: "image",
-    accepts: [
-      ["binary", "image/png"],
-      ["binary", "image/jpeg"],
-      ["binary", "image/gif"],
-      ["binary", "image/webp"],
-      ["binary", "image/avif"],
-      ["binary", "image/bmp"],
-      ["binary", "image/x-icon"],
-      ["binary", "image/svg+xml"],
-    ],
+    accepts: byFormat("image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/bmp", "image/x-icon", "image/svg+xml"),
+    specificity: 2,
     render: (node) => lazily(<ImageView node={node} />),
     renderChunk: (chunk) => lazily(<ImageChunk chunk={chunk} />),
   },
   {
     name: "html",
-    accepts: [["binary", "text/html"]],
+    accepts: byFormat("text/html"),
+    specificity: 2,
     render: (node) => <HtmlView node={node} />,
     renderChunk: (chunk) => <HtmlView node={chunkNode(chunk)} />,
   },
   {
     name: "fb2",
-    accepts: [["binary", "application/x-fictionbook+xml"]],
+    accepts: byFormat("application/x-fictionbook+xml"),
+    specificity: 2,
     render: (node) => <Fb2View node={node} />,
     renderChunk: (chunk) => <Fb2View node={chunkNode(chunk)} />,
   },
   {
     name: "epub",
-    accepts: [["binary", "application/epub+zip"]],
+    accepts: byFormat("application/epub+zip"),
+    specificity: 2,
     render: (node) => <EpubView node={node} />,
     renderChunk: (chunk) => <EpubView node={chunkNode(chunk)} />,
   },
   {
     name: "pdf",
-    accepts: [["binary", "application/pdf"]],
+    accepts: byFormat("application/pdf"),
+    specificity: 2,
     render: (node) => lazily(<PdfView node={node} />),
     renderChunk: (chunk) => lazily(<PdfView node={chunkNode(chunk)} />),
   },
   {
     name: "djvu",
-    accepts: [["binary", "image/vnd.djvu"]],
+    accepts: byFormat("image/vnd.djvu"),
+    specificity: 2,
     render: (node) => lazily(<DjvuView node={node} />),
     renderChunk: (chunk) => lazily(<DjvuView node={chunkNode(chunk)} />),
   },
   {
     name: "psd",
-    accepts: [["binary", "image/vnd.adobe.photoshop"]],
+    accepts: byFormat("image/vnd.adobe.photoshop"),
+    specificity: 2,
     render: (node) => lazily(<PsdView node={node} />),
     renderChunk: (chunk) => lazily(<PsdView node={chunkNode(chunk)} />),
   },
   {
     name: "tiff",
-    accepts: [["binary", "image/tiff"]],
+    accepts: byFormat("image/tiff"),
+    specificity: 2,
     render: (node) => lazily(<TiffView node={node} />),
     renderChunk: (chunk) => lazily(<TiffView node={chunkNode(chunk)} />),
   },
   {
     name: "heic",
-    accepts: [["binary", "image/heic"]],
+    accepts: byFormat("image/heic"),
+    specificity: 2,
     render: (node) => lazily(<HeicView node={node} />),
     renderChunk: (chunk) => lazily(<HeicView node={chunkNode(chunk)} />),
   },
@@ -356,33 +379,32 @@ function chapterTocView(node: TreeNode): TocView {
   };
 }
 
-/** The renderer whose `accepts` covers `(type, format)`, or null when none does. */
-export function rendererFor(type: string, format: string | null): Renderer | null {
-  return REGISTRY.find((r) => r.accepts.some(([t, f]) => t === type && f === format)) ?? null;
+/** The renderer that claims `src`'s facets, or null when none does: of the matchers that accept
+ *  it, the most SPECIFIC (highest `specificity`) wins (TYPES.md §9). */
+export function rendererFor(src: FacetSource): Renderer | null {
+  const f = facetsFrom(src);
+  let best: Renderer | null = null;
+  for (const r of REGISTRY) if (r.accepts(f) && (best === null || r.specificity > best.specificity)) best = r;
+  return best;
 }
 
-/** The renderer for a node: its (type, format) claim, else — for a node stored as a
- *  filesystem directory that no format renderer claims (a dir-backed chapter stays a
- *  chapter) — the explorer, else null → the default tabbed view. */
+/** The renderer for a node: its facet claim, else — for a node stored as a filesystem directory
+ *  that no format renderer claims (a dir-backed chapter stays a chapter) — the explorer, else
+ *  null → the default tabbed view. */
 export function getRenderer(node: NodeJson): Renderer | null {
-  const r = rendererFor(node.type, node.format ?? null);
-  if (r) return r;
-  return isDirConcrete(node.concrete) ? EXPLORER : null;
+  return rendererFor(node) ?? (isDirConcrete(node.concrete) ? EXPLORER : null);
 }
 
-/** The name (= representation key / `?format=` value) of the renderer for
- *  `(type, format)` — with the same directory-concrete explorer fallback as
- *  {@link getRenderer} — or null when none claims it. */
-export function rendererName(type: string, format: string | null, concrete?: string | null): string | null {
-  const r = rendererFor(type, format);
-  if (r) return r.name;
-  return isDirConcrete(concrete) ? EXPLORER.name : null;
+/** The name (= representation key / `?format=` value) of the renderer that claims `src` — with the
+ *  same directory-concrete explorer fallback as {@link getRenderer} — or null when none claims it. */
+export function rendererName(src: FacetSource, concrete?: string | null): string | null {
+  return rendererFor(src)?.name ?? (isDirConcrete(concrete) ? EXPLORER.name : null);
 }
 
 /** How `node` appears in the TOC: its renderer's `tocView`, or — when no renderer
  *  claims it — its own children, lazily loaded (the passive default). */
 export function tocView(node: TreeNode): TocView {
-  const r = rendererFor(node.type, node.format);
+  const r = rendererFor(node);
   if (r?.tocView) return r.tocView(node);
   const loaded = node.children.length > 0;
   return { children: node.children, expandable: loaded ? node.children.length > 0 : node.hasChildren, loaded };

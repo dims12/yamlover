@@ -60,9 +60,9 @@ samePos:    *playlist[2]       # position 2 IS the keyed entry -> "Greatest Hits
 # ---- a node can be EVERYTHING at once: a scalar value AND positional AND keyed fields ----
 # Plain YAML makes a node a scalar XOR a sequence XOR a mapping. yamlover unifies all three:
 # an inline scalar value, then a DEEPER block of mixed entries, is ONE node that carries its
-# value and its fields together. Like `!!mix`, the `!!omni` tag is an optional marker.
+# value and its fields together. Like `!!mix`, the `!!var` tag is an optional marker.
 
-rating: !!omni 5                  # the node's own scalar value …
+rating: !!var 5                  # the node's own scalar value …
   - solid                  # [0]  a positional field
   - recommended            # [1]  positional
   scale: 10                # [2]  keyed field

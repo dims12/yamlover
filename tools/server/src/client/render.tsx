@@ -15,19 +15,22 @@ import { ReactNode } from "react";
 const LINK_KEY = "$yamloverLink";
 const BINARY_KEY = "$yamloverBinary";
 const REF_KEY = "$yamloverRef";
-// An omni/mix node (a `!!omni` self-value + fields, or a `!!mix` of items + fields) arrives as
+// An omni/mix node (a `!!var` self-value + fields, or a `!!mix` of items + fields) arrives as
 // `{ [MIXED_KEY]: {kind, value?, entries:[{key,value}]} }`, rendered in yamlover as a leading
 // scalar (omni) then each entry positional (`- v`, key=null) or keyed (`k: v`).
 const MIXED_KEY = "$yamloverMixed";
 
 export interface Link {
   kind: "object" | "array" | "scalar" | "binary" | "omni" | "mix";
-  type?: string; // the target's JSON-Schema type; with `format`, the routing key
+  type?: string; // the target's JSON-Schema type; with the facets, the routing key
   path: string;
   title?: string; // the target's schema title, when set (used as a link label)
   count?: number;
   size?: number;
   format?: string | null;
+  valueType?: string | null; // renderer dispatch facets (TYPES.md §9) — carried so a chunk routes correctly
+  hasKeyed?: boolean;
+  hasOrdinal?: boolean;
   value?: unknown; // for a link to a scalar: its value, shown as the label
   color?: string | null; // for a link to a pure color tag: its explicit color (badges)
   concrete?: string | null; // how the target is stored; `dir`/`yamlover` → a folder icon
@@ -65,6 +68,16 @@ export const asLink = (v: unknown) => asSingle<Link>(v, LINK_KEY);
 const asBinary = (v: unknown) => asSingle<BinaryPayload>(v, BINARY_KEY);
 const asRef = (v: unknown) => asSingle<Ref>(v, REF_KEY);
 const asMixed = (v: unknown) => asSingle<Mixed>(v, MIXED_KEY);
+
+/** The scalar SELF-VALUE a string/scalar renderer should show. An OMNI node (a scalar that also
+ *  carries fields — e.g. a markdown doc that gained `yamlover-annotations` keys) projects its page
+ *  `value` as a `$yamloverMixed` marker, so peel it to the self-value; a plain scalar passes
+ *  through. Pairs with the facet-tolerant dispatch (TYPES.md §9): routing keeps an annotated string
+ *  on its renderer, and this hands that renderer the string — not the marker object. */
+export function scalarValue(v: unknown): unknown {
+  const m = asMixed(v);
+  return m && m.kind === "omni" ? m.value : v;
+}
 
 type Syntax = "yaml" | "json";
 
@@ -197,7 +210,7 @@ function emitYaml(value: unknown, indent: number, out: ReactNode[], kc: KC, nav:
   const mixed = asMixed(value);
   if (mixed) {
     const pad = " ".repeat(indent);
-    // omni: the node's own scalar value on its own line first (`!!omni 5` → `5`)
+    // omni: the node's own scalar value on its own line first (`!!var 5` → `5`)
     if (mixed.kind === "omni") out.push(pad, scalarNode(mixed.value, "yaml", kc), "\n");
     for (const e of mixed.entries) {
       if (e.key === null) {

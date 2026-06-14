@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, saveAnnotation, deleteAnnotation } from "../api";
+import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation } from "../api";
 import { TAG_FORMAT, explicitColor, resolveTagColor, tagFields } from "./tag";
-import { canonPath, strToSegs } from "../paths";
+import { canonPath, displayPath, strToSegs } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
 
 /**
@@ -57,10 +57,10 @@ function annKey(a: Annotation): string {
 /** Whether an annotation can be edited/deleted here — any STANDALONE annotation file (its node
  *  path is the `.yamlover` file itself), wherever it lives in the tree: annotations are graph
  *  nodes, not residents of a fixed folder, so one moved to another directory stays editable.
- *  Excludes the optimistic `(pending)` placeholders and "frozen" annotations authored inline in
- *  shared documents (which the server can't delete without editing that document). */
+ *  Every embedded annotation (one with a resolved tag) is editable — re-tag/delete just edits its
+ *  host body. Transient markers (a `(preview)`/`(pending)` placeholder) are not. */
 export function editable(a: Annotation): boolean {
-  return typeof a.path === "string" && a.path.endsWith(".yamlover");
+  return !!a.tag && a.path !== "(preview)" && a.path !== "(pending)";
 }
 
 // The color tags as indexed (fetched once per session; the constant covers offline/legacy roots).
@@ -85,6 +85,41 @@ export function useColorTags(): TagRef[] {
     colorTagsPromise.then((t) => { if (!cancelled) setTags(t); });
     return () => { cancelled = true; };
   }, []);
+  return tags;
+}
+
+// Enumerate every NAMED tag in the project for the picker typeahead: a document-root recursive
+// descent, format-filtered (QUERY.md "all tag nodes"). Document-root scope finds tags wherever
+// `settings.tags.location` puts them — the client need not know that path. The grafted COLOR
+// palette lives off the document root (link scope `::yamlover:…`) so it is naturally absent;
+// the defensive filter below also drops any color tag a project re-themes in-tree (those are the
+// swatch row, not the suggestion list).
+const TAG_QUERY = ": ...: !!<format: x-yamlover-tag>";
+
+function indexToRefs(paths: string[]): TagRef[] {
+  const seen = new Set<string>();
+  const out: TagRef[] = [];
+  for (const p of paths) {
+    const cp = canonPath(p);
+    if (cp.startsWith(":yamlover:tags:colors:") || seen.has(cp)) continue; // colors → swatch row
+    seen.add(cp);
+    out.push({ path: p, name: tagNameOf(p), color: null }); // named tag → hue derived from name
+  }
+  return out;
+}
+
+/** The project's named tags, enumerated once and re-enumerated when a `.yamlover` source changes
+ *  (so a freshly created tag appears). Feeds the picker's typeahead suggestions. */
+export function useTagIndex(): TagRef[] {
+  const [tags, setTags] = useState<TagRef[]>([]);
+  const bump = useDiffBump(touchesYamlover);
+  useEffect(() => {
+    let cancelled = false;
+    query(TAG_QUERY)
+      .then((paths) => { if (!cancelled) setTags(indexToRefs(paths)); })
+      .catch(() => { if (!cancelled) setTags([]); });
+    return () => { cancelled = true; };
+  }, [bump]);
   return tags;
 }
 
@@ -140,10 +175,24 @@ function pruneRememberedTags(): Promise<TagRef[]> {
   });
 }
 
-/** Apply `tag` to the material at `target`, narrowed to `selector` when given (null = the whole
- *  node); resolves when persisted. */
-export function createAnnotation(target: string, selector: Record<string, unknown> | null, tag: TagRef): Promise<unknown> {
-  return saveAnnotation({ target, tag: tag.path, ...(selector ? { selector } : {}) });
+/** Apply `tag` to the material at `target`. With a `selector`, first create a FRAGMENT (the
+ *  region, plus an optional PNG crop) and tag THAT; without one, tag the whole node. */
+export async function createAnnotation(
+  target: string,
+  selector: Record<string, unknown> | null,
+  tag: TagRef,
+  imageBase64?: string,
+): Promise<unknown> {
+  if (!selector) return annotate({ target, tag: tag.path });
+  const { fragmentPath } = await createFragment(target, selector, imageBase64);
+  return annotate({ target: fragmentPath, tag: tag.path });
+}
+
+/** The host node path that carries a tag application: the material itself, or — when the
+ *  annotation marks a region — that fragment's node path (`…:yamlover-fragments:<slug>`). */
+function annotationTarget(materialPath: string, ann: Annotation): string {
+  if (!ann.fragmentSlug) return materialPath;
+  return (materialPath === ":" ? "" : materialPath) + ":yamlover-fragments:" + ann.fragmentSlug;
 }
 
 /** Read-only fetch of a material's annotations; `bump` (a changing number) forces a refetch.
@@ -168,8 +217,8 @@ export function useAnnotations(path: string, bump = 0): Annotation[] {
  *  round-trip lands. */
 export interface MaterialAnnotations {
   annotations: Annotation[];
-  create: (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean }) => void;
-  remove: (annPath?: string) => void;
+  create: (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean; imageBase64?: string }) => void;
+  remove: (ann: Annotation) => void;
   retag: (ann: Annotation, tag: TagRef) => void;
 }
 
@@ -180,49 +229,54 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
   const [bump, setBump] = useState(0);
   const fetched = useAnnotations(path, bump);
   const [optimistic, setOptimistic] = useState<Annotation[]>([]); // created, not yet in `fetched`
-  const [deleted, setDeleted] = useState<Set<string>>(new Set());  // paths hidden, not yet dropped
+  const [deleted, setDeleted] = useState<Set<string>>(new Set());  // annKeys hidden, not yet dropped
 
-  // Reconcile when the server list refreshes: drop optimistic creations it now holds, and keep a
-  // path "deleted" only while the server still lists it (so a re-tag's old copy can't flash back).
+  // Reconcile when the server list refreshes: drop optimistic creations it now holds, and keep an
+  // annotation "deleted" only while the server still lists it (so a re-tag's old copy can't flash
+  // back). Identity is annKey (selector + tag) — annotations carry no node path of their own.
   useEffect(() => {
     const keys = new Set(fetched.map(annKey));
     setOptimistic((o) => o.filter((a) => !keys.has(annKey(a))));
-    const present = new Set(fetched.map((a) => a.path).filter(Boolean) as string[]);
-    setDeleted((d) => new Set([...d].filter((p) => present.has(p))));
+    setDeleted((d) => new Set([...d].filter((k) => keys.has(k))));
   }, [fetched]);
 
   const refresh = () => setBump((b) => b + 1);
-  const create = (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean }) => {
+  const rollback = (entry: Annotation, e: unknown, silent?: boolean) => {
+    setOptimistic((o) => o.filter((x) => x !== entry));
+    if (!silent) window.alert("save failed: " + (e as Error).message);
+  };
+  const create = (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean; imageBase64?: string }) => {
     const entry = { path: "(pending)", selector: selector ?? undefined, tag } as Annotation;
     setOptimistic((o) => [...o, entry]);
-    createAnnotation(path, selector, tag)
-      .then(refresh)
-      .catch((e) => {
-        setOptimistic((o) => o.filter((x) => x !== entry)); // roll back the unsaved mark
-        // An IMPLICIT save (clicking away with the pre-selected tag) is best-effort — e.g. the
-        // default tag may not exist in this tree — so it rolls back QUIETLY. Only an explicit
-        // pick (a swatch/badge/✓) reports the failure.
-        if (!opts?.silent) window.alert("save failed: " + (e as Error).message);
-      });
+    // An IMPLICIT save (clicking away with the pre-selected tag) is best-effort — e.g. the
+    // default tag may not exist in this tree — so it rolls back QUIETLY (opts.silent).
+    createAnnotation(path, selector, tag, opts?.imageBase64).then(refresh).catch((e) => rollback(entry, e, opts?.silent));
   };
-  const remove = (annPath?: string) => {
-    if (!annPath || annPath === "(pending)") return;
-    setDeleted((d) => new Set(d).add(annPath));
-    deleteAnnotation(annPath)
+  const remove = (ann: Annotation) => {
+    if (!ann?.tag || ann.path === "(pending)") return;
+    const key = annKey(ann);
+    setDeleted((d) => new Set(d).add(key));
+    deleteAnnotation(annotationTarget(path, ann), ann.tag.path)
       .then(refresh)
-      .catch((e) => { setDeleted((d) => { const n = new Set(d); n.delete(annPath); return n; }); window.alert("delete failed: " + (e as Error).message); }); // un-hide on failure
+      .catch((e) => { setDeleted((d) => { const n = new Set(d); n.delete(key); return n; }); window.alert("delete failed: " + (e as Error).message); }); // un-hide on failure
   };
   const retag = (ann: Annotation, tag: TagRef) => {
-    remove(ann.path); // hide + delete the old application
-    create(ann.selector ?? null, tag); // show + save the new one
+    remove(ann); // hide + delete the old application
+    if (ann.fragmentSlug) {
+      // re-tag the SAME fragment (no new region) — annotate its existing node with the new tag
+      const entry = { path: "(pending)", selector: ann.selector, fragmentSlug: ann.fragmentSlug, tag } as Annotation;
+      setOptimistic((o) => [...o, entry]);
+      annotate({ target: annotationTarget(path, ann), tag: tag.path }).then(refresh).catch((e) => rollback(entry, e));
+    } else {
+      create(null, tag); // whole-node re-tag
+    }
   };
 
   const seen = new Set<string>();
   const annotations: Annotation[] = [];
   for (const a of [...optimistic, ...fetched]) {
-    if (a.path && deleted.has(a.path)) continue;
     const k = annKey(a);
-    if (seen.has(k)) continue;
+    if (deleted.has(k) || seen.has(k)) continue;
     seen.add(k);
     annotations.push(a);
   }
@@ -233,6 +287,16 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
 function tagNameOf(path: string): string {
   const segs = strToSegs(path);
   return segs.length ? String(segs[segs.length - 1]) : path;
+}
+
+/** Typeahead rank for a tag against the lowercased query `q` (lower is better): an exact name,
+ *  then a name prefix, then a name substring, then matched only via the full path. */
+function rankTag(t: TagRef, q: string): number {
+  const n = t.name.toLowerCase();
+  if (n === q) return 0;
+  if (n.startsWith(q)) return 1;
+  if (n.includes(q)) return 2;
+  return 3;
 }
 
 /** The floating tag picker — color-tag swatches, recent named-tag badges, a tag-path input, plus
@@ -247,8 +311,10 @@ export function AnnotationMenu({
   menuRef?: React.Ref<HTMLDivElement>;
 }) {
   const colorTags = useColorTags();
+  const tagIndex = useTagIndex(); // all named tags, for the typeahead
   const [recents, setRecents] = useState(recentTags); // shown at once; pruned against the server
   const [path, setPath] = useState("");
+  const [hi, setHi] = useState(-1); // highlighted suggestion (-1 = none)
   const [busy, setBusy] = useState(false); // a lookup/create round-trip is in flight
   const verb = mode === "edit" ? "re-tag" : "tag";
 
@@ -271,12 +337,31 @@ export function AnnotationMenu({
     ? recents
     : [tag, ...recents];
 
+  // Typeahead suggestions: substring match on the typed text against the tag name OR its full
+  // path (so `humor` and `genre:humor:deadpan` both hit), ranked, capped. Hide what is one click
+  // away already — a swatch or a badge — so the list is only NEW choices.
+  const q = path.trim().toLowerCase();
+  const suggestions = q
+    ? tagIndex
+        .filter((t) =>
+          !colorTags.some((c) => same(c.path, t.path)) &&
+          !badges.some((b) => same(b.path, t.path)) &&
+          (t.name.toLowerCase().includes(q) || canonPath(t.path).toLowerCase().includes(q)))
+        .map((t) => ({ t, rank: rankTag(t, q) }))
+        .sort((a, b) => a.rank - b.rank || a.t.name.localeCompare(b.t.name))
+        .slice(0, 8)
+        .map((x) => x.t)
+    : [];
+  // Re-seat the highlight whenever the typed text changes (suggestions derive from it).
+  useEffect(() => { setHi(suggestions.length ? 0 : -1); }, [path]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Apply an arbitrary tag by its node path: fetch, verify it IS a tag, pick it. A bare NAME
   // (no `/`) that matches no node is CREATED at the project's tags location and then picked —
   // typing a fresh name is how a new named tag is born. A missed multi-segment path stays an
-  // error: a typo'd path must not silently mint a tag named like a path.
-  const pickPath = () => {
-    const p = path.trim();
+  // error: a typo'd path must not silently mint a tag named like a path. `raw` lets a chosen
+  // suggestion route through the same fetch-verify (re-checking the tag still exists).
+  const pickPath = (raw?: string) => {
+    const p = (raw ?? path).trim();
     if (!p || busy) return;
     setBusy(true);
     fetchNode(p.startsWith(":") ? p : p.startsWith("/") ? ":" + p.slice(1).split("/").join(":") : ":" + p, 1)
@@ -330,21 +415,56 @@ export function AnnotationMenu({
           ))}
         </div>
       )}
-      <input
-        className="annotate-taginput"
-        type="text"
-        placeholder={busy ? "creating tag…" : `${verb}: tag path or new name… ⏎`}
-        value={path}
-        disabled={busy}
-        onChange={(e) => setPath(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") pickPath(); }}
-      />
+      <div className="annotate-typeahead">
+        <input
+          className="annotate-taginput"
+          type="text"
+          placeholder={busy ? "creating tag…" : `${verb}: tag path or new name… ⏎`}
+          value={path}
+          disabled={busy}
+          autoComplete="off"
+          onChange={(e) => setPath(e.target.value)}
+          onKeyDown={(e) => {
+            // Plain Arrow/Enter never reach App.tsx's global nav (it bails on focused inputs),
+            // but guard anyway and keep the caret from jumping while we drive the list.
+            if (suggestions.length && e.key === "ArrowDown") { e.preventDefault(); e.stopPropagation(); setHi((i) => (i + 1) % suggestions.length); return; }
+            if (suggestions.length && e.key === "ArrowUp") { e.preventDefault(); e.stopPropagation(); setHi((i) => (i - 1 + suggestions.length) % suggestions.length); return; }
+            if (e.key === "Escape" && path) { e.preventDefault(); e.stopPropagation(); setPath(""); return; }
+            if (e.key === "Enter") {
+              e.preventDefault(); e.stopPropagation();
+              if (hi >= 0 && suggestions[hi]) pickPath(suggestions[hi].path); // the highlighted tag wins
+              else pickPath(); // else the typed path / create-on-miss
+            }
+          }}
+        />
+        {!busy && suggestions.length > 0 && (
+          <div className="annotate-suggest" role="listbox">
+            {suggestions.map((t, i) => (
+              <span key={t.path} className={"tagframe" + (i === hi ? " sel" : "")}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={i === hi}
+                  className="tagtag"
+                  style={{ background: resolveTagColor(t) }}
+                  title={displayPath(t.path)}
+                  // mousedown (not click) + preventDefault: fire before the input blurs, keep focus.
+                  onMouseDown={(e) => { e.preventDefault(); pickPath(t.path); }}
+                  onMouseEnter={() => setHi(i)}
+                >
+                  {t.name}
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 type MenuState =
-  | { mode: "create"; selector: Record<string, unknown>; copy?: () => void; x: number; y: number }
+  | { mode: "create"; selector: Record<string, unknown>; copy?: () => void; imageBase64?: string; x: number; y: number }
   | { mode: "edit"; ann: Annotation; x: number; y: number };
 
 /** Drives the floating picker for a material: `openCreate` after a fresh selection, `openEdit` on
@@ -352,7 +472,7 @@ type MenuState =
  *  CREATE's selector + tag, so a renderer can keep the rectangle drawn while the picker is open).
  *  Outside-click commits a create (with the pre-selected tag) but only closes an edit. */
 export function useAnnotationMenu(a: MaterialAnnotations): {
-  openCreate: (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void) => void;
+  openCreate: (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string) => void;
   openEdit: (ann: Annotation, screen: { x: number; y: number }) => void;
   palette: ReactNode;
   preview: { selector: Record<string, unknown>; tag: TagRef; color: string } | null;
@@ -363,12 +483,12 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
   const menuRef = useRef<HTMLDivElement>(null);
   const close = () => setMenu(null);
 
-  const openCreate = (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void) =>
-    setMenu({ mode: "create", selector, copy, x: screen.x, y: screen.y });
+  const openCreate = (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string) =>
+    setMenu({ mode: "create", selector, copy, imageBase64, x: screen.x, y: screen.y });
   const openEdit = (ann: Annotation, screen: { x: number; y: number }) =>
     setMenu({ mode: "edit", ann, x: screen.x, y: screen.y });
 
-  const commitCreate = (t: TagRef, m: MenuState, silent = false) => { if (m.mode !== "create") return; setTag(t); a.create(m.selector, t, { silent }); close(); };
+  const commitCreate = (t: TagRef, m: MenuState, silent = false) => { if (m.mode !== "create") return; setTag(t); a.create(m.selector, t, { silent, imageBase64: m.imageBase64 }); close(); };
   const commitRetag = (t: TagRef, m: MenuState) => { if (m.mode !== "edit") return; setTag(t); a.retag(m.ann, t); close(); };
 
   // Outside-click: a create commits with the pre-selected tag (default keeps the mark); an edit closes.
@@ -401,7 +521,7 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
         menuRef={menuRef} x={menu.x} y={menu.y} tag={menu.ann.tag ?? DEFAULT_TAG} mode="edit"
         onPick={(t) => commitRetag(t, menu)}
         onConfirm={close} // ✓ closes the popup without deleting or re-tagging
-        onTrash={() => { a.remove(menu.ann.path); close(); }}
+        onTrash={() => { a.remove(menu.ann); close(); }}
       />
     );
   }

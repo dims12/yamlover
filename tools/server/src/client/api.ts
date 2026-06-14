@@ -5,6 +5,9 @@ export interface TreeNode {
   label: string;
   type: string;
   format: string | null;
+  valueType?: string | null; // renderer dispatch facets (TYPES.md §9)
+  hasKeyed?: boolean;
+  hasOrdinal?: boolean;
   concrete: string | null; // how it is stored; `dir` → a plain-folder icon
   hasChildren: boolean;
   children: TreeNode[];
@@ -13,7 +16,10 @@ export interface TreeNode {
 export interface NodeJson {
   path: string;
   type: string;
-  format?: string | null; // schema `format`; with `type` it keys the renderer
+  format?: string | null; // schema `format`; with the facets it keys the renderer (TYPES.md §9)
+  valueType?: string | null; // the scalar self-VALUE's type (null|boolean|integer|number|string|binary), or null
+  hasKeyed?: boolean; // owns ≥1 keyed element
+  hasOrdinal?: boolean; // owns ≥1 ordinal (keyless) element
   concrete: string | null;
   documentPath?: string; // the document (nearest yamlover entity) this node is in —
                          // the anchor a document-relative (`/…`) link resolves against
@@ -90,15 +96,18 @@ export interface TagRef {
   color: string | null;
 }
 
-/** An annotation of a material — ONE TAG APPLICATION: a marked segment (or the whole node, when
- *  `selector` is absent) tagged by `tag`, with an optional per-application comment. `tag` is
- *  null only for legacy annotations saved before tags carried the color. */
+/** An annotation of a material — ONE TAG APPLICATION (ANNOTATIONS.md): the whole node, or a
+ *  fragment within it (then `selector` carries that fragment's region and `fragmentSlug` its
+ *  key, and `imageUrl` its crop), tagged by `tag` with optional `description` / `params`. */
 export interface Annotation {
-  path: string; // the annotation's own node path
   tag?: TagRef | null;
   selector?: { type?: string; exact?: string; prefix?: string; suffix?: string; [k: string]: unknown };
+  fragmentSlug?: string; // set when the tag is on a fragment (the region) rather than the whole node
+  imageUrl?: string; // an image-like fragment's crop (a /api/blob URL)
   description?: string;
+  params?: Record<string, unknown>;
   created?: string;
+  path?: string; // a transient client marker only ("(preview)"/"(pending)"); annotations have no node path
 }
 
 /** The annotations whose `target` is the material at `path` (the engine's reverse link). */
@@ -112,16 +121,32 @@ export function fetchTagged(path: string): Promise<unknown[]> {
   return getJson<unknown[]>(`/api/tagged?path=${encodeURIComponent(path)}`);
 }
 
-/** Save a new annotation — apply the tag at `tag` to the material at `target` (JSON paths),
- *  optionally narrowed to `selector` and commented by `description`; returns the created path. */
-export function saveAnnotation(a: { target: string; tag: string; selector?: Record<string, unknown>; description?: string }): Promise<{ path: string }> {
-  return fetch("/api/annotate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(a) }).then(
-    async (res) => {
-      const body = await res.json();
-      if (!res.ok) throw new Error((body && body.error) || `HTTP ${res.status}`);
-      return body as { path: string };
-    },
-  );
+/** Evaluate a colon-grammar QUERY (QUERY.md / engine `query` op) at `at` (default: the root `:`),
+ *  returning the matched node paths in canonical colon form. A malformed query rejects (the
+ *  server answers 400). Reused by the tag-picker typeahead and, later, by find-usages. */
+export function query(q: string, at = ":"): Promise<string[]> {
+  const params = new URLSearchParams({ q, path: at });
+  return getJson<{ results: string[] }>(`/api/query?${params}`).then((r) => r.results);
+}
+
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const json = await res.json();
+  if (!res.ok) throw new Error((json && json.error) || `HTTP ${res.status}`);
+  return json as T;
+}
+
+/** Create a FRAGMENT — a marked region in the node at `target` (ANNOTATIONS.md). Returns its slug
+ *  and full node path, which is then the `target` for {@link annotate}. `imageBase64` is an
+ *  optional PNG crop for image-like selections. */
+export function createFragment(target: string, selector: Record<string, unknown>, imageBase64?: string): Promise<{ slug: string; fragmentPath: string }> {
+  return postJson("/api/fragment", { target, selector, ...(imageBase64 ? { imageBase64 } : {}) });
+}
+
+/** Apply the tag at `tag` to the node at `target` (a whole node OR a fragment path) — appends to
+ *  the target's `yamlover-annotations`. `description`/`params` make it a parametrized annotation. */
+export function annotate(a: { target: string; tag: string; description?: string; params?: Record<string, unknown> }): Promise<{ ok: true }> {
+  return postJson("/api/annotate", a);
 }
 
 /** Create a named tag at the project's default tags location (settings.yamlover; `/tags` by
@@ -178,9 +203,11 @@ export function pasteRich(target: string, rich: unknown): Promise<PasteResult> {
   return postPaste({ path: target, rich });
 }
 
-/** Delete the annotation at its node path (a standalone `<…>.yamlover` file, any directory). */
-export function deleteAnnotation(path: string): Promise<void> {
-  return fetch(`/api/annotate?path=${encodeURIComponent(path)}`, { method: "DELETE" }).then(async (res) => {
+/** Remove the application of `tag` from the node at `target` (a whole node OR a fragment path) —
+ *  splices the matching element out of its `yamlover-annotations`. */
+export function deleteAnnotation(target: string, tag: string): Promise<void> {
+  const q = new URLSearchParams({ target, tag });
+  return fetch(`/api/annotate?${q}`, { method: "DELETE" }).then(async (res) => {
     if (!res.ok) throw new Error(((await res.json().catch(() => null))?.error) || `HTTP ${res.status}`);
   });
 }

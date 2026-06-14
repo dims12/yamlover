@@ -13,6 +13,19 @@ export interface ImageRegion { x: number; y: number; w: number; h: number; title
 
 const num = (v: unknown): number => Number(v) || 0;
 
+/** A PNG data-URL crop of the natural-pixel region (x,y,w,h) of `img`, for an image-like
+ *  fragment's embedded preview; undefined if the region is empty or the canvas reads back tainted
+ *  (cross-origin — image blobs are same-origin, so this is just a guard). */
+function cropPng(img: HTMLImageElement | null, x: number, y: number, w: number, h: number): string | undefined {
+  if (!img || w <= 0 || h <= 0) return undefined;
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext("2d");
+  if (!ctx) return undefined;
+  ctx.drawImage(img, x, y, w, h, 0, 0, w, h);
+  try { return cv.toDataURL("image/png"); } catch { return undefined; }
+}
+
 /** The `rect`-type annotations, as pixel regions to overlay on the image. */
 function imageRegions(anns: Annotation[]): ImageRegion[] {
   return anns
@@ -33,13 +46,14 @@ export function PanZoomImage({
   src: string;
   className: string;
   regions?: ImageRegion[];
-  onSelectRegion?: (selector: Record<string, unknown>, screen: { x: number; y: number }) => void;
+  onSelectRegion?: (selector: Record<string, unknown>, screen: { x: number; y: number }, imageBase64?: string) => void;
   onRegionClick?: (ann: Annotation, screen: { x: number; y: number }) => void;
   selectColor?: () => string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
+  const imgElRef = useRef<HTMLImageElement | null>(null);
   const sizeRef = useRef({ w: 1, h: 1 });
   const onSelectRef = useRef(onSelectRegion);
   const onRegionClickRef = useRef(onRegionClick);
@@ -62,6 +76,7 @@ export function PanZoomImage({
       const w = img.naturalWidth || 1;
       const h = img.naturalHeight || 1;
       sizeRef.current = { w, h };
+      imgElRef.current = img; // kept for cropping a selected region (same-origin → un-tainted canvas)
       // CRS.Simple: coordinates are raw pixels (y, x); negative minZoom allows zooming far out.
       const map = L.map(ref.current, { crs: L.CRS.Simple, minZoom: -8, attributionControl: false, zoomSnap: 0 });
       const bounds: L.LatLngBoundsExpression = [[0, 0], [h, w]];
@@ -76,10 +91,8 @@ export function PanZoomImage({
               // image pixels have y from the top; CRS.Simple lat is from the bottom → flip.
               const { h: ih } = sizeRef.current;
               const west = b.getWest(), east = b.getEast(), south = b.getSouth(), north = b.getNorth();
-              onSelectRef.current?.(
-                { type: "rect", x: Math.round(west), y: Math.round(ih - north), w: Math.round(east - west), h: Math.round(north - south) },
-                screen,
-              );
+              const x = Math.round(west), y = Math.round(ih - north), w = Math.round(east - west), hh = Math.round(north - south);
+              onSelectRef.current?.({ type: "rect", x, y, w, h: hh }, screen, cropPng(imgElRef.current, x, y, w, hh));
             }
           : undefined,
       });
@@ -141,7 +154,7 @@ export function ImageView({ node }: { node: NodeJson }) {
       <PanZoomImage
         src={blobUrl(node.path)}
         regions={imageRegions(shown)}
-        onSelectRegion={openCreate}
+        onSelectRegion={(sel, screen, crop) => openCreate(sel, screen, undefined, crop)}
         onRegionClick={openEdit}
         selectColor={() => color}
         className="filemap fileimagemap"

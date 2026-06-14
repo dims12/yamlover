@@ -4,7 +4,7 @@
 # the engine grafts {$defs, tags} as the `yamlover` self-import key into every served
 # root, so *//yamlover/tags/colors/<name> resolves from any project. Spec: ../$defs/tag.
 !!<*yamlover: $defs: tag>
-!!omni Tags
+!!var Tags
 colors: Pure color tags — the annotation palette; each carries an explicit color
   yellow:
     color: "#f9e2af"
@@ -18,8 +18,6 @@ colors: Pure color tags — the annotation palette; each carries an explicit col
     color: "#f5c2e7"
   peach:
     color: "#fab387"
-исаакий: !!<*yamlover: $defs: tag>
-дорожный знак: !!<*yamlover: $defs: tag>
-мужик: !!<*yamlover: $defs: tag>
-автомобиль: !!<*yamlover: $defs: tag>
-автобус: !!<*yamlover: $defs: tag>
+first tag: !!<*::yamlover:$defs:tag>
+second tag: !!<*::yamlover:$defs:tag>
+third tag: !!<*::yamlover:$defs:tag>

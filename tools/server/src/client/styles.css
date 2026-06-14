@@ -873,7 +873,8 @@ a.chunk-index:hover {
   flex-wrap: wrap;
   gap: 4px;
 }
-.annotate-recents .tagtag {
+.annotate-recents .tagtag,
+.annotate-suggest .tagtag {
   border: 0;
   font: inherit;
   font-size: 11px;
@@ -885,10 +886,12 @@ a.chunk-index:hover {
    unclipped WRAPPER the child is clipped first; then a first round of hard offset drop-shadows
    in the MENU BACKGROUND color grows the silhouette by 1px (the gap), and a second round in
    the foreground color rings that — gap + ring, both following the actual tag shape. */
-.annotate-recents .tagframe {
+.annotate-recents .tagframe,
+.annotate-suggest .tagframe {
   display: inline-flex;
 }
-.annotate-recents .tagframe.sel {
+.annotate-recents .tagframe.sel,
+.annotate-suggest .tagframe.sel {
   filter:
     drop-shadow(1px 0 0 var(--bg-alt))
     drop-shadow(-1px 0 0 var(--bg-alt))
@@ -914,6 +917,25 @@ a.chunk-index:hover {
 .annotate-taginput:focus {
   outline: none;
   border-color: var(--dim);
+}
+/* the typeahead: the path input plus a suggestion list below it, spanning the menu width */
+.annotate-typeahead {
+  flex-basis: 100%;
+  min-width: 0;
+  position: relative;
+}
+.annotate-typeahead .annotate-taginput {
+  width: 100%;
+  box-sizing: border-box;
+}
+/* matched named tags as badges (the highlighted one rings via .tagframe.sel) */
+.annotate-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+  max-height: 132px;
+  overflow-y: auto;
 }
 /* a region annotation drawn over a PDF page (the image overlay uses a Leaflet rectangle) */
 .pdf-page {

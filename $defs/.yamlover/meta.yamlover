@@ -11,3 +11,6 @@ properties:
     annotation:
         type: string
         format: yamlover/meta
+    fragment:
+        type: string
+        format: yamlover/meta

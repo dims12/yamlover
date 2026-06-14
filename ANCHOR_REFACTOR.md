@@ -46,7 +46,7 @@ The line order doesn't matter, so we can write
 
 NB:
 
-The order of scalar in !!omni objects doesn't matter
+The order of scalar in !!var objects doesn't matter
 
 ```yamlover
 30
@@ -88,7 +88,7 @@ humans:
 
 I.e. anchors are real keys of current document
 
-In yamlover `!!omni` is default from now on (no more yaml compat)
+In yamlover `!!var` is default from now on (no more yaml compat)
 
 Imported aliases like `yamlover` are real keys defined ot project level
 
@@ -155,7 +155,7 @@ is PLAN.md **Phase A**). The decisions:
 2. **Ordinal membership = `&path[]`** (empty brackets, append semantics — the `~-`
    replacement). `[?]` stays query-only (`QUERY.md`), avoiding one token with two
    meanings; `&path[n]` (claiming a position) is rejected, as `~[n]:` was.
-3. **`!!omni` is the default; `!!mix`/`!!omni` remain parseable as optional no-op
+3. **`!!var` is the default; `!!mix`/`!!var` remain parseable as optional no-op
    markers** (existing files round-trip; `!!set` is NOT a no-op — it keeps its
    dedup semantics). The scalar value line may sit anywhere in its block, at most
    one per block; legal at the document root.

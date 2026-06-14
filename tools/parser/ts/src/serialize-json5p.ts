@@ -1,6 +1,6 @@
 // IR → json5p text (PLAN.md 2d). json5p is the smaller full-graph concrete: pointers,
 // anchors and back-edges all fit, but yamlover's value-position tags do not — a node
-// carrying `!!mix` (keyed+keyless in one container), `!!omni` (value-plus-fields),
+// carrying `!!mix` (keyed+keyless in one container), `!!var` (value-plus-fields),
 // `!!set`, or a `!!<…>` schema raises LossyError (refuse, never drop; such metadata
 // routes through the meta layer instead — cf. the note in examples/03-tour.json5p).
 // Round-trip contract: parseJson5p(serializeJson5p(doc)) is IR-equal to doc.
@@ -33,7 +33,7 @@ class Emitter {
     if (n.meta?.set === true) throw new LossyError('json5p has no !!set — set semantics come from the meta layer (uniqueItems: true)');
     if (n.kind === 'scalar') {
       if ((n.entries ?? []).filter((e) => !isAnchorizableBack(e)).length > 0) {
-        throw new LossyError('a value-plus-fields node (!!omni) is not expressible in json5p');
+        throw new LossyError('a value-plus-fields node (!!var) is not expressible in json5p');
       }
       return scalarTok(n);
     }

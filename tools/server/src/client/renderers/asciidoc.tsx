@@ -1,5 +1,6 @@
 import Asciidoctor from "@asciidoctor/core";
 import { NodeJson } from "../api";
+import { scalarValue } from "../render";
 import { Chunk } from "./registry";
 import { anchorizeHeadings, useHashScroll } from "./headings";
 import { Markup } from "./markup";
@@ -25,7 +26,7 @@ export function AsciidocView({ node }: { node: NodeJson }) {
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <Markup html={adoc(node.value)} />
+      <Markup html={adoc(scalarValue(node.value))} />
     </div>
   );
 }

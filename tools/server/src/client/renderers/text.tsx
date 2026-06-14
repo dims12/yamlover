@@ -1,5 +1,6 @@
 import { marked } from "marked";
 import { NodeJson } from "../api";
+import { scalarValue } from "../render";
 import { Chunk } from "./registry";
 import { anchorizeHeadings, useHashScroll } from "./headings";
 import { Markup } from "./markup";
@@ -29,7 +30,7 @@ export function TextView({ node }: { node: NodeJson }) {
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <Markup html={md(node.value)} />
+      <Markup html={md(scalarValue(node.value))} />
     </div>
   );
 }

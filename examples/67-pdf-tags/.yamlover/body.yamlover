@@ -1,80 +1,68 @@
 # A heap of famously short / deadpan academic papers — the real files, with their real
 # (messy) names — organized by a tag taxonomy. This `.yamlover/body.yamlover` overlay turns the
 # bare directory into an instance: it adds the `tags` tree and gives each file (a blob) its tag
-# membership (so a blob carries members). Spec: ../../YAMLOVER.md.
+# applications under `yamlover-annotations` (so a blob carries members). Spec: ../../ANNOTATIONS.md.
 #
-# Membership is authored BOTH ways (the genealogy trick): a tag links a paper forward and the
-# paper records the reverse under the SAME relation NAME; the engine reconciles the pair into one
-# edge (normalize / derived inverses). The edge name is a meaningful SLUG (`euler-conjecture`,
-# `writers-block`, …), independent of the paper's file key — a tag links `slug: */<file>`, the
-# paper mirrors it with a PATH ANCHOR `&: <tag-path>: slug` ("I also live there" — URIs.md §&;
-# the deprecated spelling was `~slug: */<tag>`). Keys/slugs are bare; a messy file key is
-# quoted. `/` is document-relative — this directory.
+# Each paper is TAGGED by appending a bare tag pointer to its `yamlover-annotations` array — the
+# embedded model: the application lives ON the target (here a blob, via the omni overlay), and the
+# engine derives "the materials under a tag" as the reverse of those forward `*` edges. The tag
+# pointers are document-relative (`*: tags: …` — `:` is this directory's root). Keys are bare; a
+# messy file key is quoted.
 
 # A tag's description is its BODY (the node's own value): `name: <text>` with the sub-tags
 # in the deeper block — the schema ($defs/tag, type: variant) declares the value-plus-fields
-# shape, so no `!!omni` tag is needed (YAMLOVER.md §4: the shape itself is the intention).
+# shape, so no `!!var` tag is needed (YAMLOVER.md §4: the shape itself is the intention).
 tags: !!<*yamlover: $defs: tag> A small taxonomy for short / deadpan papers — two axes, field and genre
   field: What the paper is about
     mathematics: Mathematics
       number-theory: Number theory — Diophantine equations, sums of powers
-        euler-conjecture: *: S0002-9904-1966-11654-3.pdf
     physics: Physics
       quantum: Quantum mechanics and measurement
-        superluminal-neutrino: *: 1110.2832v2.pdf
       particle: Particle physics — neutrinos and the like
-        superluminal-neutrino: *: 1110.2832v2.pdf
     earth-science: Earth science
       seismology: Seismology — earthquakes and their statistics
-        earthquakes-poissonian: *: '1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf'
     chemistry: Chemistry
-      chemical-free: *: Chemical-Free.pdf
     psychology: Psychology
       behavior-analysis: Applied behavior analysis
-        writers-block: *: jaba00061-0143a.pdf
   genre: How the paper is short
     brevity: The paper is famously short
       shortest-paper: Famously the shortest paper in its journal
-        euler-conjecture: *: S0002-9904-1966-11654-3.pdf
       one-word-answer: The title is a question; the abstract answers it in a word
-        superluminal-neutrino: *: 1110.2832v2.pdf
-        earthquakes-poissonian: *: '1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf'
       empty-body: The body of the paper is (almost) entirely blank
-        writers-block: *: jaba00061-0143a.pdf
-        chemical-free: *: Chemical-Free.pdf
     humor: The paper is a joke
       deadpan: Plays it completely straight
-        writers-block: *: jaba00061-0143a.pdf
-        superluminal-neutrino: *: 1110.2832v2.pdf
-        earthquakes-poissonian: *: '1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf'
       satire: Mocks its target
-        chemical-free: *: Chemical-Free.pdf
     annotation: A secondary / derivative edition of another paper
 
-# --- the papers: each is the real file (a blob), recording its tag membership as the reverse
-#     of the tag's forward link — `&: tags: …: <slug>` path anchors into the taxonomy ---
+# --- the papers: each is the real file (a blob) tagged by the leaf tags it belongs to, as bare
+#     pointers in its `yamlover-annotations` array (ANNOTATIONS.md) ---
 
 "S0002-9904-1966-11654-3.pdf":
-  &: tags: field: mathematics: number-theory: euler-conjecture
-  &: tags: genre: brevity: shortest-paper: euler-conjecture
+  yamlover-annotations:
+  - *: tags: field: mathematics: number-theory
+  - *: tags: genre: brevity: shortest-paper
 
 "jaba00061-0143a.pdf":
-  &: tags: field: psychology: behavior-analysis: writers-block
-  &: tags: genre: brevity: empty-body: writers-block
-  &: tags: genre: humor: deadpan: writers-block
+  yamlover-annotations:
+  - *: tags: field: psychology: behavior-analysis
+  - *: tags: genre: brevity: empty-body
+  - *: tags: genre: humor: deadpan
 
 "Chemical-Free.pdf":
-  &: tags: field: chemistry: chemical-free
-  &: tags: genre: brevity: empty-body: chemical-free
-  &: tags: genre: humor: satire: chemical-free
+  yamlover-annotations:
+  - *: tags: field: chemistry
+  - *: tags: genre: brevity: empty-body
+  - *: tags: genre: humor: satire
 
 "1110.2832v2.pdf":
-  &: tags: field: physics: quantum: superluminal-neutrino
-  &: tags: field: physics: particle: superluminal-neutrino
-  &: tags: genre: brevity: one-word-answer: superluminal-neutrino
-  &: tags: genre: humor: deadpan: superluminal-neutrino
+  yamlover-annotations:
+  - *: tags: field: physics: quantum
+  - *: tags: field: physics: particle
+  - *: tags: genre: brevity: one-word-answer
+  - *: tags: genre: humor: deadpan
 
 "1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf":
-  &: tags: field: earth-science: seismology: earthquakes-poissonian
-  &: tags: genre: brevity: one-word-answer: earthquakes-poissonian
-  &: tags: genre: humor: deadpan: earthquakes-poissonian
+  yamlover-annotations:
+  - *: tags: field: earth-science: seismology
+  - *: tags: genre: brevity: one-word-answer
+  - *: tags: genre: humor: deadpan

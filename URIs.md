@@ -360,7 +360,7 @@ of plain-YAML `&a` … `*a` pairs — see `YAMLOVER.md` §3.
 
 **Anchors are not entries.** They never count toward a node's kind: a scalar with
 anchors is still a scalar, a blob is still a blob — the same rule that keeps a
-reverse-tagged PDF `binary`. No `!!omni` is needed to anchor a scalar. An anchor
+reverse-tagged PDF `binary`. No `!!var` is needed to anchor a scalar. An anchor
 attaches to a NODE; a pointer entry (`k: *p`) cannot carry one.
 
 **Multiplicity & placement.** A node may declare any number of anchors: on the
@@ -503,7 +503,7 @@ entries, ordered **lexicographically by the member's path** (deterministic and
 reconstructible from the graph alone). They never affect the container's *kind* —
 a container's type comes from its owned entries only.
 
-**`!!set`** (a value-position tag, like `!!mix`/`!!omni`; the inline spelling of the
+**`!!set`** (a value-position tag, like `!!mix`/`!!var`; the inline spelling of the
 schema keyword `uniqueItems: true`, which is the route for json5p and overlays) opts a
 container into **set semantics**: membership is by identity, so duplicate memberships —
 forward+forward, forward+reverse, reverse+reverse — collapse to one. (yamlover

@@ -19,7 +19,7 @@ decisions.
   entries can **mix** in one node. And `entries` lives on `NodeBase`, so a `Scalar` or `Blob`
   may *also* carry entries — a single node can be at once a scalar value, partially positioned,
   and partially keyed. A pure list/dict/scalar is just the degenerate case. (The *surface*
-  gates these: yamlover requires an explicit `!!mix` / `!!omni` tag to write a mixture — see
+  gates these: yamlover requires an explicit `!!mix` / `!!var` tag to write a mixture — see
   `YAMLOVER.md` — but the IR itself just represents the result.)
 - **Positions are derived, not stored.** The integer-key aliases (`[n]`, the `0: *key0`
   expansion in `URIs.md`) are a *view* the engine materializes from entry order. The IR
@@ -146,7 +146,7 @@ synthesize the matching forward edge (that's `normalize`/`derive` in the engine)
 The **keyless** form — yamlover `~- *…`, json5p `~*'…'` (reverse positional membership,
 `URIs.md` §`~-`) — is `Entry { key: null, edge:"back", value: Pointer }`: the same nullable
 `key` a keyless forward entry uses, with `edge:"back"`. The value is always a `Pointer`
-(the `Value` contract already requires it for `ref`/`back`). Unlike `!!mix`/`!!omni` —
+(the `Value` contract already requires it for `ref`/`back`). Unlike `!!mix`/`!!var` —
 parse *permissions* whose effect is visible in the node's shape — `!!set` (≡
 `uniqueItems: true`) must survive into the graph, so it is recorded as `NodeMeta.set`.
 

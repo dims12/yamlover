@@ -83,7 +83,7 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    Rust port wants a spec-driven parser). **Practical subset DONE** (280 tests total):
    block maps/sequences (incl. compact `- key:`, `- &anchor`), flow `{}`/`[]`, plain &
    quoted scalars, basic block scalars (`|`/`>` with `-`/`+` chomping), `#` comments,
-   yamlover tags (`!!mix`/`!!omni`/`!!<…>`), plus extended `*`, `&` anchors, `~`
+   yamlover tags (`!!mix`/`!!var`/`!!<…>`), plus extended `*`, `&` anchors, `~`
    back-edges; parses `examples/05-tour.yaml` & `06-tour.yamlover`. **Gate WIRED**
    (2026-06-08): `yaml-test-suite` conformance at **43/208** must-accept cases, locked
    shrink-only allowlist + roadmap in `tools/parser/YAML-CONFORMANCE.md`. **Remaining**
@@ -95,8 +95,8 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    canonical emission (the IR keeps the graph, not the typography: comments/quote
    styles/block layout re-render; reparse is **IR-equal**). Pointer `raw` verbatim,
    anchors re-placed by node identity, `!!set`/`!!<…>` carried, `!!mix` re-derived
-   from shape, `!!omni` implied (explicit only at the root). **Lossy policy = REFUSE**
-   (`LossyError`, never drop): blobs / non-finite numbers (yamlover); `!!mix`/`!!omni`/
+   from shape, `!!var` implied (explicit only at the root). **Lossy policy = REFUSE**
+   (`LossyError`, never drop): blobs / non-finite numbers (yamlover); `!!mix`/`!!var`/
    `!!set`/`!!<…>` (json5p → route via the meta layer, as 03-tour already documents).
    **Remaining:** the *directory* concrete (graph → tree + `body.yamlover`);
    **inlined binary** — a blob must also be emittable INLINE in a text concrete
@@ -133,8 +133,8 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
 > placement; anchors are NOT entries (never affect node kind); the anchor
 > namespace + resolver precedence are gone (anchors are real keys); collisions
 > valid iff equal, else reported; `~key:*P` ≡ `&P/k` and `~- *P` ≡ `&P[]` —
-> the `~` forms are DEPRECATED but parse through the migration window; `!!omni`
-> becomes the default (`!!mix`/`!!omni` = optional no-op markers, `!!set` keeps
+> the `~` forms are DEPRECATED but parse through the migration window; `!!var`
+> becomes the default (`!!mix`/`!!var` = optional no-op markers, `!!set` keeps
 > its dedup semantics). Implementation phases:
 
 > **Landed 2026-06-12 (A1+A3 complete; A2/A4/A5 partial; 408 tests green):**
@@ -181,7 +181,7 @@ A1. **Parsers + IR** — `NodeMeta.anchors?: Pointer[]` replaces `EntryMeta.anch
    takes `&'path'`/`&'path[]'` (quoted, multiple); keep parsing deprecated `~`/
    `~-`/`~*` into the same IR back-edges; omni-default = drop `validateMixtures`
    (yamlover.ts:102-112) + allow root-scalar continuation (yamlover.ts:39) +
-   scalar-line-anywhere (one per block); `!!mix`/`!!omni` become no-ops.
+   scalar-line-anywhere (one per block); `!!mix`/`!!var` become no-ops.
 A2. **Serializers** — emit anchors only (never `~`); multi-anchor placement;
    re-derive nothing from the old anchor map; round-trip suite extended with
    old-form → new-form equivalence fixtures (Chemical-Free, genealogy, 06-tour).

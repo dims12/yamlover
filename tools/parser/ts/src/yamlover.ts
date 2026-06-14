@@ -180,10 +180,10 @@ class Block {
   node(minIndent: number): Node | Pointer | null {
     const l = this.peek();
     if (!l || l.indent < minIndent) return null;
-    // a lone type tag (no preceding key): `!!omni 5` / `!!mix` / `!!set` at the document root
-    // or as a block value. Hand to valueAfter with the block one column shallower so the tag's
-    // own line (its inline value, plus the fields/entries below it) parses as that value.
-    if (/^!!(mix|omni|set)(?=\s|$)/.test(l.text)) {
+    // a lone type tag (no preceding key): `!!var` (≡ deprecated `!!omni`) / `!!mix` / `!!set` at
+    // the document root or as a block value. Hand to valueAfter with the block one column shallower
+    // so the tag's own line (its inline value, plus the fields/entries below it) parses as that value.
+    if (/^!!(mix|var|omni|set)(?=\s|$)/.test(l.text)) {
       this.i++;
       return this.valueAfter(l.text, l.indent - 1, l.n, l.indent);
     }
@@ -316,11 +316,12 @@ class Block {
       schema = parseSchemaRef(rest.slice(3, close), { block: this, lineN: srcLineN, col: col + 3 });
       ({ rest, col } = adv(rest, close + 1, col));
     }
-    // an opt-in type tag in value position: `key: !!mix` (mixed container), `key: !!omni 5`
-    // (scalar value + fields), or `key: !!set` (set-semantics container — NodeMeta.set).
+    // an opt-in type tag in value position: `key: !!mix` (mixed container), `key: !!var <v>`
+    // (scalar value + fields; `!!omni` is the deprecated alias), or `key: !!set` (set-semantics
+    // container — NodeMeta.set).
     let typeTag: 'mix' | 'omni' | 'set' | undefined;
-    const tag = /^!!(mix|omni|set)(?=\s|$)/.exec(rest);
-    if (tag) { typeTag = tag[1] as 'mix' | 'omni' | 'set'; ({ rest, col } = adv(rest, tag[0].length, col)); }
+    const tag = /^!!(mix|var|omni|set)(?=\s|$)/.exec(rest);
+    if (tag) { typeTag = (tag[1] === 'var' ? 'omni' : tag[1]) as 'mix' | 'omni' | 'set'; ({ rest, col } = adv(rest, tag[0].length, col)); }
     const anchors: Anchor[] = [];
     while (rest.startsWith('&')) {
       const r = this.anchorToken(rest, srcLineN, col);
@@ -350,7 +351,7 @@ class Block {
       value = this.attachFields(value, parentIndent);
     }
     this.attachAnchors(value, anchors);
-    // `!!mix`/`!!omni` are no-op markers (omni is the default); `!!set` carries real semantics
+    // `!!mix`/`!!var` are no-op markers (the omni shape is the default); `!!set` carries real semantics
     if (typeTag === 'set' && !isPointer(value)) value.meta = { ...value.meta, set: true }; // survives into the graph
     if (schema !== undefined && !isPointer(value)) value.meta = { ...value.meta, schema };
     return value;

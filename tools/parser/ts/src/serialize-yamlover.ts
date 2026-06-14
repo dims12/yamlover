@@ -2,7 +2,7 @@
 // not the typography (comments, quote styles and block-scalar layout are not stored —
 // IR.md), so the output is a clean re-rendering whose reparse is IR-EQUAL to the input:
 // same values, entry order, keys, edge kinds, pointer texts (verbatim `raw`), anchors,
-// `!!set` and `!!<…>` schema tags — with `!!mix` re-derived from the shape and `!!omni`
+// `!!set` and `!!<…>` schema tags — with `!!mix` re-derived from the shape and `!!var`
 // implied by it (explicit only at the document root, where a bare scalar cannot precede
 // the keys). Inexpressible content — blobs, non-finite numbers, an anchored document
 // root — raises LossyError: refuse, never drop. (Blobs are refused only for now: the IR
@@ -36,10 +36,10 @@ class Emitter {
     const ents = root.entries ?? [];
     const kept = ents.filter((e) => !isAnchorizableBack(e)); // conv backs re-emit as anchors
     if (root.kind === 'scalar') {
-      // The root value is inline (block indicators are read only after a key); the `!!omni`
+      // The root value is inline (block indicators are read only after a key); the `!!var`
       // marker is a no-op but kept for readability when fields follow.
       const tok = this.inline(root, /*needToken*/ kept.length > 0);
-      this.out.push(kept.length > 0 ? `!!omni ${tok}` : tok);
+      this.out.push(kept.length > 0 ? `!!var ${tok}` : tok);
       this.rootAnchors(root);
       this.entries(ents, 0);
     } else if (kept.length === 0) {
@@ -105,7 +105,7 @@ class Emitter {
       const block = typeof value.value === 'string' && value.value.includes('\n')
         ? blockLines(value.value) : null;
       if (block !== null) {
-        // block-scalar content sits DEEPER than any `!!omni` fields, so the fields'
+        // block-scalar content sits DEEPER than any `!!var` fields, so the fields'
         // dedent ends the block (the parser's rule) while staying deeper than the key
         const inner = indent + STEP + (kept.length > 0 ? STEP : 0);
         this.out.push(joinLine(pad + head, [...parts, block.header]));
