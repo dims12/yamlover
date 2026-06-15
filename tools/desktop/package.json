@@ -3,6 +3,7 @@
   "version": "0.3.4",
   "private": true,
   "description": "Desktop wrapper for yamlover — runs the local server (127.0.0.1, prod build) and opens a window.",
+  "author": "dims",
   "main": "main.js",
   "scripts": {
     "build:server": "npm --prefix ../server run build",
@@ -24,7 +25,14 @@
       { "from": "../server/dist", "to": "server/dist" },
       { "from": "../server/package.json", "to": "server/package.json" }
     ],
-    "mac": { "target": ["dmg"], "category": "public.app-category.productivity" },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
     "win": { "target": ["nsis"] },
     "linux": { "target": ["AppImage"], "category": "Utility" }
   }
