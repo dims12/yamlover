@@ -25,9 +25,7 @@
   },
   "files": [
     "bin",
-    "dist",
-    "src",
-    "index.html"
+    "dist"
   ],
   "scripts": {
     "start": "node bin/yamlover.js",
@@ -39,15 +37,26 @@
   "engines": {
     "node": ">=22"
   },
-  "dependencies": {
+  "comment:deps": "No runtime dependencies: the client deps are bundled into dist/client by `vite build` and the server deps (ignore/js-yaml/xxhash-wasm) into dist/server.js by esbuild. Everything below is build-/test-time only.",
+  "devDependencies": {
     "@asciidoctor/core": "^3.0.4",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.1.0",
     "@tmcw/togeojson": "^7.1.2",
+    "@types/js-yaml": "^4.0.9",
+    "@types/katex": "^0.16.8",
+    "@types/leaflet": "^1.9.21",
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "ag-psd": "^28.5.1",
+    "esbuild": "^0.21.5",
     "fflate": "^0.8.3",
     "heic2any": "^0.0.4",
     "ignore": "^6.0.2",
     "js-yaml": "^4.1.0",
+    "jsdom": "^25.0.1",
     "katex": "^0.16.47",
     "leaflet": "^1.9.4",
     "mammoth": "^1.12.0",
@@ -55,23 +64,11 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-pdf": "^10.4.1",
+    "typescript": "^5.6.3",
     "utif": "^3.1.0",
     "vite": "^5.4.11",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/react": "^16.1.0",
-    "@types/js-yaml": "^4.0.9",
-    "esbuild": "^0.21.5",
-    "xxhash-wasm": "^1.1.0",
-    "@types/katex": "^0.16.8",
-    "@types/leaflet": "^1.9.21",
-    "@types/node": "^22.10.1",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "jsdom": "^25.0.1",
-    "typescript": "^5.6.3",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "xlsx": "^0.18.5",
+    "xxhash-wasm": "^1.1.0"
   }
 }

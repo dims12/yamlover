@@ -1,0 +1,31 @@
+{
+  "name": "yamlover-desktop",
+  "version": "0.3.4",
+  "private": true,
+  "description": "Desktop wrapper for yamlover — runs the local server (127.0.0.1, prod build) and opens a window.",
+  "main": "main.js",
+  "scripts": {
+    "build:server": "npm --prefix ../server run build",
+    "start": "npm run build:server && electron .",
+    "dist": "npm run build:server && electron-builder",
+    "dist:dir": "npm run build:server && electron-builder --dir"
+  },
+  "comment:electron": "Electron must bundle Node >= 22.5 — the engine's store uses node:sqlite, which the forked server runs in Electron's Node. Electron 35+ ships Node 22.x; do not downgrade below that.",
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "dev.yamlover.desktop",
+    "productName": "yamlover",
+    "files": ["main.js"],
+    "extraResources": [
+      { "from": "../server/bin", "to": "server/bin" },
+      { "from": "../server/dist", "to": "server/dist" },
+      { "from": "../server/package.json", "to": "server/package.json" }
+    ],
+    "mac": { "target": ["dmg"], "category": "public.app-category.productivity" },
+    "win": { "target": ["nsis"] },
+    "linux": { "target": ["AppImage"], "category": "Utility" }
+  }
+}
