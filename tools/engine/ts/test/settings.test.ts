@@ -69,3 +69,11 @@ test('one odd field does not sink the others', () => {
   assert.equal(s.tags.location, DEFAULT_SETTINGS.tags.location);
   rmSync(root, { recursive: true, force: true });
 });
+
+test('sidecars.location: defaults to per-directory; reads both modes (document alias too); garbage → default', () => {
+  assert.equal(loadSettings(projectWith(null)).sidecars.location, 'per-directory');
+  assert.equal(loadSettings(projectWith('sidecars:\n  location: project\n')).sidecars.location, 'project');
+  assert.equal(loadSettings(projectWith('sidecars:\n  location: per-directory\n')).sidecars.location, 'per-directory');
+  assert.equal(loadSettings(projectWith('sidecars:\n  location: document\n')).sidecars.location, 'per-directory'); // alias
+  assert.equal(loadSettings(projectWith('sidecars:\n  location: nonsense\n')).sidecars.location, 'per-directory'); // → default
+});

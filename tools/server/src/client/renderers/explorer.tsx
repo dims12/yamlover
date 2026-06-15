@@ -11,9 +11,12 @@ const MIXED_KEY = "$yamloverMixed";
 
 // ---- the view mode: a URL parameter (`?view=`), so a view is a shareable link ---- //
 
-const VIEWS = ["large", "small"] as const;
+const VIEWS = ["large", "thumbnails", "small"] as const;
 type ViewMode = (typeof VIEWS)[number];
 const DEFAULT_VIEW: ViewMode = "large";
+// The two views that show image previews, and the server thumbnail box each requests: the
+// gallery "thumbnails" view asks for a larger crop (crisp at its ~280px tiles / retina).
+const THUMB_BOX: Partial<Record<ViewMode, number>> = { large: 256, thumbnails: 512 };
 const params = () => new URLSearchParams(window.location.search);
 
 /** The grid view from the URL's `?view=`, or the default (an unknown value ignored). */
@@ -44,6 +47,7 @@ export function ExplorerViewControl({ rerender }: { rerender: () => void }) {
         }}
       >
         <option value="large">large icons</option>
+        <option value="thumbnails">thumbnails</option>
         <option value="small">small icons</option>
       </select>
     </label>
@@ -147,26 +151,27 @@ function arrowTarget(els: (HTMLElement | null)[], cur: number, key: string, coun
 /** The thumbnail source for a member, or null when it isn't a previewable image: a raster image
  *  goes through the server's /api/thumb (which downscales + caches, and 415s formats it can't
  *  decode → the glyph shows); an SVG serves its own bytes (the browser scales the vector). */
-function thumbSrc(link: Link): string | null {
+function thumbSrc(link: Link, box: number): string | null {
   const fmt = link.format ?? null;
   if (!fmt || !fmt.startsWith("image/")) return null;
   if (fmt === "image/svg+xml") return blobUrl(link.path);
-  return thumbUrl(link.path, 256, 256);
+  return thumbUrl(link.path, box, box);
 }
 
-/** A member's icon slot: a real thumbnail when one is available, falling back to the type glyph
- *  while loading isn't possible / on a decode miss (the server 415s, the <img> errors). */
-function Thumb({ link, glyph }: { link: Link; glyph: Glyph }) {
+/** A member's icon slot: a real thumbnail (fitted within `box`) when one is available, falling
+ *  back to the type glyph while loading isn't possible / on a decode miss (the server 415s, the
+ *  <img> errors). */
+function Thumb({ link, glyph, box }: { link: Link; glyph: Glyph; box: number }) {
   const [failed, setFailed] = useState(false);
-  const src = failed ? null : thumbSrc(link);
+  const src = failed ? null : thumbSrc(link, box);
   if (!src) return <span className={"dirview-icon " + glyph.cls} title={glyph.title}>{glyph.glyph}</span>;
   return <img className="dirview-icon dirview-thumb" src={src} alt="" loading="lazy" onError={() => setFailed(true)} />;
 }
 
-function Item({ it, active, large, setRef, onFocus, onNavigate }: {
+function Item({ it, active, view, setRef, onFocus, onNavigate }: {
   it: ExplorerItem;
   active: boolean;
-  large: boolean;
+  view: ViewMode;
   setRef: (el: HTMLElement | null) => void;
   onFocus: () => void;
   onNavigate: (path: string) => void;
@@ -209,7 +214,7 @@ function Item({ it, active, large, setRef, onFocus, onNavigate }: {
         onNavigate(link.path);
       }}
     >
-      {large && !it.up ? <Thumb link={link} glyph={g} /> : <span className={"dirview-icon " + g.cls} title={g.title}>{g.glyph}</span>}
+      {THUMB_BOX[view] && !it.up ? <Thumb link={link} glyph={g} box={THUMB_BOX[view]!} /> : <span className={"dirview-icon " + g.cls} title={g.title}>{g.glyph}</span>}
       <span className="dirview-label">{label}</span>
     </a>
   );
@@ -285,6 +290,10 @@ export function ExplorerView({ node, onNavigate }: { node: NodeJson; onNavigate:
 
   // a tag page's description is its BODY (the header bar already names the node)
   const desc = (isTag ? tagBody(node.value) : null) ?? node.description;
+  // the tile layouts: large + thumbnails share the column-tile grid (dirview-lg); thumbnails
+  // adds dirview-thumbs to enlarge the previews into a gallery.
+  const view = explorerViewMode();
+  const gridClass = "dirview" + (view !== "small" ? " dirview-lg" : "") + (view === "thumbnails" ? " dirview-thumbs" : "");
   return (
     <div className="explorerview">
       {desc && (
@@ -294,7 +303,7 @@ export function ExplorerView({ node, onNavigate }: { node: NodeJson; onNavigate:
       )}
       <div
         ref={gridRef}
-        className={"dirview" + (explorerViewMode() === "large" ? " dirview-lg" : "")}
+        className={gridClass}
         onKeyDown={onKeyDown}
       >
         {items.map((it, i) => (
@@ -302,7 +311,7 @@ export function ExplorerView({ node, onNavigate }: { node: NodeJson; onNavigate:
             key={`${it.up ? "^" : ""}${it.link?.path ?? it.key}#${i}`}
             it={it}
             active={i === active}
-            large={explorerViewMode() === "large"}
+            view={view}
             setRef={(el) => { itemEls.current[i] = el; }}
             onFocus={() => setActive(i)}
             onNavigate={onNavigate}

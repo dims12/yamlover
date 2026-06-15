@@ -262,3 +262,39 @@ test('self-import graft: a root that IS a project (has $defs) still gains the ya
   s.close();
   rmSync(dir, { recursive: true, force: true });
 });
+
+test('.yamlover is indexed as a HIDDEN subtree: sidecars resolve, the overlay/db are skipped', () => {
+  const root = mkdtempSync(join(tmpdir(), 'yo-hidden-'));
+  const dir = join(root, 'pics');
+  mkdirSync(join(dir, '.yamlover', 'thumbnails'), { recursive: true });
+  writeFileSync(join(dir, 'pic.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 3]));
+  writeFileSync(join(dir, '.yamlover', 'thumbnails', 't.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0, 1, 2, 3]));
+  writeFileSync(join(dir, '.yamlover', 'index.db'), 'PRETEND DB'); // must NEVER be indexed (the db would index itself)
+  writeFileSync(join(dir, '.yamlover', 'body.yamlover'), `"pic.png":\n  yamlover-thumbnails:\n    [256, 256]: *:.yamlover:thumbnails:t.jpg\n`);
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(root));
+  // the `.yamlover` node exists, is flagged hidden, and is a real child of :pics (resolvable)
+  assert.equal(s.node(':pics:.yamlover')?.meta?.hidden, true);
+  assert.ok(s.children(':pics').map((c) => c.label).includes('.yamlover'));
+  // its derived sidecar is indexed + addressable; the engine's own files are NOT
+  assert.equal(s.node(':pics:.yamlover:thumbnails:t.jpg')?.type, 'blob');
+  assert.equal(s.node(':pics:.yamlover:index.db'), null);
+  assert.equal(s.node(':pics:.yamlover:body.yamlover'), null);
+  // the DOCUMENT-relative pointer `*:.yamlover:thumbnails:t.jpg` resolved (nothing dangling)
+  assert.deepEqual(s.dangling(), []);
+  s.close();
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('a .yamlover holding only the overlay + index db adds NO node (plain dirs keep their shape)', () => {
+  const root = mkdtempSync(join(tmpdir(), 'yo-hidden2-'));
+  mkdirSync(join(root, '.yamlover'), { recursive: true });
+  writeFileSync(join(root, 'a'), 'Alice\n');
+  writeFileSync(join(root, '.yamlover', 'body.yamlover'), 'a: !!<format: text/plain>\n');
+  writeFileSync(join(root, '.yamlover', 'index.db'), 'DB');
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(root));
+  assert.equal(s.node(':.yamlover'), null); // nothing indexable under .yamlover → no hidden node
+  s.close();
+  rmSync(root, { recursive: true, force: true });
+});

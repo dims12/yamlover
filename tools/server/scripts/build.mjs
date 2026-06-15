@@ -25,10 +25,13 @@
  */
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, basename } from "node:path";
+import { copyFileSync, mkdirSync } from "node:fs";
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const require = createRequire(import.meta.url);
 
 // 1. Client SPA → dist/client (static assets, no Vite at runtime).
 await viteBuild({ configFile: join(pkgRoot, "vite.config.mjs") });
@@ -55,3 +58,16 @@ await esbuild({
 });
 
 console.log("yamlover  bundled src/server/engine-api.ts → dist/server.js");
+
+// 3. Codec wasm → dist/wasm/. esbuild bundles each decoder's JS glue but not its `.wasm`; the
+// extractors hand the glue a pre-compiled module (src/server/extract/wasm.ts), resolving the
+// binary from node_modules in dev and from here in the bundle. Keep this list in sync with the
+// lazily-imported decoders under src/server/extract/decoders/.
+const WASM = [
+  "@jsquash/webp/codec/dec/webp_dec.wasm",
+  "@jsquash/avif/codec/dec/avif_dec.wasm",
+];
+const wasmDir = join(pkgRoot, "dist/wasm");
+mkdirSync(wasmDir, { recursive: true });
+for (const spec of WASM) copyFileSync(require.resolve(spec), join(wasmDir, basename(spec)));
+console.log(`yamlover  copied ${WASM.length} codec wasm → dist/wasm`);

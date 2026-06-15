@@ -25,11 +25,20 @@ export interface Settings {
    *  served root. As with annotations, reading is location-independent — a tag is recognized
    *  by its schema (`x-yamlover-tag`), wherever it sits. */
   tags: { location: string };
+  /** Where DERIVED sidecar blobs (thumbnail + fragment-crop images) are written, under a hidden
+   *  `.yamlover/` overlay dir. `'per-directory'` → the source file's own directory `.yamlover/`
+   *  (a self-contained doc; document-scope pointer `*:.yamlover:…`); `'project'` → the served
+   *  root's `.yamlover/` (project-scope `*::.yamlover:…`). Reading is location-independent — a
+   *  sidecar resolves by its pointer wherever it sits. */
+  sidecars: { location: SidecarLocation };
 }
+
+export type SidecarLocation = 'per-directory' | 'project';
 
 export const DEFAULT_SETTINGS: Settings = {
   annotations: { location: ':annotations' },
   tags: { location: ':tags' },
+  sidecars: { location: 'per-directory' },
 };
 
 /** Read `<absRoot>/.yamlover/settings.yamlover`, overlaying DEFAULT_SETTINGS. A missing or
@@ -46,7 +55,17 @@ export function loadSettings(absRoot: string): Settings {
   return {
     annotations: { location: locationSetting(valueAt(root, 'annotations', 'location'), DEFAULT_SETTINGS.annotations.location) },
     tags: { location: locationSetting(valueAt(root, 'tags', 'location'), DEFAULT_SETTINGS.tags.location) },
+    sidecars: { location: sidecarLocation(valueAt(root, 'sidecars', 'location'), DEFAULT_SETTINGS.sidecars.location) },
   };
+}
+
+/** Normalize a settings `sidecars.location` enum: `'per-directory'` (or the `'document'` alias)
+ *  vs `'project'`; anything else falls back to `dflt`. */
+function sidecarLocation(v: Value | undefined, dflt: SidecarLocation): SidecarLocation {
+  const s = v !== undefined && !isPointer(v) && v.kind === 'scalar' && typeof v.value === 'string' ? v.value.trim() : '';
+  if (s === 'per-directory' || s === 'document') return 'per-directory';
+  if (s === 'project') return 'project';
+  return dflt;
 }
 
 /** The value under a chain of string keys, walked over the raw IR (NOT toPlain — a `*`-pointer

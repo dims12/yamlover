@@ -11,6 +11,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHandlers } from "../src/server/engine-api.ts";
 import { Store } from "../../engine/ts/src/store.ts";
 import { tmpTree } from "./helpers.ts";
+import { call, sseCapture } from "./http.ts";
 
 function handlers(root: string) {
   const h = createHandlers(root, { gitignore: false });
@@ -84,15 +85,16 @@ describe("GET /api/thumb", () => {
     expect(decoded.bitmap.width).toBe(320);
     expect(decoded.bitmap.height).toBe(240);
 
-    // a content-addressed sidecar landed under thumbnails/
-    const sidecars = fs.readdirSync(path.join(root, "thumbnails"));
+    // a content-addressed sidecar landed under the hidden .yamlover/thumbnails/ (per-directory mode)
+    const sidecars = fs.readdirSync(path.join(root, ".yamlover", "thumbnails"));
     expect(sidecars).toHaveLength(1);
     expect(sidecars[0]).toMatch(/^xxh64-[0-9a-f]+-320x240\.jpg$/);
 
-    // the overlay grew a yamlover-thumbnails entry keyed by the [w, h] tuple, pointing at it
+    // the overlay grew a yamlover-thumbnails entry keyed by the [w, h] tuple, with a
+    // DOCUMENT-relative pointer into the hidden .yamlover/ subtree
     const body = fs.readFileSync(overlayFile(root), "utf8");
     expect(body).toContain("yamlover-thumbnails:");
-    expect(body).toMatch(/\[320, 240\]: \*::thumbnails:/);
+    expect(body).toMatch(/\[320, 240\]: \*:\.yamlover:thumbnails:/);
 
     // and the overlay parsed: the thumbnail is a real node in the graph under the source blob — a
     // `[320, 240]` ref edge (the `*` pointer) resolving to the sidecar's image/jpeg blob.
@@ -114,7 +116,7 @@ describe("GET /api/thumb", () => {
     expect(a.status).toBe(200);
     expect(b.body.equals(a.body)).toBe(true);
     // exactly one sidecar — the second request hit the fast path, not a fresh encode
-    expect(fs.readdirSync(path.join(root, "thumbnails"))).toHaveLength(1);
+    expect(fs.readdirSync(path.join(root, ".yamlover", "thumbnails"))).toHaveLength(1);
   });
 
   it("returns 415 for a format with no decoder (the explorer falls back to the glyph)", async () => {
@@ -126,6 +128,66 @@ describe("GET /api/thumb", () => {
 
     const r = await callStream(h, "/api/thumb", { path: ":doc.pdf", w: "256", h: "256" });
     expect(r.status).toBe(415);
-    expect(fs.existsSync(path.join(root, "thumbnails"))).toBe(false);
+    expect(fs.existsSync(path.join(root, ".yamlover", "thumbnails"))).toBe(false);
+  });
+
+  it("project mode writes the sidecar to the ROOT .yamlover/ with a project-scoped pointer", async () => {
+    const root = tmpTree({ ".yamlover/settings.yamlover": "sidecars:\n  location: project\n" });
+    fs.mkdirSync(path.join(root, "sub"));
+    await writePng(root, "sub/pic.png", 400, 300); // a NESTED source image
+    const h = handlers(root);
+    await h.ready;
+
+    const r = await callStream(h, "/api/thumb", { path: ":sub:pic.png", w: "128", h: "128" });
+    expect(r.status).toBe(200);
+    // the sidecar lands in the ROOT .yamlover/ (centralized), not beside the source
+    expect(fs.readdirSync(path.join(root, ".yamlover", "thumbnails"))).toHaveLength(1);
+    expect(fs.existsSync(path.join(root, "sub", ".yamlover", "thumbnails"))).toBe(false);
+    // and the overlay pointer is PROJECT-scoped (double colon)
+    const body = fs.readFileSync(path.join(root, "sub", ".yamlover", "body.yamlover"), "utf8");
+    expect(body).toMatch(/\[128, 128\]: \*::\.yamlover:thumbnails:/);
+  });
+
+  it("the .yamlover overlay subtree is resolvable but HIDDEN from /api/json + /api/tree", async () => {
+    const root = tmpTree({});
+    await writePng(root, "pic.png", 200, 200);
+    const h = handlers(root);
+    await h.ready;
+    await callStream(h, "/api/thumb", { path: ":pic.png", w: "64", h: "64" }); // creates .yamlover/thumbnails
+
+    // the root's member list omits .yamlover…
+    const rootJson = call(h, "/api/json", { path: ":" }).json;
+    expect(Object.keys(rootJson.value)).not.toContain(".yamlover");
+    // …and so does the TOC
+    const tree = call(h, "/api/tree", { path: ":", depth: "2" }).json;
+    expect(tree.children.map((c: { label: string }) => c.label)).not.toContain(".yamlover");
+    // but the sidecar blob inside it is still resolvable by direct path
+    const name = fs.readdirSync(path.join(root, ".yamlover", "thumbnails"))[0];
+    const blob = call(h, "/api/json", { path: `:.yamlover:thumbnails:${name}` }).json;
+    expect(blob.type).toBe("binary");
+  });
+
+  it("surfaces a coalesced 'building thumbnails' task over SSE while generating", async () => {
+    const root = tmpTree({});
+    fs.mkdirSync(path.join(root, "pics"));
+    await writePng(root, "pics/a.png", 200, 150);
+    await writePng(root, "pics/b.png", 200, 150);
+    const h = handlers(root);
+    await h.ready;
+    const sse = sseCapture(h);
+    onTestFinished(() => sse.close());
+
+    // a directory load fires several thumbnail requests at once
+    await Promise.all([
+      callStream(h, "/api/thumb", { path: ":pics:a.png", w: "128", h: "128" }),
+      callStream(h, "/api/thumb", { path: ":pics:b.png", w: "128", h: "128" }),
+    ]);
+
+    const built = sse
+      .frames()
+      .filter((f) => f.type === "task" && f.task.label === "building thumbnails")
+      .map((f) => f.task);
+    expect(built.length).toBeGreaterThan(0); // the task was announced (same strip as index/hasher)
+    expect(built.at(-1).state).toBe("done"); // and cleared when the burst drained
   });
 });

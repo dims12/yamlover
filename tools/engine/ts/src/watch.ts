@@ -16,6 +16,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const OVERLAY_FILES = new Set(['body.yamlover', 'meta.yamlover', 'settings.yamlover']);
+// Derived-sidecar subdirs inside `.yamlover/` that ARE indexed (thumbnails/, fragments/) — their
+// blobs are addressable content, so external writes there must trigger a reindex. The index db
+// (`index.db*`) is deliberately NOT here: it's rewritten by every reindex, so watching it would loop.
+const YAMLOVER_SIDECAR_DIRS = new Set(['thumbnails', 'fragments']);
 
 export interface WatchOptions {
   /** Same predicate the walker got: true → the path is git-ignored, skip its events. */
@@ -39,9 +43,14 @@ export function watchTree(absRoot: string, onBatch: (relPaths: string[]) => void
     const segs = rel.split(path.sep);
     for (let i = 0; i < segs.length; i++) {
       if (!segs[i].startsWith('.')) continue;
-      // a dot-segment: only `.yamlover/<overlay file>` is data the walker reads
-      const isOverlay = segs[i] === '.yamlover' && i === segs.length - 2 && OVERLAY_FILES.has(segs[i + 1]);
-      if (!isOverlay) return false;
+      // a dot-segment is data the walker reads only when it's `.yamlover/` holding either an
+      // overlay file (`.yamlover/body.yamlover`) or an indexed sidecar (`.yamlover/thumbnails/x`);
+      // anything else under a dot-dir — notably `.yamlover/index.db*` — is filtered (avoids a loop).
+      const rest = segs.slice(i + 1);
+      const isOverlay = segs[i] === '.yamlover' && rest.length === 1 && OVERLAY_FILES.has(rest[0]);
+      const isSidecar = segs[i] === '.yamlover' && rest.length >= 2 && YAMLOVER_SIDECAR_DIRS.has(rest[0]) && !rest.some((s) => s.startsWith('.'));
+      if (!isOverlay && !isSidecar) return false;
+      break; // consumed the rest of the path under `.yamlover`; no further dot-segment check
     }
     return !opts.ignore?.(path.join(root, rel));
   };

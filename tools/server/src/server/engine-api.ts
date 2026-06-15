@@ -36,7 +36,7 @@ import path from "node:path";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Store, reindex, reindexAsync, hashFileAsync, watchTree, loadSettings, mv, relinkMoved, evalQuery } from "../../../engine/ts/src/index.ts";
-import type { NodeRow, EdgeRow, Settings, IndexDiff } from "../../../engine/ts/src/index.ts";
+import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { pointerToken } from "../../../parser/ts/src/serialize-yamlover.ts";
 import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, keyToken } from "./embed.js";
@@ -113,6 +113,31 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   // a client JSON path (keys percent-encoded) as the root-relative FILE path diffs speak
   const relFileOf = (clientPath: string): string => strToSegs(clientPath).map(String).join("/");
   const tasks = new TaskRegistry((t) => sseWrite({ type: "task", task: t }));
+
+  // Thumbnail generation surfaces as ONE coalesced task in the strip (like the index/hasher),
+  // not a flood of per-image ones: opening a directory fires many /api/thumb misses, so a single
+  // "building thumbnails" task's `total` grows as requests arrive and its `done` catches up as
+  // each finishes; it clears when the burst drains. (A cache hit / 415 never reaches here.)
+  let thumbTask: TaskHandle | null = null;
+  let thumbDone = 0;
+  let thumbTotal = 0;
+  const thumbBegin = (): void => {
+    thumbTotal++;
+    if (!thumbTask && !closed) thumbTask = tasks.start("building thumbnails");
+    thumbTask?.progress(thumbDone, thumbTotal);
+  };
+  const thumbEnd = (): void => {
+    thumbDone++;
+    if (!thumbTask) return;
+    if (thumbDone >= thumbTotal) {
+      thumbTask.progress(thumbTotal, thumbTotal); // so the completion frame reads 100%, not N-1/N
+      thumbTask.done();
+      thumbTask = null;
+      thumbDone = thumbTotal = 0;
+    } else {
+      thumbTask.progress(thumbDone, thumbTotal);
+    }
+  };
 
   // ONE WRITER at a time: every job that mutates the Store or needs a consistent manifest
   // (indexing, mv, paste, annotations) chains here, so e.g. an annotation cannot be swallowed
@@ -352,7 +377,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             enqueue(async () => {
               const f = data as FragmentInput;
               if (!f?.selector || typeof f.selector !== "object") throw new Error("a fragment needs a selector");
-              const made = embedFragment(dataRoot, s, f);
+              const made = embedFragment(dataRoot, s, settings.sidecars.location, f);
               broadcast(await doReindex());
               scheduleHasher();
               return made;
@@ -532,15 +557,18 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           stream.on("error", () => res.destroy());
           stream.pipe(res);
         };
-        const ready = existingThumb(dataRoot, sourceRow, w, h); // no-write fast path
+        const ready = existingThumb(dataRoot, s, settings.sidecars.location, segs, sourceRow, w, h); // no-write fast path
         if (ready) return serve(ready);
+        thumbBegin(); // count this generation into the coalesced "building thumbnails" task
         enqueue(async () => {
-          const made = await ensureThumbnail(dataRoot, s, segs, sourceRow, w, h);
+          thumbTask?.progress(thumbDone, thumbTotal, String(segs[segs.length - 1] ?? "")); // the one now building
+          const made = await ensureThumbnail(dataRoot, s, settings.sidecars.location, segs, sourceRow, w, h);
           if (made) broadcast(await doReindex());
           return made;
         })
           .then((made) => (made ? serve(made) : sendJson(res, 415, { error: `no thumbnail for format: ${sourceRow.format ?? "unknown"}` })))
-          .catch((e) => sendJson(res, 500, { error: String((e as Error).message || e) }));
+          .catch((e) => sendJson(res, 500, { error: String((e as Error).message || e) }))
+          .finally(() => thumbEnd());
         return;
       }
 
@@ -635,9 +663,19 @@ const relKey = (label: string | null, other: string): string => `${label ?? ""} 
  *  alongside a forward `- *member` (lists repeat) — unless the container is a `!!set` /
  *  `uniqueItems: true` (NodeMeta.set), where membership is by target and ALL duplicates
  *  (forward+forward, forward+reverse, reverse+reverse) collapse. */
+/** Whether a node is flagged hidden (the `.yamlover` overlay subtree): resolvable by pointer, but
+ *  omitted from the TOC, directory-member projection, and visible child counts. */
+const isHidden = (s: Store, to: string): boolean => !!s.node(to)?.meta?.hidden;
+/** Has a child that ISN'T hidden — the `hasChildren` a directory should report (a dir whose only
+ *  child is `.yamlover` reads as a leaf). */
+const visibleHasChildren = (s: Store, p: string): boolean => s.children(p).some((c) => !isHidden(s, c.to));
+
 function downstreamEntries(s: Store, p: string): { to: string; label: string | null; pos: number | null; kind: EdgeRow["kind"] }[] {
   const isSet = !!s.node(p)?.meta?.set;
-  let own = s.entries(p).filter((e) => e.kind !== "back"); // contain + forward ref, ordered by pos
+  // contain + forward ref, ordered by pos — but a CONTAIN edge to a hidden node (`.yamlover`) is
+  // omitted from the listing (forward `*` refs INTO the hidden subtree, e.g. a thumbnail pointer,
+  // are kept — they're how the overlay surfaces the sidecar).
+  let own = s.entries(p).filter((e) => e.kind !== "back" && !(e.kind === "contain" && isHidden(s, e.to)));
   const seen = new Set(own.map((e) => relKey(e.label, e.to)));
   if (isSet) {
     const kept = new Set<string>(); // set semantics: an element appears at most once
@@ -740,7 +778,7 @@ function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unk
   else if (k === "omni" || k === "mix") {
     info.count = ownedEntries(s, p).length; // owned items + fields (reverse members excluded)
     if (k === "omni") info.value = row.value; // the self-scalar, for the link label
-  } else info.count = s.children(p).length;
+  } else info.count = s.children(p).filter((c) => !isHidden(s, c.to)).length; // visible members only (omit `.yamlover`)
   if (row.format === TAG_FORMAT) {
     // a pure color tag's explicit color rides the link, so badges color correctly everywhere
     const c = s.node(p + ":color")?.value;
@@ -821,11 +859,12 @@ function buildTree(dataRoot: string, s: Store, segs: Seg[], label: string, depth
     format: row.format ?? null,
     ...facetsOf(s, p, row),
     concrete: concreteOf(dataRoot, segs, row),
-    hasChildren: s.hasChildren(p),
+    hasChildren: visibleHasChildren(s, p),
     children: [],
   };
-  if (s.hasChildren(p) && depth > 0) {
+  if (node.hasChildren && depth > 0) {
     for (const c of s.children(p)) {
+      if (isHidden(s, c.to)) continue; // omit the hidden `.yamlover` overlay subtree from the TOC
       const seg = c.label ?? c.pos ?? 0;
       node.children.push(buildTree(dataRoot, s, [...segs, seg], labelFor(s, c.to, seg), depth - 1));
     }
@@ -854,8 +893,8 @@ const TAG_FORMAT = "x-yamlover-tag";
 const ANN_KEY = "yamlover-annotations";
 const FRAG_KEY = "yamlover-fragments";
 const THUMB_KEY = "yamlover-thumbnails";
-const CROP_DIR = "fragments"; // crop sidecar blobs live here (a normal, indexable dir) at the served root
-const THUMB_DIR = "thumbnails"; // derived thumbnail blobs (sibling of fragments/), content-addressed
+const CROP_SUBDIR = "fragments"; // crop sidecar blobs, under a hidden .yamlover/ overlay dir
+const THUMB_SUBDIR = "thumbnails"; // derived thumbnail blobs, content-addressed, under .yamlover/
 
 interface AnnotateInput {
   target: string; // the target's JSON path — a node, or a fragment (`…:yamlover-fragments:<slug>`)
@@ -975,6 +1014,38 @@ function pointerRaw(clientPath: string): string {
   return "::" + out;
 }
 
+// --- derived sidecars: where the bytes live + how the overlay points at them ------------------ //
+// A sidecar (thumbnail / fragment crop) lives under a HIDDEN `.yamlover/` overlay dir. Two modes
+// (settings.sidecars.location): 'per-directory' keeps it beside the source — the source's own
+// directory `.yamlover/<subdir>/`, referenced by a DOCUMENT-scope pointer `*:.yamlover:<subdir>:name`
+// that resolves against that directory (its documentRoot); 'project' centralizes under the served
+// root's `.yamlover/`, referenced by a PROJECT-scope pointer `*::.yamlover:<subdir>:name`.
+
+/** The directory a sidecar is written to + the pointer scope to emit, from the embed host's
+ *  `bodyFile` (a directory overlay `<dir>/.yamlover/body.yamlover` lets per-directory work;
+ *  a standalone-doc host has no `.yamlover` child, so per-directory falls back to project). */
+function sidecarTarget(
+  dataRoot: string,
+  mode: SidecarLocation,
+  subdir: string,
+  bodyFile: string,
+): { dir: string; scope: "document" | "project" } {
+  const dirOverlay = bodyFile.endsWith(path.join(".yamlover", "body.yamlover"));
+  if (mode === "per-directory" && dirOverlay) {
+    const fileDir = path.dirname(path.dirname(bodyFile)); // <dir> from <dir>/.yamlover/body.yamlover
+    return { dir: path.join(fileDir, ".yamlover", subdir), scope: "document" };
+  }
+  return { dir: path.join(dataRoot, ".yamlover", subdir), scope: "project" };
+}
+
+/** Pointer raw text for a sidecar `name` in `subdir` under `.yamlover/`, at the given scope:
+ *  document → `:.yamlover:<subdir>:name` (single colon, resolves against the nearest documentRoot);
+ *  project → `::.yamlover:<subdir>:name` (served-root relative). Wrap with {@link pointerToken}. */
+function sidecarPointerRaw(subdir: string, name: string, scope: "document" | "project"): string {
+  const body = [".yamlover", subdir, name].map(colonSegment).join(":");
+  return (scope === "document" ? ":" : "::") + body;
+}
+
 /** Serialize a value as a yamlover scalar (double-quoted strings round-trip through the parser). */
 function yScalar(v: unknown): string {
   return typeof v === "number" || typeof v === "boolean" ? String(v) : JSON.stringify(String(v ?? ""));
@@ -1042,7 +1113,7 @@ function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): void {
 
 /** Embed a fragment under the target's `yamlover-fragments` mapping; for an image-like selection,
  *  write the PNG crop as a sidecar blob the fragment references. Returns its slug + node path. */
-function embedFragment(dataRoot: string, s: Store, f: FragmentInput): { slug: string; fragmentPath: string } {
+function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: FragmentInput): { slug: string; fragmentPath: string } {
   const segs = strToSegs(f.target || ":");
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
   const slug = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -1050,11 +1121,11 @@ function embedFragment(dataRoot: string, s: Store, f: FragmentInput): { slug: st
   if (f.imageBase64) {
     const bytes = Buffer.from(String(f.imageBase64).replace(/^data:[^,]*,/, ""), "base64");
     if (bytes.length > 0) {
-      const cropDir = path.join(dataRoot, CROP_DIR);
-      fs.mkdirSync(cropDir, { recursive: true });
+      const { dir, scope } = sidecarTarget(dataRoot, mode, CROP_SUBDIR, bodyFile);
+      fs.mkdirSync(dir, { recursive: true });
       const cropName = `${slug}.png`;
-      writeInside(dataRoot, cropDir, cropName, bytes);
-      imagePtr = pointerToken(pointerRaw(segsToStr([CROP_DIR, cropName])));
+      writeInside(dataRoot, dir, cropName, bytes);
+      imagePtr = pointerToken(sidecarPointerRaw(CROP_SUBDIR, cropName, scope));
     }
   }
   fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
@@ -1082,19 +1153,22 @@ const thumbName = (hash: string, w: number, h: number): string => `${hash.replac
 /** The already-generated sidecar for this source + box, or null when its hash is unknown (a large
  *  blob the background hasher has not reached) or the file is absent — the cheap, no-write fast
  *  path the /api/thumb handler tries before queuing a generation. */
-function existingThumb(dataRoot: string, row: NodeRow, w: number, h: number): string | null {
+function existingThumb(dataRoot: string, s: Store, mode: SidecarLocation, segs: Seg[], row: NodeRow, w: number, h: number): string | null {
   if (!row.content_hash) return null;
-  const abs = path.join(dataRoot, THUMB_DIR, thumbName(row.content_hash, w, h));
+  const { bodyFile } = hostFor(dataRoot, s, segs);
+  const { dir } = sidecarTarget(dataRoot, mode, THUMB_SUBDIR, bodyFile);
+  const abs = path.join(dir, thumbName(row.content_hash, w, h));
   return fs.existsSync(abs) ? abs : null;
 }
 
 /** Splice/replace the `yamlover-thumbnails: [w, h]:` overlay entry on the source blob, pointing at
- *  the sidecar `name` under `thumbnails/`. */
-function embedThumbnail(dataRoot: string, s: Store, segs: Seg[], w: number, h: number, name: string): void {
+ *  the sidecar `name` under the mode-appropriate `.yamlover/thumbnails/`. */
+function embedThumbnail(dataRoot: string, s: Store, mode: SidecarLocation, segs: Seg[], w: number, h: number, name: string): void {
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
+  const { scope } = sidecarTarget(dataRoot, mode, THUMB_SUBDIR, bodyFile);
   fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
-  const ptr = pointerToken(pointerRaw(segsToStr([THUMB_DIR, name])));
+  const ptr = pointerToken(sidecarPointerRaw(THUMB_SUBDIR, name, scope));
   const key = thumbResKey(w, h);
   fs.writeFileSync(bodyFile, upsertThumbnail(src, within, key, (indent) => [`${" ".repeat(indent)}${key}: ${ptr}`]));
 }
@@ -1103,18 +1177,19 @@ function embedThumbnail(dataRoot: string, s: Store, segs: Seg[], w: number, h: n
  *  generating (decode → fit → encode → write sidecar → embed overlay) on a miss. Null when no
  *  extractor can decode the format (the caller serves the type glyph). Idempotent — safe to call
  *  concurrently behind the writer queue; a second caller finds the file already written. */
-async function ensureThumbnail(dataRoot: string, s: Store, segs: Seg[], row: NodeRow, w: number, h: number): Promise<string | null> {
+async function ensureThumbnail(dataRoot: string, s: Store, mode: SidecarLocation, segs: Seg[], row: NodeRow, w: number, h: number): Promise<string | null> {
   const sourceAbs = path.join(dataRoot, ...segs.map(String));
   const hash = row.content_hash ?? (await hashFileAsync(sourceAbs));
   const name = thumbName(hash, w, h);
-  const abs = path.join(dataRoot, THUMB_DIR, name);
+  const { bodyFile } = hostFor(dataRoot, s, segs);
+  const { dir } = sidecarTarget(dataRoot, mode, THUMB_SUBDIR, bodyFile);
+  const abs = path.join(dir, name);
   if (fs.existsSync(abs)) return abs;
   const thumb = await renderThumbnail(fs.readFileSync(sourceAbs), row.format ?? formatFromExt(sourceAbs), w, h);
   if (!thumb) return null;
-  const dir = path.join(dataRoot, THUMB_DIR);
   fs.mkdirSync(dir, { recursive: true });
   writeInside(dataRoot, dir, name, thumb.buf);
-  embedThumbnail(dataRoot, s, segs, w, h, name);
+  embedThumbnail(dataRoot, s, mode, segs, w, h, name);
   return abs;
 }
 

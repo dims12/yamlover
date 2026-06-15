@@ -31,6 +31,14 @@ const { h64Raw, create64 } = await xxhash();
 const hashBytes = (bytes: Uint8Array): string => 'xxh64:' + h64Raw(bytes).toString(16).padStart(16, '0');
 
 const YAMLOVER_DIR = '.yamlover';
+// Engine-owned files inside `.yamlover/` that must NOT be indexed: the overlays are read into the
+// parent directory (applyBody/loadMeta), and the index db would otherwise index itself. Everything
+// else under `.yamlover/` (the derived `thumbnails/` and `fragments/` sidecar dirs) is walked
+// normally — those blobs are addressable content (just hidden). See yamloverDirNode.
+const YAMLOVER_INTERNAL = new Set([
+  'body.yamlover', 'meta.yamlover', 'settings.yamlover',
+  'index.db', 'index.db-wal', 'index.db-shm', 'index.db-journal',
+]);
 const MAX_TEXT_BYTES = 1 << 20; // 1 MiB: above this we never slurp a file to sniff/parse it
 const MAX_DOC_BYTES = 64 << 20; // 64 MiB: a format-matched text/doc file above this stays a Blob (never slurped)
 const HASH_INLINE_MAX = 1 << 20; // 1 MiB: a blob at or under this is read + hashed inline by the walk
@@ -277,6 +285,26 @@ function manifestCache(prev: Map<string, FileRecord>): NonNullable<WalkOptions['
  *  the determinate `total` for progress. readdir-only; trivially cheap next to the walk. */
 async function countChildren(absRoot: string, opts: WalkOptions): Promise<number> {
   let n = 0;
+  // count a `.yamlover/` overlay dir's indexable sidecars (same skip-list as yamloverDirNode);
+  // returns how many top-level entries survived (0 ⇒ the dir adds no node).
+  const visitYamlover = async (dir: string): Promise<number> => {
+    let entries;
+    try {
+      entries = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch {
+      return 0;
+    }
+    let top = 0;
+    for (const e of entries) {
+      if (YAMLOVER_INTERNAL.has(e.name) || e.name.startsWith('.')) continue;
+      const abs = path.join(dir, e.name);
+      if (opts.ignore?.(abs)) continue;
+      n++; top++;
+      const isDir = e.isDirectory() || (e.isSymbolicLink() && (await fs.promises.stat(abs).catch(() => null))?.isDirectory());
+      if (isDir) await visit(abs);
+    }
+    return top;
+  };
   const visit = async (dir: string): Promise<void> => {
     let entries;
     try {
@@ -285,9 +313,13 @@ async function countChildren(absRoot: string, opts: WalkOptions): Promise<number
       return;
     }
     for (const e of entries) {
-      if (e.name === YAMLOVER_DIR || e.name.startsWith('.')) continue;
+      if (e.name.startsWith('.') && e.name !== YAMLOVER_DIR) continue;
       const abs = path.join(dir, e.name);
       if (opts.ignore?.(abs)) continue;
+      if (e.name === YAMLOVER_DIR) {
+        if ((await visitYamlover(abs)) > 0) n++; // +1 for the hidden `.yamlover` node itself
+        continue;
+      }
       n++;
       const isDir = e.isDirectory() || (e.isSymbolicLink() && (await fs.promises.stat(abs).catch(() => null))?.isDirectory());
       if (isDir) await visit(abs);
@@ -409,13 +441,23 @@ function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
   const meta = loadMeta(dir, ctx);
   const names = fs
     .readdirSync(dir)
-    .filter((n) => n !== YAMLOVER_DIR && !n.startsWith('.')) // skip the overlay dir + hidden
+    .filter((n) => n === YAMLOVER_DIR || !n.startsWith('.')) // keep `.yamlover` (hidden subtree); drop other dotfiles
     .filter((n) => !ctx.opts.ignore?.(path.join(dir, n))) // skip git-ignored (e.g. node_modules)
     .sort(); // filesystem order = sorted names (stable; body.yamlover can re-impose order)
 
   const entries: Entry[] = [];
   for (const name of names) {
     const abs = path.join(dir, name);
+    if (name === YAMLOVER_DIR) {
+      // index the overlay dir's derived sidecars as a HIDDEN child (omitted when it holds only
+      // engine files — overlays / index db — so plain directories keep today's shape).
+      const hidden = yield* yamloverDirNode(abs, ctx);
+      if (hidden) {
+        entries.push({ key: name, edge: 'contain', value: hidden });
+        yield { done: ++ctx.count, path: path.relative(ctx.root, abs).split(path.sep).join('/') };
+      }
+      continue;
+    }
     const child = yield* childNode(abs, meta[name], ctx);
     entries.push({ key: name, edge: 'contain', value: child });
     yield { done: ++ctx.count, path: path.relative(ctx.root, abs).split(path.sep).join('/') };
@@ -423,6 +465,33 @@ function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
 
   const node: Mapping = { kind: 'mapping', entries, array: false };
   return applyMeta(applyBody(dir, node, ctx), meta); // attach meta `format` to entries (incl. body-overlay ones)
+}
+
+/** A `.yamlover/` overlay dir → a HIDDEN content subtree (its derived `thumbnails/`/`fragments/`
+ *  sidecars, addressable as `*:.yamlover:…`), or null when nothing indexable remains (overlay /
+ *  index-db only). The engine's own files (overlays, the index db, nested dotfiles) are skipped;
+ *  surviving entries walk through the normal {@link childNode}, so sidecar blobs index as usual.
+ *  The node is flagged `meta.hidden` so the TOC/explorer omit it. */
+function* yamloverDirNode(absYamlover: string, ctx: Ctx): Generator<WalkProgress, Node | null, void> {
+  let names: string[];
+  try {
+    names = fs
+      .readdirSync(absYamlover)
+      .filter((n) => !YAMLOVER_INTERNAL.has(n) && !n.startsWith('.'))
+      .filter((n) => !ctx.opts.ignore?.(path.join(absYamlover, n)))
+      .sort();
+  } catch {
+    return null;
+  }
+  const entries: Entry[] = [];
+  for (const name of names) {
+    const abs = path.join(absYamlover, name);
+    const child = yield* childNode(abs, undefined, ctx);
+    entries.push({ key: name, edge: 'contain', value: child });
+    yield { done: ++ctx.count, path: path.relative(ctx.root, abs).split(path.sep).join('/') };
+  }
+  if (entries.length === 0) return null;
+  return { kind: 'mapping', entries, array: false, meta: { hidden: true } };
 }
 
 /** A single filesystem child (file or subdir) → a Node, honoring meta type/format overrides. */

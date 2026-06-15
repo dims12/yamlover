@@ -104,7 +104,8 @@ describe("embedded annotations", () => {
       imageBase64: png,
     });
     expect(frag.status).toBe(201);
-    expect(fs.existsSync(path.join(root, "fragments", `${frag.json.slug}.png`))).toBe(true);
+    // per-directory mode: the crop sidecar lands under the target dir's hidden .yamlover/fragments/
+    expect(fs.existsSync(path.join(root, "docs", ".yamlover", "fragments", `${frag.json.slug}.png`))).toBe(true);
 
     await callBody(h, "POST", "/api/annotate", { target: frag.json.fragmentPath, tag: TAG });
     const list = call(h, "/api/annotations", { path: ":docs:pic.png" }).json;

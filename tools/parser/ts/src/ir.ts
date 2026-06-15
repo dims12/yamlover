@@ -37,6 +37,11 @@ export interface NodeMeta {
    *  collapse to one (URIs.md §`~-`). Unlike `!!mix`/`!!var` (parse permissions visible in the
    *  node's shape), this must survive into the graph. */
   set?: boolean;
+  /** This node is RESOLVABLE (indexed, addressable by pointers) but HIDDEN from listings: the
+   *  TOC, the directory explorer projection, and visible child counts omit it. Set on the
+   *  `.yamlover` overlay-dir node so its derived sidecars (`thumbnails/`, `fragments/`) resolve
+   *  via `*:.yamlover:…` / `*::.yamlover:…` without cluttering the UI. */
+  hidden?: boolean;
 }
 export interface Span { uri: string; start: number; end: number; }
 

@@ -1,6 +1,6 @@
 {
   "name": "yamlover",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Browse a yamlover tree in the web: npx yamlover <root> serves a React SPA over a directory.",
   "type": "module",
   "license": "MIT",
@@ -37,9 +37,11 @@
   "engines": {
     "node": ">=22"
   },
-  "comment:deps": "No runtime dependencies: the client deps are bundled into dist/client by `vite build` and the server deps (ignore/js-yaml/xxhash-wasm, plus jimp + ag-psd for thumbnail extraction — dynamically imported so they stay out of the cold-start path) into dist/server.js by esbuild. Everything below is build-/test-time only.",
+  "comment:deps": "No runtime dependencies: the client deps are bundled into dist/client by `vite build` and the server deps (ignore/js-yaml/xxhash-wasm, plus the thumbnail extractors jimp + ag-psd + @jsquash/webp + @jsquash/avif — dynamically imported so they stay out of the cold-start path) into dist/server.js by esbuild. The @jsquash codecs' .wasm is copied to dist/wasm by build.mjs (esbuild bundles only their JS glue). Everything below is build-/test-time only.",
   "devDependencies": {
     "@asciidoctor/core": "^3.0.4",
+    "@jsquash/avif": "^2.1.1",
+    "@jsquash/webp": "^1.5.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.1.0",
     "@tmcw/togeojson": "^7.1.2",

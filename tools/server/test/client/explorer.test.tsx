@@ -9,7 +9,7 @@ vi.mock("../../src/client/api", () => ({
 }));
 import { fetchTagged } from "../../src/client/api";
 import type { NodeJson } from "../../src/client/api";
-import { ExplorerView } from "../../src/client/renderers/explorer";
+import { ExplorerView, ExplorerViewControl } from "../../src/client/renderers/explorer";
 
 const mTagged = fetchTagged as unknown as ReturnType<typeof vi.fn>;
 
@@ -151,6 +151,30 @@ describe("ExplorerView (a directory)", () => {
     } finally {
       window.history.replaceState({}, "", ":dir");
     }
+  });
+
+  it("`?view=thumbnails` is a gallery: the dirview-thumbs grid + larger (512px) thumbnails", () => {
+    window.history.replaceState({}, "", ":dir?view=thumbnails");
+    try {
+      render(<ExplorerView node={dir} onNavigate={() => {}} />);
+      const grid = document.querySelector(".dirview")!;
+      expect(grid.className).toContain("dirview-lg"); // shares the column-tile layout
+      expect(grid.className).toContain("dirview-thumbs"); // …enlarged into a gallery
+      // a raster image asks the server for the bigger 512px crop (vs 256 in large view)
+      const img = items().find((el) => el.textContent?.includes("pic.png"))!.querySelector("img.dirview-thumb");
+      expect(img?.getAttribute("src")).toContain("/api/thumb?path=");
+      expect(img?.getAttribute("src")).toContain("w=512");
+    } finally {
+      window.history.replaceState({}, "", ":dir");
+    }
+  });
+});
+
+describe("ExplorerViewControl", () => {
+  it("offers all three views, including the new thumbnails gallery", () => {
+    render(<ExplorerViewControl rerender={() => {}} />);
+    const values = Array.from(document.querySelectorAll("option")).map((o) => o.getAttribute("value"));
+    expect(values).toEqual(["large", "thumbnails", "small"]);
   });
 });
 

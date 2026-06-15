@@ -16,12 +16,14 @@
 import type { Extractor } from "./types.js";
 import { rasterExtractor } from "./decoders/jimp-raster.js";
 import { psdExtractor } from "./decoders/psd.js";
+import { webpExtractor } from "./decoders/webp.js";
+import { avifExtractor } from "./decoders/avif.js";
 
 export type { Pixels, DecodeInput, Extractor } from "./types.js";
 export { byFormat } from "./types.js";
 
 /** Registration order is precedence order: the first extractor that accepts the format wins. */
-const REGISTRY: Extractor[] = [rasterExtractor, psdExtractor];
+const REGISTRY: Extractor[] = [rasterExtractor, psdExtractor, webpExtractor, avifExtractor];
 
 /** The extractor that claims `format`, or null when none does (the caller then has no thumbnail —
  *  e.g. a format with no headless decoder yet, like application/pdf). */

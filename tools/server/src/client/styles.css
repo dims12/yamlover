@@ -1175,6 +1175,18 @@ mark.yo-annotation {
   background: var(--panel);
   box-shadow: 0 0 0 1px var(--line);
 }
+/* the "thumbnails" gallery view: the large-tile layout, scaled up to ~280px image previews */
+.dirview-lg.dirview-thumbs .dirview-item {
+  width: 300px;
+  padding: 12px 8px 10px;
+}
+.dirview-lg.dirview-thumbs .dirview-thumb {
+  width: 280px;
+  height: 280px;
+}
+.dirview-lg.dirview-thumbs .dirview-icon {
+  font-size: 72px; /* a bigger glyph for non-image members, so they don't look lost in the gallery */
+}
 .dirview-lg .dirview-label {
   max-width: 100%;
   white-space: normal;
