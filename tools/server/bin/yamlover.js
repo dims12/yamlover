@@ -141,6 +141,13 @@ if (prod) {
   // WebSocket port of its own.
   const vite = await createServer({
     root: pkgRoot,
+    // Do NOT auto-load vite.config.mjs: that file is the PRODUCTION build config and
+    // also lists `plugins: [react()]`. Vite would merge it with the inline `react()`
+    // below, registering the React Fast-Refresh transform TWICE — every component
+    // module then gets two refresh preambles and esbuild rejects it ("The symbol
+    // 'inWebWorker' has already been declared"). The dev server is fully configured
+    // inline here, so the config file must stay out of the picture.
+    configFile: false,
     plugins: [react()],
     appType: "custom",
     // Always use this package's own React: `dedupe` collapses react/react-dom to a
