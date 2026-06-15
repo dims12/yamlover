@@ -12,6 +12,7 @@
  *   GET /api/json?path&depth&binary       the node value (depth-limited; nested = link markers)
  *   GET /api/schema?path&depth            the instance schema
  *   GET /api/blob?path                    a file-backed node's raw bytes
+ *   GET /api/thumb?path&w&h                a lazily-generated thumbnail of a file-backed blob
  *   GET /api/tagged?path                  the materials filed under a tag (annotations → targets)
  *   GET /api/events                       SSE: {type:"diff",…} reindex diffs + {type:"task",…} progress
  *   GET /api/tasks                        long-running tasks in flight (snapshot for a fresh page)
@@ -38,7 +39,8 @@ import { Store, reindex, reindexAsync, hashFileAsync, watchTree, loadSettings, m
 import type { NodeRow, EdgeRow, Settings, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { pointerToken } from "../../../parser/ts/src/serialize-yamlover.ts";
-import { appendAnnotation, upsertFragment, removeAnnotation as removeAnnotationItem, keyToken } from "./embed.js";
+import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, keyToken } from "./embed.js";
+import { renderThumbnail } from "./extract/thumbnails.js";
 import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
 import type { Node as IrNode } from "../../../parser/ts/src/ir.ts";
@@ -509,6 +511,39 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
+      // A lazily-generated thumbnail of a file-backed blob, fitted within ?w×?h. The first request
+      // for a (source, box) decodes + encodes it, stores it the yamlover way (a content-addressed
+      // sidecar under thumbnails/ + a `yamlover-thumbnails:[w,h]` overlay on the source), then
+      // serves it; later requests hit the sidecar directly. Generation runs through the writer
+      // queue so concurrent misses collapse onto one encode. A format with no decoder → 415, which
+      // the explorer treats as "fall back to the type glyph".
+      if (url.pathname === "/api/thumb") {
+        const sourceRow = s.node(p);
+        const sourceAbs = path.join(dataRoot, ...segs.map(String));
+        if (!sourceRow || !fs.existsSync(sourceAbs) || fs.statSync(sourceAbs).isDirectory()) return notFound(res, url);
+        const w = clampThumbDim(url.searchParams.get("w"), 256);
+        const h = clampThumbDim(url.searchParams.get("h"), w);
+        const serve = (file: string): void => {
+          res.statusCode = 200;
+          res.setHeader("Content-Type", "image/jpeg");
+          res.setHeader("Content-Length", String(fs.statSync(file).size));
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          const stream = fs.createReadStream(file);
+          stream.on("error", () => res.destroy());
+          stream.pipe(res);
+        };
+        const ready = existingThumb(dataRoot, sourceRow, w, h); // no-write fast path
+        if (ready) return serve(ready);
+        enqueue(async () => {
+          const made = await ensureThumbnail(dataRoot, s, segs, sourceRow, w, h);
+          if (made) broadcast(await doReindex());
+          return made;
+        })
+          .then((made) => (made ? serve(made) : sendJson(res, 415, { error: `no thumbnail for format: ${sourceRow.format ?? "unknown"}` })))
+          .catch((e) => sendJson(res, 500, { error: String((e as Error).message || e) }));
+        return;
+      }
+
       const row = s.node(p);
       if (!row) return notFound(res, url);
       const viewDepth = depth ?? 1;
@@ -818,7 +853,9 @@ function labelFor(s: Store, p: string, keyOrIdx: Seg): string {
 const TAG_FORMAT = "x-yamlover-tag";
 const ANN_KEY = "yamlover-annotations";
 const FRAG_KEY = "yamlover-fragments";
+const THUMB_KEY = "yamlover-thumbnails";
 const CROP_DIR = "fragments"; // crop sidecar blobs live here (a normal, indexable dir) at the served root
+const THUMB_DIR = "thumbnails"; // derived thumbnail blobs (sibling of fragments/), content-addressed
 
 interface AnnotateInput {
   target: string; // the target's JSON path — a node, or a fragment (`…:yamlover-fragments:<slug>`)
@@ -1024,6 +1061,61 @@ function embedFragment(dataRoot: string, s: Store, f: FragmentInput): { slug: st
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
   fs.writeFileSync(bodyFile, upsertFragment(src, within, slug, (indent) => fragmentBlockLines(slug, f.selector, imagePtr, indent)));
   return { slug, fragmentPath: segsToStr([...segs, FRAG_KEY, slug]) };
+}
+
+// --- thumbnails: a per-type EXTRACTOR product, stored the yamlover way ------------------------ //
+// A thumbnail is an omni overlay on the source blob, under `yamlover-thumbnails:`, keyed by the
+// `[w, h]` resolution tuple — parallel to `yamlover-fragments`. The bytes can't live inline
+// (the serializer has no blob text form yet), so each is a content-addressed sidecar blob under
+// `thumbnails/` that the entry references by `*` pointer — exactly the fragment-crop pattern. The
+// content hash in the name gives free dedupe + invalidation (a re-saved source → a new name).
+
+/** The overlay key for a thumbnail resolution: the literal `[w, h]` tuple the parser reads back as
+ *  a key string (cosmetic brackets — we never address it by client path; the bytes serve from the
+ *  sidecar, the source from /api/thumb). */
+const thumbResKey = (w: number, h: number): string => `[${w}, ${h}]`;
+
+/** The content-addressed sidecar name for a `[w, h]` thumbnail of a blob whose content hash is
+ *  `hash` (`xxh64:…`). */
+const thumbName = (hash: string, w: number, h: number): string => `${hash.replace(/:/g, "-")}-${w}x${h}.jpg`;
+
+/** The already-generated sidecar for this source + box, or null when its hash is unknown (a large
+ *  blob the background hasher has not reached) or the file is absent — the cheap, no-write fast
+ *  path the /api/thumb handler tries before queuing a generation. */
+function existingThumb(dataRoot: string, row: NodeRow, w: number, h: number): string | null {
+  if (!row.content_hash) return null;
+  const abs = path.join(dataRoot, THUMB_DIR, thumbName(row.content_hash, w, h));
+  return fs.existsSync(abs) ? abs : null;
+}
+
+/** Splice/replace the `yamlover-thumbnails: [w, h]:` overlay entry on the source blob, pointing at
+ *  the sidecar `name` under `thumbnails/`. */
+function embedThumbnail(dataRoot: string, s: Store, segs: Seg[], w: number, h: number, name: string): void {
+  const { bodyFile, within } = hostFor(dataRoot, s, segs);
+  fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
+  const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
+  const ptr = pointerToken(pointerRaw(segsToStr([THUMB_DIR, name])));
+  const key = thumbResKey(w, h);
+  fs.writeFileSync(bodyFile, upsertThumbnail(src, within, key, (indent) => [`${" ".repeat(indent)}${key}: ${ptr}`]));
+}
+
+/** Ensure a `[w, h]` thumbnail of the source blob at `segs` exists: return the sidecar path,
+ *  generating (decode → fit → encode → write sidecar → embed overlay) on a miss. Null when no
+ *  extractor can decode the format (the caller serves the type glyph). Idempotent — safe to call
+ *  concurrently behind the writer queue; a second caller finds the file already written. */
+async function ensureThumbnail(dataRoot: string, s: Store, segs: Seg[], row: NodeRow, w: number, h: number): Promise<string | null> {
+  const sourceAbs = path.join(dataRoot, ...segs.map(String));
+  const hash = row.content_hash ?? (await hashFileAsync(sourceAbs));
+  const name = thumbName(hash, w, h);
+  const abs = path.join(dataRoot, THUMB_DIR, name);
+  if (fs.existsSync(abs)) return abs;
+  const thumb = await renderThumbnail(fs.readFileSync(sourceAbs), row.format ?? formatFromExt(sourceAbs), w, h);
+  if (!thumb) return null;
+  const dir = path.join(dataRoot, THUMB_DIR);
+  fs.mkdirSync(dir, { recursive: true });
+  writeInside(dataRoot, dir, name, thumb.buf);
+  embedThumbnail(dataRoot, s, segs, w, h, name);
+  return abs;
 }
 
 /** Remove a tag application from the target's `yamlover-annotations` array — the first element
@@ -1552,6 +1644,13 @@ function parseDepth(raw: string | null): number | null {
   if (raw == null || raw === "") return null;
   const n = Number(raw);
   return Number.isInteger(n) && n >= 0 ? n : null;
+}
+
+/** A thumbnail box dimension from the query, clamped to a sane range so a request can't ask the
+ *  encoder for a 100000px image; falls back to `def` when absent or unparseable. */
+function clampThumbDim(raw: string | null, def: number): number {
+  const n = raw == null ? NaN : Math.round(Number(raw));
+  return Number.isFinite(n) && n >= 16 ? Math.min(n, 2048) : def;
 }
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.statusCode = status;

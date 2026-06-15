@@ -44,6 +44,11 @@ await esbuild({
   target: "node22",
   // node:sqlite (and every other `node:`/builtin) resolves at runtime, not bundle
   // time; platform:'node' externalizes them automatically.
+  // Some bundled CJS deps (jimp's image codecs) call `require("fs")` at runtime. In an ESM
+  // bundle `require` is undefined, so esbuild's `__require` shim throws ("Dynamic require of
+  // \"fs\" is not supported") — which broke jimp's init. Inject a real `require` (createRequire);
+  // esbuild's shim delegates to it, so those builtin requires resolve.
+  banner: { js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);" },
   logLevel: "info",
   // The handler is loaded via dynamic import by bin/yamlover.js, so a named export
   // is all we need — esbuild preserves `export { createHandlers }`.

@@ -81,6 +81,13 @@ export function blobUrl(path: string): string {
   return `/api/blob?path=${encodeURIComponent(path)}`;
 }
 
+/** URL of a lazily-generated thumbnail of a file-backed blob, fitted within `w`×`h`. The server
+ *  generates + caches it on first request and 415s a format it can't decode (the caller then
+ *  shows the type glyph). */
+export function thumbUrl(path: string, w: number, h: number): string {
+  return `/api/thumb?path=${encodeURIComponent(path)}&w=${w}&h=${h}`;
+}
+
 /** The node's instance schema, one level deep (nested containers as link markers). */
 export function fetchSchema(path: string, depth?: number): Promise<unknown> {
   const q = new URLSearchParams({ path });

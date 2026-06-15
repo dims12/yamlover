@@ -1165,6 +1165,16 @@ mark.yo-annotation {
   padding: 6px 5px;
   margin: 9px 0; /* keep tile icon rows level with the 36px glyphs */
 }
+/* a real image preview in a large tile (server-downscaled JPEG, or an inline SVG) — fills the
+   slot the 36px glyph would occupy, letterboxed onto the panel so mixed aspect ratios stay tidy */
+.dirview-lg .dirview-thumb {
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: var(--panel);
+  box-shadow: 0 0 0 1px var(--line);
+}
 .dirview-lg .dirview-label {
   max-width: 100%;
   white-space: normal;

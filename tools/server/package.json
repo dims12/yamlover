@@ -37,7 +37,7 @@
   "engines": {
     "node": ">=22"
   },
-  "comment:deps": "No runtime dependencies: the client deps are bundled into dist/client by `vite build` and the server deps (ignore/js-yaml/xxhash-wasm) into dist/server.js by esbuild. Everything below is build-/test-time only.",
+  "comment:deps": "No runtime dependencies: the client deps are bundled into dist/client by `vite build` and the server deps (ignore/js-yaml/xxhash-wasm, plus jimp + ag-psd for thumbnail extraction — dynamically imported so they stay out of the cold-start path) into dist/server.js by esbuild. Everything below is build-/test-time only.",
   "devDependencies": {
     "@asciidoctor/core": "^3.0.4",
     "@testing-library/dom": "^10.4.0",
@@ -55,6 +55,7 @@
     "fflate": "^0.8.3",
     "heic2any": "^0.0.4",
     "ignore": "^6.0.2",
+    "jimp": "^1.6.1",
     "js-yaml": "^4.1.0",
     "jsdom": "^25.0.1",
     "katex": "^0.16.47",

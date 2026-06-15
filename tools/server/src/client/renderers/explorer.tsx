@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { NodeJson, fetchTagged } from "../api";
+import { NodeJson, fetchTagged, thumbUrl, blobUrl } from "../api";
 import { asLink, Link } from "../render";
-import { typeIcon } from "../icons";
+import { typeIcon, Glyph } from "../icons";
 import { TAG_FORMAT, tagLabel, tagBody, resolveTagColor } from "./tag";
 import { displayPath, displayKey } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
@@ -144,9 +144,29 @@ function arrowTarget(els: (HTMLElement | null)[], cur: number, key: string, coun
   return best;
 }
 
-function Item({ it, active, setRef, onFocus, onNavigate }: {
+/** The thumbnail source for a member, or null when it isn't a previewable image: a raster image
+ *  goes through the server's /api/thumb (which downscales + caches, and 415s formats it can't
+ *  decode → the glyph shows); an SVG serves its own bytes (the browser scales the vector). */
+function thumbSrc(link: Link): string | null {
+  const fmt = link.format ?? null;
+  if (!fmt || !fmt.startsWith("image/")) return null;
+  if (fmt === "image/svg+xml") return blobUrl(link.path);
+  return thumbUrl(link.path, 256, 256);
+}
+
+/** A member's icon slot: a real thumbnail when one is available, falling back to the type glyph
+ *  while loading isn't possible / on a decode miss (the server 415s, the <img> errors). */
+function Thumb({ link, glyph }: { link: Link; glyph: Glyph }) {
+  const [failed, setFailed] = useState(false);
+  const src = failed ? null : thumbSrc(link);
+  if (!src) return <span className={"dirview-icon " + glyph.cls} title={glyph.title}>{glyph.glyph}</span>;
+  return <img className="dirview-icon dirview-thumb" src={src} alt="" loading="lazy" onError={() => setFailed(true)} />;
+}
+
+function Item({ it, active, large, setRef, onFocus, onNavigate }: {
   it: ExplorerItem;
   active: boolean;
+  large: boolean;
   setRef: (el: HTMLElement | null) => void;
   onFocus: () => void;
   onNavigate: (path: string) => void;
@@ -189,7 +209,7 @@ function Item({ it, active, setRef, onFocus, onNavigate }: {
         onNavigate(link.path);
       }}
     >
-      <span className={"dirview-icon " + g.cls} title={g.title}>{g.glyph}</span>
+      {large && !it.up ? <Thumb link={link} glyph={g} /> : <span className={"dirview-icon " + g.cls} title={g.title}>{g.glyph}</span>}
       <span className="dirview-label">{label}</span>
     </a>
   );
@@ -282,6 +302,7 @@ export function ExplorerView({ node, onNavigate }: { node: NodeJson; onNavigate:
             key={`${it.up ? "^" : ""}${it.link?.path ?? it.key}#${i}`}
             it={it}
             active={i === active}
+            large={explorerViewMode() === "large"}
             setRef={(el) => { itemEls.current[i] = el; }}
             onFocus={() => setActive(i)}
             onNavigate={onNavigate}

@@ -4,6 +4,8 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 vi.mock("../../src/client/api", () => ({
   fetchTagged: vi.fn(),
+  thumbUrl: (p: string, w: number, h: number) => `/api/thumb?path=${encodeURIComponent(p)}&w=${w}&h=${h}`,
+  blobUrl: (p: string) => `/api/blob?path=${encodeURIComponent(p)}`,
 }));
 import { fetchTagged } from "../../src/client/api";
 import type { NodeJson } from "../../src/client/api";
@@ -67,7 +69,9 @@ describe("ExplorerView (a directory)", () => {
     const byText = (t: string) => items().find((el) => el.textContent?.includes(t))!;
     expect(byText("age:").textContent).toContain("42"); // a scalar member, value shown
     expect(byText("sub").querySelector(".dirview-icon")?.textContent).toBe("📁"); // a child folder
-    expect(byText("pic.png").querySelector(".dirview-icon")?.textContent).toBe("🖼️"); // a binary, by format
+    // a raster image renders a real thumbnail (server /api/thumb) in the large (default) view,
+    // in place of the 🖼️ glyph
+    expect(byText("pic.png").querySelector("img.dirview-thumb")?.getAttribute("src")).toContain("/api/thumb?path=");
     expect(mTagged).not.toHaveBeenCalled(); // not a tag page
   });
 

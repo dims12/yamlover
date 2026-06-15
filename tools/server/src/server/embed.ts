@@ -19,6 +19,7 @@
 
 const ANNOTATIONS_KEY = "yamlover-annotations";
 const FRAGMENTS_KEY = "yamlover-fragments";
+const THUMBNAILS_KEY = "yamlover-thumbnails";
 
 const indentOf = (line: string): number => { let i = 0; while (line[i] === " ") i++; return i; };
 const isContentLine = (line: string): boolean => { const t = line.trim(); return t.length > 0 && !t.startsWith("#"); };
@@ -141,30 +142,47 @@ export function appendAnnotation(text: string, within: string[], render: (indent
   return lines.join("\n") + "\n";
 }
 
+/** Upsert an `<entryKey>:` entry into the `<mapKey>:` mapping of the node addressed by `within`,
+ *  creating the map key (and any missing path) if absent. `render(indent)` returns the entry's
+ *  source lines INCLUDING the `<entryKey>:` line, at the mapping's child indent. An entry whose key
+ *  already exists is REPLACED (its whole block). The shared engine behind {@link upsertFragment}
+ *  and {@link upsertThumbnail}. */
+function upsertMapEntry(text: string, within: string[], mapKey: string, entryKey: string, render: (indent: number) => string[]): string {
+  const lines = text.replace(/\n$/, "").split("\n");
+  const region = reachBody(lines, within);
+  let mapLine = findKeyLine(lines, region.lo, region.hi, region.indent, mapKey);
+  if (mapLine < 0) {
+    const at = trimBack(lines, region.lo - 1, region.hi);
+    lines.splice(at, 0, `${" ".repeat(region.indent)}${keyToken(mapKey)}:`);
+    mapLine = at;
+  }
+  const mapIndent = region.indent + 2;
+  const mapBody: Region = { lo: mapLine + 1, hi: blockEnd(lines, mapLine + 1, lines.length, region.indent + 1), indent: mapIndent };
+  const existing = findKeyLine(lines, mapBody.lo, mapBody.hi, mapIndent, entryKey);
+  if (existing >= 0) {
+    const end = blockEnd(lines, existing + 1, mapBody.hi, mapIndent + 1);
+    lines.splice(existing, end - existing, ...render(mapIndent));
+  } else {
+    const at = trimBack(lines, mapLine, mapBody.hi);
+    lines.splice(at, 0, ...render(mapIndent));
+  }
+  return lines.join("\n") + "\n";
+}
+
 /** Upsert a `<slug>:` entry into the `yamlover-fragments:` mapping of the node addressed by
  *  `within`, creating the key (and any missing path) if absent. `render(indent)` returns the
  *  fragment's source lines INCLUDING the `<slug>:` line, at the mapping's child indent. A slug
  *  that already exists is REPLACED (its whole block). */
 export function upsertFragment(text: string, within: string[], slug: string, render: (indent: number) => string[]): string {
-  const lines = text.replace(/\n$/, "").split("\n");
-  const region = reachBody(lines, within);
-  let fragKey = findKeyLine(lines, region.lo, region.hi, region.indent, FRAGMENTS_KEY);
-  if (fragKey < 0) {
-    const at = trimBack(lines, region.lo - 1, region.hi);
-    lines.splice(at, 0, `${" ".repeat(region.indent)}${FRAGMENTS_KEY}:`);
-    fragKey = at;
-  }
-  const mapIndent = region.indent + 2;
-  const mapBody: Region = { lo: fragKey + 1, hi: blockEnd(lines, fragKey + 1, lines.length, region.indent + 1), indent: mapIndent };
-  const existing = findKeyLine(lines, mapBody.lo, mapBody.hi, mapIndent, slug);
-  if (existing >= 0) {
-    const end = blockEnd(lines, existing + 1, mapBody.hi, mapIndent + 1);
-    lines.splice(existing, end - existing, ...render(mapIndent));
-  } else {
-    const at = trimBack(lines, fragKey, mapBody.hi);
-    lines.splice(at, 0, ...render(mapIndent));
-  }
-  return lines.join("\n") + "\n";
+  return upsertMapEntry(text, within, FRAGMENTS_KEY, slug, render);
+}
+
+/** Upsert a `[w, h]:` entry into the `yamlover-thumbnails:` mapping of the node addressed by
+ *  `within` (an omni overlay on the original blob — parallel to `yamlover-fragments`), creating
+ *  the key (and any missing path) if absent. `render(indent)` returns the entry's source line
+ *  INCLUDING the resolution key. The same `[w, h]` resolution is REPLACED if already present. */
+export function upsertThumbnail(text: string, within: string[], resKey: string, render: (indent: number) => string[]): string {
+  return upsertMapEntry(text, within, THUMBNAILS_KEY, resKey, render);
 }
 
 /** Remove an annotation element from the `yamlover-annotations:` of the node at `within` — the
