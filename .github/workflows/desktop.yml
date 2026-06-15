@@ -1,0 +1,80 @@
+# Desktop installers (tools/desktop) for macOS, Windows and Linux.
+#
+# Companion to publish.yml (npmjs) and .forgejo release.yml (Nexus + git tag). Those
+# ship the `yamlover` CLI; this builds the Electron desktop app — one installer per OS
+# via electron-builder. GitHub only (the Forgejo runner is Linux-only and cannot build
+# mac/win; the `if` below skips it there, matching publish.yml).
+#
+# Triggers:
+#   • workflow_dispatch — build installers on demand (artifacts on the run).
+#   • push of a v* tag  — the release build: also attaches the installers to that tag's
+#     GitHub Release. (.forgejo/release.yml creates v<version> from the package.json
+#     bump; pushing/mirroring that tag to GitHub fires this.)
+#
+# The desktop version is synced from tools/server/package.json so artifacts are named
+# for the same version the CLI publishes — bump only the server's version, as today.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    if: github.server_url == 'https://github.com'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write # create/upload to the GitHub Release on a tag build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22' # 22+: node:sqlite (the engine store), which the app forks at runtime
+
+      - name: Sync desktop version from the server package
+        id: v
+        shell: bash
+        run: |
+          V=$(node -p "require('./tools/server/package.json').version")
+          node -e "const f='tools/desktop/package.json',p=require('./'+f);p.version='$V';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Install deps (engine for the bundle, server for vite/esbuild, desktop for electron)
+        shell: bash
+        run: |
+          npm ci --prefix tools/engine/ts
+          npm ci --prefix tools/server
+          npm ci --prefix tools/desktop
+
+      - name: Build installer (build:server runs vite build + esbuild, then electron-builder)
+        working-directory: tools/desktop
+        shell: bash
+        # `--publish never`: build only. The attach step below uploads to the Release, so
+        # electron-builder must not also try to publish (it would on a tag build).
+        run: |
+          npm run build:server
+          npx electron-builder --publish never
+
+      - name: Upload installers as workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: yamlover-${{ steps.v.outputs.version }}-${{ matrix.os }}
+          if-no-files-found: ignore
+          path: |
+            tools/desktop/dist/*.dmg
+            tools/desktop/dist/*.exe
+            tools/desktop/dist/*.AppImage
+
+      - name: Attach installers to the GitHub Release (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          fail_on_unmatched_files: false
+          files: |
+            tools/desktop/dist/*.dmg
+            tools/desktop/dist/*.exe
+            tools/desktop/dist/*.AppImage
