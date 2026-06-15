@@ -416,7 +416,17 @@ export function App() {
           }}
         />
         <main className="pane right" ref={mainRef} tabIndex={-1}>
-          <NodeView path={current} format={format} refreshSignal={refreshSignal} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} onOpenUploaded={onOpenUploaded} />
+          {(() => {
+            // Cold start: the content fetch 404s ("no such node") until the FIRST index lands,
+            // just like the tree. Show the index progress instead of NodeView's raw error; once
+            // the tree is loaded NodeView renders and (re)fetches normally (refreshSignal/diff).
+            const running = !tree ? tasks.find((t) => t.state === "running") : undefined;
+            if (running) {
+              const { done, total } = running.progress;
+              return <div className="loading">{running.label}… {total ? `${done}/${total}` : ""}</div>;
+            }
+            return <NodeView path={current} format={format} refreshSignal={refreshSignal} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} onOpenUploaded={onOpenUploaded} />;
+          })()}
         </main>
       </div>
     </div>
