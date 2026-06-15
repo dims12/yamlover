@@ -18,6 +18,12 @@ on:
   push:
     tags: ['v*']
 
+# Run the JS actions (checkout/setup-node/upload-artifact/gh-release) under Node 24:
+# GitHub deprecated the Node 20 action runtime, and this opts in early so the runner
+# warning is gone. These action majors are Node-24 compatible.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   build:
     if: github.server_url == 'https://github.com'
@@ -57,10 +63,18 @@ jobs:
         # electron-builder must not also try to publish (it would on a tag build).
         run: |
           npm run build:server
+          # GitHub maps an ABSENT secret to an EMPTY STRING, not "unset". electron-builder
+          # then treats CSC_LINK="" as a cert path, resolves it to the project dir, and dies
+          # with "<projectdir> not a file". So drop the empty signing vars here → a clean
+          # UNSIGNED build; when the secrets are actually set, they pass through and sign.
+          if [ -z "$CSC_LINK" ]; then
+            unset CSC_LINK CSC_KEY_PASSWORD
+            export CSC_IDENTITY_AUTO_DISCOVERY=false   # don't grab a stray keychain identity on macOS
+          fi
+          if [ -z "$APPLE_ID" ]; then unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; fi
           npx electron-builder --publish never
         env:
-          # Code-signing — all optional. When the secret is unset the env var is empty and
-          # electron-builder builds UNSIGNED (no failure). Add these repo secrets to sign:
+          # Code-signing — all optional. Add these repo secrets to sign (absent = unsigned):
           #   CSC_LINK / CSC_KEY_PASSWORD  — base64 .p12 + password (signs macOS AND Windows)
           #   APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID — enables macOS notarization
           CSC_LINK: ${{ secrets.CSC_LINK }}
