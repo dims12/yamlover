@@ -59,12 +59,27 @@ export function urlOfPath(path: string): string {
 }
 
 /** A human-readable form of a canonical path: each key decoded (so a percent-encoded
- *  segment like `%D0%9F…` shows as its actual characters), colon-separated, indices as
- *  `[i]`. For display only — tooltips, labels — never for URLs or navigation. */
+ *  segment like `%D0%9F…` shows as its actual characters), colon-separated with a SPACE
+ *  after each colon (matching the yamlover source spelling and the tag hover-card), indices
+ *  as `[i]`. For display only — tooltips, labels — never for URLs or navigation. */
 export function displayPath(path: string): string {
   const segs = strToSegs(path);
   if (!segs.length) return ":";
-  return segs.map((s) => (typeof s === "number" ? `[${s}]` : `:${s}`)).join("");
+  return segs.map((s) => (typeof s === "number" ? `[${s}]` : `: ${s}`)).join("");
+}
+
+/** A tag's path spelled canonically for HOVER display: the scope ladder collapsed (canonPath), the
+ *  common `…:tags` prefix dropped (a leading `yamlover` self-import authority and the `tags` root
+ *  container), and the remaining segments joined with `": "` (a space after each colon, matching the
+ *  yamlover source spelling) — e.g. `workflow: dev: ready`. Indices stay `[i]`. Falls back to the
+ *  last segment when nothing remains under `tags`. */
+export function tagDisplayPath(path: string): string {
+  const all = strToSegs(canonPath(path));
+  // Drop everything up to and including the `tags` root container — what's left is the tag's spine.
+  const ti = all.indexOf("tags");
+  const segs = ti >= 0 ? all.slice(ti + 1) : all;
+  if (!segs.length) return all.length ? String(all[all.length - 1]) : ":";
+  return segs.map((s) => (typeof s === "number" ? `[${s}]` : s)).join(": ");
 }
 
 /** A human-readable form of a path-LIKE key whose structure must survive verbatim —

@@ -4,6 +4,7 @@ import { Annotation, fetchAnnotations } from "../api";
 import { typeIcon } from "../icons";
 import { displayPath } from "../paths";
 import { isColorTagPath, resolveTagColor, TagSwatch } from "./tag";
+import { TagTip } from "./tagtip";
 import { touchesYamlover, useDiffBump } from "../live";
 
 // A member's KIND label: a friendly tail of its format (`application/pdf` → `pdf`,
@@ -97,12 +98,16 @@ export function DetailsView({
                   {tags.map((a, j) => {
                     if (!a.tag) return null;
                     const color = resolveTagColor({ name: a.tag.name, color: a.tag.color });
-                    return isColorTagPath(a.tag.path) ? (
-                      <TagSwatch key={j} color={color} title={a.tag.name} />
-                    ) : (
-                      <span key={j} className="tagtag" style={{ background: color }}>
-                        {a.tag.name}
-                      </span>
+                    return (
+                      <TagTip key={j} tag={a.tag}>
+                        {isColorTagPath(a.tag.path) ? (
+                          <TagSwatch color={color} title="" />
+                        ) : (
+                          <span className="tagtag" style={{ background: color }}>
+                            {a.tag.name}
+                          </span>
+                        )}
+                      </TagTip>
                     );
                   })}
                 </td>

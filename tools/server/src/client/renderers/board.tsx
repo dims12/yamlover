@@ -5,7 +5,8 @@ import { touchesYamlover, useDiffBump } from "../live";
 import { resolveTagColor, tagFields } from "./tag";
 import { displayPath } from "../paths";
 import { fetchWorkflowStates, WorkflowState, stateDetail, moveState, targetPath } from "./workflow";
-import { AnnotationMenu } from "./annotate";
+import { AnnotationMenu, tagStyle } from "./annotate";
+import { TagTip } from "./tagtip";
 
 export const BOARD_FORMAT = "x-yamlover-board";
 const CONTAINER_TAGISH = new Set(["x-yamlover-tag", "x-yamlover-workflow", "x-yamlover-board"]);
@@ -184,10 +185,16 @@ export function BoardView({
             <header className="board-col-head" style={{ borderTopColor: headColor }}>
               <div className="board-col-tags">
                 {lane.tags.map((t) => (
-                  <span key={t.path} className="board-lane-chip" style={{ background: resolveTagColor({ name: t.label, color: t.color }) }}>
-                    {t.label}
-                    <button className="board-lane-x" title={`remove ${t.label}`} onClick={() => removeTagFromLane(laneI, t.path)}>×</button>
-                  </span>
+                  <TagTip key={t.path} tag={{ path: t.path, name: t.label, color: t.color }}>
+                    <button
+                      type="button"
+                      className="tagtag on"
+                      style={tagStyle(resolveTagColor({ name: t.label, color: t.color }))}
+                      onClick={() => removeTagFromLane(laneI, t.path)}
+                    >
+                      <span className="tt-label">{t.label}</span>
+                    </button>
+                  </TagTip>
                 ))}
                 <button className="board-lane-add" title="add a tag to this lane" onClick={(e) => setPicker({ lane: laneI, x: e.clientX, y: e.clientY })}>＋</button>
               </div>

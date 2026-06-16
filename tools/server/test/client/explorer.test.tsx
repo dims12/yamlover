@@ -130,7 +130,7 @@ describe("ExplorerView (a directory)", () => {
     });
     render(<ExplorerView node={cyr} onNavigate={() => {}} />);
     const it_ = items().find((el) => el.textContent?.includes("Папка"))!;
-    expect(it_.getAttribute("title")).toBe(":dir:Папка");
+    expect(it_.getAttribute("title")).toBe(": dir: Папка"); // space after each colon
     expect(it_.getAttribute("href")).toBe(":dir:%D0%9F%D0%B0%D0%BF%D0%BA%D0%B0");
   });
 

@@ -21,12 +21,12 @@ describe("client paths", () => {
     expect(strToSegs(segsToStr(["a/b", 2]))).toEqual(["a/b", 2]);
   });
 
-  it("displayPath decodes keys for human display (tooltips), keeping [i] indices", () => {
+  it("displayPath decodes keys for human display (tooltips), space after each colon, keeping [i] indices", () => {
     // a Cyrillic key arrives percent-encoded in the canonical path; the display
-    // form shows the real characters
+    // form shows the real characters, colon-separated with a space after each colon
     const enc = segsToStr(["00. Периодика", 3, "a/b"]);
     expect(enc).toBe(":00.%20%D0%9F%D0%B5%D1%80%D0%B8%D0%BE%D0%B4%D0%B8%D0%BA%D0%B0[3]:a%2Fb");
-    expect(displayPath(enc)).toBe(":00. Периодика[3]:a/b");
+    expect(displayPath(enc)).toBe(": 00. Периодика[3]: a/b");
     expect(displayPath(":")).toBe(":");
   });
 

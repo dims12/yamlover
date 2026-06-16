@@ -1,8 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
 
-vi.mock("../../src/client/api", () => ({ fetchAnnotations: vi.fn().mockResolvedValue([]) }));
+// fetchNode backs the tag hover-card's lazy body lookup; reject → the card shows the path only.
+vi.mock("../../src/client/api", () => ({
+  fetchAnnotations: vi.fn().mockResolvedValue([]),
+  fetchNode: vi.fn().mockRejectedValue(new Error("no node")),
+}));
 
 import { DetailsView } from "../../src/client/renderers/details";
 import type { ExplorerItem } from "../../src/client/renderers/explorer";
@@ -48,8 +52,10 @@ describe("DetailsView", () => {
     ]);
     const { container } = render(<DetailsView members={[item(":doc.md", "text/markdown", "Doc")]} onNavigate={() => {}} />);
     await waitFor(() => expect(container.querySelector(".tagswatch")).toBeTruthy());
-    expect(container.querySelector(".tagswatch")!.getAttribute("title")).toBe("yellow"); // color tag → swatch
     expect([...container.querySelectorAll(".tagtag")].map((b) => b.textContent)).toEqual(["done"]); // named tag → badge
+    // the color tag's full path lives on the hover-card now (no native title): hover reveals it
+    fireEvent.mouseEnter(container.querySelector(".tagtip-anchor")!);
+    await waitFor(() => expect(document.querySelector(".tagtip-path")?.textContent).toBe("colors: yellow"));
     mAnns.mockResolvedValue([]); // restore for other tests
   });
 });

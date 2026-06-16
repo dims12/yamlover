@@ -14,7 +14,7 @@ vi.mock("../../src/client/api", () => ({
   createTag: vi.fn(),
 }));
 
-import { AnnotationMenu, buildTagTree, indexToRefs } from "../../src/client/renderers/annotate";
+import { AnnotationMenu, indexToRefs } from "../../src/client/renderers/annotate";
 import { useExplorerTagMenu } from "../../src/client/renderers/tagmenu";
 import { fetchAnnotations, annotate, deleteAnnotation, query } from "../../src/client/api";
 
@@ -50,54 +50,21 @@ describe("indexToRefs — graft-aware dedup", () => {
   });
 });
 
-// ---- the browse tree: tags nested by their path spine ---- //
-describe("buildTagTree — tags nested by spine", () => {
-  it("nests tags under their path segments, marking containers vs. selectable tags, in order", () => {
-    const tree = buildTagTree([
-      { path: ":tags:workflow:dev:ready", name: "ready", color: null },
-      { path: ":tags:workflow:dev:done", name: "done", color: null },
-      { path: ":tags:first tag", name: "first tag", color: null },
-    ]);
-    // a single `tags` root container (not itself a tag → no TagRef)
-    expect(tree.map((n) => n.seg)).toEqual(["tags"]);
-    expect(tree[0].tag).toBeNull();
-    const tagsKids = tree[0].children;
-    expect(tagsKids.map((n) => n.seg)).toEqual(["workflow", "first tag"]); // insertion order preserved
-    // `workflow` is a synthesized container (no tag); `first tag` is a leaf tag
-    expect(tagsKids[0].tag).toBeNull();
-    expect(tagsKids[1].tag?.name).toBe("first tag");
-    // `tags › workflow › dev › {ready, done}`
-    const dev = tagsKids[0].children[0];
-    expect(dev.seg).toBe("dev");
-    expect(dev.children.map((n) => n.tag?.name)).toEqual(["ready", "done"]);
-  });
-
-  it("marks an INTERMEDIATE node that is itself a tag as selectable", () => {
-    const tree = buildTagTree([
-      { path: ":tags:workflow", name: "workflow", color: null }, // the container IS a tag too
-      { path: ":tags:workflow:dev:ready", name: "ready", color: null },
-    ]);
-    expect(tree[0].children[0].seg).toBe("workflow");
-    expect(tree[0].children[0].tag?.name).toBe("workflow"); // selectable, not a bare header
-  });
-});
-
-// ---- BROWSE mode: empty input shows the tree; typing shows the flat list ---- //
-describe("AnnotationMenu — browse tree on empty input", () => {
-  it("renders the tag tree when the input is empty, and the flat list once typing", async () => {
+// ---- no browse tree: empty input is quiet; typing shows the flat list; HOVER reveals the path ---- //
+describe("AnnotationMenu — no tree; hover-card reveals the path", () => {
+  it("shows no tree on empty input, flat suggestions on typing, and the canonical path on hover", async () => {
     mQuery.mockResolvedValue([":tags:workflow:dev:ready", ":tags:workflow:dev:done", ":tags:first tag"]);
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
-    // empty input → a tree with container headers + tag chips, mirroring the spine
-    await waitFor(() => expect(container.querySelector(".annotate-tree")).toBeTruthy());
-    const tree = container.querySelector(".annotate-tree")!;
-    expect([...tree.querySelectorAll(".annotate-tree-group")].map((g) => g.textContent)).toContain("workflow");
-    expect([...tree.querySelectorAll(".tagtag .tt-label")].map((b) => b.textContent)).toEqual(expect.arrayContaining(["ready", "done", "first tag"]));
-    // a tag chip carries its full path on hover
-    expect(tree.querySelector(".tagtag")!.getAttribute("title")).toMatch(/^:tags:/);
-    // typing switches to the flat ranked suggestions (no tree)
+    // the browse tree was removed — empty input never renders one
+    await waitFor(() => expect(mQuery).toHaveBeenCalled());
+    expect(container.querySelector(".annotate-tree")).toBeNull();
+    // typing → the flat ranked suggestions (still no tree)
     fireEvent.change(container.querySelector(".annotate-taginput")!, { target: { value: "rea" } });
     await waitFor(() => expect(container.querySelector(".annotate-suggest")).toBeTruthy());
     expect(container.querySelector(".annotate-tree")).toBeNull();
+    // hovering a suggestion reveals its path canonically — `tags:` prefix dropped, space after colon
+    fireEvent.mouseEnter(container.querySelector(".annotate-suggest .tagtip-anchor")!);
+    await waitFor(() => expect(document.querySelector(".tagtip-path")?.textContent).toBe("workflow: dev: ready"));
   });
 });
 
@@ -159,13 +126,13 @@ describe("useExplorerTagMenu — right-click whole-node tagging", () => {
     render(<Harness />);
     fireEvent.click(screen.getByText("open"));
 
-    // the applied chip shows the NAME, with its full PATH on hover (title)
-    await waitFor(() => expect(screen.getByTitle(":tags:keep")).toBeTruthy());
-    expect(screen.getByTitle(":tags:keep").textContent).toBe("keep");
+    // the applied chip shows the NAME (its full path lives on the hover-card now, not a title)
+    await waitFor(() => expect(screen.getByText("keep")).toBeTruthy());
+    expect(screen.getByText("keep").textContent).toBe("keep");
     expect(mAnns).toHaveBeenCalledWith(":doc.md");
 
     // clicking the applied chip → deleteAnnotation(target, tagPath)
-    fireEvent.click(screen.getByTitle(":tags:keep"));
+    fireEvent.click(screen.getByText("keep"));
     expect(mDelete).toHaveBeenCalledWith(":doc.md", ":tags:keep");
 
     // a color swatch → annotate({ target, tag })

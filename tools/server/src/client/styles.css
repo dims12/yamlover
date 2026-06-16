@@ -889,7 +889,7 @@ a.chunk-index:hover {
    rim — a focus outline that follows the shape, never a fill. `--tag` is the chip's colour. */
 .annotate-recents .tagtag,
 .annotate-suggest .tagtag,
-.annotate-tree .tagtag {
+.board-col-tags .tagtag {
   border: 0;
   font: inherit;
   font-size: 11px;
@@ -900,14 +900,14 @@ a.chunk-index:hover {
 }
 .annotate-recents .tagtag::before,
 .annotate-suggest .tagtag::before,
-.annotate-tree .tagtag::before {
+.board-col-tags .tagtag::before {
   display: block;
-  background: var(--bg-alt); /* the menu surface shows through — a punched hole */
+  background: var(--bg-alt); /* the menu / lane surface shows through — a punched hole */
   z-index: 2; /* above the ::after interior fill */
 }
 .annotate-recents .tagtag::after,
 .annotate-suggest .tagtag::after,
-.annotate-tree .tagtag::after {
+.board-col-tags .tagtag::after {
   content: "";
   position: absolute;
   inset: 1.5px;
@@ -918,18 +918,18 @@ a.chunk-index:hover {
 }
 .annotate-recents .tagtag .tt-label,
 .annotate-suggest .tagtag .tt-label,
-.annotate-tree .tagtag .tt-label {
+.board-col-tags .tagtag .tt-label {
   position: relative;
   z-index: 1; /* the label sits above the interior fill */
 }
 .annotate-recents .tagtag.on,
 .annotate-suggest .tagtag.on,
-.annotate-tree .tagtag.on {
+.board-col-tags .tagtag.on {
   color: #fff;
 }
 .annotate-recents .tagtag.on::after,
 .annotate-suggest .tagtag.on::after,
-.annotate-tree .tagtag.on::after {
+.board-col-tags .tagtag.on::after {
   background: var(--tag); /* filled */
 }
 .annotate-suggest .tagtag.hi {
@@ -970,34 +970,34 @@ a.chunk-index:hover {
   max-height: 132px;
   overflow-y: auto;
 }
-/* BROWSE mode: the tag taxonomy as a tree (empty input). Each row mirrors a tag's spine — a
-   compact expand/collapse chevron (reusing the sidebar `.toggle`/`.chevron`, sized down) then
-   either the tag's luggage chip or a dim container-segment header. Scrolls like the suggest list. */
-.annotate-tree {
-  flex-basis: 100%;
-  margin-top: 5px;
-  max-height: 200px;
-  overflow-y: auto;
+/* The tag HOVER-CARD (TagTip): a coloured popup revealing a tag's full identity — line 1 the
+   canonical path (the `tags:` prefix dropped, a space after each colon), line 2 the tag's text
+   value. Coloured to MATCH the tag (inline `background`), rendered in a body portal so it escapes
+   the menu's / details table's overflow clipping; non-interactive, above the menu's z-index. */
+.tagtip-anchor {
+  display: inline-flex;
 }
-.annotate-tree-row {
+.tagtip {
+  position: fixed;
+  z-index: 1100;
+  max-width: 320px;
   display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 1px 0;
-  white-space: nowrap;
-}
-.annotate-tree .toggle {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 auto;
-}
-.annotate-tree .toggle .chevron {
-  font-size: 13px;
-}
-/* a pure container segment (not itself a tag) — a plain label, not a clickable chip */
-.annotate-tree-group {
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  color: #fff;
   font-size: 11px;
-  color: var(--dim);
+  line-height: 1.35;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}
+.tagtip-path {
+  font-weight: 600;
+}
+.tagtip-value {
+  opacity: 0.92;
 }
 /* a region annotation drawn over a PDF page (the image overlay uses a Leaflet rectangle) */
 .pdf-page {
@@ -1503,17 +1503,6 @@ mark.yo-annotation {
   gap: 4px;
   flex: 1 1 auto;
 }
-.board-lane-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 0.82em;
-  padding: 1px 4px 1px 7px;
-  border-radius: 10px;
-  color: var(--bg);
-  text-transform: capitalize;
-}
-.board-lane-x,
 .board-lane-add,
 .board-lane-del {
   background: none;
@@ -1524,11 +1513,6 @@ mark.yo-annotation {
   padding: 0;
   line-height: 1;
 }
-.board-lane-x {
-  font-size: 1.1em;
-  opacity: 0.7;
-}
-.board-lane-x:hover { opacity: 1; }
 .board-lane-add {
   color: var(--dim);
   border: 1px dashed var(--line);

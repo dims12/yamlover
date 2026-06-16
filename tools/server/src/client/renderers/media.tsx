@@ -1,4 +1,5 @@
 import { NodeJson, blobUrl } from "../api";
+import { displayPath } from "../paths";
 
 /**
  * Renderer for a file-backed HTML document (`<iframe>`), pointing at the server's `/api/blob`
@@ -13,7 +14,7 @@ export function HtmlView({ node }: { node: NodeJson }) {
       className="filehtml"
       src={blobUrl(node.path)}
       sandbox="allow-same-origin"
-      title={node.title ?? node.path}
+      title={node.title ?? displayPath(node.path)}
     />
   );
 }

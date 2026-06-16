@@ -1,7 +1,8 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation } from "../api";
 import { TAG_FORMAT, explicitColor, resolveTagColor, tagFields } from "./tag";
-import { canonPath, displayPath, segsToStr, strToSegs } from "../paths";
+import { TagTip } from "./tagtip";
+import { canonPath, strToSegs } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
 
 /**
@@ -122,39 +123,6 @@ export function indexToRefs(paths: string[]): TagRef[] {
     if (!cur || (cur.grafted && !grafted)) byKey.set(key, { path: p, grafted });
   }
   return [...byKey.values()].map((v) => ({ path: v.path, name: tagNameOf(v.path), color: null }));
-}
-
-/** A node in the tag-browse TREE: a path SEGMENT mirroring the taxonomy's containment spine.
- *  `tag` is the selectable tag when this node IS one (a leaf, or an intermediate that itself
- *  carries the tag schema); a pure container segment (e.g. `tags`, `workflow`) has `tag: null`
- *  and renders as a group header. `seg` is the decoded segment label; `path` its canonical path. */
-export interface TagTreeNode {
-  seg: string;
-  path: string;
-  tag: TagRef | null;
-  children: TagTreeNode[];
-}
-
-/** Build the tag tree from a flat tag list — each tag's canonical path IS its spine, so we split
- *  on segments and graft every tag (and any missing ancestor container) into a nested structure.
- *  Insertion order is preserved (taxonomy/definition order — e.g. lifecycle states), not sorted. */
-export function buildTagTree(tags: TagRef[]): TagTreeNode[] {
-  const roots: TagTreeNode[] = [];
-  const byPath = new Map<string, TagTreeNode>();
-  const ensure = (segs: (string | number)[]): TagTreeNode => {
-    const path = segsToStr(segs);
-    const hit = byPath.get(path);
-    if (hit) return hit;
-    const node: TagTreeNode = { seg: String(segs[segs.length - 1]), path, tag: null, children: [] };
-    byPath.set(path, node);
-    (segs.length === 1 ? roots : ensure(segs.slice(0, -1)).children).push(node);
-    return node;
-  };
-  for (const t of tags) {
-    const segs = strToSegs(t.path);
-    if (segs.length) ensure(segs).tag = t;
-  }
-  return roots;
 }
 
 /** The project's named tags, enumerated once and re-enumerated when a `.yamlover` source changes
@@ -384,7 +352,7 @@ function rankTag(t: TagRef, q: string): number {
 
 /** Expose a tag's colour to CSS as `--tag`, so a swatch / badge can render FILLED (applied) or
  *  HOLLOW (an outline in that colour, not applied) from one stylesheet rule — no per-state ring. */
-const tagStyle = (color: string): React.CSSProperties => ({ ["--tag"]: color } as React.CSSProperties);
+export const tagStyle = (color: string): React.CSSProperties => ({ ["--tag"]: color } as React.CSSProperties);
 
 /** The floating tag picker — ONE uniform toggle UI. It shows the color-tag swatches and the
  *  named-tag badges; the tags currently APPLIED to the target are OUTLINED (a color tag outlines its
@@ -411,7 +379,6 @@ export function AnnotationMenu({
   const [path, setPath] = useState("");
   const [hi, setHi] = useState(-1); // highlighted suggestion (-1 = none)
   const [busy, setBusy] = useState(false); // a lookup/create round-trip is in flight
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set()); // browse-tree nodes folded shut (default: all open)
   const verb = mode === "edit" ? "re-tag" : "tag";
 
   // A deleted tag must not survive as a badge: on open, drop remembered tags the server no
@@ -445,10 +412,9 @@ export function AnnotationMenu({
   // Clicking a swatch/badge toggles: an APPLIED tag turns OFF (`onUnpick`, else re-picks), an
   // un-applied one turns ON (`onPick`). The outline (not a separate chip) shows what is applied.
   const toggle = (t: TagRef) => (isApplied(t.path) ? onUnpick ?? onPick : onPick)(t);
-  const tagTitle = (t: TagRef) => (isApplied(t.path) ? `remove ${t.name}` : `${verb} ${t.name}`);
-  // A named tag's chip shows its NAME only; its full path (its spine location) is revealed on
-  // HOVER — so same-named tags stay distinguishable without cluttering the label.
-  const tagHover = (t: TagRef) => displayPath(t.path);
+  // A tag chip shows its NAME only; its full path (its spine location) and text value are revealed
+  // on HOVER via the coloured <TagTip> card — so same-named tags stay distinguishable without
+  // cluttering the label.
 
   // Typeahead suggestions: substring match on the typed text against the tag name OR its full
   // path (so `humor` and `genre:humor:deadpan` both hit), ranked, capped. Hide what is one click
@@ -501,56 +467,18 @@ export function AnnotationMenu({
       .finally(() => setBusy(false));
   };
 
-  // BROWSE mode (empty input): the whole tag taxonomy as a TREE mirroring each tag's spine. A
-  // tag node is a clickable chip (toggles like a badge); a pure container segment is a header.
-  const tagTree = buildTagTree(tagIndex.filter((t) => !isColor(t)));
-  const setOpen = (p: string, open: boolean) =>
-    setCollapsed((c) => { const n = new Set(c); open ? n.delete(p) : n.add(p); return n; });
-  const renderTree = (nodes: TagTreeNode[], depth: number): ReactNode =>
-    nodes.map((node) => {
-      const hasKids = node.children.length > 0;
-      const open = !collapsed.has(node.path);
-      return (
-        <Fragment key={node.path}>
-          <div className="annotate-tree-row" style={{ paddingLeft: depth * 12 }}>
-            {hasKids ? (
-              <button type="button" className={"toggle" + (open ? " open" : "")} title={open ? "collapse" : "expand"} onClick={() => setOpen(node.path, !open)}>
-                <span className="chevron">›</span>
-              </button>
-            ) : (
-              <span className="toggle leaf" />
-            )}
-            {node.tag ? (
-              <button
-                type="button"
-                className={"tagtag" + (isApplied(node.tag.path) ? " on" : "")}
-                style={tagStyle(resolveTagColor(node.tag))}
-                title={tagHover(node.tag)}
-                onMouseDown={(e) => { e.preventDefault(); toggle(node.tag!); }}
-              >
-                <span className="tt-label">{node.tag.name}</span>
-              </button>
-            ) : (
-              <span className="annotate-tree-group" title={displayPath(node.path)}>{node.seg}</span>
-            )}
-          </div>
-          {hasKids && open && renderTree(node.children, depth + 1)}
-        </Fragment>
-      );
-    });
-
   return (
     <div ref={menuRef} className="annotate-menu" style={{ left: x, top: y }} role="menu">
       <div className="annotate-palette">
         {colorTags.map((t) => (
-          <button
-            key={t.path}
-            type="button"
-            className={"annotate-swatch" + (isApplied(t.path) ? " on" : "")}
-            style={tagStyle(resolveTagColor(t))}
-            title={tagTitle(t)}
-            onClick={() => toggle(t)}
-          />
+          <TagTip key={t.path} tag={t}>
+            <button
+              type="button"
+              className={"annotate-swatch" + (isApplied(t.path) ? " on" : "")}
+              style={tagStyle(resolveTagColor(t))}
+              onClick={() => toggle(t)}
+            />
+          </TagTip>
         ))}
       </div>
       {onCopy && <button type="button" className="annotate-tool" title="copy text to clipboard (don't annotate)" onClick={onCopy}>⧉</button>}
@@ -559,15 +487,16 @@ export function AnnotationMenu({
         <div className="annotate-recents">
           {badges.map((t) => (
             <span key={t.path} className="tagframe">
-              <button
-                type="button"
-                className={"tagtag" + (isApplied(t.path) ? " on" : "")}
-                style={tagStyle(resolveTagColor(t))}
-                title={tagHover(t)}
-                onClick={() => toggle(t)}
-              >
-                <span className="tt-label">{t.name}</span>
-              </button>
+              <TagTip tag={t}>
+                <button
+                  type="button"
+                  className={"tagtag" + (isApplied(t.path) ? " on" : "")}
+                  style={tagStyle(resolveTagColor(t))}
+                  onClick={() => toggle(t)}
+                >
+                  <span className="tt-label">{t.name}</span>
+                </button>
+              </TagTip>
             </span>
           ))}
         </div>
@@ -598,25 +527,23 @@ export function AnnotationMenu({
           <div className="annotate-suggest" role="listbox">
             {suggestions.map((t, i) => (
               <span key={t.path} className="tagframe">
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={i === hi}
-                  className={"tagtag" + (i === hi ? " hi" : "")}
-                  style={tagStyle(resolveTagColor(t))}
-                  title={displayPath(t.path)}
-                  // mousedown (not click) + preventDefault: fire before the input blurs, keep focus.
-                  onMouseDown={(e) => { e.preventDefault(); pickPath(t.path); }}
-                  onMouseEnter={() => setHi(i)}
-                >
-                  <span className="tt-label">{t.name}</span>
-                </button>
+                <TagTip tag={t}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={i === hi}
+                    className={"tagtag" + (i === hi ? " hi" : "")}
+                    style={tagStyle(resolveTagColor(t))}
+                    // mousedown (not click) + preventDefault: fire before the input blurs, keep focus.
+                    onMouseDown={(e) => { e.preventDefault(); pickPath(t.path); }}
+                    onMouseEnter={() => setHi(i)}
+                  >
+                    <span className="tt-label">{t.name}</span>
+                  </button>
+                </TagTip>
               </span>
             ))}
           </div>
-        )}
-        {!busy && !q && tagTree.length > 0 && (
-          <div className="annotate-tree" role="tree">{renderTree(tagTree, 0)}</div>
         )}
       </div>
     </div>
