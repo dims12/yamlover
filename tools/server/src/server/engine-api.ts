@@ -439,6 +439,31 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
+      // Persist a BOARD's lane configuration (TICKETS.md §3 — the board is the explorer's per-tag
+      // view). Rewrites the board directory's overlay `columns:` block (a sequence of lanes, each a
+      // flow-sequence of tag pointers), then reconciles. Body: { path, columns: string[][] } where
+      // each inner string is a tag client-path. The pointers are written project-scope (`*::…`),
+      // exactly like an annotation's tag (so they resolve from the served root).
+      if (req.method === "POST" && url.pathname === "/api/board") {
+        readBody(req)
+          .then((data) =>
+            enqueue(async () => {
+              const b = data as { path?: string; columns?: unknown };
+              const cols: string[][] = Array.isArray(b?.columns) ? b.columns.map((lane) => (Array.isArray(lane) ? lane.map((p) => String(p)) : [])) : [];
+              const { bodyFile } = hostFor(dataRoot, s, strToSegs(b?.path || ":"));
+              fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
+              const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
+              fs.writeFileSync(bodyFile, writeBoardColumns(src, cols));
+              broadcast(await doReindex());
+              scheduleHasher();
+              return { ok: true };
+            }),
+          )
+          .then((body) => sendJson(res, 201, body))
+          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
+        return;
+      }
+
       // Upload a pasted file, TEXT, or RICH content (a WRITE path). A file onto a DIRECTORY
       // page → it lands in that directory; onto a CHAPTER page → it lands in the chapter's
       // owning directory AND a `*…` pointer to it is appended as the chapter's last chunk.
@@ -1014,6 +1039,26 @@ function pointerRaw(clientPath: string): string {
   return "::" + out;
 }
 
+/** Rewrite a board overlay's top-level `columns:` block (TICKETS.md §3). `cols` is the lanes, each a
+ *  list of tag client-paths; each lane is emitted as a flow-sequence of project-scope pointers. An
+ *  existing `columns:` block (its `- …` items) is replaced; otherwise the block is appended. A fresh
+ *  file is seeded with the board schema tag so it indexes as a board. */
+function writeBoardColumns(src: string, cols: string[][]): string {
+  const laneLine = (lane: string[]) => `- [${lane.map((p) => pointerToken(pointerRaw(p))).join(", ")}]`;
+  const block = cols.length === 0 ? ["columns: []"] : ["columns:", ...cols.map(laneLine)];
+  let lines = src.replace(/\n+$/, "").split("\n");
+  if (src.trim() === "") lines = ["!!<*yamlover:$defs:board>"];
+  const start = lines.findIndex((l) => /^columns:/.test(l));
+  if (start >= 0) {
+    let end = start + 1;
+    while (end < lines.length && (lines[end] === "" || /^[ \t-]/.test(lines[end]))) end++; // the block's items
+    lines.splice(start, end - start, ...block);
+  } else {
+    lines.push(...block);
+  }
+  return lines.join("\n") + "\n";
+}
+
 // --- derived sidecars: where the bytes live + how the overlay points at them ------------------ //
 // A sidecar (thumbnail / fragment crop) lives under a HIDDEN `.yamlover/` overlay dir. Two modes
 // (settings.sidecars.location): 'per-directory' keeps it beside the source — the source's own
@@ -1198,9 +1243,13 @@ async function ensureThumbnail(dataRoot: string, s: Store, mode: SidecarLocation
 function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: string): void {
   const { bodyFile, within } = hostFor(dataRoot, s, strToSegs(target || ":"));
   if (!fs.existsSync(bodyFile)) return;
-  const needle = pointerRaw(tag); // ::path:to:tag — present in both the bare and object forms
+  // Match on the tag's colon-PATH (`:tags:…:name`), tolerating the pointer's spelling: an item may
+  // be project-scope (`*::tags:…`), document-scope (`*: tags: …`, spaced), bare or an object form.
+  // Normalizing away whitespace and matching the `:`-prefixed path catches them all (the leading
+  // `:` keeps it on segment boundaries), where a raw `includes(pointerRaw)` missed spaced/doc-scope.
+  const needlePath = ":" + pointerRaw(tag).replace(/^:+/, ""); // :tags:field:mathematics:number-theory
   const src = fs.readFileSync(bodyFile, "utf8");
-  fs.writeFileSync(bodyFile, removeAnnotationItem(src, within, (itemText) => itemText.includes(needle)));
+  fs.writeFileSync(bodyFile, removeAnnotationItem(src, within, (itemText) => itemText.replace(/\s+/g, "").includes(needlePath)));
 }
 
 /** Persist a NEW named tag as a key of the tag-taxonomy body at the project's default tags

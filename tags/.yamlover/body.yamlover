@@ -21,3 +21,25 @@ colors: Pure color tags — the annotation palette; each carries an explicit col
 first tag: !!<*::yamlover:$defs:tag>
 second tag: !!<*::yamlover:$defs:tag>
 third tag: !!<*::yamlover:$defs:tag>
+forth tag: !!<*::yamlover:$defs:tag>
+fifth tag: !!<*::yamlover:$defs:tag>
+# Workflows — state machines (TICKETS.md §2). Each `next:` is a REF edge to a successor STATE in
+# the SAME workflow (a cross-link, not a contained sub-tag); a terminal state has no `next`.
+workflow: Lifecycles — task/ticket state machines
+  dev: !!<*yamlover:$defs:workflow> Software task lifecycle
+    initial: *::tags:workflow:dev:backlog
+    backlog: Captured, not yet refined
+      color: "#9399b2"
+      next: *::tags:workflow:dev:ready
+    ready: Refined, ready to pick up
+      color: "#89b4fa"
+      next: *::tags:workflow:dev:in-progress
+    in-progress: Being worked on
+      color: "#fab387"
+      next:
+      - *::tags:workflow:dev:done
+      - *::tags:workflow:dev:cancelled
+    done: Completed
+      color: "#a6e3a1"
+    cancelled: Dropped
+      color: "#f38ba8"

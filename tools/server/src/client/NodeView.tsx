@@ -1,8 +1,8 @@
-import { Fragment, memo, useEffect, useReducer, useState } from "react";
+import { Fragment, memo, useEffect, useReducer, useRef, useState } from "react";
 import { fetchNode, fetchSchema, NodeJson, pasteFile, pasteRich, pasteText, PasteResult } from "./api";
 import { arxivPdf, tweetUrl, fetchTweetText } from "./paste-links";
 import { countImages, htmlToRich, resolveImages, RichDraft } from "./paste-html";
-import { getRenderer } from "./renderers/registry";
+import { getRenderer, renderersFor } from "./renderers/registry";
 import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
 
 // Renderers whose output is prose — they get the TEXT annotation layer (drag-select → palette →
@@ -27,13 +27,13 @@ const isSchema = (f: Format) => f.endsWith("schema");
 const syntaxOf = (f: Format): "yaml" | "json" => (f === "json5p" ? "json" : "yaml");
 
 /** The representation actually shown: the requested `format` if it is a standard
- *  view or this node's renderer name; otherwise the node's default (its renderer's
- *  view, else `yaml-schema`). Guards a stale renderer-name format (e.g. a
+ *  view or one of this node's renderer names; otherwise the node's default (its first
+ *  renderer's view, else `yaml`). Guards a stale renderer-name format (e.g. a
  *  hand-edited URL, or one carried onto a node with no such renderer). */
-function effectiveFormat(format: Format, renderer: { name: string } | null): Format {
+function effectiveFormat(format: Format, renderers: { name: string }[]): Format {
   if (isStandard(format)) return format;
-  if (renderer && format === renderer.name) return format;
-  return renderer ? renderer.name : DEFAULT_FORMAT;
+  if (renderers.some((r) => r.name === format)) return format;
+  return renderers[0] ? renderers[0].name : DEFAULT_FORMAT;
 }
 
 /** A node's bare name: its last path segment (a decoded key or `[index]`), or ""
@@ -106,6 +106,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   const [reloadKey, setReloadKey] = useState(0); // bumped to re-fetch the node after a paste
   const [pasteMsg, setPasteMsg] = useState<string | null>(null); // transient upload status
   const [dragging, setDragging] = useState(false); // a file is being dragged over the window
+  const prevPath = useRef(path); // last NAVIGATED path — distinguishes a navigation from a live refresh
   // Bumped by a renderer's bar `config` control (e.g. the markup width) after it writes a URL
   // param, so the whole node view re-renders and the rendered body picks up the new setting.
   const [, rerender] = useReducer((n: number) => n + 1, 0);
@@ -116,7 +117,11 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
 
   useEffect(() => {
     setError(null);
-    setNode(null);
+    // Clear the node only on a genuine NAVIGATION (the path changed). A live REFRESH (refreshSignal /
+    // reloadKey, e.g. an annotation written from a right-click menu) keeps the current node visible
+    // and swaps it in when the re-fetch resolves — no loading flash, and the renderer stays mounted
+    // (so a floating menu / selection it owns survives the write that triggered the refresh).
+    if (prevPath.current !== path) { setNode(null); prevPath.current = path; }
     let cancelled = false;
     // A first (one-level) fetch settles the node's (type, format); a renderer that
     // needs deeper value (e.g. a chapter, depth 2: arrays one level, elements the
@@ -321,9 +326,9 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     setSchema(null);
     setBin(null);
     if (!node) return;
-    const r = getRenderer(node);
-    const eff = effectiveFormat(format, r);
-    if (r && eff === r.name) return; // the rendered view reads node.value (already fetched)
+    const rs = renderersFor(node);
+    const eff = effectiveFormat(format, rs);
+    if (rs.some((r) => r.name === eff)) return; // a rendered view reads node.value (already fetched)
     if (isSchema(eff)) {
       fetchSchema(path).then(setSchema).catch((e) => setError(e.message));
     } else if (node.type === "binary") {
@@ -334,12 +339,14 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   if (error) return <div className="error">{error}</div>;
   if (!node) return <div className="loading">…</div>;
 
-  const renderer = getRenderer(node);
-  // The renderer adds its own tab (its name), which is this node's default; the
-  // standard representations follow.
-  const tabs: Format[] = renderer ? [renderer.name, ...FORMATS] : FORMATS;
-  const effective = effectiveFormat(format, renderer);
-  const showRendered = renderer != null && effective === renderer.name;
+  const renderers = renderersFor(node);
+  // Each rendered representation adds its own tab (its name); the first is this node's default, and
+  // a directory offers the explorer ("directory") view alongside its custom one. Standard data
+  // representations follow.
+  const tabs: Format[] = [...renderers.map((r) => r.name), ...FORMATS];
+  const effective = effectiveFormat(format, renderers);
+  const renderer = renderers.find((r) => r.name === effective) ?? null;
+  const showRendered = renderer != null;
 
   let content: unknown;
   let ready: boolean;
@@ -388,7 +395,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
               <button className={"tab" + (effective === f ? " active" : "")} onClick={() => onFormat(f)}>
                 {f}
               </button>
-              {showRendered && renderer && f === renderer.name && renderer.config?.(rerender)}
+              {showRendered && renderer && f === renderer.name && renderer.config?.(rerender, node)}
             </Fragment>
           ))}
         </div>

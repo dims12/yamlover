@@ -20,3 +20,12 @@ chunks:
   quadratic formula $$x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$$ both flow through the prose.
 - !!<format: text/x-latex> |
   \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
+yamlover-fragments:
+  mqgwoar6-xbn407: !!<*::yamlover:$defs:fragment>
+    type: "text"
+    exact: "Mathematics"
+    prefix: ""
+    suffix: " likes to hide "
+    created: 2026-06-16T17:18:11.059Z
+    yamlover-annotations:
+    - *::yamlover:tags:colors:yellow

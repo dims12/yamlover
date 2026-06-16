@@ -126,3 +126,30 @@ describe("embedded annotations", () => {
     h.close();
   });
 });
+
+// Removing a HAND-AUTHORED annotation whose pointer is spaced + document-scope (`*: tags: …`) —
+// not the canonical project-scope form the server writes. The delete matcher normalizes whitespace
+// and matches the colon-path, so the explorer's right-click "untag" works on such pointers too.
+describe("DELETE /api/annotate — tolerant pointer matching", () => {
+  it("removes a spaced, document-scope `*: tags: …` annotation", async () => {
+    const root = tmpTree({
+      "doc.md": "# hi",
+      ".yamlover/body.yamlover":
+        '"doc.md":\n  yamlover-annotations:\n  - *: tags: field: math\n  - *: tags: genre: short\n' +
+        "tags: !!<*yamlover:$defs:tag>\n  field:\n    math: Math\n  genre:\n    short: Short\n",
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    expect(call(h, "/api/annotations", { path: ":doc.md" }).json).toHaveLength(2);
+
+    const del = await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":doc.md")}&tag=${encodeURIComponent(":tags:field:math")}`, {});
+    expect(del.status).toBe(200);
+    // exactly one removed — the other spaced pointer survives (the matcher is path-specific)
+    const left = call(h, "/api/annotations", { path: ":doc.md" }).json;
+    expect(left.map((a: any) => a.tag?.path)).toEqual([":tags:genre:short"]);
+    const body = fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8");
+    expect(body).not.toContain("field: math");
+    expect(body).toContain("genre: short");
+    h.close();
+  });
+});

@@ -1,0 +1,18 @@
+# $defs/workflow — a state machine, expressed as a TAG whose CONTAINED sub-tags are its STATES
+# (each an ordinary $defs/tag: a description body, an optional `color`). Transitions are REF
+# edges, not containment: a state's `next:` holds pointer(s) to its successor state(s) elsewhere
+# in the SAME workflow — a cross-link in the or-graph, so a successor is NOT nested under its
+# predecessor (the contain-vs-ref distinction; a pointer-valued entry is a ref member, never a
+# contained sub-tag). The workflow's `initial:` ref points at the start state; a TERMINAL state
+# is DERIVED (it has no outgoing `next`). Transitions are ADVISORY — the engine permits any state
+# change; the board UI merely offers `next` states as the obvious moves. The format
+# `x-yamlover-workflow` lets the board renderer recognize this node and order its columns. Attach
+# with  !!<*yamlover:$defs:workflow>.  Spec: ../TICKETS.md §2.
+type: variant
+format: x-yamlover-workflow
+value:                                          # the workflow's description (its body)
+  type: string
+  format: text/marklower
+properties:
+  initial: *:: yamlover: $defs: tag             # ref → the start state
+additionalProperties: *:: yamlover: $defs: tag  # every other key is a STATE (a plain tag)

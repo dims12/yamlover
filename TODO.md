@@ -10,3 +10,8 @@
 - ~~Ctrl-PgDn and Ctrl-PgUp to switch to next element in the viewer~~ — DONE as Ctrl/Alt + Down/Up (Ctrl+PgDn/PgUp is a browser tab shortcut; Alt aliases Ctrl for macOS Mission Control): steps the selection through the TOC in document order (App.tsx `flattenToc` + global keydown)
 - ~~Once LHS TOC entry clicked, focus should go to RHS~~ — DONE: tree click navigates and focuses the RHS pane (App.tsx `selectFromToc`, `<main tabIndex={-1}>`)
 - KML+KMZ render as XML or plaintext
+- Catch up YAML standard, why tuple key caused any confusions? 
+- /examples/50-object-in-overlay/name chooses marklower format by default without any reasons
+- /examples/68-math-chapter displays expand chevron in TOC, although it doesn't have any children
+- add light color scheme
+- store rendered diagrams in .yamlover

@@ -50,6 +50,30 @@ test('67-pdf-tags: every tag membership pointer resolves (no dangling)', () => {
   assert.deepEqual(buildGraph(load('67-pdf-tags')).unresolved, []);
 });
 
+test('73-dev-board: tasks, board & workflow resolve; state is a ref edge into the workflow', () => {
+  const doc = load('73-dev-board');
+  // every pointer resolves: the board `workflow:` ref, each state's `next`/`initial`, and every
+  // task's state annotation (TICKETS.md §2 — states-as-tags, transitions-as-refs).
+  assert.deepEqual(buildGraph(doc).unresolved, []);
+  const s = new Store(':memory:');
+  s.indexDocument(doc);
+  // the directory is a board; its files index as tasks; the `dev` node overrides its inherited tag
+  // schema to $defs/workflow (the inline `!!<*…>` wins over the parent's additionalProperties), and
+  // its states stay plain tags.
+  assert.equal(s.node(':')?.format, 'x-yamlover-board');
+  assert.equal(s.node(':refactor-parser.yamlover')?.format, 'x-yamlover-task');
+  assert.equal(s.node(':tags:workflow:dev')?.format, 'x-yamlover-workflow');
+  assert.equal(s.node(':tags:workflow:dev:in-progress')?.format, 'x-yamlover-tag');
+  // a task's state is a forward ref into the workflow's state; the reverse of that edge is the
+  // board column (what /api/tagged surfaces).
+  const into = s.relationships(':tags:workflow:dev:in-progress').in;
+  assert.ok(
+    into.some((e) => e.kind === 'ref' && e.from.startsWith(':refactor-parser.yamlover')),
+    'the in-progress task annotates the in-progress state',
+  );
+  s.close();
+});
+
 test('67-pdf-tags: a tag description is its BODY — the node value, untagged scalar+fields', () => {
   const s = new Store(':memory:');
   s.indexDocument(load('67-pdf-tags'));

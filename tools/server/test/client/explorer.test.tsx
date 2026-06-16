@@ -171,10 +171,10 @@ describe("ExplorerView (a directory)", () => {
 });
 
 describe("ExplorerViewControl", () => {
-  it("offers all three views, including the new thumbnails gallery", () => {
-    render(<ExplorerViewControl rerender={() => {}} />);
+  it("offers every view: icons, gallery, details, and the board", () => {
+    render(<ExplorerViewControl rerender={() => {}} node={node({ path: ":dir", concrete: "dir" })} />);
     const values = Array.from(document.querySelectorAll("option")).map((o) => o.getAttribute("value"));
-    expect(values).toEqual(["large", "thumbnails", "small"]);
+    expect(values).toEqual(["large", "thumbnails", "small", "details", "board"]);
   });
 });
 

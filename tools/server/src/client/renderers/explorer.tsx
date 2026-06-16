@@ -5,29 +5,39 @@ import { typeIcon, Glyph } from "../icons";
 import { TAG_FORMAT, tagLabel, tagBody, resolveTagColor } from "./tag";
 import { displayPath, displayKey } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
+import { useExplorerTagMenu } from "./tagmenu";
+import { BoardView, isBoardNode } from "./board";
+import { DetailsView } from "./details";
 
 const ANNOTATION_FORMAT = "x-yamlover-annotation";
 const MIXED_KEY = "$yamloverMixed";
 
 // ---- the view mode: a URL parameter (`?view=`), so a view is a shareable link ---- //
 
-const VIEWS = ["large", "thumbnails", "small"] as const;
-type ViewMode = (typeof VIEWS)[number];
+const VIEWS = ["large", "thumbnails", "small", "details", "board"] as const;
+export type ViewMode = (typeof VIEWS)[number];
 const DEFAULT_VIEW: ViewMode = "large";
 // The two views that show image previews, and the server thumbnail box each requests: the
 // gallery "thumbnails" view asks for a larger crop (crisp at its ~280px tiles / retina).
 const THUMB_BOX: Partial<Record<ViewMode, number>> = { large: 256, thumbnails: 512 };
 const params = () => new URLSearchParams(window.location.search);
 
-/** The grid view from the URL's `?view=`, or the default (an unknown value ignored). */
-export function explorerViewMode(): ViewMode {
-  const v = params().get("view");
-  return (VIEWS as readonly string[]).includes(v ?? "") ? (v as ViewMode) : DEFAULT_VIEW;
+/** A node's DEFAULT view when the URL pins none: a board directory opens as the `board` view,
+ *  everything else as large icons. */
+export function defaultViewFor(node: NodeJson): ViewMode {
+  return isBoardNode(node) ? "board" : DEFAULT_VIEW;
 }
 
-function writeViewMode(v: ViewMode): void {
+/** The view pinned by the URL's `?view=`, or null when none (an unknown value ignored) — the
+ *  caller falls back to {@link defaultViewFor}. */
+export function explorerViewMode(): ViewMode | null {
+  const v = params().get("view");
+  return (VIEWS as readonly string[]).includes(v ?? "") ? (v as ViewMode) : null;
+}
+
+function writeViewMode(v: ViewMode, def: ViewMode): void {
   const q = params();
-  if (v === DEFAULT_VIEW) q.delete("view");
+  if (v === def) q.delete("view"); // the node's own default needs no param (clean, shareable URL)
   else q.set("view", v);
   const qs = q.toString();
   window.history.replaceState({}, "", window.location.pathname + (qs ? "?" + qs : ""));
@@ -35,20 +45,23 @@ function writeViewMode(v: ViewMode): void {
 
 /** The view selector beside the explorer tab (the renderer's `config` hook) — writes
  *  `?view=` and rerenders, like the plaintext encoding control. */
-export function ExplorerViewControl({ rerender }: { rerender: () => void }) {
+export function ExplorerViewControl({ rerender, node }: { rerender: () => void; node: NodeJson }) {
+  const def = defaultViewFor(node);
   return (
     <label className="enc-control">
       view{" "}
       <select
-        value={explorerViewMode()}
+        value={explorerViewMode() ?? def}
         onChange={(e) => {
-          writeViewMode(e.target.value as ViewMode);
+          writeViewMode(e.target.value as ViewMode, def);
           rerender();
         }}
       >
         <option value="large">large icons</option>
         <option value="thumbnails">thumbnails</option>
         <option value="small">small icons</option>
+        <option value="details">details</option>
+        <option value="board">board</option>
       </select>
     </label>
   );
@@ -168,16 +181,19 @@ function Thumb({ link, glyph, box }: { link: Link; glyph: Glyph; box: number }) 
   return <img className="dirview-icon dirview-thumb" src={src} alt="" loading="lazy" onError={() => setFailed(true)} />;
 }
 
-function Item({ it, active, view, setRef, onFocus, onNavigate }: {
+function Item({ it, active, view, setRef, onFocus, onNavigate, onContext }: {
   it: ExplorerItem;
   active: boolean;
   view: ViewMode;
   setRef: (el: HTMLElement | null) => void;
   onFocus: () => void;
   onNavigate: (path: string) => void;
+  onContext?: (path: string, x: number, y: number) => void;
 }) {
   const link = it.link;
   const tabIndex = active ? 0 : -1; // roving tabindex: only the selected item is in the tab order
+  // right-click a real member (not an uplink) → the tagging menu, at the cursor
+  const contextProps = link && !it.up && onContext ? { onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); onContext(link.path, e.clientX, e.clientY); } } : {};
   if (!link) {
     // not a marker (unexpected at depth 1) — an inert label, no navigation
     return (
@@ -213,6 +229,7 @@ function Item({ it, active, view, setRef, onFocus, onNavigate }: {
         e.preventDefault();
         onNavigate(link.path);
       }}
+      {...contextProps}
     >
       {THUMB_BOX[view] && !it.up ? <Thumb link={link} glyph={g} box={THUMB_BOX[view]!} /> : <span className={"dirview-icon " + g.cls} title={g.title}>{g.glyph}</span>}
       <span className="dirview-label">{label}</span>
@@ -226,6 +243,7 @@ export function ExplorerView({ node, onNavigate }: { node: NodeJson; onNavigate:
   // when a diff (live.ts) touches a `.yamlover` file (an annotation created/deleted anywhere)
   const [tagged, setTagged] = useState<Link[]>([]);
   const diffBump = useDiffBump(touchesYamlover);
+  const { openAt, tagMenu } = useExplorerTagMenu(); // right-click → the shared tag picker (all views)
   useEffect(() => {
     setTagged([]);
     if (!isTag) return;
@@ -288,14 +306,19 @@ export function ExplorerView({ node, onNavigate }: { node: NodeJson; onNavigate:
     if (next !== active) { setActive(next); itemEls.current[next]?.focus(); }
   };
 
+  // The effective view: the URL's `?view=`, else this node's default (a board opens as `board`).
+  const view = explorerViewMode() ?? defaultViewFor(node);
+  if (view === "board") return <>{tagMenu}<BoardView node={node} onNavigate={onNavigate} openContextMenu={openAt} /></>;
+  if (view === "details") return <>{tagMenu}<DetailsView members={members} onNavigate={onNavigate} openContextMenu={openAt} /></>;
+
   // a tag page's description is its BODY (the header bar already names the node)
   const desc = (isTag ? tagBody(node.value) : null) ?? node.description;
   // the tile layouts: large + thumbnails share the column-tile grid (dirview-lg); thumbnails
   // adds dirview-thumbs to enlarge the previews into a gallery.
-  const view = explorerViewMode();
   const gridClass = "dirview" + (view !== "small" ? " dirview-lg" : "") + (view === "thumbnails" ? " dirview-thumbs" : "");
   return (
     <div className="explorerview">
+      {tagMenu}
       {desc && (
         <div className="dirhead">
           <p className="tagdesc">{desc}</p>
@@ -315,6 +338,7 @@ export function ExplorerView({ node, onNavigate }: { node: NodeJson; onNavigate:
             setRef={(el) => { itemEls.current[i] = el; }}
             onFocus={() => setActive(i)}
             onNavigate={onNavigate}
+            onContext={openAt}
           />
         ))}
         {items.length === 0 && <span className="dirview-empty">empty</span>}

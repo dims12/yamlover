@@ -650,6 +650,12 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
       const addl = field(s, 'additionalProperties'); // a schema for keys not in `properties`
       for (const e of inst.entries ?? []) {
         if (e.key == null || isPointer(e.value)) continue;
+        // A child that declares its OWN inline `!!<*…/$defs/X>` schema wins over an inherited
+        // `properties`/`additionalProperties` — `walk()` applies the child's pointer separately.
+        // (Without this, additionalProperties would clobber, e.g., a `$defs/workflow` node sitting
+        // in a tag taxonomy back down to `x-yamlover-tag`. `hasFormat` can't guard it — a pointer
+        // schema carries no `format` field yet.)
+        if (e.value.meta?.schema && isPointer(e.value.meta.schema)) continue;
         const declared = props && !isPointer(props) ? field(props, e.key) : null;
         const sub = declared ?? addl; // a declared property wins, else additionalProperties
         if (sub) apply(e.value, sub, depth + 1);

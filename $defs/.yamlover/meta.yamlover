@@ -14,3 +14,12 @@ properties:
     fragment:
         type: string
         format: yamlover/meta
+    task:
+        type: string
+        format: yamlover/meta
+    workflow:
+        type: string
+        format: yamlover/meta
+    board:
+        type: string
+        format: yamlover/meta

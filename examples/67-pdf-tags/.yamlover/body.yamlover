@@ -41,6 +41,7 @@ tags: !!<*yamlover: $defs: tag> A small taxonomy for short / deadpan papers — 
   yamlover-annotations:
   - *: tags: field: mathematics: number-theory
   - *: tags: genre: brevity: shortest-paper
+  - *::tags:'fifth tag'
 
 "jaba00061-0143a.pdf":
   yamlover-annotations:
@@ -53,6 +54,9 @@ tags: !!<*yamlover: $defs: tag> A small taxonomy for short / deadpan papers — 
   - *: tags: field: chemistry
   - *: tags: genre: brevity: empty-body
   - *: tags: genre: humor: satire
+  - *::yamlover:tags:colors:yellow
+  - *::examples:73-dev-board:tags:workflow:dev:ready
+  - *::tags:'first tag'
 
 "1110.2832v2.pdf":
   yamlover-annotations:
@@ -60,6 +64,9 @@ tags: !!<*yamlover: $defs: tag> A small taxonomy for short / deadpan papers — 
   - *: tags: field: physics: particle
   - *: tags: genre: brevity: one-word-answer
   - *: tags: genre: humor: deadpan
+  - *::tags:'fifth tag'
+  - *::yamlover:tags:colors:yellow
+  - *::tags:'first tag'
 
 "1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf":
   yamlover-annotations:

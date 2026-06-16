@@ -1,0 +1,11 @@
+"sample.kml":
+  yamlover-fragments:
+    mqee3kvz-mzzggs: !!<*::yamlover:$defs:fragment>
+      type: "map"
+      n: 52.51767025395278
+      s: 52.51558102789858
+      e: 13.366348743438722
+      w: 13.362057209014893
+      created: 2026-06-14T23:02:38.975Z
+      yamlover-annotations:
+      - *::tags:'forth tag'

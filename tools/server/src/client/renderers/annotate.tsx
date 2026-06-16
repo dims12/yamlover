@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation } from "../api";
 import { TAG_FORMAT, explicitColor, resolveTagColor, tagFields } from "./tag";
-import { canonPath, displayPath, strToSegs } from "../paths";
+import { canonPath, displayPath, segsToStr, strToSegs } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
 
 /**
@@ -49,9 +49,19 @@ export function colorOf(a: Annotation): string {
 }
 
 /** An annotation's identity for optimistic reconcile/dedup: the same region tagged by two tags
- *  is TWO annotations, so the key is (selector, tag path) — not the selector alone. */
+ *  is TWO annotations, so the key is (selector, tag path) — not the selector alone. The tag path is
+ *  CANONICALIZED so an optimistic entry written with a palette ref (`::yamlover:…` link scope)
+ *  reconciles against the server's echo (`:yamlover:…` doc scope) instead of lingering as a ghost
+ *  `(pending)` duplicate — which would otherwise shadow the real one and block its removal. */
 function annKey(a: Annotation): string {
-  return JSON.stringify([a.selector ?? null, a.tag?.path ?? null]);
+  return JSON.stringify([a.selector ?? null, a.tag?.path ? canonPath(a.tag.path) : null]);
+}
+
+/** Two annotations mark the SAME region when their selectors are equal — the join key used to
+ *  gather a region's tag applications. Selectors are built field-by-field in a fixed key order by
+ *  every renderer, so structural JSON equality is stable (the same basis as {@link annKey}). */
+function sameSelector(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 }
 
 /** Whether an annotation can be edited/deleted here — any STANDALONE annotation file (its node
@@ -96,16 +106,55 @@ export function useColorTags(): TagRef[] {
 // swatch row, not the suggestion list).
 const TAG_QUERY = ": ...: !!<format: x-yamlover-tag>";
 
-function indexToRefs(paths: string[]): TagRef[] {
-  const seen = new Set<string>();
-  const out: TagRef[] = [];
+export function indexToRefs(paths: string[]): TagRef[] {
+  // Collapse the `yamlover` self-import GRAFT: the same tag shows up both at its real path
+  // (`:tags:…`) and as a duplicate under the grafted import (`:yamlover:tags:…`, even doubly
+  // nested) — strip leading `:yamlover` segments to a single dedup key and keep ONE representative,
+  // preferring the real (non-grafted) node so the typeahead lists each tag once. (Until the graft is
+  // de-materialized — see the `graft-virtualize` design note.)
+  const byKey = new Map<string, { path: string; grafted: boolean }>();
   for (const p of paths) {
     const cp = canonPath(p);
-    if (cp.startsWith(":yamlover:tags:colors:") || seen.has(cp)) continue; // colors → swatch row
-    seen.add(cp);
-    out.push({ path: p, name: tagNameOf(p), color: null }); // named tag → hue derived from name
+    const key = cp.replace(/^(:yamlover(?=:))+/, ""); // :yamlover:tags:… → :tags:… (segment-bounded)
+    if (key.startsWith(":tags:colors:")) continue; // the color palette → swatch row, not suggestions
+    const grafted = key !== cp;
+    const cur = byKey.get(key);
+    if (!cur || (cur.grafted && !grafted)) byKey.set(key, { path: p, grafted });
   }
-  return out;
+  return [...byKey.values()].map((v) => ({ path: v.path, name: tagNameOf(v.path), color: null }));
+}
+
+/** A node in the tag-browse TREE: a path SEGMENT mirroring the taxonomy's containment spine.
+ *  `tag` is the selectable tag when this node IS one (a leaf, or an intermediate that itself
+ *  carries the tag schema); a pure container segment (e.g. `tags`, `workflow`) has `tag: null`
+ *  and renders as a group header. `seg` is the decoded segment label; `path` its canonical path. */
+export interface TagTreeNode {
+  seg: string;
+  path: string;
+  tag: TagRef | null;
+  children: TagTreeNode[];
+}
+
+/** Build the tag tree from a flat tag list — each tag's canonical path IS its spine, so we split
+ *  on segments and graft every tag (and any missing ancestor container) into a nested structure.
+ *  Insertion order is preserved (taxonomy/definition order — e.g. lifecycle states), not sorted. */
+export function buildTagTree(tags: TagRef[]): TagTreeNode[] {
+  const roots: TagTreeNode[] = [];
+  const byPath = new Map<string, TagTreeNode>();
+  const ensure = (segs: (string | number)[]): TagTreeNode => {
+    const path = segsToStr(segs);
+    const hit = byPath.get(path);
+    if (hit) return hit;
+    const node: TagTreeNode = { seg: String(segs[segs.length - 1]), path, tag: null, children: [] };
+    byPath.set(path, node);
+    (segs.length === 1 ? roots : ensure(segs.slice(0, -1)).children).push(node);
+    return node;
+  };
+  for (const t of tags) {
+    const segs = strToSegs(t.path);
+    if (segs.length) ensure(segs).tag = t;
+  }
+  return roots;
 }
 
 /** The project's named tags, enumerated once and re-enumerated when a `.yamlover` source changes
@@ -219,7 +268,11 @@ export interface MaterialAnnotations {
   annotations: Annotation[];
   create: (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean; imageBase64?: string }) => void;
   remove: (ann: Annotation) => void;
-  retag: (ann: Annotation, tag: TagRef) => void;
+  /** Add `tag` to the REGION identified by `selector`: the FIRST tag creates the fragment (with the
+   *  optional crop), later tags annotate that same fragment — never a second one, even if clicked
+   *  before the first create's server round-trip lands (those queue and drain on the next fetch).
+   *  `silent` suppresses the failure alert (for the implicit apply-on-select of the default tag). */
+  annotateRegion: (selector: Record<string, unknown>, tag: TagRef, opts?: { imageBase64?: string; silent?: boolean }) => void;
 }
 
 /** A material's annotations + optimistic create/delete/re-tag. The displayed list merges the
@@ -260,17 +313,47 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
       .then(refresh)
       .catch((e) => { setDeleted((d) => { const n = new Set(d); n.delete(key); return n; }); window.alert("delete failed: " + (e as Error).message); }); // un-hide on failure
   };
-  const retag = (ann: Annotation, tag: TagRef) => {
-    remove(ann); // hide + delete the old application
-    if (ann.fragmentSlug) {
-      // re-tag the SAME fragment (no new region) — annotate its existing node with the new tag
-      const entry = { path: "(pending)", selector: ann.selector, fragmentSlug: ann.fragmentSlug, tag } as Annotation;
-      setOptimistic((o) => [...o, entry]);
-      annotate({ target: annotationTarget(path, ann), tag: tag.path }).then(refresh).catch((e) => rollback(entry, e));
-    } else {
-      create(null, tag); // whole-node re-tag
-    }
+  // Picks queued during the FIRST create's round-trip (the fragment path isn't known yet) — each
+  // carries its optimistic entry, already shown so the badge outlines at once; drained below.
+  const pendingPicksRef = useRef<{ selector: Record<string, unknown>; tag: TagRef; entry: Annotation }[]>([]);
+
+  // The fragment node path for a region, from a REAL (non-pending) fetched annotation of it — null
+  // until the first create's round-trip lands (so later picks know to annotate vs. queue).
+  const regionFragmentTarget = (selector: Record<string, unknown>): string | null => {
+    const real = fetched.find((x) => x.fragmentSlug && x.path !== "(pending)" && sameSelector(x.selector, selector));
+    return real ? annotationTarget(path, real) : null;
   };
+
+  const annotateRegion = (selector: Record<string, unknown>, tag: TagRef, opts?: { imageBase64?: string; silent?: boolean }) => {
+    const target = regionFragmentTarget(selector);
+    if (target) { // the fragment already exists → just annotate it (a later tag)
+      const entry = { path: "(pending)", selector, tag } as Annotation;
+      setOptimistic((o) => [...o, entry]);
+      annotate({ target, tag: tag.path }).then(refresh).catch((e) => rollback(entry, e, opts?.silent));
+      return;
+    }
+    if (optimistic.some((x) => sameSelector(x.selector, selector))) { // first create in flight → queue
+      const entry = { path: "(pending)", selector, tag } as Annotation;
+      setOptimistic((o) => [...o, entry]);
+      pendingPicksRef.current.push({ selector, tag, entry });
+      return;
+    }
+    create(selector, tag, opts); // the FIRST tag → create the fragment (+ optional crop)
+  };
+
+  // Once the fragment's real path lands, flush any picks queued during the create window — onto the
+  // SAME fragment, so a fast second click never spawns a duplicate fragment.
+  useEffect(() => {
+    if (!pendingPicksRef.current.length) return;
+    const still: typeof pendingPicksRef.current = [];
+    for (const q of pendingPicksRef.current) {
+      const target = regionFragmentTarget(q.selector);
+      if (target) annotate({ target, tag: q.tag.path }).then(refresh).catch((e) => rollback(q.entry, e));
+      else still.push(q);
+    }
+    pendingPicksRef.current = still;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetched]);
 
   const seen = new Set<string>();
   const annotations: Annotation[] = [];
@@ -280,7 +363,7 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
     seen.add(k);
     annotations.push(a);
   }
-  return { annotations, create, remove, retag };
+  return { annotations, create, remove, annotateRegion };
 }
 
 /** A tag's display name from its node path (its last segment). */
@@ -299,15 +382,27 @@ function rankTag(t: TagRef, q: string): number {
   return 3;
 }
 
-/** The floating tag picker — color-tag swatches, recent named-tag badges, a tag-path input, plus
- *  action buttons. Mode decides which buttons show (the hook wires what each does): `create` gets
- *  ✓ confirm + optional ⧉ copy + 🗑 discard; `edit` gets ✓ close + 🗑 delete (picking a tag re-tags).
- *  `position: fixed`, so x/y are viewport coords. */
+/** Expose a tag's colour to CSS as `--tag`, so a swatch / badge can render FILLED (applied) or
+ *  HOLLOW (an outline in that colour, not applied) from one stylesheet rule — no per-state ring. */
+const tagStyle = (color: string): React.CSSProperties => ({ ["--tag"]: color } as React.CSSProperties);
+
+/** The floating tag picker — ONE uniform toggle UI. It shows the color-tag swatches and the
+ *  named-tag badges; the tags currently APPLIED to the target are OUTLINED (a color tag outlines its
+ *  swatch, a named tag its badge — never both, never a duplicate). Clicking an un-applied option
+ *  ADDS it (`onPick`); clicking an applied one REMOVES it (`onUnpick` when given, else it re-picks —
+ *  the region edit/create behaviour). The typeahead adds an arbitrary / new tag. `position: fixed`,
+ *  so x/y are viewport coords.
+ *
+ *  `applied` is the tags in effect on the target — a region's pre-selected / assigned tag (a single
+ *  element), or a node's whole set. Region tagging (`useAnnotationMenu`) and explorer right-click
+ *  tagging (`useExplorerTagMenu`) drive this SAME component the same way; the outline is the only
+ *  "selected" indicator. */
 export function AnnotationMenu({
-  x, y, tag, mode, onPick, onConfirm, onCopy, onTrash, menuRef,
+  x, y, applied, mode, onPick, onUnpick, onCopy, onClose, menuRef,
 }: {
-  x: number; y: number; tag: TagRef; mode: "create" | "edit";
-  onPick: (t: TagRef) => void; onConfirm?: () => void; onCopy?: () => void; onTrash: () => void;
+  x: number; y: number; applied: TagRef[]; mode: "create" | "edit";
+  onPick: (t: TagRef) => void; onUnpick?: (t: TagRef) => void;
+  onCopy?: () => void; onClose: () => void;
   menuRef?: React.Ref<HTMLDivElement>;
 }) {
   const colorTags = useColorTags();
@@ -316,6 +411,7 @@ export function AnnotationMenu({
   const [path, setPath] = useState("");
   const [hi, setHi] = useState(-1); // highlighted suggestion (-1 = none)
   const [busy, setBusy] = useState(false); // a lookup/create round-trip is in flight
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set()); // browse-tree nodes folded shut (default: all open)
   const verb = mode === "edit" ? "re-tag" : "tag";
 
   // A deleted tag must not survive as a badge: on open, drop remembered tags the server no
@@ -327,31 +423,57 @@ export function AnnotationMenu({
   }, []);
 
   // Compare tag paths on a CANONICAL key — a palette ref is project-scope (`::yamlover:…`)
-  // while a selected/edited tag may arrive `:`-form (the API echoes paths in `:`-form, and
+  // while an applied/edited tag may arrive `:`-form (the API echoes paths in `:`-form, and
   // older localStorage holds `:`-form); raw `===` would miss the match and duplicate the tag.
   const same = (a: string, b: string) => canonPath(a) === canonPath(b);
-  // The badge row must always include THE tag this menu is about (`sel`-framed, like the
-  // selected color swatch) — which tag is assigned/pre-selected must be visible at a glance,
-  // even when it has aged out of the recents. A PALETTE tag is shown as a swatch, not a badge.
-  const badges = colorTags.some((c) => same(c.path, tag.path)) || recents.some((r) => same(r.path, tag.path))
-    ? recents
-    : [tag, ...recents];
+  const isColor = (t: TagRef) => colorTags.some((c) => same(c.path, t.path));
+  const appliedKeys = new Set(applied.map((t) => canonPath(t.path)));
+  const isApplied = (p: string) => appliedKeys.has(canonPath(p));
+
+  // The named-tag badges: every APPLIED named tag (so all the target's named tags are visible and
+  // outlined), then the recents — deduped by canonical path so a tag is shown ONCE (an applied
+  // recent is just outlined, not repeated). Color tags belong to the swatch row, never a badge.
+  const badges: TagRef[] = [];
+  const seenBadge = new Set<string>();
+  for (const t of [...applied.filter((t) => !isColor(t)), ...recents]) {
+    const k = canonPath(t.path);
+    if (seenBadge.has(k)) continue;
+    seenBadge.add(k);
+    badges.push(t);
+  }
+
+  // Clicking a swatch/badge toggles: an APPLIED tag turns OFF (`onUnpick`, else re-picks), an
+  // un-applied one turns ON (`onPick`). The outline (not a separate chip) shows what is applied.
+  const toggle = (t: TagRef) => (isApplied(t.path) ? onUnpick ?? onPick : onPick)(t);
+  const tagTitle = (t: TagRef) => (isApplied(t.path) ? `remove ${t.name}` : `${verb} ${t.name}`);
+  // A named tag's chip shows its NAME only; its full path (its spine location) is revealed on
+  // HOVER — so same-named tags stay distinguishable without cluttering the label.
+  const tagHover = (t: TagRef) => displayPath(t.path);
 
   // Typeahead suggestions: substring match on the typed text against the tag name OR its full
   // path (so `humor` and `genre:humor:deadpan` both hit), ranked, capped. Hide what is one click
   // away already — a swatch or a badge — so the list is only NEW choices.
   const q = path.trim().toLowerCase();
-  const suggestions = q
-    ? tagIndex
-        .filter((t) =>
-          !colorTags.some((c) => same(c.path, t.path)) &&
-          !badges.some((b) => same(b.path, t.path)) &&
-          (t.name.toLowerCase().includes(q) || canonPath(t.path).toLowerCase().includes(q)))
-        .map((t) => ({ t, rank: rankTag(t, q) }))
-        .sort((a, b) => a.rank - b.rank || a.t.name.localeCompare(b.t.name))
-        .slice(0, 8)
-        .map((x) => x.t)
-    : [];
+  const suggestions: TagRef[] = [];
+  if (q) {
+    const ranked = tagIndex
+      .filter((t) =>
+        !isColor(t) &&
+        !badges.some((b) => same(b.path, t.path)) &&
+        (t.name.toLowerCase().includes(q) || canonPath(t.path).toLowerCase().includes(q)))
+      .map((t) => ({ t, rank: rankTag(t, q) }))
+      .sort((a, b) => a.rank - b.rank || a.t.name.localeCompare(b.t.name));
+    // One chip per display NAME (best-ranked wins): two tags that read identically would otherwise
+    // show as indistinguishable duplicates; type the full path to reach a specific homonym.
+    const byName = new Set<string>();
+    for (const { t } of ranked) {
+      const n = t.name.toLowerCase();
+      if (byName.has(n)) continue;
+      byName.add(n);
+      suggestions.push(t);
+      if (suggestions.length >= 8) break;
+    }
+  }
   // Re-seat the highlight whenever the typed text changes (suggestions derive from it).
   useEffect(() => { setHi(suggestions.length ? 0 : -1); }, [path]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -379,6 +501,44 @@ export function AnnotationMenu({
       .finally(() => setBusy(false));
   };
 
+  // BROWSE mode (empty input): the whole tag taxonomy as a TREE mirroring each tag's spine. A
+  // tag node is a clickable chip (toggles like a badge); a pure container segment is a header.
+  const tagTree = buildTagTree(tagIndex.filter((t) => !isColor(t)));
+  const setOpen = (p: string, open: boolean) =>
+    setCollapsed((c) => { const n = new Set(c); open ? n.delete(p) : n.add(p); return n; });
+  const renderTree = (nodes: TagTreeNode[], depth: number): ReactNode =>
+    nodes.map((node) => {
+      const hasKids = node.children.length > 0;
+      const open = !collapsed.has(node.path);
+      return (
+        <Fragment key={node.path}>
+          <div className="annotate-tree-row" style={{ paddingLeft: depth * 12 }}>
+            {hasKids ? (
+              <button type="button" className={"toggle" + (open ? " open" : "")} title={open ? "collapse" : "expand"} onClick={() => setOpen(node.path, !open)}>
+                <span className="chevron">›</span>
+              </button>
+            ) : (
+              <span className="toggle leaf" />
+            )}
+            {node.tag ? (
+              <button
+                type="button"
+                className={"tagtag" + (isApplied(node.tag.path) ? " on" : "")}
+                style={tagStyle(resolveTagColor(node.tag))}
+                title={tagHover(node.tag)}
+                onMouseDown={(e) => { e.preventDefault(); toggle(node.tag!); }}
+              >
+                <span className="tt-label">{node.tag.name}</span>
+              </button>
+            ) : (
+              <span className="annotate-tree-group" title={displayPath(node.path)}>{node.seg}</span>
+            )}
+          </div>
+          {hasKids && open && renderTree(node.children, depth + 1)}
+        </Fragment>
+      );
+    });
+
   return (
     <div ref={menuRef} className="annotate-menu" style={{ left: x, top: y }} role="menu">
       <div className="annotate-palette">
@@ -386,30 +546,27 @@ export function AnnotationMenu({
           <button
             key={t.path}
             type="button"
-            className={"annotate-swatch" + (same(t.path, tag.path) ? " sel" : "")}
-            style={{ background: resolveTagColor(t) }}
-            title={`${verb} ${t.name}`}
-            onClick={() => onPick(t)}
+            className={"annotate-swatch" + (isApplied(t.path) ? " on" : "")}
+            style={tagStyle(resolveTagColor(t))}
+            title={tagTitle(t)}
+            onClick={() => toggle(t)}
           />
         ))}
       </div>
-      {onConfirm && <button type="button" className="annotate-tool ok" title={mode === "edit" ? "close (keep this annotation)" : `${verb} ${tag.name} (keep the mark)`} onClick={onConfirm}>✓</button>}
       {onCopy && <button type="button" className="annotate-tool" title="copy text to clipboard (don't annotate)" onClick={onCopy}>⧉</button>}
-      <button type="button" className="annotate-tool danger" title={mode === "edit" ? "delete this annotation" : "discard (don't annotate)"} onClick={onTrash}>🗑</button>
+      <button type="button" className="annotate-tool close" title="close" onClick={onClose}>✕</button>
       {badges.length > 0 && (
         <div className="annotate-recents">
           {badges.map((t) => (
-            // the frame is a WRAPPER: filter applies before clip-path on the same element, so a
-            // ring drawn on the clipped .tagtag itself would be clipped away with it (styles.css)
-            <span key={t.path} className={"tagframe" + (same(t.path, tag.path) ? " sel" : "")}>
+            <span key={t.path} className="tagframe">
               <button
                 type="button"
-                className="tagtag"
-                style={{ background: resolveTagColor(t) }}
-                title={`${verb} ${t.name}`}
-                onClick={() => onPick(t)}
+                className={"tagtag" + (isApplied(t.path) ? " on" : "")}
+                style={tagStyle(resolveTagColor(t))}
+                title={tagHover(t)}
+                onClick={() => toggle(t)}
               >
-                {t.name}
+                <span className="tt-label">{t.name}</span>
               </button>
             </span>
           ))}
@@ -440,37 +597,42 @@ export function AnnotationMenu({
         {!busy && suggestions.length > 0 && (
           <div className="annotate-suggest" role="listbox">
             {suggestions.map((t, i) => (
-              <span key={t.path} className={"tagframe" + (i === hi ? " sel" : "")}>
+              <span key={t.path} className="tagframe">
                 <button
                   type="button"
                   role="option"
                   aria-selected={i === hi}
-                  className="tagtag"
-                  style={{ background: resolveTagColor(t) }}
+                  className={"tagtag" + (i === hi ? " hi" : "")}
+                  style={tagStyle(resolveTagColor(t))}
                   title={displayPath(t.path)}
                   // mousedown (not click) + preventDefault: fire before the input blurs, keep focus.
                   onMouseDown={(e) => { e.preventDefault(); pickPath(t.path); }}
                   onMouseEnter={() => setHi(i)}
                 >
-                  {t.name}
+                  <span className="tt-label">{t.name}</span>
                 </button>
               </span>
             ))}
           </div>
+        )}
+        {!busy && !q && tagTree.length > 0 && (
+          <div className="annotate-tree" role="tree">{renderTree(tagTree, 0)}</div>
         )}
       </div>
     </div>
   );
 }
 
-type MenuState =
-  | { mode: "create"; selector: Record<string, unknown>; copy?: () => void; imageBase64?: string; x: number; y: number }
-  | { mode: "edit"; ann: Annotation; x: number; y: number };
+/** An open region picker — keyed by its SELECTOR (the join into the material's annotations), not by
+ *  a one-shot create/edit. `seedTag` is the pre-checked default shown while the region has no tags. */
+type OpenRegion = { selector: Record<string, unknown>; seedTag: TagRef; copy?: () => void; imageBase64?: string; x: number; y: number };
 
-/** Drives the floating picker for a material: `openCreate` after a fresh selection, `openEdit` on
- *  a click on an existing mark. Returns the rendered `palette`, and a `preview` (the pending
- *  CREATE's selector + tag, so a renderer can keep the rectangle drawn while the picker is open).
- *  Outside-click commits a create (with the pre-selected tag) but only closes an edit. */
+/** Drives the floating picker for a material's REGIONS: `openCreate` after a fresh selection,
+ *  `openEdit` on a click on an existing mark — both open the SAME selector-keyed picker, so tagging
+ *  is uniform: clicking a tag toggles it on/off the region and the menu STAYS open (multi-tag),
+ *  closing only via the close button or outside-click. The first tag on a fresh region creates its
+ *  fragment; later tags annotate that same one. Returns the `palette`, plus a `preview` (the seed
+ *  tag's selector/color) so a renderer keeps the rectangle drawn UNTIL a real tag draws it instead. */
 export function useAnnotationMenu(a: MaterialAnnotations): {
   openCreate: (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string) => void;
   openEdit: (ann: Annotation, screen: { x: number; y: number }) => void;
@@ -479,53 +641,65 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
   color: string;
 } {
   const [tag, setTag] = useAnnotationTag();
-  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [open, setOpen] = useState<OpenRegion | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const close = () => setMenu(null);
+  const close = () => setOpen(null);
 
-  const openCreate = (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string) =>
-    setMenu({ mode: "create", selector, copy, imageBase64, x: screen.x, y: screen.y });
+  // Selecting a region IS tagging it: open the picker AND apply the pre-checked tag at once (the
+  // user's "apply immediately on open" — no extra click to commit the default). It becomes a real
+  // application, so it shows checked and a click REMOVES it. openEdit (an existing region) opens
+  // the same picker but applies nothing — the region already has its tags.
+  const openCreate = (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string) => {
+    setOpen({ selector, seedTag: tag, copy, imageBase64, x: screen.x, y: screen.y });
+    a.annotateRegion(selector, tag, { imageBase64, silent: true });
+  };
   const openEdit = (ann: Annotation, screen: { x: number; y: number }) =>
-    setMenu({ mode: "edit", ann, x: screen.x, y: screen.y });
+    setOpen({ selector: (ann.selector ?? {}) as Record<string, unknown>, seedTag: ann.tag ?? tag, x: screen.x, y: screen.y });
 
-  const commitCreate = (t: TagRef, m: MenuState, silent = false) => { if (m.mode !== "create") return; setTag(t); a.create(m.selector, t, { silent, imageBase64: m.imageBase64 }); close(); };
-  const commitRetag = (t: TagRef, m: MenuState) => { if (m.mode !== "edit") return; setTag(t); a.retag(m.ann, t); close(); };
+  // The region's tag applications, live from the material — toggles reflect at once (optimistic).
+  // These ARE the outlined tags: an outlined tag is a real application, so clicking it removes it.
+  const regionAnns = open ? a.annotations.filter((x) => sameSelector(x.selector, open.selector)) : [];
+  const applied: TagRef[] = regionAnns.map((x) => x.tag).filter((t): t is TagRef => !!t);
 
-  // Outside-click: a create commits with the pre-selected tag (default keeps the mark); an edit closes.
+  const onPick = (t: TagRef) => {
+    if (!open) return;
+    setTag(t);
+    if (applied.some((r) => canonPath(r.path) === canonPath(t.path))) return; // already applied (defensive)
+    a.annotateRegion(open.selector, t, { imageBase64: open.imageBase64 });
+  };
+  const onUnpick = (t: TagRef) => {
+    if (!open) return;
+    const victim = regionAnns.find((x) => x.tag && canonPath(x.tag.path) === canonPath(t.path));
+    if (victim) a.remove(victim);
+  };
+
+  // Outside-click just closes. Whatever tags were applied stay (selecting applied the default; the
+  // user could have removed it). Closing never deletes.
   useEffect(() => {
-    if (!menu) return;
+    if (!open) return;
     const onDown = (e: MouseEvent) => {
       if (menuRef.current?.contains(e.target as Node)) return;
-      if (menu.mode === "create") commitCreate(tag, menu, true); // implicit → best-effort, no error popup
-      else close();
+      close();
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menu, tag]);
+  }, [open]);
 
-  let palette: ReactNode = null;
-  if (menu?.mode === "create") {
-    palette = (
-      <AnnotationMenu
-        menuRef={menuRef} x={menu.x} y={menu.y} tag={tag} mode="create"
-        onPick={(t) => commitCreate(t, menu)}
-        onConfirm={() => commitCreate(tag, menu)}
-        onCopy={menu.copy ? () => { menu.copy!(); close(); } : undefined}
-        onTrash={close}
-      />
-    );
-  } else if (menu?.mode === "edit") {
-    palette = (
-      <AnnotationMenu
-        menuRef={menuRef} x={menu.x} y={menu.y} tag={menu.ann.tag ?? DEFAULT_TAG} mode="edit"
-        onPick={(t) => commitRetag(t, menu)}
-        onConfirm={close} // ✓ closes the popup without deleting or re-tagging
-        onTrash={() => { a.remove(menu.ann); close(); }}
-      />
-    );
-  }
-  const preview = menu?.mode === "create" ? { selector: menu.selector, tag, color: resolveTagColor(tag) } : null;
+  const palette: ReactNode = open ? (
+    <AnnotationMenu
+      menuRef={menuRef} x={open.x} y={open.y} applied={applied} mode="create"
+      onPick={onPick} onUnpick={onUnpick}
+      onCopy={open.copy ? () => { open.copy!(); close(); } : undefined}
+      onClose={close}
+    />
+  ) : null;
+
+  // Keep the marquee drawn via a synthetic preview ONLY while no real tag exists for the region —
+  // once one does, that real annotation draws the rectangle (no double-draw); it reappears if the
+  // last tag is removed.
+  const preview = open && applied.length === 0
+    ? { selector: open.selector, tag: open.seedTag, color: resolveTagColor(open.seedTag) }
+    : null;
   return { openCreate, openEdit, palette, preview, color: resolveTagColor(tag) };
 }
 

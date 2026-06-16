@@ -392,3 +392,73 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
     expect(bad.status).toBe(400);
   });
 });
+
+// The AGILE BOARD's state change (TICKETS.md §3): a card drag is just the two existing
+// /api/annotate calls — DELETE the old state annotation, POST the new — and the reverse
+// /api/tagged "columns" must flip. States are kept as plain sub-tags here so the test does not
+// depend on the $defs/workflow schema (absent from a synthetic tree's builtin graft).
+describe("agile board — drag = re-tag a task's state", () => {
+  it("moves a task between state columns and rewrites its on-disk annotation", async () => {
+    const root = tmpTree({
+      "mytask.yamlover": ["!!<*yamlover:$defs:task>", "title: Wire the widget", "yamlover-annotations:", "- *::tags:state:backlog", ""].join("\n"),
+      "tags/.yamlover/body.yamlover": ["!!<*yamlover:$defs:tag>", "state: Lifecycle states", "  backlog: Captured", "  in-progress: Working", ""].join("\n"),
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const column = (tag: string): string[] =>
+      call(h, "/api/tagged", { path: tag }).json.map((m: any) => m?.$yamloverLink?.path).filter(Boolean);
+
+    // the task starts in the backlog column
+    expect(call(h, "/api/json", { path: ":mytask.yamlover" }).json.format).toBe("x-yamlover-task");
+    expect(column(":tags:state:backlog")).toContain(":mytask.yamlover");
+    expect(column(":tags:state:in-progress")).not.toContain(":mytask.yamlover");
+
+    // DRAG → in-progress: drop the old state annotation, add the new
+    const del = await callBody(h, "DELETE", "/api/annotate", undefined, { target: ":mytask.yamlover", tag: ":tags:state:backlog" });
+    expect(del.status).toBe(200);
+    const add = await callBody(h, "POST", "/api/annotate", { target: ":mytask.yamlover", tag: ":tags:state:in-progress" });
+    expect(add.status).toBe(201);
+
+    // the columns have flipped, and the file now points at the new state
+    expect(column(":tags:state:in-progress")).toContain(":mytask.yamlover");
+    expect(column(":tags:state:backlog")).not.toContain(":mytask.yamlover");
+    const body = fs.readFileSync(path.join(root, "mytask.yamlover"), "utf8");
+    expect(body).toContain("*::tags:state:in-progress");
+    expect(body).not.toContain("state:backlog");
+  });
+});
+
+// The BOARD lane config (TICKETS.md §3): POST /api/board rewrites the directory overlay's
+// `columns:` block (lanes × tag pointers), persisting the explorer board view's configuration.
+describe("/api/board (lane config)", () => {
+  it("persists columns as project-scope tag pointers and re-reads them", async () => {
+    const root = tmpTree({
+      ".yamlover/body.yamlover": "!!<*yamlover:$defs:board>\nworkflow: *::tags:workflow:dev\n",
+      "tags/.yamlover/body.yamlover": "!!<*yamlover:$defs:tag>\nworkflow: Lifecycles\n  dev: Software task lifecycle\n    ready: Ready\n    done: Done\n    cancelled: Dropped\n",
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const r = await callBody(h, "POST", "/api/board", {
+      path: ":",
+      columns: [[":tags:workflow:dev:ready"], [":tags:workflow:dev:done", ":tags:workflow:dev:cancelled"]],
+    });
+    expect(r.status).toBe(201);
+    const body = fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8");
+    expect(body).toContain("columns:");
+    expect(body).toContain("- [*::tags:workflow:dev:ready]");
+    expect(body).toContain("- [*::tags:workflow:dev:done, *::tags:workflow:dev:cancelled]");
+    expect(body).toContain("workflow: *::tags:workflow:dev"); // the existing config is preserved
+    // the lane tag pointers resolve (the board reads them at depth 3)
+    const deep = call(h, "/api/json", { path: ":", depth: "3" }).json;
+    const cols = deep.value.columns;
+    expect(Array.isArray(cols)).toBe(true);
+    expect(cols).toHaveLength(2);
+
+    // a later save with no lanes writes an empty flow-sequence (valid YAML, not a null key)
+    const empty = await callBody(h, "POST", "/api/board", { path: ":", columns: [] });
+    expect(empty.status).toBe(201);
+    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toContain("columns: []");
+  });
+});

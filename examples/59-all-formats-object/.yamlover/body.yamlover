@@ -35,3 +35,19 @@ chapter: !!<*yamlover: $defs: chapter>
   chunks:
   - A **chapter** is also a renderable format — here it sits as one property of this object.
   - Each chunk defaults to marklower; this sentence is the segment an annotation marks.
+"sample.bmp":
+  yamlover-thumbnails:
+    [512, 512]: *:.yamlover:thumbnails:xxh64-d5eed55624a55a5e-512x512.jpg
+    [256, 256]: *:.yamlover:thumbnails:xxh64-d5eed55624a55a5e-256x256.jpg
+"sample.gif":
+  yamlover-thumbnails:
+    [512, 512]: *:.yamlover:thumbnails:xxh64-852d9f6a62844d89-512x512.jpg
+    [256, 256]: *:.yamlover:thumbnails:xxh64-852d9f6a62844d89-256x256.jpg
+"sample.png":
+  yamlover-thumbnails:
+    [512, 512]: *:.yamlover:thumbnails:xxh64-2a8e48bede9eff6a-512x512.jpg
+    [256, 256]: *:.yamlover:thumbnails:xxh64-2a8e48bede9eff6a-256x256.jpg
+"sample.tiff":
+  yamlover-thumbnails:
+    [512, 512]: *:.yamlover:thumbnails:xxh64-b1ac4be4ce4fb34c-512x512.jpg
+    [256, 256]: *:.yamlover:thumbnails:xxh64-b1ac4be4ce4fb34c-256x256.jpg

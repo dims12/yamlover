@@ -80,7 +80,7 @@ describe("AnnotationMenu remembered-tag pruning", () => {
     mockFetch({ ":tags:alive": { path: ":tags:alive", format: "x-yamlover-tag", value: {} } }); // /tags/dead → 404
 
     const { container } = render(
-      <AnnotationMenu x={0} y={0} tag={DEFAULT_TAG} mode="create" onPick={vi.fn()} onTrash={vi.fn()} />,
+      <AnnotationMenu x={0} y={0} applied={[DEFAULT_TAG]} mode="create" onPick={vi.fn()} onClose={vi.fn()} />,
     );
     const badges = () => [...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent);
     expect(badges()).toEqual(["alive", "dead"]); // stored list shows at once
@@ -98,9 +98,9 @@ describe("AnnotationMenu remembered-tag pruning", () => {
     });
 
     const { container } = render(
-      <AnnotationMenu x={0} y={0} tag={ALIVE} mode="edit" onPick={vi.fn()} onTrash={vi.fn()} />,
+      <AnnotationMenu x={0} y={0} applied={[ALIVE]} mode="edit" onPick={vi.fn()} onClose={vi.fn()} />,
     );
-    const sel = () => [...container.querySelectorAll(".annotate-recents .tagframe.sel")].map((b) => b.textContent);
+    const sel = () => [...container.querySelectorAll(".annotate-recents .tagtag.on")].map((b) => b.textContent);
     expect(sel()).toEqual(["alive"]); // only the assigned one is framed
   });
 
@@ -110,11 +110,11 @@ describe("AnnotationMenu remembered-tag pruning", () => {
     const assigned = { path: ":tags:forgotten", name: "forgotten", color: null };
 
     const { container } = render(
-      <AnnotationMenu x={0} y={0} tag={assigned} mode="edit" onPick={vi.fn()} onTrash={vi.fn()} />,
+      <AnnotationMenu x={0} y={0} applied={[assigned]} mode="edit" onPick={vi.fn()} onClose={vi.fn()} />,
     );
     const badges = [...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent);
     expect(badges).toEqual(["forgotten", "alive"]); // prepended, ahead of the recents
-    expect(container.querySelector(".annotate-recents .tagframe.sel")?.textContent).toBe("forgotten");
+    expect(container.querySelector(".annotate-recents .tagtag.on")?.textContent).toBe("forgotten");
   });
 
   it("keeps a recent that exists but only while it IS a tag node", async () => {
@@ -122,7 +122,7 @@ describe("AnnotationMenu remembered-tag pruning", () => {
     mockFetch({ ":notes": { path: ":notes", format: null, value: {} } }); // exists, not a tag
 
     const { container } = render(
-      <AnnotationMenu x={0} y={0} tag={DEFAULT_TAG} mode="create" onPick={vi.fn()} onTrash={vi.fn()} />,
+      <AnnotationMenu x={0} y={0} applied={[DEFAULT_TAG]} mode="create" onPick={vi.fn()} onClose={vi.fn()} />,
     );
     await waitFor(() => expect(container.querySelectorAll(".annotate-recents .tagtag")).toHaveLength(0));
     expect(JSON.parse(localStorage.getItem(RECENT_KEY)!)).toEqual([]);

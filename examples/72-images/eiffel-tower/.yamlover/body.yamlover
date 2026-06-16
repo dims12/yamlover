@@ -1,0 +1,60 @@
+"IMG_20120725_182044.jpg":
+  yamlover-fragments:
+    mqee46pt-m1wdko: !!<*::yamlover:$defs:fragment>
+      type: "rect"
+      x: 588
+      y: 653
+      w: 227
+      h: 277
+      image: *:.yamlover:fragments:mqee46pt-m1wdko.png
+      created: 2026-06-14T23:03:07.266Z
+      yamlover-annotations:
+      - *::tags:'fifth tag'
+      - *::tags:'forth tag'
+    mqgw3srv-bi70ib: !!<*::yamlover:$defs:fragment>
+      type: "rect"
+      x: 182
+      y: 1040
+      w: 225
+      h: 198
+      image: *:.yamlover:fragments:mqgw3srv-bi70ib.png
+      created: 2026-06-16T17:02:14.638Z
+      yamlover-annotations:
+      - *::tags:'fifth tag'
+    mqgw40jq-18b8iw: !!<*::yamlover:$defs:fragment>
+      type: "rect"
+      x: 402
+      y: 1342
+      w: 225
+      h: 148
+      image: *:.yamlover:fragments:mqgw40jq-18b8iw.png
+      created: 2026-06-16T17:02:24.710Z
+      yamlover-annotations:
+      - *::tags:'fifth tag'
+      - *::tags:'forth tag'
+  yamlover-thumbnails:
+    [512, 512]: *:.yamlover:thumbnails:xxh64-1b5282b9d3435166-512x512.jpg
+    [256, 256]: *:.yamlover:thumbnails:xxh64-1b5282b9d3435166-256x256.jpg
+"IMG_20120725_182723.jpg":
+  yamlover-thumbnails:
+    [512, 512]: *:.yamlover:thumbnails:xxh64-fc72506e96579626-512x512.jpg
+    [256, 256]: *:.yamlover:thumbnails:xxh64-fc72506e96579626-256x256.jpg
+  yamlover-fragments:
+    mqgw4p2e-2wif88: !!<*::yamlover:$defs:fragment>
+      type: "rect"
+      x: 1093
+      y: 484
+      w: 371
+      h: 390
+      image: *:.yamlover:fragments:mqgw4p2e-2wif88.png
+      created: 2026-06-16T17:02:56.487Z
+      yamlover-annotations:
+      - *::tags:'forth tag'
+"IMG_20120725_194255.jpg":
+  yamlover-thumbnails:
+    [512, 512]: *:.yamlover:thumbnails:xxh64-e62188f8d066c01c-512x512.jpg
+    [256, 256]: *:.yamlover:thumbnails:xxh64-e62188f8d066c01c-256x256.jpg
+"IMG_20120725_194756.jpg":
+  yamlover-thumbnails:
+    [512, 512]: *:.yamlover:thumbnails:xxh64-9d1e9a4b8b882ca6-512x512.jpg
+    [256, 256]: *:.yamlover:thumbnails:xxh64-9d1e9a4b8b882ca6-256x256.jpg

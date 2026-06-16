@@ -1,0 +1,11 @@
+!!<*yamlover:$defs:task>
+title: Add the agile board renderer
+description: Render a directory of tasks as kanban columns with drag-to-retag.
+priority: normal
+assignee: claude
+estimate: 1d
+chunks:
+- Columns come from the board's `workflow:` states; cards are the task members.
+- A drag DELETEs the old state annotation and POSTs the new one — reusing `/api/annotate`.
+yamlover-annotations:
+- *::tags:workflow:dev:backlog

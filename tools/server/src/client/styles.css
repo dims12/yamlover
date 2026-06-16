@@ -818,17 +818,20 @@ a.chunk-index:hover {
   display: flex;
   gap: 4px;
 }
+/* a color swatch: HOLLOW (a ring in the tag colour) when not applied, FILLED when applied — a
+   clear, symmetrical filled/hollow toggle, no extra outline. `--tag` is the swatch's colour. */
 .annotate-swatch {
   width: 18px;
   height: 18px;
   padding: 0;
   border-radius: 50%;
-  border: 1px solid rgba(0, 0, 0, 0.3);
+  border: 2px solid var(--tag);
+  background: transparent;
+  box-sizing: border-box;
   cursor: pointer;
 }
-.annotate-swatch.sel {
-  outline: 2px solid var(--fg); /* the pre-selected / last-used color */
-  outline-offset: 1px;
+.annotate-swatch.on {
+  background: var(--tag);
 }
 .annotate-tool {
   display: inline-flex;
@@ -873,34 +876,64 @@ a.chunk-index:hover {
   flex-wrap: wrap;
   gap: 4px;
 }
-.annotate-recents .tagtag,
-.annotate-suggest .tagtag {
-  border: 0;
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-}
-/* the assigned / pre-selected tag, framed EXACTLY like the selected color swatch: a ring with a
-   gap (the swatch's outline-offset). The ring cannot live on .tagtag itself: filter is applied
-   BEFORE clip-path on the same element, so the luggage-tag clip would cut it away. On the
-   unclipped WRAPPER the child is clipped first; then a first round of hard offset drop-shadows
-   in the MENU BACKGROUND color grows the silhouette by 1px (the gap), and a second round in
-   the foreground color rings that — gap + ring, both following the actual tag shape. */
 .annotate-recents .tagframe,
 .annotate-suggest .tagframe {
   display: inline-flex;
 }
-.annotate-recents .tagframe.sel,
-.annotate-suggest .tagframe.sel {
-  filter:
-    drop-shadow(1px 0 0 var(--bg-alt))
-    drop-shadow(-1px 0 0 var(--bg-alt))
-    drop-shadow(0 1px 0 var(--bg-alt))
-    drop-shadow(0 -1px 0 var(--bg-alt))
-    drop-shadow(1.5px 0 0 var(--fg))
-    drop-shadow(-1.5px 0 0 var(--fg))
-    drop-shadow(0 1.5px 0 var(--fg))
-    drop-shadow(0 -1.5px 0 var(--fg));
+/* a menu badge keeps the luggage SHAPE, rendered FILLED or HOLLOW. The button background is the RIM
+   colour over the whole shape; a same-shape `::after`, inset 1.5px, fills the interior — so the rim
+   follows the entire silhouette (incl. the left point), closed on every side (a real border / inset
+   shadow can't, since clip-path cuts the rectangular border away at the diagonal). HOLLOW (not
+   applied) = tag-colour rim, menu-colour interior, tag-colour text; FILLED (`.on`) = the interior
+   also takes the tag colour → solid, white text; a keyboard-focused suggestion (`.hi`) takes a LIGHT
+   rim — a focus outline that follows the shape, never a fill. `--tag` is the chip's colour. */
+.annotate-recents .tagtag,
+.annotate-suggest .tagtag,
+.annotate-tree .tagtag {
+  border: 0;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  position: relative;
+  background: var(--tag); /* the rim */
+  color: var(--tag); /* hollow: text in the tag colour */
+}
+.annotate-recents .tagtag::before,
+.annotate-suggest .tagtag::before,
+.annotate-tree .tagtag::before {
+  display: block;
+  background: var(--bg-alt); /* the menu surface shows through — a punched hole */
+  z-index: 2; /* above the ::after interior fill */
+}
+.annotate-recents .tagtag::after,
+.annotate-suggest .tagtag::after,
+.annotate-tree .tagtag::after {
+  content: "";
+  position: absolute;
+  inset: 1.5px;
+  /* the SAME luggage outline as .tagtag (styles below), on the inset box → a 1.5px rim */
+  clip-path: polygon(11px 0, 100% 0, 100% 100%, 11px 100%, 0 50%);
+  background: var(--bg-alt); /* the hollow interior */
+  z-index: 0;
+}
+.annotate-recents .tagtag .tt-label,
+.annotate-suggest .tagtag .tt-label,
+.annotate-tree .tagtag .tt-label {
+  position: relative;
+  z-index: 1; /* the label sits above the interior fill */
+}
+.annotate-recents .tagtag.on,
+.annotate-suggest .tagtag.on,
+.annotate-tree .tagtag.on {
+  color: #fff;
+}
+.annotate-recents .tagtag.on::after,
+.annotate-suggest .tagtag.on::after,
+.annotate-tree .tagtag.on::after {
+  background: var(--tag); /* filled */
+}
+.annotate-suggest .tagtag.hi {
+  background: var(--fg); /* focus: a light rim following the shape, not a fill */
 }
 /* apply ANY tag by its node path (Enter commits) */
 .annotate-taginput {
@@ -936,6 +969,35 @@ a.chunk-index:hover {
   margin-top: 5px;
   max-height: 132px;
   overflow-y: auto;
+}
+/* BROWSE mode: the tag taxonomy as a tree (empty input). Each row mirrors a tag's spine — a
+   compact expand/collapse chevron (reusing the sidebar `.toggle`/`.chevron`, sized down) then
+   either the tag's luggage chip or a dim container-segment header. Scrolls like the suggest list. */
+.annotate-tree {
+  flex-basis: 100%;
+  margin-top: 5px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.annotate-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 0;
+  white-space: nowrap;
+}
+.annotate-tree .toggle {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+.annotate-tree .toggle .chevron {
+  font-size: 13px;
+}
+/* a pure container segment (not itself a tag) — a plain label, not a clickable chip */
+.annotate-tree-group {
+  font-size: 11px;
+  color: var(--dim);
 }
 /* a region annotation drawn over a PDF page (the image overlay uses a Leaflet rectangle) */
 .pdf-page {
@@ -1226,9 +1288,309 @@ mark.yo-annotation {
 .tagtag:hover {
   filter: brightness(1.18);
 }
+/* a pure color tag rendered as a filled circular swatch (its color IS its label) — shown wherever
+   applied tags are listed: the details table and a node's header bar. Mirrors the menu palette. */
+.tagswatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  vertical-align: middle;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+}
+.tagswatch:hover {
+  filter: brightness(1.18);
+}
 .tagdesc {
   text-align: left;
   color: var(--dim);
   font-style: italic;
   margin: 8px 0 0;
 }
+
+/* --------------------------------------------------------------------------- */
+/* Tasks / tickets + the agile board (TICKETS.md)                              */
+/* --------------------------------------------------------------------------- */
+
+/* The board: horizontal columns, one per workflow state. */
+.board {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;            /* the board spans the whole page */
+  overflow-x: auto;       /* …degrading to horizontal scroll only when columns hit their min */
+  padding: 8px 4px 16px;
+}
+.board-error {
+  color: var(--null);
+  padding: 12px;
+}
+.board-col {
+  flex: 1 1 0;            /* columns share the page width equally — not a fixed width */
+  min-width: 180px;       /* but never narrower than a readable card (else scroll) */
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 160px);
+}
+.board-col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 2px solid var(--line);
+  border-radius: 8px 8px 0 0;
+  font-weight: 600;
+}
+.board-col-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.board-col-title {
+  flex: 1 1 auto;
+  text-transform: capitalize;
+}
+.board-col-count {
+  color: var(--dim);
+  font-size: 0.85em;
+}
+.board-col-body {
+  display: flex;
+  flex-direction: column;     /* groups stack vertically (the merged terminal column has several) */
+  padding: 8px;
+  overflow-y: auto;
+}
+/* A drop zone: one state's cards. The cards flow LEFT-TO-RIGHT and WRAP into rows, so a wide
+   column holds several constant-width cards per row (YouTrack-style). */
+.board-group {
+  border-radius: 6px;
+  padding: 2px;
+  min-height: 40px;           /* an empty group is still a drop target */
+}
+.board-group-split {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);   /* the vertical divider between merged sub-states */
+}
+.board-group-over {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  outline: 1px solid var(--accent);
+}
+.board-group-next {
+  outline: 1px dashed var(--string);
+}
+.board-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 6px;
+  font-size: 0.85em;
+  color: var(--dim);
+}
+.board-group-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.board-group-title {
+  flex: 1 1 auto;
+  text-transform: capitalize;
+}
+.board-group-cards {
+  display: flex;
+  flex-wrap: wrap;            /* constant-width cards flow in rows within a wide column */
+  align-content: flex-start;
+  gap: 8px;
+}
+.board-card {
+  flex: 0 1 200px;           /* a constant card width; shrinks only in a column narrower than one */
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: grab;
+}
+.board-card:hover {
+  border-color: var(--accent);
+}
+.board-card:active {
+  cursor: grabbing;
+}
+/* A cancelled-like terminal card: struck through and dimmed. */
+.board-card-negative {
+  opacity: 0.6;
+}
+.board-card-negative .board-card-title {
+  text-decoration: line-through;
+}
+.board-card-title {
+  color: var(--fg);
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+.board-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Small metadata chips, shared by the board cards and the task strip. */
+.board-chip {
+  font-size: 0.78em;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--line);
+  color: var(--fg);
+}
+.board-assignee { color: var(--key); }
+.board-due { color: var(--number); }
+.board-estimate { color: var(--dim); }
+.prio-urgent { background: var(--null); color: var(--bg); }
+.prio-high { background: var(--number); color: var(--bg); }
+.prio-normal { background: var(--line); }
+.prio-low { background: transparent; color: var(--dim); border: 1px solid var(--line); }
+
+/* The task page: a planning strip above the chapter body. */
+.task-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.task-state {
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 12px;
+  color: var(--bg);
+  text-transform: capitalize;
+}
+.task-advance {
+  background: none;
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1px 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85em;
+}
+.task-advance:hover {
+  background: var(--sel);
+}
+.task-description {
+  color: var(--dim);
+  font-style: italic;
+  margin: 0 0 12px;
+}
+
+/* --------------------------------------------------------------------------- */
+/* Board lane headers (the tag multi-select) + the details view                */
+/* --------------------------------------------------------------------------- */
+
+.board-col-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+}
+.board-lane-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.82em;
+  padding: 1px 4px 1px 7px;
+  border-radius: 10px;
+  color: var(--bg);
+  text-transform: capitalize;
+}
+.board-lane-x,
+.board-lane-add,
+.board-lane-del {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  line-height: 1;
+}
+.board-lane-x {
+  font-size: 1.1em;
+  opacity: 0.7;
+}
+.board-lane-x:hover { opacity: 1; }
+.board-lane-add {
+  color: var(--dim);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 0 5px;
+}
+.board-lane-add:hover { color: var(--fg); border-color: var(--accent); }
+.board-lane-del {
+  color: var(--dim);
+  font-size: 0.85em;
+  flex: 0 0 auto;
+  opacity: 0.5;
+}
+.board-lane-del:hover { opacity: 1; }
+/* the trailing "＋ lane" button: a ghost column */
+.board-add-lane {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  background: none;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--dim);
+  cursor: pointer;
+  font: inherit;
+  padding: 8px 12px;
+  margin-top: 2px;
+}
+.board-add-lane:hover { color: var(--fg); border-color: var(--accent); }
+
+/* The DETAILS view — a columnar table of the directory's members. */
+.detailsview {
+  padding: 4px 2px 16px;
+  overflow-x: auto;
+}
+table.details {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+table.details th {
+  text-align: left;
+  color: var(--dim);
+  font-weight: 600;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+}
+.details-row {
+  cursor: pointer;
+  border-bottom: 1px solid var(--bg-alt);
+}
+.details-row:hover { background: var(--bg-alt); }
+table.details td {
+  padding: 4px 10px;
+  vertical-align: middle;
+}
+td.details-name { display: flex; align-items: center; gap: 7px; }
+.details-icon { flex: 0 0 auto; }
+.details-label { color: var(--fg); }
+td.details-kind { color: var(--dim); }
+td.details-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+td.details-size { color: var(--dim); white-space: nowrap; text-align: right; }
+.details-empty { color: var(--dim); font-style: italic; padding: 12px; }

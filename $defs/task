@@ -1,0 +1,33 @@
+# $defs/task — a unit of work (a ticket), or a study card. A task IS a chapter (it has a
+# `title`, an optional `description`, a body of `chunks`, and recursive `children` — which here
+# mean SUBTASKS, a task tree) PLUS a few OPTIONAL structured fields for planning and automation.
+# It carries NO `state` field: a task's lifecycle position is a TAG APPLICATION
+# (`yamlover-annotations`) into a workflow taxonomy ($defs/workflow), so the whole tag / board
+# machinery is reused. Every planning field is optional — defaults-never-constraints: an
+# untouched task is just a titled note. Attach with  !!<*yamlover:$defs:task>.  Spec: ../TICKETS.md.
+type: object
+properties:
+  title:
+    type: string
+    format: text/marklower
+  description:                     # optional subtitle / brief
+    type: string
+    format: text/marklower
+  chunks:                          # the body — a sequence of chunks, read top to bottom
+    type: array
+    items: *:: yamlover: $defs: chunk
+  children:                        # SUBTASKS — the task tree (the recursion)
+    type: array
+    items: *:: yamlover: $defs: task
+  priority:                        # free ordinal: low | normal | high | urgent (advisory)
+    type: string
+  due:
+    type: string
+    format: date-time
+  assignee:                        # a name, or a pointer to a person / agent node
+    type: string
+  depends:                         # "blocked-by" edges → other tasks (ref; the dependency DAG)
+    type: array
+    items: *:: yamlover: $defs: task
+  estimate:                        # free: "2h", "3pt"
+    type: string

@@ -156,6 +156,13 @@ export function annotate(a: { target: string; tag: string; description?: string;
   return postJson("/api/annotate", a);
 }
 
+/** Persist a board directory's LANE configuration — `columns` is the lanes, each a list of tag
+ *  client-paths. Rewrites the directory's board overlay (`.yamlover/body.yamlover` `columns:`) and
+ *  reindexes; the open board re-reads it over SSE. */
+export function saveBoardColumns(path: string, columns: string[][]): Promise<{ ok: true }> {
+  return postJson("/api/board", { path, columns });
+}
+
 /** Create a named tag at the project's default tags location (settings.yamlover; `/tags` by
  *  default) — the picker's create-on-miss. Idempotent: an existing tag at that path is returned
  *  as-is; a non-tag node already occupying the path is an error. */

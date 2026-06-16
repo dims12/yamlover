@@ -1,0 +1,7 @@
+# This directory is an AGILE BOARD: every `…/$defs:task` file in it is a card, grouped into
+# columns by the `dev` workflow's states (backlog → ready → in-progress → done/cancelled).
+# Dragging a card to another column rewrites that task's state annotation (re-tags it). The
+# states come from the PROJECT-GLOBAL `dev` workflow (the root `tags/` taxonomy) that the cards
+# also point at — one source of truth, no per-board copy. Spec: ../../TICKETS.md §3.
+!!<*yamlover:$defs:board>
+workflow: *::tags:workflow:dev

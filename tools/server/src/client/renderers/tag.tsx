@@ -1,7 +1,29 @@
 import { asLink } from "../render";
-import { strToSegs } from "../paths";
+import { canonPath, strToSegs } from "../paths";
 
 export const TAG_FORMAT = "x-yamlover-tag";
+
+/** Whether a tag node is one of the built-in PURE COLOR tags (the palette) — detected by its
+ *  canonical path living under `tags:colors:` (the established color-palette location, also
+ *  special-cased in annotate.tsx's `indexToRefs`/`rememberRecent`). Such tags render as a
+ *  circular swatch wherever applied tags are listed, not as a name badge. */
+export function isColorTagPath(path: string): boolean {
+  return /(^|:)tags:colors:/.test(canonPath(path));
+}
+
+/** A pure color tag rendered as a filled circular swatch — its color IS its identity, so a name
+ *  badge would be redundant. Mirrors the menu palette's applied swatch (`.annotate-swatch.on`). */
+export function TagSwatch({ color, title, onClick }: { color: string; title: string; onClick?: () => void }) {
+  return (
+    <span
+      className="tagswatch"
+      style={{ background: color }}
+      title={title}
+      role={onClick ? "button" : undefined}
+      onClick={onClick}
+    />
+  );
+}
 
 export interface TagLink {
   path: string;
@@ -86,21 +108,27 @@ export function TagBadges({ tags, onNavigate }: { tags: TagLink[]; onNavigate: (
   if (tags.length === 0) return null;
   return (
     <>
-      {tags.map((t) => (
-        <a
-          key={t.path}
-          className="tagtag"
-          style={{ background: resolveTagColor({ name: t.label, color: t.color }) }}
-          href={t.path}
-          title={t.label}
-          onClick={(e) => {
-            e.preventDefault();
-            onNavigate(t.path);
-          }}
-        >
-          {t.label}
-        </a>
-      ))}
+      {tags.map((t) => {
+        const color = resolveTagColor({ name: t.label, color: t.color });
+        if (isColorTagPath(t.path)) {
+          return <TagSwatch key={t.path} color={color} title={t.label} onClick={() => onNavigate(t.path)} />;
+        }
+        return (
+          <a
+            key={t.path}
+            className="tagtag"
+            style={{ background: color }}
+            href={t.path}
+            title={t.label}
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigate(t.path);
+            }}
+          >
+            {t.label}
+          </a>
+        );
+      })}
     </>
   );
 }

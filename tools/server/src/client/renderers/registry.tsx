@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { NodeJson, TreeNode } from "../api";
 import { ChapterView } from "./chapter";
+import { TaskView } from "./task";
 import { TextView, TextChunk } from "./text";
 import { MarklowerView, MarklowerChunk } from "./marklower";
 import { LatexView, LatexChunk } from "./latex";
@@ -138,8 +139,9 @@ export interface Renderer {
   renderChunk?: (chunk: Chunk, onNavigate: (path: string) => void) => JSX.Element;
   /** An optional control shown in the tab bar beside this renderer's button (only while its
    *  view is active) — e.g. the markdown/asciidoc reading-width input. `rerender` refreshes
-   *  the node view after the control changes a URL parameter. */
-  config?: (rerender: () => void) => JSX.Element;
+   *  the node view after the control changes a URL parameter. `node` is the node being shown
+   *  (so e.g. the explorer's view selector can default a board directory to the board view). */
+  config?: (rerender: () => void, node: NodeJson) => JSX.Element;
 }
 
 /**
@@ -154,11 +156,13 @@ export interface Renderer {
 const EXPLORER: Renderer = {
   name: "explorer",
   // a tag, whatever shape it projects (object / variant / leaf string / bare null) — the format
-  // alone identifies it; the grid shows the tagged MATERIALS. Also the dir-concrete fallback below.
-  accepts: byFormat("x-yamlover-tag"),
+  // alone identifies it; the grid shows the tagged MATERIALS. Also claims a BOARD directory
+  // (x-yamlover-board): a board is no longer its own renderer — it is the explorer's `board` VIEW
+  // (a tag-column layout over the directory). Also the dir-concrete fallback below.
+  accepts: byFormat("x-yamlover-tag", "x-yamlover-board"),
   specificity: 2,
   render: (node, onNavigate) => <ExplorerView node={node} onNavigate={onNavigate} />,
-  config: (rerender) => <ExplorerViewControl rerender={rerender} />, // large/small icons (`?view=`)
+  config: (rerender, node) => <ExplorerViewControl rerender={rerender} node={node} />, // view selector (`?view=`)
 };
 
 /** A directory-stored node (`dir` = a plain folder, `yamlover` = a folder with `.yamlover/`). */
@@ -172,6 +176,17 @@ const REGISTRY: Renderer[] = [
     depth: 2, // reach the chunk/subchapter elements (arrays one level, items the next)
     tocView: chapterTocView,
     render: (node, onNavigate) => <ChapterView node={node} onNavigate={onNavigate} />,
+  },
+  {
+    // A task / ticket (TICKETS.md): a chapter body (title/chunks/subtask children) plus a planning
+    // strip; its lifecycle state is a tag application. Same TOC shape as a chapter (subtasks live
+    // under `children`); needs depth 2 to reach the chunk/child + annotation elements.
+    name: "task",
+    accepts: byFormat("x-yamlover-task"),
+    specificity: 2,
+    depth: 2,
+    tocView: chapterTocView,
+    render: (node, onNavigate) => <TaskView node={node} onNavigate={onNavigate} />,
   },
   {
     // Our default for a bare, format-less string: marklower, a markup language a
@@ -393,6 +408,18 @@ export function rendererFor(src: FacetSource): Renderer | null {
  *  null → the default tabbed view. */
 export function getRenderer(node: NodeJson): Renderer | null {
   return rendererFor(node) ?? (isDirConcrete(node.concrete) ? EXPLORER : null);
+}
+
+/** Every selectable rendered representation for a node, best first: its format renderer (when any),
+ *  PLUS — for a node stored as a directory — the EXPLORER (the file-manager "directory" view) as an
+ *  alternative. So a board (or any typed directory) offers both its custom view and the plain
+ *  directory, each its own tab. Falls back to just the explorer for a bare directory. */
+export function renderersFor(node: NodeJson): Renderer[] {
+  const out: Renderer[] = [];
+  const primary = rendererFor(node);
+  if (primary) out.push(primary);
+  if (isDirConcrete(node.concrete) && !out.includes(EXPLORER)) out.push(EXPLORER);
+  return out;
 }
 
 /** The name (= representation key / `?format=` value) of the renderer that claims `src` — with the
