@@ -21,17 +21,28 @@ export type Format = "yamlover" | "json5p" | "yamlover/schema" | (string & {});
 export const FORMATS: Format[] = ["yamlover", "json5p", "yamlover/schema"];
 export const DEFAULT_FORMAT: Format = "yamlover";
 
-const isStandard = (f: Format) => (FORMATS as string[]).includes(f);
+// The json5p (JSON-family) view is offered only for a node backed by a json-family file — the
+// server reports those `concrete`s. (Detecting JSON flow syntax embedded in a yaml/yamlover file
+// is a separate, postponed concern.)
+export const JSON_CONCRETES = new Set(["json", "json5", "json5p"]);
+export const isJsonConcrete = (c?: string | null): boolean => JSON_CONCRETES.has(c ?? "");
+
 const isSchema = (f: Format) => f.endsWith("schema");
 // Serialization syntax: json5p renders JSON-family; yamlover (+ its schema) renders YAML-family.
 const syntaxOf = (f: Format): "yaml" | "json" => (f === "json5p" ? "json" : "yaml");
 
-/** The representation actually shown: the requested `format` if it is a standard
- *  view or one of this node's renderer names; otherwise the node's default (its first
- *  renderer's view, else `yaml`). Guards a stale renderer-name format (e.g. a
- *  hand-edited URL, or one carried onto a node with no such renderer). */
-function effectiveFormat(format: Format, renderers: { name: string }[]): Format {
-  if (isStandard(format)) return format;
+/** The standard data-view tabs a node offers: always `yamlover` + `yamlover/schema`, plus
+ *  `json5p` only for a json-family file (so a yaml node isn't rendered as JSON). */
+function standardFormatsFor(node: NodeJson): Format[] {
+  return isJsonConcrete(node.concrete) ? ["yamlover", "json5p", "yamlover/schema"] : ["yamlover", "yamlover/schema"];
+}
+
+/** The representation actually shown: the requested `format` if it is one of this node's standard
+ *  views or one of its renderer names; otherwise the node's default (its first renderer's view,
+ *  else `yaml`). Guards a stale format (a hand-edited URL, or one — e.g. `json5p` — carried onto a
+ *  node that doesn't offer it). */
+function effectiveFormat(format: Format, renderers: { name: string }[], standard: Format[]): Format {
+  if ((standard as string[]).includes(format)) return format;
   if (renderers.some((r) => r.name === format)) return format;
   return renderers[0] ? renderers[0].name : DEFAULT_FORMAT;
 }
@@ -327,7 +338,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     setBin(null);
     if (!node) return;
     const rs = renderersFor(node);
-    const eff = effectiveFormat(format, rs);
+    const eff = effectiveFormat(format, rs, standardFormatsFor(node));
     if (rs.some((r) => r.name === eff)) return; // a rendered view reads node.value (already fetched)
     if (isSchema(eff)) {
       fetchSchema(path).then(setSchema).catch((e) => setError(e.message));
@@ -341,10 +352,13 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
 
   const renderers = renderersFor(node);
   // Each rendered representation adds its own tab (its name); the first is this node's default, and
-  // a directory offers the explorer ("directory") view alongside its custom one. Standard data
-  // representations follow.
-  const tabs: Format[] = [...renderers.map((r) => r.name), ...FORMATS];
-  const effective = effectiveFormat(format, renderers);
+  // a directory offers its explorer view tabs (large icons / details / …) alongside any custom one.
+  // The node's standard data representations follow (json5p only for a json-family file).
+  const standard = standardFormatsFor(node);
+  const tabs: Format[] = [...renderers.map((r) => r.name), ...standard];
+  const effective = effectiveFormat(format, renderers, standard);
+  // A tab's button text: a renderer's `label` (e.g. "large icons"), else the format slug itself.
+  const labelOf = (f: Format): string => renderers.find((r) => r.name === f)?.label ?? f;
   const renderer = renderers.find((r) => r.name === effective) ?? null;
   const showRendered = renderer != null;
 
@@ -393,7 +407,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
           {tabs.map((f) => (
             <Fragment key={f}>
               <button className={"tab" + (effective === f ? " active" : "")} onClick={() => onFormat(f)}>
-                {f}
+                {labelOf(f)}
               </button>
               {showRendered && renderer && f === renderer.name && renderer.config?.(rerender, node)}
             </Fragment>

@@ -6,75 +6,29 @@ import { TAG_FORMAT, tagLabel, tagBody, resolveTagColor } from "./tag";
 import { displayPath, displayKey } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
 import { useExplorerTagMenu } from "./tagmenu";
-import { BoardView, isBoardNode } from "./board";
+import { BoardView } from "./board";
 import { DetailsView } from "./details";
 
 const ANNOTATION_FORMAT = "x-yamlover-annotation";
 const MIXED_KEY = "$yamloverMixed";
 
-// ---- the view mode: a URL parameter (`?view=`), so a view is a shareable link ---- //
+// ---- the view modes: each surfaced as its own renderer tab (registry.tsx), passed in as a prop ---- //
 
 const VIEWS = ["large", "thumbnails", "small", "details", "board"] as const;
 export type ViewMode = (typeof VIEWS)[number];
-const DEFAULT_VIEW: ViewMode = "large";
 // The two views that show image previews, and the server thumbnail box each requests: the
 // gallery "thumbnails" view asks for a larger crop (crisp at its ~280px tiles / retina).
 const THUMB_BOX: Partial<Record<ViewMode, number>> = { large: 256, thumbnails: 512 };
-const params = () => new URLSearchParams(window.location.search);
-
-/** A node's DEFAULT view when the URL pins none: a board directory opens as the `board` view,
- *  everything else as large icons. */
-export function defaultViewFor(node: NodeJson): ViewMode {
-  return isBoardNode(node) ? "board" : DEFAULT_VIEW;
-}
-
-/** The view pinned by the URL's `?view=`, or null when none (an unknown value ignored) — the
- *  caller falls back to {@link defaultViewFor}. */
-export function explorerViewMode(): ViewMode | null {
-  const v = params().get("view");
-  return (VIEWS as readonly string[]).includes(v ?? "") ? (v as ViewMode) : null;
-}
-
-function writeViewMode(v: ViewMode, def: ViewMode): void {
-  const q = params();
-  if (v === def) q.delete("view"); // the node's own default needs no param (clean, shareable URL)
-  else q.set("view", v);
-  const qs = q.toString();
-  window.history.replaceState({}, "", window.location.pathname + (qs ? "?" + qs : ""));
-}
-
-/** The view selector beside the explorer tab (the renderer's `config` hook) — writes
- *  `?view=` and rerenders, like the plaintext encoding control. */
-export function ExplorerViewControl({ rerender, node }: { rerender: () => void; node: NodeJson }) {
-  const def = defaultViewFor(node);
-  return (
-    <label className="enc-control">
-      view{" "}
-      <select
-        value={explorerViewMode() ?? def}
-        onChange={(e) => {
-          writeViewMode(e.target.value as ViewMode, def);
-          rerender();
-        }}
-      >
-        <option value="large">large icons</option>
-        <option value="thumbnails">thumbnails</option>
-        <option value="small">small icons</option>
-        <option value="details">details</option>
-        <option value="board">board</option>
-      </select>
-    </label>
-  );
-}
 
 /**
  * The EXPLORER renderer — a directory (or a tag) as a desktop file manager:
  * every member an icon + label, with the node's reverse UPLINKS (`relations`:
  * the `..` parent and each upstream `*`/`~` source) leading the grid as
- * visually distinct items. Two views, chosen by the `?view=` URL parameter
- * (a renderer param, like the markup width or the CSV options): **large
- * icons** (the default — tiles, the icon above the label) and **small icons**
- * (rows, the icon beside the label).
+ * visually distinct items. Each layout is its own renderer tab (registry.tsx
+ * builds one per {@link ViewMode} and passes the chosen `view` as a prop):
+ * **large icons** (tiles, the icon above the label), **small icons** (rows,
+ * the icon beside the label), **thumbnails** (a gallery), **details** (a
+ * columnar table), and **tag board** (a tag-column layout over a board dir).
  *
  * It claims two shapes:
  *   - a node stored as a filesystem directory (`concrete` `dir`/`yamlover`,
@@ -237,7 +191,7 @@ function Item({ it, active, view, setRef, onFocus, onNavigate, onContext }: {
   );
 }
 
-export function ExplorerView({ node, onNavigate }: { node: NodeJson; onNavigate: (path: string) => void }) {
+export function ExplorerView({ node, view, onNavigate }: { node: NodeJson; view: ViewMode; onNavigate: (path: string) => void }) {
   const isTag = node.format === TAG_FORMAT;
   // a tag's materials (annotations resolved to their targets) — fetched per tag page, refetched
   // when a diff (live.ts) touches a `.yamlover` file (an annotation created/deleted anywhere)
@@ -306,8 +260,7 @@ export function ExplorerView({ node, onNavigate }: { node: NodeJson; onNavigate:
     if (next !== active) { setActive(next); itemEls.current[next]?.focus(); }
   };
 
-  // The effective view: the URL's `?view=`, else this node's default (a board opens as `board`).
-  const view = explorerViewMode() ?? defaultViewFor(node);
+  // The layout to draw arrives as a prop (the tab the user picked — registry.tsx).
   if (view === "board") return <>{tagMenu}<BoardView node={node} onNavigate={onNavigate} openContextMenu={openAt} /></>;
   if (view === "details") return <>{tagMenu}<DetailsView members={members} onNavigate={onNavigate} openContextMenu={openAt} /></>;
 

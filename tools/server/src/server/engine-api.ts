@@ -35,7 +35,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Store, reindex, reindexAsync, hashFileAsync, watchTree, loadSettings, mv, relinkMoved, evalQuery } from "../../../engine/ts/src/index.ts";
+import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, loadSettings, mv, relinkMoved, evalQuery } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { pointerToken } from "../../../parser/ts/src/serialize-yamlover.ts";
@@ -43,7 +43,7 @@ import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as 
 import { renderThumbnail } from "./extract/thumbnails.js";
 import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
-import type { Node as IrNode } from "../../../parser/ts/src/ir.ts";
+import type { Node as IrNode, Document } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
 import { displayKind, ownedEntries, typeName, facetsOf } from "./node-kind.js";
 import { TaskRegistry } from "./tasks.js";
@@ -84,6 +84,11 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const store0 = new Store(dbPath);
   const store = (): Store => store0;
+  // The assembled IR document, retained across reindexes: a single-file edit re-walks only its
+  // directory, splices the fresh subtree in, re-resolves IN MEMORY (so cross-file links stay
+  // correct), and patches just that subtree's rows — instead of re-walking + rebuilding the whole
+  // index. Null until the first full reindex; invalidated when a path-rewriting reconcile runs.
+  let cachedDoc: Document | null = null;
   const log = opts.log ?? ((): void => {});
   let closed = false;
 
@@ -214,8 +219,31 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
     })();
   };
 
-  // A reindex usable inside an already-queued job (NOT queued itself — callers queue).
-  const doReindex = (): Promise<IndexDiff> => reindexAsync(store0, dataRoot, { ignore });
+  // A reindex usable inside an already-queued job (NOT queued itself — callers queue). Retains the
+  // assembled doc so a subsequent single-file edit can patch against it in memory.
+  const doReindex = async (): Promise<IndexDiff> => {
+    const { diff, doc } = await reindexAsyncDoc(store0, dataRoot, { ignore });
+    cachedDoc = doc;
+    return diff;
+  };
+  // A reindex for ONE edited file (the tagging hot path): patch the cached tree's subtree in place,
+  // falling back to a full reindex when the change is not locally patchable (root-level file, the
+  // grafted taxonomy, or the patch guard rejecting an external-reference change).
+  const doReindexFile = async (absFile: string): Promise<IndexDiff> => {
+    if (cachedDoc) {
+      const rel = path.relative(dataRoot, absFile).split(path.sep).join("/");
+      try {
+        const res = await reindexPathAsync(store0, dataRoot, cachedDoc, rel, { ignore });
+        if (res) {
+          cachedDoc = res.doc;
+          return res.diff;
+        }
+      } catch {
+        // any surprise in the incremental path → full reindex (correctness over speed)
+      }
+    }
+    return doReindex();
+  };
 
   // The INITIAL index, as a background task: the server listens (and serves the previous
   // on-disk index — or an empty one, cold) while the walk runs. Progress is determinate
@@ -227,7 +255,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       let lastLog = 0;
       log(`${label}…`);
       try {
-        const diff = await reindexAsync(store0, dataRoot, {
+        const { diff, doc } = await reindexAsyncDoc(store0, dataRoot, {
           ignore,
           onProgress: (p) => {
             h.progress(p.done, p.total, p.message);
@@ -238,6 +266,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             }
           },
         });
+        cachedDoc = doc;
         h.done();
         log(
           `${label} done in ${((Date.now() - t0) / 1000).toFixed(1)}s` +
@@ -266,6 +295,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           if (r.editedFiles.length > 0) {
             const follow = reindex(store0, dataRoot, { ignore });
             diff.changed = [...new Set([...diff.changed, ...follow.changed])];
+            cachedDoc = null; // sync `reindex` rebuilt the DB but not the cached doc — invalidate
           }
         }
         h.done();
@@ -354,10 +384,11 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               if (!a?.tag || s.node(tagStore)?.format !== TAG_FORMAT) {
                 throw new Error("annotation needs a `tag` that is an x-yamlover-tag node");
               }
-              embedAnnotation(dataRoot, s, a);
-              // A surgical body edit changes a file's hash; the manifest-cached reconcile re-reads
-              // only the edited body (the /api/paste pattern), so the graph trues up in one pass.
-              broadcast(await doReindex());
+              const bodyFile = embedAnnotation(dataRoot, s, a);
+              // A surgical body edit changes one file: patch just that file's subtree against the
+              // cached tree (re-resolving in memory keeps cross-file links correct), instead of
+              // re-walking + rebuilding the whole index on every tag toggle.
+              broadcast(await doReindexFile(bodyFile));
               scheduleHasher();
               return { ok: true };
             }),
@@ -395,8 +426,8 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         const tag = url.searchParams.get("tag") || "";
         enqueue(async () => {
           if (!tag) throw new Error("delete needs a `tag`");
-          unembedAnnotation(dataRoot, s, target, tag);
-          broadcast(await doReindex());
+          const bodyFile = unembedAnnotation(dataRoot, s, target, tag);
+          broadcast(await doReindexFile(bodyFile));
         })
           .then(() => sendJson(res, 200, { ok: true }))
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
@@ -649,12 +680,25 @@ function tocType(s: Store, p: string, row: NodeRow): string {
   return typeName(s, p, row);
 }
 
-/** How the node at `segs` is stored on disk, as far as a stat can tell: `"yamlover"` (a directory
- *  with a `.yamlover/` marker), `"dir"` (a plain folder), or null (not a filesystem directory —
- *  files and interior nodes alike; the engine does not track per-node concrete yet). Only a
- *  mapping can be a directory, and positional segments never name FS entries, so most nodes
- *  short-circuit without touching the disk. */
-function concreteOf(dataRoot: string, segs: Seg[], row: NodeRow): "dir" | "yamlover" | null {
+/** The json-family surface concrete a file's extension names, or null. */
+const JSON_EXT: Record<string, "json" | "json5" | "json5p"> = { ".json": "json", ".json5": "json5", ".json5p": "json5p" };
+
+/** How the node at `segs` is stored on disk, as far as a stat can tell: a json-family file
+ *  (`"json"`/`"json5"`/`"json5p"` — file children are keyed by their full filename, so the last
+ *  segment carries the extension), `"yamlover"` (a directory with a `.yamlover/` marker), `"dir"`
+ *  (a plain folder), or null (any other file or interior node — the engine does not track per-node
+ *  concrete yet, so only a file-document ROOT gets the json concrete). Only a mapping can be a
+ *  directory, and positional segments never name FS entries, so most nodes short-circuit without
+ *  touching the disk. */
+function concreteOf(dataRoot: string, segs: Seg[], row: NodeRow): "dir" | "yamlover" | "json" | "json5" | "json5p" | null {
+  const last = segs[segs.length - 1];
+  if (typeof last === "string") {
+    const json = JSON_EXT[path.extname(last).toLowerCase()];
+    if (json) {
+      const abs = path.resolve(dataRoot, ...segs.map(String));
+      try { if (fs.statSync(abs).isFile()) return json; } catch { /* not a backing file */ }
+    }
+  }
   if (row.type !== "mapping") return null;
   if (segs.some((g) => typeof g === "number")) return null;
   const abs = path.resolve(dataRoot, ...segs.map(String));
@@ -1149,11 +1193,12 @@ function fragmentBlockLines(slug: string, selector: Record<string, unknown>, ima
 
 /** Embed a tag application into the target's `yamlover-annotations` array (editing the target's
  *  host body in place — ANNOTATIONS.md). */
-function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): void {
+function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): string {
   const { bodyFile, within } = hostFor(dataRoot, s, strToSegs(a.target || ":"));
   fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
   fs.writeFileSync(bodyFile, appendAnnotation(src, within, (indent) => annotationItemLines(a, indent)));
+  return bodyFile;
 }
 
 /** Embed a fragment under the target's `yamlover-fragments` mapping; for an image-like selection,
@@ -1240,9 +1285,9 @@ async function ensureThumbnail(dataRoot: string, s: Store, mode: SidecarLocation
 
 /** Remove a tag application from the target's `yamlover-annotations` array — the first element
  *  referencing `tag` (bare pointer or object `tag:` field). */
-function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: string): void {
+function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: string): string {
   const { bodyFile, within } = hostFor(dataRoot, s, strToSegs(target || ":"));
-  if (!fs.existsSync(bodyFile)) return;
+  if (!fs.existsSync(bodyFile)) return bodyFile;
   // Match on the tag's colon-PATH (`:tags:…:name`), tolerating the pointer's spelling: an item may
   // be project-scope (`*::tags:…`), document-scope (`*: tags: …`, spaced), bare or an object form.
   // Normalizing away whitespace and matching the `:`-prefixed path catches them all (the leading
@@ -1250,6 +1295,7 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
   const needlePath = ":" + pointerRaw(tag).replace(/^:+/, ""); // :tags:field:mathematics:number-theory
   const src = fs.readFileSync(bodyFile, "utf8");
   fs.writeFileSync(bodyFile, removeAnnotationItem(src, within, (itemText) => itemText.replace(/\s+/g, "").includes(needlePath)));
+  return bodyFile;
 }
 
 /** Persist a NEW named tag as a key of the tag-taxonomy body at the project's default tags

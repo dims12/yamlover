@@ -11,7 +11,8 @@ import { PlaintextView, PlaintextChunk, EncodingControl } from "./plaintext";
 import { RtfView, RtfChunk } from "./rtf";
 import { DocView, DocChunk } from "./doc";
 import { PlantumlView, PlantumlChunk } from "./plantuml";
-import { ExplorerView, ExplorerViewControl } from "./explorer";
+import { ExplorerView, ViewMode } from "./explorer";
+import { isBoardNode } from "./board";
 import { Fb2View } from "./fb2";
 import { EpubView } from "./epub";
 import { HtmlView } from "./media";
@@ -124,6 +125,9 @@ const byFormat = (...fmts: string[]): Accepts => (f) => f.format !== null && fmt
 
 export interface Renderer {
   name: string;
+  /** The button text in the tab bar — defaults to {@link name}. Lets a renderer whose
+   *  `name` (= `?format=` slug) is hyphenated (e.g. `large-icons`) show a spaced label. */
+  label?: string;
   /** Whether this renderer claims a node, from its {@link TypeFacets}. */
   accepts: Accepts;
   /** Tie-break among matches — the highest wins. Format matchers are 2; the bare-string
@@ -138,32 +142,44 @@ export interface Renderer {
   /** This renderer's inline form, for embedding a single value in another page. */
   renderChunk?: (chunk: Chunk, onNavigate: (path: string) => void) => JSX.Element;
   /** An optional control shown in the tab bar beside this renderer's button (only while its
-   *  view is active) — e.g. the markdown/asciidoc reading-width input. `rerender` refreshes
-   *  the node view after the control changes a URL parameter. `node` is the node being shown
-   *  (so e.g. the explorer's view selector can default a board directory to the board view). */
+   *  view is active) — e.g. the markdown/asciidoc reading-width input, or the CSV options.
+   *  `rerender` refreshes the node view after the control changes a URL parameter; `node` is
+   *  the node being shown. */
   config?: (rerender: () => void, node: NodeJson) => JSX.Element;
 }
 
 /**
- * The EXPLORER — a file-manager "small icons" grid of a node's members, uplinks first. It is
- * claimed two ways: by (type, format) for tags (a tag projects as `object` — fields only,
- * `variant` — description BODY + fields, `string` — a leaf tag that is just its description,
- * or `null` — a bare tag with neither, the shape the picker's create-on-miss writes;
- * the grid shows the tagged MATERIALS), and as the CONCRETE fallback for any node stored as a
- * filesystem directory (`dir`/`yamlover`) that no (type, format) renderer claims — see
- * {@link getRenderer}. Hoisted so the fallback can reference the same instance.
+ * The EXPLORER VIEW FAMILY — a file-manager over a node's members (uplinks first), in one of
+ * several layouts, each its OWN renderer tab: `large-icons`, `thumbnails`, `small-icons`,
+ * `details`, and `tag-board`. They are claimed two ways: by (type, format) for tags (a tag
+ * projects as `object` — fields only, `variant` — description BODY + fields, `string` — a leaf
+ * tag, or `null` — a bare tag; the grid shows the tagged MATERIALS) and a BOARD directory
+ * (x-yamlover-board), and as the CONCRETE fallback for any node stored as a filesystem
+ * directory (`dir`/`yamlover`) that no (type, format) renderer claims — see {@link getRenderer}.
+ *
+ * They are NOT registered in the specificity loop (so `rendererFor` stays single-valued for the
+ * TOC / chunks / `depth`); {@link renderersFor} expands them into the tab list, and {@link EXPLORER}
+ * (the `large-icons` view) is the single REPRESENTATIVE the loop and the dir-concrete fallback use.
  */
-const EXPLORER: Renderer = {
-  name: "explorer",
-  // a tag, whatever shape it projects (object / variant / leaf string / bare null) — the format
-  // alone identifies it; the grid shows the tagged MATERIALS. Also claims a BOARD directory
-  // (x-yamlover-board): a board is no longer its own renderer — it is the explorer's `board` VIEW
-  // (a tag-column layout over the directory). Also the dir-concrete fallback below.
+const explorerView = (name: string, label: string, view: ViewMode): Renderer => ({
+  name,
+  label,
   accepts: byFormat("x-yamlover-tag", "x-yamlover-board"),
   specificity: 2,
-  render: (node, onNavigate) => <ExplorerView node={node} onNavigate={onNavigate} />,
-  config: (rerender, node) => <ExplorerViewControl rerender={rerender} node={node} />, // view selector (`?view=`)
-};
+  render: (node, onNavigate) => <ExplorerView node={node} view={view} onNavigate={onNavigate} />,
+});
+
+// Order = tab order. `tag-board` leads, but only for board nodes (renderersFor filters it).
+const TAG_BOARD = explorerView("tag-board", "tag board", "board");
+const ICON_VIEWS: Renderer[] = [
+  explorerView("large-icons", "large icons", "large"),
+  explorerView("thumbnails", "thumbnails", "thumbnails"),
+  explorerView("small-icons", "small icons", "small"),
+  explorerView("details", "details", "details"),
+];
+// The representative for the single-valued paths (rendererFor / getRenderer / rendererName / depth):
+// the default view, large icons. Exactly this one entry sits in REGISTRY.
+const EXPLORER = ICON_VIEWS[0];
 
 /** A directory-stored node (`dir` = a plain folder, `yamlover` = a folder with `.yamlover/`). */
 const isDirConcrete = (concrete: string | null | undefined): boolean => concrete === "dir" || concrete === "yamlover";
@@ -410,22 +426,34 @@ export function getRenderer(node: NodeJson): Renderer | null {
   return rendererFor(node) ?? (isDirConcrete(node.concrete) ? EXPLORER : null);
 }
 
+/** The explorer view family for a node, tab order: the four icon views, led by `tag-board`
+ *  only on a board node (its overlay/format marks it — board.tsx `isBoardNode`). */
+function explorerViews(node: NodeJson): Renderer[] {
+  return isBoardNode(node) ? [TAG_BOARD, ...ICON_VIEWS] : ICON_VIEWS;
+}
+
 /** Every selectable rendered representation for a node, best first: its format renderer (when any),
- *  PLUS — for a node stored as a directory — the EXPLORER (the file-manager "directory" view) as an
- *  alternative. So a board (or any typed directory) offers both its custom view and the plain
- *  directory, each its own tab. Falls back to just the explorer for a bare directory. */
+ *  PLUS — for a tag / board / any node stored as a directory — the EXPLORER VIEW FAMILY (large
+ *  icons / thumbnails / small icons / details, and tag board on a board dir), each its own tab.
+ *  So a dir-backed chapter offers its chapter view then the directory views; a bare directory just
+ *  the views. */
 export function renderersFor(node: NodeJson): Renderer[] {
   const out: Renderer[] = [];
   const primary = rendererFor(node);
-  if (primary) out.push(primary);
-  if (isDirConcrete(node.concrete) && !out.includes(EXPLORER)) out.push(EXPLORER);
+  if (primary && primary !== EXPLORER) out.push(primary); // a non-explorer primary (chapter/task) leads
+  if (primary === EXPLORER || isDirConcrete(node.concrete)) out.push(...explorerViews(node));
   return out;
 }
 
 /** The name (= representation key / `?format=` value) of the renderer that claims `src` — with the
- *  same directory-concrete explorer fallback as {@link getRenderer} — or null when none claims it. */
+ *  same directory-concrete explorer fallback as {@link getRenderer} — or null when none claims it.
+ *  This is the facet-only path (no `node.value`), so a board is recognized by its FORMAT alone: a
+ *  board detected only via overlay value defaults to `large-icons` (its tag-board tab is present). */
 export function rendererName(src: FacetSource, concrete?: string | null): string | null {
-  return rendererFor(src)?.name ?? (isDirConcrete(concrete) ? EXPLORER.name : null);
+  const r = rendererFor(src);
+  if (r && r !== EXPLORER) return r.name;
+  if (r === EXPLORER || isDirConcrete(concrete)) return src.format === "x-yamlover-board" ? TAG_BOARD.name : EXPLORER.name;
+  return null;
 }
 
 /** How `node` appears in the TOC: its renderer's `tocView`, or — when no renderer

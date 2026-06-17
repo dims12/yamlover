@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getRenderer, rendererFor, rendererName, tocView } from "../../src/client/renderers/registry";
+import { getRenderer, rendererFor, rendererName, renderersFor, tocView } from "../../src/client/renderers/registry";
 import type { NodeJson, TreeNode } from "../../src/client/api";
 
 // Dispatch keys on TYPE FACETS (TYPES.md §9): the scalar self-value's type, the node's format,
@@ -71,12 +71,36 @@ describe("renderer registry (facet predicates)", () => {
     expect(getRenderer(node({ type: "object", format: null, hasKeyed: true }))).toBeNull();
   });
 
-  it("falls back to the explorer for a node stored as a filesystem directory", () => {
-    expect(getRenderer(node({ concrete: "dir" }))?.name).toBe("explorer");
-    expect(getRenderer(node({ concrete: "yamlover" }))?.name).toBe("explorer");
-    expect(rendererName({ format: null }, "dir")).toBe("explorer");
+  it("falls back to the explorer (large-icons representative) for a node stored as a filesystem directory", () => {
+    expect(getRenderer(node({ concrete: "dir" }))?.name).toBe("large-icons");
+    expect(getRenderer(node({ concrete: "yamlover" }))?.name).toBe("large-icons");
+    expect(rendererName({ format: null }, "dir")).toBe("large-icons");
     // other concretes don't
     expect(getRenderer(node({ concrete: "yaml-schema/instantiate" }))).toBeNull();
+  });
+
+  it("offers the explorer VIEW FAMILY as tabs: the four icon views for a plain dir, led by tag-board for a board", () => {
+    // a plain directory: large icons / thumbnails / small icons / details (no tag board)
+    expect(renderersFor(node({ concrete: "dir" })).map((r) => r.name)).toEqual([
+      "large-icons", "thumbnails", "small-icons", "details",
+    ]);
+    // a board (by format): tag-board leads, then the icon views — and it is the navigation default
+    const boardViews = renderersFor(node({ format: "x-yamlover-board", concrete: "yamlover" })).map((r) => r.name);
+    expect(boardViews[0]).toBe("tag-board");
+    expect(boardViews).toContain("large-icons");
+    expect(rendererName({ format: "x-yamlover-board" }, "yamlover")).toBe("tag-board");
+    // a board detected only via overlay value (workflow:/columns:) also leads with tag-board
+    expect(renderersFor(node({ concrete: "dir", value: { columns: [] } })).map((r) => r.name)[0]).toBe("tag-board");
+    // the view tabs carry human labels
+    expect(renderersFor(node({ concrete: "dir" })).map((r) => r.label)).toEqual([
+      "large icons", "thumbnails", "small icons", "details",
+    ]);
+  });
+
+  it("a dir-backed chapter leads with its chapter view, then the directory views", () => {
+    expect(renderersFor(node({ format: "x-yamlover-chapter", concrete: "yamlover" })).map((r) => r.name)).toEqual([
+      "chapter", "large-icons", "thumbnails", "small-icons", "details",
+    ]);
   });
 
   it("a format renderer wins over the dir concrete (a dir-backed chapter stays a chapter)", () => {
@@ -87,7 +111,7 @@ describe("renderer registry (facet predicates)", () => {
   it("claims tags (every projection shape) for the explorer — the format alone identifies them", () => {
     for (const valueType of [null, "string"])
       for (const hasKeyed of [false, true])
-        expect(getRenderer(node({ valueType, hasKeyed, format: "x-yamlover-tag" }))?.name).toBe("explorer");
+        expect(getRenderer(node({ valueType, hasKeyed, format: "x-yamlover-tag" }))?.name).toBe("large-icons");
   });
 
   it("claims a bare, format-less string as marklower (the default prose format)", () => {

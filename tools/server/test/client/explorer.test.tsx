@@ -9,7 +9,7 @@ vi.mock("../../src/client/api", () => ({
 }));
 import { fetchTagged } from "../../src/client/api";
 import type { NodeJson } from "../../src/client/api";
-import { ExplorerView, ExplorerViewControl } from "../../src/client/renderers/explorer";
+import { ExplorerView } from "../../src/client/renderers/explorer";
 
 const mTagged = fetchTagged as unknown as ReturnType<typeof vi.fn>;
 
@@ -53,7 +53,7 @@ describe("ExplorerView (a directory)", () => {
   });
 
   it("leads with the uplinks (`..` first), styled distinct", () => {
-    render(<ExplorerView node={dir} onNavigate={() => {}} />);
+    render(<ExplorerView node={dir} view="large" onNavigate={() => {}} />);
     const all = items();
     expect(all).toHaveLength(7);
     expect(all[0].className).toContain("dirview-up");
@@ -65,7 +65,7 @@ describe("ExplorerView (a directory)", () => {
   });
 
   it("shows EVERY member: a scalar reads `key: value`, containers and binaries get icons", () => {
-    render(<ExplorerView node={dir} onNavigate={() => {}} />);
+    render(<ExplorerView node={dir} view="large" onNavigate={() => {}} />);
     const byText = (t: string) => items().find((el) => el.textContent?.includes(t))!;
     expect(byText("age:").textContent).toContain("42"); // a scalar member, value shown
     expect(byText("sub").querySelector(".dirview-icon")?.textContent).toBe("📁"); // a child folder
@@ -76,13 +76,13 @@ describe("ExplorerView (a directory)", () => {
   });
 
   it("a file-like scalar (media-type format) shows just its name, not its content", () => {
-    render(<ExplorerView node={dir} onNavigate={() => {}} />);
+    render(<ExplorerView node={dir} view="large" onNavigate={() => {}} />);
     const md = items().find((el) => el.textContent?.includes("FUTURE.md"))!;
     expect(md.textContent).toBe("📝FUTURE.md"); // the parsed document's text stays out
   });
 
   it("a format-less binary keeps the boxed-bits glyph (the TOC's binary mark)", () => {
-    render(<ExplorerView node={dir} onNavigate={() => {}} />);
+    render(<ExplorerView node={dir} view="large" onNavigate={() => {}} />);
     const bin = items().find((el) => el.textContent?.includes("blob.fdmdownload"))!;
     const icon = bin.querySelector(".dirview-icon")!;
     expect(icon.textContent).toBe("0110");
@@ -91,7 +91,7 @@ describe("ExplorerView (a directory)", () => {
 
   it("navigates on click", () => {
     const onNav = vi.fn();
-    render(<ExplorerView node={dir} onNavigate={onNav} />);
+    render(<ExplorerView node={dir} view="large" onNavigate={onNav} />);
     fireEvent.click(items().find((el) => el.textContent?.includes("sub"))!);
     expect(onNav).toHaveBeenCalledWith(":dir:sub");
   });
@@ -99,7 +99,7 @@ describe("ExplorerView (a directory)", () => {
   it("autofocuses the first item; arrows walk the grid and Enter opens the selected one", () => {
     // (Up/Down are geometry-based — jsdom has no layout, so only the index moves are asserted here)
     const onNav = vi.fn();
-    render(<ExplorerView node={dir} onNavigate={onNav} />);
+    render(<ExplorerView node={dir} view="large" onNavigate={onNav} />);
     const all = items();
     expect(document.activeElement).toBe(all[0]); // grabbed focus so arrows work immediately
 
@@ -117,7 +117,7 @@ describe("ExplorerView (a directory)", () => {
   });
 
   it("leaves Ctrl/Alt+arrows alone so the global TOC nav handles them", () => {
-    render(<ExplorerView node={dir} onNavigate={() => {}} />);
+    render(<ExplorerView node={dir} view="large" onNavigate={() => {}} />);
     const all = items();
     expect(document.activeElement).toBe(all[0]);
     fireEvent.keyDown(all[0], { key: "ArrowRight", ctrlKey: true });
@@ -128,53 +128,35 @@ describe("ExplorerView (a directory)", () => {
     const cyr = node({
       value: { "Папка": link({ kind: "object", type: "object", path: ":dir:%D0%9F%D0%B0%D0%BF%D0%BA%D0%B0", count: 1, concrete: "dir" }) },
     });
-    render(<ExplorerView node={cyr} onNavigate={() => {}} />);
+    render(<ExplorerView node={cyr} view="large" onNavigate={() => {}} />);
     const it_ = items().find((el) => el.textContent?.includes("Папка"))!;
     expect(it_.getAttribute("title")).toBe(": dir: Папка"); // space after each colon
     expect(it_.getAttribute("href")).toBe(":dir:%D0%9F%D0%B0%D0%BF%D0%BA%D0%B0");
   });
 
   it("notes an empty directory", () => {
-    render(<ExplorerView node={node({ value: {} })} onNavigate={() => {}} />);
+    render(<ExplorerView node={node({ value: {} })} view="large" onNavigate={() => {}} />);
     expect(screen.getByText("empty")).toBeTruthy();
   });
 
-  it("defaults to the large-icons view; `?view=small` switches to small icons", () => {
-    render(<ExplorerView node={dir} onNavigate={() => {}} />);
+  it("the large view tiles (dirview-lg); the small view drops it for rows", () => {
+    render(<ExplorerView node={dir} view="large" onNavigate={() => {}} />);
     expect(document.querySelector(".dirview")!.className).toContain("dirview-lg");
     cleanup();
 
-    window.history.replaceState({}, "", ":dir?view=small");
-    try {
-      render(<ExplorerView node={dir} onNavigate={() => {}} />);
-      expect(document.querySelector(".dirview")!.className).not.toContain("dirview-lg");
-    } finally {
-      window.history.replaceState({}, "", ":dir");
-    }
+    render(<ExplorerView node={dir} view="small" onNavigate={() => {}} />);
+    expect(document.querySelector(".dirview")!.className).not.toContain("dirview-lg");
   });
 
-  it("`?view=thumbnails` is a gallery: the dirview-thumbs grid + larger (512px) thumbnails", () => {
-    window.history.replaceState({}, "", ":dir?view=thumbnails");
-    try {
-      render(<ExplorerView node={dir} onNavigate={() => {}} />);
-      const grid = document.querySelector(".dirview")!;
-      expect(grid.className).toContain("dirview-lg"); // shares the column-tile layout
-      expect(grid.className).toContain("dirview-thumbs"); // …enlarged into a gallery
-      // a raster image asks the server for the bigger 512px crop (vs 256 in large view)
-      const img = items().find((el) => el.textContent?.includes("pic.png"))!.querySelector("img.dirview-thumb");
-      expect(img?.getAttribute("src")).toContain("/api/thumb?path=");
-      expect(img?.getAttribute("src")).toContain("w=512");
-    } finally {
-      window.history.replaceState({}, "", ":dir");
-    }
-  });
-});
-
-describe("ExplorerViewControl", () => {
-  it("offers every view: icons, gallery, details, and the board", () => {
-    render(<ExplorerViewControl rerender={() => {}} node={node({ path: ":dir", concrete: "dir" })} />);
-    const values = Array.from(document.querySelectorAll("option")).map((o) => o.getAttribute("value"));
-    expect(values).toEqual(["large", "thumbnails", "small", "details", "board"]);
+  it("the thumbnails view is a gallery: the dirview-thumbs grid + larger (512px) thumbnails", () => {
+    render(<ExplorerView node={dir} view="thumbnails" onNavigate={() => {}} />);
+    const grid = document.querySelector(".dirview")!;
+    expect(grid.className).toContain("dirview-lg"); // shares the column-tile layout
+    expect(grid.className).toContain("dirview-thumbs"); // …enlarged into a gallery
+    // a raster image asks the server for the bigger 512px crop (vs 256 in large view)
+    const img = items().find((el) => el.textContent?.includes("pic.png"))!.querySelector("img.dirview-thumb");
+    expect(img?.getAttribute("src")).toContain("/api/thumb?path=");
+    expect(img?.getAttribute("src")).toContain("w=512");
   });
 });
 
@@ -201,7 +183,7 @@ describe("ExplorerView (a tag)", () => {
       // a directly-tagged subtag-like member already present as an owned field — dedup by path
       link({ kind: "object", type: "object", format: "x-yamlover-tag", path: ":tags.yamlover:yellow:pale", count: 0 }),
     ]);
-    render(<ExplorerView node={tag} onNavigate={() => {}} />);
+    render(<ExplorerView node={tag} view="large" onNavigate={() => {}} />);
     expect(mTagged).toHaveBeenCalledWith(":tags.yamlover:yellow");
     await screen.findByText("name:"); // the material arrived
 
@@ -212,7 +194,7 @@ describe("ExplorerView (a tag)", () => {
   });
 
   it("shows the description in the header (no badge — the bar already names the tag) and badge-styled subtags", () => {
-    render(<ExplorerView node={tag} onNavigate={() => {}} />);
+    render(<ExplorerView node={tag} view="large" onNavigate={() => {}} />);
     expect(document.querySelector(".dirhead .tagtag-current")).toBeNull();
     expect(screen.getByText("things to revisit")).toBeTruthy();
     // the subtag renders as a colored badge inside its grid item

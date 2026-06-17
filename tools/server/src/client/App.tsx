@@ -2,10 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchInfo, fetchTasks, fetchTree, PasteResult, TaskInfo, TreeNode } from "./api";
 import { Tree } from "./Tree";
 import { TaskStrip } from "./TaskStrip";
-import { NodeView, Format, FORMATS, DEFAULT_FORMAT } from "./NodeView";
+import { NodeView, Format, FORMATS, DEFAULT_FORMAT, isJsonConcrete } from "./NodeView";
 import { rendererName, tocView } from "./renderers/registry";
 
 const isStandardFormat = (f: Format) => (FORMATS as string[]).includes(f);
+/** Whether `format` may be CARRIED onto a node, given its concrete: every standard format except
+ *  `json5p`, which the target node only offers when it is a json-family file. */
+const formatTravelsTo = (f: Format, concrete?: string | null) =>
+  isStandardFormat(f) && (f !== "json5p" || isJsonConcrete(concrete));
 import { crumbs, formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
 import { broadcastDiff } from "./live";
 
@@ -269,7 +273,7 @@ export function App() {
       let f: Format = format;
       if (target) {
         const rn = rendererName(target, target.concrete);
-        f = rn ?? (isStandardFormat(format) ? format : DEFAULT_FORMAT);
+        f = rn ?? (formatTravelsTo(format, target.concrete) ? format : DEFAULT_FORMAT);
       }
       writeUrl(p, f, false);
       setCurrent(p);

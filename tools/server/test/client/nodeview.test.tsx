@@ -31,21 +31,32 @@ afterEach(cleanup);
 describe("NodeView", () => {
   it("renders the value with a link marker and reports tab switches", async () => {
     mNode.mockResolvedValue({
-      path: ":x",
+      path: ":x.json",
       type: "object",
-      concrete: "yamlover",
+      concrete: "json", // a json-family file → the json5p tab is offered
       title: null,
       description: null,
-      value: { name: "Alice", child: { $yamloverLink: { kind: "object", count: 2, path: ":x:child" } } },
+      value: { name: "Alice", child: { $yamloverLink: { kind: "object", count: 2, path: ":x.json:child" } } },
     });
     const onFormat = vi.fn();
-    render(<NodeView path=":x" format="yamlover" onFormat={onFormat} onNavigate={() => {}} />);
+    render(<NodeView path=":x.json" format="yamlover" onFormat={onFormat} onNavigate={() => {}} />);
 
     expect(await screen.findByText("{ object with 2 properties }")).toBeTruthy();
     expect(screen.getByText("Alice")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "json5p" }));
     expect(onFormat).toHaveBeenCalledWith("json5p");
+  });
+
+  it("offers the json5p tab only for a json-family file", async () => {
+    mNode.mockResolvedValue({
+      path: ":x", type: "object", concrete: "yamlover", title: null, description: null, value: { name: "Alice" },
+    });
+    render(<NodeView path=":x" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("Alice");
+    expect(screen.queryByRole("button", { name: "json5p" })).toBeNull();
+    expect(screen.getByRole("button", { name: "yamlover" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "yamlover/schema" })).toBeTruthy();
   });
 
   it("shows the relations panel (standard-title hyperlinks) above the value in a data view", async () => {
