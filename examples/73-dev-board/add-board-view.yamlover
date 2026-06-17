@@ -8,4 +8,5 @@ chunks:
 - Columns come from the board's `workflow:` states; cards are the task members.
 - A drag DELETEs the old state annotation and POSTs the new one — reusing `/api/annotate`.
 yamlover-annotations:
-- *::tags:workflow:dev:backlog
+- *::yamlover:tags:colors:yellow
+- *::yamlover:tags:workflow:dev:ready

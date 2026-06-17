@@ -11,5 +11,5 @@ chunks:
 - The current `parsePointer` walks scopes and steps in one pass, so `::`/`:::` edge cases leak into step logic.
 - Target a two-phase parse — resolve the scope ladder first, then walk steps — so `SEPARATOR.md` rules live in one place.
 yamlover-annotations:
-- *::tags:workflow:dev:in-progress
 - *::yamlover:tags:colors:yellow
+- *::yamlover:tags:workflow:dev:ready

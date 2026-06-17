@@ -4,4 +4,4 @@
 # states come from the PROJECT-GLOBAL `dev` workflow (the root `tags/` taxonomy) that the cards
 # also point at — one source of truth, no per-board copy. Spec: ../../TICKETS.md §3.
 !!<*yamlover:$defs:board>
-workflow: *::tags:workflow:dev
+workflow: *::yamlover:tags:workflow:dev

@@ -111,3 +111,18 @@ children:
     Nitrite --> Nitrate : Nitrobacter
     Nitrate --> [*] : water change
     @enduml
+"cat-face.png":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-be1b2e864457e339-256x256.jpg
+"cover-paw.png":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-429a227f097399ce-256x256.jpg
+"dog-bone.png":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-5e505632672c09c5-256x256.jpg
+"fish-tank.png":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-09ea0c272066f155-256x256.jpg
+"puppy-paw.png":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-94be71edcf540dac-256x256.jpg

@@ -201,26 +201,38 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
   // Graft the SELF-IMPORT key `yamlover` — the yamlover project ({`$defs/` schemas,
   // `tags/` palette} at the project root, URI `::: yamlover.inthemoon.net`) — into the
   // served tree, so `*yamlover/$defs/…` and `*//yamlover/…` pointers resolve from ANY
-  // served root, including the host project itself (there, `//X` ≡ `//yamlover/X` —
-  // the import is the project, SEPARATOR.md §2). A root that PROJECTS AS AN ARRAY
-  // (all-keyless) is left alone — a keyed graft would flip its kind to mix.
+  // served root (there, `//X` ≡ `//yamlover/X` — the import is the project, SEPARATOR.md §2).
+  // A root that PROJECTS AS AN ARRAY (all-keyless) is left alone — a keyed graft would flip
+  // its kind to mix.
+  //
+  // When the served root IS the project root (its own `$defs/` is a DIRECT child), the taxonomy is
+  // ALREADY materialized at `:$defs` / `:tags` — grafting it again would DUPLICATE every node
+  // (`:yamlover:tags:colors:yellow` beside the real `:tags:colors:yellow`), splitting a tag's
+  // backlinks from its page. So we DE-MATERIALIZE the self-import there: the `yamlover` authority
+  // is absorbed VIRTUALLY by the resolver / query evaluator (resolve.ts, query.ts) back to the
+  // project root, so `::yamlover:tags:…` ≡ `::tags:…` → the SAME real node. The graft is still
+  // materialized for a served SUBDIRECTORY of a project (taxonomy at an ancestor, not in-tree) and
+  // for a plain/foreign dir (the BUILT-IN graft — no real taxonomy to redirect to).
   const defsRoot = findDefsRoot(absDir);
   const defsDir = path.join(defsRoot, '$defs');
+  const selfRoot = path.resolve(absDir) === defsRoot; // served root IS the project root (own $defs)
   const arrayRoot = root.array || (root.entries?.length ? root.entries.every((e) => e.key === null) : false);
   let builtinDefs: Map<string, Node> | undefined; // the in-memory $defs for a BUILT-IN graft (no disk)
   if (!arrayRoot && root.entries && !root.entries.some((e) => e.key === 'yamlover')) {
-    if (fs.existsSync(defsDir)) {
+    if (fs.existsSync(defsDir) && !selfRoot) {
+      // an ANCESTOR's taxonomy (served root is a subdir of a project): bring it in-tree.
       const shared: Entry[] = [{ key: '$defs', edge: 'contain', value: yield* dirNode(defsDir, ctx) }];
       const tagsDir = path.join(defsRoot, 'tags');
       if (fs.existsSync(tagsDir)) shared.push({ key: 'tags', edge: 'contain', value: yield* dirNode(tagsDir, ctx) });
       root.entries.push({ key: 'yamlover', edge: 'contain', value: { kind: 'mapping', entries: shared, array: false } });
-    } else {
+    } else if (!fs.existsSync(defsDir)) {
       // No project taxonomy on disk: graft the BUILT-IN one (the `$defs/tag` schema + `tags/colors`
       // palette), so the color tags resolve and annotations validate in a plain served directory.
       const built = builtinYamloverGraft();
       root.entries.push({ key: 'yamlover', edge: 'contain', value: built.node });
       builtinDefs = built.defs;
     }
+    // else (defsDir exists AND selfRoot): de-materialized self-import — resolves virtually.
   }
   applySchemas(root, defsRoot, builtinDefs); // propagate attached !!<…> schemas down the instance
   return {
@@ -258,6 +270,17 @@ export function reindex(store: Store, absDir: string, opts: WalkOptions = {}): I
  *  then the walk yields the event loop between steps and reports progress. The final
  *  `indexDocument` transaction is still one synchronous commit (flagged by its own message). */
 export async function reindexAsync(store: Store, absDir: string, opts: AsyncWalkOptions = {}): Promise<IndexDiff> {
+  return (await reindexAsyncDoc(store, absDir, opts)).diff;
+}
+
+/** {@link reindexAsync} that also returns the assembled {@link Document} and file manifest — the
+ *  server retains the doc so a later single-file edit can be patched against it in memory
+ *  ({@link reindexPathAsync}) instead of re-walking and rebuilding the whole tree. */
+export async function reindexAsyncDoc(
+  store: Store,
+  absDir: string,
+  opts: AsyncWalkOptions = {},
+): Promise<{ diff: IndexDiff; doc: Document; files: FileRecord[] }> {
   const prev = store.stale ? new Map<string, FileRecord>() : store.manifest();
   const onProgress = opts.onProgress;
   const total = onProgress ? await countChildren(path.resolve(absDir), opts) : undefined;
@@ -269,7 +292,76 @@ export async function reindexAsync(store: Store, absDir: string, opts: AsyncWalk
   onProgress?.({ done: total ?? files.length, total, message: 'writing index…' });
   await yieldLoop(); // let the message out before the blocking commit
   store.indexDocument(doc, files);
-  return diffManifest(prev, files);
+  return { diff: diffManifest(prev, files), doc, files };
+}
+
+/** Incrementally reindex a SINGLE edited file: re-walk only the directory that owns it, splice the
+ *  fresh subtree into the cached `doc`, re-apply schemas (idempotent), and patch the index for that
+ *  subtree ({@link Store.patchSubtree}). Resolution stays whole-tree (in memory) so cross-file and
+ *  inbound pointers remain correct; only the changed subtree's rows are rewritten. `cachedDoc` is
+ *  MUTATED in place on success. Returns null — caller must fall back to {@link reindexAsyncDoc} —
+ *  when the change is not locally patchable: a root-level file (re-walking the root ≡ full reindex),
+ *  a change under the grafted `$defs`/`tags` taxonomy (it feeds schemas/the graft globally), a
+ *  splice point not found in the cached tree, or an external-reference change the patch guard
+ *  rejected. */
+export async function reindexPathAsync(
+  store: Store,
+  absDir: string,
+  cachedDoc: Document,
+  changedRel: string,
+  opts: WalkOptions = {},
+): Promise<{ diff: IndexDiff; doc: Document } | null> {
+  const root = path.resolve(absDir);
+  // The splice unit is the directory that OWNS the change: for a `.yamlover/` overlay the directory
+  // the overlay belongs to; for any other file, its containing directory.
+  const parts = changedRel.split('/');
+  const yi = parts.indexOf(YAMLOVER_DIR);
+  const dirSegs = yi >= 0 ? parts.slice(0, yi) : parts.slice(0, -1);
+  if (dirSegs.length === 0) return null; // a root-level file → re-walking the root is a full reindex
+  if (dirSegs[0] === '$defs' || dirSegs[0] === 'tags') return null; // feeds applySchemas/the graft
+
+  // locate the splice node's holding entry in the cached tree (navigate by filesystem key)
+  let entries = cachedDoc.root.entries;
+  let target: { arr: Entry[]; i: number } | null = null;
+  for (let d = 0; d < dirSegs.length; d++) {
+    if (!entries) return null;
+    const i = entries.findIndex((e) => e.key === dirSegs[d] && !isPointer(e.value));
+    if (i < 0) return null;
+    if (d === dirSegs.length - 1) target = { arr: entries, i };
+    else entries = (entries[i].value as Node).entries;
+  }
+  if (!target) return null;
+
+  const absSpliceDir = path.join(root, ...dirSegs);
+  if (!fs.existsSync(absSpliceDir) || !fs.statSync(absSpliceDir).isDirectory()) return null;
+
+  const prev = store.stale ? new Map<string, FileRecord>() : store.manifest();
+  const ctx: Ctx = { root, opts: { ...opts, cache: opts.cache ?? manifestCache(prev) }, files: new Map(), count: 0 };
+  const gen = dirNode(absSpliceDir, ctx);
+  let r = gen.next();
+  while (!r.done) r = gen.next();
+  target.arr[target.i].value = r.value; // splice the fresh subtree
+  applySchemas(cachedDoc.root, findDefsRoot(absDir), graftDefs(cachedDoc.root)); // re-derive formats top-down
+
+  const relPrefix = dirSegs.join('/') + '/';
+  const P = ':' + dirSegs.join(':');
+  const prevSub = new Map([...prev].filter(([k]) => k.startsWith(relPrefix)));
+  const files = [...ctx.files.values()];
+  const diff = diffManifest(prevSub, files);
+  if (!store.patchSubtree(cachedDoc, P, files, relPrefix)) return null; // guard rejected → full reindex
+  return { diff, doc: cachedDoc };
+}
+
+/** The built-in graft's `$defs` schema nodes inside a walked tree, so {@link applySchemas} can run
+ *  on a spliced tree without rebuilding the built-in template. Undefined when the project has its
+ *  own on-disk `$defs` (applySchemas reads those from disk; the in-tree fallback is unused). */
+function graftDefs(root: Node): Map<string, Node> | undefined {
+  const yam = root.entries?.find((e) => e.key === 'yamlover' && !isPointer(e.value))?.value as Node | undefined;
+  const defs = yam?.entries?.find((e) => e.key === '$defs' && !isPointer(e.value))?.value as Node | undefined;
+  if (!defs?.entries) return undefined;
+  const m = new Map<string, Node>();
+  for (const e of defs.entries) if (e.key && !isPointer(e.value)) m.set(e.key, e.value as Node);
+  return m.size ? m : undefined;
 }
 
 /** The default walk cache: the previous manifest — an unchanged (size, mtime) reuses the known

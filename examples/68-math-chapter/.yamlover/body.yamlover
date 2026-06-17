@@ -28,4 +28,4 @@ yamlover-fragments:
     suffix: " likes to hide "
     created: 2026-06-16T17:18:11.059Z
     yamlover-annotations:
-    - *::yamlover:tags:colors:yellow
+    - *::yamlover:tags:colors:green

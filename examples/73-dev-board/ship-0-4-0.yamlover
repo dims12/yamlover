@@ -17,5 +17,5 @@ children:
   chunks:
   - A short note covering tasks/boards and the colon-grammar migration.
 yamlover-annotations:
-- *::tags:workflow:dev:done
+- *::yamlover:tags:workflow:dev:done
 - *::yamlover:tags:colors:yellow

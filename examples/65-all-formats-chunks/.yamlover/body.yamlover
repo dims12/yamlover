@@ -39,3 +39,15 @@ chunks:
 - *: sample.fb2
 - *: sample.epub
 - *: sample.psd
+"sample.bmp":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-d5eed55624a55a5e-256x256.jpg
+"sample.gif":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-852d9f6a62844d89-256x256.jpg
+"sample.png":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-2a8e48bede9eff6a-256x256.jpg
+"sample.tiff":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-b1ac4be4ce4fb34c-256x256.jpg

@@ -5,4 +5,4 @@ priority: normal
 chunks:
 - Dropped — the re-emitter already rewrites legacy slash input as colon (IR-equal), so no manual guide is needed.
 yamlover-annotations:
-- *::tags:workflow:dev:cancelled
+- *::yamlover:tags:workflow:dev:cancelled

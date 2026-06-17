@@ -59,17 +59,19 @@ test('73-dev-board: tasks, board & workflow resolve; state is a ref edge into th
   s.indexDocument(doc);
   // the directory is a board; its files index as tasks; the `dev` node overrides its inherited tag
   // schema to $defs/workflow (the inline `!!<*…>` wins over the parent's additionalProperties), and
-  // its states stay plain tags.
+  // its states stay plain tags. The workflow is PROJECT-GLOBAL (the root `tags/` taxonomy), reached
+  // here via the `yamlover` self-import graft — so its nodes live under `:yamlover:tags:…` when the
+  // board is loaded as a standalone subdir (the bare `:tags:…` form only exists at the project root).
   assert.equal(s.node(':')?.format, 'x-yamlover-board');
   assert.equal(s.node(':refactor-parser.yamlover')?.format, 'x-yamlover-task');
-  assert.equal(s.node(':tags:workflow:dev')?.format, 'x-yamlover-workflow');
-  assert.equal(s.node(':tags:workflow:dev:in-progress')?.format, 'x-yamlover-tag');
+  assert.equal(s.node(':yamlover:tags:workflow:dev')?.format, 'x-yamlover-workflow');
+  assert.equal(s.node(':yamlover:tags:workflow:dev:ready')?.format, 'x-yamlover-tag');
   // a task's state is a forward ref into the workflow's state; the reverse of that edge is the
-  // board column (what /api/tagged surfaces).
-  const into = s.relationships(':tags:workflow:dev:in-progress').in;
+  // board column (what /api/tagged surfaces). `refactor-parser` sits in the `ready` column.
+  const into = s.relationships(':yamlover:tags:workflow:dev:ready').in;
   assert.ok(
     into.some((e) => e.kind === 'ref' && e.from.startsWith(':refactor-parser.yamlover')),
-    'the in-progress task annotates the in-progress state',
+    'the ready task annotates the ready state',
   );
   s.close();
 });

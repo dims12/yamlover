@@ -76,22 +76,34 @@ export function editable(a: Annotation): boolean {
 
 // The color tags as indexed (fetched once per session; the constant covers offline/legacy roots).
 let colorTagsPromise: Promise<TagRef[]> | null = null;
+
+/** Load the palette, preferring the project's REAL `::tags:colors` over the self-import graft.
+ *  In a yamlover PROJECT the self-import is de-materialized (graft-virtualize), so `::tags:colors`
+ *  is the live palette and `::yamlover:tags:colors` no longer exists as a node; in a plain/FOREIGN
+ *  served root only the built-in graft `::yamlover:tags:colors` exists. Pin each emitted ref to the
+ *  base that resolved, so the written pointer matches the tag PAGE path (`:tags:colors:<name>` in a
+ *  project) and reconciles against the server echo instead of leaving a ghost badge. */
+async function loadColorTags(): Promise<TagRef[]> {
+  for (const base of ["::tags:colors", "::yamlover:tags:colors"]) {
+    try {
+      const n = await fetchNode(base, 2);
+      const out: TagRef[] = [];
+      for (const [name, child] of tagFields(n.value)) {
+        const color = explicitColor(child);
+        if (color) out.push({ path: `${base}:${encodeURIComponent(name)}`, name, color });
+      }
+      if (out.length) return out;
+    } catch {
+      // node absent at this base — try the next
+    }
+  }
+  return COLOR_TAGS;
+}
+
 export function useColorTags(): TagRef[] {
   const [tags, setTags] = useState<TagRef[]>(COLOR_TAGS);
   useEffect(() => {
-    colorTagsPromise ??= fetchNode("::yamlover:tags:colors", 2)
-      .then((n) => {
-        const out: TagRef[] = [];
-        for (const [name, child] of tagFields(n.value)) {
-          const color = explicitColor(child);
-          // PROJECT-scope ref pinned to `::yamlover:tags:colors:<name>` — NOT derived from
-          // `n.path` (the API echoes that in `:`-form, which would mismatch COLOR_TAGS and
-          // resurrect the ghost badge); and `:` not `/` (the pre-SEPARATOR separator bug).
-          if (color) out.push({ path: `::yamlover:tags:colors:${encodeURIComponent(name)}`, name, color });
-        }
-        return out.length ? out : COLOR_TAGS;
-      })
-      .catch(() => COLOR_TAGS);
+    colorTagsPromise ??= loadColorTags();
     let cancelled = false;
     colorTagsPromise.then((t) => { if (!cancelled) setTags(t); });
     return () => { cancelled = true; };

@@ -26,23 +26,41 @@ export function useExplorerTagMenu(): { openAt: (target: string, x: number, y: n
     setCurrent([]);
     fetchAnnotations(target)
       .then((anns) => {
-        if (anns.length === 0) annotate({ target, tag: tag.path }).then(() => reload(target)).catch(() => setCurrent([]));
-        else setCurrent(anns);
+        if (anns.length === 0) {
+          setCurrent([{ path: "(pending)", tag }]); // OPTIMISTIC: show the default tag at once
+          annotate({ target, tag: tag.path }).then(() => reload(target)).catch(() => setCurrent([]));
+        } else setCurrent(anns);
       })
       .catch(() => setCurrent([]));
   };
 
+  // Both toggles update the menu OPTIMISTICALLY (no wait on the write round-trip) and reconcile from
+  // the server's echo when it returns; a failed write rolls the optimistic change back. The
+  // underlying view refreshes independently through its own `useDiffBump` on the SSE diff.
   const add = (t: TagRef) => {
     if (!menu) return;
     setTag(t);
-    annotate({ target: menu.target, tag: t.path }).then(() => reload(menu.target)).catch((e) => window.alert("tag failed: " + (e as Error).message));
+    const optimistic: Annotation = { path: "(pending)", tag: t };
+    setCurrent((cur) => [...cur, optimistic]);
+    annotate({ target: menu.target, tag: t.path })
+      .then(() => reload(menu.target))
+      .catch((e) => {
+        setCurrent((cur) => cur.filter((a) => a !== optimistic));
+        window.alert("tag failed: " + (e as Error).message);
+      });
   };
   const remove = (t: TagRef) => {
     if (!menu) return;
     // Delete by the REAL applied tag's path (the server's echo, `:yamlover:…` doc form) rather than
     // the clicked ref (a palette swatch is `::yamlover:…` link form) — so a color tag unapplies too.
     const applied = current.find((a) => a.tag && canonPath(a.tag.path) === canonPath(t.path));
-    deleteAnnotation(menu.target, applied?.tag?.path ?? t.path).then(() => reload(menu.target)).catch((e) => window.alert("untag failed: " + (e as Error).message));
+    setCurrent((cur) => cur.filter((a) => a !== applied));
+    deleteAnnotation(menu.target, applied?.tag?.path ?? t.path)
+      .then(() => reload(menu.target))
+      .catch((e) => {
+        if (applied) setCurrent((cur) => [...cur, applied]);
+        window.alert("untag failed: " + (e as Error).message);
+      });
   };
 
   // Outside-click closes (the menu's own buttons/inputs sit inside `ref`).

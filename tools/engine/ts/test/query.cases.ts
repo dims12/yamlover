@@ -223,18 +223,20 @@ export const CASES: QueryCase[] = [
     note: 'every blob, in walk (filesystem) order; the tags/graft subtrees hold none' },
 
   // ════ 9. The self-import graft (synthetic project fixture) ════
+  // The fixture IS a project root (its own $defs/tags), so the `yamlover` self-import is
+  // DE-MATERIALIZED (walk.ts) and `:: yamlover: X` is ABSORBED to the REAL `:X` — no duplicate
+  // `:yamlover:…` nodes. So `::X` and `::yamlover:X` reach the SAME node, not distinct copies.
   { q: ':: yamlover: tags: colors: ?', fixture: 'graft',
-    expect: [':yamlover:tags:colors:yellow', ':yamlover:tags:colors:green'],
-    note: 'the grafted palette enumerated through the import key' },
+    expect: [':tags:colors:yellow', ':tags:colors:green'],
+    note: 'the palette enumerated through the (virtual) self-import key → the real nodes' },
   { q: ':: yamlover: tags: ...: !!<format: x-yamlover-tag>', fixture: 'graft',
-    expect: [':yamlover:tags', ':yamlover:tags:colors', ':yamlover:tags:colors:yellow',
-             ':yamlover:tags:colors:green'],
+    expect: [':tags', ':tags:colors', ':tags:colors:yellow', ':tags:colors:green'],
     note: 'THE TAG-PICKER QUERY: descendant-or-self, format-filtered (color scalars drop)' },
   { q: ':: yamlover: tags: colors: ?: color', fixture: 'graft',
-    expect: [':yamlover:tags:colors:yellow:color', ':yamlover:tags:colors:green:color'] },
+    expect: [':tags:colors:yellow:color', ':tags:colors:green:color'] },
   { q: ':: tags: colors: yellow', fixture: 'graft', expect: [':tags:colors:yellow'],
-    note: 'self-import synonymy: ::X and ::yamlover:X reach the same CONTENT (distinct ' +
-          'grafted node objects — the physical path answers when asked directly)' },
+    note: 'self-import synonymy: ::X and ::yamlover:X now reach the SAME real node ' +
+          '(graft de-materialized — no duplicate :yamlover: subtree)' },
   { q: ':: nowhere: x', fixture: 'graft', expect: [],
     note: '∅ + an external/dangling diagnostic — never an error' },
 ];

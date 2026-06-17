@@ -22,6 +22,9 @@ tools/server/dist/
 **/.yamlover/*.db
 **/.yamlover/*.db-*
 
+# Presentation speaker scripts (personal, generated)
+/.presentations/
+
 # Dev scratch at the repo root (created while serving the repo itself)
 /.screenshots/
 /bad/

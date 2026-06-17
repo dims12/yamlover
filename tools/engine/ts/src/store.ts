@@ -173,6 +173,93 @@ export class Store {
     }
   }
 
+  /** Patch the index for a SINGLE changed subtree instead of rebuilding the whole DB. `doc` is the
+   *  FULL, freshly-resolved document (the cached tree with the changed file's subtree spliced back
+   *  in and schemas re-applied) — correctness comes from resolving against the whole tree in
+   *  memory; speed comes from writing only the rows under `prefix` (the store path P of the changed
+   *  subtree). Every node/edge/dangling/file row whose owner lies under P is replaced; rows outside
+   *  P are left untouched (their resolution did not change). `files` is the re-walked manifest for
+   *  the subtree (POSIX paths under `relPrefix`).
+   *
+   *  Returns false WITHOUT writing when the patch is not provably equal to a full rebuild: if any
+   *  external `ref`/`back` edge pointing INTO the subtree changed (a referenced node added/removed/
+   *  re-resolved), the caller must fall back to a full reindex. The boundary `contain` edge into P
+   *  (from P's parent, outside the subtree) is stable and intentionally left in place. */
+  patchSubtree(doc: Document, prefix: string, files: FileRecord[], relPrefix: string): boolean {
+    const colon = prefix + ':';
+    const brack = prefix + '[';
+    const underP = (p: string): boolean => p === prefix || p.startsWith(colon) || p.startsWith(brack);
+
+    // Resolve the whole (cached + spliced) tree once: the in-memory resolution is global, so cross-
+    // file and inbound pointers are correct; we only choose which rows to write from the result.
+    const edges = resolveDocument(doc);
+
+    // GUARD: external ref/back edges INTO the subtree must be identical, else a full rebuild is owed.
+    const edgeKey = (from: string, to: string, label: string | null, kind: string, pos: number | null): string =>
+      JSON.stringify([from, to, label, kind, pos]);
+    const extInNew = edges
+      .filter((r) => r.target.kind === 'node' && underP((r.target as { path: string }).path) && !underP(r.holder))
+      .map((r) => edgeKey(r.holder, (r.target as { path: string }).path, r.label, r.edge, r.pos))
+      .sort();
+    const extInOld = (
+      this.db.prepare("SELECT from_path, to_path, label, kind, pos FROM edge WHERE kind IN ('ref','back')").all() as Record<string, unknown>[]
+    )
+      .filter((r) => underP(r.to_path as string) && !underP(r.from_path as string))
+      .map((r) => edgeKey(r.from_path as string, r.to_path as string, (r.label as string) ?? null, r.kind as string, (r.pos as number) ?? null))
+      .sort();
+    if (extInOld.length !== extInNew.length || extInOld.some((k, i) => k !== extInNew[i])) return false;
+
+    const insNode = this.db.prepare(
+      `INSERT INTO node (path, type, format, value, content_hash, size, is_array, meta)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const insEdge = this.db.prepare(
+      `INSERT INTO edge (from_path, to_path, label, kind, pos) VALUES (?, ?, ?, ?, ?)`,
+    );
+    const insDangling = this.db.prepare('INSERT INTO dangling (from_path, raw, reason) VALUES (?, ?, ?)');
+    const insFile = this.db.prepare('INSERT OR REPLACE INTO file (path, hash, size, mtime_ms) VALUES (?, ?, ?, ?)');
+    this.db.exec('BEGIN');
+    try {
+      // delete every row owned by the subtree (node identity / edge source / dangling source under P)
+      const delUnder = (col: string, table: string): void => {
+        this.db
+          .prepare(`DELETE FROM ${table} WHERE ${col} = ? OR substr(${col},1,?) = ? OR substr(${col},1,?) = ?`)
+          .run(prefix, colon.length, colon, brack.length, brack);
+      };
+      delUnder('path', 'node');
+      delUnder('from_path', 'edge'); // outgoing + interior contain edges; the inbound boundary edge survives
+      delUnder('from_path', 'dangling');
+      if (relPrefix) this.db.prepare('DELETE FROM file WHERE substr(path,1,?) = ?').run(relPrefix.length, relPrefix);
+
+      // reinsert the subtree's nodes + INTERIOR containment edges (skip the boundary edge into P)
+      walkNodes(doc.root, ':', (p, node, parent, label, pos) => {
+        if (!underP(p)) return;
+        const meta = node.meta ? JSON.stringify(node.meta) : null;
+        const owned = node.entries?.filter((e) => e.edge !== 'back') ?? [];
+        const isArray = node.array || (node.kind === 'mapping' && owned.length > 0 && owned.every((e) => e.key === null));
+        const value = node.kind === 'scalar' ? JSON.stringify(node.value) : null;
+        const format = node.kind === 'blob' ? node.format : formatFromMeta(node);
+        const hash = node.kind === 'blob' ? node.contentHash : null;
+        const size = node.kind === 'blob' ? node.size : null;
+        insNode.run(p, node.kind, format, value, hash, size, isArray ? 1 : 0, meta);
+        if (parent !== null && underP(parent)) insEdge.run(parent, p, label, 'contain', pos);
+      });
+      // reinsert resolved ref/back edges and dangling whose HOLDER is under P
+      for (const r of edges) {
+        if (!underP(r.holder)) continue;
+        if (r.target.kind === 'node') insEdge.run(r.holder, r.target.path, r.label, r.edge, r.pos);
+        else if (r.target.kind === 'unresolved') insDangling.run(r.from, r.raw, r.target.reason);
+      }
+      for (const f of files) insFile.run(f.path, f.hash, f.size, f.mtimeMs);
+      this.db.exec('COMMIT');
+      this._stale = false;
+      return true;
+    } catch (e) {
+      this.db.exec('ROLLBACK');
+      throw e;
+    }
+  }
+
   /** Incrementally add ONE annotation document at `annStorePath`, with a forward `target` ref edge
    *  to `targetStorePath` and (when given) a keyless `back` edge to `tagStorePath` — the applied
    *  tag's `~-` membership. This avoids a full re-walk/rebuild (which re-reads and re-hashes every

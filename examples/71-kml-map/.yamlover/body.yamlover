@@ -8,4 +8,4 @@
       w: 13.362057209014893
       created: 2026-06-14T23:02:38.975Z
       yamlover-annotations:
-      - *::tags:'forth tag'
+      - *::yamlover:tags:'forth tag'

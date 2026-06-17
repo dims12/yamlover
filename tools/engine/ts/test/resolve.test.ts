@@ -92,3 +92,31 @@ test('pointer cycle is detected, not infinite', () => {
   const t = resolveDocument(doc).map((e) => e.target.kind);
   assert.ok(t.every((k) => k === 'node' || k === 'unresolved')); // terminates
 });
+
+// ─────────────────────── self-import absorption (graft-virtualize) ───────────────────────
+
+test('self-import: `::yamlover:tags:x` is ABSORBED to the real `:tags:x` when no yamlover node', () => {
+  // a project root (its taxonomy at :tags, no materialized :yamlover): the `yamlover` authority
+  // loops back to the project root, so the pointer lands on the REAL node — not a graft duplicate.
+  const doc = parseYamlover('tags:\n  x: 1\nref: *::yamlover:tags:x\n');
+  const e = resolveDocument(doc).find((r) => r.label === 'ref')!;
+  assert.equal(e.target.kind, 'node');
+  assert.equal((e.target as { path: string }).path, ':tags:x');
+});
+
+test('self-import: `::yamlover:tags:x` steps INTO a materialized yamlover node when one exists', () => {
+  // a foreign/subdir root whose taxonomy lives under a real `yamlover` graft key: step in as before.
+  const doc = parseYamlover('yamlover:\n  tags:\n    x: 1\nref: *::yamlover:tags:x\n');
+  const e = resolveDocument(doc).find((r) => r.label === 'ref')!;
+  assert.equal(e.target.kind, 'node');
+  assert.equal((e.target as { path: string }).path, ':yamlover:tags:x');
+});
+
+test('self-import: `::tags:x` and `::yamlover:tags:x` reach the SAME node in a project', () => {
+  const doc = parseYamlover('tags:\n  x: 1\nplain: *::tags:x\nviaImport: *::yamlover:tags:x\n');
+  const edges = resolveDocument(doc);
+  const plain = edges.find((r) => r.label === 'plain')!;
+  const via = edges.find((r) => r.label === 'viaImport')!;
+  assert.equal((plain.target as { path: string }).path, ':tags:x');
+  assert.equal((via.target as { path: string }).path, ':tags:x');
+});

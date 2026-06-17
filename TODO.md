@@ -15,3 +15,5 @@
 - /examples/68-math-chapter displays expand chevron in TOC, although it doesn't have any children
 - add light color scheme
 - store rendered diagrams in .yamlover
+- impossible to remove fragment tag just after select
+- make multiline text values also collapsible

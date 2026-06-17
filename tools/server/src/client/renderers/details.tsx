@@ -5,7 +5,7 @@ import { typeIcon } from "../icons";
 import { displayPath } from "../paths";
 import { isColorTagPath, resolveTagColor, TagSwatch } from "./tag";
 import { TagTip } from "./tagtip";
-import { touchesYamlover, useDiffBump } from "../live";
+import { touchesYamlover, useDiffPaths } from "../live";
 
 // A member's KIND label: a friendly tail of its format (`application/pdf` → `pdf`,
 // `x-yamlover-task` → `task`, `text/markdown` → `markdown`), else its directory concrete or type.
@@ -47,11 +47,12 @@ export function DetailsView({
   onNavigate: (path: string) => void;
   openContextMenu?: (path: string, x: number, y: number) => void;
 }) {
-  const diffBump = useDiffBump(touchesYamlover);
+  const { seq, paths: changed } = useDiffPaths(touchesYamlover);
   const [tagsByPath, setTagsByPath] = useState<Record<string, Annotation[]>>({});
 
   const paths = members.map((m) => m.link?.path).filter((p): p is string => !!p);
   const pathsKey = paths.join("|");
+  // Full load when the member set changes (open / navigate): every member's tags at once.
   useEffect(() => {
     let cancelled = false;
     Promise.all(paths.map((p) => fetchAnnotations(p).then((a) => [p, a] as const).catch(() => [p, []] as const))).then((pairs) => {
@@ -61,7 +62,24 @@ export function DetailsView({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathsKey, diffBump]);
+  }, [pathsKey]);
+  // Scoped refetch on a diff: only members the touched FILES actually affect — a tag toggle on one
+  // row no longer re-fetches annotations for every row in the view. A member at node path `M` is
+  // affected when a changed file IS `M` (a standalone-file node) or lives UNDER it (`M:…`, e.g. its
+  // `.yamlover/body.yamlover` overlay).
+  useEffect(() => {
+    if (seq === 0) return;
+    const affected = paths.filter((p) => changed.some((f) => f === p || f.startsWith(p + ":")));
+    if (affected.length === 0) return;
+    let cancelled = false;
+    Promise.all(affected.map((p) => fetchAnnotations(p).then((a) => [p, a] as const).catch(() => [p, [] as Annotation[]] as const))).then((pairs) => {
+      if (!cancelled) setTagsByPath((prev) => ({ ...prev, ...Object.fromEntries(pairs) }));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seq]);
 
   return (
     <div className="detailsview">

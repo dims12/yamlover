@@ -242,23 +242,30 @@ test('~- membership in a body overlay: stored as a keyless back edge; !!set / un
   rmSync(root, { recursive: true, force: true });
 });
 
-test('self-import graft: a root that IS a project (has $defs) still gains the yamlover key', () => {
-  // SEPARATOR.md §2: inside the yamlover project, //X ≡ //yamlover/X — the engine grafts
-  // the self-import key into EVERY served root, including the host project itself.
+test('self-import graft: a root that IS a project is DE-MATERIALIZED — `::yamlover:X` resolves to the real `:X`', () => {
+  // SEPARATOR.md §2: inside the yamlover project, ::X ≡ ::yamlover:X. When the served root IS the
+  // project (its own $defs/ is a direct child), the taxonomy is already at :$defs / :tags — so the
+  // self-import is NOT materialized a second time (no duplicate :yamlover: subtree); the `yamlover`
+  // authority is absorbed VIRTUALLY by the resolver back to the project root (graft-virtualize).
   const dir = mkdtempSync(join(tmpdir(), 'yamlover-walk-'));
   mkdirSync(join(dir, '$defs'));
   writeFileSync(join(dir, '$defs', 'thing'), 'type: object\n');
   mkdirSync(join(dir, 'tags'));
   writeFileSync(join(dir, 'tags', 'red.yamlover'), 'Red things\n');
-  writeFileSync(join(dir, 'data.yamlover'), 'x: 1\n');
+  // a material whose pointer uses the self-import (graft-scope) spelling the client emits
+  writeFileSync(join(dir, 'data.yamlover'), 'ref: *::yamlover:tags:red.yamlover\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(dir));
-  // the physical keys…
-  assert.ok(s.node(':$defs'));
-  assert.ok(s.node(':tags'));
-  // …AND the grafted self-import alias, both subtrees reachable under it
-  assert.ok(s.node(':yamlover:$defs:thing'));
-  assert.ok(s.node(':yamlover:tags:red.yamlover'));
+  // the real taxonomy is at the root…
+  assert.ok(s.node(':$defs:thing'));
+  assert.ok(s.node(':tags:red.yamlover'));
+  // …and NO duplicate self-import subtree is materialized
+  assert.equal(s.node(':yamlover'), null);
+  assert.equal(s.node(':yamlover:tags:red.yamlover'), null);
+  // the `::yamlover:…` pointer resolves VIRTUALLY to the REAL node (absorbed self-import)
+  const inb = s.relationships(':tags:red.yamlover').in.filter((e) => e.kind === 'ref');
+  assert.equal(inb.length, 1);
+  assert.equal(inb[0].from, ':data.yamlover');
   s.close();
   rmSync(dir, { recursive: true, force: true });
 });
