@@ -96,6 +96,24 @@ describe("ExplorerView (a directory)", () => {
     expect(onNav).toHaveBeenCalledWith(":dir:sub");
   });
 
+  it("a PDF (and any typed) member uses the SHARED icon (icons.ts) — `📕`, never the `•` fallback — and navigates", () => {
+    const onNav = vi.fn();
+    const d = node({
+      value: { "paper.pdf": link({ kind: "binary", type: "binary", path: ":dir:paper.pdf", size: 9, format: "application/pdf" }) },
+    });
+    render(<ExplorerView node={d} view="large" onNavigate={onNav} />);
+    const pdf = items().find((el) => el.textContent?.includes("paper.pdf"))!;
+    expect(pdf.querySelector(".dirview-icon")?.textContent).toBe("📕"); // typeIcon(application/pdf), not a bullet
+    fireEvent.click(pdf);
+    expect(onNav).toHaveBeenCalledWith(":dir:paper.pdf");
+  });
+
+  it("never shows the bare `•` bullet for normal members (regression: depth-1 link markers keep their icons)", () => {
+    render(<ExplorerView node={dir} view="large" onNavigate={() => {}} />);
+    const bullets = items().filter((el) => el.querySelector(".dirview-icon")?.textContent === "•");
+    expect(bullets).toHaveLength(0);
+  });
+
   it("autofocuses the first item; arrows walk the grid and Enter opens the selected one", () => {
     // (Up/Down are geometry-based — jsdom has no layout, so only the index moves are asserted here)
     const onNav = vi.fn();

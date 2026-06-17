@@ -72,6 +72,18 @@ export function memberItems(node: NodeJson): ExplorerItem[] {
   return Object.entries(v as Record<string, unknown>).map(([key, val]) => ({ key, link: asLink(val), raw: val }));
 }
 
+/** The JSON-Schema type name of a raw value — so a non-marker member still resolves its icon
+ *  through the shared {@link typeIcon} detector (icons.ts), not an ad-hoc glyph. */
+function rawType(v: unknown): string {
+  if (v === null || v === undefined) return "null";
+  if (Array.isArray(v)) return "array";
+  const t = typeof v;
+  if (t === "object") return "object";
+  if (t === "boolean") return "boolean";
+  if (t === "number") return Number.isInteger(v) ? "integer" : "number";
+  return "string";
+}
+
 /** A scalar member's value as a short label tail (`key: <this>`) — its first line,
  *  capped (a long text would bloat the DOM; the CSS ellipsis only hides overflow). */
 function scalarText(v: unknown): string {
@@ -149,10 +161,13 @@ function Item({ it, active, view, setRef, onFocus, onNavigate, onContext }: {
   // right-click a real member (not an uplink) → the tagging menu, at the cursor
   const contextProps = link && !it.up && onContext ? { onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); onContext(link.path, e.clientX, e.clientY); } } : {};
   if (!link) {
-    // not a marker (unexpected at depth 1) — an inert label, no navigation
+    // not a marker (unexpected at depth 1) — an inert label, no navigation. Its icon still comes
+    // from the SHARED detector (icons.ts), inferred from the raw value's JSON type — never an
+    // ad-hoc glyph.
+    const g = typeIcon(rawType(it.raw), null);
     return (
       <span className="dirview-item" ref={setRef} tabIndex={tabIndex} onFocus={onFocus}>
-        <span className="dirview-icon t-bin">•</span>
+        <span className={"dirview-icon " + g.cls} title={g.title}>{g.glyph}</span>
         <span className="dirview-label">{it.key}: {scalarText(it.raw)}</span>
       </span>
     );

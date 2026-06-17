@@ -1,8 +1,8 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 
 // Keep in sync with LINK_KEY / BINARY_KEY in src/server/yamlover.ts.
 //
-// A node shown only as a link (a container past the one-level view, or any binary
+// A node shown only as a link (a container past the depth budget, or any binary
 // leaf) arrives as `{ [LINK_KEY]: {kind, path, count|size} }` — the same marker in
 // the value and the schema — so every representation renders the same hyperlink.
 //
@@ -80,30 +80,24 @@ export function scalarValue(v: unknown): unknown {
 }
 
 type Syntax = "yaml" | "json";
+type Nav = (path: string) => void;
 
 /**
- * Render a one-level value or schema in YAML or JSON syntax, syntax-highlighted,
- * with nested containers as hyperlinks. Used for every RHS representation so they
- * behave identically: scalars shown, nested objects/arrays clicked to descend.
+ * Render a value in YAML or JSON syntax, syntax-highlighted, with nested containers shown inline
+ * (the server inlines them up to the requested DEPTH) and **collapsible** — each inline object /
+ * array carries a fold chevron in the LEFT GUTTER (JetBrains-style, the same chevron as the TOC).
+ * A container past the depth budget arrives as a link marker and is drawn as a CONTINUATION
+ * hyperlink you click to descend. Used for every RHS data representation so they behave identically.
  */
-export function Render({
-  value,
-  syntax,
-  onNavigate,
-}: {
-  value: unknown;
-  syntax: Syntax;
-  onNavigate: (path: string) => void;
-}) {
+export function Render({ value, syntax, onNavigate }: { value: unknown; syntax: Syntax; onNavigate: Nav }) {
   const bin = asBinary(value);
   if (bin && syntax === "yaml") return <BinaryYaml bin={bin} />;
   const v = bin ?? value; // JSON shows the {format,size,base64} metadata object
-
-  const out: ReactNode[] = [];
-  const kc = { n: 0 };
-  if (syntax === "yaml") emitYaml(v, 0, out, kc, onNavigate);
-  else emitJson(v, 0, out, kc, onNavigate);
-  return <>{out}</>;
+  return syntax === "yaml" ? (
+    <YamlRoot value={v} indent={0} nav={onNavigate} />
+  ) : (
+    <JsonValue value={v} indent={0} nav={onNavigate} root />
+  );
 }
 
 /** A selected binary leaf as a YAML `!!binary` block (a comment carries the
@@ -122,22 +116,20 @@ function BinaryYaml({ bin }: { bin: BinaryPayload }) {
   );
 }
 
-interface KC {
-  n: number;
-}
-
-function linkNode(link: Link, syntax: Syntax, kc: KC, onNavigate: (p: string) => void): ReactNode {
+// --------------------------------------------------------------------------- //
+// Shared leaves (links / refs / scalars / fold toggle)
+// --------------------------------------------------------------------------- //
+function linkNode(link: Link, syntax: Syntax, nav: Nav): ReactNode {
   // a scalar child links by its rendered value (`~`/`null`, quoted/bare per syntax);
   // a container by its `{ … }`/`[ … ]` summary
   const label = link.kind === "scalar" ? scalarLabel(link.value, syntax) : linkLabel(link);
   return (
     <a
-      key={kc.n++}
       className="descend"
       href={link.path}
       onClick={(e) => {
         e.preventDefault();
-        onNavigate(link.path);
+        nav(link.path);
       }}
     >
       {label}
@@ -154,18 +146,17 @@ function scalarLabel(v: unknown, syntax: Syntax): string {
 
 /** A `rel` pointer: its text as a hyperlink to the resolved `path`, or — when the
  *  pointer does not resolve — plain string text (no link). */
-function refNode(ref: Ref, syntax: Syntax, kc: KC, onNavigate: (p: string) => void): ReactNode {
+function refNode(ref: Ref, syntax: Syntax, nav: Nav): ReactNode {
   const text = syntax === "json" ? JSON.stringify(ref.text) : ref.text;
-  if (!ref.path) return <span className="s" key={kc.n++}>{text}</span>;
+  if (!ref.path) return <span className="s">{text}</span>;
   const target = ref.path;
   return (
     <a
-      key={kc.n++}
       className="descend"
       href={target}
       onClick={(e) => {
         e.preventDefault();
-        onNavigate(target);
+        nav(target);
       }}
     >
       {text}
@@ -182,158 +173,306 @@ function linkLabel(link: Link): string {
   return `{ object with ${n} ${n === 1 ? "property" : "properties"} }`;
 }
 
-function scalarNode(v: unknown, syntax: Syntax, kc: KC): ReactNode {
-  if (v === null) return <span className="null" key={kc.n++}>{syntax === "json" ? "null" : "~"}</span>;
-  if (typeof v === "boolean") return <span className="b" key={kc.n++}>{String(v)}</span>;
-  if (typeof v === "number") return <span className="n" key={kc.n++}>{String(v)}</span>;
+function scalarNode(v: unknown, syntax: Syntax): ReactNode {
+  if (v === null) return <span className="null">{syntax === "json" ? "null" : "~"}</span>;
+  if (typeof v === "boolean") return <span className="b">{String(v)}</span>;
+  if (typeof v === "number") return <span className="n">{String(v)}</span>;
   const text = syntax === "json" ? JSON.stringify(v) : String(v);
-  return <span className="s" key={kc.n++}>{text}</span>;
+  return <span className="s">{text}</span>;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
+/** Whether a value renders as an inline, COLLAPSIBLE container — a non-empty object / array, or an
+ *  omni/mix marker. Link / ref markers (continuations, navigated not folded), empty containers, and
+ *  scalars are not foldable. */
+function foldable(v: unknown): boolean {
+  if (asLink(v) || asRef(v)) return false;
+  if (asMixed(v)) return true;
+  if (isObj(v)) return Object.keys(v).length > 0;
+  if (Array.isArray(v)) return v.length > 0;
+  return false;
+}
+
+/** The summary shown when an inline container is FOLDED — distinct wording from a continuation
+ *  link's {@link linkLabel}, since a fold reveals in place, it does not navigate. */
+function foldSummary(value: unknown): string {
+  const mixed = asMixed(value);
+  if (mixed) {
+    const n = mixed.entries.length;
+    if (mixed.kind === "omni") return `{ variant ${scalarLabel(mixed.value, "yaml")} + ${n} ${n === 1 ? "field" : "fields"} }`;
+    return `{ mixed with ${n} ${n === 1 ? "entry" : "entries"} }`;
+  }
+  if (Array.isArray(value)) {
+    const n = value.length;
+    return `[ ${n} ${n === 1 ? "item" : "items"} ]`;
+  }
+  const n = Object.keys(value as object).length;
+  return `{ ${n} ${n === 1 ? "property" : "properties"} }`;
+}
+
+/** The fold chevron for an inline container — the SAME chevron the TOC uses (`›`, rotated 90° when
+ *  open). It is a ZERO-WIDTH anchor placed at the START of the container's opening line; its chevron
+ *  is absolutely positioned into the left gutter (see `.fold`/`.code` in styles.css), so it sits in
+ *  one fixed column at the correct line regardless of nesting depth. */
+function FoldToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  // reuse the TOC's `.toggle`/`.chevron` (so the chevron is IDENTICAL — same `›`, size, weight,
+  // rotation); `.fold-gutter` only repositions it into the code's left gutter (see styles.css)
+  return (
+    <button type="button" className={"toggle fold-gutter" + (open ? " open" : "")} aria-label={open ? "collapse" : "expand"} onClick={onToggle}>
+      <span className="chevron">›</span>
+    </button>
+  );
+}
+
 // --------------------------------------------------------------------------- //
 // YAML
 // --------------------------------------------------------------------------- //
-function emitYaml(value: unknown, indent: number, out: ReactNode[], kc: KC, nav: (p: string) => void): void {
+/** A YAML value as a block at `indent` — the entry point (root) and the body of every nested
+ *  container. The root container is NOT itself foldable (it is the whole view); its nested
+ *  containers are, via their key/item rows. */
+function YamlRoot({ value, indent, nav }: { value: unknown; indent: number; nav: Nav }): ReactNode {
   const link = asLink(value);
-  if (link) {
-    out.push(linkNode(link, "yaml", kc, nav), "\n");
-    return;
-  }
+  if (link) return <>{linkNode(link, "yaml", nav)}{"\n"}</>;
   const ref = asRef(value);
-  if (ref) {
-    out.push(refNode(ref, "yaml", kc, nav), "\n");
-    return;
-  }
-  const mixed = asMixed(value);
-  if (mixed) {
-    const pad = " ".repeat(indent);
-    // omni: the node's own scalar value on its own line first (`!!var 5` → `5`)
-    if (mixed.kind === "omni") out.push(pad, scalarNode(mixed.value, "yaml", kc), "\n");
-    for (const e of mixed.entries) {
-      if (e.key === null) {
-        out.push(pad, <span className="punct" key={kc.n++}>{"- "}</span>);
-        emitYamlChild(e.value, indent, out, kc, nav, true);
-      } else {
-        out.push(pad, <span className="k" key={kc.n++}>{e.key}</span>, <span className="punct" key={kc.n++}>:</span>);
-        emitYamlChild(e.value, indent, out, kc, nav);
-      }
-    }
-    return;
-  }
-  if (isObj(value)) {
-    const entries = Object.entries(value);
-    if (!entries.length) {
-      out.push(<span className="punct" key={kc.n++}>{"{}"}</span>, "\n");
-      return;
-    }
-    const pad = " ".repeat(indent);
-    for (const [k, v] of entries) {
-      out.push(pad, <span className="k" key={kc.n++}>{k}</span>, <span className="punct" key={kc.n++}>:</span>);
-      emitYamlChild(v, indent, out, kc, nav);
-    }
-    return;
-  }
-  if (Array.isArray(value)) {
-    if (!value.length) {
-      out.push(<span className="punct" key={kc.n++}>{"[]"}</span>, "\n");
-      return;
-    }
-    const pad = " ".repeat(indent);
-    for (const item of value) {
-      out.push(pad, <span className="punct" key={kc.n++}>{"- "}</span>);
-      emitYamlChild(item, indent, out, kc, nav, true);
-    }
-    return;
-  }
-  out.push(scalarNode(value, "yaml", kc), "\n");
+  if (ref) return <>{refNode(ref, "yaml", nav)}{"\n"}</>;
+  if (foldable(value)) return <YamlBody value={value} indent={indent} nav={nav} />;
+  if (isObj(value)) return <><span className="punct">{"{}"}</span>{"\n"}</>;
+  if (Array.isArray(value)) return <><span className="punct">{"[]"}</span>{"\n"}</>;
+  return <>{scalarNode(value, "yaml")}{"\n"}</>;
 }
 
-// Render a value that follows a `key:` or `- ` — inline for scalars/links/empties,
-// or a newline then a nested block.
-function emitYamlChild(
-  v: unknown,
-  indent: number,
-  out: ReactNode[],
-  kc: KC,
-  nav: (p: string) => void,
-  inArray = false,
-): void {
+/** The lines of a non-empty container (object / array / mixed) at `indent` — no toggle of its own;
+ *  the toggle for this block sits on the key/item row one level up. With `inlineHead`, the FIRST
+ *  row drops its leading indent so it sits right after a `- ` on the line above (YAML block style). */
+function YamlBody({ value, indent, nav, inlineHead = false }: { value: unknown; indent: number; nav: Nav; inlineHead?: boolean }): ReactNode {
+  const mixed = asMixed(value);
+  if (mixed) return <YamlMixed mixed={mixed} indent={indent} nav={nav} />;
+  if (isObj(value)) return <YamlObject entries={Object.entries(value)} indent={indent} nav={nav} inlineHead={inlineHead} />;
+  return <YamlArray items={value as unknown[]} indent={indent} nav={nav} inlineHead={inlineHead} />;
+}
+
+function YamlObject({ entries, indent, nav, inlineHead = false }: { entries: [string, unknown][]; indent: number; nav: Nav; inlineHead?: boolean }): ReactNode {
+  const pad = " ".repeat(indent);
+  return <>{entries.map(([k, v], i) => <YamlEntry key={i} k={k} v={v} pad={pad} indent={indent} nav={nav} noPad={inlineHead && i === 0} />)}</>;
+}
+
+function YamlArray({ items, indent, nav, inlineHead = false }: { items: unknown[]; indent: number; nav: Nav; inlineHead?: boolean }): ReactNode {
+  const pad = " ".repeat(indent);
+  return <>{items.map((item, i) => <YamlItem key={i} v={item} pad={pad} indent={indent} nav={nav} noPad={inlineHead && i === 0} />)}</>;
+}
+
+/** Whether an array item's container value can render in COMPACT YAML block style — its first
+ *  child on the dash's own line (`- name: Rex`). Only a plain object/array whose FIRST child is
+ *  itself NOT foldable qualifies: that keeps a single fold chevron per row (no toggle would land on
+ *  the shared first line). A mixed/omni node, or one whose first child is foldable, stays on its
+ *  own line below the dash. */
+function canInlineAfterDash(v: unknown): boolean {
+  if (asMixed(v)) return false;
+  if (isObj(v)) { const vs = Object.values(v); return vs.length > 0 && !foldable(vs[0]); }
+  if (Array.isArray(v)) return v.length > 0 && !foldable(v[0]);
+  return false;
+}
+
+function YamlMixed({ mixed, indent, nav }: { mixed: Mixed; indent: number; nav: Nav }): ReactNode {
+  const pad = " ".repeat(indent);
+  return (
+    <>
+      {/* omni: the node's own scalar value on its own line first (`!!var 5` → `5`) */}
+      {mixed.kind === "omni" && (
+        <>
+          {pad}
+          {scalarNode(mixed.value, "yaml")}
+          {"\n"}
+        </>
+      )}
+      {mixed.entries.map((e, i) =>
+        e.key === null ? (
+          <YamlItem key={i} v={e.value} pad={pad} indent={indent} nav={nav} />
+        ) : (
+          <YamlEntry key={i} k={e.key} v={e.value} pad={pad} indent={indent} nav={nav} />
+        ),
+      )}
+    </>
+  );
+}
+
+/** A `key: value` row. A foldable value gets a gutter toggle on this row and its body below (or a
+ *  fold summary when collapsed); a scalar / link / empty renders inline. `noPad` drops the leading
+ *  indent when this row is the first child sitting after a `- ` (YAML block style). */
+function YamlEntry({ k, v, pad, indent, nav, noPad = false }: { k: string; v: unknown; pad: string; indent: number; nav: Nav; noPad?: boolean }): ReactNode {
+  const [open, setOpen] = useState(true);
+  const head = (
+    <>
+      {noPad ? null : pad}
+      <span className="k">{k}</span>
+      <span className="punct">:</span>
+    </>
+  );
+  if (!foldable(v)) return <>{head}{inlineYamlValue(v, nav)}</>;
+  return (
+    <>
+      <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
+      {head}
+      {open ? <>{"\n"}<YamlBody value={v} indent={indent + 2} nav={nav} /></> : <>{" "}<span className="fold-summary">{foldSummary(v)}</span>{"\n"}</>}
+    </>
+  );
+}
+
+/** A `- value` array / positional row, with the same fold behaviour as {@link YamlEntry}. A foldable
+ *  container value renders COMPACT (first child on this same line, `- name: Rex`) when it can — see
+ *  {@link canInlineAfterDash} — else its body drops to indented lines below. */
+function YamlItem({ v, pad, indent, nav, noPad = false }: { v: unknown; pad: string; indent: number; nav: Nav; noPad?: boolean }): ReactNode {
+  const [open, setOpen] = useState(true);
+  // `.yaml-dash` styles the marker (gray like the chevron) — kept a fixed cell so columns line up
+  const dash = (
+    <>
+      {noPad ? null : pad}
+      <span className="punct yaml-dash">{"-"}</span>
+    </>
+  );
+  if (!foldable(v)) return <>{dash}{inlineYamlValue(v, nav)}</>;
+  const compact = canInlineAfterDash(v);
+  return (
+    <>
+      <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
+      {dash}
+      {!open ? (
+        <>{" "}<span className="fold-summary">{foldSummary(v)}</span>{"\n"}</>
+      ) : compact ? (
+        <>{" "}<YamlBody value={v} indent={indent + 2} nav={nav} inlineHead /></>
+      ) : (
+        <>{"\n"}<YamlBody value={v} indent={indent + 2} nav={nav} /></>
+      )}
+    </>
+  );
+}
+
+/** A non-foldable value following a `key:` / `- ` — a link, ref, empty container, or scalar,
+ *  rendered inline with a leading space and a trailing newline. */
+function inlineYamlValue(v: unknown, nav: Nav): ReactNode {
   const link = asLink(v);
+  if (link) return <>{" "}{linkNode(link, "yaml", nav)}{"\n"}</>;
   const ref = asRef(v);
-  if (link) {
-    out.push(" ", linkNode(link, "yaml", kc, nav), "\n");
-  } else if (ref) {
-    out.push(" ", refNode(ref, "yaml", kc, nav), "\n");
-  } else if (isObj(v) && Object.keys(v).length === 0) {
-    out.push(" ", <span className="punct" key={kc.n++}>{"{}"}</span>, "\n");
-  } else if (Array.isArray(v) && v.length === 0) {
-    out.push(" ", <span className="punct" key={kc.n++}>{"[]"}</span>, "\n");
-  } else if (isObj(v) || Array.isArray(v)) {
-    out.push("\n");
-    emitYaml(v, indent + 2, out, kc, nav);
-  } else {
-    out.push(" ", scalarNode(v, "yaml", kc), "\n");
-  }
-  void inArray;
+  if (ref) return <>{" "}{refNode(ref, "yaml", nav)}{"\n"}</>;
+  if (isObj(v) && Object.keys(v).length === 0) return <>{" "}<span className="punct">{"{}"}</span>{"\n"}</>;
+  if (Array.isArray(v) && v.length === 0) return <>{" "}<span className="punct">{"[]"}</span>{"\n"}</>;
+  return <>{" "}{scalarNode(v, "yaml")}{"\n"}</>;
 }
 
 // --------------------------------------------------------------------------- //
-// JSON (nested containers become links, so the view is not strictly valid JSON —
-// it is the same one-level representation, in JSON syntax)
+// JSON (nested containers shown inline are collapsible; ones past the depth budget become links, so
+// the view is not strictly valid JSON — it is the same representation, in JSON syntax)
 // --------------------------------------------------------------------------- //
-function emitJson(value: unknown, indent: number, out: ReactNode[], kc: KC, nav: (p: string) => void): void {
+/** A JSON value at `indent`. At the root, a container renders without a toggle (it is the whole
+ *  view); nested foldable containers carry a gutter toggle on their key/item row (see
+ *  {@link JsonEntry}/{@link JsonItem}), so they never reach here while foldable. */
+function JsonValue({ value, indent, nav, root = false }: { value: unknown; indent: number; nav: Nav; root?: boolean }): ReactNode {
   const link = asLink(value);
-  if (link) {
-    out.push(linkNode(link, "json", kc, nav));
-    return;
-  }
+  if (link) return linkNode(link, "json", nav);
   const ref = asRef(value);
-  if (ref) {
-    out.push(refNode(ref, "json", kc, nav));
-    return;
-  }
+  if (ref) return refNode(ref, "json", nav);
+  if (root && foldable(value)) return <JsonBody value={value} indent={indent} nav={nav} />;
+  const objEntries = jsonObjEntries(value);
+  if (objEntries) return objEntries.length ? <JsonBody value={value} indent={indent} nav={nav} /> : <span className="punct">{"{}"}</span>;
+  if (Array.isArray(value)) return value.length ? <JsonBody value={value} indent={indent} nav={nav} /> : <span className="punct">{"[]"}</span>;
+  return scalarNode(value, "json");
+}
+
+/** The object entries a JSON value projects: an omni/mix marker flattened (`$value` + entries), or a
+ *  plain object's own entries, or null when it is not object-like. */
+function jsonObjEntries(value: unknown): [string, unknown][] | null {
   const mixed = asMixed(value);
-  const objEntries: [string, unknown][] | null = mixed
-    ? [
-        ...(mixed.kind === "omni" ? ([["$value", mixed.value]] as [string, unknown][]) : []),
-        ...mixed.entries.map((e, i): [string, unknown] => [e.key ?? String(i), e.value]),
-      ]
-    : isObj(value)
-      ? Object.entries(value)
-      : null;
-  if (objEntries) {
-    const entries = objEntries;
-    if (!entries.length) {
-      out.push(<span className="punct" key={kc.n++}>{"{}"}</span>);
-      return;
-    }
-    const pad = " ".repeat(indent + 2);
-    out.push(<span className="punct" key={kc.n++}>{"{"}</span>, "\n");
-    entries.forEach(([k, v], i) => {
-      out.push(pad, <span className="k" key={kc.n++}>{`"${k}"`}</span>, <span className="punct" key={kc.n++}>{": "}</span>);
-      emitJson(v, indent + 2, out, kc, nav);
-      out.push(i < entries.length - 1 ? "," : "", "\n");
-    });
-    out.push(" ".repeat(indent), <span className="punct" key={kc.n++}>{"}"}</span>);
-    return;
-  }
-  if (Array.isArray(value)) {
-    if (!value.length) {
-      out.push(<span className="punct" key={kc.n++}>{"[]"}</span>);
-      return;
-    }
-    const pad = " ".repeat(indent + 2);
-    out.push(<span className="punct" key={kc.n++}>{"["}</span>, "\n");
-    value.forEach((item, i) => {
-      out.push(pad);
-      emitJson(item, indent + 2, out, kc, nav);
-      out.push(i < value.length - 1 ? "," : "", "\n");
-    });
-    out.push(" ".repeat(indent), <span className="punct" key={kc.n++}>{"]"}</span>);
-    return;
-  }
-  out.push(scalarNode(value, "json", kc));
+  if (mixed)
+    return [
+      ...(mixed.kind === "omni" ? ([["$value", mixed.value]] as [string, unknown][]) : []),
+      ...mixed.entries.map((e, i): [string, unknown] => [e.key ?? String(i), e.value]),
+    ];
+  return isObj(value) ? Object.entries(value) : null;
+}
+
+/** The `{ … }` / `[ … ]` body of a container, no toggle of its own. */
+function JsonBody({ value, indent, nav }: { value: unknown; indent: number; nav: Nav }): ReactNode {
+  const objEntries = jsonObjEntries(value);
+  if (objEntries) return <JsonObject entries={objEntries} indent={indent} nav={nav} />;
+  return <JsonArray items={value as unknown[]} indent={indent} nav={nav} />;
+}
+
+function JsonObject({ entries, indent, nav }: { entries: [string, unknown][]; indent: number; nav: Nav }): ReactNode {
+  const pad = " ".repeat(indent + 2);
+  return (
+    <>
+      <span className="punct">{"{"}</span>
+      {"\n"}
+      {entries.map(([k, v], i) => (
+        <JsonEntry key={i} k={k} v={v} pad={pad} indent={indent + 2} nav={nav} last={i === entries.length - 1} />
+      ))}
+      {" ".repeat(indent)}
+      <span className="punct">{"}"}</span>
+    </>
+  );
+}
+
+function JsonArray({ items, indent, nav }: { items: unknown[]; indent: number; nav: Nav }): ReactNode {
+  const pad = " ".repeat(indent + 2);
+  return (
+    <>
+      <span className="punct">{"["}</span>
+      {"\n"}
+      {items.map((item, i) => (
+        <JsonItem key={i} v={item} pad={pad} indent={indent + 2} nav={nav} last={i === items.length - 1} />
+      ))}
+      {" ".repeat(indent)}
+      <span className="punct">{"]"}</span>
+    </>
+  );
+}
+
+/** A `"key": value,` row. A foldable value gets a gutter toggle on this row; otherwise it renders
+ *  inline. */
+function JsonEntry({ k, v, pad, indent, nav, last }: { k: string; v: unknown; pad: string; indent: number; nav: Nav; last: boolean }): ReactNode {
+  const [open, setOpen] = useState(true);
+  const head = (
+    <>
+      {pad}
+      <span className="k">{`"${k}"`}</span>
+      <span className="punct">{": "}</span>
+    </>
+  );
+  const tail = (
+    <>
+      {last ? "" : ","}
+      {"\n"}
+    </>
+  );
+  if (!foldable(v)) return <>{head}<JsonValue value={v} indent={indent} nav={nav} />{tail}</>;
+  return (
+    <>
+      <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
+      {head}
+      {open ? <JsonBody value={v} indent={indent} nav={nav} /> : <span className="fold-summary">{foldSummary(v)}</span>}
+      {tail}
+    </>
+  );
+}
+
+/** An array element row, with the same fold behaviour as {@link JsonEntry}. */
+function JsonItem({ v, pad, indent, nav, last }: { v: unknown; pad: string; indent: number; nav: Nav; last: boolean }): ReactNode {
+  const [open, setOpen] = useState(true);
+  const tail = (
+    <>
+      {last ? "" : ","}
+      {"\n"}
+    </>
+  );
+  if (!foldable(v)) return <>{pad}<JsonValue value={v} indent={indent} nav={nav} />{tail}</>;
+  return (
+    <>
+      <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
+      {pad}
+      {open ? <JsonBody value={v} indent={indent} nav={nav} /> : <span className="fold-summary">{foldSummary(v)}</span>}
+      {tail}
+    </>
+  );
 }

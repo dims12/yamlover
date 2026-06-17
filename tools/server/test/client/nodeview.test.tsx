@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 
 vi.mock("../../src/client/api", () => ({
   fetchNode: vi.fn(),
@@ -46,6 +46,38 @@ describe("NodeView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "json5p" }));
     expect(onFormat).toHaveBeenCalledWith("json5p");
+  });
+
+  it("fetches a DATA view at the ?depth= setting, but a RENDERER at its OWN depth (regression: the explorer needs depth 1)", async () => {
+    window.history.replaceState({}, "", "/?depth=6"); // a high data-view depth setting
+    try {
+      // (1) a data view (plain object → yamlover tab) honours the setting → deep fetch at 6
+      mNode.mockResolvedValue({ path: ":x", type: "object", concrete: null, title: null, description: null, value: { a: 1 } });
+      const r1 = render(<NodeView path=":x" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+      await waitFor(() => expect(mNode).toHaveBeenCalledWith(":x", 6));
+      r1.unmount();
+
+      // (2) the explorer (a directory) gets its OWN depth 1 — NEVER the setting — so its members stay
+      // `$yamloverLink` markers (navigable, icons, thumbnails). No deeper refetch at all.
+      mNode.mockReset();
+      mNode.mockResolvedValue({ path: ":d", type: "object", concrete: "dir", title: null, description: null,
+        value: { f: { $yamloverLink: { kind: "object", type: "object", path: ":d:f", count: 1 } } } });
+      const r2 = render(<NodeView path=":d" format="large-icons" onFormat={() => {}} onNavigate={() => {}} />);
+      await waitFor(() => expect(mNode).toHaveBeenCalledWith(":d"));
+      expect(mNode).not.toHaveBeenCalledWith(":d", 6);
+      expect(mNode).not.toHaveBeenCalledWith(":d", expect.any(Number)); // only the depth-1 fetch
+      r2.unmount();
+
+      // (3) a chapter gets its own depth 2, even though the setting is 6
+      mNode.mockReset();
+      mNode.mockResolvedValue({ path: ":c", type: "object", format: "x-yamlover-chapter", concrete: "yamlover",
+        title: null, description: null, value: { title: "T", chunks: [], children: [] } });
+      render(<NodeView path=":c" format="chapter" onFormat={() => {}} onNavigate={() => {}} />);
+      await waitFor(() => expect(mNode).toHaveBeenCalledWith(":c", 2));
+      expect(mNode).not.toHaveBeenCalledWith(":c", 6);
+    } finally {
+      window.history.replaceState({}, "", "/");
+    }
   });
 
   it("offers the json5p tab only for a json-family file", async () => {

@@ -13,6 +13,16 @@
   --null: #ed8796;
   --sel: #363a4f;
   --font: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+
+  /* JetBrains Darcula syntax palette — used ONLY by the structured data view (`.code`: the
+     yamlover / json5p / schema token classes). See COLORS.md for the full table. */
+  --jb-key: #9876aa; /* mapping / property key (purple) */
+  --jb-string: #6a8759; /* string scalar (green) */
+  --jb-number: #6897bb; /* number scalar (blue) */
+  --jb-keyword: #cc7832; /* true / false / null (orange) */
+  --jb-comment: #808080; /* comments + the `!!binary` note (gray) */
+  --jb-punct: #a9b7c6; /* structural punctuation `: { } [ ]` (default text) */
+  --jb-dash: #808080; /* the YAML list dash — gray, like the fold chevron */
 }
 
 * {
@@ -265,6 +275,15 @@ body {
   border-bottom: 1px solid var(--line);
   padding-bottom: 8px;
   margin-bottom: 10px;
+  /* stay pinned while the data view scrolls (a PDF/DjVu scrolls inside its own frame, so its bar
+     already stayed put — this makes every view consistent). The pane's top padding is absorbed so
+     the bar pins flush to the top; the bg keeps scrolled content from showing through. */
+  position: sticky;
+  top: -14px;
+  background: var(--bg);
+  z-index: 2;
+  padding-top: 14px;
+  margin-top: -14px;
 }
 /* separates the type/format chips from the representation tabs in the node bar */
 .bar-sep {
@@ -286,6 +305,23 @@ body {
   text-align: right;
 }
 .markup-width.invalid {
+  border-color: #f38ba8;
+  color: #f38ba8;
+}
+/* the data-view render-depth control — same chrome as the markup width, narrower */
+.depth-control {
+  width: 3ch;
+  background: var(--bg-alt);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  font-family: var(--font);
+  font-size: 12px;
+  text-align: right;
+}
+.depth-control.invalid {
   border-color: #f38ba8;
   color: #f38ba8;
 }
@@ -336,34 +372,42 @@ body {
 /* --- code ----------------------------------------------------------------- */
 .code {
   margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
+  /* YAML-like: a `- value` stays on its own line (no mid-value wrap); a long line scrolls sideways */
+  white-space: pre;
+  overflow-x: auto;
   line-height: 1.55;
   font-family: var(--font);
+  /* the fold gutter: `padding-left` must clear the 20px `.toggle` (pulled left by `.fold-gutter`),
+     or `overflow-x` would clip the chevron; a negative margin then slides the whole block left into
+     the pane's padding so the gutter sits a few px from the window border. */
+  position: relative;
+  padding-left: 22px;
+  margin-left: -14px;
 }
 .code.raw {
   color: var(--fg);
 }
+/* data-view (.code) syntax tokens — the JetBrains Darcula palette (see COLORS.md) */
 .k {
-  color: var(--key);
+  color: var(--jb-key);
 }
 .s {
-  color: var(--string);
+  color: var(--jb-string);
 }
 .n {
-  color: var(--number);
+  color: var(--jb-number);
 }
 .b {
-  color: var(--bool);
+  color: var(--jb-keyword);
 }
 .null {
-  color: var(--null);
+  color: var(--jb-keyword);
 }
 .punct {
-  color: var(--dim);
+  color: var(--jb-punct);
 }
 .c {
-  color: var(--dim);
+  color: var(--jb-comment);
   font-style: italic;
 }
 .descend {
@@ -384,11 +428,40 @@ body {
 .extlink:hover {
   background: var(--sel);
 }
-/* divider between the relations panel and the value, in the data views */
+/* the fold toggle on an inline data-view container (collapsible object/array/omni) reuses the TOC's
+   `.toggle`/`.chevron` verbatim — so the chevron is IDENTICAL to the tree's (same `›`, 20px, rotated
+   90° when open). `.fold-gutter` only places it in the code's left gutter: the 20px-wide `.toggle`
+   is pulled fully left by an equal negative margin, so it takes ZERO net width in the text flow (the
+   row's text is unshifted) yet keeps its real hit area, in-flow on its own line — all chevrons land
+   in one fixed column at the correct row, whatever the nesting depth. */
+.fold-gutter {
+  margin-left: -20px;
+  vertical-align: top;
+  user-select: none; /* keep the gutter chevron out of a text selection / copy of the code */
+}
+/* the muted in-place summary when a container is folded — distinct from a `.descend` continuation
+   hyperlink (which navigates); this just reveals back in place */
+.fold-summary {
+  color: var(--dim);
+  cursor: default;
+}
+/* the YAML array marker, enlarged + bolded so it reads clearly beside the 20px fold chevron. Scaled
+   with a transform (NOT font-size) so its layout cell is unchanged → the monospace columns still
+   line up; brighter than ordinary punctuation. */
+.yaml-dash {
+  display: inline-block;
+  transform: scale(1.55);
+  transform-origin: left center;
+  font-weight: 700; /* same visual weight as the fold chevron */
+  color: var(--jb-dash); /* gray, like the chevron — not bold white */
+}
+/* divider between the relations panel and the value — the SAME hairline as the global header /
+   node-bar rules (`var(--line)`, 1px). Negative left margin cancels the code's gutter padding so it
+   spans the full width, flush-aligned with the bar's divider above it (not inset by the gutter). */
 .reldiv {
   border: none;
-  border-top: 1px solid var(--border, var(--dim));
-  margin: 8px 0;
+  border-top: 1px solid var(--line);
+  margin: 8px 0 8px -8px; /* align flush-left with the node-bar rule above (cancels gutter, keeps pane inset) */
 }
 
 /* --- chapter renderer (x-yamlover-chapter) -------------------------------- */

@@ -2,8 +2,9 @@ import { Fragment, memo, useEffect, useReducer, useRef, useState } from "react";
 import { fetchNode, fetchSchema, NodeJson, pasteFile, pasteRich, pasteText, PasteResult } from "./api";
 import { arxivPdf, tweetUrl, fetchTweetText } from "./paste-links";
 import { countImages, htmlToRich, resolveImages, RichDraft } from "./paste-html";
-import { getRenderer, renderersFor } from "./renderers/registry";
+import { renderersFor } from "./renderers/registry";
 import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
+import { DepthControl, viewDepth } from "./renderers/depth";
 
 // Renderers whose output is prose — they get the TEXT annotation layer (drag-select → palette →
 // highlight). Image and map renderers carry their OWN region annotation layer (drag-rectangle →
@@ -140,7 +141,16 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     fetchNode(path)
       .then((n) => {
         if (cancelled) return;
-        const d = getRenderer(n)?.depth ?? 1;
+        // Depth is chosen by the ACTIVE representation, never the max: a DATA view (yamlover /
+        // json5p / schema) honours the `?depth=` setting (default 2), but a RENDERER view gets
+        // exactly its own depth. The explorer (depth 1) MUST get a one-level projection — at depth 2
+        // its members stop being `$yamloverLink` markers (overlayed/container members inline), which
+        // would break navigation, icons and thumbnails. Switching renderer↔data tab refetches (the
+        // effect depends on `format`); the node stays visible meanwhile (no-flash reloadKey path).
+        const rs = renderersFor(n);
+        const eff = effectiveFormat(format, rs, standardFormatsFor(n));
+        const active = rs.find((r) => r.name === eff);
+        const d = active ? active.depth ?? 1 : viewDepth(); // renderer → its depth; data view → setting
         if (d > 1) fetchNode(path, d).then((dn) => !cancelled && setNode(dn)).catch((e) => !cancelled && setError(e.message));
         else setNode(n);
       })
@@ -148,7 +158,8 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     return () => {
       cancelled = true;
     };
-  }, [path, reloadKey, refreshSignal]);
+    // `format` is a dep: switching renderer↔data tab can change the needed depth, so refetch.
+  }, [path, reloadKey, refreshSignal, format]);
 
   // Paste-to-upload: pasting clipboard file(s) uploads them — the server drops the file into this
   // directory (a directory page), appends it as a chapter chunk (a chapter page), or drops it into
@@ -341,7 +352,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     const eff = effectiveFormat(format, rs, standardFormatsFor(node));
     if (rs.some((r) => r.name === eff)) return; // a rendered view reads node.value (already fetched)
     if (isSchema(eff)) {
-      fetchSchema(path).then(setSchema).catch((e) => setError(e.message));
+      fetchSchema(path, viewDepth()).then(setSchema).catch((e) => setError(e.message));
     } else if (node.type === "binary") {
       fetchNode(path, undefined, { binary: true }).then((n) => setBin(n.value)).catch((e) => setError(e.message));
     }
@@ -412,6 +423,9 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
               {showRendered && renderer && f === renderer.name && renderer.config?.(rerender, node)}
             </Fragment>
           ))}
+          {/* the data views (yamlover / json5p / schema) share a render-depth control — how many
+              levels of nested containers are inlined (and collapsible) before a continuation link */}
+          {!showRendered && <DepthControl onChange={() => setReloadKey((k) => k + 1)} />}
         </div>
       </div>
 
