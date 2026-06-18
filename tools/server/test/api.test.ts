@@ -30,11 +30,13 @@ describe("api endpoints (engine-backed)", () => {
     expect(json.value.markup.$yamloverLink.kind).toBe("array");
   });
 
-  it("/api/json?binary=1 returns base64 for a binary leaf", async () => {
+  it("/api/json?binary=1 returns base64 for a binary node (even one with overlay entries)", async () => {
     const h = createHandlers(tmpExample("57-image-with-markup"), { gitignore: false });
     await h.ready;
     const { json } = call(h, "/api/json", { path: ":object_detection.png", binary: "1" });
-    expect(json.type).toBe("binary");
+    // the png owns embedded overlay entries (thumbnails/fragments), so it reads as `variant` — but
+    // its binary VALUE facet is intact, so ?binary=1 still streams the bytes.
+    expect(json.type).toBe("variant");
     expect(json.value.$yamloverBinary.format).toBe("image/png");
   });
 

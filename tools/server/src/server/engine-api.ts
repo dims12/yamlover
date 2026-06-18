@@ -634,7 +634,10 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       const kind = displayKind(s, p, row);
 
       if (url.pathname === "/api/json") {
-        const wantBytes = kind === "binary" && url.searchParams.get("binary") === "1";
+        // Gate the byte fetch on the binary VALUE FACET (a blob), not the display `kind`: an image
+        // that also owns overlay entries (thumbnails/fragments/annotations) reads as `variant`/omni,
+        // but its bytes are still fetchable via ?binary=1.
+        const wantBytes = row.type === "blob" && url.searchParams.get("binary") === "1";
         sendJson(res, 200, {
           path: segsToStr(segs),
           type: tocType(s, p, row),
