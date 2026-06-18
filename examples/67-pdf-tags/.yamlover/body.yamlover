@@ -55,7 +55,6 @@ tags: !!<*yamlover: $defs: tag> A small taxonomy for short / deadpan papers — 
   - *: tags: genre: brevity: empty-body
   - *: tags: genre: humor: satire
   - *::yamlover:tags:colors:yellow
-  - *::examples:73-dev-board:tags:workflow:dev:ready
   - *::yamlover:tags:'first tag'
 
 "1110.2832v2.pdf":

@@ -116,10 +116,11 @@ export type PointerBase =
   | { scope: 'current' }                       // bare name/index: current mapping
   | { scope: 'document' }                       // ":" (legacy "/") — current document root
   | { scope: 'parent' }                         // ".." — parent node (then steps)
-  /** "::" (legacy "//") — project scope: authority = the first portion, resolved as a
-   *  root key (an import or a mounted authority), else external. `world: true` marks
-   *  the ":::"-spelled WORLD scope (an AWS-like project URI, SEPARATOR.md §2) — same
-   *  resolution semantics in v1, kept so re-emission preserves the ladder rung. */
+  /** "::" — project scope: authority = the first portion, an INTERNAL key at the served root
+   *  (an import or a mounted authority). It is intra-project by definition, so an unresolved
+   *  authority is a DANGLING typo, not an external reference. `world: true` marks the
+   *  ":::"-spelled WORLD scope (an AWS-like cross-authority URI, SEPARATOR.md §2) — the only
+   *  form that may name content outside the loaded tree, so it alone stays external on a miss. */
   | { scope: 'link'; authority: string; world?: boolean };
 
 export type Step =

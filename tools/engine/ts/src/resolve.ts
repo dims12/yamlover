@@ -131,16 +131,18 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
   let steps: Step[] = ptr.steps;
   let chain: Node[];
   const linkAuthority = ptr.base.scope === 'link' ? ptr.base.authority : '';
-  let isLink = false; // a `//…` whose first segment names a project node resolves; else external
+  // Only the `:::` WORLD form (URIs.md: a cross-authority URI) may reference content outside the
+  // loaded tree — a miss there is a legitimate external reference, not a bug. A plain `::` link is
+  // project-internal, so a miss is a DANGLING typo and must be flagged, not silently dropped.
+  const isWorld = ptr.base.scope === 'link' && ptr.base.world === true;
   const external = (): Located => ({ kind: 'external', authority: linkAuthority, steps: ptr.steps });
 
   switch (ptr.base.scope) {
     case 'link': {
-      // `//authority/…` is PROJECT-root relative (URIs.md: `/`=document, `//`=project): resolve
-      // `authority` + steps from the top-level (served) document root. If it lands on a node it is
-      // an intra-project link (e.g. an annotation → its material); otherwise it is a genuine
-      // external reference (a real host/scheme) and stays external.
-      isLink = true;
+      // `::authority:…` is PROJECT-root relative (URIs.md: `:`=document, `::`=project): resolve
+      // `authority` + steps from the top-level (served) document root. A plain `::` link is always
+      // intra-project (e.g. an annotation → its material), so a miss is DANGLING. Only the `:::`
+      // world form (`isWorld`) may name a genuine external authority and stay external on a miss.
       chain = chains.get(root) ?? [root];
       // SELF-IMPORT (SEPARATOR.md §2): inside the yamlover project `::X` ≡ `::yamlover:X`. When the
       // served root IS the project, the `yamlover` self-import is DE-MATERIALIZED (walk.ts) — there
@@ -172,7 +174,7 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
 
   for (const st of steps) {
     if (st.sel === 'parent') {
-      if (chain.length <= 1) return isLink ? external() : { kind: 'unresolved', reason: '".." above the document root' };
+      if (chain.length <= 1) return isWorld ? external() : { kind: 'unresolved', reason: '".." above the document root' };
       chain = chain.slice(0, -1);
       continue;
     }
@@ -187,8 +189,8 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
         const via = anchorKeys?.get(node)?.get(st.name);
         if (via) { chain = chains.get(via) ?? [via]; continue; }
       }
-      if (!node.entries) return isLink ? external() : { kind: 'unresolved', reason: 'step into a node with no fields' };
-      return isLink ? external() : { kind: 'unresolved', reason: `no ${st.sel === 'key' ? `key "${st.name}"` : `index [${st.n}]`}` };
+      if (!node.entries) return isWorld ? external() : { kind: 'unresolved', reason: 'step into a node with no fields' };
+      return isWorld ? external() : { kind: 'unresolved', reason: `no ${st.sel === 'key' ? `key "${st.name}"` : `index [${st.n}]`}` };
     }
 
     if (isPointer(entry.value)) {

@@ -27,7 +27,7 @@ test('buildGraph: containment + resolved ref/back edges', () => {
 });
 
 test('external links and unresolved are separated out', () => {
-  const g = buildGraph(parseJson5p(`{ wild: *'//pet.store.com/pets', bad: *'nope' }`));
+  const g = buildGraph(parseJson5p(`{ wild: *':::pet.store.com:pets', bad: *'nope' }`));
   assert.equal(g.external.length, 1);
   assert.equal(g.external[0].authority, 'pet.store.com');
   assert.equal(g.unresolved.length, 1);

@@ -74,11 +74,20 @@ test('parent scope (..) walks up the containment chain', () => {
   assert.equal((find(edges, ':a:b:up').target as any).node.value, 42);
 });
 
-test('link scope is external (not resolved locally)', () => {
-  const doc = parseJson5p(`{ wild: *'//pet.store.com/pets' }`);
+test('world scope (:::) is external when the authority is not a local root key', () => {
+  // ::: names the WORLD (a cross-authority URI) — the only form that may reference content outside
+  // the loaded tree, so an unresolved one stays external rather than dangling.
+  const doc = parseJson5p(`{ wild: *':::pet.store.com:pets' }`);
   const t = resolveDocument(doc)[0].target;
   assert.equal(t.kind, 'external');
   assert.equal((t as any).authority, 'pet.store.com');
+});
+
+test('project scope (::) is INTERNAL — an unresolved authority is dangling, not external', () => {
+  // `::tags:…` means a `tags` key at the served root; absent, it is a typo, not a host. (This is the
+  // class of bug that used to vanish into the external bucket.)
+  const t = resolveDocument(parseJson5p(`{ bad: *'::tags:workflow' }`))[0].target;
+  assert.equal(t.kind, 'unresolved');
 });
 
 test('missing target → unresolved', () => {

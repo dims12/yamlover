@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, extname } from 'node:path';
 import { parseYamlover } from '../../../parser/ts/src/yamlover.ts';
 import { parseJson5p } from '../../../parser/ts/src/json5p.ts';
-import type { Document } from '../../../parser/ts/src/ir.ts';
+import type { Document, Node, Pointer } from '../../../parser/ts/src/ir.ts';
+import { isPointer } from '../../../parser/ts/src/ir.ts';
 import { walkDir } from '../src/walk.ts';
 import { Store } from '../src/store.ts';
 import { buildGraph } from '../src/graph.ts';
@@ -112,4 +113,51 @@ test('59-all-formats-object: annotations.yamlover reverse-links materials to the
   );
   // every annotation's target AND tag resolves (no dangling), incl. the chapter/image/pdf ones
   assert.deepEqual(buildGraph(load('59-all-formats-object')).unresolved, []);
+});
+
+// ─────────────────────── examples are SELF-CONTAINED ───────────────────────
+// An example may only point at ITSELF (`:`-rooted: current/parent/document) or at the project
+// taxonomy via the `yamlover` self-import (`*::yamlover:…`). A cross-example link (`*::examples:…`)
+// or a world URI (`*:::…`) makes the sample non-portable — copied elsewhere it dangles. Workflow
+// states in particular are GLOBAL (root `tags/`, reached as `::yamlover:tags:workflow:…`); an
+// example must never define or reach into another example's taxonomy.
+
+/** Every `*`/`~` pointer in a document — entry pointers and `&` anchor paths alike. */
+function allPointers(node: Node, acc: Pointer[] = []): Pointer[] {
+  for (const a of node.meta?.anchors ?? []) acc.push(a.path);
+  for (const e of node.entries ?? []) {
+    if (isPointer(e.value)) acc.push(e.value);
+    else allPointers(e.value, acc);
+  }
+  return acc;
+}
+
+test('examples are self-contained: every pointer is :-rooted (self) or ::yamlover-rooted', () => {
+  const offenders: string[] = [];
+  for (const name of entries) {
+    for (const p of allPointers(load(name).root)) {
+      const b = p.base;
+      const ok =
+        b.scope === 'current' || b.scope === 'parent' || b.scope === 'document' ||
+        (b.scope === 'link' && b.authority === 'yamlover' && !b.world);
+      if (!ok) offenders.push(`${name}: ${p.raw}`);
+    }
+  }
+  assert.deepEqual(offenders, [], `non-self-contained pointers:\n${offenders.join('\n')}`);
+});
+
+test('examples define no workflow tags locally — the dev workflow is GLOBAL (::yamlover:tags:workflow)', () => {
+  const offenders: string[] = [];
+  for (const name of entries) {
+    const s = new Store(':memory:');
+    s.indexDocument(load(name));
+    // a workflow node is legitimate ONLY inside the grafted self-import (`:yamlover:…`); a local
+    // one (any other path) means the example carved its own workflow taxonomy.
+    const local = (s.db.prepare(
+      "SELECT path FROM node WHERE format = 'x-yamlover-workflow' AND path NOT LIKE ':yamlover:%'",
+    ).all() as { path: string }[]);
+    for (const r of local) offenders.push(`${name}: ${r.path}`);
+    s.close();
+  }
+  assert.deepEqual(offenders, [], `locally-defined workflows:\n${offenders.join('\n')}`);
 });
