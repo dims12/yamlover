@@ -79,6 +79,32 @@ body {
   color: var(--dim);
   margin: 0 6px;
 }
+/* Leftmost breadcrumb action — installs the LLM agent guide into the project. */
+.crumb-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--dim);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.crumb-action:hover:not(:disabled) {
+  color: var(--accent);
+  background: var(--bg);
+}
+.crumb-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 
 /* --- long-running server tasks (indexing, hashing, …) ---------------------- */
 .task-strip {

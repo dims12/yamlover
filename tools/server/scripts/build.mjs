@@ -28,7 +28,7 @@ import { build as viteBuild } from "vite";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join, basename } from "node:path";
-import { copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
@@ -71,3 +71,14 @@ const wasmDir = join(pkgRoot, "dist/wasm");
 mkdirSync(wasmDir, { recursive: true });
 for (const spec of WASM) copyFileSync(require.resolve(spec), join(wasmDir, basename(spec)));
 console.log(`yamlover  copied ${WASM.length} codec wasm → dist/wasm`);
+
+// 4. Agent-guidance docs → dist/agent-docs/. These ship as real .md files (not bundled into the
+// JS) and are written into a served project by POST /api/agent-docs. The server resolves them
+// beside itself: `<engine-api dir>/agent-docs` is `src/server/agent-docs` in the dev/Vite path
+// and `dist/agent-docs` in the bundle — so the same subdir name works in both, like dist/wasm.
+const agentDocsSrc = join(pkgRoot, "src/server/agent-docs");
+const agentDocsDir = join(pkgRoot, "dist/agent-docs");
+mkdirSync(agentDocsDir, { recursive: true });
+const docFiles = readdirSync(agentDocsSrc).filter((f) => f.endsWith(".md"));
+for (const f of docFiles) copyFileSync(join(agentDocsSrc, f), join(agentDocsDir, f));
+console.log(`yamlover  copied ${docFiles.length} agent docs → dist/agent-docs`);

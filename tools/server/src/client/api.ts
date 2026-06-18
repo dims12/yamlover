@@ -176,6 +176,15 @@ export function createTag(name: string): Promise<TagRef> {
   );
 }
 
+/** Install the bundled LLM-agent guidance docs (AGENTS.md + CLAUDE.md) into the served project
+ *  root — so an AI agent co-editing this directory has the authoring/safety rules. Skip-and-report
+ *  by default: existing files come back `status: "exists"` untouched; pass `overwrite` to rewrite. */
+export function installAgentDocs(
+  overwrite = false,
+): Promise<{ files: { name: string; status: "created" | "overwritten" | "exists" }[] }> {
+  return postJson("/api/agent-docs", { overwrite });
+}
+
 /** The result of pasting/uploading a file or text: the new file's node path (for a text chunk,
  *  the chapter it joined), and (for a chapter) the chapter path plus any chunk pointer appended. */
 export interface PasteResult {

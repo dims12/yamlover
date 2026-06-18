@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchInfo, fetchTasks, fetchTree, PasteResult, TaskInfo, TreeNode } from "./api";
+import { fetchInfo, fetchTasks, fetchTree, installAgentDocs, PasteResult, TaskInfo, TreeNode } from "./api";
 import { Tree } from "./Tree";
 import { TaskStrip } from "./TaskStrip";
 import { NodeView, Format, FORMATS, DEFAULT_FORMAT, isJsonConcrete } from "./NodeView";
@@ -94,6 +94,7 @@ export function App() {
   const [current, setCurrent] = useState<string>(pathFromUrl());
   const [format, setFormat] = useState<Format>(formatFromUrl(DEFAULT_FORMAT) as Format);
   const [rootLabel, setRootLabel] = useState<string>(""); // CLI ROOT (breadcrumb head)
+  const [docsState, setDocsState] = useState<"idle" | "busy">("idle");
   const [leftWidth, setLeftWidth] = useState<number>(320);
   const mainRef = useRef<HTMLElement>(null); // RHS pane — focused on TOC click so the keyboard drives the viewer
 
@@ -374,10 +375,44 @@ export function App() {
     };
   }, []);
 
+  // Leftmost breadcrumb action: install the LLM-agent guidance docs (AGENTS.md + CLAUDE.md) into
+  // this project's root. Skip-and-report by default; if everything already exists, offer to
+  // overwrite. The new files flow back over SSE (useDiffBump), so the tree refreshes itself.
+  const installDocs = useCallback(async () => {
+    if (docsState === "busy") return;
+    setDocsState("busy");
+    try {
+      let { files } = await installAgentDocs();
+      if (files.every((f) => f.status === "exists")) {
+        const names = files.map((f) => f.name).join(" and ");
+        if (window.confirm(`${names} already exist in this project. Overwrite with the bundled version?`)) {
+          files = (await installAgentDocs(true)).files;
+        }
+      }
+      const wrote = files.filter((f) => f.status !== "exists").map((f) => f.name);
+      setError(null);
+      if (wrote.length) window.alert(`Installed agent guide: ${wrote.join(", ")}.`);
+    } catch (e) {
+      setError(`agent docs: ${(e as Error).message}`);
+    } finally {
+      setDocsState("idle");
+    }
+  }, [docsState]);
+
   return (
     <div className="app">
       <header className="topbar">
         <nav className="crumbs">
+          <button
+            type="button"
+            className="crumb-action"
+            disabled={docsState === "busy"}
+            title="Install the LLM agent guide (AGENTS.md + CLAUDE.md) into this project"
+            aria-label="Install LLM agent guide"
+            onClick={installDocs}
+          >
+            🤖
+          </button>
           {crumbs(current, rootLabel).map((c, i) => (
             <span key={c.path}>
               {i > 0 && <span className="crumb-sep">:</span>}

@@ -34,6 +34,7 @@
 
 import path from "node:path";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, loadSettings, mv, relinkMoved, evalQuery } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
@@ -542,6 +543,39 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             }),
           )
           .then((body) => sendJson(res, 200, body))
+          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
+        return;
+      }
+
+      // Install the bundled LLM-agent guidance docs (AGENTS.md + CLAUDE.md) into the served root,
+      // so an AI agent co-editing this directory has the authoring/safety rules to hand. Skip &
+      // report by default — existing files are left untouched (status "exists") unless the body
+      // says `{ overwrite: true }`. Triggered by the leftmost breadcrumb button in the client.
+      if (req.method === "POST" && url.pathname === "/api/agent-docs") {
+        readBody(req)
+          .then((data) =>
+            enqueue(async () => {
+              const overwrite = !!(data as { overwrite?: unknown })?.overwrite;
+              const files: { name: string; status: "created" | "overwritten" | "exists" }[] = [];
+              let wrote = false;
+              for (const doc of loadAgentDocs()) {
+                const exists = fs.existsSync(path.resolve(dataRoot, doc.name));
+                if (exists && !overwrite) {
+                  files.push({ name: doc.name, status: "exists" });
+                  continue;
+                }
+                writeInside(dataRoot, dataRoot, doc.name, Buffer.from(doc.content, "utf8"));
+                files.push({ name: doc.name, status: exists ? "overwritten" : "created" });
+                wrote = true;
+              }
+              if (wrote) {
+                broadcast(await doReindex());
+                scheduleHasher();
+              }
+              return { files };
+            }),
+          )
+          .then((body) => sendJson(res, 201, body))
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
         return;
       }
@@ -1615,6 +1649,25 @@ function writeInside(dataRoot: string, dir: string, name: string, bytes: Buffer)
   const target = path.resolve(dir, name);
   if (target !== root && !target.startsWith(root + path.sep)) throw new Error("target escapes the data root");
   fs.writeFileSync(target, bytes);
+}
+
+// The bundled LLM-agent guidance docs (AGENTS.md + CLAUDE.md), shipped beside this module as real
+// .md files — `src/server/agent-docs` when the dev server loads this source via Vite, and
+// `dist/agent-docs` in the prod bundle (scripts/build.mjs copies them there; same dual-path trick
+// as the codec wasm in extract/wasm.ts, since import.meta.url points at the live module either way).
+const AGENT_DOCS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "agent-docs");
+
+/** Read the bundled agent docs, alphabetically (AGENTS.md before CLAUDE.md). Throws a clear error
+ *  if the resources are missing (a broken build). POST /api/agent-docs writes these into the root. */
+function loadAgentDocs(): { name: string; content: string }[] {
+  let names: string[];
+  try {
+    names = fs.readdirSync(AGENT_DOCS_DIR).filter((f) => f.endsWith(".md")).sort();
+  } catch {
+    throw new Error(`agent-docs resources not found at ${AGENT_DOCS_DIR}`);
+  }
+  if (names.length === 0) throw new Error(`no agent-docs resources at ${AGENT_DOCS_DIR}`);
+  return names.map((name) => ({ name, content: fs.readFileSync(path.join(AGENT_DOCS_DIR, name), "utf8") }));
 }
 
 // --- chapter list insertion (indentation-aware; the parser does not track spans) ------------- //
