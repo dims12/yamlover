@@ -1,0 +1,58 @@
+# Build the demo image (server prod build + examples/ baked in) and push it to
+# Docker Hub as dimskraft/yamlover-demo. The design-vm demo server then just
+# `docker pull`s this public image — it never reaches back to Forgejo/Nexus.
+#
+# The job runs in a node container, but this runner is configured with
+# `container.docker_host: automount`, so the host docker socket is mounted in and
+# `docker` talks to calculon's daemon. We only need to drop the docker CLI binary
+# into the job container (the node image doesn't ship one).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/server/**'
+      - 'examples/**'
+      - 'tools/demo/docker/**'
+      - '.forgejo/workflows/publish-image.yml'
+  workflow_dispatch: {}
+
+jobs:
+  publish:
+    runs-on: docker
+    container:
+      image: node:22-bookworm
+    steps:
+      - uses: actions/checkout@v4
+        # examples/ are normal tracked files; the conformance submodules aren't
+        # needed to build the image, so skip them for a faster checkout.
+
+      - name: Build server prod artifacts (dist/)
+        run: |
+          npm ci --prefix tools/engine/ts      # engine runtime dep (xxhash-wasm) esbuild inlines
+          npm ci --prefix tools/server         # esbuild + vite + codecs
+          npm --prefix tools/server run build   # → tools/server/dist (client SPA + server.js)
+
+      - name: Install docker CLI (client only; daemon is calculon's via automount)
+        run: |
+          DOCKER_VER=27.5.1
+          curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VER}.tgz" \
+            | tar -xz -C /usr/local/bin --strip-components=1 docker/docker
+          docker version
+
+      - name: Read version from package.json
+        id: v
+        run: echo "version=$(node -p "require('./tools/server/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Build image
+        run: |
+          docker build -f tools/demo/docker/Dockerfile \
+            -t dimskraft/yamlover-demo:latest \
+            -t "dimskraft/yamlover-demo:${{ steps.v.outputs.version }}" \
+            -t "dimskraft/yamlover-demo:${GITHUB_SHA::12}" \
+            .
+
+      - name: Push all tags
+        run: docker push --all-tags dimskraft/yamlover-demo

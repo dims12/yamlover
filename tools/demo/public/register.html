@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Try yamlover — live demo</title>
+    <style>
+      :root {
+        --ink: #14171a;
+        --muted: #5b6570;
+        --accent: #2a6df4;
+        --line: #e4e8ee;
+        --bg: #fbfcfe;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(120% 80% at 50% -10%, #eef3ff 0%, var(--bg) 55%);
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 2rem 1.25rem;
+      }
+      .card {
+        width: 100%;
+        max-width: 30rem;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 2.25rem 2rem;
+        box-shadow: 0 12px 40px -22px rgba(20, 30, 60, 0.4);
+      }
+      .mark { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
+      .mark .dot { color: var(--accent); }
+      h1 { font-size: 1.5rem; margin: 1.25rem 0 0.4rem; letter-spacing: -0.02em; }
+      p.lede { color: var(--muted); margin: 0 0 1.5rem; }
+      form { display: flex; flex-direction: column; gap: 0.75rem; }
+      label { font-weight: 600; font-size: 0.9rem; }
+      input[type="email"] {
+        width: 100%;
+        padding: 0.75rem 0.9rem;
+        font: inherit;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        outline: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
+      }
+      input[type="email"]:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(42, 109, 244, 0.15);
+      }
+      button {
+        margin-top: 0.25rem;
+        padding: 0.8rem 1rem;
+        font: inherit;
+        font-weight: 600;
+        color: #fff;
+        background: var(--accent);
+        border: 0;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background 0.15s, opacity 0.15s;
+      }
+      button:hover { background: #1f5fe0; }
+      button:disabled { opacity: 0.6; cursor: default; }
+      .msg { margin-top: 1rem; padding: 0.75rem 0.9rem; border-radius: 10px; font-size: 0.95rem; display: none; }
+      .msg.ok { display: block; background: #e9f7ee; color: #1c6b3a; }
+      .msg.err { display: block; background: #fdecec; color: #a32020; }
+      .fine { color: var(--muted); font-size: 0.82rem; margin-top: 1.5rem; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="mark">yaml<span class="dot">over</span></div>
+      <h1>Try it live</h1>
+      <p class="lede">Enter your email and we'll send you a private link to a hosted yamlover, pre-loaded with example data. No install.</p>
+      <form id="form">
+        <label for="email">Email address</label>
+        <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com" />
+        <button id="submit" type="submit">Email me a demo link</button>
+      </form>
+      <div id="msg" class="msg"></div>
+      <p class="fine">Your demo stays available for a few days, then is automatically removed.</p>
+    </main>
+
+    <script>
+      const form = document.getElementById("form");
+      const btn = document.getElementById("submit");
+      const msg = document.getElementById("msg");
+      function show(kind, text) {
+        msg.className = "msg " + kind;
+        msg.textContent = text;
+      }
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        btn.disabled = true;
+        show("", "");
+        try {
+          const res = await fetch("/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: document.getElementById("email").value.trim() }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok) {
+            show("ok", data.message || "Check your email for your demo link.");
+            form.reset();
+          } else {
+            show("err", data.error || "Something went wrong. Please try again.");
+          }
+        } catch {
+          show("err", "Network error. Please try again.");
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,2 @@
+# runtime state: sqlite registry + process-driver temp spool
+.data/
