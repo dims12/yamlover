@@ -4,8 +4,9 @@
 #
 # The job runs in a node container, but this runner is configured with
 # `container.docker_host: automount`, so the host docker socket is mounted in and
-# `docker` talks to calculon's daemon. We only need to drop the docker CLI binary
-# into the job container (the node image doesn't ship one).
+# `docker` talks to calculon's daemon. We drop the docker CLI + buildx plugin into
+# the job container (the node image ships neither); buildx + a docker-container
+# builder are what let us attach SBOM + provenance attestations on push.
 on:
   push:
     branches: [main]
@@ -32,12 +33,20 @@ jobs:
           npm ci --prefix tools/server         # esbuild + vite + codecs
           npm --prefix tools/server run build   # → tools/server/dist (client SPA + server.js)
 
-      - name: Install docker CLI (client only; daemon is calculon's via automount)
+      - name: Install docker CLI + buildx (client only; daemon is calculon's via automount)
         run: |
           DOCKER_VER=27.5.1
           curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VER}.tgz" \
             | tar -xz -C /usr/local/bin --strip-components=1 docker/docker
+          # buildx is a CLI plugin (not in the static client tgz). Need it for SBOM +
+          # provenance attestations, which require the buildkit (docker-container) driver.
+          BUILDX_VER=v0.19.3
+          mkdir -p /usr/local/lib/docker/cli-plugins
+          curl -fsSL "https://github.com/docker/buildx/releases/download/${BUILDX_VER}/buildx-${BUILDX_VER}.linux-amd64" \
+            -o /usr/local/lib/docker/cli-plugins/docker-buildx
+          chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
           docker version
+          docker buildx version
 
       - name: Read version from package.json
         id: v
@@ -46,14 +55,16 @@ jobs:
       - name: Log in to Docker Hub
         run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      - name: Build image
+      - name: Create buildkit builder (needed for attestations)
+        run: docker buildx create --name ci --driver docker-container --use --bootstrap
+
+      - name: Build, attest (SBOM + provenance), and push
         run: |
           SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-12)   # sh has no ${var::n}
-          docker build -f tools/demo/docker/Dockerfile \
+          docker buildx build -f tools/demo/docker/Dockerfile \
+            --provenance=true --sbom=true \
             -t dimskraft/yamlover-demo:latest \
             -t "dimskraft/yamlover-demo:${{ steps.v.outputs.version }}" \
             -t "dimskraft/yamlover-demo:${SHORT_SHA}" \
+            --push \
             .
-
-      - name: Push all tags
-        run: docker push --all-tags dimskraft/yamlover-demo
