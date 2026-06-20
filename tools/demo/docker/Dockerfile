@@ -10,13 +10,13 @@
 #   docker run -d --rm -e BASE_PATH=/demo/<hash> -p 127.0.0.1::5173 yamlover-demo
 # `--rm` discards the writable layer (incl. yamlover's index) on stop → no cleanup.
 
-FROM node:22-slim
-
-# The runtime is pure `node` (the prod bundle is self-contained) — npm is never
-# invoked here. Drop npm + its bundled node_modules: that's where Docker Scout's
-# CVEs live (picomatch / tar / ip-address / brace-expansion are npm's own deps),
-# and removing it clears them all without touching anything we run.
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+# Distroless: just glibc + the node runtime — no shell, no package manager, no npm.
+# The runtime is pure `node` (the prod bundle is self-contained), so we need nothing
+# else. This is strictly leaner and Scout-cleaner than node:*-slim (npm and its CVE-
+# bearing deps — picomatch / tar / ip-address / brace-expansion — aren't even present
+# to remove), and it ships a `nonroot` user, so we drop privileges by construction.
+# The image's ENTRYPOINT is already `/usr/bin/node`, so CMD below is just node's args.
+FROM gcr.io/distroless/nodejs22-debian12:nonroot
 
 # Replicate the published package's runtime shape: package.json + bin + dist only
 # (no src, no node_modules — the prod bundle is self-contained).
@@ -27,18 +27,19 @@ COPY tools/server/dist ./dist
 
 # The content each demo serves. Read-only template; yamlover writes its index under
 # /examples/.yamlover in the container's writable layer, gone when the container stops.
-# Owned by the unprivileged `node` user so it can write that index while running non-root.
-COPY --chown=node:node examples /examples
+# Owned by the unprivileged `nonroot` user (uid 65532) so it can write that index.
+COPY --chown=nonroot:nonroot examples /examples
 
+# --base-path is per-demo; the server reads it from $BASE_PATH (no shell needed to
+# expand it into a flag — distroless has no shell). Empty = served at the document root.
 ENV BASE_PATH=""
 EXPOSE 5173
 
-# Run unprivileged (the node image ships a uid-1000 `node` user). Nothing here needs
-# root: it binds 5173 (>1024) and only writes under /examples, which `node` owns.
-USER node
+# distroless ships /etc/passwd with a uid-65532 `nonroot` user; the :nonroot tag already
+# defaults USER to it. Stated explicitly so the intent survives a base-tag change.
+USER nonroot
 
 # --headless binds 0.0.0.0 inside the container (the demo server publishes it to a
-# loopback host port). --base-path is per-demo, injected via `-e BASE_PATH`.
-# `exec` makes node PID 1 so it receives SIGTERM directly — `docker stop` is then
-# fast (no 10s grace fallthrough that a non-forwarding `sh` PID 1 would cause).
-CMD ["sh", "-c", "exec node /app/tools/server/bin/yamlover.js /examples --prod --headless --port 5173 --no-gitignore --base-path \"$BASE_PATH\""]
+# loopback host port). Exec-form CMD (no shell) → node is PID 1 and gets SIGTERM
+# directly, so `docker stop` is fast (no 10s grace fallthrough).
+CMD ["/app/tools/server/bin/yamlover.js", "/examples", "--prod", "--headless", "--port", "5173", "--no-gitignore"]
