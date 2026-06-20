@@ -118,7 +118,7 @@ bash ~/Design/www/yamlover-demo/deploy/bootstrap.sh
 deploy-demo.yml`): on a push to `main` touching `tools/demo/**`, it rsyncs the site to
 `dims@design-vm:Design/www/yamlover-demo` and `systemctl --user restart`s the service
 (which re-pulls the latest `dimskraft/yamlover-demo` image on startup). It needs one
-Forgejo secret, `DEPLOY_SSH_KEY` (a private key authorized for `dims@design-vm`);
+Forgejo secret, `DESIGN_VM_DEPLOY_KEY` (a private key authorized for `dims@design-vm`);
 `DEPLOY_HOST`/`DEPLOY_USER` default to `34.71.33.48`/`dims`.
 
 To enable email, edit `~/.config/yamlover-demo.env` (set `EMAIL_PROVIDER=resend`,

@@ -6,7 +6,7 @@
 # One-time host plumbing (user unit, env file, Caddy block, linger) is done by
 # tools/demo/deploy/bootstrap.sh on the VM; this job just refreshes code + the unit.
 #
-# Required Forgejo secret:  DEPLOY_SSH_KEY  — private key authorized for dims@design-vm.
+# Required Forgejo secret:  DESIGN_VM_DEPLOY_KEY  — private key authorized for dims@design-vm.
 # Optional (have sane defaults): DEPLOY_HOST (34.71.33.48), DEPLOY_USER (dims).
 on:
   push:
@@ -36,7 +36,7 @@ jobs:
       - name: Set up SSH key + known_hosts
         run: |
           install -d -m 700 ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_deploy
+          printf '%s\n' "${{ secrets.DESIGN_VM_DEPLOY_KEY }}" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
