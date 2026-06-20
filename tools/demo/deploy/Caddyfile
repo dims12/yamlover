@@ -1,9 +1,9 @@
-# Caddy: terminate TLS (automatic HTTP-01 cert) for the single demo domain and
+# Caddy: terminate TLS (automatic HTTP-01 cert) for the demo domain and
 # reverse-proxy everything — the registration page AND every /demo/<hash>/ — to the
 # demo server. Caddy flushes streamed responses, so the yamlover SSE stream
-# (/api/events) passes through live. Replace demo.example.com with your domain.
+# (/api/events) passes through live. bootstrap.sh installs this as /etc/caddy/Caddyfile.
 
-demo.example.com {
+yamlover.inthemoon.net {
 	encode gzip
 	reverse_proxy 127.0.0.1:8080
 }

@@ -98,19 +98,33 @@ DEMO_DRIVER=docker DEMO_IMAGE=yamlover-demo DEMO_IMAGE_PULL=0 \
 ## Deploy (single Compute Engine VM)
 
 Cloud Run is unsuitable (request-scoped, stateless — we need long-lived child
-containers, held ports, multi-day state). Use one VM:
+containers, held ports, multi-day state). Production runs on one VM:
+`yamlover.inthemoon.net` (`34.71.33.48`). The demo server itself runs as bare `node`
+via systemd (zero npm deps); only the per-visitor yamlover instances are containers.
 
-1. **VM**: Ubuntu 22.04+, install Node ≥ 22 and Docker. Reserve a static external IP.
-   Firewall: allow 80/443 only (child container ports stay on `127.0.0.1`).
-2. **DNS**: `demo.example.com A <static-ip>`.
-3. **Image**: none to build — the docker driver pulls `dimskraft/yamlover-demo` from
-   Docker Hub on startup. (Run `docker login` first only if the repo is private.)
-4. **TLS + proxy**: install Caddy; use `deploy/Caddyfile` (auto HTTPS, proxies all to
-   `127.0.0.1:8080`, passes SSE through).
-5. **Service**: `deploy/yamlover-demo.service` + `/etc/yamlover-demo.env` (from
-   `deploy/yamlover-demo.env.example`). `systemctl enable --now yamlover-demo`.
-6. **Email**: verify your sending domain (SPF/DKIM) in Resend; put the key in the env
-   file (or GCP Secret Manager).
+**Prerequisites (install once, not scripted):** Node ≥ 22, Docker, and Caddy on the
+VM; a static external IP; firewall allowing 80/443 only (child container ports stay on
+`127.0.0.1`); and DNS `yamlover.inthemoon.net A 34.71.33.48`.
+
+**Provision + every redeploy** — `deploy/bootstrap.sh` (idempotent; assumes the
+prerequisites above):
+
+```bash
+# first time (clones the repo to /opt/yamlover, installs unit + env + Caddyfile):
+sudo REPO_URL=<git-url> bash tools/demo/deploy/bootstrap.sh
+# thereafter, to ship the latest main (git-pull + restart):
+sudo bash /opt/yamlover/tools/demo/deploy/bootstrap.sh
+```
+
+It installs `deploy/yamlover-demo.service`, seeds `/etc/yamlover-demo.env` from the
+example (kept on re-runs — your secrets survive), installs `deploy/Caddyfile` as
+`/etc/caddy/Caddyfile`, then enables/restarts `yamlover-demo` and reloads Caddy.
+Restarting picks up a freshly-pushed `:latest` (the docker driver pulls on startup).
+
+After the first run, **edit `/etc/yamlover-demo.env`** to set `RESEND_API_KEY` (verify
+the sending domain's SPF/DKIM in Resend first), then `sudo systemctl restart
+yamlover-demo`. No image to build — the driver pulls `dimskraft/yamlover-demo` from
+Docker Hub (`docker login` first only if the repo is private).
 
 ## Tests
 
