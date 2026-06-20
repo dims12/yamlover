@@ -48,10 +48,11 @@ jobs:
 
       - name: Build image
         run: |
+          SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-12)   # sh has no ${var::n}
           docker build -f tools/demo/docker/Dockerfile \
             -t dimskraft/yamlover-demo:latest \
             -t "dimskraft/yamlover-demo:${{ steps.v.outputs.version }}" \
-            -t "dimskraft/yamlover-demo:${GITHUB_SHA::12}" \
+            -t "dimskraft/yamlover-demo:${SHORT_SHA}" \
             .
 
       - name: Push all tags
