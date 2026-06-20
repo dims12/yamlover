@@ -49,7 +49,12 @@ export function makeRouter({ store, provision, rateLimit }) {
 
     // --- registration ------------------------------------------------------- //
     if (req.method === "GET" && (pathname === "/" || pathname === "/index.html")) {
-      const html = await readFile(join(publicDir, "register.html"), "utf-8").catch(() => "<h1>yamlover demo</h1>");
+      let html = await readFile(join(publicDir, "register.html"), "utf-8").catch(() => "<h1>yamlover demo</h1>");
+      // Hand the (public) Turnstile site key to the page; empty string → captcha disabled.
+      html = html.replace(
+        "</head>",
+        `<script>window.__TURNSTILE_SITEKEY__=${JSON.stringify(config.turnstileSiteKey)}</script></head>`,
+      );
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       return res.end(html);
     }
@@ -73,30 +78,46 @@ function demoError(res, e) {
 }
 
 async function register(req, res, { store, rateLimit }) {
-  if (!rateLimit.allow(clientIp(req))) {
+  const ip = clientIp(req);
+  if (!rateLimit.allow(ip)) {
     return sendJson(res, 429, { error: "Too many requests. Please try again later." });
   }
   let body;
   try {
-    body = await readBody(req, 4096);
+    body = await readBody(req, 8192); // room for the Turnstile token alongside the email
   } catch {
     return sendJson(res, 413, { error: "Request too large." });
   }
   let email = "";
+  let token = "";
   if ((req.headers["content-type"] || "").includes("application/json")) {
     try {
-      email = (JSON.parse(body).email || "").trim();
+      const o = JSON.parse(body);
+      email = (o.email || "").trim();
+      token = o.token || o["cf-turnstile-response"] || "";
     } catch {
       /* fall through to validation */
     }
   } else {
-    email = (new URLSearchParams(body).get("email") || "").trim();
+    const p = new URLSearchParams(body);
+    email = (p.get("email") || "").trim();
+    token = p.get("cf-turnstile-response") || "";
   }
   if (!isEmail(email)) return sendJson(res, 400, { error: "Please enter a valid email address." });
+
+  // Captcha (only enforced when a secret is configured).
+  if (config.turnstileSecret && !(await verifyTurnstile(token, ip))) {
+    return sendJson(res, 403, { error: "Captcha check failed. Please try again." });
+  }
 
   // Dedupe: an existing pending/running demo for this email reuses its link — one email,
   // one live demo, so re-submitting can't spin up extra instances.
   const existing = store.getActiveByEmail(email);
+  // Global daily cap on NEW demos — bounds how many emails we can fire through Resend
+  // (and how many instances we can spawn) regardless of source IP.
+  if (!existing && store.countCreatedSince(Date.now() - 86_400_000) >= config.registerPerDay) {
+    return sendJson(res, 429, { error: "The daily demo limit has been reached. Please try again tomorrow." });
+  }
   const hash = existing ? existing.hash : newHash();
   if (!existing) store.insert({ hash, email, created_at: Date.now(), state: "pending" });
 
@@ -107,4 +128,20 @@ async function register(req, res, { store, rateLimit }) {
     return sendJson(res, 502, { error: "Could not send the email. Please try again." });
   }
   return sendJson(res, 200, { ok: true, message: "Check your email for your demo link." });
+}
+
+/** Verify a Cloudflare Turnstile token server-side. Fail-closed on any error/empty token. */
+async function verifyTurnstile(token, ip) {
+  if (!token) return false;
+  try {
+    const r = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ secret: config.turnstileSecret, response: token, remoteip: ip }),
+    });
+    const d = await r.json().catch(() => ({}));
+    return d.success === true;
+  } catch {
+    return false;
+  }
 }

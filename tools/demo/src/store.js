@@ -40,6 +40,7 @@ export function openStore(dbPath) {
     running: db.prepare(`SELECT * FROM demos WHERE state = 'running'`),
     all: db.prepare(`SELECT * FROM demos ORDER BY created_at DESC`),
     countRunning: db.prepare(`SELECT COUNT(*) AS n FROM demos WHERE state = 'running'`),
+    createdSince: db.prepare(`SELECT COUNT(*) AS n FROM demos WHERE created_at >= ?`),
     touch: db.prepare(`UPDATE demos SET last_seen = ? WHERE hash = ?`),
   };
 
@@ -63,6 +64,10 @@ export function openStore(dbPath) {
     },
     countRunning() {
       return stmts.countRunning.get().n;
+    },
+    /** How many demos were created at/after `ts` (ms) — drives the global daily cap. */
+    countCreatedSince(ts) {
+      return stmts.createdSince.get(ts).n;
     },
     /** Patch arbitrary columns of one row. `null` values clear the column. */
     update(hash, fields) {

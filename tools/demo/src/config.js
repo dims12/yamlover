@@ -40,11 +40,16 @@ export const config = {
 
   // email
   emailProvider: str("EMAIL_PROVIDER", "console"), // "console" (dev) | "resend" (prod)
-  emailFrom: str("EMAIL_FROM", "yamlover demo <onboarding@resend.dev>"),
+  emailFrom: str("EMAIL_FROM", "yamlover demo <noreply@yamlover.inthemoon.net>"),
   resendApiKey: str("RESEND_API_KEY", ""),
 
   // abuse limits
   registerPerHour: int("REGISTER_PER_HOUR", 3), // per-IP registration token bucket
+  registerPerDay: int("REGISTER_PER_DAY", 200), // global/day cap on NEW demos — Resend blast-radius guard
+
+  // captcha (Cloudflare Turnstile). Both unset → captcha disabled (form works without it).
+  turnstileSiteKey: str("TURNSTILE_SITE_KEY", ""), // public, embedded in the page
+  turnstileSecret: str("TURNSTILE_SECRET", ""), // private, server-side siteverify
 
   // process driver (local dev)
   examplesDir: str("EXAMPLES_DIR", resolve(repoRoot, "examples")),
@@ -59,6 +64,9 @@ export const config = {
 
   repoRoot,
 };
+
+/** Project repo, linked from the demo page + emails. */
+export const REPO_URL = "https://github.com/dims12/yamlover";
 
 /** The base-path a yamlover instance for `hash` is served under (no trailing slash). */
 export const basePathFor = (hash) => `/demo/${hash}`;
