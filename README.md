@@ -6,6 +6,10 @@ supports both file and filesystem storage of tree- and DAG-like data structeres.
 **yamlover** stands for **YAML Overlay** — not "Yam lover". It means YAML layer
 laid *over* the filesystem.
 
+> **▶ Try it live:** [**yamlover.inthemoon.net**](https://yamlover.inthemoon.net/) —
+> get a private, disposable instance (pre-loaded with these `examples/`) by email.
+> No install.
+
 ![image](images/directory.jpg)
 
 ![image](images/06-pinch-of-math.jpg)
