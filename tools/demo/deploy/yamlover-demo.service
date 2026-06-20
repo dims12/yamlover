@@ -1,28 +1,27 @@
-# systemd unit for the demo server. Install to /etc/systemd/system/, then:
-#   systemctl daemon-reload && systemctl enable --now yamlover-demo
-# Adjust WorkingDirectory to wherever the repo is checked out on the VM.
+# systemd USER unit for the demo server (runs as the deploying user, not root).
+# Installed by bootstrap.sh to ~/.config/systemd/user/yamlover-demo.service so CI can
+# restart it over SSH without sudo. The code lives in the user's home, so a system unit
+# (ProtectHome=true) is a poor fit; a user unit accesses $HOME naturally.
+#   systemctl --user daemon-reload && systemctl --user enable --now yamlover-demo
+#   (needs `loginctl enable-linger <user>` so it runs without an active login + survives reboot)
 
 [Unit]
 Description=yamlover demo server
-After=network-online.target docker.service
 Wants=network-online.target
-Requires=docker.service
+After=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/yamlover/tools/demo
+# %h = the user's home. CI rsyncs the tools/demo site here.
+WorkingDirectory=%h/Design/www/yamlover-demo
 ExecStart=/usr/bin/node bin/demo-server.js
 Restart=always
 RestartSec=3
-# Secrets + config (DEMO_DRIVER, DEMO_BASE_URL, RESEND_API_KEY, …) live here.
-EnvironmentFile=/etc/yamlover-demo.env
-# Persistent spool + sqlite across reboots (set DB_PATH/SPOOL_DIR under it in the env file).
-StateDirectory=yamlover-demo
-ReadWritePaths=/var/lib/yamlover-demo
-# Light hardening.
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
+# Config, kept OUTSIDE the deploy dir so a code redeploy (rsync --delete) never touches it.
+EnvironmentFile=%h/.config/yamlover-demo.env
+# The Resend API key lives root-only in /etc/resend.env; bootstrap.sh makes it
+# group-readable (root:dims 0640) so this user service can source it. `-` = tolerate absent.
+EnvironmentFile=-/etc/resend.env
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

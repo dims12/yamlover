@@ -1,88 +1,80 @@
 #!/usr/bin/env bash
-# Idempotent bootstrap + redeploy for the yamlover demo server on a single VM.
+# One-time host setup for the demo server on design-vm. Run as the deploying user
+# (dims) FROM the deploy dir of a synced checkout — i.e. after the code is present at
+# ~/Design/www/yamlover-demo (the Forgejo deploy job rsyncs it; for a cold start, rsync
+# tools/demo there yourself first, then run this).
 #
-# ASSUMES Node >= 22, Docker, and Caddy are already installed and on PATH (the
-# script does NOT install them). It only wires up *our* pieces and is safe to
-# re-run — a second run is the redeploy: it git-pulls and restarts the service.
+#   bash ~/Design/www/yamlover-demo/deploy/bootstrap.sh
 #
-#   First run (provision):   sudo REPO_URL=<git-url> bash tools/demo/deploy/bootstrap.sh
-#   Later runs (redeploy):   sudo bash /opt/yamlover/tools/demo/deploy/bootstrap.sh
+# ASSUMES Node>=22, Docker (user in the `docker` group), and Caddy are already installed
+# (it does NOT install them). It is idempotent and only wires up *our* pieces:
+#   1. user systemd unit  → ~/.config/systemd/user/yamlover-demo.service
+#   2. env file (secrets) → ~/.config/yamlover-demo.env   (seeded once, then left alone)
+#   3. Caddy site block   → appended to /etc/caddy/Caddyfile (needs sudo; never clobbered)
+#   4. enable-linger + enable/start the user service
 #
-# What it does:
-#   1. clone-or-pull the repo into $DEST            (DEST=/opt/yamlover)
-#   2. install the systemd unit + env file          (/etc/yamlover-demo.env, kept if present)
-#   3. install the Caddyfile                         (/etc/caddy/Caddyfile)
-#   4. enable + (re)start yamlover-demo, reload Caddy
-#
-# The demo server itself runs as bare `node` (zero npm deps) — no build step here.
-# Per-visitor yamlover instances run as Docker containers it pulls from Docker Hub.
+# Ongoing code deploys are the Forgejo `deploy-demo` workflow (rsync + `systemctl --user
+# restart`) — this script is just the once-per-host plumbing.
 set -euo pipefail
 
-DEST="${DEST:-/opt/yamlover}"
-ENV_FILE="${ENV_FILE:-/etc/yamlover-demo.env}"
+DEST="${DEST:-$HOME/Design/www/yamlover-demo}"
+ENV_FILE="${ENV_FILE:-$HOME/.config/yamlover-demo.env}"
+UNIT_DIR="${UNIT_DIR:-$HOME/.config/systemd/user}"
 CADDYFILE="${CADDYFILE:-/etc/caddy/Caddyfile}"
-BRANCH="${BRANCH:-main}"
+DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 log() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
-[ "$(id -u)" = "0" ] || die "run as root (sudo): needs to write /etc, /opt, and manage systemd"
-
-# Sanity-check the assumed prerequisites are actually present.
-for bin in git node docker caddy systemctl; do
-  command -v "$bin" >/dev/null 2>&1 || die "missing prerequisite: '$bin' not on PATH (install Node>=22, Docker, Caddy first)"
+for bin in node docker caddy systemctl loginctl; do
+  command -v "$bin" >/dev/null 2>&1 || die "missing prerequisite: '$bin' (install Node>=22, Docker, Caddy first)"
 done
-node_major="$(node -p 'process.versions.node.split(".")[0]')"
-[ "$node_major" -ge 22 ] || die "Node >= 22 required (found $(node -v))"
+id -nG | tr ' ' '\n' | grep -qx docker || die "$(whoami) is not in the 'docker' group"
+[ -f "$DEPLOY_DIR/yamlover-demo.service" ] || die "run me from a synced deploy dir (no unit at $DEPLOY_DIR)"
 
-# ── 1. clone-or-pull the repo ────────────────────────────────────────────────
-if [ -d "$DEST/.git" ]; then
-  log "updating repo at $DEST"
-  git -C "$DEST" fetch --depth 1 origin "$BRANCH"
-  git -C "$DEST" checkout -q "$BRANCH"
-  git -C "$DEST" reset --hard "origin/$BRANCH"   # deploy = exact tracked state, no local drift
-else
-  # Derive the clone URL from this checkout's origin when not given explicitly.
-  SRC_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel 2>/dev/null || true)"
-  REPO_URL="${REPO_URL:-$(git -C "$SRC_ROOT" config --get remote.origin.url 2>/dev/null || true)}"
-  [ -n "$REPO_URL" ] || die "no checkout at $DEST and REPO_URL unset — pass REPO_URL=<git-url>"
-  log "cloning $REPO_URL → $DEST (branch $BRANCH, no submodules)"
-  git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$DEST"
-fi
+# ── 1. user systemd unit ─────────────────────────────────────────────────────
+log "installing user unit → $UNIT_DIR/yamlover-demo.service"
+mkdir -p "$UNIT_DIR"
+install -m 0644 "$DEPLOY_DIR/yamlover-demo.service" "$UNIT_DIR/yamlover-demo.service"
 
-DEPLOY_DIR="$DEST/tools/demo/deploy"
-[ -f "$DEPLOY_DIR/yamlover-demo.service" ] || die "deploy artifacts not found under $DEPLOY_DIR — wrong DEST?"
-
-# ── 2. systemd unit + env file ───────────────────────────────────────────────
-log "installing systemd unit → /etc/systemd/system/yamlover-demo.service"
-install -m 0644 "$DEPLOY_DIR/yamlover-demo.service" /etc/systemd/system/yamlover-demo.service
-
+# ── 2. env file (kept if present so secrets survive) ─────────────────────────
+mkdir -p "$(dirname "$ENV_FILE")" "$DEST/.data"
 if [ -f "$ENV_FILE" ]; then
-  log "keeping existing $ENV_FILE (contains your secrets)"
+  log "keeping existing $ENV_FILE"
 else
-  log "seeding $ENV_FILE from example — EDIT IT to set RESEND_API_KEY before email works"
+  log "seeding $ENV_FILE from example (edit EMAIL_FROM / EMAIL_PROVIDER as needed)"
   install -m 0600 "$DEPLOY_DIR/yamlover-demo.env.example" "$ENV_FILE"
 fi
 
-# ── 3. Caddyfile ─────────────────────────────────────────────────────────────
-log "installing Caddyfile → $CADDYFILE"
-install -d "$(dirname "$CADDYFILE")"
-if [ -f "$CADDYFILE" ] && ! cmp -s "$DEPLOY_DIR/Caddyfile" "$CADDYFILE"; then
-  cp -a "$CADDYFILE" "$CADDYFILE.bak"   # don't silently clobber a hand-edited Caddyfile
-  log "backed up previous Caddyfile → $CADDYFILE.bak"
+# ── 2b. let this user service read the root-only Resend key ──────────────────
+if [ -f /etc/resend.env ]; then
+  log "granting $(whoami) read on /etc/resend.env (root:$(id -gn) 0640)"
+  sudo chown "root:$(id -gn)" /etc/resend.env
+  sudo chmod 640 /etc/resend.env
+else
+  log "no /etc/resend.env — email stays console until you create it (RESEND_API_KEY=…)"
 fi
-install -m 0644 "$DEPLOY_DIR/Caddyfile" "$CADDYFILE"
 
-# ── 4. (re)start services ────────────────────────────────────────────────────
-log "reloading systemd + (re)starting yamlover-demo"
-systemctl daemon-reload
-systemctl enable yamlover-demo >/dev/null
-systemctl restart yamlover-demo
+# ── 3. Caddy site block (append once; never clobber other sites) ─────────────
+if sudo grep -q 'yamlover\.inthemoon\.net' "$CADDYFILE" 2>/dev/null; then
+  log "Caddy already has the yamlover.inthemoon.net block"
+else
+  log "appending the yamlover.inthemoon.net block to $CADDYFILE"
+  printf '\n' | sudo tee -a "$CADDYFILE" >/dev/null
+  sudo tee -a "$CADDYFILE" < "$DEPLOY_DIR/Caddyfile" >/dev/null
+fi
+log "validating + reloading Caddy"
+sudo caddy validate --config "$CADDYFILE" --adapter caddyfile
+sudo systemctl reload caddy
 
-log "reloading Caddy"
-systemctl reload caddy 2>/dev/null || systemctl restart caddy
+# ── 4. linger + enable/start the user service ────────────────────────────────
+log "enabling linger for $(whoami) (service runs without an active login + survives reboot)"
+sudo loginctl enable-linger "$(whoami)"
+log "enabling + starting the user service"
+systemctl --user daemon-reload
+systemctl --user enable --now yamlover-demo
 
 log "done. status:"
-systemctl --no-pager --lines=0 status yamlover-demo || true
+systemctl --user --no-pager --lines=0 status yamlover-demo || true
 echo
-log "tail logs with:  journalctl -u yamlover-demo -f"
+log "logs:  journalctl --user -u yamlover-demo -f"

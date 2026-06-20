@@ -1,0 +1,70 @@
+# Deploy the demo SITE (tools/demo) to design-vm: rsync the code into
+# ~/Design/www/yamlover-demo and restart the user systemd service, which re-pulls the
+# latest dimskraft/yamlover-demo image on startup. This is separate from publish-image.yml
+# (which builds + pushes that image) — here we only ship the orchestrator that launches it.
+#
+# One-time host plumbing (user unit, env file, Caddy block, linger) is done by
+# tools/demo/deploy/bootstrap.sh on the VM; this job just refreshes code + the unit.
+#
+# Required Forgejo secret:  DEPLOY_SSH_KEY  — private key authorized for dims@design-vm.
+# Optional (have sane defaults): DEPLOY_HOST (34.71.33.48), DEPLOY_USER (dims).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/demo/**'
+      - '.forgejo/workflows/deploy-demo.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: docker
+    container:
+      image: node:22-bookworm
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || '34.71.33.48' }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'dims' }}
+      DEST: Design/www/yamlover-demo
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ssh + rsync (the node image ships neither)
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq openssh-client rsync >/dev/null
+
+      - name: Set up SSH key + known_hosts
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Rsync tools/demo → design-vm
+        run: |
+          # --delete keeps the target an exact mirror of tools/demo; exclude the runtime
+          # state (sqlite db / spool) and VCS cruft so a deploy never wipes live data.
+          rsync -az --delete \
+            --exclude '.data/' \
+            --exclude '.git/' \
+            --exclude 'node_modules/' \
+            -e "ssh -i ~/.ssh/id_deploy -o BatchMode=yes" \
+            tools/demo/ "$DEPLOY_USER@$DEPLOY_HOST:$DEST/"
+
+      - name: Refresh user unit + restart service
+        run: |
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" bash -se <<'REMOTE'
+          set -euo pipefail
+          mkdir -p ~/.config/systemd/user ~/Design/www/yamlover-demo/.data
+          install -m 0644 ~/Design/www/yamlover-demo/deploy/yamlover-demo.service \
+            ~/.config/systemd/user/yamlover-demo.service
+          export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+          systemctl --user daemon-reload
+          systemctl --user restart yamlover-demo
+          # give it a moment, then confirm it's serving locally
+          for i in $(seq 1 20); do
+            curl -fsS -o /dev/null "http://127.0.0.1:8080/" && break
+            sleep 1
+          done
+          systemctl --user --no-pager --lines=5 status yamlover-demo | head -12
+          REMOTE

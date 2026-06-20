@@ -95,36 +95,36 @@ DEMO_DRIVER=docker DEMO_IMAGE=yamlover-demo DEMO_IMAGE_PULL=0 \
 | `DOCKER_MEMORY` / `DOCKER_CPUS` | `512m` / `1` | per-container caps |
 | `EXAMPLES_DIR` / `YAMLOVER_BIN` / `SPOOL_DIR` | repo paths | process-driver inputs |
 
-## Deploy (single Compute Engine VM)
+## Deploy (design-vm)
 
-Cloud Run is unsuitable (request-scoped, stateless — we need long-lived child
-containers, held ports, multi-day state). Production runs on one VM:
-`yamlover.inthemoon.net` (`34.71.33.48`). The demo server itself runs as bare `node`
-via systemd (zero npm deps); only the per-visitor yamlover instances are containers.
+Production runs on **design-vm** = `yamlover.inthemoon.net` = `34.71.33.48`. The demo
+server runs as a **user** systemd service (as `dims`, zero npm deps) from
+`~/Design/www/yamlover-demo`; only the per-visitor yamlover instances are containers.
+Caddy (system service, already on the box) terminates TLS with the existing
+`*.inthemoon.net` wildcard cert and reverse-proxies to `127.0.0.1:8080`.
 
-**Prerequisites (install once, not scripted):** Node ≥ 22, Docker, and Caddy on the
-VM; a static external IP; firewall allowing 80/443 only (child container ports stay on
-`127.0.0.1`); and DNS `yamlover.inthemoon.net A 34.71.33.48`.
+**Prerequisites (already in place on design-vm):** Node ≥ 22, Docker (`dims` in the
+`docker` group), Caddy, the `*.inthemoon.net` cert, and DNS pointing at `34.71.33.48`.
 
-**Provision + every redeploy** — `deploy/bootstrap.sh` (idempotent; assumes the
-prerequisites above):
+**One-time host plumbing** — `deploy/bootstrap.sh`, run on the VM as `dims` after the
+code is first synced (installs the user unit, seeds `~/.config/yamlover-demo.env`,
+appends the Caddy block, enables linger, starts the service):
 
 ```bash
-# first time (clones the repo to /opt/yamlover, installs unit + env + Caddyfile):
-sudo REPO_URL=<git-url> bash tools/demo/deploy/bootstrap.sh
-# thereafter, to ship the latest main (git-pull + restart):
-sudo bash /opt/yamlover/tools/demo/deploy/bootstrap.sh
+bash ~/Design/www/yamlover-demo/deploy/bootstrap.sh
 ```
 
-It installs `deploy/yamlover-demo.service`, seeds `/etc/yamlover-demo.env` from the
-example (kept on re-runs — your secrets survive), installs `deploy/Caddyfile` as
-`/etc/caddy/Caddyfile`, then enables/restarts `yamlover-demo` and reloads Caddy.
-Restarting picks up a freshly-pushed `:latest` (the docker driver pulls on startup).
+**Every code deploy** is the Forgejo `deploy-demo` workflow (`.forgejo/workflows/
+deploy-demo.yml`): on a push to `main` touching `tools/demo/**`, it rsyncs the site to
+`dims@design-vm:Design/www/yamlover-demo` and `systemctl --user restart`s the service
+(which re-pulls the latest `dimskraft/yamlover-demo` image on startup). It needs one
+Forgejo secret, `DEPLOY_SSH_KEY` (a private key authorized for `dims@design-vm`);
+`DEPLOY_HOST`/`DEPLOY_USER` default to `34.71.33.48`/`dims`.
 
-After the first run, **edit `/etc/yamlover-demo.env`** to set `RESEND_API_KEY` (verify
-the sending domain's SPF/DKIM in Resend first), then `sudo systemctl restart
-yamlover-demo`. No image to build — the driver pulls `dimskraft/yamlover-demo` from
-Docker Hub (`docker login` first only if the repo is private).
+To enable email, edit `~/.config/yamlover-demo.env` (set `EMAIL_PROVIDER=resend`,
+`RESEND_API_KEY`, and a verified `EMAIL_FROM` — verify SPF/DKIM in Resend first), then
+`systemctl --user restart yamlover-demo`. It ships with `EMAIL_PROVIDER=console`, which
+logs the link to `journalctl --user -u yamlover-demo`.
 
 ## Tests
 
