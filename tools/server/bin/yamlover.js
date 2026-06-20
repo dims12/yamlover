@@ -48,6 +48,20 @@ let port = 5173;
 let host = "127.0.0.1";
 let gitignore = true; // hide .gitignore'd stray files by default
 let prodFlag = false; // force production (static) mode even in the repo checkout
+// URL prefix to serve the whole app under (e.g. `/demo/abc123`), so many instances can sit behind
+// one host on distinct paths (the demo server). "" = served at the document root (the normal case).
+// Seeded from $BASE_PATH so a shell-less image (e.g. distroless) can inject it via env without
+// needing `sh -c` to expand it into a `--base-path` flag; an explicit flag below still overrides.
+let basePath = process.env.BASE_PATH ?? "";
+// Normalize a base path: leading `/`, no trailing `/`; `""`/`"/"` → disabled.
+function normBase(s) {
+  let b = (s ?? "").trim();
+  if (b === "" || b === "/") return "";
+  if (!b.startsWith("/")) b = "/" + b;
+  if (b.endsWith("/")) b = b.slice(0, -1);
+  return b;
+}
+basePath = normBase(basePath); // normalize the $BASE_PATH seed (a flag below re-normalizes its own value)
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -56,11 +70,14 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === "--headless") host = "0.0.0.0"; // serve on all interfaces (no GUI / remote access)
   else if (a === "--host") host = argv[++i];
   else if (a.startsWith("--host=")) host = a.slice("--host=".length);
+  else if (a === "--base-path") basePath = normBase(argv[++i]);
+  else if (a.startsWith("--base-path=")) basePath = normBase(a.slice("--base-path=".length));
   else if (a === "--no-gitignore") gitignore = false;
   else if (a === "--prod") prodFlag = true;
   else if (a === "--help" || a === "-h") {
-    console.log("usage: npx yamlover [ROOT] [--port N] [--headless] [--host ADDR] [--no-gitignore] [--prod]");
+    console.log("usage: npx yamlover [ROOT] [--port N] [--headless] [--host ADDR] [--base-path PREFIX] [--no-gitignore] [--prod]");
     console.log("  default: serve on 127.0.0.1 (local only); --headless serves on all interfaces");
+    console.log("  --base-path PREFIX: serve the whole app under PREFIX (e.g. /demo/abc) instead of /");
     process.exit(0);
   } else if (!a.startsWith("-")) rootArg = a;
 }
@@ -85,7 +102,21 @@ let handle;
 let serveClient;
 
 const server = createHttpServer((req, res) => {
-  const url = new URL(req.url, "http://localhost");
+  let url = new URL(req.url, "http://localhost");
+  // Under `--base-path`, strip the prefix up front (and rewrite req.url) so every downstream —
+  // the engine API (exact `/api/...` matches), the static server, and the Vite middleware — sees
+  // root-relative paths and stays oblivious to the prefix. Anything outside the prefix is 404.
+  if (basePath) {
+    const p = url.pathname;
+    if (p === basePath || p.startsWith(basePath + "/")) {
+      req.url = (p.slice(basePath.length) || "/") + url.search;
+      url = new URL(req.url, "http://localhost");
+    } else {
+      res.statusCode = 404;
+      res.end("not found");
+      return;
+    }
+  }
   if (url.pathname.startsWith("/api/")) {
     handle(req, res, url);
     return;
@@ -193,6 +224,7 @@ if (prod) {
       try {
         let html = fs.readFileSync(indexHtmlPath, "utf-8");
         html = await vite.transformIndexHtml(url.pathname, html);
+        html = injectBase(html); // base-path-aware shell (no-op without --base-path)
         res.setHeader("Content-Type", "text/html; charset=utf-8");
         res.end(html);
       } catch (e) {
@@ -262,7 +294,23 @@ function serveStatic(res, url, distClient, distIndex) {
 function serveIndex(res, distIndex) {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
+  if (basePath) {
+    // The shell must learn its prefix (the client prepends it to every server URL) and its
+    // root-absolute asset refs must point under the prefix (the strip above maps them back).
+    res.end(injectBase(fs.readFileSync(distIndex, "utf-8")));
+    return;
+  }
   fs.createReadStream(distIndex).pipe(res);
+}
+
+/** Make a served index.html base-path-aware: expose `window.__BASE__` for the client's URL helper
+ *  and prefix root-absolute `src="/…"` / `href="/…"` asset refs with the base path (protocol-relative
+ *  `//…` left alone). No-op when no base path is set. */
+function injectBase(html) {
+  if (!basePath) return html;
+  html = html.replace(/((?:src|href)=")\/(?!\/)/g, `$1${basePath}/`);
+  const tag = `<script>window.__BASE__=${JSON.stringify(basePath)}</script>`;
+  return html.includes("<head>") ? html.replace("<head>", `<head>${tag}`) : tag + html;
 }
 
 // Listen on `port`; if it is already in use, fall back to the next port (up to

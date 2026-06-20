@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchInfo, fetchTasks, fetchTree, installAgentDocs, PasteResult, TaskInfo, TreeNode } from "./api";
+import { api } from "./base";
 import { Tree } from "./Tree";
 import { TaskStrip } from "./TaskStrip";
 import { NodeView, Format, FORMATS, DEFAULT_FORMAT, isJsonConcrete } from "./NodeView";
@@ -219,7 +220,7 @@ export function App() {
 
   useEffect(() => {
     if (typeof EventSource === "undefined") return; // test envs (jsdom) have no SSE
-    const es = new EventSource("/api/events");
+    const es = new EventSource(api("/api/events"));
     es.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data) as { type?: string };

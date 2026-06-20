@@ -1,5 +1,7 @@
 // Typed wrappers over the server's JSON API.
 
+import { api } from "./base"; // prefixes every server path with the served base path (--base-path)
+
 export interface TreeNode {
   path: string;
   label: string;
@@ -38,7 +40,7 @@ async function getJson<T>(url: string): Promise<T> {
 
 /** Server info: the ROOT path as given on the CLI (breadcrumb head; "" if omitted). */
 export function fetchInfo(): Promise<{ root: string }> {
-  return getJson<{ root: string }>("/api/info");
+  return getJson<{ root: string }>(api("/api/info"));
 }
 
 /** A long-running server task (indexing, hashing, …) — mirrors server/tasks.ts. Updates ride
@@ -55,14 +57,14 @@ export interface TaskInfo {
 
 /** Server tasks in flight (or just finished) — the snapshot a freshly loaded page needs. */
 export function fetchTasks(): Promise<TaskInfo[]> {
-  return getJson<TaskInfo[]>("/api/tasks");
+  return getJson<TaskInfo[]>(api("/api/tasks"));
 }
 
 /** The TOC subtree rooted at `path`, `depth` levels deep (server default 3). */
 export function fetchTree(path = ":", depth?: number): Promise<TreeNode> {
   const q = new URLSearchParams({ path });
   if (depth != null) q.set("depth", String(depth));
-  return getJson<TreeNode>(`/api/tree?${q}`);
+  return getJson<TreeNode>(api(`/api/tree?${q}`));
 }
 
 export function fetchNode(
@@ -73,26 +75,26 @@ export function fetchNode(
   const q = new URLSearchParams({ path });
   if (depth != null) q.set("depth", String(depth));
   if (opts?.binary) q.set("binary", "1"); // request a binary leaf's base64 bytes
-  return getJson<NodeJson>(`/api/json?${q}`);
+  return getJson<NodeJson>(api(`/api/json?${q}`));
 }
 
 /** URL of a file-backed node's raw bytes (image / pdf / html / djvu source). */
 export function blobUrl(path: string): string {
-  return `/api/blob?path=${encodeURIComponent(path)}`;
+  return api(`/api/blob?path=${encodeURIComponent(path)}`);
 }
 
 /** URL of a lazily-generated thumbnail of a file-backed blob, fitted within `w`×`h`. The server
  *  generates + caches it on first request and 415s a format it can't decode (the caller then
  *  shows the type glyph). */
 export function thumbUrl(path: string, w: number, h: number): string {
-  return `/api/thumb?path=${encodeURIComponent(path)}&w=${w}&h=${h}`;
+  return api(`/api/thumb?path=${encodeURIComponent(path)}&w=${w}&h=${h}`);
 }
 
 /** The node's instance schema, one level deep (nested containers as link markers). */
 export function fetchSchema(path: string, depth?: number): Promise<unknown> {
   const q = new URLSearchParams({ path });
   if (depth != null) q.set("depth", String(depth));
-  return getJson<unknown>(`/api/schema?${q}`);
+  return getJson<unknown>(api(`/api/schema?${q}`));
 }
 
 /** A tag as the annotation API hands it around: its node path, display name (the taxonomy key),
@@ -119,13 +121,13 @@ export interface Annotation {
 
 /** The annotations whose `target` is the material at `path` (the engine's reverse link). */
 export function fetchAnnotations(path: string): Promise<Annotation[]> {
-  return getJson<Annotation[]>(`/api/annotations?path=${encodeURIComponent(path)}`);
+  return getJson<Annotation[]>(api(`/api/annotations?path=${encodeURIComponent(path)}`));
 }
 
 /** The materials filed under the tag at `path` — `$yamloverLink` markers, annotations already
  *  resolved to their `target` and deduped (the explorer's member list for a tag page). */
 export function fetchTagged(path: string): Promise<unknown[]> {
-  return getJson<unknown[]>(`/api/tagged?path=${encodeURIComponent(path)}`);
+  return getJson<unknown[]>(api(`/api/tagged?path=${encodeURIComponent(path)}`));
 }
 
 /** Evaluate a colon-grammar QUERY (QUERY.md / engine `query` op) at `at` (default: the root `:`),
@@ -133,7 +135,7 @@ export function fetchTagged(path: string): Promise<unknown[]> {
  *  server answers 400). Reused by the tag-picker typeahead and, later, by find-usages. */
 export function query(q: string, at = ":"): Promise<string[]> {
   const params = new URLSearchParams({ q, path: at });
-  return getJson<{ results: string[] }>(`/api/query?${params}`).then((r) => r.results);
+  return getJson<{ results: string[] }>(api(`/api/query?${params}`)).then((r) => r.results);
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -147,27 +149,27 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
  *  and full node path, which is then the `target` for {@link annotate}. `imageBase64` is an
  *  optional PNG crop for image-like selections. */
 export function createFragment(target: string, selector: Record<string, unknown>, imageBase64?: string): Promise<{ slug: string; fragmentPath: string }> {
-  return postJson("/api/fragment", { target, selector, ...(imageBase64 ? { imageBase64 } : {}) });
+  return postJson(api("/api/fragment"), { target, selector, ...(imageBase64 ? { imageBase64 } : {}) });
 }
 
 /** Apply the tag at `tag` to the node at `target` (a whole node OR a fragment path) — appends to
  *  the target's `yamlover-annotations`. `description`/`params` make it a parametrized annotation. */
 export function annotate(a: { target: string; tag: string; description?: string; params?: Record<string, unknown> }): Promise<{ ok: true }> {
-  return postJson("/api/annotate", a);
+  return postJson(api("/api/annotate"), a);
 }
 
 /** Persist a board directory's LANE configuration — `columns` is the lanes, each a list of tag
  *  client-paths. Rewrites the directory's board overlay (`.yamlover/body.yamlover` `columns:`) and
  *  reindexes; the open board re-reads it over SSE. */
 export function saveBoardColumns(path: string, columns: string[][]): Promise<{ ok: true }> {
-  return postJson("/api/board", { path, columns });
+  return postJson(api("/api/board"), { path, columns });
 }
 
 /** Create a named tag at the project's default tags location (settings.yamlover; `/tags` by
  *  default) — the picker's create-on-miss. Idempotent: an existing tag at that path is returned
  *  as-is; a non-tag node already occupying the path is an error. */
 export function createTag(name: string): Promise<TagRef> {
-  return fetch("/api/tag", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }).then(
+  return fetch(api("/api/tag"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }).then(
     async (res) => {
       const body = await res.json();
       if (!res.ok) throw new Error((body && body.error) || `HTTP ${res.status}`);
@@ -182,7 +184,7 @@ export function createTag(name: string): Promise<TagRef> {
 export function installAgentDocs(
   overwrite = false,
 ): Promise<{ files: { name: string; status: "created" | "overwritten" | "exists" }[] }> {
-  return postJson("/api/agent-docs", { overwrite });
+  return postJson(api("/api/agent-docs"), { overwrite });
 }
 
 /** The result of pasting/uploading a file or text: the new file's node path (for a text chunk,
@@ -196,7 +198,7 @@ export interface PasteResult {
 }
 
 function postPaste(body: Record<string, unknown>): Promise<PasteResult> {
-  return fetch("/api/paste", {
+  return fetch(api("/api/paste"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -230,7 +232,7 @@ export function pasteRich(target: string, rich: unknown): Promise<PasteResult> {
  *  splices the matching element out of its `yamlover-annotations`. */
 export function deleteAnnotation(target: string, tag: string): Promise<void> {
   const q = new URLSearchParams({ target, tag });
-  return fetch(`/api/annotate?${q}`, { method: "DELETE" }).then(async (res) => {
+  return fetch(api(`/api/annotate?${q}`), { method: "DELETE" }).then(async (res) => {
     if (!res.ok) throw new Error(((await res.json().catch(() => null))?.error) || `HTTP ${res.status}`);
   });
 }

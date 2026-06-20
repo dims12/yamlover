@@ -7,6 +7,8 @@
 // key is percent-encoded (encodeURIComponent) — the structural separators then
 // unambiguously tokenize, and the URL spelling is address-bar-safe as is.
 
+import { BASE } from "./base"; // the served URL prefix (--base-path); "" at the root
+
 export type Seg = string | number;
 
 /** Canonical client path: `:key[0]:sub` (keys percent-encoded), root `:`. */
@@ -45,8 +47,11 @@ function safeDecode(s: string): string {
  *  COLON form. The pathname is already per-key-encoded, so it is tokenized *before*
  *  decoding — segments ride through encoded into the canonical string. */
 export function pathFromUrl(): string {
+  // Strip the served base prefix (--base-path) so its segments aren't read as node keys.
+  let pathname = window.location.pathname;
+  if (BASE && (pathname === BASE || pathname.startsWith(BASE + "/"))) pathname = pathname.slice(BASE.length) || "/";
   const segs: Seg[] = [];
-  for (const tok of window.location.pathname.match(URL_TOKEN) || []) {
+  for (const tok of pathname.match(URL_TOKEN) || []) {
     segs.push(/^\[\d+\]$/.test(tok) ? Number(tok.slice(1, -1)) : safeDecode(tok));
   }
   return segsToStr(segs);
@@ -55,7 +60,8 @@ export function pathFromUrl(): string {
 /** The slash-transport URL spelling of a canonical path (`:a[0]:b` → `/a[0]/b`). */
 export function urlOfPath(path: string): string {
   const segs = strToSegs(path);
-  return segs.map((s) => (typeof s === "number" ? `[${s}]` : `/${encodeURIComponent(s)}`)).join("") || "/";
+  const tail = segs.map((s) => (typeof s === "number" ? `[${s}]` : `/${encodeURIComponent(s)}`)).join("") || "/";
+  return BASE + tail; // keep navigation under the served base prefix (--base-path)
 }
 
 /** A human-readable form of a canonical path: each key decoded (so a percent-encoded
