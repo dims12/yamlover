@@ -52,7 +52,8 @@ export const config = {
   spoolDir: str("SPOOL_DIR", resolve(repoRoot, "tools/demo/.data/spool")),
 
   // docker driver (production)
-  dockerImage: str("DEMO_IMAGE", "yamlover-demo"),
+  dockerImage: str("DEMO_IMAGE", "dimskraft/yamlover-demo:latest"), // published on Docker Hub by CI
+  dockerPull: str("DEMO_IMAGE_PULL", "1") !== "0", // `docker pull` on startup to refresh a moving tag
   dockerMemory: str("DOCKER_MEMORY", "512m"),
   dockerCpus: str("DOCKER_CPUS", "1"),
 

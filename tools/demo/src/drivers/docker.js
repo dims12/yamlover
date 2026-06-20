@@ -14,6 +14,20 @@ const containerName = (hash) => `yld-${hash}`;
 export const dockerDriver = {
   name: "docker",
 
+  // Pull the image once at boot so a moving tag (e.g. `:latest`, pushed by CI) is refreshed
+  // on every restart — otherwise `docker run` keeps using the first cached copy forever.
+  // Best-effort: a failed pull (offline, private repo without login, locally-built tag) is a
+  // warning, not fatal — `run()` below will still use whatever copy is cached locally.
+  async prepare() {
+    if (!config.dockerPull) return;
+    try {
+      await run("docker", ["pull", config.dockerImage]);
+      console.log(`               image  ${config.dockerImage} (pulled)`);
+    } catch (e) {
+      console.warn(`               image  ${config.dockerImage} — pull failed, using local copy: ${e.message}`);
+    }
+  },
+
   async start(hash) {
     const name = containerName(hash);
     const { stdout } = await run("docker", [

@@ -21,11 +21,13 @@ and yamlover strips the prefix itself.
 
 Selected with `DEMO_DRIVER`:
 
-- **`docker`** (production) — one container per hash from the `yamlover-demo` image, with
-  `examples/` baked in. `--rm` makes cleanup automatic: stopping the container discards
-  its writable layer (including yamlover's index), so there are no host temp dirs to
-  reap. Memory/CPU capped per container. Survives a demo-server restart (containers are
-  labeled and adopted by `reconcile()`).
+- **`docker`** (production) — one container per hash from the `dimskraft/yamlover-demo`
+  image (published on Docker Hub by CI), with `examples/` baked in. The image is pulled
+  once at startup (`DEMO_IMAGE_PULL`), so restarting the demo server picks up a freshly
+  pushed `:latest`. `--rm` makes cleanup automatic: stopping the container discards its
+  writable layer (including yamlover's index), so there are no host temp dirs to reap.
+  Memory/CPU capped per container. Survives a demo-server restart (containers are labeled
+  and adopted by `reconcile()`).
 - **`process`** (local dev) — one `node yamlover.js` child per hash serving a fresh copy
   of `examples/` in a temp dir. No Docker needed. Children are killed on graceful
   shutdown; cleanup of the temp dir happens on stop.
@@ -54,12 +56,24 @@ DEMO_DRIVER=process EMAIL_PROVIDER=console \
 Open <http://127.0.0.1:8099/>, submit an email, copy the link printed to the console,
 open it.
 
-## Build the Docker image
+## The Docker image
+
+In production the driver pulls **`dimskraft/yamlover-demo:latest`** from Docker Hub (CI
+builds and pushes it on every change). Just run with the docker driver and it pulls on
+startup:
+
+```bash
+DEMO_DRIVER=docker node tools/demo/bin/demo-server.js
+```
+
+To iterate on the image locally instead, build it and point `DEMO_IMAGE` at the local
+tag (and skip the registry pull):
 
 ```bash
 npm --prefix tools/server run build
 docker build -f tools/demo/docker/Dockerfile -t yamlover-demo .   # from the repo root
-DEMO_DRIVER=docker node tools/demo/bin/demo-server.js
+DEMO_DRIVER=docker DEMO_IMAGE=yamlover-demo DEMO_IMAGE_PULL=0 \
+  node tools/demo/bin/demo-server.js
 ```
 
 ## Configuration (environment)
@@ -76,7 +90,8 @@ DEMO_DRIVER=docker node tools/demo/bin/demo-server.js
 | `EMAIL_PROVIDER` | `console` | `console` or `resend` |
 | `EMAIL_FROM` / `RESEND_API_KEY` | — | Resend sender + key |
 | `REGISTER_PER_HOUR` | `3` | per-IP registration rate limit |
-| `DEMO_IMAGE` | `yamlover-demo` | docker image name |
+| `DEMO_IMAGE` | `dimskraft/yamlover-demo:latest` | docker image (Docker Hub) |
+| `DEMO_IMAGE_PULL` | `1` | `docker pull` the image on startup (`0` to skip) |
 | `DOCKER_MEMORY` / `DOCKER_CPUS` | `512m` / `1` | per-container caps |
 | `EXAMPLES_DIR` / `YAMLOVER_BIN` / `SPOOL_DIR` | repo paths | process-driver inputs |
 
@@ -88,7 +103,8 @@ containers, held ports, multi-day state). Use one VM:
 1. **VM**: Ubuntu 22.04+, install Node ≥ 22 and Docker. Reserve a static external IP.
    Firewall: allow 80/443 only (child container ports stay on `127.0.0.1`).
 2. **DNS**: `demo.example.com A <static-ip>`.
-3. **Image**: build `yamlover-demo` on the VM (or push from CI).
+3. **Image**: none to build — the docker driver pulls `dimskraft/yamlover-demo` from
+   Docker Hub on startup. (Run `docker login` first only if the repo is private.)
 4. **TLS + proxy**: install Caddy; use `deploy/Caddyfile` (auto HTTPS, proxies all to
    `127.0.0.1:8080`, passes SSE through).
 5. **Service**: `deploy/yamlover-demo.service` + `/etc/yamlover-demo.env` (from

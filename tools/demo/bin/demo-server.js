@@ -35,6 +35,7 @@ const server = createServer((req, res) => {
   });
 });
 
+await driver.prepare?.(); // docker: pull the image so a moving tag is refreshed on restart
 await reaper.start();
 server.listen(config.port, config.host, () => {
   console.log(`yamlover-demo  driver=${config.driver}  email=${config.emailProvider}`);
