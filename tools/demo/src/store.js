@@ -71,6 +71,10 @@ export function openStore(dbPath) {
       const set = keys.map((k) => `${k} = ?`).join(", ");
       db.prepare(`UPDATE demos SET ${set} WHERE hash = ?`).run(...keys.map((k) => fields[k]), hash);
     },
+    /** Delete a row outright (admin drop --delete → the link 404s instead of 410-expires). */
+    remove(hash) {
+      db.prepare(`DELETE FROM demos WHERE hash = ?`).run(hash);
+    },
     /** Record activity (idle-reclaim clock), coalesced to at most once per 30s per hash. */
     touch(hash) {
       const now = Date.now();
