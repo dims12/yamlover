@@ -105,6 +105,18 @@ body {
   opacity: 0.5;
   cursor: default;
 }
+/* The settings gear is a primary affordance — a touch larger and brighter than the other
+ * crumb actions, with a gentle spin on hover so it reads as the way into project config. */
+.crumb-settings {
+  width: 28px;
+  height: 28px;
+  font-size: 20px;
+  color: var(--fg);
+  transition: color 0.15s, background 0.15s, transform 0.2s ease;
+}
+.crumb-settings:hover:not(:disabled) {
+  transform: rotate(45deg);
+}
 
 /* --- long-running server tasks (indexing, hashing, …) ---------------------- */
 .task-strip {

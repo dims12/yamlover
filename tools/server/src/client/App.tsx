@@ -415,7 +415,7 @@ export function App() {
         <nav className="crumbs">
           <button
             type="button"
-            className="crumb-action"
+            className="crumb-action crumb-settings"
             title="Project configuration (settings.yamlover)"
             aria-label="Project configuration"
             onClick={openSettings}
