@@ -10,7 +10,6 @@ import { AnnotationMenu, useAnnotations, DEFAULT_TAG } from "../../src/client/re
 const ALIVE = { path: ":tags:alive", name: "alive", color: null };
 const DEAD = { path: ":tags:dead", name: "dead", color: null };
 const RECENT_KEY = "yo-annotate-recent-tags";
-const TAG_KEY = "yo-annotate-tag";
 
 /** Route fetches by their decoded `path` query param; undefined → a 404 {error} response. */
 function mockFetch(routes: Record<string, unknown>): ReturnType<typeof vi.fn> {
@@ -74,9 +73,10 @@ describe("useAnnotations live refresh", () => {
 });
 
 describe("AnnotationMenu remembered-tag pruning", () => {
-  it("drops recents (and the remembered tag) whose node is gone; live ones stay", async () => {
+  it("drops recents whose node is gone; live ones stay", async () => {
+    // (The last-used tag is no longer in localStorage — it lives in settings.yamlover, IMPORTS.md —
+    // so only the recents list is pruned here.)
     localStorage.setItem(RECENT_KEY, JSON.stringify([ALIVE, DEAD]));
-    localStorage.setItem(TAG_KEY, JSON.stringify(DEAD));
     mockFetch({ ":tags:alive": { path: ":tags:alive", format: "x-yamlover-tag", value: {} } }); // /tags/dead → 404
 
     const { container } = render(
@@ -87,7 +87,6 @@ describe("AnnotationMenu remembered-tag pruning", () => {
 
     await waitFor(() => expect(badges()).toEqual(["alive"]));
     expect(JSON.parse(localStorage.getItem(RECENT_KEY)!)).toEqual([ALIVE]);
-    await waitFor(() => expect(localStorage.getItem(TAG_KEY)).toBeNull());
   });
 
   it("frames the assigned named tag (`sel`, like the selected color swatch)", async () => {

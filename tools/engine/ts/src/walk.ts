@@ -23,6 +23,7 @@ import { parseYamlover } from '../../../parser/ts/src/yamlover.ts';
 import { parseJson5p } from '../../../parser/ts/src/json5p.ts';
 import { Store } from './store.ts';
 import type { FileRecord } from './store.ts';
+import { graftTaxonomy, YAMLOVER_AUTHORITY } from './mounts.ts';
 
 // xxh64 (xxhash-wasm) is the content/manifest hash: identity, not security — chosen for SPEED
 // (multiple GB/s, far above disk throughput). The `xxh64:` prefix keeps the algorithm swappable.
@@ -39,6 +40,13 @@ const YAMLOVER_INTERNAL = new Set([
   'body.yamlover', 'meta.yamlover', 'settings.yamlover',
   'index.db', 'index.db-wal', 'index.db-shm', 'index.db-journal',
 ]);
+// `settings.yamlover` is engine-owned (read by loadSettings, never an overlay applied to the parent)
+// but — UNLIKE body/meta/index.db — it IS indexed as a HIDDEN node, so the config file is openable
+// and editable at `:.yamlover:settings.yamlover` by the settings renderer (IMPORTS.md). It is the one
+// YAMLOVER_INTERNAL name admitted into the overlay subtree.
+const SETTINGS_FILE = 'settings.yamlover';
+const skipInYamloverDir = (name: string): boolean =>
+  (YAMLOVER_INTERNAL.has(name) && name !== SETTINGS_FILE) || name.startsWith('.');
 const MAX_TEXT_BYTES = 1 << 20; // 1 MiB: above this we never slurp a file to sniff/parse it
 const MAX_DOC_BYTES = 64 << 20; // 64 MiB: a format-matched text/doc file above this stays a Blob (never slurped)
 const HASH_INLINE_MAX = 1 << 20; // 1 MiB: a blob at or under this is read + hashed inline by the walk
@@ -59,6 +67,9 @@ export interface WalkOptions {
    *  blobs are stat-only: contentHash stays null until the background hasher fills it in.
    *  Default 1 MiB. */
   hashInlineMax?: number;
+  /** Suppress the `yamlover` self-import graft (IMPORTS.md §4). Set when loading the bundled
+   *  taxonomy itself (mounts.ts) so the walk does not try to graft a self-import INTO it. */
+  noGraft?: boolean;
 }
 
 /** One walk progress tick: `done` filesystem children processed so far, `path` the latest
@@ -198,41 +209,58 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
   const ctx: Ctx = { root: path.resolve(absDir), opts, files: new Map(), count: 0 };
   const root = yield* dirNode(ctx.root, ctx);
   root.meta = { ...root.meta, documentRoot: true }; // the served root is always a document root
-  // Graft the SELF-IMPORT key `yamlover` — the yamlover project ({`$defs/` schemas,
-  // `tags/` palette} at the project root, URI `::: yamlover.inthemoon.net`) — into the
-  // served tree, so `*yamlover/$defs/…` and `*//yamlover/…` pointers resolve from ANY
-  // served root (there, `//X` ≡ `//yamlover/X` — the import is the project, SEPARATOR.md §2).
-  // A root that PROJECTS AS AN ARRAY (all-keyless) is left alone — a keyed graft would flip
-  // its kind to mix.
+  // Resolve the SELF-IMPORT key `yamlover` — the yamlover project ({`$defs/` schemas, `tags/`
+  // palette}, URI `::: yamlover.inthemoon.net`) — into the served tree, so `*::yamlover:…` (and the
+  // world form `*::: yamlover.inthemoon.net:…`) resolve from ANY served root (IMPORTS.md §4). The
+  // import may be AUTHORED as a root body key (`yamlover: *::: yamlover.inthemoon.net`) or left
+  // IMPLICIT; either way the walk MATERIALIZES the taxonomy under the `yamlover` key (replacing the
+  // import pointer with the real subtree) so no world pointer is left to dangle. A root that
+  // PROJECTS AS AN ARRAY (all-keyless) is left alone — a keyed graft would flip its kind to mix.
   //
-  // When the served root IS the project root (its own `$defs/` is a DIRECT child), the taxonomy is
-  // ALREADY materialized at `:$defs` / `:tags` — grafting it again would DUPLICATE every node
-  // (`:yamlover:tags:colors:yellow` beside the real `:tags:colors:yellow`), splitting a tag's
-  // backlinks from its page. So we DE-MATERIALIZE the self-import there: the `yamlover` authority
-  // is absorbed VIRTUALLY by the resolver / query evaluator (resolve.ts, query.ts) back to the
-  // project root, so `::yamlover:tags:…` ≡ `::tags:…` → the SAME real node. The graft is still
-  // materialized for a served SUBDIRECTORY of a project (taxonomy at an ancestor, not in-tree) and
-  // for a plain/foreign dir (the BUILT-IN graft — no real taxonomy to redirect to).
+  // Three outcomes, by where the taxonomy lives:
+  //  • served root IS the yamlover project (own `$defs/`): the taxonomy is ALREADY at `:$defs` /
+  //    `:tags`; materializing again would DUPLICATE every node (`:yamlover:tags:…` beside the real
+  //    `:tags:…`, splitting a tag's backlinks). So DE-MATERIALIZE — drop any `yamlover` key and let
+  //    the resolver/query evaluator absorb `::yamlover:…` ≡ `::…` virtually (resolve.ts, query.ts).
+  //  • served root is a SUBDIRECTORY of a project (taxonomy at an ancestor): graft the live ancestor
+  //    `$defs`+`tags` in-tree.
+  //  • a plain/foreign/DETACHED dir (no taxonomy reachable): graft the BUNDLED taxonomy (mounts.ts,
+  //    shipped as package data — the full $defs incl. board/task/workflow + the tags taxonomy), so a
+  //    detached copy of an example still resolves `*::yamlover:tags:workflow:dev`. Falls back to the
+  //    minimal in-source builtin only if the bundle is somehow absent.
+  // A `yamlover` key pointing somewhere ELSE (not the yamlover world URI) is a real user override and
+  // is left untouched (IMPORTS.md §4 "until overridden").
   const defsRoot = findDefsRoot(absDir);
   const defsDir = path.join(defsRoot, '$defs');
-  const selfRoot = path.resolve(absDir) === defsRoot; // served root IS the project root (own $defs)
+  // served root IS a project root: it has its OWN `$defs/` direct child (findDefsRoot falls back to
+  // the dir itself for a foreign tree, so the existence check is what distinguishes self from foreign).
+  const selfRoot = fs.existsSync(defsDir) && path.resolve(absDir) === defsRoot;
   const arrayRoot = root.array || (root.entries?.length ? root.entries.every((e) => e.key === null) : false);
-  let builtinDefs: Map<string, Node> | undefined; // the in-memory $defs for a BUILT-IN graft (no disk)
-  if (!arrayRoot && root.entries && !root.entries.some((e) => e.key === 'yamlover')) {
-    if (fs.existsSync(defsDir) && !selfRoot) {
-      // an ANCESTOR's taxonomy (served root is a subdir of a project): bring it in-tree.
-      const shared: Entry[] = [{ key: '$defs', edge: 'contain', value: yield* dirNode(defsDir, ctx) }];
-      const tagsDir = path.join(defsRoot, 'tags');
-      if (fs.existsSync(tagsDir)) shared.push({ key: 'tags', edge: 'contain', value: yield* dirNode(tagsDir, ctx) });
-      root.entries.push({ key: 'yamlover', edge: 'contain', value: { kind: 'mapping', entries: shared, array: false } });
-    } else if (!fs.existsSync(defsDir)) {
-      // No project taxonomy on disk: graft the BUILT-IN one (the `$defs/tag` schema + `tags/colors`
-      // palette), so the color tags resolve and annotations validate in a plain served directory.
-      const built = builtinYamloverGraft();
-      root.entries.push({ key: 'yamlover', edge: 'contain', value: built.node });
-      builtinDefs = built.defs;
+  let builtinDefs: Map<string, Node> | undefined; // the in-memory $defs for a BUNDLED/builtin graft (no disk)
+  if (!opts.noGraft && !arrayRoot && root.entries) {
+    const yEntry = root.entries.find((e) => e.key === 'yamlover');
+    const yIsSelfImport = !yEntry || (isPointer(yEntry.value) && isYamloverWorldPointer(yEntry.value));
+    if (selfRoot) {
+      // de-materialize: drop any authored `yamlover` self-import key — `::yamlover:…` ≡ `::…`.
+      if (yEntry && yIsSelfImport) root.entries = root.entries.filter((e) => e !== yEntry);
+    } else if (yIsSelfImport) {
+      let node: Node;
+      if (fs.existsSync(defsDir)) {
+        // an ANCESTOR's taxonomy (served root is a subdir of a project): bring it in-tree.
+        const shared: Entry[] = [{ key: '$defs', edge: 'contain', value: yield* dirNode(defsDir, ctx) }];
+        const tagsDir = path.join(defsRoot, 'tags');
+        if (fs.existsSync(tagsDir)) shared.push({ key: 'tags', edge: 'contain', value: yield* dirNode(tagsDir, ctx) });
+        node = { kind: 'mapping', entries: shared, array: false };
+      } else {
+        // No project taxonomy on disk: graft the BUNDLED taxonomy (full $defs + tags), falling back
+        // to the minimal in-source builtin if the bundle is unavailable.
+        const built = graftTaxonomy() ?? builtinYamloverGraft();
+        node = built.node;
+        builtinDefs = built.defs;
+      }
+      if (yEntry) { yEntry.value = node; yEntry.edge = 'contain'; } // materialize over the import pointer
+      else root.entries.push({ key: 'yamlover', edge: 'contain', value: node });
     }
-    // else (defsDir exists AND selfRoot): de-materialized self-import — resolves virtually.
   }
   applySchemas(root, defsRoot, builtinDefs); // propagate attached !!<…> schemas down the instance
   return {
@@ -388,7 +416,7 @@ async function countChildren(absRoot: string, opts: WalkOptions): Promise<number
     }
     let top = 0;
     for (const e of entries) {
-      if (YAMLOVER_INTERNAL.has(e.name) || e.name.startsWith('.')) continue;
+      if (skipInYamloverDir(e.name)) continue;
       const abs = path.join(dir, e.name);
       if (opts.ignore?.(abs)) continue;
       n++; top++;
@@ -569,7 +597,7 @@ function* yamloverDirNode(absYamlover: string, ctx: Ctx): Generator<WalkProgress
   try {
     names = fs
       .readdirSync(absYamlover)
-      .filter((n) => !YAMLOVER_INTERNAL.has(n) && !n.startsWith('.'))
+      .filter((n) => !skipInYamloverDir(n))
       .filter((n) => !ctx.opts.ignore?.(path.join(absYamlover, n)))
       .sort();
   } catch {
@@ -680,6 +708,13 @@ function parsedDoc(abs: string, lang: 'yamlover' | 'json5p', ctx: Ctx): Node {
 /** The nearest ancestor of `dir` (incl. itself) that holds a `$defs/` subtree — the
  *  yamlover-project root whose {$defs, tags} get grafted as the `yamlover` self-import
  *  key and whose schemas `*yamlover/$defs/<name>` pointers name; falls back to `dir`. */
+/** True for a pointer that names the yamlover project's world URI (`*::: yamlover.inthemoon.net`) —
+ *  the self-import that the walk materializes / de-materializes. A `yamlover` key pointing anywhere
+ *  else is a user override and is left as authored (IMPORTS.md §4). */
+function isYamloverWorldPointer(v: Value): boolean {
+  return isPointer(v) && v.base.scope === 'link' && v.base.world === true && v.base.authority === YAMLOVER_AUTHORITY;
+}
+
 function findDefsRoot(dir: string): string {
   let d = path.resolve(dir);
   for (;;) {

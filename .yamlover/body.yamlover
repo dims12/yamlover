@@ -1,0 +1,9 @@
+# .yamlover/body.yamlover — the served root's instance overlay (merged over the directory).
+#
+# The yamlover SELF-IMPORT (IMPORTS.md §4), written EXPLICITLY here for documentation. Every
+# project implicitly imports the yamlover project under the alias `yamlover`; this line just makes
+# that implicit key visible. When THIS project is the served root the engine DE-MATERIALIZES the
+# key (the taxonomy is already real at `:$defs` / `:tags`, so `::yamlover:X` ≡ `::X`); in any other
+# project the same key resolves to the bundled yamlover taxonomy. Omitting this line changes
+# nothing — the engine injects it when absent.
+yamlover: *::: yamlover.inthemoon.net

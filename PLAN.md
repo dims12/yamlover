@@ -198,8 +198,9 @@ A6. **Conformance** — yaml-test-suite anchor/alias cases reclassified to a
    *diverges-by-design* group; amend YAML-CONFORMANCE.md's shrink-only note to
    record this one-time, design-driven reclassification.
 
-> **Deferred from the same sketch:** imports/exports (project-level keys like
-> `yamlover: *https://…`, `$defs` export control) — own design round.
+> **Imports/exports** (project-level `uri` + `exports` in settings; import aliases as
+> root `body.yamlover` pointer keys; the bundled `yamlover` self-import) — **specced &
+> wired: IMPORTS.md.** Transport for non-yamlover authorities stays deferred.
 
 ## Phase 3 — Engine + SQLite (first version)
 
@@ -346,8 +347,10 @@ it). It exists now (`55-scalar-as-binary`). Remaining spec work:
   §2), so `$defs/` and `tags/colors` sit at the repo root, and the engine grafts
   the key `yamlover` → {$defs, tags} into EVERY served root — including this
   project itself (self-import: `//X` ≡ `//yamlover/X`). All `*yamlover/$defs/…`
-  pointer texts keep resolving; sharing config (.share/.ignore) and declarative
-  imports stay TBD.
+  pointer texts keep resolving. The taxonomy now also ships as **package data**
+  (`dist/builtin-taxonomy/`, mounts.ts) so a DETACHED tree resolves the full
+  `$defs` + `tags` (not just the color palette) — see IMPORTS.md §4. Declarative
+  imports/exports are specced & wired (IMPORTS.md); transport stays TBD.
 - **Optional validation pass** (later) — the *same* document checked over the resolved
   graph: `concrete` keyword, graph constraints (edge target types, cardinality,
   `~`-inverse consistency). Design after the engine exists.

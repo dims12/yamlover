@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { walkDir } from '../src/walk.ts';
 import { Store } from '../src/store.ts';
+import { resolveDocument } from '../src/resolve.ts';
 import { parseYamlover } from '../../../parser/ts/src/yamlover.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -219,6 +220,82 @@ test('built-in graft outside a yamlover/$defs host (palette always available); n
   assert.equal(arr.node(':')?.is_array, true);
   assert.equal(arr.node(':yamlover'), null);
   arr.close();
+});
+
+test('detached tree: the BUNDLED yamlover taxonomy resolves *::yamlover:tags:workflow:dev (IMPORTS.md §4)', () => {
+  // a board copied away from its project (no ancestor `$defs/`) — the bug behind a board with no
+  // lanes. The bundled taxonomy must supply the dev workflow + its states + the board/task schemas.
+  const root = mkdtempSync(join(tmpdir(), 'yo-detached-'));
+  mkdirSync(join(root, '.yamlover'));
+  writeFileSync(join(root, '.yamlover', 'body.yamlover'),
+    '!!<*yamlover:$defs:board>\nworkflow: *::yamlover:tags:workflow:dev\n');
+  const doc = walkDir(root);
+  const s = new Store(':memory:');
+  s.indexDocument(doc);
+  assert.equal(s.node(':yamlover:tags:workflow:dev')?.format, 'x-yamlover-workflow');
+  for (const st of ['backlog', 'ready', 'in-progress', 'done', 'cancelled'])
+    assert.equal(s.node(`:yamlover:tags:workflow:dev:${st}`)?.format, 'x-yamlover-tag');
+  assert.equal(s.node(':yamlover:$defs:board:format')?.value, 'x-yamlover-board');
+  assert.ok(s.node(':yamlover:$defs:task') !== null);
+  // and the board's workflow pointer actually resolves to the grafted workflow node
+  const edge = resolveDocument(doc).find((e) => e.from === ':workflow');
+  assert.equal(edge?.target.kind, 'node');
+  assert.equal(edge?.target.kind === 'node' && edge.target.path, ':yamlover:tags:workflow:dev');
+  s.close();
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('world URI: ::: yamlover.inthemoon.net is the bundled self-import; other authorities stay external', () => {
+  const root = mkdtempSync(join(tmpdir(), 'yo-world-'));
+  mkdirSync(join(root, '.yamlover'));
+  writeFileSync(join(root, '.yamlover', 'body.yamlover'),
+    'mine: *::: yamlover.inthemoon.net: tags: colors: yellow\nother: *::: acme.example: x\n');
+  const edges = resolveDocument(walkDir(root));
+  const mine = edges.find((e) => e.from === ':mine');
+  assert.equal(mine?.target.kind === 'node' && mine.target.path, ':yamlover:tags:colors:yellow');
+  const other = edges.find((e) => e.from === ':other');
+  assert.equal(other?.target.kind, 'external'); // transport out of scope — stays external
+  assert.equal(other?.target.kind === 'external' && other.target.authority, 'acme.example');
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('self-import: explicit `yamlover: *::: …` key materializes the taxonomy; a yamlover-key elsewhere is left as override', () => {
+  // authoring the implicit import explicitly (IMPORTS.md §4 / Task 4) behaves like leaving it out
+  const root = mkdtempSync(join(tmpdir(), 'yo-explicit-'));
+  mkdirSync(join(root, '.yamlover'));
+  writeFileSync(join(root, '.yamlover', 'body.yamlover'), 'yamlover: *::: yamlover.inthemoon.net\n');
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(root));
+  assert.equal(s.node(':yamlover:tags:colors:yellow')?.format, 'x-yamlover-tag');
+  s.close();
+  rmSync(root, { recursive: true, force: true });
+  // a `yamlover` key pointing ELSEWHERE is a user override — no graft happens
+  const root2 = mkdtempSync(join(tmpdir(), 'yo-override-'));
+  mkdirSync(join(root2, '.yamlover'));
+  writeFileSync(join(root2, '.yamlover', 'body.yamlover'), 'local:\n  hi: 1\nyamlover: *local\n');
+  const s2 = new Store(':memory:');
+  s2.indexDocument(walkDir(root2));
+  assert.equal(s2.node(':yamlover:tags:colors:yellow'), null);
+  s2.close();
+  rmSync(root2, { recursive: true, force: true });
+});
+
+test('settings.yamlover is indexed as a HIDDEN node (x-yamlover-config); body/meta stay unindexed', () => {
+  // the config file is openable/editable at :.yamlover:settings.yamlover by the settings editor,
+  // but hidden from the TOC (IMPORTS.md). body/meta remain consumed overlays (not nodes).
+  const root = mkdtempSync(join(tmpdir(), 'yo-settingsnode-'));
+  mkdirSync(join(root, '.yamlover'));
+  writeFileSync(join(root, '.yamlover', 'settings.yamlover'), '!!<*yamlover:$defs:config>\ntags: *:: tags\n');
+  writeFileSync(join(root, '.yamlover', 'body.yamlover'), 'extra: 1\n');
+  writeFileSync(join(root, 'name'), 'Alice\n');
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(root));
+  assert.equal(s.node(':.yamlover:settings.yamlover')?.format, 'x-yamlover-config');
+  assert.equal(s.node(':.yamlover')?.meta?.hidden, true); // parent overlay node is hidden
+  assert.equal(s.node(':.yamlover:body.yamlover'), null); // body stays a consumed overlay
+  assert.equal(s.node(':extra')?.value, 1); // …and is applied to the parent
+  s.close();
+  rmSync(root, { recursive: true, force: true });
 });
 
 test('~- membership in a body overlay: stored as a keyless back edge; !!set / uniqueItems mark sets', () => {

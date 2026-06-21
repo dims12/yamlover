@@ -2,8 +2,22 @@
 # Settings are DEFAULTS, never constraints: they only say where the server CREATES things when
 # the user does not; reading is location-independent (a node is recognized by its schema,
 # wherever it sits). A missing file or field silently falls back to these same defaults.
-# A location is a *-pointer into the served tree, resolved against the served root.
-annotations:
-  location: *annotations
-tags:
-  location: *tags
+# Locations are PROJECT-SCOPE pointers (`*:: name`) naming the object at the project root — `*::x`
+# = project root, `*:x` = document root, `*x` = parent/current scope (SEPARATOR.md §2).
+!!<*yamlover:$defs:config>
+
+# This project's identity (IMPORTS.md §1) — an AWS-ARN-like name, identity not transport. Other
+# projects import yamlover by this authority; the engine ships the exported taxonomy as package
+# data so `*::yamlover:…` resolves from any served root (IMPORTS.md §4).
+uri: ::: yamlover.inthemoon.net
+
+# The paths this project EXPORTS to importers (IMPORTS.md §2): the hosted schemas, the tag taxonomy
+# (palette + workflows), and the config schema. A list of pointer/query texts (QUERY.md).
+exports:
+- *:: $defs
+- *:: tags
+- *:: $defs: config
+
+annotations: *:: annotations   # create new annotations in :annotations
+tags: *:: tags                 # create new tags in :tags
+sidecars: per-directory        # where derived thumbnail/crop blobs go (enum, not a path)

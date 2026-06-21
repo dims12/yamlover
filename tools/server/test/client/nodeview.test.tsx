@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 
 vi.mock("../../src/client/api", () => ({
+  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
+  saveLastTag: vi.fn().mockResolvedValue({ ok: true }),
   fetchNode: vi.fn(),
   fetchSchema: vi.fn(),
   fetchAnnotations: vi.fn().mockResolvedValue([]), // header badges hop via /api/annotations

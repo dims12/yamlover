@@ -28,7 +28,7 @@ import { build as viteBuild } from "vite";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join, basename } from "node:path";
-import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, cpSync } from "node:fs";
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
@@ -82,3 +82,17 @@ mkdirSync(agentDocsDir, { recursive: true });
 const docFiles = readdirSync(agentDocsSrc).filter((f) => f.endsWith(".md"));
 for (const f of docFiles) copyFileSync(join(agentDocsSrc, f), join(agentDocsDir, f));
 console.log(`yamlover  copied ${docFiles.length} agent docs → dist/agent-docs`);
+
+// 5. Bundled yamlover taxonomy → dist/builtin-taxonomy/. The engine's self-import graft (mounts.ts)
+// ships the canonical {$defs, tags} as package DATA so `*::yamlover:…` resolves from ANY served
+// root — even a detached copy with no project of its own (IMPORTS.md §4). In dev it reads these
+// from the repo root; mounts.ts resolves `<bundle dir>/builtin-taxonomy` in the published package,
+// matching the dist/wasm + dist/agent-docs sibling-dir convention. The repo root stays the single
+// source of truth; this copy is regenerated each build (index.db caches excluded).
+const repoRoot = join(pkgRoot, "..", "..");
+const taxDir = join(pkgRoot, "dist/builtin-taxonomy");
+const skipDb = (src) => !/index\.db(-(wal|shm|journal))?$/.test(src);
+for (const sub of ["$defs", "tags"]) {
+  cpSync(join(repoRoot, sub), join(taxDir, sub), { recursive: true, filter: skipDb });
+}
+console.log("yamlover  copied yamlover taxonomy ($defs + tags) → dist/builtin-taxonomy");

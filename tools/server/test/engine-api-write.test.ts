@@ -58,7 +58,7 @@ describe("/api/tag (create)", () => {
   it("honors a *-pointer tags location from settings.yamlover", async () => {
     const root = tmpTree({
       name: "Alice",
-      ".yamlover/settings.yamlover": "tags:\n  location: *taxonomy/places\n",
+      ".yamlover/settings.yamlover": "tags: *:: taxonomy: places\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;

@@ -96,6 +96,15 @@ export function App() {
   const [format, setFormat] = useState<Format>(formatFromUrl(DEFAULT_FORMAT) as Format);
   const [rootLabel, setRootLabel] = useState<string>(""); // CLI ROOT (breadcrumb head)
   const [docsState, setDocsState] = useState<"idle" | "busy">("idle");
+  // The gear opens the project config (IMPORTS.md): the hidden settings node, rendered in the main
+  // pane by the settings editor renderer. It is NOT in the TOC tree, so navigate directly with the
+  // `settings` format rather than the tree-based `navigate` (which can't find a hidden node).
+  const openSettings = useCallback(() => {
+    const p = ":.yamlover:settings.yamlover";
+    writeUrl(p, "settings", false);
+    setCurrent(p);
+    setFormat("settings" as Format);
+  }, []);
   const [leftWidth, setLeftWidth] = useState<number>(320);
   const mainRef = useRef<HTMLElement>(null); // RHS pane — focused on TOC click so the keyboard drives the viewer
 
@@ -404,6 +413,15 @@ export function App() {
     <div className="app">
       <header className="topbar">
         <nav className="crumbs">
+          <button
+            type="button"
+            className="crumb-action"
+            title="Project configuration (settings.yamlover)"
+            aria-label="Project configuration"
+            onClick={openSettings}
+          >
+            ⚙
+          </button>
           <button
             type="button"
             className="crumb-action"

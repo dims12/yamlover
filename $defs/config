@@ -1,0 +1,20 @@
+# $defs/config — the project configuration schema for `<root>/.yamlover/settings.yamlover`
+# (settings.ts, IMPORTS.md). Settings are DEFAULTS, never constraints; reading is location-
+# independent. The format `x-yamlover-config` lets the server render the (hidden but accessible)
+# config file with the SETTINGS EDITOR — opened by the gear button, in the main pane. Locations are
+# PROJECT-SCOPE pointers (`*:: name`) naming the object at the project root. Attach with
+#  !!<*yamlover:$defs:config>.
+type: object
+format: x-yamlover-config
+properties:
+  uri:                                  # this project's identity (IMPORTS.md §1) — an authority,
+    type: string                        #   authored as `::: host`; identity, not transport
+  exports:                              # the paths exported to importers (IMPORTS.md §2):
+    type: array                         #   a list of pointer/query texts
+    items:
+      type: string
+  annotations: *:: yamlover: $defs: tag   # where new annotations are created (`*:: annotations`)
+  tags: *:: yamlover: $defs: tag          # where new tags are created (`*:: tags`)
+  sidecars:                             # where derived sidecar blobs go: per-directory | project
+    type: string
+  annotation-tag: *:: yamlover: $defs: tag  # the last-used annotation tag (the picker default)

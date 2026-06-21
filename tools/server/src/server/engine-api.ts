@@ -36,7 +36,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, loadSettings, mv, relinkMoved, evalQuery } from "../../../engine/ts/src/index.ts";
+import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, loadSettings, ensureSettingsFile, writeSettingKey, mv, relinkMoved, evalQuery } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { pointerToken } from "../../../parser/ts/src/serialize-yamlover.ts";
@@ -55,6 +55,10 @@ interface Options {
   gitignore?: boolean; // honor .gitignore for stray files (default: true)
   watch?: boolean; // watch the tree and re-index on external edits (default: false; bin turns it on)
   log?: (line: string) => void; // server-side progress lines (the bin wires console.log; tests stay silent)
+  // Materialize a defaults `settings.yamlover` when absent, so the gear button's settings node
+  // always exists (default: false; the bin turns it on). OFF for programmatic/test use, so the
+  // pure indexer never writes into the served tree.
+  ensureSettings?: boolean;
 }
 
 // Marker keys + types the client recognizes (must match src/client expectations).
@@ -69,8 +73,21 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   const rootName = path.basename(path.resolve(dataRoot)) || "/";
   const dbPath = path.join(dataRoot, ".yamlover", "index.db");
   // Project configuration (<root>/.yamlover/settings.yamlover) — defaults for WRITE paths
-  // (e.g. where new annotations are created). Read once at startup, like the index.
-  const settings: Settings = loadSettings(dataRoot);
+  // (e.g. where new annotations are created). Read at startup; reloaded when POST /api/config
+  // rewrites the file (so write-path defaults track edits without a server restart).
+  const settingsFile = path.join(dataRoot, ".yamlover", "settings.yamlover");
+  // Materialize a defaults file when absent (serve boundary only — `opts.ensureSettings`), so the
+  // config node always exists: the gear button opens `:.yamlover:settings.yamlover`, and a missing
+  // file would 404 that fetch. A no-op when the file is already there. Tolerant of a read-only tree:
+  // serving must not crash on a write failure.
+  if (opts.ensureSettings) {
+    try {
+      ensureSettingsFile(dataRoot);
+    } catch (e) {
+      (opts.log ?? (() => {}))(`could not create settings.yamlover: ${(e as Error).message}`);
+    }
+  }
+  let settings: Settings = loadSettings(dataRoot);
   // Skip git-ignored strays (node_modules, build output, …) so serving the project root works.
   const ignore = opts.gitignore === false ? undefined : buildGitIgnore(dataRoot);
 
@@ -409,7 +426,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             enqueue(async () => {
               const f = data as FragmentInput;
               if (!f?.selector || typeof f.selector !== "object") throw new Error("a fragment needs a selector");
-              const made = embedFragment(dataRoot, s, settings.sidecars.location, f);
+              const made = embedFragment(dataRoot, s, settings.sidecars, f);
               broadcast(await doReindex());
               scheduleHasher();
               return made;
@@ -448,7 +465,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             enqueue(async () => {
               const name = String((data as { name?: unknown })?.name ?? "").trim();
               if (!name) throw new Error("tag needs a non-empty name");
-              const segs = [...strToSegs(settings.tags.location), name];
+              const segs = [...strToSegs(settings.tags), name];
               const tagPath = segsToStr(segs);
               const existing = s.node(storePath(segs));
               if (existing) {
@@ -459,8 +476,8 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               // Index INCREMENTALLY (the annotate pattern — not a full rebuild, which stats the
               // whole tree and blocks the picker for seconds on a big root); the watcher's
               // reconcile re-walks the edited body and trues the rows up moments later.
-              const written = writeTag(dataRoot, settings.tags.location, name);
-              s.addTag(storePath(strToSegs(settings.tags.location)), name, written.pos, written.node);
+              const written = writeTag(dataRoot, settings.tags, name);
+              s.addTag(storePath(strToSegs(settings.tags)), name, written.pos, written.node);
               if (s.node(storePath(segs))?.format !== TAG_FORMAT) throw new Error(`the created tag did not index as a tag: ${tagPath}`);
               announce(written.createdFile ? { added: [written.file] } : { changed: [written.file] });
               return { path: tagPath, name, color: null, created: true };
@@ -580,6 +597,63 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
+      // The project config (IMPORTS.md) — `<root>/.yamlover/settings.yamlover`. It is indexed as a
+      // HIDDEN node (`:.yamlover:settings.yamlover`, format x-yamlover-config) rendered by the
+      // SETTINGS EDITOR; this pair gives that editor the RAW source (the node projection drops
+      // comments) and the PARSED settings, and writes edits back. GET → { source, settings }.
+      if (req.method !== "POST" && url.pathname === "/api/config") {
+        const source = fs.existsSync(settingsFile) ? fs.readFileSync(settingsFile, "utf8") : "";
+        sendJson(res, 200, { source, settings, path: ":.yamlover:settings.yamlover" });
+        return;
+      }
+      // Save edited config source. Body: { source }. The source must PARSE (parseYamlover throws on
+      // garbage — settings must never break serving), then it is written, the in-memory Settings
+      // reloaded, and the now-indexed settings node REINDEXED + broadcast so the open editor (and any
+      // view) refreshes through the unified SSE flow. Returns the freshly parsed Settings.
+      if (req.method === "POST" && url.pathname === "/api/config") {
+        readBody(req)
+          .then((data) =>
+            enqueue(async () => {
+              const source = String((data as { source?: unknown })?.source ?? "");
+              parseYamlover(source, settingsFile); // validate — throws ⇒ 400, file untouched
+              fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+              fs.writeFileSync(settingsFile, source);
+              settings = loadSettings(dataRoot);
+              broadcast(await doReindexFile(settingsFile));
+              return { ok: true, settings };
+            }),
+          )
+          .then((body) => sendJson(res, 200, body))
+          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
+        return;
+      }
+
+      // Persist the LAST-USED annotation tag (the picker default) into settings.yamlover — a single
+      // surgical line (`annotation-tag: *:: …`) preserving the rest of the config (IMPORTS.md / the
+      // tag is project-scoped, not browser-local). Body: { tag } (a client tag path). Reloads
+      // settings + reindexes the config node. Best-effort: a bad path is a 400, settings untouched.
+      if (req.method === "POST" && url.pathname === "/api/last-tag") {
+        readBody(req)
+          .then((data) =>
+            enqueue(async () => {
+              const tag = String((data as { tag?: unknown })?.tag ?? "").trim();
+              if (!tag) throw new Error("last-tag needs a `tag` path");
+              const segs = strToSegs(tag);
+              if (segs.length === 0 || segs.some((g) => typeof g === "number")) throw new Error(`not a tag node path: ${tag}`);
+              // a PROJECT-scope pointer naming the tag at the project root: `*:: a: b: c`
+              writeSettingKey(dataRoot, "annotation-tag", "*:: " + segs.map((s) => colonSegment(String(s))).join(": "));
+              settings = loadSettings(dataRoot);
+              // announce-only (no full reindex): this fires on every annotation, and the seed is read
+              // live from the file via GET /api/config — the indexed node trues up on the next reconcile.
+              announce({ changed: [relFileOf(":.yamlover:settings.yamlover")] });
+              return { ok: true, annotationTag: settings.annotationTag };
+            }),
+          )
+          .then((body) => sendJson(res, 200, body))
+          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
+        return;
+      }
+
       const segs = strToSegs(url.searchParams.get("path") || ":");
       const p = storePath(segs);
       const depth = parseDepth(url.searchParams.get("depth"));
@@ -647,12 +721,12 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           stream.on("error", () => res.destroy());
           stream.pipe(res);
         };
-        const ready = existingThumb(dataRoot, s, settings.sidecars.location, segs, sourceRow, w, h); // no-write fast path
+        const ready = existingThumb(dataRoot, s, settings.sidecars, segs, sourceRow, w, h); // no-write fast path
         if (ready) return serve(ready);
         thumbBegin(); // count this generation into the coalesced "building thumbnails" task
         enqueue(async () => {
           thumbTask?.progress(thumbDone, thumbTotal, String(segs[segs.length - 1] ?? "")); // the one now building
-          const made = await ensureThumbnail(dataRoot, s, settings.sidecars.location, segs, sourceRow, w, h);
+          const made = await ensureThumbnail(dataRoot, s, settings.sidecars, segs, sourceRow, w, h);
           if (made) broadcast(await doReindex());
           return made;
         })

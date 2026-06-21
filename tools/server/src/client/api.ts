@@ -145,6 +145,41 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return json as T;
 }
 
+/** The parsed project config (IMPORTS.md / engine settings). Mirrors the engine `Settings` —
+ *  flat: locations are project paths (`:annotations`), sidecars an enum, annotationTag the last
+ *  used tag's path. */
+export interface ConfigSettings {
+  uri?: string;
+  exports: string[];
+  annotations: string;
+  tags: string;
+  sidecars: string;
+  annotationTag?: string;
+}
+export interface ConfigPayload {
+  source: string; // raw settings.yamlover text ("" if the file does not exist yet)
+  settings: ConfigSettings; // parsed (defaults overlaid)
+  path: string; // the hidden config file's colon path
+}
+
+/** Read the project config — `<root>/.yamlover/settings.yamlover`. Gives the settings editor the
+ *  RAW source (the node projection drops comments) plus the parsed settings. */
+export function fetchConfig(): Promise<ConfigPayload> {
+  return getJson<ConfigPayload>(api("/api/config"));
+}
+
+/** Save edited config source. The server validates it parses (a broken config must never break
+ *  serving) before writing, then reloads its write-path defaults. Returns the reparsed settings. */
+export function saveConfig(source: string): Promise<{ ok: true; settings: ConfigSettings }> {
+  return postJson(api("/api/config"), { source });
+}
+
+/** Persist the last-used annotation tag into settings.yamlover (project-scoped, not localStorage):
+ *  a surgical one-line write. `tag` is the tag node's client path. */
+export function saveLastTag(tag: string): Promise<{ ok: true; annotationTag?: string }> {
+  return postJson(api("/api/last-tag"), { tag });
+}
+
 /** Create a FRAGMENT — a marked region in the node at `target` (ANNOTATIONS.md). Returns its slug
  *  and full node path, which is then the `target` for {@link annotate}. `imageBase64` is an
  *  optional PNG crop for image-like selections. */

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation } from "../api";
-import { TAG_FORMAT, explicitColor, resolveTagColor, tagFields } from "./tag";
+import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation, fetchConfig, saveLastTag } from "../api";
+import { TAG_FORMAT, explicitColor, isColorTagPath, resolveTagColor, tagFields } from "./tag";
 import { TagTip } from "./tagtip";
 import { canonPath, strToSegs } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
@@ -40,8 +40,7 @@ export const COLOR_TAGS: TagRef[] = [
 ];
 export const DEFAULT_TAG = COLOR_TAGS[0];
 export const DEFAULT_COLOR = DEFAULT_TAG.color!;
-const TAG_KEY = "yo-annotate-tag";
-const RECENT_KEY = "yo-annotate-recent-tags";
+const RECENT_KEY = "yo-annotate-recent-tags"; // the last-used tag now lives in settings.yamlover
 
 /** An annotation's display color — its applied tag's (explicit color, else name-derived hue);
  *  the default for legacy marks saved before annotations carried a tag. */
@@ -120,21 +119,18 @@ export function useColorTags(): TagRef[] {
 const TAG_QUERY = ": ...: !!<format: x-yamlover-tag>";
 
 export function indexToRefs(paths: string[]): TagRef[] {
-  // Collapse the `yamlover` self-import GRAFT: the same tag shows up both at its real path
-  // (`:tags:…`) and as a duplicate under the grafted import (`:yamlover:tags:…`, even doubly
-  // nested) — strip leading `:yamlover` segments to a single dedup key and keep ONE representative,
-  // preferring the real (non-grafted) node so the typeahead lists each tag once. (Until the graft is
-  // de-materialized — see the `graft-virtualize` design note.)
-  const byKey = new Map<string, { path: string; grafted: boolean }>();
+  // A tag is just a NODE at a real path — keep each path AS-IS (no namespace rewriting). A project's
+  // OWN tags (`:tags:…`, `:67-pdf-tags:tags:…`) and the GLOBAL self-import tags (`:yamlover:tags:…`)
+  // are DISTINCT nodes and BOTH belong in the picker (IMPORTS.md — a tag lives anywhere, reached by
+  // `:`/`::yamlover`). Dedup only EXACT duplicates (one node spelled two scope-ways), and drop the
+  // color palette (it is the swatch row, not a suggestion).
+  const byKey = new Map<string, string>();
   for (const p of paths) {
-    const cp = canonPath(p);
-    const key = cp.replace(/^(:yamlover(?=:))+/, ""); // :yamlover:tags:… → :tags:… (segment-bounded)
-    if (key.startsWith(":tags:colors:")) continue; // the color palette → swatch row, not suggestions
-    const grafted = key !== cp;
-    const cur = byKey.get(key);
-    if (!cur || (cur.grafted && !grafted)) byKey.set(key, { path: p, grafted });
+    if (isColorTagPath(p)) continue;
+    const key = canonPath(p);
+    if (!byKey.has(key)) byKey.set(key, p);
   }
-  return [...byKey.values()].map((v) => ({ path: v.path, name: tagNameOf(v.path), color: null }));
+  return [...byKey.values()].map((p) => ({ path: p, name: tagNameOf(p), color: null }));
 }
 
 /** The project's named tags, enumerated once and re-enumerated when a `.yamlover` source changes
@@ -155,17 +151,25 @@ export function useTagIndex(): TagRef[] {
 /** The remembered last-applied tag (persisted in localStorage) + a setter that persists it and
  *  files a NAMED tag among the recents (color tags live in the swatch row already). */
 export function useAnnotationTag(): [TagRef, (t: TagRef) => void] {
-  const [tag, set] = useState<TagRef>(() => {
-    try {
-      const t = JSON.parse(localStorage.getItem(TAG_KEY) || "") as TagRef;
-      if (t?.path && t?.name) return t;
-    } catch { /* no/invalid stored tag */ }
-    return DEFAULT_TAG;
-  });
+  const [tag, set] = useState<TagRef>(DEFAULT_TAG); // the palette default until settings load
+  // SEED from the project config (IMPORTS.md): the last-used tag lives in `settings.yamlover`
+  // (`annotation-tag: *:: …`), so the picker default is PROJECT-SCOPED — shared across browsers and
+  // always valid in THIS project. This replaces the old browser-localStorage default, whose paths
+  // went stale across served roots and caused the optimistic mark to 400 and vanish.
+  useEffect(() => {
+    let live = true;
+    fetchConfig()
+      .then((c) => {
+        const p = c.settings.annotationTag;
+        if (live && p) set({ path: p, name: tagNameOf(p), color: null });
+      })
+      .catch(() => { /* no config / not set — keep the palette default */ });
+    return () => { live = false; };
+  }, []);
   const setTag = (t: TagRef) => {
-    localStorage.setItem(TAG_KEY, JSON.stringify(t));
-    rememberRecent(t);
+    rememberRecent(t); // recents stay browser-local (a convenience list, not the project default)
     set(t);
+    void saveLastTag(t.path).catch(() => { /* best-effort persist; the seed just won't carry over */ });
   };
   return [tag, setTag];
 }
@@ -185,17 +189,14 @@ function rememberRecent(t: TagRef): void {
   localStorage.setItem(RECENT_KEY, JSON.stringify(next));
 }
 
-/** Drop remembered tags whose node is GONE (or stopped being a tag): localStorage outlives the
- *  tags themselves, so a deleted tag would linger as a clickable badge forever. Each recent (and
- *  the remembered last-applied tag) is checked against the server; survivors are written back.
- *  Resolves to the live recents — the menu shows those. */
+/** Drop recents whose node is GONE (or stopped being a tag): the localStorage recents list
+ *  outlives the tags themselves, so a deleted tag would linger as a clickable badge forever. Each
+ *  recent is checked against the server; survivors are written back. (The last-used tag is no longer
+ *  in localStorage — it lives in settings.yamlover, always valid for the project.) Resolves to the
+ *  live recents — the menu shows those. */
 function pruneRememberedTags(): Promise<TagRef[]> {
   const isLive = (t: TagRef): Promise<boolean> =>
     fetchNode(t.path, 0).then((n) => n.format === TAG_FORMAT).catch(() => false);
-  try {
-    const t = JSON.parse(localStorage.getItem(TAG_KEY) || "") as TagRef;
-    if (t?.path) void isLive(t).then((live) => { if (!live) localStorage.removeItem(TAG_KEY); });
-  } catch { /* no/invalid stored tag */ }
   const recents = recentTags();
   return Promise.all(recents.map((t) => isLive(t).then((live) => (live ? t : null)))).then((kept) => {
     const live = kept.filter(Boolean) as TagRef[];

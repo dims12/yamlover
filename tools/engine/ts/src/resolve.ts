@@ -19,6 +19,11 @@ export type Located =
   | { kind: 'external'; authority: string; steps: Step[] }
   | { kind: 'unresolved'; reason: string };
 
+/** The yamlover project's world URI (mirrors mounts.ts:YAMLOVER_AUTHORITY — kept as a local
+ *  literal to avoid an import cycle through the walk's top-level await). The one world authority
+ *  that resolves locally (bundled), as the self-import alias `yamlover` (IMPORTS.md §4). */
+const YAMLOVER_AUTHORITY = 'yamlover.inthemoon.net';
+
 export interface ResolvedEdge {
   from: string;            // path of the entry holding the pointer
   holder: string;          // path of the mapping that holds it
@@ -144,13 +149,18 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
       // intra-project (e.g. an annotation → its material), so a miss is DANGLING. Only the `:::`
       // world form (`isWorld`) may name a genuine external authority and stay external on a miss.
       chain = chains.get(root) ?? [root];
+      // The yamlover world URI is the self-import alias: `::: yamlover.inthemoon.net:…` ≡
+      // `:: yamlover:…` (IMPORTS.md §4) — it is bundled, so it resolves locally like the alias
+      // rather than staying external. Every other world authority falls through to `external()`.
+      let authority = ptr.base.authority;
+      if (isWorld && authority === YAMLOVER_AUTHORITY) authority = 'yamlover';
       // SELF-IMPORT (SEPARATOR.md §2): inside the yamlover project `::X` ≡ `::yamlover:X`. When the
       // served root IS the project, the `yamlover` self-import is DE-MATERIALIZED (walk.ts) — there
       // is no `yamlover` node — so absorb the authority: resolve the steps straight from the project
       // root, landing on the REAL `:tags:…` / `:$defs:…`, not a graft duplicate. When a `yamlover`
-      // node DOES exist (a served subdir, or a foreign dir's built-in graft) it is stepped into.
-      const selfImport = ptr.base.authority === 'yamlover' && !root.entries?.some((e) => e.key === 'yamlover');
-      steps = selfImport ? ptr.steps : [{ sel: 'key', name: ptr.base.authority }, ...ptr.steps];
+      // node DOES exist (a served subdir, or a foreign dir's bundled graft) it is stepped into.
+      const selfImport = authority === 'yamlover' && !root.entries?.some((e) => e.key === 'yamlover');
+      steps = selfImport ? ptr.steps : [{ sel: 'key', name: authority }, ...ptr.steps];
       break;
     }
     case 'document': {

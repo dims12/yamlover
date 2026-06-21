@@ -132,7 +132,7 @@ describe("GET /api/thumb", () => {
   });
 
   it("project mode writes the sidecar to the ROOT .yamlover/ with a project-scoped pointer", async () => {
-    const root = tmpTree({ ".yamlover/settings.yamlover": "sidecars:\n  location: project\n" });
+    const root = tmpTree({ ".yamlover/settings.yamlover": "sidecars: project\n" });
     fs.mkdirSync(path.join(root, "sub"));
     await writePng(root, "sub/pic.png", 400, 300); // a NESTED source image
     const h = handlers(root);

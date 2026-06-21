@@ -6,6 +6,8 @@ import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/re
 // query, pruneRememberedTags → fetchNode) fall back gracefully, and the right-click menu's writes
 // (annotate / deleteAnnotation / fetchAnnotations) are observed directly.
 vi.mock("../../src/client/api", () => ({
+  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
+  saveLastTag: vi.fn().mockResolvedValue({ ok: true }),
   fetchAnnotations: vi.fn().mockResolvedValue([]),
   annotate: vi.fn().mockResolvedValue({ ok: true }),
   deleteAnnotation: vi.fn().mockResolvedValue(undefined),
@@ -16,12 +18,13 @@ vi.mock("../../src/client/api", () => ({
 
 import { AnnotationMenu, indexToRefs } from "../../src/client/renderers/annotate";
 import { useExplorerTagMenu } from "../../src/client/renderers/tagmenu";
-import { fetchAnnotations, annotate, deleteAnnotation, query } from "../../src/client/api";
+import { fetchAnnotations, annotate, deleteAnnotation, query, saveLastTag } from "../../src/client/api";
 
 const mAnns = fetchAnnotations as unknown as ReturnType<typeof vi.fn>;
 const mAnnotate = annotate as unknown as ReturnType<typeof vi.fn>;
 const mDelete = deleteAnnotation as unknown as ReturnType<typeof vi.fn>;
 const mQuery = query as unknown as ReturnType<typeof vi.fn>;
+const mSaveLastTag = saveLastTag as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   localStorage.clear();
@@ -33,20 +36,22 @@ beforeEach(() => {
 afterEach(cleanup);
 
 // ---- the typeahead index: collapse the `yamlover` self-import graft duplicates ---- //
-describe("indexToRefs — graft-aware dedup", () => {
-  it("collapses a tag duplicated by the yamlover self-import graft, keeping the real node", () => {
+describe("indexToRefs — a tag is just a node (both namespaces listed)", () => {
+  it("lists a project's OWN tag and the GLOBAL self-import tag as DISTINCT nodes (IMPORTS.md)", () => {
+    // `:tags:…` (project-own, document-root) and `:yamlover:tags:…` (global self-import) are
+    // different nodes — both belong in the picker. Only an EXACT duplicate path collapses.
     const refs = indexToRefs([
       ":tags:workflow:dev:ready",
-      ":yamlover:tags:workflow:dev:ready", // graft dup of the same tag
-      ":yamlover:yamlover:tags:workflow:dev:ready", // doubly-grafted dup
+      ":yamlover:tags:workflow:dev:ready", // a DIFFERENT node (the global one) — kept too
+      ":tags:workflow:dev:ready", // an exact dup of the first — collapsed
     ]);
-    expect(refs.map((r) => r.name)).toEqual(["ready"]); // listed ONCE (was 3× before the fix)
-    expect(refs[0].path).toBe(":tags:workflow:dev:ready"); // the real (non-grafted) node is kept
+    expect(refs.map((r) => r.path)).toEqual([":tags:workflow:dev:ready", ":yamlover:tags:workflow:dev:ready"]);
+    expect(refs.map((r) => r.name)).toEqual(["ready", "ready"]);
   });
-  it("keeps a tag that only exists under the graft, and drops the color palette", () => {
+  it("keeps each tag at its REAL path and drops the color palette (the swatch row)", () => {
     const refs = indexToRefs([":yamlover:tags:misc:foo", ":tags:colors:yellow", ":yamlover:tags:colors:red"]);
     expect(refs.map((r) => r.name)).toEqual(["foo"]);
-    expect(refs[0].path).toBe(":yamlover:tags:misc:foo");
+    expect(refs[0].path).toBe(":yamlover:tags:misc:foo"); // real path, not rewritten
   });
 });
 
@@ -141,12 +146,22 @@ describe("useExplorerTagMenu — right-click whole-node tagging", () => {
     expect(mAnnotate.mock.calls[0][0].target).toBe(":doc.md");
   });
 
-  it("pre-applies the last-used tag immediately when the node opens with NO tags", async () => {
+  it("pre-applies the default tag immediately when the node opens with NO tags", async () => {
     mAnns.mockResolvedValue([]); // an untagged node
-    localStorage.setItem("yo-annotate-tag", JSON.stringify({ path: ":tags:fav", name: "fav", color: null }));
     render(<Harness />);
     fireEvent.click(screen.getByText("open"));
-    // opening writes the remembered tag at once (it then shows checked; click to remove)
-    await waitFor(() => expect(mAnnotate).toHaveBeenCalledWith(expect.objectContaining({ target: ":doc.md", tag: ":tags:fav" })));
+    // opening writes the seed tag at once (it then shows checked; click to remove). The seed is the
+    // project default (settings.yamlover annotation-tag, IMPORTS.md); the mocked config has none, so
+    // it is the palette default — assert SOME tag is auto-applied to this target.
+    await waitFor(() => expect(mAnnotate).toHaveBeenCalledWith(expect.objectContaining({ target: ":doc.md" })));
+  });
+
+  it("picking a tag PERSISTS it as the project default (saveLastTag), not browser localStorage", async () => {
+    mAnns.mockResolvedValue([]);
+    render(<Harness />);
+    fireEvent.click(screen.getByText("open"));
+    fireEvent.click(document.querySelector(".annotate-swatch")!); // pick a palette color
+    await waitFor(() => expect(mSaveLastTag).toHaveBeenCalled());
+    expect(typeof mSaveLastTag.mock.calls[0][0]).toBe("string"); // a tag path
   });
 });

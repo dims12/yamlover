@@ -51,7 +51,9 @@ schema definitions at its project root, under **`$defs/`** — a project's tree 
 tree (layout restructured 2026-06-13; previously a `yamlover/` wrapper dir). The engine
 grafts the **self-import key `yamlover`** → {`$defs`, `tags`} into every served root —
 including the yamlover project itself, where `//X` ≡ `//yamlover/X` — so
-`!!<*yamlover/$defs/chapter>` tag pointers resolve from any project:
+`!!<*yamlover/$defs/chapter>` tag pointers resolve from any project. The taxonomy ships
+as package data, so even a detached tree resolves it (the self-import is bundled — see
+IMPORTS.md §4):
 
 - **`$defs/chunk`** — one renderable content block: a typed value whose `(type, format)`
   selects the renderer; default `string`/`text/markdown` (prose), overridable per chunk.

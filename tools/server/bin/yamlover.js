@@ -242,6 +242,7 @@ if (prod) {
 handle = createHandlers(dataRoot, {
   gitignore,
   watch: true, // re-index + push on external edits
+  ensureSettings: true, // create .yamlover/settings.yamlover with defaults if absent (so the gear opens)
   log: (line) => console.log(`yamlover  ${line}`),
 });
 handle.ready.catch((e) => console.error("yamlover: indexing failed:", e));
