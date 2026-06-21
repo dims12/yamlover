@@ -92,3 +92,52 @@ describe("reverse positional membership (~-) projection", () => {
     expect(json.value.name).toBe("m");
   });
 });
+
+describe("render depth: .inf default + references as references", () => {
+  // a directory document with a nested subtree and a forward `*` reference
+  const tree = () =>
+    tmpTree({
+      ".yamlover/body.yamlover":
+        "eve:\n  name: Eve\n" +
+        "adam:\n  mother: *:eve\n  deep:\n    nested:\n      leaf: 1\n",
+    });
+
+  it("defaults to UNLIMITED depth inside a document: the whole subtree inlines (no truncation marker)", async () => {
+    const h = createHandlers(tree(), { gitignore: false });
+    await h.ready;
+    const { json } = call(h, "/api/json", { path: ":adam" }); // no ?depth= → server default (.inf)
+    expect(json.value.deep.nested.leaf).toBe(1); // inlined all the way down
+  });
+
+  it("renders a reference AS a reference (its pointer text) at the default .inf depth", async () => {
+    const h = createHandlers(tree(), { gitignore: false });
+    await h.ready;
+    const { json } = call(h, "/api/json", { path: ":adam" });
+    expect(json.value.mother.$yamloverRef).toEqual({ text: ":eve", path: ":eve" });
+    expect(json.value.mother.$yamloverLink).toBeUndefined(); // not a { object … } marker
+  });
+
+  it("?depth=.inf is unlimited (whole subtree, references as references)", async () => {
+    const h = createHandlers(tree(), { gitignore: false });
+    await h.ready;
+    const { json } = call(h, "/api/json", { path: ":adam", depth: ".inf" });
+    expect(json.value.deep.nested.leaf).toBe(1);
+    expect(json.value.mother.$yamloverRef.text).toBe(":eve");
+  });
+
+  it("at an explicit FINITE depth a reference resolves to a navigable link marker; deep containment truncates", async () => {
+    const h = createHandlers(tree(), { gitignore: false });
+    await h.ready;
+    const { json } = call(h, "/api/json", { path: ":adam", depth: "1" });
+    expect(json.value.mother.$yamloverLink.path).toBe(":eve"); // resolved → a link, not a $yamloverRef
+    expect(json.value.mother.$yamloverRef).toBeUndefined();
+    expect(json.value.deep.$yamloverLink).toBeTruthy(); // past the depth-1 budget → truncation marker
+  });
+
+  it("a DIRECTORY defaults to ONE level (children are link markers, not inlined whole)", async () => {
+    const h = createHandlers(tree(), { gitignore: false });
+    await h.ready;
+    const { json } = call(h, "/api/json", { path: ":" }); // the served root = a .yamlover directory
+    expect(json.value.adam.$yamloverLink).toBeTruthy();
+  });
+});

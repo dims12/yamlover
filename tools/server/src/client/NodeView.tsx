@@ -5,6 +5,7 @@ import { countImages, htmlToRich, resolveImages, RichDraft } from "./paste-html"
 import { renderersFor } from "./renderers/registry";
 import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
 import { DepthControl, viewDepth } from "./renderers/depth";
+import { useHashScroll } from "./renderers/headings";
 
 // Renderers whose output is prose — they get the TEXT annotation layer (drag-select → palette →
 // highlight). Image and map renderers carry their OWN region annotation layer (drag-rectangle →
@@ -126,6 +127,9 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   // upstream relation is the annotation node, so the hop to its tag comes from /api/annotations).
   // Unconditional: hooks must run on every render, including the loading ones.
   const anns = useAnnotations(path);
+  // A `<page>#/cont` deep link (or a local-ref click) scrolls to the stamped node id once the value
+  // settles. Unconditional — hooks run every render, including the loading ones.
+  useHashScroll(node);
 
   useEffect(() => {
     setError(null);
@@ -135,24 +139,33 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     // (so a floating menu / selection it owns survives the write that triggered the refresh).
     if (prevPath.current !== path) { setNode(null); prevPath.current = path; }
     let cancelled = false;
-    // A first (one-level) fetch settles the node's (type, format); a renderer that
-    // needs deeper value (e.g. a chapter, depth 2: arrays one level, elements the
-    // next) gets a second fetch at that depth before its value is shown.
+    // A first fetch at the SERVER DEFAULT settles the node's (type, format) and, for a data view at
+    // the default `.inf`, IS the value shown (the server resolves `.inf` per concrete — a whole text
+    // document, one level for a directory/binary). A view that needs a DIFFERENT depth (a renderer's
+    // own, or an explicit finite `?depth=`) gets a second fetch at that depth.
     fetchNode(path)
       .then((n) => {
         if (cancelled) return;
         // Depth is chosen by the ACTIVE representation, never the max: a DATA view (yamlover /
-        // json5p / schema) honours the `?depth=` setting (default 2), but a RENDERER view gets
-        // exactly its own depth. The explorer (depth 1) MUST get a one-level projection — at depth 2
-        // its members stop being `$yamloverLink` markers (overlayed/container members inline), which
-        // would break navigation, icons and thumbnails. Switching renderer↔data tab refetches (the
-        // effect depends on `format`); the node stays visible meanwhile (no-flash reloadKey path).
+        // json5p / schema) honours the `?depth=` setting (default `.inf`); a RENDERER view gets
+        // exactly its own depth. The explorer (depth 1) MUST get a one-level projection — at a
+        // deeper depth its members stop being `$yamloverLink` markers (overlayed/container members
+        // inline), which would break navigation, icons and thumbnails. Switching renderer↔data tab
+        // refetches (the effect depends on `format`); the node stays visible meanwhile (no-flash).
         const rs = renderersFor(n);
         const eff = effectiveFormat(format, rs, standardFormatsFor(n));
         const active = rs.find((r) => r.name === eff);
-        const d = active ? active.depth ?? 1 : viewDepth(); // renderer → its depth; data view → setting
-        if (d > 1) fetchNode(path, d).then((dn) => !cancelled && setNode(dn)).catch((e) => !cancelled && setError(e.message));
-        else setNode(n);
+        const swap = (dn: NodeJson) => !cancelled && setNode(dn);
+        const fail = (e: Error) => !cancelled && setError(e.message);
+        if (active) {
+          const d = active.depth ?? 1; // a renderer's own fixed depth
+          if (d > 1) fetchNode(path, d).then(swap).catch(fail);
+          else setNode(n); // depth 1 (e.g. the explorer) → the settle fetch already covers it
+        } else {
+          const dv = viewDepth(); // a data view: number = explicit finite, null = `.inf`/default
+          if (dv === null) setNode(n); // default/.inf → the settle fetch is the server's per-concrete default
+          else fetchNode(path, dv).then(swap).catch(fail); // explicit finite (incl. 1) → fetch exactly that
+        }
       })
       .catch((e) => !cancelled && setError(e.message));
     return () => {
@@ -352,7 +365,8 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     const eff = effectiveFormat(format, rs, standardFormatsFor(node));
     if (rs.some((r) => r.name === eff)) return; // a rendered view reads node.value (already fetched)
     if (isSchema(eff)) {
-      fetchSchema(path, viewDepth()).then(setSchema).catch((e) => setError(e.message));
+      // `.inf`/default (viewDepth null) → omit depth so the server applies its per-concrete default
+      fetchSchema(path, viewDepth() ?? undefined).then(setSchema).catch((e) => setError(e.message));
     } else if (node.type === "binary") {
       fetchNode(path, undefined, { binary: true }).then((n) => setBin(n.value)).catch((e) => setError(e.message));
     }
@@ -372,6 +386,8 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   const labelOf = (f: Format): string => renderers.find((r) => r.name === f)?.label ?? f;
   const renderer = renderers.find((r) => r.name === effective) ?? null;
   const showRendered = renderer != null;
+  // the document this node belongs to — the base its `#`-fragment anchors are measured from
+  const docPath = node.documentPath ?? path;
 
   let content: unknown;
   let ready: boolean;
@@ -445,11 +461,13 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
               an <hr/>, then the value; schema views embed rel inline already */}
           {!isSchema(effective) && Object.keys(rest).length > 0 && (
             <>
-              <Render value={rest} syntax={syntaxOf(effective)} onNavigate={onNavigate} />
+              {/* the relations panel: refs may link in-page, but it gets NO fragment ids
+                  (anchors=false) so its keys don't collide with the value's node ids */}
+              <Render value={rest} syntax={syntaxOf(effective)} onNavigate={onNavigate} documentPath={docPath} nodePath={path} anchors={false} />
               <hr className="reldiv" />
             </>
           )}
-          {ready ? <Render value={content} syntax={syntaxOf(effective)} onNavigate={onNavigate} /> : "…"}
+          {ready ? <Render value={content} syntax={syntaxOf(effective)} onNavigate={onNavigate} documentPath={docPath} nodePath={path} /> : "…"}
         </pre>
       )}
     </div>

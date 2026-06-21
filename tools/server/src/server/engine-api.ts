@@ -65,6 +65,11 @@ interface Options {
 const LINK_KEY = "$yamloverLink";
 const BINARY_KEY = "$yamloverBinary";
 const MIXED_KEY = "$yamloverMixed"; // an omni/mix node: a self-value and/or interleaved items+fields
+// A reference shown AS a reference: its yamlover pointer `text` (the scope-correct colon spelling),
+// hyperlinked to where it resolves (`path`). The client renders the pointer text — a LOCAL target
+// (inside the rendered subtree) becomes an in-page `#` fragment link, else it navigates. Distinct
+// from LINK_KEY, which is now reserved for a depth-TRUNCATED container ("click to descend").
+const REF_KEY = "$yamloverRef";
 type Seg = string | number;
 // Node-KIND classification (object|array|scalar|binary|omni|mix → the client `type:`) lives in
 // ./node-kind.ts so it can be unit-tested against a Store without the HTTP layer.
@@ -738,8 +743,10 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
 
       const row = s.node(p);
       if (!row) return notFound(res, url);
-      const viewDepth = depth ?? 1;
       const kind = displayKind(s, p, row);
+      // an explicit `?depth=` (a finite level, or `.inf` → Infinity) wins; absent, default per
+      // concrete (unlimited for a text document, one level for a directory / binary).
+      const viewDepth = depth === undefined ? defaultDepth(dataRoot, segs, row, kind) : depth;
 
       if (url.pathname === "/api/json") {
         // Gate the byte fetch on the binary VALUE FACET (a blob), not the display `kind`: an image
@@ -889,10 +896,19 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
   // back-edge shown as a link marker to the downstream node (so a `chunks` array mixing inline
   // blocks and `*sample.png` pointers is whole, and a child reached only by `~` still appears).
   const kids = downstreamEntries(s, p);
-  const project = (c: { to: string; label: string | null; pos: number | null; kind: string }) =>
-    c.kind === "contain"
-      ? projectValue(dataRoot, s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false)
-      : linkMarker(dataRoot, s, storePathToSegs(c.to)); // pointer → a marker to where it resolves
+  const currentDoc = documentRootSegs(s, segs); // frame for a reference's scope-correct pointer text
+  const project = (c: { to: string; label: string | null; pos: number | null; kind: string }) => {
+    if (c.kind === "contain") return projectValue(dataRoot, s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false);
+    // a reference (a forward `*` ref or an incoming `~` back-edge). At UNLIMITED depth show it AS a
+    // reference — its yamlover pointer text, hyperlinked — so the link syntax stays visible (and the
+    // possibly-cyclic graph is never inlined). At a FINITE depth it is RESOLVED to a navigable link
+    // marker (a `{ … }` summary of the target); since that only happens under an explicit finite
+    // `?depth=`, the `{ … }` marker means "truncated by the depth setting" everywhere it appears.
+    const targetSegs = storePathToSegs(c.to);
+    return depth === Infinity
+      ? refMarker(scopedPath(s, targetSegs, currentDoc), segsToStr(targetSegs))
+      : linkMarker(dataRoot, s, targetSegs);
+  };
   if (k === "array") return kids.map(project);
   if (k === "omni" || k === "mix") {
     // A `$yamloverMixed` marker preserving source order: each entry is positional (`key: null` →
@@ -994,8 +1010,9 @@ function buildRelations(dataRoot: string, s: Store, segs: Seg[]): Record<string,
     out[k] = marker;
   };
 
-  // The containment parent — the upstream containment relation, always the primary way up.
-  if (segs.length > 0) put("..", linkMarker(dataRoot, s, segs.slice(0, -1)));
+  // The containment parent — the upstream containment relation, always the primary way up. Shown AS
+  // a reference (`..` hyperlinked to the parent), never a `{ … }` marker (which means truncation).
+  if (segs.length > 0) put("..", refMarker("..", segsToStr(segs.slice(0, -1))));
 
   // Upstream `*`/`~` sources (this node is the natural target), deduped across forward+reverse
   // authoring. A forward ref INTO p has its source at `from`; a `~` back-edge OUT of p (stored
@@ -1010,7 +1027,10 @@ function buildRelations(dataRoot: string, s: Store, segs: Seg[]): Record<string,
   for (const e of outEdges) if (e.kind === "back") addUp(e.to, e.label); // `~` back-edge OUT of p
   for (const src of upstream.values()) {
     const segs2 = storePathToSegs(src);
-    put(scopedPath(s, segs2, currentDoc), linkMarker(dataRoot, s, segs2));
+    const key = scopedPath(s, segs2, currentDoc);
+    // a TAG source stays a link marker so splitTagRefs (client) can peel it into a header badge;
+    // every other upstream source shows AS a reference (its pointer text), like the value view.
+    put(key, s.node(src)?.format === TAG_FORMAT ? linkMarker(dataRoot, s, segs2) : refMarker(key, segsToStr(segs2)));
   }
   return out;
 }
@@ -1940,10 +1960,29 @@ function formatFromExt(file: string): string | null {
   return EXT_CT[path.extname(file).toLowerCase()] ?? null;
 }
 
-function parseDepth(raw: string | null): number | null {
-  if (raw == null || raw === "") return null;
+// `undefined` = absent (the caller picks a per-concrete default), `Infinity` = `.inf`/`inf`
+// (unlimited), a finite integer = that level. A malformed value is treated as absent.
+function parseDepth(raw: string | null): number | undefined {
+  if (raw == null || raw === "") return undefined;
+  if (raw === ".inf" || raw === "inf") return Infinity;
   const n = Number(raw);
-  return Number.isInteger(n) && n >= 0 ? n : null;
+  return Number.isInteger(n) && n >= 0 ? n : undefined;
+}
+
+/** The render depth when the request pins none: ONE level for a binary leaf or a directory (a plain
+ *  folder or a `.yamlover`-backed directory — the explorer shows one level), else UNLIMITED
+ *  (Infinity) so a text document (json/json5/yaml/yamlover, and the value nodes inside it) inlines
+ *  whole. A reference is never followed at unlimited depth — it shows as a reference — so the whole
+ *  walk stays finite even on a cyclic graph. */
+function defaultDepth(dataRoot: string, segs: Seg[], row: NodeRow, kind: string): number {
+  if (kind === "binary") return 1;
+  const c = concreteOf(dataRoot, segs, row);
+  return c === "dir" || c === "yamlover" ? 1 : Infinity;
+}
+
+/** A `$yamloverRef` marker: a reference shown by its pointer `text`, hyperlinked to `path`. */
+function refMarker(text: string, path: string): Record<string, unknown> {
+  return { [REF_KEY]: { text, path } };
 }
 
 /** A thumbnail box dimension from the query, clamped to a sane range so a request can't ask the

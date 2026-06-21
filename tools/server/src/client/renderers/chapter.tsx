@@ -1,6 +1,6 @@
 import { NodeJson } from "../api";
 import { asLink, Link } from "../render";
-import { segsToStr, strToSegs } from "../paths";
+import { fragmentOf } from "../paths";
 import { Chunk, rendererFor } from "./registry";
 import { useHashScroll } from "./headings";
 
@@ -113,7 +113,7 @@ function ChunkBlock({
   // The chunk's location *within this page*: its path continuation past the chapter
   // (e.g. `/chunks[1]`), used as both the element id and the `§N` anchor link. The
   // full path stays navigable; this is the flattened, in-page locator.
-  const anchor = chunk.path ? pathContinuation(basePath, chunk.path) : null;
+  const anchor = chunk.path ? fragmentOf(basePath, chunk.path) : null;
   return (
     <div className="chunk" id={anchor ?? undefined}>
       {anchor ? (
@@ -126,14 +126,6 @@ function ChunkBlock({
       <div className="chunk-body">{body}</div>
     </div>
   );
-}
-
-/** The path continuation from `base` to `full` — the segments of `full` past
- *  `base`, in JSON-path syntax. E.g. ("/book", "/book/chunks[1]") → "/chunks[1]".
- *  A flattened child's fragment anchor is exactly this continuation, so the anchor
- *  spelling matches the still-navigable full path. */
-function pathContinuation(base: string, full: string): string {
-  return segsToStr(strToSegs(full).slice(strToSegs(base).length));
 }
 
 /** A subchapter link's label: its schema title, else a generic fallback. */

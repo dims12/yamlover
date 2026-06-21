@@ -64,6 +64,17 @@ export function urlOfPath(path: string): string {
   return BASE + tail; // keep navigation under the served base prefix (--base-path)
 }
 
+/** The slash-form fragment continuation from a document `base` to a `full` path: the segments of
+ *  `full` past `base`, slashed, with NO served-base prefix. A flattened/inlined node exposes its
+ *  in-page location as exactly this (README "flattened child" rule), used as both its anchor `id`
+ *  and its `#`-fragment — so `<doc>#/cont` lands on it. Keys are kept DECODED (matching what
+ *  `useHashScroll` looks up after decoding the hash). E.g. (":book", ":book:chunks[0]") →
+ *  "/chunks[0]"; ("" when `full === base`, i.e. the rendered root itself). */
+export function fragmentOf(base: string, full: string): string {
+  const tail = strToSegs(full).slice(strToSegs(base).length);
+  return tail.map((s) => (typeof s === "number" ? `[${s}]` : `/${s}`)).join("");
+}
+
 /** A human-readable form of a canonical path: each key decoded (so a percent-encoded
  *  segment like `%D0%9F…` shows as its actual characters), colon-separated with a SPACE
  *  after each colon (matching the yamlover source spelling and the tag hover-card), indices

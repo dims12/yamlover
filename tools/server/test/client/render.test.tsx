@@ -89,13 +89,15 @@ describe("Render", () => {
     expect(txt).toContain("iVBORw0KGgo");
   });
 
-  it("renders a rel ref as a hyperlink to its resolved path", () => {
+  it("renders a rel ref resolving OUTSIDE the rendered subtree as a navigating hyperlink", () => {
     const onNav = vi.fn();
     render(
       <Render
         value={{ "x-yamlover": { rel: { mother: { $yamloverRef: { text: ":eve", path: ":eve" } } } } }}
         syntax="yaml"
         onNavigate={onNav}
+        documentPath=":"
+        nodePath=":adam" // the ref target :eve is not inside :adam → ordinary navigation
       />,
     );
     const link = screen.getByText(":eve");
@@ -103,6 +105,24 @@ describe("Render", () => {
     expect(link.getAttribute("href")).toBe(":eve");
     fireEvent.click(link);
     expect(onNav).toHaveBeenCalledWith(":eve");
+  });
+
+  it("renders a LOCAL rel ref (inside the rendered subtree) as an in-page #fragment link", () => {
+    const onNav = vi.fn();
+    render(
+      <Render
+        value={{ "x-yamlover": { rel: { mother: { $yamloverRef: { text: ":eve", path: ":eve" } } } } }}
+        syntax="yaml"
+        onNavigate={onNav}
+        documentPath=":"
+        nodePath=":" // root renders the whole document → :eve is local, scroll in-page
+      />,
+    );
+    const link = screen.getByText(":eve");
+    expect(link.tagName).toBe("A");
+    expect(link.getAttribute("href")).toBe("#/eve"); // slash continuation from the document root
+    fireEvent.click(link);
+    expect(onNav).not.toHaveBeenCalled(); // a local ref scrolls, it does not navigate
   });
 
   it("renders an unresolved rel ref as plain text (no link)", () => {

@@ -69,13 +69,20 @@ export function fetchTree(path = ":", depth?: number): Promise<TreeNode> {
 
 export function fetchNode(
   path: string,
-  depth?: number,
+  depth?: number | null, // a finite level, `null` = `.inf` (unlimited), or omit for the server default
   opts?: { binary?: boolean },
 ): Promise<NodeJson> {
   const q = new URLSearchParams({ path });
-  if (depth != null) q.set("depth", String(depth));
+  setDepth(q, depth);
   if (opts?.binary) q.set("binary", "1"); // request a binary leaf's base64 bytes
   return getJson<NodeJson>(api(`/api/json?${q}`));
+}
+
+/** Encode a render depth into the query: `null` → `.inf` (unlimited), a finite
+ *  level → its number, `undefined` → nothing (let the server pick its default). */
+function setDepth(q: URLSearchParams, depth?: number | null): void {
+  if (depth === null) q.set("depth", ".inf");
+  else if (depth !== undefined) q.set("depth", String(depth));
 }
 
 /** URL of a file-backed node's raw bytes (image / pdf / html / djvu source). */
@@ -90,10 +97,11 @@ export function thumbUrl(path: string, w: number, h: number): string {
   return api(`/api/thumb?path=${encodeURIComponent(path)}&w=${w}&h=${h}`);
 }
 
-/** The node's instance schema, one level deep (nested containers as link markers). */
-export function fetchSchema(path: string, depth?: number): Promise<unknown> {
+/** The node's instance schema. `depth` follows {@link fetchNode}: a finite level,
+ *  `null` = `.inf`, or omit for the server default. */
+export function fetchSchema(path: string, depth?: number | null): Promise<unknown> {
   const q = new URLSearchParams({ path });
-  if (depth != null) q.set("depth", String(depth));
+  setDepth(q, depth);
   return getJson<unknown>(api(`/api/schema?${q}`));
 }
 

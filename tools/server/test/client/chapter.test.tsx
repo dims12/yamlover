@@ -44,13 +44,13 @@ describe("ChapterView", () => {
     const prose = screen.getByText("Welcome to the handbook.");
     expect(prose.tagName).toBe("P"); // a chunk is delegated to the text renderer → paragraph
 
-    // §N is an in-page fragment anchor whose syntax mirrors the chunk's path
-    // continuation (chapter path "/" + "/chunks[0]"), not a full-navigation link
+    // §N is an in-page fragment anchor whose syntax mirrors the chunk's SLASH path
+    // continuation (README "flattened child" rule: `#/chunks[0]`), not a full-navigation link
     const idx0 = screen.getByText("§0") as HTMLAnchorElement;
-    expect(idx0.getAttribute("href")).toBe("#:chunks[0]");
-    expect((screen.getByText("§1") as HTMLAnchorElement).getAttribute("href")).toBe("#:chunks[1]");
-    // the chunk element carries the matching id, so `<chapter>#:chunks[1]` scrolls to it
-    expect(document.getElementById(":chunks[1]")).not.toBeNull();
+    expect(idx0.getAttribute("href")).toBe("#/chunks[0]");
+    expect((screen.getByText("§1") as HTMLAnchorElement).getAttribute("href")).toBe("#/chunks[1]");
+    // the chunk element carries the matching id, so `<chapter>#/chunks[1]` scrolls to it
+    expect(document.getElementById("/chunks[1]")).not.toBeNull();
     // clicking the in-page anchor does not trigger app navigation
     fireEvent.click(idx0);
     expect(onNav).not.toHaveBeenCalled();

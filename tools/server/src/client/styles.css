@@ -457,6 +457,16 @@ body {
 .descend:hover {
   background: var(--sel);
 }
+/* a LOCAL reference — one resolving inside the rendered subtree — links in-page via a `#` fragment
+   (it scrolls, it doesn't navigate); a dotted underline distinguishes it from a navigating ref */
+.ref-local {
+  border-bottom-style: dotted;
+}
+/* a node's `#`-fragment anchor: zero-width in the text flow, but a scroll-margin so a node reached
+   via <doc>#/cont lands a little below the top rather than flush against it */
+.frag-anchor {
+  scroll-margin-top: 12px;
+}
 /* an external (off-tree) marklower link — solid underline marks it leaves the app */
 .extlink {
   color: var(--accent);
