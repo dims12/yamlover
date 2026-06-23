@@ -10,6 +10,7 @@ properties:
   plantuml: { type: string, format: text/x-plantuml }
   csv:      { type: string, format: text/csv }
   # binary samples (files on disk)
+  sample.txt:  { type: binary, format: text/plain }
   sample.png:  { type: binary, format: image/png }
   sample.svg:  { type: binary, format: image/svg+xml }
   sample.gif:  { type: binary, format: image/gif }

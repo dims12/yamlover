@@ -1,0 +1,12 @@
+Plain text â€” text/plain (.txt)
+
+This is a plain-text material. Unlike markdown or asciidoc it carries no markup:
+the viewer shows it verbatim in a monospaced block.
+
+Legacy plain text has no encoding header, so the bytes are served raw and decoded
+on the client â€” pick UTF-8 / Windows-1251 / CP866 / KOI8-R from the bar.
+Try the selector on this line UTF-8: ĞŸÑ€Ğ¸Ğ²ĞµÑ‚, Ğ¼Ğ¸Ñ€ â€” ÑÑŠĞµÑˆÑŒ ĞµÑ‰Ñ‘ ÑÑ‚Ğ¸Ñ… Ğ¼ÑĞ³ĞºĞ¸Ñ… Ğ±ÑƒĞ»Ğ¾Ğº.
+Try the selector on this line Win-1251: Ïğèâåò, ìèğ — ñúåøü åù¸ ıòèõ ìÿãêèõ áóëîê.
+Try the selector on this line CP866: à¨¢¥â, ¬¨à - áê¥èì ¥éñ íâ¨å ¬ï£ª¨å ¡ã«®ª.
+Try the selector on this line KOI8R: ğÒÉ×ÅÔ, ÍÉÒ - ÓßÅÛØ Åİ£ ÜÔÉÈ ÍÑÇËÉÈ ÂÕÌÏË.
+
