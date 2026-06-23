@@ -18,7 +18,7 @@ vi.mock("../../src/client/api", () => ({
   fetchNode: vi.fn().mockResolvedValue({
     path: ":",
     type: "object",
-    concrete: "yamlover",
+    concrete: "dir/yamlover",
     title: null,
     description: null,
     value: {},

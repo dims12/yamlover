@@ -23,6 +23,9 @@ Every node is annotated with its concrete representation under
 | `file` | a plain file with no schema (type inferred from its contents) |
 | `file/yaml` · `file/json` · `file/binary` | a value stored in its own file, per the owning schema |
 
+> Canonical taxonomy (and the TypeScript server's normalized strings — e.g.
+> `dir/yamlover`, `file/<lang>`): see [`CONCRETES.md`](../../CONCRETES.md).
+
 A node's own schema is preserved verbatim (including `const`, `format`,
 `prefixItems`, `os`, …); parent context such as `description` and
 `x-yamlover.os` is folded in, and undescribed non-hidden files are surfaced as

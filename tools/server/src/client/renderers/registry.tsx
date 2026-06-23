@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { isDirConcrete } from "../../concrete";
 import { NodeJson, TreeNode } from "../api";
 import { ChapterView } from "./chapter";
 import { TaskView } from "./task";
@@ -181,9 +182,6 @@ const ICON_VIEWS: Renderer[] = [
 // The representative for the single-valued paths (rendererFor / getRenderer / rendererName / depth):
 // the default view, large icons. Exactly this one entry sits in REGISTRY.
 const EXPLORER = ICON_VIEWS[0];
-
-/** A directory-stored node (`dir` = a plain folder, `yamlover` = a folder with `.yamlover/`). */
-const isDirConcrete = (concrete: string | null | undefined): boolean => concrete === "dir" || concrete === "yamlover";
 
 const REGISTRY: Renderer[] = [
   {

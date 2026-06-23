@@ -43,6 +43,7 @@ import { pointerToken } from "../../../parser/ts/src/serialize-yamlover.ts";
 import { renderPointer } from "../../../parser/ts/src/pointer.ts";
 import { anchorBody } from "../../../parser/ts/src/serialize-common.ts";
 import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, keyToken } from "./embed.js";
+import { dataFileConcrete, interiorOf, isDirConcrete } from "../concrete.js";
 import { renderThumbnail } from "./extract/thumbnails.js";
 import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
@@ -748,7 +749,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       const kind = displayKind(s, p, row);
       // an explicit `?depth=` (a finite level, or `.inf` → Infinity) wins; absent, default per
       // concrete (unlimited for a text document, one level for a directory / binary).
-      const viewDepth = depth === undefined ? defaultDepth(dataRoot, segs, row, kind) : depth;
+      const viewDepth = depth === undefined ? defaultDepth(s, dataRoot, segs, row, kind) : depth;
 
       if (url.pathname === "/api/json") {
         // Gate the byte fetch on the binary VALUE FACET (a blob), not the display `kind`: an image
@@ -760,7 +761,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           type: tocType(s, p, row),
           format: row.format ?? null,
           ...facetsOf(s, p, row), // valueType / hasKeyed / hasOrdinal — the renderer dispatch facets (TYPES.md §9)
-          concrete: concreteOf(dataRoot, segs, row), // dir | yamlover | null (stat-derived; engine tracks no per-node concrete yet)
+          concrete: concreteOf(s, dataRoot, segs, row), // the full per-node concrete taxonomy (stat + document language)
           documentPath: documentPath(s, segs), // nearest enclosing document root (for `/…` links)
           title: titleOf(s, p),
           description: null,
@@ -801,32 +802,26 @@ function tocType(s: Store, p: string, row: NodeRow): string {
   return typeName(s, p, row);
 }
 
-/** The json-family surface concrete a file's extension names, or null. */
-const JSON_EXT: Record<string, "json" | "json5" | "json5p"> = { ".json": "json", ".json5": "json5", ".json5p": "json5p" };
-
-/** How the node at `segs` is stored on disk, as far as a stat can tell: a json-family file
- *  (`"json"`/`"json5"`/`"json5p"` — file children are keyed by their full filename, so the last
- *  segment carries the extension), `"yamlover"` (a directory with a `.yamlover/` marker), `"dir"`
- *  (a plain folder), or null (any other file or interior node — the engine does not track per-node
- *  concrete yet, so only a file-document ROOT gets the json concrete). Only a mapping can be a
- *  directory, and positional segments never name FS entries, so most nodes short-circuit without
- *  touching the disk. */
-function concreteOf(dataRoot: string, segs: Seg[], row: NodeRow): "dir" | "yamlover" | "json" | "json5" | "json5p" | null {
-  const last = segs[segs.length - 1];
-  if (typeof last === "string") {
-    const json = JSON_EXT[path.extname(last).toLowerCase()];
-    if (json) {
-      const abs = path.resolve(dataRoot, ...segs.map(String));
-      try { if (fs.statSync(abs).isFile()) return json; } catch { /* not a backing file */ }
-    }
+/** How the node at `segs` is stored — the full per-node concrete taxonomy (CONCRETES.md), derived
+ *  from a stat plus the enclosing document's language (the engine tracks no per-node concrete yet).
+ *  A filesystem-backed node reports its own storage (`dir` / `dir/yamlover` / `file/<lang>` /
+ *  `file/binary`); an interior (inlined) node reports the inlined language of the document it lives
+ *  in — a directory document's values come from its `.yamlover/` overlay (`yamlover`), a parsed
+ *  file's from that file (its extension's language). Positional segments never name an FS entry, so
+ *  they fall through to the inlined case; never null (every node carries a concrete). */
+function concreteOf(s: Store, dataRoot: string, segs: Seg[], row: NodeRow): string {
+  // 1. A filesystem-backed node: stat its own path (only string segments can name an FS entry).
+  if (segs.every((g) => typeof g === "string")) {
+    const abs = path.resolve(dataRoot, ...segs.map(String));
+    let st: fs.Stats | undefined;
+    try { st = fs.statSync(abs); } catch { /* not FS-backed — fall through to the inlined case */ }
+    if (st?.isDirectory()) return fs.existsSync(path.join(abs, ".yamlover")) ? "dir/yamlover" : "dir";
+    if (st?.isFile()) return dataFileConcrete(abs) ?? (row.type === "blob" ? "file/binary" : "file/yaml");
   }
-  if (row.type !== "mapping") return null;
-  if (segs.some((g) => typeof g === "number")) return null;
-  const abs = path.resolve(dataRoot, ...segs.map(String));
-  let st: fs.Stats | undefined;
-  try { st = fs.statSync(abs); } catch { return null; }
-  if (!st.isDirectory()) return null;
-  return fs.existsSync(path.join(abs, ".yamlover")) ? "yamlover" : "dir";
+  // 2. An interior (inlined) node: the inlined language of its enclosing document.
+  const docAbs = path.resolve(dataRoot, ...documentRootSegs(s, segs).map(String));
+  try { if (fs.statSync(docAbs).isFile()) return interiorOf(dataFileConcrete(docAbs) ?? "file/yaml"); } catch { /* a directory document / the served root → yamlover overlay */ }
+  return "yamlover";
 }
 
 // --------------------------------------------------------------------------- //
@@ -1074,8 +1069,7 @@ function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unk
   const k = displayKind(s, p, row);
   const info: Record<string, unknown> = { kind: k, type: tocType(s, p, row), ...facetsOf(s, p, row), path: segsToStr(segs) };
   if (row.format) info.format = row.format;
-  const concrete = concreteOf(dataRoot, segs, row);
-  if (concrete) info.concrete = concrete; // a folder child renders with a folder icon
+  info.concrete = concreteOf(s, dataRoot, segs, row); // a folder child renders with a folder icon; every node carries one
   const title = titleOf(s, p);
   if (title) info.title = title;
   if (k === "binary") info.size = row.size;
@@ -1180,7 +1174,7 @@ function buildTree(dataRoot: string, s: Store, segs: Seg[], label: string, depth
     type: tocType(s, p, row),
     format: row.format ?? null,
     ...facetsOf(s, p, row),
-    concrete: concreteOf(dataRoot, segs, row),
+    concrete: concreteOf(s, dataRoot, segs, row),
     hasChildren: visibleHasChildren(s, p),
     children: [],
   };
@@ -2096,10 +2090,9 @@ function parseDepth(raw: string | null): number | undefined {
  *  (Infinity) so a text document (json/json5/yaml/yamlover, and the value nodes inside it) inlines
  *  whole. A reference is never followed at unlimited depth — it shows as a reference — so the whole
  *  walk stays finite even on a cyclic graph. */
-function defaultDepth(dataRoot: string, segs: Seg[], row: NodeRow, kind: string): number {
+function defaultDepth(s: Store, dataRoot: string, segs: Seg[], row: NodeRow, kind: string): number {
   if (kind === "binary") return 1;
-  const c = concreteOf(dataRoot, segs, row);
-  return c === "dir" || c === "yamlover" ? 1 : Infinity;
+  return isDirConcrete(concreteOf(s, dataRoot, segs, row)) ? 1 : Infinity;
 }
 
 /** A `$yamloverRef` marker: a reference shown by its pointer `text`, hyperlinked to `path`. */

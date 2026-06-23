@@ -84,7 +84,7 @@ export function typeIcon(type: string, format: string | null, concrete?: string 
   // a plain directory (no `.yamlover/`) — a real OS folder
   if (concrete === "dir") return { glyph: "📁", cls: "t-struct", title: "folder" };
   // a yamlover entity stored as a directory (a folder with a `.yamlover/` marker)
-  if (concrete === "yamlover") return { glyph: "🗂️", cls: "t-struct", title: "yamlover folder" };
+  if (concrete === "dir/yamlover") return { glyph: "🗂️", cls: "t-struct", title: "yamlover folder" };
   const t = TYPE[type];
   if (t) return { glyph: t.glyph, cls: t.cls, title: type };
   return { glyph: "•", cls: "t-bin", title: type || "unknown" };

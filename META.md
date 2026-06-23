@@ -136,8 +136,9 @@ yamlover specifics:
   duplicate memberships (forward+forward, forward+`~-` reverse, reverse+reverse) collapse
   to one (`URIs.md` §`~-`). In yamlover files the inline spelling is the **`!!set`** tag;
   this keyword is the route for json5p and directory overlays, which have no tags.
-- **`concrete`** (how/where stored: `file/binary` · `file/yaml` · `file/json` · `dir` · …)
-  is **inferable from the filesystem** — state it only when ambiguous. Keep meta minimal.
+- **`concrete`** (how/where stored: `file/binary` · `file/yaml` · `file/json` · `dir` ·
+  `dir/yamlover` · …; full taxonomy in `CONCRETES.md`) is **inferable from the
+  filesystem** — state it only when ambiguous. Keep meta minimal.
 - **References use `*` pointers, not `$ref`.** Reusable fragments go under a `$defs` (or
   `$defs`) key and are referenced with a normal pointer — `*/$defs/box` (document root) —
   so there is **one** reference mechanism across yamlover (`URIs.md`), not a second

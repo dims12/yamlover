@@ -72,7 +72,7 @@ describe("NodeView", () => {
 
       // (3) a chapter gets its own depth 2, even though the setting is 6
       mNode.mockReset();
-      mNode.mockResolvedValue({ path: ":c", type: "object", format: "x-yamlover-chapter", concrete: "yamlover",
+      mNode.mockResolvedValue({ path: ":c", type: "object", format: "x-yamlover-chapter", concrete: "dir/yamlover",
         title: null, description: null, value: { title: "T", chunks: [], children: [] } });
       render(<NodeView path=":c" format="chapter" onFormat={() => {}} onNavigate={() => {}} />);
       await waitFor(() => expect(mNode).toHaveBeenCalledWith(":c", 2));
@@ -84,7 +84,7 @@ describe("NodeView", () => {
 
   it("offers the json5p tab only for a json-family file", async () => {
     mNode.mockResolvedValue({
-      path: ":x", type: "object", concrete: "yamlover", title: null, description: null, value: { name: "Alice" },
+      path: ":x", type: "object", concrete: "dir/yamlover", title: null, description: null, value: { name: "Alice" },
     });
     render(<NodeView path=":x" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("Alice");
@@ -164,7 +164,7 @@ describe("NodeView", () => {
   });
 
   it("renders the instance schema in the yamlover/schema tab", async () => {
-    mNode.mockResolvedValue({ path: ":x", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":x", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
     mSchema.mockResolvedValue({ type: "object", properties: { name: { const: "Alice" } } });
     render(<NodeView path=":x" format="yamlover/schema" onFormat={() => {}} onNavigate={() => {}} />);
     expect(await screen.findByText("Alice")).toBeTruthy();
@@ -172,14 +172,14 @@ describe("NodeView", () => {
 
   it("sets the document title to the node's schema title when it has one", async () => {
     // a dir-concrete node now defaults to the explorer view (an empty grid here)
-    mNode.mockResolvedValue({ path: ":book", type: "object", concrete: "yamlover", title: "My Book", description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":book", type: "object", concrete: "dir/yamlover", title: "My Book", description: null, value: {} });
     render(<NodeView path=":book" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("empty");
     expect(document.title).toBe("My Book");
   });
 
   it("falls back to the node's path name when it has no title", async () => {
-    mNode.mockResolvedValue({ path: ":chapters[2]", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":chapters[2]", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
     render(<NodeView path=":chapters[2]" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("empty");
     expect(document.title).toBe("[2]");
@@ -188,7 +188,7 @@ describe("NodeView", () => {
 
 describe("link paste (arXiv, tweets)", () => {
   it("pasting an arXiv link downloads the PDF and uploads it via the file-paste flow", async () => {
-    mNode.mockResolvedValue({ path: ":papers", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":papers", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
     mPasteFile.mockResolvedValue({ path: ":papers:arxiv-2605.00615.pdf", dir: ":papers", open: false });
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(["PDF"], { type: "application/pdf" }) });
     vi.stubGlobal("fetch", fetchMock);
@@ -213,7 +213,7 @@ describe("link paste (arXiv, tweets)", () => {
   });
 
   it("a failed download reports and never uploads", async () => {
-    mNode.mockResolvedValue({ path: ":papers", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":papers", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404 }));
 
     try {
@@ -228,7 +228,7 @@ describe("link paste (arXiv, tweets)", () => {
   });
 
   it("pasting an HTML selection with an image and a heading goes through the RICH flow", async () => {
-    mNode.mockResolvedValue({ path: ":wiki", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":wiki", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
     mPasteRich.mockResolvedValue({ path: ":wiki", chapter: ":wiki" });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(["JPG"], { type: "image/jpeg" }) }));
 
@@ -254,7 +254,7 @@ describe("link paste (arXiv, tweets)", () => {
   });
 
   it("formatted HTML without images or headings still pastes as plain TEXT", async () => {
-    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
     mPasteText.mockResolvedValue({ path: ":notes", chapter: ":notes" });
 
     render(<NodeView path=":notes" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
@@ -269,7 +269,7 @@ describe("link paste (arXiv, tweets)", () => {
   });
 
   it("pasting a tweet link fetches the full message via oEmbed and pastes it as TEXT", async () => {
-    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
     mPasteText.mockResolvedValue({ path: ":notes", chapter: ":notes" });
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

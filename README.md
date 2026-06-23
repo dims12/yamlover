@@ -1,8 +1,9 @@
 # yamlover
 
-`yamlover` is a materialization "language", that supersedes `YAML` and `JSON` and
-supports both file and filesystem storage of tree- and graph-like data structures
-(directed graphs, cycles allowed).
+`yamlover` is a materialization "language", closely related to `YAML` and `JSON`
+(but a distinct language, not a strict superset of YAML), that supports both file
+and filesystem storage of tree- and graph-like data structures (directed graphs,
+cycles allowed).
 
 **yamlover** stands for **YAML Overlay** — not "Yam lover". It means YAML layer
 laid *over* the filesystem.
@@ -70,20 +71,26 @@ reached from several places. Trees are the degenerate, pointer-free case.
 ## Concrete representations — a supersession lattice
 
 A node of the graph, and the structure around it, can be rendered in any of the
-following concretes. They are **not** isomorphic — they form a supersession
-lattice, and serializing a graph *down* the lattice is lossy:
+following concretes. They are **not** isomorphic — the JSON family forms a
+supersession lattice (serializing a graph *down* it is lossy); yamlover is a
+*separate* YAML-like language rather than a superset of yaml:
 
 ```
-json ⊂ json5 ⊂ json5p          yaml ⊂ yamlover
+json ⊂ json5 ⊂ json5p          yaml ~ yamlover   (close kin, not ⊂)
 ```
+
+The per-node storage taxonomy these surface into (inlined vs `file/…` vs
+directory vs multi-document) is specified in **`CONCRETES.md`**.
 
 1. **json** — strict JSON; tree-only (a shared node becomes a copy).
 2. **json5** — JSON plus comments, unquoted keys, trailing commas, …; still tree-only.
 3. **json5p** — JSON5 **plus pointers**: `*` deref, `&` anchors, `~` back-edges,
    scopes. A full-graph concrete. (See `JSON5P.md`.)
 4. **yaml** — plain YAML; native `&`/`*` anchors are its sharing ceiling.
-5. **yamlover** — YAML **plus the pointer layer**: extended `*` paths, `&`, `~`,
-   `[n]`/`/x` addressing, links. A full-graph concrete. (See `YAMLOVER.md`.)
+5. **yamlover** — a distinct, YAML-like language (not a superset of yaml) carrying
+   the pointer layer: extended `*` paths, `&`, `~`, `[n]`/`/x` addressing, links.
+   A full-graph concrete; it can switch to json5p, never to pure yaml. (See
+   `YAMLOVER.md`.)
 6. **dir** — a regular filesystem directory: filenames are keys, files are blobs
    or nested documents.
 7. **dir + `.yamlover/` overlays** — a directory whose hidden `.yamlover/`

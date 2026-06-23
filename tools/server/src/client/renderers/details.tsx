@@ -6,6 +6,7 @@ import { displayPath } from "../paths";
 import { isColorTagPath, resolveTagColor, TagSwatch } from "./tag";
 import { TagTip } from "./tagtip";
 import { touchesYamlover, useDiffPaths } from "../live";
+import { isDirConcrete } from "../../concrete";
 
 // A member's KIND label: a friendly tail of its format (`application/pdf` → `pdf`,
 // `x-yamlover-task` → `task`, `text/markdown` → `markdown`), else its directory concrete or type.
@@ -13,7 +14,7 @@ function kindLabel(it: ExplorerItem): string {
   const l = it.link;
   if (!l) return "scalar";
   if (l.format) return l.format.replace(/^x-yamlover-/, "").replace(/^.*\//, "");
-  if (l.concrete === "dir" || l.concrete === "yamlover") return "folder";
+  if (isDirConcrete(l.concrete)) return "folder";
   return l.type ?? l.kind ?? "";
 }
 

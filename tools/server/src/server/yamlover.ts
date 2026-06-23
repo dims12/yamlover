@@ -16,13 +16,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
+import { fileConcreteForExt, interiorOf } from "../concrete";
 
 const YAMLOVER_DIR = ".yamlover";
 const SCHEMA_FILE = "schema.yaml";
 
-// A value pinned in the schema (via `const`, or built from `const` leaves) is
-// instantiated from the schema; `.yamlover/schema.yaml` is YAML, hence this tag.
-const SCHEMA_INSTANTIATE = "yaml-schema/instantiate";
+// A value pinned in the schema (via `const`, or built from `const` leaves) lives
+// in `.yamlover/schema.yaml`, which is YAML — so its concrete is the inlined
+// `yaml` language of that file. (See CONCRETES.md.)
+const SCHEMA_INLINED = "yaml";
 
 /** A binary leaf value (a `file/binary` child) we do not expand inline. We keep
  *  only its `size` (cheap, via `stat`); the bytes are read lazily and only when a
@@ -129,7 +131,7 @@ export function loadEntity(entityPath: string, knownDir?: boolean): YNode {
     if (isFile(schemaPath)) {
       const schema = yaml.load(fs.readFileSync(schemaPath, "utf-8")) as Schema;
       const node = resolve(schema, entityPath, null, true, schema);
-      node.concrete = "yamlover"; // this directory is itself a yamlover node
+      node.concrete = "dir/yamlover"; // a directory carrying a `.yamlover/` marker
       node.path = entityPath;
       annotate(node, schema);
       return node;
@@ -151,7 +153,10 @@ export function loadEntity(entityPath: string, knownDir?: boolean): YNode {
     return node;
   }
   if (fmt) {
-    const node = new YNode(fs.readFileSync(entityPath, "utf-8"), "file", entityPath);
+    // A text material (markdown / asciidoc / csv / …): its single value is the raw
+    // text, kept verbatim and rendered by `fmt`. Modeled as a `file/<lang>` scalar
+    // string (file/yaml for non-data text) — see CONCRETES.md.
+    const node = new YNode(fs.readFileSync(entityPath, "utf-8"), fileConcreteForExt(entityPath), entityPath);
     node.format = fmt;
     node.kind = "scalar";
     return node;
@@ -165,10 +170,13 @@ export function loadEntity(entityPath: string, knownDir?: boolean): YNode {
     node.path = entityPath;
     return node;
   }
-  // A small text file: read it now (we cannot know its kind otherwise).
-  const value = decodeFile(entityPath, "file/yaml", null) as NodeValue;
-  const node = wrap(value, "yaml");
-  node.concrete = "file";
+  // A small text file: read it now (we cannot know its kind otherwise). Its
+  // concrete (and the inlined language its interior is tagged with) follows the
+  // extension — file/yaml by default, file/json for `.json`, etc.
+  const concrete = fileConcreteForExt(entityPath);
+  const value = decodeFile(entityPath, concrete, null) as NodeValue;
+  const node = wrap(value, interiorOf(concrete));
+  node.concrete = concrete;
   node.path = entityPath;
   node.kind = valueKind(node.value);
   return node;
@@ -238,7 +246,7 @@ function resolve(
   backed = false,
   root: Schema | null = null,
 ): YNode {
-  if (schema == null) return new YNode(null, null);
+  if (schema == null) return new YNode(null, SCHEMA_INLINED);
   if (root == null) root = schema;
 
   // $ref lives in schema coordinates: pull in the referenced fragment and merge
@@ -249,7 +257,7 @@ function resolve(
     delete siblings["$ref"];
     schema = mergeSchema(target, siblings);
   }
-  if ("const" in schema!) return wrap(schema!["const"], SCHEMA_INSTANTIATE);
+  if ("const" in schema!) return wrap(schema!["const"], SCHEMA_INLINED);
 
   const xy = schema!["x-yamlover"] || {};
   const concrete: string | null = xy.concrete ?? null;
@@ -291,7 +299,7 @@ function resolve(
         claimPaths(child, container, consumed);
       Object.assign(children, extraEntries(container, consumed, children));
     }
-    const node = new YNode(children, concrete ?? SCHEMA_INSTANTIATE);
+    const node = new YNode(children, concrete ?? SCHEMA_INLINED);
     annotate(node, schema!); // title/description/type/format (post-$ref-merge)
     if (rel) node.rel = rel;
     return node;
@@ -308,7 +316,7 @@ function resolve(
       annotate(cnode, eff);
       return cnode;
     });
-    const node = new YNode(items, concrete ?? SCHEMA_INSTANTIATE);
+    const node = new YNode(items, concrete ?? SCHEMA_INLINED);
     annotate(node, schema!); // title/description/type/format (post-$ref-merge)
     if (rel) node.rel = rel;
     return node;
@@ -326,7 +334,7 @@ function resolve(
   }
 
   // No value, but still defined inline in the schema → instantiated from it.
-  const node = new YNode(null, concrete ?? SCHEMA_INSTANTIATE);
+  const node = new YNode(null, concrete ?? SCHEMA_INLINED);
   annotate(node, schema!); // title/description/type/format (post-$ref-merge)
   if (rel) node.rel = rel;
   return node;
@@ -369,7 +377,7 @@ function wrap(value: unknown, concrete: string): YNode {
 function claimPaths(node: YNode, container: string, consumed: Set<string>): void {
   if (node.path && path.dirname(node.path) === container)
     consumed.add(path.basename(node.path));
-  if (node.concrete && (node.concrete === "file" || node.concrete.startsWith("file/"))) return;
+  if (node.concrete && node.concrete.startsWith("file/")) return;
   if (isPlainObject(node.value))
     for (const child of Object.values(node.value)) claimPaths(child, container, consumed);
   else if (Array.isArray(node.value))
@@ -455,10 +463,9 @@ function xyPath(xy: any): string | null {
   return xy?.os?.path ?? null;
 }
 
-/** The interior representation of a collapsed document file. */
-function interior(concrete: string | null): string {
-  return concrete === "file/json" ? "json" : "yaml";
-}
+/** The inlined language a collapsed document file's interior is tagged with
+ *  (`file/yaml` → `yaml`, `file/json` → `json`). */
+const interior = interiorOf;
 
 // File extension → format (MIME-ish), the second half of the (type, format)
 // renderer key. A file-backed node that carries no explicit schema `format`
@@ -738,7 +745,7 @@ function virtualChildren(node: YNode): Record<string, string> {
  *  anchor an absolute (`/…`) pointer is written relative to. Falls back to root. */
 function entityRootSegs(root: YNode, segs: Seg[]): Seg[] {
   for (let i = segs.length; i >= 0; i--)
-    if (getNode(root, segs.slice(0, i)).concrete === "yamlover") return segs.slice(0, i);
+    if (getNode(root, segs.slice(0, i)).concrete === "dir/yamlover") return segs.slice(0, i);
   return [];
 }
 

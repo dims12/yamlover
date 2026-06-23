@@ -12,7 +12,7 @@ const chapter: NodeJson = {
   path: ":",
   type: "object",
   format: "x-yamlover-chapter",
-  concrete: "yamlover",
+  concrete: "dir/yamlover",
   title: "The Handbook",
   description: "A friendly guide",
   value: {

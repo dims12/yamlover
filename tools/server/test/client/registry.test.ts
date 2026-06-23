@@ -73,7 +73,7 @@ describe("renderer registry (facet predicates)", () => {
 
   it("falls back to the explorer (large-icons representative) for a node stored as a filesystem directory", () => {
     expect(getRenderer(node({ concrete: "dir" }))?.name).toBe("large-icons");
-    expect(getRenderer(node({ concrete: "yamlover" }))?.name).toBe("large-icons");
+    expect(getRenderer(node({ concrete: "dir/yamlover" }))?.name).toBe("large-icons");
     expect(rendererName({ format: null }, "dir")).toBe("large-icons");
     // other concretes don't
     expect(getRenderer(node({ concrete: "yaml-schema/instantiate" }))).toBeNull();
@@ -85,10 +85,10 @@ describe("renderer registry (facet predicates)", () => {
       "large-icons", "thumbnails", "small-icons", "details",
     ]);
     // a board (by format): tag-board leads, then the icon views — and it is the navigation default
-    const boardViews = renderersFor(node({ format: "x-yamlover-board", concrete: "yamlover" })).map((r) => r.name);
+    const boardViews = renderersFor(node({ format: "x-yamlover-board", concrete: "dir/yamlover" })).map((r) => r.name);
     expect(boardViews[0]).toBe("tag-board");
     expect(boardViews).toContain("large-icons");
-    expect(rendererName({ format: "x-yamlover-board" }, "yamlover")).toBe("tag-board");
+    expect(rendererName({ format: "x-yamlover-board" }, "dir/yamlover")).toBe("tag-board");
     // a board detected only via overlay value (workflow:/columns:) also leads with tag-board
     expect(renderersFor(node({ concrete: "dir", value: { columns: [] } })).map((r) => r.name)[0]).toBe("tag-board");
     // the view tabs carry human labels
@@ -98,14 +98,14 @@ describe("renderer registry (facet predicates)", () => {
   });
 
   it("a dir-backed chapter leads with its chapter view, then the directory views", () => {
-    expect(renderersFor(node({ format: "x-yamlover-chapter", concrete: "yamlover" })).map((r) => r.name)).toEqual([
+    expect(renderersFor(node({ format: "x-yamlover-chapter", concrete: "dir/yamlover" })).map((r) => r.name)).toEqual([
       "chapter", "large-icons", "thumbnails", "small-icons", "details",
     ]);
   });
 
   it("a format renderer wins over the dir concrete (a dir-backed chapter stays a chapter)", () => {
-    expect(getRenderer(node({ format: "x-yamlover-chapter", concrete: "yamlover" }))?.name).toBe("chapter");
-    expect(rendererName({ format: "x-yamlover-chapter" }, "yamlover")).toBe("chapter");
+    expect(getRenderer(node({ format: "x-yamlover-chapter", concrete: "dir/yamlover" }))?.name).toBe("chapter");
+    expect(rendererName({ format: "x-yamlover-chapter" }, "dir/yamlover")).toBe("chapter");
   });
 
   it("claims tags (every projection shape) for the explorer — the format alone identifies them", () => {

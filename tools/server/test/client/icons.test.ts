@@ -22,7 +22,8 @@ describe("typeIcon", () => {
 
   it("shows a folder for a directory concrete, but not other objects", () => {
     expect(typeIcon("object", null, "dir").glyph).toBe("📁"); // a real OS folder
-    expect(typeIcon("object", null, "yamlover").glyph).toBe("🗂️"); // a folder with .yamlover/
+    expect(typeIcon("object", null, "dir/yamlover").glyph).toBe("🗂️"); // a folder with .yamlover/
+    expect(typeIcon("object", null, "yaml").glyph).toBe("{}"); // a non-dir concrete → type icon
     expect(typeIcon("object", null, "yaml-schema/instantiate").glyph).toBe("{}");
     // a format still wins over the dir concrete
     expect(typeIcon("object", "x-yamlover-chapter", "dir").glyph).toBe("§");

@@ -11,7 +11,7 @@ const TAG_FILE = { "tags.yamlover": 'yellow: !!<*yamlover/$defs/tag>\n  color: "
 const TAG = ":tags.yamlover:yellow";
 
 describe("concrete (stat-derived)", () => {
-  it("reports dir for a plain folder, yamlover for a .yamlover-backed one, null otherwise", async () => {
+  it("reports the per-node concrete: dir / dir/yamlover / file-backed / inlined language", async () => {
     const root = tmpTree({
       "sub/name": "Alice",
       "d/.yamlover/body.yamlover": "m:\n  x: 1\n",
@@ -21,12 +21,13 @@ describe("concrete (stat-derived)", () => {
     await h.ready;
 
     expect(call(h, "/api/json", { path: ":sub" }).json.concrete).toBe("dir");
-    expect(call(h, "/api/json", { path: ":d" }).json.concrete).toBe("yamlover");
-    expect(call(h, "/api/json", { path: ":top" }).json.concrete).toBeNull();
-    // an interior mapping (inside the d document) is not a filesystem directory
-    expect(call(h, "/api/json", { path: ":d:m" }).json.concrete).toBeNull();
-    // the served root is a directory too — and always `.yamlover`-backed (index.db lives there)
-    expect(call(h, "/api/json", { path: ":" }).json.concrete).toBe("yamlover");
+    expect(call(h, "/api/json", { path: ":d" }).json.concrete).toBe("dir/yamlover");
+    // a stray extensionless text file → a file-backed scalar
+    expect(call(h, "/api/json", { path: ":top" }).json.concrete).toBe("file/yaml");
+    // an interior mapping (inside the d document) reports the document's inlined language
+    expect(call(h, "/api/json", { path: ":d:m" }).json.concrete).toBe("yamlover");
+    // the served root is a `.yamlover`-backed directory
+    expect(call(h, "/api/json", { path: ":" }).json.concrete).toBe("dir/yamlover");
   });
 
   it("rides the member link markers and the TOC tree", async () => {
@@ -39,14 +40,14 @@ describe("concrete (stat-derived)", () => {
 
     const value = call(h, "/api/json", { path: ":" }).json.value;
     expect(value.sub.$yamloverLink.concrete).toBe("dir");
-    expect(value.d.$yamloverLink.concrete).toBe("yamlover");
+    expect(value.d.$yamloverLink.concrete).toBe("dir/yamlover");
 
     const tree = call(h, "/api/tree", { path: ":" }).json;
     const byLabel = Object.fromEntries(tree.children.map((c: { label: string }) => [c.label, c]));
     expect(byLabel.sub.concrete).toBe("dir");
-    expect(byLabel.d.concrete).toBe("yamlover");
+    expect(byLabel.d.concrete).toBe("dir/yamlover");
     const m = byLabel.d.children.find((c: { label: string }) => c.label === "m");
-    expect(m.concrete).toBeNull();
+    expect(m.concrete).toBe("yamlover"); // interior of the d document → its inlined language
   });
 });
 

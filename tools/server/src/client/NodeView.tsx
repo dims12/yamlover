@@ -23,11 +23,11 @@ export type Format = "yamlover" | "json5p" | "yamlover/schema" | (string & {});
 export const FORMATS: Format[] = ["yamlover", "json5p", "yamlover/schema"];
 export const DEFAULT_FORMAT: Format = "yamlover";
 
-// The json5p (JSON-family) view is offered only for a node backed by a json-family file — the
-// server reports those `concrete`s. (Detecting JSON flow syntax embedded in a yaml/yamlover file
-// is a separate, postponed concern.)
-export const JSON_CONCRETES = new Set(["json", "json5", "json5p"]);
-export const isJsonConcrete = (c?: string | null): boolean => JSON_CONCRETES.has(c ?? "");
+// The json5p (JSON-family) view is offered only for a node backed by a json-family concrete —
+// json/json5/json5p, incl. their `file/…` form (see ../concrete). (Detecting JSON flow syntax
+// embedded in a yaml/yamlover file is a separate, postponed concern.)
+export { isJsonFamily as isJsonConcrete } from "../concrete";
+import { isJsonFamily } from "../concrete";
 
 const isSchema = (f: Format) => f.endsWith("schema");
 // Serialization syntax: json5p renders JSON-family; yamlover (+ its schema) renders YAML-family.
@@ -36,7 +36,7 @@ const syntaxOf = (f: Format): "yaml" | "json" => (f === "json5p" ? "json" : "yam
 /** The standard data-view tabs a node offers: always `yamlover` + `yamlover/schema`, plus
  *  `json5p` only for a json-family file (so a yaml node isn't rendered as JSON). */
 function standardFormatsFor(node: NodeJson): Format[] {
-  return isJsonConcrete(node.concrete) ? ["yamlover", "json5p", "yamlover/schema"] : ["yamlover", "yamlover/schema"];
+  return isJsonFamily(node.concrete) ? ["yamlover", "json5p", "yamlover/schema"] : ["yamlover", "yamlover/schema"];
 }
 
 /** The representation actually shown: the requested `format` if it is one of this node's standard
