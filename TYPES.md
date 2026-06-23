@@ -19,10 +19,10 @@ Companion specs: `META.md` (schema vocabulary), `YAMLOVER.md` §4 (omni/mix), `Q
 
 Every node is described by three independent **facets** — capabilities it may exercise:
 
-| facet | keyword | meaning |
-|---|---|---|
-| **value** | `value:` | a scalar **self-value** (the A axis — §2) |
-| **keyed** | `keyed:` | **named** entries `key: …` (JSON `properties`/…) |
+| facet       | keyword    | meaning                                                   |
+|-------------|------------|-----------------------------------------------------------|
+| **value**   | `value:`   | a scalar **self-value** (the A axis — §2)                 |
+| **keyed**   | `keyed:`   | **named** entries `key: …` (JSON `properties`/…)          |
 | **ordinal** | `ordinal:` | **positional** entries `- …` (JSON `prefixItems`/`items`) |
 
 A facet keyword takes a **sub-schema**, or **`false` to forbid** it; **omitting** it leaves it
@@ -50,16 +50,16 @@ The self-value's type — JSON Schema kept, **not flat**: it has its own subtypi
 
 `false` clears a bit; an omitted facet stays open. The named kinds are shorthands:
 
-| kind | facet record | bits |
-|---|---|:--:|
-| `null` | `{value: {const: ~}, keyed: false, ordinal: false}` | `000` |
-| a scalar (`string`, `integer`, `binary`, …) | `{value: {type: …}, keyed: false, ordinal: false}` | `A00` |
-| `object` | `{value: false, ordinal: false}` | `010` |
-| `array` | `{value: false, keyed: false}` | `001` |
-| `mixed` (`!!mix`) | `{value: false, keyed: {min: 1}, ordinal: {min: 1}}` | `011` |
-| `variant` (`!!var`) ≡ `true` | `{}` | `111` |
-| value+keyed | `{ordinal: false}` | `110` |
-| value+ordinal | `{keyed: false}` | `101` |
+| kind                                        | facet record                                         | bits  |
+|---------------------------------------------|------------------------------------------------------|:-----:|
+| `null`                                      | `{value: {const: ~}, keyed: false, ordinal: false}`  | `000` |
+| a scalar (`string`, `integer`, `binary`, …) | `{value: {type: …}, keyed: false, ordinal: false}`   | `A00` |
+| `object`                                    | `{value: false, ordinal: false}`                     | `010` |
+| `array`                                     | `{value: false, keyed: false}`                       | `001` |
+| `mixed` (`!!mix`)                           | `{value: false, keyed: {min: 1}, ordinal: {min: 1}}` | `011` |
+| `variant` (`!!var`) ≡ `true`                | `{}`                                                 | `111` |
+| value+keyed                                 | `{ordinal: false}`                                   | `110` |
+| value+ordinal                               | `{keyed: false}`                                     | `101` |
 
 > **`variant` ≡ omni ≡ `true` ≡ `⊤`.** The "permits any shape" formula is a tautology — every node
 > is a `variant`. Do **not** read `variant` as the specific scalar-plus-fields *region*; as a
@@ -145,13 +145,13 @@ oneOf: [ {keyed: false, ordinal: false}, {value: false, ordinal: false}, {value:
 Types are predicates, so **every Boolean relation** holds — and these are **judgments a validator
 computes from the formulas**, not schemas you author:
 
-| relation | meaning | example |
-|---|---|---|
-| subtype `T <: U` | `T ⇒ U` | `integer <: number`; everything `<: true` |
-| equivalent `T ≡ U` | `T ⇔ U` | `empty object ≡ empty array` (§5) |
-| disjoint | `T ∧ U ≡ false` | `object ⌿ scalar`; `variant`-region `⌿ object` |
-| overlap | `T ∧ U` satisfiable, incomparable | `value-markdown` ⟂ `has-keyed` (meet = omni nodes) |
-| complement `¬T` | what `T` rejects | `¬scalar` = "no self-value" |
+| relation           | meaning                           | example                                            |
+|--------------------|-----------------------------------|----------------------------------------------------|
+| subtype `T <: U`   | `T ⇒ U`                           | `integer <: number`; everything `<: true`          |
+| equivalent `T ≡ U` | `T ⇔ U`                           | `empty object ≡ empty array` (§5)                  |
+| disjoint           | `T ∧ U ≡ false`                   | `object ⌿ scalar`; `variant`-region `⌿ object`     |
+| overlap            | `T ∧ U` satisfiable, incomparable | `value-markdown` ⟂ `has-keyed` (meet = omni nodes) |
+| complement `¬T`    | what `T` rejects                  | `¬scalar` = "no self-value"                        |
 
 **Closed vs open** is *also* just the algebra: closed `string` = `{value: {type: string}, keyed:
 false, ordinal: false}`; the **open value facet** = `{value: {type: string}}` (element facets left

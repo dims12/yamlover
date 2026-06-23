@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
-import { isDirConcrete } from "../../concrete";
+import { isDirConcrete, isJsonFamily, isYamlFamily, isFileConcrete } from "../../concrete";
+import { scalarValue } from "../render";
 import { NodeJson, TreeNode } from "../api";
 import { ChapterView } from "./chapter";
 import { TaskView } from "./task";
@@ -174,14 +175,15 @@ const explorerView = (name: string, label: string, view: ViewMode): Renderer => 
 // Order = tab order. `tag-board` leads, but only for board nodes (renderersFor filters it).
 const TAG_BOARD = explorerView("tag-board", "tag board", "board");
 const ICON_VIEWS: Renderer[] = [
-  explorerView("large-icons", "large icons", "large"),
   explorerView("thumbnails", "thumbnails", "thumbnails"),
+  explorerView("large-icons", "large icons", "large"),
   explorerView("small-icons", "small icons", "small"),
   explorerView("details", "details", "details"),
 ];
 // The representative for the single-valued paths (rendererFor / getRenderer / rendererName / depth):
-// the default view, large icons. Exactly this one entry sits in REGISTRY.
-const EXPLORER = ICON_VIEWS[0];
+// the DEFAULT view, large icons — independent of the tab order above (thumbnails leads the bar, but a
+// directory still OPENS on large icons). Exactly this one entry sits in REGISTRY.
+const EXPLORER = ICON_VIEWS.find((v) => v.name === "large-icons")!;
 
 const REGISTRY: Renderer[] = [
   {
@@ -430,7 +432,10 @@ export function rendererFor(src: FacetSource): Renderer | null {
  *  that no format renderer claims (a dir-backed chapter stays a chapter) — the explorer, else
  *  null → the default tabbed view. */
 export function getRenderer(node: NodeJson): Renderer | null {
-  return rendererFor(node) ?? (isDirConcrete(node.concrete) ? EXPLORER : null);
+  // The explorer is the DEFAULT only for a container DIRECTORY (a data file defaults to its data
+  // view; a scalar-bodied dir to its scalar). The explorer TAB is still offered more widely
+  // (renderersFor) — this is only the landing/default renderer.
+  return rendererFor(node) ?? (isDirConcrete(node.concrete) && isContainerNode(node) ? EXPLORER : null);
 }
 
 /** The explorer view family for a node, tab order: the four icon views, led by `tag-board`
@@ -448,8 +453,40 @@ export function renderersFor(node: NodeJson): Renderer[] {
   const out: Renderer[] = [];
   const primary = rendererFor(node);
   if (primary && primary !== EXPLORER) out.push(primary); // a non-explorer primary (chapter/task) leads
-  if (primary === EXPLORER || isDirConcrete(node.concrete)) out.push(...explorerViews(node));
+  // The explorer family is offered for a CONTAINER directory AND a json/yaml CONTAINER (a data
+  // document or sub-object/array) — so a json/yaml file browses its members as icons just like a
+  // folder. A SCALAR (incl. a scalar-bodied directory) gets no icon tabs (they would be empty).
+  if (primary === EXPLORER || explorerEligible(node)) out.push(...explorerViews(node));
   return out;
+}
+
+// A node whose members are worth browsing as icons: object / array / mixed / variant (a `variant`
+// is a scalar-PLUS-fields, so it has members). A plain scalar or a binary leaf has none.
+const CONTAINER_TYPES = new Set(["object", "array", "mixed", "variant"]);
+const isContainerNode = (src: FacetSource): boolean => !!src.type && CONTAINER_TYPES.has(src.type);
+
+/** Eligible for the explorer TAB family: a directory or a json/yaml-family node, AND a container. */
+function explorerEligible(node: NodeJson): boolean {
+  const c = node.concrete;
+  return (isDirConcrete(c) || isJsonFamily(c) || isYamlFamily(c)) && isContainerNode(node);
+}
+
+/** The registry's plaintext renderer (raw-source view), reused as a TRAILING tab. */
+export const PLAINTEXT = REGISTRY.find((r) => r.name === "plaintext")!;
+
+/** The trailing `plaintext` (raw-source) tab a TEXTUAL node offers, or null. Textual = a data
+ *  language (json/json5/json5p/yaml/yamlover) or markdown/asciidoc. It is renderable as text when
+ *  the node is file-backed (raw bytes via /api/blob) or its value is an inline string. A directory,
+ *  a non-string inline container, or a node already led by plaintext (a `.txt`) gets none. */
+export function plaintextTab(node: NodeJson): Renderer | null {
+  if (isDirConcrete(node.concrete)) return null;
+  if (rendererFor(node) === PLAINTEXT) return null; // a text/plain node already leads with it
+  const textual =
+    isJsonFamily(node.concrete) || isYamlFamily(node.concrete) ||
+    node.format === "text/markdown" || node.format === "text/asciidoc";
+  if (!textual) return null;
+  const renderable = isFileConcrete(node.concrete) || typeof scalarValue(node.value) === "string";
+  return renderable ? PLAINTEXT : null;
 }
 
 /** The name (= representation key / `?format=` value) of the renderer that claims `src` — with the
@@ -459,7 +496,9 @@ export function renderersFor(node: NodeJson): Renderer[] {
 export function rendererName(src: FacetSource, concrete?: string | null): string | null {
   const r = rendererFor(src);
   if (r && r !== EXPLORER) return r.name;
-  if (r === EXPLORER || isDirConcrete(concrete)) return src.format === "x-yamlover-board" ? TAG_BOARD.name : EXPLORER.name;
+  // a container directory defaults to its explorer; a data file (or a scalar-bodied dir) → null →
+  // the data view (yamlover). So "only the default differs": dir → large icons, data file → yamlover.
+  if (r === EXPLORER || (isDirConcrete(concrete) && isContainerNode(src))) return src.format === "x-yamlover-board" ? TAG_BOARD.name : EXPLORER.name;
   return null;
 }
 

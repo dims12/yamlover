@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getRenderer, rendererFor, rendererName, renderersFor, tocView } from "../../src/client/renderers/registry";
+import { getRenderer, rendererFor, rendererName, renderersFor, plaintextTab, tocView } from "../../src/client/renderers/registry";
 import type { NodeJson, TreeNode } from "../../src/client/api";
 
 // Dispatch keys on TYPE FACETS (TYPES.md §9): the scalar self-value's type, the node's format,
@@ -74,15 +74,15 @@ describe("renderer registry (facet predicates)", () => {
   it("falls back to the explorer (large-icons representative) for a node stored as a filesystem directory", () => {
     expect(getRenderer(node({ concrete: "dir" }))?.name).toBe("large-icons");
     expect(getRenderer(node({ concrete: "dir/yamlover" }))?.name).toBe("large-icons");
-    expect(rendererName({ format: null }, "dir")).toBe("large-icons");
+    expect(rendererName({ format: null, type: "object" }, "dir")).toBe("large-icons");
     // other concretes don't
     expect(getRenderer(node({ concrete: "yaml-schema/instantiate" }))).toBeNull();
   });
 
   it("offers the explorer VIEW FAMILY as tabs: the four icon views for a plain dir, led by tag-board for a board", () => {
-    // a plain directory: large icons / thumbnails / small icons / details (no tag board)
+    // a plain directory: thumbnails / large icons / small icons / details (no tag board)
     expect(renderersFor(node({ concrete: "dir" })).map((r) => r.name)).toEqual([
-      "large-icons", "thumbnails", "small-icons", "details",
+      "thumbnails", "large-icons", "small-icons", "details",
     ]);
     // a board (by format): tag-board leads, then the icon views — and it is the navigation default
     const boardViews = renderersFor(node({ format: "x-yamlover-board", concrete: "dir/yamlover" })).map((r) => r.name);
@@ -93,14 +93,43 @@ describe("renderer registry (facet predicates)", () => {
     expect(renderersFor(node({ concrete: "dir", value: { columns: [] } })).map((r) => r.name)[0]).toBe("tag-board");
     // the view tabs carry human labels
     expect(renderersFor(node({ concrete: "dir" })).map((r) => r.label)).toEqual([
-      "large icons", "thumbnails", "small icons", "details",
+      "thumbnails", "large icons", "small icons", "details",
     ]);
   });
 
   it("a dir-backed chapter leads with its chapter view, then the directory views", () => {
     expect(renderersFor(node({ format: "x-yamlover-chapter", concrete: "dir/yamlover" })).map((r) => r.name)).toEqual([
-      "chapter", "large-icons", "thumbnails", "small-icons", "details",
+      "chapter", "thumbnails", "large-icons", "small-icons", "details",
     ]);
+  });
+
+  it("a json/yaml CONTAINER offers the icon views too (browse members like a folder); a SCALAR does not", () => {
+    // a yaml object file: icon views (thumbnails-led), like a directory
+    expect(renderersFor(node({ concrete: "file/yaml", hasKeyed: true })).map((r) => r.name)).toEqual([
+      "thumbnails", "large-icons", "small-icons", "details",
+    ]);
+    // an inline json array node likewise (ordinal members)
+    expect(renderersFor(node({ concrete: "json", hasOrdinal: true })).map((r) => r.name)).toEqual([
+      "thumbnails", "large-icons", "small-icons", "details",
+    ]);
+    // a data SCALAR (a .json holding `30`) gets NO icon tabs (they would be empty)
+    expect(renderersFor(node({ concrete: "file/json", type: "integer", valueType: "integer", value: 30 }))).toEqual([]);
+    // a scalar-bodied DIRECTORY (54-scalar-file-overlay) likewise — and defaults to yamlover, not the explorer
+    expect(renderersFor(node({ concrete: "dir/yamlover", type: "integer", valueType: "integer", value: 30 }))).toEqual([]);
+    expect(rendererName(node({ concrete: "dir/yamlover", type: "integer", value: 30 }), "dir/yamlover")).toBeNull();
+  });
+
+  it("plaintextTab: a textual node offers the raw-source tab; dirs and non-string inline nodes do not", () => {
+    // file-backed data + markdown/asciidoc files → plaintext (raw bytes via /api/blob)
+    expect(plaintextTab(node({ concrete: "file/yaml", hasKeyed: true }))?.name).toBe("plaintext");
+    expect(plaintextTab(node({ concrete: "file/binary", format: "text/markdown" }))?.name).toBe("plaintext");
+    // inline string content (no source file) → plaintext renders the value
+    expect(plaintextTab(node({ concrete: "yamlover", valueType: "string", format: "text/markdown", value: "# hi" }))?.name).toBe("plaintext");
+    // a directory and a non-string inline container get NONE
+    expect(plaintextTab(node({ concrete: "dir" }))).toBeNull();
+    expect(plaintextTab(node({ concrete: "json", hasKeyed: true, value: {} }))).toBeNull();
+    // a .txt already LEADS with plaintext → no duplicate trailing tab
+    expect(plaintextTab(node({ concrete: "file/binary", format: "text/plain" }))).toBeNull();
   });
 
   it("a format renderer wins over the dir concrete (a dir-backed chapter stays a chapter)", () => {

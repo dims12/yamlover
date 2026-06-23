@@ -2,7 +2,7 @@ import { Fragment, memo, useEffect, useReducer, useRef, useState } from "react";
 import { fetchNode, fetchSchema, NodeJson, pasteFile, pasteRich, pasteText, PasteResult } from "./api";
 import { arxivPdf, tweetUrl, fetchTweetText } from "./paste-links";
 import { countImages, htmlToRich, resolveImages, RichDraft } from "./paste-html";
-import { renderersFor } from "./renderers/registry";
+import { renderersFor, rendererName, plaintextTab } from "./renderers/registry";
 import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
 import { DepthControl, viewDepth } from "./renderers/depth";
 import { useHashScroll } from "./renderers/headings";
@@ -39,14 +39,15 @@ function standardFormatsFor(node: NodeJson): Format[] {
   return isJsonFamily(node.concrete) ? ["yamlover", "json5p", "yamlover/schema"] : ["yamlover", "yamlover/schema"];
 }
 
-/** The representation actually shown: the requested `format` if it is one of this node's standard
- *  views or one of its renderer names; otherwise the node's default (its first renderer's view,
- *  else `yaml`). Guards a stale format (a hand-edited URL, or one — e.g. `json5p` — carried onto a
- *  node that doesn't offer it). */
-function effectiveFormat(format: Format, renderers: { name: string }[], standard: Format[]): Format {
-  if ((standard as string[]).includes(format)) return format;
-  if (renderers.some((r) => r.name === format)) return format;
-  return renderers[0] ? renderers[0].name : DEFAULT_FORMAT;
+/** The representation actually shown: the requested `format` if it is one of this node's tabs;
+ *  otherwise the node's NATURAL default — a directory → its explorer (large icons), a format
+ *  renderer (markdown/chapter) → its own view, a data node → `yamlover`. So the tab BAR is uniform
+ *  while only the default differs by node kind (matches the navigation default, `rendererName`).
+ *  Guards a stale format (a hand-edited URL, or one — e.g. `json5p` — carried onto a node that
+ *  doesn't offer it). */
+function effectiveFormat(format: Format, node: NodeJson, tabs: Format[]): Format {
+  if ((tabs as string[]).includes(format)) return format;
+  return (rendererName(node, node.concrete) as Format) ?? DEFAULT_FORMAT;
 }
 
 /** A node's bare name: its last path segment (a decoded key or `[index]`), or ""
@@ -153,8 +154,10 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
         // inline), which would break navigation, icons and thumbnails. Switching renderer↔data tab
         // refetches (the effect depends on `format`); the node stays visible meanwhile (no-flash).
         const rs = renderersFor(n);
-        const eff = effectiveFormat(format, rs, standardFormatsFor(n));
-        const active = rs.find((r) => r.name === eff);
+        const trailing = plaintextTab(n);
+        const tabsE: Format[] = [...rs.map((r) => r.name), ...standardFormatsFor(n), ...(trailing ? [trailing.name] : [])];
+        const eff = effectiveFormat(format, n, tabsE);
+        const active = [...rs, ...(trailing ? [trailing] : [])].find((r) => r.name === eff);
         const swap = (dn: NodeJson) => !cancelled && setNode(dn);
         const fail = (e: Error) => !cancelled && setError(e.message);
         if (active) {
@@ -362,8 +365,10 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     setBin(null);
     if (!node) return;
     const rs = renderersFor(node);
-    const eff = effectiveFormat(format, rs, standardFormatsFor(node));
-    if (rs.some((r) => r.name === eff)) return; // a rendered view reads node.value (already fetched)
+    const trailing = plaintextTab(node);
+    const tabsE: Format[] = [...rs.map((r) => r.name), ...standardFormatsFor(node), ...(trailing ? [trailing.name] : [])];
+    const eff = effectiveFormat(format, node, tabsE);
+    if ([...rs, ...(trailing ? [trailing] : [])].some((r) => r.name === eff)) return; // a rendered view reads node.value (already fetched)
     if (isSchema(eff)) {
       // `.inf`/default (viewDepth null) → omit depth so the server applies its per-concrete default
       fetchSchema(path, viewDepth() ?? undefined).then(setSchema).catch((e) => setError(e.message));
@@ -375,16 +380,18 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   if (error) return <div className="error">{error}</div>;
   if (!node) return <div className="loading">…</div>;
 
+  // LEADING renderer tabs (format renderer / explorer views), then the standard DATA views, then the
+  // TRAILING `plaintext` (raw-source) tab for a textual node. The default tab is the node's natural
+  // one (effectiveFormat), so the bar order is uniform while only the default differs by node kind.
   const renderers = renderersFor(node);
-  // Each rendered representation adds its own tab (its name); the first is this node's default, and
-  // a directory offers its explorer view tabs (large icons / details / …) alongside any custom one.
-  // The node's standard data representations follow (json5p only for a json-family file).
   const standard = standardFormatsFor(node);
-  const tabs: Format[] = [...renderers.map((r) => r.name), ...standard];
-  const effective = effectiveFormat(format, renderers, standard);
+  const trailing = plaintextTab(node);
+  const allRenderers = trailing ? [...renderers, trailing] : renderers;
+  const tabs: Format[] = [...renderers.map((r) => r.name), ...standard, ...(trailing ? [trailing.name] : [])];
+  const effective = effectiveFormat(format, node, tabs);
   // A tab's button text: a renderer's `label` (e.g. "large icons"), else the format slug itself.
-  const labelOf = (f: Format): string => renderers.find((r) => r.name === f)?.label ?? f;
-  const renderer = renderers.find((r) => r.name === effective) ?? null;
+  const labelOf = (f: Format): string => allRenderers.find((r) => r.name === f)?.label ?? f;
+  const renderer = allRenderers.find((r) => r.name === effective) ?? null;
   const showRendered = renderer != null;
   // the document this node belongs to — the base its `#`-fragment anchors are measured from
   const docPath = node.documentPath ?? path;

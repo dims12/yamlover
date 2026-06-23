@@ -50,6 +50,20 @@ describe("NodeView", () => {
     expect(onFormat).toHaveBeenCalledWith("json5p");
   });
 
+  it("a data-file container exposes the unified tab bar in order and DEFAULTS to yamlover", async () => {
+    mNode.mockResolvedValue({
+      path: ":x.yaml", type: "object", concrete: "file/yaml", hasKeyed: true,
+      title: null, description: null, value: { name: "Alice" },
+    });
+    // format="" is not a real tab → falls to the node's natural default (a data file → yamlover)
+    render(<NodeView path=":x.yaml" format="" onFormat={() => {}} onNavigate={() => {}} />);
+    expect(await screen.findByText("Alice")).toBeTruthy(); // the yamlover data view, by default
+    // the unified bar, in order: icon views, the data views, then the trailing plaintext
+    for (const t of ["thumbnails", "large icons", "small icons", "details", "yamlover", "yamlover/schema", "plaintext"])
+      expect(screen.getByRole("button", { name: t })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "json5p" })).toBeNull(); // yaml, not json-family
+  });
+
   it("fetches a DATA view at the ?depth= setting, but a RENDERER at its OWN depth (regression: the explorer needs depth 1)", async () => {
     window.history.replaceState({}, "", "/?depth=6"); // a high data-view depth setting
     try {

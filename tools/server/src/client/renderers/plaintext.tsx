@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { NodeJson, blobUrl } from "../api";
 import { Chunk } from "./registry";
+import { isFileConcrete } from "../../concrete";
+import { scalarValue } from "../render";
 
 /**
  * The renderer for a `binary`/`text/plain` (`.txt`/`.text`/`.log`) node: the file's
@@ -46,14 +48,15 @@ function decode(bytes: Uint8Array, encoding: string): string {
 }
 
 /** Fetch a file's raw bytes once per `path` (decoding happens separately, so changing
- *  the encoding does not refetch). */
-function useBytes(path: string): { bytes: Uint8Array | null; error: string | null } {
+ *  the encoding does not refetch). A null `path` (an inline node, no source file) skips the fetch. */
+function useBytes(path: string | null): { bytes: Uint8Array | null; error: string | null } {
   const [bytes, setBytes] = useState<Uint8Array | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     setBytes(null);
     setError(null);
+    if (path == null) return;
     fetch(blobUrl(path))
       .then((r) => r.arrayBuffer())
       .then((buf) => !cancelled && setBytes(new Uint8Array(buf)))
@@ -66,9 +69,18 @@ function useBytes(path: string): { bytes: Uint8Array | null; error: string | nul
 }
 
 export function PlaintextView({ node }: { node: NodeJson }) {
-  const { bytes, error } = useBytes(node.path);
+  // A file-backed node loads its raw bytes via /api/blob (with the encoding selector — legacy
+  // Cyrillic files). An INLINE textual node (no source file: markdown/asciidoc/string authored in
+  // place) has its already-decoded string value, shown verbatim — no fetch, no encoding choice.
+  const fileBacked = isFileConcrete(node.concrete);
+  const inline = fileBacked ? null : scalarValue(node.value);
+  const inlineText = typeof inline === "string" ? inline : fileBacked ? null : "";
+  const { bytes, error } = useBytes(fileBacked ? node.path : null);
   const encoding = textEncoding();
-  const text = useMemo(() => (bytes ? decode(bytes, encoding) : null), [bytes, encoding]);
+  const text = useMemo(
+    () => (inlineText != null ? inlineText : bytes ? decode(bytes, encoding) : null),
+    [inlineText, bytes, encoding],
+  );
   if (error) return <div className="error">text: {error}</div>;
   if (text == null) return <div className="loading">reading…</div>;
   return (
