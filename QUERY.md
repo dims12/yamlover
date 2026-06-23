@@ -154,7 +154,7 @@ syntax space, not an overload.)
   `- *x` membership, mirroring `~-` authoring exactly.
 
 ```text
-/adam/cain/enoch/~enoch   → { /adam/cain, /adam/azura }    (both parents — the DAG)
+/adam/cain/enoch/~enoch   → { /adam/cain, /adam/azura }    (both parents — the directed graph)
 /pets[1]/~manager         → { /humans[0] }
 /pets[1]/~?               → { /, /pets, /humans[0] }        (deduped; / holds feline AND secondPet)
 /fan/~-                   → { /favorites, /crew }           (one authored forward, one reverse — invisible)
@@ -300,7 +300,7 @@ result order.
 ### `examples/58-genealogy-dag`
 
 ```text
-/adam/cain/enoch/~enoch → /adam/cain, /adam/azura     (spine father + *-edge mother: the DAG)
+/adam/cain/enoch/~enoch → /adam/cain, /adam/azura     (spine father + *-edge mother: the directed graph)
 /eve/?                  → /adam/cain, /adam/seth, /adam/azura   (her children, deref'd)
 /adam/azura/~?          → /adam, /eve                 (her two parents: containment + eve's ref;
                                                        the authored ~azura folds into eve's forward edge)

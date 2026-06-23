@@ -9,6 +9,7 @@
 import type { Document, Node, Mapping, Scalar, Entry, Value } from './ir.ts';
 import { isPointer } from './ir.ts';
 import { parsePointer, makeAnchor } from './pointer.ts';
+import { attachComments, type RawComment } from './comments.ts';
 
 const WS = new Set([' ', '\t', '\n', '\r', '\v', '\f', ' ', '﻿']);
 
@@ -19,13 +20,17 @@ export function parseJson5p(src: string, uri = '<json5p>'): Document {
   p.ws();
   if (p.i < src.length) p.fail('trailing characters');
   if (isPointer(root)) return p.fail('a top-level pointer is not allowed'); // narrows root → Node
-  return { root, source: { concrete: 'json5p', uri } };
+  root.meta = { ...root.meta, span: { uri, start: 0, end: src.length } };
+  const doc: Document = { root, source: { concrete: 'json5p', uri } };
+  attachComments(doc, p.comments, src, uri);
+  return doc;
 }
 
 class Parser {
   src: string;
   uri: string;
   i = 0;
+  comments: RawComment[] = []; // captured in ws(); placed onto the tree after the parse
 
   constructor(src: string, uri: string) { this.src = src; this.uri = uri; }
 
@@ -41,19 +46,29 @@ class Parser {
       if (c === undefined) return;
       if (WS.has(c)) { this.i++; continue; }
       if (c === '/' && this.src[this.i + 1] === '/') {
+        const start = this.i;
         this.i += 2;
         while (this.i < this.src.length && this.src[this.i] !== '\n' && this.src[this.i] !== '\r') this.i++;
+        this.comments.push({ start, end: this.i, text: this.src.slice(start + 2, this.i).replace(/\s+$/, ''), ownLine: this.atLineStart(start), style: 'line' });
         continue;
       }
       if (c === '/' && this.src[this.i + 1] === '*') {
+        const start = this.i;
         this.i += 2;
         while (this.i < this.src.length && !(this.src[this.i] === '*' && this.src[this.i + 1] === '/')) this.i++;
         if (this.i >= this.src.length) this.fail('unterminated block comment');
         this.i += 2;
+        this.comments.push({ start, end: this.i, text: this.src.slice(start + 2, this.i - 2).trim(), ownLine: this.atLineStart(start), style: 'block' });
         continue;
       }
       return;
     }
+  }
+
+  /** True when only whitespace precedes `off` on its line (so a comment there is own-line). */
+  atLineStart(off: number): boolean {
+    const ls = this.src.lastIndexOf('\n', off - 1);
+    return /^[ \t\r]*$/.test(this.src.slice(ls + 1, off));
   }
 
   value(): Node | import('./ir.ts').Pointer {
@@ -75,12 +90,13 @@ class Parser {
       const c = this.peek();
       if (c === '}') { this.i++; break; }
       if (c === undefined) this.fail('unterminated object');
+      const entryStart = this.i; // the entry's source range starts at its key (or `~`) …
       let back = false;
       if (this.peek() === '~') { back = true; this.i++; }
       if (back && this.peek() === '*') {
         // `~*'…'` — a KEYLESS back member (reverse positional membership, URIs.md §`~-`):
         // no key, no colon; the pointer names the container that holds this node.
-        entries.push({ key: null, edge: 'back', value: this.pointer() });
+        entries.push(withSpan({ key: null, edge: 'back', value: this.pointer() }, this.uri, entryStart, this.i));
       } else {
         const key = this.key();
         this.ws();
@@ -88,7 +104,7 @@ class Parser {
         this.i++;
         this.ws();
         const v = this.value();
-        entries.push(makeEntry(key, back, v));
+        entries.push(withSpan(makeEntry(key, back, v), this.uri, entryStart, this.i)); // … and ends after the value
       }
       this.ws();
       const n = this.peek();
@@ -107,14 +123,15 @@ class Parser {
       const c = this.peek();
       if (c === ']') { this.i++; break; }
       if (c === undefined) this.fail('unterminated array');
+      const entryStart = this.i;
       if (c === '~') {
         // `~*'…'` — a keyless back member, allowed among array elements too (it is NOT an
         // element: a back-edge takes no position).
         this.i++;
         if (this.peek() !== '*') this.fail('expected a pointer after "~" (keyless back member)');
-        entries.push({ key: null, edge: 'back', value: this.pointer() });
+        entries.push(withSpan({ key: null, edge: 'back', value: this.pointer() }, this.uri, entryStart, this.i));
       } else {
-        entries.push(makeEntry(null, false, this.value()));
+        entries.push(withSpan(makeEntry(null, false, this.value()), this.uri, entryStart, this.i));
       }
       this.ws();
       const n = this.peek();
@@ -226,6 +243,12 @@ class Parser {
 function makeEntry(key: string | null, back: boolean, v: Value): Entry {
   const edge = back ? 'back' : isPointer(v) ? 'ref' : 'contain';
   return { key, edge, value: v };
+}
+
+/** Attach the entry's source range (absolute char offsets) — key/`~` start … value end. */
+function withSpan(e: Entry, uri: string, start: number, end: number): Entry {
+  e.meta = { ...e.meta, span: { uri, start, end } };
+  return e;
 }
 
 function scalar(value: string | number | boolean | null, raw: string): Scalar {

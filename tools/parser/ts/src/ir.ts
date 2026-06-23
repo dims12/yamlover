@@ -7,6 +7,26 @@
 export interface Document {
   root: Node;
   source: SourceInfo;
+  /** Head-of-file comments: a banner at the top, set off from the body by a blank line.
+   *  Comments that run straight into the first entry attach to it (EntryMeta.comments). */
+  head?: Comment[];
+}
+
+/** A retained source comment (IR.md). Comments are TYPOGRAPHY: the parsers capture them so
+ *  an editor can round-trip a file, but they are NOT part of graph identity (canonical
+ *  IR-equality ignores them) and serializers emit them only on request. */
+export interface Comment {
+  /** The comment body with its sigils stripped — no leading `#` / `//`, no block fences. */
+  text: string;
+  span: Span;
+  /** `leading` — own line(s) above the entry it decorates; `trailing` — on the entry's last
+   *  line, after the value. */
+  placement: 'leading' | 'trailing';
+  /** `line` (`#` or `//`) vs `block` (a json5p slash-star comment). yamlover is always `line`. */
+  style: 'line' | 'block';
+  /** A blank line immediately precedes this comment (a standalone remark, not tucked against
+   *  the line above). */
+  blankBefore?: boolean;
 }
 
 export interface SourceInfo {
@@ -42,6 +62,9 @@ export interface NodeMeta {
    *  `.yamlover` overlay-dir node so its derived sidecars (`thumbnails/`, `fragments/`) resolve
    *  via `*:.yamlover:…` / `*::.yamlover:…` without cluttering the UI. */
   hidden?: boolean;
+  /** Comments with no entry to attach to: a comment after the last entry of a block, or
+   *  inside an empty container; the document root also collects any otherwise-unplaced ones. */
+  comments?: Comment[];
 }
 export interface Span { uri: string; start: number; end: number; }
 
@@ -97,7 +120,15 @@ export interface Entry {
   value: Value;
   meta?: EntryMeta;
 }
-export interface EntryMeta { span?: Span; } // span: not yet populated (pointer spans first)
+export interface EntryMeta {
+  /** Source range of the WHOLE entry — from the key / `-` / `~` marker through the end of
+   *  its value (post-strip: a trailing comment / whitespace is excluded) — as absolute
+   *  offsets into `span.uri`. Filled by the parsers; lets an editor locate every entry. */
+  span?: Span;
+  /** Comments decorating this entry: `leading` ones on the line(s) above, the lone `trailing`
+   *  one on the entry's last line (see Comment.placement). Source order preserved. */
+  comments?: Comment[];
+}
 
 export type Value = Node | Pointer; // Node iff edge==='contain'; Pointer iff ref/back
 

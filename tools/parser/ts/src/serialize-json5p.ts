@@ -5,18 +5,32 @@
 // routes through the meta layer instead — cf. the note in examples/03-tour.json5p).
 // Round-trip contract: parseJson5p(serializeJson5p(doc)) is IR-equal to doc.
 
-import type { Document, Node, Entry, Value, Scalar, Pointer } from './ir.ts';
+import type { Document, Node, Entry, Value, Scalar, Pointer, Comment } from './ir.ts';
 import { isPointer } from './ir.ts';
 import { LossyError, anchorBody, isAnchorizableBack, backAnchorBody } from './serialize-common.ts';
 import { renderPointer } from './pointer.ts';
 
 const STEP = 2;
 
-export function serializeJson5p(doc: Document): string {
-  return new Emitter().value(doc.root, 0) + '\n';
+/** Emit options. `comments` re-emits retained comments; off by default (byte-identical output). */
+export interface SerializeOpts { comments?: boolean }
+
+export function serializeJson5p(doc: Document, opts?: SerializeOpts): string {
+  const e = new Emitter(opts?.comments ?? false);
+  const head = e.comments && (doc.head?.length ?? 0) > 0
+    ? doc.head!.map((c) => commentText(c)).join('\n') + '\n\n' // blank line → reparses as head
+    : '';
+  const tail = e.comments
+    ? (doc.root.meta?.comments ?? []).map((c) => '\n' + commentText(c)).join('') // leftovers, never dropped
+    : '';
+  return head + e.value(doc.root, 0) + tail + '\n';
 }
 
 class Emitter {
+  comments: boolean;
+
+  constructor(comments: boolean) { this.comments = comments; }
+
   value(v: Value, indent: number): string {
     if (isPointer(v)) return ptr(v);
     // `&` path anchors stack before the value, each in the canonical quoted form — the
@@ -47,7 +61,13 @@ class Emitter {
     const asArray = owned.length > 0 ? keyed.length === 0 : n.array === true;
     const pad = ' '.repeat(indent);
     const inner = ' '.repeat(indent + STEP);
-    const items = ents.map((e) => inner + this.entry(e, asArray, indent + STEP));
+    const items = ents.map((e) => {
+      const lead = this.comments ? leadingOf(e).map((c) => inner + commentText(c) + '\n').join('') : '';
+      // a trailing comment rides the entry as a BLOCK comment so the joining comma stays
+      // outside it (a `//` line comment would swallow the comma)
+      const trail = this.comments ? trailingOf(e) : undefined;
+      return lead + inner + this.entry(e, asArray, indent + STEP) + (trail ? ' ' + blockComment(trail.text) : '');
+    });
     return (asArray ? '[' : '{') + '\n' + items.join(',\n') + '\n' + pad + (asArray ? ']' : '}');
   }
 
@@ -61,6 +81,27 @@ class Emitter {
     if (inArray) throw new LossyError(`a keyed entry ("${e.key}") cannot live in a json5p array`);
     return (e.edge === 'back' ? '~' : '') + keyText(e.key) + ': ' + this.value(e.value, indent);
   }
+}
+
+// ---- comments ------------------------------------------------------------------
+
+function leadingOf(e: Entry): Comment[] {
+  return (e.meta?.comments ?? []).filter((c) => c.placement === 'leading');
+}
+function trailingOf(e: Entry): Comment | undefined {
+  return (e.meta?.comments ?? []).find((c) => c.placement === 'trailing');
+}
+// Block fences built by concatenation — a literal `/*`…`*/` in source trips the type stripper.
+const BO = '/' + '*';
+const BC = '*' + '/';
+
+/** Own-line rendering: `//…` for a line comment, a slash-star block for a block one. */
+function commentText(c: Comment): string {
+  return c.style === 'block' ? `${BO} ${c.text.trim()} ${BC}` : '//' + c.text;
+}
+/** Inline (trailing) form — always a block, so the joining comma stays outside it. */
+function blockComment(text: string): string {
+  return `${BO} ${text.trim()} ${BC}`;
 }
 
 // ---- tokens --------------------------------------------------------------------

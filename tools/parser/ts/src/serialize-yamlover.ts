@@ -9,7 +9,7 @@
 // carries the content HASH, not the bytes; once a byte source is wired in, a blob can
 // emit INLINE as base64 — META.md `type: binary` — the same node in a different concrete.)
 
-import type { Document, Node, Entry, Value, Scalar, Pointer } from './ir.ts';
+import type { Document, Node, Entry, Value, Scalar, Pointer, Comment } from './ir.ts';
 import { isPointer } from './ir.ts';
 import { plainScalar, splitKV } from './yamlover.ts';
 import { renderPointer } from './pointer.ts';
@@ -17,21 +17,31 @@ import { LossyError, anchorBody, isAnchorizableBack, backAnchorBody } from './se
 
 const STEP = 2;
 
-export function serializeYamlover(doc: Document): string {
-  return new Emitter(doc).serialize();
+/** Emit options. `comments` re-emits the retained comments (IR.md); off by default, so the
+ *  output stays byte-identical to a comment-free serialization. */
+export interface SerializeOpts { comments?: boolean }
+
+export function serializeYamlover(doc: Document, opts?: SerializeOpts): string {
+  return new Emitter(doc, opts).serialize();
 }
 
 class Emitter {
   out: string[] = [];
   doc: Document;
+  comments: boolean;
 
-  constructor(doc: Document) {
+  constructor(doc: Document, opts?: SerializeOpts) {
     this.doc = doc;
+    this.comments = opts?.comments ?? false;
   }
 
   serialize(): string {
     const root = this.doc.root;
     if (root.kind === 'blob') throw new LossyError('a blob has no yamlover text form (its bytes live in a file)');
+    if (this.comments && (this.doc.head?.length ?? 0) > 0) {
+      for (const c of this.doc.head!) this.out.push('#' + c.text);
+      this.out.push(''); // blank line sets the head banner off from the body (round-trips as head)
+    }
     if (root.meta?.schema !== undefined) this.out.push(`!!<${this.schemaText(root.meta.schema)}>`);
     const ents = root.entries ?? [];
     const kept = ents.filter((e) => !isAnchorizableBack(e)); // conv backs re-emit as anchors
@@ -51,6 +61,8 @@ class Emitter {
       this.rootAnchors(root);
       this.entries(ents, 0);
     }
+    // comments with no entry to host them (after the last entry, trailing-of-file)
+    if (this.comments) for (const c of root.meta?.comments ?? []) this.out.push('#' + c.text);
     return this.out.join('\n') + '\n';
   }
 
@@ -74,6 +86,8 @@ class Emitter {
   entries(ents: Entry[], indent: number): void {
     const pad = ' '.repeat(indent);
     for (const e of ents) {
+      if (this.comments) for (const c of leadingOf(e)) this.out.push(pad + '#' + c.text);
+      const before = this.out.length;
       if (isAnchorizableBack(e)) {
         continue; // re-emitted as an `&` anchor in decorations()/rootAnchors(), not as `~`
       } else if (e.key === null && e.edge === 'back') {
@@ -86,6 +100,19 @@ class Emitter {
         const head = (e.edge === 'back' ? '~' : '') + keyText(e.key) + ':';
         this.keyed(head, e.value, indent);
       }
+      if (this.comments) this.emitTrailing(e, indent, before);
+    }
+  }
+
+  /** A `trailing` comment rides the entry's line when the entry emitted a single line;
+   *  otherwise (a block scalar / nested block) it falls to its own line below — never lost. */
+  emitTrailing(e: Entry, indent: number, before: number): void {
+    const t = (e.meta?.comments ?? []).find((c) => c.placement === 'trailing');
+    if (!t) return;
+    if (this.out.length === before + 1 && !this.out[before].includes('\n')) {
+      this.out[before] += ' #' + t.text;
+    } else {
+      this.out.push(' '.repeat(indent) + '#' + t.text);
     }
   }
 
@@ -218,6 +245,11 @@ class Emitter {
 }
 
 // ---- helpers -------------------------------------------------------------------
+
+/** The `leading` comments of an entry, in source order. */
+function leadingOf(e: Entry): Comment[] {
+  return (e.meta?.comments ?? []).filter((c) => c.placement === 'leading');
+}
 
 function joinLine(head: string, parts: string[]): string {
   return parts.length === 0 ? head : head + ' ' + parts.join(' ');

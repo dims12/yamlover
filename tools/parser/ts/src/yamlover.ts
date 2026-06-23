@@ -14,8 +14,12 @@
 import type { Document, Node, Mapping, Scalar, Entry, Value, Pointer, Span, Anchor } from './ir.ts';
 import { isPointer } from './ir.ts';
 import { parsePointer, makeAnchor } from './pointer.ts';
+import { attachComments, type RawComment } from './comments.ts';
 
 interface Line { indent: number; text: string; n: number }
+/** A captured `#` comment plus the raw line it sat on (so block-scalar content lines, where
+ *  `#` is data not a comment, can be purged before attachment). */
+interface YComment extends RawComment { n: number }
 
 export function parseYamlover(src: string, uri = '<yamlover>'): Document {
   // one pass: lines + their absolute start offsets (separators vary — \r\n is 2 chars)
@@ -30,7 +34,8 @@ export function parseYamlover(src: string, uri = '<yamlover>'): Document {
   }
   raw.push(src.slice(at));
   lineStarts.push(at);
-  const p = new Block(lex(raw), raw, uri, lineStarts);
+  const lexed = lex(raw, lineStarts, uri);
+  const p = new Block(lexed.lines, raw, uri, lineStarts);
   // YAML document markers are reserved until multi-document lands (Phase 2c). Without this
   // guard, omni-by-default would read a `---` line as the node's scalar VALUE — a misparse
   // that can accidentally project to the right value. Refuse instead.
@@ -58,24 +63,45 @@ export function parseYamlover(src: string, uri = '<yamlover>'): Document {
   }
   if (p.i < p.lines.length) p.fail('unexpected content');
   if (rootSchema !== undefined) root.meta = { ...root.meta, schema: rootSchema };
-  return { root, source: { concrete: 'yamlover', uri } };
+  root.meta = { ...root.meta, span: { uri, start: 0, end: src.length } };
+  const doc: Document = { root, source: { concrete: 'yamlover', uri } };
+  // `#` inside a `|`/`>` block scalar is CONTENT, not a comment — drop those records.
+  const comments = lexed.comments.filter((c) => !p.blockLines.has(c.n)).map(({ n: _n, ...r }) => r);
+  attachComments(doc, comments, src, uri);
+  return doc;
 }
 
-// ---- line lexing: indentation + quote-aware comment stripping ----------------
-function lex(raw: string[]): Line[] {
+// ---- line lexing: indentation + quote-aware comment capture ------------------
+function lex(raw: string[], lineStarts: number[], uri: string): { lines: Line[]; comments: YComment[] } {
   const out: Line[] = [];
+  const comments: YComment[] = [];
   for (let n = 0; n < raw.length; n++) {
     const line = raw[n];
     let indent = 0;
     while (indent < line.length && line[indent] === ' ') indent++;
-    const content = stripComment(line.slice(indent)).replace(/\s+$/, '');
-    if (content === '') continue; // blank or comment-only
+    const body = line.slice(indent);
+    const at = commentStart(body); // index of the `#` within `body`, or -1
+    const content = (at >= 0 ? body.slice(0, at) : body).replace(/\s+$/, '');
+    if (at >= 0) {
+      const base = lineStarts[n] ?? 0;
+      comments.push({
+        start: base + indent + at,
+        end: base + line.replace(/\s+$/, '').length, // through the last non-blank char
+        text: body.slice(at + 1).replace(/\s+$/, ''), // body after `#`, trailing ws trimmed
+        ownLine: content === '',
+        style: 'line',
+        n,
+      });
+    }
+    if (content === '') continue; // blank or comment-only — not a logical line
     out.push({ indent, text: content, n });
   }
-  return out;
+  return { lines: out, comments };
 }
 
-function stripComment(s: string): string {
+/** Index of an unquoted `#` that begins a trailing comment in `s` (quote-aware, the same
+ *  rule lexing uses), or -1 if there is none. */
+function commentStart(s: string): number {
   let inS = false; // inside a single-quoted scalar ('' is the only escape — net no toggle)
   let inD = false; // inside a double-quoted scalar (backslash escapes the next char, incl. \" and \\)
   for (let i = 0; i < s.length; i++) {
@@ -84,10 +110,10 @@ function stripComment(s: string): string {
     if (c === "'" && !inD) inS = !inS;
     else if (c === '"' && !inS) inD = !inD;
     else if (c === '#' && !inS && !inD && (i === 0 || s[i - 1] === ' ' || s[i - 1] === '\t')) {
-      return s.slice(0, i);
+      return i;
     }
   }
-  return s;
+  return -1;
 }
 
 class Block {
@@ -95,6 +121,7 @@ class Block {
   raw: string[];      // all source lines (for block scalars, which keep blanks and `#`)
   uri: string;        // source path/id, surfaced in parse-error messages
   lineStarts: number[]; // absolute offset of each raw line's first character
+  blockLines = new Set<number>(); // raw lines consumed by a block scalar (their `#` is content)
   i = 0;
 
   constructor(lines: Line[], raw: string[], uri = '<yamlover>', lineStarts: number[] = []) {
@@ -217,6 +244,8 @@ class Block {
     for (;;) {
       const l = this.peek();
       if (!l || l.indent !== indent) break;
+      const startLineN = l.n;       // an entry's source range starts at its key/`-`/`~`
+      const startCol = l.indent;    // marker, at this line's indent column
       let value: Value;
       let entry: Entry;
       if (l.text.startsWith('&')) {
@@ -290,6 +319,15 @@ class Block {
         value = this.valueAfter(kv.rest, indent, l.n, l.indent + kv.restCol);
         entry = { key: unquoteKey(key), edge: back ? 'back' : isPointer(value) ? 'ref' : 'contain', value };
       }
+      // … and ends at the last source line the value consumed — a contiguous run, so
+      // `this.lines[this.i - 1]` is that line. Post-strip (`indent + text.length`) so a
+      // trailing `#` comment / whitespace is excluded.
+      const endLine = this.lines[this.i - 1];
+      const start = (this.lineStarts[startLineN] ?? 0) + startCol;
+      const end = endLine
+        ? (this.lineStarts[endLine.n] ?? 0) + endLine.indent + endLine.text.length
+        : start;
+      entry.meta = { ...entry.meta, span: { uri: this.uri, start, end } };
       entries.push(entry);
     }
     // projection hint: a pure sequence — judged over OWNED entries only (a `~-` back-edge
@@ -386,12 +424,13 @@ class Block {
       const r = this.raw[n];
       let ind = 0;
       while (ind < r.length && r[ind] === ' ') ind++;
-      if (ind >= r.length) { lines.push(''); lastN = n; continue; } // blank line
+      if (ind >= r.length) { lines.push(''); lastN = n; this.blockLines.add(n); continue; } // blank line
       if (ind <= parentIndent) break;                               // dedent to/under key → ends
       if (blockIndent >= 0 && ind < blockIndent) break;             // dedent under content → !!omni fields begin
       if (blockIndent < 0) blockIndent = ind;                       // first content line sets indent
       lines.push(r.slice(blockIndent));
       lastN = n;
+      this.blockLines.add(n);                                       // its `#`/blanks are content
     }
     while (this.peek() && this.peek()!.n <= lastN) this.i++;        // skip consumed lines
 

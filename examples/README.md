@@ -35,7 +35,7 @@ metadata; a plain directory's files *are* the data.
 | 55 | `55-scalar-as-binary`    | a binary file typed by `meta.yamlover` (`type: binary`, `format: int32/le`) |
 | 56 | `56-array-of-files`      | a sequence whose elements live in files; order + per-element format |
 | 57 | `57-image-with-markup`   | a PNG (file, typed via `meta`) + structured `markup` data in `body` |
-| 58 | `58-genealogy-dag`       | the canonical **DAG**: containment = paternal line, `*` = maternal cross-edge, `~` reverses (single `body.yamlover`) |
+| 58 | `58-genealogy-dag`       | the canonical **directed graph**: containment = paternal line, `*` = maternal cross-edge, `~` reverses (single `body.yamlover`; here acyclic, but `*`/`~` cycles are allowed) |
 | 59 | `59-all-formats-object`  | catalogue of every renderable `(type, format)` — textual content in `body`, binary samples typed in `meta` |
 
 ## Chapters (the `chapter` schema)

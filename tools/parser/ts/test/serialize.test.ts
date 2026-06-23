@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { Document, Node, Pointer, Value } from '../src/ir.ts';
+import type { Comment, Document, Node, Pointer, Value } from '../src/ir.ts';
 import { isPointer } from '../src/ir.ts';
 import { parseYamlover } from '../src/yamlover.ts';
 import { parseJson5p } from '../src/json5p.ts';
@@ -236,6 +236,53 @@ for (const name of ['01-tour.json', '02-tour.json5', '03-tour.json5p']) {
     rtJson5p(readFileSync(join(examples, name), 'utf8'), name);
   });
 }
+
+// ---- comments: canonical equality ignores them, opt-in emission round-trips ----------
+// Comments are typography (like scalar `raw`): canonDoc never reads them, so the standard
+// round-trips above hold whether or not a file has comments. With { comments: true } the
+// serializers re-emit them, and a reparse recovers the same set of comment texts.
+
+/** Every retained comment text in the document (head + per-entry + node leftovers), sorted. */
+function commentTexts(d: Document): string[] {
+  const out: string[] = [];
+  const take = (cs: Comment[] | undefined): void => { for (const c of cs ?? []) out.push(c.text.trim()); };
+  take(d.head);
+  const walk = (n: Node): void => {
+    take(n.meta?.comments);
+    for (const e of n.entries ?? []) {
+      take(e.meta?.comments);
+      if (!isPointer(e.value)) walk(e.value);
+    }
+  };
+  walk(d.root);
+  return out.sort();
+}
+
+test('comments: canonDoc ignores them (round-trip holds with comments present)', () => {
+  // a commented source still round-trips under the default (comment-free) serialization
+  rtYamlover('# header\n\nname: Alice # who\nage: 30\n');
+  rtJson5p('{ // header\n  name: "Alice", // who\n  age: 30,\n}');
+});
+
+test('comments: yamlover { comments: true } re-emits and reparses to the same texts', () => {
+  const src = '# license\n# v2\n\n# the name\nname: Alice # who\nuser:\n  # nested\n  age: 30\n# bye\n';
+  const doc = parseYamlover(src, '<t>');
+  const out = serializeYamlover(doc, { comments: true });
+  const re = parseYamlover(out, '<t re>');
+  assert.deepEqual(commentTexts(re), commentTexts(doc), `comments lost:\n${out}`);
+  assert.deepEqual(canonDoc(re), canonDoc(doc)); // graph still intact
+  // and the default emission drops them (byte-identical to comment-free)
+  assert.equal(serializeYamlover(doc), serializeYamlover(parseYamlover(serializeYamlover(doc), '<t2>')));
+});
+
+test('comments: json5p { comments: true } re-emits and reparses to the same texts', () => {
+  const src = '// header\n\n{\n  // the name\n  name: "Alice", // who\n  age: 30,\n}';
+  const doc = parseJson5p(src, '<t>');
+  const out = serializeJson5p(doc, { comments: true });
+  const re = parseJson5p(out, '<t re>');
+  assert.deepEqual(commentTexts(re), commentTexts(doc), `comments lost:\n${out}`);
+  assert.deepEqual(canonDoc(re), canonDoc(doc));
+});
 
 // ---- cross-concrete -----------------------------------------------------------------
 

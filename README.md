@@ -1,7 +1,8 @@
 # yamlover
 
 `yamlover` is a materialization "language", that supersedes `YAML` and `JSON` and
-supports both file and filesystem storage of tree- and DAG-like data structeres.
+supports both file and filesystem storage of tree- and graph-like data structures
+(directed graphs, cycles allowed).
 
 **yamlover** stands for **YAML Overlay** — not "Yam lover". It means YAML layer
 laid *over* the filesystem.
@@ -20,7 +21,8 @@ The project has the following goals
 - be able to describe directory content by a metadata schema (typing, formats,
   presentation; validation optional)
 - extend the YAML/JSON family with first-class **pointers** (graph edges)
-- support not only trees, but also directed acyclic graphs (DAGs)
+- support not only trees, but directed (oriented) graphs in general — cycles (loops)
+  allowed, not just DAGs
 - support mind mapping storage
 - support metadata and tagging software
 - support control of LLM agents

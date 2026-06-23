@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Document, Node, Pointer, Value } from '../src/ir.ts';
+import type { Document, Entry, Node, Pointer, Value } from '../src/ir.ts';
 import { isPointer } from '../src/ir.ts';
 import { parseYamlover } from '../src/yamlover.ts';
 import { parseJson5p } from '../src/json5p.ts';
@@ -137,4 +137,122 @@ test('span: json5p pointers across comments and lines', () => {
 
 test('span: json5p escaped pointer string', () => {
   j(`{ oddRef: *'odd\\\\/key/n', "odd/key": { n: 1 } }`, [`*'odd\\\\/key/n'`]);
+});
+
+// ---- entry spans (EntryMeta.span) ----------------------------------------------
+// The whole entry: key/`-`/`~` marker start … value end (post-strip — a trailing
+// comment / whitespace is excluded). `src.slice(span)` is the editable entry text.
+
+/** Map every entry of the root node to its source slice (document order, top level only). */
+function rootEntrySlices(src: string, doc: Document): string[] {
+  return (doc.root.entries ?? []).map((e) => {
+    assert.ok(e.meta?.span, `entry "${e.key}" has no span`);
+    return src.slice(e.meta!.span!.start, e.meta!.span!.end);
+  });
+}
+
+/** Recursively collect (key, slice) for every entry that has a span. */
+function allEntrySlices(src: string, doc: Document): Array<[string | null, string]> {
+  const out: Array<[string | null, string]> = [];
+  const walk = (n: Node): void => {
+    for (const e of n.entries ?? []) {
+      if (e.meta?.span) out.push([e.key, src.slice(e.meta.span.start, e.meta.span.end)]);
+      if (!isPointer(e.value)) walk(e.value);
+    }
+  };
+  walk(doc.root);
+  return out;
+}
+
+test('entry span: yamlover inline scalar entries', () => {
+  const src = 'name: Alice\nage: 30\n';
+  assert.deepEqual(rootEntrySlices(src, parseYamlover(src, '<t>')), ['name: Alice', 'age: 30']);
+});
+
+test('entry span: yamlover excludes a trailing comment', () => {
+  const src = 'name: Alice   # full name\nage: 30\n';
+  assert.deepEqual(rootEntrySlices(src, parseYamlover(src, '<t>')), ['name: Alice', 'age: 30']);
+});
+
+test('entry span: yamlover nested block covers the whole subtree', () => {
+  const src = 'user:\n  name: Alice\n  age: 30\nflag: true\n';
+  const doc = parseYamlover(src, '<t>');
+  assert.deepEqual(rootEntrySlices(src, doc), ['user:\n  name: Alice\n  age: 30', 'flag: true']);
+  // and the inner entries carry their own (narrower) spans
+  assert.deepEqual(allEntrySlices(src, doc), [
+    ['user', 'user:\n  name: Alice\n  age: 30'],
+    ['name', 'name: Alice'],
+    ['age', 'age: 30'],
+    ['flag', 'flag: true'],
+  ]);
+});
+
+test('entry span: yamlover sequence items and pointer entries', () => {
+  const src = 'list:\n  - a\n  - b\nref: *list[0]\n';
+  const doc = parseYamlover(src, '<t>');
+  assert.deepEqual(allEntrySlices(src, doc), [
+    ['list', 'list:\n  - a\n  - b'],
+    [null, '- a'],
+    [null, '- b'],
+    ['ref', 'ref: *list[0]'],
+  ]);
+});
+
+test('entry span: yamlover block scalar value', () => {
+  const src = 'doc: |\n  line one\n  line two\nafter: 1\n';
+  const doc = parseYamlover(src, '<t>');
+  const slices = rootEntrySlices(src, doc);
+  assert.match(slices[0], /^doc: \|\n {2}line one\n {2}line two$/);
+  assert.equal(slices[1], 'after: 1');
+});
+
+test('entry span: yamlover CRLF offsets', () => {
+  const src = 'name: Alice\r\nage: 30\r\n';
+  assert.deepEqual(rootEntrySlices(src, parseYamlover(src, '<t>')), ['name: Alice', 'age: 30']);
+});
+
+test('entry span: yamlover compact "- key: value"', () => {
+  const src = 'people:\n  - name: Al\n    age: 9\n';
+  const doc = parseYamlover(src, '<t>');
+  // the seq item spans the compact block; the inner keyed entries narrow in
+  assert.deepEqual(allEntrySlices(src, doc), [
+    ['people', 'people:\n  - name: Al\n    age: 9'],
+    [null, '- name: Al\n    age: 9'], // the keyless item span includes the `- ` marker
+    ['name', 'name: Al'],
+    ['age', 'age: 9'],
+  ]);
+});
+
+test('node span: yamlover root covers the document', () => {
+  const src = 'a: 1\nb: 2\n';
+  const doc = parseYamlover(src, '<t>');
+  assert.ok(doc.root.meta?.span);
+  assert.equal(doc.root.meta!.span!.start, 0);
+  assert.equal(doc.root.meta!.span!.end, src.length);
+});
+
+test('entry span: json5p object and array entries', () => {
+  const src = `{ name: "Alice", age: 30, list: [1, 2] }`;
+  const doc = parseJson5p(src, '<t>');
+  assert.deepEqual(allEntrySlices(src, doc), [
+    ['name', 'name: "Alice"'],
+    ['age', 'age: 30'],
+    ['list', 'list: [1, 2]'],
+    [null, '1'],
+    [null, '2'],
+  ]);
+});
+
+test('entry span: json5p excludes trailing whitespace/comment before comma', () => {
+  const src = `{\n  a: 1, // first\n  b: 2,\n}`;
+  const doc = parseJson5p(src, '<t>');
+  assert.deepEqual(rootEntrySlices(src, doc), ['a: 1', 'b: 2']);
+});
+
+test('node span: json5p root covers the document', () => {
+  const src = `{ a: 1 }`;
+  const doc = parseJson5p(src, '<t>');
+  assert.ok(doc.root.meta?.span);
+  assert.equal(doc.root.meta!.span!.start, 0);
+  assert.equal(doc.root.meta!.span!.end, src.length);
 });
