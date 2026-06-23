@@ -1,9 +1,9 @@
-# npmjs counterpart of .forgejo/workflows/release.yml. Same single source of truth: the
+# npmjs counterpart of .forgejo/workflows/publish-npm-inthemoon.yml. Same single source of truth: the
 # version in tools/server/package.json. Bump it, push main, and this publishes that version
 # to npmjs — but ONLY when running on real GitHub (the `if` below), never on the Forgejo
 # mirror that shares this file. Forgejo keeps publishing to Nexus and owns git tagging; this
 # job does neither. Re-pushing main is idempotent: it publishes only when the version is not
-# already on npmjs (the registry analog of release.yml's "does the v<version> tag exist?").
+# already on npmjs (the registry analog of publish-npm-inthemoon.yml's "does the v<version> tag exist?").
 on:
   push:
     branches: [main]
@@ -13,7 +13,7 @@ on:
 jobs:
   publish:
     # Real GitHub only. The Forgejo runner reports its own server_url, so this whole job is
-    # skipped there — Nexus stays release.yml's job, npmjs stays this one's.
+    # skipped there — Nexus stays publish-npm-inthemoon.yml's job, npmjs stays this one's.
     if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     permissions:

@@ -114,8 +114,8 @@ appends the Caddy block, enables linger, starts the service):
 bash ~/Design/www/yamlover-demo/deploy/bootstrap.sh
 ```
 
-**Every code deploy** is the Forgejo `deploy-demo` workflow (`.forgejo/workflows/
-deploy-demo.yml`): on a push to `main` touching `tools/demo/**`, it rsyncs the site to
+**Every code deploy** is the Forgejo `publish-demo-web` workflow (`.forgejo/workflows/
+publish-demo-web.yml`): on a push to `main` touching `tools/demo/**`, it rsyncs the site to
 `dims@design-vm:Design/www/yamlover-demo` and `systemctl --user restart`s the service
 (which re-pulls the latest `dimskraft/yamlover-demo` image on startup). It needs one
 Forgejo secret, `DESIGN_VM_DEPLOY_KEY` (a private key authorized for `dims@design-vm`);

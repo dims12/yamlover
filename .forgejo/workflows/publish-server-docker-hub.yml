@@ -14,7 +14,7 @@ on:
       - 'tools/server/**'
       - 'examples/**'
       - 'tools/demo/docker/**'
-      - '.forgejo/workflows/publish-image.yml'
+      - '.forgejo/workflows/publish-server-docker-hub.yml'
   workflow_dispatch: {}
 
 jobs:

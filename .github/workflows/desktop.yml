@@ -1,6 +1,6 @@
 # Desktop installers (tools/desktop) for macOS, Windows and Linux.
 #
-# Companion to publish.yml (npmjs) and .forgejo release.yml (Nexus + git tag). Those
+# Companion to publish.yml (npmjs) and .forgejo publish-npm-inthemoon.yml (Nexus + git tag). Those
 # ship the `yamlover` CLI; this builds the Electron desktop app — one installer per OS
 # via electron-builder. GitHub only (the Forgejo runner is Linux-only and cannot build
 # mac/win; the `if` below skips it there, matching publish.yml).
@@ -8,7 +8,7 @@
 # Triggers:
 #   • workflow_dispatch — build installers on demand (artifacts on the run).
 #   • push of a v* tag  — the release build: also attaches the installers to that tag's
-#     GitHub Release. (.forgejo/release.yml creates v<version> from the package.json
+#     GitHub Release. (.forgejo/publish-npm-inthemoon.yml creates v<version> from the package.json
 #     bump; pushing/mirroring that tag to GitHub fires this.)
 #
 # The desktop version is synced from tools/server/package.json so artifacts are named
