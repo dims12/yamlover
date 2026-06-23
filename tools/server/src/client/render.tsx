@@ -1,5 +1,6 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, Fragment } from "react";
 import { fragmentOf, isAncestorPath } from "./paths";
+import type { CommentBucket, CommentMap } from "./api";
 
 // Keep in sync with LINK_KEY / BINARY_KEY in src/server/yamlover.ts.
 //
@@ -93,6 +94,82 @@ interface Ctx {
   doc: string;
   node: string;
   anchors: boolean;
+  comments?: CommentMap; // keyed by each node's fragment continuation FROM the rendered root
+  base: string;          // the rendered root's fragment — what `frag` values are prefixed with
+}
+
+/** The leading/trailing comment bucket for the node at `frag` (its key relative to the rendered
+ *  root is `frag` minus the base). Undefined when there are no comments or none for this node. */
+function commentsAt(ctx: Ctx, frag: string): CommentBucket | undefined {
+  if (!ctx.comments) return undefined;
+  const v = ctx.comments[frag.slice(ctx.base.length)];
+  return v && !Array.isArray(v) ? v : undefined;
+}
+
+/** A comment line as it reads in `syntax`: `# body` (yaml) / `// body` (json), dimmed (`.c`). */
+function fmtComment(text: string, syntax: Syntax): string {
+  return (syntax === "yaml" ? "#" : "//") + " " + text.trim();
+}
+
+/** The `*…` deref token for a canonical pointer `raw` (no `*`): yamlover quotes only when outer
+ *  whitespace would be lost (mirrors serialize-yamlover `pointerToken`); json5p JSON-quotes it. */
+function fmtPointer(raw: string, syntax: Syntax): string {
+  if (syntax === "json") return "*" + JSON.stringify(raw);
+  return raw !== raw.trim() ? `*'${raw.replace(/'/g, "''")}'` : "*" + raw;
+}
+
+/** The `&…` anchor token for a path-anchor `body` (no `&`). In yamlover the canonical colon
+ *  body (`: chief`) rides BARE — its `: ` is styling, not a delimiter (the token runs to the
+ *  end of the line). json5p JSON-quotes it. */
+function fmtAnchor(body: string, syntax: Syntax): string {
+  return syntax === "json" ? "&" + JSON.stringify(body) : "&" + body;
+}
+
+/** The syntax decorations on an entry's key line — its type tag then its `&` anchors (a tag is
+ *  yamlover-only; json5p has no `!!…`). Rendered right after `key:`, before the value. */
+function decoSpan(ctx: Ctx, frag: string, syntax: Syntax): ReactNode {
+  const d = commentsAt(ctx, frag);
+  if (!d) return null;
+  const tag = syntax === "yaml" ? d.tag : undefined;
+  const anchors = d.anchors ?? [];
+  if (!tag && anchors.length === 0) return null;
+  return (
+    <>
+      {tag && <>{" "}<span className="b">{tag}</span></>}
+      {anchors.map((a, i) => <Fragment key={`an${i}`}>{" "}<span className="anchor">{fmtAnchor(a, syntax)}</span></Fragment>)}
+    </>
+  );
+}
+
+/** Own-line `leading` comments above an entry, each at `pad` indent. */
+function LeadingComments({ ctx, frag, pad, syntax }: { ctx: Ctx; frag: string; pad: string; syntax: Syntax }): ReactNode {
+  const lead = commentsAt(ctx, frag)?.leading;
+  if (!lead?.length) return null;
+  return <>{lead.map((t, i) => <Fragment key={`lc${i}`}>{pad}<span className="c">{fmtComment(t, syntax)}</span>{"\n"}</Fragment>)}</>;
+}
+
+/** The `trailing` comment that rides an entry's line (after its value), joined if several. */
+function trailingComment(ctx: Ctx, frag: string, syntax: Syntax): ReactNode {
+  const trail = commentsAt(ctx, frag)?.trailing;
+  if (!trail?.length) return null;
+  return <>{" "}<span className="c">{trail.map((t) => fmtComment(t, syntax)).join(" ")}</span></>;
+}
+
+/** A comment that rides a node's own SELF-VALUE line (an omni `5 # …`), keyed at the node's frag. */
+function valueTrailingComment(ctx: Ctx, frag: string, syntax: Syntax): ReactNode {
+  const vt = commentsAt(ctx, frag)?.valueTrailing;
+  if (!vt?.length) return null;
+  return <>{" "}<span className="c">{vt.map((t) => fmtComment(t, syntax)).join(" ")}</span></>;
+}
+
+/** A file-level comment block ($head banner / $tail leftovers) at the rendered root, no indent. */
+function CommentBlock({ texts, syntax }: { texts: string[]; syntax: Syntax }): ReactNode {
+  return <>{texts.map((t, i) => <Fragment key={`fc${i}`}><span className="c">{fmtComment(t, syntax)}</span>{"\n"}</Fragment>)}</>;
+}
+
+function fileComments(comments: CommentMap | undefined, key: "$head" | "$tail"): string[] | undefined {
+  const v = comments?.[key];
+  return Array.isArray(v) && v.length ? v : undefined;
 }
 
 /** Navigate to an in-page fragment: record `<doc>#/cont` in history and scroll to the node stamped
@@ -128,6 +205,7 @@ export function Render({
   documentPath = ":",
   nodePath = ":",
   anchors = true,
+  comments,
 }: {
   value: unknown;
   syntax: Syntax;
@@ -135,16 +213,25 @@ export function Render({
   documentPath?: string;
   nodePath?: string;
   anchors?: boolean;
+  comments?: CommentMap;
 }) {
-  const ctx: Ctx = { nav: onNavigate, doc: documentPath, node: nodePath, anchors };
   const base = fragmentOf(documentPath, nodePath); // the rendered root's continuation from the doc
+  const ctx: Ctx = { nav: onNavigate, doc: documentPath, node: nodePath, anchors, comments, base };
   const bin = asBinary(value);
   if (bin && syntax === "yaml") return <BinaryYaml bin={bin} />;
   const v = bin ?? value; // JSON shows the {format,size,base64} metadata object
-  return syntax === "yaml" ? (
-    <YamlRoot value={v} indent={0} ctx={ctx} frag={base} />
-  ) : (
-    <JsonValue value={v} indent={0} ctx={ctx} frag={base} root />
+  const head = fileComments(comments, "$head"); // the file banner, above the value
+  const tail = fileComments(comments, "$tail"); // leftover comments after the last entry
+  return (
+    <>
+      {head && <CommentBlock texts={head} syntax={syntax} />}
+      {syntax === "yaml" ? (
+        <YamlRoot value={v} indent={0} ctx={ctx} frag={base} />
+      ) : (
+        <JsonValue value={v} indent={0} ctx={ctx} frag={base} root />
+      )}
+      {tail && <CommentBlock texts={tail} syntax={syntax} />}
+    </>
   );
 }
 
@@ -187,7 +274,7 @@ function linkNode(link: Link, syntax: Syntax, ctx: Ctx): ReactNode {
 
 /** A scalar value as it would render in `syntax` — used as a scalar link's label. */
 function scalarLabel(v: unknown, syntax: Syntax): string {
-  if (v === null || v === undefined) return syntax === "json" ? "null" : "~";
+  if (v === null || v === undefined) return "null";
   if (typeof v === "boolean" || typeof v === "number") return String(v);
   return syntax === "json" ? JSON.stringify(v) : String(v);
 }
@@ -196,8 +283,10 @@ function scalarLabel(v: unknown, syntax: Syntax): string {
  *  resolves INSIDE the rendered subtree becomes an in-page `#` fragment link (scrolls to where the
  *  target sits, so the URL path stays on the document); one resolving elsewhere navigates to its
  *  page; an unresolved pointer is plain text (no link). */
-function refNode(ref: Ref, syntax: Syntax, ctx: Ctx): ReactNode {
-  const text = syntax === "json" ? JSON.stringify(ref.text) : ref.text;
+function refNode(ref: Ref, syntax: Syntax, ctx: Ctx, display?: string): ReactNode {
+  // `display` (the authored `*…` pointer token, from the IR sidecar) is the faithful rendering;
+  // fall back to the resolved path text only when the sidecar has no pointer for this node.
+  const text = display ?? (syntax === "json" ? JSON.stringify(ref.text) : ref.text);
   if (!ref.path) return <span className="s">{text}</span>;
   const local = ref.path === ctx.node || isAncestorPath(ctx.node, ref.path);
   if (local) {
@@ -240,7 +329,7 @@ function linkLabel(link: Link): string {
 }
 
 function scalarNode(v: unknown, syntax: Syntax): ReactNode {
-  if (v === null) return <span className="null">{syntax === "json" ? "null" : "~"}</span>;
+  if (v === null) return <span className="null">null</span>; // canonical yamlover null (not the obsolete `~`)
   if (typeof v === "boolean") return <span className="b">{String(v)}</span>;
   if (typeof v === "number") return <span className="n">{String(v)}</span>;
   const text = syntax === "json" ? JSON.stringify(v) : String(v);
@@ -306,7 +395,7 @@ function YamlRoot({ value, indent, ctx, frag }: { value: unknown; indent: number
   if (foldable(value)) return <YamlBody value={value} indent={indent} ctx={ctx} frag={frag} />;
   if (isObj(value)) return <><span className="punct">{"{}"}</span>{"\n"}</>;
   if (Array.isArray(value)) return <><span className="punct">{"[]"}</span>{"\n"}</>;
-  return <>{scalarNode(value, "yaml")}{"\n"}</>;
+  return <>{scalarNode(value, "yaml")}{valueTrailingComment(ctx, frag, "yaml")}{"\n"}</>;
 }
 
 /** The lines of a non-empty container (object / array / mixed) at `indent` — no toggle of its own;
@@ -351,6 +440,7 @@ function YamlMixed({ mixed, indent, ctx, frag }: { mixed: Mixed; indent: number;
         <>
           {pad}
           {scalarNode(mixed.value, "yaml")}
+          {valueTrailingComment(ctx, frag, "yaml")}
           {"\n"}
         </>
       )}
@@ -371,6 +461,11 @@ function YamlMixed({ mixed, indent, ctx, frag }: { mixed: Mixed; indent: number;
  *  node's fragment continuation (its `#`-anchor id). */
 function YamlEntry({ k, v, pad, indent, ctx, frag, noPad = false }: { k: string; v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; noPad?: boolean }): ReactNode {
   const [open, setOpen] = useState(true);
+  const blank = !noPad && commentsAt(ctx, frag)?.blankBefore ? "\n" : null; // preserve an empty source line
+  const lead = noPad ? null : <LeadingComments ctx={ctx} frag={frag} pad={pad} syntax="yaml" />;
+  const trail = trailingComment(ctx, frag, "yaml");
+  const ptr = commentsAt(ctx, frag)?.pointer; // a ref's authored `*…` token, if any
+  const deco = decoSpan(ctx, frag, "yaml"); // type tag + `&` anchors on the key line
   const head = (
     <>
       {noPad ? null : pad}
@@ -379,12 +474,15 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, noPad = false }: { k: string;
       <span className="punct">:</span>
     </>
   );
-  if (!foldable(v)) return <>{head}{inlineYamlValue(v, ctx)}</>;
+  if (!foldable(v)) return <>{blank}{lead}{head}{deco}{inlineYamlValue(v, ctx, trail, ptr && fmtPointer(ptr, "yaml"))}</>;
   return (
     <>
+      {blank}
+      {lead}
       <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
       {head}
-      {open ? <>{"\n"}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} /></> : <>{" "}<span className="fold-summary">{foldSummary(v)}</span>{"\n"}</>}
+      {deco}
+      {open ? <>{trail}{"\n"}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} /></> : <>{" "}<span className="fold-summary">{foldSummary(v)}</span>{trail}{"\n"}</>}
     </>
   );
 }
@@ -394,6 +492,11 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, noPad = false }: { k: string;
  *  {@link canInlineAfterDash} — else its body drops to indented lines below. */
 function YamlItem({ v, pad, indent, ctx, frag, noPad = false }: { v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; noPad?: boolean }): ReactNode {
   const [open, setOpen] = useState(true);
+  const blank = !noPad && commentsAt(ctx, frag)?.blankBefore ? "\n" : null;
+  const lead = noPad ? null : <LeadingComments ctx={ctx} frag={frag} pad={pad} syntax="yaml" />;
+  const trail = trailingComment(ctx, frag, "yaml");
+  const ptr = commentsAt(ctx, frag)?.pointer; // a `- *…` item's authored pointer token
+  const deco = decoSpan(ctx, frag, "yaml");
   // `.yaml-dash` styles the marker (gray like the chevron) — kept a fixed cell so columns line up
   const dash = (
     <>
@@ -402,18 +505,21 @@ function YamlItem({ v, pad, indent, ctx, frag, noPad = false }: { v: unknown; pa
       <span className="punct yaml-dash">{"-"}</span>
     </>
   );
-  if (!foldable(v)) return <>{dash}{inlineYamlValue(v, ctx)}</>;
+  if (!foldable(v)) return <>{blank}{lead}{dash}{deco}{inlineYamlValue(v, ctx, trail, ptr && fmtPointer(ptr, "yaml"))}</>;
   const compact = canInlineAfterDash(v);
   return (
     <>
+      {blank}
+      {lead}
       <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
       {dash}
+      {deco}
       {!open ? (
-        <>{" "}<span className="fold-summary">{foldSummary(v)}</span>{"\n"}</>
+        <>{" "}<span className="fold-summary">{foldSummary(v)}</span>{trail}{"\n"}</>
       ) : compact ? (
         <>{" "}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} inlineHead /></>
       ) : (
-        <>{"\n"}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} /></>
+        <>{trail}{"\n"}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} /></>
       )}
     </>
   );
@@ -421,14 +527,14 @@ function YamlItem({ v, pad, indent, ctx, frag, noPad = false }: { v: unknown; pa
 
 /** A non-foldable value following a `key:` / `- ` — a link, ref, empty container, or scalar,
  *  rendered inline with a leading space and a trailing newline. */
-function inlineYamlValue(v: unknown, ctx: Ctx): ReactNode {
+function inlineYamlValue(v: unknown, ctx: Ctx, trail: ReactNode = null, ptr?: string): ReactNode {
   const link = asLink(v);
-  if (link) return <>{" "}{linkNode(link, "yaml", ctx)}{"\n"}</>;
+  if (link) return <>{" "}{linkNode(link, "yaml", ctx)}{trail}{"\n"}</>;
   const ref = asRef(v);
-  if (ref) return <>{" "}{refNode(ref, "yaml", ctx)}{"\n"}</>;
-  if (isObj(v) && Object.keys(v).length === 0) return <>{" "}<span className="punct">{"{}"}</span>{"\n"}</>;
-  if (Array.isArray(v) && v.length === 0) return <>{" "}<span className="punct">{"[]"}</span>{"\n"}</>;
-  return <>{" "}{scalarNode(v, "yaml")}{"\n"}</>;
+  if (ref) return <>{" "}{refNode(ref, "yaml", ctx, ptr)}{trail}{"\n"}</>;
+  if (isObj(v) && Object.keys(v).length === 0) return <>{" "}<span className="punct">{"{}"}</span>{trail}{"\n"}</>;
+  if (Array.isArray(v) && v.length === 0) return <>{" "}<span className="punct">{"[]"}</span>{trail}{"\n"}</>;
+  return <>{" "}{scalarNode(v, "yaml")}{trail}{"\n"}</>;
 }
 
 // --------------------------------------------------------------------------- //
@@ -442,7 +548,10 @@ function JsonValue({ value, indent, ctx, frag, root = false }: { value: unknown;
   const link = asLink(value);
   if (link) return linkNode(link, "json", ctx);
   const ref = asRef(value);
-  if (ref) return refNode(ref, "json", ctx);
+  if (ref) {
+    const ptr = commentsAt(ctx, frag)?.pointer; // the authored pointer, json5p-quoted
+    return refNode(ref, "json", ctx, ptr && fmtPointer(ptr, "json"));
+  }
   if (root && foldable(value)) return <JsonBody value={value} indent={indent} ctx={ctx} frag={frag} />;
   const objEntries = jsonObjEntries(value);
   if (objEntries) return objEntries.length ? <JsonBody value={value} indent={indent} ctx={ctx} frag={frag} /> : <span className="punct">{"{}"}</span>;
@@ -503,23 +612,28 @@ function JsonArray({ items, indent, ctx, frag }: { items: unknown[]; indent: num
  *  inline. `frag` is this node's fragment continuation (its `#`-anchor id). */
 function JsonEntry({ k, v, pad, indent, ctx, frag, last }: { k: string; v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; last: boolean }): ReactNode {
   const [open, setOpen] = useState(true);
+  const lead = <LeadingComments ctx={ctx} frag={frag} pad={pad} syntax="json" />;
   const head = (
     <>
       {pad}
       <Anchor ctx={ctx} frag={frag} />
       <span className="k">{`"${k}"`}</span>
       <span className="punct">{": "}</span>
+      {decoSpan(ctx, frag, "json")}
     </>
   );
+  // a `//` trailing comment goes AFTER the comma (else it would swallow the separator)
   const tail = (
     <>
       {last ? "" : ","}
+      {trailingComment(ctx, frag, "json")}
       {"\n"}
     </>
   );
-  if (!foldable(v)) return <>{head}<JsonValue value={v} indent={indent} ctx={ctx} frag={frag} />{tail}</>;
+  if (!foldable(v)) return <>{lead}{head}<JsonValue value={v} indent={indent} ctx={ctx} frag={frag} />{tail}</>;
   return (
     <>
+      {lead}
       <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
       {head}
       {open ? <JsonBody value={v} indent={indent} ctx={ctx} frag={frag} /> : <span className="fold-summary">{foldSummary(v)}</span>}
@@ -531,18 +645,22 @@ function JsonEntry({ k, v, pad, indent, ctx, frag, last }: { k: string; v: unkno
 /** An array element row, with the same fold behaviour as {@link JsonEntry}. */
 function JsonItem({ v, pad, indent, ctx, frag, last }: { v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; last: boolean }): ReactNode {
   const [open, setOpen] = useState(true);
+  const lead = <LeadingComments ctx={ctx} frag={frag} pad={pad} syntax="json" />;
   const tail = (
     <>
       {last ? "" : ","}
+      {trailingComment(ctx, frag, "json")}
       {"\n"}
     </>
   );
-  if (!foldable(v)) return <>{pad}<Anchor ctx={ctx} frag={frag} /><JsonValue value={v} indent={indent} ctx={ctx} frag={frag} />{tail}</>;
+  if (!foldable(v)) return <>{lead}{pad}<Anchor ctx={ctx} frag={frag} />{decoSpan(ctx, frag, "json")}<JsonValue value={v} indent={indent} ctx={ctx} frag={frag} />{tail}</>;
   return (
     <>
+      {lead}
       <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
       {pad}
       <Anchor ctx={ctx} frag={frag} />
+      {decoSpan(ctx, frag, "json")}
       {open ? <JsonBody value={v} indent={indent} ctx={ctx} frag={frag} /> : <span className="fold-summary">{foldSummary(v)}</span>}
       {tail}
     </>

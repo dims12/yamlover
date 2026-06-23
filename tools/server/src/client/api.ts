@@ -28,8 +28,24 @@ export interface NodeJson {
   title: string | null;
   description: string | null;
   value: unknown;
+  // Retained source comments to render with the value, keyed by each node's fragment
+  // continuation FROM THIS node (`/key`, `[i]`, nested): `{ leading?: string[], trailing?:
+  // string[] }`. `$head` = the file banner; `$tail` = this node's leftover comments. Texts
+  // are the comment bodies (sigils stripped) — the renderer adds `#` / `//` per syntax.
+  comments?: CommentMap;
   relations?: Record<string, unknown>; // named up-edges (+ `..`) as ref markers
 }
+
+export type CommentBucket = {
+  leading?: string[];
+  trailing?: string[];
+  pointer?: string;   // a ref's authored pointer text, canonical colon form (no `*`)
+  anchors?: string[]; // the node's `&` path-anchor bodies (no `&`)
+  tag?: string;       // the node's yamlover type tag (`!!set` / `!!mix` / `!!var`)
+  blankBefore?: boolean; // a blank source line precedes this entry — render an empty line
+  valueTrailing?: string[]; // a comment trailing the node's own self-value line (omni `5 # …`)
+};
+export type CommentMap = Record<string, CommentBucket | string[]>;
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);

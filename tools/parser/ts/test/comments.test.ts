@@ -79,6 +79,29 @@ test('comment: yamlover `#` inside a block scalar is CONTENT, not captured', () 
   assert.equal(doc.head, undefined);
 });
 
+test('comment: yamlover trailing attaches to the INNERMOST entry on the line (not the block)', () => {
+  // the comment sits on `manager`'s line — it must hang on `manager`, not on the enclosing
+  // `humans` block whose span also ends on that line (both end at the same offset).
+  const doc = parseYamlover('humans:\n  - name: Alice\n    manager: *: pets[1] # the boss\n', '<t>');
+  const humans = entry(doc, 'humans');
+  assert.equal(humans.meta?.comments, undefined); // not on the block
+  assert.deepEqual(texts(entry(doc, 'manager').meta?.comments, 'trailing'), [' the boss']);
+});
+
+test('comment: yamlover omni self-value trailing comment attaches to the NODE (not the first entry)', () => {
+  // `!!var 5 # …` — the comment trails the node's own scalar value, not the entry below it.
+  const doc = parseYamlover('!!var 5 # the value\n- solid\n- recommended\n', '<t>');
+  assert.deepEqual(texts(doc.root.meta?.comments, 'trailing'), [' the value']);
+  const first = doc.root.entries![0];
+  assert.equal(first.meta?.comments, undefined); // NOT leading on `- solid`
+  assert.equal(first.meta?.blankBefore, undefined); // and no spurious blank before it
+});
+
+test('comment: first-line comment is not flagged blankBefore (no blank above the file start)', () => {
+  const doc = parseYamlover('# top\nname: Alice\n', '<t>');
+  assert.equal(entry(doc, 'name').meta?.comments?.[0].blankBefore, undefined);
+});
+
 test('comment: yamlover trailing-of-file comment is kept on the root (never dropped)', () => {
   const doc = parseYamlover('a: 1\nb: 2\n# bye\n', '<t>');
   assert.deepEqual(texts(doc.root.meta?.comments), [' bye']);

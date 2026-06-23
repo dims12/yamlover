@@ -15,6 +15,80 @@ describe("Render", () => {
     expect(txt).toContain("true");
   });
 
+  it("renders leading, trailing, head and tail comments inline (yaml, dimmed)", () => {
+    render(
+      <Render
+        value={{ name: "Alice", user: { role: "admin" } }}
+        syntax="yaml"
+        onNavigate={() => {}}
+        comments={{
+          $head: [" banner"],
+          "/name": { leading: [" the name"], trailing: [" who"] },
+          "/user/role": { leading: [" nested"] },
+          $tail: [" bye"],
+        }}
+      />,
+    );
+    const txt = document.body.textContent ?? "";
+    expect(txt).toContain("# banner"); // head
+    expect(txt).toContain("# the name"); // leading
+    expect(txt).toContain("# who"); // trailing
+    expect(txt).toContain("# nested"); // nested leading
+    expect(txt).toContain("# bye"); // tail
+    expect(document.querySelector(".c")).toBeTruthy(); // rendered with the dimmed comment class
+  });
+
+  it("renders a ref as its authored pointer token, an anchor, and a type tag (yaml)", () => {
+    render(
+      <Render
+        value={{
+          boss: { name: "Rex" },
+          team: { lead: { $yamloverRef: { text: ":chief", path: ":boss" } } },
+          crew: ["x"],
+        }}
+        syntax="yaml"
+        onNavigate={() => {}}
+        comments={{
+          "/boss": { anchors: [": chief"] },
+          "/team/lead": { pointer: ": chief" },
+          "/crew": { tag: "!!set" },
+        }}
+      />,
+    );
+    const txt = document.body.textContent ?? "";
+    expect(txt).toContain("&: chief"); // anchor on boss
+    expect(txt).toContain("*: chief"); // ref rendered as the authored pointer, not `:chief`
+    expect(txt).not.toContain(":chief\n"); // NOT the bare resolved path
+    expect(txt).toContain("!!set"); // type tag on crew
+  });
+
+  it("renders null as `null`, not the obsolete `~`", () => {
+    render(<Render value={{ cain: null }} syntax="yaml" onNavigate={() => {}} />);
+    const txt = document.body.textContent ?? "";
+    expect(txt).toContain("cain:");
+    expect(txt).toContain("null");
+    expect(txt).not.toContain("~");
+  });
+
+  it("renders comments as // in the json view", () => {
+    render(
+      <Render
+        value={{ name: "Alice" }}
+        syntax="json"
+        onNavigate={() => {}}
+        comments={{ "/name": { leading: [" the name"], trailing: [" who"] } }}
+      />,
+    );
+    const txt = document.body.textContent ?? "";
+    expect(txt).toContain("// the name");
+    expect(txt).toContain("// who");
+  });
+
+  it("renders nothing extra when there are no comments", () => {
+    render(<Render value={{ name: "Alice" }} syntax="yaml" onNavigate={() => {}} />);
+    expect(document.querySelector(".c")).toBeNull();
+  });
+
   it("renders an object link marker as a labelled hyperlink that navigates", () => {
     const onNav = vi.fn();
     render(
@@ -49,7 +123,7 @@ describe("Render", () => {
 
   it("renders a scalar link by its value (syntax-aware) as a navigating hyperlink", () => {
     const onNav = vi.fn();
-    // null → `~` in YAML
+    // null → `null` in YAML (the canonical spelling, not the obsolete `~`)
     const { rerender } = render(
       <Render
         value={{ seth: { $yamloverLink: { kind: "scalar", value: null, path: ":adam:seth" } } }}
@@ -57,7 +131,7 @@ describe("Render", () => {
         onNavigate={onNav}
       />,
     );
-    const yamlLink = screen.getByText("~");
+    const yamlLink = screen.getByText("null");
     expect(yamlLink.tagName).toBe("A");
     expect(yamlLink.getAttribute("href")).toBe(":adam:seth");
     fireEvent.click(yamlLink);
@@ -197,7 +271,7 @@ describe("Render", () => {
     expect(screen.getByText("tag")).toBeTruthy(); // its field renders
     // folding it shows the omni summary
     fireEvent.click(document.querySelector("button.fold-gutter") as HTMLButtonElement);
-    expect(screen.getByText("{ variant ~ + 1 field }")).toBeTruthy();
+    expect(screen.getByText("{ variant null + 1 field }")).toBeTruthy();
   });
 
   it("keeps a continuation link marker a navigating hyperlink, not a fold toggle", () => {

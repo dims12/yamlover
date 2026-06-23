@@ -57,6 +57,66 @@ describe("api endpoints (engine-backed)", () => {
   });
 });
 
+describe("comment projection (/api/json)", () => {
+  const tree = () =>
+    tmpTree({
+      ".yamlover/body.yamlover":
+        "# banner\n\n# the name\nname: Alice # who\nuser:\n  # nested\n  role: admin\n# bye\n",
+    });
+
+  it("returns comments keyed by each node's fragment (leading/trailing/nested)", async () => {
+    const h = createHandlers(tree(), { gitignore: false });
+    await h.ready;
+    const { json } = call(h, "/api/json", { path: ":", depth: ".inf" });
+    expect(json.comments.$head).toEqual([" banner"]); // head-of-file banner (carried onto the root)
+    // `name` has a blank line before its comment block (banner ⏎⏎ # the name)
+    expect(json.comments["/name"]).toEqual({ leading: [" the name"], trailing: [" who"], blankBefore: true });
+    expect(json.comments["/user/role"]).toEqual({ leading: [" nested"] }); // nested, needs .inf depth
+    expect(json.comments.$tail).toEqual([" bye"]); // a trailing-of-file comment, kept on the root
+  });
+
+  it("only projects comments within the depth budget (nested past it is omitted)", async () => {
+    const h = createHandlers(tree(), { gitignore: false });
+    await h.ready;
+    const { json } = call(h, "/api/json", { path: ":", depth: "1" });
+    expect(json.comments["/name"]).toEqual({ leading: [" the name"], trailing: [" who"], blankBefore: true });
+    expect(json.comments["/user/role"]).toBeUndefined(); // user's child is a link marker at depth 1
+  });
+
+  it("projects pointer tokens, anchors and type tags (yamlover syntax fidelity)", async () => {
+    const h = createHandlers(
+      tmpTree({
+        ".yamlover/body.yamlover": "boss: &: chief\n  name: Rex\nteam:\n  lead: *: chief\ncrew: !!set\n  - *: boss\n",
+      }),
+      { gitignore: false },
+    );
+    await h.ready;
+    const { json } = call(h, "/api/json", { path: ":", depth: ".inf" });
+    expect((json.comments["/boss"] as any).anchors).toEqual([": chief"]); // the `&: chief` path anchor
+    expect((json.comments["/team/lead"] as any).pointer).toBe(": chief"); // authored pointer (colon form)
+    expect((json.comments["/crew"] as any).tag).toBe("!!set"); // the `!!set` type tag
+  });
+
+  it("flags entries preceded by a blank source line (for empty-line rendering)", async () => {
+    const h = createHandlers(
+      tmpTree({ ".yamlover/body.yamlover": "a: 1\nb: 2\n\nc: 3\n" }),
+      { gitignore: false },
+    );
+    await h.ready;
+    const { json } = call(h, "/api/json", { path: ":", depth: ".inf" });
+    expect((json.comments["/c"] as any)?.blankBefore).toBe(true); // blank line before c
+    expect(json.comments["/b"]).toBeUndefined(); // b directly follows a — no blank
+  });
+
+  it("scopes comment keys to the viewed node", async () => {
+    const h = createHandlers(tree(), { gitignore: false });
+    await h.ready;
+    const { json } = call(h, "/api/json", { path: ":user", depth: ".inf" });
+    // relative to :user, the nested comment lands at /role (no /user prefix)
+    expect(json.comments["/role"]).toEqual({ leading: [" nested"] });
+  });
+});
+
 describe("reverse positional membership (~-) projection", () => {
   const tree = () =>
     tmpTree({
@@ -113,7 +173,8 @@ describe("render depth: .inf default + references as references", () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
     const { json } = call(h, "/api/json", { path: ":adam" });
-    expect(json.value.mother.$yamloverRef).toEqual({ text: ":eve", path: ":eve" });
+    // the ref renders as a VALID yamlover deref token (`*` + canonical spaced colon path)
+    expect(json.value.mother.$yamloverRef).toEqual({ text: "*: eve", path: ":eve" });
     expect(json.value.mother.$yamloverLink).toBeUndefined(); // not a { object … } marker
   });
 
@@ -122,7 +183,7 @@ describe("render depth: .inf default + references as references", () => {
     await h.ready;
     const { json } = call(h, "/api/json", { path: ":adam", depth: ".inf" });
     expect(json.value.deep.nested.leaf).toBe(1);
-    expect(json.value.mother.$yamloverRef.text).toBe(":eve");
+    expect(json.value.mother.$yamloverRef.text).toBe("*: eve");
   });
 
   it("at an explicit FINITE depth a reference resolves to a navigable link marker; deep containment truncates", async () => {

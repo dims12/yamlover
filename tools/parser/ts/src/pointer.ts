@@ -20,7 +20,15 @@ import type { Anchor, Pointer, PointerBase, Step } from './ir.ts';
 
 const LINK_RE = /^(?:[A-Za-z][A-Za-z0-9+.-]*:)?\/\//;
 
-export function parsePointer(raw: string): Pointer {
+/** Parse a pointer's text (the part after `*`). `yaml` switches to YAML link semantics: a
+ *  bare alias name (which yamlover would read as current-scope) is a DOCUMENT-wide name, so
+ *  it resolves at the document root — `*name` (YAML) ≡ `*: name` (yamlover). The IR is
+ *  concrete-agnostic; only the base scope differs. See [[yaml-not-superset]]. */
+export function parsePointer(raw: string, yaml = false): Pointer {
+  if (yaml) {
+    const p = parsePointer(raw); // YAML names never carry a scope sigil → parses as current
+    return p.base.scope === 'current' ? { ...p, base: { scope: 'document' } } : p;
+  }
   if (looksColon(raw)) return parseColon(raw);
   const lm = LINK_RE.exec(raw);
   if (lm) {
@@ -280,10 +288,10 @@ function unescape(s: string): string {
  *  stripped): strip a trailing `[]` (ordinal membership), parse the rest as a pointer, and
  *  check that a keyed anchor ends in a KEY segment — a position may not be claimed. Shared
  *  by both surface parsers; `fail` raises in the caller's error style. */
-export function makeAnchor(body: string, fail: (msg: string) => never): Anchor {
+export function makeAnchor(body: string, fail: (msg: string) => never, yaml = false): Anchor {
   let ordinal = false;
   if (body.endsWith('[]') && !body.endsWith('\\[]')) { ordinal = true; body = body.slice(0, -2); }
-  const path = parsePointer(body);
+  const path = parsePointer(body, yaml);
   if (!ordinal) {
     const last = path.steps[path.steps.length - 1];
     if (last === undefined) fail('an anchor path needs a key segment (or a trailing "[]" for ordinal membership)');

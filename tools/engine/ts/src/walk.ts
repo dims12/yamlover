@@ -681,16 +681,22 @@ function textScalar(abs: string, format: string, ctx: Ctx): Node {
  *  the DEFAULT. So `30`→number, `"Alice"`→string, a JSON doc → a structure. Falls back to a raw
  *  string if parsing fails. */
 function parsedScalar(abs: string, ext: string, ctx: Ctx): Node {
-  return parsedDoc(abs, ext === '.json' || ext === '.json5' || ext === '.json5p' ? 'json5p' : 'yamlover', ctx);
+  const lang = ext === '.json' || ext === '.json5' || ext === '.json5p' ? 'json5p'
+    : ext === '.yaml' || ext === '.yml' ? 'yaml' // YAML concrete: bare anchors/aliases are document-wide
+    : 'yamlover';
+  return parsedDoc(abs, lang, ctx);
 }
 
-/** Parse a file as a sub-document in the given surface language; falls back to a raw string. */
-function parsedDoc(abs: string, lang: 'yamlover' | 'json5p', ctx: Ctx): Node {
+/** Parse a file as a sub-document in the given surface language; falls back to a raw string.
+ *  `yaml` differs from `yamlover` only in link semantics (concrete-aware — [[yaml-not-superset]]). */
+function parsedDoc(abs: string, lang: 'yamlover' | 'json5p' | 'yaml', ctx: Ctx): Node {
   const text = readTracked(ctx, abs).toString('utf8');
   try {
-    const doc = lang === 'json5p' ? parseJson5p(text, abs) : parseYamlover(text, abs);
+    const doc = lang === 'json5p' ? parseJson5p(text, abs) : parseYamlover(text, abs, { yaml: lang === 'yaml' });
     const root = doc.root;
-    root.meta = { ...root.meta, documentRoot: true }; // a parsed file is its own document
+    // a parsed file is its own document; carry its head-of-file banner onto the node so it
+    // survives assembly into the tree (Document.head would otherwise be lost here)
+    root.meta = { ...root.meta, documentRoot: true, ...(doc.head?.length ? { head: doc.head } : {}) };
     return root;
   } catch {
     return { kind: 'scalar', value: text, raw: text };
@@ -820,8 +826,9 @@ function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
   const body = bodyDoc.root;
   if ((body.kind !== 'mapping' && body.kind !== 'scalar') || !body.entries) return node;
   // a directory with a body.yamlover overlay is a self-contained instance = a DOCUMENT root
-  // (so `*/file` inside it resolves to this directory, at any nesting depth).
-  const meta = { ...node.meta, ...body.meta, documentRoot: true };
+  // (so `*/file` inside it resolves to this directory, at any nesting depth). The body's
+  // head-of-file banner rides onto the node so it survives past the parse.
+  const meta = { ...node.meta, ...body.meta, documentRoot: true, ...(bodyDoc.head?.length ? { head: bodyDoc.head } : {}) };
 
   // a pure pointer/positional array → reorder existing children to match
   if (body.kind === 'mapping' && (body.array || (body.entries.length > 0 && body.entries.every((e) => e.key === null)))) {
@@ -924,8 +931,8 @@ const TEXT_FORMATS = new Set(['text/markdown', 'text/asciidoc', 'text/x-plantuml
 // A `format` naming a SUB-DOCUMENT ENCODING (META.md): the file's text parses into a node in
 // that surface language — `yamlover`/`yaml`/`json`/… for an instance, `…/meta` for a schema doc
 // (e.g. the extensionless `$defs/*` files). These must never fall into the opaque-Blob branch.
-const DOC_FORMATS: Record<string, 'yamlover' | 'json5p'> = {
-  'yamlover': 'yamlover', 'yaml': 'yamlover', 'yamlover/meta': 'yamlover', 'yaml/meta': 'yamlover',
+const DOC_FORMATS: Record<string, 'yamlover' | 'json5p' | 'yaml'> = {
+  'yamlover': 'yamlover', 'yaml': 'yaml', 'yamlover/meta': 'yamlover', 'yaml/meta': 'yaml',
   'json': 'json5p', 'json5': 'json5p', 'json5p': 'json5p',
   'json/meta': 'json5p', 'json5p/meta': 'json5p', 'json/schema': 'json5p',
 };

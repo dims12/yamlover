@@ -16,12 +16,13 @@ import { isPointer } from './ir.ts';
 import { parsePointer, makeAnchor } from './pointer.ts';
 import { attachComments, type RawComment } from './comments.ts';
 
-interface Line { indent: number; text: string; n: number }
+interface Line { indent: number; text: string; n: number; blankBefore?: boolean }
 /** A captured `#` comment plus the raw line it sat on (so block-scalar content lines, where
  *  `#` is data not a comment, can be purged before attachment). */
 interface YComment extends RawComment { n: number }
 
-export function parseYamlover(src: string, uri = '<yamlover>'): Document {
+export function parseYamlover(src: string, uri = '<yamlover>', opts: { yaml?: boolean } = {}): Document {
+  const yaml = opts.yaml === true; // YAML concrete: bare `&`/`*` are document-wide (see [[yaml-not-superset]])
   // one pass: lines + their absolute start offsets (separators vary — \r\n is 2 chars)
   const raw: string[] = [];
   const lineStarts: number[] = [];
@@ -35,7 +36,7 @@ export function parseYamlover(src: string, uri = '<yamlover>'): Document {
   raw.push(src.slice(at));
   lineStarts.push(at);
   const lexed = lex(raw, lineStarts, uri);
-  const p = new Block(lexed.lines, raw, uri, lineStarts);
+  const p = new Block(lexed.lines, raw, uri, lineStarts, yaml);
   // YAML document markers are reserved until multi-document lands (Phase 2c). Without this
   // guard, omni-by-default would read a `---` line as the node's scalar VALUE — a misparse
   // that can accidentally project to the right value. Refuse instead.
@@ -64,7 +65,7 @@ export function parseYamlover(src: string, uri = '<yamlover>'): Document {
   if (p.i < p.lines.length) p.fail('unexpected content');
   if (rootSchema !== undefined) root.meta = { ...root.meta, schema: rootSchema };
   root.meta = { ...root.meta, span: { uri, start: 0, end: src.length } };
-  const doc: Document = { root, source: { concrete: 'yamlover', uri } };
+  const doc: Document = { root, source: { concrete: yaml ? 'yaml' : 'yamlover', uri } };
   // `#` inside a `|`/`>` block scalar is CONTENT, not a comment — drop those records.
   const comments = lexed.comments.filter((c) => !p.blockLines.has(c.n)).map(({ n: _n, ...r }) => r);
   attachComments(doc, comments, src, uri);
@@ -75,6 +76,7 @@ export function parseYamlover(src: string, uri = '<yamlover>'): Document {
 function lex(raw: string[], lineStarts: number[], uri: string): { lines: Line[]; comments: YComment[] } {
   const out: Line[] = [];
   const comments: YComment[] = [];
+  let prevBlank = false; // the immediately preceding raw line was empty (not a comment)
   for (let n = 0; n < raw.length; n++) {
     const line = raw[n];
     let indent = 0;
@@ -93,8 +95,9 @@ function lex(raw: string[], lineStarts: number[], uri: string): { lines: Line[];
         n,
       });
     }
-    if (content === '') continue; // blank or comment-only — not a logical line
-    out.push({ indent, text: content, n });
+    if (content === '') { prevBlank = at < 0; continue; } // a truly blank line; a comment line clears it
+    out.push({ indent, text: content, n, ...(prevBlank ? { blankBefore: true } : {}) });
+    prevBlank = false;
   }
   return { lines: out, comments };
 }
@@ -122,10 +125,11 @@ class Block {
   uri: string;        // source path/id, surfaced in parse-error messages
   lineStarts: number[]; // absolute offset of each raw line's first character
   blockLines = new Set<number>(); // raw lines consumed by a block scalar (their `#` is content)
+  yaml: boolean;        // YAML concrete: bare `&`/`*` resolve at the document root
   i = 0;
 
-  constructor(lines: Line[], raw: string[], uri = '<yamlover>', lineStarts: number[] = []) {
-    this.lines = lines; this.raw = raw; this.uri = uri; this.lineStarts = lineStarts;
+  constructor(lines: Line[], raw: string[], uri = '<yamlover>', lineStarts: number[] = [], yaml = false) {
+    this.lines = lines; this.raw = raw; this.uri = uri; this.lineStarts = lineStarts; this.yaml = yaml;
   }
 
   /** Absolute span of `len` chars starting at column `col` of raw line `lineN`. Valid
@@ -169,7 +173,7 @@ class Block {
       body = text.slice(1, j);
       tokenLen = j;
     }
-    const anchor = makeAnchor(body, (m) => this.fail(m));
+    const anchor = makeAnchor(body, (m) => this.fail(m), this.yaml);
     anchor.path.span = this.spanAt(lineN, col, tokenLen); // the whole `&…` token
     const a = adv(text, tokenLen, col);
     return { anchor, rest: a.rest, col: a.col };
@@ -246,6 +250,7 @@ class Block {
       if (!l || l.indent !== indent) break;
       const startLineN = l.n;       // an entry's source range starts at its key/`-`/`~`
       const startCol = l.indent;    // marker, at this line's indent column
+      const startBlank = l.blankBefore === true; // a blank source line precedes this entry
       let value: Value;
       let entry: Entry;
       if (l.text.startsWith('&')) {
@@ -327,7 +332,7 @@ class Block {
       const end = endLine
         ? (this.lineStarts[endLine.n] ?? 0) + endLine.indent + endLine.text.length
         : start;
-      entry.meta = { ...entry.meta, span: { uri: this.uri, start, end } };
+      entry.meta = { ...entry.meta, span: { uri: this.uri, start, end }, ...(startBlank ? { blankBefore: true } : {}) };
       entries.push(entry);
     }
     // projection hint: a pure sequence — judged over OWNED entries only (a `~-` back-edge
@@ -449,10 +454,10 @@ class Block {
     ({ rest: text, col } = adv(text, 0, col));
     const c = text[0];
     if (c === '{' || c === '[') {
-      return new Flow(text, this.uri, (this.lineStarts[lineN] ?? 0) + col).parse();
+      return new Flow(text, this.uri, (this.lineStarts[lineN] ?? 0) + col, this.yaml).parse();
     }
     if (c === '*') {
-      const p = parsePointer(unquoteIfQuoted(text.slice(1)));
+      const p = parsePointer(unquoteIfQuoted(text.slice(1)), this.yaml);
       p.span = this.spanAt(lineN, col, text.length); // the whole `*…` deref token
       return p;
     }
@@ -482,9 +487,10 @@ class Flow {
   i = 0;
   uri: string;
   base: number; // absolute offset of s[0] in the source (span tracking)
+  yaml: boolean;
 
-  constructor(s: string, uri = '<flow>', base = 0) {
-    this.s = s; this.uri = uri; this.base = base;
+  constructor(s: string, uri = '<flow>', base = 0, yaml = false) {
+    this.s = s; this.uri = uri; this.base = base; this.yaml = yaml;
   }
 
   fail(msg: string): never { throw new SyntaxError(`yamlover (flow): ${msg} at offset ${this.i}`); }
@@ -524,7 +530,7 @@ class Flow {
         }
         txt = this.s.slice(st, this.i).trim();
       }
-      const p = parsePointer(txt);
+      const p = parsePointer(txt, this.yaml);
       p.span = { uri: this.uri, start: this.base + start, end: this.base + this.i };
       return p;
     }
@@ -543,7 +549,7 @@ class Flow {
         }
         body = this.s.slice(st, this.i);
       }
-      const anchor = makeAnchor(body, (m) => this.fail(m));
+      const anchor = makeAnchor(body, (m) => this.fail(m), this.yaml);
       anchor.path.span = { uri: this.uri, start: this.base + start, end: this.base + this.i };
       this.ws();
       const v = this.value();

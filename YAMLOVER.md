@@ -1,15 +1,18 @@
 # yamlover — YAML + pointers (+ concretes)
 
 **yamlover** is the indentation / filesystem surface over the shared pointer model — the
-twin of `JSON5P.md`'s brace surface. It is a superset of YAML *in features*:
+twin of `JSON5P.md`'s brace surface. It is **not** a superset of YAML — it is a distinct,
+closely-related language:
 
-    YAML  ⊂  yamlover
+    YAML  ≈  yamlover   (close, but different in links & anchors)
 
-Anything expressible in YAML has a yamlover meaning; yamlover **adds** the pointer layer
-(the extended `*`, `~` back-edges, keys-as-pointers; `&` stays) and **adds concretes** —
-the same logical document can live in one file *or* as a directory tree. Unlike json5p
-(which is a clean strict superset of JSON5), yamlover **deliberately breaks YAML** in a few
-spots, so it is *not* byte-for-byte conformant and needs its own parser (see §3, §9).
+It shares YAML's surface syntax and **adds** the pointer layer (the extended `*`, `~`
+back-edges, keys-as-pointers; `&` reinterpreted) plus **concretes** — the same logical
+document can live in one file *or* as a directory tree. But its links and anchors **diverge**
+from YAML (§3), so it needs its own parser. Reading is **concrete-aware**: a `.yaml`/`.yml`
+file is parsed with YAML's link semantics, a `.yamlover` file with yamlover's — each read
+faithfully into the one concrete-agnostic IR. (Unlike json5p, which *is* a clean strict
+superset of JSON5.)
 
 File extension **`.yamlover`**; a directory is the other concrete (§5).
 
@@ -81,28 +84,31 @@ The pointer layer, identical in meaning to json5p (grammar in `URIs.md`):
 
 ## 3. Where yamlover deliberately breaks YAML
 
-These are the *only* incompatibilities — everything else is YAML. With the anchor
-change (2026-06-12), yamlover stops being a strict YAML superset and becomes an
-**improved YAML**: a superset for anchor-free documents, deliberately divergent on
-anchors:
+yamlover is **not a superset of YAML.** It is a distinct, closely-related language: it
+shares YAML's surface syntax but differs in **links and anchors** (and the `~` / `!!set` /
+omni points below). Reading is therefore **concrete-aware** — a `.yaml`/`.yml` file is
+parsed with YAML's link semantics, a `.yamlover` file with yamlover's — so a YAML document
+is read *faithfully* (no "porting" step). The table is how the SAME token differs between
+the two surfaces:
 
-| Construct | YAML means | yamlover means |
-|---|---|---|
-| `&anchor` | a reusable intra-document name for the node | **path anchor** — "this node also lives at that path"; the path's parent gains a real key (§2, `URIs.md` §`&`) |
-| `*alias` | alias to anchor `alias` (name only) | **pointer** — a pure path/scope expression (`*a` = the sibling key `a`; no anchor namespace, no precedence rule) |
-| `~key:` (key position) | the plain-scalar key `"~key"` | **back-edge** sigil on key `key` (deprecated → `&P/key`, §2) |
-| `~-` (entry position) | the plain scalar `~-` (rare) | **keyless back-edge** (deprecated → `&P[]`, §2) |
-| `~` (value position) | null | **unchanged — still null** |
-| `!!set` | a mapping of null-valued keys | a **set-semantics container** — memberships dedup by identity (§4) |
-| scalar + fields / mixed keyed+keyless | invalid / two node kinds | **one node** — omni by default (§4) |
+| Construct                             | YAML means                                  | yamlover means                                                                                                   |
+|---------------------------------------|---------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| `&anchor`                             | a reusable intra-document name for the node | **path anchor** — "this node also lives at that path"; the path's parent gains a real key (§2, `URIs.md` §`&`)   |
+| `*alias`                              | alias to anchor `alias` (name only)         | **pointer** — a pure path/scope expression (`*a` = the sibling key `a`; no anchor namespace, no precedence rule) |
+| `~key:` (key position)                | the plain-scalar key `"~key"`               | **back-edge** sigil on key `key` (deprecated → `&P/key`, §2)                                                     |
+| `~-` (entry position)                 | the plain scalar `~-` (rare)                | **keyless back-edge** (deprecated → `&P[]`, §2)                                                                  |
+| `~` (value position)                  | null                                        | **unchanged — still null**                                                                                       |
+| `!!set`                               | a mapping of null-valued keys               | a **set-semantics container** — memberships dedup by identity (§4)                                               |
+| scalar + fields / mixed keyed+keyless | invalid / two node kinds                    | **one node** — omni by default (§4)                                                                              |
 
-The anchor row is the consequential one: a plain-YAML `&a` … `*a` pair at different
-nesting depths **changes meaning** — `&a` now grafts the node as key `a` of the
-*current* scope, and `*a` looks up a sibling key. Port such documents by rooting the
-name: `&/a` … `*/a` (one shared key at the document root). A YAML file using no
-anchors, no `~`-prefixed plain keys, and no `!!set` round-trips unchanged. This is
-the documented divergence set our conformance harness allowlists; the anchor/alias
-cases of `yaml-test-suite` move to a *diverges-by-design* group when Phase A lands
+The anchor row is the consequential one, and the reason reading is concrete-aware. A
+YAML `&a` … `*a` pair is **document-wide**: the parser reading a `.yaml` file maps it to
+yamlover's document scope — `&: a` … `*: a` (one shared key at the document root) — so the
+alias resolves exactly as YAML intends. A `.yamlover` file's bare `&a`/`*a` instead mean
+the **current/parent** scope (`*a` = a sibling key, `*[1]` = the parent's ordinal member;
+no `:` ⇒ relative to the parent); document scope is written with the leading `:`. Either
+way the IR is concrete-agnostic and renders back in yamlover syntax. The `yaml-test-suite`
+anchor/alias cases are a *diverges-by-design* group, not failures
 (`tools/parser/YAML-CONFORMANCE.md`).
 
 ## 4. One ordered container
@@ -251,10 +257,10 @@ star:  *\*boss           # the literal key "*boss"
 
 Identical to json5p (full rules in `URIs.md`), only unquoted here:
 
-| Form | Base |
-|---|---|
-| `*name`, `*../…` | current mapping / its parents |
-| `*/…` | current **document** root |
+| Form                            | Base                                                          |
+|---------------------------------|---------------------------------------------------------------|
+| `*name`, `*../…`                | current mapping / its parents                                 |
+| `*/…`                           | current **document** root                                     |
 | `*//auth/…`, `*scheme://auth/…` | a **link** — any other start (project, sibling doc, external) |
 
 ## 8. Relationship to the rest of the system
@@ -273,6 +279,7 @@ Identical to json5p (full rules in `URIs.md`), only unquoted here:
   paths/`~`.
 - **`examples/06-tour.yamlover`** — the same data with the full pointer layer.
 
-Because yamlover is a *feature* superset (not byte-for-byte), the YAML conformance corpus
-(`yaml/yaml-test-suite`) is run as **"accept all positive cases except a documented
-divergence allowlist"** (§3), not 100% — see the conformance harness.
+Because yamlover is a close-but-distinct language (not a YAML superset), the YAML
+conformance corpus (`yaml/yaml-test-suite`) is run as **"accept all positive cases except a
+documented divergence allowlist"** (§3) — the anchor/alias cases are diverges-by-design, not
+failures. The walk parses `.yaml`/`.yml` files with YAML link semantics (concrete-aware).

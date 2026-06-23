@@ -30,11 +30,12 @@ export function attachComments(doc: Document, raws: RawComment[], src: string, u
   if (raws.length === 0) return;
   raws.sort((a, b) => a.start - b.start);
 
-  // entries in document order, each carrying the span Phase A gave it
+  // entries in document order, each carrying the span Phase A gave it, with its parent node
   const entries: Entry[] = [];
+  const parentOf = new Map<Entry, Node>();
   const collect = (n: Node): void => {
     for (const e of n.entries ?? []) {
-      if (e.meta?.span) entries.push(e);
+      if (e.meta?.span) { entries.push(e); parentOf.set(e, n); }
       if (!isPointer(e.value)) collect(e.value);
     }
   };
@@ -78,22 +79,46 @@ export function attachComments(doc: Document, raws: RawComment[], src: string, u
       let best: Entry | undefined;
       for (const e of entries) {
         const s = e.meta!.span!;
-        if (s.end <= r.start && lineOf(s.end) === rl && (!best || s.end > best.meta!.span!.end)) best = e;
+        if (s.end > r.start || lineOf(s.end) !== rl) continue;
+        // closest before the comment on this line; on an end tie (an ancestor and its last
+        // descendant both end here) prefer the INNERMOST — the greater start.
+        const b = best ? best.meta!.span! : undefined;
+        if (!b || s.end > b.end || (s.end === b.end && s.start > b.start)) best = e;
       }
       if (best) { push(best.meta!, make(r, 'trailing')); used.add(r); continue; }
+      const next = nextEntryAfter(entries, r.start);
+      if (next && lineOf(next.meta!.span!.start) === rl) {
+        // an inline comment that PRECEDES an entry on the same line (`{ /* x */ a: 1 }`) leads
+        // that entry — it doesn't trail a value.
+        push(next.meta!, make(r, 'leading')); used.add(r); continue;
+      }
+      // otherwise no entry shares its line — it trails a NODE's self-value (an omni root's `5`,
+      // or a nested `rating: !!var 5 # …`). Attach to that node (the parent of the next entry,
+      // whose value-line it sits on) as `trailing` — NOT as leading-on-next.
+      const host = next ? parentOf.get(next)! : doc.root;
+      host.meta = host.meta ?? {};
+      push(host.meta, make(r, 'trailing'));
+      used.add(r);
+      continue;
     }
-    // leading: the next entry to begin after the comment
-    let target: Entry | undefined;
-    for (const e of entries) {
-      const st = e.meta!.span!.start;
-      if (st > r.start && (!target || st < target.meta!.span!.start)) target = e;
-    }
+    // leading (own-line): the next entry to begin after the comment
+    const target = nextEntryAfter(entries, r.start);
     if (target) { push(target.meta!, make(r, 'leading')); used.add(r); continue; }
     // leftover (e.g. a trailing remark after the final entry) → the root node, never dropped
     doc.root.meta = doc.root.meta ?? {};
     push(doc.root.meta, make(r, r.ownLine ? 'leading' : 'trailing'));
     used.add(r);
   }
+}
+
+/** The entry whose span begins soonest after `off` (the "next" entry in document order). */
+function nextEntryAfter(entries: Entry[], off: number): Entry | undefined {
+  let best: Entry | undefined;
+  for (const e of entries) {
+    const st = e.meta!.span!.start;
+    if (st > off && (!best || st < best.meta!.span!.start)) best = e;
+  }
+  return best;
 }
 
 /** Returns offset → 0-based line index via binary search over line-start offsets. */
@@ -111,10 +136,11 @@ function lineIndexer(src: string): (off: number) => number {
   };
 }
 
-/** True when the line immediately above `off`'s line is blank (or `off` is on the first line). */
+/** True when the line immediately above `off`'s line is blank. False on the first line —
+ *  the file start is not a blank line (this would otherwise add a spurious leading gap). */
 function precededByBlank(src: string, off: number): boolean {
   const ls = src.lastIndexOf('\n', off - 1);
-  if (ls < 0) return true; // first line of the file
+  if (ls < 0) return false; // first line of the file — nothing above it
   const ps = src.lastIndexOf('\n', ls - 1);
   return /^[ \t\r]*$/.test(src.slice(ps + 1, ls));
 }

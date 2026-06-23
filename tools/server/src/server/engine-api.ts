@@ -40,11 +40,13 @@ import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watch
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { pointerToken } from "../../../parser/ts/src/serialize-yamlover.ts";
+import { renderPointer } from "../../../parser/ts/src/pointer.ts";
+import { anchorBody } from "../../../parser/ts/src/serialize-common.ts";
 import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, keyToken } from "./embed.js";
 import { renderThumbnail } from "./extract/thumbnails.js";
 import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
-import type { Node as IrNode, Document } from "../../../parser/ts/src/ir.ts";
+import type { Node as IrNode, Document, Comment as IrComment } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
 import { displayKind, ownedEntries, typeName, facetsOf } from "./node-kind.js";
 import { TaskRegistry } from "./tasks.js";
@@ -763,6 +765,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           title: titleOf(s, p),
           description: null,
           value: wantBytes ? binaryContent(dataRoot, segs, row) : projectValue(dataRoot, s, segs, viewDepth, true),
+          comments: cachedDoc && !wantBytes ? collectComments(cachedDoc, segs, viewDepth) : {},
           relations: buildRelations(dataRoot, s, segs),
         });
       } else if (url.pathname === "/api/schema") {
@@ -906,7 +909,7 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
     // `?depth=`, the `{ … }` marker means "truncated by the depth setting" everywhere it appears.
     const targetSegs = storePathToSegs(c.to);
     return depth === Infinity
-      ? refMarker(scopedPath(s, targetSegs, currentDoc), segsToStr(targetSegs))
+      ? refMarker(refPointerText(s, targetSegs, currentDoc), segsToStr(targetSegs))
       : linkMarker(dataRoot, s, targetSegs);
   };
   if (k === "array") return kids.map(project);
@@ -924,6 +927,112 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
     return out;
   }
   return row.value; // scalar
+}
+
+/** The IR node at client `segs` within the assembled document, or undefined when the path
+ *  leaves the contained spine (a pointer / missing key). Keyless segments index the FULL
+ *  `entries` array — the same basis the store path uses (graph.ts / resolve.ts: `[i]`). */
+function irNodeAt(doc: Document, segs: Seg[]): IrNode | undefined {
+  let node: IrNode = doc.root;
+  for (const seg of segs) {
+    const entries = node.entries ?? [];
+    let val;
+    if (typeof seg === "number") {
+      const e = entries[seg];
+      if (!e || e.key !== null || e.edge !== "contain") return undefined;
+      val = e.value;
+    } else {
+      val = entries.find((en) => en.key === seg && en.edge === "contain")?.value;
+    }
+    if (!val || isPointer(val)) return undefined;
+    node = val;
+  }
+  return node;
+}
+
+/** The comments to show with the value at `segs`, keyed by each node's fragment continuation
+ *  FROM THE VIEWED NODE — exactly what the client looks up as `frag.slice(base.length)`. So a
+ *  child's leading/trailing comments live under `/key` or `[i]` (i = its index among the node's
+ *  RENDERED own entries, matching render.tsx). `$head` is the file banner (only at the served
+ *  root); `$tail` is the viewed node's own leftover comments (after its last entry). Comments
+ *  are typography: this never changes the value projection, only annotates it. */
+type CommentBucket = {
+  leading?: string[];
+  trailing?: string[];
+  pointer?: string;      // a ref entry's authored pointer text, canonical colon form (no `*`)
+  anchors?: string[];    // the value node's `&` path-anchor bodies (no `&`), source order
+  tag?: string;          // the value node's yamlover type tag (`!!set` / `!!mix` / `!!var`)
+  blankBefore?: boolean;  // a blank source line precedes this entry (or its leading comments)
+  valueTrailing?: string[]; // a comment trailing the node's own SELF-VALUE line (an omni `5 # …`)
+};
+
+/** The yamlover type tag a node would carry in canonical serialization, or undefined. Mirrors
+ *  serialize-yamlover's containerTag + the root `!!var`: `!!set` (set semantics), `!!mix`
+ *  (owned keyed AND keyless), `!!var` (a scalar that also carries fields). */
+function tagOf(n: IrNode): string | undefined {
+  if (n.meta?.set) return "!!set";
+  const owned = (n.entries ?? []).filter((e) => e.edge !== "back");
+  if (n.kind === "mapping" && owned.some((e) => e.key != null) && owned.some((e) => e.key === null)) return "!!mix";
+  if (n.kind === "scalar" && owned.length > 0) return "!!var";
+  return undefined;
+}
+
+/** Syntax decorations of a value node (anchors, type tag, a self-value trailing comment),
+ *  attached to its fragment. */
+function nodeDeco(bucket: CommentBucket, node: IrNode): void {
+  const anchors = (node.meta?.anchors ?? []).map(anchorBody);
+  if (anchors.length > 0) bucket.anchors = anchors;
+  const tag = tagOf(node);
+  if (tag) bucket.tag = tag;
+  // a comment trailing the node's own SELF-VALUE line (an omni `5 # …`) — placement `trailing`
+  // on the node itself (attachComments routes self-value trailers here, not to an entry)
+  const vt = (node.meta?.comments ?? []).filter((c) => c.placement === "trailing").map((c) => c.text);
+  if (vt.length > 0) bucket.valueTrailing = vt;
+}
+
+function collectComments(doc: Document, segs: Seg[], depth: number): Record<string, CommentBucket | string[]> {
+  const out: Record<string, CommentBucket | string[]> = {};
+  const root = irNodeAt(doc, segs);
+  if (!root) return out;
+  { // the viewed node's own anchors / tag / self-value trailing comment, keyed at ""
+    const self: CommentBucket = {};
+    nodeDeco(self, root);
+    if (self.anchors || self.tag || self.valueTrailing) out[""] = self;
+  }
+  // $head is the head-of-file banner — shown when the VIEWED node is a document root (the walk
+  // carries each document's head onto its root node, so sub-documents surface theirs too).
+  const head = (root.meta?.head ?? []).map((c) => c.text);
+  if (head.length > 0) out.$head = head;
+  // leftover comments after the node's last entry render at the bottom ($tail); a `trailing`
+  // one rides the self-value line instead (valueTrailing, via nodeDeco above).
+  const tail = (root.meta?.comments ?? []).filter((c) => c.placement === "leading").map((c) => c.text);
+  if (tail.length > 0) out.$tail = tail;
+  const placed = (cs: IrComment[] | undefined, p: "leading" | "trailing"): string[] =>
+    (cs ?? []).filter((c) => c.placement === p).map((c) => c.text);
+  const walk = (node: IrNode, rel: string, d: number, top: boolean): void => {
+    if (!top && d <= 0) return; // a non-top node past the depth budget renders as a link marker
+    let i = 0; // index over RENDERED own entries (own back-edges and hidden children are filtered)
+    for (const e of node.entries ?? []) {
+      if (e.edge === "back") continue;
+      if (e.edge === "contain" && !isPointer(e.value) && e.value.meta?.hidden) continue;
+      const cont = e.key != null ? `/${e.key}` : `[${i}]`;
+      i++;
+      const bucket: CommentBucket = {};
+      const lead = placed(e.meta?.comments, "leading");
+      const trail = placed(e.meta?.comments, "trailing");
+      if (lead.length > 0) bucket.leading = lead;
+      if (trail.length > 0) bucket.trailing = trail;
+      // a blank line before the entry, or before its leading-comment block, is worth keeping
+      const leadComment = e.meta?.comments?.find((c) => c.placement === "leading");
+      if (e.meta?.blankBefore || leadComment?.blankBefore) bucket.blankBefore = true;
+      if (isPointer(e.value)) bucket.pointer = renderPointer(e.value); // the authored `*…` token
+      else nodeDeco(bucket, e.value); // the value node's anchors + type tag
+      if (Object.keys(bucket).length > 0) out[rel + cont] = bucket;
+      if (e.edge === "contain" && !isPointer(e.value)) walk(e.value, rel + cont, d - 1, false);
+    }
+  };
+  walk(root, "", depth, true);
+  return out;
 }
 
 /** The instance schema (every value `v` → `{const: v}`); containers past depth = link markers. */
@@ -992,6 +1101,19 @@ const segsEqual = (a: Seg[], b: Seg[]): boolean => a.length === b.length && a.ev
 function scopedPath(s: Store, src: Seg[], currentDoc: Seg[]): string {
   if (segsEqual(documentRootSegs(s, src), currentDoc)) return segsToStr(src.slice(currentDoc.length)); // `:…`
   return "::" + segsToStr(src).slice(1); // `::…` — a project-scope link
+}
+
+/** A reference's value rendered as a VALID yamlover deref token — `*` + the canonical
+ *  spaced colon path (`*: pets[0]`, `*:: a: b`). Used for refs the projection surfaces from the
+ *  store (realized anchor edges, incoming `~`): an authored pointer carries its own text via the
+ *  comment/deco sidecar; this is the faithful fallback so a ref never renders as a bare `:path`. */
+function refPointerText(s: Store, src: Seg[], currentDoc: Seg[]): string {
+  const seg = (x: Seg): string => (typeof x === "number" ? `[${x}]` : `: ${x}`);
+  if (segsEqual(documentRootSegs(s, src), currentDoc)) {
+    const tail = src.slice(currentDoc.length);
+    return "*" + (tail.length > 0 ? tail.map(seg).join("") : ":"); // document scope; `*:` = the doc root
+  }
+  return "*:" + src.map(seg).join(""); // project scope — the leading `*:` + `: seg` makes `*::…`
 }
 
 /** The relations panel: this node's UPSTREAM relations — those for which it is the natural target.

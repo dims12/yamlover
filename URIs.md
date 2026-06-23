@@ -11,9 +11,10 @@ unquoted keys and single-quoted strings to JSON; **json5p** further adds
 
     JSON  ⊂  JSON5  ⊂  json5p
 
-**yamlover** — a *language* that is a superset of **YAML**. It adds the same
-**pointers** (extended `*`; `&` stays a plain YAML anchor), and it supports
-multiple **concretes** — concrete materializations of one logical document —
+**yamlover** — a *language* close to **YAML** but NOT a superset: it shares the
+surface syntax yet diverges on links/anchors (YAMLOVER.md §3; `&`/`*` are pointer-model
+constructs, read concrete-aware). It adds the same **pointers** (extended `*`), and it
+supports multiple **concretes** — concrete materializations of one logical document —
 including the **filesystem** (a directory is a mapping, a file is a value / blob),
 not only a single text file:
 

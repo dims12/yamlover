@@ -467,7 +467,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
               <hr className="reldiv" />
             </>
           )}
-          {ready ? <Render value={content} syntax={syntaxOf(effective)} onNavigate={onNavigate} documentPath={docPath} nodePath={path} /> : "…"}
+          {ready ? <Render value={content} syntax={syntaxOf(effective)} onNavigate={onNavigate} documentPath={docPath} nodePath={path} comments={node.comments} /> : "…"}
         </pre>
       )}
     </div>

@@ -65,6 +65,9 @@ export interface NodeMeta {
   /** Comments with no entry to attach to: a comment after the last entry of a block, or
    *  inside an empty container; the document root also collects any otherwise-unplaced ones. */
   comments?: Comment[];
+  /** A document root's head-of-file banner (the parser's `Document.head`), carried onto the
+   *  node when a file/body is assembled into a larger tree so it survives past the parse. */
+  head?: Comment[];
 }
 export interface Span { uri: string; start: number; end: number; }
 
@@ -128,6 +131,9 @@ export interface EntryMeta {
   /** Comments decorating this entry: `leading` ones on the line(s) above, the lone `trailing`
    *  one on the entry's last line (see Comment.placement). Source order preserved. */
   comments?: Comment[];
+  /** A blank source line immediately precedes this entry (vertical separation worth keeping
+   *  when re-rendering). */
+  blankBefore?: boolean;
 }
 
 export type Value = Node | Pointer; // Node iff edge==='contain'; Pointer iff ref/back

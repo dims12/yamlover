@@ -219,6 +219,25 @@ test('parses examples/06-tour.yamlover (full pointer layer)', () => {
   assert.deepEqual(rating.entries?.map((e) => e.key), [null, null, 'scale', 'author']);
 });
 
+test('YAML concrete: bare anchor/alias resolve at DOCUMENT scope (not current)', () => {
+  // YAML `&a`/`*a` are document-wide; yamlover writes that with `:` — so parsing a .yaml file
+  // maps a bare anchor/alias to document scope (see [[yaml-not-superset]]). concrete = "yaml".
+  const src = 'pets:\n  - &whiskers\n    name: Whiskers\nhumans:\n  - name: Alice\n    manager: *whiskers\n';
+  const d = parseYamlover(src, '<t>', { yaml: true });
+  assert.equal(d.source.concrete, 'yaml');
+  const manager = entry(asMap(entry(asMap(d.root), 'humans').value as Mapping).entries[0].value as Mapping, 'manager');
+  assert.equal(manager.edge, 'ref');
+  assert.deepEqual((manager.value as any).base, { scope: 'document' }); // *whiskers ≡ *: whiskers
+  const whiskersAnchor = (entry(asMap(d.root), 'pets').value as Mapping).entries[0].value;
+  assert.deepEqual((whiskersAnchor as any).meta.anchors[0].path.base, { scope: 'document' }); // &whiskers ≡ &: whiskers
+});
+
+test('yamlover concrete keeps bare = current scope (the YAML divergence)', () => {
+  const d = parseYamlover('m: *whiskers\n', '<t>'); // no yaml flag → yamlover semantics
+  assert.equal(d.source.concrete, 'yamlover');
+  assert.deepEqual((entry(asMap(d.root), 'm').value as any).base, { scope: 'current' });
+});
+
 test('one ordered container mixes keyless (positional) and keyed entries', () => {
   const d = parseYamlover('m: !!mix\n  - a\n  - b\n  title: T\n  - c\n  count: 2\n');
   const m = entry(asMap(d.root), 'm').value as Mapping;

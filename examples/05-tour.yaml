@@ -19,11 +19,13 @@ pets:
 
 humans:
   - name: Alice
-    manager: *whiskers # YAML alias: the SAME node as pets[1], shared by anchor name
-                       # (YAML can share by &/* name, but cannot say "*/pets[1]" by path)
-                       # NB: yamlover reads &/* differently — an anchor is a PATH creating
-                       # a real key in the current scope — so this CROSS-scope alias is a
-                       # documented divergence (YAMLOVER.md §3); the 06 twin says */pets[1].
+    manager: *whiskers # YAML alias: the SAME node as pets[1], shared document-wide by anchor name
+                       # NB: this is a .yaml file, so yamlover reads &/* with YAML semantics —
+                       # document-wide. It maps to yamlover's document scope: `&whiskers` makes a
+                       # root key `whiskers`, and `*whiskers` ≡ `*: whiskers`. A NATIVE .yamlover
+                       # file writes the path form instead (`*: pets[1]`, see 06-tour.yamlover).
+                       # yamlover is close to YAML but NOT a superset — links/anchors differ
+                       # (YAMLOVER.md §3); reading is concrete-aware.
 
 # ---- a tour of YAML scalar & collection types (the JSON types, plus YAML's own) ----
 types:

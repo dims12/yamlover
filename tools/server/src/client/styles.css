@@ -444,6 +444,9 @@ body {
 .punct {
   color: var(--jb-punct);
 }
+.anchor {
+  color: var(--jb-keyword);
+}
 .c {
   color: var(--jb-comment);
   font-style: italic;
