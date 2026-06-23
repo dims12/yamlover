@@ -112,6 +112,14 @@ describe("faithful-render round-trip (render → reparse → same IR)", () => {
     expect(text).not.toMatch(/null/);
   });
 
+  it("a scalar-body directory IS that scalar (54-scalar-file-overlay: `.yamlover/body.yamlover` = 30)", async () => {
+    // Regression: the directory rendered EMPTY — the scalar body was dropped, leaving an empty
+    // mapping. A directory whose body.yamlover is a bare scalar must render as that scalar. Use a
+    // CHILD node (`:sub`), since the served root also carries the built-in `yamlover` taxonomy graft.
+    const text = await renderNode({ "sub/.yamlover/body.yamlover": "30\n" }, ":sub");
+    expect(text.trim()).toBe("30");
+  });
+
   it("comments and a blank line survive (typography is allowed to differ, graph is not)", async () => {
     await roundTrip("# head\n\nname: Alice # who\nage: 30\n");
   });

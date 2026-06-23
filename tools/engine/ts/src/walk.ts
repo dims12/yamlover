@@ -824,17 +824,20 @@ function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
   if (!fs.existsSync(file)) return node;
   const bodyDoc = parseYamlover(readTracked(ctx, file).toString('utf8'), file);
   const body = bodyDoc.root;
-  if ((body.kind !== 'mapping' && body.kind !== 'scalar') || !body.entries) return node;
+  if (body.kind !== 'mapping' && body.kind !== 'scalar') return node;
+  // A scalar body has no `entries` (a bare `30`); an omni scalar body / mapping body does. Treat a
+  // field-less scalar as an empty overlay so the directory still takes the scalar as its own value.
+  const bodyEntries = body.entries ?? [];
   // a directory with a body.yamlover overlay is a self-contained instance = a DOCUMENT root
   // (so `*/file` inside it resolves to this directory, at any nesting depth). The body's
   // head-of-file banner rides onto the node so it survives past the parse.
   const meta = { ...node.meta, ...body.meta, documentRoot: true, ...(bodyDoc.head?.length ? { head: bodyDoc.head } : {}) };
 
   // a pure pointer/positional array → reorder existing children to match
-  if (body.kind === 'mapping' && (body.array || (body.entries.length > 0 && body.entries.every((e) => e.key === null)))) {
+  if (body.kind === 'mapping' && (body.array || (bodyEntries.length > 0 && bodyEntries.every((e) => e.key === null)))) {
     const byKey = new Map(node.entries.map((e) => [e.key, e] as const));
     const ordered: Entry[] = [];
-    for (const e of body.entries) {
+    for (const e of bodyEntries) {
       const targetKey = isPointer(e.value) ? pointerLeafKey(e.value) : null;
       const hit = targetKey != null ? byKey.get(targetKey) : null;
       if (hit) { ordered.push(hit); byKey.delete(targetKey); }
@@ -849,7 +852,7 @@ function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
   // that carries members), not a replacement.
   const merged = new Map(node.entries.map((e) => [e.key, e] as const));
   const order: (string | null)[] = node.entries.map((e) => e.key);
-  for (const e of body.entries) {
+  for (const e of bodyEntries) {
     const existing = merged.get(e.key);
     if (!existing) { order.push(e.key); merged.set(e.key, e); }
     else merged.set(e.key, augmentEntry(existing, e));

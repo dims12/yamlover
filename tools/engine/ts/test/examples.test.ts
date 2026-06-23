@@ -41,6 +41,18 @@ for (const name of entries) {
   });
 }
 
+// A directory whose ONLY content is a SCALAR `.yamlover/body.yamlover` (a bare `30`) IS that
+// scalar — the overlay supplies the node's value, not an (empty) set of children. Regression: the
+// scalar body was dropped (it has no `entries`), so the directory projected as an empty mapping.
+test('54-scalar-file-overlay: a scalar body.yamlover makes the directory that scalar (30)', () => {
+  const s = new Store(':memory:');
+  s.indexDocument(load('54-scalar-file-overlay'));
+  const root = s.node(':');
+  assert.equal(root?.type, 'scalar');
+  assert.equal(root?.value, 30);
+  s.close();
+});
+
 // REPRESENTATION INTENT — the relationship-heavy samples must have NO dangling pointers; a
 // broken `*`/`~` (a deleted file, a typo'd path) is a real bug here, not a syntax demo.
 test('58-genealogy-dag: every pointer resolves (no dangling)', () => {
