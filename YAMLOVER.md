@@ -27,6 +27,7 @@ yamlover keeps the YAML surface you know:
 | Comments | `# note` |
 | Scalars (plain/quoted/folded/literal) | `a`, `'a'`, `"a"`, `>`, `\|` |
 | `null` spellings, incl. `~` **in value position** | `key: ~`  → null |
+| Float specials (YAML, **not** json5's `Infinity`/`NaN`) | `.inf`, `-.inf`, `.nan` (case-tolerant: `.Inf`/`.NaN`) |
 | `&` anchors and `*` aliases | `&a {…}` … `*a` — syntax kept, **meaning extended** (§2, §3) |
 
 A YAML `- item` sequence entry is the same thing as a keyless `:` entry in the one-ordered

@@ -73,6 +73,12 @@ const MIXED_KEY = "$yamloverMixed"; // an omni/mix node: a self-value and/or int
 // (inside the rendered subtree) becomes an in-page `#` fragment link, else it navigates. Distinct
 // from LINK_KEY, which is now reserved for a depth-TRUNCATED container ("click to descend").
 const REF_KEY = "$yamloverRef";
+// A non-finite number (±Infinity / NaN): JSON cannot carry it over the wire (JSON.stringify → null),
+// so it rides as a marker the client decodes to the literal (`.inf`/`.nan` in yamlover, `Infinity`/
+// `NaN` in json5p). Payload is the canonical name "Infinity" | "-Infinity" | "NaN".
+const NUM_KEY = "$yamloverNum";
+const wireScalar = (v: unknown): unknown =>
+  typeof v === "number" && !Number.isFinite(v) ? { [NUM_KEY]: String(v) } : v;
 type Seg = string | number;
 // Node-KIND classification (object|array|scalar|binary|omni|mix → the client `type:`) lives in
 // ./node-kind.ts so it can be unit-tested against a Store without the HTTP layer.
@@ -913,7 +919,7 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
     // a `- item`) or keyed (`key: "scale"` → `scale: …`); an omni also carries its self-value.
     const entries = kids.map((c) => ({ key: c.label, value: project(c) }));
     const marker: Record<string, unknown> = { kind: k, entries };
-    if (k === "omni") marker.value = row.value; // the node's own scalar self-value (the `!!omni 5`)
+    if (k === "omni") marker.value = wireScalar(row.value); // the node's own scalar self-value (the `!!omni 5`)
     return { [MIXED_KEY]: marker };
   }
   if (k === "object") {
@@ -921,7 +927,7 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
     for (const c of kids) out[c.label ?? String(c.pos)] = project(c);
     return out;
   }
-  return row.value; // scalar
+  return wireScalar(row.value); // scalar
 }
 
 /** The IR node at client `segs` within the assembled document, or undefined when the path
@@ -1073,10 +1079,10 @@ function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unk
   const title = titleOf(s, p);
   if (title) info.title = title;
   if (k === "binary") info.size = row.size;
-  else if (k === "scalar") info.value = row.value;
+  else if (k === "scalar") info.value = wireScalar(row.value);
   else if (k === "omni" || k === "mix") {
     info.count = ownedEntries(s, p).length; // owned items + fields (reverse members excluded)
-    if (k === "omni") info.value = row.value; // the self-scalar, for the link label
+    if (k === "omni") info.value = wireScalar(row.value); // the self-scalar, for the link label
   } else info.count = s.children(p).filter((c) => !isHidden(s, c.to)).length; // visible members only (omit `.yamlover`)
   if (row.format === TAG_FORMAT) {
     // a pure color tag's explicit color rides the link, so badges color correctly everywhere

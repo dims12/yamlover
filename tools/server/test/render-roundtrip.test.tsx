@@ -103,6 +103,15 @@ describe("faithful-render round-trip (render → reparse → same IR)", () => {
     await roundTrip("a: 1\nnothing: null\nb: 2\n");
   });
 
+  it("non-finite numbers survive store + transport + render (.inf / -.inf / .nan, not null)", async () => {
+    // Regression: ±Infinity / NaN were silently nulled (JSON.stringify in the store + transport).
+    const text = await roundTrip("max: .inf\nmin: -.inf\nmissing: .nan\nfinite: 5\n");
+    expect(text).toMatch(/max: \.inf/);
+    expect(text).toMatch(/min: -\.inf/);
+    expect(text).toMatch(/missing: \.nan/);
+    expect(text).not.toMatch(/null/);
+  });
+
   it("comments and a blank line survive (typography is allowed to differ, graph is not)", async () => {
     await roundTrip("# head\n\nname: Alice # who\nage: 30\n");
   });

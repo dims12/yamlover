@@ -171,9 +171,31 @@ test('yamlover rt: spacey keys re-render as quoted portions', () => {
   assert.match(out, /\*'has #comment'/);
 });
 
-test('yamlover lossy: non-finite numbers are refused', () => {
-  const doc = parseJson5p('{x: Infinity}');
-  assert.throws(() => serializeYamlover(doc), LossyError);
+test('yamlover rt: non-finite numbers use YAML float specials (.inf / -.inf / .nan)', () => {
+  const out = rtYamlover('pos: .inf\nneg: -.inf\nundef: .nan\n');
+  assert.match(out, /pos: \.inf$/m);
+  assert.match(out, /neg: -\.inf$/m);
+  assert.match(out, /undef: \.nan$/m);
+});
+
+test('yamlover parse: YAML float-special spellings → Infinity / -Infinity / NaN', () => {
+  const root = parseYamlover('a: .inf\nb: -.inf\nc: .nan\nd: .Inf\ne: .NaN\n').root;
+  const val = (k: string) => (root.entries!.find((e) => e.key === k)!.value as { value: number }).value;
+  assert.equal(val('a'), Infinity);
+  assert.equal(val('b'), -Infinity);
+  assert.ok(Number.isNaN(val('c')));
+  assert.equal(val('d'), Infinity);
+  assert.ok(Number.isNaN(val('e')));
+});
+
+test('cross-concrete: a json5 Infinity/NaN serializes to yamlover .inf/.nan (no LossyError)', () => {
+  const doc = parseJson5p('{x: Infinity, y: -Infinity, z: NaN}');
+  const out = serializeYamlover(doc);
+  assert.match(out, /x: \.inf$/m);
+  assert.match(out, /y: -\.inf$/m);
+  assert.match(out, /z: \.nan$/m);
+  // and the yamlover output reparses to the SAME graph
+  assert.deepEqual(canonDoc(parseYamlover(out)), canonDoc(doc));
 });
 
 // ---- yamlover: file round-trips -------------------------------------------------

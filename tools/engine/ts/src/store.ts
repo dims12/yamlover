@@ -25,7 +25,7 @@ import { resolveDocument } from './resolve.ts';
 
 // Bump when the table shapes change: a mismatched on-disk index is dropped and rebuilt from
 // the filesystem (the DB is a derived cache, so this is always safe).
-const SCHEMA_VERSION = 4; // 4: store paths are COLON-form (':team:alice', root ':') — SEPARATOR.md M4
+const SCHEMA_VERSION = 5; // 5: scalar value column tags non-finite numbers (±Infinity / NaN); 4: colon-form paths
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS node (
@@ -59,6 +59,22 @@ CREATE TABLE IF NOT EXISTS dangling (
   reason    TEXT NOT NULL                -- why it did not resolve
 );
 `;
+
+// The scalar self-value lives in a JSON text column, but JSON cannot represent ±Infinity / NaN
+// (JSON.stringify turns them into null). Tag a non-finite number so the engine round-trips the
+// full JSON5 / YAML number domain; finite values encode/decode exactly as plain JSON.
+function encodeScalarValue(v: unknown): string {
+  if (typeof v === 'number' && !Number.isFinite(v)) return JSON.stringify({ '@nonfinite': String(v) });
+  return JSON.stringify(v);
+}
+function decodeScalarValue(s: string): unknown {
+  const v = JSON.parse(s);
+  if (v && typeof v === 'object' && !Array.isArray(v) && '@nonfinite' in v) {
+    const n = (v as { '@nonfinite': string })['@nonfinite'];
+    return n === 'Infinity' ? Infinity : n === '-Infinity' ? -Infinity : NaN;
+  }
+  return v;
+}
 
 export interface NodeRow {
   path: string;
@@ -145,7 +161,7 @@ export class Store {
         const owned = node.entries?.filter((e) => e.edge !== 'back') ?? [];
         const isArray = node.array || (node.kind === 'mapping' && owned.length > 0 && owned.every((e) => e.key === null));
         const value =
-          node.kind === 'scalar' ? JSON.stringify(node.value) : null;
+          node.kind === 'scalar' ? encodeScalarValue(node.value) : null;
         const format = node.kind === 'blob' ? node.format : formatFromMeta(node);
         const hash = node.kind === 'blob' ? node.contentHash : null;
         const size = node.kind === 'blob' ? node.size : null;
@@ -237,7 +253,7 @@ export class Store {
         const meta = node.meta ? JSON.stringify(node.meta) : null;
         const owned = node.entries?.filter((e) => e.edge !== 'back') ?? [];
         const isArray = node.array || (node.kind === 'mapping' && owned.length > 0 && owned.every((e) => e.key === null));
-        const value = node.kind === 'scalar' ? JSON.stringify(node.value) : null;
+        const value = node.kind === 'scalar' ? encodeScalarValue(node.value) : null;
         const format = node.kind === 'blob' ? node.format : formatFromMeta(node);
         const hash = node.kind === 'blob' ? node.contentHash : null;
         const size = node.kind === 'blob' ? node.size : null;
@@ -280,7 +296,7 @@ export class Store {
       walkNodes(doc.root, annStorePath, (p, node, parent, label, pos) => {
         const meta = node.meta ? JSON.stringify(node.meta) : null;
         const isArray = node.array || (node.kind === 'mapping' && (node.entries?.every((e) => e.key === null) ?? false));
-        const value = node.kind === 'scalar' ? JSON.stringify(node.value) : null;
+        const value = node.kind === 'scalar' ? encodeScalarValue(node.value) : null;
         const format = p === annStorePath ? 'x-yamlover-annotation' : node.kind === 'blob' ? node.format : formatFromMeta(node);
         const hash = node.kind === 'blob' ? node.contentHash : null;
         const size = node.kind === 'blob' ? node.size : null;
@@ -536,7 +552,7 @@ function rowToNode(r: Record<string, unknown>): NodeRow {
     path: r.path as string,
     type: r.type as NodeRow['type'],
     format: (r.format as string) ?? null,
-    value: r.value != null ? JSON.parse(r.value as string) : null,
+    value: r.value != null ? decodeScalarValue(r.value as string) : null,
     content_hash: (r.content_hash as string) ?? null,
     size: (r.size as number) ?? null,
     is_array: !!r.is_array,

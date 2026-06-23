@@ -216,7 +216,7 @@ class Emitter {
     if (v === null) return needToken ? 'null' : '';
     if (typeof v === 'boolean') return v ? 'true' : 'false';
     if (typeof v === 'number') {
-      if (!Number.isFinite(v)) throw new LossyError(`yamlover has no literal for ${v}`);
+      if (!Number.isFinite(v)) return nonFinite(v); // YAML float specials: .inf / -.inf / .nan
       const raw = s.raw.trim();
       if (raw !== '' && plainSafe(raw) && plainScalar(raw).value === v) return raw; // keep 0x1F etc.
       return String(v);
@@ -377,12 +377,17 @@ function flowText(n: Node): string {
   return keyed.length === 0 ? `[${ents.map(item).join(', ')}]` : `{${ents.map(item).join(', ')}}`;
 }
 
+/** The YAML float-special literal for a non-finite number (yamlover follows YAML). */
+function nonFinite(v: number): string {
+  return Number.isNaN(v) ? '.nan' : v === Infinity ? '.inf' : '-.inf';
+}
+
 function flowTok(s: Scalar): string {
   const v = s.value;
   if (v === null) return 'null';
   if (typeof v === 'boolean') return v ? 'true' : 'false';
   if (typeof v === 'number') {
-    if (!Number.isFinite(v)) throw new LossyError(`yamlover has no literal for ${v}`);
+    if (!Number.isFinite(v)) return nonFinite(v);
     return String(v);
   }
   if (v !== '' && /^[^,:[\]{}'"#\s]+$/.test(v) && !'*&~!|>'.includes(v[0]) && plainScalar(v).value === v) return v;

@@ -21,6 +21,9 @@ const REF_KEY = "$yamloverRef";
 // `{ [MIXED_KEY]: {kind, value?, entries:[{key,value}]} }`, rendered in yamlover as a leading
 // scalar (omni) then each entry positional (`- v`, key=null) or keyed (`k: v`).
 const MIXED_KEY = "$yamloverMixed";
+// A non-finite number (±Infinity / NaN) that JSON cannot carry: arrives as `{ [NUM_KEY]: name }`
+// where name is "Infinity" | "-Infinity" | "NaN", rendered as the literal for the active syntax.
+const NUM_KEY = "$yamloverNum";
 
 export interface Link {
   kind: "object" | "array" | "scalar" | "binary" | "omni" | "mix";
@@ -70,6 +73,14 @@ export const asLink = (v: unknown) => asSingle<Link>(v, LINK_KEY);
 const asBinary = (v: unknown) => asSingle<BinaryPayload>(v, BINARY_KEY);
 const asRef = (v: unknown) => asSingle<Ref>(v, REF_KEY);
 const asMixed = (v: unknown) => asSingle<Mixed>(v, MIXED_KEY);
+const asNum = (v: unknown) => asSingle<string>(v, NUM_KEY);
+
+/** The literal for a non-finite number `name` ("Infinity"|"-Infinity"|"NaN") in the active syntax:
+ *  YAML float specials in yamlover (`.inf`/`-.inf`/`.nan`), the json5 words in json5p. */
+function numToken(name: string, syntax: Syntax): string {
+  if (syntax === "json") return name; // Infinity / -Infinity / NaN are json5 literals
+  return name === "NaN" ? ".nan" : name === "-Infinity" ? "-.inf" : ".inf";
+}
 
 /** The scalar SELF-VALUE a string/scalar renderer should show. An OMNI node (a scalar that also
  *  carries fields — e.g. a markdown doc that gained `yamlover-annotations` keys) projects its page
@@ -78,7 +89,10 @@ const asMixed = (v: unknown) => asSingle<Mixed>(v, MIXED_KEY);
  *  on its renderer, and this hands that renderer the string — not the marker object. */
 export function scalarValue(v: unknown): unknown {
   const m = asMixed(v);
-  return m && m.kind === "omni" ? m.value : v;
+  const self = m && m.kind === "omni" ? m.value : v;
+  const num = asNum(self);
+  if (num) return num === "NaN" ? NaN : num === "-Infinity" ? -Infinity : Infinity; // peel to the JS number
+  return self;
 }
 
 type Syntax = "yaml" | "json";
@@ -275,6 +289,8 @@ function linkNode(link: Link, syntax: Syntax, ctx: Ctx): ReactNode {
 /** A scalar value as it would render in `syntax` — used as a scalar link's label. */
 function scalarLabel(v: unknown, syntax: Syntax): string {
   if (v === null || v === undefined) return "null";
+  const num = asNum(v);
+  if (num) return numToken(num, syntax);
   if (typeof v === "boolean" || typeof v === "number") return String(v);
   return syntax === "json" ? JSON.stringify(v) : String(v);
 }
@@ -331,13 +347,15 @@ function linkLabel(link: Link): string {
 function scalarNode(v: unknown, syntax: Syntax): ReactNode {
   if (v === null) return <span className="null">null</span>; // canonical yamlover null (not the obsolete `~`)
   if (typeof v === "boolean") return <span className="b">{String(v)}</span>;
+  const num = asNum(v);
+  if (num) return <span className="n">{numToken(num, syntax)}</span>; // ±Infinity / NaN literal
   if (typeof v === "number") return <span className="n">{String(v)}</span>;
   const text = syntax === "json" ? JSON.stringify(v) : String(v);
   return <span className="s">{text}</span>;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
+  typeof v === "object" && v !== null && !Array.isArray(v) && !asNum(v); // a `$yamloverNum` marker is a scalar leaf
 
 /** Whether a value renders as an inline, COLLAPSIBLE container — a non-empty object / array, or an
  *  omni/mix marker. Link / ref markers (continuations, navigated not folded), empty containers, and

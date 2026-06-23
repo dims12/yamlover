@@ -754,6 +754,9 @@ export function plainScalar(text: string): Scalar {
   if (t === '' || t === '~' || t === 'null' || t === 'Null' || t === 'NULL') return { kind: 'scalar', value: null, raw: text };
   if (t === 'true' || t === 'True' || t === 'TRUE') return { kind: 'scalar', value: true, raw: text };
   if (t === 'false' || t === 'False' || t === 'FALSE') return { kind: 'scalar', value: false, raw: text };
+  // YAML float specials (yamlover follows YAML, not json5's `Infinity`/`NaN` words).
+  if (/^[-+]?\.(?:inf|Inf|INF)$/.test(t)) return { kind: 'scalar', value: t[0] === '-' ? -Infinity : Infinity, raw: text };
+  if (/^\.(?:nan|NaN|NAN)$/.test(t)) return { kind: 'scalar', value: NaN, raw: text };
   if (/^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(t)) return { kind: 'scalar', value: Number(t), raw: text };
   if (/^[-+]?0x[0-9a-fA-F]+$/.test(t)) return { kind: 'scalar', value: Number(t), raw: text };
   return { kind: 'scalar', value: t, raw: text };
