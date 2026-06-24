@@ -19,6 +19,9 @@ on:
 
 jobs:
   publish:
+    # DISABLED: migrated to .github/workflows/publish-server-docker-hub.yml.
+    # Delete this `if:` line to re-enable the Forgejo job.
+    if: ${{ false }}
     runs-on: docker
     container:
       image: node:22-bookworm

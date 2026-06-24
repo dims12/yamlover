@@ -1,0 +1,70 @@
+# Build the demo image (server prod build + examples/ baked in) and push it to
+# Docker Hub as dimskraft/yamlover-demo. The design-vm demo server then just
+# `docker pull`s this public image. GitHub counterpart of
+# .forgejo/workflows/publish-server-docker-hub.yml.
+#
+# Unlike the Forgejo runner (which mounts calculon's host docker daemon and has to
+# drop in the docker CLI + buildx by hand), GitHub-hosted ubuntu-latest already
+# ships docker + buildx, so we use the official docker/* actions. buildx + the
+# docker-container driver give us SBOM + provenance attestations on push.
+#
+# Required GitHub secrets:  DOCKERHUB_USERNAME, DOCKERHUB_TOKEN.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/server/**'
+      - 'examples/**'
+      - 'tools/demo/docker/**'
+      - '.github/workflows/publish-server-docker-hub.yml'
+  workflow_dispatch: {}
+
+jobs:
+  publish:
+    # Real GitHub only — skipped on the Forgejo mirror, which runs the .forgejo copy.
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        # examples/ are normal tracked files; the conformance submodules aren't
+        # needed to build the image, so skip them for a faster checkout.
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22' # 22+: native .ts type-stripping + node:sqlite
+
+      - name: Build server prod artifacts (dist/)
+        run: |
+          npm ci --prefix tools/engine/ts      # engine runtime dep (xxhash-wasm) esbuild inlines
+          npm ci --prefix tools/server         # esbuild + vite + codecs
+          npm --prefix tools/server run build   # → tools/server/dist (client SPA + server.js)
+
+      - name: Read version from package.json
+        id: v
+        run: echo "version=$(node -p "require('./tools/server/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Short SHA
+        id: sha
+        run: echo "short=$(echo "$GITHUB_SHA" | cut -c1-12)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up buildx (needed for SBOM + provenance attestations)
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build, attest (SBOM + provenance), and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: tools/demo/docker/Dockerfile
+          push: true
+          provenance: true
+          sbom: true
+          tags: |
+            dimskraft/yamlover-demo:latest
+            dimskraft/yamlover-demo:${{ steps.v.outputs.version }}
+            dimskraft/yamlover-demo:${{ steps.sha.outputs.short }}
