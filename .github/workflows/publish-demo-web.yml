@@ -1,40 +1,52 @@
 # Deploy the demo SITE (tools/demo) to design-vm: rsync the code into
 # ~/Design/www/yamlover-demo and restart the user systemd service, which re-pulls the
-# latest dimskraft/yamlover-demo image on startup. This is separate from publish-server-docker-hub.yml
+# latest dimskraft/yamlover-demo image on startup. GitHub counterpart of
+# .forgejo/workflows/publish-demo-web.yml. Separate from publish-server-docker-hub.yml
 # (which builds + pushes that image) — here we only ship the orchestrator that launches it.
+#
+# REACHING design-vm: its public SSH (port 22) is locked to a single IP by the GCP VPC
+# firewall, so a GitHub-hosted runner can't connect over the internet. Instead the runner
+# joins the existing self-hosted WireGuard VPN (hub: sedna 140.82.50.142:51820) as an
+# ephemeral peer 10.9.0.3 and SSHes to design-vm at its tunnel IP 10.9.0.2 — tunneled
+# traffic arrives on wg0 and bypasses the public firewall. The hub already routes peer↔peer.
 #
 # One-time host plumbing (user unit, env file, Caddy block, linger) is done by
 # tools/demo/deploy/bootstrap.sh on the VM; this job just refreshes code + the unit.
 #
-# Required Forgejo secret:  DESIGN_VM_DEPLOY_KEY  — private key authorized for dims@design-vm.
-# Optional (have sane defaults): DEPLOY_HOST (34.71.33.48), DEPLOY_USER (dims).
+# Required GitHub secrets:
+#   WG_CI_CONF           — full wireguard-tools config for the runner peer (10.9.0.3);
+#                          its public key is registered on the sedna hub.
+#   DESIGN_VM_DEPLOY_KEY — private key authorized for dims@design-vm (forgejo-deploy-design-vm).
+# Optional (have sane defaults): DEPLOY_HOST (10.9.0.2, design-vm's WG IP), DEPLOY_USER (dims).
 on:
   push:
     branches: [main]
     paths:
       - 'tools/demo/**'
-      - '.forgejo/workflows/publish-demo-web.yml'
+      - '.github/workflows/publish-demo-web.yml'
   workflow_dispatch: {}
 
 jobs:
   deploy:
-    # DISABLED: migrated to .github/workflows/publish-demo-web.yml.
-    # Delete this `if:` line to re-enable the Forgejo job.
-    if: ${{ false }}
-    runs-on: docker
-    container:
-      image: node:22-bookworm
+    # Real GitHub only — skipped on the Forgejo mirror, which runs the .forgejo copy.
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
     env:
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || '34.71.33.48' }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || '10.9.0.2' }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'dims' }}
       DEST: Design/www/yamlover-demo
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install ssh + rsync (the node image ships neither)
+      - name: Join the WireGuard VPN (ephemeral peer 10.9.0.3 → reaches design-vm via sedna)
         run: |
-          apt-get update -qq
-          apt-get install -y -qq openssh-client rsync >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq wireguard-tools >/dev/null
+          umask 077
+          printf '%s\n' "${{ secrets.WG_CI_CONF }}" | sudo tee /etc/wireguard/wgci.conf >/dev/null
+          sudo wg-quick up wgci
+          # confirm the tunnel handshook with the hub before relying on it
+          sudo wg show wgci
 
       - name: Set up SSH key + known_hosts
         run: |
@@ -71,3 +83,7 @@ jobs:
           done
           systemctl --user --no-pager --lines=5 status yamlover-demo | head -12
           REMOTE
+
+      - name: Leave the WireGuard VPN
+        if: always() # tear the tunnel down even if the deploy failed
+        run: sudo wg-quick down wgci || true
