@@ -1,6 +1,6 @@
 # systemd USER unit for the demo server (runs as the deploying user, not root).
-# Installed by bootstrap.sh to ~/.config/systemd/user/yamlover-demo.service so CI can
-# restart it over SSH without sudo. The code lives in the user's home, so a system unit
+# Installed by the publish-demo-web CI job to ~/.config/systemd/user/yamlover-demo.service so
+# it can be restarted over SSH without sudo. The code lives in the user's home, so a system unit
 # (ProtectHome=true) is a poor fit; a user unit accesses $HOME naturally.
 #   systemctl --user daemon-reload && systemctl --user enable --now yamlover-demo
 #   (needs `loginctl enable-linger <user>` so it runs without an active login + survives reboot)
@@ -19,7 +19,7 @@ Restart=always
 RestartSec=3
 # Config, kept OUTSIDE the deploy dir so a code redeploy (rsync --delete) never touches it.
 EnvironmentFile=%h/.config/yamlover-demo.env
-# The Resend API key lives root-only in /etc/resend.env; bootstrap.sh makes it
+# The Resend API key lives root-only in /etc/resend.env; the CI deploy makes it
 # group-readable (root:dims 0640) so this user service can source it. `-` = tolerate absent.
 EnvironmentFile=-/etc/resend.env
 

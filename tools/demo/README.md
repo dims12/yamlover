@@ -103,28 +103,39 @@ server runs as a **user** systemd service (as `dims`, zero npm deps) from
 Caddy (system service, already on the box) terminates TLS with the existing
 `*.inthemoon.net` wildcard cert and reverse-proxies to `127.0.0.1:8080`.
 
-**Prerequisites (already in place on design-vm):** Node ≥ 22, Docker (`dims` in the
-`docker` group), Caddy, the `*.inthemoon.net` cert, and DNS pointing at `34.71.33.48`.
+**Prerequisites (system software, already in place on design-vm):** Node ≥ 22, Docker
+(`dims` in the `docker` group), Caddy, the `*.inthemoon.net` cert, DNS pointing at
+`34.71.33.48`, and that `dims` has passwordless `sudo`. Everything *yamlover-specific* —
+the user unit, env file, Caddy drop-in, linger — is created by the deploy itself.
 
-**One-time host plumbing** — `deploy/bootstrap.sh`, run on the VM as `dims` after the
-code is first synced (installs the user unit, seeds `~/.config/yamlover-demo.env`,
-appends the Caddy block, enables linger, starts the service):
+**Deploy = the GitHub `publish-demo-web` workflow** (`.github/workflows/publish-demo-web.yml`),
+on a push to `main` touching `tools/demo/**`, or manually via **workflow_dispatch**. There is
+**no one-time bootstrap**: every step is idempotent, so a from-scratch host comes up on the
+first run and re-runs only refresh what changed. The job:
 
-```bash
-bash ~/Design/www/yamlover-demo/deploy/bootstrap.sh
-```
+1. joins the WireGuard VPN and SSHes to design-vm at its tunnel IP `10.9.0.2`;
+2. rsyncs the site to `dims@design-vm:Design/www/yamlover-demo` (`--delete`, excluding
+   `.data/` so live state survives);
+3. seeds `~/.config/yamlover-demo.env` from the example *if absent* (then never clobbers it,
+   so secrets/edits survive), installs the user unit, makes `/etc/resend.env` group-readable
+   if present, enables linger, and `enable` + `restart`s the service — which re-pulls the
+   latest `dimskraft/yamlover-demo` image on startup;
+4. ensures `/etc/caddy/conf.d` exists and is imported by `/etc/caddy/Caddyfile`, installs
+   `deploy/Caddyfile` as the whole-file drop-in `/etc/caddy/conf.d/yamlover.caddy`, then
+   `caddy validate` + `systemctl reload caddy`.
 
-**Every code deploy** is the Forgejo `publish-demo-web` workflow (`.forgejo/workflows/
-publish-demo-web.yml`): on a push to `main` touching `tools/demo/**`, it rsyncs the site to
-`dims@design-vm:Design/www/yamlover-demo` and `systemctl --user restart`s the service
-(which re-pulls the latest `dimskraft/yamlover-demo` image on startup). It needs one
-Forgejo secret, `DESIGN_VM_DEPLOY_KEY` (a private key authorized for `dims@design-vm`);
-`DEPLOY_HOST`/`DEPLOY_USER` default to `34.71.33.48`/`dims`.
+Steps 3–4 use `dims`'s passwordless sudo directly. It needs the `WG_CI_CONF` and
+`DESIGN_VM_DEPLOY_KEY` secrets; `DEPLOY_HOST`/`DEPLOY_USER` default to `10.9.0.2` (design-vm's
+WG IP)/`dims`. The `.forgejo/workflows/` twin is the disabled mirror of the same steps.
 
-To enable email, edit `~/.config/yamlover-demo.env` (set `EMAIL_PROVIDER=resend`,
-`RESEND_API_KEY`, and a verified `EMAIL_FROM` — verify SPF/DKIM in Resend first), then
-`systemctl --user restart yamlover-demo`. It ships with `EMAIL_PROVIDER=console`, which
-logs the link to `journalctl --user -u yamlover-demo`.
+Because CI owns the Caddy drop-in, **editing `deploy/Caddyfile` and pushing updates the live
+vhost** — never hand-edit the shared Caddyfile. (Migrating a host that still has an old inline
+`yamlover.inthemoon.net` block: delete that block once so it doesn't collide with the drop-in.)
+
+To enable email, edit `~/.config/yamlover-demo.env` (`EMAIL_PROVIDER=resend` and a verified
+`EMAIL_FROM` — verify SPF/DKIM in Resend first) and put `RESEND_API_KEY=…` in root-only
+`/etc/resend.env`, then `systemctl --user restart yamlover-demo`. With `EMAIL_PROVIDER=console`
+it instead logs the link to `journalctl --user -u yamlover-demo`.
 
 ## Tests
 

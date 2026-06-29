@@ -10,8 +10,12 @@
 # ephemeral peer 10.9.0.3 and SSHes to design-vm at its tunnel IP 10.9.0.2 — tunneled
 # traffic arrives on wg0 and bypasses the public firewall. The hub already routes peer↔peer.
 #
-# One-time host plumbing (user unit, env file, Caddy block, linger) is done by
-# tools/demo/deploy/bootstrap.sh on the VM; this job just refreshes code + the unit.
+# No one-time bootstrap: every step below is idempotent, so a from-scratch host comes up on
+# the first run. The deploy user (dims) has passwordless sudo, so the job seeds the env file,
+# installs the user unit, enables linger, ensures /etc/caddy/conf.d is imported, installs the
+# Caddy drop-in, and reloads — creating whatever is missing and leaving what already exists.
+# Assumes only that system software (Node>=22, Docker with dims in the docker group, Caddy,
+# the *.inthemoon.net cert) is present.
 #
 # Required GitHub secrets:
 #   WG_CI_CONF           — full wireguard-tools config for the runner peer (10.9.0.3);
@@ -66,15 +70,32 @@ jobs:
             -e "ssh -i ~/.ssh/id_deploy -o BatchMode=yes" \
             tools/demo/ "$DEPLOY_USER@$DEPLOY_HOST:$DEST/"
 
-      - name: Refresh user unit + restart service
+      - name: Install + (re)start the user service (idempotent — no prior bootstrap)
         run: |
           ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" bash -se <<'REMOTE'
           set -euo pipefail
-          mkdir -p ~/.config/systemd/user ~/Design/www/yamlover-demo/.data
-          install -m 0644 ~/Design/www/yamlover-demo/deploy/yamlover-demo.service \
+          ME="$(id -un)"
+          DEST="$HOME/Design/www/yamlover-demo"
+          mkdir -p ~/.config/systemd/user "$DEST/.data"
+          # env file lives OUTSIDE the deploy dir (rsync --delete never touches it). Seed it
+          # from the example on first deploy, then leave it alone so secrets/edits survive.
+          if [ ! -f ~/.config/yamlover-demo.env ]; then
+            install -m 0600 "$DEST/deploy/yamlover-demo.env.example" ~/.config/yamlover-demo.env
+          fi
+          install -m 0644 "$DEST/deploy/yamlover-demo.service" \
             ~/.config/systemd/user/yamlover-demo.service
+          # the unit sources the Resend key from root-only /etc/resend.env (EnvironmentFile=-,
+          # so absent is fine). If present, make it group-readable so this user service can read
+          # it (idempotent). Without it, email stays console / sends fail but the server runs.
+          if [ -f /etc/resend.env ]; then
+            sudo chown "root:$(id -gn)" /etc/resend.env
+            sudo chmod 640 /etc/resend.env
+          fi
+          # linger lets the user service run with no active login + survive reboot (idempotent)
+          sudo loginctl enable-linger "$ME"
           export XDG_RUNTIME_DIR="/run/user/$(id -u)"
           systemctl --user daemon-reload
+          systemctl --user enable yamlover-demo
           systemctl --user restart yamlover-demo
           # give it a moment, then confirm it's serving locally
           for i in $(seq 1 20); do
@@ -82,6 +103,28 @@ jobs:
             sleep 1
           done
           systemctl --user --no-pager --lines=5 status yamlover-demo | head -12
+          REMOTE
+
+      - name: Install + reload Caddy site config (idempotent — no prior bootstrap)
+        run: |
+          # The just-rsynced deploy/Caddyfile is the source of truth for the vhost. Ensure the
+          # conf.d dir exists and that the main Caddyfile imports it, install our own whole-file
+          # drop-in (never touches other sites' blocks), validate, then reload. validate runs
+          # before reload, so a bad config fails the job without disrupting the running Caddy
+          # (it keeps serving its last-good in-memory config).
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" bash -se <<'REMOTE'
+          set -euo pipefail
+          SRC="$HOME/Design/www/yamlover-demo/deploy/Caddyfile"
+          MAIN=/etc/caddy/Caddyfile
+          DROPIN=/etc/caddy/conf.d/yamlover.caddy
+          sudo mkdir -p /etc/caddy/conf.d
+          if ! sudo grep -qE '^[[:space:]]*import[[:space:]]+/etc/caddy/conf\.d/\*\.caddy' "$MAIN"; then
+            printf '\nimport /etc/caddy/conf.d/*.caddy\n' | sudo tee -a "$MAIN" >/dev/null
+          fi
+          sudo install -m 0644 "$SRC" "$DROPIN"
+          sudo caddy validate --config "$MAIN" --adapter caddyfile
+          sudo systemctl reload caddy
+          echo "caddy reloaded with $DROPIN"
           REMOTE
 
       - name: Leave the WireGuard VPN

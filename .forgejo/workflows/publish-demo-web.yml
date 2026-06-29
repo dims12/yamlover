@@ -3,8 +3,10 @@
 # latest dimskraft/yamlover-demo image on startup. This is separate from publish-server-docker-hub.yml
 # (which builds + pushes that image) — here we only ship the orchestrator that launches it.
 #
-# One-time host plumbing (user unit, env file, Caddy block, linger) is done by
-# tools/demo/deploy/bootstrap.sh on the VM; this job just refreshes code + the unit.
+# No one-time bootstrap: every remote step is idempotent, so a from-scratch host comes up on
+# the first run. The deploy user (dims) has passwordless sudo, so the job seeds the env file,
+# installs the user unit, enables linger, ensures /etc/caddy/conf.d is imported, installs the
+# Caddy drop-in, and reloads — creating whatever is missing and leaving what already exists.
 #
 # Required Forgejo secret:  DESIGN_VM_DEPLOY_KEY  — private key authorized for dims@design-vm.
 # Optional (have sane defaults): DEPLOY_HOST (34.71.33.48), DEPLOY_USER (dims).
@@ -54,15 +56,32 @@ jobs:
             -e "ssh -i ~/.ssh/id_deploy -o BatchMode=yes" \
             tools/demo/ "$DEPLOY_USER@$DEPLOY_HOST:$DEST/"
 
-      - name: Refresh user unit + restart service
+      - name: Install + (re)start the user service (idempotent — no prior bootstrap)
         run: |
           ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" bash -se <<'REMOTE'
           set -euo pipefail
-          mkdir -p ~/.config/systemd/user ~/Design/www/yamlover-demo/.data
-          install -m 0644 ~/Design/www/yamlover-demo/deploy/yamlover-demo.service \
+          ME="$(id -un)"
+          DEST="$HOME/Design/www/yamlover-demo"
+          mkdir -p ~/.config/systemd/user "$DEST/.data"
+          # env file lives OUTSIDE the deploy dir (rsync --delete never touches it). Seed it
+          # from the example on first deploy, then leave it alone so secrets/edits survive.
+          if [ ! -f ~/.config/yamlover-demo.env ]; then
+            install -m 0600 "$DEST/deploy/yamlover-demo.env.example" ~/.config/yamlover-demo.env
+          fi
+          install -m 0644 "$DEST/deploy/yamlover-demo.service" \
             ~/.config/systemd/user/yamlover-demo.service
+          # the unit sources the Resend key from root-only /etc/resend.env (EnvironmentFile=-,
+          # so absent is fine). If present, make it group-readable so this user service can read
+          # it (idempotent). Without it, email stays console / sends fail but the server runs.
+          if [ -f /etc/resend.env ]; then
+            sudo chown "root:$(id -gn)" /etc/resend.env
+            sudo chmod 640 /etc/resend.env
+          fi
+          # linger lets the user service run with no active login + survive reboot (idempotent)
+          sudo loginctl enable-linger "$ME"
           export XDG_RUNTIME_DIR="/run/user/$(id -u)"
           systemctl --user daemon-reload
+          systemctl --user enable yamlover-demo
           systemctl --user restart yamlover-demo
           # give it a moment, then confirm it's serving locally
           for i in $(seq 1 20); do
@@ -70,4 +89,24 @@ jobs:
             sleep 1
           done
           systemctl --user --no-pager --lines=5 status yamlover-demo | head -12
+          REMOTE
+
+      - name: Install + reload Caddy site config (idempotent — no prior bootstrap)
+        run: |
+          # The just-rsynced deploy/Caddyfile is the source of truth for the vhost. Ensure the
+          # conf.d dir exists and that the main Caddyfile imports it, install our own whole-file
+          # drop-in (never touches other sites' blocks), validate, then reload.
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" bash -se <<'REMOTE'
+          set -euo pipefail
+          SRC="$HOME/Design/www/yamlover-demo/deploy/Caddyfile"
+          MAIN=/etc/caddy/Caddyfile
+          DROPIN=/etc/caddy/conf.d/yamlover.caddy
+          sudo mkdir -p /etc/caddy/conf.d
+          if ! sudo grep -qE '^[[:space:]]*import[[:space:]]+/etc/caddy/conf\.d/\*\.caddy' "$MAIN"; then
+            printf '\nimport /etc/caddy/conf.d/*.caddy\n' | sudo tee -a "$MAIN" >/dev/null
+          fi
+          sudo install -m 0644 "$SRC" "$DROPIN"
+          sudo caddy validate --config "$MAIN" --adapter caddyfile
+          sudo systemctl reload caddy
+          echo "caddy reloaded with $DROPIN"
           REMOTE

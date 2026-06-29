@@ -1,5 +1,8 @@
-# Caddy site block for the demo. bootstrap.sh APPENDS this to the host's existing
-# /etc/caddy/Caddyfile (which already serves other sites — it is never clobbered).
+# Caddy site config for the demo, owned as a whole-file drop-in: the publish-demo-web CI job
+# installs this to /etc/caddy/conf.d/yamlover.caddy (ensuring the host's /etc/caddy/Caddyfile
+# pulls it in via `import /etc/caddy/conf.d/*.caddy`) and overwrites it on every deploy.
+# Because it's our own file, the shared Caddyfile's other sites are
+# never touched, and edits to this file actually propagate (no append-only drift).
 # Reuses the wildcard *.inthemoon.net cert already on the box and reverse-proxies the
 # whole app — the registration page AND every /demo/<hash>/ — to the demo server. Caddy
 # flushes streamed responses, so the yamlover SSE stream (/api/events) passes through live.
