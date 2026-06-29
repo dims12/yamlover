@@ -2,7 +2,14 @@
   "name": "yamlover-workspace",
   "private": true,
   "type": "module",
-  "description": "yamlover monorepo root. Run tests and the dev server from HERE (the project root).",
+  "description": "yamlover monorepo root. Install, test, and run the dev server from HERE (the project root).",
+  "comment:workspaces": "npm workspaces: one `npm install` at the root installs every package and hoists shared deps (e.g. xxhash-wasm) into the root node_modules, which is an ancestor of the engine/parser source the server reaches into by relative path — so resolution works everywhere. tools/desktop is intentionally excluded so a normal dev install doesn't pull Electron; install it on its own when needed.",
+  "workspaces": [
+    "tools/parser/ts",
+    "tools/engine/ts",
+    "tools/server",
+    "tools/demo"
+  ],
   "scripts": {
     "test": "node --test tools/parser/ts/test/*.test.ts tools/engine/ts/test/*.test.ts",
     "test:parser": "node --test tools/parser/ts/test/*.test.ts",
