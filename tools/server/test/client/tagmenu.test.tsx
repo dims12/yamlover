@@ -146,14 +146,22 @@ describe("useExplorerTagMenu — right-click whole-node tagging", () => {
     expect(mAnnotate.mock.calls[0][0].target).toBe(":doc.md");
   });
 
-  it("pre-applies the default tag immediately when the node opens with NO tags", async () => {
+  it("does NOT auto-apply any tag when a whole node opens with no tags (a right-click never tags silently)", async () => {
     mAnns.mockResolvedValue([]); // an untagged node
     render(<Harness />);
     fireEvent.click(screen.getByText("open"));
-    // opening writes the seed tag at once (it then shows checked; click to remove). The seed is the
-    // project default (settings.yamlover annotation-tag, IMPORTS.md); the mocked config has none, so
-    // it is the palette default — assert SOME tag is auto-applied to this target.
-    await waitFor(() => expect(mAnnotate).toHaveBeenCalledWith(expect.objectContaining({ target: ":doc.md" })));
+    await waitFor(() => expect(mAnns).toHaveBeenCalledWith(":doc.md")); // it loaded the node's tags…
+    expect(mAnnotate).not.toHaveBeenCalled(); // …but writes nothing just for opening (that is region tagging's job)
+  });
+
+  it("ignores FRAGMENT annotations — an image with a tagged REGION is not itself tagged", async () => {
+    // the node's only annotation is on a fragment (a tagged region), marked by `fragmentSlug`
+    mAnns.mockResolvedValue([{ tag: { path: ":tags:верхушка", name: "верхушка", color: null }, fragmentSlug: "abc" }]);
+    render(<Harness />);
+    fireEvent.click(screen.getByText("open"));
+    await waitFor(() => expect(mAnns).toHaveBeenCalledWith(":doc.md"));
+    expect(screen.queryByText("верхушка")).toBeNull(); // the fragment's tag is not a whole-node tag
+    expect(mAnnotate).not.toHaveBeenCalled(); // and nothing is auto-applied
   });
 
   it("picking a tag PERSISTS it as the project default (saveLastTag), not browser localStorage", async () => {

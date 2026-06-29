@@ -12,26 +12,24 @@ import { canonPath } from "../paths";
  * refreshed in place. The underlying view also refreshes through its own `useDiffBump`.
  */
 export function useExplorerTagMenu(): { openAt: (target: string, x: number, y: number) => void; tagMenu: ReactNode } {
-  const [tag, setTag] = useAnnotationTag();
+  const [, setTag] = useAnnotationTag();
   const [menu, setMenu] = useState<{ target: string; x: number; y: number } | null>(null);
   const [current, setCurrent] = useState<Annotation[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   const close = () => { setMenu(null); setCurrent([]); };
 
-  const reload = (target: string) => fetchAnnotations(target).then(setCurrent).catch(() => setCurrent([]));
-  // Open the picker, and if the node has NO tags yet, immediately apply the last-used tag — it
-  // opens visibly checked (click it to remove). A node that already has tags is left untouched.
+  // The whole-node tag menu shows only WHOLE-NODE tags: a FRAGMENT annotation (a tagged region,
+  // `fragmentSlug` set) belongs to the fragment, not the node — an image with a tagged region is
+  // not itself tagged — so it never counts here.
+  const reload = (target: string) =>
+    fetchAnnotations(target).then((anns) => setCurrent(anns.filter((a) => !a.fragmentSlug))).catch(() => setCurrent([]));
+  // Open the picker on the node's CURRENT whole-node tags; the user picks one to ADD. Unlike REGION
+  // tagging (which auto-applies the last tag to save a click once a selection is drawn), a right-click
+  // on a whole node must NEVER silently tag it just for opening the menu.
   const openAt = (target: string, x: number, y: number) => {
     setMenu({ target, x, y });
     setCurrent([]);
-    fetchAnnotations(target)
-      .then((anns) => {
-        if (anns.length === 0) {
-          setCurrent([{ path: "(pending)", tag }]); // OPTIMISTIC: show the default tag at once
-          annotate({ target, tag: tag.path }).then(() => reload(target)).catch(() => setCurrent([]));
-        } else setCurrent(anns);
-      })
-      .catch(() => setCurrent([]));
+    reload(target);
   };
 
   // Both toggles update the menu OPTIMISTICALLY (no wait on the write round-trip) and reconcile from
