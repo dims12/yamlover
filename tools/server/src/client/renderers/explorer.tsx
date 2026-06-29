@@ -129,8 +129,11 @@ function arrowTarget(els: (HTMLElement | null)[], cur: number, key: string, coun
 
 /** The thumbnail source for a member, or null when it isn't a previewable image: a raster image
  *  goes through the server's /api/thumb (which downscales + caches, and 415s formats it can't
- *  decode → the glyph shows); an SVG serves its own bytes (the browser scales the vector). */
+ *  decode → the glyph shows); an SVG serves its own bytes (the browser scales the vector). A node
+ *  that carries a `preview` path (a fragment → its crop blob) previews by THAT image — a fragment
+ *  is not file-backed, so it thumbnails its crop instead of its own (non-existent) bytes. */
 function thumbSrc(link: Link, box: number): string | null {
+  if (link.preview) return thumbUrl(link.preview, box, box);
   const fmt = link.format ?? null;
   if (!fmt || !fmt.startsWith("image/")) return null;
   if (fmt === "image/svg+xml") return blobUrl(link.path);

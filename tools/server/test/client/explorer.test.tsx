@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 
 vi.mock("../../src/client/api", () => ({
   fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
@@ -217,6 +217,22 @@ describe("ExplorerView (a tag)", () => {
     expect(hrefs).toContain(":name");
     expect(hrefs).not.toContain(":annotations:a1.yamlover"); // the annotation stays out
     expect(hrefs.filter((h) => h === ":tags.yamlover:yellow:pale")).toHaveLength(1); // deduped
+  });
+
+  it("previews a tagged FRAGMENT by its crop image (the link's `preview`), not a generic glyph", async () => {
+    const crop = ":72-images:eiffel-tower:.yamlover:fragments:abc.png";
+    mTagged.mockResolvedValue([
+      link({
+        kind: "object", type: "object", format: "x-yamlover-fragment",
+        path: ":72-images:eiffel-tower:IMG.jpg:yamlover-fragments:abc", count: 7, preview: crop,
+      }),
+    ]);
+    render(<ExplorerView node={tag} view="large" onNavigate={() => {}} />);
+    // the fragment material arrives (async) and renders its crop through /api/thumb — the fragment
+    // node itself is not file-backed, so it thumbnails its `preview` crop instead of a generic glyph
+    await waitFor(() => expect(document.querySelector("img.dirview-thumb")).toBeTruthy());
+    const img = document.querySelector("img.dirview-thumb")!;
+    expect(img.getAttribute("src")).toBe(`/api/thumb?path=${encodeURIComponent(crop)}&w=256&h=256`);
   });
 
   it("shows the description in the header (no badge — the bar already names the tag) and badge-styled subtags", () => {

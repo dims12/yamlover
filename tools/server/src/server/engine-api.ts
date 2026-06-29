@@ -1089,6 +1089,13 @@ function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unk
     const c = s.node(p + ":color")?.value;
     if (typeof c === "string") info.color = c;
   }
+  if (row.format === FRAGMENT_FORMAT) {
+    // a fragment is a region of an image with a materialized CROP blob (its `image` ref); ride
+    // the crop's path on the link so a grid (e.g. the tag page's explorer) previews the fragment
+    // by its crop, the way an image previews by its own bytes — a fragment is not file-backed.
+    const imgEdge = s.relationships(p).out.find((o) => o.kind === "ref" && o.label === "image");
+    if (imgEdge) info.preview = segsToStr(storePathToSegs(imgEdge.to));
+  }
   return { [LINK_KEY]: info };
 }
 
@@ -1212,6 +1219,7 @@ function labelFor(s: Store, p: string, keyOrIdx: Seg): string {
 // --------------------------------------------------------------------------- //
 
 const TAG_FORMAT = "x-yamlover-tag";
+const FRAGMENT_FORMAT = "x-yamlover-fragment";
 const ANN_KEY = "yamlover-annotations";
 const FRAG_KEY = "yamlover-fragments";
 const THUMB_KEY = "yamlover-thumbnails";
