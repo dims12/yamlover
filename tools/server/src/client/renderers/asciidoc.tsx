@@ -3,7 +3,7 @@ import { NodeJson } from "../api";
 import { scalarValue } from "../render";
 import { Chunk } from "./registry";
 import { anchorizeHeadings, useHashScroll } from "./headings";
-import { Markup } from "./markup";
+import { Markup, markupClick, rewriteRelativeLinks } from "./markup";
 
 // One processor instance for the app; `convert` is pure per call.
 const processor = Asciidoctor();
@@ -16,21 +16,24 @@ const processor = Asciidoctor();
  * (see {@link anchorizeHeadings}); Asciidoctor's own section ids are kept, so the
  * anchors line up with the document's internal cross-references.
  */
-function adoc(value: unknown): string {
-  return anchorizeHeadings(processor.convert(String(value ?? ""), { standalone: false }) as string);
+function adoc(value: unknown, anchorPath?: string): string {
+  const html = anchorizeHeadings(processor.convert(String(value ?? ""), { standalone: false }) as string);
+  return rewriteRelativeLinks(html, anchorPath);
 }
 
-export function AsciidocView({ node }: { node: NodeJson }) {
+export function AsciidocView({ node, onNavigate }: { node: NodeJson; onNavigate?: (path: string) => void }) {
   useHashScroll(node);
   return (
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <Markup html={adoc(scalarValue(node.value))} />
+      <Markup html={adoc(scalarValue(node.value), node.path)} onNavigate={onNavigate} />
     </div>
   );
 }
 
-export function AsciidocChunk({ chunk }: { chunk: Chunk }) {
-  return <div className="markup" dangerouslySetInnerHTML={{ __html: adoc(chunk.value) }} />;
+export function AsciidocChunk({ chunk, onNavigate }: { chunk: Chunk; onNavigate?: (path: string) => void }) {
+  return (
+    <div className="markup" onClick={markupClick(onNavigate)} dangerouslySetInnerHTML={{ __html: adoc(chunk.value, chunk.documentPath) }} />
+  );
 }

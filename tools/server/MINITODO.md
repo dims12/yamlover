@@ -16,7 +16,7 @@
 - 005 Page #fragment links for PDFs and DJVUs
 - 006 Support #fragment links for MDs and ADOCs +DONE
 - 007 SVGs are stretched +DONE
-- 008 Links in MDs and ADOCs are not working; prepare endpoint, that redirects from these links into our space
+- 008 Links in MDs and ADOCs are not working; prepare endpoint, that redirects from these links into our space +DONE (no endpoint needed — relative `<a href>` rewritten to in-app JSON-space paths + SPA-navigated, mirroring the `<img>` rewrite; see markup.tsx `rewriteRelativeLinks`/`markupClick`)
 - 007 Tag diagrams are centered, should also be left aligned +DONE
 - 010 Support XML, DOC, DOCX
 - 011 Support CSV +DONE
