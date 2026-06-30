@@ -17,7 +17,8 @@ vi.mock("../../src/client/api", () => ({
 }));
 import { fetchTagged } from "../../src/client/api";
 import type { NodeJson } from "../../src/client/api";
-import { ExplorerView } from "../../src/client/renderers/explorer";
+import { ExplorerView, generalItems, tagItems, buildExplorerItems } from "../../src/client/renderers/explorer";
+import type { Link } from "../../src/client/render";
 
 const mTagged = fetchTagged as unknown as ReturnType<typeof vi.fn>;
 
@@ -219,6 +220,19 @@ describe("ExplorerView (a tag)", () => {
     expect(hrefs.filter((h) => h === ":tags.yamlover:yellow:pale")).toHaveLength(1); // deduped
   });
 
+  it("shows NO uplinks (a tag lists its materials, not a folder to ascend from)", () => {
+    const tagWithRel = node({
+      path: ":tags.yamlover:yellow",
+      format: "x-yamlover-tag",
+      concrete: null,
+      value: { color: link({ kind: "scalar", type: "string", path: ":tags.yamlover:yellow:color", value: "#f9e2af" }) },
+      relations: { "..": link({ kind: "object", type: "object", path: ":tags.yamlover", count: 1 }) },
+    });
+    render(<ExplorerView node={tagWithRel} view="large" onNavigate={() => {}} />);
+    expect(items().every((el) => !el.className.includes("dirview-up"))).toBe(true);
+    expect(items().map((el) => el.getAttribute("href"))).not.toContain(":tags.yamlover");
+  });
+
   it("previews a tagged FRAGMENT by its crop image (the link's `preview`), not a generic glyph", async () => {
     const crop = ":72-images:eiffel-tower:.yamlover:fragments:abc.png";
     mTagged.mockResolvedValue([
@@ -242,5 +256,47 @@ describe("ExplorerView (a tag)", () => {
     // the subtag renders as a colored badge inside its grid item
     const pale = items().find((el) => el.textContent?.includes("pale"))!;
     expect(pale.querySelector(".tagtag")).toBeTruthy();
+  });
+});
+
+describe("explorer projection mappers (the single source all views draw from)", () => {
+  it("generalItems: uplinks first, then members", () => {
+    const n = node({
+      value: { a: link({ kind: "scalar", path: ":dir:a", value: 1 }) },
+      relations: { "..": link({ kind: "object", path: ":", count: 0 }) },
+    });
+    const out = generalItems(n);
+    expect(out[0].up).toBe(true);
+    expect(out[0].key).toBe("..");
+    expect(out[1].up).toBeFalsy();
+    expect(out[1].key).toBe("a");
+  });
+
+  it("tagItems: no uplinks; drops annotation members; merges tagged materials, deduped by path", () => {
+    const n = node({
+      format: "x-yamlover-tag",
+      value: {
+        pale: link({ kind: "object", format: "x-yamlover-tag", path: ":t:pale", count: 0 }),
+        a1: link({ kind: "object", format: "x-yamlover-annotation", path: ":annotations:a1", count: 1 }),
+      },
+      relations: { "..": link({ kind: "object", path: ":tags", count: 1 }) },
+    });
+    const tagged: Link[] = [
+      { kind: "scalar", path: ":name", value: "Alice" },
+      { kind: "object", format: "x-yamlover-tag", path: ":t:pale", count: 0 }, // dup of an owned field
+    ];
+    const out = tagItems(n, tagged);
+    expect(out.some((it) => it.up)).toBe(false); // no uplinks
+    const paths = out.map((it) => it.link?.path);
+    expect(paths).not.toContain(":annotations:a1"); // annotation node dropped
+    expect(paths).toContain(":name"); // material merged in
+    expect(paths.filter((p) => p === ":t:pale")).toHaveLength(1); // deduped
+  });
+
+  it("buildExplorerItems dispatches by node.format (tag → no uplinks, else general)", () => {
+    const dir = node({ value: {}, relations: { "..": link({ kind: "object", path: ":", count: 0 }) } });
+    expect(buildExplorerItems(dir, []).some((it) => it.up)).toBe(true);
+    const tag = node({ format: "x-yamlover-tag", value: {}, relations: { "..": link({ kind: "object", path: ":", count: 0 }) } });
+    expect(buildExplorerItems(tag, []).some((it) => it.up)).toBe(false);
   });
 });

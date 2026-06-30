@@ -72,6 +72,33 @@ export function memberItems(node: NodeJson): ExplorerItem[] {
   return Object.entries(v as Record<string, unknown>).map(([key, val]) => ({ key, link: asLink(val), raw: val }));
 }
 
+// ---- the per-node-kind MAPPERS: the single projection every view draws from ---- //
+
+/** The GENERAL mapper: a node's reverse UPLINKS (`..` parent + named back-edges) FIRST, then its
+ *  members. Used for every non-tag node — directories, data containers, board dirs. */
+export function generalItems(node: NodeJson): ExplorerItem[] {
+  return [...uplinkItems(node.relations), ...memberItems(node)];
+}
+
+/** The TAG mapper: a tag lists the MATERIALS filed under it — its owned fields (e.g. subtags) plus
+ *  the tagged nodes from /api/tagged (annotations resolved to their targets), deduped by path. The
+ *  raw back-edge members are the mediating ANNOTATION nodes, dropped here. A tag shows NO uplinks:
+ *  its page is a listing of its materials, not a directory to ascend from. */
+export function tagItems(node: NodeJson, tagged: Link[]): ExplorerItem[] {
+  // directly-tagged nodes appear both as an owned field and in /api/tagged → dedup by path
+  const members = memberItems(node).filter((m) => m.link?.format !== ANNOTATION_FORMAT);
+  const have = new Set(members.map((m) => m.link?.path).filter(Boolean));
+  for (const l of tagged) if (!have.has(l.path)) members.push({ key: tagLabel(l.path, l.title), link: l });
+  return members;
+}
+
+/** The single projection driving EVERY explorer view (icons, details, and the board's cards): a
+ *  per-kind mapper turning a node — plus any fetched tag materials — into the ordered item list.
+ *  A tag uses {@link tagItems} (materials, no uplinks); everything else {@link generalItems}. */
+export function buildExplorerItems(node: NodeJson, tagged: Link[]): ExplorerItem[] {
+  return node.format === TAG_FORMAT ? tagItems(node, tagged) : generalItems(node);
+}
+
 /** The JSON-Schema type name of a raw value — so a non-marker member still resolves its icon
  *  through the shared {@link typeIcon} detector (icons.ts), not an ad-hoc glyph. */
 function rawType(v: unknown): string {
@@ -230,16 +257,9 @@ export function ExplorerView({ node, view, onNavigate }: { node: NodeJson; view:
     };
   }, [node.path, isTag, diffBump]);
 
-  const ups = uplinkItems(node.relations);
-  let members = memberItems(node);
-  if (isTag) {
-    // the raw back-edge members are the mediating ANNOTATION nodes — the grid shows the
-    // materials from /api/tagged instead (directly-tagged nodes are in both → dedup by path)
-    members = members.filter((m) => m.link?.format !== ANNOTATION_FORMAT);
-    const have = new Set(members.map((m) => m.link?.path).filter(Boolean));
-    for (const l of tagged) if (!have.has(l.path)) members.push({ key: tagLabel(l.path, l.title), link: l });
-  }
-  const items = [...ups, ...members];
+  // The one projection all views share: per-kind mapper → the ordered item list (a tag's materials
+  // with no uplinks; any other node's uplinks + members). See buildExplorerItems.
+  const items = buildExplorerItems(node, tagged);
 
   // Roving keyboard focus over the grid: plain arrows walk the icons, Enter opens the
   // selected one. The item elements are tracked by index for the geometry-based row moves.
@@ -280,7 +300,7 @@ export function ExplorerView({ node, view, onNavigate }: { node: NodeJson; view:
 
   // The layout to draw arrives as a prop (the tab the user picked — registry.tsx).
   if (view === "board") return <>{tagMenu}<BoardView node={node} onNavigate={onNavigate} openContextMenu={openAt} /></>;
-  if (view === "details") return <>{tagMenu}<DetailsView members={members} onNavigate={onNavigate} openContextMenu={openAt} /></>;
+  if (view === "details") return <>{tagMenu}<DetailsView members={items} onNavigate={onNavigate} openContextMenu={openAt} /></>;
 
   // a tag page's description is its BODY (the header bar already names the node)
   const desc = (isTag ? tagBody(node.value) : null) ?? node.description;

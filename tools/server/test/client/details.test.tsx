@@ -47,6 +47,18 @@ describe("DetailsView", () => {
     expect(screen.getByText("empty")).toBeTruthy();
   });
 
+  it("renders uplink items as rows, but does not raise the tag menu on them (right-click is gated on !up)", () => {
+    const up: ExplorerItem = { ...item(":", null, "..", { concrete: "dir", count: 3 }), key: "..", up: true };
+    const menu = vi.fn();
+    render(<DetailsView members={[up, item(":notes", null, "Notes", { concrete: "dir", count: 7 })]} onNavigate={() => {}} openContextMenu={menu} />);
+    const rows = [...document.querySelectorAll("tr.details-row")];
+    expect(rows).toHaveLength(2); // the uplink shows as a row alongside the member
+    fireEvent.contextMenu(rows[0]); // the `..` uplink row
+    expect(menu).not.toHaveBeenCalled();
+    fireEvent.contextMenu(rows[1]); // a normal member
+    expect(menu).toHaveBeenCalledWith(":notes", expect.any(Number), expect.any(Number));
+  });
+
   it("renders a color tag as a circular swatch, a named tag as a badge", async () => {
     mAnns.mockResolvedValue([
       { tag: { path: "::yamlover:tags:colors:yellow", name: "yellow", color: "#f9e2af" } },

@@ -105,7 +105,7 @@ export function DetailsView({
                 key={`${l.path}#${i}`}
                 className="details-row"
                 onClick={() => onNavigate(l.path)}
-                onContextMenu={openContextMenu ? (e) => { e.preventDefault(); openContextMenu(l.path, e.clientX, e.clientY); } : undefined}
+                onContextMenu={openContextMenu && !it.up ? (e) => { e.preventDefault(); openContextMenu(l.path, e.clientX, e.clientY); } : undefined}
                 title={displayPath(l.path)}
               >
                 <td className="details-name">

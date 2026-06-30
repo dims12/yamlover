@@ -104,6 +104,23 @@ describe("GET /api/tagged", () => {
     expect(call(h, "/api/tagged", { path: TAG }).json.map((m: any) => m.$yamloverLink.path)).toEqual([":name"]);
   });
 
+  it("excludes hidden-overlay owners: settings.yamlover's `annotation-tag` pointer never appears as a material", async () => {
+    // settings.yamlover (under the hidden `.yamlover` overlay) records the last-used tag as a
+    // forward pointer → that back-references the tag, but the settings file must not be listed.
+    const root = tmpTree({
+      name: "Alice",
+      ...TAG_FILE,
+      ".yamlover/settings.yamlover": "annotation-tag: *:: tags.yamlover: yellow\n",
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: TAG });
+
+    const paths = call(h, "/api/tagged", { path: TAG }).json.map((m: any) => m.$yamloverLink.path);
+    expect(paths).toContain(":name"); // the real material is still listed
+    expect(paths.some((p: string) => p.startsWith(":.yamlover"))).toBe(false); // the overlay owner is excluded
+  });
+
   it("404s for a path that is not a tag node", async () => {
     const h = createHandlers(tmpTree({ name: "Alice", ...TAG_FILE }), { gitignore: false });
     await h.ready;

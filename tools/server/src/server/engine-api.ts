@@ -857,6 +857,14 @@ const relKey = (label: string | null, other: string): string => `${label ?? ""} 
 /** Whether a node is flagged hidden (the `.yamlover` overlay subtree): resolvable by pointer, but
  *  omitted from the TOC, directory-member projection, and visible child counts. */
 const isHidden = (s: Store, to: string): boolean => !!s.node(to)?.meta?.hidden;
+/** Whether a node lives in the hidden `.yamlover` overlay subtree: it OR a containment ancestor is
+ *  hidden. `meta.hidden` is set only on the `.yamlover` dir node (not propagated to its children),
+ *  so an own-meta check misses descendants like `settings.yamlover` — walk up to catch them. */
+const inHiddenSubtree = (s: Store, p: string): boolean => {
+  for (let segs = storePathToSegs(p); segs.length; segs = segs.slice(0, -1))
+    if (isHidden(s, storePath(segs))) return true;
+  return false;
+};
 /** Has a child that ISN'T hidden — the `hasChildren` a directory should report (a dir whose only
  *  child is `.yamlover` reads as a leaf). */
 const visibleHasChildren = (s: Store, p: string): boolean => s.children(p).some((c) => !isHidden(s, c.to));
@@ -1326,7 +1334,9 @@ function taggedMaterials(dataRoot: string, s: Store, tagStorePath: string): unkn
   for (const e of ins) {
     const arrOwner = e.from.replace(/\[\d+\]$/, "").match(/^(.*):yamlover-annotations$/);
     const owner = arrOwner ? arrOwner[1] || ":" : e.from; // an annotation array → its host; else a direct member
-    if (owner === tagStorePath || seen.has(owner) || !s.node(owner)) continue;
+    // skip the tag itself, dups, missing nodes, and any owner in the hidden `.yamlover` overlay
+    // subtree (e.g. settings.yamlover, whose `annotation-tag:` pointer back-references this tag)
+    if (owner === tagStorePath || seen.has(owner) || !s.node(owner) || inHiddenSubtree(s, owner)) continue;
     seen.add(owner);
     out.push(linkMarker(dataRoot, s, storePathToSegs(owner)));
   }

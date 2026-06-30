@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NodeJson, fetchNode, TagRef, saveBoardColumns } from "../api";
-import { asLink } from "../render";
+import { memberItems } from "./explorer";
 import { touchesYamlover, useDiffBump } from "../live";
 import { resolveTagColor, tagFields } from "./tag";
 import { displayPath } from "../paths";
@@ -55,16 +55,17 @@ function explicitColumns(node: NodeJson): string[][] | null {
   return raw.map((lane) => (Array.isArray(lane) ? lane.map(targetPath).filter((p): p is string => !!p) : []));
 }
 
-/** The directory's CARD members — content entities, not the board's own config / taxonomy / graft. */
-function cardMemberPaths(node: NodeJson): string[] {
-  const out: string[] = [];
-  for (const [key, val] of tagFields(node.value)) {
-    if (key === "workflow" || key === "columns" || key === "yamlover" || key === "tags") continue;
-    const link = asLink(val);
-    if (!link || (link.format && CONTAINER_TAGISH.has(link.format))) continue;
-    out.push(link.path);
-  }
-  return out;
+// Keys the board owns as config / taxonomy / graft — never cards.
+const BOARD_CONFIG_KEYS = new Set(["workflow", "columns", "yamlover", "tags"]);
+
+/** The directory's CARD members — content entities, not the board's own config / taxonomy / graft.
+ *  Drawn from the SHARED projection ({@link memberItems}) so a board lists the same members the
+ *  icon/details views do, minus the board's config keys and any nested tag/workflow/board link. */
+export function cardMemberPaths(node: NodeJson): string[] {
+  return memberItems(node)
+    .filter((it) => it.link && !BOARD_CONFIG_KEYS.has(it.key))
+    .filter((it) => !(it.link!.format && CONTAINER_TAGISH.has(it.link!.format)))
+    .map((it) => it.link!.path);
 }
 
 /** Every tag a card carries — its `yamlover-annotations` element targets (link or `{tag}` object). */
