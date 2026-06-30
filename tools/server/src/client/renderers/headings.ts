@@ -60,10 +60,27 @@ export function anchorizeHeadings(html: string): string {
 /** Scroll to the element named by the URL hash once `dep` (the rendered node)
  *  settles. A deep link `<page>#<slug>` lands on the page, but the value is fetched
  *  async — after the browser's own one-shot scroll — so re-scroll when it arrives.
- *  The same pattern the chapter renderer uses for `#/chunks[n]`. */
+ *  The same pattern the chapter renderer uses for `#/chunks[n]`.
+ *
+ *  A FRAGMENT hash (`…#yamlover-fragments/<slug>` — see {@link fragmentAnchorId}) also
+ *  briefly FLASHES its target, so clicking a fragment in the RHS panel (which just sets the
+ *  hash) or opening a shared fragment link draws the eye to the region. Heading slug anchors
+ *  and ordinary `#/cont` data anchors stay scroll-only. Re-runs on `hashchange` too, so an
+ *  in-page hash change (no navigation) reveals without a remount. */
 export function useHashScroll(dep: unknown): void {
   useEffect(() => {
-    const id = decodeURIComponent(window.location.hash.slice(1));
-    if (id) document.getElementById(id)?.scrollIntoView?.(); // optional-call: absent in jsdom
+    const reveal = () => {
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      if (!id) return;
+      const el = document.getElementById(id);
+      if (!el?.scrollIntoView) return; // absent in jsdom, or no such anchor yet (value still loading)
+      el.scrollIntoView({ block: "center" });
+      if (!id.includes("yamlover-fragments/")) return; // only fragments flash
+      el.classList.add("yo-reveal-flash");
+      window.setTimeout(() => el.classList.remove("yo-reveal-flash"), 1000);
+    };
+    reveal();
+    window.addEventListener("hashchange", reveal);
+    return () => window.removeEventListener("hashchange", reveal);
   }, [dep]);
 }

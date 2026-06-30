@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { NodeJson, blobUrl } from "../api";
+import { fragmentAnchorId } from "../paths";
 import { Chunk } from "./registry";
 import { bytesToGeoJSON, GeoJSON } from "./kml";
 import { Annotation } from "../api";
@@ -33,15 +34,17 @@ const TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 /** A rectangular annotation region on the map, in geographic edges (degrees). `ann` is the source
- *  annotation when it is a real saved one (→ clickable to edit); absent for the live preview. */
-interface MapRegion { n: number; s: number; e: number; w: number; title?: string; color?: string; ann?: Annotation }
+ *  annotation when it is a real saved one (→ clickable to edit); absent for the live preview.
+ *  `id` is the fragment's `#`-anchor (set for a saved fragment) — the key a hash reveal pans to. */
+interface MapRegion { n: number; s: number; e: number; w: number; title?: string; color?: string; ann?: Annotation; id?: string }
 const num = (v: unknown): number => Number(v) || 0;
 
-/** The `map`-type annotations, as geographic rectangles to overlay. */
-function mapRegions(anns: Annotation[]): MapRegion[] {
+/** The `map`-type annotations, as geographic rectangles to overlay. `materialPath` lets a saved
+ *  fragment carry its `#yamlover-fragments/<slug>` anchor id so a hash reveal can pan to it. */
+function mapRegions(anns: Annotation[], materialPath: string): MapRegion[] {
   return anns
     .filter((a) => a.selector?.type === "map")
-    .map((a) => ({ n: num(a.selector!.n), s: num(a.selector!.s), e: num(a.selector!.e), w: num(a.selector!.w), title: a.description, color: colorOf(a), ann: editable(a) ? a : undefined }));
+    .map((a) => ({ n: num(a.selector!.n), s: num(a.selector!.s), e: num(a.selector!.e), w: num(a.selector!.w), title: a.description, color: colorOf(a), ann: editable(a) ? a : undefined, id: a.fragmentSlug ? fragmentAnchorId(materialPath, a.fragmentSlug) : undefined }));
 }
 
 function escapeHtml(s: string): string {
@@ -157,22 +160,46 @@ function MapBody({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);
 
+  // Each saved fragment's rectangle keyed by its `#`-anchor id, so a hash reveal can pan to + flash
+  // it (a Leaflet rect is SVG outside the page scroll flow — scrollIntoView can't reach it).
+  const shapesRef = useRef(new Map<string, { rect: L.Rectangle; bounds: L.LatLngBoundsExpression }>());
+
   // Draw region rectangles into the overlay layer — in place, so creating one keeps the view.
   useEffect(() => {
     const lg = layerRef.current;
     if (!lg) return;
     lg.clearLayers();
+    shapesRef.current.clear();
     for (const r of regions ?? []) {
       const c = r.color || DEFAULT_COLOR;
-      const rect = L.rectangle([[r.s, r.w], [r.n, r.e]], { className: "yo-region", color: c, weight: 3, fillColor: c, fillOpacity: 0.25 });
+      const bounds: L.LatLngBoundsExpression = [[r.s, r.w], [r.n, r.e]];
+      const rect = L.rectangle(bounds, { className: "yo-region", color: c, weight: 3, fillColor: c, fillOpacity: 0.25 });
       if (r.title) rect.bindTooltip(r.title);
       if (r.ann) {
         const ann = r.ann;
         rect.on("click", (ev) => { L.DomEvent.stop(ev); onRegionClickRef.current?.(ann, { x: ev.originalEvent.clientX, y: ev.originalEvent.clientY }); });
       }
       rect.addTo(lg);
+      if (r.id) shapesRef.current.set(r.id, { rect, bounds });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regionsKey, ready]);
+
+  // Reveal a fragment named by the URL hash: pan/zoom to its rectangle and pulse it. Runs once the
+  // overlay is drawn and on every later `hashchange` (an RHS-panel click just sets the hash).
+  useEffect(() => {
+    const reveal = () => {
+      const map = mapRef.current;
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      const shape = id ? shapesRef.current.get(id) : undefined;
+      if (!map || !shape) return;
+      map.fitBounds(shape.bounds, { maxZoom: map.getZoom(), padding: [40, 40] });
+      shape.rect.setStyle({ weight: 6, fillOpacity: 0.45 });
+      window.setTimeout(() => shape.rect.setStyle({ weight: 3, fillOpacity: 0.25 }), 1000);
+    };
+    reveal();
+    window.addEventListener("hashchange", reveal);
+    return () => window.removeEventListener("hashchange", reveal);
   }, [regionsKey, ready]);
 
   return (
@@ -194,7 +221,7 @@ export function MapView({ node }: { node: NodeJson }) {
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <MapBody path={node.path} regions={mapRegions(shown)} onSelectRegion={openCreate} onRegionClick={openEdit} selectColor={() => color} className="filemap" />
+      <MapBody path={node.path} regions={mapRegions(shown, node.path)} onSelectRegion={openCreate} onRegionClick={openEdit} selectColor={() => color} className="filemap" />
       {palette}
     </div>
   );

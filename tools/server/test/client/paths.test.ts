@@ -12,6 +12,7 @@ import {
   writeUrl,
   pageFromUrl,
   writePageToUrl,
+  fragmentAnchorId,
 } from "../../src/client/paths";
 
 describe("client paths", () => {
@@ -82,5 +83,13 @@ describe("client paths", () => {
     writeUrl(":other.pdf", "pdf"); // navigate to another node (push) drops it
     expect(pageFromUrl()).toBe(1);
     expect(window.location.search).toBe("?format=pdf");
+  });
+
+  it("fragmentAnchorId is the material-relative tail (#yamlover-fragments/<slug>, no leading slash)", () => {
+    // the `#` of `<material-url>#<id>` stands in for the leading `/` of the direct fragment-node URL
+    expect(fragmentAnchorId(":72-images:eiffel-tower:IMG.jpg", "mr0zbe2l-rqyow7"))
+      .toBe("yamlover-fragments/mr0zbe2l-rqyow7");
+    // root material: still no leading slash
+    expect(fragmentAnchorId(":", "abc")).toBe("yamlover-fragments/abc");
   });
 });

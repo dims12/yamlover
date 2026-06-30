@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation, fetchConfig, saveLastTag } from "../api";
 import { TAG_FORMAT, explicitColor, isColorTagPath, resolveTagColor, tagFields } from "./tag";
 import { TagTip } from "./tagtip";
-import { canonPath, strToSegs } from "../paths";
+import { canonPath, fragmentAnchorId, strToSegs } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
 
 /**
@@ -289,6 +289,11 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
   const fetched = useAnnotations(path, bump);
   const [optimistic, setOptimistic] = useState<Annotation[]>([]); // created, not yet in `fetched`
   const [deleted, setDeleted] = useState<Set<string>>(new Set());  // annKeys hidden, not yet dropped
+  // annKeys the user removed WHILE their create was still in flight: we can't delete an annotation
+  // the server has not stored yet, so we hide it now and fire the real delete once it lands (below).
+  // Without this, deselecting the auto-applied default tag right after selecting a region was a
+  // silent no-op — the in-flight create then resurrected the tag on the next refetch.
+  const [pendingDel, setPendingDel] = useState<Set<string>>(new Set());
 
   // Reconcile when the server list refreshes: drop optimistic creations it now holds, and keep an
   // annotation "deleted" only while the server still lists it (so a re-tag's old copy can't flash
@@ -300,6 +305,26 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
   }, [fetched]);
 
   const refresh = () => setBump((b) => b + 1);
+  const deleteReal = (ann: Annotation, key: string) =>
+    deleteAnnotation(annotationTarget(path, ann), ann.tag!.path)
+      .then(refresh)
+      .catch((e) => { setDeleted((d) => { const n = new Set(d); n.delete(key); return n; }); window.alert("delete failed: " + (e as Error).message); }); // un-hide on failure
+
+  // Drain deferred deletes: once a removed-while-pending annotation actually lands in `fetched` (its
+  // create finished), it has a real fragment/target, so fire the delete now and move it to `deleted`
+  // (hidden until the refetch drops it). Matched by annKey (selector + tag).
+  useEffect(() => {
+    if (!pendingDel.size) return;
+    for (const a of fetched) {
+      const k = annKey(a);
+      if (!a.tag || !pendingDel.has(k)) continue;
+      setPendingDel((p) => { const n = new Set(p); n.delete(k); return n; });
+      setDeleted((d) => new Set(d).add(k));
+      void deleteReal(a, k);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetched, pendingDel]);
+
   const rollback = (entry: Annotation, e: unknown, silent?: boolean) => {
     setOptimistic((o) => o.filter((x) => x !== entry));
     if (!silent) window.alert("save failed: " + (e as Error).message);
@@ -312,12 +337,12 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
     createAnnotation(path, selector, tag, opts?.imageBase64).then(refresh).catch((e) => rollback(entry, e, opts?.silent));
   };
   const remove = (ann: Annotation) => {
-    if (!ann?.tag || ann.path === "(pending)") return;
+    if (!ann?.tag) return;
     const key = annKey(ann);
+    // Removed before its create landed: hide it now, delete it when it appears in `fetched`.
+    if (ann.path === "(pending)") { setPendingDel((p) => new Set(p).add(key)); return; }
     setDeleted((d) => new Set(d).add(key));
-    deleteAnnotation(annotationTarget(path, ann), ann.tag.path)
-      .then(refresh)
-      .catch((e) => { setDeleted((d) => { const n = new Set(d); n.delete(key); return n; }); window.alert("delete failed: " + (e as Error).message); }); // un-hide on failure
+    void deleteReal(ann, key);
   };
   // Picks queued during the FIRST create's round-trip (the fragment path isn't known yet) — each
   // carries its optimistic entry, already shown so the badge outlines at once; drained below.
@@ -365,7 +390,7 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
   const annotations: Annotation[] = [];
   for (const a of [...optimistic, ...fetched]) {
     const k = annKey(a);
-    if (deleted.has(k) || seen.has(k)) continue;
+    if (deleted.has(k) || pendingDel.has(k) || seen.has(k)) continue;
     seen.add(k);
     annotations.push(a);
   }
@@ -506,8 +531,34 @@ export function AnnotationMenu({
       .finally(() => setBusy(false));
   };
 
+  // Keep the fixed-position menu fully on-screen: it opens at the selection (x = left, y = the
+  // selection's BOTTOM), but near the right/bottom edge that clips it — the tag input then sits
+  // off-screen and is unreachable. Measure after layout and clamp into the viewport, flipping ABOVE
+  // the selection when there isn't room below. Re-runs each render (the body grows/shrinks as the
+  // suggestion list filters), guarded so a stable position doesn't loop.
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const setRefs = useCallback((el: HTMLDivElement | null) => {
+    boxRef.current = el;
+    if (typeof menuRef === "function") menuRef(el);
+    else if (menuRef) (menuRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+  }, [menuRef]);
+  const [pos, setPos] = useState({ left: x, top: y });
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const m = 8; // viewport margin
+    const w = el.offsetWidth, h = el.offsetHeight;
+    let left = x, top = y;
+    if (left + w > window.innerWidth - m) left = Math.max(m, window.innerWidth - w - m);
+    if (top + h > window.innerHeight - m) {
+      const above = y - h - 12; // flip to open upward from the selection
+      top = above >= m ? above : Math.max(m, window.innerHeight - h - m);
+    }
+    if (left !== pos.left || top !== pos.top) setPos({ left, top });
+  });
+
   return (
-    <div ref={menuRef} className="annotate-menu" style={{ left: x, top: y }} role="menu">
+    <div ref={setRefs} className="annotate-menu" style={{ left: pos.left, top: pos.top }} role="menu">
       <div className="annotate-palette">
         {colorTags.map((t) => (
           <TagTip key={t.path} tag={t}>
@@ -571,8 +622,11 @@ export function AnnotationMenu({
 }
 
 /** An open region picker — keyed by its SELECTOR (the join into the material's annotations), not by
- *  a one-shot create/edit. `seedTag` is the pre-checked default shown while the region has no tags. */
-type OpenRegion = { selector: Record<string, unknown>; seedTag: TagRef; copy?: () => void; imageBase64?: string; x: number; y: number };
+ *  a one-shot create/edit. `seedTag` is the pre-checked default shown while the region has no tags.
+ *  `create` marks a freshly-DRAWN region (vs editing an existing one): only then does the synthetic
+ *  preview keep the marquee up before the first tag — editing an existing region down to zero tags
+ *  must let it disappear (untag). */
+type OpenRegion = { selector: Record<string, unknown>; seedTag: TagRef; create: boolean; copy?: () => void; imageBase64?: string; x: number; y: number };
 
 /** Drives the floating picker for a material's REGIONS: `openCreate` after a fresh selection,
  *  `openEdit` on a click on an existing mark — both open the SAME selector-keyed picker, so tagging
@@ -597,11 +651,11 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
   // application, so it shows checked and a click REMOVES it. openEdit (an existing region) opens
   // the same picker but applies nothing — the region already has its tags.
   const openCreate = (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string) => {
-    setOpen({ selector, seedTag: tag, copy, imageBase64, x: screen.x, y: screen.y });
+    setOpen({ selector, seedTag: tag, create: true, copy, imageBase64, x: screen.x, y: screen.y });
     a.annotateRegion(selector, tag, { imageBase64, silent: true });
   };
   const openEdit = (ann: Annotation, screen: { x: number; y: number }) =>
-    setOpen({ selector: (ann.selector ?? {}) as Record<string, unknown>, seedTag: ann.tag ?? tag, x: screen.x, y: screen.y });
+    setOpen({ selector: (ann.selector ?? {}) as Record<string, unknown>, seedTag: ann.tag ?? tag, create: false, x: screen.x, y: screen.y });
 
   // The region's tag applications, live from the material — toggles reflect at once (optimistic).
   // These ARE the outlined tags: an outlined tag is a real application, so clicking it removes it.
@@ -631,16 +685,31 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
     if (victim) a.remove(victim);
   };
 
-  // Outside-click just closes. Whatever tags were applied stay (selecting applied the default; the
-  // user could have removed it). Closing never deletes.
+  // Outside-click closes, and so does SCROLLING the page/content: the menu is position:fixed at the
+  // selection's viewport coords, so once the content scrolls it would float detached from its mark —
+  // closing (like a cancel) is the least surprising. A scroll INSIDE the menu (its suggestion list)
+  // is ignored. Whatever tags were applied stay; closing never deletes.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       if (menuRef.current?.contains(e.target as Node)) return;
       close();
     };
+    // Both a real scrollbar scroll AND a wheel gesture close it: the image / map / PDF viewers
+    // pan & zoom on `wheel` WITHOUT a `scroll` event (Leaflet transforms, pdf zoom), so a wheel
+    // listener is what catches those. A wheel/scroll INSIDE the menu (its suggestion list) is kept.
+    const onShift = (e: Event) => {
+      if (e.target instanceof Node && menuRef.current?.contains(e.target)) return; // scrolled INSIDE the menu
+      close();
+    };
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    window.addEventListener("scroll", onShift, true); // capture: catch scrolls in any nested container
+    window.addEventListener("wheel", onShift, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("scroll", onShift, true);
+      window.removeEventListener("wheel", onShift, true);
+    };
   }, [open]);
 
   const palette: ReactNode = open ? (
@@ -652,10 +721,11 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
     />
   ) : null;
 
-  // Keep the marquee drawn via a synthetic preview ONLY while no real tag exists for the region —
-  // once one does, that real annotation draws the rectangle (no double-draw); it reappears if the
-  // last tag is removed.
-  const preview = open && applied.length === 0
+  // Keep the marquee drawn via a synthetic preview ONLY for a freshly-DRAWN region while it has no
+  // real tag yet (so the rectangle you just dragged stays visible until its first tag draws it).
+  // EDITING an existing region never previews — untagging it down to zero must let it vanish, not
+  // re-draw a ghost that makes "uncheck all tags" look like a no-op.
+  const preview = open && open.create && applied.length === 0
     ? { selector: open.selector, tag: open.seedTag, color: resolveTagColor(open.seedTag) }
     : null;
   return { openCreate, openEdit, palette, preview, color: resolveTagColor(tag) };
@@ -672,7 +742,7 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const raf = requestAnimationFrame(() => highlight(el, annotations));
+    const raf = requestAnimationFrame(() => highlight(el, annotations, path));
     return () => cancelAnimationFrame(raf);
   });
 
@@ -684,7 +754,11 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
       if ((e.target as HTMLElement)?.closest?.(".annotate-menu")) return; // a menu click, not a selection
       if ((e.target as HTMLElement)?.closest?.("mark.yo-annotation")) return; // a mark click → handled by onClick
       const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !sel.anchorNode || !el.contains(sel.anchorNode)) return;
+      // BOTH ends must sit inside the material — a selection that bleeds out (e.g. dragging from a
+      // heading up into surrounding chrome) would capture off-content text whose `exact` is never
+      // found in the body, leaving an un-highlightable, hard-to-delete phantom annotation.
+      if (!sel || sel.isCollapsed || !sel.anchorNode || !sel.focusNode) return;
+      if (!el.contains(sel.anchorNode) || !el.contains(sel.focusNode)) return;
       const cap = capture(sel);
       if (!cap) return;
       const rect = sel.getRangeAt(0).getBoundingClientRect();
@@ -706,13 +780,9 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
     openEdit(ann, { x: e.clientX, y: e.clientY });
   };
 
+  // No annotation count here — the RHS fragments panel is the canonical list of what's tagged.
   return (
     <div className="annotated">
-      {annotations.length > 0 && (
-        <div className="annotate-bar">
-          <span className="annotate-count">{annotations.length} annotation{annotations.length > 1 ? "s" : ""}</span>
-        </div>
-      )}
       <div ref={ref} onClick={onClickMark}>{children}</div>
       {palette}
     </div>
@@ -730,8 +800,10 @@ function capture(sel: Selection): { exact: string; prefix: string; suffix: strin
   return { exact, prefix, suffix };
 }
 
-/** (Re)apply highlight marks for the text annotations in `container`. */
-function highlight(container: HTMLElement, anns: Annotation[]): void {
+/** (Re)apply highlight marks for the text annotations in `container`. `materialPath` lets a
+ *  fragment mark carry its `#yamlover-fragments/<slug>` anchor id so the RHS panel / a shared link
+ *  can scroll-to-&-flash it. */
+function highlight(container: HTMLElement, anns: Annotation[], materialPath: string): void {
   container.querySelectorAll("mark.yo-annotation").forEach((m) => {
     const parent = m.parentNode;
     if (!parent) return;
@@ -741,13 +813,17 @@ function highlight(container: HTMLElement, anns: Annotation[]): void {
   });
   for (const a of anns) {
     if (a.selector?.type !== "text" || !a.selector.exact) continue;
-    wrapFirst(container, a.selector.exact, a);
+    wrapFirst(container, a.selector.exact, a, materialPath);
   }
 }
 
 /** Wrap the first text occurrence of an annotation's `exact` (within one text node) in a colored,
- *  clickable `<mark>` carrying its identity key (so a click maps back to the annotation). */
-function wrapFirst(container: HTMLElement, exact: string, a: Annotation): void {
+ *  clickable `<mark>` carrying its identity key (so a click maps back to the annotation) and, for a
+ *  fragment, its `#`-anchor id. A region with several tags is one mark: if the anchor id already
+ *  exists in `container`, the region is already drawn — skip (and never duplicate the id). */
+function wrapFirst(container: HTMLElement, exact: string, a: Annotation, materialPath: string): void {
+  const fragId = a.fragmentSlug ? fragmentAnchorId(materialPath, a.fragmentSlug) : "";
+  if (fragId && container.querySelector(`[id="${CSS.escape(fragId)}"]`)) return; // region already marked
   const c = colorOf(a);
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   let n: Node | null;
@@ -762,6 +838,7 @@ function wrapFirst(container: HTMLElement, exact: string, a: Annotation): void {
     mark.style.backgroundColor = `color-mix(in srgb, ${c} 30%, transparent)`; // works for hex AND a named tag's hsl()
     mark.style.borderBottomColor = c;
     mark.dataset.annSel = annKey(a);
+    if (fragId) mark.id = fragId;
     mark.title = a.description || "click to re-tag or delete";
     try {
       range.surroundContents(mark); // works when the match is within one text node (v1)

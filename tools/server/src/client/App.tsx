@@ -13,6 +13,14 @@ const formatTravelsTo = (f: Format, concrete?: string | null) =>
   isStandardFormat(f) && (f !== "json5p" || isJsonConcrete(concrete));
 import { crumbs, formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
 import { broadcastDiff } from "./live";
+import { Fragments, fragmentGroups } from "./Fragments";
+import { useAnnotations } from "./renderers/annotate";
+
+/** Read a persisted boolean UI flag (collapse state) from localStorage, defaulting false when it
+ *  is unset or unavailable (e.g. a jsdom test env). */
+function persistedFlag(key: string): boolean {
+  try { return localStorage.getItem(key) === "1"; } catch { return false; }
+}
 
 // Levels of the TOC fetched at once — initially and on each lazy expand. One
 // level keeps every fetch cheap on a huge/slow tree (a fetch only reads the
@@ -106,7 +114,18 @@ export function App() {
     setFormat("settings" as Format);
   }, []);
   const [leftWidth, setLeftWidth] = useState<number>(320);
+  const [rightWidth, setRightWidth] = useState<number>(300); // the fragments pane (when shown)
+  // The TOC (LHS) and the fragments pane (RHS) collapse independently; the choice persists.
+  const [leftCollapsed, setLeftCollapsed] = useState<boolean>(() => persistedFlag("yo-left-collapsed"));
+  const [rightCollapsed, setRightCollapsed] = useState<boolean>(() => persistedFlag("yo-right-collapsed"));
+  useEffect(() => { try { localStorage.setItem("yo-left-collapsed", leftCollapsed ? "1" : "0"); } catch { /* ignore */ } }, [leftCollapsed]);
+  useEffect(() => { try { localStorage.setItem("yo-right-collapsed", rightCollapsed ? "1" : "0"); } catch { /* ignore */ } }, [rightCollapsed]);
   const mainRef = useRef<HTMLElement>(null); // RHS pane — focused on TOC click so the keyboard drives the viewer
+
+  // The current entity's fragments (tagged regions) drive the RHS panel; it auto-hides when there
+  // are none. Fetched here (not only in NodeView) so "has fragments" can gate the layout from App.
+  const fragGroups = fragmentGroups(useAnnotations(current));
+  const showFragments = fragGroups.length > 0 && !rightCollapsed;
 
   // The breadcrumb head is the ROOT given on the command line (blank if omitted).
   useEffect(() => {
@@ -366,15 +385,18 @@ export function App() {
     [navigate],
   );
 
-  // --- draggable splitter -------------------------------------------------- //
-  const dragging = useRef(false);
+  // --- draggable splitters (LHS tree + RHS fragments) ---------------------- //
+  const dragging = useRef<"left" | "right" | null>(null);
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
-      if (!dragging.current) return;
-      setLeftWidth(Math.min(Math.max(e.clientX, 160), window.innerWidth - 240));
+      if (dragging.current === "left") {
+        setLeftWidth(Math.min(Math.max(e.clientX, 160), window.innerWidth - 240));
+      } else if (dragging.current === "right") {
+        setRightWidth(Math.min(Math.max(window.innerWidth - e.clientX, 200), window.innerWidth - 240));
+      }
     };
     const onUp = () => {
-      dragging.current = false;
+      dragging.current = null;
       document.body.style.userSelect = "";
     };
     window.addEventListener("mousemove", onMove);
@@ -384,6 +406,10 @@ export function App() {
       window.removeEventListener("mouseup", onUp);
     };
   }, []);
+  const startDrag = (side: "left" | "right") => {
+    dragging.current = side;
+    document.body.style.userSelect = "none";
+  };
 
   // Leftmost breadcrumb action: install the LLM-agent guidance docs (AGENTS.md + CLAUDE.md) into
   // this project's root. Skip-and-report by default; if everything already exists, offer to
@@ -412,6 +438,16 @@ export function App() {
   return (
     <div className="app">
       <header className="topbar">
+        <button
+          type="button"
+          className="crumb-action pane-toggle"
+          title={leftCollapsed ? "Show the tree" : "Hide the tree"}
+          aria-label={leftCollapsed ? "Show the tree" : "Hide the tree"}
+          aria-pressed={!leftCollapsed}
+          onClick={() => setLeftCollapsed((v) => !v)}
+        >
+          {leftCollapsed ? "»" : "«"}
+        </button>
         <nav className="crumbs">
           <button
             type="button"
@@ -449,30 +485,40 @@ export function App() {
           ))}
         </nav>
         <TaskStrip tasks={tasks} />
+        {fragGroups.length > 0 && (
+          <button
+            type="button"
+            className="crumb-action pane-toggle"
+            title={rightCollapsed ? "Show fragments" : "Hide fragments"}
+            aria-label={rightCollapsed ? "Show fragments" : "Hide fragments"}
+            aria-pressed={!rightCollapsed}
+            onClick={() => setRightCollapsed((v) => !v)}
+          >
+            {rightCollapsed ? "«" : "»"}
+          </button>
+        )}
       </header>
 
       <div className="body">
-        <aside className="pane left" style={{ width: leftWidth }}>
-          {(() => {
-            // no tree yet + a server task running ⇒ the index is still being built — show
-            // its progress instead of a stale fetch error / a bare "loading…"
-            const running = !tree ? tasks.find((t) => t.state === "running") : undefined;
-            if (running) {
-              const { done, total } = running.progress;
-              return <div className="loading">{running.label}… {total ? `${done}/${total}` : ""}</div>;
-            }
-            if (error) return <div className="error">{error}</div>;
-            if (!tree) return <div className="loading">loading…</div>;
-            return <Tree node={tree} current={current} onSelect={selectFromToc} onLoadChildren={loadChildren} />;
-          })()}
-        </aside>
-        <div
-          className="splitter"
-          onMouseDown={() => {
-            dragging.current = true;
-            document.body.style.userSelect = "none";
-          }}
-        />
+        {!leftCollapsed && (
+          <>
+            <aside className="pane left" style={{ width: leftWidth }}>
+              {(() => {
+                // no tree yet + a server task running ⇒ the index is still being built — show
+                // its progress instead of a stale fetch error / a bare "loading…"
+                const running = !tree ? tasks.find((t) => t.state === "running") : undefined;
+                if (running) {
+                  const { done, total } = running.progress;
+                  return <div className="loading">{running.label}… {total ? `${done}/${total}` : ""}</div>;
+                }
+                if (error) return <div className="error">{error}</div>;
+                if (!tree) return <div className="loading">loading…</div>;
+                return <Tree node={tree} current={current} onSelect={selectFromToc} onLoadChildren={loadChildren} />;
+              })()}
+            </aside>
+            <div className="splitter" onMouseDown={() => startDrag("left")} />
+          </>
+        )}
         <main className="pane right" ref={mainRef} tabIndex={-1}>
           {(() => {
             // Cold start: the content fetch 404s ("no such node") until the FIRST index lands,
@@ -486,6 +532,12 @@ export function App() {
             return <NodeView path={current} format={format} refreshSignal={refreshSignal} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} onOpenUploaded={onOpenUploaded} />;
           })()}
         </main>
+        {showFragments && (
+          <>
+            <div className="splitter" onMouseDown={() => startDrag("right")} />
+            <Fragments path={current} groups={fragGroups} width={rightWidth} onNavigate={navigate} />
+          </>
+        )}
       </div>
     </div>
   );

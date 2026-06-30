@@ -3,6 +3,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import { Annotation, NodeJson, blobUrl } from "../api";
+import { fragmentAnchorId } from "../paths";
 import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 import { usePagedScroll } from "./paged";
 
@@ -291,6 +292,7 @@ export function PdfView({ node }: { node: NodeJson }) {
                           return (
                             <div
                               key={j}
+                              id={r.ann?.fragmentSlug ? fragmentAnchorId(node.path, r.ann.fragmentSlug) : undefined}
                               className={"pdf-region" + (r.ann ? " editable" : "")}
                               title={r.ann ? r.title || "click to recolor or delete" : r.title}
                               onClick={r.ann ? (e) => { e.stopPropagation(); openEdit(r.ann!, { x: e.clientX, y: e.clientY }); } : undefined}

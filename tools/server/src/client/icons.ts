@@ -77,6 +77,9 @@ function mediaIcon(format: string): string | null {
 /** The type/format icon for a node — `format` wins, then a directory concrete
  *  (`dir`/`yamlover`) shows a folder, else `type`. */
 export function typeIcon(type: string, format: string | null, concrete?: string | null): Glyph {
+  // a fragment (a marked region) gets a "selection" mark — a handled box with a centre plus —
+  // drawn from CSS (`.frag-icon`), so it reads as a region rather than a generic renderer glyph.
+  if (format === "x-yamlover-fragment") return { glyph: "", cls: "t-fmt frag-icon", title: "fragment" };
   if (format) {
     const g = FORMAT[format] ?? mediaIcon(format);
     if (g) return { glyph: g, cls: "t-fmt", title: format };

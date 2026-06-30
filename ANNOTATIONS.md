@@ -41,7 +41,15 @@ image: *::papers:fragments:mqdo07z1-owgrcv.png
 
 Text and map fragments carry no crop.
 
-### 1.2 Future
+### 1.2 A fragment's scrollable URL
+
+A fragment is addressable in the browser by the in-page `#` rule (see `tools/server/README.md`):
+its node path `<material>/yamlover-fragments/<slug>` becomes the scrollable URL
+`<material-url>#yamlover-fragments/<slug>` — the `#` standing in for the `/` after the served
+material. Opening that URL (or clicking the fragment in the viewer's fragments panel) scrolls
+text/PDF/djvu regions into view and pans image/map regions to fit, then briefly flashes the region.
+
+### 1.3 Future
 
 Fragments will become **hierarchical** and surface as **children under the document node** —
 e.g. marking up the table of contents of a textless (image-only) PDF, so the viewer can show

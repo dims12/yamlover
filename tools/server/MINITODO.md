@@ -29,3 +29,4 @@
 - 018 Chevrons in TOC are kindof 1-2 pixels lover than the icons
 - 019 Absent format shows strange http://calculon:5173/README.md
 - 020 TXT files shown in markdown format and glitching: http://calculon:5173/53.%20%D0%A4%D0%B8%D0%B7%D0%B8%D0%BA%D0%B0/The%20Theoretical%20Minimum/Torrent%20downloaded%20from%20Darkside%20RG.txt?format=marklower
+- 021 Chunks has slash http://10.9.0.2:5173/73-dev-board/add-board-view.yamlover?format=tag-board#/chunks[1]   but fragments havent' http://10.9.0.2:5173/72-images/eiffel-tower/IMG_20120725_182044.jpg?format=large-icons#yamlover-fragments/mqee46pt-m1wdko

@@ -61,15 +61,26 @@ export function useExplorerTagMenu(): { openAt: (target: string, x: number, y: n
       });
   };
 
-  // Outside-click closes (the menu's own buttons/inputs sit inside `ref`).
+  // Outside-click closes (the menu's own buttons/inputs sit inside `ref`); so does scrolling the
+  // page/content, since the menu is position:fixed and would otherwise float away from its anchor.
   useEffect(() => {
     if (!menu) return;
     const onDown = (e: MouseEvent) => {
       if (ref.current?.contains(e.target as Node)) return;
       close();
     };
+    const onShift = (e: Event) => {
+      if (e.target instanceof Node && ref.current?.contains(e.target)) return;
+      close();
+    };
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    window.addEventListener("scroll", onShift, true);
+    window.addEventListener("wheel", onShift, true); // image/map/PDF viewers pan on wheel (no scroll event)
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("scroll", onShift, true);
+      window.removeEventListener("wheel", onShift, true);
+    };
   }, [menu]);
 
   // the node's applied tags (resolved from its annotations) — the menu OUTLINES these and toggles

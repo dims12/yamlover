@@ -185,21 +185,58 @@ export function upsertThumbnail(text: string, within: string[], resKey: string, 
   return upsertMapEntry(text, within, THUMBNAILS_KEY, resKey, render);
 }
 
-/** Remove an annotation element from the `yamlover-annotations:` of the node at `within` — the
- *  first `- ` item whose trimmed text matches `predicate`. Returns the text unchanged if none
- *  matches. The block of a multi-line object item is removed whole. */
-export function removeAnnotation(text: string, within: string[], predicate: (itemText: string) => boolean): string {
+/** Whether the node at `within` still has at least one `yamlover-annotations:` element. Read-only:
+ *  works on a copy, so the descent never mutates the caller's text (the path it descends already
+ *  exists). Used to decide whether a just-untagged FRAGMENT is now empty (→ delete it). */
+export function annotationsRemain(text: string, within: string[]): boolean {
   const lines = text.replace(/\n$/, "").split("\n");
   const region = reachBody(lines, within);
   const seq = seqItemLines(lines, region, ANNOTATIONS_KEY);
-  if (!seq) return text;
-  for (let k = 0; k < seq.items.length; k++) {
+  return !!seq && seq.items.length > 0;
+}
+
+/** Remove the `<entryKey>:` block from the `<mapKey>:` mapping of the node at `within` (e.g. drop one
+ *  slug from `yamlover-fragments:`). Returns the text unchanged when the map or entry is absent. When
+ *  the mapping is left empty, its `<mapKey>:` line is removed too, so no bare `yamlover-fragments:`
+ *  husk lingers. */
+export function removeMapEntry(text: string, within: string[], mapKey: string, entryKey: string): string {
+  const lines = text.replace(/\n$/, "").split("\n");
+  const region = reachBody(lines, within);
+  const mapLine = findKeyLine(lines, region.lo, region.hi, region.indent, mapKey);
+  if (mapLine < 0) return text;
+  const mapIndent = region.indent + 2;
+  const mapHi = blockEnd(lines, mapLine + 1, lines.length, region.indent + 1);
+  const entry = findKeyLine(lines, mapLine + 1, mapHi, mapIndent, entryKey);
+  if (entry < 0) return text;
+  const end = blockEnd(lines, entry + 1, mapHi, mapIndent + 1);
+  lines.splice(entry, end - entry);
+  // the mapping now empty (no child key at mapIndent left) → drop its key line as well
+  const newHi = blockEnd(lines, mapLine + 1, lines.length, region.indent + 1);
+  let hasChild = false;
+  for (let i = mapLine + 1; i < newHi; i++) {
+    if (isContentLine(lines[i]) && indentOf(lines[i]) === mapIndent) { hasChild = true; break; }
+  }
+  if (!hasChild) lines.splice(mapLine, blockEnd(lines, mapLine + 1, lines.length, region.indent + 1) - mapLine);
+  return lines.join("\n") + "\n";
+}
+
+/** Remove annotation element(s) from the `yamlover-annotations:` of the node at `within` — EVERY
+ *  `- ` item whose trimmed text matches `predicate` (not just the first), so untagging clears a tag
+ *  fully even if a create race left it applied twice. Returns the text unchanged if none match. The
+ *  block of a multi-line object item is removed whole. Re-descends after each splice (indices shift).*/
+export function removeAnnotation(text: string, within: string[], predicate: (itemText: string) => boolean): string {
+  const lines = text.replace(/\n$/, "").split("\n");
+  let removed = false;
+  for (;;) {
+    const region = reachBody(lines, within);
+    const seq = seqItemLines(lines, region, ANNOTATIONS_KEY);
+    if (!seq) break;
+    const k = seq.items.findIndex((i) => predicate(lines[i].trim().replace(/^-\s*/, "")));
+    if (k < 0) break;
     const i = seq.items[k];
-    const itemText = lines[i].trim().replace(/^-\s*/, "");
-    if (!predicate(itemText)) continue;
     const next = k + 1 < seq.items.length ? seq.items[k + 1] : seq.end;
     lines.splice(i, next - i);
-    return lines.join("\n") + "\n";
+    removed = true;
   }
-  return text;
+  return removed ? lines.join("\n") + "\n" : text;
 }

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Annotation, NodeJson, blobUrl } from "../api";
+import { fragmentAnchorId } from "../paths";
 import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 import { usePagedScroll } from "./paged";
 import { DecodedPage, decodeDjvuPage, openDjvu } from "./djvuWorker";
@@ -250,6 +251,7 @@ export function DjvuView({ node }: { node: NodeJson }) {
                       return (
                         <div
                           key={j}
+                          id={r.ann?.fragmentSlug ? fragmentAnchorId(node.path, r.ann.fragmentSlug) : undefined}
                           className={"djvu-region" + (r.ann ? " editable" : "")}
                           title={r.ann ? r.title || "click to recolor or delete" : r.title}
                           onClick={r.ann ? (e) => { e.stopPropagation(); openEdit(r.ann!, { x: e.clientX, y: e.clientY }); } : undefined}

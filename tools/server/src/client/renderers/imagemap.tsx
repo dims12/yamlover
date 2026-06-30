@@ -4,12 +4,14 @@ import "leaflet/dist/leaflet.css";
 import { NodeJson, blobUrl } from "../api";
 import { Chunk } from "./registry";
 import { Annotation } from "../api";
+import { fragmentAnchorId } from "../paths";
 import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 import { wireGestures } from "./panzoom";
 
 /** A rectangular annotation region in the image's own pixel space (origin top-left). `ann` is the
- *  source annotation when it is a real saved one (→ clickable to edit); absent for the live preview. */
-export interface ImageRegion { x: number; y: number; w: number; h: number; title?: string; color?: string; ann?: Annotation }
+ *  source annotation when it is a real saved one (→ clickable to edit); absent for the live preview.
+ *  `id` is the fragment's `#`-anchor (set for a saved fragment) — the key a hash reveal pans to. */
+export interface ImageRegion { x: number; y: number; w: number; h: number; title?: string; color?: string; ann?: Annotation; id?: string }
 
 const num = (v: unknown): number => Number(v) || 0;
 
@@ -26,11 +28,12 @@ function cropPng(img: HTMLImageElement | null, x: number, y: number, w: number, 
   try { return cv.toDataURL("image/png"); } catch { return undefined; }
 }
 
-/** The `rect`-type annotations, as pixel regions to overlay on the image. */
-function imageRegions(anns: Annotation[]): ImageRegion[] {
+/** The `rect`-type annotations, as pixel regions to overlay on the image. `materialPath` lets a
+ *  saved fragment carry its `#yamlover-fragments/<slug>` anchor id so a hash reveal can pan to it. */
+function imageRegions(anns: Annotation[], materialPath: string): ImageRegion[] {
   return anns
     .filter((a) => a.selector?.type === "rect")
-    .map((a) => ({ x: num(a.selector!.x), y: num(a.selector!.y), w: num(a.selector!.w), h: num(a.selector!.h), title: a.description, color: colorOf(a), ann: editable(a) ? a : undefined }));
+    .map((a) => ({ x: num(a.selector!.x), y: num(a.selector!.y), w: num(a.selector!.w), h: num(a.selector!.h), title: a.description, color: colorOf(a), ann: editable(a) ? a : undefined, id: a.fragmentSlug ? fragmentAnchorId(materialPath, a.fragmentSlug) : undefined }));
 }
 
 /**
@@ -110,16 +113,22 @@ export function PanZoomImage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
+  // Each saved fragment's rectangle keyed by its `#`-anchor id, so a hash reveal can pan to + flash
+  // it (a Leaflet rect is SVG outside the page scroll flow — scrollIntoView can't reach it).
+  const shapesRef = useRef(new Map<string, { rect: L.Rectangle; bounds: L.LatLngBoundsExpression }>());
+
   // Draw the region rectangles into the overlay layer — in place, so creating one keeps the view.
   useEffect(() => {
     const lg = layerRef.current;
     if (!lg) return;
     lg.clearLayers();
+    shapesRef.current.clear();
     const { h } = sizeRef.current;
     for (const r of regions ?? []) {
       const c = r.color || DEFAULT_COLOR;
       // image y is from the top; CRS.Simple lat from the bottom, so flip y
-      const rect = L.rectangle([[h - r.y, r.x], [h - (r.y + r.h), r.x + r.w]], {
+      const bounds: L.LatLngBoundsExpression = [[h - r.y, r.x], [h - (r.y + r.h), r.x + r.w]];
+      const rect = L.rectangle(bounds, {
         className: "yo-region", color: c, weight: 3, fillColor: c, fillOpacity: 0.25,
       });
       if (r.title) rect.bindTooltip(r.title);
@@ -128,8 +137,26 @@ export function PanZoomImage({
         rect.on("click", (ev) => { L.DomEvent.stop(ev); onRegionClickRef.current?.(ann, { x: ev.originalEvent.clientX, y: ev.originalEvent.clientY }); });
       }
       rect.addTo(lg);
+      if (r.id) shapesRef.current.set(r.id, { rect, bounds });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regionsKey, ready]);
+
+  // Reveal a fragment named by the URL hash: pan/zoom to its rectangle and pulse it. Runs once the
+  // overlay is drawn and on every later `hashchange` (an RHS-panel click just sets the hash).
+  useEffect(() => {
+    const reveal = () => {
+      const map = mapRef.current;
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      const shape = id ? shapesRef.current.get(id) : undefined;
+      if (!map || !shape) return;
+      map.fitBounds(shape.bounds, { maxZoom: map.getZoom(), padding: [40, 40] });
+      shape.rect.setStyle({ weight: 6, fillOpacity: 0.45 });
+      window.setTimeout(() => shape.rect.setStyle({ weight: 3, fillOpacity: 0.25 }), 1000);
+    };
+    reveal();
+    window.addEventListener("hashchange", reveal);
+    return () => window.removeEventListener("hashchange", reveal);
   }, [regionsKey, ready]);
 
   return (
@@ -153,7 +180,7 @@ export function ImageView({ node }: { node: NodeJson }) {
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
       <PanZoomImage
         src={blobUrl(node.path)}
-        regions={imageRegions(shown)}
+        regions={imageRegions(shown, node.path)}
         onSelectRegion={(sel, screen, crop) => openCreate(sel, screen, undefined, crop)}
         onRegionClick={openEdit}
         selectColor={() => color}

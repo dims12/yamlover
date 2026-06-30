@@ -42,7 +42,7 @@ import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { pointerToken } from "../../../parser/ts/src/serialize-yamlover.ts";
 import { renderPointer } from "../../../parser/ts/src/pointer.ts";
 import { anchorBody } from "../../../parser/ts/src/serialize-common.ts";
-import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, keyToken } from "./embed.js";
+import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken } from "./embed.js";
 import { dataFileConcrete, interiorOf, isDirConcrete } from "../concrete.js";
 import { renderThumbnail } from "./extract/thumbnails.js";
 import { colonSegment } from "../../../parser/ts/src/pointer.ts";
@@ -1555,17 +1555,26 @@ async function ensureThumbnail(dataRoot: string, s: Store, mode: SidecarLocation
 }
 
 /** Remove a tag application from the target's `yamlover-annotations` array — the first element
- *  referencing `tag` (bare pointer or object `tag:` field). */
+ *  referencing `tag` (bare pointer or object `tag:` field). When the target is a FRAGMENT and that
+ *  was its last tag, the now-empty fragment node is deleted whole (its selector + crop ref) — a
+ *  fragment exists only to carry tags, so a tagless one is dead weight (ANNOTATIONS.md). Sibling
+ *  fragments and the host node are untouched. */
 function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: string): string {
   const { bodyFile, within } = hostFor(dataRoot, s, strToSegs(target || ":"));
   if (!fs.existsSync(bodyFile)) return bodyFile;
   // Match on the tag's colon-PATH (`:tags:…:name`), tolerating the pointer's spelling: an item may
   // be project-scope (`*::tags:…`), document-scope (`*: tags: …`, spaced), bare or an object form.
-  // Normalizing away whitespace and matching the `:`-prefixed path catches them all (the leading
-  // `:` keeps it on segment boundaries), where a raw `includes(pointerRaw)` missed spaced/doc-scope.
-  const needlePath = ":" + pointerRaw(tag).replace(/^:+/, ""); // :tags:field:mathematics:number-theory
-  const src = fs.readFileSync(bodyFile, "utf8");
-  fs.writeFileSync(bodyFile, removeAnnotationItem(src, within, (itemText) => itemText.replace(/\s+/g, "").includes(needlePath)));
+  // Strip whitespace on BOTH sides before the substring test: the item's, to fold a spaced scope
+  // (`*: tags: …`), AND the needle's — a tag NAME with a space is a QUOTED key (`'fifth tag'`), so
+  // the stored item reads `'fifthtag'` once stripped; an unstripped needle (`'fifth tag'`) would
+  // then never match (every spacey-named tag was undeletable).
+  const needlePath = (":" + pointerRaw(tag).replace(/^:+/, "")).replace(/\s+/g, ""); // :tags:field:'numbertheory'
+  let src = removeAnnotationItem(fs.readFileSync(bodyFile, "utf8"), within, (itemText) => itemText.replace(/\s+/g, "").includes(needlePath));
+  // within = [...host, "yamlover-fragments", "<slug>"] for a fragment target; drop it when emptied.
+  if (within.length >= 2 && within[within.length - 2] === FRAG_KEY && !annotationsRemain(src, within)) {
+    src = removeMapEntry(src, within.slice(0, -2), FRAG_KEY, within[within.length - 1]);
+  }
+  fs.writeFileSync(bodyFile, src);
   return bodyFile;
 }
 

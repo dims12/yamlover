@@ -23,6 +23,10 @@
   --jb-comment: #808080; /* comments + the `!!binary` note (gray) */
   --jb-punct: #a9b7c6; /* structural punctuation `: { } [ ]` (default text) */
   --jb-dash: #808080; /* the YAML list dash — gray, like the fold chevron */
+
+  /* fragment (region) icon — a handled selection box + centre plus, used as a CSS mask (see
+     `.frag-icon`). Black shapes = the opaque alpha the mask reveals the icon color through. */
+  --frag-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='6' y='6' width='12' height='12' fill='none' stroke='%23000' stroke-width='1.5'/%3E%3Cg fill='%23000'%3E%3Ccircle cx='6' cy='6' r='2.2'/%3E%3Ccircle cx='18' cy='6' r='2.2'/%3E%3Ccircle cx='6' cy='18' r='2.2'/%3E%3Ccircle cx='18' cy='18' r='2.2'/%3E%3Ccircle cx='12' cy='6' r='2.2'/%3E%3Ccircle cx='12' cy='18' r='2.2'/%3E%3Ccircle cx='6' cy='12' r='2.2'/%3E%3Ccircle cx='18' cy='12' r='2.2'/%3E%3C/g%3E%3Cpath d='M12 9.3v5.4M9.3 12h5.4' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E");
 }
 
 * {
@@ -209,6 +213,111 @@ body {
   background: var(--accent);
 }
 
+/* --- pane collapse toggles ------------------------------------------------ */
+/* Matching topbar chevrons hide/show the TOC (far left) and the fragments pane (far right); both
+   share the crumb-action shape, so the two panes collapse exactly the same way. */
+.pane-toggle {
+  margin: 0 4px;
+}
+
+/* --- fragments pane (RHS) ------------------------------------------------- */
+.pane.fragments {
+  flex: 0 0 auto;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+.fragments-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+.fragments-title {
+  font-weight: 600;
+}
+.fragments-count {
+  color: var(--dim);
+  font-size: 12px;
+}
+.fragments-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow: auto;
+  flex: 1 1 auto;
+}
+.fragment-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.fragment-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.fragment-locate {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  cursor: pointer;
+}
+.fragment-delete {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.fragment-delete:hover {
+  color: var(--null);
+  background: var(--bg);
+}
+.fragment-locate:hover .fragment-excerpt {
+  color: var(--accent);
+}
+.fragment-excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--fg);
+}
+.fragment-thumb {
+  max-width: 100%;
+  max-height: 120px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  display: block;
+}
+.fragment-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
 /* --- tree ----------------------------------------------------------------- */
 .tree-row {
   display: flex;
@@ -270,6 +379,21 @@ body {
 .dirview-icon.binsq {
   flex: none;
   margin: 0 2px; /* keep the label column roughly aligned with the 22px emoji icons */
+}
+/* fragment glyph: a selection MARQUEE — a square outline with eight round handles (four corners +
+   four edge midpoints) and a centre plus. Drawn as an SVG mask filled with the current text color,
+   so it themes like the other monochrome glyphs and scales with the icon's font-size. */
+.icon.frag-icon,
+.dirview-icon.frag-icon {
+  width: 1.15em;
+  height: 1.15em;
+  background-color: currentColor;
+  -webkit-mask: center / contain no-repeat var(--frag-mask);
+  mask: center / contain no-repeat var(--frag-mask);
+}
+.dirview-icon.frag-icon {
+  flex: none;
+  margin: 0 3px;
 }
 .toggle {
   display: inline-flex;
@@ -1002,17 +1126,6 @@ a.chunk-index:hover {
 .chunk-body .filemap.chunk-map {
   height: 380px;
 }
-/* annotations: the per-material action bar + the inline highlight mark */
-.annotate-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-.annotate-count {
-  color: var(--dim);
-  font-size: 12px;
-}
 /* the floating menu raised by a text selection: a color palette + copy + cancel */
 .annotate-menu {
   position: fixed;
@@ -1273,6 +1386,15 @@ mark.yo-annotation {
   border-bottom: 2px solid #f9e2af;
   border-radius: 2px;
   cursor: help;
+}
+/* A fragment revealed via its `#yamlover-fragments/<slug>` hash (RHS panel click or a shared link)
+   pulses for ~1s so the eye finds it. Applies to both a text `<mark>` and a region `<div>`. */
+.yo-reveal-flash {
+  animation: yo-flash 1s ease-out;
+}
+@keyframes yo-flash {
+  0%, 100% { outline: 2px solid transparent; outline-offset: 2px; box-shadow: none; }
+  15% { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); }
 }
 
 /* the pan/zoom image viewer reuses the map container; its backdrop is the page background, so a

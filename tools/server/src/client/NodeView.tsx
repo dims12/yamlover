@@ -420,11 +420,14 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   }
 
   // Tag references (rel edges to x-yamlover-tag nodes) show as badges on every
-  // representation, JOINED by the tags applied via annotations (deduped by path);
-  // the remaining relations stay in the data-view panel.
+  // representation, JOINED by the WHOLE-NODE tags applied via annotations (deduped by path);
+  // the remaining relations stay in the data-view panel. A FRAGMENT annotation (a tagged
+  // region, `fragmentSlug` set) belongs to the fragment, not the entity — it lives in the RHS
+  // fragments panel — so it never counts here (mirrors tagmenu.tsx's whole-node filter).
   const { tags: relTags, rest } = splitTagRefs(node.relations);
   const tags = [...relTags];
   for (const a of anns) {
+    if (a.fragmentSlug) continue;
     if (a.tag && !tags.some((t) => t.path === a.tag!.path)) {
       tags.push({ path: a.tag.path, label: a.tag.name, color: a.tag.color });
     }
