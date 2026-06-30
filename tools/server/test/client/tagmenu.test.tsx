@@ -57,18 +57,18 @@ describe("indexToRefs — a tag is just a node (both namespaces listed)", () => 
 
 // ---- no browse tree: empty input is quiet; typing shows the flat list; HOVER reveals the path ---- //
 describe("AnnotationMenu — no tree; hover-card reveals the path", () => {
-  it("shows no tree on empty input, flat suggestions on typing, and the canonical path on hover", async () => {
+  it("shows no tree; typing filters the chip row to ranked matches; HOVER reveals the canonical path", async () => {
     mQuery.mockResolvedValue([":tags:workflow:dev:ready", ":tags:workflow:dev:done", ":tags:first tag"]);
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
-    // the browse tree was removed — empty input never renders one
+    // the browse tree was removed — never rendered
     await waitFor(() => expect(mQuery).toHaveBeenCalled());
     expect(container.querySelector(".annotate-tree")).toBeNull();
-    // typing → the flat ranked suggestions (still no tree)
+    // typing → the chip row filters to the ranked match (still no tree)
     fireEvent.change(container.querySelector(".annotate-taginput")!, { target: { value: "rea" } });
-    await waitFor(() => expect(container.querySelector(".annotate-suggest")).toBeTruthy());
+    await waitFor(() => expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).toEqual(["ready"]));
     expect(container.querySelector(".annotate-tree")).toBeNull();
-    // hovering a suggestion reveals its path canonically — `tags:` prefix dropped, space after colon
-    fireEvent.mouseEnter(container.querySelector(".annotate-suggest .tagtip-anchor")!);
+    // hovering a chip reveals its path canonically — `tags:` prefix dropped, space after colon
+    fireEvent.mouseEnter(container.querySelector(".annotate-recents .tagtip-anchor")!);
     await waitFor(() => expect(document.querySelector(".tagtip-path")?.textContent).toBe("workflow: dev: ready"));
   });
 });
@@ -102,16 +102,43 @@ describe("AnnotationMenu — applied tags outline, no duplicates", () => {
 });
 
 // ---- the typeahead shows each NAME once, even for two genuinely-different homonym tags ---- //
-describe("AnnotationMenu — typeahead dedupes suggestions by name", () => {
+describe("AnnotationMenu — typeahead dedupes the filtered chips by name", () => {
   it("shows one 'ready' chip when two distinct tags are both named 'ready'", async () => {
     // two REAL tags (different paths, NOT graft duplicates of each other) that read the same
     mQuery.mockResolvedValue([":tags:ready", ":tags:workflow:dev:ready"]);
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
     fireEvent.change(container.querySelector(".annotate-taginput")!, { target: { value: "rea" } });
     await waitFor(() => {
-      const sugg = [...container.querySelectorAll(".annotate-suggest .tagtag")].map((b) => b.textContent);
-      expect(sugg).toEqual(["ready"]); // one chip, not two identical "ready"
+      const chips = [...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent);
+      expect(chips).toEqual(["ready"]); // one chip, not two identical "ready"
     });
+  });
+});
+
+// ---- default chips: the four sources shown without typing (graft · config location · node · recents) ---- //
+describe("AnnotationMenu — default chips from the four sources", () => {
+  it("shows grafted + configured-location tags as chips without typing; out-of-scope tags only via the typeahead", async () => {
+    // settings.tags is ":tags" (the mocked config). The graft lives at :yamlover:tags; a sub-document's
+    // own taxonomy (:67-pdf-tags:tags) is OUT of scope — reachable by typing, not a default chip.
+    mQuery.mockResolvedValue([":yamlover:tags:fifth tag", ":tags:mine", ":67-pdf-tags:tags:genre:humor"]);
+    const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
+    await waitFor(() => {
+      const chips = [...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent);
+      expect(chips).toContain("fifth tag"); // (1) grafted yamlover
+      expect(chips).toContain("mine"); // (2) configured tags location
+      expect(chips).not.toContain("humor"); // out of scope → not a default chip
+    });
+    // typing reaches the out-of-scope tag
+    fireEvent.change(container.querySelector(".annotate-taginput")!, { target: { value: "hum" } });
+    await waitFor(() => expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).toEqual(["humor"]));
+  });
+
+  it("shows tags borne by OTHER components of the node (nodeTags) as default chips", async () => {
+    mQuery.mockResolvedValue([]);
+    const sib = { path: ":tags:sibling", name: "sibling", color: null };
+    const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} nodeTags={[sib]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
+    await waitFor(() => expect(mQuery).toHaveBeenCalled());
+    expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).toContain("sibling"); // (3)
   });
 });
 

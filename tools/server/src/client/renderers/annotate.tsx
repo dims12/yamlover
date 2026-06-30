@@ -13,8 +13,11 @@ import { touchesYamlover, useDiffBump } from "../live";
  *
  *   - the PURE COLOR TAGS (built-in `yamlover/tags/colors/…`) as swatches; the last-used tag is
  *     pre-selected. Click a swatch to apply that tag.
- *   - the recently used NAMED tags as badges, plus a path input to apply ANY tag by its node
- *     path (a named tag's hue derives from its name; a color tag carries its color).
+ *   - the NAMED tags as chips, shown without typing from four sources (most-relevant first): the
+ *     tags APPLIED to this target, the tags borne by OTHER components of the same node, the
+ *     recently-used tags, and the project taxonomy (the grafted yamlover tags + the configured
+ *     tags location). Typing in the path input turns the chip row into a ranked filter over EVERY
+ *     tag in the tree (so anything is reachable), and a fresh name creates a tag.
  *   - a ✓ CONFIRM button — apply the pre-selected tag (the explicit alternative to clicking
  *     outside, which also commits).
  *   - (text only) a ⧉ COPY button — copies the selected text, creates nothing.
@@ -146,6 +149,28 @@ export function useTagIndex(): TagRef[] {
     return () => { cancelled = true; };
   }, [bump]);
   return tags;
+}
+
+// The roots whose tags the picker shows AS CHIPS by default (no typing): the grafted yamlover
+// self-import taxonomy (always present) plus the project's CONFIGURED tags location. Tags living
+// elsewhere in the tree (e.g. a sub-document's own `tags/`) stay reachable through the typeahead.
+const GRAFT_TAG_ROOTS = [":yamlover:tags", "::yamlover:tags"];
+
+/** The project's configured tags location (`settings.tags`), or null until config loads / on error. */
+export function useConfigTagsLocation(): string | null {
+  const [loc, setLoc] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetchConfig().then((c) => { if (live) setLoc(c.settings.tags ?? null); }).catch(() => { /* keep null → graft scope only */ });
+    return () => { live = false; };
+  }, []);
+  return loc;
+}
+
+/** Whether `path` is at-or-under one of `roots` (segment-boundary aware, scope-spelling tolerant). */
+function underAnyRoot(path: string, roots: (string | null)[]): boolean {
+  const cp = canonPath(path);
+  return roots.some((r) => { if (!r) return false; const rc = canonPath(r); return cp === rc || cp.startsWith(rc + ":"); });
 }
 
 /** The remembered last-applied tag (persisted in localStorage) + a setter that persists it and
@@ -367,27 +392,30 @@ function rankTag(t: TagRef, q: string): number {
  *  HOLLOW (an outline in that colour, not applied) from one stylesheet rule — no per-state ring. */
 export const tagStyle = (color: string): React.CSSProperties => ({ ["--tag"]: color } as React.CSSProperties);
 
-/** The floating tag picker — ONE uniform toggle UI. It shows the color-tag swatches and the
- *  named-tag badges; the tags currently APPLIED to the target are OUTLINED (a color tag outlines its
- *  swatch, a named tag its badge — never both, never a duplicate). Clicking an un-applied option
- *  ADDS it (`onPick`); clicking an applied one REMOVES it (`onUnpick` when given, else it re-picks —
- *  the region edit/create behaviour). The typeahead adds an arbitrary / new tag. `position: fixed`,
+/** The floating tag picker — ONE uniform toggle UI. It shows the color-tag swatches and a row of
+ *  named-tag chips (the four default sources — see the file header — filtered live as you type); the
+ *  tags currently APPLIED to the target are OUTLINED (a color tag outlines its swatch, a named tag
+ *  its chip — never both, never a duplicate). Clicking an un-applied option ADDS it (`onPick`);
+ *  clicking an applied one REMOVES it (`onUnpick` when given, else it re-picks — the region
+ *  edit/create behaviour). Typing filters the chips and a fresh name creates a tag. `position: fixed`,
  *  so x/y are viewport coords.
  *
  *  `applied` is the tags in effect on the target — a region's pre-selected / assigned tag (a single
- *  element), or a node's whole set. Region tagging (`useAnnotationMenu`) and explorer right-click
- *  tagging (`useExplorerTagMenu`) drive this SAME component the same way; the outline is the only
- *  "selected" indicator. */
+ *  element), or a node's whole set. `nodeTags` (optional) is the tags borne by OTHER components of
+ *  the same node (sibling fragments), surfaced as default chips. Region tagging (`useAnnotationMenu`)
+ *  and explorer right-click tagging (`useExplorerTagMenu`) drive this SAME component the same way;
+ *  the outline is the only "selected" indicator. */
 export function AnnotationMenu({
-  x, y, applied, mode, onPick, onUnpick, onCopy, onClose, menuRef,
+  x, y, applied, nodeTags = [], mode, onPick, onUnpick, onCopy, onClose, menuRef,
 }: {
-  x: number; y: number; applied: TagRef[]; mode: "create" | "edit";
+  x: number; y: number; applied: TagRef[]; nodeTags?: TagRef[]; mode: "create" | "edit";
   onPick: (t: TagRef) => void; onUnpick?: (t: TagRef) => void;
   onCopy?: () => void; onClose: () => void;
   menuRef?: React.Ref<HTMLDivElement>;
 }) {
   const colorTags = useColorTags();
-  const tagIndex = useTagIndex(); // all named tags, for the typeahead
+  const tagIndex = useTagIndex(); // all named tags (whole tree) — the typeahead searches these
+  const tagsLoc = useConfigTagsLocation(); // the configured tags location → its tags show as default chips
   const [recents, setRecents] = useState(recentTags); // shown at once; pruned against the server
   const [path, setPath] = useState("");
   const [hi, setHi] = useState(-1); // highlighted suggestion (-1 = none)
@@ -410,51 +438,49 @@ export function AnnotationMenu({
   const appliedKeys = new Set(applied.map((t) => canonPath(t.path)));
   const isApplied = (p: string) => appliedKeys.has(canonPath(p));
 
-  // The named-tag badges: every APPLIED named tag (so all the target's named tags are visible and
-  // outlined), then the recents — deduped by canonical path so a tag is shown ONCE (an applied
-  // recent is just outlined, not repeated). Color tags belong to the swatch row, never a badge.
-  const badges: TagRef[] = [];
-  const seenBadge = new Set<string>();
-  for (const t of [...applied.filter((t) => !isColor(t)), ...recents]) {
-    const k = canonPath(t.path);
-    if (seenBadge.has(k)) continue;
-    seenBadge.add(k);
-    badges.push(t);
-  }
-
-  // Clicking a swatch/badge toggles: an APPLIED tag turns OFF (`onUnpick`, else re-picks), an
+  // Clicking a swatch/chip toggles: an APPLIED tag turns OFF (`onUnpick`, else re-picks), an
   // un-applied one turns ON (`onPick`). The outline (not a separate chip) shows what is applied.
   const toggle = (t: TagRef) => (isApplied(t.path) ? onUnpick ?? onPick : onPick)(t);
   // A tag chip shows its NAME only; its full path (its spine location) and text value are revealed
   // on HOVER via the coloured <TagTip> card — so same-named tags stay distinguishable without
   // cluttering the label.
 
-  // Typeahead suggestions: substring match on the typed text against the tag name OR its full
-  // path (so `humor` and `genre:humor:deadpan` both hit), ranked, capped. Hide what is one click
-  // away already — a swatch or a badge — so the list is only NEW choices.
-  const q = path.trim().toLowerCase();
-  const suggestions: TagRef[] = [];
-  if (q) {
-    const ranked = tagIndex
-      .filter((t) =>
-        !isColor(t) &&
-        !badges.some((b) => same(b.path, t.path)) &&
-        (t.name.toLowerCase().includes(q) || canonPath(t.path).toLowerCase().includes(q)))
-      .map((t) => ({ t, rank: rankTag(t, q) }))
-      .sort((a, b) => a.rank - b.rank || a.t.name.localeCompare(b.t.name));
-    // One chip per display NAME (best-ranked wins): two tags that read identically would otherwise
-    // show as indistinguishable duplicates; type the full path to reach a specific homonym.
+  // Collapse a list to one chip per display NAME (first wins → priority order is preserved); color
+  // tags belong to the swatch row, never a named chip.
+  const dedupeNamed = (list: TagRef[]): TagRef[] => {
+    const out: TagRef[] = [];
     const byName = new Set<string>();
-    for (const { t } of ranked) {
+    for (const t of list) {
+      if (isColor(t)) continue;
       const n = t.name.toLowerCase();
       if (byName.has(n)) continue;
       byName.add(n);
-      suggestions.push(t);
-      if (suggestions.length >= 8) break;
+      out.push(t);
     }
-  }
-  // Re-seat the highlight whenever the typed text changes (suggestions derive from it).
-  useEffect(() => { setHi(suggestions.length ? 0 : -1); }, [path]); // eslint-disable-line react-hooks/exhaustive-deps
+    return out;
+  };
+
+  // The chips shown WITHOUT typing — the four sources, most-relevant first: (a) tags APPLIED to this
+  // target, (b) tags borne by OTHER components of the same node (sibling fragments), (c) the
+  // last-used / recent tags, (d) the project taxonomy — the grafted yamlover tags plus the
+  // configured tags location. Tags elsewhere in the tree stay reachable via the typeahead.
+  const scopedIndex = tagIndex.filter((t) => underAnyRoot(t.path, [...GRAFT_TAG_ROOTS, tagsLoc]));
+  const defaultChips = dedupeNamed([...applied, ...nodeTags, ...recents, ...scopedIndex]);
+
+  // Typeahead: while the user types, the chip row becomes a ranked filter over EVERY named tag
+  // (name or full path substring) — so any tag, even outside the default scope, is one click away.
+  const q = path.trim().toLowerCase();
+  const view: TagRef[] = q
+    ? dedupeNamed(
+        [...applied, ...nodeTags, ...recents, ...tagIndex]
+          .filter((t) => t.name.toLowerCase().includes(q) || canonPath(t.path).toLowerCase().includes(q))
+          .map((t) => ({ t, rank: rankTag(t, q) }))
+          .sort((a, b) => a.rank - b.rank || a.t.name.localeCompare(b.t.name))
+          .map(({ t }) => t),
+      ).slice(0, 8)
+    : defaultChips;
+  // Re-seat the highlight whenever the typed text changes (the filtered list derives from it).
+  useEffect(() => { setHi(q ? (view.length ? 0 : -1) : -1); }, [path]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply an arbitrary tag by its node path: fetch, verify it IS a tag, pick it. A bare NAME
   // (no `/`) that matches no node is CREATED at the project's tags location and then picked —
@@ -496,16 +522,19 @@ export function AnnotationMenu({
       </div>
       {onCopy && <button type="button" className="annotate-tool" title="copy text to clipboard (don't annotate)" onClick={onCopy}>⧉</button>}
       <button type="button" className="annotate-tool close" title="close" onClick={onClose}>✕</button>
-      {badges.length > 0 && (
-        <div className="annotate-recents">
-          {badges.map((t) => (
+      {view.length > 0 && (
+        <div className="annotate-recents" role="listbox">
+          {view.map((t, i) => (
             <span key={t.path} className="tagframe">
               <TagTip tag={t}>
                 <button
                   type="button"
-                  className={"tagtag" + (isApplied(t.path) ? " on" : "")}
+                  role="option"
+                  aria-selected={i === hi}
+                  className={"tagtag" + (isApplied(t.path) ? " on" : "") + (i === hi ? " hi" : "")}
                   style={tagStyle(resolveTagColor(t))}
                   onClick={() => toggle(t)}
+                  onMouseEnter={() => { if (q) setHi(i); }}
                 >
                   <span className="tt-label">{t.name}</span>
                 </button>
@@ -518,7 +547,7 @@ export function AnnotationMenu({
         <input
           className="annotate-taginput"
           type="text"
-          placeholder={busy ? "creating tag…" : `${verb}: tag path or new name… ⏎`}
+          placeholder={busy ? "creating tag…" : `${verb}: filter, tag path, or new name… ⏎`}
           value={path}
           disabled={busy}
           autoComplete="off"
@@ -526,38 +555,16 @@ export function AnnotationMenu({
           onKeyDown={(e) => {
             // Plain Arrow/Enter never reach App.tsx's global nav (it bails on focused inputs),
             // but guard anyway and keep the caret from jumping while we drive the list.
-            if (suggestions.length && e.key === "ArrowDown") { e.preventDefault(); e.stopPropagation(); setHi((i) => (i + 1) % suggestions.length); return; }
-            if (suggestions.length && e.key === "ArrowUp") { e.preventDefault(); e.stopPropagation(); setHi((i) => (i - 1 + suggestions.length) % suggestions.length); return; }
+            if (view.length && e.key === "ArrowDown") { e.preventDefault(); e.stopPropagation(); setHi((i) => (i + 1) % view.length); return; }
+            if (view.length && e.key === "ArrowUp") { e.preventDefault(); e.stopPropagation(); setHi((i) => (i - 1 + view.length) % view.length); return; }
             if (e.key === "Escape" && path) { e.preventDefault(); e.stopPropagation(); setPath(""); return; }
             if (e.key === "Enter") {
               e.preventDefault(); e.stopPropagation();
-              if (hi >= 0 && suggestions[hi]) pickPath(suggestions[hi].path); // the highlighted tag wins
+              if (hi >= 0 && view[hi]) toggle(view[hi]); // the highlighted tag wins
               else pickPath(); // else the typed path / create-on-miss
             }
           }}
         />
-        {!busy && suggestions.length > 0 && (
-          <div className="annotate-suggest" role="listbox">
-            {suggestions.map((t, i) => (
-              <span key={t.path} className="tagframe">
-                <TagTip tag={t}>
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={i === hi}
-                    className={"tagtag" + (i === hi ? " hi" : "")}
-                    style={tagStyle(resolveTagColor(t))}
-                    // mousedown (not click) + preventDefault: fire before the input blurs, keep focus.
-                    onMouseDown={(e) => { e.preventDefault(); pickPath(t.path); }}
-                    onMouseEnter={() => setHi(i)}
-                  >
-                    <span className="tt-label">{t.name}</span>
-                  </button>
-                </TagTip>
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -600,6 +607,17 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
   // These ARE the outlined tags: an outlined tag is a real application, so clicking it removes it.
   const regionAnns = open ? a.annotations.filter((x) => sameSelector(x.selector, open.selector)) : [];
   const applied: TagRef[] = regionAnns.map((x) => x.tag).filter((t): t is TagRef => !!t);
+  // The tags borne by OTHER components of this node (its other fragments / its whole-node tags) —
+  // surfaced as default chips so the same vocabulary used across the image is one click away.
+  const nodeTags: TagRef[] = [];
+  const seenNode = new Set<string>();
+  for (const an of a.annotations) {
+    if (!an.tag) continue;
+    const k = canonPath(an.tag.path);
+    if (seenNode.has(k)) continue;
+    seenNode.add(k);
+    nodeTags.push(an.tag);
+  }
 
   const onPick = (t: TagRef) => {
     if (!open) return;
@@ -627,7 +645,7 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
 
   const palette: ReactNode = open ? (
     <AnnotationMenu
-      menuRef={menuRef} x={open.x} y={open.y} applied={applied} mode="create"
+      menuRef={menuRef} x={open.x} y={open.y} applied={applied} nodeTags={nodeTags} mode="create"
       onPick={onPick} onUnpick={onUnpick}
       onCopy={open.copy ? () => { open.copy!(); close(); } : undefined}
       onClose={close}

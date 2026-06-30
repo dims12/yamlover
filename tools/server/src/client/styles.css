@@ -1083,12 +1083,15 @@ a.chunk-index:hover {
   background: rgba(243, 139, 168, 0.18);
   border-color: #f38ba8;
 }
-/* the recently applied NAMED tags — a row of small badges below the swatches */
+/* the default tag chips (applied · node-siblings · recents · project taxonomy) below the swatches —
+   wraps to a few rows, then scrolls so a large taxonomy never grows the menu off-screen */
 .annotate-recents {
   flex-basis: 100%;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  max-height: 108px;
+  overflow-y: auto;
 }
 .annotate-recents .tagframe,
 .annotate-suggest .tagframe {
