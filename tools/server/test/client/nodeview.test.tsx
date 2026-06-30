@@ -91,6 +91,17 @@ describe("NodeView", () => {
       render(<NodeView path=":c" format="chapter" onFormat={() => {}} onNavigate={() => {}} />);
       await waitFor(() => expect(mNode).toHaveBeenCalledWith(":c", 2));
       expect(mNode).not.toHaveBeenCalledWith(":c", 6);
+
+      // (4) an INLINE-DATA container (a yamlover-concrete fragment / sub-object — NOT a directory)
+      // shown in the explorer MUST refetch at depth 1. Its settle fetch used the server's per-concrete
+      // default, which for inline data is UNLIMITED — so members would inline as raw scalars / refs
+      // instead of `$yamloverLink` markers and stop being navigable (the облако-tag fragment bug).
+      mNode.mockReset();
+      mNode.mockResolvedValue({ path: ":frag", type: "object", format: "x-yamlover-fragment", concrete: "yamlover",
+        title: null, description: null, value: { type: "rect" } });
+      render(<NodeView path=":frag" format="large-icons" onFormat={() => {}} onNavigate={() => {}} />);
+      await waitFor(() => expect(mNode).toHaveBeenCalledWith(":frag", 1)); // explicit depth-1 refetch
+      expect(mNode).not.toHaveBeenCalledWith(":frag", 6);
     } finally {
       window.history.replaceState({}, "", "/");
     }

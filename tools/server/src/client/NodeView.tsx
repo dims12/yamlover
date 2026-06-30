@@ -27,7 +27,7 @@ export const DEFAULT_FORMAT: Format = "yamlover";
 // json/json5/json5p, incl. their `file/…` form (see ../concrete). (Detecting JSON flow syntax
 // embedded in a yaml/yamlover file is a separate, postponed concern.)
 export { isJsonFamily as isJsonConcrete } from "../concrete";
-import { isJsonFamily } from "../concrete";
+import { isJsonFamily, isDirConcrete } from "../concrete";
 
 const isSchema = (f: Format) => f.endsWith("schema");
 // Serialization syntax: json5p renders JSON-family; yamlover (+ its schema) renders YAML-family.
@@ -162,8 +162,15 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
         const fail = (e: Error) => !cancelled && setError(e.message);
         if (active) {
           const d = active.depth ?? 1; // a renderer's own fixed depth
-          if (d > 1) fetchNode(path, d).then(swap).catch(fail);
-          else setNode(n); // depth 1 (e.g. the explorer) → the settle fetch already covers it
+          // The settle fetch used the SERVER'S per-concrete default depth — one level for a
+          // directory or binary leaf, but UNLIMITED for an inline data node (json/yaml/yamlover,
+          // e.g. a fragment or any sub-object of a document). A fixed-depth renderer needs EXACTLY
+          // its depth: at unlimited depth the explorer's members inline as raw scalars / `$yamloverRef`
+          // markers instead of the `$yamloverLink` markers it navigates by, so reuse the settle fetch
+          // ONLY when its projection already matches (a one-level node), else refetch at exactly `d`.
+          const settleDepth = isDirConcrete(n.concrete) || n.type === "binary" ? 1 : Infinity;
+          if (d !== settleDepth) fetchNode(path, d).then(swap).catch(fail);
+          else setNode(n);
         } else {
           const dv = viewDepth(); // a data view: number = explicit finite, null = `.inf`/default
           if (dv === null) setNode(n); // default/.inf → the settle fetch is the server's per-concrete default
