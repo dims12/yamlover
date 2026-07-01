@@ -217,11 +217,11 @@ export function annotate(a: { target: string; tag: string; description?: string;
   return postJson(api("/api/annotate"), a);
 }
 
-/** Persist a board directory's LANE configuration — `columns` is the lanes, each a list of tag
- *  client-paths. Rewrites the directory's board overlay (`.yamlover/body.yamlover` `columns:`) and
- *  reindexes; the open board re-reads it over SSE. */
-export function saveBoardColumns(path: string, columns: string[][]): Promise<{ ok: true }> {
-  return postJson(api("/api/board"), { path, columns });
+/** Persist a board directory's LANE configuration — `lanes` is the lanes, each a list of tag
+ *  client-paths (1 = a plain lane, N = N sublanes). Rewrites the directory's board overlay
+ *  (`.yamlover/body.yamlover` `lanes:`) and reindexes; the open board re-reads it over SSE. */
+export function saveBoardLanes(path: string, lanes: string[][]): Promise<{ ok: true }> {
+  return postJson(api("/api/board"), { path, lanes });
 }
 
 /** Create a named tag at the project's default tags location (settings.yamlover; `/tags` by

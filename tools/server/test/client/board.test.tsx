@@ -20,7 +20,7 @@ describe("cardMemberPaths (board cards from the shared projection)", () => {
     const n = node({
       // config / taxonomy / graft keys — never cards
       workflow: link({ kind: "object", type: "object", format: "x-yamlover-workflow", path: ":board:workflow" }),
-      columns: link({ kind: "array", type: "array", path: ":board:columns", count: 2 }),
+      lanes: link({ kind: "array", type: "array", path: ":board:lanes", count: 2 }),
       yamlover: link({ kind: "object", type: "object", path: ":board:yamlover" }),
       tags: link({ kind: "object", type: "object", path: ":board:tags" }),
       // a nested tag link is container-tagish → excluded even though its key is not a config key

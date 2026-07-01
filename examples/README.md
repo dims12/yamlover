@@ -85,12 +85,12 @@ extension, so a directory of ordinary documents just works:
 ## Tags, boards & workflows
 
 Tag taxonomies classify materials by `*`-pointer membership; a board reuses the same
-machinery to arrange task cards into workflow columns.
+machinery to arrange task cards into workflow lanes.
 
 | # | example | concrete / shows |
 |---|---------|------------------|
 | 67 | [`67-pdf-tags`](67-pdf-tags)   | real PDFs (messy filenames) + a `body.yamlover` overlay: a `!!<*yamlover/$defs/tag>` taxonomy whose slugs link papers by `*` pointer, with each paper mirroring `~slug:` back — membership authored both ways, reconciled by the engine |
-| 73 | [`73-dev-board`](73-dev-board) | an agile **board** — a directory of `!!<*yamlover:$defs:task>` cards grouped into kanban columns by the project-global `dev` workflow's states; dragging a card between columns re-tags it (see [TICKETS.md](../TICKETS.md)) |
+| 73 | [`73-dev-board`](73-dev-board) | an agile **board** — a directory of `!!<*yamlover:$defs:task>` cards grouped into kanban lanes by the project-global `dev` workflow's states; dragging a card between lanes re-tags it (see [TICKETS.md](../TICKETS.md)) |
 
 ---
 

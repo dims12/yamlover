@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NodeJson, fetchNode, TagRef, saveBoardColumns } from "../api";
+import { NodeJson, fetchNode, TagRef, saveBoardLanes } from "../api";
 import { memberItems } from "./explorer";
 import { touchesYamlover, useDiffBump } from "../live";
 import { resolveTagColor, tagFields } from "./tag";
@@ -12,10 +12,10 @@ export const BOARD_FORMAT = "x-yamlover-board";
 const CONTAINER_TAGISH = new Set(["x-yamlover-tag", "x-yamlover-workflow", "x-yamlover-board"]);
 
 /** Whether a directory should default to (and offer) the BOARD view: it carries the board schema,
- *  or an overlay board config (a `workflow:` seed or an explicit `columns:` lane list). */
+ *  or an overlay board config (a `workflow:` seed or an explicit `lanes:` list). */
 export function isBoardNode(node: NodeJson): boolean {
   if (node.format === BOARD_FORMAT) return true;
-  return tagFields(node.value).some(([k]) => k === "workflow" || k === "columns");
+  return tagFields(node.value).some(([k]) => k === "workflow" || k === "lanes");
 }
 
 // Tags whose cards read as "did not complete" — struck through. A naming heuristic for now.
@@ -31,8 +31,8 @@ interface Card {
   tags: string[]; // every tag this card carries (to classify into lane sub-sections)
 }
 
-/** One lane: a header carrying one or more tags; a card filed under each tag it bears (multiple
- *  tags split the lane vertically). */
+/** One lane: either a single tag (shown in the lane header) or several SUBLANES — one tag each,
+ *  stacked vertically, each tag shown only in its sublane head. */
 interface Lane {
   tags: WorkflowState[];
 }
@@ -47,16 +47,16 @@ function workflowPathOf(node: NodeJson): string | null {
   return targetPath(tagFields(node.value).find(([k]) => k === "workflow")?.[1]);
 }
 
-/** The explicit `columns:` config (lanes × tag paths), or null when the board only seeds from a
- *  `workflow:`. `columns` projects as an array of arrays of tag links. */
-function explicitColumns(node: NodeJson): string[][] | null {
-  const raw = tagFields(node.value).find(([k]) => k === "columns")?.[1];
+/** The explicit `lanes:` config (lanes × tag paths), or null when the board only seeds from a
+ *  `workflow:`. `lanes` projects as an array of arrays of tag links. */
+function explicitLanes(node: NodeJson): string[][] | null {
+  const raw = tagFields(node.value).find(([k]) => k === "lanes")?.[1];
   if (!Array.isArray(raw)) return null;
   return raw.map((lane) => (Array.isArray(lane) ? lane.map(targetPath).filter((p): p is string => !!p) : []));
 }
 
 // Keys the board owns as config / taxonomy / graft — never cards.
-const BOARD_CONFIG_KEYS = new Set(["workflow", "columns", "yamlover", "tags"]);
+const BOARD_CONFIG_KEYS = new Set(["workflow", "lanes", "yamlover", "tags"]);
 
 /** The directory's CARD members — content entities, not the board's own config / taxonomy / graft.
  *  Drawn from the SHARED projection ({@link memberItems}) so a board lists the same members the
@@ -81,13 +81,14 @@ function tagsInValue(value: unknown): string[] {
 }
 
 /**
- * The BOARD view (TICKETS.md §3) — a tag-column layout over a directory, now one of the explorer's
- * view modes. Lanes come from the board overlay's explicit `columns:` (lanes × tags) or, absent
- * that, are seeded from a `workflow:` (flowing states each a lane, terminal states merged). Each
- * lane header is a TAG MULTI-SELECT: add/remove tags (persisted to the overlay via `POST /api/board`);
- * multiple tags split the lane vertically into per-tag drop zones. Dragging a card between
- * sub-sections re-tags it (move: drop the source tag, add the target — advisory). Cancelled-like
- * tags are struck through. Right-click a card → the shared tagging menu.
+ * The BOARD view (TICKETS.md §3) — a tag-lane layout over a directory, now one of the explorer's
+ * view modes. Lanes come from the board overlay's explicit `lanes:` (each lane a single tag or a
+ * list of sublane tags) or, absent that, are seeded from a `workflow:` (flowing states each a
+ * lane, terminal states merged into one lane of sublanes). A plain lane shows its tag in the
+ * header; sublanes are added explicitly (the header's ＋) and each shows its tag only in its own
+ * head — per-tag drop zones stacked vertically (persisted via `POST /api/board`). Dragging a card
+ * between lanes/sublanes re-tags it (move: drop the source tag, add the target — advisory).
+ * Cancelled-like tags are struck through. Right-click a card → the shared tagging menu.
  */
 export function BoardView({
   node,
@@ -112,11 +113,11 @@ export function BoardView({
     (async () => {
       try {
         // Members + the workflow ref read from the (depth-1) node — there they are link markers; the
-        // `columns:` config needs a DEEPER fetch (board → lanes → tags), where members instead
+        // `lanes:` config needs a DEEPER fetch (board → lanes → tags), where members instead
         // expand inline, so the two are read from different depths.
         const wfPath = workflowPathOf(node);
-        const hasColumns = tagFields(node.value).some(([k]) => k === "columns");
-        const explicit = hasColumns ? explicitColumns(await fetchNode(node.path, 3)) : null;
+        const hasLanes = tagFields(node.value).some(([k]) => k === "lanes");
+        const explicit = hasLanes ? explicitLanes(await fetchNode(node.path, 3)) : null;
         let built: Lane[] = [];
         if (explicit) {
           built = await Promise.all(explicit.map(async (laneTags) => ({ tags: await Promise.all(laneTags.map(stateDetail)) })));
@@ -145,13 +146,13 @@ export function BoardView({
     return () => { cancelled = true; };
   }, [node.path, diffBump]);
 
-  // The current lanes as a plain `columns` config (materializing a workflow seed on first edit).
-  const currentColumns = (): string[][] => lanes.map((l) => l.tags.map((t) => t.path));
-  const persist = (cols: string[][]) => { saveBoardColumns(node.path, cols).catch((e) => setError(String((e as Error)?.message || e))); };
-  const addTagToLane = (laneI: number, tagPath: string) => { const cols = currentColumns(); if (!cols[laneI]) cols[laneI] = []; if (!cols[laneI].includes(tagPath)) cols[laneI].push(tagPath); persist(cols); };
-  const removeTagFromLane = (laneI: number, tagPath: string) => { const cols = currentColumns().map((l, i) => (i === laneI ? l.filter((t) => t !== tagPath) : l)); persist(cols); };
-  const addLane = () => persist([...currentColumns(), []]);
-  const removeLane = (laneI: number) => persist(currentColumns().filter((_, i) => i !== laneI));
+  // The current lanes as a plain `lanes` config (materializing a workflow seed on first edit).
+  const currentLanes = (): string[][] => lanes.map((l) => l.tags.map((t) => t.path));
+  const persist = (ls: string[][]) => { saveBoardLanes(node.path, ls).catch((e) => setError(String((e as Error)?.message || e))); };
+  const addTagToLane = (laneI: number, tagPath: string) => { const ls = currentLanes(); if (!ls[laneI]) ls[laneI] = []; if (!ls[laneI].includes(tagPath)) ls[laneI].push(tagPath); persist(ls); };
+  const removeTagFromLane = (laneI: number, tagPath: string) => { const ls = currentLanes().map((l, i) => (i === laneI ? l.filter((t) => t !== tagPath) : l)); persist(ls); };
+  const addLane = () => persist([...currentLanes(), []]);
+  const removeLane = (laneI: number) => persist(currentLanes().filter((_, i) => i !== laneI));
 
   const onDropTo = async (tagPath: string) => {
     const d = drag;
@@ -185,19 +186,19 @@ export function BoardView({
           <section key={laneI} className="board-col">
             <header className="board-col-head" style={{ borderTopColor: headColor }}>
               <div className="board-col-tags">
-                {lane.tags.map((t) => (
-                  <TagTip key={t.path} tag={{ path: t.path, name: t.label, color: t.color }}>
+                {lane.tags.length === 1 && (
+                  <TagTip tag={{ path: lane.tags[0].path, name: lane.tags[0].label, color: lane.tags[0].color }}>
                     <button
                       type="button"
                       className="tagtag on"
-                      style={tagStyle(resolveTagColor({ name: t.label, color: t.color }))}
-                      onClick={() => removeTagFromLane(laneI, t.path)}
+                      style={tagStyle(resolveTagColor({ name: lane.tags[0].label, color: lane.tags[0].color }))}
+                      onClick={() => removeTagFromLane(laneI, lane.tags[0].path)}
                     >
-                      <span className="tt-label">{t.label}</span>
+                      <span className="tt-label">{lane.tags[0].label}</span>
                     </button>
                   </TagTip>
-                ))}
-                <button className="board-lane-add" title="add a tag to this lane" onClick={(e) => setPicker({ lane: laneI, x: e.clientX, y: e.clientY })}>＋</button>
+                )}
+                <button className="board-lane-add" title={lane.tags.length === 0 ? "set this lane's tag" : "add a sublane"} onClick={(e) => setPicker({ lane: laneI, x: e.clientX, y: e.clientY })}>＋</button>
               </div>
               <span className="board-col-count">{total}</span>
               <button className="board-lane-del" title="remove this lane" onClick={() => removeLane(laneI)}>🗑</button>
@@ -219,6 +220,7 @@ export function BoardView({
                         <span className="board-group-dot" style={{ background: color }} />
                         <span className="board-group-title">{t.label}</span>
                         <span className="board-col-count">{groupCards.length}</span>
+                        <button className="board-group-del" title="remove this sublane" onClick={() => removeTagFromLane(laneI, t.path)}>✕</button>
                       </div>
                     )}
                     <div className="board-group-cards">
@@ -260,6 +262,7 @@ export function BoardView({
           mode="create"
           onPick={(t: TagRef) => { addTagToLane(picker.lane, t.path); setPicker(null); }}
           onClose={() => setPicker(null)}
+          title={displayPath(node.path)}
         />
       )}
     </div>

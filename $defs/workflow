@@ -6,7 +6,7 @@
 # contained sub-tag). The workflow's `initial:` ref points at the start state; a TERMINAL state
 # is DERIVED (it has no outgoing `next`). Transitions are ADVISORY — the engine permits any state
 # change; the board UI merely offers `next` states as the obvious moves. The format
-# `x-yamlover-workflow` lets the board renderer recognize this node and order its columns. Attach
+# `x-yamlover-workflow` lets the board renderer recognize this node and order its lanes. Attach
 # with  !!<*yamlover:$defs:workflow>.  Spec: ../TICKETS.md §2.
 type: variant
 format: x-yamlover-workflow

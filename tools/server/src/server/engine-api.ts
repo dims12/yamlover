@@ -503,20 +503,21 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       }
 
       // Persist a BOARD's lane configuration (TICKETS.md §3 — the board is the explorer's per-tag
-      // view). Rewrites the board directory's overlay `columns:` block (a sequence of lanes, each a
-      // flow-sequence of tag pointers), then reconciles. Body: { path, columns: string[][] } where
-      // each inner string is a tag client-path. The pointers are written project-scope (`*::…`),
-      // exactly like an annotation's tag (so they resolve from the served root).
+      // view). Rewrites the board directory's overlay `lanes:` block (a sequence of lanes, each a
+      // flow-sequence of tag pointers — one tag = a plain lane, several = sublanes), then
+      // reconciles. Body: { path, lanes: string[][] } where each inner string is a tag client-path.
+      // The pointers are written project-scope (`*::…`), exactly like an annotation's tag (so they
+      // resolve from the served root).
       if (req.method === "POST" && url.pathname === "/api/board") {
         readBody(req)
           .then((data) =>
             enqueue(async () => {
-              const b = data as { path?: string; columns?: unknown };
-              const cols: string[][] = Array.isArray(b?.columns) ? b.columns.map((lane) => (Array.isArray(lane) ? lane.map((p) => String(p)) : [])) : [];
+              const b = data as { path?: string; lanes?: unknown };
+              const lanes: string[][] = Array.isArray(b?.lanes) ? b.lanes.map((lane) => (Array.isArray(lane) ? lane.map((p) => String(p)) : [])) : [];
               const { bodyFile } = hostFor(dataRoot, s, strToSegs(b?.path || ":"));
               fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
               const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
-              fs.writeFileSync(bodyFile, writeBoardColumns(src, cols));
+              fs.writeFileSync(bodyFile, writeBoardLanes(src, lanes));
               broadcast(await doReindex());
               scheduleHasher();
               return { ok: true };
@@ -1463,16 +1464,16 @@ function pointerRaw(clientPath: string): string {
   return "::" + out;
 }
 
-/** Rewrite a board overlay's top-level `columns:` block (TICKETS.md §3). `cols` is the lanes, each a
+/** Rewrite a board overlay's top-level `lanes:` block (TICKETS.md §3). `lanes` is the lanes, each a
  *  list of tag client-paths; each lane is emitted as a flow-sequence of project-scope pointers. An
- *  existing `columns:` block (its `- …` items) is replaced; otherwise the block is appended. A fresh
+ *  existing `lanes:` block (its `- …` items) is replaced; otherwise the block is appended. A fresh
  *  file is seeded with the board schema tag so it indexes as a board. */
-function writeBoardColumns(src: string, cols: string[][]): string {
+function writeBoardLanes(src: string, lanes: string[][]): string {
   const laneLine = (lane: string[]) => `- [${lane.map((p) => pointerToken(pointerRaw(p))).join(", ")}]`;
-  const block = cols.length === 0 ? ["columns: []"] : ["columns:", ...cols.map(laneLine)];
+  const block = lanes.length === 0 ? ["lanes: []"] : ["lanes:", ...lanes.map(laneLine)];
   let lines = src.replace(/\n+$/, "").split("\n");
   if (src.trim() === "") lines = ["!!<*yamlover:$defs:board>"];
-  const start = lines.findIndex((l) => /^columns:/.test(l));
+  const start = lines.findIndex((l) => /^lanes:/.test(l));
   if (start >= 0) {
     let end = start + 1;
     while (end < lines.length && (lines[end] === "" || /^[ \t-]/.test(lines[end]))) end++; // the block's items

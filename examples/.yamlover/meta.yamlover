@@ -51,4 +51,4 @@ properties:
   72-images:
     description: photographs typed by extension (JPG/HEIC), shown in the pan/zoom image viewer
   73-dev-board:
-    description: an agile board — a directory of `$defs:task` cards grouped into workflow columns; drag-to-retag
+    description: an agile board — a directory of `$defs:task` cards grouped into workflow lanes; drag-to-retag

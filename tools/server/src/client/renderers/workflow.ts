@@ -50,7 +50,7 @@ export async function fetchWorkflowStates(workflowPath: string): Promise<Workflo
   const seen = new Set<string>();
   const states: WorkflowState[] = [];
   for (const [key, val] of tagFields(wf.value)) {
-    if (key === "initial" || key === "color") continue; // not columns: the start-state ref / a workflow color
+    if (key === "initial" || key === "color") continue; // not states: the start-state ref / a workflow color
     const link = asLink(val);
     if (!link || link.format !== TAG_FORMAT || seen.has(link.path)) continue;
     seen.add(link.path);

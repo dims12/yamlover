@@ -137,7 +137,7 @@ announced over SSE like every other change (`unified-change-flow`).
 # $defs/workflow — a state machine expressed as a TAG whose CONTAINED sub-tags are its states
 # (each an ordinary $defs/tag). `initial:` is a ref to the start state; transitions are each
 # state's `next:` ref(s); a terminal state has no outgoing `next`. Transitions are ADVISORY.
-# format x-yamlover-workflow lets the board renderer recognize it and order its columns.
+# format x-yamlover-workflow lets the board renderer recognize it and order its lanes.
 # Attach with  !!<*yamlover:$defs:workflow>.
 type: variant
 format: x-yamlover-workflow
@@ -157,17 +157,18 @@ from more than one (e.g. a dev state **and** an SRS state) — they are independ
 A **directory whose entries are `$defs/task` nodes** gains a **Board view**, beside the existing
 directory views (explorer grid, thumbnails gallery — `explorer-renderer`, `extractor-registry`).
 
-- **Columns** = the workflow's states, in spine order, refined by `next` topology. The board's
+- **Lanes** = the workflow's states, in spine order, refined by `next` topology. The board's
   workflow is taken from a `workflow: *::tags:workflow:<name>` key on the directory overlay
   (`.yamlover/body.yamlover`); absent, it is **inferred** from the state tags the tasks actually
-  carry.
+  carry. A saved `lanes:` block overrides the seed — each lane is a single tag, or a list of
+  tags giving per-tag **sublanes** stacked vertically inside the lane.
 - **Cards** = the tasks: title, priority chip, assignee, due, and (when present) the first chunk
   or a thumbnail as a preview.
-- **Drag a card between columns** = a **state change**: rewrite that task's state annotation
-  (§2.3) via the annotation write endpoint. `next` columns are the highlighted drop targets;
+- **Drag a card between lanes** = a **state change**: rewrite that task's state annotation
+  (§2.3) via the annotation write endpoint. `next` lanes are the highlighted drop targets;
   others are allowed (advisory). The move is announced over SSE, so every open surface (the board,
   the task page, any query view) refreshes through `useDiffBump`.
-- **Empty-column / WIP** affordances and ordering within a column (by `priority`, then `due`) are
+- **Empty-lane / WIP** affordances and ordering within a lane (by `priority`, then `due`) are
   presentation; the data is just tasks + their state annotations.
 
 The same directory still opens as a plain file grid; **Board** is a view toggle, offered when the
@@ -371,7 +372,7 @@ deliverable that *is* the stored solution). The schema doesn't care which; the s
 | `$defs/workflow` | §2.4 — the state-machine marker tag (`x-yamlover-workflow`) |
 | `tags/.../workflow/dev`, `…/srs` | seed workflows (states + `next` ref edges) |
 | `tags/.../card` | the quiz-role taxonomy (`question`/`answer`/`answer-variant`/`correct`/`hint`) |
-| board renderer | §3 — directory view: columns = states, drag = re-tag, over SSE |
+| board renderer | §3 — directory view: lanes = states, drag = re-tag, over SSE |
 | SM-2 action | §4.3 — grade → rewrite the `review` annotation |
 | example | `examples/NN-tickets/` — a board dir + a deck dir, exercising both workflows |
 

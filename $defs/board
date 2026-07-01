@@ -1,15 +1,15 @@
 # $defs/board — marks a DIRECTORY of tasks as an agile/kanban board. Attach it to the directory's
 # `.yamlover/body.yamlover` overlay; the `workflow:` ref names which $defs/workflow supplies the
-# columns (its states, in order). The board renderer then groups the directory's task members into
-# those columns by each task's current state annotation, and a drag between columns rewrites that
+# lanes (its states, in order). The board renderer then groups the directory's task members into
+# those lanes by each task's current state annotation, and a drag between lanes rewrites that
 # annotation (re-tags the state). format `x-yamlover-board`. Attach with  !!<*yamlover:$defs:board>.
 # Spec: ../TICKETS.md §3.
 type: object
 format: x-yamlover-board
 properties:
   workflow: *:: yamlover: $defs: tag    # ref → the workflow that SEEDS the default lanes
-  columns:                              # optional saved lanes (the explorer board view's config):
-    type: array                         #   a sequence of lanes, each a list of tag refs; multiple
-    items:                              #   tags in a lane split it vertically. Edited via the lane
-      type: array                       #   headers, persisted by POST /api/board.
-      items: *:: yamlover: $defs: tag
+  lanes:                                # optional saved lanes (the explorer board view's config):
+    type: array                         #   a sequence of lanes, each a list of tag refs — one tag
+    items:                              #   = a plain lane, several = per-tag SUBLANES stacked
+      type: array                       #   vertically. Edited via the lane headers, persisted by
+      items: *:: yamlover: $defs: tag   #   POST /api/board.

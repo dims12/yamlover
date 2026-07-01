@@ -2096,7 +2096,8 @@ mark.yo-annotation {
   flex: 1 1 auto;
 }
 .board-lane-add,
-.board-lane-del {
+.board-lane-del,
+.board-group-del {
   background: none;
   border: none;
   cursor: pointer;
@@ -2119,6 +2120,14 @@ mark.yo-annotation {
   opacity: 0.5;
 }
 .board-lane-del:hover { opacity: 1; }
+/* the sublane head's remove button — same quiet affordance as the lane delete */
+.board-group-del {
+  color: var(--dim);
+  font-size: 0.85em;
+  flex: 0 0 auto;
+  opacity: 0.5;
+}
+.board-group-del:hover { opacity: 1; }
 /* the trailing "＋ lane" button: a ghost column */
 .board-add-lane {
   flex: 0 0 auto;

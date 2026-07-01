@@ -89,8 +89,8 @@ describe("renderer registry (facet predicates)", () => {
     expect(boardViews[0]).toBe("tag-board");
     expect(boardViews).toContain("large-icons");
     expect(rendererName({ format: "x-yamlover-board" }, "dir/yamlover")).toBe("tag-board");
-    // a board detected only via overlay value (workflow:/columns:) also leads with tag-board
-    expect(renderersFor(node({ concrete: "dir", value: { columns: [] } })).map((r) => r.name)[0]).toBe("tag-board");
+    // a board detected only via overlay value (workflow:/lanes:) also leads with tag-board
+    expect(renderersFor(node({ concrete: "dir", value: { lanes: [] } })).map((r) => r.name)[0]).toBe("tag-board");
     // the view tabs carry human labels
     expect(renderersFor(node({ concrete: "dir" })).map((r) => r.label)).toEqual([
       "thumbnails", "large icons", "small icons", "details",
