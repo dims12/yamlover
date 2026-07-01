@@ -1655,6 +1655,17 @@ mark.yo-annotation {
 .leaflet-interactive.yo-region {
   cursor: pointer; /* click a region → the edit menu (recolor / delete) */
 }
+/* a frame's applied tags, drawn as badges just below its bottom-left corner (a Leaflet divIcon,
+   content-sized so it hugs the tags). Display-only — clicks fall through to the region rect. */
+.yo-region-tags {
+  width: max-content;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px; /* a small gap under the frame's bottom edge */
+  pointer-events: none;
+}
 /* Leaflet popups carry the feature's (often HTML) KML description */
 .map-popup-desc {
   margin-top: 4px;

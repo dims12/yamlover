@@ -35,7 +35,7 @@ test('compact sequence of mappings', () => {
 });
 
 test('block sequence at the SAME indent as its key (zero-indent seq)', () => {
-  // YAML allows `key:` then `- …` at the parent's column (the 57-image-with-markup shape)
+  // YAML allows `key:` then `- …` at the parent's column (a zero-indent block sequence under a key)
   const d = parseYamlover('markup:\n- x: 1\n  y: 2\n- x: 3\n  y: 4\nother: 9\n');
   assert.deepEqual(toPlain(d.root), { markup: [{ x: 1, y: 2 }, { x: 3, y: 4 }], other: 9 });
 });

@@ -6,14 +6,34 @@ import { Chunk } from "./registry";
 import { Annotation } from "../api";
 import { fragmentAnchorId } from "../paths";
 import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
+import { TagLink, resolveTagColor, isColorTagPath } from "./tag";
 import { wireGestures } from "./panzoom";
 
 /** A rectangular annotation region in the image's own pixel space (origin top-left). `ann` is the
  *  source annotation when it is a real saved one (→ clickable to edit); absent for the live preview.
- *  `id` is the fragment's `#`-anchor (set for a saved fragment) — the key a hash reveal pans to. */
-export interface ImageRegion { x: number; y: number; w: number; h: number; title?: string; color?: string; ann?: Annotation; id?: string }
+ *  `id` is the fragment's `#`-anchor (set for a saved fragment) — the key a hash reveal pans to.
+ *  `tags` are the frame's applied tags, drawn as badges below it (all tags of a grouped region). */
+export interface ImageRegion { x: number; y: number; w: number; h: number; title?: string; color?: string; ann?: Annotation; id?: string; tags?: TagLink[] }
 
 const num = (v: unknown): number => Number(v) || 0;
+
+const escHtml = (s: string): string =>
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
+
+/** The tag-badge markup drawn below a frame — mirrors {@link TagBadges}: a pure color tag is a
+ *  circular swatch, a named tag a colored `.tagtag` badge (reusing their global styles). Built as an
+ *  HTML string because it lives inside a Leaflet `divIcon`, not the React tree. Display-only. */
+function tagBadgesHtml(tags: TagLink[]): string {
+  return tags
+    .map((t) => {
+      const color = resolveTagColor({ name: t.label, color: t.color });
+      if (isColorTagPath(t.path)) {
+        return `<span class="tagswatch" style="background:${color}" title="${escHtml(t.label)}"></span>`;
+      }
+      return `<span class="tagtag" style="background:${color}">${escHtml(t.label)}</span>`;
+    })
+    .join("");
+}
 
 /** A PNG data-URL crop of the natural-pixel region (x,y,w,h) of `img`, for an image-like
  *  fragment's embedded preview; undefined if the region is empty or the canvas reads back tainted
@@ -29,11 +49,23 @@ function cropPng(img: HTMLImageElement | null, x: number, y: number, w: number, 
 }
 
 /** The `rect`-type annotations, as pixel regions to overlay on the image. `materialPath` lets a
- *  saved fragment carry its `#/yamlover-fragments/<slug>` anchor id so a hash reveal can pan to it. */
+ *  saved fragment carry its `#/yamlover-fragments/<slug>` anchor id so a hash reveal can pan to it.
+ *  Annotations are GROUPED by selector (a region's tag applications share one selector — the same
+ *  join key as `sameSelector`/`annKey` in annotate.tsx): each frame becomes ONE region carrying all
+ *  its tags, so multi-tag frames draw a single rectangle instead of N overlapping ones. */
 function imageRegions(anns: Annotation[], materialPath: string): ImageRegion[] {
-  return anns
-    .filter((a) => a.selector?.type === "rect")
-    .map((a) => ({ x: num(a.selector!.x), y: num(a.selector!.y), w: num(a.selector!.w), h: num(a.selector!.h), title: a.description, color: colorOf(a), ann: editable(a) ? a : undefined, id: a.fragmentSlug ? fragmentAnchorId(materialPath, a.fragmentSlug) : undefined }));
+  const byRegion = new Map<string, ImageRegion>();
+  for (const a of anns) {
+    if (a.selector?.type !== "rect") continue;
+    const key = JSON.stringify(a.selector);
+    let r = byRegion.get(key);
+    if (!r) {
+      r = { x: num(a.selector.x), y: num(a.selector.y), w: num(a.selector.w), h: num(a.selector.h), title: a.description, color: colorOf(a), ann: editable(a) ? a : undefined, id: a.fragmentSlug ? fragmentAnchorId(materialPath, a.fragmentSlug) : undefined, tags: [] };
+      byRegion.set(key, r);
+    }
+    if (a.tag) r.tags!.push({ path: a.tag.path, label: a.tag.name, color: a.tag.color });
+  }
+  return [...byRegion.values()];
 }
 
 /**
@@ -141,6 +173,15 @@ export function PanZoomImage({
         rect.on("contextmenu", open);
       }
       rect.addTo(lg);
+      // Draw the frame's tags as badges just below its bottom-left corner (image y is from the top,
+      // CRS.Simple lat from the bottom → flip). A content-sized divIcon anchored at its top-left
+      // (no iconSize) sits directly under the frame, left edge aligned; non-interactive so clicks
+      // fall through to the rect. Added to the same layer group → cleared/redrawn with the rects.
+      if (r.tags && r.tags.length) {
+        const corner = L.latLng(h - (r.y + r.h), r.x);
+        const icon = L.divIcon({ className: "yo-region-tags", html: tagBadgesHtml(r.tags), iconAnchor: [0, 0] });
+        L.marker(corner, { icon, interactive: false, keyboard: false }).addTo(lg);
+      }
       if (r.id) shapesRef.current.set(r.id, { rect, bounds });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

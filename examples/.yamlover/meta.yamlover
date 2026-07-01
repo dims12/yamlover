@@ -28,8 +28,6 @@ properties:
     description: a binary file decoded by `meta.yamlover` (`type binary`, `format int32/le`)
   56-array-of-files:
     description: a sequence whose elements live in files — order and per-element format from meta
-  57-image-with-markup:
-    description: a PNG typed via meta plus structured `markup` data in body
   58-genealogy-dag:
     description: the canonical DAG — containment is the paternal line, `*` the maternal cross-edge, `~` the reverses
   59-all-formats-object:
@@ -52,3 +50,5 @@ properties:
     description: KML/KMZ maps drawn over an OpenStreetMap overlay
   72-images:
     description: photographs typed by extension (JPG/HEIC), shown in the pan/zoom image viewer
+  73-dev-board:
+    description: an agile board — a directory of `$defs:task` cards grouped into workflow columns; drag-to-retag

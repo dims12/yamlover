@@ -1,0 +1,11 @@
+# .yamlover/settings.yamlover — project settings for this root (created with defaults).
+# Settings are DEFAULTS, never constraints: they only say where the server CREATES things when you
+# do not; reading is location-independent (a node is recognized by its schema, wherever it sits).
+# Locations are PROJECT-SCOPE pointers: `*::x` = project root, `*:x` = document root, `*x` =
+# parent/current scope (SEPARATOR.md §2). A missing field falls back to these same values. Edit me
+# here or via the gear button's settings editor.
+!!<*yamlover:$defs:config>
+
+annotations: *:: annotations   # create new annotations in :annotations
+tags: *:: tags                 # create new tags in :tags
+sidecars: per-directory        # where derived thumbnail/crop blobs go (enum, not a path)
