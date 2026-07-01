@@ -1,6 +1,6 @@
 {
   "name": "yamlover",
-  "version": "0.3.17",
+  "version": "0.3.18",
   "description": "Browse a yamlover tree in the web: npx yamlover <root> serves a React SPA over a directory.",
   "type": "module",
   "license": "MIT",
