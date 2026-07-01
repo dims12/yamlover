@@ -252,16 +252,51 @@ export function Render({
 
 /** A selected binary leaf as a YAML `!!binary` block (a comment carries the
  *  format/size; the base64 is the block scalar's content, canonically wrapped at
- *  76 columns and indented two spaces). */
+ *  76 columns and indented two spaces), foldable like any big scalar. */
 function BinaryYaml({ bin }: { bin: BinaryPayload }) {
-  const lines: string[] = [];
-  for (let i = 0; i < bin.base64.length; i += 76) lines.push("  " + bin.base64.slice(i, i + 76));
+  const [open, setOpen] = useState(true);
   return (
     <>
-      <span className="b">!!binary</span> <span className="punct">|</span>{"  "}
-      <span className="c">{`# ${bin.format ?? "binary"}, ${bin.size} bytes`}</span>
-      {"\n"}
-      <span className="s">{lines.join("\n")}</span>
+      <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
+      <BigScalarYaml v={bin} indent={2} open={open} />
+    </>
+  );
+}
+
+/** A BIG scalar that folds like a container: a multiline string (shown as a `|` block) or a
+ *  selected binary's bytes. Single-line scalars stay inline (never foldable). */
+const bigScalar = (v: unknown): boolean => (typeof v === "string" && v.includes("\n")) || !!asBinary(v);
+
+/** The base64 of a binary payload, canonically wrapped at 76 columns. */
+function wrap76(b64: string): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < b64.length; i += 76) out.push(b64.slice(i, i + 76));
+  return out;
+}
+
+/** A BIG scalar's YAML rendering after its row head (`key:` / `- ` / an omni's own line): the `|`
+ *  block header (with the `!!binary # format, size` note for bytes) stays on the row; the body sits
+ *  indented below when open, or a `{ N lines }` summary takes its place when folded. The FOLD TOGGLE
+ *  is the caller's (it must anchor at the row START for the gutter alignment). */
+function BigScalarYaml({ v, indent, open, trail = null }: { v: string | BinaryPayload; indent: number; open: boolean; trail?: ReactNode }): ReactNode {
+  const bin = typeof v === "string" ? null : v;
+  const lines = bin ? wrap76(bin.base64) : (v as string).replace(/\n$/, "").split("\n");
+  const pad = " ".repeat(indent);
+  return (
+    <>
+      {bin ? (
+        <>
+          <span className="b">!!binary</span> <span className="punct">|</span>{"  "}
+          <span className="c">{`# ${bin.format ?? "binary"}, ${bin.size} bytes`}</span>
+        </>
+      ) : (
+        <span className="punct">|</span>
+      )}
+      {open ? (
+        <>{trail}{"\n"}<span className="s">{lines.map((l) => pad + l).join("\n")}</span>{"\n"}</>
+      ) : (
+        <>{" "}<span className="fold-summary">{`{ ${lines.length} lines }`}</span>{trail}{"\n"}</>
+      )}
     </>
   );
 }
@@ -445,24 +480,36 @@ function YamlArray({ items, indent, ctx, frag, inlineHead = false }: { items: un
  *  own line below the dash. */
 function canInlineAfterDash(v: unknown): boolean {
   if (asMixed(v)) return false;
-  if (isObj(v)) { const vs = Object.values(v); return vs.length > 0 && !foldable(vs[0]); }
-  if (Array.isArray(v)) return v.length > 0 && !foldable(v[0]);
+  // a big scalar (multiline text / bytes) first child carries its own fold toggle, which must
+  // anchor at the row start — so it cannot share the dash's line either
+  if (isObj(v)) { const vs = Object.values(v); return vs.length > 0 && !foldable(vs[0]) && !bigScalar(vs[0]); }
+  if (Array.isArray(v)) return v.length > 0 && !foldable(v[0]) && !bigScalar(v[0]);
   return false;
+}
+
+/** An omni node's own scalar line. A plain scalar renders inline; a BIG one (multiline text /
+ *  binary bytes) becomes a foldable `|` / `!!binary` block with its toggle in the row's gutter. */
+function YamlSelfValue({ value, pad, indent, ctx, frag }: { value: unknown; pad: string; indent: number; ctx: Ctx; frag: string }): ReactNode {
+  const [open, setOpen] = useState(true);
+  const trail = valueTrailingComment(ctx, frag, "yaml");
+  if (!bigScalar(value)) return <>{pad}{scalarNode(value, "yaml")}{trail}{"\n"}</>;
+  return (
+    <>
+      <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
+      {pad}
+      <BigScalarYaml v={asBinary(value) ?? (value as string)} indent={indent + 2} open={open} trail={trail} />
+    </>
+  );
 }
 
 function YamlMixed({ mixed, indent, ctx, frag }: { mixed: Mixed; indent: number; ctx: Ctx; frag: string }): ReactNode {
   const pad = " ".repeat(indent);
   return (
     <>
-      {/* omni: the node's own scalar value on its own line first (`!!var 5` → `5`) */}
-      {mixed.kind === "omni" && (
-        <>
-          {pad}
-          {scalarNode(mixed.value, "yaml")}
-          {valueTrailingComment(ctx, frag, "yaml")}
-          {"\n"}
-        </>
-      )}
+      {/* omni: the node's own scalar value on its own line first (`!!var 5` → `5`). A big self-value
+          — a multiline string, or the BYTES of a blob-backed omni (an image with overlay entries,
+          fetched ?binary=1) — renders as a foldable block, like a pure binary leaf / any big scalar. */}
+      {mixed.kind === "omni" && <YamlSelfValue value={mixed.value} pad={pad} indent={indent} ctx={ctx} frag={frag} />}
       {mixed.entries.map((e, i) =>
         e.key === null ? (
           <YamlItem key={i} v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}[${i}]`} />
@@ -493,6 +540,20 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, noPad = false }: { k: string;
       <span className="punct">:</span>
     </>
   );
+  if (bigScalar(v)) {
+    // a multiline string / binary bytes: a `|` block under the key, foldable from the row
+    return (
+      <>
+        {blank}
+        {lead}
+        <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
+        {head}
+        {deco}
+        {" "}
+        <BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} />
+      </>
+    );
+  }
   if (!foldable(v)) return <>{blank}{lead}{head}{deco}{inlineYamlValue(v, ctx, trail, ptr && fmtPointer(ptr, "yaml"))}</>;
   return (
     <>
@@ -524,6 +585,20 @@ function YamlItem({ v, pad, indent, ctx, frag, noPad = false }: { v: unknown; pa
       <span className="punct yaml-dash">{"-"}</span>
     </>
   );
+  if (bigScalar(v)) {
+    // a multiline string / binary bytes item: `- |` with the block below, foldable from the row
+    return (
+      <>
+        {blank}
+        {lead}
+        <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
+        {dash}
+        {deco}
+        {" "}
+        <BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} />
+      </>
+    );
+  }
   if (!foldable(v)) return <>{blank}{lead}{dash}{deco}{inlineYamlValue(v, ctx, trail, ptr && fmtPointer(ptr, "yaml"))}</>;
   const compact = canInlineAfterDash(v);
   return (

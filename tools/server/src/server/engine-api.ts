@@ -858,8 +858,19 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       if (url.pathname === "/api/json") {
         // Gate the byte fetch on the binary VALUE FACET (a blob), not the display `kind`: an image
         // that also owns overlay entries (thumbnails/fragments/annotations) reads as `variant`/omni,
-        // but its bytes are still fetchable via ?binary=1.
+        // but its bytes are still fetchable via ?binary=1. For such an omni the projection is KEPT —
+        // the bytes fill the mixed marker's self-value slot (otherwise null: bytes never sit in the
+        // store's value column) — so the entries and the base64 arrive together.
         const wantBytes = row.type === "blob" && url.searchParams.get("binary") === "1";
+        let value: unknown;
+        if (!wantBytes) value = projectValue(dataRoot, s, segs, viewDepth, true);
+        else if (kind !== "omni") value = binaryContent(dataRoot, segs, row);
+        else {
+          const projected = projectValue(dataRoot, s, segs, viewDepth, true) as Record<string, { value?: unknown }>;
+          const marker = projected[MIXED_KEY];
+          if (marker) marker.value = binaryContent(dataRoot, segs, row);
+          value = projected;
+        }
         sendJson(res, 200, {
           path: segsToStr(segs),
           type: tocType(s, p, row),
@@ -869,7 +880,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           documentPath: documentPath(s, segs), // nearest enclosing document root (for `/…` links)
           title: titleOf(s, p),
           description: null,
-          value: wantBytes ? binaryContent(dataRoot, segs, row) : projectValue(dataRoot, s, segs, viewDepth, true),
+          value,
           comments: cachedDoc && !wantBytes ? collectComments(cachedDoc, segs, viewDepth) : {},
           relations: buildRelations(dataRoot, s, segs),
         });

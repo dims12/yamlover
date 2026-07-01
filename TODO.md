@@ -16,4 +16,4 @@
 - add light color scheme
 - store rendered diagrams in .yamlover
 - impossible to remove fragment tag just after select
-- make multiline text values also collapsible
+- ~~make multiline text values also collapsible~~ — DONE: big scalars (multiline strings as `|` blocks, `!!binary` bytes) fold like containers in the yamlover view (render.tsx `bigScalar`/`BigScalarYaml`)

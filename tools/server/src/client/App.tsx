@@ -125,8 +125,10 @@ export function App() {
 
   // The current entity's fragments (tagged regions) drive the RHS panel; it auto-hides when there
   // are none. Fetched here (not only in NodeView) so "has fragments" can gate the layout from App.
+  // The DATA views (yamlover / json5p / schema) show the fragments *in the data* (overlay entries),
+  // so the panel would duplicate them — it accompanies only the rendered views.
   const fragGroups = fragmentGroups(useAnnotations(current));
-  const showFragments = fragGroups.length > 0 && !rightCollapsed;
+  const showFragments = fragGroups.length > 0 && !rightCollapsed && !FORMATS.includes(format);
 
   // The breadcrumb head is the ROOT given on the command line (blank if omitted).
   useEffect(() => {

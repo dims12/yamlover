@@ -128,9 +128,12 @@ const byFormat = (...fmts: string[]): Accepts => (f) => f.format !== null && fmt
 
 export interface Renderer {
   name: string;
-  /** The button text in the tab bar — defaults to {@link name}. Lets a renderer whose
-   *  `name` (= `?format=` slug) is hyphenated (e.g. `large-icons`) show a spaced label. */
+  /** The human name — the tab button's hover tooltip. Defaults to {@link name}; lets a
+   *  renderer whose `name` (= `?format=` slug) is hyphenated (e.g. `large-icons`) read spaced. */
   label?: string;
+  /** The tab button's icon glyph. Matches the TOC icon for the format where one exists
+   *  (icons.ts), so the tab reads as the same thing the tree shows. */
+  icon?: string;
   /** Whether this renderer claims a node, from its {@link TypeFacets}. */
   accepts: Accepts;
   /** Tie-break among matches — the highest wins. Format matchers are 2; the bare-string
@@ -164,21 +167,22 @@ export interface Renderer {
  * TOC / chunks / `depth`); {@link renderersFor} expands them into the tab list, and {@link EXPLORER}
  * (the `large-icons` view) is the single REPRESENTATIVE the loop and the dir-concrete fallback use.
  */
-const explorerView = (name: string, label: string, view: ViewMode): Renderer => ({
+const explorerView = (name: string, label: string, icon: string, view: ViewMode): Renderer => ({
   name,
   label,
+  icon,
   accepts: byFormat("x-yamlover-tag", "x-yamlover-board"),
   specificity: 2,
   render: (node, onNavigate) => <ExplorerView node={node} view={view} onNavigate={onNavigate} />,
 });
 
 // Order = tab order. `tag-board` leads, but only for board nodes (renderersFor filters it).
-const TAG_BOARD = explorerView("tag-board", "tag board", "board");
+const TAG_BOARD = explorerView("tag-board", "tag board", "▥", "board");
 const ICON_VIEWS: Renderer[] = [
-  explorerView("thumbnails", "thumbnails", "thumbnails"),
-  explorerView("large-icons", "large icons", "large"),
-  explorerView("small-icons", "small icons", "small"),
-  explorerView("details", "details", "details"),
+  explorerView("thumbnails", "thumbnails", "🖼️", "thumbnails"),
+  explorerView("large-icons", "large icons", "⊞", "large"),
+  explorerView("small-icons", "small icons", "∷", "small"),
+  explorerView("details", "details", "☰", "details"),
 ];
 // The representative for the single-valued paths (rendererFor / getRenderer / rendererName / depth):
 // the DEFAULT view, large icons — independent of the tab order above (thumbnails leads the bar, but a
@@ -190,12 +194,14 @@ const REGISTRY: Renderer[] = [
     // The project config editor (IMPORTS.md) — the first EDITOR renderer. Claims the hidden
     // settings node (`:.yamlover:settings.yamlover`, x-yamlover-config) the gear button opens.
     name: "settings",
+    icon: "⚙️",
     accepts: byFormat("x-yamlover-config"),
     specificity: 2,
     render: () => <SettingsView />,
   },
   {
     name: "chapter",
+    icon: "§",
     accepts: byFormat("x-yamlover-chapter"),
     specificity: 2,
     depth: 2, // reach the chunk/subchapter elements (arrays one level, items the next)
@@ -207,6 +213,7 @@ const REGISTRY: Renderer[] = [
     // strip; its lifecycle state is a tag application. Same TOC shape as a chapter (subtasks live
     // under `children`); needs depth 2 to reach the chunk/child + annotation elements.
     name: "task",
+    icon: "☑",
     accepts: byFormat("x-yamlover-task"),
     specificity: 2,
     depth: 2,
@@ -218,6 +225,7 @@ const REGISTRY: Renderer[] = [
     // notch below Markdown. A chapter's prose chunks route here — both the bare
     // (string, null) form and the explicit `text/marklower` the chunk schema applies.
     name: "marklower",
+    icon: "✍",
     accepts: (f) => f.format === "text/marklower" || (f.format === null && f.valueType === "string"),
     specificity: 1, // the bare-string default — a tagged bare string (format-less) still routes here
     render: (node, onNavigate) => <MarklowerView node={node} onNavigate={onNavigate} />,
@@ -227,6 +235,7 @@ const REGISTRY: Renderer[] = [
     // Markdown (the component file is text.tsx for historical reasons; the renderer —
     // its tab label and `?format=` key — is named for what it renders).
     name: "markdown",
+    icon: "📝",
     accepts: byFormat("text/markdown"),
     specificity: 2,
     render: (node, onNavigate) => <TextView node={node} onNavigate={onNavigate} />,
@@ -235,6 +244,7 @@ const REGISTRY: Renderer[] = [
   },
   {
     name: "asciidoc",
+    icon: "📃",
     accepts: byFormat("text/asciidoc"),
     specificity: 2,
     render: (node, onNavigate) => <AsciidocView node={node} onNavigate={onNavigate} />,
@@ -245,6 +255,7 @@ const REGISTRY: Renderer[] = [
     // Delimited text (CSV/TSV, a string) shown as a table; its parsing options
     // (separator, header) ride in the URL query — see csv.tsx.
     name: "csv",
+    icon: "▦",
     accepts: byFormat("text/csv", "text/tab-separated-values"),
     specificity: 2,
     render: (node) => <CsvView node={node} />,
@@ -256,6 +267,7 @@ const REGISTRY: Renderer[] = [
     // CP866 / Windows-1251 / KOI8-R / UTF-8 (see plaintext.tsx). Served as raw
     // bytes so the encoding is the client's to choose.
     name: "plaintext",
+    icon: "🗒️",
     accepts: byFormat("text/plain"),
     specificity: 2,
     render: (node) => <PlaintextView node={node} />,
@@ -265,6 +277,7 @@ const REGISTRY: Renderer[] = [
   {
     // RTF — a dependency-free converter to HTML (see rtf.tsx).
     name: "rtf",
+    icon: "📄",
     accepts: byFormat("application/rtf"),
     specificity: 2,
     render: (node) => <RtfView node={node} />,
@@ -273,6 +286,7 @@ const REGISTRY: Renderer[] = [
   {
     // .docx (Office Open XML) via mammoth, lazily loaded.
     name: "docx",
+    icon: "📄",
     accepts: byFormat("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     specificity: 2,
     render: (node) => lazily(<DocxView node={node} />),
@@ -281,6 +295,7 @@ const REGISTRY: Renderer[] = [
   {
     // Excel workbooks — .xlsx and legacy .xls — via SheetJS, lazily loaded.
     name: "spreadsheet",
+    icon: "▦",
     accepts: byFormat("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel"),
     specificity: 2,
     render: (node) => lazily(<SpreadsheetView node={node} />),
@@ -289,6 +304,7 @@ const REGISTRY: Renderer[] = [
   {
     // Legacy .doc (Word 97–2003 binary) — no in-browser parser; download fallback.
     name: "doc",
+    icon: "📄",
     accepts: byFormat("application/msword"),
     specificity: 2,
     render: (node) => <DocView node={node} />,
@@ -297,6 +313,7 @@ const REGISTRY: Renderer[] = [
   {
     // KML / KMZ geographic overlays drawn on a Leaflet map (lazily loaded).
     name: "map",
+    icon: "🗺️",
     accepts: byFormat("application/vnd.google-earth.kml+xml", "application/vnd.google-earth.kmz"),
     specificity: 2,
     render: (node) => lazily(<MapView node={node} />),
@@ -306,6 +323,7 @@ const REGISTRY: Renderer[] = [
     // LaTeX math (a string) typeset with KaTeX, both whole and inline. marklower
     // reuses the same engine for its `$$…$$` spans.
     name: "latex",
+    icon: "∑",
     accepts: byFormat("text/x-latex"),
     specificity: 2,
     render: (node) => <LatexView node={node} />,
@@ -315,6 +333,7 @@ const REGISTRY: Renderer[] = [
     // PlantUML source (a string) shown as the diagram it compiles to, both as a
     // whole node and inline as a chapter chunk.
     name: "plantuml",
+    icon: "📊",
     accepts: byFormat("text/x-plantuml"),
     specificity: 2,
     render: (node) => <PlantumlView node={node} />,
@@ -324,6 +343,7 @@ const REGISTRY: Renderer[] = [
   {
     // File-backed binaries the server tags with an inferred image format.
     name: "image",
+    icon: "🖼️",
     accepts: byFormat("image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/bmp", "image/x-icon", "image/svg+xml"),
     specificity: 2,
     render: (node) => lazily(<ImageView node={node} />),
@@ -331,6 +351,7 @@ const REGISTRY: Renderer[] = [
   },
   {
     name: "html",
+    icon: "🌐",
     accepts: byFormat("text/html"),
     specificity: 2,
     render: (node) => <HtmlView node={node} />,
@@ -338,6 +359,7 @@ const REGISTRY: Renderer[] = [
   },
   {
     name: "fb2",
+    icon: "📘",
     accepts: byFormat("application/x-fictionbook+xml"),
     specificity: 2,
     render: (node) => <Fb2View node={node} />,
@@ -345,6 +367,7 @@ const REGISTRY: Renderer[] = [
   },
   {
     name: "epub",
+    icon: "📗",
     accepts: byFormat("application/epub+zip"),
     specificity: 2,
     render: (node) => <EpubView node={node} />,
@@ -352,6 +375,7 @@ const REGISTRY: Renderer[] = [
   },
   {
     name: "pdf",
+    icon: "📕",
     accepts: byFormat("application/pdf"),
     specificity: 2,
     render: (node) => lazily(<PdfView node={node} />),
@@ -359,6 +383,7 @@ const REGISTRY: Renderer[] = [
   },
   {
     name: "djvu",
+    icon: "📓",
     accepts: byFormat("image/vnd.djvu"),
     specificity: 2,
     render: (node) => lazily(<DjvuView node={node} />),
@@ -366,6 +391,7 @@ const REGISTRY: Renderer[] = [
   },
   {
     name: "psd",
+    icon: "🎨",
     accepts: byFormat("image/vnd.adobe.photoshop"),
     specificity: 2,
     render: (node) => lazily(<PsdView node={node} />),
@@ -373,6 +399,7 @@ const REGISTRY: Renderer[] = [
   },
   {
     name: "tiff",
+    icon: "🖼️",
     accepts: byFormat("image/tiff"),
     specificity: 2,
     render: (node) => lazily(<TiffView node={node} />),
@@ -380,6 +407,7 @@ const REGISTRY: Renderer[] = [
   },
   {
     name: "heic",
+    icon: "🖼️",
     accepts: byFormat("image/heic"),
     specificity: 2,
     render: (node) => lazily(<HeicView node={node} />),

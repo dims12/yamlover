@@ -23,7 +23,8 @@ describe("api endpoints (engine-backed)", () => {
   });
 
   it("/api/json is one level deep with link markers", async () => {
-    const h = createHandlers(tmpExample("57-image-with-markup"), { gitignore: false });
+    // an object with a nested array child → the child projects as an array link marker
+    const h = createHandlers(tmpTree({ ".yamlover/body.yamlover": "markup:\n- x: 1\n  y: 2\n- x: 3\n  y: 4\n" }), { gitignore: false });
     await h.ready;
     const { json } = call(h, "/api/json", { path: ":" });
     expect(json.type).toBe("object");
@@ -31,13 +32,22 @@ describe("api endpoints (engine-backed)", () => {
   });
 
   it("/api/json?binary=1 returns base64 for a binary node (even one with overlay entries)", async () => {
-    const h = createHandlers(tmpExample("57-image-with-markup"), { gitignore: false });
+    // a png typed via meta, carrying embedded fragment overlay entries in body
+    const h = createHandlers(tmpTree({
+      "pic.png": "pretend-png-bytes",
+      ".yamlover/meta.yamlover": "properties:\n  pic.png:\n    type: binary\n    format: image/png\n    concrete: file/binary\n",
+      ".yamlover/body.yamlover": "\"pic.png\":\n  yamlover-fragments:\n    f1:\n      type: rect\n      x: 1\n      y: 2\n      w: 3\n      h: 4\n",
+    }), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":object_detection.png", binary: "1" });
-    // the png owns embedded overlay entries (thumbnails/fragments), so it reads as `variant` — but
-    // its binary VALUE facet is intact, so ?binary=1 still streams the bytes.
+    const { json } = call(h, "/api/json", { path: ":pic.png", binary: "1" });
+    // the png owns embedded overlay entries (fragments), so it reads as `variant` — but its
+    // binary VALUE facet is intact, so ?binary=1 still streams the bytes. The omni projection is
+    // KEPT: the bytes fill the mixed marker's self-value slot, alongside the overlay entries.
     expect(json.type).toBe("variant");
-    expect(json.value.$yamloverBinary.format).toBe("image/png");
+    const mixed = json.value.$yamloverMixed;
+    expect(mixed.value.$yamloverBinary.format).toBe("image/png");
+    expect(Buffer.from(mixed.value.$yamloverBinary.base64, "base64").toString()).toBe("pretend-png-bytes");
+    expect(mixed.entries.map((e: { key: string }) => e.key)).toContain("yamlover-fragments");
   });
 
   it("/api/schema returns the instance schema", async () => {

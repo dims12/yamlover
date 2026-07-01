@@ -408,7 +408,9 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     if (isSchema(eff)) {
       // `.inf`/default (viewDepth null) → omit depth so the server applies its per-concrete default
       fetchSchema(path, viewDepth() ?? undefined).then(setSchema).catch((e) => setError(e.message));
-    } else if (node.type === "binary") {
+    } else if (node.type === "binary" || node.valueType === "binary") {
+      // the binary VALUE facet, not just the pure-binary type: a blob-backed omni (an image with
+      // fragment/thumbnail overlay entries, type `variant`) also shows its bytes as the self-value
       fetchNode(path, undefined, { binary: true }).then((n) => setBin(n.value)).catch((e) => setError(e.message));
     }
   }, [format, path, node]);
@@ -425,8 +427,12 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   const allRenderers = trailing ? [...renderers, trailing] : renderers;
   const tabs: Format[] = [...renderers.map((r) => r.name), ...standard, ...(trailing ? [trailing.name] : [])];
   const effective = effectiveFormat(format, node, tabs);
-  // A tab's button text: a renderer's `label` (e.g. "large icons"), else the format slug itself.
+  // A tab button shows an ICON; its human name (a renderer's `label`, else the format slug)
+  // becomes the hover tooltip. The data views' glyphs: `y:` YAML-family, `{}` JSON-family,
+  // `$` the schema (its `$defs` / `$ref` sigil).
   const labelOf = (f: Format): string => allRenderers.find((r) => r.name === f)?.label ?? f;
+  const DATA_ICONS: Record<string, string> = { yamlover: "y:", json5p: "{}", "yamlover/schema": "$" };
+  const iconOf = (f: Format): string => allRenderers.find((r) => r.name === f)?.icon ?? DATA_ICONS[f] ?? f;
   const renderer = allRenderers.find((r) => r.name === effective) ?? null;
   const showRendered = renderer != null;
   // an editable page (chapter/task) — gates the lock button and the F2/Esc shortcut
@@ -443,7 +449,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   } else if (isSchema(effective)) {
     content = schema;
     ready = schema != null;
-  } else if (node.type === "binary") {
+  } else if (node.type === "binary" || node.valueType === "binary") {
     content = bin;
     ready = bin != null;
   } else {
@@ -482,15 +488,21 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
         <div className="tabs">
           {tabs.map((f) => (
             <Fragment key={f}>
-              <button className={"tab" + (effective === f ? " active" : "")} onClick={() => onFormat(f)}>
-                {labelOf(f)}
+              <button
+                className={"tab" + (effective === f ? " active" : "")}
+                title={labelOf(f)}
+                aria-label={labelOf(f)}
+                onClick={() => onFormat(f)}
+              >
+                {iconOf(f)}
               </button>
               {showRendered && renderer && f === renderer.name && renderer.config?.(rerender, node)}
+              {/* the data views (yamlover / json5p / schema) share a render-depth control — how many
+                  levels of nested containers are inlined (and collapsible) before a continuation
+                  link. Like a renderer's config, it docks right after the ACTIVE view's button. */}
+              {!showRendered && f === effective && <DepthControl onChange={() => setReloadKey((k) => k + 1)} />}
             </Fragment>
           ))}
-          {/* the data views (yamlover / json5p / schema) share a render-depth control — how many
-              levels of nested containers are inlined (and collapsible) before a continuation link */}
-          {!showRendered && <DepthControl onChange={() => setReloadKey((k) => k + 1)} />}
         </div>
         {/* the EDIT LOCK: a chapter/task page can be unlocked for in-place WYSIWYG editing. Locked by
             default; unlocking turns prose chunks, the title/description, and subchapter titles into
