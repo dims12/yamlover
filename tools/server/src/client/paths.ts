@@ -76,13 +76,14 @@ export function fragmentOf(base: string, full: string): string {
 }
 
 /** The in-page anchor id / URL hash for a fragment of `materialPath`: its slash continuation from
- *  the material with the leading `/` dropped — the `#` of `<material-url>#<id>` stands in for it.
- *  E.g. (":dir:IMG.jpg", "mr0zbe2l-rqyow7") → "yamlover-fragments/mr0zbe2l-rqyow7", so the fragment
- *  node `…/IMG.jpg/yamlover-fragments/<slug>` is reached in-page as `…/IMG.jpg#yamlover-fragments/<slug>`.
+ *  the material — kept leading-slashed to mirror the chunk anchors (`<doc>#/chunks[n]`), so the `#`
+ *  of `<material-url>#<id>` reads the same for both.
+ *  E.g. (":dir:IMG.jpg", "mr0zbe2l-rqyow7") → "/yamlover-fragments/mr0zbe2l-rqyow7", so the fragment
+ *  node `…/IMG.jpg/yamlover-fragments/<slug>` is reached in-page as `…/IMG.jpg#/yamlover-fragments/<slug>`.
  *  Both the fragment's mark (text/region) and the RHS panel's row use this as the single key. */
 export function fragmentAnchorId(materialPath: string, fragmentSlug: string): string {
   const fragNode = (materialPath === ":" ? "" : materialPath) + ":yamlover-fragments:" + fragmentSlug;
-  return fragmentOf(materialPath, fragNode).replace(/^\//, "");
+  return fragmentOf(materialPath, fragNode);
 }
 
 /** A human-readable form of a canonical path: each key decoded (so a percent-encoded

@@ -40,7 +40,7 @@ interface MapRegion { n: number; s: number; e: number; w: number; title?: string
 const num = (v: unknown): number => Number(v) || 0;
 
 /** The `map`-type annotations, as geographic rectangles to overlay. `materialPath` lets a saved
- *  fragment carry its `#yamlover-fragments/<slug>` anchor id so a hash reveal can pan to it. */
+ *  fragment carry its `#/yamlover-fragments/<slug>` anchor id so a hash reveal can pan to it. */
 function mapRegions(anns: Annotation[], materialPath: string): MapRegion[] {
   return anns
     .filter((a) => a.selector?.type === "map")

@@ -29,7 +29,7 @@ function cropPng(img: HTMLImageElement | null, x: number, y: number, w: number, 
 }
 
 /** The `rect`-type annotations, as pixel regions to overlay on the image. `materialPath` lets a
- *  saved fragment carry its `#yamlover-fragments/<slug>` anchor id so a hash reveal can pan to it. */
+ *  saved fragment carry its `#/yamlover-fragments/<slug>` anchor id so a hash reveal can pan to it. */
 function imageRegions(anns: Annotation[], materialPath: string): ImageRegion[] {
   return anns
     .filter((a) => a.selector?.type === "rect")

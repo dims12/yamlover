@@ -801,7 +801,7 @@ function capture(sel: Selection): { exact: string; prefix: string; suffix: strin
 }
 
 /** (Re)apply highlight marks for the text annotations in `container`. `materialPath` lets a
- *  fragment mark carry its `#yamlover-fragments/<slug>` anchor id so the RHS panel / a shared link
+ *  fragment mark carry its `#/yamlover-fragments/<slug>` anchor id so the RHS panel / a shared link
  *  can scroll-to-&-flash it. */
 function highlight(container: HTMLElement, anns: Annotation[], materialPath: string): void {
   container.querySelectorAll("mark.yo-annotation").forEach((m) => {

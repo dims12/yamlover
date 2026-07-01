@@ -62,7 +62,7 @@ export function anchorizeHeadings(html: string): string {
  *  async — after the browser's own one-shot scroll — so re-scroll when it arrives.
  *  The same pattern the chapter renderer uses for `#/chunks[n]`.
  *
- *  A FRAGMENT hash (`…#yamlover-fragments/<slug>` — see {@link fragmentAnchorId}) also
+ *  A FRAGMENT hash (`…#/yamlover-fragments/<slug>` — see {@link fragmentAnchorId}) also
  *  briefly FLASHES its target, so clicking a fragment in the RHS panel (which just sets the
  *  hash) or opening a shared fragment link draws the eye to the region. Heading slug anchors
  *  and ordinary `#/cont` data anchors stay scroll-only. Re-runs on `hashchange` too, so an

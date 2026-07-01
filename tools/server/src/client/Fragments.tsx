@@ -56,7 +56,7 @@ function fragmentLabel(g: FragmentGroup): string {
 }
 
 /** The RHS pane: the current entity's fragments, each with its tags. Clicking a row sets the URL
- *  hash to the fragment's `#yamlover-fragments/<slug>` anchor — the shared hash-scroll
+ *  hash to the fragment's `#/yamlover-fragments/<slug>` anchor — the shared hash-scroll
  *  (headings.ts) and the Leaflet renderers then scroll/pan to and flash the region. Clicking a tag
  *  badge navigates to that tag; the ✕ DELETES the whole fragment (drops every tag — the server then
  *  removes the now-empty fragment node), which is also how an un-clickable phantom annotation gets

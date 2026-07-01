@@ -1387,7 +1387,7 @@ mark.yo-annotation {
   border-radius: 2px;
   cursor: help;
 }
-/* A fragment revealed via its `#yamlover-fragments/<slug>` hash (RHS panel click or a shared link)
+/* A fragment revealed via its `#/yamlover-fragments/<slug>` hash (RHS panel click or a shared link)
    pulses for ~1s so the eye finds it. Applies to both a text `<mark>` and a region `<div>`. */
 .yo-reveal-flash {
   animation: yo-flash 1s ease-out;
