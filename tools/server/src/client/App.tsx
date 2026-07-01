@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createChapter, fetchInfo, fetchTasks, fetchTree, installAgentDocs, PasteResult, TaskInfo, TreeNode } from "./api";
+import { createObject, fetchInfo, fetchTasks, fetchTree, installAgentDocs, PasteResult, TaskInfo, TreeNode } from "./api";
 import { api } from "./base";
 import { Tree } from "./Tree";
 import { TaskStrip } from "./TaskStrip";
@@ -15,7 +15,7 @@ import { crumbs, formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSeg
 import { broadcastDiff } from "./live";
 import { Fragments, fragmentGroups } from "./Fragments";
 import { useAnnotations } from "./renderers/annotate";
-import { useExplorerTagMenu, createKindFor } from "./renderers/tagmenu";
+import { useExplorerTagMenu } from "./renderers/tagmenu";
 
 /** Read a persisted boolean UI flag (collapse state) from localStorage, defaulting false when it
  *  is unset or unavailable (e.g. a jsdom test env). */
@@ -336,12 +336,12 @@ export function App() {
     [navigate],
   );
 
-  // Right-click a TOC row → the whole-node tag picker, plus "＋ New chapter/subchapter" when the row
-  // is a directory or a chapter. Creating navigates to the new chapter.
+  // Right-click a TOC row → the whole-node tag picker, plus "＋ New <schema>" (with a concrete
+  // selector) for every schema creatable at that row (a directory / a chapter). Creating navigates.
   const { openAt: openTocMenu, tagMenu: tocMenu } = useExplorerTagMenu({
-    onCreateChapter: (target) => void createChapter(target).then((r) => navigate(r.path)).catch((e) => window.alert("create failed: " + (e as Error).message)),
+    onCreate: (schema, parent, concrete) => void createObject(schema, parent, concrete).then((r) => navigate(r.path)).catch((e) => window.alert("create failed: " + (e as Error).message)),
   });
-  const onTocContext = useCallback((n: TreeNode, x: number, y: number) => openTocMenu(n.path, x, y, createKindFor(n)), [openTocMenu]);
+  const onTocContext = useCallback((n: TreeNode, x: number, y: number) => openTocMenu(n.path, x, y, n), [openTocMenu]);
 
   // Ctrl/Alt + Down / Up step the selection to the next / previous TOC entry in
   // document order (Alt as well as Ctrl because Ctrl+Up/Down is taken by macOS
@@ -504,19 +504,25 @@ export function App() {
             </span>
           ))}
         </nav>
-        <TaskStrip tasks={tasks} />
-        {fragGroups.length > 0 && (
-          <button
-            type="button"
-            className="crumb-action pane-toggle"
-            title={rightCollapsed ? "Show fragments" : "Hide fragments"}
-            aria-label={rightCollapsed ? "Show fragments" : "Hide fragments"}
-            aria-pressed={!rightCollapsed}
-            onClick={() => setRightCollapsed((v) => !v)}
-          >
-            {rightCollapsed ? "«" : "»"}
-          </button>
-        )}
+        {/* the right group is pinned to the topbar's right edge (via `.topbar-right`), so the
+            fragments toggle is ALWAYS there next to the RHS pane — independent of whether the task
+            strip is currently rendered (it returns null when idle, which used to drop the toggle's
+            right-alignment). */}
+        <div className="topbar-right">
+          <TaskStrip tasks={tasks} />
+          {fragGroups.length > 0 && (
+            <button
+              type="button"
+              className="crumb-action pane-toggle"
+              title={rightCollapsed ? "Show fragments" : "Hide fragments"}
+              aria-label={rightCollapsed ? "Show fragments" : "Hide fragments"}
+              aria-pressed={!rightCollapsed}
+              onClick={() => setRightCollapsed((v) => !v)}
+            >
+              {rightCollapsed ? "«" : "»"}
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="body">

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation, fetchConfig, saveLastTag } from "../api";
 import { TAG_FORMAT, explicitColor, isColorTagPath, resolveTagColor, tagFields } from "./tag";
 import { TagTip } from "./tagtip";
-import { canonPath, fragmentAnchorId, strToSegs } from "../paths";
+import { canonPath, displayPath, fragmentAnchorId, strToSegs } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
 
 /**
@@ -430,15 +430,42 @@ export const tagStyle = (color: string): React.CSSProperties => ({ ["--tag"]: co
  *  the same node (sibling fragments), surfaced as default chips. Region tagging (`useAnnotationMenu`)
  *  and explorer right-click tagging (`useExplorerTagMenu`) drive this SAME component the same way;
  *  the outline is the only "selected" indicator. */
+/** One "＋ New <label>" entry in the menu: a create button plus a concrete selector (default = the
+ *  last / richest). `schema` is the entry's identity key; `onCreate` gets the picked concrete id. */
+export interface CreateEntry {
+  schema: string;
+  label: string;
+  concretes: { id: string; label: string }[];
+  defaultConcrete: string;
+  onCreate: (concrete: string) => void;
+}
+
+/** A create entry: the `＋ New <label>` button + a `<select>` of concretes (when there's a choice). */
+function CreateRow({ label, concretes, defaultConcrete, onCreate }: CreateEntry) {
+  const [concrete, setConcrete] = useState(defaultConcrete);
+  return (
+    <div className="annotate-create">
+      <button type="button" className="annotate-action" onClick={() => onCreate(concrete)}>＋ New {label}</button>
+      {concretes.length > 1 && (
+        <select className="annotate-concrete" value={concrete} onChange={(e) => setConcrete(e.target.value)} title="storage form">
+          {concretes.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+        </select>
+      )}
+    </div>
+  );
+}
+
 export function AnnotationMenu({
-  x, y, applied, nodeTags = [], mode, onPick, onUnpick, onCopy, onClose, menuRef, actions,
+  x, y, applied, nodeTags = [], mode, onPick, onUnpick, onCopy, onClose, menuRef, creates, title,
 }: {
   x: number; y: number; applied: TagRef[]; nodeTags?: TagRef[]; mode: "create" | "edit";
   onPick: (t: TagRef) => void; onUnpick?: (t: TagRef) => void;
   onCopy?: () => void; onClose: () => void;
   menuRef?: React.Ref<HTMLDivElement>;
-  /** Extra command entries shown at the top of the menu (e.g. "＋ New subchapter"). */
-  actions?: { label: string; onClick: () => void }[];
+  /** Object-creation entries shown at the top (e.g. "＋ New chapter" with a concrete selector). */
+  creates?: CreateEntry[];
+  /** The path/label of the object the menu was opened for — shown in the draggable title bar. */
+  title?: string;
 }) {
   const colorTags = useColorTags();
   const tagIndex = useTagIndex(); // all named tags (whole tree) — the typeahead searches these
@@ -545,7 +572,10 @@ export function AnnotationMenu({
     else if (menuRef) (menuRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
   }, [menuRef]);
   const [pos, setPos] = useState({ left: x, top: y });
+  // Once the user DRAGS the window by its title bar, its position is theirs — stop auto-clamping.
+  const moved = useRef(false);
   useLayoutEffect(() => {
+    if (moved.current) return;
     const el = boxRef.current;
     if (!el) return;
     const m = 8; // viewport margin
@@ -559,13 +589,31 @@ export function AnnotationMenu({
     if (left !== pos.left || top !== pos.top) setPos({ left, top });
   });
 
+  // Drag the window by its title bar (a click on the ✕ inside it is not a drag — see the guard).
+  const onTitleDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("button")) return; // the close button, not a drag
+    e.preventDefault();
+    const dx = e.clientX - pos.left;
+    const dy = e.clientY - pos.top;
+    moved.current = true;
+    const onMove = (ev: MouseEvent) => setPos({ left: ev.clientX - dx, top: ev.clientY - dy });
+    const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
   return (
     <div ref={setRefs} className="annotate-menu" style={{ left: pos.left, top: pos.top }} role="menu">
-      {actions && actions.length > 0 && (
+      {/* the draggable TITLE BAR: the object's path (grab-to-move) + the close button. The path is
+          LEFT-truncated (the right TAIL stays visible — the head is already in the breadcrumb): a
+          `direction: rtl` container puts the ellipsis at the start, a `<bdi>` keeps the text readable. */}
+      <div className="annotate-titlebar" onMouseDown={onTitleDown}>
+        <span className="annotate-title" title={title}><bdi>{title ?? ""}</bdi></span>
+        <button type="button" className="annotate-tool close" title="close" onClick={onClose}>✕</button>
+      </div>
+      {creates && creates.length > 0 && (
         <div className="annotate-actions">
-          {actions.map((a) => (
-            <button key={a.label} type="button" className="annotate-action" onClick={a.onClick}>{a.label}</button>
-          ))}
+          {creates.map((c) => <CreateRow key={c.schema} {...c} />)}
         </div>
       )}
       <div className="annotate-palette">
@@ -581,7 +629,6 @@ export function AnnotationMenu({
         ))}
       </div>
       {onCopy && <button type="button" className="annotate-tool" title="copy text to clipboard (don't annotate)" onClick={onCopy}>⧉</button>}
-      <button type="button" className="annotate-tool close" title="close" onClick={onClose}>✕</button>
       {view.length > 0 && (
         <div className="annotate-recents" role="listbox">
           {view.map((t, i) => (
@@ -635,7 +682,7 @@ export function AnnotationMenu({
  *  `create` marks a freshly-DRAWN region (vs editing an existing one): only then does the synthetic
  *  preview keep the marquee up before the first tag — editing an existing region down to zero tags
  *  must let it disappear (untag). */
-type OpenRegion = { selector: Record<string, unknown>; seedTag: TagRef; create: boolean; copy?: () => void; imageBase64?: string; x: number; y: number };
+type OpenRegion = { selector: Record<string, unknown>; seedTag: TagRef; create: boolean; copy?: () => void; imageBase64?: string; x: number; y: number; title: string };
 
 /** Drives the floating picker for a material's REGIONS: `openCreate` after a fresh selection,
  *  `openEdit` on a click on an existing mark — both open the SAME selector-keyed picker, so tagging
@@ -643,7 +690,7 @@ type OpenRegion = { selector: Record<string, unknown>; seedTag: TagRef; create: 
  *  closing only via the close button or outside-click. The first tag on a fresh region creates its
  *  fragment; later tags annotate that same one. Returns the `palette`, plus a `preview` (the seed
  *  tag's selector/color) so a renderer keeps the rectangle drawn UNTIL a real tag draws it instead. */
-export function useAnnotationMenu(a: MaterialAnnotations): {
+export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
   openCreate: (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string) => void;
   openEdit: (ann: Annotation, screen: { x: number; y: number }) => void;
   palette: ReactNode;
@@ -658,13 +705,14 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
   // Selecting a region IS tagging it: open the picker AND apply the pre-checked tag at once (the
   // user's "apply immediately on open" — no extra click to commit the default). It becomes a real
   // application, so it shows checked and a click REMOVES it. openEdit (an existing region) opens
-  // the same picker but applies nothing — the region already has its tags.
+  // the same picker but applies nothing — the region already has its tags. The title bar shows the
+  // fragment's path (an existing region) or the material's (a fresh one).
   const openCreate = (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string) => {
-    setOpen({ selector, seedTag: tag, create: true, copy, imageBase64, x: screen.x, y: screen.y });
+    setOpen({ selector, seedTag: tag, create: true, copy, imageBase64, x: screen.x, y: screen.y, title: displayPath(path) });
     a.annotateRegion(selector, tag, { imageBase64, silent: true });
   };
   const openEdit = (ann: Annotation, screen: { x: number; y: number }) =>
-    setOpen({ selector: (ann.selector ?? {}) as Record<string, unknown>, seedTag: ann.tag ?? tag, create: false, x: screen.x, y: screen.y });
+    setOpen({ selector: (ann.selector ?? {}) as Record<string, unknown>, seedTag: ann.tag ?? tag, create: false, x: screen.x, y: screen.y, title: displayPath(annotationTarget(path, ann)) });
 
   // The region's tag applications, live from the material — toggles reflect at once (optimistic).
   // These ARE the outlined tags: an outlined tag is a real application, so clicking it removes it.
@@ -726,7 +774,7 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
       menuRef={menuRef} x={open.x} y={open.y} applied={applied} nodeTags={nodeTags} mode="create"
       onPick={onPick} onUnpick={onUnpick}
       onCopy={open.copy ? () => { open.copy!(); close(); } : undefined}
-      onClose={close}
+      onClose={close} title={open.title}
     />
   ) : null;
 
@@ -743,7 +791,7 @@ export function useAnnotationMenu(a: MaterialAnnotations): {
 export function AnnotatedMaterial({ path, children }: { path: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const material = useMaterialAnnotations(path);
-  const { openCreate, openEdit, palette } = useAnnotationMenu(material);
+  const { openCreate, openEdit, palette } = useAnnotationMenu(material, path);
   const { annotations } = material;
 
   // Re-highlight after each render: the material (esp. a chapter's chunks) may settle a tick
@@ -758,6 +806,7 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
   // A finished text selection inside the material raises the CREATE menu by the selection.
   useEffect(() => {
     const onUp = (e: MouseEvent) => {
+      if (e.button !== 0) return; // LEFT release only — right-click goes through onContextMenu below
       const el = ref.current;
       if (!el) return;
       if ((e.target as HTMLElement)?.closest?.(".annotate-menu")) return; // a menu click, not a selection
@@ -789,10 +838,31 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
     openEdit(ann, { x: e.clientX, y: e.clientY });
   };
 
+  // RIGHT-CLICK is also a way in: on an existing mark → edit it; on a live selection → tag it. This
+  // mirrors the node context menu (right-click → the window) and needs no precise mouseup timing.
+  const onContextMenu = (e: React.MouseEvent) => {
+    const el = ref.current;
+    if (!el) return;
+    const mark = (e.target as HTMLElement).closest("mark.yo-annotation") as HTMLElement | null;
+    if (mark) {
+      const ann = annotations.find((x) => annKey(x) === mark.dataset.annSel);
+      if (ann && editable(ann)) { e.preventDefault(); openEdit(ann, { x: e.clientX, y: e.clientY }); }
+      return;
+    }
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.anchorNode || !sel.focusNode) return;
+    if (!el.contains(sel.anchorNode) || !el.contains(sel.focusNode)) return;
+    const cap = capture(sel);
+    if (!cap) return;
+    e.preventDefault(); // suppress the native menu; open ours at the cursor
+    const copy = () => navigator.clipboard?.writeText(cap.exact).catch(() => { /* clipboard blocked */ });
+    openCreate({ type: "text", exact: cap.exact, prefix: cap.prefix, suffix: cap.suffix }, { x: e.clientX, y: e.clientY }, copy);
+  };
+
   // No annotation count here — the RHS fragments panel is the canonical list of what's tagged.
   return (
     <div className="annotated">
-      <div ref={ref} onClick={onClickMark}>{children}</div>
+      <div ref={ref} onClick={onClickMark} onContextMenu={onContextMenu}>{children}</div>
       {palette}
     </div>
   );

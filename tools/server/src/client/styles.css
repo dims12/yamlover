@@ -123,8 +123,16 @@ body {
 }
 
 /* --- long-running server tasks (indexing, hashing, …) ---------------------- */
+/* the topbar's right group (task chips + the fragments-pane toggle) — pinned to the right edge so
+   the toggle is ALWAYS there, whether or not the task strip is currently rendered. */
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
 .task-strip {
-  margin-left: auto; /* park the chips at the topbar's right edge */
   display: flex;
   align-items: center;
   gap: 12px;
@@ -767,18 +775,33 @@ a.chunk-index:hover {
 }
 .crash-actions button:hover { background: var(--hover, rgba(127, 127, 127, 0.12)); }
 
-/* context-menu command entries (e.g. "＋ New subchapter") atop the tag picker. The menu is a
-   flex-wrap row, so `flex-basis:100%` forces this onto its OWN full-width line above the swatches. */
+/* object-creation entries ("＋ New <schema>" + a concrete selector) atop the tag picker. The menu is
+   a flex-wrap row, so `flex-basis:100%` forces this onto its OWN full-width line above the swatches. */
 .annotate-actions {
   flex-basis: 100%;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 4px;
   margin-bottom: 2px;
   padding-bottom: 6px;
   border-bottom: 1px solid var(--line);
 }
-.annotate-action { flex: 1 1 auto; text-align: center; }
+/* the button + concrete select STACK vertically, LEFT-aligned like the rest of the menu, so a long
+   schema label never pushes the select out of the box (the menu is a fixed 280px wide). */
+.annotate-create { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.annotate-action { max-width: 100%; text-align: left; white-space: normal; }
+.annotate-concrete {
+  align-self: flex-start;
+  max-width: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 4px;
+  cursor: pointer;
+}
 .annotate-action {
   background: none;
   border: 1px solid var(--border, rgba(127, 127, 127, 0.35));
@@ -1275,12 +1298,53 @@ textarea.chapter-latex-src {
   align-items: center;
   gap: 6px;
   padding: 5px 7px;
-  max-width: 280px;
+  width: 280px;
+  min-width: 220px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow: hidden auto; /* only VERTICAL scroll — horizontal never scrolls, so the title bar's ✕
+                            and the path tail can't be pushed out of a narrowed window */
+  resize: both; /* a draggable resize handle at the bottom-right corner */
   background: var(--bg-alt);
   border: 1px solid var(--line);
   border-radius: 6px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
+/* the draggable TITLE BAR: the object's path on the left (grab to move the window), the close ✕ on
+   the right. `flex-basis:100%` makes it the full-width top row of the flex-wrap menu. */
+.annotate-titlebar {
+  flex-basis: 100%;
+  box-sizing: border-box;
+  min-width: 0; /* a flex item defaults to min-width:auto (its content size) — without this the long
+                   title keeps the title bar at full text width, pushing the ✕ and the path tail out
+                   of the menu. `min-width:0` lets it shrink so the title truncates and the ✕ stays. */
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -5px 0 2px; /* bleed to the TOP edge only; horizontal stays inside so the ✕ can't clip */
+  padding: 4px 2px 4px 4px;
+  border-bottom: 1px solid var(--line);
+  background: var(--hover, rgba(127, 127, 127, 0.12));
+  cursor: move;
+  user-select: none;
+}
+.annotate-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* keep the RIGHT tail visible, ellipsis on the left (the <bdi> keeps text order) */
+  font-size: 12px;
+  color: var(--dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+/* the <bdi> keeps the path readable (left-to-right) while the rtl parent moves the ellipsis to the
+   LEFT — the standard "truncate a path from the left" pattern. `isolate` (bdi's default) is the
+   well-supported form; `plaintext` broke the overflow/ellipsis in some engines. */
+.annotate-title bdi { unicode-bidi: isolate; }
+.annotate-titlebar .annotate-tool.close { flex: 0 0 auto; min-width: 22px; height: 20px; }
 .annotate-palette {
   display: flex;
   gap: 4px;

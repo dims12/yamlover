@@ -312,10 +312,11 @@ export function editChunks(edits: ChapterEdit[]): Promise<{ ok: true }> {
   return postJson(api("/api/edit"), { edits });
 }
 
-/** Create a chapter (the right-click context menu): a SUBCHAPTER when `parent` is a chapter/task,
- *  else a new chapter file when `parent` is a directory. Returns the new chapter's node path. */
-export function createChapter(parent: string, title?: string): Promise<{ path: string }> {
-  return postJson(api("/api/chapter"), { path: parent, ...(title ? { title } : {}) });
+/** Create an OBJECT of a schema (the right-click context menu): a CHILD of a compatible parent
+ *  (concrete `yamlover` inline, or `file/yamlover`/`dir/yamlover` linked), or a MEMBER of a directory
+ *  (`file/yamlover`/`dir/yamlover`). Returns the new object's node path (navigate to it). */
+export function createObject(schema: string, parent: string, concrete: string, title?: string): Promise<{ path: string }> {
+  return postJson(api("/api/create"), { schema, parent, concrete, ...(title ? { title } : {}) });
 }
 
 /** Remove the application of `tag` from the node at `target` (a whole node OR a fragment path) —

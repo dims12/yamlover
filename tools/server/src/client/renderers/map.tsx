@@ -213,7 +213,7 @@ function MapBody({
 
 export function MapView({ node }: { node: NodeJson }) {
   const material = useMaterialAnnotations(node.path);
-  const { openCreate, openEdit, palette, preview, color } = useAnnotationMenu(material);
+  const { openCreate, openEdit, palette, preview, color } = useAnnotationMenu(material, node.path);
   const shown = preview
     ? [...material.annotations, { path: "(preview)", selector: preview.selector, tag: preview.tag } as Annotation]
     : material.annotations;

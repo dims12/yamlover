@@ -134,7 +134,11 @@ export function PanZoomImage({
       if (r.title) rect.bindTooltip(r.title);
       if (r.ann) {
         const ann = r.ann;
-        rect.on("click", (ev) => { L.DomEvent.stop(ev); onRegionClickRef.current?.(ann, { x: ev.originalEvent.clientX, y: ev.originalEvent.clientY }); });
+        // Left-click OR right-click a saved region opens its tag/context window (right-click also
+        // suppresses the browser's native menu via DomEvent.stop).
+        const open = (ev: L.LeafletMouseEvent) => { L.DomEvent.stop(ev); onRegionClickRef.current?.(ann, { x: ev.originalEvent.clientX, y: ev.originalEvent.clientY }); };
+        rect.on("click", open);
+        rect.on("contextmenu", open);
       }
       rect.addTo(lg);
       if (r.id) shapesRef.current.set(r.id, { rect, bounds });
@@ -169,7 +173,7 @@ export function PanZoomImage({
 
 export function ImageView({ node }: { node: NodeJson }) {
   const material = useMaterialAnnotations(node.path);
-  const { openCreate, openEdit, palette, preview, color } = useAnnotationMenu(material);
+  const { openCreate, openEdit, palette, preview, color } = useAnnotationMenu(material, node.path);
   // include the live PREVIEW selector so the rectangle stays drawn while the menu is open
   const shown = preview
     ? [...material.annotations, { path: "(preview)", selector: preview.selector, tag: preview.tag } as Annotation]

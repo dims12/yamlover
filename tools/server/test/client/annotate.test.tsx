@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, cleanup, waitFor, act } from "@testing-library/react";
-import { AnnotationMenu, useAnnotations, DEFAULT_TAG } from "../../src/client/renderers/annotate";
+import { render, cleanup, waitFor, act, fireEvent } from "@testing-library/react";
+import { AnnotationMenu, AnnotatedMaterial, useAnnotations, useAnnotationMenu, DEFAULT_TAG } from "../../src/client/renderers/annotate";
 
 // The annotation layer's live-refresh + remembered-tag hygiene: external changes arrive as a
 // `yamlover:diff` window event (App re-broadcasts SSE diffs), and localStorage recents are
@@ -125,5 +125,47 @@ describe("AnnotationMenu remembered-tag pruning", () => {
     );
     await waitFor(() => expect(container.querySelectorAll(".annotate-recents .tagtag")).toHaveLength(0));
     expect(JSON.parse(localStorage.getItem(RECENT_KEY)!)).toEqual([]);
+  });
+});
+
+describe("region window (title from the fragment path)", () => {
+  it("openEdit titles the window with the clicked fragment's path (the bug: it was blank)", async () => {
+    vi.stubGlobal("fetch", mockFetch({})); // all internal lookups 404 → hooks fall back quietly
+    const material = { annotations: [], create: vi.fn(), remove: vi.fn(), annotateRegion: vi.fn() };
+    let menu: ReturnType<typeof useAnnotationMenu>;
+    function Harness() {
+      menu = useAnnotationMenu(material as never, ":img.png");
+      return <>{menu.palette}</>;
+    }
+    const { container } = render(<Harness />);
+    act(() => menu.openEdit({ selector: { type: "rect" }, tag: { path: ":t", name: "t", color: null }, fragmentSlug: "abc123" }, { x: 5, y: 5 }));
+    await waitFor(() => expect(container.querySelector(".annotate-titlebar")).not.toBeNull());
+    const title = container.querySelector(".annotate-title")!.textContent!;
+    expect(title).toContain("yamlover-fragments"); // the fragment's node path, not blank
+    expect(title).toContain("abc123");
+    // the close ✕ lives in the title bar now
+    expect(container.querySelector(".annotate-titlebar button.close")).not.toBeNull();
+    // the path is wrapped in <bdi> for LEFT-truncation (right tail visible)
+    expect(container.querySelector(".annotate-title bdi")).not.toBeNull();
+  });
+});
+
+describe("text material right-click", () => {
+  it("right-clicking a live selection opens the tag window (titled with the material path)", async () => {
+    mockFetch({}); // no existing annotations; region create fetches 404 silently
+    const { container } = render(
+      <AnnotatedMaterial path=":doc"><p className="chapter-prose">hello world foo</p></AnnotatedMaterial>,
+    );
+    const textNode = container.querySelector("p")!.firstChild!;
+    const sel = window.getSelection()!;
+    const r = document.createRange();
+    r.setStart(textNode, 6);
+    r.setEnd(textNode, 11); // "world"
+    sel.removeAllRanges();
+    sel.addRange(r);
+    const inner = container.querySelector(".annotated > div") as HTMLElement;
+    fireEvent.contextMenu(inner, { clientX: 10, clientY: 10 });
+    await waitFor(() => expect(container.querySelector(".annotate-menu")).not.toBeNull());
+    expect(container.querySelector(".annotate-title")?.textContent).toContain("doc");
   });
 });

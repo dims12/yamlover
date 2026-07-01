@@ -579,41 +579,70 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Create a CHAPTER or SUBCHAPTER (the right-click context menu). Against an existing chapter /
-      // task, append a titled subchapter to its `children:`; against a directory, drop a new
-      // `.yamlover` chapter file into it. A chapter can be created only in those two container kinds.
-      // Body: { path, title? } → { path: <the new chapter's node path> } (the client navigates to it).
-      if (req.method === "POST" && url.pathname === "/api/chapter") {
+      // Create an OBJECT of a schema (the right-click context menu). Generic over the CREATABLE
+      // registry (currently just `$defs/chapter`). Body: { schema, parent, concrete, title? } →
+      // { path: <the new object's node path> } (the client navigates to it).
+      //   - CHILD mode  (parent's format ∈ the schema's `childOf`): append to the parent's child
+      //     list — `concrete "yamlover"` inline, or `file/yamlover`/`dir/yamlover` as a linked
+      //     document beside the parent + a `*` pointer.
+      //   - MEMBER mode (parent is a directory): a new `<name>.yamlover` file or
+      //     `<name>/.yamlover/body.yamlover` directory, tagged with the schema.
+      if (req.method === "POST" && url.pathname === "/api/create") {
         readBody(req)
           .then((data) =>
             enqueue(async () => {
-              const b = data as { path?: string; title?: string };
-              const parentSegs = strToSegs(b.path ?? ":");
+              const b = data as { schema?: string; parent?: string; concrete?: string; title?: string };
+              const reg = CREATABLE[String(b.schema ?? "")];
+              if (!reg) throw new Error(`unknown schema: ${b.schema}`);
+              const concrete = String(b.concrete ?? "");
+              const parentSegs = strToSegs(b.parent ?? ":");
               const row = s.node(storePath(parentSegs));
-              if (!row) throw new Error(`no such node: ${b.path}`);
-              const title = String(b.title ?? "").trim() || "New chapter";
-              // Into a chapter/task → a subchapter appended to its children.
-              if (row.format === "x-yamlover-chapter" || row.format === "x-yamlover-task") {
-                const { docSegs, bodyFile } = chapterSource(dataRoot, s, parentSegs);
+              if (!row) throw new Error(`no such node: ${b.parent}`);
+              const title = String(b.title ?? "").trim() || defaultTitle(String(b.schema));
+              const body = reg.body(title);
+              const objSrc = objectFileSource(reg.tag, body);
+
+              // CHILD mode — into a compatible parent's child list.
+              if (reg.childOf.includes(row.format ?? "")) {
+                const { docSegs, bodyFile, dirBacked } = chapterSource(dataRoot, s, parentSegs);
                 const within = parentSegs.slice(docSegs.length);
-                const childrenPath = storePath([...parentSegs, "children"]);
+                const childrenPath = storePath([...parentSegs, reg.childKey]);
                 const idx = s.node(childrenPath) ? s.children(childrenPath).length : 0; // the new child's index
-                const src = fs.readFileSync(bodyFile, "utf8");
-                fs.writeFileSync(bodyFile, appendToList(src, within, "children", (indent) => newSubchapterLines(title, indent)));
-                broadcast(await doReindexFile(bodyFile));
-                scheduleHasher();
-                return { path: segsToStr([...parentSegs, "children", idx]) };
+                if (concrete === "yamlover") {
+                  const src = fs.readFileSync(bodyFile, "utf8");
+                  fs.writeFileSync(bodyFile, appendToList(src, within, reg.childKey, (indent) => inlineChildLines(body, indent)));
+                  broadcast(await doReindexFile(bodyFile));
+                  scheduleHasher();
+                  return { path: segsToStr([...parentSegs, reg.childKey, idx]) }; // an inline child IS a real node
+                }
+                if (concrete === "file/yamlover" || concrete === "dir/yamlover") {
+                  // A LINKED child: the document lands beside the parent (in its dir when dir-backed,
+                  // else beside the standalone file), and a `*` pointer joins the parent's child list.
+                  const writeDirSegs = dirBacked ? docSegs : docSegs.slice(0, -1);
+                  const writeDir = path.resolve(dataRoot, ...writeDirSegs.map(String));
+                  // a LINKED child is reached by a `*` pointer → name it pointer-safe (no spaces/unicode)
+                  const final = writeObject(dataRoot, writeDir, sanitizeName(title), concrete, objSrc);
+                  const targetSegs = [...writeDirSegs, final];
+                  const pointer = dirBacked ? `*/${final}` : `*/${segsToStr(targetSegs)}`;
+                  const src = fs.readFileSync(bodyFile, "utf8");
+                  fs.writeFileSync(bodyFile, appendToList(src, within, reg.childKey, (indent) => [`${" ".repeat(indent)}- ${pointer}`]));
+                  broadcast(await doReindex());
+                  scheduleHasher();
+                  return { path: segsToStr(targetSegs) }; // navigate to the linked document's OWN node
+                }
+                throw new Error(`invalid concrete for a child: ${concrete}`);
               }
-              // Into a directory → a new standalone chapter file.
+
+              // MEMBER mode — a new file/dir inside a directory.
               const abs = path.resolve(dataRoot, ...parentSegs.map(String));
               if (parentSegs.every((g) => typeof g === "string") && fs.existsSync(abs) && fs.statSync(abs).isDirectory()) {
-                const final = uniqueName(abs, chapterFileName(title));
-                writeInside(dataRoot, abs, final, Buffer.from(newChapterFileSource(title), "utf8"));
+                if (concrete !== "file/yamlover" && concrete !== "dir/yamlover") throw new Error(`invalid concrete for a directory member: ${concrete}`);
+                const final = writeObject(dataRoot, abs, objectBaseName(title), concrete, objSrc);
                 broadcast(await doReindex());
                 scheduleHasher();
                 return { path: segsToStr([...parentSegs, final]) };
               }
-              throw new Error("a chapter can be created only inside a directory or another chapter");
+              throw new Error("this schema can be created only inside a directory or a compatible parent");
             }),
           )
           .then((body) => sendJson(res, 201, body))
@@ -1931,16 +1960,64 @@ function titleFromText(text: string): string {
   return (t.length > 80 ? t.slice(0, 79).trimEnd() + "…" : t) || "Pasted text";
 }
 
-/** A new subchapter as a `children:` list item — a titled chapter with ONE empty prose chunk, so it
- *  is immediately editable (Enter grows it from there; the editor never shows an "add" button). */
-function newSubchapterLines(title: string, indent: number): string[] {
-  const pad = " ".repeat(indent);
-  return [`${pad}- title: ${JSON.stringify(title)}`, `${pad}  chunks:`, `${pad}  - ""`];
+// -- generic object creation (POST /api/create) ---------------------------------------------- //
+// A creatable-schema registry. Instantiating a schema is: write its `body` (the object's fields),
+// tagged with its schema, either INLINE in a parent's child list, as a LINKED document, or as a
+// directory MEMBER. Adding a schema (task, board, …) is one more entry.
+
+interface Creatable {
+  tag: string; // the inline schema tag pointer, e.g. "*::yamlover:$defs:chapter"
+  childKey: string; // the parent array a child goes into
+  childOf: string[]; // parent node formats that accept it as a child
+  body: (title: string) => string[]; // the object's body lines (no tag) — a fresh, immediately-editable instance
+}
+const CREATABLE: Record<string, Creatable> = {
+  "::yamlover:$defs:chapter": {
+    tag: "*::yamlover:$defs:chapter",
+    childKey: "children",
+    childOf: ["x-yamlover-chapter", "x-yamlover-task"],
+    // a chapter with one empty prose chunk, so it is immediately editable (Enter grows it)
+    body: (title) => [`title: ${JSON.stringify(title)}`, "chunks:", `- ""`],
+  },
+};
+
+/** The default title for a new object of `schema` — "New <last segment>" (e.g. "New chapter"). */
+function defaultTitle(schema: string): string {
+  const segs = strToSegs(schema);
+  return "New " + String(segs[segs.length - 1] ?? "object");
 }
 
-/** A standalone chapter file's source — the schema tag, a title, and one empty prose chunk. */
-function newChapterFileSource(title: string): string {
-  return `!!<*::yamlover:$defs:chapter>\ntitle: ${JSON.stringify(title)}\nchunks:\n- ""\n`;
+/** A standalone object document's source — the schema tag then the body. */
+function objectFileSource(tag: string, body: string[]): string {
+  return `!!<${tag}>\n${body.join("\n")}\n`;
+}
+
+/** A child object as a `- ` list item: the body indented as the item's mapping (first line after
+ *  `- `, the rest two deeper). Used for an INLINE child. */
+function inlineChildLines(body: string[], indent: number): string[] {
+  const pad = " ".repeat(indent);
+  return body.map((line, i) => (i === 0 ? `${pad}- ${line}` : `${pad}  ${line}`));
+}
+
+/** The sanitized base name (no extension) for a new object file/dir, from its title. */
+function objectBaseName(title: string): string {
+  const base = title.replace(/[^\p{L}\p{N} ._-]+/gu, " ").replace(/\s+/g, " ").trim().slice(0, 60).trim().replace(/^\.+/, "");
+  return base || "new";
+}
+
+/** Write a new object document into `dir` in the given concrete — a `<base>.yamlover` file or a
+ *  `<base>/.yamlover/body.yamlover` directory. `base` is the name WITHOUT extension (caller decides
+ *  unicode-vs-pointer-safe). Returns the file/dir NAME actually created (unique). */
+function writeObject(dataRoot: string, dir: string, base: string, concrete: string, src: string): string {
+  if (concrete === "dir/yamlover") {
+    const final = uniqueName(dir, base);
+    fs.mkdirSync(path.join(dir, final, ".yamlover"), { recursive: true });
+    writeInside(dataRoot, path.join(dir, final, ".yamlover"), "body.yamlover", Buffer.from(src, "utf8"));
+    return final;
+  }
+  const final = uniqueName(dir, base + ".yamlover");
+  writeInside(dataRoot, dir, final, Buffer.from(src, "utf8"));
+  return final;
 }
 
 /** A filename for a new chapter file, from its title: unicode letters/digits/space/dot/dash kept

@@ -206,35 +206,75 @@ describe("/api/edit — guards & formats", () => {
   });
 });
 
-describe("/api/chapter — create", () => {
-  it("appends a subchapter (with one empty chunk) to a chapter's children", async () => {
+describe("/api/create — objects of a schema", () => {
+  const CHAP = "::yamlover:$defs:chapter";
+  const dirTree = () => tmpTree({ "dir/keep.txt": "x", ...DEFS });
+
+  it("child inline: appends a subchapter (one empty chunk) to a chapter's children", async () => {
     const { root, h } = await chapterHandlers();
-    const r = await callBody(h, "POST", "/api/chapter", { path: ":doc", title: "Fresh" });
+    const r = await callBody(h, "POST", "/api/create", { schema: CHAP, parent: ":doc", concrete: "yamlover", title: "Fresh" });
     expect(r.status).toBe(201);
-    expect(r.json.path).toBe(":doc:children[1]"); // CHAPTER already has one child ("Sub")
+    expect(r.json.path).toBe(":doc:children[1]"); // doc already has one child ("Sub")
     expect(bodyOf(root)).toContain('title: "Fresh"');
     const node = call(h, "/api/json", { path: ":doc:children[1]", depth: "3" });
     expect(node.json.format).toBe("x-yamlover-chapter");
     expect(node.json.value.chunks).toEqual([""]); // one empty, immediately-editable chunk
   });
 
-  it("creates a standalone chapter file inside a directory", async () => {
-    const root = tmpTree({ "dir/keep.txt": "x", ...DEFS });
+  it("child linked file: writes a .yamlover doc beside the parent + a pointer in children", async () => {
+    const { root, h } = await chapterHandlers();
+    const r = await callBody(h, "POST", "/api/create", { schema: CHAP, parent: ":doc", concrete: "file/yamlover", title: "Linked" });
+    expect(r.status).toBe(201);
+    expect(fs.existsSync(path.join(root, "doc", "Linked.yamlover"))).toBe(true); // dir-backed doc → inside doc/
+    expect(bodyOf(root)).toContain("- */Linked.yamlover");
+    expect(r.json.path).toBe(":doc:Linked.yamlover"); // navigates to the linked doc's own node
+    expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
+  });
+
+  it("child linked dir: writes <name>/.yamlover/body.yamlover + a pointer", async () => {
+    const { root, h } = await chapterHandlers();
+    const r = await callBody(h, "POST", "/api/create", { schema: CHAP, parent: ":doc", concrete: "dir/yamlover", title: "SubDir" });
+    expect(r.status).toBe(201);
+    expect(fs.existsSync(path.join(root, "doc", "SubDir", ".yamlover", "body.yamlover"))).toBe(true);
+    expect(bodyOf(root)).toContain("- */SubDir");
+    expect(r.json.path).toBe(":doc:SubDir");
+    expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
+  });
+
+  it("member file: a standalone .yamlover chapter file in a directory", async () => {
+    const root = dirTree();
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const r = await callBody(h, "POST", "/api/chapter", { path: ":dir", title: "New Note" });
+    const r = await callBody(h, "POST", "/api/create", { schema: CHAP, parent: ":dir", concrete: "file/yamlover", title: "New Note" });
     expect(r.status).toBe(201);
     expect(fs.existsSync(path.join(root, "dir", "New Note.yamlover"))).toBe(true);
     expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
   });
 
-  it("rejects creating a chapter against a scalar (not a directory or chapter)", async () => {
+  it("member dir: a directory-backed chapter in a directory (the default concrete)", async () => {
+    const root = dirTree();
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/create", { schema: CHAP, parent: ":dir", concrete: "dir/yamlover", title: "New Dir" });
+    expect(r.status).toBe(201);
+    expect(fs.existsSync(path.join(root, "dir", "New Dir", ".yamlover", "body.yamlover"))).toBe(true);
+    expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
+  });
+
+  it("rejects an unknown schema", async () => {
+    const { h } = await chapterHandlers();
+    const r = await callBody(h, "POST", "/api/create", { schema: "::yamlover:$defs:nope", parent: ":doc", concrete: "yamlover" });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toMatch(/unknown schema/);
+  });
+
+  it("rejects creation against a scalar (not a directory or compatible parent)", async () => {
     const root = tmpTree({ name: "Alice" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const r = await callBody(h, "POST", "/api/chapter", { path: ":name", title: "X" });
+    const r = await callBody(h, "POST", "/api/create", { schema: CHAP, parent: ":name", concrete: "file/yamlover", title: "X" });
     expect(r.status).toBe(400);
-    expect(r.json.error).toMatch(/only inside a directory or another chapter/);
+    expect(r.json.error).toMatch(/only inside a directory or a compatible parent/);
   });
 });
 

@@ -1,36 +1,26 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Annotation, TagRef, annotate, deleteAnnotation, fetchAnnotations } from "../api";
-import { AnnotationMenu, useAnnotationTag } from "./annotate";
-import { canonPath } from "../paths";
-import { isDirConcrete } from "../../concrete";
+import { AnnotationMenu, useAnnotationTag, type CreateEntry } from "./annotate";
+import { canonPath, displayPath } from "../paths";
+import { creatablesFor, useCreatableLabels } from "./create";
+
+/** A target node's kind, enough to decide what can be created inside it. */
+export type NodeKind = { format?: string | null; concrete?: string | null };
 
 /**
- * A right-click tag MANAGER for the directory views (grid / details / board). Reuses the same
- * floating picker as region tagging ({@link AnnotationMenu}), upgraded for whole-node tagging:
- * `openAt(target, x, y)` loads the node's CURRENT tags (shown as a removable row) and offers the
- * palette / recents / typeahead to ADD one. Picking adds a tag; a current chip's ✕ removes it —
- * both via the shared `annotate()` / `deleteAnnotation()` write paths, with the menu's tag list
- * refreshed in place. The underlying view also refreshes through its own `useDiffBump`.
+ * A right-click node context menu. Reuses the floating picker ({@link AnnotationMenu}) for
+ * whole-node tagging (`annotate()`/`deleteAnnotation()`), PLUS — when `opts.onCreate` is given and the
+ * target `node` is known — object CREATION: a "＋ New <schema>" entry per creatable schema at that
+ * target, each with a concrete selector (see create.ts). `openAt(target, x, y, node)`.
  */
-/** What a node context menu may create at the target: a subchapter (inside a chapter) or a new
- *  chapter file (inside a directory) — null when neither applies. */
-export type CreateKind = "subchapter" | "chapter" | null;
-
-/** Whether (and what) a chapter can be created inside a node — a chapter/task hosts SUBCHAPTERS, a
- *  directory hosts new chapter FILES; anything else hosts neither. */
-export function createKindFor(node: { format?: string | null; concrete?: string | null }): CreateKind {
-  if (node.format === "x-yamlover-chapter" || node.format === "x-yamlover-task") return "subchapter";
-  if (isDirConcrete(node.concrete)) return "chapter";
-  return null;
-}
-
 export function useExplorerTagMenu(opts?: {
-  /** When given, the menu shows a "＋ New (sub)chapter" action for a chapter/directory target. */
-  onCreateChapter?: (target: string, kind: "subchapter" | "chapter") => void;
-}): { openAt: (target: string, x: number, y: number, create?: CreateKind) => void; tagMenu: ReactNode } {
+  /** When given, the menu offers object creation at the target: `(schema, parent, concrete)`. */
+  onCreate?: (schema: string, parent: string, concrete: string) => void;
+}): { openAt: (target: string, x: number, y: number, node?: NodeKind) => void; tagMenu: ReactNode } {
   const [, setTag] = useAnnotationTag();
-  const [menu, setMenu] = useState<{ target: string; x: number; y: number; create: CreateKind } | null>(null);
+  const [menu, setMenu] = useState<{ target: string; x: number; y: number; node?: NodeKind } | null>(null);
   const [current, setCurrent] = useState<Annotation[]>([]);
+  const labels = useCreatableLabels();
   const ref = useRef<HTMLDivElement>(null);
   const close = () => { setMenu(null); setCurrent([]); };
 
@@ -42,8 +32,8 @@ export function useExplorerTagMenu(opts?: {
   // Open the picker on the node's CURRENT whole-node tags; the user picks one to ADD. Unlike REGION
   // tagging (which auto-applies the last tag to save a click once a selection is drawn), a right-click
   // on a whole node must NEVER silently tag it just for opening the menu.
-  const openAt = (target: string, x: number, y: number, create: CreateKind = null) => {
-    setMenu({ target, x, y, create });
+  const openAt = (target: string, x: number, y: number, node?: NodeKind) => {
+    setMenu({ target, x, y, node });
     setCurrent([]);
     reload(target);
   };
@@ -101,12 +91,19 @@ export function useExplorerTagMenu(opts?: {
 
   // the node's applied tags (resolved from its annotations) — the menu OUTLINES these and toggles
   const applied = current.map((a) => a.tag).filter((t): t is TagRef => !!t);
-  const actions =
-    menu?.create && opts?.onCreateChapter
-      ? [{ label: menu.create === "subchapter" ? "＋ New subchapter" : "＋ New chapter", onClick: () => { opts.onCreateChapter!(menu.target, menu.create as "subchapter" | "chapter"); close(); } }]
+  // the object-creation entries for this target (a "＋ New <schema>" + concrete selector each)
+  const creates: CreateEntry[] | undefined =
+    menu?.node && opts?.onCreate
+      ? creatablesFor(menu.node, labels).map((c) => ({
+          schema: c.schema,
+          label: c.label,
+          concretes: c.concretes,
+          defaultConcrete: c.defaultConcrete,
+          onCreate: (concrete: string) => { opts.onCreate!(c.schema, menu.target, concrete); close(); },
+        }))
       : undefined;
   const tagMenu = menu ? (
-    <AnnotationMenu menuRef={ref} x={menu.x} y={menu.y} applied={applied} mode="create" onPick={add} onUnpick={remove} onClose={close} actions={actions} />
+    <AnnotationMenu menuRef={ref} x={menu.x} y={menu.y} applied={applied} mode="create" onPick={add} onUnpick={remove} onClose={close} creates={creates} title={displayPath(menu.target)} />
   ) : null;
   return { openAt, tagMenu };
 }

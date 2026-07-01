@@ -46,7 +46,7 @@ export function DjvuView({ node }: { node: NodeJson }) {
   // Annotations: a `djvu` rect region (page + native-pixel box) from a text selection on an OCR
   // page, or a drag-marquee on a page with no OCR. Same picker/flow as image & PDF.
   const material = useMaterialAnnotations(node.path);
-  const { openCreate, openEdit, palette, preview } = useAnnotationMenu(material);
+  const { openCreate, openEdit, palette, preview } = useAnnotationMenu(material, node.path);
   const shown = preview
     ? [...material.annotations, { path: "(preview)", selector: preview.selector, tag: preview.tag } as Annotation]
     : material.annotations;

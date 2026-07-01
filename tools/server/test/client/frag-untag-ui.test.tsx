@@ -21,7 +21,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 let ext: any = null;
 function Harness({ path }: { path: string }) {
   const m = useMaterialAnnotations(path);
-  const menu = useAnnotationMenu(m);
+  const menu = useAnnotationMenu(m, path);
   ext = { m, menu };
   return <div>{menu.palette}<output>{m.annotations.filter((a) => a.tag).length}</output></div>;
 }

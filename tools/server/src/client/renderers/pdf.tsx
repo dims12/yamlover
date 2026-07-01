@@ -75,7 +75,7 @@ export function PdfView({ node }: { node: NodeJson }) {
   }, [pages, width > 0]);
 
   const material = useMaterialAnnotations(node.path);
-  const { openCreate, openEdit, palette, preview } = useAnnotationMenu(material);
+  const { openCreate, openEdit, palette, preview } = useAnnotationMenu(material, node.path);
   // include the live PREVIEW so the rectangle stays drawn while the menu is open
   const shown = preview
     ? [...material.annotations, { path: "(preview)", selector: preview.selector, tag: preview.tag } as Annotation]

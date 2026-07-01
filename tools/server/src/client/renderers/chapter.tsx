@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { NodeJson, editChunks, createChapter } from "../api";
+import { NodeJson, editChunks, createObject } from "../api";
 import { asLink, Link } from "../render";
 import { fragmentOf } from "../paths";
 import { Chunk, rendererFor } from "./registry";
@@ -35,15 +35,15 @@ type FocusReq = { id: string; at: FocusAt };
 export function ChapterView({ node, onNavigate }: { node: NodeJson; onNavigate: (path: string) => void }) {
   const { unlocked } = useEditing();
   // Right-click on EMPTY space (not on prose/links/controls) → the whole-chapter tag picker plus a
-  // "＋ New subchapter" action (this page IS a chapter). Creating navigates into the new subchapter
-  // (still in edit mode — see NodeView).
+  // "＋ New <schema>" entry with a concrete selector (this page IS a chapter → a subchapter). Creating
+  // navigates into the new object (still in edit mode — see NodeView).
   const { openAt, tagMenu } = useExplorerTagMenu({
-    onCreateChapter: (target) => void createChapter(target).then((r) => onNavigate(r.path)).catch((e) => window.alert("create failed: " + (e as Error).message)),
+    onCreate: (schema, parent, concrete) => void createObject(schema, parent, concrete).then((r) => onNavigate(r.path)).catch((e) => window.alert("create failed: " + (e as Error).message)),
   });
   const onContextMenu = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest(".chunk-body, .editable, a, button, textarea")) return; // native menu on text/links/controls
     e.preventDefault();
-    openAt(node.path, e.clientX, e.clientY, "subchapter");
+    openAt(node.path, e.clientX, e.clientY, { format: node.format, concrete: node.concrete });
   };
   // `key` on the chapter path: navigating to a subchapter (still in edit mode) remounts the editor so
   // it rebuilds its model from the new chapter rather than keeping the old one.

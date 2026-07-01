@@ -4,18 +4,18 @@ import { render, cleanup, fireEvent, act } from "@testing-library/react";
 
 // Mock the write APIs — the editor's background sync + the context menu's create call.
 // (hoisted so the mock fns exist before vi.mock's hoisted factory runs.)
-const { editChunks, createChapter } = vi.hoisted(() => ({ editChunks: vi.fn(), createChapter: vi.fn() }));
-vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), editChunks, createChapter }));
+const { editChunks, createObject } = vi.hoisted(() => ({ editChunks: vi.fn(), createObject: vi.fn() }));
+vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), editChunks, createObject }));
 
 import { ChapterView } from "../../src/client/renderers/chapter";
 import { EditingContext } from "../../src/client/renderers/editing";
-import { createKindFor } from "../../src/client/renderers/tagmenu";
+import { creatablesFor } from "../../src/client/renderers/create";
 import type { NodeJson } from "../../src/client/api";
 
 afterEach(cleanup);
 beforeEach(() => {
   editChunks.mockReset().mockResolvedValue({ ok: true });
-  createChapter.mockReset().mockResolvedValue({ path: ":doc:children[1]" });
+  createObject.mockReset().mockResolvedValue({ path: ":doc:children[1]" });
 });
 
 /** An inlined prose chunk marker at slot `i`. */
@@ -114,7 +114,7 @@ describe("ChapterEditor (unlocked)", () => {
     expect(after[0].textContent).toBe("headtail");
   });
 
-  it("right-click on empty space offers '＋ New subchapter' and creates + navigates", async () => {
+  it("right-click empty space offers create with a concrete selector; creates + navigates", async () => {
     const onNavigate = vi.fn();
     const { container } = render(
       <EditingContext.Provider value={{ unlocked: true }}>
@@ -124,10 +124,28 @@ describe("ChapterEditor (unlocked)", () => {
     const page = container.querySelector(".chapter-page") as HTMLElement;
     await act(async () => { fireEvent.contextMenu(page, { clientX: 5, clientY: 5 }); });
     const action = container.querySelector(".annotate-action") as HTMLElement;
-    expect(action?.textContent).toContain("New subchapter");
+    expect(action?.textContent).toContain("New"); // "＋ New <schema label>"
+    const select = container.querySelector("select.annotate-concrete") as HTMLSelectElement;
+    expect(select.value).toBe("yamlover"); // a subchapter's default concrete = inline
+    await act(async () => { fireEvent.change(select, { target: { value: "file/yamlover" } }); }); // pick a linked file
     await act(async () => { fireEvent.click(action); });
-    expect(createChapter).toHaveBeenCalledWith(":doc");
+    expect(createObject).toHaveBeenCalledWith("::yamlover:$defs:chapter", ":doc", "file/yamlover");
     await vi.waitFor(() => expect(onNavigate).toHaveBeenCalledWith(":doc:children[1]"));
+  });
+
+  it("the context menu is a titled, movable window (path title + close in the title bar + drag)", async () => {
+    const { container } = renderUnlocked(chapterNode(["First"]));
+    const page = container.querySelector(".chapter-page") as HTMLElement;
+    await act(async () => { fireEvent.contextMenu(page, { clientX: 20, clientY: 30 }); });
+    const bar = container.querySelector(".annotate-titlebar") as HTMLElement;
+    expect(bar.querySelector(".annotate-title")?.textContent).toContain("doc"); // displayPath(":doc")
+    expect(bar.querySelector("button.close")).not.toBeNull(); // the ✕ moved into the title bar
+    const menu = container.querySelector(".annotate-menu") as HTMLElement;
+    const left0 = menu.style.left;
+    act(() => { fireEvent.mouseDown(bar, { clientX: 100, clientY: 100 }); });
+    act(() => { fireEvent.mouseMove(document, { clientX: 140, clientY: 125 }); });
+    act(() => { fireEvent.mouseUp(document); });
+    expect(menu.style.left).not.toBe(left0); // dragging moved the window
   });
 
   it("makes a LaTeX chunk editable as a source textarea", () => {
@@ -166,13 +184,24 @@ describe("ChapterEditor (unlocked)", () => {
   });
 });
 
-describe("createKindFor (where a chapter can be created)", () => {
-  it("a chapter/task hosts subchapters; a directory hosts chapters; else none", () => {
-    expect(createKindFor({ format: "x-yamlover-chapter" })).toBe("subchapter");
-    expect(createKindFor({ format: "x-yamlover-task" })).toBe("subchapter");
-    expect(createKindFor({ concrete: "dir" })).toBe("chapter");
-    expect(createKindFor({ concrete: "dir/yamlover" })).toBe("chapter");
-    expect(createKindFor({ format: "text/markdown", concrete: "file/markdown" })).toBe(null);
-    expect(createKindFor({ format: null, concrete: null })).toBe(null);
+describe("creatablesFor (what/where a schema object can be created)", () => {
+  it("a chapter → child concretes (inline default); a directory → member concretes (dir default); else none", () => {
+    const chap = creatablesFor({ format: "x-yamlover-chapter", concrete: "yamlover" }, {});
+    expect(chap).toHaveLength(1);
+    expect(chap[0].concretes.map((c) => c.id)).toEqual(["yamlover", "file/yamlover", "dir/yamlover"]);
+    expect(chap[0].defaultConcrete).toBe("yamlover");
+    expect(chap[0].label).toContain("chapter"); // schema title absent → path fallback
+
+    expect(creatablesFor({ format: "x-yamlover-task", concrete: "dir/yamlover" }, {})[0].defaultConcrete).toBe("yamlover"); // task also hosts subchapters
+
+    const dir = creatablesFor({ concrete: "dir" }, {});
+    expect(dir[0].concretes.map((c) => c.id)).toEqual(["file/yamlover", "dir/yamlover"]);
+    expect(dir[0].defaultConcrete).toBe("dir/yamlover"); // the last / richer form
+
+    expect(creatablesFor({ format: "text/markdown", concrete: "file/yaml" }, {})).toEqual([]);
+    expect(creatablesFor({ format: null, concrete: null }, {})).toEqual([]);
+
+    // a fetched title overrides the path label
+    expect(creatablesFor({ concrete: "dir" }, { "::yamlover:$defs:chapter": "Chapter" })[0].label).toBe("Chapter");
   });
 });
