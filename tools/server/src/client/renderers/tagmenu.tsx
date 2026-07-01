@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import { Annotation, TagRef, annotate, deleteAnnotation, fetchAnnotations } from "../api";
 import { AnnotationMenu, useAnnotationTag } from "./annotate";
 import { canonPath } from "../paths";
+import { isDirConcrete } from "../../concrete";
 
 /**
  * A right-click tag MANAGER for the directory views (grid / details / board). Reuses the same
@@ -11,9 +12,24 @@ import { canonPath } from "../paths";
  * both via the shared `annotate()` / `deleteAnnotation()` write paths, with the menu's tag list
  * refreshed in place. The underlying view also refreshes through its own `useDiffBump`.
  */
-export function useExplorerTagMenu(): { openAt: (target: string, x: number, y: number) => void; tagMenu: ReactNode } {
+/** What a node context menu may create at the target: a subchapter (inside a chapter) or a new
+ *  chapter file (inside a directory) — null when neither applies. */
+export type CreateKind = "subchapter" | "chapter" | null;
+
+/** Whether (and what) a chapter can be created inside a node — a chapter/task hosts SUBCHAPTERS, a
+ *  directory hosts new chapter FILES; anything else hosts neither. */
+export function createKindFor(node: { format?: string | null; concrete?: string | null }): CreateKind {
+  if (node.format === "x-yamlover-chapter" || node.format === "x-yamlover-task") return "subchapter";
+  if (isDirConcrete(node.concrete)) return "chapter";
+  return null;
+}
+
+export function useExplorerTagMenu(opts?: {
+  /** When given, the menu shows a "＋ New (sub)chapter" action for a chapter/directory target. */
+  onCreateChapter?: (target: string, kind: "subchapter" | "chapter") => void;
+}): { openAt: (target: string, x: number, y: number, create?: CreateKind) => void; tagMenu: ReactNode } {
   const [, setTag] = useAnnotationTag();
-  const [menu, setMenu] = useState<{ target: string; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{ target: string; x: number; y: number; create: CreateKind } | null>(null);
   const [current, setCurrent] = useState<Annotation[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   const close = () => { setMenu(null); setCurrent([]); };
@@ -26,8 +42,8 @@ export function useExplorerTagMenu(): { openAt: (target: string, x: number, y: n
   // Open the picker on the node's CURRENT whole-node tags; the user picks one to ADD. Unlike REGION
   // tagging (which auto-applies the last tag to save a click once a selection is drawn), a right-click
   // on a whole node must NEVER silently tag it just for opening the menu.
-  const openAt = (target: string, x: number, y: number) => {
-    setMenu({ target, x, y });
+  const openAt = (target: string, x: number, y: number, create: CreateKind = null) => {
+    setMenu({ target, x, y, create });
     setCurrent([]);
     reload(target);
   };
@@ -85,8 +101,12 @@ export function useExplorerTagMenu(): { openAt: (target: string, x: number, y: n
 
   // the node's applied tags (resolved from its annotations) — the menu OUTLINES these and toggles
   const applied = current.map((a) => a.tag).filter((t): t is TagRef => !!t);
+  const actions =
+    menu?.create && opts?.onCreateChapter
+      ? [{ label: menu.create === "subchapter" ? "＋ New subchapter" : "＋ New chapter", onClick: () => { opts.onCreateChapter!(menu.target, menu.create as "subchapter" | "chapter"); close(); } }]
+      : undefined;
   const tagMenu = menu ? (
-    <AnnotationMenu menuRef={ref} x={menu.x} y={menu.y} applied={applied} mode="create" onPick={add} onUnpick={remove} onClose={close} />
+    <AnnotationMenu menuRef={ref} x={menu.x} y={menu.y} applied={applied} mode="create" onPick={add} onUnpick={remove} onClose={close} actions={actions} />
   ) : null;
   return { openAt, tagMenu };
 }

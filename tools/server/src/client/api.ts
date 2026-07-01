@@ -287,6 +287,37 @@ export function pasteRich(target: string, rich: unknown): Promise<PasteResult> {
   return postPaste({ path: target, rich });
 }
 
+/** One surgical chapter edit (the unlocked WYSIWYG editor's background sync). `path` is the leaf's
+ *  node path; the server routes each edit to its own backing file:
+ *   - `op:"set"`     — a `…:title` / `…:description` scalar to `text`;
+ *   - `op:"replace"` — the prose chunk at `…:chunks[i]` with `text`;
+ *   - `op:"insert"`  — a new chunk into `…:chunks` at position `index` (`text` may be "");
+ *   - `op:"remove"`  — the chunk at `…:chunks[i]`.
+ *  Only prose chunks (marklower / markdown) are text-editable — a file/pointer or non-prose chunk 400s. */
+export interface ChapterEdit {
+  path: string;
+  op: "set" | "replace" | "insert" | "remove";
+  text?: string;
+  index?: number;
+}
+
+/** Send a single chapter edit. */
+export function editChunk(path: string, op: ChapterEdit["op"], text = "", index?: number): Promise<{ ok: true }> {
+  return postJson(api("/api/edit"), { path, op, text, index });
+}
+
+/** Send a BATCH of chapter edits (the background sync's coalesced flush) — applied in order,
+ *  grouped by backing file server-side, one reindex per touched file. */
+export function editChunks(edits: ChapterEdit[]): Promise<{ ok: true }> {
+  return postJson(api("/api/edit"), { edits });
+}
+
+/** Create a chapter (the right-click context menu): a SUBCHAPTER when `parent` is a chapter/task,
+ *  else a new chapter file when `parent` is a directory. Returns the new chapter's node path. */
+export function createChapter(parent: string, title?: string): Promise<{ path: string }> {
+  return postJson(api("/api/chapter"), { path: parent, ...(title ? { title } : {}) });
+}
+
 /** Remove the application of `tag` from the node at `target` (a whole node OR a fragment path) —
  *  splices the matching element out of its `yamlover-annotations`. */
 export function deleteAnnotation(target: string, tag: string): Promise<void> {

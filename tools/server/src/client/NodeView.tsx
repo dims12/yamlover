@@ -4,6 +4,7 @@ import { arxivPdf, tweetUrl, fetchTweetText } from "./paste-links";
 import { countImages, htmlToRich, resolveImages, RichDraft } from "./paste-html";
 import { renderersFor, rendererName, plaintextTab } from "./renderers/registry";
 import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
+import { EditingContext } from "./renderers/editing";
 import { DepthControl, viewDepth } from "./renderers/depth";
 import { useHashScroll } from "./renderers/headings";
 
@@ -11,6 +12,10 @@ import { useHashScroll } from "./renderers/headings";
 // highlight). Image and map renderers carry their OWN region annotation layer (drag-rectangle →
 // palette), and pdf/djvu render saved region overlays; see annotate.tsx and the UI guide.
 const TEXT_MATERIALS = new Set(["chapter", "markdown", "asciidoc", "marklower"]);
+// Renderers editable in place under the lock: a chapter and a task (its body IS a chapter, reusing
+// ChapterView). Their prose chunks + title/description/subchapter titles become editable when
+// unlocked; the edits ride the /api/edit surgical write path.
+const EDITABLE_RENDERERS = new Set(["chapter", "task"]);
 import { TagBadges, splitTagRefs } from "./renderers/tag";
 import { Render } from "./render";
 import { strToSegs } from "./paths";
@@ -118,6 +123,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   const [bin, setBin] = useState<unknown>(null); // base64 payload for a binary leaf
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0); // bumped to re-fetch the node after a paste
+  const [unlocked, setUnlocked] = useState(false); // the editing lock — locked by default
   const [pasteMsg, setPasteMsg] = useState<string | null>(null); // transient upload status
   const [dragging, setDragging] = useState(false); // a file is being dragged over the window
   const prevPath = useRef(path); // last NAVIGATED path — distinguishes a navigation from a live refresh
@@ -132,13 +138,35 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   // settles. Unconditional — hooks run every render, including the loading ones.
   useHashScroll(node);
 
+  // Editing MODE STICKS across navigation: clicking a subchapter while editing opens it still in edit
+  // mode. (It starts locked at first load — the initial `unlocked` state — and Esc / the lock button
+  // exit.) Navigating to a non-editable page just shows no editor; the lock is harmless there.
+  // F2 enters edit mode, Esc exits — but only on an editable page (a chapter/task). `editableRef`
+  // tracks that (set during render, once the renderer is known).
+  const editableRef = useRef(false);
   useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!editableRef.current) return;
+      if (e.key === "F2" && !unlocked) { e.preventDefault(); setUnlocked(true); }
+      else if (e.key === "Escape" && unlocked) { e.preventDefault(); setUnlocked(false); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [unlocked]);
+
+  useEffect(() => {
+    const navigated = prevPath.current !== path;
+    // While editing, PAUSE a live refresh (SSE → refreshSignal / reloadKey): the chapter editor holds
+    // an authoritative in-memory model and must not be rebuilt under the caret. But ALWAYS fetch on a
+    // genuine NAVIGATION, so clicking a subchapter opens it (still in edit mode). Locking (unlocked →
+    // false) re-runs this with `navigated` false and refetches the freshly saved chapter.
+    if (unlocked && !navigated) return;
     setError(null);
     // Clear the node only on a genuine NAVIGATION (the path changed). A live REFRESH (refreshSignal /
     // reloadKey, e.g. an annotation written from a right-click menu) keeps the current node visible
     // and swaps it in when the re-fetch resolves — no loading flash, and the renderer stays mounted
     // (so a floating menu / selection it owns survives the write that triggered the refresh).
-    if (prevPath.current !== path) { setNode(null); prevPath.current = path; }
+    if (navigated) { setNode(null); prevPath.current = path; }
     let cancelled = false;
     // A first fetch at the SERVER DEFAULT settles the node's (type, format) and, for a data view at
     // the default `.inf`, IS the value shown (the server resolves `.inf` per concrete — a whole text
@@ -182,7 +210,8 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
       cancelled = true;
     };
     // `format` is a dep: switching renderer↔data tab can change the needed depth, so refetch.
-  }, [path, reloadKey, refreshSignal, format]);
+    // `unlocked` is a dep: locking re-runs this to refetch the saved chapter; unlocking pauses it.
+  }, [path, reloadKey, refreshSignal, format, unlocked]);
 
   // Paste-to-upload: pasting clipboard file(s) uploads them — the server drops the file into this
   // directory (a directory page), appends it as a chapter chunk (a chapter page), or drops it into
@@ -400,6 +429,9 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   const labelOf = (f: Format): string => allRenderers.find((r) => r.name === f)?.label ?? f;
   const renderer = allRenderers.find((r) => r.name === effective) ?? null;
   const showRendered = renderer != null;
+  // an editable page (chapter/task) — gates the lock button and the F2/Esc shortcut
+  const isEditableView = showRendered && !!renderer && EDITABLE_RENDERERS.has(renderer.name);
+  editableRef.current = isEditableView;
   // the document this node belongs to — the base its `#`-fragment anchors are measured from
   const docPath = node.documentPath ?? path;
 
@@ -460,6 +492,19 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
               levels of nested containers are inlined (and collapsible) before a continuation link */}
           {!showRendered && <DepthControl onChange={() => setReloadKey((k) => k + 1)} />}
         </div>
+        {/* the EDIT LOCK: a chapter/task page can be unlocked for in-place WYSIWYG editing. Locked by
+            default; unlocking turns prose chunks, the title/description, and subchapter titles into
+            editable fields (and suspends the annotation layer — see below) */}
+        {isEditableView && (
+          <button
+            className={"lockbtn" + (unlocked ? " unlocked" : "")}
+            title={unlocked ? "Editing — click or Esc to lock" : "Locked — click or F2 to edit"}
+            aria-pressed={unlocked}
+            onClick={() => setUnlocked((v) => !v)}
+          >
+            {unlocked ? "🔓" : "🔒"}
+          </button>
+        )}
       </div>
 
       {/* a renderer presents the node's own title/description; the default view
@@ -467,11 +512,16 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
       {!showRendered && node.description && <p className="nodedesc">{node.description}</p>}
 
       {showRendered ? (
-        TEXT_MATERIALS.has(renderer!.name) ? (
-          <AnnotatedMaterial path={path}>{renderer!.render(node, onNavigate)}</AnnotatedMaterial>
-        ) : (
-          renderer!.render(node, onNavigate)
-        )
+        <EditingContext.Provider value={{ unlocked }}>
+          {/* While UNLOCKED, skip the annotation wrapper: its document `mouseup` selection→picker and
+              its per-render `<mark>` DOM rewrite both fight contentEditable. Highlights return on
+              re-lock. A non-editable prose material keeps the annotation layer as before. */}
+          {TEXT_MATERIALS.has(renderer!.name) && !unlocked ? (
+            <AnnotatedMaterial path={path}>{renderer!.render(node, onNavigate)}</AnnotatedMaterial>
+          ) : (
+            renderer!.render(node, onNavigate)
+          )}
+        </EditingContext.Provider>
       ) : (
         <pre className="code">
           {/* data views lead with the relations panel (reverse members / `..`),

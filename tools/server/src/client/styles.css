@@ -700,6 +700,146 @@ a.chunk-index:hover {
   flex: 1 1 auto;
   min-width: 0;
 }
+
+/* --- editing (the unlocked WYSIWYG lock) ---------------------------------- */
+/* the header lock toggle: locked by default, sits at the right of the node bar */
+.lockbtn {
+  margin-left: auto;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 3px 6px;
+  opacity: 0.65;
+}
+.lockbtn:hover { opacity: 1; background: var(--hover, rgba(127, 127, 127, 0.12)); }
+.lockbtn.unlocked { opacity: 1; border-color: var(--accent); }
+
+/* an editable field (chunk prose, title, description, subchapter title): a subtle focus affordance */
+.editable {
+  outline: none;
+  border-radius: 4px;
+  transition: box-shadow 0.12s ease, background 0.12s ease;
+}
+.editable:hover { background: var(--hover, rgba(127, 127, 127, 0.06)); }
+.editable:focus {
+  background: var(--hover, rgba(127, 127, 127, 0.08));
+  box-shadow: 0 0 0 2px var(--accent);
+}
+/* an empty editable shows its placeholder (title/description/subchapter) */
+.editable:empty::before {
+  content: attr(data-placeholder);
+  color: var(--dim);
+  font-style: italic;
+}
+/* atomic tokens inside editable prose — math, code, links — are edited as whole units */
+.chapter-prose.editable .mlw-atom { cursor: default; }
+.chapter-prose.editable .mlw-link { color: var(--accent); text-decoration: underline; }
+
+/* the last-resort crash screen (ErrorBoundary) — never a silent white void */
+.crash {
+  max-width: 60ch;
+  margin: 10vh auto;
+  padding: 24px;
+  font-family: system-ui, sans-serif;
+  color: var(--fg, #222);
+}
+.crash h1 { font-size: 20px; margin: 0 0 8px; }
+.crash pre {
+  white-space: pre-wrap;
+  background: var(--hover, rgba(127, 127, 127, 0.1));
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  overflow: auto;
+}
+.crash-actions { display: flex; gap: 8px; margin-top: 12px; }
+.crash-actions button {
+  border: 1px solid var(--accent, #48f);
+  background: none;
+  color: var(--accent, #48f);
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.crash-actions button:hover { background: var(--hover, rgba(127, 127, 127, 0.12)); }
+
+/* context-menu command entries (e.g. "＋ New subchapter") atop the tag picker. The menu is a
+   flex-wrap row, so `flex-basis:100%` forces this onto its OWN full-width line above the swatches. */
+.annotate-actions {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 2px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.annotate-action { flex: 1 1 auto; text-align: center; }
+.annotate-action {
+  background: none;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.35));
+  border-radius: 6px;
+  color: var(--fg);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+.annotate-action:hover { color: var(--accent); border-color: var(--accent); }
+
+/* a LaTeX chunk edits its raw source in a monospace, auto-growing textarea */
+textarea.chapter-latex-src {
+  width: 100%;
+  display: block;
+  box-sizing: border-box;
+  resize: none;
+  overflow: hidden;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg);
+  background: var(--hover, rgba(127, 127, 127, 0.06));
+  border: 1px solid transparent;
+  padding: 6px 8px;
+}
+
+/* per-chunk edit tools (add / delete), revealed on hover of the chunk row */
+.chunk-tools {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.chunk:hover .chunk-tools { opacity: 0.8; }
+.chunk-tool {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: var(--dim);
+}
+.chunk-tool:hover { color: var(--fg); background: var(--hover, rgba(127, 127, 127, 0.12)); }
+
+/* the trailing "＋ paragraph" affordance */
+.chunk-add { margin-top: 4px; }
+.chunk-addbtn {
+  background: none;
+  border: 1px dashed var(--dim);
+  border-radius: 6px;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 10px;
+}
+.chunk-addbtn:hover { color: var(--accent); border-color: var(--accent); }
 /* an image / diagram chunk sits flush with its index: drop the standalone-view
    top padding so the object's top-left corner meets the gutter (the index) */
 .chunk-body .filemedia {

@@ -9,6 +9,7 @@ interface Props {
   current: string;
   onSelect: (path: string) => void;
   onLoadChildren: (path: string, levels?: number) => Promise<void>;
+  onContext?: (node: TreeNode, x: number, y: number) => void; // right-click → the node context menu
   depth?: number;
 }
 
@@ -21,7 +22,7 @@ interface Props {
  */
 // memo: App re-renders on every SSE task-progress frame (background indexing/hashing — several
 // per second); the TOC must only re-render when its own props change.
-export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren, depth = 0 }: Props) {
+export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren, onContext, depth = 0 }: Props) {
   // How this node presents in the TOC: the rows to show, whether it expands, and
   // whether those rows are loaded yet (a renderer may unwrap/filter; default is
   // the node's own children, fetched lazily on first expand).
@@ -64,6 +65,7 @@ export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren
         ref={rowRef}
         className={"tree-row" + (selected ? " selected" : "")}
         style={{ paddingLeft: depth * 14 + 4 }}
+        onContextMenu={onContext ? (e) => { e.preventDefault(); onContext(node, e.clientX, e.clientY); } : undefined}
       >
         {expandable ? (
           <button
@@ -89,6 +91,7 @@ export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren
             current={current}
             onSelect={onSelect}
             onLoadChildren={onLoadChildren}
+            onContext={onContext}
             depth={depth + 1}
           />
         ))}

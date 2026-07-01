@@ -431,12 +431,14 @@ export const tagStyle = (color: string): React.CSSProperties => ({ ["--tag"]: co
  *  and explorer right-click tagging (`useExplorerTagMenu`) drive this SAME component the same way;
  *  the outline is the only "selected" indicator. */
 export function AnnotationMenu({
-  x, y, applied, nodeTags = [], mode, onPick, onUnpick, onCopy, onClose, menuRef,
+  x, y, applied, nodeTags = [], mode, onPick, onUnpick, onCopy, onClose, menuRef, actions,
 }: {
   x: number; y: number; applied: TagRef[]; nodeTags?: TagRef[]; mode: "create" | "edit";
   onPick: (t: TagRef) => void; onUnpick?: (t: TagRef) => void;
   onCopy?: () => void; onClose: () => void;
   menuRef?: React.Ref<HTMLDivElement>;
+  /** Extra command entries shown at the top of the menu (e.g. "＋ New subchapter"). */
+  actions?: { label: string; onClick: () => void }[];
 }) {
   const colorTags = useColorTags();
   const tagIndex = useTagIndex(); // all named tags (whole tree) — the typeahead searches these
@@ -559,6 +561,13 @@ export function AnnotationMenu({
 
   return (
     <div ref={setRefs} className="annotate-menu" style={{ left: pos.left, top: pos.top }} role="menu">
+      {actions && actions.length > 0 && (
+        <div className="annotate-actions">
+          {actions.map((a) => (
+            <button key={a.label} type="button" className="annotate-action" onClick={a.onClick}>{a.label}</button>
+          ))}
+        </div>
+      )}
       <div className="annotate-palette">
         {colorTags.map((t) => (
           <TagTip key={t.path} tag={t}>

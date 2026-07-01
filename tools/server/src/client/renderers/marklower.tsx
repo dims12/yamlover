@@ -118,3 +118,39 @@ export function MarklowerView({ node, onNavigate }: { node: NodeJson; onNavigate
 export function MarklowerChunk({ chunk, onNavigate }: { chunk: Chunk; onNavigate: (path: string) => void }) {
   return <p className="chapter-prose">{parse(chunk.value, onNavigate, chunk.documentPath)}</p>;
 }
+
+// --------------------------------------------------------------------------- //
+// The WYSIWYG editor (unlocked mode). A prose chunk becomes a contentEditable that LOOKS exactly
+// like its read-only render; plain runs and emphasis (**/*/~~) are edited live, while ATOMIC tokens
+// (math, code, links) render non-editable and carry their marklower source in `data-src`, so the
+// round-trip through domToMarklower is lossless.
+// --------------------------------------------------------------------------- //
+
+/** Escape a string for an HTML attribute value (for `data-src`). */
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Marklower → the editor's HTML string: emphasis stays editable inline markup; each atomic token
+ *  becomes a `contenteditable=false` element tagged with its verbatim marklower source in
+ *  `data-src` (so {@link domToMarklower} reproduces it exactly rather than re-serializing the
+ *  rendered KaTeX / code / link). */
+export function marklowerToEditableHtml(value: unknown): string {
+  const src = String(value ?? "");
+  let html = "";
+  let last = 0;
+  for (const m of src.matchAll(TOKEN)) {
+    html += styleText(src.slice(last, m.index));
+    if (m[1] !== undefined) {
+      html += `<span class="mlw-atom" contenteditable="false" data-src="${escapeAttr("$$" + m[1] + "$$")}">${renderMath(m[1], false)}</span>`;
+    } else if (m[2] !== undefined) {
+      html += `<code class="mlw-atom" contenteditable="false" data-src="${escapeAttr("`" + m[2] + "`")}">${escapeHtml(m[2])}</code>`;
+    } else {
+      html += `<a class="mlw-atom mlw-link" contenteditable="false" data-src="${escapeAttr("[" + m[3] + "](" + m[4] + ")")}">${styleText(m[3])}</a>`;
+    }
+    last = m.index + m[0].length;
+  }
+  html += styleText(src.slice(last));
+  return html;
+}
+

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchInfo, fetchTasks, fetchTree, installAgentDocs, PasteResult, TaskInfo, TreeNode } from "./api";
+import { createChapter, fetchInfo, fetchTasks, fetchTree, installAgentDocs, PasteResult, TaskInfo, TreeNode } from "./api";
 import { api } from "./base";
 import { Tree } from "./Tree";
 import { TaskStrip } from "./TaskStrip";
@@ -15,6 +15,7 @@ import { crumbs, formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSeg
 import { broadcastDiff } from "./live";
 import { Fragments, fragmentGroups } from "./Fragments";
 import { useAnnotations } from "./renderers/annotate";
+import { useExplorerTagMenu, createKindFor } from "./renderers/tagmenu";
 
 /** Read a persisted boolean UI flag (collapse state) from localStorage, defaulting false when it
  *  is unset or unavailable (e.g. a jsdom test env). */
@@ -249,6 +250,18 @@ export function App() {
   useEffect(() => {
     if (typeof EventSource === "undefined") return; // test envs (jsdom) have no SSE
     const es = new EventSource(api("/api/events"));
+    // `open` fires on the initial connect AND on every auto-RECONNECT. A reconnect means the stream
+    // was down — typically the SERVER RESTARTED. Changes that landed while we were disconnected may
+    // have arrived with NO frame we saw (a fast reindex can finish before the browser reconnects), so
+    // a view that errored during the outage would otherwise stay broken forever. On reconnect, force
+    // a re-sync: refetch the loaded tree and the current node so the page heals itself.
+    let opened = false;
+    es.onopen = () => {
+      if (!opened) { opened = true; return; } // initial connect — the direct initial fetches cover it
+      retryInitial(); // cold: fetch the tree if we still have none
+      fetchTree(":", INITIAL_DEPTH).then((t) => setTree((prev) => (prev ? mergeAt(prev, ":", t) : t))).catch(() => {});
+      setRefreshSignal((s) => s + 1); // NodeView refetches (and clears any stale "no such node" error)
+    };
     es.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data) as { type?: string };
@@ -322,6 +335,13 @@ export function App() {
     },
     [navigate],
   );
+
+  // Right-click a TOC row → the whole-node tag picker, plus "＋ New chapter/subchapter" when the row
+  // is a directory or a chapter. Creating navigates to the new chapter.
+  const { openAt: openTocMenu, tagMenu: tocMenu } = useExplorerTagMenu({
+    onCreateChapter: (target) => void createChapter(target).then((r) => navigate(r.path)).catch((e) => window.alert("create failed: " + (e as Error).message)),
+  });
+  const onTocContext = useCallback((n: TreeNode, x: number, y: number) => openTocMenu(n.path, x, y, createKindFor(n)), [openTocMenu]);
 
   // Ctrl/Alt + Down / Up step the selection to the next / previous TOC entry in
   // document order (Alt as well as Ctrl because Ctrl+Up/Down is taken by macOS
@@ -513,7 +533,7 @@ export function App() {
                 }
                 if (error) return <div className="error">{error}</div>;
                 if (!tree) return <div className="loading">loading…</div>;
-                return <Tree node={tree} current={current} onSelect={selectFromToc} onLoadChildren={loadChildren} />;
+                return <Tree node={tree} current={current} onSelect={selectFromToc} onLoadChildren={loadChildren} onContext={onTocContext} />;
               })()}
             </aside>
             <div className="splitter" onMouseDown={() => startDrag("left")} />
@@ -539,6 +559,7 @@ export function App() {
           </>
         )}
       </div>
+      {tocMenu}
     </div>
   );
 }

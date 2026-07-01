@@ -5,6 +5,8 @@
 // `access-control-allow-origin: *`), text blocks become marklower prose. Formatted text with
 // no images/headings stays a plain text paste. Used by NodeView's paste listener.
 
+import { inlineMd } from "./marklower-serialize";
+
 /** The client-side draft: images still by URL (downloaded later by resolveImages). */
 export interface RichDraft {
   title?: string;
@@ -129,25 +131,6 @@ function blocksOf(body: HTMLElement): Block[] {
   walk(body);
   flush();
   return out;
-}
-
-/** Inline content → marklower: links, emphasis, code; everything else passes through as text. */
-function inlineMd(n: Node): string {
-  if (n.nodeType === Node.TEXT_NODE) return n.textContent ?? "";
-  if (!(n instanceof Element)) return "";
-  const tag = n.tagName.toLowerCase();
-  if (SKIP.has(tag)) return "";
-  if (tag === "br") return "\n";
-  const inner = Array.from(n.childNodes).map(inlineMd).join("");
-  if (tag === "a") {
-    const href = n.getAttribute("href") ?? "";
-    const t = inner.trim();
-    return /^https?:\/\//.test(href) && t ? `[${t}](${href})` : inner;
-  }
-  if (tag === "strong" || tag === "b") return inner.trim() ? `**${inner.trim()}**` : "";
-  if (tag === "em" || tag === "i") return inner.trim() ? `*${inner.trim()}*` : "";
-  if (tag === "code") return inner.trim() ? "`" + inner.trim() + "`" : "";
-  return inner;
 }
 
 /** A usable image URL: absolute http(s) or data:; protocol-relative gains https:; lazy-load
