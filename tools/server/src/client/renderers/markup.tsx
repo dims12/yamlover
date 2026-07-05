@@ -3,10 +3,16 @@ import { Seg, strToSegs, segsToStr } from "../paths";
 
 /**
  * The rendered-HTML body for the markdown/asciidoc page views, plus the control that sets its
- * line-wrap measure. The **reading width is a URL parameter** — `?width=<ch>`, alongside
- * `?format=` — so a particular width is a shareable link (the CSV renderer keeps its options in
- * the query the same way). Default 72ch. The control lives in the tab bar next to the renderer
- * button (see NodeView), not in the body. Chapter *chunks* render plain `.markup`, unaffected.
+ * line-wrap measure. The reading width resolves in three layers, most specific first:
+ *   1. `?width=<ch>` URL param — a per-page override, so a particular width is a shareable link
+ *      (the CSV renderer keeps its options in the query the same way);
+ *   2. a personal default in `localStorage` — a per-device sticky preference that travels across
+ *      nodes and sessions (reading width is a viewer trait — screen, eyesight — not a content one,
+ *      so it lives here rather than in the repo's `settings.yamlover`);
+ *   3. the built-in 72ch fallback.
+ * Setting the width writes both the URL (shareable) and localStorage (sticky). The control lives
+ * in the tab bar next to the renderer button (see NodeView), not in the body. Chapter *chunks*
+ * render plain `.markup`, unaffected.
  */
 
 /** A URL that is already absolute and must be left untouched: it carries a scheme
@@ -81,18 +87,40 @@ export function markupClick(onNavigate?: (path: string) => void) {
 const DEFAULT_WIDTH_CH = 72;
 const MIN_CH = 20;
 const MAX_CH = 400;
+const STORE_KEY = "yamlover.markupWidthCh"; // per-device sticky default
 const params = () => new URLSearchParams(window.location.search);
 
-/** The reading width in `ch` from the URL's `?width=`, or the default (out-of-range ignored). */
-export function markupWidthCh(): number {
-  const w = Number(params().get("width"));
-  return Number.isFinite(w) && w >= MIN_CH && w <= MAX_CH ? w : DEFAULT_WIDTH_CH;
+const inRange = (w: number) => Number.isFinite(w) && w >= MIN_CH && w <= MAX_CH;
+
+/** The personal default width persisted in localStorage, or null if unset/invalid/unavailable. */
+function storedWidth(): number | null {
+  try {
+    const w = Number(localStorage.getItem(STORE_KEY));
+    return inRange(w) ? w : null;
+  } catch {
+    return null; // storage blocked (private mode, no DOM) — fall through to the built-in default
+  }
 }
 
+/** The reading width in `ch`: URL `?width=` override → localStorage default → 72 (bad values ignored). */
+export function markupWidthCh(): number {
+  const url = Number(params().get("width"));
+  if (inRange(url)) return url;
+  return storedWidth() ?? DEFAULT_WIDTH_CH;
+}
+
+/** Apply a width: persist it as the per-device default and mirror it to the URL for sharing. */
 function writeWidth(ch: number): void {
+  try {
+    localStorage.setItem(STORE_KEY, String(ch));
+  } catch {
+    /* storage unavailable — the URL param below still carries the width */
+  }
   const q = params();
-  if (ch === DEFAULT_WIDTH_CH) q.delete("width");
-  else q.set("width", String(ch));
+  // Drop the URL param once it agrees with the sticky default (which is now `ch`) — keeps URLs clean
+  // while navigation still recovers the width from localStorage.
+  q.delete("width");
+  if (ch !== DEFAULT_WIDTH_CH) q.set("width", String(ch));
   const qs = q.toString();
   window.history.replaceState({}, "", window.location.pathname + (qs ? "?" + qs : ""));
 }
