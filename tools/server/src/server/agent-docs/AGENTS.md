@@ -14,8 +14,10 @@ human's live view.
 
 ## 1. What yamlover is
 
-yamlover is a **strict superset of YAML**. Every valid YAML document is valid yamlover. On top
-of YAML it adds a small **pointer layer** so that data forms a graph, not just a tree:
+yamlover is a **distinct, YAML-like language** — close to YAML and mostly readable as it, but
+**not a strict superset**: `*` and `&` carry different meaning (see below), so a stock YAML
+document that uses aliases/anchors does **not** round-trip identically. On top of a YAML-style
+surface it adds a small **pointer layer** so that data forms a graph, not just a tree:
 
 - **`*` pointers** — a value that *refers to* another node (a shared edge, not a copy).
 - **`&` path anchors** — declare that "this node also lives over there" (the push side of `*`).
