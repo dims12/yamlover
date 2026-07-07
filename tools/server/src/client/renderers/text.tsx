@@ -1,10 +1,61 @@
-import { marked } from "marked";
+import { Marked } from "marked";
 import { NodeJson, blobUrl } from "../api";
 import { scalarValue } from "../render";
 import { Chunk } from "./registry";
 import { anchorizeHeadings, useHashScroll } from "./headings";
 import { Markup, markupClick, relativeDocSegs, rewriteRelativeLinks } from "./markup";
+import { renderMath } from "./latex";
 import { segsToStr } from "../paths";
+
+/**
+ * A dedicated `marked` instance that also understands TeX math, so a `.md` file's
+ * `$…$` / `$$…$$` typesets with KaTeX instead of showing through as literal source.
+ *
+ * These MUST be `marked` extensions rather than an asciidoc-style post-pass over the
+ * rendered HTML: `marked` interprets the math body as Markdown otherwise — a
+ * `\mathrm{GHZ}_N` underscore becomes `<em>`, `\frac{1}{\sqrt{2}}` backslashes get
+ * eaten — long before a post-pass could see it. A tokenizer captures the span first,
+ * so its contents reach {@link renderMath} verbatim (the same KaTeX entry the
+ * `text/x-latex` and asciidoc renderers use).
+ *
+ *   - **display** (`$$…$$`): a block-level token, so display formulae sit on their
+ *     own line the way they are written;
+ *   - **inline** (`$…$`): Pandoc-style guards keep prose dollars ("$5 and $10") from
+ *     being mistaken for math — the opening `$` may not be followed by whitespace,
+ *     the closing `$` may not be preceded by whitespace nor followed by a digit.
+ */
+const marked = new Marked({
+  extensions: [
+    {
+      name: "blockMath",
+      level: "block",
+      start(src: string) {
+        return src.indexOf("$$");
+      },
+      tokenizer(src: string) {
+        const m = /^\$\$([\s\S]+?)\$\$/.exec(src);
+        if (m) return { type: "blockMath", raw: m[0], text: m[1].trim() };
+      },
+      renderer(token) {
+        return renderMath(token.text, true);
+      },
+    },
+    {
+      name: "inlineMath",
+      level: "inline",
+      start(src: string) {
+        return src.indexOf("$");
+      },
+      tokenizer(src: string) {
+        const m = /^\$(?!\s)((?:\\.|[^$\\])+?)(?<!\s)\$(?!\d)/.exec(src);
+        if (m) return { type: "inlineMath", raw: m[0], text: m[1] };
+      },
+      renderer(token) {
+        return renderMath(token.text, false);
+      },
+    },
+  ],
+});
 
 /** Resolve a relative URL as written in a Markdown file — `images/x.jpg`, `../a/b.png`
  *  — against the DIRECTORY of the document it appears in (GitHub-style; see

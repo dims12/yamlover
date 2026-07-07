@@ -80,3 +80,28 @@ describe("Markdown / AsciiDoc relative links navigate in-app", () => {
     expect(onNavigate).toHaveBeenCalledWith(":dir:sibling.adoc");
   });
 });
+
+describe("Markdown math typesets with KaTeX", () => {
+  it("renders a $$…$$ display formula, not literal TeX", () => {
+    const { container } = render(
+      <TextView node={node("$$\n|\\mathrm{GHZ}_N\\rangle = \\frac{1}{\\sqrt{2}}\n$$", "text/markdown")} />,
+    );
+    // KaTeX emitted a display-mode block and the raw `$$` delimiters are gone.
+    // (The TeX source survives only in KaTeX's hidden MathML <annotation>, not as
+    // visible text — so we assert on the rendered block, not on textContent.)
+    expect(container.querySelector(".katex-display")).toBeTruthy();
+    expect(container.querySelector(".katex-html")).toBeTruthy();
+    expect(container.textContent).not.toContain("$$");
+    // The underscore in `_N` must NOT have become Markdown emphasis inside the math.
+    expect(container.querySelector(".katex em")).toBeNull();
+  });
+
+  it("renders inline $…$ math and leaves prose dollars alone", () => {
+    const { container } = render(
+      <TextView node={node("state $|0\\rangle$ costs $5 and $10 total.", "text/markdown")} />,
+    );
+    expect(container.querySelector(".katex")).toBeTruthy(); // the |0> span typeset
+    // The currency pair is not mistaken for a math span (guarded open/close).
+    expect(container.textContent).toContain("$5 and $10");
+  });
+});
