@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, cleanup, waitFor, act, fireEvent } from "@testing-library/react";
-import { AnnotationMenu, AnnotatedMaterial, useAnnotations, useAnnotationMenu, DEFAULT_TAG } from "../../src/client/renderers/annotate";
+import { AnnotationMenu, AnnotatedMaterial, useAnnotations, useAnnotationMenu, DEFAULT_TAG, copyText } from "../../src/client/renderers/annotate";
 
 // The annotation layer's live-refresh + remembered-tag hygiene: external changes arrive as a
 // `yamlover:diff` window event (App re-broadcasts SSE diffs), and localStorage recents are
@@ -147,6 +147,43 @@ describe("region window (title from the fragment path)", () => {
     expect(container.querySelector(".annotate-titlebar button.close")).not.toBeNull();
     // the path is wrapped in <bdi> for LEFT-truncation (right tail visible)
     expect(container.querySelector(".annotate-title bdi")).not.toBeNull();
+  });
+});
+
+describe('"copy text to clipboard (don\'t annotate)" works in secure AND insecure contexts', () => {
+  const origClipboard = Object.getOwnPropertyDescriptor(Navigator.prototype, "clipboard")
+    ?? Object.getOwnPropertyDescriptor(navigator, "clipboard");
+  const origExec = document.execCommand;
+  const setClipboard = (v: unknown) => Object.defineProperty(navigator, "clipboard", { value: v, configurable: true });
+  afterEach(() => {
+    if (origClipboard) Object.defineProperty(navigator, "clipboard", { ...origClipboard, configurable: true });
+    else delete (navigator as { clipboard?: unknown }).clipboard;
+    document.execCommand = origExec;
+  });
+
+  it("uses navigator.clipboard.writeText in a secure context (https / localhost)", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    setClipboard({ writeText });
+    expect(await copyText("hello")).toBe(true);
+    expect(writeText).toHaveBeenCalledWith("hello");
+  });
+
+  it("falls back to execCommand when navigator.clipboard is undefined (plain-HTTP LAN access)", async () => {
+    setClipboard(undefined); // the insecure-context reality that made the button silently no-op
+    const exec = vi.fn().mockReturnValue(true);
+    document.execCommand = exec as typeof document.execCommand;
+    expect(await copyText("plain http")).toBe(true);
+    expect(exec).toHaveBeenCalledWith("copy");
+  });
+
+  it("falls back to execCommand when writeText rejects (permission/focus denied)", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    setClipboard({ writeText });
+    const exec = vi.fn().mockReturnValue(true);
+    document.execCommand = exec as typeof document.execCommand;
+    expect(await copyText("retry")).toBe(true);
+    expect(writeText).toHaveBeenCalledWith("retry");
+    expect(exec).toHaveBeenCalledWith("copy");
   });
 });
 

@@ -820,7 +820,7 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
       const cap = capture(sel);
       if (!cap) return;
       const rect = sel.getRangeAt(0).getBoundingClientRect();
-      const copy = () => navigator.clipboard?.writeText(cap.exact).catch(() => { /* clipboard blocked */ });
+      const copy = () => copyText(cap.exact);
       openCreate({ type: "text", exact: cap.exact, prefix: cap.prefix, suffix: cap.suffix }, { x: rect.left, y: rect.bottom + 6 }, copy);
     };
     document.addEventListener("mouseup", onUp);
@@ -855,7 +855,7 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
     const cap = capture(sel);
     if (!cap) return;
     e.preventDefault(); // suppress the native menu; open ours at the cursor
-    const copy = () => navigator.clipboard?.writeText(cap.exact).catch(() => { /* clipboard blocked */ });
+    const copy = () => copyText(cap.exact);
     openCreate({ type: "text", exact: cap.exact, prefix: cap.prefix, suffix: cap.suffix }, { x: e.clientX, y: e.clientY }, copy);
   };
 
@@ -866,6 +866,42 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
       {palette}
     </div>
   );
+}
+
+/** Copy `text` to the clipboard, working in insecure contexts too. `navigator.clipboard` exists
+ *  ONLY in a secure context — `https:` or `http://localhost`/`127.0.0.1`. Reach a `--headless`
+ *  server over a LAN IP or hostname on plain HTTP and `navigator.clipboard` is `undefined`, so the
+ *  async API silently no-ops (the old `navigator.clipboard?.writeText(...)` "did nothing"). Fall
+ *  back to the legacy `execCommand("copy")` on an off-screen textarea, which has no secure-context
+ *  requirement. Returns whether the copy is believed to have succeeded. */
+export function copyText(text: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text).then(
+      () => true,
+      () => execCommandCopy(text), // permission/focus rejection → try the legacy path before giving up
+    );
+  }
+  return Promise.resolve(execCommandCopy(text));
+}
+
+/** The pre-Clipboard-API copy: drop the text into an off-screen, focused `<textarea>`, select it,
+ *  and ask the document to copy the selection. Works over plain HTTP. Returns success. */
+function execCommandCopy(text: string): boolean {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.position = "fixed";
+  ta.style.top = "-1000px";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  try {
+    ta.select();
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    ta.remove();
+  }
 }
 
 /** Resolve the current selection to a quote selector ({exact, prefix, suffix}), or null if empty. */
