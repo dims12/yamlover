@@ -434,22 +434,21 @@ export function App() {
   };
 
   // Leftmost breadcrumb action: install the LLM-agent guidance docs (AGENTS.md + CLAUDE.md) into
-  // this project's root. Skip-and-report by default; if everything already exists, offer to
-  // overwrite. The new files flow back over SSE (useDiffBump), so the tree refreshes itself.
+  // this project's root. The guidance is a marker-fenced block, so an existing file gets it
+  // appended (or updated in place) without clobbering the human's own rules — safe to repeat, no
+  // confirm needed. The written files flow back over SSE (useDiffBump), so the tree self-refreshes.
   const installDocs = useCallback(async () => {
     if (docsState === "busy") return;
     setDocsState("busy");
     try {
-      let { files } = await installAgentDocs();
-      if (files.every((f) => f.status === "exists")) {
-        const names = files.map((f) => f.name).join(" and ");
-        if (window.confirm(`${names} already exist in this project. Overwrite with the bundled version?`)) {
-          files = (await installAgentDocs(true)).files;
-        }
-      }
+      const { files } = await installAgentDocs();
       const wrote = files.filter((f) => f.status !== "exists").map((f) => f.name);
       setError(null);
-      if (wrote.length) window.alert(`Installed agent guide: ${wrote.join(", ")}.`);
+      window.alert(
+        wrote.length
+          ? `Installed agent guide: ${wrote.join(", ")}.`
+          : "Agent guide is already up to date.",
+      );
     } catch (e) {
       setError(`agent docs: ${(e as Error).message}`);
     } finally {

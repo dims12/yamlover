@@ -136,7 +136,7 @@ take an optional `depth` (container-nesting limit).
 | `POST / DELETE /api/annotate` | add / remove an annotation on a target |
 | `POST /api/fragment` | upsert a fragment (region of a target) |
 | `POST /api/board` | board mutations |
-| `POST /api/agent-docs` | write the LLM-agent guide (`AGENTS.md` + `CLAUDE.md`) into the root |
+| `POST /api/agent-docs` | install the LLM-agent guide (`AGENTS.md` + `CLAUDE.md`) into the root — a marker-fenced block appended to (or updated in place within) an existing file, never clobbering the human's own rules; idempotent |
 
 A **link marker** — `{ "$yamloverLink": { kind, path, count|size } }` — stands in
 for a node shown only as a link (a nested container past the one-level view, or

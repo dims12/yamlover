@@ -678,33 +678,31 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       }
 
       // Install the bundled LLM-agent guidance docs (AGENTS.md + CLAUDE.md) into the served root,
-      // so an AI agent co-editing this directory has the authoring/safety rules to hand. Skip &
-      // report by default — existing files are left untouched (status "exists") unless the body
-      // says `{ overwrite: true }`. Triggered by the leftmost breadcrumb button in the client.
+      // so an AI agent co-editing this directory has the authoring/safety rules to hand. The
+      // bundled guidance is a MARKER-FENCED block (mergeAgentDoc): a fresh file is created, an
+      // existing file gets the block appended after the human's own rules, and a reinstall updates
+      // the block in place — the human's text is never clobbered. Idempotent (an up-to-date file
+      // reports "exists" and is not rewritten). Triggered by the leftmost breadcrumb button.
       if (req.method === "POST" && url.pathname === "/api/agent-docs") {
-        readBody(req)
-          .then((data) =>
-            enqueue(async () => {
-              const overwrite = !!(data as { overwrite?: unknown })?.overwrite;
-              const files: { name: string; status: "created" | "overwritten" | "exists" }[] = [];
-              let wrote = false;
-              for (const doc of loadAgentDocs()) {
-                const exists = fs.existsSync(path.resolve(dataRoot, doc.name));
-                if (exists && !overwrite) {
-                  files.push({ name: doc.name, status: "exists" });
-                  continue;
-                }
-                writeInside(dataRoot, dataRoot, doc.name, Buffer.from(doc.content, "utf8"));
-                files.push({ name: doc.name, status: exists ? "overwritten" : "created" });
-                wrote = true;
-              }
-              if (wrote) {
-                broadcast(await doReindex());
-                scheduleHasher();
-              }
-              return { files };
-            }),
-          )
+        enqueue(async () => {
+          const files: { name: string; status: AgentDocStatus }[] = [];
+          let wrote = false;
+          for (const doc of loadAgentDocs()) {
+            const target = path.resolve(dataRoot, doc.name);
+            const existing = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : null;
+            const { text, status } = mergeAgentDoc(existing, doc.content);
+            if (status !== "exists") {
+              writeInside(dataRoot, dataRoot, doc.name, Buffer.from(text, "utf8"));
+              wrote = true;
+            }
+            files.push({ name: doc.name, status });
+          }
+          if (wrote) {
+            broadcast(await doReindex());
+            scheduleHasher();
+          }
+          return { files };
+        })
           .then((body) => sendJson(res, 201, body))
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
         return;
@@ -2081,6 +2079,35 @@ function loadAgentDocs(): { name: string; content: string }[] {
   }
   if (names.length === 0) throw new Error(`no agent-docs resources at ${AGENT_DOCS_DIR}`);
   return names.map((name) => ({ name, content: fs.readFileSync(path.join(AGENT_DOCS_DIR, name), "utf8") }));
+}
+
+// Stable fence around the bundled guidance inside a project's AGENTS.md / CLAUDE.md. A human may
+// keep their own project rules in the same file; we own only the block between these markers, so a
+// reinstall can UPDATE it in place (or append it once) without ever clobbering the human's text.
+const DOC_BEGIN = "<!-- BEGIN yamlover agent guide (auto-managed by `npx yamlover` — regenerated on reinstall) -->";
+const DOC_END = "<!-- END yamlover agent guide -->";
+
+export type AgentDocStatus = "created" | "appended" | "updated" | "exists";
+
+/** Merge one bundled agent doc into a file's current text (`null` when the file is absent),
+ *  fenced by {@link DOC_BEGIN}/{@link DOC_END}:
+ *   - missing file        → the fenced block alone            (`created`)
+ *   - no fence yet         → block appended after the human's content (`appended`)
+ *   - fence present, stale → block replaced in place          (`updated`)
+ *   - fence present, same  → text untouched                   (`exists`)
+ *  Idempotent: reinstalling an up-to-date file is a no-op. */
+export function mergeAgentDoc(existing: string | null, content: string): { text: string; status: AgentDocStatus } {
+  const block = `${DOC_BEGIN}\n${content.trimEnd()}\n${DOC_END}\n`;
+  if (existing === null) return { text: block, status: "created" };
+  const b = existing.indexOf(DOC_BEGIN);
+  if (b === -1) {
+    const sep = existing.endsWith("\n\n") ? "" : existing.endsWith("\n") ? "\n" : "\n\n";
+    return { text: existing + sep + block, status: "appended" };
+  }
+  const e = existing.indexOf(DOC_END, b);
+  const end = e === -1 ? existing.length : e + DOC_END.length;
+  const text = existing.slice(0, b) + block.trimEnd() + existing.slice(end);
+  return { text, status: text === existing ? "exists" : "updated" };
 }
 
 // --- chapter list insertion (indentation-aware; the parser does not track spans) ------------- //
