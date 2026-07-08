@@ -22,6 +22,27 @@ describe("api endpoints (engine-backed)", () => {
     expect(json.children.map((c: any) => c.label).filter((l: string) => l !== "yamlover")).toEqual(["age", "isAdmin", "name"]);
   });
 
+  it("/api/tree: a chunks-only chapter is a LEAF (no expand chevron); one with a subchapter expands", async () => {
+    // MINITODO: 68-math-chapter (chunks + a root fragment, no subchapters) must not show a chevron
+    // that expands to nothing. A chapter's TOC hint counts SUBCHAPTERS only, not chunks/overlay.
+    const DEFS = {
+      "$defs/chapter": "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n",
+      "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
+    };
+    const h = createHandlers(tmpTree({
+      "chunks-only.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Only Chunks\n- one\n- two\n",
+      "with-sub.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Has Sub\n- intro\n- title: A Subchapter\n  - nested\n",
+      ...DEFS,
+    }), { gitignore: false });
+    await h.ready;
+    const co = call(h, "/api/tree", { path: ":chunks-only.yamlover", depth: "2" }).json;
+    expect(co.format).toBe("x-yamlover-chapter");
+    expect(co.hasChildren).toBe(false); // only chunks/overlay → a leaf
+    const ws = call(h, "/api/tree", { path: ":with-sub.yamlover", depth: "2" }).json;
+    expect(ws.hasChildren).toBe(true); // has a subchapter → expandable
+    expect(ws.children.some((c: { format?: string }) => c.format === "x-yamlover-chapter")).toBe(true);
+  });
+
   it("/api/json is one level deep with link markers", async () => {
     // an object with a nested array child → the child projects as an array link marker
     const h = createHandlers(tmpTree({ ".yamlover/body.yamlover": "markup:\n- x: 1\n  y: 2\n- x: 3\n  y: 4\n" }), { gitignore: false });

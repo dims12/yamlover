@@ -949,6 +949,17 @@ const inHiddenSubtree = (s: Store, p: string): boolean => {
  *  child is `.yamlover` reads as a leaf). */
 const visibleHasChildren = (s: Store, p: string): boolean => s.children(p).some((c) => !isHidden(s, c.to));
 
+/** Has a SUBCHAPTER child (a nested chapter/task) — the `hasChildren` hint a CHAPTER should report in
+ *  the TOC: only subchapters are navigable there (chunks and overlay fields like `yamlover-fragments`
+ *  are content, not tree entries — `chapterTocView`). Mirrors the client's `isSubchapter(format)`, so
+ *  a chunks-only chapter reads as a leaf (no chevron that expands to nothing). */
+const hasSubchapterChild = (s: Store, p: string): boolean =>
+  s.children(p).some((c) => {
+    if (isHidden(s, c.to)) return false;
+    const f = s.node(c.to)?.format;
+    return f === "x-yamlover-chapter" || f === "x-yamlover-task";
+  });
+
 function downstreamEntries(s: Store, p: string): { to: string; label: string | null; pos: number | null; kind: EdgeRow["kind"] }[] {
   const isSet = !!s.node(p)?.meta?.set;
   // contain + forward ref, ordered by pos — but a CONTAIN edge to a hidden node (`.yamlover`) is
@@ -1279,7 +1290,9 @@ function buildTree(dataRoot: string, s: Store, segs: Seg[], label: string, depth
     format: row.format ?? null,
     ...facetsOf(s, p, row),
     concrete: concreteOf(s, dataRoot, segs, row),
-    hasChildren: visibleHasChildren(s, p),
+    // a CHAPTER's TOC entry expands to its SUBCHAPTERS only; count those, so a chunks-only chapter
+    // is a leaf. Any other node reports the generic "has a visible child".
+    hasChildren: row.format === "x-yamlover-chapter" || row.format === "x-yamlover-task" ? hasSubchapterChild(s, p) : visibleHasChildren(s, p),
     children: [],
   };
   if (node.hasChildren && depth > 0) {

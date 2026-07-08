@@ -4,9 +4,3 @@
 - Plugins? L markdown preview functionality lost - DONE?
 - Design reverse tag into unkwonn location of an array? - DONE
 - Catch up YAML standard, why tuple key caused any confusions? 
-- /examples/50-object-in-overlay/name chooses marklower format by default without any reasons
-- /examples/68-math-chapter displays expand chevron in TOC, although it doesn't have any children
-- add light color scheme
-- store rendered diagrams in .yamlover
-- impossible to remove fragment tag just after select
-- ~~make multiline text values also collapsible~~ — DONE: big scalars (multiline strings as `|` blocks, `!!binary` bytes) fold like containers in the yamlover view (render.tsx `bigScalar`/`BigScalarYaml`)
