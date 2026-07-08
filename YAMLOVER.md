@@ -123,8 +123,9 @@ mapping*).
 
 Concretely, keyless (`- value`) and keyed (`key: value`) entries can be **mixed in one node** —
 *partially ordered, partially keyed* — which plain YAML forbids. **Mixtures are the default**
-(spec'd 2026-06-12, `ANCHOR_REFACTOR.md`; the parsers still require the opt-in tags until
-PLAN.md Phase A lands): an untagged node may mix keyed and keyless entries, and may carry a
+(spec'd 2026-06-12, `ANCHOR_REFACTOR.md`; **implemented** — the parsers read untagged mixtures,
+including a block-scalar self-value, and the tags below are accepted no-op markers): an untagged
+node may mix keyed and keyless entries, and may carry a
 scalar value alongside fields. The former opt-in tags remain parseable as **optional, no-op
 markers** — existing files round-trip, and they stay useful as documentation:
 
@@ -167,24 +168,30 @@ rating: !!var 5          # the node's own scalar value …
   scale: 10
 ```
 
-An `!!var` value may also be a **block scalar** (`|` / `>`), just as a YAML tag can precede
-one. Since a block scalar is bounded by *its own content indent* (YAML's rule — `|2` can pin
-it), the fields simply sit at a **shallower** indent than the block content (but still deeper
-than the key):
+The self-value may also be a **block scalar** (`|` / `>`) — **tagless**, no `!!var` needed. A
+block scalar is bounded by *its own content indent* (YAML's rule — `|2` can pin it), so it is
+**self-delimiting**: it can sit **anywhere** among the entries, and the fields resume as soon as a
+line dedents back to the node's own indent. Under a `key:`/`- ` the fields sit at a shallower
+indent than the block content (but deeper than the key); as a node's own self-value they sit at
+the node indent (the block content one step deeper):
 
 ```yamlover
-review: !!var |
-      multi-line text is
-      the node's value
-  stars: 5                # a field — shallower than the block content, deeper than the key
+# tagless — the self-value block scalar between the entries (any position works)
+- solid
+|
+  multi-line text is
+  the node's value
+scale: 10
 ```
 
-A lone tag with no preceding key (`!!var 5` / `!!mix` on the first line) marks the
-**document root** (see `examples/07-omni.yamlover`); with omni as the default the root tag,
-like the tags everywhere else, is optional. (Under the *current* parsers — until PLAN.md
-Phase A — an untagged mixture is still a parse error; see `examples/06-tour.yamlover`.) The
-block must be indented under its key; a same-indent `- …` sequence stays sequence-only,
-since a same-indent `key:` there is a sibling.
+A **multi-line** self-value must be a block scalar: an inline *plain* scalar keeps YAML's
+plain-scalar limits (no `: ` or ` #` inside it, a leading `- ` is a sequence marker, and
+consecutive plain lines fold together), so arbitrary/multi-line text goes in a `|`/`>` block.
+
+A lone tag with no preceding key (`!!var 5` / `!!mix` on the first line) marks the **document
+root** (see `examples/07-omni.yamlover`); with omni as the default the root tag, like the tags
+everywhere else, is optional. The block must be indented under its key; a same-indent `- …`
+sequence stays sequence-only, since a same-indent `key:` there is a sibling.
 
 ## 5. Concretes: one file, or a directory
 

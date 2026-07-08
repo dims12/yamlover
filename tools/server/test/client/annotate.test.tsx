@@ -143,10 +143,37 @@ describe("region window (title from the fragment path)", () => {
     const title = container.querySelector(".annotate-title")!.textContent!;
     expect(title).toContain("yamlover-fragments"); // the fragment's node path, not blank
     expect(title).toContain("abc123");
-    // the close ✕ lives in the title bar now
-    expect(container.querySelector(".annotate-titlebar button.close")).not.toBeNull();
+    // the close ✕ sits at the top-right, OUTSIDE the path cell (a sibling in the top bar)
+    expect(container.querySelector(".annotate-topbar button.close")).not.toBeNull();
+    expect(container.querySelector(".annotate-titlebar button.close")).toBeNull();
     // the path is wrapped in <bdi> for LEFT-truncation (right tail visible)
     expect(container.querySelector(".annotate-title bdi")).not.toBeNull();
+  });
+});
+
+describe("chunk text highlighting (prefix/suffix anchoring + per-chunk scope)", () => {
+  it("marks the SELECTED occurrence in the RIGHT chunk — not a same-word match in the title or another chunk", async () => {
+    // the reported bug: tagging the 2nd "word" (in a chunk) used to mark the 1st (in the title)
+    const ann = {
+      node: ":doc[1]",
+      selector: { type: "text", exact: "word", prefix: "the ", suffix: " appears" },
+      fragmentSlug: "f1",
+      tag: { path: ":tags:green", name: "green", color: "#0f0" },
+    };
+    mockFetch({ "annotations::doc": [ann] });
+    const { container } = render(
+      <AnnotatedMaterial path=":doc">
+        <h1 className="chapter-title">A word in the title</h1>
+        <div className="chunk" data-node-path=":doc[1]"><p>the word appears here</p></div>
+        <div className="chunk" data-node-path=":doc[2]"><p>another word elsewhere</p></div>
+      </AnnotatedMaterial>,
+    );
+    // the mark lands in the [1] chunk, on ITS "word"
+    await waitFor(() => expect(container.querySelector('[data-node-path=":doc[1]"] mark.yo-annotation')).not.toBeNull());
+    expect(container.querySelector('[data-node-path=":doc[1]"] mark.yo-annotation')!.textContent).toBe("word");
+    // NOT the title, NOT the other chunk
+    expect(container.querySelector("h1 mark.yo-annotation")).toBeNull();
+    expect(container.querySelector('[data-node-path=":doc[2]"] mark.yo-annotation')).toBeNull();
   });
 });
 

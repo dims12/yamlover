@@ -216,17 +216,20 @@ export function PanZoomImage({
 export function ImageView({ node }: { node: NodeJson }) {
   const material = useMaterialAnnotations(node.path);
   const { openCreate, openEdit, palette, preview, color } = useAnnotationMenu(material, node.path);
-  // include the live PREVIEW selector so the rectangle stays drawn while the menu is open
-  const shown = preview
-    ? [...material.annotations, { path: "(preview)", selector: preview.selector, tag: preview.tag } as Annotation]
-    : material.annotations;
+  // keep the just-drawn rectangle visible while the menu is open — in the NEUTRAL preview color, since
+  // a new selection has no tag yet (drawn as an extra region, not a synthetic tagged annotation).
+  const regions = imageRegions(material.annotations, node.path);
+  if (preview?.selector.type === "rect") {
+    const s = preview.selector;
+    regions.push({ x: num(s.x), y: num(s.y), w: num(s.w), h: num(s.h), color: preview.color });
+  }
   return (
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
       <PanZoomImage
         src={blobUrl(node.path)}
-        regions={imageRegions(shown, node.path)}
+        regions={regions}
         onSelectRegion={(sel, screen, crop) => openCreate(sel, screen, undefined, crop)}
         onRegionClick={openEdit}
         selectColor={() => color}

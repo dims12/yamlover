@@ -56,13 +56,6 @@ test('document/current scope pointers are accepted leniently too (resolved again
   rmSync(root, { recursive: true, force: true });
 });
 
-test('annotation-tag persists the last-used tag as a *::/*::: pointer (→ a project path); absent → undefined', () => {
-  assert.equal(loadSettings(projectWith(null)).annotationTag, undefined);
-  const root = projectWith('annotation-tag: *:: yamlover: tags: colors: yellow\n');
-  assert.equal(loadSettings(root).annotationTag, ':yamlover:tags:colors:yellow');
-  rmSync(root, { recursive: true, force: true });
-});
-
 test('pointers that cannot name a place inside the root fall back to the default', () => {
   for (const bad of ['tags: *.. : outside\n', 'tags: *:: ..: outside\n']) {
     const root = projectWith(bad);
@@ -93,17 +86,17 @@ test('uri + exports: parsed from the config (IMPORTS.md §1/§2); absent → und
 
 test('writeSettingKey sets one key surgically, preserving comments + other fields; round-trips', () => {
   const root = projectWith('# my config\nuri: ::: acme.example\ntags: *:: tags\n');
-  writeSettingKey(root, 'annotation-tag', '*:: yamlover: tags: colors: yellow');
+  writeSettingKey(root, 'annotations', '*:: notes');
   const src = readFileSync(join(root, '.yamlover', 'settings.yamlover'), 'utf8');
   assert.ok(src.includes('# my config')); // comment preserved
   assert.ok(src.includes('tags: *:: tags')); // other field preserved
-  assert.ok(src.includes('annotation-tag: *:: yamlover: tags: colors: yellow'));
-  assert.equal(loadSettings(root).annotationTag, ':yamlover:tags:colors:yellow');
+  assert.ok(src.includes('annotations: *:: notes'));
+  assert.equal(loadSettings(root).annotations, ':notes');
   // replacing it in place does not duplicate the key
-  writeSettingKey(root, 'annotation-tag', '*:: tags: hot');
+  writeSettingKey(root, 'annotations', '*:: marks');
   const src2 = readFileSync(join(root, '.yamlover', 'settings.yamlover'), 'utf8');
-  assert.equal(src2.match(/^annotation-tag:/gm)?.length, 1);
-  assert.equal(loadSettings(root).annotationTag, ':tags:hot');
+  assert.equal(src2.match(/^annotations:/gm)?.length, 1);
+  assert.equal(loadSettings(root).annotations, ':marks');
   rmSync(root, { recursive: true, force: true });
 });
 

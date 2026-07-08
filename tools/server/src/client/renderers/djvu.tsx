@@ -47,13 +47,16 @@ export function DjvuView({ node }: { node: NodeJson }) {
   // page, or a drag-marquee on a page with no OCR. Same picker/flow as image & PDF.
   const material = useMaterialAnnotations(node.path);
   const { openCreate, openEdit, palette, preview } = useAnnotationMenu(material, node.path);
-  const shown = preview
-    ? [...material.annotations, { path: "(preview)", selector: preview.selector, tag: preview.tag } as Annotation]
-    : material.annotations;
-  const regions: DjvuRegion[] = shown
+  const regions: DjvuRegion[] = material.annotations
     .filter((a) => a.selector?.type === "djvu")
     .map((a) => ({ page: num(a.selector!.page) || 1, x: num(a.selector!.x), y: num(a.selector!.y), w: num(a.selector!.w), h: num(a.selector!.h), title: a.description, color: colorOf(a), ann: editable(a) ? a : undefined }));
+  // keep the just-drawn rectangle visible while the menu is open — in the NEUTRAL preview color (no
+  // tag yet), an extra region rather than a synthetic tagged annotation.
   const previewColor = preview?.color ?? DEFAULT_COLOR;
+  if (preview?.selector.type === "djvu") {
+    const s = preview.selector;
+    regions.push({ page: num(s.page) || 1, x: num(s.x), y: num(s.y), w: num(s.w), h: num(s.h), color: preview.color });
+  }
 
   // WINDOWED RENDERING: every page keeps a `.djvu-page-wrap` (so the scroll height is right), but
   // only near pages decode + mount a canvas; far pages are estimated-height placeholders.

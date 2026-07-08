@@ -101,7 +101,9 @@ function ReadChunk({
   const body = renderer?.renderChunk ? renderer.renderChunk(chunk, onNavigate) : <p className="chapter-prose">{String(chunk.value ?? "")}</p>;
   const anchor = chunk.path ? fragmentOf(basePath, chunk.path) : null;
   return (
-    <div className="chunk" id={anchor ?? undefined}>
+    // `data-node-path` maps this chunk's DOM back to its node path, so the annotation layer targets a
+    // text fragment at the CHUNK (not the whole chapter) and scopes the highlight to it (annotate.tsx).
+    <div className="chunk" id={anchor ?? undefined} data-node-path={chunk.path || undefined}>
       <ChunkIndex index={index} anchor={anchor} />
       <div className="chunk-body">{body}</div>
     </div>

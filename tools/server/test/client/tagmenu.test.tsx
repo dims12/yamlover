@@ -7,7 +7,6 @@ import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/re
 // (annotate / deleteAnnotation / fetchAnnotations) are observed directly.
 vi.mock("../../src/client/api", () => ({
   fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
-  saveLastTag: vi.fn().mockResolvedValue({ ok: true }),
   fetchAnnotations: vi.fn().mockResolvedValue([]),
   annotate: vi.fn().mockResolvedValue({ ok: true }),
   deleteAnnotation: vi.fn().mockResolvedValue(undefined),
@@ -18,13 +17,12 @@ vi.mock("../../src/client/api", () => ({
 
 import { AnnotationMenu, indexToRefs } from "../../src/client/renderers/annotate";
 import { useExplorerTagMenu } from "../../src/client/renderers/tagmenu";
-import { fetchAnnotations, annotate, deleteAnnotation, query, saveLastTag } from "../../src/client/api";
+import { fetchAnnotations, annotate, deleteAnnotation, query } from "../../src/client/api";
 
 const mAnns = fetchAnnotations as unknown as ReturnType<typeof vi.fn>;
 const mAnnotate = annotate as unknown as ReturnType<typeof vi.fn>;
 const mDelete = deleteAnnotation as unknown as ReturnType<typeof vi.fn>;
 const mQuery = query as unknown as ReturnType<typeof vi.fn>;
-const mSaveLastTag = saveLastTag as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   localStorage.clear();
@@ -191,12 +189,12 @@ describe("useExplorerTagMenu — right-click whole-node tagging", () => {
     expect(mAnnotate).not.toHaveBeenCalled(); // and nothing is auto-applied
   });
 
-  it("picking a tag PERSISTS it as the project default (saveLastTag), not browser localStorage", async () => {
+  it("picking a palette tag APPLIES it to the node (no project-scoped 'last tag' persistence)", async () => {
     mAnns.mockResolvedValue([]);
     render(<Harness />);
     fireEvent.click(screen.getByText("open"));
     fireEvent.click(document.querySelector(".annotate-swatch")!); // pick a palette color
-    await waitFor(() => expect(mSaveLastTag).toHaveBeenCalled());
-    expect(typeof mSaveLastTag.mock.calls[0][0]).toBe("string"); // a tag path
+    await waitFor(() => expect(mAnnotate).toHaveBeenCalled());
+    expect(typeof mAnnotate.mock.calls[0][0].tag).toBe("string"); // annotate({ target, tag })
   });
 });

@@ -5,7 +5,7 @@
 //
 // The config file is engine-owned and carries hand-authored COMMENTS, so the source of truth on
 // save is the RAW text (a structural form that rewrote the file would lose them). Layout: a parsed
-// SUMMARY (uri / exports / locations / last tag) over a raw-source <textarea> with Save. Source +
+// SUMMARY (uri / exports / locations) over a raw-source <textarea> with Save. Source +
 // parsed settings come from GET /api/config; Save → POST /api/config (validate + write + reindex).
 
 import { useCallback, useEffect, useState } from "react";
@@ -91,8 +91,6 @@ export function SettingsView() {
               <dd>
                 <code>{settings.sidecars}</code>
               </dd>
-              <dt>Last tag</dt>
-              <dd>{settings.annotationTag ? <code>{settings.annotationTag}</code> : <span className="settings-dim">— (none yet)</span>}</dd>
             </dl>
           )}
 

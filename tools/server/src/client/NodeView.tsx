@@ -188,21 +188,27 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
         const active = [...rs, ...(trailing ? [trailing] : [])].find((r) => r.name === eff);
         const swap = (dn: NodeJson) => !cancelled && setNode(dn);
         const fail = (e: Error) => !cancelled && setError(e.message);
+        // The settle fetch used the SERVER'S per-concrete default depth — one level for a directory
+        // or binary leaf, but UNLIMITED for an inline data node (json/yaml/yamlover, e.g. a fragment
+        // or any sub-object of a document). Reuse it only when it already matches the depth the ACTIVE
+        // view needs; else refetch at exactly that depth.
+        const settleDepth = isDirConcrete(n.concrete) || n.type === "binary" ? 1 : Infinity;
         if (active) {
+          // A fixed-depth renderer needs EXACTLY its depth: at unlimited depth the explorer's members
+          // inline as raw scalars / `$yamloverRef` markers instead of the `$yamloverLink` markers it
+          // navigates by.
           const d = active.depth ?? 1; // a renderer's own fixed depth
-          // The settle fetch used the SERVER'S per-concrete default depth — one level for a
-          // directory or binary leaf, but UNLIMITED for an inline data node (json/yaml/yamlover,
-          // e.g. a fragment or any sub-object of a document). A fixed-depth renderer needs EXACTLY
-          // its depth: at unlimited depth the explorer's members inline as raw scalars / `$yamloverRef`
-          // markers instead of the `$yamloverLink` markers it navigates by, so reuse the settle fetch
-          // ONLY when its projection already matches (a one-level node), else refetch at exactly `d`.
-          const settleDepth = isDirConcrete(n.concrete) || n.type === "binary" ? 1 : Infinity;
           if (d !== settleDepth) fetchNode(path, d).then(swap).catch(fail);
           else setNode(n);
         } else {
-          const dv = viewDepth(); // a data view: number = explicit finite, null = `.inf`/default
-          if (dv === null) setNode(n); // default/.inf → the settle fetch is the server's per-concrete default
-          else fetchNode(path, dv).then(swap).catch(fail); // explicit finite (incl. 1) → fetch exactly that
+          // A DATA view (yamlover / json5p / schema) shows the FULL document: default (`null`) = `.inf`,
+          // else an explicit finite `?depth=`. A directory-backed chapter settles at depth 1, where its
+          // body items arrive as navigable `$yamloverLink` markers — a multiline chunk then renders as
+          // invalid inline multiline text — so it MUST refetch at `.inf` (whole-document view).
+          const dv = viewDepth(); // number = explicit finite, null = `.inf`/default
+          const want = dv === null ? Infinity : dv;
+          if (want === settleDepth) setNode(n);
+          else fetchNode(path, dv).then(swap).catch(fail);
         }
       })
       .catch((e) => !cancelled && setError(e.message));

@@ -140,6 +140,9 @@ export interface Annotation {
   description?: string;
   params?: Record<string, unknown>;
   created?: string;
+  node?: string; // the CLIENT path of the node this annotation/fragment lives ON — the chapter, or a
+                 // CHUNK when the fragment hangs off a chunk (ANNOTATIONS.md §3). Drives the delete
+                 // target, the `#`-anchor, and which element the highlight is scoped to.
   path?: string; // a transient client marker only ("(preview)"/"(pending)"); annotations have no node path
 }
 
@@ -170,15 +173,13 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 /** The parsed project config (IMPORTS.md / engine settings). Mirrors the engine `Settings` —
- *  flat: locations are project paths (`:annotations`), sidecars an enum, annotationTag the last
- *  used tag's path. */
+ *  flat: locations are project paths (`:annotations`), sidecars an enum. */
 export interface ConfigSettings {
   uri?: string;
   exports: string[];
   annotations: string;
   tags: string;
   sidecars: string;
-  annotationTag?: string;
 }
 export interface ConfigPayload {
   source: string; // raw settings.yamlover text ("" if the file does not exist yet)
@@ -196,12 +197,6 @@ export function fetchConfig(): Promise<ConfigPayload> {
  *  serving) before writing, then reloads its write-path defaults. Returns the reparsed settings. */
 export function saveConfig(source: string): Promise<{ ok: true; settings: ConfigSettings }> {
   return postJson(api("/api/config"), { source });
-}
-
-/** Persist the last-used annotation tag into settings.yamlover (project-scoped, not localStorage):
- *  a surgical one-line write. `tag` is the tag node's client path. */
-export function saveLastTag(tag: string): Promise<{ ok: true; annotationTag?: string }> {
-  return postJson(api("/api/last-tag"), { tag });
 }
 
 /** Create a FRAGMENT — a marked region in the node at `target` (ANNOTATIONS.md). Returns its slug

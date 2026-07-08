@@ -106,32 +106,34 @@ flow is the **same for prose, images, maps, and PDFs**: you **select**, then pic
 1. **Select** the thing to mark:
    - **Prose / PDF** — drag to select text.
    - **Image / Map** — drag a rectangle over the region.
-2. A small **tag picker** pops up by the selection. The selected text / dragged rectangle stays
-   shown while it's open, so it's clear what you're marking. The controls:
-   - **Color-tag swatches** — the six built-in pure color tags; click one to apply it. The
-     **last tag you used is pre-selected** and remembered, so repeated marks stay one tag.
-   - **Recent named tags** — badges of the named tags you applied lately; click to re-apply.
+2. A small **tag picker** pops up by the selection. **Nothing is pre-selected** — a new mark
+   starts blank, and the selected text / dragged rectangle stays shown in a **neutral** color
+   while the picker is open, so it's clear what you're marking without implying a tag. The controls:
+   - **Color-tag swatches** — the six built-in pure color tags; click one to apply it.
+   - **Named-tag chips** — the tags already on this target (shown **outlined**), the tags on the
+     same node's other parts, your **recently-used** tags, and the project taxonomy; click one to
+     apply it.
    - **A tag path input** — type any tag's node path (e.g.
      `/examples/67-pdf-tags/tags/genre/humor/deadpan`) and press **Enter** to apply that tag.
      A **bare name** (no `/`) works too: if no such tag exists yet it is **created on the
      spot** — appended to the project's tag taxonomy (the `tags: {location: …}` setting,
      `<root>/tags` by default) as `<name>: !!<*$defs/tag>` — and then applied.
-   - **✓ Confirm** — apply the pre-selected tag (the explicit alternative to clicking away).
    - **⧉ Copy** (prose only) — copies the selected text to the clipboard and creates **no**
      annotation.
-   - **🗑 Discard** — drops the pending mark, creating nothing.
-3. **The default is to keep the mark:** clicking anywhere outside the picker also commits with
-   the pre-selected tag. Only **Copy** or **Discard** skip creation.
+   - **✕ Close** (or click anywhere outside) — closes the picker, committing nothing extra.
+3. **Picking a tag IS the apply.** Each pick applies its tag at once and the menu stays open, so
+   you can add several; an **applied** tag shows outlined, and clicking it again **removes** it.
+   Closing without picking leaves the region untagged — a new selection never tags itself.
 
 A new mark appears **immediately** — it doesn't wait for the save round-trip. Saved marks
 render in their tag's color — a highlight under prose, a colored rectangle over an image, map,
 PDF, or DjVu region — and a count shows above the material. The same region can carry several
 tags — each application is its own annotation.
 
-**To re-tag or delete an annotation, click it.** The same picker reopens in *edit* mode, with
-the annotation's current tag pre-selected: pick a tag to **re-tag**, or **🗑** to **delete**
-it; clicking away just closes. (Any *standalone* annotation file can be edited this way, wherever
-it lives; an annotation authored inline in a shared document is shown but frozen.)
+**To re-tag or delete an annotation, click it.** The same picker reopens in *edit* mode over the
+mark's current tags (shown outlined): pick another tag to add, click an outlined one to remove,
+or close to leave it. (Any *standalone* annotation file can be edited this way, wherever it
+lives; an annotation authored inline in a shared document is shown but frozen.)
 
 The built-in tags ship with the yamlover project (at its root: `tags/colors`, beside
 `$defs/`); the engine grafts the **self-import key `yamlover`** → {$defs, tags} into every

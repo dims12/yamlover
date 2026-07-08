@@ -7,7 +7,6 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 // must NOT bring it up — only fragments do.
 vi.mock("../../src/client/api", () => ({
   fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
-  saveLastTag: vi.fn().mockResolvedValue({ ok: true }),
   fetchInfo: vi.fn().mockResolvedValue({ root: "root" }),
   fetchTree: vi.fn().mockResolvedValue({ path: ":", label: "root", type: "object", format: null, concrete: null, hasChildren: false, children: [] }),
   fetchNode: vi.fn().mockResolvedValue({ path: ":", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} }),

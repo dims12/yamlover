@@ -2,7 +2,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, cleanup, waitFor, act } from "@testing-library/react";
 import { useRef } from "react";
-import { useMaterialAnnotations, MaterialAnnotations } from "../../src/client/renderers/annotate";
+import { useMaterialAnnotations, useAnnotationMenu, MaterialAnnotations } from "../../src/client/renderers/annotate";
 import { createHandlers } from "../../src/server/engine-api";
 import { tmpTree } from "../helpers";
 import { call, callBody } from "../http";
@@ -47,6 +47,47 @@ function Probe({ path }: { path: string }) {
 const TAG = "::yamlover:tags:colors:yellow";
 const SEL = { type: "rect", x: 1, y: 2, w: 3, h: 4 };
 
+// A probe over the REGION picker (openCreate + palette) plus the material — to prove a fresh
+// selection preselects nothing.
+let menuApi: ReturnType<typeof useAnnotationMenu> | null = null;
+function MenuProbe({ path }: { path: string }) {
+  const material = useMaterialAnnotations(path);
+  const menu = useAnnotationMenu(material, path);
+  menuApi = menu;
+  return (
+    <>
+      {menu.palette}
+      <output>{material.annotations.filter((a) => a.tag).length}</output>
+    </>
+  );
+}
+
+describe("region picker: a NEW selection preselects nothing", () => {
+  it("openCreate opens the picker WITHOUT applying any tag or outlining one; a pick then applies", async () => {
+    const root = tmpTree({ "docs/pic.png": "\x89PNG binary", "tags.yamlover": "x: 1" });
+    const h = createHandlers(root, { gitignore: false });
+    await (h as any).ready;
+    routeFetchTo(h);
+
+    const { container } = render(<MenuProbe path=":docs:pic.png" />);
+    const count = () => container.querySelector("output")!.textContent;
+
+    // finishing a selection opens the picker but applies NOTHING and outlines nothing
+    await act(async () => { menuApi!.openCreate(SEL as any, { x: 10, y: 10 }); });
+    expect(count()).toBe("0"); // no auto-applied annotation
+    await waitFor(() => expect(container.querySelector(".annotate-swatch")).toBeTruthy());
+    expect(container.querySelector(".annotate-swatch.on")).toBeNull(); // no preselected swatch
+    expect(container.querySelector(".tagtag.on")).toBeNull(); // no preselected chip
+    // the marquee preview is drawn NEUTRAL (no tag), not in a palette color
+    expect(menuApi!.preview?.color).toBe("#9399b2");
+
+    // now PICKING a color applies it (and it becomes outlined)
+    await act(async () => { (container.querySelector(".annotate-swatch") as HTMLElement).click(); });
+    await waitFor(() => expect(count()).toBe("1"));
+    (h as any).close();
+  });
+});
+
 describe("REPRO: untag a fragment region via the client hook", () => {
   it("removing the region's tag persists (does not reappear)", async () => {
     const root = tmpTree({ "docs/pic.png": "\x89PNG binary", "tags.yamlover": "x: 1" });
@@ -74,7 +115,7 @@ describe("REPRO: untag a fragment region via the client hook", () => {
     (h as any).close();
   });
 
-  it("removing a tag whose create is STILL IN FLIGHT also persists (the auto-apply race)", async () => {
+  it("removing a tag whose create is STILL IN FLIGHT also persists (the pick-then-quick-deselect race)", async () => {
     const root = tmpTree({ "docs/pic.png": "\x89PNG binary", "tags.yamlover": "x: 1" });
     const h = createHandlers(root, { gitignore: false });
     await (h as any).ready;
@@ -84,7 +125,7 @@ describe("REPRO: untag a fragment region via the client hook", () => {
     const { container } = render(<Probe path=":docs:pic.png" />);
     const count = () => container.querySelector("output")!.textContent;
 
-    // select-a-region: auto-apply the default tag → an optimistic (pending) entry, create gated
+    // pick a tag on a fresh region → an optimistic (pending) entry, the create gated
     await act(async () => { api!.annotateRegion(SEL as any, { path: TAG, name: "yellow", color: "#f9e2af" }); });
     expect(count()).toBe("1"); // shown optimistically while the create is in flight
     const pending = api!.annotations.find((a) => a.tag)!;

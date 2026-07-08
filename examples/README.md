@@ -35,7 +35,7 @@ intentionally skipped so the JSON and YAML branches keep matching last digits.)
 
 | # | file | shows |
 |---|------|-------|
-| 07 | [`07-omni.yamlover`](07-omni.yamlover) | the **unified node** — `!!var` / `!!mix`: a single node carrying a scalar *self-value*, **positional** fields, and **keyed** fields all at once, instead of forcing scalar-vs-array-vs-object |
+| 07 | [`07-omni.yamlover`](07-omni.yamlover) | the **unified node** (omni) — **tagless** (no `!!var` needed): one node carrying a scalar *self-value* (here a multi-line **block scalar**, which is self-delimiting so it may sit anywhere among the entries), **positional** fields, and **keyed** fields all at once, instead of forcing scalar-vs-array-vs-object |
 
 ## Instance examples (directory + `.yamlover/` overlays)
 

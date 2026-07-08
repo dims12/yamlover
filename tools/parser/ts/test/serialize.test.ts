@@ -110,8 +110,12 @@ test('yamlover rt: keyed back-edges and ~- membership', () => {
   rtYamlover('eve:\n  cain: */adam/cain\nadam:\n  cain:\n    ~cain: */eve\nfavorites:\n  - */adam\nfan:\n  name: Bob\n  ~- */favorites\n');
 });
 
-test('yamlover rt: !!mix and nested omni (value + fields)', () => {
-  rtYamlover('playlist: !!mix\n  - Intro\n  title: Greatest Hits\n  - Chorus\nrating: 5\n  - solid\n  scale: 10\n');
+test('yamlover rt: !!mix / !!var are NOT emitted — omni is the default (no-op tags dropped)', () => {
+  const out = rtYamlover('playlist: !!mix\n  - Intro\n  title: Greatest Hits\n  - Chorus\nrating: !!var 5\n  - solid\n  scale: 10\n');
+  assert.doesNotMatch(out, /!!mix|!!var|!!omni/); // the shape tags are re-derived, never written
+  // …and the untagged output reparses to the SAME graph (a mixed container + a scalar-plus-fields)
+  assert.match(out, /^ {2}- Intro$/m);
+  assert.match(out, /^ {2}title: Greatest Hits$/m);
 });
 
 test('yamlover rt: !!set survives via meta', () => {
@@ -119,11 +123,22 @@ test('yamlover rt: !!set survives via meta', () => {
   assert.match(out, /crew: !!set/);
 });
 
-test('yamlover rt: root omni needs the explicit tag (canonical !!var)', () => {
+test('yamlover rt: a root omni self-value re-emits TAGLESS (omni is the default; the no-op tag is dropped)', () => {
   const out = rtYamlover('!!var Built-in tags\ncolors: palette\n');
-  assert.match(out, /^!!var Built-in tags$/m);
-  // the deprecated `!!omni` alias parses to the same shape and also re-emits as `!!var`
-  assert.match(rtYamlover('!!omni Built-in tags\ncolors: palette\n'), /^!!var Built-in tags$/m);
+  assert.doesNotMatch(out, /!!var|!!omni/); // the no-op marker is dropped
+  assert.match(out, /^Built-in tags$/m); // the self-value line, tagless
+  assert.match(out, /^colors: palette$/m); // its field
+  // the deprecated `!!omni` alias parses to the same shape and also re-emits tagless
+  assert.doesNotMatch(rtYamlover('!!omni Built-in tags\ncolors: palette\n'), /!!var|!!omni/);
+});
+
+test('yamlover rt: a MULTILINE root omni self-value re-emits as a tagless block scalar, fields follow', () => {
+  // a bare block-scalar self-value mixed with entries — no `!!var` (YAMLOVER.md §4)
+  const out = rtYamlover('- solid\n|\n   multi\n   line\n- recommended\nscale: 10\n');
+  assert.doesNotMatch(out, /!!var|!!omni/);
+  assert.match(out, /^\|$/m); // the block-scalar introducer on its own line
+  assert.match(out, /^ {2}multi$/m); // content indented under it
+  assert.match(out, /^scale: 10$/m); // a field at the root indent
 });
 
 test('yamlover rt: escaped keys (pointer metachars) and quoted keys', () => {

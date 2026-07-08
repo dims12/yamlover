@@ -4,11 +4,10 @@ import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/re
 
 vi.mock("../../src/client/api", () => ({
   fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
-  saveLastTag: vi.fn().mockResolvedValue({ ok: true }),
   fetchTagged: vi.fn(),
   thumbUrl: (p: string, w: number, h: number) => `/api/thumb?path=${encodeURIComponent(p)}&w=${w}&h=${h}`,
   blobUrl: (p: string) => `/api/blob?path=${encodeURIComponent(p)}`,
-  // the grid mounts the tag menu (useAnnotationTag), which validates the remembered tag on mount
+  // the grid mounts the tag menu, whose palette/recents validate their tags on mount (fetchNode)
   fetchNode: vi.fn().mockResolvedValue({ format: "x-yamlover-tag" }),
   query: vi.fn().mockResolvedValue([]),
   fetchAnnotations: vi.fn().mockResolvedValue([]),

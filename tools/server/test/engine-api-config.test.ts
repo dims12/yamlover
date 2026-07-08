@@ -75,23 +75,6 @@ describe("/api/config (project configuration)", () => {
     h.close();
   });
 
-  it("POST /api/last-tag persists the last-used tag surgically (annotation-tag pointer)", async () => {
-    const root = tmpTree({ name: "Alice", ".yamlover/settings.yamlover": "# cfg\ntags: *:: tags\n" });
-    const h = createHandlers(root, { gitignore: false });
-    await h.ready;
-
-    const w = await callBody(h, "POST", "/api/last-tag", { tag: ":yamlover:tags:colors:yellow" });
-    expect(w.status).toBe(200);
-    expect(w.json.annotationTag).toBe(":yamlover:tags:colors:yellow");
-    const src = fs.readFileSync(path.join(root, ".yamlover", "settings.yamlover"), "utf8");
-    expect(src).toContain("# cfg"); // comment preserved
-    expect(src).toContain("tags: *:: tags"); // other field preserved
-    expect(src).toMatch(/^annotation-tag: \*:: yamlover: tags: colors: yellow$/m);
-    // and a fresh GET sees it
-    expect(call(h, "/api/config").json.settings.annotationTag).toBe(":yamlover:tags:colors:yellow");
-    h.close();
-  });
-
   it("POST rejects a config that does not parse, leaving the file untouched", async () => {
     const root = tmpTree({ name: "Alice", ".yamlover/settings.yamlover": "tags:\n  location: *tags\n" });
     const h = createHandlers(root, { gitignore: false });

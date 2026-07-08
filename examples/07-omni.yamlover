@@ -1,4 +1,12 @@
-!!var 5                  # the node's own scalar value …
-- solid                  # [0]  a positional field
-- recommended            # [1]  positional
-scale: 10
+# The UNIFIED node (omni): ONE node carrying a scalar SELF-VALUE, positional (keyless) fields,
+# and keyed fields at once — the mix plain YAML forbids. Omni is the DEFAULT, so NO tag is needed
+# (the former `!!var`/`!!mix`/`!!omni` markers still parse, as no-ops). The self-value here is a
+# tagless multi-line BLOCK SCALAR: because a block scalar is bounded by its own content indent it
+# is self-delimiting, so it may sit ANYWHERE among the entries and the fields resume after it.
+- solid                    # [0]  a positional field
+|
+  A block-scalar self-value —
+  arbitrary, multi-line text
+  that needs no !!var tag.
+- recommended              # [1]  positional
+scale: 10                  # a keyed field

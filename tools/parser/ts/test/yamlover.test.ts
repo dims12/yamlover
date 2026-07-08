@@ -311,6 +311,29 @@ test('omni is the default: untagged mixing and scalar+fields are legal (tags are
   parseYamlover('n: 5\n');
 });
 
+test('a bare BLOCK-SCALAR self-value is omni (tagless) and may sit anywhere among the entries', () => {
+  // mid-stream: a `|` between items, a key after — no `!!var`
+  const mid = parseYamlover('- solid\n|\n   multi\n   line\n- recommended\nscale: 10\n').root as Scalar;
+  assert.equal(mid.value, 'multi\nline\n'); // bounded by its content indent
+  assert.deepEqual(mid.entries?.map((e) => e.key), [null, null, 'scale']);
+  assert.deepEqual(mid.entries?.map((e) => (e.value as any).value), ['solid', 'recommended', 10]);
+  // first/root line: a bare block scalar, then fields at the root indent
+  const first = parseYamlover('|\n   only text\n- a\n').root as Scalar;
+  assert.equal(first.value, 'only text\n');
+  assert.deepEqual(first.entries?.map((e) => e.key), [null]);
+  // last: fields, then the block-scalar self-value
+  const last = parseYamlover('- a\nscale: 1\n|\n   tail\n').root as Scalar;
+  assert.equal(last.value, 'tail\n');
+  assert.deepEqual(last.entries?.map((e) => e.key), [null, 'scale']);
+  // a `>` folded block self-value works the same
+  const folded = parseYamlover('>\n   a\n   b\nx: 1\n').root as Scalar;
+  assert.equal(folded.value, 'a b\n');
+  // still at most ONE self-value line — two block scalars is an error
+  assert.throws(() => parseYamlover('|\n  a\n|\n  b\n'), /at most one scalar value line/);
+  // the deprecated `!!var |` still parses (no-op marker) to the same shape
+  assert.equal((parseYamlover('!!var |\n   multi\n   line\n- solid\nscale: 10\n').root as Scalar).value, 'multi\nline\n');
+});
+
 // ---- `~-` keyless back-edges (reverse positional membership) + `!!set` ----------
 
 test('~- entry: a keyless back-edge with a pointer value (URIs.md §~-)', () => {

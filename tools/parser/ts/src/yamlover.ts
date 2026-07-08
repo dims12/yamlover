@@ -221,9 +221,16 @@ class Block {
     if (isSeqLine(l.text) || isBackSeqLine(l.text) || l.text.startsWith('&') || splitKV(l.text)) {
       return this.container(l.indent);
     }
-    // a lone scalar/flow/pointer occupying the line
+    // a lone scalar/flow/pointer — or a bare block scalar — occupying the line
     this.i++;
-    let v = this.valueInline(l.text, l.indent, /*allowBlock*/ true, l.n, l.indent);
+    let v: Value;
+    if (/^[|>][+-]?\d*$/.test(l.text)) {
+      // a bare block-scalar SELF-VALUE (omni, tagless): the first/root-line form, e.g. a document
+      // whose root value is a multi-line block scalar that then carries fields/entries below it.
+      v = this.blockScalar(l.text, l.indent, l.n);
+    } else {
+      v = this.valueInline(l.text, l.indent, /*allowBlock*/ true, l.n, l.indent);
+    }
     // omni by default: a scalar value line may CONTINUE with entries/anchors at the same indent
     const nxt = this.peek();
     if (nxt && nxt.indent === l.indent && nxt.indent >= minIndent && !isPointer(v) && v.kind === 'scalar') {
@@ -245,6 +252,7 @@ class Block {
     const entries: Entry[] = [];
     const anchors: Anchor[] = [];           // own-line `&…` anchors — they belong to THIS node
     let self: Scalar | undefined;           // the node's scalar value line (at most one; any position)
+    let selfAt: number | undefined;         // its display position: entries authored before it (order-preserving)
     for (;;) {
       const l = this.peek();
       if (!l || l.indent !== indent) break;
@@ -268,6 +276,7 @@ class Block {
           if (isPointer(v) || v.kind !== 'scalar') this.fail('only a scalar value may share a line with an own-line anchor');
           if (self !== undefined) this.fail('a node may carry at most one scalar value line');
           self = v;
+          selfAt = entries.length;
         }
         continue;
       }
@@ -311,10 +320,20 @@ class Block {
         const kv = splitKV(l.text);
         if (!kv) {
           this.i++;
-          const v = this.valueInline(l.text, indent, /*allowBlock*/ false, l.n, l.indent);
-          if (isPointer(v) || v.kind !== 'scalar') this.fail('unexpected content (expected an entry, an anchor, or a scalar value line)');
+          let v: Scalar;
+          if (/^[|>][+-]?\d*$/.test(l.text)) {
+            // a bare block-scalar SELF-VALUE (omni, tagless — no `!!var` needed): its content is
+            // the deeper-indented run, and a dedent back to this node's indent ends it, so sibling
+            // entries resume. (YAMLOVER.md §4 — the value line may sit anywhere among the entries.)
+            v = this.blockScalar(l.text, indent, l.n);
+          } else {
+            const iv = this.valueInline(l.text, indent, /*allowBlock*/ false, l.n, l.indent);
+            if (isPointer(iv) || iv.kind !== 'scalar') this.fail('unexpected content (expected an entry, an anchor, or a scalar value line)');
+            v = iv;
+          }
           if (self !== undefined) this.fail('a node may carry at most one scalar value line');
           self = v;
+          selfAt = entries.length; // remember where the value line sat, to render/serialize it in place
           continue;
         }
         this.i++;
@@ -344,6 +363,9 @@ class Block {
       : entries.length === 0
         ? nul()                                     // only anchor lines — a null scalar, NOT a mapping
         : { kind: 'mapping', entries, array };
+    // preserve where the self-value line sat among the entries (order-preserving display/round-trip;
+    // the value stays positionless DATA — entries keep their own [n]). Omit 0 (the canonical first).
+    if (self !== undefined && selfAt !== undefined && selfAt > 0) node.meta = { ...node.meta, selfAt };
     this.attachAnchors(node, anchors);
     return node;
   }

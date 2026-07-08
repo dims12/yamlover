@@ -4,7 +4,6 @@ import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/re
 
 vi.mock("../../src/client/api", () => ({
   fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
-  saveLastTag: vi.fn().mockResolvedValue({ ok: true }),
   fetchNode: vi.fn(),
   fetchSchema: vi.fn(),
   fetchAnnotations: vi.fn().mockResolvedValue([]), // header badges hop via /api/annotations
@@ -106,6 +105,17 @@ describe("NodeView", () => {
     } finally {
       window.history.replaceState({}, "", "/");
     }
+  });
+
+  it("a DIRECTORY-backed chapter's DATA view refetches at .inf — the full document, not the depth-1 settle", async () => {
+    // regression: a dir chapter settled at depth 1, where its body items arrive as `$yamloverLink`
+    // markers and a multiline chunk rendered as invalid inline multiline text. No `?depth=` → default `.inf`.
+    window.history.replaceState({}, "", "/");
+    mNode.mockReset();
+    mNode.mockResolvedValue({ path: ":66", type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover",
+      title: null, description: null, value: { $yamloverMixed: { kind: "mix", entries: [] } } });
+    render(<NodeView path=":66" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+    await waitFor(() => expect(mNode).toHaveBeenCalledWith(":66", null)); // .inf refetch past the depth-1 settle
   });
 
   it("offers the json5p tab only for a json-family file", async () => {

@@ -4,7 +4,6 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 
 vi.mock("../../src/client/api", () => ({
   fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
-  saveLastTag: vi.fn().mockResolvedValue({ ok: true }),
   fetchInfo: vi.fn().mockResolvedValue({ root: "myroot" }),
   fetchTree: vi.fn().mockResolvedValue({
     path: ":",

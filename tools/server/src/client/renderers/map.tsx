@@ -227,14 +227,17 @@ function MapBody({
 export function MapView({ node }: { node: NodeJson }) {
   const material = useMaterialAnnotations(node.path);
   const { openCreate, openEdit, palette, preview, color } = useAnnotationMenu(material, node.path);
-  const shown = preview
-    ? [...material.annotations, { path: "(preview)", selector: preview.selector, tag: preview.tag } as Annotation]
-    : material.annotations;
+  // keep the just-drawn box visible while the menu is open — in the NEUTRAL preview color (no tag yet).
+  const regions = mapRegions(material.annotations, node.path);
+  if (preview?.selector.type === "map") {
+    const s = preview.selector;
+    regions.push({ n: num(s.n), s: num(s.s), e: num(s.e), w: num(s.w), color: preview.color });
+  }
   return (
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <MapBody path={node.path} regions={mapRegions(shown, node.path)} onSelectRegion={openCreate} onRegionClick={openEdit} selectColor={() => color} className="filemap" />
+      <MapBody path={node.path} regions={regions} onSelectRegion={openCreate} onRegionClick={openEdit} selectColor={() => color} className="filemap" />
       {palette}
     </div>
   );

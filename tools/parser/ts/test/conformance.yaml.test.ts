@@ -33,7 +33,9 @@ const EXPLICIT_KEY = ['5WE3','7W2P','A2M4','CT4Q','GH63','JTV5','L94M','RR7F','S
 // 3R3P removed 2026-06-12 (anchor refactor): a root `&sequence` anchor + sequence now reads
 // correctly — path anchors land on the root node's meta and the value projects as the plain
 // sequence (the anchor itself is dangling-reported at engine level, not a value concern).
-const OTHER_PARSE = ['2EBW','3ALJ','4CQQ','4ZYM','5GBF','5T43','652Z','6BCT','6CA3','6HB6','6VJK','7A4E','7T8X','87E4','8UDB','9YRD','A984','AB8U','C2DT','CN3R','D83L','DBG4','DWX9','FBC9','G992','HS5T','JR7V','K527','L9U5','LP6E','LQZ7','M9B4','MJS9','NB6Z','NP9H','P2AD','PRH3','QF4Y','TL85','TS54','UV7Q','W42U','XV9V','YD5X','ZF4X','ZK9H'];
+// G992/M9B4/MJS9 removed 2026-07-08 (tagless block-scalar omni): a bare block-scalar self-value
+// mixed with entries now parses (omni-by-default, no `!!var`), so these read correctly.
+const OTHER_PARSE = ['2EBW','3ALJ','4CQQ','4ZYM','5GBF','5T43','652Z','6BCT','6CA3','6HB6','6VJK','7A4E','7T8X','87E4','8UDB','9YRD','A984','AB8U','C2DT','CN3R','D83L','DBG4','DWX9','FBC9','HS5T','JR7V','K527','L9U5','LP6E','LQZ7','NB6Z','NP9H','P2AD','PRH3','QF4Y','TL85','TS54','UV7Q','W42U','XV9V','YD5X','ZF4X','ZK9H'];
 const VALUE_MISMATCH = ['26DV','2AUY','2SXE','3GZX','4QFQ','4UYU','54T7','58MP','5C5M','74H7','7FWL','8MK2','A6F9','AZW3','CUP7','E76Z','F2C7','H2RW','HMQ5','K54U','K858','LE5A','MXS3','Q5MG','Q88A','R4YG','S4JQ','UDM2','ZH7C'];
 // Diverges BY DESIGN since the colon round (SEPARATOR.md, 2026-06-13): `:` is the path
 // separator, so a YAML anchor/alias NAME containing `:` reads as a colon path. One-time

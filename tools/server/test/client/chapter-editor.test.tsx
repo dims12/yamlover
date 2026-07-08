@@ -143,13 +143,15 @@ describe("ChapterEditor (unlocked)", () => {
     await vi.waitFor(() => expect(onNavigate).toHaveBeenCalledWith(":doc[9]"));
   });
 
-  it("the context menu is a titled, movable window (path title + close in the title bar + drag)", async () => {
+  it("the context menu is a titled, movable window (path title + close at top-right + drag)", async () => {
     const { container } = renderUnlocked(chapterNode(["First"]));
     const page = container.querySelector(".chapter-page") as HTMLElement;
     await act(async () => { fireEvent.contextMenu(page, { clientX: 20, clientY: 30 }); });
     const bar = container.querySelector(".annotate-titlebar") as HTMLElement;
     expect(bar.querySelector(".annotate-title")?.textContent).toContain("doc"); // displayPath(":doc")
-    expect(bar.querySelector("button.close")).not.toBeNull(); // the ✕ moved into the title bar
+    // the ✕ sits at the top-right, OUTSIDE the draggable path cell (a sibling in the top bar)
+    expect(container.querySelector(".annotate-topbar button.close")).not.toBeNull();
+    expect(bar.querySelector("button.close")).toBeNull();
     const menu = container.querySelector(".annotate-menu") as HTMLElement;
     const left0 = menu.style.left;
     act(() => { fireEvent.mouseDown(bar, { clientX: 100, clientY: 100 }); });

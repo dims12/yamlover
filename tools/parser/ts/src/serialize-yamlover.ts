@@ -2,9 +2,10 @@
 // not the typography (comments, quote styles and block-scalar layout are not stored —
 // IR.md), so the output is a clean re-rendering whose reparse is IR-EQUAL to the input:
 // same values, entry order, keys, edge kinds, pointer texts (verbatim `raw`), anchors,
-// `!!set` and `!!<…>` schema tags — with `!!mix` re-derived from the shape and `!!var`
-// implied by it (explicit only at the document root, where a bare scalar cannot precede
-// the keys). Inexpressible content — blobs, non-finite numbers, an anchored document
+// `!!set` and `!!<…>` schema tags. The no-op shape tags `!!mix` (a mixed keyed+keyless
+// container) and `!!var` (a scalar-plus-fields) are NOT emitted — omni is the default, so an
+// untagged mixture reparses to the same IR (YAMLOVER.md §4). Inexpressible content — blobs,
+// non-finite numbers, an anchored document
 // root — raises LossyError: refuse, never drop. (Blobs are refused only for now: the IR
 // carries the content HASH, not the bytes; once a byte source is wired in, a blob can
 // emit INLINE as base64 — META.md `type: binary` — the same node in a different concrete.)
@@ -46,12 +47,15 @@ class Emitter {
     const ents = root.entries ?? [];
     const kept = ents.filter((e) => !isAnchorizableBack(e)); // conv backs re-emit as anchors
     if (root.kind === 'scalar') {
-      // The root value is inline (block indicators are read only after a key); the `!!var`
-      // marker is a no-op but kept for readability when fields follow.
-      const tok = this.inline(root, /*needToken*/ kept.length > 0);
-      this.out.push(kept.length > 0 ? `!!var ${tok}` : tok);
+      // A root omni self-value is written among its entries at its AUTHORED position (`meta.selfAt`,
+      // 0 = first) — order-preserving, though the value stays positionless DATA. It is written with
+      // NO tag (omni is the default; `!!var` is only a no-op marker); a multi-line value becomes a
+      // block scalar (see `selfLine`), a single-line one stays inline.
+      const at = Math.min(root.meta?.selfAt ?? 0, ents.length);
+      this.entries(ents.slice(0, at), 0);
+      this.selfLine(root, 0);
       this.rootAnchors(root);
-      this.entries(ents, 0);
+      this.entries(ents.slice(at), 0);
     } else if (kept.length === 0) {
       this.out.push(root.array ? '[]' : '{}');
       this.rootAnchors(root);
@@ -116,6 +120,21 @@ class Emitter {
     }
   }
 
+  /** The self-value of an omni scalar as a BARE line (or block-scalar lines) at `indent` — used
+   *  when the value sits AMONG the entries at its authored position (`meta.selfAt`), rather than
+   *  folded onto a `key:`/`- ` head. A multi-line value becomes a block scalar (content one STEP
+   *  deeper, so a dedent back to `indent` ends it and the following entries resume). */
+  selfLine(v: Scalar, indent: number): void {
+    const pad = ' '.repeat(indent);
+    const block = typeof v.value === 'string' && v.value.includes('\n') ? blockLines(v.value) : null;
+    if (block !== null) {
+      this.out.push(pad + block.header);
+      for (const l of block.lines) this.out.push(l === '' ? '' : ' '.repeat(indent + STEP) + l);
+    } else {
+      this.out.push(pad + this.inline(v, /*needToken*/ true));
+    }
+  }
+
   /** Emit `head <value>` at `indent` — `head` is `key:`, `~key:`, or the `-` seq marker
    *  (their value/indent grammar is identical: a deeper block belongs to the entry). */
   keyed(head: string, value: Value, indent: number): void {
@@ -128,11 +147,21 @@ class Emitter {
     const parts = this.decorations(value);
     const ents = value.entries ?? [];
     const kept = ents.filter((e) => !isAnchorizableBack(e)); // conv backs ride `parts` as anchors
-    if (value.kind === 'scalar') {
+    if (value.kind === 'scalar' && (value.meta?.selfAt ?? 0) > 0 && kept.length > 0) {
+      // the self-value was authored AMONG the fields (`meta.selfAt`), not on the key line: emit a
+      // bare head, then the fields with the value line interleaved at its position (order-preserving)
+      const inner = indent + STEP;
+      const at = Math.min(value.meta!.selfAt!, ents.length);
+      this.out.push(joinLine(pad + head, parts));
+      this.entries(ents.slice(0, at), inner);
+      this.selfLine(value, inner);
+      this.anchorLines(value, inner);
+      this.entries(ents.slice(at), inner);
+    } else if (value.kind === 'scalar') {
       const block = typeof value.value === 'string' && value.value.includes('\n')
         ? blockLines(value.value) : null;
       if (block !== null) {
-        // block-scalar content sits DEEPER than any `!!var` fields, so the fields'
+        // block-scalar content sits DEEPER than any fields, so the fields'
         // dedent ends the block (the parser's rule) while staying deeper than the key
         const inner = indent + STEP + (kept.length > 0 ? STEP : 0);
         this.out.push(joinLine(pad + head, [...parts, block.header]));
@@ -174,7 +203,7 @@ class Emitter {
         this.out[at] = pad + '- ' + this.out[at].slice(indent + STEP);
         return;
       }
-      this.out.push(joinLine(pad + '-', parts)); // `- !!mix` / bare `-`
+      this.out.push(joinLine(pad + '-', parts)); // a bare `-` (a `!!set` seq item keeps its tag)
       this.anchorLines(value, indent + STEP);
       this.entries(ents, indent + STEP);
       return;
@@ -182,9 +211,9 @@ class Emitter {
     this.keyed('-', value, indent);
   }
 
-  /** Value-position prefixes, in the parser's reading order: `!!<…>` schema, `!!mix`/
-   *  `!!set` (shape/meta). Anchors are NOT here — canonical style (SEPARATOR.md M3)
-   *  puts them on their own lines inside the node's block. */
+  /** Value-position prefixes, in the parser's reading order: the `!!<…>` schema and `!!set`
+   *  (the only shape tag with semantics — omni/`!!mix` is the default and is never emitted).
+   *  Anchors are NOT here — canonical style (SEPARATOR.md M3) puts them on own lines. */
   decorations(node: Node): string[] {
     const parts: string[] = [];
     if (node.meta?.schema !== undefined) parts.push(`!!<${this.schemaText(node.meta.schema)}>`);
@@ -201,11 +230,11 @@ class Emitter {
   }
 
   containerTag(node: Node): string | null {
-    const set = node.meta?.set === true;
-    const owned = (node.entries ?? []).filter((e) => e.edge !== 'back');
-    const mixed = node.kind === 'mapping' && owned.some((e) => e.key !== null) && owned.some((e) => e.key === null);
-    if (set && mixed) throw new LossyError('a !!set that also mixes keyed and keyless entries has no single-tag spelling');
-    return set ? '!!set' : mixed ? '!!mix' : null;
+    // Only `!!set` carries semantics worth emitting; `!!mix` (a mixed keyed+keyless container) and
+    // `!!var` (a scalar-plus-fields) are the DEFAULT shape (omni-by-default, YAMLOVER.md §4), so a
+    // node emits NEITHER — an untagged mixture parses back to the same IR. Tags remain accepted on
+    // input as no-op markers.
+    return node.meta?.set === true ? '!!set' : null;
   }
 
   /** A single-line scalar token (never contains a newline — multiline strings go through

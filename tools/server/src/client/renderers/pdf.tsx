@@ -76,13 +76,15 @@ export function PdfView({ node }: { node: NodeJson }) {
 
   const material = useMaterialAnnotations(node.path);
   const { openCreate, openEdit, palette, preview } = useAnnotationMenu(material, node.path);
-  // include the live PREVIEW so the rectangle stays drawn while the menu is open
-  const shown = preview
-    ? [...material.annotations, { path: "(preview)", selector: preview.selector, tag: preview.tag } as Annotation]
-    : material.annotations;
-  const regions: PdfRegion[] = shown
+  const regions: PdfRegion[] = material.annotations
     .filter((a) => a.selector?.type === "pdf")
     .map((a) => ({ page: num(a.selector!.page) || 1, x: num(a.selector!.x), y: num(a.selector!.y), w: num(a.selector!.w), h: num(a.selector!.h), title: a.description, color: colorOf(a), ann: editable(a) ? a : undefined }));
+  // keep the just-drawn rectangle visible while the menu is open — in the NEUTRAL preview color, since
+  // a new selection has no tag yet (an extra region, not a synthetic tagged annotation).
+  if (preview?.selector.type === "pdf") {
+    const s = preview.selector;
+    regions.push({ page: num(s.page) || 1, x: num(s.x), y: num(s.y), w: num(s.w), h: num(s.h), color: preview.color });
+  }
 
   // Page tracking + zoom-anchoring (`?page=` in the URL; same page stays put across a zoom). Every
   // page has a `.pdf-page` wrapper (windowing swaps only the CONTENT), so the list is dense 1..N.

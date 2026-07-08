@@ -71,16 +71,22 @@ function blockEnd(lines: string[], from: number, hi: number, indent: number): nu
   return trimBack(lines, last, hi);
 }
 
-interface Region { lo: number; hi: number; indent: number } // a mapping body: child keys at `indent`, within [lo,hi)
+export interface Region { lo: number; hi: number; indent: number } // a mapping body: child keys at `indent`, within [lo,hi)
 
 /** Descend the mapping-KEY path `within` to the target node's body region, CREATING any missing
  *  key as an empty block (so a fresh overlay grows the `"file":` → `yamlover-fragments:` →
  *  `<slug>:` spine on demand). Mutates `lines` in place; returns the region under the last key. */
 function reachBody(lines: string[], within: string[]): Region {
-  let lo = 0;
-  let hi = lines.length;
-  let indent = firstContentIndent(lines);
-  if (lines.length === 1 && lines[0] === "") { lines.length = 0; hi = 0; indent = 0; } // empty file
+  let start: Region = { lo: 0, hi: lines.length, indent: firstContentIndent(lines) };
+  if (lines.length === 1 && lines[0] === "") { lines.length = 0; start = { lo: 0, hi: 0, indent: 0 }; } // empty file
+  return reachBodyAt(lines, start, within);
+}
+
+/** {@link reachBody}'s mapping-KEY descent, but starting from an already-resolved `start` region
+ *  rather than the file root — so a host reached by NON-key descent (a chapter chunk, by index) can
+ *  then descend its own keyed fields (`yamlover-fragments`/`<slug>`). Creates missing keys. */
+export function reachBodyAt(lines: string[], start: Region, within: string[]): Region {
+  let { lo, hi, indent } = start;
 
   for (const key of within) {
     const L = findKeyLine(lines, lo, hi, indent, key);
@@ -131,7 +137,13 @@ function seqItemLines(lines: string[], region: Region, key: string): { keyLine: 
  *  `render(indent)` returns the element's source lines (a `- *…tag` item, or a `- {…}` object). */
 export function appendAnnotation(text: string, within: string[], render: (indent: number) => string[]): string {
   const lines = text.replace(/\n$/, "").split("\n");
-  const region = reachBody(lines, within);
+  appendAnnotationAt(lines, reachBody(lines, within), render);
+  return lines.join("\n") + "\n";
+}
+
+/** {@link appendAnnotation} rooted at an already-resolved `region` (mutates `lines` in place) — for
+ *  a host the mapping-key `reachBody` can't reach, e.g. a chapter CHUNK reached by index descent. */
+export function appendAnnotationAt(lines: string[], region: Region, render: (indent: number) => string[]): void {
   const seq = seqItemLines(lines, region, ANNOTATIONS_KEY);
   if (!seq) {
     const at = trimBack(lines, region.lo - 1, region.hi);
@@ -139,7 +151,6 @@ export function appendAnnotation(text: string, within: string[], render: (indent
   } else {
     lines.splice(seq.end, 0, ...render(region.indent));
   }
-  return lines.join("\n") + "\n";
 }
 
 /** Upsert an `<entryKey>:` entry into the `<mapKey>:` mapping of the node addressed by `within`,
@@ -149,7 +160,12 @@ export function appendAnnotation(text: string, within: string[], render: (indent
  *  and {@link upsertThumbnail}. */
 function upsertMapEntry(text: string, within: string[], mapKey: string, entryKey: string, render: (indent: number) => string[]): string {
   const lines = text.replace(/\n$/, "").split("\n");
-  const region = reachBody(lines, within);
+  upsertMapEntryAt(lines, reachBody(lines, within), mapKey, entryKey, render);
+  return lines.join("\n") + "\n";
+}
+
+/** {@link upsertMapEntry} rooted at an already-resolved `region` (mutates `lines`). */
+export function upsertMapEntryAt(lines: string[], region: Region, mapKey: string, entryKey: string, render: (indent: number) => string[]): void {
   let mapLine = findKeyLine(lines, region.lo, region.hi, region.indent, mapKey);
   if (mapLine < 0) {
     const at = trimBack(lines, region.lo - 1, region.hi);
@@ -166,7 +182,6 @@ function upsertMapEntry(text: string, within: string[], mapKey: string, entryKey
     const at = trimBack(lines, mapLine, mapBody.hi);
     lines.splice(at, 0, ...render(mapIndent));
   }
-  return lines.join("\n") + "\n";
 }
 
 /** Upsert a `<slug>:` entry into the `yamlover-fragments:` mapping of the node addressed by
@@ -190,7 +205,11 @@ export function upsertThumbnail(text: string, within: string[], resKey: string, 
  *  exists). Used to decide whether a just-untagged FRAGMENT is now empty (→ delete it). */
 export function annotationsRemain(text: string, within: string[]): boolean {
   const lines = text.replace(/\n$/, "").split("\n");
-  const region = reachBody(lines, within);
+  return annotationsRemainAt(lines, reachBody(lines, within));
+}
+
+/** {@link annotationsRemain} at an already-resolved `region` (read-only). */
+export function annotationsRemainAt(lines: string[], region: Region): boolean {
   const seq = seqItemLines(lines, region, ANNOTATIONS_KEY);
   return !!seq && seq.items.length > 0;
 }
@@ -201,13 +220,18 @@ export function annotationsRemain(text: string, within: string[]): boolean {
  *  husk lingers. */
 export function removeMapEntry(text: string, within: string[], mapKey: string, entryKey: string): string {
   const lines = text.replace(/\n$/, "").split("\n");
-  const region = reachBody(lines, within);
+  return removeMapEntryAt(lines, reachBody(lines, within), mapKey, entryKey) ? lines.join("\n") + "\n" : text;
+}
+
+/** {@link removeMapEntry} at an already-resolved `region` (mutates `lines`); returns whether anything
+ *  was removed (so callers can skip a no-op re-write). */
+export function removeMapEntryAt(lines: string[], region: Region, mapKey: string, entryKey: string): boolean {
   const mapLine = findKeyLine(lines, region.lo, region.hi, region.indent, mapKey);
-  if (mapLine < 0) return text;
+  if (mapLine < 0) return false;
   const mapIndent = region.indent + 2;
   const mapHi = blockEnd(lines, mapLine + 1, lines.length, region.indent + 1);
   const entry = findKeyLine(lines, mapLine + 1, mapHi, mapIndent, entryKey);
-  if (entry < 0) return text;
+  if (entry < 0) return false;
   const end = blockEnd(lines, entry + 1, mapHi, mapIndent + 1);
   lines.splice(entry, end - entry);
   // the mapping now empty (no child key at mapIndent left) → drop its key line as well
@@ -217,7 +241,7 @@ export function removeMapEntry(text: string, within: string[], mapKey: string, e
     if (isContentLine(lines[i]) && indentOf(lines[i]) === mapIndent) { hasChild = true; break; }
   }
   if (!hasChild) lines.splice(mapLine, blockEnd(lines, mapLine + 1, lines.length, region.indent + 1) - mapLine);
-  return lines.join("\n") + "\n";
+  return true;
 }
 
 /** Remove annotation element(s) from the `yamlover-annotations:` of the node at `within` — EVERY
@@ -226,10 +250,16 @@ export function removeMapEntry(text: string, within: string[], mapKey: string, e
  *  block of a multi-line object item is removed whole. Re-descends after each splice (indices shift).*/
 export function removeAnnotation(text: string, within: string[], predicate: (itemText: string) => boolean): string {
   const lines = text.replace(/\n$/, "").split("\n");
+  return removeAnnotationAt(lines, () => reachBody(lines, within), predicate) ? lines.join("\n") + "\n" : text;
+}
+
+/** {@link removeAnnotation} at a region (mutates `lines`); returns whether anything was removed.
+ *  `region` is a THUNK because splices shift line indices — it is re-resolved after each removal
+ *  (the mapping-key path via `reachBody`, or a re-scanned chunk region). */
+export function removeAnnotationAt(lines: string[], region: () => Region, predicate: (itemText: string) => boolean): boolean {
   let removed = false;
   for (;;) {
-    const region = reachBody(lines, within);
-    const seq = seqItemLines(lines, region, ANNOTATIONS_KEY);
+    const seq = seqItemLines(lines, region(), ANNOTATIONS_KEY);
     if (!seq) break;
     const k = seq.items.findIndex((i) => predicate(lines[i].trim().replace(/^-\s*/, "")));
     if (k < 0) break;
@@ -238,5 +268,5 @@ export function removeAnnotation(text: string, within: string[], predicate: (ite
     lines.splice(i, next - i);
     removed = true;
   }
-  return removed ? lines.join("\n") + "\n" : text;
+  return removed;
 }

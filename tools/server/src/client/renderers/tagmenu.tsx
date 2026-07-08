@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Annotation, TagRef, annotate, deleteAnnotation, fetchAnnotations } from "../api";
-import { AnnotationMenu, useAnnotationTag, type CreateEntry } from "./annotate";
+import { AnnotationMenu, rememberTag, type CreateEntry } from "./annotate";
 import { canonPath, displayPath } from "../paths";
 import { creatablesFor, useCreatableLabels } from "./create";
 
@@ -17,7 +17,6 @@ export function useExplorerTagMenu(opts?: {
   /** When given, the menu offers object creation at the target: `(schema, parent, concrete)`. */
   onCreate?: (schema: string, parent: string, concrete: string) => void;
 }): { openAt: (target: string, x: number, y: number, node?: NodeKind) => void; tagMenu: ReactNode } {
-  const [, setTag] = useAnnotationTag();
   const [menu, setMenu] = useState<{ target: string; x: number; y: number; node?: NodeKind } | null>(null);
   const [current, setCurrent] = useState<Annotation[]>([]);
   const labels = useCreatableLabels();
@@ -43,7 +42,7 @@ export function useExplorerTagMenu(opts?: {
   // underlying view refreshes independently through its own `useDiffBump` on the SSE diff.
   const add = (t: TagRef) => {
     if (!menu) return;
-    setTag(t);
+    rememberTag(t); // file it among the recents (no project-scoped "last tag" any more)
     const optimistic: Annotation = { path: "(pending)", tag: t };
     setCurrent((cur) => [...cur, optimistic]);
     annotate({ target: menu.target, tag: t.path })

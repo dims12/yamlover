@@ -12,6 +12,7 @@ function fragmentNodePath(materialPath: string, slug: string): string {
  *  annotations that share its `fragmentSlug` (a region can carry several tags). */
 export interface FragmentGroup {
   slug: string;
+  node?: string; // the CLIENT path of the node this fragment lives on (a CHUNK, else the material)
   selector?: Annotation["selector"];
   imageUrl?: string; // a crop blob for an image/pdf/djvu fragment
   tags: TagLink[];
@@ -27,7 +28,7 @@ export function fragmentGroups(anns: Annotation[]): FragmentGroup[] {
     if (!a.fragmentSlug) continue;
     let g = bySlug.get(a.fragmentSlug);
     if (!g) {
-      g = { slug: a.fragmentSlug, selector: a.selector, imageUrl: a.imageUrl, tags: [] };
+      g = { slug: a.fragmentSlug, node: a.node, selector: a.selector, imageUrl: a.imageUrl, tags: [] };
       bySlug.set(a.fragmentSlug, g);
       order.push(a.fragmentSlug);
     } else {
@@ -69,14 +70,14 @@ export function Fragments({ path, groups, width, onNavigate }: {
   onNavigate: (p: string) => void;
 }) {
   const [removing, setRemoving] = useState<Set<string>>(new Set());
-  const reveal = (slug: string) => {
-    window.location.hash = "#" + fragmentAnchorId(path, slug);
+  const reveal = (g: FragmentGroup) => {
+    window.location.hash = "#" + fragmentAnchorId(g.node ?? path, g.slug);
   };
   // Delete the fragment by removing every tag on it; the server drops the emptied fragment node and
   // the SSE diff refreshes App's annotation list (so this group falls away). Hide it at once.
   const removeFragment = async (g: FragmentGroup) => {
     setRemoving((s) => new Set(s).add(g.slug));
-    const target = fragmentNodePath(path, g.slug);
+    const target = fragmentNodePath(g.node ?? path, g.slug);
     try {
       for (const t of g.tags) await deleteAnnotation(target, t.path);
     } catch (e) {
@@ -100,7 +101,7 @@ export function Fragments({ path, groups, width, onNavigate }: {
                 type="button"
                 className="fragment-locate"
                 title="Scroll to this fragment"
-                onClick={() => reveal(g.slug)}
+                onClick={() => reveal(g)}
               >
                 {g.imageUrl
                   ? <img className="fragment-thumb" src={g.imageUrl} alt="" />

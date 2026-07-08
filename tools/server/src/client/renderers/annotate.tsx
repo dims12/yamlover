@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation, fetchConfig, saveLastTag } from "../api";
+import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation, fetchConfig } from "../api";
 import { TAG_FORMAT, explicitColor, isColorTagPath, resolveTagColor, tagFields } from "./tag";
 import { TagTip } from "./tagtip";
 import { canonPath, displayPath, fragmentAnchorId, strToSegs } from "../paths";
@@ -9,25 +9,24 @@ import { touchesYamlover, useDiffBump } from "../live";
  * The annotation layer, shared across materials (the UI guide). An annotation is ONE TAG
  * APPLICATION: a region of the material tagged by a tag, optionally commented. You SELECT to
  * annotate — drag-select text in prose or a PDF, drag a rectangle on an image or map — and a
- * floating tag picker appears:
+ * floating tag picker appears. A NEW selection preselects NOTHING: no tag is applied and no swatch
+ * or chip is outlined until you pick one; the just-drawn region shows in a NEUTRAL color meanwhile.
+ * Only the tags a target ALREADY carries are shown (outlined). The picker offers:
  *
- *   - the PURE COLOR TAGS (built-in `yamlover/tags/colors/…`) as swatches; the last-used tag is
- *     pre-selected. Click a swatch to apply that tag.
+ *   - the PURE COLOR TAGS (built-in `yamlover/tags/colors/…`) as swatches. Click one to apply it.
  *   - the NAMED tags as chips, shown without typing from four sources (most-relevant first): the
  *     tags APPLIED to this target, the tags borne by OTHER components of the same node, the
  *     recently-used tags, and the project taxonomy (the grafted yamlover tags + the configured
  *     tags location). Typing in the path input turns the chip row into a ranked filter over EVERY
  *     tag in the tree (so anything is reachable), and a fresh name creates a tag.
- *   - a ✓ CONFIRM button — apply the pre-selected tag (the explicit alternative to clicking
- *     outside, which also commits).
  *   - (text only) a ⧉ COPY button — copies the selected text, creates nothing.
- *   - a 🗑 DISCARD button — drops the pending mark.
  *
- * Clicking an EXISTING annotation reopens the picker in "edit" mode: picking a tag RE-TAGS it,
- * 🗑 DELETES it, clicking away just closes. A new/edited mark renders IMMEDIATELY
- * (optimistically) — it does not wait for the server round-trip (which reindexes). Annotations
- * are graph-native — saved server-side as yamlover objects, reverse-linked to the material and
- * members of their tag — so they persist on reload.
+ * Picking a tag IS the apply — it toggles the tag on the region and the menu stays open (multi-tag);
+ * clicking an applied tag removes it; closing (✕ / outside-click) commits nothing extra. Clicking an
+ * EXISTING annotation reopens the picker in "edit" mode over that mark's tags. A new/edited mark
+ * renders IMMEDIATELY (optimistically) — it does not wait for the server round-trip (which
+ * reindexes). Annotations are graph-native — saved server-side as yamlover objects, reverse-linked
+ * to the material and members of their tag — so they persist on reload.
  */
 
 // The built-in pure color tags (the palette). This constant is the OFFLINE fallback — the picker
@@ -43,7 +42,11 @@ export const COLOR_TAGS: TagRef[] = [
 ];
 export const DEFAULT_TAG = COLOR_TAGS[0];
 export const DEFAULT_COLOR = DEFAULT_TAG.color!;
-const RECENT_KEY = "yo-annotate-recent-tags"; // the last-used tag now lives in settings.yamlover
+// The NEUTRAL color a freshly-drawn region / in-progress selection is painted in, before any tag is
+// picked — "no tag chosen yet". A new selection preselects nothing, so it is deliberately NOT a tag
+// color (a muted gray, not the palette's yellow default).
+export const SELECTION_COLOR = "#9399b2";
+const RECENT_KEY = "yo-annotate-recent-tags"; // recently-applied NAMED tags, a browser-local convenience list
 
 /** An annotation's display color — its applied tag's (explicit color, else name-derived hue);
  *  the default for legacy marks saved before annotations carried a tag. */
@@ -173,30 +176,11 @@ function underAnyRoot(path: string, roots: (string | null)[]): boolean {
   return roots.some((r) => { if (!r) return false; const rc = canonPath(r); return cp === rc || cp.startsWith(rc + ":"); });
 }
 
-/** The remembered last-applied tag (persisted in localStorage) + a setter that persists it and
- *  files a NAMED tag among the recents (color tags live in the swatch row already). */
-export function useAnnotationTag(): [TagRef, (t: TagRef) => void] {
-  const [tag, set] = useState<TagRef>(DEFAULT_TAG); // the palette default until settings load
-  // SEED from the project config (IMPORTS.md): the last-used tag lives in `settings.yamlover`
-  // (`annotation-tag: *:: …`), so the picker default is PROJECT-SCOPED — shared across browsers and
-  // always valid in THIS project. This replaces the old browser-localStorage default, whose paths
-  // went stale across served roots and caused the optimistic mark to 400 and vanish.
-  useEffect(() => {
-    let live = true;
-    fetchConfig()
-      .then((c) => {
-        const p = c.settings.annotationTag;
-        if (live && p) set({ path: p, name: tagNameOf(p), color: null });
-      })
-      .catch(() => { /* no config / not set — keep the palette default */ });
-    return () => { live = false; };
-  }, []);
-  const setTag = (t: TagRef) => {
-    rememberRecent(t); // recents stay browser-local (a convenience list, not the project default)
-    set(t);
-    void saveLastTag(t.path).catch(() => { /* best-effort persist; the seed just won't carry over */ });
-  };
-  return [tag, setTag];
+/** File a just-applied tag among the recents (a browser-local convenience list; color tags live in
+ *  the swatch row already). There is NO project-scoped "last tag" any more — a new selection
+ *  preselects nothing, so the only thing an apply remembers is the recents suggestions. */
+export function rememberTag(t: TagRef): void {
+  rememberRecent(t);
 }
 
 /** The recently applied NAMED tags (newest first, capped). */
@@ -243,11 +227,13 @@ export async function createAnnotation(
   return annotate({ target: fragmentPath, tag: tag.path });
 }
 
-/** The host node path that carries a tag application: the material itself, or — when the
- *  annotation marks a region — that fragment's node path (`…:yamlover-fragments:<slug>`). */
+/** The host node path that carries a tag application: the node the annotation lives ON (`ann.node`
+ *  — a CHUNK for a chunk fragment, else the material), and — when it marks a region — that node's
+ *  fragment path (`…:yamlover-fragments:<slug>`). */
 function annotationTarget(materialPath: string, ann: Annotation): string {
-  if (!ann.fragmentSlug) return materialPath;
-  return (materialPath === ":" ? "" : materialPath) + ":yamlover-fragments:" + ann.fragmentSlug;
+  const host = ann.node ?? materialPath;
+  if (!ann.fragmentSlug) return host;
+  return (host === ":" ? "" : host) + ":yamlover-fragments:" + ann.fragmentSlug;
 }
 
 /** Read-only fetch of a material's annotations; `bump` (a changing number) forces a refetch.
@@ -272,13 +258,14 @@ export function useAnnotations(path: string, bump = 0): Annotation[] {
  *  round-trip lands. */
 export interface MaterialAnnotations {
   annotations: Annotation[];
-  create: (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean; imageBase64?: string }) => void;
+  create: (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean; imageBase64?: string; target?: string }) => void;
   remove: (ann: Annotation) => void;
   /** Add `tag` to the REGION identified by `selector`: the FIRST tag creates the fragment (with the
    *  optional crop), later tags annotate that same fragment — never a second one, even if clicked
    *  before the first create's server round-trip lands (those queue and drain on the next fetch).
-   *  `silent` suppresses the failure alert (for the implicit apply-on-select of the default tag). */
-  annotateRegion: (selector: Record<string, unknown>, tag: TagRef, opts?: { imageBase64?: string; silent?: boolean }) => void;
+   *  `target` is the node the fragment hangs off — the enclosing CHUNK for a chapter selection, else
+   *  the material (default). `silent` suppresses the failure alert. */
+  annotateRegion: (selector: Record<string, unknown>, tag: TagRef, opts?: { imageBase64?: string; silent?: boolean; target?: string }) => void;
 }
 
 /** A material's annotations + optimistic create/delete/re-tag. The displayed list merges the
@@ -329,12 +316,11 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
     setOptimistic((o) => o.filter((x) => x !== entry));
     if (!silent) window.alert("save failed: " + (e as Error).message);
   };
-  const create = (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean; imageBase64?: string }) => {
-    const entry = { path: "(pending)", selector: selector ?? undefined, tag } as Annotation;
+  const create = (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean; imageBase64?: string; target?: string }) => {
+    const target = opts?.target ?? path; // the node the fragment hangs off (a chunk, else the material)
+    const entry = { path: "(pending)", node: target, selector: selector ?? undefined, tag } as Annotation;
     setOptimistic((o) => [...o, entry]);
-    // An IMPLICIT save (clicking away with the pre-selected tag) is best-effort — e.g. the
-    // default tag may not exist in this tree — so it rolls back QUIETLY (opts.silent).
-    createAnnotation(path, selector, tag, opts?.imageBase64).then(refresh).catch((e) => rollback(entry, e, opts?.silent));
+    createAnnotation(target, selector, tag, opts?.imageBase64).then(refresh).catch((e) => rollback(entry, e, opts?.silent));
   };
   const remove = (ann: Annotation) => {
     if (!ann?.tag) return;
@@ -355,16 +341,17 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
     return real ? annotationTarget(path, real) : null;
   };
 
-  const annotateRegion = (selector: Record<string, unknown>, tag: TagRef, opts?: { imageBase64?: string; silent?: boolean }) => {
+  const annotateRegion = (selector: Record<string, unknown>, tag: TagRef, opts?: { imageBase64?: string; silent?: boolean; target?: string }) => {
+    const node = opts?.target ?? path; // the region's host node (a chunk, else the material)
     const target = regionFragmentTarget(selector);
     if (target) { // the fragment already exists → just annotate it (a later tag)
-      const entry = { path: "(pending)", selector, tag } as Annotation;
+      const entry = { path: "(pending)", node, selector, tag } as Annotation;
       setOptimistic((o) => [...o, entry]);
       annotate({ target, tag: tag.path }).then(refresh).catch((e) => rollback(entry, e, opts?.silent));
       return;
     }
     if (optimistic.some((x) => sameSelector(x.selector, selector))) { // first create in flight → queue
-      const entry = { path: "(pending)", selector, tag } as Annotation;
+      const entry = { path: "(pending)", node, selector, tag } as Annotation;
       setOptimistic((o) => [...o, entry]);
       pendingPicksRef.current.push({ selector, tag, entry });
       return;
@@ -604,11 +591,15 @@ export function AnnotationMenu({
 
   return (
     <div ref={setRefs} className="annotate-menu" style={{ left: pos.left, top: pos.top }} role="menu">
-      {/* the draggable TITLE BAR: the object's path (grab-to-move) + the close button. The path is
-          LEFT-truncated (the right TAIL stays visible — the head is already in the breadcrumb): a
-          `direction: rtl` container puts the ellipsis at the start, a `<bdi>` keeps the text readable. */}
-      <div className="annotate-titlebar" onMouseDown={onTitleDown}>
-        <span className="annotate-title" title={title}><bdi>{title ?? ""}</bdi></span>
+      {/* the TOP BAR: a draggable PATH CELL (grab-to-move) on the left, then the ⧉ copy and ✕ close
+          tools DOCKED at the top-right (outside the path cell). The path is LEFT-truncated (the right
+          TAIL stays visible — the head is already in the breadcrumb): a `direction: rtl` container puts
+          the ellipsis at the start, a `<bdi>` keeps the text readable. */}
+      <div className="annotate-topbar">
+        <div className="annotate-titlebar" onMouseDown={onTitleDown} title={title}>
+          <span className="annotate-title"><bdi>{title ?? ""}</bdi></span>
+        </div>
+        {onCopy && <button type="button" className="annotate-tool copy" title="copy text to clipboard (don't annotate)" onClick={onCopy}>⧉</button>}
         <button type="button" className="annotate-tool close" title="close" onClick={onClose}>✕</button>
       </div>
       {creates && creates.length > 0 && (
@@ -628,7 +619,6 @@ export function AnnotationMenu({
           </TagTip>
         ))}
       </div>
-      {onCopy && <button type="button" className="annotate-tool" title="copy text to clipboard (don't annotate)" onClick={onCopy}>⧉</button>}
       {view.length > 0 && (
         <div className="annotate-recents" role="listbox">
           {view.map((t, i) => (
@@ -678,45 +668,43 @@ export function AnnotationMenu({
 }
 
 /** An open region picker — keyed by its SELECTOR (the join into the material's annotations), not by
- *  a one-shot create/edit. `seedTag` is the pre-checked default shown while the region has no tags.
- *  `create` marks a freshly-DRAWN region (vs editing an existing one): only then does the synthetic
- *  preview keep the marquee up before the first tag — editing an existing region down to zero tags
- *  must let it disappear (untag). */
-type OpenRegion = { selector: Record<string, unknown>; seedTag: TagRef; create: boolean; copy?: () => void; imageBase64?: string; x: number; y: number; title: string };
+ *  a one-shot create/edit. `create` marks a freshly-DRAWN region (vs editing an existing one): only
+ *  then does the neutral preview keep the marquee up before the first tag — editing an existing
+ *  region down to zero tags must let it disappear (untag). */
+type OpenRegion = { selector: Record<string, unknown>; nodePath: string; create: boolean; copy?: () => void; imageBase64?: string; x: number; y: number; title: string };
 
 /** Drives the floating picker for a material's REGIONS: `openCreate` after a fresh selection,
  *  `openEdit` on a click on an existing mark — both open the SAME selector-keyed picker, so tagging
  *  is uniform: clicking a tag toggles it on/off the region and the menu STAYS open (multi-tag),
  *  closing only via the close button or outside-click. The first tag on a fresh region creates its
- *  fragment; later tags annotate that same one. Returns the `palette`, plus a `preview` (the seed
- *  tag's selector/color) so a renderer keeps the rectangle drawn UNTIL a real tag draws it instead. */
+ *  fragment; later tags annotate that same one. Returns the `palette`, plus a `preview` (the region's
+ *  selector + a NEUTRAL color) so a renderer keeps the rectangle drawn UNTIL a real tag draws it. */
 export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
-  openCreate: (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string) => void;
+  openCreate: (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string, nodePath?: string) => void;
   openEdit: (ann: Annotation, screen: { x: number; y: number }) => void;
   palette: ReactNode;
-  preview: { selector: Record<string, unknown>; tag: TagRef; color: string } | null;
+  preview: { selector: Record<string, unknown>; color: string } | null;
   color: string;
 } {
-  const [tag, setTag] = useAnnotationTag();
   const [open, setOpen] = useState<OpenRegion | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const close = () => setOpen(null);
 
-  // Selecting a region IS tagging it: open the picker AND apply the pre-checked tag at once (the
-  // user's "apply immediately on open" — no extra click to commit the default). It becomes a real
-  // application, so it shows checked and a click REMOVES it. openEdit (an existing region) opens
-  // the same picker but applies nothing — the region already has its tags. The title bar shows the
-  // fragment's path (an existing region) or the material's (a fresh one).
-  const openCreate = (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string) => {
-    setOpen({ selector, seedTag: tag, create: true, copy, imageBase64, x: screen.x, y: screen.y, title: displayPath(path) });
-    a.annotateRegion(selector, tag, { imageBase64, silent: true });
+  // Selecting a region OPENS the picker but applies NOTHING — a new selection preselects no tag, so
+  // nothing is outlined until the user picks one. The just-drawn region stays visible via the neutral
+  // `preview` (below) meanwhile. openEdit (a click on an existing mark) opens the same picker over the
+  // region's real tags. `nodePath` is the node the region hangs off (a CHUNK for a chapter selection,
+  // else the material). The title bar shows the fragment's path (existing region) or the material's.
+  const openCreate = (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string, nodePath?: string) => {
+    setOpen({ selector, nodePath: nodePath ?? path, create: true, copy, imageBase64, x: screen.x, y: screen.y, title: displayPath(nodePath ?? path) });
   };
   const openEdit = (ann: Annotation, screen: { x: number; y: number }) =>
-    setOpen({ selector: (ann.selector ?? {}) as Record<string, unknown>, seedTag: ann.tag ?? tag, create: false, x: screen.x, y: screen.y, title: displayPath(annotationTarget(path, ann)) });
+    setOpen({ selector: (ann.selector ?? {}) as Record<string, unknown>, nodePath: ann.node ?? path, create: false, x: screen.x, y: screen.y, title: displayPath(annotationTarget(path, ann)) });
 
   // The region's tag applications, live from the material — toggles reflect at once (optimistic).
   // These ARE the outlined tags: an outlined tag is a real application, so clicking it removes it.
-  const regionAnns = open ? a.annotations.filter((x) => sameSelector(x.selector, open.selector)) : [];
+  // Matched by selector AND host node, so the same quoted text in two chunks stays distinct.
+  const regionAnns = open ? a.annotations.filter((x) => sameSelector(x.selector, open.selector) && (x.node ?? path) === open.nodePath) : [];
   const applied: TagRef[] = regionAnns.map((x) => x.tag).filter((t): t is TagRef => !!t);
   // The tags borne by OTHER components of this node (its other fragments / its whole-node tags) —
   // surfaced as default chips so the same vocabulary used across the image is one click away.
@@ -732,9 +720,9 @@ export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
 
   const onPick = (t: TagRef) => {
     if (!open) return;
-    setTag(t);
+    rememberTag(t); // file it among the recents (no project-scoped "last tag" any more)
     if (applied.some((r) => canonPath(r.path) === canonPath(t.path))) return; // already applied (defensive)
-    a.annotateRegion(open.selector, t, { imageBase64: open.imageBase64 });
+    a.annotateRegion(open.selector, t, { imageBase64: open.imageBase64, target: open.nodePath });
   };
   const onUnpick = (t: TagRef) => {
     if (!open) return;
@@ -778,14 +766,15 @@ export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
     />
   ) : null;
 
-  // Keep the marquee drawn via a synthetic preview ONLY for a freshly-DRAWN region while it has no
-  // real tag yet (so the rectangle you just dragged stays visible until its first tag draws it).
-  // EDITING an existing region never previews — untagging it down to zero must let it vanish, not
-  // re-draw a ghost that makes "uncheck all tags" look like a no-op.
+  // Keep the marquee drawn via a NEUTRAL preview ONLY for a freshly-DRAWN region while it has no tag
+  // yet (so the rectangle you just dragged stays visible until its first tag draws it) — in the
+  // neutral SELECTION_COLOR, not a tag color, because nothing is preselected. EDITING an existing
+  // region never previews — untagging it down to zero must let it vanish, not re-draw a ghost that
+  // makes "uncheck all tags" look like a no-op.
   const preview = open && open.create && applied.length === 0
-    ? { selector: open.selector, tag: open.seedTag, color: resolveTagColor(open.seedTag) }
+    ? { selector: open.selector, color: SELECTION_COLOR }
     : null;
-  return { openCreate, openEdit, palette, preview, color: resolveTagColor(tag) };
+  return { openCreate, openEdit, palette, preview, color: SELECTION_COLOR };
 }
 
 export function AnnotatedMaterial({ path, children }: { path: string; children: ReactNode }) {
@@ -793,6 +782,13 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
   const material = useMaterialAnnotations(path);
   const { openCreate, openEdit, palette } = useAnnotationMenu(material, path);
   const { annotations } = material;
+
+  // The node a selection lives on: the enclosing chapter CHUNK (its `.chunk[data-node-path]`), so the
+  // fragment attaches to the chunk (ANNOTATIONS.md §3); else the material itself (a standalone doc).
+  const nodeAt = (n: Node | null): string => {
+    const start = n instanceof HTMLElement ? n : n?.parentElement;
+    return (start?.closest?.("[data-node-path]") as HTMLElement | null)?.dataset.nodePath || path;
+  };
 
   // Re-highlight after each render: the material (esp. a chapter's chunks) may settle a tick
   // after mount, so do it on a frame and clear any prior marks first.
@@ -821,7 +817,7 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
       if (!cap) return;
       const rect = sel.getRangeAt(0).getBoundingClientRect();
       const copy = () => copyText(cap.exact);
-      openCreate({ type: "text", exact: cap.exact, prefix: cap.prefix, suffix: cap.suffix }, { x: rect.left, y: rect.bottom + 6 }, copy);
+      openCreate({ type: "text", exact: cap.exact, prefix: cap.prefix, suffix: cap.suffix }, { x: rect.left, y: rect.bottom + 6 }, copy, undefined, nodeAt(sel.anchorNode));
     };
     document.addEventListener("mouseup", onUp);
     return () => document.removeEventListener("mouseup", onUp);
@@ -856,7 +852,7 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
     if (!cap) return;
     e.preventDefault(); // suppress the native menu; open ours at the cursor
     const copy = () => copyText(cap.exact);
-    openCreate({ type: "text", exact: cap.exact, prefix: cap.prefix, suffix: cap.suffix }, { x: e.clientX, y: e.clientY }, copy);
+    openCreate({ type: "text", exact: cap.exact, prefix: cap.prefix, suffix: cap.suffix }, { x: e.clientX, y: e.clientY }, copy, undefined, nodeAt(sel.anchorNode));
   };
 
   // No annotation count here — the RHS fragments panel is the canonical list of what's tagged.
@@ -928,38 +924,60 @@ function highlight(container: HTMLElement, anns: Annotation[], materialPath: str
   });
   for (const a of anns) {
     if (a.selector?.type !== "text" || !a.selector.exact) continue;
-    wrapFirst(container, a.selector.exact, a, materialPath);
+    // scope the wrap to the node the fragment lives on: a chapter CHUNK (its `.chunk[data-node-path]`
+    // element), so a word repeated across chunks marks only the right one; else the whole material.
+    let scope = container;
+    if (a.node) for (const el of container.querySelectorAll<HTMLElement>("[data-node-path]")) if (el.dataset.nodePath === a.node) { scope = el; break; }
+    wrapQuote(scope, a, a.node ?? materialPath);
   }
 }
 
-/** Wrap the first text occurrence of an annotation's `exact` (within one text node) in a colored,
- *  clickable `<mark>` carrying its identity key (so a click maps back to the annotation) and, for a
- *  fragment, its `#`-anchor id. A region with several tags is one mark: if the anchor id already
- *  exists in `container`, the region is already drawn — skip (and never duplicate the id). */
-function wrapFirst(container: HTMLElement, exact: string, a: Annotation, materialPath: string): void {
+/** Wrap the occurrence of an annotation's `exact` that best matches its `prefix`/`suffix` context
+ *  — a W3C TextQuoteSelector anchor over `container`'s text, so a word repeated on the page (e.g.
+ *  in a heading AND a chunk) marks the SAME one the user selected. Falls back to the first
+ *  occurrence when the context does not disambiguate. The `<mark>` carries the annotation's identity
+ *  key (a click maps back to it) and, for a fragment, its `#`-anchor id (skip if already drawn). The
+ *  match must lie within ONE text node for `surroundContents` (v1); a cross-element match is skipped. */
+function wrapQuote(container: HTMLElement, a: Annotation, materialPath: string): void {
+  const sel = a.selector!;
+  const exact = String(sel.exact);
   const fragId = a.fragmentSlug ? fragmentAnchorId(materialPath, a.fragmentSlug) : "";
-  if (fragId && container.querySelector(`[id="${CSS.escape(fragId)}"]`)) return; // region already marked
-  const c = colorOf(a);
+  // already drawn? (a fragment's id carries `:`/`/` — scan ids rather than a CSS selector, which
+  // would need CSS.escape, absent in some engines)
+  if (fragId) for (const e of container.querySelectorAll<HTMLElement>("[id]")) if (e.id === fragId) return;
+  // Flatten the container's text nodes, tracking each node's global start offset, so a
+  // TextQuoteSelector position (measured over the whole text) maps back to a node + local offset.
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  let n: Node | null;
-  while ((n = walker.nextNode())) {
-    const i = (n.nodeValue ?? "").indexOf(exact);
-    if (i < 0) continue;
-    const range = document.createRange();
-    range.setStart(n, i);
-    range.setEnd(n, i + exact.length);
-    const mark = document.createElement("mark");
-    mark.className = "yo-annotation";
-    mark.style.backgroundColor = `color-mix(in srgb, ${c} 30%, transparent)`; // works for hex AND a named tag's hsl()
-    mark.style.borderBottomColor = c;
-    mark.dataset.annSel = annKey(a);
-    if (fragId) mark.id = fragId;
-    mark.title = a.description || "click to re-tag or delete";
-    try {
-      range.surroundContents(mark); // works when the match is within one text node (v1)
-      return;
-    } catch {
-      /* the snippet spans element boundaries — skip highlighting it for now */
-    }
+  const nodes: { node: Node; at: number }[] = [];
+  let full = "";
+  for (let n: Node | null; (n = walker.nextNode()); ) { nodes.push({ node: n, at: full.length }); full += n.nodeValue ?? ""; }
+  // Pick the occurrence whose preceding text ends with `prefix` and following starts with `suffix`
+  // (prefix weighted higher); ties and no-context keep the FIRST match.
+  const prefix = String(sel.prefix ?? ""), suffix = String(sel.suffix ?? "");
+  let best = -1, bestScore = -1;
+  for (let i = full.indexOf(exact); i >= 0; i = full.indexOf(exact, i + 1)) {
+    const score = (prefix && full.slice(0, i).endsWith(prefix) ? 2 : 0) + (suffix && full.slice(i + exact.length).startsWith(suffix) ? 1 : 0);
+    if (score > bestScore) { bestScore = score; best = i; }
+  }
+  if (best < 0) return;
+  const hit = nodes.find((e) => best >= e.at && best < e.at + (e.node.nodeValue?.length ?? 0));
+  if (!hit) return;
+  const local = best - hit.at;
+  if (local + exact.length > (hit.node.nodeValue?.length ?? 0)) return; // spans text nodes — skip (v1)
+  const range = document.createRange();
+  range.setStart(hit.node, local);
+  range.setEnd(hit.node, local + exact.length);
+  const c = colorOf(a);
+  const mark = document.createElement("mark");
+  mark.className = "yo-annotation";
+  mark.style.backgroundColor = `color-mix(in srgb, ${c} 30%, transparent)`; // works for hex AND a named tag's hsl()
+  mark.style.borderBottomColor = c;
+  mark.dataset.annSel = annKey(a);
+  if (fragId) mark.id = fragId;
+  mark.title = a.description || "click to re-tag or delete";
+  try {
+    range.surroundContents(mark);
+  } catch {
+    /* the snippet spans element boundaries — skip highlighting it for now */
   }
 }

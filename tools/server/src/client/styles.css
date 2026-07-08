@@ -792,7 +792,6 @@ a.chunk-index:hover {
 /* object-creation entries ("＋ New <schema>" + a concrete selector) atop the tag picker. The menu is
    a flex-wrap row, so `flex-basis:100%` forces this onto its OWN full-width line above the swatches. */
 .annotate-actions {
-  flex-basis: 100%;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1357,8 +1356,8 @@ textarea.chapter-latex-src {
   position: fixed;
   z-index: 1000; /* above Leaflet panes (≤700) so it floats over an image/map selection */
   display: flex;
-  flex-wrap: wrap; /* swatches+tools on the first row; recents and the tag-path input wrap below */
-  align-items: center;
+  flex-direction: column; /* stacked rows: title, swatches, tags, then the search input */
+  align-items: stretch; /* each row spans the full width */
   gap: 6px;
   padding: 5px 7px;
   width: 280px;
@@ -1373,21 +1372,30 @@ textarea.chapter-latex-src {
   border-radius: 6px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
-/* the draggable TITLE BAR: the object's path on the left (grab to move the window), the close ✕ on
-   the right. `flex-basis:100%` makes it the full-width top row of the flex-wrap menu. */
-.annotate-titlebar {
-  flex-basis: 100%;
-  box-sizing: border-box;
-  min-width: 0; /* a flex item defaults to min-width:auto (its content size) — without this the long
-                   title keeps the title bar at full text width, pushing the ✕ and the path tail out
-                   of the menu. `min-width:0` lets it shrink so the title truncates and the ✕ stays. */
-  overflow: hidden;
+/* the TOP BAR: the draggable path cell (grows) on the left, the ⧉ copy + ✕ close tools at the right */
+.annotate-topbar {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: -5px 0 2px; /* bleed to the TOP edge only; horizontal stays inside so the ✕ can't clip */
-  padding: 4px 2px 4px 4px;
+  margin: -5px -7px 2px; /* bleed to the TOP and SIDE edges (over the menu padding) */
+  padding: 4px 6px;
   border-bottom: 1px solid var(--line);
+}
+.annotate-topbar .annotate-tool { flex: 0 0 auto; min-width: 24px; height: 22px; padding: 0 5px; font-size: 14px; }
+/* the draggable TITLE BAR: the object's path on the left (grab to move the window), the close ✕ on
+   the right. `flex-basis:100%` makes it the full-width top row of the flex-wrap menu. */
+/* the PATH CELL — the grabbable, left-truncating title box; it grows to fill the top bar, letting the
+   copy/close tools sit to its right. `min-width:0` lets it shrink so the long path truncates instead
+   of pushing the tools out. */
+.annotate-titlebar {
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 4px;
   background: var(--hover, rgba(127, 127, 127, 0.12));
   cursor: move;
   user-select: none;
@@ -1407,7 +1415,6 @@ textarea.chapter-latex-src {
    LEFT — the standard "truncate a path from the left" pattern. `isolate` (bdi's default) is the
    well-supported form; `plaintext` broke the overflow/ellipsis in some engines. */
 .annotate-title bdi { unicode-bidi: isolate; }
-.annotate-titlebar .annotate-tool.close { flex: 0 0 auto; min-width: 22px; height: 20px; }
 .annotate-palette {
   display: flex;
   gap: 4px;
@@ -1466,10 +1473,11 @@ textarea.chapter-latex-src {
 /* the default tag chips (applied · node-siblings · recents · project taxonomy) below the swatches —
    wraps to a few rows, then scrolls so a large taxonomy never grows the menu off-screen */
 .annotate-recents {
-  flex-basis: 100%;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  align-content: flex-start; /* pack chip rows at the TOP; never stretch them apart */
+  flex: 0 1 auto; /* size to the chips (capped below); do not grow into the free space */
   max-height: 108px;
   overflow-y: auto;
 }
@@ -1550,9 +1558,10 @@ textarea.chapter-latex-src {
 }
 /* the typeahead: the path input plus a suggestion list below it, spanning the menu width */
 .annotate-typeahead {
-  flex-basis: 100%;
   min-width: 0;
   position: relative;
+  margin-top: auto; /* dock the search input to the BOTTOM — the free space of a stretched window
+                       collects above it, so the title/swatches/tags stay packed at the top */
 }
 .annotate-typeahead .annotate-taginput {
   width: 100%;

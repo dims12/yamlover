@@ -134,6 +134,30 @@ describe("faithful-render round-trip (render → reparse → same IR)", () => {
     await roundTrip("crew: !!set\n  - alpha\n  - beta\n");
   });
 
+  it("a chapter's omni chunk and subchapters ride the dash — no bare `-` line", async () => {
+    const text = await roundTrip(
+      "title: Doc\n" +
+        "- the intro chunk\n" +
+        "  yamlover-fragments:\n" +
+        "    s1:\n" +
+        "      exact: intro\n" +
+        "- a plain chunk\n" +
+        "- title: Why\n" +
+        "  - nested a\n" +
+        "  - nested b\n",
+    );
+    expect(text).not.toMatch(/^\s*-\s*$/m); // no dash left dangling on its own line
+    expect(text).toMatch(/^- the intro chunk$/m); // the omni self-value rides the dash
+    expect(text).toMatch(/^- title: Why$/m); // the subchapter's first key rides the dash
+  });
+
+  it("a chunk written as a single-line `- |-` block (what tagging produces) inlines its self-value", async () => {
+    // convertChunkToOmni emits `- |-` (strip) for a one-line chunk → value has no newline → inlines
+    const text = await roundTrip("- |-\n    the tagged chunk\n  yamlover-fragments:\n    s1:\n      exact: tagged\n");
+    expect(text).not.toMatch(/^\s*-\s*$/m);
+    expect(text).toMatch(/^- the tagged chunk$/m);
+  });
+
   // KNOWN GAP (it.fails marks it expected-failing; flip to `it` once fixed). The `&: chief`
   // anchor renders correctly ON boss, but the projection ALSO surfaces the derived root key it
   // creates, as a redundant `chief: :boss` entry (a bare path, not a `*…` pointer). Faithful

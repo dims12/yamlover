@@ -50,6 +50,7 @@ interface Ref {
 interface Mixed {
   kind: "omni" | "mix";
   value?: unknown; // omni: the node's own scalar self-value
+  selfAt?: number; // omni: the self-value's authored display position among `entries` (0/absent → first)
   entries: { key: string | null; value: unknown }[]; // key=null ⇒ positional item, else keyed field
 }
 
@@ -458,7 +459,7 @@ function YamlRoot({ value, indent, ctx, frag }: { value: unknown; indent: number
  *  `frag` is this container's own fragment continuation; each child appends its key/index to it. */
 function YamlBody({ value, indent, ctx, frag, inlineHead = false }: { value: unknown; indent: number; ctx: Ctx; frag: string; inlineHead?: boolean }): ReactNode {
   const mixed = asMixed(value);
-  if (mixed) return <YamlMixed mixed={mixed} indent={indent} ctx={ctx} frag={frag} />;
+  if (mixed) return <YamlMixed mixed={mixed} indent={indent} ctx={ctx} frag={frag} inlineHead={inlineHead} />;
   if (isObj(value)) return <YamlObject entries={Object.entries(value)} indent={indent} ctx={ctx} frag={frag} inlineHead={inlineHead} />;
   return <YamlArray items={value as unknown[]} indent={indent} ctx={ctx} frag={frag} inlineHead={inlineHead} />;
 }
@@ -474,14 +475,19 @@ function YamlArray({ items, indent, ctx, frag, inlineHead = false }: { items: un
 }
 
 /** Whether an array item's container value can render in COMPACT YAML block style — its first
- *  child on the dash's own line (`- name: Rex`). Only a plain object/array whose FIRST child is
- *  itself NOT foldable qualifies: that keeps a single fold chevron per row (no toggle would land on
- *  the shared first line). A mixed/omni node, or one whose first child is foldable, stays on its
- *  own line below the dash. */
+ *  child on the dash's own line (`- name: Rex`, `- title: …`, `- <omni self-value>`). Qualifies
+ *  when the FIRST rendered row is NOT foldable and NOT a big scalar: that keeps a single fold chevron
+ *  per row (no toggle would land on the shared first line). A first child that is foldable or a big
+ *  scalar (multiline text / bytes — it carries its own toggle, which must anchor at row start) stays
+ *  on its own line below the dash. */
 function canInlineAfterDash(v: unknown): boolean {
-  if (asMixed(v)) return false;
-  // a big scalar (multiline text / bytes) first child carries its own fold toggle, which must
-  // anchor at the row start — so it cannot share the dash's line either
+  const mixed = asMixed(v);
+  if (mixed) {
+    // the first rendered row is the self-value (an omni whose self sits first) or entry 0
+    if (mixed.kind === "omni" && (mixed.selfAt ?? 0) === 0) return !bigScalar(mixed.value);
+    const first = mixed.entries[0];
+    return !!first && !foldable(first.value) && !bigScalar(first.value);
+  }
   if (isObj(v)) { const vs = Object.values(v); return vs.length > 0 && !foldable(vs[0]) && !bigScalar(vs[0]); }
   if (Array.isArray(v)) return v.length > 0 && !foldable(v[0]) && !bigScalar(v[0]);
   return false;
@@ -489,34 +495,51 @@ function canInlineAfterDash(v: unknown): boolean {
 
 /** An omni node's own scalar line. A plain scalar renders inline; a BIG one (multiline text /
  *  binary bytes) becomes a foldable `|` / `!!binary` block with its toggle in the row's gutter. */
-function YamlSelfValue({ value, pad, indent, ctx, frag }: { value: unknown; pad: string; indent: number; ctx: Ctx; frag: string }): ReactNode {
+function YamlSelfValue({ value, pad, indent, ctx, frag, noPad = false }: { value: unknown; pad: string; indent: number; ctx: Ctx; frag: string; noPad?: boolean }): ReactNode {
   const [open, setOpen] = useState(true);
   const trail = valueTrailingComment(ctx, frag, "yaml");
-  if (!bigScalar(value)) return <>{pad}{scalarNode(value, "yaml")}{trail}{"\n"}</>;
+  // a FILE-backed omni's self-value is a navigable `< binary >` link (its bytes never inline) — render
+  // it as the link, not a bare scalar (which would print `[object Object]` / drop it)
+  const link = asLink(value);
+  if (link) return <>{noPad ? null : pad}{linkNode(link, "yaml", ctx)}{trail}{"\n"}</>;
+  if (!bigScalar(value)) return <>{noPad ? null : pad}{scalarNode(value, "yaml")}{trail}{"\n"}</>;
   return (
     <>
       <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
-      {pad}
+      {noPad ? null : pad}
       <BigScalarYaml v={asBinary(value) ?? (value as string)} indent={indent + 2} open={open} trail={trail} />
     </>
   );
 }
 
-function YamlMixed({ mixed, indent, ctx, frag }: { mixed: Mixed; indent: number; ctx: Ctx; frag: string }): ReactNode {
+function YamlMixed({ mixed, indent, ctx, frag, inlineHead = false }: { mixed: Mixed; indent: number; ctx: Ctx; frag: string; inlineHead?: boolean }): ReactNode {
   const pad = " ".repeat(indent);
+  // omni: the node's own scalar value renders on its own line at its AUTHORED position among the
+  // entries (`selfAt`; 0/absent → first) — order-preserving, matching the source. A big self-value
+  // — a multiline string, or the BYTES of a blob-backed omni (an image with overlay entries, fetched
+  // ?binary=1) — renders as a foldable block, like a pure binary leaf / any big scalar.
+  const isOmni = mixed.kind === "omni";
+  const selfAt = isOmni ? Math.min(mixed.selfAt ?? 0, mixed.entries.length) : -1;
+  // With `inlineHead` (this node rides a `- `), the FIRST rendered row drops its leading pad: the
+  // self-value if it sits first, otherwise entry 0 (`- <self>` / `- title: …` — canInlineAfterDash).
+  const selfFirst = inlineHead && selfAt === 0;
+  const selfValue = <YamlSelfValue value={mixed.value} pad={pad} indent={indent} ctx={ctx} frag={frag} noPad={selfFirst} />;
   return (
     <>
-      {/* omni: the node's own scalar value on its own line first (`!!var 5` → `5`). A big self-value
-          — a multiline string, or the BYTES of a blob-backed omni (an image with overlay entries,
-          fetched ?binary=1) — renders as a foldable block, like a pure binary leaf / any big scalar. */}
-      {mixed.kind === "omni" && <YamlSelfValue value={mixed.value} pad={pad} indent={indent} ctx={ctx} frag={frag} />}
-      {mixed.entries.map((e, i) =>
-        e.key === null ? (
-          <YamlItem key={i} v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}[${i}]`} />
-        ) : (
-          <YamlEntry key={i} k={e.key} v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}/${e.key}`} />
-        ),
-      )}
+      {mixed.entries.map((e, i) => {
+        const noPad = inlineHead && i === 0 && !selfFirst; // entry 0 rides the dash unless the self does
+        return (
+          <Fragment key={i}>
+            {i === selfAt && selfValue}
+            {e.key === null ? (
+              <YamlItem v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}[${i}]`} noPad={noPad} />
+            ) : (
+              <YamlEntry k={e.key} v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}/${e.key}`} noPad={noPad} />
+            )}
+          </Fragment>
+        );
+      })}
+      {isOmni && selfAt >= mixed.entries.length && selfValue}
     </>
   );
 }

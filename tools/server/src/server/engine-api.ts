@@ -36,13 +36,13 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, loadSettings, ensureSettingsFile, writeSettingKey, mv, relinkMoved, evalQuery } from "../../../engine/ts/src/index.ts";
+import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, loadSettings, ensureSettingsFile, mv, relinkMoved, evalQuery } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { pointerToken } from "../../../parser/ts/src/serialize-yamlover.ts";
 import { renderPointer } from "../../../parser/ts/src/pointer.ts";
 import { anchorBody } from "../../../parser/ts/src/serialize-common.ts";
-import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken } from "./embed.js";
+import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken, appendAnnotationAt, upsertMapEntryAt, removeAnnotationAt, removeMapEntryAt, annotationsRemainAt, reachBodyAt, type Region as EmbedRegion } from "./embed.js";
 import { dataFileConcrete, interiorOf, isDirConcrete } from "../concrete.js";
 import { renderThumbnail } from "./extract/thumbnails.js";
 import { colonSegment } from "../../../parser/ts/src/pointer.ts";
@@ -737,32 +737,6 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Persist the LAST-USED annotation tag (the picker default) into settings.yamlover — a single
-      // surgical line (`annotation-tag: *:: …`) preserving the rest of the config (IMPORTS.md / the
-      // tag is project-scoped, not browser-local). Body: { tag } (a client tag path). Reloads
-      // settings + reindexes the config node. Best-effort: a bad path is a 400, settings untouched.
-      if (req.method === "POST" && url.pathname === "/api/last-tag") {
-        readBody(req)
-          .then((data) =>
-            enqueue(async () => {
-              const tag = String((data as { tag?: unknown })?.tag ?? "").trim();
-              if (!tag) throw new Error("last-tag needs a `tag` path");
-              const segs = strToSegs(tag);
-              if (segs.length === 0 || segs.some((g) => typeof g === "number")) throw new Error(`not a tag node path: ${tag}`);
-              // a PROJECT-scope pointer naming the tag at the project root: `*:: a: b: c`
-              writeSettingKey(dataRoot, "annotation-tag", "*:: " + segs.map((s) => colonSegment(String(s))).join(": "));
-              settings = loadSettings(dataRoot);
-              // announce-only (no full reindex): this fires on every annotation, and the seed is read
-              // live from the file via GET /api/config — the indexed node trues up on the next reconcile.
-              announce({ changed: [relFileOf(":.yamlover:settings.yamlover")] });
-              return { ok: true, annotationTag: settings.annotationTag };
-            }),
-          )
-          .then((body) => sendJson(res, 200, body))
-          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
-        return;
-      }
-
       const segs = strToSegs(url.searchParams.get("path") || ":");
       const p = storePath(segs);
       const depth = parseDepth(url.searchParams.get("depth"));
@@ -1033,7 +1007,13 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
     // a `- item`) or keyed (`key: "scale"` → `scale: …`); an omni also carries its self-value.
     const entries = kids.map((c) => ({ key: c.label, value: project(c) }));
     const marker: Record<string, unknown> = { kind: k, entries };
-    if (k === "omni") marker.value = wireScalar(row.value); // the node's own scalar self-value (the `!!omni 5`)
+    if (k === "omni") {
+      // the node's own scalar self-value (the `!!var 5`); a FILE-backed omni (an image carrying
+      // `yamlover-thumbnails`/annotations) shows its bytes as a navigable `< binary >`, not `null`
+      marker.value = row.type === "blob" ? binaryValueMarker(segs, row) : wireScalar(row.value);
+      // its authored display position among the entries (order-preserving; 0/absent → first)
+      if (typeof row.meta?.selfAt === "number") marker.selfAt = row.meta.selfAt;
+    }
     return { [MIXED_KEY]: marker };
   }
   if (k === "object") {
@@ -1076,20 +1056,17 @@ type CommentBucket = {
   trailing?: string[];
   pointer?: string;      // a ref entry's authored pointer text, canonical colon form (no `*`)
   anchors?: string[];    // the value node's `&` path-anchor bodies (no `&`), source order
-  tag?: string;          // the value node's yamlover type tag (`!!set` / `!!mix` / `!!var`)
+  tag?: string;          // the value node's yamlover type tag — only `!!set` (omni/`!!mix` is default)
   blankBefore?: boolean;  // a blank source line precedes this entry (or its leading comments)
   valueTrailing?: string[]; // a comment trailing the node's own SELF-VALUE line (an omni `5 # …`)
 };
 
-/** The yamlover type tag a node would carry in canonical serialization, or undefined. Mirrors
- *  serialize-yamlover's containerTag + the root `!!var`: `!!set` (set semantics), `!!mix`
- *  (owned keyed AND keyless), `!!var` (a scalar that also carries fields). */
+/** The yamlover type tag a node carries in canonical serialization, or undefined. Mirrors
+ *  serialize-yamlover's `containerTag`: only `!!set` (set semantics). The shape tags `!!mix` (a
+ *  mixed keyed+keyless container) and `!!var` (a scalar-plus-fields) are the DEFAULT — omni-by-
+ *  default (YAMLOVER.md §4) — so they are never shown; an untagged mixture reads back the same. */
 function tagOf(n: IrNode): string | undefined {
-  if (n.meta?.set) return "!!set";
-  const owned = (n.entries ?? []).filter((e) => e.edge !== "back");
-  if (n.kind === "mapping" && owned.some((e) => e.key != null) && owned.some((e) => e.key === null)) return "!!mix";
-  if (n.kind === "scalar" && owned.length > 0) return "!!var";
-  return undefined;
+  return n.meta?.set ? "!!set" : undefined;
 }
 
 /** Syntax decorations of a value node (anchors, type tag, a self-value trailing comment),
@@ -1429,16 +1406,26 @@ function readFragments(s: Store, hostStore: string): { slug: string; node: strin
 }
 
 /** The annotations ON this material: its own whole-node tags, plus each fragment's tags carrying
- *  that fragment's selector + crop (so the client highlights the region and colors by tag). */
+ *  that fragment's selector + crop (so the client highlights the region and colors by tag). Each
+ *  entry carries `node` — the CLIENT path of the node it lives on — so a multi-node page (a chapter
+ *  whose CHUNKS each carry their own fragments, ANNOTATIONS.md §3) can target/highlight per node.
+ *  A chapter also gathers its DIRECT children's fragments (the chunks), one level deep. */
 function annotationsFor(dataRoot: string, s: Store, segs: Seg[]): unknown[] {
   void dataRoot;
   const p = storePath(segs);
   const out: unknown[] = [];
-  for (const a of readAnnotations(s, p)) out.push({ ...a });
-  for (const f of readFragments(s, p)) {
-    for (const a of readAnnotations(s, f.node)) {
-      out.push({ ...a, selector: f.selector, fragmentSlug: f.slug, ...(f.imageUrl ? { imageUrl: f.imageUrl } : {}) });
+  const gather = (hostStore: string, nodeClient: string): void => {
+    for (const a of readAnnotations(s, hostStore)) out.push({ ...a, node: nodeClient });
+    for (const f of readFragments(s, hostStore)) {
+      for (const a of readAnnotations(s, f.node)) {
+        out.push({ ...a, node: nodeClient, selector: f.selector, fragmentSlug: f.slug, ...(f.imageUrl ? { imageUrl: f.imageUrl } : {}) });
+      }
     }
+  };
+  gather(p, segsToStr(segs));
+  for (const c of s.children(p)) {
+    if (isHidden(s, c.to)) continue; // skip the `.yamlover` overlay subtree
+    gather(c.to, segsToStr(storePathToSegs(c.to)));
   }
   return out;
 }
@@ -1587,7 +1574,19 @@ function fragmentBlockLines(slug: string, selector: Record<string, unknown>, ima
 /** Embed a tag application into the target's `yamlover-annotations` array (editing the target's
  *  host body in place — ANNOTATIONS.md). */
 function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): string {
-  const { bodyFile, within } = hostFor(dataRoot, s, strToSegs(a.target || ":"));
+  const segs = strToSegs(a.target || ":");
+  // A tag ON a chunk fragment (`:chapter[k]:yamlover-fragments:<slug>`) descends past a body index:
+  // reach the chunk field-region, then the fragment's own body, and append there.
+  if (isChunkTarget(s, segs)) {
+    const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
+    const { indices, keys } = splitChunkWithin(segs.slice(docSegs.length));
+    const lines = fs.readFileSync(bodyFile, "utf8").replace(/\n$/, "").split("\n");
+    const region = reachBodyAt(lines, chunkFieldRegion(lines, indices, /*ensureOmni*/ true), keys);
+    appendAnnotationAt(lines, region, (indent) => annotationItemLines(a, indent));
+    fs.writeFileSync(bodyFile, lines.join("\n") + "\n");
+    return bodyFile;
+  }
+  const { bodyFile, within } = hostFor(dataRoot, s, segs);
   fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
   fs.writeFileSync(bodyFile, appendAnnotation(src, within, (indent) => annotationItemLines(a, indent)));
@@ -1598,8 +1597,21 @@ function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): string {
  *  write the PNG crop as a sidecar blob the fragment references. Returns its slug + node path. */
 function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: FragmentInput): { slug: string; fragmentPath: string } {
   const segs = strToSegs(f.target || ":");
-  const { bodyFile, within } = hostFor(dataRoot, s, segs);
   const slug = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  // A chunk target (`:chapter[k]`, a positional prose item) can't be reached by the mapping-key
+  // writer — turn the chunk into an omni node and hang `yamlover-fragments:` off it (ANNOTATIONS.md §3).
+  if (isChunkTarget(s, segs)) {
+    const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
+    const { indices, keys } = splitChunkWithin(segs.slice(docSegs.length));
+    if (keys.length) throw new Error("a fragment target must be the chunk itself"); // create hangs off the chunk
+    const lines = fs.readFileSync(bodyFile, "utf8").replace(/\n$/, "").split("\n");
+    assertProseChunk(lines, indices); // reject a `*…` / non-text chunk
+    const region = chunkFieldRegion(lines, indices, /*ensureOmni*/ true); // convert the chunk to an omni node
+    upsertMapEntryAt(lines, region, FRAG_KEY, slug, (indent) => fragmentBlockLines(slug, f.selector, null, indent));
+    fs.writeFileSync(bodyFile, lines.join("\n") + "\n");
+    return { slug, fragmentPath: segsToStr([...segs, FRAG_KEY, slug]) };
+  }
+  const { bodyFile, within } = hostFor(dataRoot, s, segs);
   let imagePtr: string | null = null;
   if (f.imageBase64) {
     const bytes = Buffer.from(String(f.imageBase64).replace(/^data:[^,]*,/, ""), "base64");
@@ -1682,7 +1694,25 @@ async function ensureThumbnail(dataRoot: string, s: Store, mode: SidecarLocation
  *  fragment exists only to carry tags, so a tagless one is dead weight (ANNOTATIONS.md). Sibling
  *  fragments and the host node are untouched. */
 function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: string): string {
-  const { bodyFile, within } = hostFor(dataRoot, s, strToSegs(target || ":"));
+  const segs = strToSegs(target || ":");
+  const needle = (":" + pointerRaw(tag).replace(/^:+/, "")).replace(/\s+/g, "");
+  // A tag ON a chunk fragment: reach the chunk field-region + the fragment's body, drop the tag, and
+  // — when that was its last — drop the emptied slug and collapse the chunk back to a plain block.
+  if (isChunkTarget(s, segs)) {
+    const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
+    if (!fs.existsSync(bodyFile)) return bodyFile;
+    const { indices, keys } = splitChunkWithin(segs.slice(docSegs.length));
+    const lines = fs.readFileSync(bodyFile, "utf8").replace(/\n$/, "").split("\n");
+    const fragRegion = () => reachBodyAt(lines, chunkFieldRegion(lines, indices, /*ensureOmni*/ false), keys);
+    removeAnnotationAt(lines, fragRegion, (t) => t.replace(/\s+/g, "").includes(needle));
+    if (keys.length >= 2 && keys[keys.length - 2] === FRAG_KEY && !annotationsRemainAt(lines, fragRegion())) {
+      removeMapEntryAt(lines, reachBodyAt(lines, chunkFieldRegion(lines, indices, false), keys.slice(0, -2)), FRAG_KEY, keys[keys.length - 1]);
+      collapseChunkOmni(lines, indices); // no fields left → back to a plain `- |` chunk
+    }
+    fs.writeFileSync(bodyFile, lines.join("\n") + "\n");
+    return bodyFile;
+  }
+  const { bodyFile, within } = hostFor(dataRoot, s, segs);
   if (!fs.existsSync(bodyFile)) return bodyFile;
   // Match on the tag's colon-PATH (`:tags:…:name`), tolerating the pointer's spelling: an item may
   // be project-scope (`*::tags:…`), document-scope (`*: tags: …`, spaced), bare or an object form.
@@ -1690,8 +1720,7 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
   // (`*: tags: …`), AND the needle's — a tag NAME with a space is a QUOTED key (`'fifth tag'`), so
   // the stored item reads `'fifthtag'` once stripped; an unstripped needle (`'fifth tag'`) would
   // then never match (every spacey-named tag was undeletable).
-  const needlePath = (":" + pointerRaw(tag).replace(/^:+/, "")).replace(/\s+/g, ""); // :tags:field:'numbertheory'
-  let src = removeAnnotationItem(fs.readFileSync(bodyFile, "utf8"), within, (itemText) => itemText.replace(/\s+/g, "").includes(needlePath));
+  let src = removeAnnotationItem(fs.readFileSync(bodyFile, "utf8"), within, (itemText) => itemText.replace(/\s+/g, "").includes(needle));
   // within = [...host, "yamlover-fragments", "<slug>"] for a fragment target; drop it when emptied.
   if (within.length >= 2 && within[within.length - 2] === FRAG_KEY && !annotationsRemain(src, within)) {
     src = removeMapEntry(src, within.slice(0, -2), FRAG_KEY, within[within.length - 1]);
@@ -2315,6 +2344,101 @@ function assertProseBodyItem(lines: string[], r: Region, rank: number): void {
   if (tag && !/text\/(markdown|marklower|x-latex)/.test(tag)) throw new Error("cannot edit a non-text chunk as text");
 }
 
+// --- chunk fragments (ANNOTATIONS.md §3): a text fragment lives ON the chunk it was drawn in ----- //
+// A chunk that carries a fragment becomes an OMNI node — its prose is a block-scalar self-value and
+// `yamlover-fragments:`/`yamlover-annotations:` are keyed fields. These fields sit at the item's
+// child indent (item-indent + 2); the block-scalar content is pushed one step DEEPER (item-indent +
+// 4) so its dedent to the field level ends the block (YAMLOVER.md §4). Reached by ABSOLUTE index
+// (node-path space — what the fragment target uses), NOT the /api/edit rank space.
+
+/** The absolute-index body item at `indices` (the last descends INTO the item; earlier ones descend
+ *  subchapters), with the parent region that holds it. */
+function reachChapterItem(lines: string[], indices: number[]): { parent: Region; item: ChapterEntry; itemIndent: number } {
+  const parent = reachChapter(lines, indices.slice(0, -1));
+  const idx = indices[indices.length - 1];
+  const item = chapterEntries(lines, parent)[idx];
+  if (!item || item.key !== null) throw new Error(`no chapter body item at [${idx}]`);
+  return { parent, item, itemIndent: parent.indent };
+}
+
+/** True once the item at `[item.start,item.end)` already has keyed fields at `fieldIndent` (an omni
+ *  node) — a `key:` line at exactly that column (its block-scalar content sits deeper). */
+function itemHasFields(lines: string[], item: ChapterEntry, fieldIndent: number): boolean {
+  for (let i = item.start + 1; i < item.end; i++) {
+    if (!isContentLine(lines[i])) continue;
+    const ind = indentOf(lines[i]);
+    if (ind < fieldIndent) break;
+    if (ind === fieldIndent && /^[^\s-][^:]*:(\s|$)/.test(lines[i].trim())) return true;
+  }
+  return false;
+}
+
+/** Rewrite a PLAIN chunk item into an omni node so it can carry fields: push its block-scalar
+ *  content one step deeper (to item-indent + 4), or convert an inline scalar item into a `- |`
+ *  block at that indent. Preserves a leading inline `!!<…>` schema tag. */
+function convertChunkToOmni(lines: string[], item: ChapterEntry, itemIndent: number): void {
+  const head = lines[item.start].slice(itemIndent).replace(/^-\s*/, "");
+  const tagMatch = head.match(/^(!!<[^>]*>)\s*/);
+  const tag = tagMatch ? tagMatch[1] + " " : "";
+  const rest = tagMatch ? head.slice(tagMatch[0].length) : head;
+  if (/^[|>][+-]?\d*$/.test(rest.trim())) {
+    for (let i = item.start + 1; i < item.end; i++) if (lines[i].trim().length) lines[i] = "  " + lines[i]; // +2 → content at itemIndent+4
+    return;
+  }
+  const value = rest.startsWith('"') ? String(JSON.parse(rest)) : rest; // inline scalar → its text
+  const pad = " ".repeat(itemIndent);
+  const chomp = value.endsWith("\n") ? "|" : "|-";
+  const clean = value.endsWith("\n") ? value.slice(0, -1) : value;
+  lines.splice(item.start, item.end - item.start, `${pad}- ${tag}${chomp}`, ...clean.split("\n").map((l) => (l.trim() ? `${pad}    ${l}` : "")));
+}
+
+/** The field-level Region of the chapter body item at absolute `indices` (where `yamlover-fragments:`
+ *  / `yamlover-annotations:` live). With `ensureOmni`, a plain chunk is first converted so it can
+ *  hold fields. Re-scans after conversion, so the returned span is current. */
+function chunkFieldRegion(lines: string[], indices: number[], ensureOmni: boolean): EmbedRegion {
+  const { item, itemIndent } = reachChapterItem(lines, indices);
+  const fieldIndent = itemIndent + 2;
+  if (ensureOmni && !itemHasFields(lines, item, fieldIndent)) convertChunkToOmni(lines, item, itemIndent);
+  const { item: cur } = reachChapterItem(lines, indices); // re-scan: the span may have grown
+  return { lo: cur.start + 1, hi: cur.end, indent: fieldIndent };
+}
+
+/** Once a chunk has no fields left (its last fragment/annotation removed), collapse the omni node
+ *  back to a plain block chunk: re-indent its block-scalar content up by 2 (item-indent+4 → +2). */
+function collapseChunkOmni(lines: string[], indices: number[]): void {
+  const { item, itemIndent } = reachChapterItem(lines, indices);
+  if (itemHasFields(lines, item, itemIndent + 2)) return; // still an omni node — leave it
+  for (let i = item.start + 1; i < item.end; i++) {
+    if (lines[i].trim().length && indentOf(lines[i]) >= itemIndent + 2) lines[i] = lines[i].slice(2);
+  }
+}
+
+/** Refuse to tag the TEXT of a non-prose chunk (a `*…` file/pointer or a non-text schema tag —
+ *  image, diagram): addressed by absolute index. Mirrors {@link assertProseBodyItem}. */
+function assertProseChunk(lines: string[], indices: number[]): void {
+  const { item } = reachChapterItem(lines, indices);
+  const head = lines[item.start].slice(indentOf(lines[item.start])).replace(/^-\s*/, "");
+  if (head.startsWith("*")) throw new Error("cannot tag a file/pointer chunk's text");
+  const tag = head.match(/^!!<([^>]*)>/)?.[1];
+  if (tag && !/text\/(markdown|marklower|x-latex)/.test(tag)) throw new Error("cannot tag a non-text chunk's text");
+}
+
+/** Whether a fragment/annotation `target` addresses a CHAPTER CHUNK — i.e. its path descends into a
+ *  positional body item (a numeric segment past the document root). Such a target can't be reached
+ *  by the mapping-key writer (`hostFor`/`reachBody`); it routes through the chapter editor instead. */
+function isChunkTarget(s: Store, segs: Seg[]): boolean {
+  const within = segs.slice(documentRootSegs(s, segs).length);
+  return within.length > 0 && typeof within[0] === "number";
+}
+
+/** Split a chapter-local `within` into its leading numeric body indices and the trailing mapping
+ *  keys (e.g. `[3, "yamlover-fragments", "slug"]` → `{ indices:[3], keys:["yamlover-fragments","slug"] }`). */
+function splitChunkWithin(within: Seg[]): { indices: number[]; keys: string[] } {
+  let i = 0;
+  while (i < within.length && typeof within[i] === "number") i++;
+  return { indices: within.slice(0, i).map(Number), keys: within.slice(i).map(String) };
+}
+
 /** Apply one surgical edit to a chapter `.yamlover` source, addressed by the leaf's document-relative
  *  path `within`. The leading `[k]` segments (if any) DESCEND into a subchapter by absolute store
  *  index; the trailing addressing is a body RANK. Returns the new source text.
@@ -2507,6 +2631,15 @@ function defaultDepth(s: Store, dataRoot: string, segs: Seg[], row: NodeRow, kin
 /** A `$yamloverRef` marker: a reference shown by its pointer `text`, hyperlinked to `path`. */
 function refMarker(text: string, path: string): Record<string, unknown> {
   return { [REF_KEY]: { text, path } };
+}
+
+/** A blob-backed node's own bytes AS a value slot — a navigable `< binary of N bytes >` link (never
+ *  the raw bytes, which don't sit in the JSON tree). Used for an omni whose self-value is a file
+ *  (an image with `yamlover-thumbnails`/annotations): clicking opens the file, not `null`. */
+function binaryValueMarker(segs: Seg[], row: NodeRow): Record<string, unknown> {
+  const info: Record<string, unknown> = { kind: "binary", type: "blob", path: segsToStr(segs), size: row.size };
+  if (row.format) info.format = row.format;
+  return { [LINK_KEY]: info };
 }
 
 /** A thumbnail box dimension from the query, clamped to a sane range so a request can't ask the

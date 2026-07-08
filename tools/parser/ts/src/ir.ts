@@ -72,6 +72,11 @@ export interface NodeMeta {
   /** A document root's head-of-file banner (the parser's `Document.head`), carried onto the
    *  node when a file/body is assembled into a larger tree so it survives past the parse. */
   head?: Comment[];
+  /** For an OMNI node (a scalar self-value carried alongside `entries`): the display position of
+   *  the self-value line among the entries — the count of entries authored BEFORE it. The value
+   *  itself is positionless data (`entries` keep their own [n] indices), but this preserves where
+   *  the line was written so serialize + the renderer show it in place. Absent ⇒ first (0). */
+  selfAt?: number;
 }
 export interface Span { uri: string; start: number; end: number; }
 

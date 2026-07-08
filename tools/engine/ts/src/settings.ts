@@ -41,11 +41,6 @@ export interface Settings {
    *  `'project'` → the served root's `.yamlover/` (`*::.yamlover:…`). Reading is location-
    *  independent — a sidecar resolves by its pointer wherever it sits. */
   sidecars: SidecarLocation;
-  /** The last-used annotation tag — a project path (`:yamlover:tags:colors:yellow`), authored as a
-   *  pointer `annotation-tag: *:: …` (or `*:::` for an imported tag). Project-scoped (not browser
-   *  localStorage) so the picker's default is shared and always resolves in THIS project. Undefined
-   *  until the first tag is applied. */
-  annotationTag?: string;
 }
 
 export type SidecarLocation = 'per-directory' | 'project';
@@ -56,7 +51,6 @@ export const DEFAULT_SETTINGS: Settings = {
   annotations: ':annotations',
   tags: ':tags',
   sidecars: 'per-directory',
-  annotationTag: undefined,
 };
 
 /** The source written for a fresh `settings.yamlover` (see `ensureSettingsFile`). Authors the
@@ -107,7 +101,6 @@ export function loadSettings(absRoot: string): Settings {
     annotations: locationSetting(valueAt(root, 'annotations'), DEFAULT_SETTINGS.annotations),
     tags: locationSetting(valueAt(root, 'tags'), DEFAULT_SETTINGS.tags),
     sidecars: sidecarLocation(valueAt(root, 'sidecars'), DEFAULT_SETTINGS.sidecars),
-    annotationTag: locationSetting(valueAt(root, 'annotation-tag'), undefined),
   };
 }
 

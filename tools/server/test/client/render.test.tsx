@@ -199,6 +199,23 @@ describe("Render", () => {
     expect(onNav).not.toHaveBeenCalled(); // a local ref scrolls, it does not navigate
   });
 
+  it("renders a file-backed omni's self-value as a navigable `< binary >`, never null", () => {
+    const onNav = vi.fn();
+    render(
+      <Render
+        value={{ $yamloverMixed: { kind: "omni", value: { $yamloverLink: { kind: "binary", type: "blob", path: ":pic.png", size: 1234 } }, entries: [{ key: "yamlover-thumbnails", value: {} }] } }}
+        syntax="yaml"
+        onNavigate={onNav}
+        documentPath=":"
+        nodePath=":pic.png"
+      />,
+    );
+    const link = screen.getByText("< binary of 1234 bytes >"); // NOT "null"
+    expect(link.tagName).toBe("A");
+    fireEvent.click(link);
+    expect(onNav).toHaveBeenCalledWith(":pic.png");
+  });
+
   it("renders an unresolved rel ref as plain text (no link)", () => {
     render(
       <Render
@@ -272,6 +289,35 @@ describe("Render", () => {
     // folding it shows the omni summary
     fireEvent.click(document.querySelector("button.fold-gutter") as HTMLButtonElement);
     expect(screen.getByText("{ variant null + 1 field }")).toBeTruthy();
+  });
+
+  it("renders an omni self-value at its authored position (selfAt) among the entries — order preserved", () => {
+    render(
+      <Render
+        value={{
+          doc: {
+            $yamloverMixed: {
+              kind: "omni",
+              value: "BLOCKVAL",
+              selfAt: 1, // the self-value sits AFTER the first entry, matching the source
+              entries: [
+                { key: null, value: "solid" },
+                { key: null, value: "recommended" },
+                { key: "scale", value: 10 },
+              ],
+            },
+          },
+        }}
+        syntax="yaml"
+        onNavigate={() => {}}
+      />,
+    );
+    const txt = document.body.textContent ?? "";
+    // source order: solid · <self-value> · recommended · scale — the self is NOT hoisted first
+    const iSolid = txt.indexOf("solid"), iSelf = txt.indexOf("BLOCKVAL"), iRec = txt.indexOf("recommended");
+    expect(iSolid).toBeGreaterThanOrEqual(0);
+    expect(iSelf).toBeGreaterThan(iSolid);
+    expect(iRec).toBeGreaterThan(iSelf);
   });
 
   it("keeps a continuation link marker a navigating hyperlink, not a fold toggle", () => {
