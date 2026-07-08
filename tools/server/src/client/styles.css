@@ -658,7 +658,7 @@ body {
 /* --- chapter renderer (x-yamlover-chapter) -------------------------------- */
 .chapter {
   line-height: 1.65;
-  max-width: 70ch;
+  max-width: 72ch; /* fallback; the reading-width control sets it inline (markupWidthCh, see chapter.tsx) */
 }
 .chapter-title {
   font-size: 22px;
@@ -717,21 +717,27 @@ a.chunk-index:hover {
   min-width: 0;
 }
 
-/* --- editing (the unlocked WYSIWYG lock) ---------------------------------- */
-/* the header lock toggle: locked by default, sits at the right of the node bar */
+/* --- editing (the unlocked WYSIWYG toggle) -------------------------------- */
+/* the header edit toggle: read-only by default, LEADS the node bar (left) with an icon + caption */
 .lockbtn {
-  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   background: none;
   border: 1px solid transparent;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 15px;
+  font-family: inherit;
+  font-size: 13px;
   line-height: 1;
-  padding: 3px 6px;
+  padding: 3px 8px;
+  color: var(--fg);
   opacity: 0.65;
 }
+.lockbtn-icon { font-size: 14px; line-height: 1; }
+.lockbtn-label { font-weight: 500; }
 .lockbtn:hover { opacity: 1; background: var(--hover, rgba(127, 127, 127, 0.12)); }
-.lockbtn.unlocked { opacity: 1; border-color: var(--accent); }
+.lockbtn.unlocked { opacity: 1; border-color: var(--accent); color: var(--accent); }
 
 /* an editable field (chunk prose, title, description, subchapter title): a subtle focus affordance */
 .editable {
@@ -1326,6 +1332,25 @@ textarea.chapter-latex-src {
 /* a map embedded inline as a chapter chunk: cap the height so the page stays readable */
 .chunk-body .filemap.chunk-map {
   height: 380px;
+}
+/* a STATIC inline map (a chapter chunk): let clicks fall through to the wrapping open-anchor —
+   the preview has no pan/zoom of its own; interacting means opening it on its own page */
+.filemap.chunk-static {
+  pointer-events: none;
+}
+/* a plain, left-aligned static image chunk in a chapter's flow (no pan/zoom widget) */
+.chunk-image {
+  display: block;
+  max-width: 100%;
+  max-height: 460px;
+  height: auto;
+  border-radius: 6px;
+}
+/* the click-to-open wrapper around an inline image/map chunk */
+.chunk-open {
+  display: block;
+  cursor: zoom-in;
+  border-bottom-width: 0;
 }
 /* the floating menu raised by a text selection: a color palette + copy + cancel */
 .annotate-menu {

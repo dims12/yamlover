@@ -3,6 +3,7 @@ import { isDirConcrete, isJsonFamily, isYamlFamily, isFileConcrete } from "../..
 import { scalarValue } from "../render";
 import { NodeJson, TreeNode } from "../api";
 import { ChapterView } from "./chapter";
+import { isSubchapter } from "./chapter-model";
 import { TaskView } from "./task";
 import { SettingsView } from "./settings";
 import { TextView, TextChunk } from "./text";
@@ -204,21 +205,23 @@ const REGISTRY: Renderer[] = [
     icon: "§",
     accepts: byFormat("x-yamlover-chapter"),
     specificity: 2,
-    depth: 2, // reach the chunk/subchapter elements (arrays one level, items the next)
+    depth: 1, // the body elements are the chapter's own children now → one level reaches them as link markers
     tocView: chapterTocView,
     render: (node, onNavigate) => <ChapterView node={node} onNavigate={onNavigate} />,
+    config: (rerender) => <MarkupWidthControl rerender={rerender} />, // reading width, shared with markdown/asciidoc
   },
   {
-    // A task / ticket (TICKETS.md): a chapter body (title/chunks/subtask children) plus a planning
-    // strip; its lifecycle state is a tag application. Same TOC shape as a chapter (subtasks live
-    // under `children`); needs depth 2 to reach the chunk/child + annotation elements.
+    // A task / ticket (TICKETS.md): a chapter body (title + interleaved chunks/subtasks) plus a
+    // planning strip; its lifecycle state is a tag application. Same TOC shape as a chapter (subtasks
+    // are the subchapter-format body elements); depth 1 reaches the body elements as link markers.
     name: "task",
     icon: "☑",
     accepts: byFormat("x-yamlover-task"),
     specificity: 2,
-    depth: 2,
+    depth: 1,
     tocView: chapterTocView,
     render: (node, onNavigate) => <TaskView node={node} onNavigate={onNavigate} />,
+    config: (rerender) => <MarkupWidthControl rerender={rerender} />, // reading width, shared with markdown/asciidoc
   },
   {
     // Our default for a bare, format-less string: marklower, a markup language a
@@ -317,7 +320,7 @@ const REGISTRY: Renderer[] = [
     accepts: byFormat("application/vnd.google-earth.kml+xml", "application/vnd.google-earth.kmz"),
     specificity: 2,
     render: (node) => lazily(<MapView node={node} />),
-    renderChunk: (chunk) => lazily(<MapChunk chunk={chunk} />),
+    renderChunk: (chunk, onNavigate) => lazily(<MapChunk chunk={chunk} onNavigate={onNavigate} />),
   },
   {
     // LaTeX math (a string) typeset with KaTeX, both whole and inline. marklower
@@ -347,7 +350,7 @@ const REGISTRY: Renderer[] = [
     accepts: byFormat("image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "image/bmp", "image/x-icon", "image/svg+xml"),
     specificity: 2,
     render: (node) => lazily(<ImageView node={node} />),
-    renderChunk: (chunk) => lazily(<ImageChunk chunk={chunk} />),
+    renderChunk: (chunk, onNavigate) => lazily(<ImageChunk chunk={chunk} onNavigate={onNavigate} />),
   },
   {
     name: "html",
@@ -395,7 +398,7 @@ const REGISTRY: Renderer[] = [
     accepts: byFormat("image/vnd.adobe.photoshop"),
     specificity: 2,
     render: (node) => lazily(<PsdView node={node} />),
-    renderChunk: (chunk) => lazily(<PsdView node={chunkNode(chunk)} />),
+    renderChunk: (chunk, onNavigate) => lazily(<PsdView node={chunkNode(chunk)} chunk={{ onNavigate }} />),
   },
   {
     name: "tiff",
@@ -403,7 +406,7 @@ const REGISTRY: Renderer[] = [
     accepts: byFormat("image/tiff"),
     specificity: 2,
     render: (node) => lazily(<TiffView node={node} />),
-    renderChunk: (chunk) => lazily(<TiffView node={chunkNode(chunk)} />),
+    renderChunk: (chunk, onNavigate) => lazily(<TiffView node={chunkNode(chunk)} chunk={{ onNavigate }} />),
   },
   {
     name: "heic",
@@ -411,40 +414,23 @@ const REGISTRY: Renderer[] = [
     accepts: byFormat("image/heic"),
     specificity: 2,
     render: (node) => lazily(<HeicView node={node} />),
-    renderChunk: (chunk) => lazily(<HeicView node={chunkNode(chunk)} />),
+    renderChunk: (chunk, onNavigate) => lazily(<HeicView node={chunkNode(chunk)} chunk={{ onNavigate }} />),
   },
 ];
 
-/** The last path segment (a property key or `[index]`) of a colon-form client path. */
-function basename(path: string): string {
-  const i = path.lastIndexOf(":");
-  return i < 0 ? path : path.slice(i + 1);
-}
-
-/** A chapter's TOC view: its subchapters (the items of its `children` array)
- *  surfaced directly, with its `chunks` kept off the tree. The `children` wrapper
- *  sits one level below the chapter, so its items are loaded one level deeper —
- *  expandability follows the wrapper's own `hasChildren`. */
+/** A chapter's TOC view: its subchapters — the body elements whose (type, format) is a nested
+ *  chapter/subtask — surfaced directly, with prose chunks kept off the tree. Subchapters are now
+ *  DIRECT children of the chapter (no `children` wrapper), so revealing them costs a single level.
+ *  We fetch one more (→ each subchapter's own body) so a revealed subchapter's chevron is decided
+ *  from its real subchapter list, not the generic `hasChildren` hint (always true for a chapter —
+ *  it has a body). Hence loadDepth 2, so a chunks-only chapter shows no chevron once loaded. */
 function chapterTocView(node: TreeNode): TocView {
-  // Subchapters live under the `children` wrapper, one level below the chapter, so
-  // revealing them costs a level (chapter → children → subchapters). We fetch one
-  // more (→ each subchapter's own `children` wrapper) so a revealed subchapter's
-  // chevron is decided from its real subchapter list, not the generic `hasChildren`
-  // hint (which is always true for a chapter — it has `chunks`/`children` arrays).
-  // Hence 3, so a childless chapter (only chunks) shows no chevron from the start.
-  const wrap = node.children.find((c) => basename(c.path) === "children");
-  if (!wrap) {
+  if (node.children.length === 0) {
     // the chapter itself is not loaded yet — defer to the server's hint
-    return { children: [], expandable: node.hasChildren, loaded: node.children.length > 0, loadDepth: 3 };
+    return { children: [], expandable: node.hasChildren, loaded: false, loadDepth: 2 };
   }
-  // expandable iff the `children` wrapper actually holds subchapters (chunks-only
-  // chapters have an empty wrapper → no chevron)
-  return {
-    children: wrap.children,
-    expandable: wrap.hasChildren,
-    loaded: wrap.children.length > 0 || !wrap.hasChildren,
-    loadDepth: 3,
-  };
+  const subs = node.children.filter((c) => isSubchapter(c.format));
+  return { children: subs, expandable: subs.length > 0, loaded: true, loadDepth: 2 };
 }
 
 /** The renderer that claims `src`'s facets, or null when none does: of the matchers that accept

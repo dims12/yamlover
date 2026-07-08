@@ -758,27 +758,61 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     return !!s && !isPointer(s) && s.kind === 'mapping' && !!field(s, 'format');
   };
 
+  // resolve a `*…/$defs/<name>` pointer (or a plain schema Node) to {name, node}
+  const resolveSchema = (v: Value): { name: string | null; node: Node | null } => {
+    if (isPointer(v)) {
+      const last = v.steps[v.steps.length - 1];
+      const nm = last?.sel === 'key' ? last.name : null;
+      return { name: nm, node: nm ? loadDef(nm) : null };
+    }
+    return { name: null, node: v };
+  };
+  // A schema branch is a CONTAINER (chapter/task-like) if it exercises the keyed or ordinal
+  // facet (or extends one via `allOf`); else it is a LEAF (chunk-like scalar/binary). Used to
+  // pick an `anyOf` element branch structurally — a mapping element ⇒ container, else ⇒ leaf.
+  const isContainerSchema = (n: Node): boolean =>
+    !!field(n, 'properties') || !!field(n, 'items') || !!field(n, 'allOf') ||
+    ['object', 'variant', 'mixed', 'array'].includes(str(n, 'type') ?? '');
+  const elemIsContainer = (el: Node): boolean => el.kind === 'mapping';
+
+  // propagate an `items` schema to the POSITIONAL (keyless) elements of `inst`. `items` may be
+  // a single schema (pointer or literal) — applied to every element — or an `anyOf` union, where
+  // each element is routed to the branch whose shape matches it (container ↔ mapping element).
+  const applyItems = (inst: Node, items: Value, depth: number): void => {
+    const { node: itemsNode } = resolveSchema(items);
+    const anyOf = itemsNode ? field(itemsNode, 'anyOf') : null;
+    const elems = (inst.entries ?? []).filter((e) => e.key == null && !isPointer(e.value));
+    if (anyOf && !isPointer(anyOf) && anyOf.entries) {
+      const branches = anyOf.entries
+        .map((e) => e.value)
+        .map((b) => ({ ptr: b as Value, ...resolveSchema(b) }));
+      for (const e of elems) {
+        const want = elemIsContainer(e.value as Node);
+        const pick = branches.find((b) => b.node && isContainerSchema(b.node) === want) ?? branches[0];
+        if (pick) apply(e.value as Node, pick.ptr, depth + 1);
+      }
+    } else {
+      for (const e of elems) apply(e.value as Node, items, depth + 1);
+    }
+  };
+
   const apply = (inst: Node, schema: Value, depth: number): void => {
     if (depth > 64 || isPointer(inst)) return;
     // resolve a pointer schema (`*…/$defs/<name>`) to the hosted schema node
-    let name: string | null = null;
-    let s: Node | null;
-    if (isPointer(schema)) {
-      const last = schema.steps[schema.steps.length - 1];
-      name = last?.sel === 'key' ? last.name : null;
-      s = name ? loadDef(name) : null;
-    } else s = schema;
+    const { name, node: s } = resolveSchema(schema);
     if (!s || isPointer(s)) return;
-    // attach this node's derived (type, format): an explicit schema `format`, else an
-    // object schema hosted as `$defs/<name>` → `x-yamlover-<name>` (chapter, tag, …).
-    const fmt = str(s, 'format') ?? (name && str(s, 'type') === 'object' ? `x-yamlover-${name}` : null);
+    // attach this node's derived (type, format): an explicit schema `format`, else an object /
+    // variant / mixed schema hosted as `$defs/<name>` → `x-yamlover-<name>` (chapter, task, tag, …).
+    const stype = str(s, 'type');
+    const named = name && (stype === 'object' || stype === 'variant' || stype === 'mixed' || !!field(s, 'allOf'));
+    const fmt = str(s, 'format') ?? (named ? `x-yamlover-${name}` : null);
     if (fmt && !hasFormat(inst)) inst.meta = { ...inst.meta, schema: inlineFormat(fmt) };
     // recurse structurally — `variant`/`mixed` carry keyed fields exactly like `object`
     // (META.md vocabulary: variant = !!var, mixed = !!mix), so `properties`/
     // `additionalProperties` propagate through them too (e.g. a tag taxonomy whose tags
-    // hold their description as a BODY still tags every sub-tag).
-    const stype = str(s, 'type');
-    if (stype === 'object' || stype === 'variant' || stype === 'mixed') {
+    // hold their description as a BODY still tags every sub-tag). A `variant`/`mixed` node ALSO
+    // carries a positional body on the ordinal facet, so `items` propagates alongside them.
+    if (stype === 'object' || stype === 'variant' || stype === 'mixed' || stype === 'array' || field(s, 'items')) {
       const props = field(s, 'properties');
       const addl = field(s, 'additionalProperties'); // a schema for keys not in `properties`
       for (const e of inst.entries ?? []) {
@@ -793,9 +827,18 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
         const sub = declared ?? addl; // a declared property wins, else additionalProperties
         if (sub) apply(e.value, sub, depth + 1);
       }
-    } else if (stype === 'array') {
+      // the ordinal facet: propagate `items` (single or `anyOf` union) to the positional body.
+      // Run the node's OWN `items` before any inherited (`allOf`) `items` so a narrowing subtype
+      // (e.g. task's `task|chunk` body) wins over the inherited (`chapter|chunk`) body.
       const items = field(s, 'items');
-      if (items) for (const e of inst.entries ?? []) if (!isPointer(e.value)) apply(e.value, items, depth + 1);
+      if (items) applyItems(inst, items, depth);
+    }
+    // `allOf` extension (task IS-A chapter): apply each supertype branch too, so inherited
+    // `properties`/`items` propagate. Own facets already ran, and format/format-bearing children
+    // are guarded (`hasFormat`), so the supertype fills only what the subtype left open.
+    const allOf = field(s, 'allOf');
+    if (allOf && !isPointer(allOf) && allOf.entries) {
+      for (const b of allOf.entries) apply(inst, b.value, depth + 1);
     }
   };
 
@@ -847,17 +890,22 @@ function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
     return { kind: 'mapping', entries: ordered, array: true, meta };
   }
 
-  // a mapping body: ADD overlay-only keys; for a key that matches a dir child, the overlay
-  // AUGMENTS it (YAMLOVER.md §5) — e.g. a file blob + body title/tags ⇒ an omni-blob (a blob
-  // that carries members), not a replacement.
-  const merged = new Map(node.entries.map((e) => [e.key, e] as const));
-  const order: (string | null)[] = node.entries.map((e) => e.key);
+  // a mapping (or MIXED) body: ADD overlay-only keys; for a KEYED key that matches a dir child,
+  // the overlay AUGMENTS it (YAMLOVER.md §5) — e.g. a file blob + body title/tags ⇒ an omni-blob.
+  // KEYLESS (positional) body entries are inline body content (a chapter's chunks/subchapters) and
+  // are always APPENDED as distinct entries — they must NOT be merged by key (all share `null`).
+  const keyed = new Map<string | null, Entry>(node.entries.filter((e) => e.key != null).map((e) => [e.key, e] as const));
+  const entries: Entry[] = [...node.entries]; // dir children first, in filesystem order
   for (const e of bodyEntries) {
-    const existing = merged.get(e.key);
-    if (!existing) { order.push(e.key); merged.set(e.key, e); }
-    else merged.set(e.key, augmentEntry(existing, e));
+    if (e.key == null) { entries.push(e); continue; } // positional body content — a distinct entry
+    const existing = keyed.get(e.key);
+    if (!existing) { keyed.set(e.key, e); entries.push(e); }
+    else {
+      const aug = augmentEntry(existing, e);
+      keyed.set(e.key, aug);
+      entries[entries.indexOf(existing)] = aug;
+    }
   }
-  const entries = order.map((k) => merged.get(k)!);
   // a scalar body root → the directory node carries that scalar as its own value (omni)
   if (body.kind === 'scalar') return { kind: 'scalar', value: body.value, raw: body.raw, entries, array: false, meta };
   return { kind: 'mapping', entries, array: false, meta };

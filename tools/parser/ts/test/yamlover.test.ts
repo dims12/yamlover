@@ -168,7 +168,11 @@ test('inline schema tag !!<format: …> attaches an inline schema Node (not a po
 test('parses examples/60-simple-chapter.yamlover (tagged file)', () => {
   const d = parseYamlover(readFileSync(join(examples, '60-simple-chapter.yamlover'), 'utf8'), '60');
   assert.ok(asMap(d.root).meta?.schema, 'root tagged with chapter schema');
-  assert.deepEqual(asMap(d.root).entries.map((e) => e.key), ['title', 'chunks', 'children']);
+  // an omni chapter: a keyed `title`, then a POSITIONAL body (chunks + subchapters), all keyless
+  const keys = asMap(d.root).entries.map((e) => e.key);
+  assert.equal(keys[0], 'title');
+  assert.ok(keys.slice(1).every((k) => k === null), 'the body elements are keyless (positional)');
+  assert.equal(keys.length, 6); // title + 3 prose chunks + 2 subchapters
 });
 
 test('parses examples/05-tour.yaml (YAML anchors/aliases)', () => {

@@ -9,6 +9,13 @@
 - If I open URL, TOC is not updated; navigating links also don't update +DONE
 - Reformat representation buttons yaml/json schema/instance
 - Binary icon should be 0110 in a square +DONE
+- Support configurable depth for json/json5p/yaml/yamlover renderers
+- Support configurable depth for chapter renderers
+- When images, maps etc are inside chapters, not need to complex leaflet controls +DONE (inline chapter chunks render a STATIC preview — EVERY image, native (png/jpeg/…) and decoded (TIFF/HEIC/PSD), goes through ONE shared `StaticImageChunk` (imagemap.tsx): a plain `<img class=chunk-image>`, no Leaflet; the decoded pipeline `DecodedImageView` (decoded.tsx) takes a `chunk` mode and picks static-vs-`PanZoomImage` the same way the native `ImageChunk`/`ImageView` split does. A map is a non-interactive Leaflet map (no drag/zoom/zoomControl/popups, gestures unwired). All wrap in a click-to-open anchor (openable.tsx `OpenChunk`) that SPA-navigates to the resource's own page, where the full pan/zoom viewer lives)
+- Tag picker: autocomplete over indexed tags (the path input + bare-name create-on-miss exist; search/completion doesn't — the evaluator is LIVE now: wire the picker to `GET /api/query` with `:: ...: !!<format: x-yamlover-tag>`-style queries)
+- ~~Ctrl-PgDn and Ctrl-PgUp to switch to next element in the viewer~~ — DONE as Ctrl/Alt + Down/Up (Ctrl+PgDn/PgUp is a browser tab shortcut; Alt aliases Ctrl for macOS Mission Control): steps the selection through the TOC in document order (App.tsx `flattenToc` + global keydown)
+- ~~Once LHS TOC entry clicked, focus should go to RHS~~ — DONE: tree click navigates and focuses the RHS pane (App.tsx `selectFromToc`, `<main tabIndex={-1}>`)
+- KML+KMZ render as XML or plaintext
 - 001 PDFs/MDs are too wide; limit right margin +DONE
 - 002 no indication on PDF load +DONE
 - 003 PDF icon should be normal PDF icon +DONE
@@ -32,3 +39,4 @@
 - 021 Chunks has slash http://10.9.0.2:5173/73-dev-board/add-board-view.yamlover?format=tag-board#/chunks[1]   but fragments havent' http://10.9.0.2:5173/72-images/eiffel-tower/IMG_20120725_182044.jpg?format=large-icons#yamlover-fragments/mqee46pt-m1wdko +DONE (fragmentAnchorId now keeps the leading `/` → `#/yamlover-fragments/<slug>`, mirroring chunk anchors)
 - 022 Table columns are rendered very narrow in MD even if the page width increased, for example http://10.9.0.2:5173/README.md?format=markdown +DONE (GitHub-style `.markup table` layout — `width: max-content` capped at `max-width: 100%` with overflow-x scroll; cells reset the body's `word-break: break-word`, which was what crushed squeezed columns; borders/zebra mirror `.csv-table`)
 - 023 Fragment deletion buttons in image renderer should be trashcan icons, not crosses
+- 024 Fragment part in URL should update on scroll where possible (in texts)

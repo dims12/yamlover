@@ -171,7 +171,7 @@ Registered today (a representative slice — the registry is the source of truth
 
 | renderer | matches (format) | draws with |
 |----------|------------------|------------|
-| `chapter` | `x-yamlover-chapter` | numbered chunks + subchapter links |
+| `chapter` | `x-yamlover-chapter` | a positional body: numbered chunks + subchapter links |
 | `tag` / `board` | `x-yamlover-tag` / `x-yamlover-board` | tag-hierarchy diagram / board (handled outside the specificity loop) |
 | `task` | `x-yamlover-task` | task view |
 | `markdown` / `marklower` | `text/markdown` | [marked](https://marked.js.org) |

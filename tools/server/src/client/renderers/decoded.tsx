@@ -1,23 +1,34 @@
 import { useEffect, useState } from "react";
 import { NodeJson, blobUrl } from "../api";
-import { PanZoomImage } from "./imagemap";
+import { PanZoomImage, StaticImageChunk } from "./imagemap";
+
+/** Inline-chunk mode for a decoded image: render its pages STATIC (no pan/zoom) with a click that
+ *  opens the resource on its own page — the same treatment a native image chunk gets. Absent → the
+ *  standalone page, where each page is a pan/zoom viewer. */
+export interface ChunkMode {
+  onNavigate?: (path: string) => void;
+}
 
 /**
  * Shared scaffold for the file formats the browser cannot display natively but
  * that we can decode client-side to ordinary raster images (PSD, TIFF, HEIC).
  * It fetches the node's bytes from `/api/blob`, hands them to a format-specific
- * `decode` that returns one PNG `Blob` per page, and shows each in the same
- * pan/zoom viewer as a native image (each decoded page is its own object-URL).
- * Object-URLs are revoked on unmount / path change so decoded pages don't leak.
+ * `decode` that returns one PNG `Blob` per page, and shows each — as a pan/zoom
+ * viewer on the standalone page, or (when `chunk` is set) as a plain static image
+ * in a chapter's flow, the SAME interactive-vs-static split native images use
+ * (imagemap.tsx). Each decoded page is its own object-URL, revoked on unmount /
+ * path change so decoded pages don't leak.
  */
 export function DecodedImageView({
   node,
   label,
   decode,
+  chunk,
 }: {
   node: NodeJson;
   label: string;
   decode: (buf: ArrayBuffer) => Promise<Blob[]>;
+  chunk?: ChunkMode;
 }) {
   const [urls, setUrls] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -44,9 +55,13 @@ export function DecodedImageView({
   if (!urls.length) return <div className="loading">decoding {label}…</div>;
   return (
     <>
-      {urls.map((url, i) => (
-        <PanZoomImage key={i} src={url} className="filemap fileimagemap" />
-      ))}
+      {urls.map((url, i) =>
+        chunk ? (
+          <StaticImageChunk key={i} src={url} path={node.path} onNavigate={chunk.onNavigate} />
+        ) : (
+          <PanZoomImage key={i} src={url} className="filemap fileimagemap" />
+        ),
+      )}
     </>
   );
 }

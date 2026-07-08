@@ -1,9 +1,17 @@
-# $defs/chapter — a document node: a title, a body of chunks, and recursive subchapters.
+# $defs/chapter — a document node: an OMNI node with optional title/description and a
+# positional body. The body is a plain sequence of unkeyed elements, read top to bottom;
+# each element is EITHER a nested chapter (the recursion) OR a chunk (a renderable block).
 #
-# This replaces the old split (title from the schema concrete, chunks from the instance):
-# it is a normal schema with `title`, `chunks`, and `children` fields. Attach it to a
-# yamlover node with the tag  !!<*yamlover/$defs/chapter>.
-type: object
+# There is no `chunks` array and no `children` array — prose, media, diagrams, and
+# subchapters are siblings in ONE ordered stream. Attach it to a yamlover node with the
+# tag  !!<*yamlover/$defs/chapter>.  Spec: ../CHAPTER.md, ../META.md.
+#
+# `type: variant` is the omni node: keyed fields (title/description) AND positional
+# elements (the body) at once. The body element type is a union — a chapter OR a chunk;
+# the two are told apart structurally (a chapter is a container, a chunk is a leaf).
+# NOTE: `properties` (keyed) + `items` (ordinal) is the JSON-Schema encoding of an omni
+# node's two facets; META.md §Vocabulary proposes a native `elements`/`additionalElements`.
+type: variant
 properties:
   title:
     type: string
@@ -11,9 +19,7 @@ properties:
   description:                     # optional subtitle / heading annotation
     type: string
     format: text/marklower
-  chunks:                          # the body — a sequence of chunks, read top to bottom
-    type: array
-    items: *:: yamlover: $defs: chunk
-  children:                        # subchapters — the recursion
-    type: array
-    items: *:: yamlover: $defs: chapter
+items:                             # the body — a positional sequence, read top to bottom
+  anyOf:
+    - *:: yamlover: $defs: chapter   # a nested subchapter (the recursion) — a container
+    - *:: yamlover: $defs: chunk     # a content block — a leaf

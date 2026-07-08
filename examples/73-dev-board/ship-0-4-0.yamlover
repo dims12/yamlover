@@ -1,20 +1,16 @@
-# A task with SUBTASKS — `children` is the task tree (each child is itself a $defs:task).
+# A task with SUBTASKS — a subtask is a positional body element that is itself a $defs:task
+# (the task tree, the recursion), interleaved with the task's own chunks.
 !!<*yamlover:$defs:task>
 title: Ship yamlover 0.4.0
 description: Cut the 0.4.0 release once the board feature lands.
 priority: high
 assignee: dims
-chunks:
 - The release bundles the tickets feature, the parser split, and the thumbnail fixes.
-children:
 - title: Tag the release commit
-  chunks:
   - Bump the version in the workspace and server package.json.
 - title: Publish to npm + Nexus
-  chunks:
   - The dual CI on version bump handles GitHub→npmjs (OIDC) and Forgejo→Nexus.
 - title: Write the announcement
-  chunks:
   - A short note covering tasks/boards and the colon-grammar migration.
 yamlover-annotations:
 - *::yamlover:tags:workflow:dev:done

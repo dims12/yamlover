@@ -11,8 +11,9 @@ import { Seg, strToSegs, segsToStr } from "../paths";
  *      so it lives here rather than in the repo's `settings.yamlover`);
  *   3. the built-in 72ch fallback.
  * Setting the width writes both the URL (shareable) and localStorage (sticky). The control lives
- * in the tab bar next to the renderer button (see NodeView), not in the body. Chapter *chunks*
- * render plain `.markup`, unaffected.
+ * in the tab bar next to the renderer button (see NodeView), not in the body. The chapter renderer
+ * reuses the same measure — its `config` control is this one, and `markupWidthCh()` caps the
+ * `.chapter` page — so a reader's chosen width carries across markdown, asciidoc, and chapters alike.
  */
 
 /** A URL that is already absolute and must be left untouched: it carries a scheme

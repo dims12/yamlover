@@ -56,15 +56,20 @@ as package data, so even a detached tree resolves it (the self-import is bundled
 IMPORTS.md §4):
 
 - **`$defs/chunk`** — one renderable content block: a typed value whose `(type, format)`
-  selects the renderer; default `string`/`text/markdown` (prose), overridable per chunk.
-- **`$defs/chapter`** — a document node: `title`, `chunks` (a sequence of `chunk`s — the
-  body, read top to bottom) and `children` (a sequence of `chapter`s — the recursion).
-  Inter-schema references use `*` pointers (`items: *//yamlover/$defs/chunk` — link scope,
-  since each schema file is a document of its own), not `$ref`.
+  selects the renderer; default `string`/`text/marklower` (prose), overridable per chunk;
+  `type: [string, binary]` so an image/pdf/… pointer chunk fits too.
+- **`$defs/chapter`** — a document node, an **omni (`variant`)** shape: optional keyed `title`
+  and `description`, then a **positional body** whose elements are each *either* a nested
+  chapter (the recursion) *or* a chunk — one interleaved stream, read top to bottom (no
+  `chunks`/`children` arrays). The body element type is a **union**,
+  `items: {anyOf: [*chapter, *chunk]}`. Inter-schema references use `*` pointers, not `$ref`.
+  Full model: **`CHAPTER.md`**.
 
-This **replaces the old chapter encoding** (title from the schema concrete, chunks from the
-instance): a `chapter` is now a normal schema with `title`/`chunks`/`children`, attachable
-inline (`60-simple-chapter.yamlover`) or via a directory overlay.
+This **replaces the old chapter encoding** (title/description + two keyed arrays `chunks` and
+`children`): a `chapter` is now an omni node with `title`/`description` + a positional
+`anyOf[chapter, chunk]` body, attachable inline (`60-simple-chapter.yamlover`) or via a
+directory overlay. **`$defs/task`** (TICKETS.md) EXTENDS it with `allOf: [*chapter]` — the
+(provisional) JSON-Schema mechanism for "a task IS-A chapter plus planning fields".
 
 ## Settings — project configuration (`settings.yamlover`)
 
@@ -143,6 +148,25 @@ yamlover specifics:
   `$defs`) key and are referenced with a normal pointer — `*/$defs/box` (document root) —
   so there is **one** reference mechanism across yamlover (`URIs.md`), not a second
   JSON-Pointer dialect.
+- **Combinators** (`anyOf`, `oneOf`, `allOf`, `not`, `type: [ … ]`) are kept from JSON Schema
+  (TYPES.md §7): union/intersection/negation of subschemas. Two current uses worth naming:
+  `items: {anyOf: [*chapter, *chunk]}` gives a container a **heterogeneous positional body**
+  (CHAPTER.md), and `allOf: [*chapter]` is the (provisional) way to say a schema **extends**
+  another (`$defs/task` IS-A `$defs/chapter`, TICKETS.md). The engine's schema propagation
+  understands both.
+
+### Describing an omni node's entries — `properties` + `items` today, `elements` (proposed)
+
+An **omni** node (`variant`/`mixed`) has ONE ordered entry stream where an entry may be *keyed
+or unkeyed* — and, in the general model, even both (a key **and** an ordinal index). JSON Schema
+splits this into `properties`/`additionalProperties` (the **keyed** facet) and
+`prefixItems`/`items` (the **ordinal**, keyless facet), so no single keyword describes the omni
+stream. **For now the schemas use that JSON-Schema encoding** — e.g. a chapter is `properties:`
+(title/description) alongside `items:` (the body). **Proposed** (provisional — "we'll see", not
+yet adopted): a native pair **`elements` / `additionalElements`** — the ordinal analogue of
+`properties`/`additionalProperties` — that describes the ordered entry stream regardless of
+whether each element carries a key. Under it a chapter's body reads naturally as
+`additionalElements: {anyOf: [chapter, chunk]}`. Not used in any schema or the engine this pass.
 
 ## Built-in schemas: tags and annotations
 

@@ -292,9 +292,9 @@ export function pasteRich(target: string, rich: unknown): Promise<PasteResult> {
 /** One surgical chapter edit (the unlocked WYSIWYG editor's background sync). `path` is the leaf's
  *  node path; the server routes each edit to its own backing file:
  *   - `op:"set"`     — a `…:title` / `…:description` scalar to `text`;
- *   - `op:"replace"` — the prose chunk at `…:chunks[i]` with `text`;
- *   - `op:"insert"`  — a new chunk into `…:chunks` at position `index` (`text` may be "");
- *   - `op:"remove"`  — the chunk at `…:chunks[i]`.
+ *   - `op:"replace"` — the prose chunk at body rank `…[rank]` with `text`;
+ *   - `op:"insert"`  — a new chunk into the chapter at body rank `index` (`text` may be "");
+ *   - `op:"remove"`  — the body element at `…[rank]`.
  *  Only prose chunks (marklower / markdown) are text-editable — a file/pointer or non-prose chunk 400s. */
 export interface ChapterEdit {
   path: string;

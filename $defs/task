@@ -1,24 +1,23 @@
-# $defs/task — a unit of work (a ticket), or a study card. A task IS a chapter (it has a
-# `title`, an optional `description`, a body of `chunks`, and recursive `children` — which here
-# mean SUBTASKS, a task tree) PLUS a few OPTIONAL structured fields for planning and automation.
+# $defs/task — a unit of work (a ticket), or a study card. A task IS-A chapter: it EXTENDS
+# the chapter schema (`allOf: [*chapter]`), inheriting the optional `title`/`description`
+# and the OMNI positional body — except its subchapter recursion means SUBTASKS (a task
+# tree). On top of that it adds a few OPTIONAL structured fields for planning and automation.
 # It carries NO `state` field: a task's lifecycle position is a TAG APPLICATION
 # (`yamlover-annotations`) into a workflow taxonomy ($defs/workflow), so the whole tag / board
 # machinery is reused. Every planning field is optional — defaults-never-constraints: an
 # untouched task is just a titled note. Attach with  !!<*yamlover:$defs:task>.  Spec: ../TICKETS.md.
-type: object
+#
+# `allOf: [*chapter]` is the (provisional) JSON-Schema way to say "a task is a chapter plus
+# more". Because task ⊆ chapter, narrowing the body union to (task | chunk) below intersects
+# with chapter's (chapter | chunk) to exactly (task | chunk) — subtasks, not subchapters.
+allOf:
+  - *:: yamlover: $defs: chapter
+type: variant
+items:                             # the body — SUBTASKS (the recursion) and chunks, interleaved
+  anyOf:
+    - *:: yamlover: $defs: task      # a subtask — the task tree
+    - *:: yamlover: $defs: chunk     # a content block
 properties:
-  title:
-    type: string
-    format: text/marklower
-  description:                     # optional subtitle / brief
-    type: string
-    format: text/marklower
-  chunks:                          # the body — a sequence of chunks, read top to bottom
-    type: array
-    items: *:: yamlover: $defs: chunk
-  children:                        # SUBTASKS — the task tree (the recursion)
-    type: array
-    items: *:: yamlover: $defs: task
   priority:                        # free ordinal: low | normal | high | urgent (advisory)
     type: string
   due:

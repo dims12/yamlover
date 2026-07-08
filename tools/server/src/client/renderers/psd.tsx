@@ -1,6 +1,6 @@
 import { readPsd } from "ag-psd";
 import { NodeJson } from "../api";
-import { DecodedImageView, canvasToPng } from "./decoded";
+import { DecodedImageView, canvasToPng, ChunkMode } from "./decoded";
 
 /**
  * Renders an Adobe Photoshop document (`image/vnd.adobe.photoshop`, `.psd`/`.psb`).
@@ -10,11 +10,12 @@ import { DecodedImageView, canvasToPng } from "./decoded";
  * the per-layer/thumbnail image data: we only show the one composite, and decoding
  * every layer of a big PSD would allocate far more than we display.
  */
-export function PsdView({ node }: { node: NodeJson }) {
+export function PsdView({ node, chunk }: { node: NodeJson; chunk?: ChunkMode }) {
   return (
     <DecodedImageView
       node={node}
       label="psd"
+      chunk={chunk}
       decode={async (buf) => {
         const psd = readPsd(buf, { skipLayerImageData: true, skipThumbnail: true });
         if (!psd.canvas) throw new Error("no composite image in this PSD");

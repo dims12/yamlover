@@ -1,6 +1,6 @@
 import UTIF from "utif";
 import { NodeJson } from "../api";
-import { DecodedImageView, rgbaToPng } from "./decoded";
+import { DecodedImageView, rgbaToPng, ChunkMode } from "./decoded";
 
 /**
  * Renders a TIFF image (`image/tiff`, `.tif`/`.tiff`). Browsers don't display
@@ -8,11 +8,12 @@ import { DecodedImageView, rgbaToPng } from "./decoded";
  * TIFFs — common for scans — render every page), decoded to RGBA and painted to a
  * canvas/PNG. IFDs without dimensions (e.g. stray metadata directories) are skipped.
  */
-export function TiffView({ node }: { node: NodeJson }) {
+export function TiffView({ node, chunk }: { node: NodeJson; chunk?: ChunkMode }) {
   return (
     <DecodedImageView
       node={node}
       label="tiff"
+      chunk={chunk}
       decode={async (buf) => {
         const view = new Uint8Array(buf);
         const ifds = UTIF.decode(view);

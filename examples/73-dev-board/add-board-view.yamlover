@@ -4,7 +4,6 @@ description: Render a directory of tasks as kanban lanes with drag-to-retag.
 priority: normal
 assignee: claude
 estimate: 1d
-chunks:
 - Lanes come from the board's `workflow:` states; cards are the task members.
 - A drag DELETEs the old state annotation and POSTs the new one — reusing `/api/annotate`.
 yamlover-annotations:

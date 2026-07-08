@@ -1,11 +1,10 @@
-# A recursive document tree (a pet-keeping handbook) as a chapter. Chunks mix media by
-# their (type, format): prose (default markdown), image chunks (`*…png` pointers — format
-# from the .png extension), and PlantUML diagrams (tagged with an inline schema,
-# `!!<format: text/x-plantuml>`). Subchapters recurse via `children`. Spec: ../YAMLOVER.md.
+# A recursive document tree (a pet-keeping handbook) as a chapter. The body is positional:
+# prose (default markdown), image chunks (`*…png` pointers — format from the .png extension),
+# PlantUML diagrams (tagged `!!<format: text/x-plantuml>`), and subchapters (a body element
+# with its own title/description and body), all interleaved. Spec: ../CHAPTER.md, ../YAMLOVER.md.
 !!<*yamlover: $defs: chapter>
 title: The Pet Keeper's Handbook
 description: A friendly guide to living with animals
-chunks:
 - |
   **Pets share our homes, our routines, and a surprising amount of our furniture.** This
   handbook collects what every keeper learns sooner or later, one species at a time.
@@ -29,10 +28,8 @@ chunks:
   *** Water quality
   *** Sparing feeding
   @endmindmap
-children:
 - title: Dogs
   description: Loyal, loud, and endlessly hopeful
-  chunks:
   - |
     A dog is a **social animal** that adopts your family as its pack.
   - *: dog-bone.png
@@ -51,10 +48,8 @@ children:
     Dog -> Dog : reads the news (sniffs)
     Dog --> Keeper : returns home calm
     @enduml
-  children:
   - title: Puppies
     description: The first few months
-    chunks:
     - |
       Puppies sleep most of the day and chew most of the rest.
     - *: puppy-paw.png
@@ -74,7 +69,6 @@ children:
       @endgantt
 - title: Cats
   description: Independent roommates with opinions
-  chunks:
   - |
     A cat tolerates your presence on terms it renews daily.
   - *: cat-face.png
@@ -94,7 +88,6 @@ children:
     @enduml
 - title: Fish
   description: A quiet window into another world
-  chunks:
   - |
     An aquarium is a small ecosystem, and **water quality is everything.**
   - *: fish-tank.png

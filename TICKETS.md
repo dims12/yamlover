@@ -8,7 +8,7 @@ The whole feature is built by **reuse**, not by inventing parallel machinery:
 
 | concern | reuses |
 |---|---|
-| body (title, description, chunks, subtasks) | `$defs/chapter` (`YAMLOVER.md`, `$defs/chapter`) |
+| body (title, description, positional chunks + subtasks) | `$defs/chapter` (`CHAPTER.md`, `$defs/chapter`) |
 | lifecycle state (backlog → done, due, postponed) | **tags** + **tag applications** (`ANNOTATIONS.md`, `$defs/tag`) |
 | transitions / state machine | the tag **or-graph** — `next:` ref edges between state tags |
 | planning fields, scheduling fields | **parametrized annotations** (`additionalProperties: true`) |
@@ -23,27 +23,26 @@ applications), `META.md` / `TYPES.md` (`$defs`, facets, `variant`), `SEPARATOR.m
 
 ## 1. The `task` schema
 
-A task **is a chapter** — it has a `title`, an optional `description`, a body of `chunks`, and
-recursive `children` (which here mean **subtasks**, a task tree) — **plus** a handful of
-**optional** structured fields for planning and automation. It carries **no `state` field**:
-state is a tag application (§2), so the entire tag / board machinery is reused.
+A task **IS-A chapter** (CHAPTER.md): it EXTENDS `$defs/chapter` with `allOf: [*chapter]`,
+inheriting the optional `title`/`description` and the omni **positional body** — where its
+subchapter recursion means **subtasks** (a task tree) — **plus** a handful of **optional**
+structured fields for planning and automation. It carries **no `state` field**: state is a tag
+application (§2), so the entire tag / board machinery is reused.
 
 Every planning field is optional — *defaults-never-constraints* (`settings.yamlover` ethos): an
 untouched task is just a titled note; it becomes a tracked ticket the moment it is tagged with a
-state, and a study card the moment its chunks are tagged as a quiz.
+state, and a study card the moment its body chunks are tagged as a quiz.
 
 ```yamlover
 # $defs/task — attach with  !!<*yamlover:$defs:task>
-type: object
+allOf:
+  - *:: yamlover: $defs: chapter        # a task IS-A chapter (title/description + omni body)
+type: variant
+items:                                 # narrow the body recursion to SUBTASKS (the task tree)
+  anyOf:
+    - *:: yamlover: $defs: task
+    - *:: yamlover: $defs: chunk
 properties:
-  title:        {type: string, format: text/marklower}
-  description:  {type: string, format: text/marklower}   # optional subtitle / brief
-  chunks:                              # the body, read top-to-bottom (quiz cards tag these)
-    type: array
-    items: *:: yamlover: $defs: chunk
-  children:                            # SUBTASKS — the task tree (recursion)
-    type: array
-    items: *:: yamlover: $defs: task
   priority:     {type: string}         # free ordinal: low | normal | high | urgent (advisory)
   due:          {type: string, format: date-time}
   assignee:     {type: string}         # a name, or a pointer to a person / agent node
@@ -54,6 +53,10 @@ properties:
   # answer / solution: {schema}        # DEFERRED — grading-as-validation, see §6
 ```
 
+`allOf` is the (provisional) JSON-Schema way to say "a task is a chapter plus more"; because
+`task ⊆ chapter`, narrowing the body union to `task | chunk` intersects with the inherited
+`chapter | chunk` to exactly `task | chunk` — subtasks, not subchapters.
+
 A minimal task as a standalone file:
 
 ```yamlover
@@ -63,15 +66,15 @@ title: Write the TICKETS spec
 description: Draft `TICKETS.md` reusing chapters + tags.
 priority: high
 assignee: claude
-chunks:
 - Capture the task schema and the state-as-tag model.
 - Include the Anki / SM-2 section.
 yamlover-annotations:
 - *::tags:workflow:dev:in-progress        # ← the current state (see §2)
 ```
 
-Subtasks are inline `children`; a flat **board** is instead a *directory of task files* (§5).
-Both are valid and composable.
+Subtasks are positional body elements that are themselves tasks (a `- title: …` element with its
+own body); a flat **board** is instead a *directory of task files* (§5). Both are valid and
+composable.
 
 ---
 
@@ -201,7 +204,6 @@ A multiple-choice card:
 ```yamlover
 !!<*yamlover:$defs:task>
 title: Capital of France
-chunks:
 - !!var What is the capital of France?
   yamlover-annotations: [ *::tags:card:question ]
 - !!var Paris

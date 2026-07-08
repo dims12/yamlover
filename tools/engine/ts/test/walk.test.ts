@@ -107,10 +107,11 @@ test('the attached chapter schema propagates down: subchapters & chunks get thei
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
   const ch = ':60-simple-chapter.yamlover';
+  // an omni chapter: title is entry 0, so the positional body starts at [1]; subchapters follow.
   assert.equal(s.node(ch)?.format, 'x-yamlover-chapter'); // root (tagged)
-  assert.equal(s.node(ch + ':children[0]')?.format, 'x-yamlover-chapter'); // subchapter — NOT tagged, inherited
-  assert.equal(s.node(ch + ':chunks[0]')?.format, 'text/marklower'); // chunk — from $defs/chunk
-  assert.equal(s.node(ch + ':children[0]:chunks[0]')?.format, 'text/marklower'); // recursive
+  assert.equal(s.node(ch + '[4]')?.format, 'x-yamlover-chapter'); // subchapter — NOT tagged, inherited via items anyOf
+  assert.equal(s.node(ch + '[1]')?.format, 'text/marklower'); // first chunk — from the chunk branch
+  assert.equal(s.node(ch + '[4][1]')?.format, 'text/marklower'); // a chunk inside the subchapter (recursive)
   s.close();
 });
 
@@ -118,11 +119,12 @@ test('`*/file` resolves to the nearest DOCUMENT root, depth-independently (66 ne
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
   // a deeply nested subchapter chunk `*/puppy-paw.png` resolves to the 66 chapter root's file,
-  // NOT the served (examples) root — the directory-with-body is a document boundary.
-  const deep = s.entries(':66-doc-tree:children[0]:children[0]:chunks').find((c) => c.kind === 'ref');
+  // NOT the served (examples) root — the directory-with-body is a document boundary. Puppies is the
+  // nested subchapter [13][7]; its image chunk is a positional `*` ref in its body.
+  const deep = s.entries(':66-doc-tree[13][7]').find((c) => c.kind === 'ref');
   assert.equal(deep?.to, ':66-doc-tree:puppy-paw.png');
-  // a top-level chapter's `*/sample.png` resolves within that chapter too
-  const top = s.entries(':65-all-formats-chunks:chunks').find((c) => c.kind === 'ref');
+  // a top-level chapter's `*/sample.png` resolves within that chapter too (a positional body ref)
+  const top = s.entries(':65-all-formats-chunks').find((c) => c.kind === 'ref');
   assert.equal(top?.to, ':65-all-formats-chunks:sample.png');
   s.close();
 });
@@ -131,11 +133,54 @@ test('a directory chapter: the body.yamlover root schema tag attaches to the dir
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
   const ch = ':66-doc-tree';
+  // a dir chapter: its 5 image files sort as keyed children first, so the positional body is shifted
+  // (first prose chunk at [8], subchapters at [13..15]); ranks still line up with the source items.
   assert.equal(s.node(ch)?.format, 'x-yamlover-chapter'); // schema carried from body.yamlover root
-  assert.equal(s.node(ch + ':children[0]')?.format, 'x-yamlover-chapter'); // subchapter (Dogs)
-  assert.equal(s.node(ch + ':children[0]:children[0]')?.format, 'x-yamlover-chapter'); // Puppies (depth 2)
-  assert.equal(s.node(ch + ':chunks[0]')?.format, 'text/marklower'); // prose chunk
+  assert.equal(s.node(ch + '[13]')?.format, 'x-yamlover-chapter'); // subchapter (Dogs)
+  assert.equal(s.node(ch + '[13][7]')?.format, 'x-yamlover-chapter'); // Puppies (nested subchapter)
+  assert.equal(s.node(ch + '[8]')?.format, 'text/marklower'); // first prose chunk
   s.close();
+});
+
+test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→chapter, leaf→chunk', () => {
+  // A container body element (a mapping subchapter) takes the chapter branch (x-yamlover-chapter);
+  // a scalar leaf takes the chunk branch (text/marklower) — the union's structural dispatch.
+  const root = mkdtempSync(join(tmpdir(), 'yo-anyof-'));
+  mkdirSync(join(root, '$defs'), { recursive: true });
+  writeFileSync(join(root, '$defs', 'chapter'),
+    'type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n');
+  writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
+  writeFileSync(join(root, 'doc.yamlover'), '!!<*yamlover/$defs/chapter>\ntitle: T\n- a leaf chunk\n- title: Sub\n  - deep chunk\n');
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(root));
+  const d = ':doc.yamlover';
+  assert.equal(s.node(d + '[1]')?.format, 'text/marklower'); // leaf → chunk branch
+  assert.equal(s.node(d + '[2]')?.format, 'x-yamlover-chapter'); // container → chapter branch
+  assert.equal(s.node(d + '[2][1]')?.format, 'text/marklower'); // recursion into the subchapter's chunk
+  s.close();
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('schema propagation: `allOf:[chapter]` (task extends chapter) inherits body + narrows recursion', () => {
+  // A task IS-A chapter: it stamps x-yamlover-task, inherits the chapter title/body propagation via
+  // allOf, and its OWN `items:{anyOf:[task,chunk]}` wins so a subtask is x-yamlover-task (not chapter).
+  const root = mkdtempSync(join(tmpdir(), 'yo-allof-'));
+  mkdirSync(join(root, '$defs'), { recursive: true });
+  writeFileSync(join(root, '$defs', 'chapter'),
+    'type: variant\nproperties:\n  title:\n    type: string\n    format: text/marklower\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n');
+  writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
+  writeFileSync(join(root, '$defs', 'task'),
+    'allOf:\n  - *//yamlover/$defs/chapter\ntype: variant\nitems:\n  anyOf:\n    - *//yamlover/$defs/task\n    - *//yamlover/$defs/chunk\n');
+  writeFileSync(join(root, 'doc.yamlover'), '!!<*yamlover/$defs/task>\ntitle: T\n- a chunk\n- title: Sub\n  - sub chunk\n');
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(root));
+  const d = ':doc.yamlover';
+  assert.equal(s.node(d)?.format, 'x-yamlover-task'); // the task format from its $defs pointer
+  assert.equal(s.node(d + ':title')?.format, 'text/marklower'); // inherited chapter title propagation
+  assert.equal(s.node(d + '[1]')?.format, 'text/marklower'); // a chunk (leaf branch)
+  assert.equal(s.node(d + '[2]')?.format, 'x-yamlover-task'); // a SUBTASK — task's own items wins over chapter's
+  s.close();
+  rmSync(root, { recursive: true, force: true });
 });
 
 test('67-pdf-tags (instance): omni-blobs (file + embedded annotations) + a tag taxonomy', () => {
@@ -200,7 +245,7 @@ test('built-in yamlover/ subtree is grafted when serving below a yamlover/$defs 
   assert.equal(s.node(':yamlover:tags:colors')?.format, 'x-yamlover-tag');
   assert.equal(s.node(':yamlover:tags:colors:yellow')?.format, 'x-yamlover-tag');
   assert.equal(s.node(':yamlover:tags:colors:yellow:color')?.value, '#f9e2af');
-  assert.equal(s.node(':yamlover:$defs:chapter:type')?.value, 'object'); // the schemas ride along
+  assert.equal(s.node(':yamlover:$defs:chapter:type')?.value, 'variant'); // the schemas ride along
   s.close();
 });
 

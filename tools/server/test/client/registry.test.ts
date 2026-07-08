@@ -40,6 +40,11 @@ describe("renderer registry (facet predicates)", () => {
     expect(getRenderer(node({ valueType: "string", format: "text/markdown", value: "hi" }))?.name).toBe("markdown");
   });
 
+  it("chapter, task, markdown, and asciidoc all expose a reading-width config control", () => {
+    for (const f of ["x-yamlover-chapter", "x-yamlover-task", "text/markdown", "text/asciidoc"])
+      expect(getRenderer(node({ format: f }))?.config, `${f} needs a width config`).toBeTypeOf("function");
+  });
+
   it("claims PlantUML / LaTeX source (a string) and offers an inline (chunk) form", () => {
     const uml = getRenderer(node({ valueType: "string", format: "text/x-plantuml" }));
     expect(uml?.name).toBe("plantuml");
@@ -173,43 +178,34 @@ describe("renderer registry (facet predicates)", () => {
     });
   });
 
-  it("a chapter's TOC view unwraps `children` (subchapters direct) and hides `chunks`", () => {
+  it("a chapter's TOC view surfaces the subchapter-format body elements and hides prose chunks", () => {
     const chapter = tnode({
       path: ":",
-      type: "object",
+      type: "variant",
       format: "x-yamlover-chapter",
       hasChildren: true,
       children: [
-        tnode({ path: ":chunks", type: "array", hasChildren: true, children: [tnode({ path: ":chunks[0]" })] }),
-        tnode({
-          path: ":children",
-          type: "array",
-          hasChildren: true,
-          children: [
-            tnode({ path: ":children[0]", label: "Dogs", type: "object", format: "x-yamlover-chapter", hasChildren: true }),
-            tnode({ path: ":children[1]", label: "Cats", type: "object", format: "x-yamlover-chapter", hasChildren: true }),
-          ],
-        }),
+        // body elements are DIRECT children now: prose chunks + subchapters, interleaved
+        tnode({ path: ":[1]", type: "string", format: "text/marklower" }),
+        tnode({ path: ":[2]", label: "Dogs", type: "variant", format: "x-yamlover-chapter", hasChildren: true }),
+        tnode({ path: ":[3]", label: "Cats", type: "variant", format: "x-yamlover-chapter", hasChildren: true }),
       ],
     });
     const view = tocView(chapter);
-    expect(view.children.map((c) => c.label)).toEqual(["Dogs", "Cats"]); // no chunks, no wrapper rows
+    expect(view.children.map((c) => c.label)).toEqual(["Dogs", "Cats"]); // only subchapters, no chunk rows
     expect(view.expandable).toBe(true);
     expect(view.loaded).toBe(true);
-    expect(view.loadDepth).toBe(3);
+    expect(view.loadDepth).toBe(2);
   });
 
-  it("a chapter with a (loaded) empty `children` wrapper is NOT expandable — no chevron", () => {
+  it("a chapter with only prose chunks (no subchapters) is NOT expandable — no chevron", () => {
     const chapter = tnode({
-      path: ":children[2]",
+      path: ":[2]",
       label: "Fish",
-      type: "object",
+      type: "variant",
       format: "x-yamlover-chapter",
       hasChildren: true,
-      children: [
-        tnode({ path: ":children[2]:chunks", type: "array", hasChildren: true }),
-        tnode({ path: ":children[2]:children", type: "array", hasChildren: false, children: [] }),
-      ],
+      children: [tnode({ path: ":[2][1]", type: "string", format: "text/marklower" })], // loaded, but no subchapters
     });
     const view = tocView(chapter);
     expect(view.expandable).toBe(false);
@@ -218,13 +214,10 @@ describe("renderer registry (facet predicates)", () => {
 
   it("a chapter whose subchapters aren't loaded yet is expandable but not loaded", () => {
     const chapter = tnode({
-      type: "object",
+      type: "variant",
       format: "x-yamlover-chapter",
       hasChildren: true,
-      children: [
-        tnode({ path: ":chunks", type: "array", hasChildren: true }),
-        tnode({ path: ":children", type: "array", hasChildren: true, children: [] }),
-      ],
+      children: [], // not loaded yet
     });
     const view = tocView(chapter);
     expect(view.children).toEqual([]);

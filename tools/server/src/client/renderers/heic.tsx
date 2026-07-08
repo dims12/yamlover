@@ -1,6 +1,6 @@
 import heic2any from "heic2any";
 import { NodeJson } from "../api";
-import { DecodedImageView } from "./decoded";
+import { DecodedImageView, ChunkMode } from "./decoded";
 
 /**
  * Renders an HEIC/HEIF image (`image/heic`, `.heic`/`.heif`) — the format iPhones
@@ -9,11 +9,12 @@ import { DecodedImageView } from "./decoded";
  * to a PNG blob. An HEIC may hold an image *sequence* (burst/Live Photo); when it
  * does, `heic2any` returns several blobs and we show each.
  */
-export function HeicView({ node }: { node: NodeJson }) {
+export function HeicView({ node, chunk }: { node: NodeJson; chunk?: ChunkMode }) {
   return (
     <DecodedImageView
       node={node}
       label="heic"
+      chunk={chunk}
       decode={async (buf) => {
         const out = await heic2any({ blob: new Blob([buf]), toType: "image/png" });
         return Array.isArray(out) ? out : [out];

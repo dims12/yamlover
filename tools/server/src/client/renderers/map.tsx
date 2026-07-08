@@ -8,6 +8,7 @@ import { bytesToGeoJSON, GeoJSON } from "./kml";
 import { Annotation } from "../api";
 import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 import { wireGestures } from "./panzoom";
+import { OpenChunk } from "./openable";
 
 /**
  * Renderer for geographic overlays — `.kml` and `.kmz` (zipped KML). The file is
@@ -65,9 +66,16 @@ function descriptionHtml(description: unknown): string {
 }
 
 /** Draw `geo` onto a fresh Leaflet map in `el`, fit to the data, and return the map
- *  (so the caller can dispose it). */
-function drawMap(el: HTMLElement, geo: GeoJSON): L.Map {
-  const map = L.map(el);
+ *  (so the caller can dispose it). When `interactive` is false the map is a STATIC preview —
+ *  no drag/zoom handlers, no zoom control, no feature popups — for embedding in a chapter's flow
+ *  (the standalone {@link MapView} keeps the full controls). */
+function drawMap(el: HTMLElement, geo: GeoJSON, interactive = true): L.Map {
+  const map = L.map(
+    el,
+    interactive
+      ? {}
+      : { dragging: false, scrollWheelZoom: false, doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, zoomControl: false },
+  );
   L.tileLayer(TILE_URL, { maxZoom: 19, attribution: TILE_ATTRIBUTION }).addTo(map);
   const layer = L.geoJSON(geo as any, {
     // honour KML styling that togeojson surfaces as simplestyle properties
@@ -82,13 +90,15 @@ function drawMap(el: HTMLElement, geo: GeoJSON): L.Map {
       };
     },
     pointToLayer: (_f, latlng) => L.circleMarker(latlng, { radius: 5, color: "#e23", weight: 2, fillOpacity: 0.8 }),
-    onEachFeature: (f, lyr) => {
-      const p = (f.properties ?? {}) as { name?: string; description?: unknown };
-      const name = p.name ? `<strong>${escapeHtml(p.name)}</strong>` : "";
-      const body = descriptionHtml(p.description);
-      const desc = body ? `<div class="map-popup-desc">${body}</div>` : "";
-      if (name || desc) lyr.bindPopup(`${name}${desc}`);
-    },
+    onEachFeature: interactive
+      ? (f, lyr) => {
+          const p = (f.properties ?? {}) as { name?: string; description?: unknown };
+          const name = p.name ? `<strong>${escapeHtml(p.name)}</strong>` : "";
+          const body = descriptionHtml(p.description);
+          const desc = body ? `<div class="map-popup-desc">${body}</div>` : "";
+          if (name || desc) lyr.bindPopup(`${name}${desc}`);
+        }
+      : undefined,
   }).addTo(map);
 
   const bounds = layer.getBounds();
@@ -100,7 +110,7 @@ function drawMap(el: HTMLElement, geo: GeoJSON): L.Map {
 /** Fetch the file, convert to GeoJSON, and render a Leaflet map into `className`.
  *  Shared by the full page and the inline chunk (which only differ in height/CSS + annotation). */
 function MapBody({
-  path, className, regions, onSelectRegion, onRegionClick, selectColor,
+  path, className, regions, onSelectRegion, onRegionClick, selectColor, interactive = true,
 }: {
   path: string;
   className: string;
@@ -108,6 +118,7 @@ function MapBody({
   onSelectRegion?: (selector: Record<string, unknown>, screen: { x: number; y: number }) => void;
   onRegionClick?: (ann: Annotation, screen: { x: number; y: number }) => void;
   selectColor?: () => string;
+  interactive?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -132,15 +143,17 @@ function MapBody({
       .then((r) => r.arrayBuffer())
       .then((buf) => {
         if (cancelled || !ref.current) return;
-        const map = drawMap(ref.current, bytesToGeoJSON(new Uint8Array(buf)));
+        const map = drawMap(ref.current, bytesToGeoJSON(new Uint8Array(buf)), interactive);
         layerRef.current = L.layerGroup().addTo(map);
         mapRef.current = map;
-        dispose = wireGestures(map, {
-          color: () => colorRef.current?.() ?? DEFAULT_COLOR,
-          onSelect: selectable
-            ? (b, screen) => onSelectRef.current?.({ type: "map", n: b.getNorth(), s: b.getSouth(), e: b.getEast(), w: b.getWest() }, screen)
-            : undefined,
-        });
+        // A static preview (a chapter chunk) wires no gestures — no pan, no zoom, no region select.
+        if (interactive)
+          dispose = wireGestures(map, {
+            color: () => colorRef.current?.() ?? DEFAULT_COLOR,
+            onSelect: selectable
+              ? (b, screen) => onSelectRef.current?.({ type: "map", n: b.getNorth(), s: b.getSouth(), e: b.getEast(), w: b.getWest() }, screen)
+              : undefined,
+          });
         setReady((x) => x + 1);
         setLoading(false);
       })
@@ -227,6 +240,12 @@ export function MapView({ node }: { node: NodeJson }) {
   );
 }
 
-export function MapChunk({ chunk }: { chunk: Chunk }) {
-  return <MapBody path={chunk.path} className="filemap chunk-map" />;
+/** A map embedded inline in a chapter — a STATIC, non-interactive preview (no pan/zoom/select).
+ *  Clicking opens it on its own page, where the full controls live. */
+export function MapChunk({ chunk, onNavigate }: { chunk: Chunk; onNavigate?: (path: string) => void }) {
+  return (
+    <OpenChunk path={chunk.path} onNavigate={onNavigate} title="Open map on its own page">
+      <MapBody path={chunk.path} className="filemap chunk-map chunk-static" interactive={false} />
+    </OpenChunk>
+  );
 }

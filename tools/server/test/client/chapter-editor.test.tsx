@@ -15,26 +15,36 @@ import type { NodeJson } from "../../src/client/api";
 afterEach(cleanup);
 beforeEach(() => {
   editChunks.mockReset().mockResolvedValue({ ok: true });
-  createObject.mockReset().mockResolvedValue({ path: ":doc:children[1]" });
+  createObject.mockReset().mockResolvedValue({ path: ":doc[9]" });
 });
 
-/** An inlined prose chunk marker at slot `i`. */
+/** An inlined prose chunk marker at body slot `i` (its marker points at its own slot `:doc[i+1]`,
+ *  past the keyed `title` at store index 0 — inline ⇒ editable). */
 const chunk = (i: number, value: string) => ({
-  $yamloverLink: { kind: "scalar", type: "string", path: `:doc:chunks[${i}]`, format: "text/marklower", concrete: "yamlover", value },
+  $yamloverLink: { kind: "scalar", type: "string", path: `:doc[${i + 1}]`, format: "text/marklower", concrete: "yamlover", value },
 });
 
+/** A chapter node: title/description keyed, then the positional body (prose chunks + one
+ *  subchapter) as the mixed marker's keyless entries (CHAPTER.md). */
 function chapterNode(chunks: string[], title = "My Title", description = "My subtitle"): NodeJson {
   return {
     path: ":doc",
-    type: "object",
+    type: "variant",
     format: "x-yamlover-chapter",
     concrete: "yamlover",
     documentPath: ":doc",
     title,
     description,
     value: {
-      chunks: chunks.map((t, i) => chunk(i, t)),
-      children: [{ $yamloverLink: { kind: "object", type: "object", path: ":doc:children[0]", format: "x-yamlover-chapter", title: "Sub", count: 2 } }],
+      $yamloverMixed: {
+        kind: "mix",
+        entries: [
+          { key: "title", value: title },
+          ...(description ? [{ key: "description", value: description }] : []),
+          ...chunks.map((t, i) => ({ key: null, value: chunk(i, t) })),
+          { key: null, value: { $yamloverLink: { kind: "object", type: "object", path: ":doc[9]", format: "x-yamlover-chapter", title: "Sub", count: 2 } } },
+        ],
+      },
     },
   } as unknown as NodeJson;
 }
@@ -130,7 +140,7 @@ describe("ChapterEditor (unlocked)", () => {
     await act(async () => { fireEvent.change(select, { target: { value: "file/yamlover" } }); }); // pick a linked file
     await act(async () => { fireEvent.click(action); });
     expect(createObject).toHaveBeenCalledWith("::yamlover:$defs:chapter", ":doc", "file/yamlover");
-    await vi.waitFor(() => expect(onNavigate).toHaveBeenCalledWith(":doc:children[1]"));
+    await vi.waitFor(() => expect(onNavigate).toHaveBeenCalledWith(":doc[9]"));
   });
 
   it("the context menu is a titled, movable window (path title + close in the title bar + drag)", async () => {
@@ -158,8 +168,13 @@ describe("ChapterEditor (unlocked)", () => {
       title: "Math",
       description: "",
       value: {
-        chunks: [{ $yamloverLink: { kind: "scalar", type: "string", path: ":doc:chunks[0]", format: "text/x-latex", concrete: "yamlover", value: "e^{i\\pi}" } }],
-        children: [],
+        $yamloverMixed: {
+          kind: "mix",
+          entries: [
+            { key: "title", value: "Math" },
+            { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", path: ":doc[1]", format: "text/x-latex", concrete: "yamlover", value: "e^{i\\pi}" } } },
+          ],
+        },
       },
     } as unknown as NodeJson;
     const { container } = renderUnlocked(node);

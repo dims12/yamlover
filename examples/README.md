@@ -58,14 +58,15 @@ or scalar can take.
 
 ## Chapters (the `chapter` schema)
 
-Documents — `title` + `chunks` + recursive `children` — tagged with the `chapter` schema
-(`$defs/chapter`). A schema attaches *inline* in a `.yamlover` file via the `!!<…>` tag (no
-overlay needed), or through a directory's `.yamlover/meta.yamlover`. See
-[YAMLOVER.md](../YAMLOVER.md) and [META.md](../META.md).
+Documents — an omni node with optional `title`/`description` and a **positional body** of chunks
+and (recursive) subchapters — tagged with the `chapter` schema (`$defs/chapter`). A schema attaches
+*inline* in a `.yamlover` file via the `!!<…>` tag (no overlay needed), or through a directory's
+`.yamlover/meta.yamlover`. See [CHAPTER.md](../CHAPTER.md), [YAMLOVER.md](../YAMLOVER.md) and
+[META.md](../META.md).
 
 | # | example | concrete / shows |
 |---|---------|------------------|
-| 60 | [`60-simple-chapter.yamlover`](60-simple-chapter.yamlover)   | a single tagged **file** — the minimal chapter (`title` / `chunks` / `children`) |
+| 60 | [`60-simple-chapter.yamlover`](60-simple-chapter.yamlover)   | a single tagged **file** — the minimal chapter (`title` + a positional body of chunks and subchapters) |
 | 65 | [`65-all-formats-chunks`](65-all-formats-chunks)             | a **directory** chapter — textual chunks (block scalars) interleaved with `*sample.*` pointers to binary files; per-chunk formats and file types in `meta.yamlover` |
 | 66 | [`66-doc-tree`](66-doc-tree)                                 | a recursive **directory** chapter — prose + `*png` image chunks + PlantUML chunks tagged per-chunk `!!<*yamlover/$defs/plantuml>` (no meta: png by extension, plantuml by tag) |
 | 68 | [`68-math-chapter`](68-math-chapter)                         | a **directory** chapter — marklower prose (inline `$$…$$`) plus standalone LaTeX chunks (`format: text/x-latex` in `meta`) |

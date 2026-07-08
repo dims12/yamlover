@@ -603,22 +603,20 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               const body = reg.body(title);
               const objSrc = objectFileSource(reg.tag, body);
 
-              // CHILD mode — into a compatible parent's child list.
+              // CHILD mode — a subchapter appended to a compatible parent's positional body.
               if (reg.childOf.includes(row.format ?? "")) {
                 const { docSegs, bodyFile, dirBacked } = chapterSource(dataRoot, s, parentSegs);
                 const within = parentSegs.slice(docSegs.length);
-                const childrenPath = storePath([...parentSegs, reg.childKey]);
-                const idx = s.node(childrenPath) ? s.children(childrenPath).length : 0; // the new child's index
                 if (concrete === "yamlover") {
                   const src = fs.readFileSync(bodyFile, "utf8");
-                  fs.writeFileSync(bodyFile, appendToList(src, within, reg.childKey, (indent) => inlineChildLines(body, indent)));
+                  fs.writeFileSync(bodyFile, appendBody(src, within, (indent) => inlineChildLines(body, indent)));
                   broadcast(await doReindexFile(bodyFile));
                   scheduleHasher();
-                  return { path: segsToStr([...parentSegs, reg.childKey, idx]) }; // an inline child IS a real node
+                  return { path: lastBodyChildPath(s, parentSegs) }; // an inline child IS a real node
                 }
                 if (concrete === "file/yamlover" || concrete === "dir/yamlover") {
                   // A LINKED child: the document lands beside the parent (in its dir when dir-backed,
-                  // else beside the standalone file), and a `*` pointer joins the parent's child list.
+                  // else beside the standalone file), and a `*` pointer joins the parent's body.
                   const writeDirSegs = dirBacked ? docSegs : docSegs.slice(0, -1);
                   const writeDir = path.resolve(dataRoot, ...writeDirSegs.map(String));
                   // a LINKED child is reached by a `*` pointer → name it pointer-safe (no spaces/unicode)
@@ -626,7 +624,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
                   const targetSegs = [...writeDirSegs, final];
                   const pointer = dirBacked ? `*/${final}` : `*/${segsToStr(targetSegs)}`;
                   const src = fs.readFileSync(bodyFile, "utf8");
-                  fs.writeFileSync(bodyFile, appendToList(src, within, reg.childKey, (indent) => [`${" ".repeat(indent)}- ${pointer}`]));
+                  fs.writeFileSync(bodyFile, appendBody(src, within, (indent) => [`${" ".repeat(indent)}- ${pointer}`]));
                   broadcast(await doReindex());
                   scheduleHasher();
                   return { path: segsToStr(targetSegs) }; // navigate to the linked document's OWN node
@@ -878,7 +876,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           concrete: concreteOf(s, dataRoot, segs, row), // the full per-node concrete taxonomy (stat + document language)
           documentPath: documentPath(s, segs), // nearest enclosing document root (for `/…` links)
           title: titleOf(s, p),
-          description: null,
+          description: descriptionOf(s, p),
           value,
           comments: cachedDoc && !wantBytes ? collectComments(cachedDoc, segs, viewDepth) : {},
           relations: buildRelations(dataRoot, s, segs),
@@ -1807,10 +1805,10 @@ function pasteIntoChapter(dataRoot: string, s: Store, segs: Seg[], name: string,
   // document (directory-backed); else a project-root link (`*//dir/file`) reaching the sibling.
   const fileSegs = [...writeDirSegs, final];
   const pointer = dirBacked ? `*/${final}` : `*/${segsToStr(fileSegs)}`;
-  // The chapter's location WITHIN its document — alternating `children`,N pairs (empty = top-level).
+  // The chapter's location WITHIN its document — absolute body-item indices (empty = top-level).
   const within = segs.slice(docSegs.length);
   const src = fs.readFileSync(bodyFile, "utf8");
-  fs.writeFileSync(bodyFile, appendToList(src, within, "chunks", (indent) => [`${" ".repeat(indent)}- ${pointer}`]));
+  fs.writeFileSync(bodyFile, appendBody(src, within, (indent) => [`${" ".repeat(indent)}- ${pointer}`]));
   return { path: segsToStr(fileSegs), chapter: segsToStr(segs), pointer };
 }
 
@@ -1820,7 +1818,7 @@ function pasteTextIntoChapter(dataRoot: string, s: Store, segs: Seg[], text: str
   const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
   const within = segs.slice(docSegs.length);
   const src = fs.readFileSync(bodyFile, "utf8");
-  fs.writeFileSync(bodyFile, appendToList(src, within, "chunks", (indent) => textChunkLines(text, indent)));
+  fs.writeFileSync(bodyFile, appendBody(src, within, (indent) => textChunkLines(text, indent)));
   return { path: segsToStr(segs), chapter: segsToStr(segs) };
 }
 
@@ -1832,7 +1830,7 @@ function pasteTextAsChapterFile(dataRoot: string, segs: Seg[], text: string): Re
   const dir = path.resolve(dataRoot, ...dirSegs.map(String));
   const title = titleFromText(text);
   const final = uniqueName(dir, chapterFileName(title));
-  const src = ["!!<*::yamlover:$defs:chapter>", `title: ${JSON.stringify(title)}`, "chunks:", ...textChunkLines(text, 0), ""].join("\n");
+  const src = ["!!<*::yamlover:$defs:chapter>", `title: ${JSON.stringify(title)}`, ...textChunkLines(text, 0), ""].join("\n");
   writeInside(dataRoot, dir, final, Buffer.from(src, "utf8"));
   return { path: segsToStr([...dirSegs, final]), dir: segsToStr(dirSegs), open: dirSegs.length !== segs.length };
 }
@@ -1882,19 +1880,26 @@ function richItemLines(item: RichItem, indent: number, pointerFor: (name: string
   return [`${" ".repeat(indent)}- ${pointerFor(item.name, item.bytes)}`];
 }
 
-/** A subchapter as a `children:` list item (title + chunks + recursive children), at the
- *  list's indent — the item body keys sit 2 deeper, matching the chapter examples. */
+/** A subchapter as a positional body item: `- title: …` then its OWN body (chunks + recursive
+ *  subchapters) as positional items 2 deeper — the omni chapter shape (CHAPTER.md). */
 function richChildLines(node: Rich & { title: string }, indent: number, pointerFor: (name: string, bytes: Buffer) => string): string[] {
   const pad = " ".repeat(indent);
   const lines = [`${pad}- title: ${JSON.stringify(node.title)}`];
-  if (node.chunks.length) lines.push(`${pad}  chunks:`, ...node.chunks.flatMap((c) => richItemLines(c, indent + 2, pointerFor)));
-  if (node.children.length) lines.push(`${pad}  children:`, ...node.children.flatMap((k) => richChildLines(k, indent + 2, pointerFor)));
+  for (const c of node.chunks) lines.push(...richItemLines(c, indent + 2, pointerFor));
+  for (const k of node.children) lines.push(...richChildLines(k, indent + 2, pointerFor));
   return lines;
 }
 
-/** A rich paste onto a chapter: files land in the chapter's owning directory, the chunks
- *  (text + pointers, order kept) append to `chunks:` and the subchapters to `children:` —
- *  either list is created when the chapter source lacks it. */
+/** The positional body items of a rich node — its chunks (text + pointers) then its subchapters. */
+function richBodyLines(rich: Rich, indent: number, pointerFor: (name: string, bytes: Buffer) => string): string[] {
+  return [
+    ...rich.chunks.flatMap((c) => richItemLines(c, indent, pointerFor)),
+    ...rich.children.flatMap((k) => richChildLines(k, indent, pointerFor)),
+  ];
+}
+
+/** A rich paste onto a chapter: files land in the chapter's owning directory, and the chunks
+ *  (text + pointers, order kept) then the subchapters append to the chapter's positional body. */
 function pasteRichIntoChapter(dataRoot: string, s: Store, segs: Seg[], rich: Rich): Record<string, unknown> {
   const { docSegs, bodyFile, dirBacked } = chapterSource(dataRoot, s, segs);
   const writeDirSegs = dirBacked ? docSegs : docSegs.slice(0, -1);
@@ -1908,8 +1913,7 @@ function pasteRichIntoChapter(dataRoot: string, s: Store, segs: Seg[], rich: Ric
   };
   const within = segs.slice(docSegs.length);
   let src = fs.readFileSync(bodyFile, "utf8");
-  if (rich.chunks.length) src = appendToList(src, within, "chunks", (ind) => rich.chunks.flatMap((c) => richItemLines(c, ind, pointerFor)));
-  if (rich.children.length) src = appendToList(src, within, "children", (ind) => rich.children.flatMap((k) => richChildLines(k, ind, pointerFor)));
+  if (rich.chunks.length || rich.children.length) src = appendBody(src, within, (ind) => richBodyLines(rich, ind, pointerFor));
   fs.writeFileSync(bodyFile, src);
   return { path: segsToStr(segs), chapter: segsToStr(segs), files };
 }
@@ -1950,11 +1954,9 @@ function pasteRichAsChapter(dataRoot: string, segs: Seg[], rich: Rich): Record<s
   return { path: segsToStr([...dirSegs, name]), dir: segsToStr(dirSegs), open: dirSegs.length !== segs.length };
 }
 
-/** The whole .yamlover source of a new rich chapter (the tag, the title, chunks, children). */
+/** The whole .yamlover source of a new rich chapter (the tag, the title, and the positional body). */
 function renderChapterSource(title: string, rich: Rich, pointerFor: (name: string, bytes: Buffer) => string): string {
-  const lines = ["!!<*::yamlover:$defs:chapter>", `title: ${JSON.stringify(title)}`];
-  if (rich.chunks.length) lines.push("chunks:", ...rich.chunks.flatMap((c) => richItemLines(c, 0, pointerFor)));
-  if (rich.children.length) lines.push("children:", ...rich.children.flatMap((k) => richChildLines(k, 0, pointerFor)));
+  const lines = ["!!<*::yamlover:$defs:chapter>", `title: ${JSON.stringify(title)}`, ...richBodyLines(rich, 0, pointerFor)];
   return lines.join("\n") + "\n";
 }
 
@@ -1977,19 +1979,25 @@ function titleFromText(text: string): string {
 
 interface Creatable {
   tag: string; // the inline schema tag pointer, e.g. "*::yamlover:$defs:chapter"
-  childKey: string; // the parent array a child goes into
-  childOf: string[]; // parent node formats that accept it as a child
+  childOf: string[]; // parent node formats that accept it as a body element (subchapter)
   body: (title: string) => string[]; // the object's body lines (no tag) — a fresh, immediately-editable instance
 }
 const CREATABLE: Record<string, Creatable> = {
   "::yamlover:$defs:chapter": {
     tag: "*::yamlover:$defs:chapter",
-    childKey: "children",
     childOf: ["x-yamlover-chapter", "x-yamlover-task"],
-    // a chapter with one empty prose chunk, so it is immediately editable (Enter grows it)
-    body: (title) => [`title: ${JSON.stringify(title)}`, "chunks:", `- ""`],
+    // a chapter with one empty prose chunk (a positional body item), so it is immediately editable
+    body: (title) => [`title: ${JSON.stringify(title)}`, `- ""`],
   },
 };
+
+/** The store path of a chapter's LAST positional (keyless) body element — the child just appended.
+ *  Falls back to `[0]` when none is found yet (fresh index). */
+function lastBodyChildPath(s: Store, parentSegs: Seg[]): string {
+  const positional = s.entries(storePath(parentSegs)).filter((e) => e.kind === "contain" && e.label == null);
+  const last = positional[positional.length - 1];
+  return last ? segsToStr(storePathToSegs(last.to)) : segsToStr([...parentSegs, 0]);
+}
 
 /** The default title for a new object of `schema` — "New <last segment>" (e.g. "New chapter"). */
 function defaultTitle(schema: string): string {
@@ -2132,119 +2140,142 @@ function textChunkLines(text: string, indent: number): string[] {
   return [`${pad}- ${head}`, ...body.split("\n").map((l) => (l.trim().length ? `${pad}  ${l}` : ""))];
 }
 
-/** The line region [lo,hi) of the chapter mapping addressed by `chapterPath` (alternating
- *  ["children", N, …] pairs; empty = the top-level chapter), plus its key `indent`. Descends the
- *  `children:` sequences by index the way the chapter examples nest. Shared by every list/scalar
- *  edit so they all agree on where a (sub)chapter's body lives. */
-function reachChapter(lines: string[], chapterPath: Seg[]): { lo: number; hi: number; indent: number } {
-  let lo = 0;
-  let hi = lines.length;
-  let indent = firstContentIndent(lines); // the chapter mapping's key indent
+// --- chapter body surgery (CHAPTER.md): an omni node's positional body ---------------------- //
+// A chapter is `title`/`description` (keyed) + a POSITIONAL body of chunk / subchapter items, all
+// on one mapping (no `chunks:`/`children:` wrappers). A body element's edit address is its RANK
+// among the positional items (`<chapter>[rank]`), which lines up 1:1 with the source `- ` items.
+// A subchapter DESCENT (viewing a nested chapter as its own page) is addressed by ABSOLUTE store
+// index, matching the client's node path; the two differ only because keyed entries (title/…)
+// consume store indices but not body ranks.
 
-  for (let i = 0; i < chapterPath.length; i += 2) {
-    const idx = Number(chapterPath[i + 1]);
-    const kids = findKeyLine(lines, lo, hi, indent, "children");
-    if (kids < 0) throw new Error(`no 'children:' at indent ${indent}`);
-    const items = seqItems(lines, kids + 1, hi, indent);
-    if (!(idx >= 0 && idx < items.length)) throw new Error(`children[${idx}] out of range (${items.length})`);
-    hi = idx + 1 < items.length ? items[idx + 1] : seqEnd(lines, kids + 1, hi, indent);
-    lo = items[idx] + 1; // body starts past the `- ` marker (its inline key sits at the parent indent)
-    indent += 2;
+/** A chapter mapping's line region [lo,hi) at key `indent`. `marker` is the `- ` item line when the
+ *  region is a DESCENDED subchapter body (its first key may sit inline on that marker line, e.g.
+ *  `- title: X`), else -1 for the top-level mapping. */
+interface Region { lo: number; hi: number; indent: number; marker: number }
+
+interface ChapterEntry { absIndex: number; key: string | null; start: number; end: number; inline: boolean }
+
+/** The OWN entries of the chapter mapping at `region`, in source order — each a keyed field
+ *  (`key: …`) or a positional item (`- …`), with its absolute index and [start,end) line span. A
+ *  descended subchapter's first key inline on the `- ` marker line is surfaced as the first entry. */
+function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
+  const starts: { key: string | null; start: number; inline: boolean }[] = [];
+  if (r.marker >= 0) {
+    const inline = lines[r.marker].replace(/^\s*-\s*/, "");
+    if (inline.trim()) starts.push({ key: /^-/.test(inline) ? null : inline.match(/^([^:\s]+):/)?.[1] ?? null, start: r.marker, inline: true });
   }
-  return { lo, hi, indent };
+  for (let i = r.lo; i < r.hi; i++) {
+    if (!isContentLine(lines[i])) continue;
+    const ind = indentOf(lines[i]);
+    if (ind < r.indent) break; // left the mapping
+    if (ind !== r.indent) continue; // deeper → the current entry's body
+    const t = lines[i].trim();
+    if (t.startsWith("!!<")) continue; // the node's OWN schema tag line — not an entry
+    starts.push({ key: t === "-" || t.startsWith("- ") ? null : t.match(/^([^:\s]+):/)?.[1] ?? null, start: i, inline: false });
+  }
+  return starts.map((s, k) => ({
+    absIndex: k,
+    key: s.key,
+    start: s.start,
+    end: k + 1 < starts.length ? starts[k + 1].start : trimBack(lines, s.start, r.hi),
+    inline: s.inline,
+  }));
 }
 
-/** Append items (rendered by `renderItems` at the list's indent) to the `key:` list of the
- *  chapter at `chapterPath` (alternating ["children", N, …] pairs; empty = the top-level
- *  chapter) within a .yamlover source. A chapter authored without the list gains the key at
- *  the end of its mapping. */
-function appendToList(text: string, chapterPath: Seg[], key: string, renderItems: (indent: number) => string[]): string {
-  const lines = text.split("\n");
-  const { lo, hi, indent } = reachChapter(lines, chapterPath);
+/** The positional (keyless) body items of a chapter region, in order. */
+function bodyItems(lines: string[], r: Region): ChapterEntry[] {
+  return chapterEntries(lines, r).filter((e) => e.key === null);
+}
 
-  const keyLine = findKeyLine(lines, lo, hi, indent, key);
-  if (keyLine < 0) {
-    const end = trimBack(lines, lo - 1, hi); // the chapter mapping's end, sans trailing blanks
-    lines.splice(end, 0, `${" ".repeat(indent)}${key}:`, ...renderItems(indent));
-  } else {
-    const end = seqEnd(lines, keyLine + 1, hi, indent);
-    lines.splice(end, 0, ...renderItems(indent));
+/** The line region of the (sub)chapter addressed by `chapterPath` (absolute body-item indices from
+ *  the document root; empty = the top-level chapter). Descends each positional item in turn. */
+function reachChapter(lines: string[], chapterPath: Seg[]): Region {
+  let r: Region = { lo: 0, hi: lines.length, indent: firstContentIndent(lines), marker: -1 };
+  for (const seg of chapterPath) {
+    const idx = Number(seg);
+    const item = chapterEntries(lines, r)[idx];
+    if (!item || item.key !== null) throw new Error(`no subchapter at [${idx}]`);
+    r = { lo: item.start + 1, hi: item.end, indent: r.indent + 2, marker: item.start };
   }
+  return r;
+}
+
+/** The line index to append a new positional body item at the END of a chapter region — right
+ *  after the last positional item (keeping the body contiguous), else after its last entry. */
+function bodyAppendPoint(lines: string[], r: Region): number {
+  const entries = chapterEntries(lines, r);
+  const items = entries.filter((e) => e.key === null);
+  if (items.length) return items[items.length - 1].end;
+  if (entries.length) return entries[entries.length - 1].end;
+  return r.marker >= 0 ? r.marker + 1 : trimBack(lines, r.lo - 1, r.hi);
+}
+
+/** Append items (rendered by `renderItems` at the body's indent) to the positional body of the
+ *  chapter at `chapterPath` within a .yamlover source. */
+function appendBody(text: string, chapterPath: Seg[], renderItems: (indent: number) => string[]): string {
+  const lines = text.split("\n");
+  const r = reachChapter(lines, chapterPath);
+  lines.splice(bodyAppendPoint(lines, r), 0, ...renderItems(r.indent));
   return lines.join("\n");
 }
 
-// --- chapter scalar / list-item edits (the /api/edit surgical ops) --------------------------- //
+// --- chapter scalar / body-item edits (the /api/edit surgical ops) --------------------------- //
 
-/** The [start,end) line span of the `index`-th item of the `key:` sequence within the chapter
- *  region — covering a multi-line block scalar (`|`/`|-`) whole (the item's body extends to the
- *  next item or the sequence's end). Throws if the list or the index is absent. */
-function itemSpan(lines: string[], region: { lo: number; hi: number; indent: number }, key: string, index: number): { start: number; end: number } {
-  const keyLine = findKeyLine(lines, region.lo, region.hi, region.indent, key);
-  if (keyLine < 0) throw new Error(`no '${key}:' at indent ${region.indent}`);
-  const items = seqItems(lines, keyLine + 1, region.hi, region.indent);
-  if (!(index >= 0 && index < items.length)) throw new Error(`${key}[${index}] out of range (${items.length})`);
-  const start = items[index];
-  const end = index + 1 < items.length ? items[index + 1] : seqEnd(lines, keyLine + 1, region.hi, region.indent);
-  return { start, end };
-}
-
-/** The item source text (past its `- ` marker) of the `index`-th item of `key:` — the leading
+/** The item source text (past its `- ` marker) of the `rank`-th positional body item — the leading
  *  fragment used to classify a chunk (a `*…` pointer / an inline schema tag / plain prose). */
-function itemHead(lines: string[], region: { lo: number; hi: number; indent: number }, key: string, index: number): string {
-  const { start } = itemSpan(lines, region, key, index);
-  return lines[start].trim().replace(/^-\s*/, "");
+function bodyItemHead(lines: string[], r: Region, rank: number): string {
+  const items = bodyItems(lines, r);
+  if (!(rank >= 0 && rank < items.length)) throw new Error(`body[${rank}] out of range (${items.length})`);
+  return lines[items[rank].start].trim().replace(/^-\s*/, "");
 }
 
-/** Set (or clear) a scalar `key: value` line within the chapter region: replace the existing line,
- *  insert a fresh one at the mapping's end when absent, or drop it when `value` is empty. */
-function setScalarKey(lines: string[], region: { lo: number; hi: number; indent: number }, key: string, value: string): void {
-  const keyLine = findKeyLine(lines, region.lo, region.hi, region.indent, key);
-  const pad = " ".repeat(region.indent);
+/** Set (or clear) a scalar `key: value` (title/description) within the chapter region. Handles a
+ *  descended subchapter's key sitting INLINE on the `- ` marker line; else replaces the key's own
+ *  line, inserts a fresh one when absent, or drops it when `value` is empty. */
+function setScalarKey(lines: string[], r: Region, key: string, value: string): void {
+  const entry = chapterEntries(lines, r).find((e) => e.key === key);
+  if (entry?.inline) {
+    const pad = " ".repeat(indentOf(lines[entry.start]));
+    lines[entry.start] = `${pad}- ${key}: ${JSON.stringify(value)}`; // an inline title clears to `""`
+    return;
+  }
+  const pad = " ".repeat(r.indent);
   if (!value) {
-    if (keyLine >= 0) lines.splice(keyLine, 1);
+    if (entry) lines.splice(entry.start, 1);
     return;
   }
   const rendered = `${pad}${key}: ${JSON.stringify(value)}`;
-  if (keyLine >= 0) lines.splice(keyLine, 1, rendered);
-  else lines.splice(trimBack(lines, region.lo - 1, region.hi), 0, rendered);
+  if (entry) lines.splice(entry.start, 1, rendered);
+  else lines.splice(r.marker >= 0 ? r.marker + 1 : trimBack(lines, r.lo - 1, r.hi), 0, rendered);
 }
 
-/** Replace the `index`-th item of `key:` with fresh text (re-emitted as a chunk item), preserving
- *  a leading inline schema tag when present (e.g. a `!!<format: text/markdown> |` markdown chunk
+/** Replace the `rank`-th positional body item with fresh text (re-emitted as a chunk item),
+ *  preserving a leading inline schema tag when present (e.g. a `!!<format: text/x-latex> |` chunk
  *  keeps its tag; only the body changes). */
-function replaceListItem(lines: string[], region: { lo: number; hi: number; indent: number }, key: string, index: number, text: string): void {
-  const { start, end } = itemSpan(lines, region, key, index);
+function replaceBodyItem(lines: string[], r: Region, rank: number, text: string): void {
+  const items = bodyItems(lines, r);
+  if (!(rank >= 0 && rank < items.length)) throw new Error(`body[${rank}] out of range (${items.length})`);
+  const { start, end } = items[rank];
   const head = lines[start].trim().replace(/^-\s*/, "");
   const tag = head.match(/^(!!<[^>]*>)/)?.[1]; // an inline schema tag to carry over
-  const rendered = tag ? taggedChunkLines(text, region.indent, tag) : textChunkLines(text, region.indent);
+  const rendered = tag ? taggedChunkLines(text, r.indent, tag) : textChunkLines(text, r.indent);
   lines.splice(start, end - start, ...rendered);
 }
 
-/** Insert a fresh chunk so it lands AT position `index` of `key:` (0 = prepend, ≥ length = append).
- *  Creates the `key:` list when the chapter lacks it. This is the position-addressed insert the
- *  background sync emits when a new chunk appears at index `index` in the model. */
-function insertAtIndex(lines: string[], region: { lo: number; hi: number; indent: number }, key: string, index: number, text: string): void {
-  const keyLine = findKeyLine(lines, region.lo, region.hi, region.indent, key);
-  if (keyLine < 0) {
-    // no list yet — create the key + this one item at the chapter mapping's end
-    const end = trimBack(lines, region.lo - 1, region.hi);
-    lines.splice(end, 0, `${" ".repeat(region.indent)}${key}:`, ...textChunkLines(text, region.indent));
-    return;
-  }
-  const items = seqItems(lines, keyLine + 1, region.hi, region.indent);
-  const pos = Math.max(0, Math.min(index, items.length));
-  const at = pos < items.length ? items[pos] : seqEnd(lines, keyLine + 1, region.hi, region.indent);
-  lines.splice(at, 0, ...textChunkLines(text, region.indent));
+/** Insert a fresh chunk so it lands AT body rank `rank` (0 = prepend, ≥ count = append). This is
+ *  the position-addressed insert the background sync emits when a new chunk appears at `rank`. */
+function insertBodyItem(lines: string[], r: Region, rank: number, text: string): void {
+  const items = bodyItems(lines, r);
+  const at = rank < items.length ? items[rank].start : bodyAppendPoint(lines, r);
+  lines.splice(at, 0, ...textChunkLines(text, r.indent));
 }
 
-/** Remove the `index`-th item of `key:`; drop the now-empty `key:` line if it was the last item. */
-function removeListItem(lines: string[], region: { lo: number; hi: number; indent: number }, key: string, index: number): void {
-  const keyLine = findKeyLine(lines, region.lo, region.hi, region.indent, key);
-  if (keyLine < 0) throw new Error(`no '${key}:' at indent ${region.indent}`);
-  const items = seqItems(lines, keyLine + 1, region.hi, region.indent);
-  const { start, end } = itemSpan(lines, region, key, index);
+/** Remove the `rank`-th positional body item. */
+function removeBodyItem(lines: string[], r: Region, rank: number): void {
+  const items = bodyItems(lines, r);
+  if (!(rank >= 0 && rank < items.length)) throw new Error(`body[${rank}] out of range (${items.length})`);
+  const { start, end } = items[rank];
   lines.splice(start, end - start);
-  if (items.length === 1) lines.splice(keyLine, 1); // that was the only item → drop the empty key
 }
 
 /** A chunk item carrying an inline schema tag: `- <tag> |` + the body (a block scalar), or a
@@ -2258,62 +2289,44 @@ function taggedChunkLines(text: string, indent: number, tag: string): string[] {
   return [`${pad}- ${tag} ${head}`, ...body.split("\n").map((l) => (l.trim().length ? `${pad}  ${l}` : ""))];
 }
 
-/** What a client edit path (relative to the chapter's document) addresses: a scalar `title`/
- *  `description` of the (sub)chapter at `chapterWithin` (alternating ["children", N] pairs), or an
- *  item of its `chunks:` list. Anything else is rejected. */
-type EditTarget =
-  | { kind: "scalar"; chapterWithin: Seg[]; key: "title" | "description" }
-  | { kind: "list"; chapterWithin: Seg[]; listKey: "chunks"; index: number } // replace/remove chunks[i]
-  | { kind: "listkey"; chapterWithin: Seg[]; listKey: "chunks" }; // insert into chunks (position from `index`)
-
-function editTarget(within: Seg[]): EditTarget {
-  const last = within[within.length - 1];
-  if (last === "title" || last === "description") return { kind: "scalar", chapterWithin: within.slice(0, -1), key: last };
-  if (within.length >= 2 && within[within.length - 2] === "chunks" && typeof last === "number") {
-    return { kind: "list", chapterWithin: within.slice(0, -2), listKey: "chunks", index: last };
-  }
-  if (last === "chunks") return { kind: "listkey", chapterWithin: within.slice(0, -1), listKey: "chunks" };
-  throw new Error("unsupported edit target (edit a title, description, chunks[i], or insert into chunks)");
-}
-
 /** Refuse to edit a non-text chunk as text: a `*…` file/pointer chunk, or one carrying an inline
  *  schema tag that isn't an editable text format (marklower/markdown/LaTeX) — e.g. an image or
  *  diagram. Mirrors the client's `chunkEditorFor` registry. */
-function assertProseItem(lines: string[], region: { lo: number; hi: number; indent: number }, key: string, index: number): void {
-  const head = itemHead(lines, region, key, index);
+function assertProseBodyItem(lines: string[], r: Region, rank: number): void {
+  const head = bodyItemHead(lines, r, rank);
   if (head.startsWith("*")) throw new Error("cannot edit a file/pointer chunk as text");
   const tag = head.match(/^!!<([^>]*)>/)?.[1];
   if (tag && !/text\/(markdown|marklower|x-latex)/.test(tag)) throw new Error("cannot edit a non-text chunk as text");
 }
 
 /** Apply one surgical edit to a chapter `.yamlover` source, addressed by the leaf's document-relative
- *  path `within`; `index` is the insert position for an `insert` (a chunks-list target). Returns the
- *  new source text.
+ *  path `within`. The leading `[k]` segments (if any) DESCEND into a subchapter by absolute store
+ *  index; the trailing addressing is a body RANK. Returns the new source text.
  *   - `set`     — `within` ends `…:title`|`…:description`.
- *   - `replace` — `within` ends `…:chunks[i]` (a prose chunk).
- *   - `remove`  — `within` ends `…:chunks[i]`.
- *   - `insert`  — `within` ends `…:chunks` (the list key); the new chunk lands at `index`. */
+ *   - `replace` — `within` ends `…[rank]` (a prose chunk at that body rank).
+ *   - `remove`  — `within` ends `…[rank]`.
+ *   - `insert`  — `within` IS the (sub)chapter; the new chunk lands at body rank `index`. */
 function editChapterSource(src: string, within: Seg[], op: string, text: string, index?: number): string {
   const lines = src.split("\n");
-  const target = editTarget(within);
   if (op === "set") {
-    if (target.kind !== "scalar") throw new Error("`set` needs a title/description target");
-    setScalarKey(lines, reachChapter(lines, target.chapterWithin), target.key, text);
+    const key = within[within.length - 1];
+    if (key !== "title" && key !== "description") throw new Error("`set` needs a title/description target");
+    setScalarKey(lines, reachChapter(lines, within.slice(0, -1)), key, text);
     return lines.join("\n");
   }
   if (op === "insert") {
-    if (target.kind !== "listkey") throw new Error("`insert` needs a chunks list target (path ends `:chunks`)");
-    // undefined index → append at the end of the list
-    insertAtIndex(lines, reachChapter(lines, target.chapterWithin), target.listKey, index ?? Number.MAX_SAFE_INTEGER, text);
+    // `within` addresses the (sub)chapter itself; undefined index → append at the body's end.
+    insertBodyItem(lines, reachChapter(lines, within), index ?? Number.MAX_SAFE_INTEGER, text);
     return lines.join("\n");
   }
-  if (target.kind !== "list") throw new Error(`\`${op}\` needs a chunks[i] target`);
-  const region = reachChapter(lines, target.chapterWithin);
+  const rank = within[within.length - 1];
+  if (typeof rank !== "number") throw new Error(`\`${op}\` needs a body-element target (path ends \`[rank]\`)`);
+  const region = reachChapter(lines, within.slice(0, -1));
   if (op === "replace") {
-    assertProseItem(lines, region, target.listKey, target.index);
-    replaceListItem(lines, region, target.listKey, target.index, text);
+    assertProseBodyItem(lines, region, rank);
+    replaceBodyItem(lines, region, rank, text);
   } else if (op === "remove") {
-    removeListItem(lines, region, target.listKey, target.index);
+    removeBodyItem(lines, region, rank);
   } else {
     throw new Error(`unknown edit op: ${op}`);
   }
@@ -2357,52 +2370,6 @@ function firstContentIndent(lines: string[]): number {
   return 0;
 }
 
-/** Line index of `key:` at exactly `indent` within [lo,hi); -1 once the mapping ends (a dedent). */
-function findKeyLine(lines: string[], lo: number, hi: number, indent: number, key: string): number {
-  for (let i = lo; i < hi; i++) {
-    if (!isContentLine(lines[i])) continue;
-    const ind = indentOf(lines[i]);
-    if (ind < indent) return -1; // left the mapping
-    if (ind !== indent) continue; // deeper (a nested value / block scalar)
-    const t = lines[i].trim();
-    if (t === `${key}:` || t.startsWith(`${key}:`)) return i;
-  }
-  return -1;
-}
-
-/** Start lines of the `- ` items of a sequence whose items sit at `indent`, from `from`. */
-function seqItems(lines: string[], from: number, hi: number, indent: number): number[] {
-  const out: number[] = [];
-  for (let i = from; i < hi; i++) {
-    if (!isContentLine(lines[i])) continue;
-    const ind = indentOf(lines[i]);
-    if (ind < indent) break; // dedent → sequence ended
-    if (ind !== indent) continue; // deeper → the current item's body
-    const t = lines[i].trim();
-    if (t === "-" || t.startsWith("- ")) out.push(i);
-    else break; // a sibling key at the same indent → sequence ended
-  }
-  return out;
-}
-
-/** The line index that ends the sequence starting at `from` (a dedent below `indent`, or a
- *  non-item sibling key at `indent`), skipping back over trailing blank lines. */
-function seqEnd(lines: string[], from: number, hi: number, indent: number): number {
-  let last = from;
-  for (let i = from; i < hi; i++) {
-    if (!isContentLine(lines[i])) continue;
-    const ind = indentOf(lines[i]);
-    if (ind < indent) return trimBack(lines, last, i);
-    if (ind === indent) {
-      const t = lines[i].trim();
-      if (t === "-" || t.startsWith("- ")) { last = i; continue; }
-      return trimBack(lines, last, i); // sibling key
-    }
-    last = i; // deeper: part of the current item
-  }
-  return trimBack(lines, last, hi);
-}
-
 /** Walk an end index back over trailing blank lines, so we insert right after the last item. */
 function trimBack(lines: string[], lastItemLine: number, end: number): number {
   let e = end;
@@ -2441,9 +2408,18 @@ function documentPath(s: Store, segs: Seg[]): string {
 
 /** A node's `title` child value (a scalar), if any — used as a friendly label. */
 function titleOf(s: Store, p: string): string | null {
-  const titlePath = (p === ":" ? "" : p) + ":title";
-  const t = s.node(titlePath);
-  if (t && t.type === "scalar" && !s.hasChildren(titlePath) && t.value != null) return String(t.value);
+  return scalarKeyOf(s, p, "title");
+}
+
+function descriptionOf(s: Store, p: string): string | null {
+  return scalarKeyOf(s, p, "description");
+}
+
+/** A node's scalar keyed child `key` (a leaf scalar), or null — the chapter title/description. */
+function scalarKeyOf(s: Store, p: string, key: string): string | null {
+  const kp = (p === ":" ? "" : p) + ":" + key;
+  const t = s.node(kp);
+  if (t && t.type === "scalar" && !s.hasChildren(kp) && t.value != null) return String(t.value);
   return null;
 }
 

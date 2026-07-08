@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NodeJson, editChunks, createObject } from "../api";
-import { asLink, Link } from "../render";
+import { asLink } from "../render";
 import { fragmentOf } from "../paths";
 import { Chunk, rendererFor } from "./registry";
 import { useHashScroll } from "./headings";
 import { useEditing } from "./editing";
 import { useExplorerTagMenu } from "./tagmenu";
 import { chunkEditorFor, isJoinableFormat, renderedTextLength, type FocusAt } from "./chunk-editors";
+import { markupWidthCh } from "./markup";
 import {
   buildChapterModel,
   snapshotChapter,
   diffChapter,
   newProsePart,
   childPath,
+  chapterBody,
+  isSubchapter,
   type ChapterModel,
   type ChunkPart,
 } from "./chapter-model";
@@ -21,10 +24,10 @@ import {
 type FocusReq = { id: string; at: FocusAt };
 
 /**
- * The renderer for an `object`/`x-yamlover-chapter`: a chapter shown as a readable page — a heading
- * (`title`/`description`) plus a `chunks` body (numbered blocks, each delegated to the renderer for
- * its own (type, format)) and `children` subchapters (rendered as navigable heading links). See the
- * registry for how a chapter is flattened into this page.
+ * The renderer for an `x-yamlover-chapter` (CHAPTER.md): a chapter shown as a readable page — a
+ * heading (`title`/`description`) plus a POSITIONAL body of elements, each either a numbered chunk
+ * (delegated to the renderer for its own (type, format)) or a subchapter (a navigable heading link),
+ * interleaved in source order. See the registry for how a chapter is flattened into this page.
  *
  * When the page is UNLOCKED (the header lock; NodeView + editing.tsx), editing switches to
  * {@link ChapterEditor}: the chapter is loaded into an in-memory model (chapter-model.ts) that the
@@ -55,23 +58,21 @@ export function ChapterView({ node, onNavigate }: { node: NodeJson; onNavigate: 
   );
 }
 
-/** The read-only chapter page (locked). */
+/** The read-only chapter page (locked). Chunks and subchapters interleave in body order. */
 function ChapterRead({ node, onNavigate }: { node: NodeJson; onNavigate: (path: string) => void }) {
-  const v = (node.value ?? {}) as { chunks?: unknown; children?: unknown };
-  const chunks = Array.isArray(v.chunks) ? v.chunks : [];
-  const children = Array.isArray(v.children) ? v.children : [];
+  const body = chapterBody(node.value);
   useHashScroll(node);
+  let chunkNo = 0; // §N numbers the chunks only; subchapters render as heading links
 
   return (
-    <div className="chapter">
+    <div className="chapter" style={{ maxWidth: `${markupWidthCh()}ch` }}>
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      {chunks.map((item, i) => (
-        <ReadChunk key={i} index={i} item={item} basePath={node.path} documentPath={node.documentPath} onNavigate={onNavigate} />
-      ))}
-      {children.map((item, i) => (
-        <SubchapterLink key={i} item={item} onNavigate={onNavigate} />
-      ))}
+      {body.map((item, i) => {
+        const link = asLink(item);
+        if (isSubchapter(link?.format)) return <SubchapterLink key={i} path={link?.path} title={link?.title} onNavigate={onNavigate} />;
+        return <ReadChunk key={i} index={chunkNo++} item={item} basePath={node.path} documentPath={node.documentPath} onNavigate={onNavigate} />;
+      })}
     </div>
   );
 }
@@ -103,19 +104,18 @@ function ReadChunk({
 }
 
 /** A subchapter as a navigable heading link (never edited in this iteration). */
-function SubchapterLink({ item, onNavigate }: { item: unknown; onNavigate: (path: string) => void }) {
-  const link = asLink(item);
+function SubchapterLink({ path, title, onNavigate }: { path?: string; title?: string; onNavigate: (path: string) => void }) {
   return (
     <h2 className="chapter-link">
       <a
         className="descend"
-        href={link?.path ?? "#"}
+        href={path ?? "#"}
         onClick={(e) => {
           e.preventDefault();
-          if (link) onNavigate(link.path);
+          if (path) onNavigate(path);
         }}
       >
-        {chapterTitle(link)}
+        {title || "(untitled chapter)"}
       </a>
     </h2>
   );
@@ -176,9 +176,6 @@ function ChapterEditor({ initialNode, onNavigate }: { initialNode: NodeJson; onN
   const flushRef = useRef(flush);
   flushRef.current = flush;
   useEffect(() => () => void flushRef.current(), []);
-
-  const children = ((initialNode.value ?? {}) as { children?: unknown }).children;
-  const childList = Array.isArray(children) ? children : [];
 
   // ----- model mutations (instant; the sync persists them) -----
   const setText = useCallback((id: string, text: string) => {
@@ -248,32 +245,32 @@ function ChapterEditor({ initialNode, onNavigate }: { initialNode: NodeJson; onN
   }, []);
 
   return (
-    <div className="chapter">
+    <div className="chapter" style={{ maxWidth: `${markupWidthCh()}ch` }}>
       <EditableScalar as="h1" className="chapter-title" placeholder="Title" value={model.title} onCommit={(t) => setModel((m) => ({ ...m, title: t }))} />
       <EditableScalar as="p" className="chapter-subtitle" placeholder="Description" value={model.description} onCommit={(d) => setModel((m) => ({ ...m, description: d }))} />
 
-      {model.chunks.map((c, i) => (
-        <EditChunk
-          key={c.id}
-          index={i}
-          part={c}
-          basePath={model.path}
-          documentPath={initialNode.documentPath}
-          onNavigate={onNavigate}
-          focusAt={focusReq?.id === c.id ? focusReq.at : null}
-          onFocused={() => setFocusReq(null)}
-          onChangeText={(t) => setText(c.id, t)}
-          onSplit={(head, tail) => splitChunk(c.id, head, tail)}
-          onArrowOut={(dir) => arrowOut(c.id, dir)}
-          onJoinPrev={() => join(c.id, "prev")}
-          onJoinNext={() => join(c.id, "next")}
-          onRemove={model.chunks.length > 1 ? () => removeChunk(c.id) : undefined}
-        />
-      ))}
-
-      {childList.map((item, i) => (
-        <SubchapterLink key={i} item={item} onNavigate={onNavigate} />
-      ))}
+      {model.chunks.map((c, i) =>
+        c.subchapter ? (
+          <SubchapterLink key={c.id} path={c.navPath} title={c.title} onNavigate={onNavigate} />
+        ) : (
+          <EditChunk
+            key={c.id}
+            index={i}
+            part={c}
+            basePath={model.path}
+            documentPath={initialNode.documentPath}
+            onNavigate={onNavigate}
+            focusAt={focusReq?.id === c.id ? focusReq.at : null}
+            onFocused={() => setFocusReq(null)}
+            onChangeText={(t) => setText(c.id, t)}
+            onSplit={(head, tail) => splitChunk(c.id, head, tail)}
+            onArrowOut={(dir) => arrowOut(c.id, dir)}
+            onJoinPrev={() => join(c.id, "prev")}
+            onJoinNext={() => join(c.id, "next")}
+            onRemove={model.chunks.filter((k) => !k.subchapter).length > 1 ? () => removeChunk(c.id) : undefined}
+          />
+        ),
+      )}
     </div>
   );
 }
@@ -309,7 +306,7 @@ function EditChunk({
   onJoinNext: () => void;
   onRemove?: () => void;
 }) {
-  const anchor = childPath(basePath, "chunks") + `[${index}]`;
+  const anchor = childPath(basePath, index); // the body element's slot (`<chapter>[rank]`)
   const id = fragmentOf(basePath, anchor);
   const Editor = part.editable ? chunkEditorFor(part.format) : null;
   let body;
@@ -406,9 +403,4 @@ function chunkOf(item: unknown, documentPath?: string): Chunk {
     hasOrdinal: link?.hasOrdinal ?? false,
     documentPath,
   };
-}
-
-/** A subchapter link's label: its schema title, else a generic fallback. */
-function chapterTitle(link: Link | null): string {
-  return link?.title ?? "(untitled chapter)";
 }

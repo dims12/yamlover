@@ -84,12 +84,13 @@ describe("NodeView", () => {
       expect(mNode).not.toHaveBeenCalledWith(":d", expect.any(Number)); // only the depth-1 fetch
       r2.unmount();
 
-      // (3) a chapter gets its own depth 2, even though the setting is 6
+      // (3) a chapter gets its own depth 1 (its body elements are direct children), not the setting 6.
+      // A FILE-backed chapter's settle fetch is unlimited, so it refetches at exactly 1.
       mNode.mockReset();
-      mNode.mockResolvedValue({ path: ":c", type: "object", format: "x-yamlover-chapter", concrete: "dir/yamlover",
-        title: null, description: null, value: { title: "T", chunks: [], children: [] } });
+      mNode.mockResolvedValue({ path: ":c", type: "variant", format: "x-yamlover-chapter", concrete: "file/yamlover",
+        title: null, description: null, value: { $yamloverMixed: { kind: "mix", entries: [] } } });
       render(<NodeView path=":c" format="chapter" onFormat={() => {}} onNavigate={() => {}} />);
-      await waitFor(() => expect(mNode).toHaveBeenCalledWith(":c", 2));
+      await waitFor(() => expect(mNode).toHaveBeenCalledWith(":c", 1));
       expect(mNode).not.toHaveBeenCalledWith(":c", 6);
 
       // (4) an INLINE-DATA container (a yamlover-concrete fragment / sub-object — NOT a directory)
@@ -208,6 +209,31 @@ describe("NodeView", () => {
     render(<NodeView path=":chapters[2]" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("empty");
     expect(document.title).toBe("[2]");
+  });
+
+  it("an editable (chapter) page leads the bar with a captioned Edit toggle that unlocks on click", async () => {
+    mNode.mockResolvedValue({ path: ":c", type: "variant", format: "x-yamlover-chapter", concrete: "file/yamlover",
+      title: "Doc", description: null, value: { $yamloverMixed: { kind: "mix", entries: [{ key: "title", value: "Doc" }] } } });
+    render(<NodeView path=":c" format="chapter" onFormat={() => {}} onNavigate={() => {}} />);
+
+    // read-only: the toggle reads "Edit" and is the FIRST control in the node bar (docked left)
+    const edit = await screen.findByRole("button", { name: /Edit/ });
+    expect(edit.classList.contains("lockbtn")).toBe(true);
+    expect(edit.getAttribute("aria-pressed")).toBe("false");
+    const controls = [...document.querySelectorAll(".nodehead button")];
+    expect(controls[0]).toBe(edit); // leads the bar
+
+    // clicking unlocks: the caption flips to "Done" and aria-pressed goes true
+    fireEvent.click(edit);
+    const done = await screen.findByRole("button", { name: /Done/ });
+    expect(done.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("a non-editable (data) page shows no Edit toggle", async () => {
+    mNode.mockResolvedValue({ path: ":x.yaml", type: "object", concrete: "file/yaml", hasKeyed: true, title: null, description: null, value: { a: 1 } });
+    render(<NodeView path=":x.yaml" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("a");
+    expect(screen.queryByRole("button", { name: /Edit/ })).toBeNull();
   });
 });
 

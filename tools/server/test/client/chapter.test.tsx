@@ -6,23 +6,27 @@ import type { NodeJson } from "../../src/client/api";
 
 afterEach(cleanup);
 
-// A chapter two levels deep: `chunks` are scalar link markers (text/markdown,
-// text in `value`); `children` are object link markers carrying their `title`.
+// A chapter (CHAPTER.md): title/description are keyed; the body is the mixed marker's KEYLESS
+// entries — scalar chunk link markers (text in `value`) and object subchapter markers (with a
+// `title`). Title is entry 0, so the body elements sit at store slots [1], [2], [3].
 const chapter: NodeJson = {
   path: ":",
-  type: "object",
+  type: "variant",
   format: "x-yamlover-chapter",
   concrete: "dir/yamlover",
   title: "The Handbook",
   description: "A friendly guide",
   value: {
-    chunks: [
-      { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":chunks[0]", value: "Welcome to the handbook." } },
-      { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":chunks[1]", value: "Read on." } },
-    ],
-    children: [
-      { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: ":children[0]", title: "Installation", count: 2 } },
-    ],
+    $yamloverMixed: {
+      kind: "mix",
+      entries: [
+        { key: "title", value: "The Handbook" },
+        { key: "description", value: "A friendly guide" },
+        { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":[1]", value: "Welcome to the handbook." } } },
+        { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":[2]", value: "Read on." } } },
+        { key: null, value: { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: ":[3]", title: "Installation", count: 2 } } },
+      ],
+    },
   },
 };
 
@@ -44,13 +48,12 @@ describe("ChapterView", () => {
     const prose = screen.getByText("Welcome to the handbook.");
     expect(prose.tagName).toBe("P"); // a chunk is delegated to the text renderer → paragraph
 
-    // §N is an in-page fragment anchor whose syntax mirrors the chunk's SLASH path
-    // continuation (README "flattened child" rule: `#/chunks[0]`), not a full-navigation link
+    // §N is an in-page fragment anchor mirroring the chunk's positional store path (`#[1]`)
     const idx0 = screen.getByText("§0") as HTMLAnchorElement;
-    expect(idx0.getAttribute("href")).toBe("#/chunks[0]");
-    expect((screen.getByText("§1") as HTMLAnchorElement).getAttribute("href")).toBe("#/chunks[1]");
-    // the chunk element carries the matching id, so `<chapter>#/chunks[1]` scrolls to it
-    expect(document.getElementById("/chunks[1]")).not.toBeNull();
+    expect(idx0.getAttribute("href")).toBe("#[1]");
+    expect((screen.getByText("§1") as HTMLAnchorElement).getAttribute("href")).toBe("#[2]");
+    // the chunk element carries the matching id, so `<chapter>#[2]` scrolls to it
+    expect(document.getElementById("[2]")).not.toBeNull();
     // clicking the in-page anchor does not trigger app navigation
     fireEvent.click(idx0);
     expect(onNav).not.toHaveBeenCalled();
@@ -61,23 +64,29 @@ describe("ChapterView", () => {
     const mixed: NodeJson = {
       ...chapter,
       value: {
-        chunks: [
-          { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":chunks[0]", value: "Intro." } },
-          { $yamloverLink: { kind: "binary", type: "binary", format: "image/png", path: ":chunks[1]", size: 1234 } },
-          { $yamloverLink: { kind: "scalar", type: "string", format: "text/x-plantuml", path: ":chunks[2]", value: "@startuml\nA -> B\n@enduml" } },
-        ],
-        children: [],
+        $yamloverMixed: {
+          kind: "mix",
+          entries: [
+            { key: "title", value: "The Handbook" },
+            { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":[1]", value: "Intro." } } },
+            { key: null, value: { $yamloverLink: { kind: "binary", type: "binary", format: "image/png", path: ":[2]", size: 1234 } } },
+            { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/x-plantuml", path: ":[3]", value: "@startuml\nA -> B\n@enduml" } } },
+          ],
+        },
       },
     };
     const { container } = render(<ChapterView node={mixed} onNavigate={vi.fn()} />);
 
     expect(screen.getByText("Intro.").tagName).toBe("P"); // markdown → markdown renderer
-    // the image chunk routes to the (lazily loaded) pan/zoom image renderer — wait for
-    // its container to mount (Leaflet builds the actual <img> itself, beyond jsdom)
-    await waitFor(() => expect(container.querySelector(".fileimagemap")).not.toBeNull());
-    // the diagram chunk is an <img> pointing at a PlantUML server, not the blob endpoint
-    const img = container.querySelector("img");
-    expect(img?.getAttribute("src")).toMatch(/\/plantuml\/svg\//);
+    // the image chunk routes to the (lazily loaded) image renderer — a plain STATIC <img> (no
+    // pan/zoom widget inline), wrapped in a click-to-open anchor, its src the blob endpoint
+    await waitFor(() => expect(container.querySelector("img.chunk-image")).not.toBeNull());
+    const imgChunk = container.querySelector("img.chunk-image")!;
+    expect(imgChunk.getAttribute("src")).toContain("/api/blob?path=");
+    expect(imgChunk.closest("a.chunk-open")).not.toBeNull(); // clicking opens it on its own page
+    // the diagram chunk is a separate <img> pointing at a PlantUML server, not the blob endpoint
+    const uml = [...container.querySelectorAll("img")].find((i) => /\/plantuml\/svg\//.test(i.getAttribute("src") ?? ""));
+    expect(uml).toBeDefined();
   });
 
   it("renders a subchapter as a title hyperlink", () => {
@@ -85,8 +94,8 @@ describe("ChapterView", () => {
     render(<ChapterView node={chapter} onNavigate={onNav} />);
 
     const link = screen.getByText("Installation"); // subchapter by its title
-    expect((link as HTMLAnchorElement).getAttribute("href")).toBe(":children[0]");
+    expect((link as HTMLAnchorElement).getAttribute("href")).toBe(":[3]");
     fireEvent.click(link);
-    expect(onNav).toHaveBeenCalledWith(":children[0]");
+    expect(onNav).toHaveBeenCalledWith(":[3]");
   });
 });

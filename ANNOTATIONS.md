@@ -95,11 +95,11 @@ yamlover-annotations:
 - *::tags:genre:brevity:shortest-paper
 ```
 
-**Chapter chunk (markdown block scalar)** — the chunk becomes an **omni block-scalar**; the
-fields sit at a **shallower** indent than the block content (and deeper than the key):
+**Chapter chunk (markdown block scalar)** — a chunk is a positional body element (CHAPTER.md); the
+annotated chunk becomes an **omni block-scalar**, its fields at a **shallower** indent than the
+block content (and deeper than the `-`):
 
 ```yamlover
-chunks:
 - !!var |
     Mathematics likes to hide, but a standalone LaTeX block
     gives it away.

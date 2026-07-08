@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NodeJson, fetchAnnotations } from "../api";
 import { touchesYamlover, useDiffBump } from "../live";
+import { asLink } from "../render";
 import { resolveTagColor } from "./tag";
 import { tagFields } from "./tag";
 import { ChapterView } from "./chapter";
@@ -9,7 +10,8 @@ import { isState, stateDetail, moveState, WorkflowState } from "./workflow";
 export const TASK_FORMAT = "x-yamlover-task";
 
 const scalarField = (value: unknown, key: string): string | null => {
-  const v = tagFields(value).find(([k]) => k === key)?.[1];
+  const raw = tagFields(value).find(([k]) => k === key)?.[1];
+  const v = asLink(raw)?.value ?? raw; // a keyed scalar projects as a depth-0 link marker — unwrap it
   return typeof v === "string" ? v : typeof v === "number" ? String(v) : null;
 };
 
@@ -28,7 +30,6 @@ export function TaskView({ node, onNavigate }: { node: NodeJson; onNavigate: (pa
   const diffBump = useDiffBump(touchesYamlover);
   const [state, setState] = useState<CurrentState | null>(null);
 
-  const description = scalarField(node.value, "description");
   const priority = scalarField(node.value, "priority");
   const assignee = scalarField(node.value, "assignee");
   const due = scalarField(node.value, "due");
@@ -83,7 +84,6 @@ export function TaskView({ node, onNavigate }: { node: NodeJson; onNavigate: (pa
         {due && <span className="board-chip board-due">{due.slice(0, 10)}</span>}
         {estimate && <span className="board-chip board-estimate">{estimate}</span>}
       </div>
-      {description && <p className="task-description">{description}</p>}
       <ChapterView node={node} onNavigate={onNavigate} />
     </div>
   );

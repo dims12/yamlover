@@ -168,12 +168,13 @@ subtree shallowly, pulling some descendants up to become constituent parts of
 *this* level instead of separate places you navigate away to. The data and its
 paths are unchanged — only how a renderer lays them out.
 
-The first instance is the **chapter** renderer (the `$defs/chapter` schema —
-`title`, `chunks`, recursive `children`): a chapter's `chunks` are flattened
-into one readable page (each chunk rendered inline by the renderer for its own
-type), rather than being browsed one node at a time. (Its subchapters,
-`children`, are *not* flattened — they stay links you navigate to. A future
-option will flatten further levels.)
+The first instance is the **chapter** renderer (the `$defs/chapter` schema — an
+omni node with optional `title`/`description` and a **positional body** of chunks
+and subchapters, `CHAPTER.md`): a chapter's chunks are flattened into one readable
+page (each chunk rendered inline by the renderer for its own type), rather than
+being browsed one node at a time. (Its subchapters — body elements that are
+themselves chapters — are *not* flattened; they stay links you navigate to. A
+future option will flatten further levels.)
 
 Flattening must not cost a node its address. The rule:
 
@@ -181,13 +182,13 @@ Flattening must not cost a node its address. The rule:
 > syntax is the **path continuation** that reaches it — and the full path keeps
 > working as ordinary navigation.
 
-So a chapter at `/book` whose chunk `[1]` lives at the still-navigable path
-`/book/chunks[1]` exposes that chunk, on the flattened page, as the anchor
-`#/chunks[1]`: opening `/book#/chunks[1]` scrolls straight to it. The fragment is
-spelled exactly like the path suffix (`/chunks[1]`), so the two notations agree —
-`/book/chunks[1]` navigates *to* the chunk's own node; `/book#/chunks[1]` locates
-the *same* chunk where it was flattened in. Deeper flattening simply yields longer
-continuations (e.g. `#/children[0]/chunks[2]`).
+So a chapter at `:book` whose first body chunk lives at the still-navigable path
+`:book[1]` exposes that chunk, on the flattened page, as the anchor `#[1]`: opening
+`:book#[1]` scrolls straight to it. The fragment is spelled exactly like the path
+suffix (`[1]`), so the two notations agree — `:book[1]` navigates *to* the chunk's
+own node; `:book#[1]` locates the *same* chunk where it was flattened in. Deeper
+flattening simply yields longer continuations (e.g. `#[3][2]` for a chunk inside a
+subchapter).
 
 A rendered prose document has the same need at a finer grain. A `.md`/`.adoc` file
 is one HTML blob, so its **headings** would otherwise have no address. The `markdown`

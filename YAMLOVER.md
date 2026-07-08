@@ -216,12 +216,10 @@ file needs no `.yamlover/` overlay:
 ```yamlover
 !!<*yamlover/$defs/chapter>      # tag on the document root
 title: My Article
-chunks:
-- The first paragraph.
+- The first paragraph.          # the body is POSITIONAL: chunks and subchapters, interleaved
 - The second.
-children:
-- title: A subsection
-  chunks: [ … ]
+- title: A subsection           # a body element with its own title is a subchapter (CHAPTER.md)
+  - its own body chunk…
 ```
 
 - `!!<…>` borrows YAML's tag syntax, and **its contents are themselves yamlover**. Since a

@@ -8,6 +8,7 @@ import { fragmentAnchorId } from "../paths";
 import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 import { TagLink, resolveTagColor, isColorTagPath } from "./tag";
 import { wireGestures } from "./panzoom";
+import { OpenChunk } from "./openable";
 
 /** A rectangular annotation region in the image's own pixel space (origin top-left). `ann` is the
  *  source annotation when it is a real saved one (→ clickable to edit); absent for the live preview.
@@ -236,7 +237,19 @@ export function ImageView({ node }: { node: NodeJson }) {
   );
 }
 
-/** An image embedded inline in a chapter — pan/zoom only (no annotation target → plain drag pans). */
-export function ImageChunk({ chunk }: { chunk: Chunk }) {
-  return <PanZoomImage src={blobUrl(chunk.path)} className="filemap chunk-map fileimagemap" />;
+/** A plain, left-aligned STATIC image for a chapter's flow — the ONE inline form every image
+ *  renderer shares, native (`ImageChunk`, `src` = the blob endpoint) or decoded (PSD/TIFF/HEIC,
+ *  `src` = a decoded-page object-URL; see decoded.tsx). No pan/zoom controls — those live in the
+ *  standalone viewer. Clicking opens `path` (the resource's own node) where that viewer is. */
+export function StaticImageChunk({ src, path, onNavigate }: { src: string; path: string; onNavigate?: (path: string) => void }) {
+  return (
+    <OpenChunk path={path} onNavigate={onNavigate} title="Open image on its own page">
+      <img className="chunk-image" src={src} alt="" loading="lazy" />
+    </OpenChunk>
+  );
+}
+
+/** A native image embedded inline in a chapter — its bytes straight from the blob endpoint. */
+export function ImageChunk({ chunk, onNavigate }: { chunk: Chunk; onNavigate?: (path: string) => void }) {
+  return <StaticImageChunk src={blobUrl(chunk.path)} path={chunk.path} onNavigate={onNavigate} />;
 }
