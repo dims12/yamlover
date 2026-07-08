@@ -1,0 +1,24 @@
+# The Fish chapter — its own directory chapter. Positional body: prose, the `fish-tank.png`
+# image chunk (a sibling file here), and a PlantUML state diagram of the nitrogen cycle.
+!!<*yamlover: $defs: chapter>
+title: Fish
+description: A quiet window into another world
+- |
+  An aquarium is a small ecosystem, and **water quality is everything.**
+- *: fish-tank.png
+- |
+  Cycle a new tank for weeks before adding fish, so helpful bacteria can establish. Feed
+  sparingly: uneaten food fouls the water faster than anything else.
+- |
+  The bacteria you are waiting for run the **nitrogen cycle**, turning toxic waste into
+  something far milder:
+- !!<format: text/x-plantuml> |
+  @startuml
+  [*] --> Ammonia : fish waste
+  Ammonia --> Nitrite : Nitrosomonas
+  Nitrite --> Nitrate : Nitrobacter
+  Nitrate --> [*] : water change
+  @enduml
+"fish-tank.png":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-09ea0c272066f155-256x256.jpg

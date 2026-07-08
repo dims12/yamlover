@@ -30,7 +30,7 @@ title: A Tour of marklower Links
     from the repo, a sibling example is at [//examples/68-math-chapter](//examples/68-math-chapter),
     or one formula in it at [//examples/68-math-chapter/[3]](//examples/68-math-chapter/[3]).
   - |
-    The pet handbook is at [//examples/66-doc-tree](//examples/66-doc-tree). To return home,
+    The pet handbook is at [//examples/66-pet-keeper-handbook](//examples/66-pet-keeper-handbook). To return home,
     regardless of mount point, use a document-relative link to this guide's intro at
     [/[1]](/[1]).
 - title: External links

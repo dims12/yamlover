@@ -84,6 +84,43 @@ export function chapterBody(value: unknown): unknown[] {
   return [];
 }
 
+/** One element of a chapter's rendered FLOW — everything the page shows, in source order. */
+export type FlowKind = "title" | "description" | "subchapter" | "chunk";
+export interface FlowItem {
+  kind: FlowKind;
+  value: unknown; // the entry value (a `$yamloverLink` marker or an inline scalar)
+}
+
+/** The chapter's full rendered stream in SOURCE order — the keyed `title`/`description` entries and
+ *  the keyless body (chunks + subchapter links) interleaved exactly where the author placed them, so
+ *  the renderer never hoists the heading or forces subchapters to the end (CHAPTER.md — position is
+ *  the author's). Any OTHER keyed entry (a directory member surfaced as a key, a task planning field)
+ *  is skipped: it is not chapter body content. An untitled chapter (plain-array projection) is all
+ *  keyless — chunks and subchapter links, in order. */
+export function chapterFlow(value: unknown): FlowItem[] {
+  const kindOf = (v: unknown): FlowKind => (isSubchapter(asLink(v)?.format) ? "subchapter" : "chunk");
+  if (Array.isArray(value)) return value.map((v) => ({ kind: kindOf(v), value: v }));
+  const mixed = (value as Record<string, unknown> | null | undefined)?.[MIXED_KEY] as
+    | { entries?: { key: string | null; value: unknown }[] }
+    | undefined;
+  if (!mixed?.entries) return [];
+  const out: FlowItem[] = [];
+  for (const e of mixed.entries) {
+    if (e.key === "title") out.push({ kind: "title", value: e.value });
+    else if (e.key === "description") out.push({ kind: "description", value: e.value });
+    else if (e.key == null) out.push({ kind: kindOf(e.value), value: e.value });
+    // else: another keyed entry (directory member / task field) — not chapter body content
+  }
+  return out;
+}
+
+/** The plain text of a title/description flow entry — a keyed scalar projects (at depth 1) as a
+ *  depth-0 link marker, so unwrap it; tolerate a raw string too. */
+export function flowText(value: unknown): string {
+  const v = asLink(value)?.value ?? value;
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+
 let idSeq = 0;
 const freshId = (): string => `ck${idSeq++}`;
 

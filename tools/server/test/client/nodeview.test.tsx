@@ -211,17 +211,20 @@ describe("NodeView", () => {
     expect(document.title).toBe("[2]");
   });
 
-  it("an editable (chapter) page leads the bar with a captioned Edit toggle that unlocks on click", async () => {
+  it("an editable (chapter) page shows a captioned Edit toggle leading the buttons (after the chips) that unlocks on click", async () => {
     mNode.mockResolvedValue({ path: ":c", type: "variant", format: "x-yamlover-chapter", concrete: "file/yamlover",
       title: "Doc", description: null, value: { $yamloverMixed: { kind: "mix", entries: [{ key: "title", value: "Doc" }] } } });
     render(<NodeView path=":c" format="chapter" onFormat={() => {}} onNavigate={() => {}} />);
 
-    // read-only: the toggle reads "Edit" and is the FIRST control in the node bar (docked left)
+    // read-only: the toggle reads "Edit", is not pressed, and is the LEFTMOST button (before the tabs)
     const edit = await screen.findByRole("button", { name: /Edit/ });
     expect(edit.classList.contains("lockbtn")).toBe(true);
     expect(edit.getAttribute("aria-pressed")).toBe("false");
-    const controls = [...document.querySelectorAll(".nodehead button")];
-    expect(controls[0]).toBe(edit); // leads the bar
+    const buttons = [...document.querySelectorAll(".nodehead button")];
+    expect(buttons[0]).toBe(edit); // leftmost of the buttons — before the representation tabs
+    // …but it sits AFTER the type/concrete chips: the chips (.nodemeta) precede it in the bar
+    const meta = document.querySelector(".nodemeta")!;
+    expect(meta.compareDocumentPosition(edit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // clicking unlocks: the caption flips to "Done" and aria-pressed goes true
     fireEvent.click(edit);

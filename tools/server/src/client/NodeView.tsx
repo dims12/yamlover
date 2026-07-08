@@ -476,24 +476,6 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
       {pasteMsg && <div className="paste-toast">{pasteMsg}</div>}
       {dragging && <div className="drop-overlay">Drop file to upload</div>}
       <div className="nodehead">
-        {/* the EDIT toggle: a chapter/task page can be unlocked for in-place WYSIWYG editing. Locked
-            (read-only) by default; unlocking turns prose chunks, the title/description, and subchapter
-            titles into editable fields (and suspends the annotation layer — see below). It leads the
-            bar (left) with an icon + caption so the action reads at a glance. */}
-        {isEditableView && (
-          <>
-            <button
-              className={"lockbtn" + (unlocked ? " unlocked" : "")}
-              title={unlocked ? "Editing — click or Esc to finish" : "Read-only — click or F2 to edit"}
-              aria-pressed={unlocked}
-              onClick={() => setUnlocked((v) => !v)}
-            >
-              <span className="lockbtn-icon" aria-hidden="true">{unlocked ? "✓" : "✏️"}</span>
-              <span className="lockbtn-label">{unlocked ? "Done" : "Edit"}</span>
-            </button>
-            <span className="bar-sep" aria-hidden="true">|</span>
-          </>
-        )}
         <div className="nodemeta">
           <span className="tag">{node.type}</span>
           {node.concrete && <span className="tag dim">{node.concrete}</span>}
@@ -503,6 +485,22 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
         {/* the representation tabs dock LEFT, after the chips, set off by a separator; a
             renderer's own bar control (e.g. markup width) sits right after its button */}
         <span className="bar-sep" aria-hidden="true">|</span>
+        {/* the EDIT toggle: a chapter/task page can be unlocked for in-place WYSIWYG editing. Locked
+            (read-only) by default; unlocking turns prose chunks, the title/description, and subchapter
+            titles into editable fields (and suspends the annotation layer — see below). It sits at the
+            LEFT of the buttons — after the type/concrete chips, before the representation tabs — with
+            an icon + caption so the action reads at a glance. */}
+        {isEditableView && (
+          <button
+            className={"lockbtn" + (unlocked ? " unlocked" : "")}
+            title={unlocked ? "Editing — click or Esc to finish" : "Read-only — click or F2 to edit"}
+            aria-pressed={unlocked}
+            onClick={() => setUnlocked((v) => !v)}
+          >
+            <span className="lockbtn-icon" aria-hidden="true">{unlocked ? "✓" : "✏️"}</span>
+            <span className="lockbtn-label">{unlocked ? "Done" : "Edit"}</span>
+          </button>
+        )}
         <div className="tabs">
           {tabs.map((f) => (
             <Fragment key={f}>

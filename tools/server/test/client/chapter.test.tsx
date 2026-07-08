@@ -98,4 +98,31 @@ describe("ChapterView", () => {
     fireEvent.click(link);
     expect(onNav).toHaveBeenCalledWith(":[3]");
   });
+
+  it("renders title, description, subchapters and chunks in SOURCE order — heading not hoisted, text after a subchapter", () => {
+    // author order: an intro chunk, THEN the title, a subchapter, then a closing chunk
+    const flowed: NodeJson = {
+      ...chapter,
+      value: {
+        $yamloverMixed: {
+          kind: "mix",
+          entries: [
+            { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":[0]", value: "Intro before the title." } } },
+            { key: "title", value: "Mid-Flow Title" },
+            { key: null, value: { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: ":[2]", title: "A Section", count: 1 } } },
+            { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":[3]", value: "Closing after the section." } } },
+          ],
+        },
+      },
+    };
+    const { container } = render(<ChapterView node={flowed} onNavigate={vi.fn()} />);
+    // the DOM order of the rendered blocks matches the source flow
+    const blocks = [...container.querySelectorAll("h1.chapter-title, .chapter-link a, .chunk-body p")];
+    expect(blocks.map((b) => b.textContent)).toEqual([
+      "Intro before the title.", // a chunk FIRST — the title is not hoisted above it
+      "Mid-Flow Title", // the title, mid-flow (h1)
+      "A Section", // the subchapter link, in place
+      "Closing after the section.", // base-level text AFTER the subchapter
+    ]);
+  });
 });

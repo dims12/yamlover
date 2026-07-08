@@ -1,0 +1,25 @@
+# The Cats chapter — its own directory chapter. Positional body: prose, the `cat-face.png`
+# image chunk (a sibling file here), and a PlantUML state diagram of a cat's day.
+!!<*yamlover: $defs: chapter>
+title: Cats
+description: Independent roommates with opinions
+- |
+  A cat tolerates your presence on terms it renews daily.
+- *: cat-face.png
+- |
+  Vertical space — shelves, perches, a tall scratching post — keeps a cat content. And a
+  clean litter box is the single most important thing you can offer a cat.
+- |
+  A cat's day cycles through a few well-known states:
+- !!<format: text/x-plantuml> |
+  @startuml
+  [*] --> Aloof
+  Aloof --> Hungry : dinnertime
+  Hungry --> Affectionate : fed
+  Affectionate --> Aloof : had enough
+  Aloof --> Zoomies : 3 a.m.
+  Zoomies --> Aloof : worn out
+  @enduml
+"cat-face.png":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-be1b2e864457e339-256x256.jpg

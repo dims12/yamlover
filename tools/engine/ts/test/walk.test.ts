@@ -115,30 +115,41 @@ test('the attached chapter schema propagates down: subchapters & chunks get thei
   s.close();
 });
 
-test('`*/file` resolves to the nearest DOCUMENT root, depth-independently (66 nested chunks)', () => {
+test('`*: file` resolves within its OWN directory chapter, each dir a document boundary (66-pet-keeper-handbook)', () => {
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
-  // a deeply nested subchapter chunk `*/puppy-paw.png` resolves to the 66 chapter root's file,
-  // NOT the served (examples) root — the directory-with-body is a document boundary. Puppies is the
-  // nested subchapter [13][7]; its image chunk is a positional `*` ref in its body.
-  const deep = s.entries(':66-doc-tree[13][7]').find((c) => c.kind === 'ref');
-  assert.equal(deep?.to, ':66-doc-tree:puppy-paw.png');
-  // a top-level chapter's `*/sample.png` resolves within that chapter too (a positional body ref)
+  // Each chapter is its own directory (dogs/, cats/, fish/, dogs/puppies/), so each `.yamlover/
+  // body.yamlover` is its own document boundary. The Puppies chapter's `*: puppy-paw.png` resolves to
+  // the sibling file living in the puppies/ directory — not the root handbook dir.
+  const deep = s.entries(':66-pet-keeper-handbook:dogs:puppies').find((c) => c.kind === 'ref');
+  assert.equal(deep?.to, ':66-pet-keeper-handbook:dogs:puppies:puppy-paw.png');
+  // the Dogs chapter's `*: dog-bone.png` resolves to its own directory's file
+  const dog = s.entries(':66-pet-keeper-handbook:dogs').find((c) => c.kind === 'ref');
+  assert.equal(dog?.to, ':66-pet-keeper-handbook:dogs:dog-bone.png');
+  // a top-level chapter's `*: sample.png` resolves within that chapter too (a positional body ref)
   const top = s.entries(':65-all-formats-chunks').find((c) => c.kind === 'ref');
   assert.equal(top?.to, ':65-all-formats-chunks:sample.png');
   s.close();
 });
 
-test('a directory chapter: the body.yamlover root schema tag attaches to the dir (66-doc-tree)', () => {
+test('a directory chapter tree: each subchapter is its OWN directory, referenced by a `*` body pointer (66-pet-keeper-handbook)', () => {
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
-  const ch = ':66-doc-tree';
-  // a dir chapter: its 5 image files sort as keyed children first, so the positional body is shifted
-  // (first prose chunk at [8], subchapters at [13..15]); ranks still line up with the source items.
+  const ch = ':66-pet-keeper-handbook';
+  // The root dir's members (`.yamlover`, cats, cover-paw.png, dogs, fish, title, description) sort as
+  // keyed entries first, so the positional body starts at [7]; the three subchapters are `*` refs to
+  // the sibling directories (dogs/cats/fish, in source order) at [12..14].
   assert.equal(s.node(ch)?.format, 'x-yamlover-chapter'); // schema carried from body.yamlover root
-  assert.equal(s.node(ch + '[13]')?.format, 'x-yamlover-chapter'); // subchapter (Dogs)
-  assert.equal(s.node(ch + '[13][7]')?.format, 'x-yamlover-chapter'); // Puppies (nested subchapter)
-  assert.equal(s.node(ch + '[8]')?.format, 'text/marklower'); // first prose chunk
+  assert.equal(s.node(ch + '[7]')?.format, 'text/marklower'); // first prose chunk
+  assert.equal(s.node(ch + '[11]')?.format, 'text/x-plantuml'); // the mindmap diagram chunk
+  // each subchapter is a real directory chapter (its own body.yamlover root tag), reached by a body ref
+  assert.equal(s.entries(ch)[12]?.to, ch + ':dogs');
+  assert.equal(s.entries(ch)[13]?.to, ch + ':cats');
+  assert.equal(s.entries(ch)[14]?.to, ch + ':fish');
+  assert.equal(s.node(ch + ':dogs')?.format, 'x-yamlover-chapter');
+  assert.equal(s.node(ch + ':cats')?.format, 'x-yamlover-chapter');
+  assert.equal(s.node(ch + ':fish')?.format, 'x-yamlover-chapter');
+  assert.equal(s.node(ch + ':dogs:puppies')?.format, 'x-yamlover-chapter'); // nested subchapter dir
   s.close();
 });
 

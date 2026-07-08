@@ -1,0 +1,25 @@
+# The Puppies chapter — a directory chapter nested under dogs/. Positional body: prose, the
+# `puppy-paw.png` image chunk (a sibling file here), and a PlantUML gantt of the first months.
+!!<*yamlover: $defs: chapter>
+title: Puppies
+description: The first few months
+- |
+  Puppies sleep most of the day and chew most of the rest.
+- *: puppy-paw.png
+- |
+  Begin house training the day they arrive, reward every success generously, and give
+  early, gentle exposure to people and places — it shapes a calm adult dog.
+- |
+  The first months follow a rough schedule:
+- !!<format: text/x-plantuml> |
+  @startgantt
+  Project starts 2026-01-01
+  [Settle in] lasts 3 days
+  [House training] lasts 28 days
+  [House training] starts at [Settle in]'s end
+  [Socialisation] lasts 60 days
+  [Socialisation] starts at [Settle in]'s end
+  @endgantt
+"puppy-paw.png":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-94be71edcf540dac-256x256.jpg

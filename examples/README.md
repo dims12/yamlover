@@ -68,7 +68,7 @@ and (recursive) subchapters — tagged with the `chapter` schema (`$defs/chapter
 |---|---------|------------------|
 | 60 | [`60-simple-chapter.yamlover`](60-simple-chapter.yamlover)   | a single tagged **file** — the minimal chapter (`title` + a positional body of chunks and subchapters) |
 | 65 | [`65-all-formats-chunks`](65-all-formats-chunks)             | a **directory** chapter — textual chunks (block scalars) interleaved with `*sample.*` pointers to binary files; per-chunk formats and file types in `meta.yamlover` |
-| 66 | [`66-doc-tree`](66-doc-tree)                                 | a recursive **directory** chapter — prose + `*png` image chunks + PlantUML chunks tagged per-chunk `!!<*yamlover/$defs/plantuml>` (no meta: png by extension, plantuml by tag) |
+| 66 | [`66-pet-keeper-handbook`](66-pet-keeper-handbook)           | a recursive chapter **tree where each chapter is its own directory** — the root plus `dogs/`, `cats/`, `fish/` (and nested `dogs/puppies/`), each a directory chapter with its own `.yamlover/`; subchapters are `*`-pointers to those subdirectories, prose + `*png` image chunks + per-chunk PlantUML |
 | 68 | [`68-math-chapter`](68-math-chapter)                         | a **directory** chapter — marklower prose (inline `$$…$$`) plus standalone LaTeX chunks (`format: text/x-latex` in `meta`) |
 | 69 | [`69-marklower-links.yamlover`](69-marklower-links.yamlover) | a tagged **file** — nested chapters demonstrating `/`, `//`, and external marklower links (all default format, no meta) |
 

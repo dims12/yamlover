@@ -1,0 +1,41 @@
+# A recursive document tree (a pet-keeping handbook) where EACH chapter is its own directory.
+# This root's positional body interleaves prose (default markdown), an image chunk (`*png`
+# pointer — format from the .png extension), a PlantUML diagram (tagged `!!<format: …>`), and
+# three SUBCHAPTERS that are `*`-pointers to the `dogs/`, `cats/`, `fish/` subdirectories — each
+# its own directory chapter with its own `.yamlover/body.yamlover`. Spec: ../CHAPTER.md, ../YAMLOVER.md.
+!!<*yamlover: $defs: chapter>
+title: The Pet Keeper's Handbook
+description: A friendly guide to living with animals
+- |
+  **Pets share our homes, our routines, and a surprising amount of our furniture.** This
+  handbook collects what every keeper learns sooner or later, one species at a time.
+- |
+  Read the chapter for your companion, but the first rule is universal: *watch, listen, and
+  be patient.*
+- *: cover-paw.png
+- |
+  Three needs run through every chapter — **company, exercise, and a clean environment** —
+  weighted differently for each animal:
+- !!<format: text/x-plantuml> |
+  @startmindmap
+  * Pet keeping
+  ** Dogs
+  *** Daily walks
+  *** Consistent training
+  ** Cats
+  *** Vertical space
+  *** A clean litter box
+  ** Fish
+  *** Water quality
+  *** Sparing feeding
+  @endmindmap
+- *: dogs
+- *: cats
+- *: fish
+- |
+  **Whatever shares your home**, the craft is the same: notice what it needs before it has to
+  ask. Return to the chapter above whenever a new question arrives — the animals are patient
+  teachers.
+"cover-paw.png":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-429a227f097399ce-256x256.jpg

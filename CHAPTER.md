@@ -17,6 +17,13 @@ This is the whole design. Prose, media, diagrams, and subchapters are **siblings
 sequence**, the way a real document reads. A chapter with only prose is a flat article; a chapter
 with subchapters is a tree.
 
+**Position is the author's.** The renderer shows every element — `title`, `description`, chunks,
+and subchapter links — **in source order**, wherever the author placed it: the heading is not
+hoisted to the top, subchapters are not forced to the end, and base-level prose may follow a
+subchapter. The **TOC** likewise lists subchapters in **body order** — even when each subchapter is
+its own subdirectory (a directory chapter, `examples/66-pet-keeper-handbook`), whose alphabetical
+directory scan is overridden by the positional `*` body pointers that place them.
+
 ```yamlover
 # a whole article in one tagged .yamlover file
 !!<*yamlover/$defs/chapter>
@@ -75,7 +82,10 @@ Two ways, both in `META.md`:
   A whole article fits in one file (`examples/60-simple-chapter.yamlover`).
 - **Directory overlay**: a directory's `.yamlover/body.yamlover` is tagged at its root, so the
   *directory itself* is the chapter and its files can be referenced as pointer chunks
-  (`examples/66-doc-tree`, `68-math-chapter`, `65-all-formats-chunks`).
+  (`examples/68-math-chapter`, `65-all-formats-chunks`). Subchapters can themselves be
+  **subdirectories** — each its own directory chapter, referenced by a `*`-pointer body element —
+  giving a recursive tree where every chapter is a directory (`examples/66-pet-keeper-handbook`:
+  `dogs/`, `cats/`, `fish/`, and nested `dogs/puppies/`).
 
 ## Addressing body elements
 

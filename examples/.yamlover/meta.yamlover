@@ -36,8 +36,8 @@ properties:
     description: the minimal chapter — a single `!!<…>`-tagged file with title/chunks/children
   65-all-formats-chunks:
     description: a directory chapter interleaving textual chunks with `*`-pointer binary chunks
-  66-doc-tree:
-    description: a recursive directory chapter — prose, image and per-chunk-tagged PlantUML chunks
+  66-pet-keeper-handbook:
+    description: a recursive chapter tree where each chapter (dogs/cats/fish/puppies) is its own directory
   67-pdf-tags:
     description: real papers organized by a tag taxonomy — `*`-pointer membership authored both ways
   68-math-chapter:

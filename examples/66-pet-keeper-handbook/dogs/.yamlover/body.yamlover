@@ -1,0 +1,28 @@
+# The Dogs chapter — its own directory chapter. Positional body: prose, the `dog-bone.png`
+# image chunk (a sibling file in this directory), a PlantUML sequence, and a `puppies`
+# SUBCHAPTER pointer into the nested `puppies/` directory chapter.
+!!<*yamlover: $defs: chapter>
+title: Dogs
+description: Loyal, loud, and endlessly hopeful
+- |
+  A dog is a **social animal** that adopts your family as its pack.
+- *: dog-bone.png
+- |
+  Daily walks are not optional; they are how a dog reads the news of the neighbourhood.
+  Consistency matters more than severity — the same word should always mean the same thing.
+- |
+  A walk is a small ritual you both know by heart:
+- !!<format: text/x-plantuml> |
+  @startuml
+  actor Keeper
+  participant Dog
+  Keeper -> Dog : pick up the lead
+  Dog --> Keeper : spins with delight
+  Keeper -> Dog : walk the usual route
+  Dog -> Dog : reads the news (sniffs)
+  Dog --> Keeper : returns home calm
+  @enduml
+- *: puppies
+"dog-bone.png":
+  yamlover-thumbnails:
+    [256, 256]: *:.yamlover:thumbnails:xxh64-5e505632672c09c5-256x256.jpg

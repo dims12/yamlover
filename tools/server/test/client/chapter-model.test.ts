@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildChapterModel, snapshotChapter, diffChapter, type ChapterModel, type ChunkPart } from "../../src/client/renderers/chapter-model";
+import { buildChapterModel, snapshotChapter, diffChapter, chapterFlow, flowText, type ChapterModel, type ChunkPart } from "../../src/client/renderers/chapter-model";
 
 /** An inlined `$yamloverLink` scalar chunk marker at body slot `i` of chapter `base` (its marker
  *  points at its OWN slot `<base>[i]`, so the model classifies it as an editable inline chunk). */
@@ -62,6 +62,43 @@ describe("buildChapterModel", () => {
     const m = buildChapterModel({ path: ":doc", title: null, description: null, value: [inlined(":doc", 0, "solo")] });
     expect(m.title).toBe("");
     expect(m.chunks.map((c) => c.text)).toEqual(["solo"]);
+  });
+});
+
+describe("chapterFlow", () => {
+  const keyed = (key: string, value: unknown) => ({ key, value });
+  const keyless = (value: unknown) => ({ key: null, value });
+  const mixed = (...entries: unknown[]) => ({ $yamloverMixed: { kind: "mix", entries } });
+
+  it("streams title, description, chunks and subchapters in SOURCE order — no hoisting, no forcing to the end", () => {
+    // author order: an intro chunk FIRST, then the title mid-flow, a subchapter, then a closing chunk
+    const value = mixed(
+      keyless(inlined(":doc", 0, "intro")),
+      keyed("title", "The Title"),
+      keyed("description", "A subtitle"),
+      keyless(subchapter(":doc", 3, "Dogs")),
+      keyless(inlined(":doc", 4, "afterword")), // base-level text BACK after a subchapter
+    );
+    const flow = chapterFlow(value);
+    expect(flow.map((f) => f.kind)).toEqual(["chunk", "title", "description", "subchapter", "chunk"]);
+    expect(flowText(flow[1].value)).toBe("The Title");
+    expect(flowText(flow[2].value)).toBe("A subtitle");
+  });
+
+  it("skips other keyed entries (directory members / task fields) — they are not chapter body content", () => {
+    const value = mixed(
+      keyed("dogs", subchapter(":doc", 9, "Dogs")), // a directory-member key (dup of the body ref) — skipped
+      keyed("priority", "high"), // a task planning field — skipped
+      keyed("title", "T"),
+      keyless(inlined(":doc", 2, "body")),
+      keyless(subchapter(":doc", 3, "Dogs")), // the SAME subchapter, placed positionally — kept
+    );
+    expect(chapterFlow(value).map((f) => f.kind)).toEqual(["title", "chunk", "subchapter"]);
+  });
+
+  it("reads an untitled chapter projected as a plain array (all keyless)", () => {
+    const flow = chapterFlow([inlined(":doc", 0, "solo"), subchapter(":doc", 1, "Sub")]);
+    expect(flow.map((f) => f.kind)).toEqual(["chunk", "subchapter"]);
   });
 });
 

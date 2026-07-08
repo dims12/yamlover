@@ -1306,13 +1306,29 @@ function buildTree(dataRoot: string, s: Store, segs: Seg[], label: string, depth
     children: [],
   };
   if (node.hasChildren && depth > 0) {
-    for (const c of s.children(p)) {
+    for (const c of chapterOrderedChildren(s, p, row.format ?? null)) {
       if (isHidden(s, c.to)) continue; // omit the hidden `.yamlover` overlay subtree from the TOC
       const seg = c.label ?? c.pos ?? 0;
       node.children.push(buildTree(dataRoot, s, [...segs, seg], labelFor(s, c.to, seg), depth - 1));
     }
   }
   return node;
+}
+
+/** A node's TOC children, normally in containment `pos` order. For a CHAPTER (directory-backed), a
+ *  subchapter lives in its OWN subdirectory — a contain child sorted by directory scan — but is
+ *  PLACED by a positional `*` body ref that carries the author's order. So order the children by
+ *  their BODY position: a referenced child (subchapter / image chunk) takes its ref's `pos`, an
+ *  inline chunk keeps its own contain `pos`. An inline chapter has no such refs (its body is inline,
+ *  contain `pos` already IS body order), so the map is empty and this is a no-op. */
+function chapterOrderedChildren(s: Store, p: string, format: string | null): ReturnType<Store["children"]> {
+  const kids = s.children(p);
+  if (format !== "x-yamlover-chapter" && format !== "x-yamlover-task") return kids;
+  const bodyPos = new Map<string, number>();
+  for (const e of s.entries(p)) if (e.kind === "ref" && !bodyPos.has(e.to)) bodyPos.set(e.to, e.pos ?? 0);
+  if (bodyPos.size === 0) return kids;
+  const key = (c: (typeof kids)[number]): number => bodyPos.get(c.to) ?? c.pos ?? 0;
+  return kids.map((c, i) => ({ c, i })).sort((a, b) => key(a.c) - key(b.c) || a.i - b.i).map((x) => x.c);
 }
 
 /** A node's tree label: an instance `title` child, else the key / `[index]`. */

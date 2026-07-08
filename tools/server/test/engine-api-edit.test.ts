@@ -319,3 +319,21 @@ describe("/api/edit — standalone chapter file", () => {
     expect(call(h, "/api/json", { path: read }).json.value).toBe("Пока");
   });
 });
+
+describe("/api/tree — directory-chapter subchapter order", () => {
+  it("orders subchapters by BODY position, not the alphabetical directory scan", async () => {
+    // a directory chapter whose subchapters are their OWN subdirectories, referenced by `*` body
+    // pointers in a deliberately NON-alphabetical order: zebra, then apple.
+    const root = tmpTree({
+      "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Root\n- intro\n- *: zebra\n- *: apple\n",
+      "doc/zebra/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Zebra\n- z body\n",
+      "doc/apple/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Apple\n- a body\n",
+      ...DEFS,
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const tree = call(h, "/api/tree", { path: ":doc", depth: "1" }).json as { children: { label: string; format: string | null }[] };
+    const subchapters = tree.children.filter((c) => c.format === "x-yamlover-chapter").map((c) => c.label);
+    expect(subchapters).toEqual(["Zebra", "Apple"]); // body order — NOT ["Apple", "Zebra"]
+  });
+});

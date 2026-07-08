@@ -14,7 +14,8 @@ import {
   diffChapter,
   newProsePart,
   childPath,
-  chapterBody,
+  chapterFlow,
+  flowText,
   isSubchapter,
   type ChapterModel,
   type ChunkPart,
@@ -58,20 +59,24 @@ export function ChapterView({ node, onNavigate }: { node: NodeJson; onNavigate: 
   );
 }
 
-/** The read-only chapter page (locked). Chunks and subchapters interleave in body order. */
+/** The read-only chapter page (locked). Title, description, chunks, and subchapters all render in
+ *  SOURCE order — the heading is not hoisted, subchapters are not forced to the end (CHAPTER.md).
+ *  §N numbers the chunks only; subchapters render as heading links. */
 function ChapterRead({ node, onNavigate }: { node: NodeJson; onNavigate: (path: string) => void }) {
-  const body = chapterBody(node.value);
+  const flow = chapterFlow(node.value);
   useHashScroll(node);
-  let chunkNo = 0; // §N numbers the chunks only; subchapters render as heading links
+  let chunkNo = 0;
 
   return (
     <div className="chapter" style={{ maxWidth: `${markupWidthCh()}ch` }}>
-      {node.title && <h1 className="chapter-title">{node.title}</h1>}
-      {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      {body.map((item, i) => {
-        const link = asLink(item);
-        if (isSubchapter(link?.format)) return <SubchapterLink key={i} path={link?.path} title={link?.title} onNavigate={onNavigate} />;
-        return <ReadChunk key={i} index={chunkNo++} item={item} basePath={node.path} documentPath={node.documentPath} onNavigate={onNavigate} />;
+      {flow.map((f, i) => {
+        if (f.kind === "title") return <h1 key={i} className="chapter-title">{flowText(f.value)}</h1>;
+        if (f.kind === "description") return <p key={i} className="chapter-subtitle">{flowText(f.value)}</p>;
+        if (f.kind === "subchapter") {
+          const link = asLink(f.value);
+          return <SubchapterLink key={i} path={link?.path} title={link?.title} onNavigate={onNavigate} />;
+        }
+        return <ReadChunk key={i} index={chunkNo++} item={f.value} basePath={node.path} documentPath={node.documentPath} onNavigate={onNavigate} />;
       })}
     </div>
   );
