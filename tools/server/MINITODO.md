@@ -45,12 +45,10 @@
 - 022 Table columns are rendered very narrow in MD even if the page width increased, for example http://10.9.0.2:5173/README.md?format=markdown +DONE (GitHub-style `.markup table` layout — `width: max-content` capped at `max-width: 100%` with overflow-x scroll; cells reset the body's `word-break: break-word`, which was what crushed squeezed columns; borders/zebra mirror `.csv-table`)
 - 023 Fragment deletion buttons in image renderer should be trashcan icons, not crosses
 - 024 Fragment part in URL should update on scroll where possible (in texts)
-- 025 **DATA LOSS**: `/api/edit` `op:"replace"` over an ANNOTATED chunk drops its overlay — the
-  `yamlover-annotations` entries are gone from the source after the write. The writer rebuilds the
-  body item from the new text and does not carry the omni's keyed entries across. Repro: annotate a
-  chapter chunk, then POST an edit for its rank; the tag application vanishes from the `.yamlover`.
+- ~~025 **DATA LOSS**: `/api/edit` `op:"replace"` over an ANNOTATED chunk drops its overlay~~ — DONE
+  (the editor now `emplace`s, which replaces only the facets the payload carries, so the chunk's
+  `yamlover-annotations` keyed facet stands; `replace` still drops them, deliberately)
 - 026 An annotated chunk is NOT editable in the WYSIWYG editor: `isEditableMarker`
   (chapter-model.ts) requires `type === "string"`, and an annotated chunk's link marker is
   `type: "variant", valueType: "string"` (tagging turns it omni). Route on the VALUE facet like the
-  renderer registry does — but **only after 025 is fixed**, since today the read-only fallback is
-  the one thing keeping an edit from silently deleting the annotations.
+  renderer registry does. **Unblocked by 025** — an edit can no longer delete the annotations.

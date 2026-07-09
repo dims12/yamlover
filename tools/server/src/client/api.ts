@@ -1,6 +1,7 @@
 // Typed wrappers over the server's JSON API.
 
 import { api } from "./base"; // prefixes every server path with the served base path (--base-path)
+import { strToSegs } from "./paths";
 
 export interface TreeNode {
   path: string;
@@ -291,36 +292,58 @@ export function pasteRich(target: string, rich: unknown): Promise<PasteResult> {
   return postPaste({ path: target, rich });
 }
 
-/** One surgical chapter edit (the unlocked WYSIWYG editor's background sync). `path` is the leaf's
- *  node path; the server routes each edit to its own backing file:
- *   - `op:"set"`     — a `…:title` / `…:description` scalar to `text`;
- *   - `op:"replace"` — the prose chunk at body rank `…[rank]` with `text`;
- *   - `op:"insert"`  — a new chunk into the chapter at body rank `index` (`text` may be "");
- *   - `op:"remove"`  — the body element at `…[rank]`.
- *  Only prose chunks (marklower / markdown) are text-editable — a file/pointer or non-prose chunk 400s. */
-export interface ChapterEdit {
+/** One surgical yamlover edit. `path` is the node's own path — each segment a key or an ABSOLUTE
+ *  entry index. A node has four facets: its scalar value, its keyed entries, its ordinal entries,
+ *  and its `!!<…>` meta tag.
+ *   - `op:"emplace"` — replace only the facets `yamlover` carries; the rest of the node stands, and
+ *                      an omitted `meta` leaves its tag alone. The verb for editing in place.
+ *   - `op:"replace"` — drop all four facets and assign `yamlover`. An omitted `meta` drops the tag.
+ *   - `op:"insert"`  — the new entry takes the position `path` names; an index past the end appends.
+ *   - `op:"remove"`  — delete the node at `path`.
+ *  `yamlover` is valid inline yamlover SOURCE — escape prose with {@link escapeYamloverScalar}, not
+ *  by hand. `concrete`/`name` apply only where content is born. */
+export interface Edit {
   path: string;
-  op: "set" | "replace" | "insert" | "remove";
-  text?: string;
-  index?: number;
+  op: "emplace" | "replace" | "insert" | "remove";
+  yamlover?: string;
+  meta?: string | null;
+  concrete?: string;
+  name?: string;
 }
 
-/** Send a single chapter edit. */
-export function editChunk(path: string, op: ChapterEdit["op"], text = "", index?: number): Promise<{ ok: true }> {
-  return postJson(api("/api/edit"), { path, op, text, index });
-}
-
-/** Send a BATCH of chapter edits (the background sync's coalesced flush) — applied in order,
- *  grouped by backing file server-side, one reindex per touched file. */
-export function editChunks(edits: ChapterEdit[]): Promise<{ ok: true }> {
+/** Send a BATCH of edits (the background sync's coalesced flush) — applied in order, grouped by
+ *  backing file server-side, one reindex per touched file. */
+export function editChunks(edits: Edit[]): Promise<{ ok: true }> {
   return postJson(api("/api/edit"), { edits });
 }
 
-/** Create an OBJECT of a schema (the right-click context menu): a CHILD of a compatible parent
- *  (concrete `yamlover` inline, or `file/yamlover`/`dir/yamlover` linked), or a MEMBER of a directory
- *  (`file/yamlover`/`dir/yamlover`). Returns the new object's node path (navigate to it). */
+/** Create an OBJECT of a schema (the right-click context menu) — an `insert` carrying the schema as
+ *  its `meta` tag and a body template. The server reads `parent` to decide where the content is
+ *  born: a document's body gains a CHILD (inline, or a linked file/dir plus a `*` pointer), while a
+ *  plain directory gains a MEMBER. Returns the new object's node path (navigate to it). */
 export function createObject(schema: string, parent: string, concrete: string, title?: string): Promise<{ path: string }> {
-  return postJson(api("/api/create"), { schema, parent, concrete, ...(title ? { title } : {}) });
+  const name = title || defaultObjectTitle(schema);
+  return postJson<{ ok: true; path: string }>(api("/api/edit"), {
+    path: parent,
+    op: "insert",
+    concrete,
+    name,
+    meta: `*${schema}`,
+    yamlover: objectBody(name),
+  });
+}
+
+/** The default title for a new object of `schema` — "New <last segment>" (e.g. "New chapter"). */
+function defaultObjectTitle(schema: string): string {
+  const segs = strToSegs(schema);
+  return "New " + String(segs[segs.length - 1] ?? "object");
+}
+
+/** A fresh object's body source: a title and one empty prose chunk, so it is immediately editable.
+ *  (The server no longer knows what a chapter is — the body template lives with the client that
+ *  offers the schema.) */
+function objectBody(title: string): string {
+  return `title: ${JSON.stringify(title)}\n- ""`;
 }
 
 /** Remove the application of `tag` from the node at `target` (a whole node OR a fragment path) —

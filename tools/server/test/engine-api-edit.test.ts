@@ -5,15 +5,14 @@ import { createHandlers } from "../src/server/engine-api";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
 
-// The WRITE endpoint /api/edit — the unlocked WYSIWYG editor's surgical edits of a chapter's
-// `.yamlover` source (set title/description, replace/insert/remove a prose chunk), against
-// synthetic temp trees (never the repo's own examples/).
+// The WRITE endpoint /api/edit — surgical source-text edits of any `.yamlover` document, against
+// synthetic temp trees (never the repo's own examples/). It splices lines rather than reserializing,
+// so comments, quoting, and block scalars survive.
 //
-// A chapter is an OMNI node (CHAPTER.md): title/description (keyed) + a POSITIONAL body of chunk /
-// subchapter items. An edit addresses a body element by its RANK among the positional items
-// (`<chapter>[rank]`); a subchapter DESCENT uses absolute store indices (matching the node path).
-// So the edit path `:doc[0]` (rank 0) reads back at its store path `:doc[2]` (title/description
-// consume store indices 0/1 but not body ranks).
+// `path` is a plain yamlover path: each segment is a key or an ABSOLUTE entry index, the same index
+// /api/json and the resolver use. A node has four FACETS — scalar value, keyed entries, ordinal
+// entries, and its `!!<…>` meta tag — and `emplace` replaces only the ones its payload carries,
+// while `replace` drops them all. `yamlover` is valid inline yamlover SOURCE: the caller escapes.
 
 // A chapter that hosts $defs so subchapters gain the chapter format by schema propagation
 // (walk.ts applySchemas: an `items: {anyOf:[chapter, chunk]}` union routes a container element to
@@ -50,9 +49,9 @@ async function chapterHandlers(extra: Record<string, string> = {}) {
 }
 
 describe("/api/edit — scalars", () => {
-  it("sets a chapter title (replacing the existing line)", async () => {
+  it("emplaces a chapter title (replacing the existing line)", async () => {
     const { root, h } = await chapterHandlers();
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc:title", op: "set", text: "New Title" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc:title", op: "emplace", yamlover: '"New Title"' });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toContain('title: "New Title"');
     expect(call(h, "/api/json", { path: ":doc" }).json.title).toBe("New Title");
@@ -62,98 +61,113 @@ describe("/api/edit — scalars", () => {
     const { root, h } = await chapterHandlers({
       "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: T\n- Hello\n",
     });
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc:description", op: "set", text: "A subtitle" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc:description", op: "emplace", yamlover: '"A subtitle"' });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toContain('description: "A subtitle"');
     expect(call(h, "/api/json", { path: ":doc" }).json.description).toBe("A subtitle");
   });
 
-  it("edits a subchapter title (descend to the subchapter at [4])", async () => {
+  it("removes a keyed entry", async () => {
     const { root, h } = await chapterHandlers();
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[4]:title", op: "set", text: "Renamed" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc:description", op: "remove" });
+    expect(r.status).toBe(200);
+    expect(bodyOf(root)).not.toContain("description:");
+    expect(call(h, "/api/json", { path: ":doc" }).json.description).toBeNull();
+  });
+
+  it("edits a subchapter title (descend to the subchapter at [4], then its `title` key)", async () => {
+    const { root, h } = await chapterHandlers();
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[4]:title", op: "emplace", yamlover: '"Renamed"' });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toContain('title: "Renamed"');
     expect(call(h, "/api/json", { path: ":doc[4]", depth: "3" }).json.title).toBe("Renamed");
   });
 });
 
-describe("/api/edit — chunks", () => {
-  it("replaces an inline chunk with new prose", async () => {
+// ONE index space: `[i]` is the ABSOLUTE entry index — the keyed title(0)/description(1) consume
+// indices, so the prose "Hello" is `:doc[2]`, the block `:doc[3]`, the subchapter `:doc[4]`. It is
+// the same index /api/json and the resolver use, so an edit path is a plain yamlover path.
+describe("/api/edit — entries", () => {
+  it("emplaces an inline chunk with new prose", async () => {
     const { h } = await chapterHandlers();
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[0]", op: "replace", text: "Goodbye **world**" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "emplace", yamlover: "|-\n  Goodbye **world**" });
     expect(r.status).toBe(200);
     expect(body(call(h, "/api/json", { path: ":doc", depth: "3" }).json)[0]).toBe("Goodbye **world**");
-    // the block chunk (rank 1) is untouched
-    expect(body(call(h, "/api/json", { path: ":doc", depth: "3" }).json)[1]).toBe("first line\nsecond line\n");
+    expect(body(call(h, "/api/json", { path: ":doc", depth: "3" }).json)[1]).toBe("first line\nsecond line\n"); // untouched
   });
 
   it("replaces a multi-line block-scalar chunk whole", async () => {
     const { h } = await chapterHandlers();
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "replace", text: "one\ntwo\nthree" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[3]", op: "replace", yamlover: "|-\n  one\n  two\n  three" });
     expect(r.status).toBe(200);
     const b = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json);
     expect(b[0]).toBe("Hello");
     expect(b[1]).toBe("one\ntwo\nthree");
   });
 
-  it("inserts a new chunk at the given body rank", async () => {
+  it("inserts a new entry AT the index the path names", async () => {
     const { h } = await chapterHandlers();
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", index: 1, text: "inserted" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[3]", op: "insert", yamlover: "|-\n  inserted" });
     expect(r.status).toBe(200);
     const b = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json);
     expect(b.slice(0, 3)).toEqual(["Hello", "inserted", "first line\nsecond line\n"]);
   });
 
-  it("prepends a chunk (rank 0) and appends (rank past the end)", async () => {
+  it("prepends (before the first body entry) and appends (the path names the chapter)", async () => {
     const { h } = await chapterHandlers();
-    await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", index: 0, text: "top" });
-    await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", index: 99, text: "bottom" });
+    await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "insert", yamlover: "|-\n  top" });
+    await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", yamlover: "|-\n  bottom" });
     const b = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json);
-    // "bottom" lands after the last positional item (the subchapter), so it is the final body element
     expect(b[0]).toBe("top");
     expect(b[1]).toBe("Hello");
-    expect(b[b.length - 1]).toBe("bottom");
+    expect(b[b.length - 1]).toBe("bottom"); // after the last positional item (the subchapter)
   });
 
-  it("removes a chunk", async () => {
+  it("an insert index past the end appends — how a caller who doesn't know the count adds one", async () => {
     const { h } = await chapterHandlers();
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[0]", op: "remove" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[99]", op: "insert", yamlover: "|-\n  last" });
     expect(r.status).toBe(200);
     const b = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json);
-    expect(b[0]).toBe("first line\nsecond line\n");
+    expect(b[b.length - 1]).toBe("last");
   });
 
-  it("edits a chunk inside a subchapter (descend [4], body rank 0)", async () => {
+  it("removes an entry", async () => {
     const { h } = await chapterHandlers();
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[4][0]", op: "replace", text: "Deep edit" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "remove" });
+    expect(r.status).toBe(200);
+    expect(body(call(h, "/api/json", { path: ":doc", depth: "3" }).json)[0]).toBe("first line\nsecond line\n");
+  });
+
+  it("edits a chunk inside a subchapter — the inline `title` consumes index 0 there too", async () => {
+    const { h } = await chapterHandlers();
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[4][1]", op: "emplace", yamlover: "|-\n  Deep edit" });
     expect(r.status).toBe(200);
     expect(body(call(h, "/api/json", { path: ":doc[4]", depth: "3" }).json)[0]).toBe("Deep edit");
   });
 });
 
 describe("/api/edit — batch", () => {
-  it("applies a batch of ops in order in one call (a split: replace head + insert tail)", async () => {
+  it("applies a batch of ops in order in one call (a split: emplace head + insert tail)", async () => {
     const { h } = await chapterHandlers();
-    // simulate splitting chunk 0 "Hello" at a caret → head "Hel", tail "lo"
+    // splitting chunk "Hello" (abs 2) at a caret → head "Hel", tail "lo" inserted after it
     const r = await callBody(h, "POST", "/api/edit", {
       edits: [
-        { path: ":doc[0]", op: "replace", text: "Hel" },
-        { path: ":doc", op: "insert", index: 1, text: "lo" },
+        { path: ":doc[2]", op: "emplace", yamlover: "|-\n  Hel" },
+        { path: ":doc[3]", op: "insert", yamlover: "|-\n  lo" },
       ],
     });
     expect(r.status).toBe(200);
     const b = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json);
-    // the head is truncated AND the tail is a new chunk — the v1 bug (head un-truncated) is gone
     expect(b.slice(0, 3)).toEqual(["Hel", "lo", "first line\nsecond line\n"]);
   });
 
-  it("batches a title set + a chunk replace + a remove together", async () => {
+  it("batches a title emplace + a chunk emplace + a remove together", async () => {
     const { root, h } = await chapterHandlers();
     const r = await callBody(h, "POST", "/api/edit", {
       edits: [
-        { path: ":doc:title", op: "set", text: "Batched" },
-        { path: ":doc[0]", op: "replace", text: "H2" },
-        { path: ":doc[1]", op: "remove" },
+        { path: ":doc:title", op: "emplace", yamlover: '"Batched"' },
+        { path: ":doc[2]", op: "emplace", yamlover: "|-\n  H2" },
+        { path: ":doc[3]", op: "remove" },
       ],
     });
     expect(r.status).toBe(200);
@@ -173,8 +187,8 @@ describe("/api/edit — batch", () => {
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", {
       edits: [
-        { path: ":a[0]", op: "replace", text: "one!" },
-        { path: ":b:title", op: "set", text: "B2" },
+        { path: ":a[1]", op: "emplace", yamlover: "|-\n  one!" },
+        { path: ":b:title", op: "emplace", yamlover: '"B2"' },
       ],
     });
     expect(r.status).toBe(200);
@@ -183,65 +197,107 @@ describe("/api/edit — batch", () => {
   });
 });
 
-describe("/api/edit — guards & formats", () => {
-  it("preserves an inline schema tag on a markdown chunk", async () => {
-    const { root, h } = await chapterHandlers({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: T\n- !!<format: text/markdown> |\n  # Head\n",
-    });
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[0]", op: "replace", text: "# New Head\n\nbody" });
+// A node has four FACETS: scalar value, keyed entries, ordinal entries, and its `!!<…>` meta tag.
+// `emplace` replaces only the facets its payload carries; `replace` drops them all.
+describe("/api/edit — facets", () => {
+  it("emplacing prose over an ANNOTATED chunk keeps its annotations (an omni overlay on the prose)", async () => {
+    const { root, h } = await chapterHandlers();
+    const tag = await callBody(h, "POST", "/api/tag", { name: "important" });
+    await callBody(h, "POST", "/api/annotate", { target: ":doc[2]", tag: tag.json.path });
+    expect(bodyOf(root)).toContain("yamlover-annotations:");
+
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "emplace", yamlover: "|-\n  edited prose" });
     expect(r.status).toBe(200);
-    expect(bodyOf(root)).toContain("!!<format: text/markdown>");
-    expect(call(h, "/api/json", { path: ":doc[1]" }).json.format).toBe("text/markdown");
+    expect(bodyOf(root)).toContain("yamlover-annotations:"); // the keyed facet stood
+    // the chunk is now an omni node — its prose under the annotation overlay
+    const chunk = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json)[0] as { $yamloverMixed: { value: string } };
+    expect(chunk.$yamloverMixed.value).toBe("edited prose");
   });
 
-  it("edits a LaTeX chunk (keeps its inline schema tag)", async () => {
+  it("replacing that same chunk drops its annotations — replace is the clean-slate verb", async () => {
+    const { root, h } = await chapterHandlers();
+    const tag = await callBody(h, "POST", "/api/tag", { name: "important" });
+    await callBody(h, "POST", "/api/annotate", { target: ":doc[2]", tag: tag.json.path });
+    await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "replace", yamlover: '"clean"' });
+    expect(bodyOf(root)).not.toContain("yamlover-annotations:");
+  });
+
+  it("emplace keeps an inline `!!<…>` tag; replace drops it; `meta` sets it; `meta: null` removes it", async () => {
     const { root, h } = await chapterHandlers({
       "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: T\n- !!<format: text/x-latex> |\n  e^{i\\pi}\n",
     });
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[0]", op: "replace", text: "\\sqrt{2}" });
-    expect(r.status).toBe(200);
+    await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "emplace", yamlover: "|-\n  \\sqrt{2}" });
     expect(bodyOf(root)).toContain("!!<format: text/x-latex>");
     expect(call(h, "/api/json", { path: ":doc[1]" }).json.format).toBe("text/x-latex");
-    expect(body(call(h, "/api/json", { path: ":doc", depth: "3" }).json)[0]).toBe("\\sqrt{2}");
+
+    await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "emplace", meta: "format: text/markdown", yamlover: "|-\n  # H" });
+    expect(call(h, "/api/json", { path: ":doc[1]" }).json.format).toBe("text/markdown");
+
+    await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "emplace", meta: null });
+    expect(bodyOf(root)).not.toContain("!!<format:");
+
+    await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "emplace", meta: "format: text/markdown", yamlover: "|-\n  # H" });
+    await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "replace", yamlover: "|-\n  plain" });
+    expect(bodyOf(root)).not.toContain("!!<format:");
   });
 
-  it("still rejects editing a non-text (image/pointer) chunk", async () => {
-    const { h } = await chapterHandlers({
+  it("edits a `*…` pointer chunk — with yamlover source there is nothing to forbid", async () => {
+    const { root, h } = await chapterHandlers({
       "doc/pic.png": "PNG",
-      "doc/.yamlover/body.yamlover": '!!<*yamlover/$defs/chapter>\ntitle: T\n- !!<format: image/png> "x"\n',
-    });
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[0]", op: "replace", text: "hi" });
-    expect(r.status).toBe(400);
-    expect(r.json.error).toMatch(/non-text/);
-  });
-
-  it("rejects editing a file/pointer chunk as text", async () => {
-    const { h } = await chapterHandlers({
-      "doc/pic.png": "PNG",
+      "doc/other.png": "PNG2",
       "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: T\n- */pic.png\n",
     });
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[0]", op: "replace", text: "hi" });
-    expect(r.status).toBe(400);
-    expect(r.json.error).toMatch(/pointer/);
-  });
-
-  it("rejects an unsupported edit target", async () => {
-    const { h } = await chapterHandlers();
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "set", text: "x" });
-    expect(r.status).toBe(400);
-    expect(r.json.error).toMatch(/title\/description/);
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "replace", yamlover: "*/other.png" });
+    expect(r.status).toBe(200);
+    expect(bodyOf(root)).toContain("- */other.png");
   });
 });
 
-describe("/api/create — objects of a schema", () => {
-  const CHAP = "::yamlover:$defs:chapter";
+describe("/api/edit — rejections", () => {
+  it("refuses to descend into a scalar (it used to splice underneath it and corrupt the file)", async () => {
+    const { root, h } = await chapterHandlers();
+    const before = bodyOf(root);
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[2][0]", op: "emplace", yamlover: '"x"' });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toMatch(/scalar/);
+    expect(bodyOf(root)).toBe(before);
+  });
+
+  it("rejects a malformed `yamlover` payload and leaves the document untouched", async () => {
+    const { root, h } = await chapterHandlers();
+    const before = bodyOf(root);
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "emplace", yamlover: "bad: [unclosed" });
+    expect(r.status).toBe(400);
+    expect(bodyOf(root)).toBe(before);
+  });
+
+  it("rejects an unknown op, and an op with no target", async () => {
+    const { h } = await chapterHandlers();
+    expect((await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "frobnicate", yamlover: '"x"' })).status).toBe(400);
+    expect((await callBody(h, "POST", "/api/edit", { path: ":doc", op: "emplace", yamlover: '"x"' })).status).toBe(400);
+  });
+
+  it("rejects `concrete` on an existing node — converting one is a move, not an edit", async () => {
+    const { h } = await chapterHandlers();
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "emplace", concrete: "file/yamlover", yamlover: '"x"' });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toMatch(/created/);
+  });
+});
+
+// Creating an object is an `insert` carrying the schema as its `meta` tag and a body template. The
+// server no longer knows what a chapter is: `concrete` says how the content is stored, and the
+// parent decides whether it becomes a body CHILD or a directory MEMBER.
+describe("/api/edit — creating objects (concrete)", () => {
+  const CHAP = "*::yamlover:$defs:chapter";
+  const BODY = 'title: "Fresh"\n- ""';
   const dirTree = () => tmpTree({ "dir/keep.txt": "x", ...DEFS });
 
   it("child inline: appends a subchapter (one empty chunk) to a chapter's body", async () => {
     const { root, h } = await chapterHandlers();
-    const r = await callBody(h, "POST", "/api/create", { schema: CHAP, parent: ":doc", concrete: "yamlover", title: "Fresh" });
-    expect(r.status).toBe(201);
-    expect(r.json.path).toBe(":doc[5]"); // appended after title(0)/description(1)/Hello(2)/block(3)/Sub(4)
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", concrete: "yamlover", meta: CHAP, yamlover: BODY });
+    expect(r.status).toBe(200);
+    expect(r.json.path).toBe(":doc[5]"); // after title(0)/description(1)/Hello(2)/block(3)/Sub(4)
     expect(bodyOf(root)).toContain('title: "Fresh"');
     const node = call(h, "/api/json", { path: ":doc[5]", depth: "3" });
     expect(node.json.format).toBe("x-yamlover-chapter");
@@ -250,8 +306,8 @@ describe("/api/create — objects of a schema", () => {
 
   it("child linked file: writes a .yamlover doc beside the parent + a pointer in the body", async () => {
     const { root, h } = await chapterHandlers();
-    const r = await callBody(h, "POST", "/api/create", { schema: CHAP, parent: ":doc", concrete: "file/yamlover", title: "Linked" });
-    expect(r.status).toBe(201);
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", concrete: "file/yamlover", name: "Linked", meta: CHAP, yamlover: BODY });
+    expect(r.status).toBe(200);
     expect(fs.existsSync(path.join(root, "doc", "Linked.yamlover"))).toBe(true); // dir-backed doc → inside doc/
     expect(bodyOf(root)).toContain("- */Linked.yamlover");
     expect(r.json.path).toBe(":doc:Linked.yamlover"); // navigates to the linked doc's own node
@@ -260,48 +316,40 @@ describe("/api/create — objects of a schema", () => {
 
   it("child linked dir: writes <name>/.yamlover/body.yamlover + a pointer", async () => {
     const { root, h } = await chapterHandlers();
-    const r = await callBody(h, "POST", "/api/create", { schema: CHAP, parent: ":doc", concrete: "dir/yamlover", title: "SubDir" });
-    expect(r.status).toBe(201);
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", concrete: "dir/yamlover", name: "SubDir", meta: CHAP, yamlover: BODY });
+    expect(r.status).toBe(200);
     expect(fs.existsSync(path.join(root, "doc", "SubDir", ".yamlover", "body.yamlover"))).toBe(true);
     expect(bodyOf(root)).toContain("- */SubDir");
     expect(r.json.path).toBe(":doc:SubDir");
     expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
   });
 
-  it("member file: a standalone .yamlover chapter file in a directory", async () => {
+  it("member file: a plain directory has no body to splice, so the content becomes a member", async () => {
     const root = dirTree();
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const r = await callBody(h, "POST", "/api/create", { schema: CHAP, parent: ":dir", concrete: "file/yamlover", title: "New Note" });
-    expect(r.status).toBe(201);
+    const r = await callBody(h, "POST", "/api/edit", { path: ":dir", op: "insert", concrete: "file/yamlover", name: "New Note", meta: CHAP, yamlover: BODY });
+    expect(r.status).toBe(200);
     expect(fs.existsSync(path.join(root, "dir", "New Note.yamlover"))).toBe(true);
     expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
   });
 
-  it("member dir: a directory-backed chapter in a directory (the default concrete)", async () => {
+  it("member dir: a directory-backed chapter in a directory", async () => {
     const root = dirTree();
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const r = await callBody(h, "POST", "/api/create", { schema: CHAP, parent: ":dir", concrete: "dir/yamlover", title: "New Dir" });
-    expect(r.status).toBe(201);
+    const r = await callBody(h, "POST", "/api/edit", { path: ":dir", op: "insert", concrete: "dir/yamlover", name: "New Dir", meta: CHAP, yamlover: BODY });
+    expect(r.status).toBe(200);
     expect(fs.existsSync(path.join(root, "dir", "New Dir", ".yamlover", "body.yamlover"))).toBe(true);
     expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
   });
 
-  it("rejects an unknown schema", async () => {
-    const { h } = await chapterHandlers();
-    const r = await callBody(h, "POST", "/api/create", { schema: "::yamlover:$defs:nope", parent: ":doc", concrete: "yamlover" });
-    expect(r.status).toBe(400);
-    expect(r.json.error).toMatch(/unknown schema/);
-  });
-
-  it("rejects creation against a scalar (not a directory or compatible parent)", async () => {
+  it("rejects creating against a scalar — it backs no document and is no directory", async () => {
     const root = tmpTree({ name: "Alice" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const r = await callBody(h, "POST", "/api/create", { schema: CHAP, parent: ":name", concrete: "file/yamlover", title: "X" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":name", op: "insert", concrete: "file/yamlover", name: "X", meta: CHAP, yamlover: BODY });
     expect(r.status).toBe(400);
-    expect(r.json.error).toMatch(/only inside a directory or a compatible parent/);
   });
 });
 
@@ -310,13 +358,12 @@ describe("/api/edit — standalone chapter file", () => {
     const root = tmpTree({ "статья.yamlover": '!!<*::yamlover:$defs:chapter>\ntitle: "Заголовок"\n- Привет\n' });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const edit = ":" + encodeURIComponent("статья.yamlover") + "[0]"; // body rank 0
-    const r = await callBody(h, "POST", "/api/edit", { path: edit, op: "replace", text: "Пока" });
+    const at = ":" + encodeURIComponent("статья.yamlover") + "[1]"; // title consumes index 0
+    const r = await callBody(h, "POST", "/api/edit", { path: at, op: "emplace", yamlover: "|-\n  Пока" });
     expect(r.status).toBe(200);
     const src = fs.readFileSync(path.join(root, "статья.yamlover"), "utf8");
     expect(src).toContain("Пока"); // re-emitted losslessly (block scalar) — verify the parsed value
-    const read = ":" + encodeURIComponent("статья.yamlover") + "[1]"; // store index 1 (title is 0)
-    expect(call(h, "/api/json", { path: read }).json.value).toBe("Пока");
+    expect(call(h, "/api/json", { path: at }).json.value).toBe("Пока");
   });
 });
 

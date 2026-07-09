@@ -130,6 +130,7 @@ take an optional `depth` (container-nesting limit).
 | `GET /api/events` | SSE: `{type:"diff",…}` reindex diffs + `{type:"task",…}` progress |
 | `GET /api/tasks` | long-running tasks in flight (a snapshot for a fresh page) |
 | `POST /api/reindex` | manual reconcile (the watcher's fallback) |
+| `POST /api/edit` | the yamlover **editor** — surgical source edits (see below) |
 | `POST /api/paste` | clipboard paste / upload (text or files) |
 | `POST /api/mv` | mediated move (surgical inbound-ref rewrite + auto-relink) |
 | `POST /api/tag` | create-on-miss a tag in the taxonomy |
@@ -137,6 +138,37 @@ take an optional `depth` (container-nesting limit).
 | `POST /api/fragment` | upsert a fragment (region of a target) |
 | `POST /api/board` | board mutations |
 | `POST /api/agent-docs` | install the LLM-agent guide (`AGENTS.md` + `CLAUDE.md`) into the root — a marker-fenced block appended to (or updated in place within) an existing file, never clobbering the human's own rules; idempotent |
+
+#### `POST /api/edit` — the editor
+
+One edit `{ path, op, yamlover?, meta?, concrete?, name? }`, or a batch `{ edits: [ … ] }` applied in
+order and grouped by backing file. It **splices source lines** rather than reserializing, so
+comments, quoting, and block scalars elsewhere in the document survive an edit untouched.
+
+`path` is a plain yamlover path naming the node being edited; each segment is a key (`:doc:title`)
+or an **absolute entry index** (`:doc[3]` — keyed entries consume indices too). A node has four
+**facets**: its scalar value, its keyed entries, its ordinal entries, and its `!!<…>` meta tag.
+
+| op | facets | `meta` |
+|----|--------|--------|
+| `emplace` | replaces only the facets `yamlover` carries; the rest of the node stands | omitted → **preserved** |
+| `replace` | drops all four, assigns `yamlover` | omitted → **dropped** |
+| `insert` | the new entry takes the position `path` names; an index past the end **appends** | sets the tag |
+| `remove` | deletes the node at `path` | — |
+
+That is why editing a chunk's prose is an `emplace`: an annotated chunk is an omni node whose tag
+applications are keyed entries laid over its scalar, and only the scalar facet is being replaced.
+
+`yamlover` is valid inline yamlover **source**, not prose — the caller escapes its own text (the web
+client through `escapeYamloverScalar`), and the server parses the fragment to validate it before
+anything is written. `meta` is a schema pointer (`*::yamlover:$defs:chapter`) written as the tag;
+`null` removes it. `concrete` (`yamlover` | `file/yamlover` | `dir/yamlover`) is accepted only where
+content is **born**, and rejected on an existing node — converting one is a move, not an edit.
+
+Creating an object is therefore just an `insert` carrying a `meta` and a body: a document's body
+gains a child (inline, or a linked file/dir plus a `*` pointer), while a plain directory — which
+backs no document, so it has no source to splice — gains a member. The response carries the new
+node's `path`.
 
 A **link marker** — `{ "$yamloverLink": { kind, path, count|size } }` — stands in
 for a node shown only as a link (a nested container past the one-level view, or

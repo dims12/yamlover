@@ -1,8 +1,9 @@
 // The client side of generic object creation (the right-click "＋ New …" menu). Creating an object =
-// instantiating a schema in a chosen CONCRETE (storage form). This module lists the creatable schemas
-// (mirrors the server's CREATABLE registry), labels each by its schema TITLE — or its PATH when the
-// schema has no title (the case for every current `$defs`) — and computes which schemas + concretes
-// apply at a given target node. The actual write is `createObject` (api.ts) → POST /api/create.
+// instantiating a schema in a chosen CONCRETE (storage form). This module OWNS the creatable-schema
+// registry — the server knows nothing about chapters; it is handed a `meta` tag and a body — labels
+// each schema by its TITLE (or its PATH when it has none, the case for every current `$defs`), and
+// computes which schemas + concretes apply at a given target node. The actual write is
+// `createObject` (api.ts) → POST /api/edit with `op:"insert"`.
 
 import { useEffect, useState } from "react";
 import { fetchNode } from "../api";

@@ -553,15 +553,21 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Edit a chapter in place (a WRITE path — the client's unlocked WYSIWYG editor). The editor
-      // holds the chapter as an in-memory model and syncs changes in the BACKGROUND as a coalesced
-      // BATCH, so the body is either a single edit `{ path, op, text?, index? }` or a batch
-      // `{ edits: [ … ] }`. Each edit addresses a leaf by node path:
-      //   set     — `…:title` | `…:description`
-      //   replace — `…:chunks[i]` (a prose chunk; a `*…` pointer / non-prose chunk is rejected)
-      //   insert  — `…:chunks` (the list key) with `index` = the new chunk's position
-      //   remove  — `…:chunks[i]`
-      // A batch groups by backing file (a chapter can span several) and reindexes each once —
+      // The yamlover EDITOR (a WRITE path). Surgical source-text edits to any `.yamlover` document:
+      // it splices lines rather than reserializing, so comments, quoting, and block scalars survive.
+      // Body: one edit `{ path, op, yamlover?, meta?, concrete?, name? }` or a batch `{ edits: […] }`.
+      //
+      // `path` is a plain yamlover path; each segment is a key or an ABSOLUTE entry index. A node has
+      // four FACETS — scalar value, keyed entries, ordinal entries, and its `!!<…>` meta tag:
+      //   emplace — replace only the facets `yamlover` carries; the rest of the node stands (so a
+      //             prose edit keeps an annotated chunk's `yamlover-annotations`). `meta` preserved.
+      //   replace — drop all four facets, assign `yamlover`. An omitted `meta` DROPS the tag.
+      //   insert  — the new entry takes the position `path` names; an index past the end appends.
+      //   remove  — delete the node at `path`.
+      // `yamlover` is valid inline yamlover SOURCE (the caller escapes its own prose); it is parsed
+      // to validate, then spliced verbatim. `concrete` is accepted only where content is born.
+      //
+      // A batch groups by backing file (a document can span several) and reindexes each once —
       // respecting that different parts live in different files/concretes.
       if (req.method === "POST" && url.pathname === "/api/edit") {
         readBody(req)
@@ -569,82 +575,19 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             enqueue(async () => {
               const d = data as EditInput & { edits?: EditInput[] };
               const edits = Array.isArray(d.edits) ? d.edits : [d];
-              const touched = applyEdits(dataRoot, s, edits);
-              for (const f of touched) broadcast(await doReindexFile(f));
+              const { touched, created, appended } = applyEdits(dataRoot, s, edits);
+              // a born document is a new FILE: the whole graph rewalks. Otherwise only the edited files.
+              if (created.length) broadcast(await doReindex());
+              else for (const f of touched) broadcast(await doReindexFile(f));
               scheduleHasher();
+              // `path` is where a caller that CREATED something should navigate: the born document,
+              // else the appended inline entry (a real node of its own).
+              if (created.length) return { ok: true, path: created[created.length - 1] };
+              if (appended.length) return { ok: true, path: lastBodyChildPath(s, appended[appended.length - 1]) };
               return { ok: true };
             }),
           )
           .then((body) => sendJson(res, 200, body))
-          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
-        return;
-      }
-
-      // Create an OBJECT of a schema (the right-click context menu). Generic over the CREATABLE
-      // registry (currently just `$defs/chapter`). Body: { schema, parent, concrete, title? } →
-      // { path: <the new object's node path> } (the client navigates to it).
-      //   - CHILD mode  (parent's format ∈ the schema's `childOf`): append to the parent's child
-      //     list — `concrete "yamlover"` inline, or `file/yamlover`/`dir/yamlover` as a linked
-      //     document beside the parent + a `*` pointer.
-      //   - MEMBER mode (parent is a directory): a new `<name>.yamlover` file or
-      //     `<name>/.yamlover/body.yamlover` directory, tagged with the schema.
-      if (req.method === "POST" && url.pathname === "/api/create") {
-        readBody(req)
-          .then((data) =>
-            enqueue(async () => {
-              const b = data as { schema?: string; parent?: string; concrete?: string; title?: string };
-              const reg = CREATABLE[String(b.schema ?? "")];
-              if (!reg) throw new Error(`unknown schema: ${b.schema}`);
-              const concrete = String(b.concrete ?? "");
-              const parentSegs = strToSegs(b.parent ?? ":");
-              const row = s.node(storePath(parentSegs));
-              if (!row) throw new Error(`no such node: ${b.parent}`);
-              const title = String(b.title ?? "").trim() || defaultTitle(String(b.schema));
-              const body = reg.body(title);
-              const objSrc = objectFileSource(reg.tag, body);
-
-              // CHILD mode — a subchapter appended to a compatible parent's positional body.
-              if (reg.childOf.includes(row.format ?? "")) {
-                const { docSegs, bodyFile, dirBacked } = chapterSource(dataRoot, s, parentSegs);
-                const within = parentSegs.slice(docSegs.length);
-                if (concrete === "yamlover") {
-                  const src = fs.readFileSync(bodyFile, "utf8");
-                  fs.writeFileSync(bodyFile, appendBody(src, within, (indent) => inlineChildLines(body, indent)));
-                  broadcast(await doReindexFile(bodyFile));
-                  scheduleHasher();
-                  return { path: lastBodyChildPath(s, parentSegs) }; // an inline child IS a real node
-                }
-                if (concrete === "file/yamlover" || concrete === "dir/yamlover") {
-                  // A LINKED child: the document lands beside the parent (in its dir when dir-backed,
-                  // else beside the standalone file), and a `*` pointer joins the parent's body.
-                  const writeDirSegs = dirBacked ? docSegs : docSegs.slice(0, -1);
-                  const writeDir = path.resolve(dataRoot, ...writeDirSegs.map(String));
-                  // a LINKED child is reached by a `*` pointer → name it pointer-safe (no spaces/unicode)
-                  const final = writeObject(dataRoot, writeDir, sanitizeName(title), concrete, objSrc);
-                  const targetSegs = [...writeDirSegs, final];
-                  const pointer = dirBacked ? `*/${final}` : `*/${segsToStr(targetSegs)}`;
-                  const src = fs.readFileSync(bodyFile, "utf8");
-                  fs.writeFileSync(bodyFile, appendBody(src, within, (indent) => [`${" ".repeat(indent)}- ${pointer}`]));
-                  broadcast(await doReindex());
-                  scheduleHasher();
-                  return { path: segsToStr(targetSegs) }; // navigate to the linked document's OWN node
-                }
-                throw new Error(`invalid concrete for a child: ${concrete}`);
-              }
-
-              // MEMBER mode — a new file/dir inside a directory.
-              const abs = path.resolve(dataRoot, ...parentSegs.map(String));
-              if (parentSegs.every((g) => typeof g === "string") && fs.existsSync(abs) && fs.statSync(abs).isDirectory()) {
-                if (concrete !== "file/yamlover" && concrete !== "dir/yamlover") throw new Error(`invalid concrete for a directory member: ${concrete}`);
-                const final = writeObject(dataRoot, abs, objectBaseName(title), concrete, objSrc);
-                broadcast(await doReindex());
-                scheduleHasher();
-                return { path: segsToStr([...parentSegs, final]) };
-              }
-              throw new Error("this schema can be created only inside a directory or a compatible parent");
-            }),
-          )
-          .then((body) => sendJson(res, 201, body))
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
         return;
       }
@@ -2038,25 +1981,6 @@ function titleFromText(text: string): string {
   return (t.length > 80 ? t.slice(0, 79).trimEnd() + "…" : t) || "Pasted text";
 }
 
-// -- generic object creation (POST /api/create) ---------------------------------------------- //
-// A creatable-schema registry. Instantiating a schema is: write its `body` (the object's fields),
-// tagged with its schema, either INLINE in a parent's child list, as a LINKED document, or as a
-// directory MEMBER. Adding a schema (task, board, …) is one more entry.
-
-interface Creatable {
-  tag: string; // the inline schema tag pointer, e.g. "*::yamlover:$defs:chapter"
-  childOf: string[]; // parent node formats that accept it as a body element (subchapter)
-  body: (title: string) => string[]; // the object's body lines (no tag) — a fresh, immediately-editable instance
-}
-const CREATABLE: Record<string, Creatable> = {
-  "::yamlover:$defs:chapter": {
-    tag: "*::yamlover:$defs:chapter",
-    childOf: ["x-yamlover-chapter", "x-yamlover-task"],
-    // a chapter with one empty prose chunk (a positional body item), so it is immediately editable
-    body: (title) => [`title: ${JSON.stringify(title)}`, `- ""`],
-  },
-};
-
 /** The store path of a chapter's LAST positional (keyless) body element — the child just appended.
  *  Falls back to `[0]` when none is found yet (fresh index). */
 function lastBodyChildPath(s: Store, parentSegs: Seg[]): string {
@@ -2065,25 +1989,8 @@ function lastBodyChildPath(s: Store, parentSegs: Seg[]): string {
   return last ? segsToStr(storePathToSegs(last.to)) : segsToStr([...parentSegs, 0]);
 }
 
-/** The default title for a new object of `schema` — "New <last segment>" (e.g. "New chapter"). */
-function defaultTitle(schema: string): string {
-  const segs = strToSegs(schema);
-  return "New " + String(segs[segs.length - 1] ?? "object");
-}
-
-/** A standalone object document's source — the schema tag then the body. */
-function objectFileSource(tag: string, body: string[]): string {
-  return `!!<${tag}>\n${body.join("\n")}\n`;
-}
-
-/** A child object as a `- ` list item: the body indented as the item's mapping (first line after
- *  `- `, the rest two deeper). Used for an INLINE child. */
-function inlineChildLines(body: string[], indent: number): string[] {
-  const pad = " ".repeat(indent);
-  return body.map((line, i) => (i === 0 ? `${pad}- ${line}` : `${pad}  ${line}`));
-}
-
-/** The sanitized base name (no extension) for a new object file/dir, from its title. */
+/** The base name (no extension) for a new object file/dir, from its title. Unicode-tolerant: a
+ *  directory MEMBER is reached by its own name, not by a `*` pointer, so it may keep its letters. */
 function objectBaseName(title: string): string {
   const base = title.replace(/[^\p{L}\p{N} ._-]+/gu, " ").replace(/\s+/g, " ").trim().slice(0, 60).trim().replace(/^\.+/, "");
   return base || "new";
@@ -2193,26 +2100,43 @@ export function mergeAgentDoc(existing: string | null, content: string): { text:
 const indentOf = (line: string): number => { let i = 0; while (line[i] === " ") i++; return i; };
 const isContentLine = (line: string): boolean => { const t = line.trim(); return t.length > 0 && !t.startsWith("#"); };
 
-/** Render a pasted text as the lines of one `- ` chunk item at `indent`. A literal block scalar
- *  when the text round-trips — the parser detects the block indent from the FIRST content line,
- *  so it must be unindented; else one double-quoted line (JSON escapes — exactly the subset
- *  quotedScalar reads back). */
-function textChunkLines(text: string, indent: number): string[] {
-  const pad = " ".repeat(indent);
+/** A prose string as a standalone yamlover VALUE source: a literal block scalar when the text
+ *  round-trips, else one double-quoted line (JSON escapes: exactly the subset quotedScalar reads
+ *  back). A block's body is indented under its header — the source must parse on its own, which is
+ *  what `/api/edit` validates. The one place raw text becomes yamlover: edit callers escape their
+ *  own content, the paste endpoints escape theirs through here. */
+function escapeScalarSrc(text: string): string {
   const first = text.split("\n").find((l) => l.trim().length > 0);
-  if (!first || /^\s/.test(first)) return [`${pad}- ${JSON.stringify(text)}`];
+  if (!first || /^\s/.test(first)) return JSON.stringify(text);
   const body = text.endsWith("\n") ? text.slice(0, -1) : text;
   const head = text.endsWith("\n") ? "|" : "|-"; // the chomping matches the text's own ending
-  return [`${pad}- ${head}`, ...body.split("\n").map((l) => (l.trim().length ? `${pad}  ${l}` : ""))];
+  return [head, ...body.split("\n").map((l) => (l.trim().length ? "  " + l : ""))].join("\n");
 }
 
-// --- chapter body surgery (CHAPTER.md): an omni node's positional body ---------------------- //
-// A chapter is `title`/`description` (keyed) + a POSITIONAL body of chunk / subchapter items, all
-// on one mapping (no `chunks:`/`children:` wrappers). A body element's edit address is its RANK
-// among the positional items (`<chapter>[rank]`), which lines up 1:1 with the source `- ` items.
-// A subchapter DESCENT (viewing a nested chapter as its own page) is addressed by ABSOLUTE store
-// index, matching the client's node path; the two differ only because keyed entries (title/…)
-// consume store indices but not body ranks.
+/** Render ONE entry at `indent` from a yamlover value source (whose own lines already carry their
+ *  relative indentation). `marker` is `"- "` for a positional entry or `` `${key}: ` `` for a keyed
+ *  one; `tag` is an inline `!!<…>` schema tag.
+ *
+ *  `deeper` pushes the value's continuation lines two columns further in — for a node that ALSO
+ *  carries keyed fields (which sit at indent+2), a block scalar must be deeper than them so its
+ *  dedent to the field column ends the block (YAMLOVER.md §4). Blank lines are emitted truly empty:
+ *  a `pad`-only line at a shallower column would truncate the block. */
+function renderEntry(valueSrc: string, indent: number, marker: string, tag?: string, deeper = false): string[] {
+  const pad = " ".repeat(indent + (deeper ? 2 : 0));
+  const [first, ...rest] = valueSrc.split("\n");
+  return [`${" ".repeat(indent)}${marker}${tag ? tag + " " : ""}${first}`, ...rest.map((l) => (l.trim().length ? pad + l : ""))];
+}
+
+/** Render a pasted PROSE text as the lines of one `- ` chunk item at `indent`. */
+function textChunkLines(text: string, indent: number): string[] {
+  return renderEntry(escapeScalarSrc(text), indent, "- ");
+}
+
+// --- yamlover source surgery (the /api/edit ops) --------------------------------------------- //
+// A node's entries — keyed fields (`key: …`) and positional items (`- …`) — live on one mapping.
+// There is ONE address space: a path segment is a key, or the ABSOLUTE index of an entry in source
+// order (keyed entries consume indices too). It is the same index `/api/json`, the resolver, and
+// pointers use, so an edit path is a plain yamlover path and nothing else.
 
 /** A chapter mapping's line region [lo,hi) at key `indent`. `marker` is the `- ` item line when the
  *  region is a DESCENDED subchapter body (its first key may sit inline on that marker line, e.g.
@@ -2248,20 +2172,49 @@ function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
   }));
 }
 
-/** The positional (keyless) body items of a chapter region, in order. */
-function bodyItems(lines: string[], r: Region): ChapterEntry[] {
-  return chapterEntries(lines, r).filter((e) => e.key === null);
+/** The entry `seg` names within `r`: a keyed field by name, or any entry by ABSOLUTE index. */
+function findEntry(lines: string[], r: Region, seg: Seg): ChapterEntry | undefined {
+  const entries = chapterEntries(lines, r);
+  return typeof seg === "number" ? entries[seg] : entries.find((e) => e.key === seg);
 }
 
-/** The line region of the (sub)chapter addressed by `chapterPath` (absolute body-item indices from
- *  the document root; empty = the top-level chapter). Descends each positional item in turn. */
-function reachChapter(lines: string[], chapterPath: Seg[]): Region {
+/** An entry's own VALUE source on its opening line — past the `- ` marker, its inline `!!<…>` tag,
+ *  and (for a keyed entry) its own `key:`. A block header (`|-`), a quoted/plain scalar, a `*…`
+ *  pointer, or — for a positional entry holding a mapping — an inline `key: value`. */
+function entryHead(lines: string[], e: ChapterEntry): string {
+  let t = lines[e.start].trim().replace(/^-\s*/, "").replace(/^!!<[^>]*>\s*/, "");
+  if (e.key) t = t.slice(t.indexOf(":") + 1).trim(); // a keyed entry's head is what follows `key:`
+  return t;
+}
+
+/** True when the entry HOLDS entries of its own (a mapping/sequence), rather than being a scalar
+ *  leaf. A block scalar's content sits at the child column, so it only counts as a container when
+ *  it also carries keyed fields there (an omni node — see {@link itemHasFields}). */
+function isContainerEntry(lines: string[], e: ChapterEntry, childIndent: number): boolean {
+  const head = entryHead(lines, e);
+  if (/^[|>][+-]?\d*$/.test(head.trim())) return itemHasFields(lines, e, childIndent); // omni block, or plain
+  if (/^[^\s"'*|>#-][^:]*:(\s|$)/.test(head)) return true; // an inline `- title: Sub`
+  for (let i = e.start + 1; i < e.end; i++) {
+    if (!isContentLine(lines[i])) continue;
+    const ind = indentOf(lines[i]);
+    if (ind < childIndent) break;
+    if (ind === childIndent) return true; // a child entry line
+  }
+  return false;
+}
+
+/** The line region of the node addressed by `within` (a path relative to the document root; empty =
+ *  the document's own top-level mapping). Each segment is a key or an absolute entry index.
+ *  Descending a SCALAR is an error: splicing underneath one silently corrupts the document. */
+function reachChapter(lines: string[], within: Seg[]): Region {
   let r: Region = { lo: 0, hi: lines.length, indent: firstContentIndent(lines), marker: -1 };
-  for (const seg of chapterPath) {
-    const idx = Number(seg);
-    const item = chapterEntries(lines, r)[idx];
-    if (!item || item.key !== null) throw new Error(`no subchapter at [${idx}]`);
-    r = { lo: item.start + 1, hi: item.end, indent: r.indent + 2, marker: item.start };
+  for (const seg of within) {
+    const entry = findEntry(lines, r, seg);
+    if (!entry) throw new Error(`no entry at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+    if (!isContainerEntry(lines, entry, r.indent + 2)) {
+      throw new Error(`cannot descend into a scalar element at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+    }
+    r = { lo: entry.start + 1, hi: entry.end, indent: r.indent + 2, marker: entry.start };
   }
   return r;
 }
@@ -2285,84 +2238,161 @@ function appendBody(text: string, chapterPath: Seg[], renderItems: (indent: numb
   return lines.join("\n");
 }
 
-// --- chapter scalar / body-item edits (the /api/edit surgical ops) --------------------------- //
+// --- facets: the /api/edit surgical ops ------------------------------------------------------ //
+// A node has four FACETS (TYPES.md): its scalar value, its keyed entries, its ordinal (positional)
+// entries, and its `!!<…>` meta tag. `emplace` replaces only the facets its payload carries and
+// leaves the rest standing — which is what lets a prose edit keep an annotated chunk's
+// `yamlover-annotations` overlay. `replace` drops all four and assigns the payload.
 
-/** The item source text (past its `- ` marker) of the `rank`-th positional body item — the leading
- *  fragment used to classify a chunk (a `*…` pointer / an inline schema tag / plain prose). */
-function bodyItemHead(lines: string[], r: Region, rank: number): string {
-  const items = bodyItems(lines, r);
-  if (!(rank >= 0 && rank < items.length)) throw new Error(`body[${rank}] out of range (${items.length})`);
-  return lines[items[rank].start].trim().replace(/^-\s*/, "");
+/** A node's facets as column-0 yamlover source: the scalar's own source, and each keyed / ordinal
+ *  entry as its own group of lines (kept verbatim, so re-emitting one never reformats it). */
+interface Facets {
+  scalar?: string;
+  keyed: string[][];
+  ordinal: string[][];
 }
 
-/** Set (or clear) a scalar `key: value` (title/description) within the chapter region. Handles a
- *  descended subchapter's key sitting INLINE on the `- ` marker line; else replaces the key's own
- *  line, inserts a fresh one when absent, or drops it when `value` is empty. */
-function setScalarKey(lines: string[], r: Region, key: string, value: string): void {
-  const entry = chapterEntries(lines, r).find((e) => e.key === key);
-  if (entry?.inline) {
-    const pad = " ".repeat(indentOf(lines[entry.start]));
-    lines[entry.start] = `${pad}- ${key}: ${JSON.stringify(value)}`; // an inline title clears to `""`
-    return;
+/** True for a line that opens an entry — a `- ` item or a `key:` field. A block scalar's content is
+ *  NOT an entry, which is why prose that looks like `note: hi` must reach us escaped. */
+const opensEntry = (t: string): boolean => t === "-" || t.startsWith("- ") || /^[^\s"'*|>#-][^:]*:(\s|$)/.test(t);
+
+const isBlockHeader = (head: string): boolean => /^[|>][+-]?\d*$/.test(head.trim());
+
+/** Group column-0 source lines into entries, keyed and ordinal, each group verbatim. */
+function groupEntries(lines: string[], at: number): { keyed: string[][]; ordinal: string[][] } {
+  const starts = lines.map((l, i) => i).filter((i) => isContentLine(lines[i]) && indentOf(lines[i]) === at);
+  const keyed: string[][] = [];
+  const ordinal: string[][] = [];
+  starts.forEach((s, k) => {
+    const group = lines.slice(s, k + 1 < starts.length ? starts[k + 1] : lines.length).map((l) => l.slice(at));
+    (lines[s].trim() === "-" || lines[s].trim().startsWith("- ") ? ordinal : keyed).push(group);
+  });
+  return { keyed, ordinal };
+}
+
+/** The facets a column-0 `yamlover` payload carries. A payload whose first content line opens no
+ *  entry is a SCALAR — a block header, a quoted/plain scalar, or a `*…` pointer. */
+function payloadFacets(src: string): Facets {
+  const lines = src.split("\n");
+  const first = lines.find(isContentLine);
+  if (first === undefined) return { keyed: [], ordinal: [] };
+  if (!opensEntry(first.trim())) return { scalar: src, keyed: [], ordinal: [] };
+  return { scalar: undefined, ...groupEntries(lines, 0) };
+}
+
+/** The facets an EXISTING entry carries, as column-0 source (its own indentation stripped), plus
+ *  the inline `!!<…>` it wears. A block scalar's content lives at the child column when the node is
+ *  plain, and one step deeper when it is an omni carrying keyed fields (YAMLOVER.md §4). */
+function entryFacets(lines: string[], e: ChapterEntry, indent: number): Facets & { tag?: string } {
+  const marked = lines[e.start].trim().replace(/^-\s*/, "");
+  const tag = marked.match(/^(!!<[^>]*>)/)?.[1];
+  const head = entryHead(lines, e);
+  const childIndent = indent + 2;
+  // a value's continuation lines are re-emitted with their own relative indent (2 under the header)
+  const value = (from: number, to: number, at: number): string =>
+    [head, ...lines.slice(from, to).map((l) => (l.trim().length ? "  " + l.slice(at) : ""))].join("\n").replace(/\n+$/, "");
+
+  if (!isContainerEntry(lines, e, childIndent)) {
+    return { tag, scalar: value(e.start + 1, e.end, childIndent), keyed: [], ordinal: [] };
   }
-  const pad = " ".repeat(r.indent);
-  if (!value) {
-    if (entry) lines.splice(entry.start, 1);
-    return;
+
+  // a container. Its scalar (an omni's block value) sits one step deeper than its children, which
+  // start at the first line at the child column — or inline on the marker (`- title: Sub`).
+  const blockValue = isBlockHeader(head);
+  let firstChild = e.end;
+  for (let i = e.start + 1; i < e.end; i++) {
+    if (isContentLine(lines[i]) && indentOf(lines[i]) === childIndent) { firstChild = i; break; }
   }
-  const rendered = `${pad}${key}: ${JSON.stringify(value)}`;
-  if (entry) lines.splice(entry.start, 1, rendered);
-  else lines.splice(r.marker >= 0 ? r.marker + 1 : trimBack(lines, r.lo - 1, r.hi), 0, rendered);
+  const scalar = blockValue ? value(e.start + 1, firstChild, childIndent + 2) : undefined;
+  const groups = groupEntries(lines.slice(firstChild, e.end), childIndent);
+  if (!blockValue && head) groups.keyed.unshift([head]); // the key inlined on the `- ` marker
+  return { tag, scalar, ...groups };
 }
 
-/** Replace the `rank`-th positional body item with fresh text (re-emitted as a chunk item),
- *  preserving a leading inline schema tag when present (e.g. a `!!<format: text/x-latex> |` chunk
- *  keeps its tag; only the body changes). */
-function replaceBodyItem(lines: string[], r: Region, rank: number, text: string): void {
-  const items = bodyItems(lines, r);
-  if (!(rank >= 0 && rank < items.length)) throw new Error(`body[${rank}] out of range (${items.length})`);
-  const { start, end } = items[rank];
-  const head = lines[start].trim().replace(/^-\s*/, "");
-  const tag = head.match(/^(!!<[^>]*>)/)?.[1]; // an inline schema tag to carry over
-  const rendered = tag ? taggedChunkLines(text, r.indent, tag) : textChunkLines(text, r.indent);
-  lines.splice(start, end - start, ...rendered);
-}
-
-/** Insert a fresh chunk so it lands AT body rank `rank` (0 = prepend, ≥ count = append). This is
- *  the position-addressed insert the background sync emits when a new chunk appears at `rank`. */
-function insertBodyItem(lines: string[], r: Region, rank: number, text: string): void {
-  const items = bodyItems(lines, r);
-  const at = rank < items.length ? items[rank].start : bodyAppendPoint(lines, r);
-  lines.splice(at, 0, ...textChunkLines(text, r.indent));
-}
-
-/** Remove the `rank`-th positional body item. */
-function removeBodyItem(lines: string[], r: Region, rank: number): void {
-  const items = bodyItems(lines, r);
-  if (!(rank >= 0 && rank < items.length)) throw new Error(`body[${rank}] out of range (${items.length})`);
-  const { start, end } = items[rank];
-  lines.splice(start, end - start);
-}
-
-/** A chunk item carrying an inline schema tag: `- <tag> |` + the body (a block scalar), or a
- *  single-line `- <tag> "quoted"` when the text can't be a clean block (leading whitespace). */
-function taggedChunkLines(text: string, indent: number, tag: string): string[] {
+/** Render a node from its facets at `indent`. `marker` is `"- "` (positional) or `` `${key}: ` ``.
+ *  A positional container inlines its first keyed entry on the marker line (`- title: X`), the shape
+ *  a chapter's subchapters already have. A node with children keeps its block scalar one step
+ *  deeper than them, so the dedent ends the block. */
+function renderNode(f: Facets, indent: number, marker: string, tag?: string): string[] {
   const pad = " ".repeat(indent);
-  const first = text.split("\n").find((l) => l.trim().length > 0);
-  if (!first || /^\s/.test(first)) return [`${pad}- ${tag} ${JSON.stringify(text)}`];
-  const body = text.endsWith("\n") ? text.slice(0, -1) : text;
-  const head = text.endsWith("\n") ? "|" : "|-";
-  return [`${pad}- ${tag} ${head}`, ...body.split("\n").map((l) => (l.trim().length ? `${pad}  ${l}` : ""))];
+  const childPad = " ".repeat(indent + 2);
+  const groups = [...f.keyed, ...f.ordinal];
+  const child = (g: string[]): string[] => g.map((l) => (l.trim().length ? childPad + l : ""));
+
+  if (f.scalar !== undefined) {
+    return [...renderEntry(f.scalar, indent, marker, tag, groups.length > 0), ...groups.flatMap(child)];
+  }
+  if (!groups.length) return [`${pad}${marker.trimEnd()}${tag ? " " + tag : ""}`];
+  if (marker.startsWith("-") && !tag) {
+    // `- title: Sub` — a positional container inlines its first key, the shape a subchapter has.
+    // A TAG cannot share that line (`- !!<…> title: X` binds the tag to the key, not to the item),
+    // so a tagged container wears its tag alone on the `- ` line and drops its keys below.
+    const [g0, ...rest] = groups;
+    return [`${pad}${marker}${g0[0]}`, ...child(g0.slice(1)), ...rest.flatMap(child)];
+  }
+  return [`${pad}${marker.trimEnd()}${tag ? " " + tag : ""}`, ...groups.flatMap(child)];
 }
 
-/** Refuse to edit a non-text chunk as text: a `*…` file/pointer chunk, or one carrying an inline
- *  schema tag that isn't an editable text format (marklower/markdown/LaTeX) — e.g. an image or
- *  diagram. Mirrors the client's `chunkEditorFor` registry. */
-function assertProseBodyItem(lines: string[], r: Region, rank: number): void {
-  const head = bodyItemHead(lines, r, rank);
-  if (head.startsWith("*")) throw new Error("cannot edit a file/pointer chunk as text");
-  const tag = head.match(/^!!<([^>]*)>/)?.[1];
-  if (tag && !/text\/(markdown|marklower|x-latex)/.test(tag)) throw new Error("cannot edit a non-text chunk as text");
+/** The `!!<…>` a payload asks for: the given `meta`, the entry's existing tag when `meta` is omitted
+ *  and the op preserves (emplace), or none. */
+function metaTag(meta: string | null | undefined, existing: string | undefined, preserve: boolean): string | undefined {
+  if (meta === null) return undefined;
+  if (meta !== undefined) return `!!<${meta}>`;
+  return preserve ? existing : undefined;
+}
+
+/** `emplace` / `replace` / `remove` on the entry `seg` names within `r`; `insert` before it (or
+ *  appended when `seg` is undefined — the path named the node itself). */
+function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, valueSrc: string, meta: string | null | undefined): void {
+  const marker = (s: Seg | undefined): string => (typeof s === "string" ? `${s}: ` : "- ");
+
+  if (op === "insert") {
+    if (typeof seg === "string") throw new Error("`insert` needs a positional target (a path ending `[i]`, or the node itself)");
+    const entry = seg === undefined ? undefined : findEntry(lines, r, seg);
+    const at = entry ? entry.start : bodyAppendPoint(lines, r); // an index past the end appends
+    lines.splice(at, 0, ...renderNode(payloadFacets(valueSrc), r.indent, "- ", metaTag(meta, undefined, false)));
+    return;
+  }
+
+  if (seg === undefined) throw new Error(`\`${op}\` needs a key or index target`);
+  const entry = findEntry(lines, r, seg);
+
+  if (op === "remove") {
+    if (!entry) throw new Error(`no entry at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+    lines.splice(entry.start, entry.end - entry.start);
+    return;
+  }
+  if (op !== "emplace" && op !== "replace") throw new Error(`unknown edit op: ${op}`);
+
+  if (!entry) {
+    // emplace at a FRESH path: a new keyed field, or an appended positional item
+    if (op === "replace") throw new Error(`no entry at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+    const rendered = renderNode(payloadFacets(valueSrc), r.indent, marker(seg), metaTag(meta, undefined, false));
+    const at = typeof seg === "string" ? (r.marker >= 0 ? r.marker + 1 : trimBack(lines, r.lo - 1, r.hi)) : bodyAppendPoint(lines, r);
+    lines.splice(at, 0, ...rendered);
+    return;
+  }
+
+  const had = entryFacets(lines, entry, r.indent);
+  const payload = payloadFacets(valueSrc);
+  const inlineKey = entry.inline ? entry.key : null; // a key living on its parent's `- ` marker line
+  const next: Facets =
+    op === "replace"
+      ? payload
+      : {
+          scalar: payload.scalar ?? had.scalar,
+          keyed: payload.keyed.length ? payload.keyed : had.keyed,
+          ordinal: payload.ordinal.length ? payload.ordinal : had.ordinal,
+        };
+  const tag = metaTag(meta, had.tag, op === "emplace");
+
+  if (inlineKey) {
+    // `- title: X` — rewrite the marker line in place, keeping the `- `
+    const pad = " ".repeat(indentOf(lines[entry.start]));
+    lines[entry.start] = `${pad}- ${tag ? tag + " " : ""}${inlineKey}: ${next.scalar ?? '""'}`;
+    return;
+  }
+  lines.splice(entry.start, entry.end - entry.start, ...renderNode(next, r.indent, marker(seg), tag));
 }
 
 // --- chunk fragments (ANNOTATIONS.md §3): a text fragment lives ON the chunk it was drawn in ----- //
@@ -2435,7 +2465,8 @@ function collapseChunkOmni(lines: string[], indices: number[]): void {
 }
 
 /** Refuse to tag the TEXT of a non-prose chunk (a `*…` file/pointer or a non-text schema tag —
- *  image, diagram): addressed by absolute index. Mirrors {@link assertProseBodyItem}. */
+ *  image, diagram): addressed by absolute index. (`/api/edit` needs no such guard: its caller sends
+ *  yamlover source, so editing a pointer or a LaTeX chunk is simply legal.) */
 function assertProseChunk(lines: string[], indices: number[]): void {
   const { item } = reachChapterItem(lines, indices);
   const head = lines[item.start].slice(indentOf(lines[item.start])).replace(/^-\s*/, "");
@@ -2460,69 +2491,173 @@ function splitChunkWithin(within: Seg[]): { indices: number[]; keys: string[] } 
   return { indices: within.slice(0, i).map(Number), keys: within.slice(i).map(String) };
 }
 
-/** Apply one surgical edit to a chapter `.yamlover` source, addressed by the leaf's document-relative
- *  path `within`. The leading `[k]` segments (if any) DESCEND into a subchapter by absolute store
- *  index; the trailing addressing is a body RANK. Returns the new source text.
- *   - `set`     — `within` ends `…:title`|`…:description`.
- *   - `replace` — `within` ends `…[rank]` (a prose chunk at that body rank).
- *   - `remove`  — `within` ends `…[rank]`.
- *   - `insert`  — `within` IS the (sub)chapter; the new chunk lands at body rank `index`. */
-function editChapterSource(src: string, within: Seg[], op: string, text: string, index?: number): string {
+/** Set, replace, or drop (`meta === null`) a DOCUMENT's own leading `!!<…>` tag — the one place a
+ *  tag is a line of its own rather than an inline prefix. */
+function setRootTag(lines: string[], meta: string | null): void {
+  const at = lines.findIndex(isContentLine);
+  const existing = at >= 0 && lines[at].trim().startsWith("!!<") ? at : -1;
+  if (meta === null) {
+    if (existing >= 0) lines.splice(existing, 1);
+    return;
+  }
+  if (existing >= 0) lines[existing] = `!!<${meta}>`;
+  else lines.splice(Math.max(at, 0), 0, `!!<${meta}>`);
+}
+
+/** Apply one surgical edit to a `.yamlover` source, addressed by `within` — the edit path relative
+ *  to its document root. Every segment is a key or an ABSOLUTE entry index; the last one names the
+ *  node being edited. Returns the new source text.
+ *
+ *   - `emplace` — replace only the facets `valueSrc` carries; the rest of the node stands.
+ *   - `replace` — drop the node's facets and assign `valueSrc`.
+ *   - `remove`  — delete the node.
+ *   - `insert`  — the new entry takes the position the path names; an index past the end APPENDS,
+ *                 which is how a caller who doesn't know the entry count appends to a container.
+ *
+ *  With an empty `within` the path named the document root: `insert` appends to it, and `emplace`
+ *  may set its `!!<…>` tag. */
+function editChapterSource(src: string, within: Seg[], op: string, valueSrc: string, meta: string | null | undefined): string {
   const lines = src.split("\n");
-  if (op === "set") {
-    const key = within[within.length - 1];
-    if (key !== "title" && key !== "description") throw new Error("`set` needs a title/description target");
-    setScalarKey(lines, reachChapter(lines, within.slice(0, -1)), key, text);
-    return lines.join("\n");
+  if (within.length === 0) {
+    if (op === "insert") {
+      assignAt(lines, reachChapter(lines, []), undefined, op, valueSrc, meta);
+      return lines.join("\n");
+    }
+    if (op === "emplace" && meta !== undefined && !valueSrc) {
+      setRootTag(lines, meta);
+      return lines.join("\n");
+    }
+    throw new Error(`\`${op}\` at a document root needs a key or index target`);
   }
-  if (op === "insert") {
-    // `within` addresses the (sub)chapter itself; undefined index → append at the body's end.
-    insertBodyItem(lines, reachChapter(lines, within), index ?? Number.MAX_SAFE_INTEGER, text);
-    return lines.join("\n");
-  }
-  const rank = within[within.length - 1];
-  if (typeof rank !== "number") throw new Error(`\`${op}\` needs a body-element target (path ends \`[rank]\`)`);
-  const region = reachChapter(lines, within.slice(0, -1));
-  if (op === "replace") {
-    assertProseBodyItem(lines, region, rank);
-    replaceBodyItem(lines, region, rank, text);
-  } else if (op === "remove") {
-    removeBodyItem(lines, region, rank);
-  } else {
-    throw new Error(`unknown edit op: ${op}`);
-  }
+  assignAt(lines, reachChapter(lines, within.slice(0, -1)), within[within.length - 1], op, valueSrc, meta);
   return lines.join("\n");
 }
 
-/** Apply a BATCH of edits, grouped by their backing file (a chapter can span several — each part
- *  routes to its own document via {@link chapterSource}). Ops for one file fold in order (so index
- *  math stays consistent); each touched file is written once. Returns the touched files (to reindex).
- *  A single edit is just a one-element batch. */
-function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): string[] {
-  const byFile = new Map<string, { within: Seg[]; op: string; text: string; index?: number }[]>();
+/** A one-line `*…` pointer — a legal entry VALUE, but not a legal document on its own, so it never
+ *  goes through the document parser. */
+const isPointerValue = (src: string): boolean => /^\*\S*$/.test(src.trim()) && !src.includes("\n");
+
+/** A filesystem directory that backs NO yamlover document — it has no `.yamlover/body.yamlover` to
+ *  splice, so what you add to it is a member file/directory, not an entry in some source. */
+function isPlainDir(dataRoot: string, s: Store, segs: Seg[]): boolean {
+  if (!segs.every((g) => typeof g === "string")) return false;
+  const abs = path.resolve(dataRoot, ...segs.map(String));
+  if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) return false;
+  try {
+    chapterSource(dataRoot, s, segs);
+    return false; // a dir-backed document: it has a body to edit
+  } catch {
+    return true;
+  }
+}
+
+/** One edit, resolved to the file it lands in. */
+interface ResolvedEdit {
+  within: Seg[];
+  op: string;
+  valueSrc: string;
+  meta: string | null | undefined;
+  concrete?: string;
+  name?: string;
+  docSegs: Seg[];
+  dirBacked: boolean;
+}
+
+/** `concrete: file/yamlover | dir/yamlover` — the content is born as its OWN document beside the
+ *  parent, and what lands in the parent's source is a `*` pointer to it. Returns the pointer source
+ *  and the new document's node path (what a create navigates to). */
+function bornAsDocument(dataRoot: string, e: ResolvedEdit, tag: string | undefined): { pointer: string; path: string } {
+  const writeDirSegs = e.dirBacked ? e.docSegs : e.docSegs.slice(0, -1);
+  const writeDir = path.resolve(dataRoot, ...writeDirSegs.map(String));
+  const src = [...(tag ? [tag] : []), e.valueSrc, ""].join("\n");
+  // a linked document is reached by a `*` pointer → name it pointer-safe (no spaces/unicode)
+  const final = writeObject(dataRoot, writeDir, sanitizeName(e.name || "object"), e.concrete!, src);
+  const targetSegs = [...writeDirSegs, final];
+  return { pointer: e.dirBacked ? `*/${final}` : `*/${segsToStr(targetSegs)}`, path: segsToStr(targetSegs) };
+}
+
+/** Apply a BATCH of edits, grouped by their backing file (a document can span several — each part
+ *  routes to its own via {@link chapterSource}). Ops for one file fold in order, each re-scanning
+ *  the buffer the previous one left, so absolute indices stay consistent; each touched file is
+ *  written once. Returns the touched files (to reindex) and any document born along the way. */
+function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: string[]; created: string[]; appended: Seg[][] } {
+  const byFile = new Map<string, ResolvedEdit[]>();
+  const appended: Seg[][] = []; // parents an INLINE entry was appended to — their new last child is the created node
+  const created: string[] = [];
   for (const e of edits) {
     const editSegs = strToSegs(e.path ?? "");
-    const { docSegs, bodyFile } = chapterSource(dataRoot, s, editSegs);
-    const within = editSegs.slice(docSegs.length);
+    const op = String(e.op ?? "");
+
+    // A directory that backs no document has no source to splice: inserting into it creates a
+    // MEMBER — a document of its own, named for itself rather than pointed at from a parent's body.
+    // (A dir-BACKED document is a directory too, but `chapterSource` finds its body, so it lands in
+    // the ordinary path below and gains a child.)
+    if (op === "insert" && (e.concrete === "file/yamlover" || e.concrete === "dir/yamlover") && isPlainDir(dataRoot, s, editSegs)) {
+      const dir = path.resolve(dataRoot, ...editSegs.map(String));
+      const src = [...(metaTag(e.meta, undefined, false) ? [metaTag(e.meta, undefined, false)!] : []), String(e.yamlover ?? ""), ""].join("\n");
+      if (e.yamlover) parseYamlover(String(e.yamlover), "<edit>");
+      const final = writeObject(dataRoot, dir, objectBaseName(String(e.name || "new")), String(e.concrete), src);
+      created.push(segsToStr([...editSegs, final]));
+      continue;
+    }
+
+    const { docSegs, bodyFile, dirBacked } = chapterSource(dataRoot, s, editSegs);
+    if (op === "insert" && !e.concrete?.includes("/")) {
+      // an APPEND (no trailing index, or one past the end) creates the parent's new last child
+      const last = editSegs[editSegs.length - 1];
+      if (typeof last !== "number") appended.push(editSegs);
+      else if (!s.node(storePath(editSegs))) appended.push(editSegs.slice(0, -1));
+    }
+    const concrete = e.concrete ? String(e.concrete) : undefined;
+    if (concrete && concrete !== "yamlover" && op !== "insert" && !(op === "emplace" && !s.node(storePath(editSegs)))) {
+      throw new Error("`concrete` is only for content being created — converting an existing node is a move, not an edit");
+    }
     const list = byFile.get(bodyFile) ?? [];
-    list.push({ within, op: String(e.op ?? ""), text: String(e.text ?? ""), index: typeof e.index === "number" ? e.index : undefined });
+    list.push({
+      within: editSegs.slice(docSegs.length),
+      op,
+      valueSrc: String(e.yamlover ?? ""),
+      meta: e.meta === undefined ? undefined : e.meta === null ? null : String(e.meta),
+      concrete,
+      name: e.name ? String(e.name) : undefined,
+      docSegs,
+      dirBacked,
+    });
     byFile.set(bodyFile, list);
   }
   const touched: string[] = [];
   for (const [bodyFile, ops] of byFile) {
     let src = fs.readFileSync(bodyFile, "utf8");
-    for (const o of ops) src = editChapterSource(src, o.within, o.op, o.text, o.index);
+    for (const o of ops) {
+      let { valueSrc, meta } = o;
+      const tag = metaTag(meta, undefined, false);
+      // The CALLER's payload must be valid yamlover on its own — parse it before anything is
+      // spliced, so a malformed fragment 400s with the document untouched. Two things are legal as
+      // an entry's value but not as a whole document, and so are not parsed as one: the `!!<…>` tag
+      // (`!!<…> |-`), and a bare `*` pointer (which is also what `concrete` generates below).
+      if (valueSrc && !isPointerValue(valueSrc)) parseYamlover(valueSrc, "<edit>");
+      if (o.concrete === "file/yamlover" || o.concrete === "dir/yamlover") {
+        // the value becomes its own document; the parent gets a `*` pointer, which carries no tag
+        const born = bornAsDocument(dataRoot, o, tag);
+        created.push(born.path);
+        valueSrc = born.pointer;
+        meta = undefined;
+      }
+      src = editChapterSource(src, o.within, o.op, valueSrc, meta);
+    }
     fs.writeFileSync(bodyFile, src);
     touched.push(bodyFile);
   }
-  return touched;
+  return { touched, created, appended };
 }
 
 interface EditInput {
-  path?: string;
-  op?: string;
-  text?: string;
-  index?: number;
+  path?: string; // the yamlover path of the node being edited (a key or an absolute index per segment)
+  op?: string; // emplace | replace | insert | remove
+  yamlover?: string; // the node's value as VALID inline yamlover source — the caller escapes its own prose
+  meta?: string | null; // the `!!<…>` schema pointer: set it, `null` to drop it, omit to leave it alone
+  concrete?: string; // yamlover | file/yamlover | dir/yamlover — only where content is BORN
+  name?: string; // the file/dir name when `concrete` births a document
 }
 
 /** The indent of the first content line — the chapter mapping's key column. */

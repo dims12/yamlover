@@ -194,7 +194,7 @@ describe("ChapterEditor (unlocked)", () => {
       fireEvent.blur(h1);
       await act(async () => { vi.advanceTimersByTime(600); });
       expect(editChunks).toHaveBeenCalledTimes(1);
-      expect(editChunks.mock.calls[0][0]).toEqual([{ path: ":doc:title", op: "set", text: "Renamed" }]);
+      expect(editChunks.mock.calls[0][0]).toEqual([{ path: ":doc:title", op: "emplace", yamlover: '"Renamed"' }]);
     } finally {
       vi.useRealTimers();
     }

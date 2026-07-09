@@ -97,9 +97,10 @@ document-relative marklower link therefore points at `:[i]` (`MARKLOWER.md`; the
 spelling `/[i]` still parses — see `69-marklower-links.yamlover`), and a subchapter's chunk at
 `:[i][j]`.
 
-The web editor's surgical edits (`/api/edit`, README §editor) address a body element by its
-**rank** among the positional items (`<chapter>[rank]`), which lines up 1:1 with the source `- `
-items; a subchapter *descent* uses the absolute store index. See `tools/server` `engine-api.ts`.
+The web editor's surgical edits (`/api/edit`, README §editor) use **the same absolute index** — an
+edit path is a plain yamlover path, nothing else. (It once addressed a body element by its *rank*
+among the positional items, a second index space in which `title` counted for nothing; the two
+disagreed about which `[i]` a subchapter was.) See `tools/server` `engine-api.ts`.
 
 ## `task` extends `chapter`
 

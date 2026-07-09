@@ -5,9 +5,9 @@
 //
 // A chapter is an OMNI node (CHAPTER.md): optional keyed `title`/`description`, then a POSITIONAL
 // body whose elements are chunks (renderable blocks) and subchapters (the recursion), interleaved.
-// The body has no `chunks`/`children` wrapper any more — an element's edit address is its POSITIONAL
-// RANK (`<chapter>[rank]`) among the body items, which lines up 1:1 with the source `- ` items.
-// Subchapters ride in the body as read-only parts so those ranks stay aligned with the server.
+// An element's edit address is its ABSOLUTE entry index (`<chapter>[i]`), in which the keyed
+// title/description count too — the same index the node path uses, so an edit path is a plain
+// yamlover path. Subchapters ride in the body as read-only parts so those indices stay aligned.
 //
 // Why a model at all: editing straight against an uncontrolled contentEditable + per-op server
 // round-trips was both LAGGY (file-write → reindex → SSE → refetch per keystroke) and WRONG (a
@@ -32,21 +32,34 @@ export interface ChunkPart {
   navPath?: string; // a subchapter's own node path (for the descend link); set ⇒ subchapter
   title?: string; // a subchapter's title label
   marker: unknown; // the original element value (link marker / scalar) — re-rendered as-is for a read-only part
+  absIndex: number; // the part's ABSOLUTE entry index — an edit path segment (keyed entries count too)
 }
 
 export interface ChapterModel {
   path: string; // the chapter's node path (the routing base for edits)
   title: string;
   description: string;
-  chunks: ChunkPart[]; // the FULL ordered body (chunks + subchapters) so ranks match the server body
+  chunks: ChunkPart[]; // the FULL ordered body (chunks + subchapters), in source order
+  entryCount: number; // ALL entries, keyed ones included — the abs index an appended entry takes
 }
 
-/** One surgical edit the sync sends to `/api/edit`. */
+/** One surgical edit the sync sends to `/api/edit` (see api.ts `Edit` for the op semantics). */
 export interface Edit {
   path: string;
-  op: "set" | "replace" | "insert" | "remove";
-  text?: string;
-  index?: number; // insert position (body rank; for `op:"insert"`)
+  op: "emplace" | "replace" | "insert" | "remove";
+  yamlover?: string;
+}
+
+/** A prose string as yamlover VALUE source: a literal block scalar (`|-`, or `|` when the text ends
+ *  in a newline, so the chomping matches), else one double-quoted line when a block would not round
+ *  trip — a first content line that is empty or indented. The client twin of the server's
+ *  `escapeScalarSrc`: `/api/edit` takes yamlover source, and prose is not yamlover until escaped. */
+export function escapeYamloverScalar(text: string): string {
+  const first = text.split("\n").find((l) => l.trim().length > 0);
+  if (!first || /^\s/.test(first)) return JSON.stringify(text);
+  const body = text.endsWith("\n") ? text.slice(0, -1) : text;
+  const head = text.endsWith("\n") ? "|" : "|-";
+  return [head, ...body.split("\n").map((l) => (l.trim().length ? "  " + l : ""))].join("\n");
 }
 
 /** The chunk formats that have an in-place editor (chunk-editors.tsx `chunkEditorFor`): marklower
@@ -71,17 +84,23 @@ export function childPath(path: string, seg: string | number): string {
   return segsToStr([...strToSegs(path), seg]);
 }
 
-/** The ordered body elements of a chapter value — the positional items of its projection. A titled
- *  chapter projects as a `$yamloverMixed` marker (title/description are keyed, the body is keyless);
- *  an untitled chapter (body only) projects as a plain array. Either way, the body is the KEYLESS
- *  elements in source order. */
-export function chapterBody(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value;
+/** The body elements with their ABSOLUTE entry index — the index an edit path segment carries, in
+ *  which the keyed `title`/`description` count too (CHAPTER.md). An untitled chapter projects as a
+ *  plain array, where the two indexes coincide. */
+export function chapterBodyEntries(value: unknown): { value: unknown; absIndex: number }[] {
+  if (Array.isArray(value)) return value.map((v, i) => ({ value: v, absIndex: i }));
   const mixed = (value as Record<string, unknown> | null | undefined)?.[MIXED_KEY] as
     | { entries?: { key: string | null; value: unknown }[] }
     | undefined;
-  if (mixed?.entries) return mixed.entries.filter((e) => e.key == null).map((e) => e.value);
-  return [];
+  if (!mixed?.entries) return [];
+  return mixed.entries.map((e, i) => ({ e, i })).filter(({ e }) => e.key == null).map(({ e, i }) => ({ value: e.value, absIndex: i }));
+}
+
+/** How many entries the chapter has in all — the absolute index an APPENDED entry will take. */
+export function chapterEntryCount(value: unknown): number {
+  if (Array.isArray(value)) return value.length;
+  const mixed = (value as Record<string, unknown> | null | undefined)?.[MIXED_KEY] as { entries?: unknown[] } | undefined;
+  return mixed?.entries?.length ?? 0;
 }
 
 /** One element of a chapter's rendered FLOW — everything the page shows, in source order. */
@@ -125,9 +144,10 @@ export function flowText(value: unknown): string {
 let idSeq = 0;
 const freshId = (): string => `ck${idSeq++}`;
 
-/** A brand-new inlined prose chunk (a fresh id) — the tail of a split, or a blank added paragraph. */
+/** A brand-new inlined prose chunk (a fresh id) — the tail of a split, or a blank added paragraph.
+ *  Its `absIndex` is unknown until the diff places it (-1). */
 export function newProsePart(text: string, format: string | null = "text/marklower"): ChunkPart {
-  return { id: freshId(), rev: 0, editable: true, text, format, concrete: "yamlover", subchapter: false, marker: null };
+  return { id: freshId(), rev: 0, editable: true, text, format, concrete: "yamlover", subchapter: false, marker: null, absIndex: -1 };
 }
 
 /** Build the editing model from a chapter node's `/api/json` value (depth 1): its title/description
@@ -135,12 +155,12 @@ export function newProsePart(text: string, format: string | null = "text/marklow
  *  prose scalar (its marker points at its OWN slot `<chapter>[i]`); a subchapter or a marker pointing
  *  elsewhere (a `*…` file/pointer chunk) is a read-only part this iteration. */
 export function buildChapterModel(node: { path: string; title: string | null; description: string | null; value: unknown }): ChapterModel {
-  const body = chapterBody(node.value);
-  const chunks: ChunkPart[] = body.map((item) => {
+  const body = chapterBodyEntries(node.value);
+  const chunks: ChunkPart[] = body.map(({ value: item, absIndex }) => {
     const link = asLink(item);
     const format = link?.format ?? null;
     if (isSubchapter(format)) {
-      return { id: freshId(), rev: 0, editable: false, text: "", format, concrete: link?.concrete ?? "yamlover", subchapter: true, navPath: link?.path, title: link?.title, marker: item };
+      return { id: freshId(), rev: 0, editable: false, text: "", format, concrete: link?.concrete ?? "yamlover", subchapter: true, navPath: link?.path, title: link?.title, marker: item, absIndex };
     }
     // an inlined scalar chunk's marker points at its own containment slot (`<chapter>[i]`); a pointer
     // chunk's marker points elsewhere (the target file) → linked, and read-only this iteration.
@@ -156,60 +176,90 @@ export function buildChapterModel(node: { path: string; title: string | null; de
       concrete: link?.concrete ?? "yamlover",
       subchapter: false,
       marker: item,
+      absIndex,
     };
   });
-  return { path: node.path, title: node.title ?? "", description: node.description ?? "", chunks };
+  return { path: node.path, title: node.title ?? "", description: node.description ?? "", chunks, entryCount: chapterEntryCount(node.value) };
 }
 
 /** A committed snapshot for diffing — the model's title/description and each part's id + text
  *  (only editable text can change; read-only parts are compared by id only). */
 export function snapshotChapter(m: ChapterModel): ChapterModel {
-  return { path: m.path, title: m.title, description: m.description, chunks: m.chunks.map((c) => ({ ...c })) };
+  return { path: m.path, title: m.title, description: m.description, chunks: m.chunks.map((c) => ({ ...c })), entryCount: m.entryCount };
 }
 
 /**
  * The minimal ordered edit list to turn `committed` into `current`, addressed by node path:
- *  - title/description change → `set`;
- *  - part id gone → `remove` (highest rank first, so earlier removes don't shift later ones);
- *  - new part id → `insert` at its final rank (forward order — each insertion makes room);
- *  - surviving editable chunk whose text changed → `replace` at its final rank.
- * A rank is the position in the FULL body array (matching the server's positional items). Reordering
- * existing parts is not supported (the editor never moves them). The server applies the batch in this
- * order, addressing each body element as `<chapter>[rank]` (insert targets the chapter itself).
+ *  - title/description changed → `emplace` its new value; emptied → `remove` the key;
+ *  - part id gone → `remove` (last first, so an earlier remove never moves a pending one);
+ *  - new part id → `insert` at the absolute index it takes (forward — each insertion makes room);
+ *  - surviving editable chunk whose text changed → `emplace`, which keeps the chunk's annotations
+ *    and its `!!<…>` tag (only its scalar facet is replaced).
+ * Every index is the ABSOLUTE entry index — keyed entries (title/description) consume indices too —
+ * so an edit path is a plain yamlover path. Reordering existing parts is not supported (the editor
+ * never moves them). The server applies the batch in this order, re-scanning the source per op.
  */
 export function diffChapter(committed: ChapterModel, current: ChapterModel): Edit[] {
   const edits: Edit[] = [];
   const base = current.path;
-  if (current.title !== committed.title) edits.push({ path: childPath(base, "title"), op: "set", text: current.title });
-  if (current.description !== committed.description) edits.push({ path: childPath(base, "description"), op: "set", text: current.description });
+  // a heading is one line: quote it rather than open a block scalar (`title: |-` reads badly)
+  const scalar = (path: string, text: string): Edit =>
+    text ? { path, op: "emplace", yamlover: JSON.stringify(text) } : { path, op: "remove" };
+  // A keyed entry consumes an absolute index. Emptying `title` REMOVES it, sliding every later entry
+  // down one; a fresh key is appended at the end, so it shifts nothing before it.
+  let shift = 0; // existing entries sliding down as a key before them is removed
+  let added = 0; // a fresh key, appended after them
+  for (const key of ["title", "description"] as const) {
+    if (current[key] === committed[key]) continue;
+    edits.push(scalar(childPath(base, key), current[key]));
+    if (!current[key] && committed[key]) shift -= 1;
+    else if (current[key] && !committed[key]) added += 1;
+  }
 
   const curIds = current.chunks.map((c) => c.id);
   const curById = new Map(current.chunks.map((c) => [c.id, c]));
   const comById = new Map(committed.chunks.map((c) => [c.id, c]));
-  const shadow = committed.chunks.map((c) => c.id); // committed order; mutated as ops apply → live ranks
+  // The committed body, each element with the ABSOLUTE index it will have when its op is applied.
+  // The server re-scans the source per op, so a removal shifts every later index down and an
+  // insertion shifts them up — the shadow tracks exactly that.
+  const shadow = committed.chunks.map((c) => ({ id: c.id, abs: c.absIndex + shift }));
+  let entryCount = committed.entryCount + shift + added; // the abs index an APPEND lands on
+  const bodyAt = (abs: number): string => childPath(base, abs);
 
-  const bodyAt = (i: number): string => childPath(base, i); // `<chapter>[rank]`
-
-  // 1) removals — highest current rank first
-  const removeIdx = shadow.map((id, i) => (curById.has(id) ? -1 : i)).filter((i) => i >= 0).sort((a, b) => b - a);
-  for (const idx of removeIdx) {
-    edits.push({ path: bodyAt(idx), op: "remove" });
-    shadow.splice(idx, 1);
+  // 1) removals — last first, so an earlier removal never moves a pending one
+  for (let i = shadow.length - 1; i >= 0; i--) {
+    if (curById.has(shadow[i].id)) continue;
+    edits.push({ path: bodyAt(shadow[i].abs), op: "remove" });
+    shadow.splice(i, 1);
+    for (let j = i; j < shadow.length; j++) shadow[j].abs -= 1;
+    entryCount -= 1;
   }
 
-  // 2) insertions — forward, at each new part's final rank (targets the chapter itself)
+  // 2) insertions — forward, each at the absolute index its element takes. Past the last entry the
+  //    path names the chapter itself, which the server reads as "append".
   for (let p = 0; p < curIds.length; p++) {
     const id = curIds[p];
-    if (shadow.includes(id)) continue;
-    edits.push({ path: base, op: "insert", index: p, text: curById.get(id)!.text });
-    shadow.splice(p, 0, id);
+    if (shadow.some((sh) => sh.id === id)) continue;
+    const abs = p < shadow.length ? shadow[p].abs : entryCount;
+    edits.push({ path: p < shadow.length ? bodyAt(abs) : base, op: "insert", yamlover: escapeYamloverScalar(curById.get(id)!.text) });
+    for (let j = p; j < shadow.length; j++) shadow[j].abs += 1;
+    shadow.splice(p, 0, { id, abs });
+    entryCount += 1;
   }
 
-  // 3) replacements — surviving editable chunks whose text changed, at their final rank
+  // 3) replacements — surviving editable chunks whose text changed. `emplace`, so a chunk carrying
+  //    annotations (an omni overlay on its prose) keeps them, and a tagged chunk keeps its tag.
   for (let j = 0; j < curIds.length; j++) {
     const cur = curById.get(curIds[j])!;
     const com = comById.get(curIds[j]);
-    if (com && cur.editable && cur.text !== com.text) edits.push({ path: bodyAt(j), op: "replace", text: cur.text });
+    if (com && cur.editable && cur.text !== com.text) {
+      edits.push({ path: bodyAt(shadow[j].abs), op: "emplace", yamlover: escapeYamloverScalar(cur.text) });
+    }
   }
+
+  // Record where the batch leaves each element: a freshly inserted part had no absolute index, and
+  // the NEXT diff (against the snapshot taken of `current`) must address it by the one it now has.
+  current.chunks.forEach((c, j) => { c.absIndex = shadow[j].abs; });
+  current.entryCount = entryCount;
   return edits;
 }

@@ -104,7 +104,9 @@ describe("chapterFlow", () => {
 
 /** Deep-clone a model so a "current" can be mutated without touching the committed snapshot. */
 const clone = (m: ChapterModel): ChapterModel => ({ ...m, chunks: m.chunks.map((c) => ({ ...c })) });
-const part = (id: string, text: string): ChunkPart => ({ id, rev: 0, editable: true, text, format: "text/marklower", concrete: "yamlover", subchapter: false, marker: null });
+const part = (id: string, text: string, absIndex = -1): ChunkPart => ({ id, rev: 0, editable: true, text, format: "text/marklower", concrete: "yamlover", subchapter: false, marker: null, absIndex });
+/** A model built by hand: `chunks` at absolute indices 0.., no keyed entries. */
+const model = (chunks: ChunkPart[]): ChapterModel => ({ path: ":doc", title: "T", description: "D", chunks, entryCount: chunks.length });
 
 describe("diffChapter", () => {
   const base = (): ChapterModel => buildChapterModel(node([inlined(":doc", 1, "one"), inlined(":doc", 2, "two")]));
@@ -114,58 +116,96 @@ describe("diffChapter", () => {
     expect(diffChapter(snapshotChapter(m), m)).toEqual([]);
   });
 
-  it("title change → a set", () => {
+  it("title change → an emplace of its escaped value", () => {
     const committed = base();
     const current = clone(committed);
     current.title = "New";
-    expect(diffChapter(committed, current)).toEqual([{ path: ":doc:title", op: "set", text: "New" }]);
+    expect(diffChapter(committed, current)).toEqual([{ path: ":doc:title", op: "emplace", yamlover: '"New"' }]);
   });
 
-  it("edited chunk text → a replace at its body rank", () => {
+  it("an emptied title REMOVES the key, and every later entry slides down one", () => {
+    const committed = base(); // entries: title(0), one(1), two(2)
+    const current = clone(committed);
+    current.title = "";
+    current.chunks[1].text = "TWO";
+    expect(diffChapter(committed, current)).toEqual([
+      { path: ":doc:title", op: "remove" },
+      { path: ":doc[1]", op: "emplace", yamlover: "|-\n  TWO" }, // was [2] before the title went
+    ]);
+  });
+
+  // The chunks sit at ABSOLUTE indices 1 and 2 — the keyed `title` consumes index 0 (CHAPTER.md).
+  it("edited chunk text → an emplace at its absolute index", () => {
     const committed = base();
     const current = clone(committed);
     current.chunks[1].text = "TWO";
-    expect(diffChapter(committed, current)).toEqual([{ path: ":doc[1]", op: "replace", text: "TWO" }]);
+    expect(diffChapter(committed, current)).toEqual([{ path: ":doc[2]", op: "emplace", yamlover: "|-\n  TWO" }]);
   });
 
   it("SPLIT: chunk 0 'onetwo' → head 'one' + new tail 'two' (the reported bug)", () => {
-    // committed: [onetwo, x]; current: [one(head, same id), TAIL(new id), x]
-    const committed: ChapterModel = { path: ":doc", title: "T", description: "D", chunks: [part("a", "onetwo"), part("b", "x")] };
-    const current: ChapterModel = { path: ":doc", title: "T", description: "D", chunks: [part("a", "one"), part("tail", "two"), part("b", "x")] };
+    // committed: [onetwo, x] at abs 0,1; current: [one(head, same id), TAIL(new id), x]
+    const committed = model([part("a", "onetwo", 0), part("b", "x", 1)]);
+    const current = model([part("a", "one", 0), part("tail", "two"), part("b", "x", 1)]);
     expect(diffChapter(committed, current)).toEqual([
-      { path: ":doc", op: "insert", index: 1, text: "two" },
-      { path: ":doc[0]", op: "replace", text: "one" },
+      { path: ":doc[1]", op: "insert", yamlover: "|-\n  two" }, // before x, which slides to 2
+      { path: ":doc[0]", op: "emplace", yamlover: "|-\n  one" },
     ]);
   });
 
-  it("prepend a chunk → insert at rank 0 (the chapter itself)", () => {
+  it("prepend a chunk → insert before the first body element", () => {
     const committed = base();
     const current = clone(committed);
     current.chunks.unshift(part("new", "top"));
-    expect(diffChapter(committed, current)).toEqual([{ path: ":doc", op: "insert", index: 0, text: "top" }]);
+    expect(diffChapter(committed, current)).toEqual([{ path: ":doc[1]", op: "insert", yamlover: "|-\n  top" }]);
   });
 
-  it("remove a chunk → a remove at its rank", () => {
+  it("append a chunk → the path names the chapter, which the server reads as APPEND", () => {
     const committed = base();
     const current = clone(committed);
-    current.chunks.splice(0, 1); // drop 'one'
-    expect(diffChapter(committed, current)).toEqual([{ path: ":doc[0]", op: "remove" }]);
+    current.chunks.push(part("new", "last"));
+    expect(diffChapter(committed, current)).toEqual([{ path: ":doc", op: "insert", yamlover: "|-\n  last" }]);
   });
 
-  it("remove chunk 0 AND edit chunk 1 → remove then replace at the SHIFTED rank", () => {
-    const committed: ChapterModel = { path: ":doc", title: "T", description: "D", chunks: [part("a", "one"), part("b", "two")] };
-    const current: ChapterModel = { path: ":doc", title: "T", description: "D", chunks: [part("b", "TWO")] };
+  it("remove a chunk → a remove at its absolute index", () => {
+    const committed = base();
+    const current = clone(committed);
+    current.chunks.splice(0, 1); // drop 'one' (abs 1)
+    expect(diffChapter(committed, current)).toEqual([{ path: ":doc[1]", op: "remove" }]);
+  });
+
+  it("remove chunk 0 AND edit chunk 1 → remove then emplace at the SHIFTED index", () => {
+    const committed = model([part("a", "one", 0), part("b", "two", 1)]);
+    const current = model([part("b", "TWO", 1)]);
     expect(diffChapter(committed, current)).toEqual([
       { path: ":doc[0]", op: "remove" },
-      { path: ":doc[0]", op: "replace", text: "TWO" }, // b is now at rank 0
+      { path: ":doc[0]", op: "emplace", yamlover: "|-\n  TWO" }, // b slid down to 0
     ]);
   });
 
-  it("a read-only element in the middle keeps prose ranks correct", () => {
+  it("a read-only element in the middle keeps the absolute indices correct", () => {
     const m = buildChapterModel(node([inlined(":doc", 1, "a"), subchapter(":doc", 2, "Mid"), inlined(":doc", 3, "c")]));
     const current = clone(m);
-    current.chunks[2].text = "C"; // edit the prose AFTER the subchapter (rank 2)
-    expect(diffChapter(m, current)).toEqual([{ path: ":doc[2]", op: "replace", text: "C" }]);
+    current.chunks[2].text = "C"; // edit the prose AFTER the subchapter
+    expect(diffChapter(m, current)).toEqual([{ path: ":doc[3]", op: "emplace", yamlover: "|-\n  C" }]);
+  });
+
+  it("assigns a freshly inserted part its absolute index, so the NEXT diff addresses it", () => {
+    const committed = base();
+    const current = clone(committed);
+    current.chunks.push(part("new", "last"));
+    diffChapter(committed, current);
+    expect(current.chunks.map((c) => c.absIndex)).toEqual([1, 2, 3]);
+    expect(current.entryCount).toBe(4);
+  });
+
+  it("multiline prose becomes a block scalar; leading whitespace falls back to a quoted line", () => {
+    const committed = base();
+    const a = clone(committed);
+    a.chunks[0].text = "one\ntwo";
+    expect(diffChapter(committed, a)).toEqual([{ path: ":doc[1]", op: "emplace", yamlover: "|-\n  one\n  two" }]);
+    const b = clone(committed);
+    b.chunks[0].text = "  indented";
+    expect(diffChapter(committed, b)).toEqual([{ path: ":doc[1]", op: "emplace", yamlover: '"  indented"' }]);
   });
 
   // An ANNOTATED title projects as an omni marker — the tag applications laid over the scalar
