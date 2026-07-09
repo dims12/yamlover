@@ -34,13 +34,23 @@ jobs:
           submodules: true # conformance corpora, so the test gate runs in full
           fetch-depth: 0 # full tag history for the "already tagged?" check below
 
+      # Node 24, not 22, purely for the npm it ships: trusted publishing (OIDC) needs npm
+      # >= 11.5.1 and node 22 ships npm 10. We used to `npm install -g npm@latest` on top of
+      # node 22, but upgrading npm in place over setup-node's toolcache leaves the install
+      # incomplete — publish then died with "Cannot find module 'sigstore'", the very package
+      # provenance needs. Node 24 ships npm 11.6+, so no self-upgrade, so nothing to corrupt.
+      # (24 >= the engines floor of 22; the test gate below is happy on it.)
       - uses: actions/setup-node@v4
         with:
-          node-version: '22' # 22+: native .ts type-stripping + node:sqlite (the tests need both)
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Upgrade npm for trusted publishing (OIDC needs >= 11.5.1; node 22 ships npm 10)
-        run: npm install -g npm@latest
+      - name: Assert npm can do trusted publishing (fail loudly, not at the publish step)
+        run: |
+          V=$(npm --version)
+          [ "$(printf '11.5.1\n%s\n' "$V" | sort -V | head -1)" = "11.5.1" ] \
+            || { echo "npm $V < 11.5.1 — OIDC trusted publishing needs newer"; exit 1; }
+          echo "npm $V — OK for OIDC"
 
       - name: Read version from package.json
         id: v
