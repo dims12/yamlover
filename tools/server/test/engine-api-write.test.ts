@@ -137,8 +137,22 @@ describe("/api/tag (create)", () => {
 
 // TYPES.md §9: tagging a node turns it OMNI — keyed tag applications laid over its own value — and
 // nothing about how it READS may change. A chapter's title is a keyed scalar child, so annotating it
-// gives that child children of its own; reading the title by "a childless scalar" lost it entirely.
+// gives that child a child of its own; reading the title by "a CHILDLESS scalar" lost it entirely.
 describe("annotating a node never changes how it reads", () => {
+  it("an annotated string stays a scalar — it just also has a child (an omni/variant node)", async () => {
+    const root = tmpTree({ "chap.yamlover": 'title: "T"\nother: "x"\n' });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const tag = await callBody(h, "POST", "/api/tag", { name: "important" });
+    await callBody(h, "POST", "/api/annotate", { target: ":chap.yamlover:title", tag: tag.json.path });
+
+    // both matchers demand a `scalar` ROW (query.ts) — so the row kept its type and gained a child
+    const q = (m: string): string[] => call(h, "/api/query", { q: `...:!!<type: ${m}>`, path: ":" }).json.results;
+    expect(q("string")).toContain(":chap.yamlover:title");
+    expect(q("variant")).toContain(":chap.yamlover:title"); // scalar + own child = variant
+    expect(q("variant")).not.toContain(":chap.yamlover:other"); // an unannotated sibling is not
+  });
+
   it("a chapter keeps its title after the title itself is annotated", async () => {
     const root = tmpTree({
       "chap.yamlover": "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n',
