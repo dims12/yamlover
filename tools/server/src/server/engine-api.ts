@@ -1786,6 +1786,8 @@ interface PasteInput {
   text?: string; // text mode: the clipboard's plain text
   rich?: unknown; // rich mode: an HTML selection as a chapter tree (see parseRich) — text +
   // inline-file chunks, heading-nested children; the modes are mutually exclusive
+  inline?: boolean; // file mode, onto a chapter: write the file and DO NOT append a chunk — the
+  // caller is placing its own reference to it (an embed token inside a prose chunk it is editing)
 }
 
 /** Handle a paste/upload onto the node at `input.path`. Returns the new file's node path and,
@@ -1812,7 +1814,11 @@ function handlePaste(dataRoot: string, s: Store, input: PasteInput): Record<stri
   if (bytes.length === 0) throw new Error("empty paste (no file bytes)");
   const name = sanitizeName(input.filename ?? "");
 
-  if (row.format === "x-yamlover-chapter") return pasteIntoChapter(dataRoot, s, segs, name, bytes);
+  // A chapter gains the file as a pointer chunk appended to its body — UNLESS the caller asked for
+  // an `inline` paste, in which case the file merely lands beside the chapter and the caller writes
+  // its own reference (a marklower embed token, mid-prose). Appending a chunk there would leave the
+  // picture on the page twice: once in the sentence, once at the end.
+  if (row.format === "x-yamlover-chapter" && !input.inline) return pasteIntoChapter(dataRoot, s, segs, name, bytes);
 
   // a directory page, or a MEMBER of one (any non-chapter node): the file lands in the nearest
   // enclosing directory. `open` marks the member case — the page is not the directory, so the
@@ -1822,7 +1828,9 @@ function handlePaste(dataRoot: string, s: Store, input: PasteInput): Record<stri
   const dir = path.resolve(dataRoot, ...dirSegs.map(String));
   const final = uniqueName(dir, name);
   writeInside(dataRoot, dir, final, bytes);
-  return { path: segsToStr([...dirSegs, final]), dir: segsToStr(dirSegs), open: dirSegs.length !== segs.length };
+  // `open` never fires for an inline paste: the caller is mid-edit on this page and is about to
+  // reference the new file in place — navigating to it would throw the edit away.
+  return { path: segsToStr([...dirSegs, final]), dir: segsToStr(dirSegs), open: !input.inline && dirSegs.length !== segs.length };
 }
 
 /** The nearest enclosing filesystem directory at or above `segs` (the node itself when it is a

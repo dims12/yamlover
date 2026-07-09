@@ -11,6 +11,8 @@ import { useEffect, useRef } from "react";
 import { marklowerToEditableHtml } from "./marklower";
 import { domToMarklower } from "../marklower-serialize";
 import { focusStart, focusEnd, placeCaret, caretAtStart, caretAtEnd, caretOnFirstLine, caretOnLastLine } from "./caret";
+import { clipboardFiles, fileToBase64, pastedName } from "../clipboard";
+import { pasteFileInline } from "../api";
 
 /** Where a freshly-focused editor should drop its caret. */
 export type FocusAt = "start" | "end" | number | null;
@@ -18,6 +20,7 @@ export type FocusAt = "start" | "end" | number | null;
 export interface ChunkEditorProps {
   text: string;
   rev: number; // bumped when the MODEL changed the text (a split/join) → the editor resets its content
+  chapterPath: string; // the chapter this chunk belongs to — where a pasted image is uploaded
   focusAt: FocusAt;
   onFocused: () => void;
   onChangeText: (text: string) => void;
@@ -54,6 +57,40 @@ function splitAtCaret(el: HTMLElement): { head: string; tail: string } | null {
   return { head: cut("head"), tail: cut("tail") };
 }
 
+/** A caption for a pasted image: its filename without the extension (`sunset-01.png` → `sunset-01`),
+ *  which is all the name the clipboard ever gives us. */
+function captionOf(filename: string): string {
+  return filename.replace(/\.[^.]+$/, "");
+}
+
+/**
+ * Upload each pasted image beside the chapter and drop an embed atom for it at the caret. The
+ * upload is `inline`, so the server writes the file and does NOT append a chunk — the picture
+ * belongs in this sentence, not after the chapter.
+ *
+ * The atom's HTML comes from {@link marklowerToEditableHtml} rather than being hand-built, so a
+ * freshly pasted image and one reloaded from source are the same DOM. The caret `Range` is captured
+ * before the upload: the contentEditable is not touched while we await, so it stays valid.
+ */
+async function insertPastedImages(el: HTMLElement, range: Range, files: File[], chapterPath: string, onChangeText: (text: string) => void): Promise<void> {
+  for (const f of files) {
+    const name = pastedName(f);
+    const res = await pasteFileInline(chapterPath, name, await fileToBase64(f));
+    // `res.path` is a `:`-rooted node path; a second colon makes it project-rooted (SEPARATOR.md),
+    // which is the spelling `resolveLink` reads back.
+    const holder = document.createElement("span");
+    holder.innerHTML = marklowerToEditableHtml(`*[${captionOf(name)}](:${res.path})`);
+    const atom = holder.firstChild;
+    if (!atom) continue;
+    range.insertNode(atom);
+    range.setStartAfter(atom); // the next image lands after this one, not before it
+    range.collapse(true);
+  }
+  const sel = window.getSelection();
+  if (sel) { sel.removeAllRanges(); sel.addRange(range); } // leave the caret after the last image
+  onChangeText(domToMarklower(el));
+}
+
 function applyFocus(el: HTMLElement, at: FocusAt): void {
   if (at === "start") focusStart(el);
   else if (at === "end") focusEnd(el);
@@ -66,7 +103,7 @@ function applyFocus(el: HTMLElement, at: FocusAt): void {
  * CONTROLLED-ON-`rev`: the DOM is rewritten from `text` only when `rev` changes (mount + a
  * model-driven text change like a split head), never mid-type — so typing never loses the caret.
  */
-export const MarklowerChunkEditor: ChunkEditor = ({ text, rev, focusAt, onFocused, onChangeText, onSplit, onArrowOut, onJoinPrev, onJoinNext }) => {
+export const MarklowerChunkEditor: ChunkEditor = ({ text, rev, chapterPath, focusAt, onFocused, onChangeText, onSplit, onArrowOut, onJoinPrev, onJoinNext }) => {
   const ref = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
@@ -86,6 +123,18 @@ export const MarklowerChunkEditor: ChunkEditor = ({ text, rev, focusAt, onFocuse
       contentEditable
       suppressContentEditableWarning
       onInput={() => { if (ref.current) onChangeText(domToMarklower(ref.current)); }}
+      onPaste={(e) => {
+        // An image on the clipboard becomes a FILE beside the chapter plus an embed atom here.
+        // Everything else (text, HTML) falls through to the browser's own paste, which the input
+        // handler then re-serializes.
+        const el = ref.current;
+        const images = clipboardFiles(e.nativeEvent).filter((f) => f.type.startsWith("image/"));
+        if (!el || images.length === 0) return;
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0 || !el.contains(sel.getRangeAt(0).endContainer)) return;
+        e.preventDefault();
+        void insertPastedImages(el, sel.getRangeAt(0).cloneRange(), images, chapterPath, onChangeText);
+      }}
       onKeyDown={(e) => {
         const el = ref.current;
         if (!el) return;

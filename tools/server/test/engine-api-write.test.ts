@@ -213,6 +213,23 @@ describe("/api/paste", () => {
     expect(lines.indexOf("- */pic.png")).toBe(lines.indexOf('- "Hello"') + 1);
   });
 
+  // `inline`: the WYSIWYG editor uploading an image pasted INTO a prose chunk. The file must land,
+  // and the body must not gain a chunk — the editor is placing its own embed token in the sentence,
+  // and an appended chunk would put the picture on the page twice.
+  it("onto a chapter with inline: the file lands, the body is untouched, and it does not auto-open", async () => {
+    const source = "!!<*yamlover/$defs/chapter>\n" + 'title: "T"\n- "Hello"\n';
+    const root = tmpTree({ "doc/.yamlover/body.yamlover": source, ...CHAPTER_DEFS });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const r = await callBody(h, "POST", "/api/paste", { path: ":doc", filename: "pic.png", contentBase64: b64("PNG"), inline: true });
+    expect(r.status).toBe(201);
+    expect(r.json).toMatchObject({ path: ":doc:pic.png", dir: ":doc", open: false });
+    expect(r.json).not.toHaveProperty("pointer");
+    expect(fs.readFileSync(path.join(root, "doc", "pic.png"), "utf8")).toBe("PNG");
+    expect(fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8")).toBe(source);
+  });
+
   it("rejects an empty paste", async () => {
     const h = createHandlers(tmpTree({ name: "Alice" }), { gitignore: false });
     await h.ready;

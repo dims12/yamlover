@@ -5,7 +5,8 @@
 // `access-control-allow-origin: *`), text blocks become marklower prose. Formatted text with
 // no images/headings stays a plain text paste. Used by NodeView's paste listener.
 
-import { inlineMd } from "./marklower-serialize";
+import { inlineMd, mediaSrc } from "./marklower-serialize";
+import { isEmbeddable } from "./embed";
 
 /** The client-side draft: images still by URL (downloaded later by resolveImages). */
 export interface RichDraft {
@@ -24,9 +25,12 @@ export interface RichNode {
 type Block =
   | { kind: "heading"; level: number; text: string }
   | { kind: "image"; url: string; alt: string }
+  | { kind: "embed"; target: string; label: string }
   | { kind: "text"; text: string };
 
-const SKIP = new Set(["script", "style", "noscript", "template", "iframe", "svg", "head", "title"]);
+// `iframe` is NOT skipped: an embeddable one (a YouTube player copied from a page) becomes an embed
+// block, and every other one is dropped by the allowlist rather than by this set.
+const SKIP = new Set(["script", "style", "noscript", "template", "svg", "head", "title"]);
 const BLOCKS = new Set(["p", "div", "section", "article", "main", "aside", "header", "footer", "figure", "figcaption", "ul", "ol", "table", "thead", "tbody", "tr", "dl", "dt", "dd", "nav", "form", "body", "html"]);
 
 /** Parse an HTML clipboard fragment into a chapter draft — or null when it has no images and
@@ -47,7 +51,12 @@ export function htmlToRich(html: string): RichDraft | null {
       stack.push({ node: child, level: b.level });
     } else {
       const top = stack[stack.length - 1].node;
-      top.chunks.push(b.kind === "image" ? { image: { url: b.url, alt: b.alt } } : { text: b.text });
+      // An embed needs no chunk kind of its own: it IS marklower prose, a lone embed token. (It
+      // needed its own *block* kind, though — a draft of nothing but text degrades to null above,
+      // and a pasted YouTube player is not "plain formatted text".)
+      top.chunks.push(
+        b.kind === "image" ? { image: { url: b.url, alt: b.alt } } : b.kind === "embed" ? { text: `*[${b.label}](${b.target})` } : { text: b.text },
+      );
     }
   }
   return root;
@@ -80,6 +89,18 @@ function blocksOf(body: HTMLElement): Block[] {
       flush();
       const url = imageUrl(n);
       if (url) out.push({ kind: "image", url, alt: n.getAttribute("alt") ?? "" });
+      return;
+    }
+    if (tag === "iframe" || tag === "video" || tag === "audio") {
+      // A player copied from a page. Only a target the embed allowlist claims survives — an
+      // arbitrary framed origin is dropped, not pasted (the allowlist is the security boundary,
+      // and prose must not be able to mount one). Never descend: an iframe's fallback content and
+      // a <video>'s "your browser cannot play this" text are not the document's prose.
+      const target = mediaSrc(n); // an absolute http(s) URL, or nothing — never a yamlover path
+      if (target && isEmbeddable(target)) {
+        flush();
+        out.push({ kind: "embed", target, label: n.getAttribute("title") ?? "" });
+      }
       return;
     }
     if (tag === "li") {
@@ -161,7 +182,9 @@ const MIME_EXT: Record<string, string> = {
 };
 
 /** Download every image of a draft (order kept) into inline file chunks; a failed fetch
- *  degrades to a marklower image link, so the reference survives even when the bytes don't. */
+ *  degrades to a marklower EMBED token pointing at the original URL, so the picture still shows
+ *  (served by its origin) even when its bytes could not be taken. An origin the embed allowlist
+ *  refuses renders as the plain link the token degrades to. */
 export async function resolveImages(draft: RichDraft): Promise<RichNode> {
   return {
     title: draft.title,
@@ -174,7 +197,7 @@ export async function resolveImages(draft: RichDraft): Promise<RichNode> {
           const blob = await res.blob();
           return { file: { name: imageName(c.image.url, blob.type), contentBase64: await blobBase64(blob) } };
         } catch {
-          return { text: `![${c.image.alt}](${c.image.url})` };
+          return { text: `*[${c.image.alt}](${c.image.url})` };
         }
       }),
     ),

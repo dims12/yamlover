@@ -3,8 +3,26 @@
 // serializer means paste and edit agree on the markup they emit (bold→**, em→*, code→`…`,
 // strike→~~, link→[t](target)).
 
-// Elements whose content never contributes text.
-const SKIP = new Set(["script", "style", "noscript", "template", "iframe", "head", "title"]);
+import { isEmbeddable } from "./embed";
+
+// Elements whose content never contributes text. `iframe` is NOT among them: it may be an embed
+// (see below), and one the allowlist refuses drops out through `isEmbeddable` instead.
+const SKIP = new Set(["script", "style", "noscript", "template", "head", "title"]);
+
+/**
+ * The embeddable `src` of an `<img>`/`<iframe>`/`<video>`/`<audio>`, or `""`.
+ *
+ * An HTML `src` is a **URL**, never a yamlover path — so only an absolute `http(s)` one survives
+ * (a protocol-relative `//host/…` gains `https:`, the spelling half the web still ships). This
+ * guard is not redundant with the allowlist: `resolveLink` reads a leading `/` as a legacy
+ * *document-relative node path*, so a site-relative `/img/cat.png` would otherwise resolve to an
+ * in-app node that does not exist. A clipboard fragment carries no base to resolve it against.
+ */
+export function mediaSrc(el: Element): string {
+  const raw = el.getAttribute("src") || el.querySelector("source[src]")?.getAttribute("src") || "";
+  const abs = raw.startsWith("//") ? "https:" + raw : raw;
+  return /^https?:\/\//i.test(abs) ? abs : "";
+}
 
 /** One inline node → marklower. An element carrying `data-src` is an ATOMIC token the editor
  *  rendered from marklower (math `$$…$$`, `` `code` ``, or a `[label](target)` link): its source is
@@ -18,6 +36,16 @@ export function inlineMd(n: Node): string {
   const tag = n.tagName.toLowerCase();
   if (SKIP.has(tag)) return "";
   if (tag === "br") return "\n";
+  // Media the embed allowlist claims becomes an embed token; anything else it refuses — an
+  // arbitrary framed origin, a relative `src` with no base to resolve against, the `data:`/`blob:`
+  // image a browser inserts when you paste a picture into a contentEditable — contributes nothing,
+  // exactly as it did when both tags were skipped outright. (A pasted image is caught earlier, by
+  // the editor's own paste handler, and uploaded; it never reaches here as a `data:` URL.)
+  if (tag === "img" || tag === "iframe") {
+    const src = mediaSrc(n);
+    const label = n.getAttribute(tag === "img" ? "alt" : "title") ?? "";
+    return src && isEmbeddable(src) ? `*[${label}](${src})` : "";
+  }
   const inner = Array.from(n.childNodes).map(inlineMd).join("");
   if (tag === "a") {
     const href = n.getAttribute("href") ?? "";

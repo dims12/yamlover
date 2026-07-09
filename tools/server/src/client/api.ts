@@ -270,6 +270,13 @@ export function pasteFile(target: string, filename: string, contentBase64: strin
   return postPaste({ path: target, filename, contentBase64 });
 }
 
+/** Upload a pasted file WITHOUT appending it to the page's body: it lands in the nearest enclosing
+ *  directory and the caller writes its own reference to `result.path` — how an image pasted into an
+ *  open prose chunk becomes a marklower embed token in the sentence rather than a chunk after it. */
+export function pasteFileInline(target: string, filename: string, contentBase64: string): Promise<PasteResult> {
+  return postPaste({ path: target, filename, contentBase64, inline: true });
+}
+
 /** Paste plain TEXT onto the page at `target`: a chapter gains it as a new chunk; anywhere else
  *  it becomes a new chapter .yamlover file in the nearest enclosing directory. */
 export function pasteText(target: string, text: string): Promise<PasteResult> {

@@ -47,6 +47,39 @@ describe("htmlToRich", () => {
     const rich = htmlToRich('<h2>T</h2><a href="https://a.b"><img src="https://a.b/i.png" alt=""></a><img src=":w:rel.png">')!;
     expect(rich.children[0].chunks).toEqual([{ image: { url: "https://a.b/i.png", alt: "" } }]);
   });
+
+  // A player copied from a page. It is the ONLY block in the paste, so it also proves an embed
+  // counts as structure: a draft of nothing but text degrades to null (plain paste serves it).
+  it("a lone YouTube iframe is a rich paste, not a null one", () => {
+    const rich = htmlToRich('<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="Rickroll"></iframe>')!;
+    expect(rich).not.toBeNull();
+    expect(rich.chunks).toEqual([{ text: "*[Rickroll](https://www.youtube.com/embed/dQw4w9WgXcQ)" }]);
+  });
+
+  it("an iframe off the provider allowlist contributes nothing — it is never framed", () => {
+    expect(htmlToRich('<p>text</p><iframe src="https://evil.example/x"></iframe>')).toBeNull(); // text-only → plain paste
+    const rich = htmlToRich('<h2>T</h2><iframe src="https://evil.example/x"></iframe>')!;
+    expect(rich.children[0].chunks).toEqual([]);
+  });
+
+  it("<video>, <video><source>, and <audio> become embeds too", () => {
+    const v = htmlToRich('<h2>T</h2><video src="https://x.example/clip.mp4"></video>')!;
+    expect(v.children[0].chunks).toEqual([{ text: "*[](https://x.example/clip.mp4)" }]);
+    const s = htmlToRich('<h2>T</h2><video><source src="https://x.example/clip.webm"></video>')!;
+    expect(s.children[0].chunks).toEqual([{ text: "*[](https://x.example/clip.webm)" }]);
+    const a = htmlToRich('<h2>T</h2><audio src="https://x.example/song.mp3" title="Tune"></audio>')!;
+    expect(a.children[0].chunks).toEqual([{ text: "*[Tune](https://x.example/song.mp3)" }]);
+  });
+
+  it("keeps an embed in document order among the prose around it", () => {
+    const rich = htmlToRich('<h2>T</h2><p>before</p><iframe src="https://youtu.be/abc"></iframe><p>after</p>')!;
+    expect(rich.children[0].chunks).toEqual([{ text: "before" }, { text: "*[](https://youtu.be/abc)" }, { text: "after" }]);
+  });
+
+  it("does not descend into an iframe's or a video's fallback content", () => {
+    const rich = htmlToRich('<h2>T</h2><video src="https://evil.example/x.bin">your browser cannot play this</video>')!;
+    expect(rich.children[0].chunks).toEqual([]);
+  });
 });
 
 describe("resolveImages", () => {
@@ -55,7 +88,7 @@ describe("resolveImages", () => {
     children: [{ title: "Sub", chunks: [{ image: { url: "https://x.y/gone.png", alt: "lost" } }], children: [] }],
   };
 
-  it("downloads images into inline file chunks; a failed fetch degrades to a marklower link", async () => {
+  it("downloads images into inline file chunks; a failed fetch degrades to a marklower embed", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockImplementation(async (url: string) =>
@@ -69,7 +102,8 @@ describe("resolveImages", () => {
     const file = (rich.chunks[1] as { file: { name: string; contentBase64: string } }).file;
     expect(file.name).toBe("Cat03.jpg");
     expect(atob(file.contentBase64)).toBe("JPG");
-    expect(rich.children[0].chunks[0]).toEqual({ text: "![lost](https://x.y/gone.png)" }); // the reference survives
+    // the picture survives as an embed token, served by its own origin (`![…]` was never marklower)
+    expect(rich.children[0].chunks[0]).toEqual({ text: "*[lost](https://x.y/gone.png)" });
   });
 
   it("synthesizes a name with an extension when the URL has none", async () => {

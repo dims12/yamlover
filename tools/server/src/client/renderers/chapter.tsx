@@ -322,6 +322,7 @@ function EditChunk({
       <Editor
         text={part.text}
         rev={part.rev}
+        chapterPath={basePath}
         focusAt={focusAt}
         onFocused={onFocused}
         onChangeText={onChangeText}

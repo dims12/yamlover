@@ -2,6 +2,7 @@ import { Fragment, memo, useEffect, useReducer, useRef, useState } from "react";
 import { fetchNode, fetchSchema, NodeJson, pasteFile, pasteRich, pasteText, PasteResult } from "./api";
 import { arxivPdf, tweetUrl, fetchTweetText } from "./paste-links";
 import { countImages, htmlToRich, resolveImages, RichDraft } from "./paste-html";
+import { clipboardFiles, fileToBase64, pastedName } from "./clipboard";
 import { renderersFor, rendererName, plaintextTab } from "./renderers/registry";
 import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
 import { EditingContext } from "./renderers/editing";
@@ -75,40 +76,6 @@ interface Props {
   onContentChanged?: (path: string) => void;
   /** Called after a file was uploaded onto a directory MEMBER, to open the new file. */
   onOpenUploaded?: (result: PasteResult) => void;
-}
-
-const MIME_EXT: Record<string, string> = {
-  "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp",
-  "image/svg+xml": "svg", "image/bmp": "bmp", "image/tiff": "tiff", "application/pdf": "pdf",
-};
-
-/** The files carried by a clipboard paste (a file-manager copy fills `files`; a copied image
- *  arrives as an `items` entry of kind "file"). */
-function clipboardFiles(e: ClipboardEvent): File[] {
-  const dt = e.clipboardData;
-  if (!dt) return [];
-  if (dt.files && dt.files.length) return Array.from(dt.files);
-  const out: File[] = [];
-  for (const it of Array.from(dt.items || [])) {
-    if (it.kind === "file") { const f = it.getAsFile(); if (f) out.push(f); }
-  }
-  return out;
-}
-
-/** A name for a pasted file — its own, else a synthesized one from its MIME type. */
-function pastedName(f: File): string {
-  if (f.name) return f.name;
-  return `pasted.${MIME_EXT[f.type] || "bin"}`;
-}
-
-/** Read a File as base64 (the bare payload, no data-URL prefix). */
-function fileToBase64(f: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result).split(",")[1] || "");
-    r.onerror = () => reject(new Error("could not read file"));
-    r.readAsDataURL(f);
-  });
 }
 
 /** The RHS pane: one node shown in the selected representation. Every

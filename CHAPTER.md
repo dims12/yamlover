@@ -3,7 +3,8 @@
 A **chapter** is yamlover's document node: a readable page with an optional heading and a body of
 content. It is the schema the web viewer renders as an article (README §chapter renderer). This
 spec defines its shape; companion specs: `META.md` (the schema vocabulary), `TYPES.md` (the type
-lattice), `YAMLOVER.md` (the surface), `TICKETS.md` (`task`, which extends chapter).
+lattice), `YAMLOVER.md` (the surface), `MARKLOWER.md` (the inline markup a prose chunk is written
+in), `TICKETS.md` (`task`, which extends chapter).
 
 ## The model — an omni node with a positional body
 
@@ -29,7 +30,7 @@ directory scan is overridden by the positional `*` body pointers that place them
 !!<*yamlover/$defs/chapter>
 title: Getting Started
 description: the shortest tour            # optional
-- yamlover is a YAML layer over the filesystem.   # a chunk (markdown by default)
+- yamlover is a YAML layer over the filesystem.   # a chunk (marklower prose by default)
 - !!<format: text/x-latex> |              # a chunk that overrides its (type, format)
   e^{i\pi} + 1 = 0
 - *: diagram.png                          # a chunk that is a pointer to a file
@@ -39,7 +40,7 @@ description: the shortest tour            # optional
 
 - **`title` / `description`** are keyed and optional (`text/marklower`). They are the heading.
 - **A chunk** (`$defs/chunk`) is one renderable value; its `(type, format)` selects the renderer,
-  defaulting to markdown prose. Override per chunk with an inline tag (`!!<format: …>`) or a file
+  defaulting to `text/marklower` prose (`MARKLOWER.md`). Override per chunk with an inline tag (`!!<format: …>`) or a file
   pointer (`*: pic.png`, whose format comes from the extension). A chunk may be a `string` or a
   `binary` (an image/pdf/… pointer).
 - **A subchapter** is a body element that is itself a chapter — recognized **structurally**: a
