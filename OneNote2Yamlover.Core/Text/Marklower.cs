@@ -16,6 +16,28 @@ public static partial class Marklower
     public static string StripTags(string s) => AnyTag().Replace(s, "");
     public static string Decode(string? s) => s is null ? "" : WebUtility.HtmlDecode(s);
 
+    /// <summary>
+    /// `[label](t)` points at a target; `*[label](t)` INLINES it (MARKLOWER.md §Embeds). A YouTube or
+    /// Vimeo target becomes a privacy-preserving player facade; a video file becomes a native
+    /// &lt;video&gt;. Anything else degrades to the plain link it already was, so only widen this
+    /// where the spec promises an embed — a bare `*` on a non-embeddable target buys nothing and
+    /// collides with emphasis.
+    /// <para>Images are deliberately NOT embedded: an external `<img>` is a hotlink, and OneNote
+    /// already gives us the bytes as a separate chunk.</para>
+    /// </summary>
+    public static bool IsEmbeddable(string target)
+    {
+        if (!Uri.TryCreate(target, UriKind.Absolute, out var uri)) return false;
+        if (uri.Scheme is not ("http" or "https")) return false;
+
+        string host = uri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? uri.Host[4..] : uri.Host;
+        if (host is "youtube.com" or "youtu.be" or "m.youtube.com" or "youtube-nocookie.com" or "vimeo.com")
+            return true;
+
+        string ext = Path.GetExtension(uri.AbsolutePath).ToLowerInvariant();
+        return ext is ".mp4" or ".webm" or ".ogv" or ".mov";
+    }
+
     public static string FromHtml(string? html)
     {
         if (string.IsNullOrEmpty(html)) return "";
@@ -30,7 +52,9 @@ public static partial class Marklower
             if (core.Length == 0) return inner;   // whitespace-only anchor: no label to emit
             string lead = inner[..(inner.Length - inner.TrimStart().Length)];
             string trail = inner[inner.TrimEnd().Length..];
-            return $"{lead}[{core}]({Decode(m.Groups[1].Value)}){trail}";
+            string target = Decode(m.Groups[1].Value);
+            string deref = IsEmbeddable(target) ? "*" : "";
+            return $"{lead}{deref}[{core}]({target}){trail}";
         });
 
         h = Bold().Replace(h, m => "**" + StripTags(m.Groups[1].Value) + "**");

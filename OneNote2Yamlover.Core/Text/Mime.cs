@@ -43,6 +43,29 @@ public static class Mime
         _ => ".png",
     };
 
+    /// <summary>
+    /// The real extension, sniffed from the magic bytes. OneNote leaves <c>one:Image/@format</c>
+    /// EMPTY on every image in practice, so trusting it names a JPEG "image-xxxx.png" and the
+    /// engine then serves it with the wrong Content-Type. Falls back to the declared format.
+    /// </summary>
+    public static string ExtFromBytes(byte[] b, string? declaredFormat = null)
+    {
+        static bool Starts(byte[] b, params byte[] magic) =>
+            b.Length >= magic.Length && b.AsSpan(0, magic.Length).SequenceEqual(magic);
+
+        if (Starts(b, 0x89, 0x50, 0x4E, 0x47)) return ".png";
+        if (Starts(b, 0xFF, 0xD8, 0xFF)) return ".jpg";
+        if (Starts(b, 0x47, 0x49, 0x46, 0x38)) return ".gif";
+        if (Starts(b, 0x42, 0x4D)) return ".bmp";
+        if (Starts(b, 0x49, 0x49, 0x2A, 0x00) || Starts(b, 0x4D, 0x4D, 0x00, 0x2A)) return ".tiff";
+        // RIFF....WEBP
+        if (b.Length >= 12 && Starts(b, 0x52, 0x49, 0x46, 0x46) &&
+            b[8] == 0x57 && b[9] == 0x45 && b[10] == 0x42 && b[11] == 0x50) return ".webp";
+        if (b.Length >= 4 && b[0] == 0x00 && b[1] == 0x00 && b[2] == 0x01 && b[3] == 0x00) return ".ico";
+
+        return ExtFromFormat(string.IsNullOrEmpty(declaredFormat) ? null : declaredFormat);
+    }
+
     /// <summary>First 4 bytes of SHA-1, hex. Content id for an extracted image.</summary>
     // System.Convert must be qualified: the namespace OneNote2Yamlover.Core.Convert shadows it.
     public static string ShortHash(byte[] bytes) => System.Convert.ToHexStringLower(SHA1.HashData(bytes).AsSpan(0, 4));

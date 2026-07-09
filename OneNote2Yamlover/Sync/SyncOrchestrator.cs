@@ -52,7 +52,7 @@ public static class SyncOrchestrator
         try
         {
             long donePages = 0;
-            var mat = new Materializer(one.GetPageXml, w => log?.Invoke("WARN " + w));
+            var mat = new Materializer(one.GetPageXml, InkRenderer.ToSvg, w => log?.Invoke("WARN " + w));
 
             foreach (var s in sections)
             {

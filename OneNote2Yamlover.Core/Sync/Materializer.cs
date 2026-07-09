@@ -6,7 +6,10 @@ using OneNote2Yamlover.Core.Text;
 namespace OneNote2Yamlover.Core.Sync;
 
 /// <summary>Writes one section's pages into a directory tree. Ported from <c>Materialize-Page</c>/<c>-Section</c>.</summary>
-public sealed class Materializer(Func<string, string> getPageXml, Action<string>? warn = null)
+/// <param name="renderInk">ISF → SVG. Supplied by the host, since decoding ink needs WPF.</param>
+public sealed class Materializer(Func<string, string> getPageXml,
+                                 Func<byte[], string?>? renderInk = null,
+                                 Action<string>? warn = null)
 {
     /// <summary>
     /// Writes <paramref name="section"/> into <paramref name="sectionDir"/>. The directory name is
@@ -36,7 +39,7 @@ public sealed class Materializer(Func<string, string> getPageXml, Action<string>
         ct.ThrowIfCancellationRequested();
         onPage?.Invoke(page.Name);
 
-        var conv = PageConverter.Convert(getPageXml(page.Id), warn: warn);
+        var conv = PageConverter.Convert(getPageXml(page.Id), renderInk: renderInk, warn: warn);
         bool needsDir = conv.Assets.Count > 0 || page.Sub.Count > 0;
         string baseName = Names.Sanitize(page.Name);
 
