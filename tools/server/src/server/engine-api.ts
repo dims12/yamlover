@@ -2576,11 +2576,17 @@ function descriptionOf(s: Store, p: string): string | null {
   return scalarKeyOf(s, p, "description");
 }
 
-/** A node's scalar keyed child `key` (a leaf scalar), or null — the chapter title/description. */
+/** A node's scalar keyed child `key` (a leaf scalar), or null — the chapter title/description.
+ *
+ *  Read from the node's OWN value, not from its childlessness: an ANNOTATED title is an omni node —
+ *  the tag applications are keyed entries laid over the scalar (ANNOTATIONS.md), so it is a
+ *  `mapping` WITH children that still has a title of its own. Tagging must never change how a node
+ *  reads (TYPES.md §9); demanding a childless `scalar` here made a chapter lose its title (and with
+ *  it its tree label and browser-tab name) the moment someone annotated it. */
 function scalarKeyOf(s: Store, p: string, key: string): string | null {
   const kp = (p === ":" ? "" : p) + ":" + key;
   const t = s.node(kp);
-  if (t && t.type === "scalar" && !s.hasChildren(kp) && t.value != null) return String(t.value);
+  if (t && t.value != null && typeof t.value !== "object") return String(t.value);
   return null;
 }
 

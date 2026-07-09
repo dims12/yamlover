@@ -135,6 +135,28 @@ describe("/api/tag (create)", () => {
   });
 });
 
+// TYPES.md §9: tagging a node turns it OMNI — keyed tag applications laid over its own value — and
+// nothing about how it READS may change. A chapter's title is a keyed scalar child, so annotating it
+// gives that child children of its own; reading the title by "a childless scalar" lost it entirely.
+describe("annotating a node never changes how it reads", () => {
+  it("a chapter keeps its title after the title itself is annotated", async () => {
+    const root = tmpTree({
+      "chap.yamlover": "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n',
+      "$defs/chapter": "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n",
+      "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    expect(call(h, "/api/json", { path: ":chap.yamlover", depth: "1" }).json.title).toBe("T");
+
+    const tag = await callBody(h, "POST", "/api/tag", { name: "important" });
+    await callBody(h, "POST", "/api/annotate", { target: ":chap.yamlover:title", tag: tag.json.path });
+
+    // the title node is now omni (a mapping carrying the annotation) — but it still IS "T"
+    expect(call(h, "/api/json", { path: ":chap.yamlover", depth: "1" }).json.title).toBe("T");
+  });
+});
+
 describe("unified change flow — every write announces its diff over SSE", () => {
   it("tag create, annotate create and annotate delete each broadcast a diff", async () => {
     const root = tmpTree({ name: "Alice" });

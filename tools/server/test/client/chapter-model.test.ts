@@ -167,4 +167,13 @@ describe("diffChapter", () => {
     current.chunks[2].text = "C"; // edit the prose AFTER the subchapter (rank 2)
     expect(diffChapter(m, current)).toEqual([{ path: ":doc[2]", op: "replace", text: "C" }]);
   });
+
+  // An ANNOTATED title projects as an omni marker — the tag applications laid over the scalar
+  // (ANNOTATIONS.md). Unpeeled it stringifies, and the chapter's heading reads "[object Object]".
+  it("flowText peels an annotation overlay off a title", () => {
+    const omni = { $yamloverMixed: { kind: "omni", entries: [{ key: "yamlover-annotations", value: [] }], value: "The Title" } };
+    expect(flowText(omni)).toBe("The Title");
+    const omniLink = { $yamloverLink: { kind: "omni", type: "variant", path: ":doc:title", concrete: "yamlover", value: "The Title" } };
+    expect(flowText(omniLink)).toBe("The Title");
+  });
 });

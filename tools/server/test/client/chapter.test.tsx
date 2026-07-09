@@ -138,9 +138,10 @@ describe("ChapterView", () => {
     expect(container.querySelector(".chunk-body strong")?.textContent).toBe("bold");
   });
 
-  // An ANNOTATED chunk arrives as an omni marker — the tag applications are keyed entries laid over
-  // the prose. It used to render as the literal string "[object Object]": the marker was handed
-  // straight to the prose renderer instead of being peeled to the scalar underneath it.
+  // An ANNOTATED chunk is an omni node — tag applications keyed over the prose. At the chapter's own
+  // fetch depth (1) it arrives as a `$yamloverLink` and `chunkOf` reads `link.value`; INLINE (any
+  // deeper fetch) it arrives as the marker itself, which stringifies to "[object Object]" unless it
+  // is peeled. Both shapes must render the prose.
   it("renders an ANNOTATED chunk as its prose, not as the overlay marker", () => {
     const annotated = {
       $yamloverMixed: { kind: "omni", entries: [{ key: "yamlover-annotations", value: [] }], value: "a **bold** chunk" },

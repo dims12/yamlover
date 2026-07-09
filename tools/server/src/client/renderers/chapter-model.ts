@@ -15,7 +15,7 @@
 // pure array mutations (instant), and `rev` lets the editor reset a chunk's DOM from the model when
 // WE change its text (a split head) without clobbering the caret while the user types.
 
-import { asLink } from "../render";
+import { asLink, scalarValue } from "../render";
 import { segsToStr, strToSegs } from "../paths";
 
 const MIXED_KEY = "$yamloverMixed"; // an omni/mix node's ordered entries (render.tsx / engine-api.ts)
@@ -115,9 +115,10 @@ export function chapterFlow(value: unknown): FlowItem[] {
 }
 
 /** The plain text of a title/description flow entry — a keyed scalar projects (at depth 1) as a
- *  depth-0 link marker, so unwrap it; tolerate a raw string too. */
+ *  depth-0 link marker, so unwrap it; an ANNOTATED one projects as an omni marker laid over the
+ *  scalar, so peel that too (else the heading reads `[object Object]`); tolerate a raw string. */
 export function flowText(value: unknown): string {
-  const v = asLink(value)?.value ?? value;
+  const v = scalarValue(asLink(value)?.value ?? value);
   return typeof v === "string" ? v : v == null ? "" : String(v);
 }
 
