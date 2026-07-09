@@ -13,7 +13,8 @@ A type *is* a predicate, so JSON Schema's two boolean schemas are the bounds:
 - **`false`** — accepts nothing — the **bottom** `⊥`.
 
 Companion specs: `META.md` (schema vocabulary), `YAMLOVER.md` §4 (omni/mix), `QUERY.md` (the
-`!!<…>` matcher), `ANNOTATIONS.md` (why omni nodes appear).
+`!!<…>` matcher), `ANNOTATIONS.md` (why omni nodes appear), `MARKLOWER.md` (`text/marklower`,
+the format a bare `string` carries by default).
 
 ## 1. The three facets (the capability cube)
 

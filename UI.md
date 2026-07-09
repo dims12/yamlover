@@ -7,7 +7,9 @@ interaction model for materials, and annotations.
 
 > Materials are the leaf documents a node carries — prose (Markdown, AsciiDoc, marklower,
 > chapters), images, KML/KMZ maps, PDFs, DjVu scans, spreadsheets, and so on. Each is shown
-> by a renderer; the interaction rules below are the same across them by design.
+> by a renderer; the interaction rules below are the same across them by design. (Marklower
+> prose carries its own inline media: an `*[…](…)` embed inlines an image, a video, or an
+> audio track without leaving the paragraph — `MARKLOWER.md`.)
 
 ## Layout
 
@@ -91,7 +93,9 @@ Notes:
   pointer; PDF and DjVu scale the page width (then the pane scrolls).
 - Inline materials embedded in a **chapter** (an image or map chunk) keep plain-drag **pan**
   and let a plain wheel scroll the chapter, so the surrounding page still scrolls normally;
-  Ctrl/Alt + wheel still zooms the chunk.
+  Ctrl/Alt + wheel still zooms the chunk. A marklower **embed** inside a prose chunk is a
+  figure (alone on its line) or a chip that opens in place (mid-sentence); a video embed shows
+  a poster and loads the player only once you click it.
 
 ## Annotations
 
@@ -149,6 +153,27 @@ creation default: annotations are graph nodes, pointing at their material with a
 pointer, so you can read, **move to any directory**, version, or hand-edit them like anything
 else in the tree and they keep working.
 
+## Editing a chapter
+
+A chapter (or a task) page is **read-only until you unlock it** — the lock button in the node bar,
+or **F2**; **Esc** locks it again. The mode sticks across navigation, so clicking through to a
+subchapter keeps you editing.
+
+Unlocked, the page edits **in place**: the rendered prose *is* the editable surface (a
+`contentEditable`), not a source textarea beside it. Title and description edit as themselves;
+each prose chunk edits as the paragraph you were just reading. **Enter** splits a chunk in two,
+**Backspace** at the very start joins it into the previous one, **Delete** at the end pulls the next
+one in, and the arrow keys walk out of a chunk into its neighbour — so the chapter's positional body
+is edited the way a document is written, not the way a tree is edited. Edits ride the surgical
+`/api/edit` write path in the background (debounced and coalesced), addressing each body element by
+its rank; a `🗑` removes a chunk.
+
+Prose is **marklower** (`MARKLOWER.md`): emphasis is edited live as markup, while its atomic
+tokens — `$$math$$`, `` `code` ``, links, and `*[…](…)` embeds — render as single non-editable
+objects that carry their own source, so a round trip through the editor never rewrites them. A
+LaTeX chunk edits its raw source in a textarea instead; a chunk whose format has no editor stays
+read-only in place.
+
 ## Paste & drag-and-drop upload
 
 A file can be added to the tree straight from the clipboard (**Ctrl+V** on a node page) or
@@ -170,8 +195,16 @@ block-scalar chunk appended to the page; anywhere else it becomes a **new chapte
 file** (`.yamlover`), titled from its first line. **Pasting links or rich HTML** goes
 further: a pasted URL list becomes pointer chunks, an arXiv link fetches the PDF, a
 tweet link captures the full tweet, and a rich-HTML selection is decomposed into
-chunks (text, images, subchapters) so the pasted page stays structured rather than
-landing as one opaque blob.
+chunks (text, images, embedded video, subchapters) so the pasted page stays structured
+rather than landing as one opaque blob. A copied **YouTube or Vimeo player** survives the
+trip as a marklower embed; a frame from any other origin is dropped rather than pasted
+(`MARKLOWER.md` — the embeddable hosts are an allowlist, and that is a security boundary).
+
+**Pasting an image *into* an open prose chunk** is the one case that does not append
+anything: the picture is uploaded beside the chapter and referenced from the sentence you
+were writing, as a marklower embed. The bytes become an ordinary file in the tree — never a
+hotlink to someone else's server, and never a second copy of the picture at the foot of the
+page.
 
 ## Tips
 

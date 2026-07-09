@@ -174,7 +174,8 @@ Registered today (a representative slice — the registry is the source of truth
 | `chapter` | `x-yamlover-chapter` | a positional body: numbered chunks + subchapter links |
 | `tag` / `board` | `x-yamlover-tag` / `x-yamlover-board` | tag-hierarchy diagram / board (handled outside the specificity loop) |
 | `task` | `x-yamlover-task` | task view |
-| `markdown` / `marklower` | `text/markdown` | [marked](https://marked.js.org) |
+| `marklower` | `text/marklower`, and any bare `(string, null)` | its own inline grammar (`MARKLOWER.md`): emphasis, `` `code` ``, `$$math$$` via KaTeX, links, and `*[…](…)` media embeds |
+| `markdown` | `text/markdown` | [marked](https://marked.js.org) |
 | `asciidoc` | `text/asciidoc` | [@asciidoctor/core](https://asciidoctor.org) |
 | `csv` | `text/csv`, `text/tab-separated-values` | a table |
 | `plaintext` | `text/plain` | preformatted text |

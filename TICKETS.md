@@ -15,7 +15,8 @@ The whole feature is built by **reuse**, not by inventing parallel machinery:
 | boards, decks | directory views + the **unified change flow** (SSE) |
 | "what should the AI do next" | the **query language** (`QUERY.md`) |
 
-Companion specs: `YAMLOVER.md` (omni, chapters), `ANNOTATIONS.md` (fragments + tag
+Companion specs: `YAMLOVER.md` (omni, chapters), `CHAPTER.md` (the model `task` extends) /
+`MARKLOWER.md` (the prose a task body is written in), `ANNOTATIONS.md` (fragments + tag
 applications), `META.md` / `TYPES.md` (`$defs`, facets, `variant`), `SEPARATOR.md` / `URIs.md`
 (the `::` project scope, `*` deref, ref vs contain), `QUERY.md` (selecting tasks).
 

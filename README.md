@@ -35,6 +35,8 @@ The project has the following goals
 > pointers are its singleton fragment), [`JSON5P.md`](JSON5P.md) /
 > [`YAMLOVER.md`](YAMLOVER.md) (the two surface languages), [`IR.md`](IR.md)
 > (instance-graph contract), [`META.md`](META.md) (metadata schema),
+> [`CHAPTER.md`](CHAPTER.md) / [`MARKLOWER.md`](MARKLOWER.md) (the document model
+> and the inline markup its prose is written in),
 > [`ENGINE.md`](ENGINE.md) / [`FUTURE.md`](FUTURE.md) (core design),
 > [`PLAN.md`](PLAN.md) (build plan, kept current). Implemented in
 > [`tools/`](tools/): [`parser`](tools/parser/) (hand-written json5p + yamlover
@@ -171,8 +173,9 @@ paths are unchanged — only how a renderer lays them out.
 The first instance is the **chapter** renderer (the `$defs/chapter` schema — an
 omni node with optional `title`/`description` and a **positional body** of chunks
 and subchapters, `CHAPTER.md`): a chapter's chunks are flattened into one readable
-page (each chunk rendered inline by the renderer for its own type), rather than
-being browsed one node at a time. (Its subchapters — body elements that are
+page (each chunk rendered inline by the renderer for its own type — prose chunks
+by marklower, which inlines images, video, and audio where the author wrote an
+`*[…](…)` embed, `MARKLOWER.md`), rather than being browsed one node at a time. (Its subchapters — body elements that are
 themselves chapters — are *not* flattened; they stay links you navigate to. A
 future option will flatten further levels.)
 
@@ -204,7 +207,9 @@ document's internal cross-references.
 `(type, format)`; the web viewer's renderer registry keys on that tuple. Format
 resolution order: the meta `format:` if present; else a recognized file
 extension (`.png`→`image/png`, `.md`→`text/markdown`, `.yamlover`→`yamlover`,
-…); else sniff — see `META.md`. `type: binary` plus a codec format
+…); else sniff — see `META.md`. A bare string with no format at all is prose:
+it renders as `text/marklower` (`MARKLOWER.md`), the default a chapter's chunks
+rely on. `type: binary` plus a codec format
 (`int32/le`) decodes raw bytes (`examples/55-scalar-as-binary`);
 `prefixItems` orders and types an array whose elements live in arbitrary files
 (`examples/56-array-of-files`); a `format` like `text/x-latex` or a per-chunk

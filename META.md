@@ -9,7 +9,8 @@ This is the thing we did *not* drop. What we dropped is **schema-as-storage** â€
 data with `const:` so the schema *is* the instance (the old `.yamlover/schema.yaml` model).
 Data now lives in the instance (files and/or `body.yamlover`); the schema only *describes*
 it. Companion specs: `URIs.md` (pointers), `QUERY.md` (queries), `IR.md` (instance
-graph), `YAMLOVER.md` / `JSON5P.md` (surfaces).
+graph), `YAMLOVER.md` / `JSON5P.md` (surfaces), `CHAPTER.md` / `MARKLOWER.md` (the
+document model and its default prose format, `text/marklower`).
 
 ## Where it lives â€” the `.yamlover/` contract
 

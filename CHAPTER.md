@@ -93,8 +93,9 @@ Two ways, both in `META.md`:
 A chapter node at path `P` addresses its **body elements by their store index** on the node itself:
 `P[i]` (the omni model indexes keyless entries by their absolute position — `title`/`description`,
 being keyed, consume indices too, so a titled chapter's first body element is `P[1]`). A
-document-relative marklower link therefore points at `/[i]` (see `69-marklower-links.yamlover`),
-and a subchapter's chunk at `/[i][j]`.
+document-relative marklower link therefore points at `:[i]` (`MARKLOWER.md`; the legacy slash
+spelling `/[i]` still parses — see `69-marklower-links.yamlover`), and a subchapter's chunk at
+`:[i][j]`.
 
 The web editor's surgical edits (`/api/edit`, README §editor) address a body element by its
 **rank** among the positional items (`<chapter>[rank]`), which lines up 1:1 with the source `- `
