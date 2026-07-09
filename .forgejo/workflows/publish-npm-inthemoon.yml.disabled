@@ -1,3 +1,16 @@
+# DISABLED 2026-07-09 (renamed .disabled, so Forgejo never picks it up). Nexus kept rejecting
+# the credentials with E401. The .npmrc below is CORRECT — a local probe registry confirmed npm
+# puts `Authorization: Basic <base64 user:pass>` on the wire from this exact config — so what
+# remains is the NEXUS_USERNAME/NEXUS_PASSWORD secrets themselves (empty, expired, or lacking
+# deploy rights), which is a Nexus-side matter, not a workflow one. npmjs publishing is
+# unaffected: .github/workflows/publish.yml owns it and works.
+#
+# To re-enable: fix the Forgejo repo secrets, drop the .disabled suffix, and before trusting it
+# again pass the secrets through `env:` rather than interpolating them into the shell word (a
+# password containing $, `, " or \ is silently mangled today, and looks exactly like a bad
+# password). Note this workflow also owned Forgejo-side git tagging — while disabled, only
+# GitHub gets a v<version> tag.
+#
 # package.json-driven release. The version field in tools/server/package.json is
 # the single source of truth: bump it, push main, and CI does the rest. This job
 # reads that version, and only when no v<version> tag exists yet does it create +
