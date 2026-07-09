@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NodeJson, editChunks, createObject } from "../api";
-import { asLink } from "../render";
+import { asLink, scalarValue } from "../render";
 import { fragmentOf } from "../paths";
 import { Chunk, rendererFor } from "./registry";
 import { useHashScroll } from "./headings";
@@ -398,14 +398,26 @@ function ChunkIndex({ index, anchor }: { index: number; anchor: string | null })
   );
 }
 
-/** Build a {@link Chunk} (for a renderer's `renderChunk`) from a chapter chunk value/link marker. */
+/** Build a {@link Chunk} (for a renderer's `renderChunk`) from a chapter chunk value/link marker.
+ *
+ *  An ANNOTATED chunk arrives as an omni marker — its tag applications are keyed entries laid over
+ *  the prose (ANNOTATIONS.md) — so the scalar is peeled out of it before anything else looks at it;
+ *  an unannotated one is already its own value.
+ *
+ *  An INLINE string is a chapter's prose, so it carries the chunk schema's format — `text/marklower`
+ *  (CHAPTER.md `$defs/chunk`) — even when the value reached the client unstamped (a `$yamloverLink`
+ *  marker carries its node's own format; a bare inline scalar has none to carry). Saying so here is
+ *  what lets the registry ask for the format BY NAME instead of claiming every format-less string in
+ *  the tree, which would make prose of a plain `name: Alice`. */
 function chunkOf(item: unknown, documentPath?: string): Chunk {
   const link = asLink(item);
+  const value = link ? link.value : scalarValue(item); // peel an annotation overlay to the prose under it
+  const inlineProse = !link && typeof value === "string";
   return {
-    value: link ? link.value : item,
+    value,
     path: link?.path ?? "",
     type: link?.type ?? "string",
-    format: link?.format ?? null,
+    format: link?.format ?? (inlineProse ? "text/marklower" : null),
     valueType: link?.valueType ?? "string",
     hasKeyed: link?.hasKeyed ?? false,
     hasOrdinal: link?.hasOrdinal ?? false,

@@ -207,9 +207,9 @@ document's internal cross-references.
 `(type, format)`; the web viewer's renderer registry keys on that tuple. Format
 resolution order: the meta `format:` if present; else a recognized file
 extension (`.png`→`image/png`, `.md`→`text/markdown`, `.yamlover`→`yamlover`,
-…); else sniff — see `META.md`. A bare string with no format at all is prose:
-it renders as `text/marklower` (`MARKLOWER.md`), the default a chapter's chunks
-rely on. `type: binary` plus a codec format
+…); else sniff — see `META.md`. A chapter's prose chunks carry `text/marklower`
+(`MARKLOWER.md`) by schema propagation; a string with no format at all is data,
+and shows in the data view. `type: binary` plus a codec format
 (`int32/le`) decodes raw bytes (`examples/55-scalar-as-binary`);
 `prefixItems` orders and types an array whose elements live in arbitrary files
 (`examples/56-array-of-files`); a `format` like `text/x-latex` or a per-chunk

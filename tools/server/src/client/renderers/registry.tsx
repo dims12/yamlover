@@ -224,13 +224,14 @@ const REGISTRY: Renderer[] = [
     config: (rerender) => <MarkupWidthControl rerender={rerender} />, // reading width, shared with markdown/asciidoc
   },
   {
-    // Our default for a bare, format-less string: marklower, a markup language a
-    // notch below Markdown. A chapter's prose chunks route here — both the bare
-    // (string, null) form and the explicit `text/marklower` the chunk schema applies.
+    // Prose: marklower, a markup language a notch below Markdown (MARKLOWER.md). It is the format a
+    // chapter's chunks carry — `$defs/chunk` says `format: text/marklower`, and `chunkOf` stamps an
+    // inline one that reached the client unstamped. It is asked for BY NAME: a format-less string is
+    // data, not prose, and a plain `name: Alice` must not open in a prose renderer.
     name: "marklower",
     icon: "✍",
-    accepts: (f) => f.format === "text/marklower" || (f.format === null && f.valueType === "string"),
-    specificity: 1, // the bare-string default — a tagged bare string (format-less) still routes here
+    accepts: byFormat("text/marklower"),
+    specificity: 2,
     render: (node, onNavigate) => <MarklowerView node={node} onNavigate={onNavigate} />,
     renderChunk: (chunk, onNavigate) => <MarklowerChunk chunk={chunk} onNavigate={onNavigate} />,
   },

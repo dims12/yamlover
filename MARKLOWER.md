@@ -1,8 +1,10 @@
 # MARKLOWER — the inline markup of a chunk
 
 **Marklower** is yamlover's prose format: a markup language deliberately a notch *below* Markdown
-(hence the name). It is the default format of a bare string — a chapter's prose chunks route here
-with no tag at all (`CHAPTER.md`). This spec defines the language; companion specs: `CHAPTER.md`
+(hence the name). It is the format a **chapter's chunks** carry — `$defs/chunk` declares
+`format: text/marklower` and schema propagation stamps every prose chunk with it, so an article
+needs no per-chunk tag (`CHAPTER.md`). It is asked for by name: a format-less string *elsewhere* in
+the tree is data, not prose. This spec defines the language; companion specs: `CHAPTER.md`
 (the document model it serves), `SEPARATOR.md` (the `:` path grammar its links speak), `TYPES.md`
 (the type lattice), `META.md` (the schema vocabulary).
 

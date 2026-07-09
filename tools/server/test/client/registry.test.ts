@@ -148,10 +148,15 @@ describe("renderer registry (facet predicates)", () => {
         expect(getRenderer(node({ valueType, hasKeyed, format: "x-yamlover-tag" }))?.name).toBe("large-icons");
   });
 
-  it("claims a bare, format-less string as marklower (the default prose format)", () => {
-    expect(getRenderer(node({ valueType: "string", format: null, value: "x" }))?.name).toBe("marklower");
-    expect(rendererName({ valueType: "string", format: null })).toBe("marklower");
+  // Prose is asked for BY NAME. A format-less string is DATA — `name: Alice` in some object — and
+  // opening it in a prose renderer was never anything but a guess (MINITODO 018). A chapter's chunk
+  // carries `text/marklower` from `$defs/chunk`, and `chunkOf` stamps an inline one that arrived
+  // unstamped, so prose keeps rendering as prose.
+  it("claims text/marklower as prose, and leaves a bare format-less string to the data view", () => {
+    expect(getRenderer(node({ valueType: "string", format: "text/marklower", value: "x" }))?.name).toBe("marklower");
     expect(rendererName({ valueType: "string", format: "text/marklower" })).toBe("marklower");
+    expect(getRenderer(node({ valueType: "string", format: null, value: "x" }))).toBeNull();
+    expect(rendererName({ valueType: "string", format: null })).toBeNull();
   });
 
   it("exposes the renderer name as the representation key", () => {
@@ -167,8 +172,12 @@ describe("renderer registry (facet predicates)", () => {
       expect(getRenderer(node({ valueType: "string", format: "text/markdown", hasKeyed: true }))?.name).toBe("markdown");
       expect(rendererFor({ valueType: "string", format: "text/markdown", hasKeyed: true })?.name).toBe("markdown");
     });
-    it("a tagged bare-string (format-less) chunk → marklower", () => {
-      expect(getRenderer(node({ valueType: "string", format: null, hasKeyed: true }))?.name).toBe("marklower");
+    // Tagging a chunk does NOT strip its format — the server keeps stamping `text/marklower` and
+    // merely turns the node `variant` (verified against /api/json). Tolerance means the extra keyed
+    // facet is ignored, not that a format-less string must be guessed at.
+    it("a tagged marklower chunk → marklower", () => {
+      expect(getRenderer(node({ valueType: "string", format: "text/marklower", hasKeyed: true }))?.name).toBe("marklower");
+      expect(rendererFor({ valueType: "string", format: "text/marklower", hasKeyed: true })?.name).toBe("marklower");
     });
     it("a tagged PDF (omni-blob) → pdf", () => {
       expect(getRenderer(node({ valueType: "binary", format: "application/pdf", hasKeyed: true }))?.name).toBe("pdf");

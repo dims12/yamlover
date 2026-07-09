@@ -125,4 +125,34 @@ describe("ChapterView", () => {
       "Closing after the section.", // base-level text AFTER the subchapter
     ]);
   });
+
+  // A chunk's format is `text/marklower` (CHAPTER.md `$defs/chunk`), but a BARE inline scalar
+  // reaches the client with nothing stamped on it — `chunkOf` supplies it. Without that, prose in a
+  // chapter would fall through to the plain-paragraph fallback and lose its markup.
+  it("renders a bare inline chunk as marklower prose, not as plain text", () => {
+    const node = {
+      path: ":doc", documentPath: ":doc", type: "mixed", format: "x-yamlover-chapter", concrete: "file/yamlover",
+      value: { $yamloverMixed: { kind: "mix", entries: [{ key: null, value: "plain **bold** prose" }] } },
+    } as unknown as NodeJson;
+    const { container } = render(<ChapterView node={node} onNavigate={vi.fn()} />);
+    expect(container.querySelector(".chunk-body strong")?.textContent).toBe("bold");
+  });
+
+  // An ANNOTATED chunk arrives as an omni marker — the tag applications are keyed entries laid over
+  // the prose. It used to render as the literal string "[object Object]": the marker was handed
+  // straight to the prose renderer instead of being peeled to the scalar underneath it.
+  it("renders an ANNOTATED chunk as its prose, not as the overlay marker", () => {
+    const annotated = {
+      $yamloverMixed: { kind: "omni", entries: [{ key: "yamlover-annotations", value: [] }], value: "a **bold** chunk" },
+    };
+    const node = {
+      path: ":doc", documentPath: ":doc", type: "mixed", format: "x-yamlover-chapter", concrete: "file/yamlover",
+      value: { $yamloverMixed: { kind: "mix", entries: [{ key: null, value: annotated }] } },
+    } as unknown as NodeJson;
+    const { container } = render(<ChapterView node={node} onNavigate={vi.fn()} />);
+    const body = container.querySelector(".chunk-body")!;
+    expect(body.textContent).not.toContain("[object Object]");
+    expect(body.textContent).toBe("a bold chunk");
+    expect(body.querySelector("strong")?.textContent).toBe("bold");
+  });
 });

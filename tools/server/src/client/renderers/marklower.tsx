@@ -8,16 +8,14 @@ import { embed } from "../embed";
 import { EmbedChip, EmbedFigure, GLYPH } from "./embed";
 
 /**
- * The renderer for a bare `string` with no explicit format — `(string, null)` —
- * our own lightweight markup language, **marklower**: deliberately a notch below
- * Markdown ("downshifted" from it). It is the *default* format for prose strings
- * inside a chapter: a chunk that declares no format routes here rather than to the
- * plain-paragraph fallback.
+ * The renderer for `text/marklower` — our own lightweight markup language, **marklower**:
+ * deliberately a notch below Markdown ("downshifted" from it), spec'd in `MARKLOWER.md`. It is the
+ * format a chapter's prose chunks carry (`$defs/chunk`, stamped by schema propagation); a
+ * format-less string elsewhere in the tree is data, and routes to the data view rather than here.
  *
- * The language is meant to cover inline concerns only — font styling, hyperlinks,
- * images, math, and (perhaps) embedded code — but deliberately **no** chapter
- * structure: no headings/subheadings, since chapters are modeled by the chapter
- * renderer's `children`, not by markup.
+ * The language covers inline concerns only — font styling, hyperlinks, media embeds, math, and code
+ * spans — but deliberately **no** chapter structure: no headings/subheadings, since a chapter's
+ * shape is its positional body (CHAPTER.md), not its markup.
  *
  * The syntax so far is all inline:
  *

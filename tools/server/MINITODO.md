@@ -15,7 +15,7 @@
 - Tag picker: autocomplete over indexed tags (the path input + bare-name create-on-miss exist; search/completion doesn't — the evaluator is LIVE now: wire the picker to `GET /api/query` with `:: ...: !!<format: x-yamlover-tag>`-style queries)
 - ~~Ctrl-PgDn and Ctrl-PgUp to switch to next element in the viewer~~ — DONE as Ctrl/Alt + Down/Up (Ctrl+PgDn/PgUp is a browser tab shortcut; Alt aliases Ctrl for macOS Mission Control): steps the selection through the TOC in document order (App.tsx `flattenToc` + global keydown)
 - ~~Once LHS TOC entry clicked, focus should go to RHS~~ — DONE: tree click navigates and focuses the RHS pane (App.tsx `selectFromToc`, `<main tabIndex={-1}>`)
-- /examples/50-object-in-overlay/name chooses marklower format by default without any reasons
+- ~~/examples/50-object-in-overlay/name chooses marklower format by default without any reasons~~ — DONE (marklower is asked for by name; `chunkOf` stamps a chapter's inline chunks)
 - /examples/68-math-chapter displays expand chevron in TOC, although it doesn't have any children +DONE (a chapter's TOC `hasChildren` hint now counts SUBCHAPTERS only — `hasSubchapterChild` in engine-api, mirroring the client's `isSubchapter` — so a chunks-only chapter is a leaf; chunks/overlay fields like `yamlover-fragments` no longer trigger a chevron that expands to nothing)
 - add light color scheme
 - store rendered diagrams in .yamlover
