@@ -52,9 +52,8 @@ jobs:
       - name: Install deps (engine for the bundle, server for vite/esbuild, desktop for electron)
         shell: bash
         run: |
-          npm ci --prefix tools/engine/ts
-          npm ci --prefix tools/server
-          npm ci --prefix tools/desktop
+          npm ci                        # workspaces: parser, engine, server
+          npm ci --prefix tools/desktop # NOT a workspace (keeps Electron out of a dev install)
 
       - name: Build installer (build:server runs vite build + esbuild, then electron-builder)
         working-directory: tools/desktop

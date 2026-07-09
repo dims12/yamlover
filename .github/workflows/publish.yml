@@ -60,9 +60,8 @@ jobs:
         if: steps.check.outputs.new == 'true'
         run: |
           cd "$GITHUB_WORKSPACE"
-          npm ci --prefix tools/engine/ts   # engine deps (xxhash-wasm) the root test gate imports
+          npm ci   # root install covers every workspace (parser, engine, server)
           npm test
-          npm ci --prefix tools/server
           npm --prefix tools/server test
 
       - name: Tag the release (the v* tag push triggers desktop.yml)

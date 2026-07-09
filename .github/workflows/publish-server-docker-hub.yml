@@ -35,8 +35,7 @@ jobs:
 
       - name: Build server prod artifacts (dist/)
         run: |
-          npm ci --prefix tools/engine/ts      # engine runtime dep (xxhash-wasm) esbuild inlines
-          npm ci --prefix tools/server         # esbuild + vite + codecs
+          npm ci                               # workspaces: engine (xxhash-wasm, inlined) + server (esbuild/vite/codecs)
           npm --prefix tools/server run build   # → tools/server/dist (client SPA + server.js)
 
       - name: Read version from package.json
