@@ -1,0 +1,7 @@
+{
+  "comment": "Pin a floor, not a version: the old dotnet on PATH tops out at SDK 5.0.408 and cannot parse net10. rollForward=latestFeature lets any 10.0.x SDK at or above the floor build this (e.g. 10.0.301), while still failing loudly on 5.0.408 instead of silently picking it.",
+  "sdk": {
+    "version": "10.0.202",
+    "rollForward": "latestFeature"
+  }
+}

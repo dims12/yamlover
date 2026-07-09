@@ -1,0 +1,9 @@
+<Application x:Class="OneNote2Yamlover.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:OneNote2Yamlover">
+    <!-- No StartupUri: App.OnStartup creates the window, so a help request or a bad argument can
+         exit without ever constructing (and then closing, and then persisting) a MainWindow. -->
+    <Application.Resources>
+    </Application.Resources>
+</Application>
