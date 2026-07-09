@@ -40,6 +40,20 @@ import fs from "node:fs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(__dirname, ".."); // tools/server
 
+// The engine's store is built on `node:sqlite`, which only became available UNFLAGGED late in
+// the 22.x line — on e.g. Node 22.12 importing it dies with a raw internal stack trace
+// ("ERR_UNKNOWN_BUILTIN_MODULE: No such built-in module: node:sqlite"). npm only WARNS on an
+// engines mismatch, so check here, before anything imports the engine, and say what to do.
+// getBuiltinModule itself landed in 22.3; on anything older it is undefined, which also fails
+// this check — correctly, since such a runtime cannot have node:sqlite either.
+if (!process.getBuiltinModule?.("node:sqlite")) {
+  console.error(
+    `yamlover needs Node >= 22.13 for the built-in node:sqlite module (you are on ${process.version}).\n` +
+      `Upgrade Node, or re-run with:  node --experimental-sqlite $(which yamlover)`,
+  );
+  process.exit(1);
+}
+
 // --- argument parsing ----------------------------------------------------- //
 let rootArg = null; // the ROOT path as typed (null when omitted)
 let port = 5173;

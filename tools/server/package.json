@@ -1,6 +1,6 @@
 {
   "name": "yamlover",
-  "version": "0.3.21",
+  "version": "0.3.22",
   "description": "Browse a yamlover tree in the web: npx yamlover <root> serves a React SPA over a directory.",
   "type": "module",
   "license": "MIT",
@@ -34,8 +34,9 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "comment:engines": "22.13, not 22: the engine's store imports the built-in node:sqlite, which is only available unflagged from Node 22.13 (bin/yamlover.js checks at startup and says so, since npm merely WARNS on an engines mismatch).",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "comment:deps": "No runtime dependencies: the client deps are bundled into dist/client by `vite build` and the server deps (ignore/js-yaml/xxhash-wasm, plus the thumbnail extractors jimp + ag-psd + @jsquash/webp + @jsquash/avif — dynamically imported so they stay out of the cold-start path) into dist/server.js by esbuild. The @jsquash codecs' .wasm is copied to dist/wasm by build.mjs (esbuild bundles only their JS glue). Everything below is build-/test-time only.",
   "devDependencies": {

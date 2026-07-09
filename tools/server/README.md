@@ -222,7 +222,7 @@ Inference splits two ways by how the renderer consumes the file:
 
 ## Requirements
 
-- Node.js **22+**.
+- Node.js **22.13+** (the engine's store uses the built-in `node:sqlite`, unflagged only from 22.13).
 
 There are **no runtime dependencies**: the client deps are bundled into
 `dist/client` by `vite build` and the server deps into `dist/server.js` by

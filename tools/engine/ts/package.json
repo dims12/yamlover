@@ -8,7 +8,7 @@
     "test": "node --test test/resolve.test.ts test/graph.test.ts"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "dependencies": {
     "xxhash-wasm": "^1.1.0"
