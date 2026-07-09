@@ -1,9 +1,9 @@
 # npmjs counterpart of .forgejo/workflows/publish-npm-inthemoon.yml. Same single source of truth: the
 # version in tools/server/package.json. Bump it, push main, and this publishes that version
 # to npmjs — but ONLY when running on real GitHub (the `if` below), never on the Forgejo
-# mirror that shares this file. Forgejo keeps publishing to Nexus and owns git tagging; this
-# job does neither. Re-pushing main is idempotent: it publishes only when the version is not
-# already on npmjs (the registry analog of publish-npm-inthemoon.yml's "does the v<version> tag exist?").
+# mirror that shares this file. Forgejo keeps publishing to Nexus; each side tags its own
+# remote. Re-pushing main is idempotent: it publishes only when the version is not already on
+# npmjs (the registry analog of publish-npm-inthemoon.yml's "does the v<version> tag exist?").
 on:
   push:
     branches: [main]
@@ -17,22 +17,22 @@ jobs:
     if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # push the release tag with the default GITHUB_TOKEN
+      actions: write # dispatch desktop.yml for the tag we just pushed
       id-token: write # npm trusted publishing (OIDC) — no NPM_TOKEN; provenance is auto
     defaults:
       run:
         working-directory: tools/server
     steps:
+      # No `token:` override. This used to pass secrets.RELEASE_PAT so that the tag it pushes
+      # would re-trigger desktop.yml (a tag pushed by GITHUB_TOKEN is intentionally inert).
+      # That secret was never created, and GitHub maps an absent secret to "", so checkout
+      # failed outright — "Input required and not supplied: token" — leaving npmjs stuck at
+      # 0.3.14. Drop the PAT; the last step dispatches desktop.yml instead, needing no secret.
       - uses: actions/checkout@v4
         with:
           submodules: true # conformance corpora, so the test gate runs in full
           fetch-depth: 0 # full tag history for the "already tagged?" check below
-          # Push the release tag with a PAT, NOT the default GITHUB_TOKEN: a tag pushed by
-          # GITHUB_TOKEN is intentionally inert (fires no workflow), so desktop.yml — which
-          # triggers on the v* tag — would never run. RELEASE_PAT = a (fine-grained) token
-          # with Contents: read+write on this repo. Absent on the Forgejo mirror, but the
-          # job's `if` already skips it there.
-          token: ${{ secrets.RELEASE_PAT }}
 
       - uses: actions/setup-node@v4
         with:
@@ -64,7 +64,7 @@ jobs:
           npm test
           npm --prefix tools/server test
 
-      - name: Tag the release (the v* tag push triggers desktop.yml)
+      - name: Tag the release
         if: steps.check.outputs.new == 'true'
         # Before publish, in lockstep with package.json — same idea as
         # .forgejo/publish-npm-inthemoon.yml, which owned tagging on the Forgejo side.
@@ -87,3 +87,14 @@ jobs:
         # Auth is OIDC trusted publishing (id-token above) — no token; provenance is generated
         # automatically, which is why package.json carries a github.com `repository` field.
         run: npm publish --access public
+
+      - name: Build the desktop installers for this tag
+        if: steps.check.outputs.new == 'true'
+        # The tag above was pushed with GITHUB_TOKEN, which deliberately fires no `push: tags`
+        # workflow — that inertness is exactly what secrets.RELEASE_PAT existed to work around.
+        # Dispatch desktop.yml explicitly instead: `--ref <tag>` makes github.ref the tag, so its
+        # checkout and its "attach to the Release" step behave just like a real tag push.
+        # Non-fatal: a failed installer build must not retract a published npm package.
+        run: gh workflow run desktop.yml --ref "v${{ steps.v.outputs.version }}" || true
+        env:
+          GH_TOKEN: ${{ github.token }}

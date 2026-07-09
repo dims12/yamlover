@@ -11,6 +11,7 @@ on:
   push:
     branches: [main]
     paths: ['tools/server/package.json']
+  workflow_dispatch: # re-run a release by hand when a publish failed after the tag was pushed
 
 jobs:
   release:
@@ -57,9 +58,14 @@ jobs:
 
       - name: Configure npm for Nexus
         if: steps.check.outputs.new == 'true'
+        # Write the USER config ($HOME/.npmrc), NOT tools/server/.npmrc. Since the workspaces
+        # migration tools/server is a workspace MEMBER, and npm >= 9 ignores a project .npmrc
+        # inside one ("npm warn config ignoring workspace config at …/tools/server/.npmrc") —
+        # it silently fell back to registry.npmjs.org and died with ENEEDAUTH. The user config
+        # is read regardless of where the workspace root is.
         run: |
           AUTH=$(printf '%s:%s' "${{ secrets.NEXUS_USERNAME }}" "${{ secrets.NEXUS_PASSWORD }}" | base64 -w0)
-          cat > .npmrc <<EOF
+          cat > "$HOME/.npmrc" <<EOF
           registry=https://nexus.inthemoon.net/repository/npm-hosted/
           //nexus.inthemoon.net/repository/npm-hosted/:_auth=${AUTH}
           always-auth=true
