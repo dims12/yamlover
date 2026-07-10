@@ -39,6 +39,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, loadSettings, ensureSettingsFile, mv, relinkMoved, evalQuery } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
+import { parseJson5p } from "../../../parser/ts/src/json5p.ts";
 import { pointerToken } from "../../../parser/ts/src/serialize-yamlover.ts";
 import { renderPointer } from "../../../parser/ts/src/pointer.ts";
 import { anchorBody } from "../../../parser/ts/src/serialize-common.ts";
@@ -47,7 +48,7 @@ import { dataFileConcrete, interiorOf, isDirConcrete } from "../concrete.js";
 import { renderThumbnail } from "./extract/thumbnails.js";
 import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
-import type { Node as IrNode, Document, Comment as IrComment } from "../../../parser/ts/src/ir.ts";
+import type { Node as IrNode, Document, Comment as IrComment, Entry as IrEntry } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
 import { displayKind, ownedEntries, typeName, facetsOf } from "./node-kind.js";
 import { TaskRegistry } from "./tasks.js";
@@ -90,6 +91,10 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   // (e.g. where new annotations are created). Read at startup; reloaded when POST /api/config
   // rewrites the file (so write-path defaults track edits without a server restart).
   const settingsFile = path.join(dataRoot, ".yamlover", "settings.yamlover");
+  // The settings file's ROOT-RELATIVE path, in the `/`-joined form an IndexDiff speaks — so a reindex
+  // that touched it (via ANY path: the FS watcher on a direct edit, `/api/edit`, `/api/config`) can
+  // reload the in-memory Settings. See `broadcast` below.
+  const settingsRel = path.relative(dataRoot, settingsFile).split(path.sep).join("/");
   // Materialize a defaults file when absent (serve boundary only — `opts.ensureSettings`), so the
   // config node always exists: the gear button opens `:.yamlover:settings.yamlover`, and a missing
   // file would 404 that fetch. A no-op when the file is already there. Tolerant of a read-only tree:
@@ -134,6 +139,10 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   };
   const broadcast = (diff: IndexDiff): void => {
     if (diff.added.length + diff.changed.length + diff.removed.length + diff.moved.length === 0) return;
+    // Reload the in-memory Settings whenever the config file was (re)indexed — from a direct disk
+    // edit (the watcher), the generic value editor (`/api/edit`), or `/api/config`. The config is now
+    // edited through the ordinary yamlover data view, so this is the single place settings stay live.
+    if (diff.changed.includes(settingsRel) || diff.added.includes(settingsRel)) settings = loadSettings(dataRoot);
     const toClient = (rel: string): string => segsToStr(rel.split("/"));
     sseWrite({
       type: "diff",
@@ -649,34 +658,15 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // The project config (IMPORTS.md) — `<root>/.yamlover/settings.yamlover`. It is indexed as a
-      // HIDDEN node (`:.yamlover:settings.yamlover`, format x-yamlover-config) rendered by the
-      // SETTINGS EDITOR; this pair gives that editor the RAW source (the node projection drops
-      // comments) and the PARSED settings, and writes edits back. GET → { source, settings }.
+      // The project config (IMPORTS.md) — `<root>/.yamlover/settings.yamlover`, indexed as a HIDDEN
+      // node (`:.yamlover:settings.yamlover`, format x-yamlover-config). GET → { source, settings }:
+      // the RAW source (the node projection drops comments) plus the PARSED settings, read by the
+      // annotate flow (tags location). The config is EDITED through the ordinary yamlover data view +
+      // `/api/edit` now; `broadcast` reloads `settings` on any change to the file (incl. direct disk
+      // edits), so there is no dedicated write endpoint.
       if (req.method !== "POST" && url.pathname === "/api/config") {
         const source = fs.existsSync(settingsFile) ? fs.readFileSync(settingsFile, "utf8") : "";
         sendJson(res, 200, { source, settings, path: ":.yamlover:settings.yamlover" });
-        return;
-      }
-      // Save edited config source. Body: { source }. The source must PARSE (parseYamlover throws on
-      // garbage — settings must never break serving), then it is written, the in-memory Settings
-      // reloaded, and the now-indexed settings node REINDEXED + broadcast so the open editor (and any
-      // view) refreshes through the unified SSE flow. Returns the freshly parsed Settings.
-      if (req.method === "POST" && url.pathname === "/api/config") {
-        readBody(req)
-          .then((data) =>
-            enqueue(async () => {
-              const source = String((data as { source?: unknown })?.source ?? "");
-              parseYamlover(source, settingsFile); // validate — throws ⇒ 400, file untouched
-              fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
-              fs.writeFileSync(settingsFile, source);
-              settings = loadSettings(dataRoot);
-              broadcast(await doReindexFile(settingsFile));
-              return { ok: true, settings };
-            }),
-          )
-          .then((body) => sendJson(res, 200, body))
-          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
         return;
       }
 
@@ -1013,7 +1003,24 @@ type CommentBucket = {
   tag?: string;          // the value node's yamlover type tag — only `!!set` (omni/`!!mix` is default)
   blankBefore?: boolean;  // a blank source line precedes this entry (or its leading comments)
   valueTrailing?: string[]; // a comment trailing the node's own SELF-VALUE line (an omni `5 # …`)
+  raw?: string;           // a scalar's authored SOURCE token, carried only when it differs from the
+                          // plain decoded form — so `"~"` reads as a string not null, `0xff`/`True`
+                          // keep their spelling (CONCRETES.md §Scalar representation). Single-line only.
 };
+
+/** A scalar's authored source token to render faithfully — but only when it differs from the plain
+ *  decoded form (a quoted string, a `~`/word null, a hex/octal int, a `True` casing, `.inf`, …), so
+ *  the sidecar stays sparse and a plain `Rex`/`42` carries nothing. Block (multi-line) scalars render
+ *  as `|`/`>` blocks already, so they are skipped. */
+function scalarRawToken(node: IrNode): string | undefined {
+  if (isPointer(node) || node.kind !== "scalar") return undefined;
+  const raw = node.raw;
+  if (raw == null || raw.includes("\n")) return undefined;
+  const v = node.value;
+  if (typeof v === "string" && v.includes("\n")) return undefined;
+  const plain = v === null ? "null" : String(v); // mirrors the client's default bare rendering
+  return raw === plain ? undefined : raw;
+}
 
 /** The yamlover type tag a node carries in canonical serialization, or undefined. Mirrors
  *  serialize-yamlover's `containerTag`: only `!!set` (set semantics). The shape tags `!!mix` (a
@@ -1040,10 +1047,12 @@ function collectComments(doc: Document, segs: Seg[], depth: number): Record<stri
   const out: Record<string, CommentBucket | string[]> = {};
   const root = irNodeAt(doc, segs);
   if (!root) return out;
-  { // the viewed node's own anchors / tag / self-value trailing comment, keyed at ""
+  { // the viewed node's own anchors / tag / self-value trailing comment / raw token, keyed at ""
     const self: CommentBucket = {};
     nodeDeco(self, root);
-    if (self.anchors || self.tag || self.valueTrailing) out[""] = self;
+    const raw = scalarRawToken(root);
+    if (raw) self.raw = raw;
+    if (self.anchors || self.tag || self.valueTrailing || self.raw) out[""] = self;
   }
   // $head is the head-of-file banner — shown when the VIEWED node is a document root (the walk
   // carries each document's head onto its root node, so sub-documents surface theirs too).
@@ -1072,7 +1081,11 @@ function collectComments(doc: Document, segs: Seg[], depth: number): Record<stri
       const leadComment = e.meta?.comments?.find((c) => c.placement === "leading");
       if (e.meta?.blankBefore || leadComment?.blankBefore) bucket.blankBefore = true;
       if (isPointer(e.value)) bucket.pointer = renderPointer(e.value); // the authored `*…` token
-      else nodeDeco(bucket, e.value); // the value node's anchors + type tag
+      else {
+        nodeDeco(bucket, e.value); // the value node's anchors + type tag
+        const raw = scalarRawToken(e.value); // a scalar's faithful source token (when it differs)
+        if (raw) bucket.raw = raw;
+      }
       if (Object.keys(bucket).length > 0) out[rel + cont] = bucket;
       if (e.edge === "contain" && !isPointer(e.value)) walk(e.value, rel + cont, d - 1, false);
     }
@@ -1787,17 +1800,36 @@ function nearestDirSegs(dataRoot: string, segs: Seg[]): Seg[] | null {
   return null;
 }
 
-/** The .yamlover source holding the chapter at `segs` — directory-backed
- *  (`.yamlover/body.yamlover`) or a standalone `*.yamlover` file — plus its document root. */
-function chapterSource(dataRoot: string, s: Store, segs: Seg[]): { docSegs: Seg[]; bodyFile: string; dirBacked: boolean } {
+// The block-structured YAML family the surgical splice engine can edit: a standalone `.yamlover`
+// (chapters, and the general editor's native format) or — for the general value editor — a plain
+// `.yaml`/`.yml`, whose block grammar (keyed `k:` fields, `- ` items, indentation, `|` blocks) is
+// exactly what the engine walks. JSON-family files (flow syntax) are edited on a separate path.
+const YAMLOVER_ONLY = /\.yamlover$/i;
+const BLOCK_YAML = /\.(ya?ml|yamlover)$/i;
+const JSON_FILE = /\.(json|json5|json5p)$/i;
+
+/** The file backing the document at `segs` — directory-backed (`.yamlover/body.yamlover`) or a
+ *  standalone file — plus its document root. No extension gate: callers decide which editor (block
+ *  YAML vs JSON surgery) the file's extension routes to. */
+function resolveBacking(dataRoot: string, s: Store, segs: Seg[]): { docSegs: Seg[]; bodyFile: string; dirBacked: boolean } {
   const docSegs = documentRootSegs(s, segs);
   const docFs = path.resolve(dataRoot, ...docSegs.map(String));
   const dirBacked = fs.existsSync(docFs) && fs.statSync(docFs).isDirectory();
   const bodyFile = dirBacked ? path.join(docFs, ".yamlover", "body.yamlover") : docFs;
-  if (!bodyFile.endsWith(".yamlover") || !fs.existsSync(bodyFile)) {
-    throw new Error("unsupported chapter source (need a .yamlover body)");
-  }
   return { docSegs, bodyFile, dirBacked };
+}
+
+/** The block-YAML source holding the node at `segs`, validated by extension. `allow` restricts the
+ *  STANDALONE file: `.yamlover` only for chapter/paste/annotate flows (the default), widened to
+ *  `.yaml`/`.yml` by the general value editor. A directory-backed document is always a
+ *  `.yamlover/body.yamlover`. Throws for a JSON-family or otherwise unsupported file. */
+function chapterSource(dataRoot: string, s: Store, segs: Seg[], allow: RegExp = YAMLOVER_ONLY): { docSegs: Seg[]; bodyFile: string; dirBacked: boolean } {
+  const r = resolveBacking(dataRoot, s, segs);
+  const okExt = r.dirBacked ? r.bodyFile.endsWith(".yamlover") : allow.test(r.bodyFile);
+  if (!okExt || !fs.existsSync(r.bodyFile)) {
+    throw new Error("unsupported edit source (need a .yamlover / .yaml / .yml body)");
+  }
+  return r;
 }
 
 /** A chapter paste: write the file into the chapter's owning directory, then append a pointer to
@@ -2151,8 +2183,16 @@ interface ChapterEntry { absIndex: number; key: string | null; start: number; en
 function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
   const starts: { key: string | null; start: number; inline: boolean }[] = [];
   if (r.marker >= 0) {
-    const inline = lines[r.marker].replace(/^\s*-\s*/, "");
-    if (inline.trim()) starts.push({ key: /^-/.test(inline) ? null : inline.match(/^([^:\s]+):/)?.[1] ?? null, start: r.marker, inline: true });
+    // Only a `- ` DASH item carries an inline first child (`- title: X`, `- name: Rex`). A KEYED
+    // marker line (`pets:`, `rating: !!var 5`) is the parent's key / self-value — its entries sit on
+    // the lines BELOW, never inline — so surfacing its text would inject a phantom entry (its own
+    // key) and shift every index. Chapters only ever descend `- ` items, so this only bit the general
+    // value editor descending a `key:` → sequence/mapping.
+    const raw = lines[r.marker].replace(/^\s*/, "");
+    if (raw === "-" || raw.startsWith("- ")) {
+      const inline = raw.replace(/^-\s*/, "");
+      if (inline.trim()) starts.push({ key: /^-/.test(inline) ? null : inline.match(/^([^:\s]+):/)?.[1] ?? null, start: r.marker, inline: true });
+    }
   }
   for (let i = r.lo; i < r.hi; i++) {
     if (!isContentLine(lines[i])) continue;
@@ -2533,6 +2573,76 @@ function editChapterSource(src: string, within: Seg[], op: string, valueSrc: str
   return lines.join("\n");
 }
 
+// --- JSON-family value surgery (flow syntax — the block engine above does not apply) ------------ //
+// A `.json`/`.json5`/`.json5p` file is flow-structured (`{ "k": v, … }`, `[ v, … ]`), so a scalar
+// value is edited by locating its exact source SPAN and replacing just that token — comments and
+// formatting survive (the same span-surgery idea as engine `rewrite.ts`/`mv.ts`). Only a scalar
+// leaf value is editable this way; structure/omni edits are not offered for JSON yet.
+
+/** The [start,end) char span of the VALUE token inside an entry span [es,ee). The json5p parser sets
+ *  an entry span from the key/`~` marker through the END of its value, so `ee` sits just past the
+ *  value; we walk back from there over the one trailing token (a quoted string — matched to its
+ *  unescaped opening quote — or a bare number/keyword up to the first delimiter). */
+function jsonValueSpan(src: string, es: number, ee: number): [number, number] {
+  const last = src[ee - 1];
+  if (last === '"' || last === "'") {
+    for (let j = ee - 2; j >= es; j--) {
+      if (src[j] !== last) continue;
+      let bs = 0;
+      for (let k = j - 1; k >= es && src[k] === "\\"; k--) bs++;
+      if (bs % 2 === 0) return [j, ee]; // an unescaped opening quote of the same kind
+    }
+    throw new Error("could not locate the string value in the source");
+  }
+  let j = ee;
+  while (j > es && !/[\s,:{}[\]]/.test(src[j - 1])) j--;
+  return [j, ee];
+}
+
+/** The edited value arrives as YAMLOVER source (the yamlover renderer is the universal edit surface),
+ *  so for a JSON-family target we parse it and re-serialize the scalar as a JSON token: `~`→`null`,
+ *  `0x1F`→`31`, a bare/quoted string→a JSON double-quoted string, etc. A number keeps its source
+ *  spelling when that is already valid JSON (so `1.0`/`1e3` survive). Throws for a non-scalar payload
+ *  or a parse error (→ 400, file untouched). */
+function yamloverScalarToJsonToken(valueSrc: string): string {
+  const root = parseYamlover(valueSrc, "<edit>").root;
+  if (root.kind !== "scalar") throw new Error("only a scalar value is editable in a JSON file");
+  const v = root.value;
+  if (v === null) return "null";
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (typeof v === "number") return /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(root.raw) ? root.raw : String(v);
+  return JSON.stringify(v);
+}
+
+/** Replace the scalar value at `within` (a path relative to the document root — a key or an absolute
+ *  positional index per segment) in a JSON-family source, returning the new text. `token` is already
+ *  a JSON scalar token. Only a scalar target is supported; descending anything but a mapping, or
+ *  targeting a non-scalar, throws. */
+function editJsonScalar(src: string, within: Seg[], token: string): string {
+  if (within.length === 0) throw new Error("cannot edit the JSON document root as a scalar value");
+  let node: IrNode = parseJson5p(src, "<edit>").root;
+  for (let k = 0; k < within.length; k++) {
+    const seg = within[k];
+    const entries = node.entries ?? [];
+    const entry: IrEntry | undefined =
+      typeof seg === "number"
+        ? entries.filter((e) => e.edge === "contain" && e.key === null)[seg] // positional element
+        : entries.find((e) => e.edge === "contain" && e.key === seg); // keyed field
+    if (!entry) throw new Error(`no entry at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+    const value = entry.value;
+    if (k === within.length - 1) {
+      if (isPointer(value) || value.kind !== "scalar") throw new Error("only a scalar value is editable in a JSON file");
+      const span = entry.meta?.span;
+      if (!span) throw new Error("no source span for the target value");
+      const [vs, ve] = jsonValueSpan(src, span.start, span.end);
+      return src.slice(0, vs) + token + src.slice(ve);
+    }
+    if (isPointer(value) || value.kind !== "mapping") throw new Error(`cannot descend into a non-container at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+    node = value;
+  }
+  throw new Error("empty JSON edit path"); // unreachable (within.length checked)
+}
+
 /** A one-line `*…` pointer — a legal entry VALUE, but not a legal document on its own, so it never
  *  goes through the document parser. */
 const isPointerValue = (src: string): boolean => /^\*\S*$/.test(src.trim()) && !src.includes("\n");
@@ -2582,6 +2692,7 @@ function bornAsDocument(dataRoot: string, e: ResolvedEdit, tag: string | undefin
  *  written once. Returns the touched files (to reindex) and any document born along the way. */
 function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: string[]; created: string[]; appended: Seg[][] } {
   const byFile = new Map<string, ResolvedEdit[]>();
+  const jsonByFile = new Map<string, { within: Seg[]; valueSrc: string }[]>(); // JSON-family scalar edits
   const appended: Seg[][] = []; // parents an INLINE entry was appended to — their new last child is the created node
   const created: string[] = [];
   for (const e of edits) {
@@ -2601,7 +2712,18 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       continue;
     }
 
-    const { docSegs, bodyFile, dirBacked } = chapterSource(dataRoot, s, editSegs);
+    // A JSON-family file (flow syntax) can't use the block engine — route its scalar `emplace` edits
+    // to the span-surgical JSON editor. Only value edits for now (no insert/remove/structure).
+    const backing = resolveBacking(dataRoot, s, editSegs);
+    if (!backing.dirBacked && JSON_FILE.test(backing.bodyFile)) {
+      if (op !== "emplace") throw new Error("only scalar value edits (emplace) are supported for JSON files");
+      const jlist = jsonByFile.get(backing.bodyFile) ?? [];
+      jlist.push({ within: editSegs.slice(backing.docSegs.length), valueSrc: String(e.yamlover ?? "") });
+      jsonByFile.set(backing.bodyFile, jlist);
+      continue;
+    }
+
+    const { docSegs, bodyFile, dirBacked } = chapterSource(dataRoot, s, editSegs, BLOCK_YAML);
     if (op === "insert" && !e.concrete?.includes("/")) {
       // an APPEND (no trailing index, or one past the end) creates the parent's new last child
       const last = editSegs[editSegs.length - 1];
@@ -2647,6 +2769,14 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
     }
     fs.writeFileSync(bodyFile, src);
     touched.push(bodyFile);
+  }
+  for (const [file, jedits] of jsonByFile) {
+    let src = fs.readFileSync(file, "utf8");
+    for (const j of jedits) {
+      src = editJsonScalar(src, j.within, yamloverScalarToJsonToken(j.valueSrc)); // yamlover payload → JSON token
+    }
+    fs.writeFileSync(file, src);
+    touched.push(file);
   }
   return { touched, created, appended };
 }

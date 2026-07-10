@@ -5,8 +5,10 @@ import { createHandlers } from "../src/server/engine-api";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
 
-// GET/POST /api/config — the project config page (IMPORTS.md). settings.yamlover is engine-owned
-// (not a graph node), so it is read/written through this dedicated pair, not the node pipeline.
+// GET /api/config — the project config (IMPORTS.md). settings.yamlover is read through this endpoint
+// for its parsed settings (the annotate flow's tags location). It is now EDITED through the ordinary
+// yamlover data view + /api/edit (or directly on disk); the server reloads its in-memory Settings on
+// ANY reindex that touches the file (`broadcast`), so there is no dedicated write endpoint.
 
 describe("/api/config (project configuration)", () => {
   it("GET returns the source + parsed settings (uri, exports, locations)", async () => {
@@ -57,34 +59,26 @@ describe("/api/config (project configuration)", () => {
     h.close();
   });
 
-  it("POST writes the source, reloads settings, and round-trips through GET", async () => {
-    const root = tmpTree({ name: "Alice" });
+  it("reloads in-memory settings when the config file is edited DIRECTLY on disk (watcher/reindex path)", async () => {
+    const root = tmpTree({ name: "Alice", ".yamlover/settings.yamlover": "tags: *:: taxonomy\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-
-    const src = "uri: ::: acme.example\nannotations: *:: marks\n";
-    const w = await callBody(h, "POST", "/api/config", { source: src });
-    expect(w.status).toBe(200);
-    expect(w.json.ok).toBe(true);
-    expect(w.json.settings.uri).toBe("acme.example");
-    expect(w.json.settings.annotations).toBe(":marks");
-    // persisted on disk
-    expect(fs.readFileSync(path.join(root, ".yamlover", "settings.yamlover"), "utf8")).toBe(src);
-    // and visible on a fresh GET
-    expect(call(h, "/api/config").json.settings.annotations).toBe(":marks");
+    expect(call(h, "/api/config").json.settings.tags).toBe(":taxonomy");
+    // a DIRECT disk edit (what the FS watcher would see), then a manual reconcile (the watcher's path)
+    fs.writeFileSync(path.join(root, ".yamlover", "settings.yamlover"), "tags: *:: newloc\n");
+    await callBody(h, "POST", "/api/reindex");
+    expect(call(h, "/api/config").json.settings.tags).toBe(":newloc"); // reloaded, not stale
     h.close();
   });
 
-  it("POST rejects a config that does not parse, leaving the file untouched", async () => {
-    const root = tmpTree({ name: "Alice", ".yamlover/settings.yamlover": "tags:\n  location: *tags\n" });
+  it("reloads settings when the config is edited through the generic /api/edit (a scalar value)", async () => {
+    const root = tmpTree({ name: "Alice", ".yamlover/settings.yamlover": "sidecars: per-directory\ntags: *:: taxonomy\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-
-    const r = await callBody(h, "POST", "/api/config", { source: "a: [1, 2" }); // unterminated flow seq
-    expect(r.status).toBe(400);
-    expect(r.json.error).toBeTruthy();
-    // the previous file is intact
-    expect(fs.readFileSync(path.join(root, ".yamlover", "settings.yamlover"), "utf8")).toBe("tags:\n  location: *tags\n");
+    expect(call(h, "/api/config").json.settings.sidecars).toBe("per-directory");
+    const w = await callBody(h, "POST", "/api/edit", { path: ":.yamlover:settings.yamlover:sidecars", op: "emplace", yamlover: "project" });
+    expect(w.status).toBe(200);
+    expect(call(h, "/api/config").json.settings.sidecars).toBe("project"); // reloaded via broadcast
     h.close();
   });
 });

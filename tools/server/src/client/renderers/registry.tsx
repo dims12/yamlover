@@ -5,7 +5,6 @@ import { NodeJson, TreeNode } from "../api";
 import { ChapterView } from "./chapter";
 import { isSubchapter } from "./chapter-model";
 import { TaskView } from "./task";
-import { SettingsView } from "./settings";
 import { TextView, TextChunk } from "./text";
 import { MarklowerView, MarklowerChunk } from "./marklower";
 import { LatexView, LatexChunk } from "./latex";
@@ -191,15 +190,6 @@ const ICON_VIEWS: Renderer[] = [
 const EXPLORER = ICON_VIEWS.find((v) => v.name === "large-icons")!;
 
 const REGISTRY: Renderer[] = [
-  {
-    // The project config editor (IMPORTS.md) — the first EDITOR renderer. Claims the hidden
-    // settings node (`:.yamlover:settings.yamlover`, x-yamlover-config) the gear button opens.
-    name: "settings",
-    icon: "⚙️",
-    accepts: byFormat("x-yamlover-config"),
-    specificity: 2,
-    render: () => <SettingsView />,
-  },
   {
     name: "chapter",
     icon: "§",

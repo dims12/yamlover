@@ -165,7 +165,9 @@ if (prod) {
   // the node_modules that actually holds the heavy deps — under `npx` they hoist to
   // a `_npx/<hash>/node_modules` outside `pkgRoot` and Vite's default root detection
   // misses it, so a raw asset (notably pdf.js's worker) 404s to index.html.
-  const fsAllow = [pkgRoot];
+  // The client re-parses edited yamlover source with the real parser (renderers/value-editors.tsx →
+  // ../../parser/ts/src/yamlover.ts), which lives OUTSIDE pkgRoot — allow Vite to serve it over /@fs.
+  const fsAllow = [pkgRoot, resolve(pkgRoot, "../parser")];
   try {
     const req = createRequire(join(pkgRoot, "package.json"));
     reactAlias["react"] = dirname(req.resolve("react/package.json"));

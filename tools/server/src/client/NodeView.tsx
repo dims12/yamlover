@@ -33,7 +33,7 @@ export const DEFAULT_FORMAT: Format = "yamlover";
 // json/json5/json5p, incl. their `file/…` form (see ../concrete). (Detecting JSON flow syntax
 // embedded in a yaml/yamlover file is a separate, postponed concern.)
 export { isJsonFamily as isJsonConcrete } from "../concrete";
-import { isJsonFamily, isDirConcrete } from "../concrete";
+import { isJsonFamily, isDirConcrete, isBinaryConcrete } from "../concrete";
 
 const isSchema = (f: Format) => f.endsWith("schema");
 // Serialization syntax: json5p renders JSON-family; yamlover (+ its schema) renders YAML-family.
@@ -54,6 +54,18 @@ function standardFormatsFor(node: NodeJson): Format[] {
 function effectiveFormat(format: Format, node: NodeJson, tabs: Format[]): Format {
   if ((tabs as string[]).includes(format)) return format;
   return (rendererName(node, node.concrete) as Format) ?? DEFAULT_FORMAT;
+}
+
+/** Whether the DATA view may be unlocked for in-place value editing. Only the **yamlover renderer**
+ *  (the `yamlover` data view) offers editing — never the `json5p` or `yamlover/schema` views, nor
+ *  opaque bytes / directories. The yamlover renderer is the UNIVERSAL edit surface: you edit yamlover
+ *  source there, and the server writes it in the target file's concrete — a yaml/yamlover file gets
+ *  the source verbatim, a json/json5/json5p file gets the parsed scalar re-serialized as JSON. So
+ *  every data file (yaml-family AND json-family) is editable here. */
+function isEditableData(effective: Format, node: NodeJson): boolean {
+  if (effective !== "yamlover") return false; // only the yamlover renderer, not json5p / schema
+  if (node.type === "binary" || node.valueType === "binary") return false;
+  return !isBinaryConcrete(node.concrete) && !isDirConcrete(node.concrete);
 }
 
 /** A node's bare name: its last path segment (a decoded key or `[index]`), or ""
@@ -408,8 +420,9 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   const iconOf = (f: Format): string => allRenderers.find((r) => r.name === f)?.icon ?? DATA_ICONS[f] ?? f;
   const renderer = allRenderers.find((r) => r.name === effective) ?? null;
   const showRendered = renderer != null;
-  // an editable page (chapter/task) — gates the lock button and the F2/Esc shortcut
-  const isEditableView = showRendered && !!renderer && EDITABLE_RENDERERS.has(renderer.name);
+  // an editable view — gates the lock button and the F2/Esc shortcut. Either a renderer page
+  // (chapter/task) or the DATA view (yamlover/json5p) whose scalars edit in place.
+  const isEditableView = showRendered ? !!renderer && EDITABLE_RENDERERS.has(renderer.name) : isEditableData(effective, node);
   editableRef.current = isEditableView;
   // the document this node belongs to — the base its `#`-fragment anchors are measured from
   const docPath = node.documentPath ?? path;
@@ -511,19 +524,36 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
           )}
         </EditingContext.Provider>
       ) : (
-        <pre className="code">
-          {/* data views lead with the relations panel (reverse members / `..`),
-              an <hr/>, then the value; schema views embed rel inline already */}
-          {!isSchema(effective) && Object.keys(rest).length > 0 && (
-            <>
-              {/* the relations panel: refs may link in-page, but it gets NO fragment ids
-                  (anchors=false) so its keys don't collide with the value's node ids */}
-              <Render value={rest} syntax={syntaxOf(effective)} onNavigate={onNavigate} documentPath={docPath} nodePath={path} anchors={false} />
-              <hr className="reldiv" />
-            </>
-          )}
-          {ready ? <Render value={content} syntax={syntaxOf(effective)} onNavigate={onNavigate} documentPath={docPath} nodePath={path} comments={node.comments} /> : "…"}
-        </pre>
+        <EditingContext.Provider value={{ unlocked }}>
+          <pre className="code">
+            {/* data views lead with the relations panel (reverse members / `..`),
+                an <hr/>, then the value; schema views embed rel inline already */}
+            {!isSchema(effective) && Object.keys(rest).length > 0 && (
+              <>
+                {/* the relations panel: refs may link in-page, but it gets NO fragment ids
+                    (anchors=false) so its keys don't collide with the value's node ids — and it is
+                    never editable (reverse members are owned elsewhere), so no `editable` here */}
+                <Render value={rest} syntax={syntaxOf(effective)} onNavigate={onNavigate} documentPath={docPath} nodePath={path} anchors={false} />
+                <hr className="reldiv" />
+              </>
+            )}
+            {/* the VALUE — editable only when this is an unlockable data view (never the schema view) */}
+            {ready ? (
+              <Render
+                value={content}
+                syntax={syntaxOf(effective)}
+                onNavigate={onNavigate}
+                documentPath={docPath}
+                nodePath={path}
+                comments={node.comments}
+                editable={isEditableView}
+                concrete={node.concrete}
+              />
+            ) : (
+              "…"
+            )}
+          </pre>
+        </EditingContext.Provider>
       )}
     </div>
   );

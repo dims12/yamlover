@@ -105,14 +105,14 @@ export function App() {
   const [format, setFormat] = useState<Format>(formatFromUrl(DEFAULT_FORMAT) as Format);
   const [rootLabel, setRootLabel] = useState<string>(""); // CLI ROOT (breadcrumb head)
   const [docsState, setDocsState] = useState<"idle" | "busy">("idle");
-  // The gear opens the project config (IMPORTS.md): the hidden settings node, rendered in the main
-  // pane by the settings editor renderer. It is NOT in the TOC tree, so navigate directly with the
-  // `settings` format rather than the tree-based `navigate` (which can't find a hidden node).
+  // The gear opens the project config (IMPORTS.md): the hidden settings node, shown in the main pane
+  // by the ordinary (editable) yamlover data view — it is NOT in the TOC tree, so navigate directly
+  // with the default format rather than the tree-based `navigate` (which can't find a hidden node).
   const openSettings = useCallback(() => {
     const p = ":.yamlover:settings.yamlover";
-    writeUrl(p, "settings", false);
+    writeUrl(p, DEFAULT_FORMAT, false);
     setCurrent(p);
-    setFormat("settings" as Format);
+    setFormat(DEFAULT_FORMAT);
   }, []);
   const [leftWidth, setLeftWidth] = useState<number>(320);
   const [rightWidth, setRightWidth] = useState<number>(300); // the fragments pane (when shown)

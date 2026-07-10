@@ -45,6 +45,8 @@ export type CommentBucket = {
   tag?: string;       // the node's yamlover type tag (`!!set` / `!!mix` / `!!var`)
   blankBefore?: boolean; // a blank source line precedes this entry — render an empty line
   valueTrailing?: string[]; // a comment trailing the node's own self-value line (omni `5 # …`)
+  raw?: string;       // a scalar's authored SOURCE token — rendered faithfully so `"~"` reads as a
+                      // string not null, `0xff`/`True` keep their spelling (CONCRETES.md §Scalar representation)
 };
 export type CommentMap = Record<string, CommentBucket | string[]>;
 
@@ -188,16 +190,11 @@ export interface ConfigPayload {
   path: string; // the hidden config file's colon path
 }
 
-/** Read the project config — `<root>/.yamlover/settings.yamlover`. Gives the settings editor the
- *  RAW source (the node projection drops comments) plus the parsed settings. */
+/** Read the project config — `<root>/.yamlover/settings.yamlover` — for the parsed settings (e.g. the
+ *  tags location, used by the annotate flow). The config is EDITED through the ordinary yamlover data
+ *  view + `/api/edit` now; the server reloads its settings on any change to that file. */
 export function fetchConfig(): Promise<ConfigPayload> {
   return getJson<ConfigPayload>(api("/api/config"));
-}
-
-/** Save edited config source. The server validates it parses (a broken config must never break
- *  serving) before writing, then reloads its write-path defaults. Returns the reparsed settings. */
-export function saveConfig(source: string): Promise<{ ok: true; settings: ConfigSettings }> {
-  return postJson(api("/api/config"), { source });
 }
 
 /** Create a FRAGMENT — a marked region in the node at `target` (ANNOTATIONS.md). Returns its slug

@@ -1,6 +1,7 @@
 import { ReactNode, useState, Fragment } from "react";
 import { fragmentOf, isAncestorPath } from "./paths";
 import type { CommentBucket, CommentMap } from "./api";
+import { ScalarLeaf } from "./renderers/value-editors";
 
 // Keep in sync with LINK_KEY / BINARY_KEY in src/server/yamlover.ts.
 //
@@ -97,7 +98,7 @@ export function scalarValue(v: unknown): unknown {
   return self;
 }
 
-type Syntax = "yaml" | "json";
+export type Syntax = "yaml" | "json";
 type Nav = (path: string) => void;
 
 /** Shared per-render context: navigation plus the anchoring needed to (a) stamp each node with its
@@ -112,6 +113,20 @@ interface Ctx {
   anchors: boolean;
   comments?: CommentMap; // keyed by each node's fragment continuation FROM the rendered root
   base: string;          // the rendered root's fragment — what `frag` values are prefixed with
+  editable: boolean;     // this view may be unlocked → scalar leaves render an inline editor
+  concrete: string | null; // how the value is stored (the storage LANGUAGE) — gates which edits are legal
+}
+
+/** The absolute (canonical colon-form) path of a child node — its parent `path` plus one segment,
+ *  spelled exactly as {@link segsToStr} would (`:`+`encodeURIComponent(key)` for a key, `[i]` for an
+ *  index). Threaded PARALLEL to `frag` (rather than derived from it) because `frag` is slash-joined
+ *  DECODED keys — a key containing `/` is ambiguous there, fine for a scroll anchor but unsafe for a
+ *  write. `null` propagates: a leaf with no addressable path (a JSON-flattened omni/mix entry) stays
+ *  read-only. */
+function childPath(path: string | null, seg: string | number): string | null {
+  if (path === null) return null;
+  const base = path === ":" ? "" : path;
+  return base + (typeof seg === "number" ? `[${seg}]` : `:${encodeURIComponent(seg)}`);
 }
 
 /** The leading/trailing comment bucket for the node at `frag` (its key relative to the rendered
@@ -222,6 +237,8 @@ export function Render({
   nodePath = ":",
   anchors = true,
   comments,
+  editable = false,
+  concrete = null,
 }: {
   value: unknown;
   syntax: Syntax;
@@ -230,9 +247,11 @@ export function Render({
   nodePath?: string;
   anchors?: boolean;
   comments?: CommentMap;
+  editable?: boolean;    // when true (and the view is unlocked), scalar leaves become editable
+  concrete?: string | null; // the storage language — carried to leaf editors for concrete-safe edits
 }) {
   const base = fragmentOf(documentPath, nodePath); // the rendered root's continuation from the doc
-  const ctx: Ctx = { nav: onNavigate, doc: documentPath, node: nodePath, anchors, comments, base };
+  const ctx: Ctx = { nav: onNavigate, doc: documentPath, node: nodePath, anchors, comments, base, editable, concrete };
   const bin = asBinary(value);
   if (bin && syntax === "yaml") return <BinaryYaml bin={bin} />;
   const v = bin ?? value; // JSON shows the {format,size,base64} metadata object
@@ -242,9 +261,9 @@ export function Render({
     <>
       {head && <CommentBlock texts={head} syntax={syntax} />}
       {syntax === "yaml" ? (
-        <YamlRoot value={v} indent={0} ctx={ctx} frag={base} />
+        <YamlRoot value={v} indent={0} ctx={ctx} frag={base} path={nodePath} />
       ) : (
-        <JsonValue value={v} indent={0} ctx={ctx} frag={base} root />
+        <JsonValue value={v} indent={0} ctx={ctx} frag={base} path={nodePath} root />
       )}
       {tail && <CommentBlock texts={tail} syntax={syntax} />}
     </>
@@ -381,13 +400,17 @@ function linkLabel(link: Link): string {
   return `{ object with ${n} ${n === 1 ? "property" : "properties"} }`;
 }
 
-function scalarNode(v: unknown, syntax: Syntax): ReactNode {
-  if (v === null) return <span className="null">null</span>; // canonical yamlover null (not the obsolete `~`)
-  if (typeof v === "boolean") return <span className="b">{String(v)}</span>;
+/** Render a scalar in `syntax`. When `raw` is given (a scalar's authored source token, carried in the
+ *  comment sidecar for representation-significant scalars — a quoted string, `~`/word null, hex int,
+ *  `.inf`, …) it is shown VERBATIM with the value's own colour, so e.g. a string `"~"` reads as a
+ *  quoted string, not the null `~`. Otherwise the value's default bare form is shown. */
+export function scalarNode(v: unknown, syntax: Syntax, raw?: string): ReactNode {
+  if (v === null) return <span className="null">{raw ?? "null"}</span>; // canonical yamlover null (not the obsolete `~`)
+  if (typeof v === "boolean") return <span className="b">{raw ?? String(v)}</span>;
   const num = asNum(v);
-  if (num) return <span className="n">{numToken(num, syntax)}</span>; // ±Infinity / NaN literal
-  if (typeof v === "number") return <span className="n">{String(v)}</span>;
-  const text = syntax === "json" ? JSON.stringify(v) : String(v);
+  if (num) return <span className="n">{raw ?? numToken(num, syntax)}</span>; // ±Infinity / NaN literal
+  if (typeof v === "number") return <span className="n">{raw ?? String(v)}</span>;
+  const text = raw ?? (syntax === "json" ? JSON.stringify(v) : String(v));
   return <span className="s">{text}</span>;
 }
 
@@ -442,36 +465,36 @@ function FoldToggle({ open, onToggle }: { open: boolean; onToggle: () => void })
 /** A YAML value as a block at `indent` — the entry point (root) and the body of every nested
  *  container. The root container is NOT itself foldable (it is the whole view); its nested
  *  containers are, via their key/item rows. */
-function YamlRoot({ value, indent, ctx, frag }: { value: unknown; indent: number; ctx: Ctx; frag: string }): ReactNode {
+function YamlRoot({ value, indent, ctx, frag, path }: { value: unknown; indent: number; ctx: Ctx; frag: string; path: string | null }): ReactNode {
   const link = asLink(value);
   if (link) return <>{linkNode(link, "yaml", ctx)}{"\n"}</>;
   const ref = asRef(value);
   if (ref) return <>{refNode(ref, "yaml", ctx)}{"\n"}</>;
-  if (foldable(value)) return <YamlBody value={value} indent={indent} ctx={ctx} frag={frag} />;
+  if (foldable(value)) return <YamlBody value={value} indent={indent} ctx={ctx} frag={frag} path={path} />;
   if (isObj(value)) return <><span className="punct">{"{}"}</span>{"\n"}</>;
   if (Array.isArray(value)) return <><span className="punct">{"[]"}</span>{"\n"}</>;
-  return <>{scalarNode(value, "yaml")}{valueTrailingComment(ctx, frag, "yaml")}{"\n"}</>;
+  return <><ScalarLeaf value={value} syntax="yaml" path={path} editable={ctx.editable} concrete={ctx.concrete} raw={commentsAt(ctx, frag)?.raw} />{valueTrailingComment(ctx, frag, "yaml")}{"\n"}</>;
 }
 
 /** The lines of a non-empty container (object / array / mixed) at `indent` — no toggle of its own;
  *  the toggle for this block sits on the key/item row one level up. With `inlineHead`, the FIRST
  *  row drops its leading indent so it sits right after a `- ` on the line above (YAML block style).
  *  `frag` is this container's own fragment continuation; each child appends its key/index to it. */
-function YamlBody({ value, indent, ctx, frag, inlineHead = false }: { value: unknown; indent: number; ctx: Ctx; frag: string; inlineHead?: boolean }): ReactNode {
+function YamlBody({ value, indent, ctx, frag, path, inlineHead = false }: { value: unknown; indent: number; ctx: Ctx; frag: string; path: string | null; inlineHead?: boolean }): ReactNode {
   const mixed = asMixed(value);
-  if (mixed) return <YamlMixed mixed={mixed} indent={indent} ctx={ctx} frag={frag} inlineHead={inlineHead} />;
-  if (isObj(value)) return <YamlObject entries={Object.entries(value)} indent={indent} ctx={ctx} frag={frag} inlineHead={inlineHead} />;
-  return <YamlArray items={value as unknown[]} indent={indent} ctx={ctx} frag={frag} inlineHead={inlineHead} />;
+  if (mixed) return <YamlMixed mixed={mixed} indent={indent} ctx={ctx} frag={frag} path={path} inlineHead={inlineHead} />;
+  if (isObj(value)) return <YamlObject entries={Object.entries(value)} indent={indent} ctx={ctx} frag={frag} path={path} inlineHead={inlineHead} />;
+  return <YamlArray items={value as unknown[]} indent={indent} ctx={ctx} frag={frag} path={path} inlineHead={inlineHead} />;
 }
 
-function YamlObject({ entries, indent, ctx, frag, inlineHead = false }: { entries: [string, unknown][]; indent: number; ctx: Ctx; frag: string; inlineHead?: boolean }): ReactNode {
+function YamlObject({ entries, indent, ctx, frag, path, inlineHead = false }: { entries: [string, unknown][]; indent: number; ctx: Ctx; frag: string; path: string | null; inlineHead?: boolean }): ReactNode {
   const pad = " ".repeat(indent);
-  return <>{entries.map(([k, v], i) => <YamlEntry key={i} k={k} v={v} pad={pad} indent={indent} ctx={ctx} frag={`${frag}/${k}`} noPad={inlineHead && i === 0} />)}</>;
+  return <>{entries.map(([k, v], i) => <YamlEntry key={i} k={k} v={v} pad={pad} indent={indent} ctx={ctx} frag={`${frag}/${k}`} path={childPath(path, k)} noPad={inlineHead && i === 0} />)}</>;
 }
 
-function YamlArray({ items, indent, ctx, frag, inlineHead = false }: { items: unknown[]; indent: number; ctx: Ctx; frag: string; inlineHead?: boolean }): ReactNode {
+function YamlArray({ items, indent, ctx, frag, path, inlineHead = false }: { items: unknown[]; indent: number; ctx: Ctx; frag: string; path: string | null; inlineHead?: boolean }): ReactNode {
   const pad = " ".repeat(indent);
-  return <>{items.map((item, i) => <YamlItem key={i} v={item} pad={pad} indent={indent} ctx={ctx} frag={`${frag}[${i}]`} noPad={inlineHead && i === 0} />)}</>;
+  return <>{items.map((item, i) => <YamlItem key={i} v={item} pad={pad} indent={indent} ctx={ctx} frag={`${frag}[${i}]`} path={childPath(path, i)} noPad={inlineHead && i === 0} />)}</>;
 }
 
 /** Whether an array item's container value can render in COMPACT YAML block style — its first
@@ -495,14 +518,16 @@ function canInlineAfterDash(v: unknown): boolean {
 
 /** An omni node's own scalar line. A plain scalar renders inline; a BIG one (multiline text /
  *  binary bytes) becomes a foldable `|` / `!!binary` block with its toggle in the row's gutter. */
-function YamlSelfValue({ value, pad, indent, ctx, frag, noPad = false }: { value: unknown; pad: string; indent: number; ctx: Ctx; frag: string; noPad?: boolean }): ReactNode {
+function YamlSelfValue({ value, pad, indent, ctx, frag, path, noPad = false }: { value: unknown; pad: string; indent: number; ctx: Ctx; frag: string; path: string | null; noPad?: boolean }): ReactNode {
   const [open, setOpen] = useState(true);
   const trail = valueTrailingComment(ctx, frag, "yaml");
   // a FILE-backed omni's self-value is a navigable `< binary >` link (its bytes never inline) — render
   // it as the link, not a bare scalar (which would print `[object Object]` / drop it)
   const link = asLink(value);
   if (link) return <>{noPad ? null : pad}{linkNode(link, "yaml", ctx)}{trail}{"\n"}</>;
-  if (!bigScalar(value)) return <>{noPad ? null : pad}{scalarNode(value, "yaml")}{trail}{"\n"}</>;
+  // the omni node's OWN scalar edits at the node's own path — `emplace` touches only the scalar facet,
+  // leaving the keyed/ordinal fields (and any tag) standing.
+  if (!bigScalar(value)) return <>{noPad ? null : pad}<ScalarLeaf value={value} syntax="yaml" path={path} editable={ctx.editable} concrete={ctx.concrete} raw={commentsAt(ctx, frag)?.raw} />{trail}{"\n"}</>;
   return (
     <>
       <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
@@ -512,7 +537,7 @@ function YamlSelfValue({ value, pad, indent, ctx, frag, noPad = false }: { value
   );
 }
 
-function YamlMixed({ mixed, indent, ctx, frag, inlineHead = false }: { mixed: Mixed; indent: number; ctx: Ctx; frag: string; inlineHead?: boolean }): ReactNode {
+function YamlMixed({ mixed, indent, ctx, frag, path, inlineHead = false }: { mixed: Mixed; indent: number; ctx: Ctx; frag: string; path: string | null; inlineHead?: boolean }): ReactNode {
   const pad = " ".repeat(indent);
   // omni: the node's own scalar value renders on its own line at its AUTHORED position among the
   // entries (`selfAt`; 0/absent → first) — order-preserving, matching the source. A big self-value
@@ -523,7 +548,7 @@ function YamlMixed({ mixed, indent, ctx, frag, inlineHead = false }: { mixed: Mi
   // With `inlineHead` (this node rides a `- `), the FIRST rendered row drops its leading pad: the
   // self-value if it sits first, otherwise entry 0 (`- <self>` / `- title: …` — canInlineAfterDash).
   const selfFirst = inlineHead && selfAt === 0;
-  const selfValue = <YamlSelfValue value={mixed.value} pad={pad} indent={indent} ctx={ctx} frag={frag} noPad={selfFirst} />;
+  const selfValue = <YamlSelfValue value={mixed.value} pad={pad} indent={indent} ctx={ctx} frag={frag} path={path} noPad={selfFirst} />;
   return (
     <>
       {mixed.entries.map((e, i) => {
@@ -532,9 +557,9 @@ function YamlMixed({ mixed, indent, ctx, frag, inlineHead = false }: { mixed: Mi
           <Fragment key={i}>
             {i === selfAt && selfValue}
             {e.key === null ? (
-              <YamlItem v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}[${i}]`} noPad={noPad} />
+              <YamlItem v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}[${i}]`} path={childPath(path, i)} noPad={noPad} />
             ) : (
-              <YamlEntry k={e.key} v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}/${e.key}`} noPad={noPad} />
+              <YamlEntry k={e.key} v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}/${e.key}`} path={childPath(path, e.key)} noPad={noPad} />
             )}
           </Fragment>
         );
@@ -548,7 +573,7 @@ function YamlMixed({ mixed, indent, ctx, frag, inlineHead = false }: { mixed: Mi
  *  fold summary when collapsed); a scalar / link / empty renders inline. `noPad` drops the leading
  *  indent when this row is the first child sitting after a `- ` (YAML block style). `frag` is this
  *  node's fragment continuation (its `#`-anchor id). */
-function YamlEntry({ k, v, pad, indent, ctx, frag, noPad = false }: { k: string; v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; noPad?: boolean }): ReactNode {
+function YamlEntry({ k, v, pad, indent, ctx, frag, path, noPad = false }: { k: string; v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; path: string | null; noPad?: boolean }): ReactNode {
   const [open, setOpen] = useState(true);
   const blank = !noPad && commentsAt(ctx, frag)?.blankBefore ? "\n" : null; // preserve an empty source line
   const lead = noPad ? null : <LeadingComments ctx={ctx} frag={frag} pad={pad} syntax="yaml" />;
@@ -577,7 +602,7 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, noPad = false }: { k: string;
       </>
     );
   }
-  if (!foldable(v)) return <>{blank}{lead}{head}{deco}{inlineYamlValue(v, ctx, trail, ptr && fmtPointer(ptr, "yaml"))}</>;
+  if (!foldable(v)) return <>{blank}{lead}{head}{deco}{inlineYamlValue(v, ctx, path, trail, ptr && fmtPointer(ptr, "yaml"), commentsAt(ctx, frag)?.raw)}</>;
   return (
     <>
       {blank}
@@ -585,7 +610,7 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, noPad = false }: { k: string;
       <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
       {head}
       {deco}
-      {open ? <>{trail}{"\n"}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} /></> : <>{" "}<span className="fold-summary">{foldSummary(v)}</span>{trail}{"\n"}</>}
+      {open ? <>{trail}{"\n"}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} path={path} /></> : <>{" "}<span className="fold-summary">{foldSummary(v)}</span>{trail}{"\n"}</>}
     </>
   );
 }
@@ -593,7 +618,7 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, noPad = false }: { k: string;
 /** A `- value` array / positional row, with the same fold behaviour as {@link YamlEntry}. A foldable
  *  container value renders COMPACT (first child on this same line, `- name: Rex`) when it can — see
  *  {@link canInlineAfterDash} — else its body drops to indented lines below. */
-function YamlItem({ v, pad, indent, ctx, frag, noPad = false }: { v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; noPad?: boolean }): ReactNode {
+function YamlItem({ v, pad, indent, ctx, frag, path, noPad = false }: { v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; path: string | null; noPad?: boolean }): ReactNode {
   const [open, setOpen] = useState(true);
   const blank = !noPad && commentsAt(ctx, frag)?.blankBefore ? "\n" : null;
   const lead = noPad ? null : <LeadingComments ctx={ctx} frag={frag} pad={pad} syntax="yaml" />;
@@ -622,7 +647,7 @@ function YamlItem({ v, pad, indent, ctx, frag, noPad = false }: { v: unknown; pa
       </>
     );
   }
-  if (!foldable(v)) return <>{blank}{lead}{dash}{deco}{inlineYamlValue(v, ctx, trail, ptr && fmtPointer(ptr, "yaml"))}</>;
+  if (!foldable(v)) return <>{blank}{lead}{dash}{deco}{inlineYamlValue(v, ctx, path, trail, ptr && fmtPointer(ptr, "yaml"), commentsAt(ctx, frag)?.raw)}</>;
   const compact = canInlineAfterDash(v);
   return (
     <>
@@ -634,24 +659,25 @@ function YamlItem({ v, pad, indent, ctx, frag, noPad = false }: { v: unknown; pa
       {!open ? (
         <>{" "}<span className="fold-summary">{foldSummary(v)}</span>{trail}{"\n"}</>
       ) : compact ? (
-        <>{" "}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} inlineHead /></>
+        <>{" "}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} path={path} inlineHead /></>
       ) : (
-        <>{trail}{"\n"}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} /></>
+        <>{trail}{"\n"}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} path={path} /></>
       )}
     </>
   );
 }
 
 /** A non-foldable value following a `key:` / `- ` — a link, ref, empty container, or scalar,
- *  rendered inline with a leading space and a trailing newline. */
-function inlineYamlValue(v: unknown, ctx: Ctx, trail: ReactNode = null, ptr?: string): ReactNode {
+ *  rendered inline with a leading space and a trailing newline. `path` is the value's own node path
+ *  (for an editable scalar leaf); null when it has no addressable path. */
+function inlineYamlValue(v: unknown, ctx: Ctx, path: string | null, trail: ReactNode = null, ptr?: string, raw?: string): ReactNode {
   const link = asLink(v);
   if (link) return <>{" "}{linkNode(link, "yaml", ctx)}{trail}{"\n"}</>;
   const ref = asRef(v);
   if (ref) return <>{" "}{refNode(ref, "yaml", ctx, ptr)}{trail}{"\n"}</>;
   if (isObj(v) && Object.keys(v).length === 0) return <>{" "}<span className="punct">{"{}"}</span>{trail}{"\n"}</>;
   if (Array.isArray(v) && v.length === 0) return <>{" "}<span className="punct">{"[]"}</span>{trail}{"\n"}</>;
-  return <>{" "}{scalarNode(v, "yaml")}{trail}{"\n"}</>;
+  return <>{" "}<ScalarLeaf value={v} syntax="yaml" path={path} editable={ctx.editable} concrete={ctx.concrete} raw={raw} />{trail}{"\n"}</>;
 }
 
 // --------------------------------------------------------------------------- //
@@ -661,7 +687,7 @@ function inlineYamlValue(v: unknown, ctx: Ctx, trail: ReactNode = null, ptr?: st
 /** A JSON value at `indent`. At the root, a container renders without a toggle (it is the whole
  *  view); nested foldable containers carry a gutter toggle on their key/item row (see
  *  {@link JsonEntry}/{@link JsonItem}), so they never reach here while foldable. */
-function JsonValue({ value, indent, ctx, frag, root = false }: { value: unknown; indent: number; ctx: Ctx; frag: string; root?: boolean }): ReactNode {
+function JsonValue({ value, indent, ctx, frag, path, root = false }: { value: unknown; indent: number; ctx: Ctx; frag: string; path: string | null; root?: boolean }): ReactNode {
   const link = asLink(value);
   if (link) return linkNode(link, "json", ctx);
   const ref = asRef(value);
@@ -669,11 +695,11 @@ function JsonValue({ value, indent, ctx, frag, root = false }: { value: unknown;
     const ptr = commentsAt(ctx, frag)?.pointer; // the authored pointer, json5p-quoted
     return refNode(ref, "json", ctx, ptr && fmtPointer(ptr, "json"));
   }
-  if (root && foldable(value)) return <JsonBody value={value} indent={indent} ctx={ctx} frag={frag} />;
+  if (root && foldable(value)) return <JsonBody value={value} indent={indent} ctx={ctx} frag={frag} path={path} />;
   const objEntries = jsonObjEntries(value);
-  if (objEntries) return objEntries.length ? <JsonBody value={value} indent={indent} ctx={ctx} frag={frag} /> : <span className="punct">{"{}"}</span>;
-  if (Array.isArray(value)) return value.length ? <JsonBody value={value} indent={indent} ctx={ctx} frag={frag} /> : <span className="punct">{"[]"}</span>;
-  return scalarNode(value, "json");
+  if (objEntries) return objEntries.length ? <JsonBody value={value} indent={indent} ctx={ctx} frag={frag} path={path} /> : <span className="punct">{"{}"}</span>;
+  if (Array.isArray(value)) return value.length ? <JsonBody value={value} indent={indent} ctx={ctx} frag={frag} path={path} /> : <span className="punct">{"[]"}</span>;
+  return <ScalarLeaf value={value} syntax="json" path={path} editable={ctx.editable} concrete={ctx.concrete} raw={commentsAt(ctx, frag)?.raw} />;
 }
 
 /** The object entries a JSON value projects: an omni/mix marker flattened (`$value` + entries), or a
@@ -689,20 +715,26 @@ function jsonObjEntries(value: unknown): [string, unknown][] | null {
 }
 
 /** The `{ … }` / `[ … ]` body of a container, no toggle of its own. */
-function JsonBody({ value, indent, ctx, frag }: { value: unknown; indent: number; ctx: Ctx; frag: string }): ReactNode {
+function JsonBody({ value, indent, ctx, frag, path }: { value: unknown; indent: number; ctx: Ctx; frag: string; path: string | null }): ReactNode {
   const objEntries = jsonObjEntries(value);
-  if (objEntries) return <JsonObject entries={objEntries} indent={indent} ctx={ctx} frag={frag} />;
-  return <JsonArray items={value as unknown[]} indent={indent} ctx={ctx} frag={frag} />;
+  if (objEntries) {
+    // a plain object's keys ARE its entries' paths; a FLATTENED omni/mix (`$value`, `String(i)` keys)
+    // has no faithful address here → null path keeps those leaves read-only (JSON omni editing is
+    // out of scope for now — edit it via the yamlover view).
+    const entryPath = isObj(value) ? path : null;
+    return <JsonObject entries={objEntries} indent={indent} ctx={ctx} frag={frag} path={entryPath} />;
+  }
+  return <JsonArray items={value as unknown[]} indent={indent} ctx={ctx} frag={frag} path={path} />;
 }
 
-function JsonObject({ entries, indent, ctx, frag }: { entries: [string, unknown][]; indent: number; ctx: Ctx; frag: string }): ReactNode {
+function JsonObject({ entries, indent, ctx, frag, path }: { entries: [string, unknown][]; indent: number; ctx: Ctx; frag: string; path: string | null }): ReactNode {
   const pad = " ".repeat(indent + 2);
   return (
     <>
       <span className="punct">{"{"}</span>
       {"\n"}
       {entries.map(([k, v], i) => (
-        <JsonEntry key={i} k={k} v={v} pad={pad} indent={indent + 2} ctx={ctx} frag={`${frag}/${k}`} last={i === entries.length - 1} />
+        <JsonEntry key={i} k={k} v={v} pad={pad} indent={indent + 2} ctx={ctx} frag={`${frag}/${k}`} path={childPath(path, k)} last={i === entries.length - 1} />
       ))}
       {" ".repeat(indent)}
       <span className="punct">{"}"}</span>
@@ -710,14 +742,14 @@ function JsonObject({ entries, indent, ctx, frag }: { entries: [string, unknown]
   );
 }
 
-function JsonArray({ items, indent, ctx, frag }: { items: unknown[]; indent: number; ctx: Ctx; frag: string }): ReactNode {
+function JsonArray({ items, indent, ctx, frag, path }: { items: unknown[]; indent: number; ctx: Ctx; frag: string; path: string | null }): ReactNode {
   const pad = " ".repeat(indent + 2);
   return (
     <>
       <span className="punct">{"["}</span>
       {"\n"}
       {items.map((item, i) => (
-        <JsonItem key={i} v={item} pad={pad} indent={indent + 2} ctx={ctx} frag={`${frag}[${i}]`} last={i === items.length - 1} />
+        <JsonItem key={i} v={item} pad={pad} indent={indent + 2} ctx={ctx} frag={`${frag}[${i}]`} path={childPath(path, i)} last={i === items.length - 1} />
       ))}
       {" ".repeat(indent)}
       <span className="punct">{"]"}</span>
@@ -727,7 +759,7 @@ function JsonArray({ items, indent, ctx, frag }: { items: unknown[]; indent: num
 
 /** A `"key": value,` row. A foldable value gets a gutter toggle on this row; otherwise it renders
  *  inline. `frag` is this node's fragment continuation (its `#`-anchor id). */
-function JsonEntry({ k, v, pad, indent, ctx, frag, last }: { k: string; v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; last: boolean }): ReactNode {
+function JsonEntry({ k, v, pad, indent, ctx, frag, path, last }: { k: string; v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; path: string | null; last: boolean }): ReactNode {
   const [open, setOpen] = useState(true);
   const lead = <LeadingComments ctx={ctx} frag={frag} pad={pad} syntax="json" />;
   const head = (
@@ -747,20 +779,20 @@ function JsonEntry({ k, v, pad, indent, ctx, frag, last }: { k: string; v: unkno
       {"\n"}
     </>
   );
-  if (!foldable(v)) return <>{lead}{head}<JsonValue value={v} indent={indent} ctx={ctx} frag={frag} />{tail}</>;
+  if (!foldable(v)) return <>{lead}{head}<JsonValue value={v} indent={indent} ctx={ctx} frag={frag} path={path} />{tail}</>;
   return (
     <>
       {lead}
       <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
       {head}
-      {open ? <JsonBody value={v} indent={indent} ctx={ctx} frag={frag} /> : <span className="fold-summary">{foldSummary(v)}</span>}
+      {open ? <JsonBody value={v} indent={indent} ctx={ctx} frag={frag} path={path} /> : <span className="fold-summary">{foldSummary(v)}</span>}
       {tail}
     </>
   );
 }
 
 /** An array element row, with the same fold behaviour as {@link JsonEntry}. */
-function JsonItem({ v, pad, indent, ctx, frag, last }: { v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; last: boolean }): ReactNode {
+function JsonItem({ v, pad, indent, ctx, frag, path, last }: { v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; path: string | null; last: boolean }): ReactNode {
   const [open, setOpen] = useState(true);
   const lead = <LeadingComments ctx={ctx} frag={frag} pad={pad} syntax="json" />;
   const tail = (
@@ -770,7 +802,7 @@ function JsonItem({ v, pad, indent, ctx, frag, last }: { v: unknown; pad: string
       {"\n"}
     </>
   );
-  if (!foldable(v)) return <>{lead}{pad}<Anchor ctx={ctx} frag={frag} />{decoSpan(ctx, frag, "json")}<JsonValue value={v} indent={indent} ctx={ctx} frag={frag} />{tail}</>;
+  if (!foldable(v)) return <>{lead}{pad}<Anchor ctx={ctx} frag={frag} />{decoSpan(ctx, frag, "json")}<JsonValue value={v} indent={indent} ctx={ctx} frag={frag} path={path} />{tail}</>;
   return (
     <>
       {lead}
@@ -778,7 +810,7 @@ function JsonItem({ v, pad, indent, ctx, frag, last }: { v: unknown; pad: string
       {pad}
       <Anchor ctx={ctx} frag={frag} />
       {decoSpan(ctx, frag, "json")}
-      {open ? <JsonBody value={v} indent={indent} ctx={ctx} frag={frag} /> : <span className="fold-summary">{foldSummary(v)}</span>}
+      {open ? <JsonBody value={v} indent={indent} ctx={ctx} frag={frag} path={path} /> : <span className="fold-summary">{foldSummary(v)}</span>}
       {tail}
     </>
   );

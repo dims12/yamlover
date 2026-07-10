@@ -367,6 +367,104 @@ describe("/api/edit — standalone chapter file", () => {
   });
 });
 
+// The GENERAL value editor: plain `.yaml`/`.yml` (block splice, same engine as chapters) and
+// `.json`/`.json5`/`.json5p` (span surgery — flow syntax has no block structure). Scalar `emplace`
+// only; formatting and comments survive.
+describe("/api/edit — general data files (yaml/json)", () => {
+  const handlersFor = async (files: Record<string, string>) => {
+    const root = tmpTree(files);
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    return { root, h };
+  };
+  const read = (root: string, rel: string) => fs.readFileSync(path.join(root, rel), "utf8");
+
+  it("emplaces scalar values in a .yaml file, preserving comments and structure", async () => {
+    const src = "# cfg\nname: Rex\nage: 4\nactive: true\ntags:\n  - a\n  - b\n";
+    const { root, h } = await handlersFor({ "pet.yaml": src });
+    const r = await callBody(h, "POST", "/api/edit", {
+      edits: [
+        { path: ":pet.yaml:name", op: "emplace", yamlover: "Fido" },
+        { path: ":pet.yaml:age", op: "emplace", yamlover: "5" },
+        { path: ":pet.yaml:active", op: "emplace", yamlover: "false" },
+        { path: ":pet.yaml:tags[1]", op: "emplace", yamlover: "z" },
+      ],
+    });
+    expect(r.status).toBe(200);
+    const out = read(root, "pet.yaml");
+    expect(out).toContain("# cfg"); // comment survives
+    expect(out).toContain("name: Fido");
+    expect(out).toContain("age: 5");
+    expect(out).toContain("active: false");
+    expect(out).toContain("- z");
+    expect(call(h, "/api/json", { path: ":pet.yaml:age" }).json.value).toBe(5);
+  });
+
+  it("descends a keyed `key:` → sequence → item and edits an inline field (regression: no phantom entry)", async () => {
+    // `reachChapter` sets the descended region's marker to the `pets:` KEY line; that line must NOT be
+    // surfaced as an inline entry (only `- ` items are), else a phantom `pets` entry shifts every index
+    // and `pets[0]` reads as a scalar. Real breakage from examples/06-tour.yamlover.
+    const src = "pets:\n  - name: Rex\n    species: dog\n  - name: Whiskers\n    species: cat\n";
+    const { root, h } = await handlersFor({ "z.yaml": src });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":z.yaml:pets[0]:name", op: "emplace", yamlover: "Rex1" });
+    expect(r.status).toBe(200);
+    const out = read(root, "z.yaml");
+    expect(out).toContain("- name: Rex1");
+    expect(out).toContain("- name: Whiskers"); // the other item untouched
+    expect(call(h, "/api/json", { path: ":z.yaml:pets[0]:name" }).json.value).toBe("Rex1");
+  });
+
+  it("edits scalar values in a .json file by SPAN surgery — comments and flow formatting survive", async () => {
+    const src = '{\n  // rec\n  "name": "Alice",\n  "age": 30,\n  "tags": ["a", "b"],\n  "profile": { "city": "NYC" }\n}\n';
+    const { root, h } = await handlersFor({ "user.json": src });
+    const r = await callBody(h, "POST", "/api/edit", {
+      edits: [
+        { path: ":user.json:name", op: "emplace", yamlover: '"Bob"' },
+        { path: ":user.json:age", op: "emplace", yamlover: "31" },
+        { path: ":user.json:tags[1]", op: "emplace", yamlover: '"z"' }, // nested array element
+        { path: ":user.json:profile:city", op: "emplace", yamlover: '"San Jose"' }, // nested object field
+      ],
+    });
+    expect(r.status).toBe(200);
+    const out = read(root, "user.json");
+    expect(out).toContain("// rec"); // comment survives
+    expect(out).toContain('"name": "Bob"');
+    expect(out).toContain('"age": 31');
+    expect(out).toContain('"tags": ["a", "z"]'); // compact flow formatting kept
+    expect(out).toContain('"profile": { "city": "San Jose" }');
+  });
+
+  it("locates a JSON string value containing a colon and escaped quotes", async () => {
+    const { root, h } = await handlersFor({ "u.json": '{ "msg": "old" }\n' });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":u.json:msg", op: "emplace", yamlover: '"He said: \\"hi\\""' });
+    expect(r.status).toBe(200);
+    expect(read(root, "u.json")).toBe('{ "msg": "He said: \\"hi\\"" }\n');
+  });
+
+  it("400s a non-scalar / malformed payload on a JSON file and leaves it untouched", async () => {
+    const src = '{\n  "age": 30\n}\n';
+    const { root, h } = await handlersFor({ "u.json": src });
+    // the payload is yamlover source (the universal edit surface) — a non-scalar or a parse error is refused
+    expect((await callBody(h, "POST", "/api/edit", { path: ":u.json:age", op: "emplace", yamlover: "{x: 1}" })).status).toBe(400);
+    expect((await callBody(h, "POST", "/api/edit", { path: ":u.json:age", op: "emplace", yamlover: "[1, 2" })).status).toBe(400);
+    expect(read(root, "u.json")).toBe(src);
+  });
+
+  it("writes a JSON value from YAMLOVER source — `~` becomes JSON null, a bare word becomes a JSON string", async () => {
+    const { root, h } = await handlersFor({ "u.json": '{ "a": 1, "b": 2 }\n' });
+    expect((await callBody(h, "POST", "/api/edit", { path: ":u.json:a", op: "emplace", yamlover: "~" })).status).toBe(200);
+    expect((await callBody(h, "POST", "/api/edit", { path: ":u.json:b", op: "emplace", yamlover: "hello" })).status).toBe(200);
+    expect(read(root, "u.json")).toBe('{ "a": null, "b": "hello" }\n'); // yamlover null/bare-string → JSON
+  });
+
+  it("rejects a non-scalar target and a non-emplace op on a JSON file", async () => {
+    const { root, h } = await handlersFor({ "u.json": '{ "obj": { "a": 1 } }\n' });
+    expect((await callBody(h, "POST", "/api/edit", { path: ":u.json:obj", op: "emplace", yamlover: "2" })).status).toBe(400); // obj is a container
+    expect((await callBody(h, "POST", "/api/edit", { path: ":u.json:obj:a", op: "remove" })).status).toBe(400); // remove not supported for JSON
+    expect(read(root, "u.json")).toBe('{ "obj": { "a": 1 } }\n');
+  });
+});
+
 describe("/api/tree — directory-chapter subchapter order", () => {
   it("orders subchapters by BODY position, not the alphabetical directory scan", async () => {
     // a directory chapter whose subchapters are their OWN subdirectories, referenced by `*` body

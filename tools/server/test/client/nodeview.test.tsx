@@ -242,11 +242,58 @@ describe("NodeView", () => {
     expect(done.getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("a non-editable (data) page shows no Edit toggle", async () => {
+  it("a .yamlover data page shows the Edit toggle and unlocks inline scalar editing", async () => {
+    mNode.mockResolvedValue({ path: ":x.yamlover", type: "object", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { a: 1 } });
+    render(<NodeView path=":x.yamlover" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("a");
+    const edit = await screen.findByRole("button", { name: /Edit/ });
+    expect(edit.classList.contains("lockbtn")).toBe(true);
+    // LOCKED: the scalar is read-only (a plain highlighted span, not contentEditable)
+    expect(screen.getByText("1").getAttribute("contenteditable")).toBeNull();
+    // UNLOCK: the scalar becomes an inline editable field
+    fireEvent.click(edit);
+    await screen.findByRole("button", { name: /Done/ });
+    const field = screen.getByText("1");
+    expect(field.getAttribute("contenteditable")).toBe("true");
+    expect(field.classList.contains("editable")).toBe(true);
+  });
+
+  it("the derived schema view is read-only — no Edit toggle", async () => {
+    mNode.mockResolvedValue({ path: ":x.yamlover", type: "object", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { a: 1 } });
+    mSchema.mockResolvedValue({ widgetkey: "wv" });
+    render(<NodeView path=":x.yamlover" format="yamlover/schema" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("wv");
+    expect(screen.queryByRole("button", { name: /Edit/ })).toBeNull();
+  });
+
+  it("a plain .yaml data page shows the Edit toggle (yaml-family, yaml-syntax view)", async () => {
     mNode.mockResolvedValue({ path: ":x.yaml", type: "object", concrete: "file/yaml", hasKeyed: true, title: null, description: null, value: { a: 1 } });
     render(<NodeView path=":x.yaml" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("a");
+    expect(await screen.findByRole("button", { name: /Edit/ })).toBeTruthy();
+  });
+
+  it("a .json file IS editable in the yamlover view (universal edit surface) but NOT the json5p view", async () => {
+    const node = { path: ":x.json", type: "object", concrete: "file/json", hasKeyed: true, title: null, description: null, value: { a: 1 } };
+    // the yamlover renderer edits any data file (the server writes JSON for a json-family target); the
+    // json5p view is not the yamlover renderer, so no Edit toggle there
+    mNode.mockResolvedValue(node);
+    const { unmount } = render(<NodeView path=":x.json" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("a");
+    expect(await screen.findByRole("button", { name: /Edit/ })).toBeTruthy();
+    unmount();
+    mNode.mockResolvedValue(node);
+    render(<NodeView path=":x.json" format="json5p" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("1");
     expect(screen.queryByRole("button", { name: /Edit/ })).toBeNull();
+  });
+
+  it("the settings node (x-yamlover-config) falls back to the editable data view (custom renderer dropped)", async () => {
+    // no renderer claims x-yamlover-config anymore → the default yamlover data view, which is editable
+    mNode.mockResolvedValue({ path: ":.yamlover:settings.yamlover", type: "object", format: "x-yamlover-config", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { sidecars: "per-directory" } });
+    render(<NodeView path=":.yamlover:settings.yamlover" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("sidecars"); // the raw data view, not the old settings textarea
+    expect(await screen.findByRole("button", { name: /Edit/ })).toBeTruthy();
   });
 });
 

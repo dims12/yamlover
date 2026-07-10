@@ -15,6 +15,24 @@ describe("Render", () => {
     expect(txt).toContain("true");
   });
 
+  it("renders a scalar's faithful `raw` token so a string `\"~\"` reads as a quoted string, not null", () => {
+    render(
+      <Render
+        value={{ name: "~", id: 255, nul: null }}
+        syntax="yaml"
+        onNavigate={() => {}}
+        comments={{ "/name": { raw: '"~"' }, "/id": { raw: "0xff" } }}
+      />,
+    );
+    const txt = document.body.textContent ?? "";
+    expect(txt).toContain('"~"'); // the STRING renders WITH quotes (faithful), distinct from null `~`
+    expect(txt).toContain("0xff"); // hex spelling kept
+    // the string "~" sits in the string colour class, carrying the quoted token
+    const s = [...document.querySelectorAll(".s")].find((e) => e.textContent === '"~"');
+    expect(s).toBeTruthy();
+    expect(txt).toContain("nul"); // an actual null still renders bare as `null`
+  });
+
   it("renders leading, trailing, head and tail comments inline (yaml, dimmed)", () => {
     render(
       <Render
