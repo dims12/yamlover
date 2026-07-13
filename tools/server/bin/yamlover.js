@@ -234,21 +234,34 @@ if (prod) {
   ({ createHandlers } = await vite.ssrLoadModule("/src/server/engine-api.ts"));
 
   const indexHtmlPath = join(pkgRoot, "index.html");
+  const spaShell = async (res, url) => {
+    // The SPA shell: the (transformed) index.html for any client route.
+    try {
+      let html = fs.readFileSync(indexHtmlPath, "utf-8");
+      html = await vite.transformIndexHtml(url.pathname, html);
+      html = injectBase(html); // base-path-aware shell (no-op without --base-path)
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.end(html);
+    } catch (e) {
+      vite.ssrFixStacktrace(e);
+      res.statusCode = 500;
+      res.end(e.message);
+    }
+  };
+  // Vite's middleware stack serves REAL FILES under the package root — the transformed source
+  // modules and pre-bundled deps it must own, but ALSO any stray package file (README.md,
+  // package.json, …). Data paths share the same URL space, so a served-tree route that collides
+  // with a package file (e.g. /README.md) would get the raw file instead of the app. Route only
+  // Vite-OWNED prefixes through the middleware (/@vite, /@fs, /@react-refresh, /@id → "/@";
+  // "/src/" source modules; "/node_modules/" pre-bundles); everything else is an app route and
+  // gets the SPA shell directly.
+  const VITE_PREFIXES = ["/@", "/src/", "/node_modules/"];
   serveClient = (req, res, url) => {
-    vite.middlewares(req, res, async () => {
-      // SPA fallback: serve the (transformed) index.html for any client route.
-      try {
-        let html = fs.readFileSync(indexHtmlPath, "utf-8");
-        html = await vite.transformIndexHtml(url.pathname, html);
-        html = injectBase(html); // base-path-aware shell (no-op without --base-path)
-        res.setHeader("Content-Type", "text/html; charset=utf-8");
-        res.end(html);
-      } catch (e) {
-        vite.ssrFixStacktrace(e);
-        res.statusCode = 500;
-        res.end(e.message);
-      }
-    });
+    if (VITE_PREFIXES.some((p) => url.pathname.startsWith(p))) {
+      vite.middlewares(req, res, () => spaShell(res, url)); // an unmatched vite path still lands on the shell
+    } else {
+      spaShell(res, url);
+    }
   };
 }
 
