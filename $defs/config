@@ -17,4 +17,8 @@ properties:
   tags: *:: yamlover: $defs: tag          # where new tags are created (`*:: tags`)
   sidecars:                             # where derived sidecar blobs go: per-directory | project
     type: string
+  width:                                # reading width (ch) for rendered prose (markdown/asciidoc/
+    type: integer                       #   chapter); the browser settings layer overrides it per device
+  theme:                                # ui palette: dark | light; the browser settings layer
+    type: string                        #   overrides it per device
   annotation-tag: *:: yamlover: $defs: tag  # the last-used annotation tag (the picker default)

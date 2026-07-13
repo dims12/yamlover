@@ -59,6 +59,27 @@ describe("/api/config (project configuration)", () => {
     h.close();
   });
 
+  it("the data view keeps pointer entries whose targets do not exist, and the authored !!<…> tag", async () => {
+    // a fresh project's default settings point at :annotations / :tags which do not exist YET —
+    // the generic data view (the gear page) must still show every authored line (the bug: entries
+    // with no edge in the graph, and the tag application, silently vanished from the view)
+    const root = tmpTree({ name: "Alice" });
+    const h = createHandlers(root, { gitignore: false, ensureSettings: true });
+    await h.ready;
+    const node = call(h, "/api/json", { path: ":.yamlover:settings.yamlover", comments: "1" });
+    expect(node.status).toBe(200);
+    // the dangling location pointers render as unresolved refs (pointer text, no link), in place
+    expect(Object.keys(node.json.value)).toEqual(["annotations", "tags", "sidecars"]);
+    expect(node.json.value.annotations).toEqual({ $yamloverRef: { text: ":: annotations", path: null } });
+    expect(node.json.comments["/annotations"].pointer).toBe(":: annotations");
+    // the authored tag application (a POINTER, not the resolved schema) rides the root bucket
+    expect(node.json.comments[""].tag).toBe("!!<*yamlover: $defs: config>");
+    // the parent's link label counts the pointer members too
+    const dir = call(h, "/api/json", { path: ":.yamlover" });
+    expect(dir.json.value["settings.yamlover"].$yamloverLink.count).toBe(3);
+    h.close();
+  });
+
   it("reloads in-memory settings when the config file is edited DIRECTLY on disk (watcher/reindex path)", async () => {
     const root = tmpTree({ name: "Alice", ".yamlover/settings.yamlover": "tags: *:: taxonomy\n" });
     const h = createHandlers(root, { gitignore: false });
@@ -79,6 +100,19 @@ describe("/api/config (project configuration)", () => {
     const w = await callBody(h, "POST", "/api/edit", { path: ":.yamlover:settings.yamlover:sidecars", op: "emplace", yamlover: "project" });
     expect(w.status).toBe(200);
     expect(call(h, "/api/config").json.settings.sidecars).toBe("project"); // reloaded via broadcast
+    h.close();
+  });
+
+  it("a FILE scalar whose trailing comment contains a colon edits cleanly (regression)", async () => {
+    // the comment's `palette: dark` used to read as an inline mapping — the emplace then corrupted
+    // the FILE silently (same isContainerEntry bug the browser-settings page exposed via 400)
+    const root = tmpTree({ ".yamlover/settings.yamlover": "theme: dark   # ui palette: dark | light\n" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const w = await callBody(h, "POST", "/api/edit", { path: ":.yamlover:settings.yamlover:theme", op: "emplace", yamlover: "light" });
+    expect(w.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, ".yamlover", "settings.yamlover"), "utf8")).toBe("theme: light\n");
+    expect(call(h, "/api/config").json.settings.theme).toBe("light");
     h.close();
   });
 });

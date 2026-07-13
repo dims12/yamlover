@@ -19,6 +19,8 @@
  *   GET /api/query?q&path                 the 3g query evaluator (colon match templates)
  *   GET /api/dangling                     pointers that did not resolve at index time
  *   POST /api/reindex                     manual reconcile (the watcher's fallback)
+ *   POST /api/preview                     render a STANDALONE yamlover text as /api/json would (stateless)
+ *   POST /api/edit-text                   the /api/edit ops over a standalone text → new text (stateless)
  *
  * The on-disk index lives at <root>/.yamlover/index.db. It is a derived cache with a persistent
  * FILE MANIFEST (path + hash + size + mtime): startup re-indexes against it (the offline
@@ -34,13 +36,14 @@
 
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
 import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, loadSettings, ensureSettingsFile, mv, relinkMoved, evalQuery } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { parseJson5p } from "../../../parser/ts/src/json5p.ts";
-import { pointerToken } from "../../../parser/ts/src/serialize-yamlover.ts";
+import { pointerToken, schemaTagToken } from "../../../parser/ts/src/serialize-yamlover.ts";
 import { renderPointer } from "../../../parser/ts/src/pointer.ts";
 import { anchorBody } from "../../../parser/ts/src/serialize-common.ts";
 import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken, appendAnnotationAt, upsertMapEntryAt, removeAnnotationAt, removeMapEntryAt, annotationsRemainAt, reachBodyAt, type Region as EmbedRegion } from "./embed.js";
@@ -601,6 +604,30 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
+      // Render a STANDALONE yamlover text (no file behind it — e.g. the client's browser-settings
+      // document, stored in localStorage) exactly as /api/json would render a node: parse, index
+      // into a throwaway in-memory store, project. STATELESS — touches neither the served tree nor
+      // the live index. Body: { source }.
+      if (req.method === "POST" && url.pathname === "/api/preview") {
+        readBody(req)
+          .then((data) => sendJson(res, 200, previewPayload(String((data as { source?: unknown }).source ?? ""))))
+          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
+        return;
+      }
+
+      // The yamlover editor over a STANDALONE text (the /api/edit ops, minus files): applies the
+      // surgical edits to `source` and returns the new text — the caller persists it (e.g. back
+      // into localStorage). STATELESS. Body: { source, edits: [{ path, op, yamlover?, meta? }] }.
+      if (req.method === "POST" && url.pathname === "/api/edit-text") {
+        readBody(req)
+          .then((data) => {
+            const d = data as { source?: unknown; edits?: EditInput[] };
+            sendJson(res, 200, { source: applyTextEdits(String(d.source ?? ""), Array.isArray(d.edits) ? d.edits : []) });
+          })
+          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
+        return;
+      }
+
       // Move/rename a file or directory (a WRITE path — the engine-MEDIATED tier): the engine
       // relocates the FS object AND rewrites every inbound `*`/`~` pointer in the source files
       // (surgical span edits; ENGINE.md "a move rewrites references"). Body: { from, to } as
@@ -893,18 +920,19 @@ const hasSubchapterChild = (s: Store, p: string): boolean =>
     return f === "x-yamlover-chapter" || f === "x-yamlover-task";
   });
 
-function downstreamEntries(s: Store, p: string): { to: string; label: string | null; pos: number | null; kind: EdgeRow["kind"] }[] {
+function downstreamEntries(s: Store, p: string): { to: string; label: string | null; pos: number | null; kind: EdgeRow["kind"]; raw?: string }[] {
   const isSet = !!s.node(p)?.meta?.set;
-  // contain + forward ref, ordered by pos — but a CONTAIN edge to a hidden node (`.yamlover`) is
-  // omitted from the listing (forward `*` refs INTO the hidden subtree, e.g. a thumbnail pointer,
-  // are kept — they're how the overlay surfaces the sidecar).
-  let own = s.entries(p).filter((e) => e.kind !== "back" && !(e.kind === "contain" && isHidden(s, e.to)));
-  const seen = new Set(own.map((e) => relKey(e.label, e.to)));
+  // contain + forward ref (including UNREALIZED refs — dangling/external pointers, `to` empty,
+  // `raw` the authored text — via ownedEntries), ordered by pos — but a CONTAIN edge to a hidden
+  // node (`.yamlover`) is omitted from the listing (forward `*` refs INTO the hidden subtree,
+  // e.g. a thumbnail pointer, are kept — they're how the overlay surfaces the sidecar).
+  let own = ownedEntries(s, p).filter((e) => !(e.kind === "contain" && isHidden(s, e.to)));
+  const seen = new Set(own.map((e) => relKey(e.label, e.to || e.raw || "")));
   if (isSet) {
     const kept = new Set<string>(); // set semantics: an element appears at most once
-    own = own.filter((e) => { const k = relKey(e.label, e.to); if (kept.has(k)) return false; kept.add(k); return true; });
+    own = own.filter((e) => { const k = relKey(e.label, e.to || e.raw || ""); if (kept.has(k)) return false; kept.add(k); return true; });
   }
-  const out: { to: string; label: string | null; pos: number | null; kind: EdgeRow["kind"] }[] = [...own];
+  const out: { to: string; label: string | null; pos: number | null; kind: EdgeRow["kind"]; raw?: string }[] = [...own];
   const backs = s.relationships(p).in
     .filter((e) => e.kind === "back" && e.from)
     .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0)); // lexicographic by member path
@@ -933,8 +961,11 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
   // blocks and `*sample.png` pointers is whole, and a child reached only by `~` still appears).
   const kids = downstreamEntries(s, p);
   const currentDoc = documentRootSegs(s, segs); // frame for a reference's scope-correct pointer text
-  const project = (c: { to: string; label: string | null; pos: number | null; kind: string }) => {
+  const project = (c: { to: string; label: string | null; pos: number | null; kind: string; raw?: string }) => {
     if (c.kind === "contain") return projectValue(dataRoot, s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false);
+    // an UNREALIZED ref (dangling / external — no local target): the authored pointer text,
+    // not hyperlinked (`path: null`), at any depth — there is nothing to link or summarize.
+    if (!c.to) return refMarker(c.raw ?? "", null);
     // a reference (a forward `*` ref or an incoming `~` back-edge). At UNLIMITED depth show it AS a
     // reference — its yamlover pointer text, hyperlinked — so the link syntax stays visible (and the
     // possibly-cyclic graph is never inlined). At a FINITE depth it is RESOLVED to a navigable link
@@ -1000,7 +1031,7 @@ type CommentBucket = {
   trailing?: string[];
   pointer?: string;      // a ref entry's authored pointer text, canonical colon form (no `*`)
   anchors?: string[];    // the value node's `&` path-anchor bodies (no `&`), source order
-  tag?: string;          // the value node's yamlover type tag — only `!!set` (omni/`!!mix` is default)
+  tag?: string;          // the value node's yamlover tags: `!!<…>` schema and/or `!!set` (shape tags are default)
   blankBefore?: boolean;  // a blank source line precedes this entry (or its leading comments)
   valueTrailing?: string[]; // a comment trailing the node's own SELF-VALUE line (an omni `5 # …`)
   raw?: string;           // a scalar's authored SOURCE token, carried only when it differs from the
@@ -1022,12 +1053,24 @@ function scalarRawToken(node: IrNode): string | undefined {
   return raw === plain ? undefined : raw;
 }
 
-/** The yamlover type tag a node carries in canonical serialization, or undefined. Mirrors
- *  serialize-yamlover's `containerTag`: only `!!set` (set semantics). The shape tags `!!mix` (a
- *  mixed keyed+keyless container) and `!!var` (a scalar-plus-fields) are the DEFAULT — omni-by-
- *  default (YAMLOVER.md §4) — so they are never shown; an untagged mixture reads back the same. */
+/** The yamlover type tags a node carries in canonical serialization, or undefined. Mirrors
+ *  serialize-yamlover's `decorations`: the `!!<…>` schema tag (a tag APPLICATION — it must not
+ *  vanish from the view just because the store routes it as `format`), then `!!set` (set
+ *  semantics). The shape tags `!!mix` (a mixed keyed+keyless container) and `!!var` (a scalar-
+ *  plus-fields) are the DEFAULT — omni-by-default (YAMLOVER.md §4) — so they are never shown;
+ *  an untagged mixture reads back the same. */
 function tagOf(n: IrNode): string | undefined {
-  return n.meta?.set ? "!!set" : undefined;
+  const parts: string[] = [];
+  if (n.meta?.schema !== undefined) {
+    try {
+      parts.push(schemaTagToken(n.meta.schema));
+    } catch {
+      // an inline schema with no one-line form: parsed input always has one, so only a
+      // programmatic IR can get here — better an untagged view than a failed page
+    }
+  }
+  if (n.meta?.set) parts.push("!!set");
+  return parts.length ? parts.join(" ") : undefined;
 }
 
 /** Syntax decorations of a value node (anchors, type tag, a self-value trailing comment),
@@ -1104,8 +1147,10 @@ function projectSchema(dataRoot: string, s: Store, segs: Seg[], depth: number, t
   const schema: Record<string, unknown> = { type: typeName(s, p, row) }; // object|array|binary|mixed|variant|<scalar>
   if (row.format) schema.format = row.format;
   const kids = downstreamEntries(s, p);
-  const sub = (c: { to: string; label: string | null; pos: number | null; kind: string }) =>
-    c.kind === "contain" ? projectSchema(dataRoot, s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false) : linkMarker(dataRoot, s, storePathToSegs(c.to));
+  const sub = (c: { to: string; label: string | null; pos: number | null; kind: string; raw?: string }) =>
+    c.kind === "contain" ? projectSchema(dataRoot, s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false)
+    : c.to ? linkMarker(dataRoot, s, storePathToSegs(c.to))
+    : refMarker(c.raw ?? "", null); // an unrealized ref: pointer text, no link
   if (k === "object" || k === "mix" || k === "omni") {
     // mixed/variant fields: keyless entries keep their `[pos]` key, keyed ones their name; a
     // variant (omni) also pins its self-value. (Order is the property insertion order.)
@@ -1141,7 +1186,11 @@ function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unk
   else if (k === "omni" || k === "mix") {
     info.count = ownedEntries(s, p).length; // owned items + fields (reverse members excluded)
     if (k === "omni") info.value = wireScalar(row.value); // the self-scalar, for the link label
-  } else info.count = s.children(p).filter((c) => !isHidden(s, c.to)).length; // visible members only (omit `.yamlover`)
+  } else {
+    // visible members only (omit `.yamlover`) — owned entries, so pointer members (including
+    // unrealized ones) count the same as inline children (they all render as rows)
+    info.count = ownedEntries(s, p).filter((e) => !(e.kind === "contain" && isHidden(s, e.to))).length;
+  }
   if (row.format === TAG_FORMAT) {
     // a pure color tag's explicit color rides the link, so badges color correctly everywhere
     const c = s.node(p + ":color")?.value;
@@ -2233,7 +2282,12 @@ function entryHead(lines: string[], e: ChapterEntry): string {
 function isContainerEntry(lines: string[], e: ChapterEntry, childIndent: number): boolean {
   const head = entryHead(lines, e);
   if (/^[|>][+-]?\d*$/.test(head.trim())) return itemHasFields(lines, e, childIndent); // omni block, or plain
-  if (/^[^\s"'*|>#-][^:]*:(\s|$)/.test(head)) return true; // an inline `- title: Sub`
+  // The inline `key:` test must not read past a trailing comment: a scalar's comment may itself
+  // contain a colon (`theme: dark   # ui palette: dark | light`), which is prose, not a mapping.
+  // A plain scalar cannot contain ` #` (yamlover comments need the leading whitespace), and a
+  // quoted head never enters the regex (its first char is excluded), so the strip is safe.
+  const bare = head.replace(/\s+#.*$/, "");
+  if (/^[^\s"'*|>#-][^:]*:(\s|$)/.test(bare)) return true; // an inline `- title: Sub`
   for (let i = e.start + 1; i < e.end; i++) {
     if (!isContentLine(lines[i])) continue;
     const ind = indentOf(lines[i]);
@@ -2790,6 +2844,61 @@ interface EditInput {
   name?: string; // the file/dir name when `concrete` births a document
 }
 
+// A dataRoot that never exists: `concreteOf`'s stats throw and every node falls through to plain
+// "yamlover" — nothing a standalone-document projection does can reach the real filesystem.
+const PREVIEW_ROOT = path.join(os.tmpdir(), ".yamlover-preview-nonexistent");
+
+/** The /api/json-shaped payload for a STANDALONE yamlover document (no file behind it — e.g. the
+ *  client's browser-settings text): parse, index into a throwaway in-memory store, project at
+ *  UNLIMITED depth. Depth is pinned to Infinity by design — a finite depth would emit
+ *  `$yamloverLink` markers into a store no later request can reach. In-document pointers resolve
+ *  to in-page refs; project/world-scope ones are unrealized and render as plain pointer text. */
+export function previewPayload(source: string): Record<string, unknown> {
+  const doc = parseYamlover(source, "<preview>");
+  // stamp what the walk stamps on a parsed file: the root IS a document root, and the head-of-file
+  // banner rides its meta (collectComments reads both from the node, not the Document)
+  doc.root.meta = { ...doc.root.meta, documentRoot: true, ...(doc.head?.length ? { head: doc.head } : {}) };
+  const s = new Store(":memory:");
+  try {
+    s.indexDocument(doc);
+    const row = s.node(":")!;
+    return {
+      path: ":",
+      type: tocType(s, ":", row),
+      format: row.format ?? null,
+      ...facetsOf(s, ":", row),
+      concrete: "yamlover", // by construction — the document IS yamlover text
+      documentPath: ":",
+      title: titleOf(s, ":"),
+      description: descriptionOf(s, ":"),
+      value: projectValue(PREVIEW_ROOT, s, [], Infinity, true),
+      comments: collectComments(doc, [], Infinity),
+      relations: {}, // a standalone document has no project around it
+    };
+  } finally {
+    s.close();
+  }
+}
+
+/** Apply surgical edits to a STANDALONE yamlover text: the same op semantics as /api/edit
+ *  (emplace/replace/insert/remove via {@link editChapterSource}), minus everything that needs a
+ *  filesystem — `concrete`/`name` (borning documents) are refused. Each payload is parsed before
+ *  any splice (a malformed edit throws with the source untouched), and the final text is re-parsed
+ *  before it is returned: the caller persists it verbatim (e.g. into localStorage) with no reindex
+ *  behind it to catch a bad splice, so a broken result must never leave this function. */
+export function applyTextEdits(src: string, edits: EditInput[]): string {
+  let out = src;
+  for (const e of edits) {
+    if (e.concrete || e.name) throw new Error("`concrete`/`name` are only for file-backed edits");
+    const valueSrc = String(e.yamlover ?? "");
+    const meta = e.meta === undefined ? undefined : e.meta === null ? null : String(e.meta);
+    if (valueSrc && !isPointerValue(valueSrc)) parseYamlover(valueSrc, "<edit>");
+    out = editChapterSource(out, strToSegs(String(e.path ?? "")), String(e.op ?? ""), valueSrc, meta);
+  }
+  parseYamlover(out, "<edit-result>");
+  return out;
+}
+
 /** The indent of the first content line — the chapter mapping's key column. */
 function firstContentIndent(lines: string[]): number {
   for (const l of lines) if (isContentLine(l)) return indentOf(l);
@@ -2921,8 +3030,9 @@ function defaultDepth(s: Store, dataRoot: string, segs: Seg[], row: NodeRow, kin
   return isDirConcrete(concreteOf(s, dataRoot, segs, row)) ? 1 : Infinity;
 }
 
-/** A `$yamloverRef` marker: a reference shown by its pointer `text`, hyperlinked to `path`. */
-function refMarker(text: string, path: string): Record<string, unknown> {
+/** A `$yamloverRef` marker: a reference shown by its pointer `text`, hyperlinked to `path` —
+ *  or plain text when `path` is null (an unrealized ref: dangling or external). */
+function refMarker(text: string, path: string | null): Record<string, unknown> {
   return { [REF_KEY]: { text, path } };
 }
 

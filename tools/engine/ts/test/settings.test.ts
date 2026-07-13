@@ -126,3 +126,23 @@ test('sidecars: defaults to per-directory; reads both modes (document alias too)
   assert.equal(loadSettings(projectWith('sidecars: document\n')).sidecars, 'per-directory'); // alias
   assert.equal(loadSettings(projectWith('sidecars: nonsense\n')).sidecars, 'per-directory'); // → default
 });
+
+test('width: a valid integer is read; junk / out-of-range → undefined', () => {
+  assert.equal(loadSettings(projectWith('width: 100\n')).width, 100);
+  for (const bad of ['width: wide\n', 'width: 10\n', 'width: 1000\n', 'width: 96.5\n', 'width: *:: x\n']) {
+    const root = projectWith(bad);
+    assert.equal(loadSettings(root).width, undefined);
+    rmSync(root, { recursive: true, force: true });
+  }
+  assert.equal(loadSettings(projectWith('tags: *:: tags\n')).width, undefined); // absent
+});
+
+test('theme: dark/light read; junk → undefined', () => {
+  assert.equal(loadSettings(projectWith('theme: light\n')).theme, 'light');
+  assert.equal(loadSettings(projectWith('theme: dark\n')).theme, 'dark');
+  for (const bad of ['theme: blue\n', 'theme: 3\n', 'theme: *:: x\n', 'theme:\n- light\n']) {
+    const root = projectWith(bad);
+    assert.equal(loadSettings(root).theme, undefined);
+    rmSync(root, { recursive: true, force: true });
+  }
+});

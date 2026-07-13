@@ -41,6 +41,14 @@ export interface Settings {
    *  `'project'` → the served root's `.yamlover/` (`*::.yamlover:…`). Reading is location-
    *  independent — a sidecar resolves by its pointer wherever it sits. */
   sidecars: SidecarLocation;
+  /** The reading width in `ch` for rendered prose (markdown/asciidoc/chapter views) — a VIEWER
+   *  preference the client resolves as URL `?width` → the browser-settings document → this →
+   *  the built-in 72. Undefined when unset (the common case: it is per-device territory, kept in
+   *  the browser layer; a project authors it only to suggest a house style). */
+  width?: number;
+  /** The UI color palette — a VIEWER preference like `width`, resolved by the client as the
+   *  browser-settings document → this → `dark`. A project authors it only as a house style. */
+  theme?: 'dark' | 'light';
 }
 
 export type SidecarLocation = 'per-directory' | 'project';
@@ -51,6 +59,8 @@ export const DEFAULT_SETTINGS: Settings = {
   annotations: ':annotations',
   tags: ':tags',
   sidecars: 'per-directory',
+  width: undefined,
+  theme: undefined,
 };
 
 /** The source written for a fresh `settings.yamlover` (see `ensureSettingsFile`). Authors the
@@ -69,6 +79,7 @@ export const DEFAULT_SETTINGS_SOURCE = `# .yamlover/settings.yamlover — projec
 annotations: *:: annotations   # create new annotations in :annotations
 tags: *:: tags                 # create new tags in :tags
 sidecars: per-directory        # where derived thumbnail/crop blobs go (enum, not a path)
+# width: 100                   # reading width (ch) for prose views; browser settings override it
 `;
 
 /** Create `<absRoot>/.yamlover/settings.yamlover` with DEFAULT_SETTINGS_SOURCE when it is absent,
@@ -101,7 +112,23 @@ export function loadSettings(absRoot: string): Settings {
     annotations: locationSetting(valueAt(root, 'annotations'), DEFAULT_SETTINGS.annotations),
     tags: locationSetting(valueAt(root, 'tags'), DEFAULT_SETTINGS.tags),
     sidecars: sidecarLocation(valueAt(root, 'sidecars'), DEFAULT_SETTINGS.sidecars),
+    width: intSetting(valueAt(root, 'width'), 20, 400),
+    theme: enumSetting(valueAt(root, 'theme'), ['dark', 'light'] as const),
   };
+}
+
+/** An integer setting within [min, max]; anything else (missing, non-scalar, out of range,
+ *  fractional) → undefined. */
+function intSetting(v: Value | undefined, min: number, max: number): number | undefined {
+  if (v === undefined || isPointer(v) || v.kind !== 'scalar') return undefined;
+  const n = typeof v.value === 'number' ? v.value : NaN;
+  return Number.isInteger(n) && n >= min && n <= max ? n : undefined;
+}
+
+/** A string-enum setting: the scalar when it is one of `values`, else undefined. */
+function enumSetting<T extends string>(v: Value | undefined, values: readonly T[]): T | undefined {
+  if (v === undefined || isPointer(v) || v.kind !== 'scalar') return undefined;
+  return values.includes(v.value as T) ? (v.value as T) : undefined;
 }
 
 /** Normalize a project `uri` to its authority (IMPORTS.md §1). Accepts a `:::`-scope pointer
