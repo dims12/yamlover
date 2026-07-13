@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark; /* native scrollbars/inputs follow the theme (light block overrides) */
   --bg: #1e1e2e;
   --bg-alt: #181825;
   --panel: #24273a;
@@ -13,6 +14,15 @@
   --null: #ed8796;
   --sel: #363a4f;
   --font: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+
+  /* semantic states + surface effects — themed (the raw values assumed a dark bg) */
+  --danger: #f38ba8; /* invalid input / failed save */
+  --ok: #a6e3a1; /* confirmed / saved */
+  --warn: #f9e2af; /* region + text-annotation highlight accent */
+  --zebra: rgba(255, 255, 255, 0.025); /* table stripe */
+  --scrim: rgba(24, 24, 37, 0.55); /* modal/overlay backdrop (a --bg-alt tint) */
+  --swatch-ring: rgba(255, 255, 255, 0.25); /* color-swatch outline */
+  --hover-filter: brightness(1.18); /* hover pop for colored chips (dims on light) */
 
   /* JetBrains Darcula syntax palette — used ONLY by the structured data view (`.code`: the
      yamlover / json5p / schema token classes). The hue roles are Darcula's, but each value is
@@ -29,6 +39,44 @@
   /* fragment (region) icon — a handled selection box + centre plus, used as a CSS mask (see
      `.frag-icon`). Black shapes = the opaque alpha the mask reveals the icon color through. */
   --frag-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='6' y='6' width='12' height='12' fill='none' stroke='%23000' stroke-width='1.5'/%3E%3Cg fill='%23000'%3E%3Ccircle cx='6' cy='6' r='2.2'/%3E%3Ccircle cx='18' cy='6' r='2.2'/%3E%3Ccircle cx='6' cy='18' r='2.2'/%3E%3Ccircle cx='18' cy='18' r='2.2'/%3E%3Ccircle cx='12' cy='6' r='2.2'/%3E%3Ccircle cx='12' cy='18' r='2.2'/%3E%3Ccircle cx='6' cy='12' r='2.2'/%3E%3Ccircle cx='18' cy='12' r='2.2'/%3E%3C/g%3E%3Cpath d='M12 9.3v5.4M9.3 12h5.4' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E");
+}
+
+/* The LIGHT ("whitish") theme — selected by `theme: light` in the settings layers (browser
+   settings doc → project settings → dark default; browser-settings.ts applyTheme stamps the
+   attribute). Chrome = Catppuccin Latte (the light counterpart of the dark set above); data
+   view = IntelliJ Light (the light counterpart of Darcula — same tool family, so the token
+   hues keep their familiar meaning). See COLORS.md. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #eff1f5;
+  --bg-alt: #e6e9ef;
+  --panel: #dce0e8;
+  --line: #ccd0da;
+  --fg: #4c4f69;
+  --dim: #8c8fa1;
+  --accent: #1e66f5;
+  --key: #04a5e5;
+  --string: #40a02b;
+  --number: #fe640b;
+  --bool: #8839ef;
+  --null: #d20f39;
+  --sel: #ccd0da;
+
+  --danger: #d20f39;
+  --ok: #40a02b;
+  --warn: #df8e1d;
+  --zebra: rgba(0, 0, 0, 0.04);
+  --scrim: rgba(230, 233, 239, 0.65);
+  --swatch-ring: rgba(0, 0, 0, 0.25);
+  --hover-filter: brightness(0.94);
+
+  --jb-key: #660e7a; /* mapping / property key (IntelliJ Light purple) */
+  --jb-string: #067d17; /* string scalar (green) */
+  --jb-number: #1750eb; /* number scalar (blue) */
+  --jb-keyword: #0033b3; /* true / false / null (navy keyword) */
+  --jb-comment: #8c8c8c; /* comments */
+  --jb-punct: #4c4f69; /* structural punctuation — the light fg */
+  --jb-dash: #8c8c8c; /* the YAML list dash */
 }
 
 * {
@@ -85,13 +133,15 @@ body {
   color: var(--dim);
   margin: 0 6px;
 }
-/* Leftmost breadcrumb action — installs the LLM agent guide into the project. */
+/* A topbar icon button. ONE box for all of them (the gears, the robot, the pane toggles) —
+ * equal width/height/line-height keeps the mixed glyphs (symbol ⚙⛭, emoji 🤖, guillemets «»)
+ * vertically aligned on the flex row; per-glyph font-size may vary, the BOX never does. */
 .crumb-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   margin-right: 8px;
   padding: 0;
   background: none;
@@ -111,17 +161,19 @@ body {
   opacity: 0.5;
   cursor: default;
 }
-/* The settings gear is a primary affordance — a touch larger and brighter than the other
- * crumb actions, with a gentle spin on hover so it reads as the way into project config. */
+/* The settings gears are a primary affordance — brighter and a touch larger GLYPH than the other
+ * crumb actions (same box), with a gentle spin on hover so they read as the way into config. */
 .crumb-settings {
-  width: 28px;
-  height: 28px;
-  font-size: 20px;
+  font-size: 18px;
   color: var(--fg);
   transition: color 0.15s, background 0.15s, transform 0.2s ease;
 }
 .crumb-settings:hover:not(:disabled) {
   transform: rotate(45deg);
+}
+/* The browser (per-device) gear sits right by the project gear; the dimmer tone tells them apart. */
+.crumb-settings-browser {
+  color: var(--dim);
 }
 
 /* --- long-running server tasks (indexing, hashing, …) ---------------------- */
@@ -477,8 +529,8 @@ body {
   text-align: right;
 }
 .markup-width.invalid {
-  border-color: #f38ba8;
-  color: #f38ba8;
+  border-color: var(--danger);
+  color: var(--danger);
 }
 /* the data-view render-depth control — same chrome as the markup width; wide enough
    for the default `.inf` (4 glyphs + padding, so 6ch — 3ch clipped it to garbage) */
@@ -495,8 +547,8 @@ body {
   text-align: right;
 }
 .depth-control.invalid {
-  border-color: #f38ba8;
-  color: #f38ba8;
+  border-color: var(--danger);
+  color: var(--danger);
 }
 .nodemeta {
   display: flex;
@@ -919,7 +971,7 @@ textarea.chapter-latex-src {
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  background: rgba(24, 24, 37, 0.55);
+  background: var(--scrim);
   border: 3px dashed var(--accent);
   color: var(--fg);
   font-size: 18px;
@@ -1127,7 +1179,7 @@ textarea.chapter-latex-src {
   font-weight: 600;
 }
 .markup tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.025); /* faint zebra striping (= .csv-table) */
+  background: var(--zebra); /* faint zebra striping (= .csv-table) */
 }
 
 /* ---- csv / tsv table renderer -------------------------------------------- */
@@ -1206,7 +1258,7 @@ textarea.chapter-latex-src {
   font-weight: 600;
 }
 .csv-table tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.025); /* faint zebra striping */
+  background: var(--zebra); /* faint zebra striping */
 }
 .csv-empty {
   color: var(--dim);
@@ -1501,20 +1553,20 @@ textarea.chapter-latex-src {
 }
 /* the explicit ✓ confirm (commit) and 🗑 discard/delete — clearly distinct, accent-tinted */
 .annotate-tool.ok {
-  color: #a6e3a1;
-  border-color: rgba(166, 227, 161, 0.5);
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 50%, transparent);
 }
 .annotate-tool.ok:hover {
-  background: rgba(166, 227, 161, 0.18);
-  border-color: #a6e3a1;
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  border-color: var(--ok);
 }
 .annotate-tool.danger {
-  color: #f38ba8;
-  border-color: rgba(243, 139, 168, 0.5);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 50%, transparent);
 }
 .annotate-tool.danger:hover {
-  background: rgba(243, 139, 168, 0.18);
-  border-color: #f38ba8;
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  border-color: var(--danger);
 }
 /* the default tag chips (applied · node-siblings · recents · project taxonomy) below the swatches —
    wraps to a few rows, then scrolls so a large taxonomy never grows the menu off-screen */
@@ -1691,8 +1743,8 @@ textarea.chapter-latex-src {
      element at its rectangle — otherwise a text-layer span or the marquee swallows the click and
      the edit/delete menu never opens */
   z-index: 4;
-  border: 2px solid #f9e2af;
-  background: rgba(249, 226, 175, 0.18);
+  border: 2px solid var(--warn);
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
   pointer-events: none; /* the live preview must not block selecting text under it */
 }
 .pdf-region.editable,
@@ -1703,9 +1755,9 @@ textarea.chapter-latex-src {
 mark.yo-annotation {
   /* background-color + border-bottom-color are set inline from the annotation's selector.color
      (fallbacks here for marks saved before colors existed) */
-  background-color: rgba(249, 226, 175, 0.30); /* a soft highlight; the note rides in the title tooltip */
+  background-color: color-mix(in srgb, var(--warn) 30%, transparent); /* a soft highlight; the note rides in the title tooltip */
   color: inherit;
-  border-bottom: 2px solid #f9e2af;
+  border-bottom: 2px solid var(--warn);
   border-radius: 2px;
   cursor: help;
 }
@@ -1958,7 +2010,7 @@ mark.yo-annotation {
   background: var(--bg); /* the bar behind shows through — a punched hole */
 }
 .tagtag:hover {
-  filter: brightness(1.18);
+  filter: var(--hover-filter);
 }
 /* a pure color tag rendered as a filled circular swatch (its color IS its label) — shown wherever
    applied tags are listed: the details table and a node's header bar. Mirrors the menu palette. */
@@ -1969,11 +2021,11 @@ mark.yo-annotation {
   border-radius: 50%;
   vertical-align: middle;
   box-sizing: border-box;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--swatch-ring);
   cursor: pointer;
 }
 .tagswatch:hover {
-  filter: brightness(1.18);
+  filter: var(--hover-filter);
 }
 .tagdesc {
   text-align: left;

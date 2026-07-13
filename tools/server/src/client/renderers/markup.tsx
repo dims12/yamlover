@@ -1,19 +1,22 @@
 import { useEffect, useState, MouseEvent } from "react";
 import { Seg, strToSegs, segsToStr } from "../paths";
+import { browserWidthCh, projectWidthCh, setBrowserSettingKey } from "../browser-settings";
 
 /**
  * The rendered-HTML body for the markdown/asciidoc page views, plus the control that sets its
- * line-wrap measure. The reading width resolves in three layers, most specific first:
+ * line-wrap measure. The reading width resolves in four layers, most specific first:
  *   1. `?width=<ch>` URL param — a per-page override, so a particular width is a shareable link
  *      (the CSV renderer keeps its options in the query the same way);
- *   2. a personal default in `localStorage` — a per-device sticky preference that travels across
- *      nodes and sessions (reading width is a viewer trait — screen, eyesight — not a content one,
- *      so it lives here rather than in the repo's `settings.yamlover`);
- *   3. the built-in 72ch fallback.
- * Setting the width writes both the URL (shareable) and localStorage (sticky). The control lives
- * in the tab bar next to the renderer button (see NodeView), not in the body. The chapter renderer
- * reuses the same measure — its `config` control is this one, and `markupWidthCh()` caps the
- * `.chapter` page — so a reader's chosen width carries across markdown, asciidoc, and chapters alike.
+ *   2. the BROWSER SETTINGS document (browser-settings.ts) — the per-device layer: reading width
+ *      is a viewer trait (screen, eyesight), so it lives in this browser, but as an inspectable
+ *      yamlover document (the topbar's second gear), not an opaque storage key;
+ *   3. the PROJECT settings' `width:` (a house-style suggestion, when authored);
+ *   4. the built-in 72ch fallback.
+ * Setting the width writes both the browser settings document (sticky) and the URL (shareable).
+ * The control lives in the tab bar next to the renderer button (see NodeView), not in the body.
+ * The chapter renderer reuses the same measure — its `config` control is this one, and
+ * `markupWidthCh()` caps the `.chapter` page — so a reader's chosen width carries across markdown,
+ * asciidoc, and chapters alike.
  */
 
 /** A URL that is already absolute and must be left untouched: it carries a scheme
@@ -88,38 +91,25 @@ export function markupClick(onNavigate?: (path: string) => void) {
 const DEFAULT_WIDTH_CH = 72;
 const MIN_CH = 20;
 const MAX_CH = 400;
-const STORE_KEY = "yamlover.markupWidthCh"; // per-device sticky default
 const params = () => new URLSearchParams(window.location.search);
 
 const inRange = (w: number) => Number.isFinite(w) && w >= MIN_CH && w <= MAX_CH;
 
-/** The personal default width persisted in localStorage, or null if unset/invalid/unavailable. */
-function storedWidth(): number | null {
-  try {
-    const w = Number(localStorage.getItem(STORE_KEY));
-    return inRange(w) ? w : null;
-  } catch {
-    return null; // storage blocked (private mode, no DOM) — fall through to the built-in default
-  }
-}
-
-/** The reading width in `ch`: URL `?width=` override → localStorage default → 72 (bad values ignored). */
+/** The reading width in `ch`: URL `?width=` override → the browser settings document → the
+ *  project settings → 72 (bad values ignored at every layer). */
 export function markupWidthCh(): number {
   const url = Number(params().get("width"));
   if (inRange(url)) return url;
-  return storedWidth() ?? DEFAULT_WIDTH_CH;
+  return browserWidthCh() ?? projectWidthCh() ?? DEFAULT_WIDTH_CH;
 }
 
-/** Apply a width: persist it as the per-device default and mirror it to the URL for sharing. */
+/** Apply a width: persist it into the browser settings document (the per-device layer) and
+ *  mirror it to the URL for sharing. */
 function writeWidth(ch: number): void {
-  try {
-    localStorage.setItem(STORE_KEY, String(ch));
-  } catch {
-    /* storage unavailable — the URL param below still carries the width */
-  }
+  setBrowserSettingKey("width", String(ch)); // tolerant of blocked storage (browser-settings.ts)
   const q = params();
   // Drop the URL param once it agrees with the sticky default (which is now `ch`) — keeps URLs clean
-  // while navigation still recovers the width from localStorage.
+  // while navigation still recovers the width from the browser settings document.
   q.delete("width");
   if (ch !== DEFAULT_WIDTH_CH) q.set("width", String(ch));
   const qs = q.toString();

@@ -123,6 +123,9 @@ function YamloverScalarField({
   const cancel = useRef(false);
   const busy = useRef(false);
   const [error, setError] = useState(false);
+  // a provided sink means the value has no file behind it (the browser settings document) —
+  // the edit goes to the provider instead of /api/edit; validation stays in front of both
+  const { sink } = useEditing();
 
   useEffect(() => {
     if (ref.current && !focused.current) ref.current.textContent = initial;
@@ -139,7 +142,9 @@ function YamloverScalarField({
     if (text === initial) { setError(false); return; } // no-op
     if (!acceptsAsScalar(text)) { setError(true); revert(); return; } // not a scalar we support
     busy.current = true;
-    const ok = await commitSource(path, text, concrete);
+    const ok = sink
+      ? validateEdit(path, text, concrete).ok && (await sink({ path, op: "emplace", yamlover: text }).catch(() => false))
+      : await commitSource(path, text, concrete);
     busy.current = false;
     if (!ok) { setError(true); revert(); } else setError(false);
   };

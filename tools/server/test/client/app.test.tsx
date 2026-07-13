@@ -25,6 +25,20 @@ vi.mock("../../src/client/api", () => ({
   fetchSchema: vi.fn().mockResolvedValue({ type: "object" }),
   fetchAnnotations: vi.fn().mockResolvedValue([]), // header badges hop via /api/annotations
   fetchTasks: vi.fn().mockResolvedValue([]), // long-running server tasks (TaskStrip)
+  previewSource: vi.fn().mockResolvedValue({
+    // the browser-settings page (stateless /api/preview of the localStorage doc)
+    path: ":",
+    type: "object",
+    format: "x-yamlover-config",
+    concrete: "yamlover",
+    documentPath: ":",
+    title: null,
+    description: null,
+    value: { width: 72 },
+    comments: {},
+    relations: {},
+  }),
+  editText: vi.fn(),
 }));
 import { App } from "../../src/client/App";
 
@@ -54,5 +68,19 @@ describe("App", () => {
     // Alt is an accepted alias (Ctrl+Up/Down clashes with macOS Mission Control)
     fireEvent.keyDown(document, { key: "ArrowDown", altKey: true });
     await waitFor(() => expect(selected()).toBe("a"));
+  });
+
+  it("the second gear opens the BROWSER settings page at its virtual path, and navigating leaves it", async () => {
+    render(<App />);
+    await screen.findByText("myroot");
+    fireEvent.click(screen.getByRole("button", { name: "Browser settings" }));
+    expect(await screen.findByText("this browser")).toBeTruthy(); // the page's provenance chip
+    // the page has a REAL address — `*:: .browser: settings.yamlover` — that survives a reload
+    expect(window.location.pathname).toBe("/.browser/settings.yamlover");
+    expect(screen.getByText("settings.yamlover")).toBeTruthy(); // and real breadcrumbs
+    // any ordinary navigation (a crumb / TOC click) leaves the page
+    fireEvent.click(screen.getByText("myroot"));
+    await waitFor(() => expect(document.body.textContent).not.toContain("this browser"));
+    expect(window.location.pathname).toBe("/");
   });
 });

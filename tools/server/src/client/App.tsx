@@ -12,6 +12,8 @@ const isStandardFormat = (f: Format) => (FORMATS as string[]).includes(f);
 const formatTravelsTo = (f: Format, concrete?: string | null) =>
   isStandardFormat(f) && (f !== "json5p" || isJsonConcrete(concrete));
 import { crumbs, formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
+import { BrowserSettingsView } from "./BrowserSettingsView";
+import { applyTheme, BROWSER_SETTINGS_PATH, isBrowserSettingsPath, primeProjectSettings } from "./browser-settings";
 import { broadcastDiff } from "./live";
 import { Fragments, fragmentGroups } from "./Fragments";
 import { useAnnotations } from "./renderers/annotate";
@@ -105,6 +107,16 @@ export function App() {
   const [format, setFormat] = useState<Format>(formatFromUrl(DEFAULT_FORMAT) as Format);
   const [rootLabel, setRootLabel] = useState<string>(""); // CLI ROOT (breadcrumb head)
   const [docsState, setDocsState] = useState<"idle" | "busy">("idle");
+  // The BROWSER SETTINGS page (BrowserSettingsView) lives at the VIRTUAL path
+  // `:.browser:settings.yamlover` (`*:: .browser: settings.yamlover`): a real address — URL,
+  // history, breadcrumbs — in a namespace no served tree can occupy (the walk skips every
+  // dot-directory except `.yamlover`). The document itself is in localStorage, so the main pane
+  // renders BrowserSettingsView for this path instead of the server-backed NodeView.
+  const openBrowserSettings = useCallback(() => {
+    writeUrl(BROWSER_SETTINGS_PATH, DEFAULT_FORMAT, false);
+    setCurrent(BROWSER_SETTINGS_PATH);
+    setFormat(DEFAULT_FORMAT);
+  }, []);
   // The gear opens the project config (IMPORTS.md): the hidden settings node, shown in the main pane
   // by the ordinary (editable) yamlover data view — it is NOT in the TOC tree, so navigate directly
   // with the default format rather than the tree-based `navigate` (which can't find a hidden node).
@@ -133,6 +145,15 @@ export function App() {
   // The breadcrumb head is the ROOT given on the command line (blank if omitted).
   useEffect(() => {
     fetchInfo().then((i) => setRootLabel(i.root)).catch(() => {});
+  }, []);
+
+  // The PROJECT settings layer for viewer preferences (reading width, theme): fetched once per
+  // load — the browser settings document overrides it, so live refresh is not worth the plumbing.
+  // applyTheme() first stamps the browser layer's theme (the mirror already painted it pre-React);
+  // primeProjectSettings re-applies once the project layer arrives.
+  useEffect(() => {
+    applyTheme();
+    primeProjectSettings();
   }, []);
 
   // Long-running server tasks (indexing, hashing, …): seeded from /api/tasks (a page loaded
@@ -481,6 +502,15 @@ export function App() {
           </button>
           <button
             type="button"
+            className="crumb-action crumb-settings crumb-settings-browser"
+            title="Browser settings (this device — stored in this browser)"
+            aria-label="Browser settings"
+            onClick={openBrowserSettings}
+          >
+            {"⛭"}
+          </button>
+          <button
+            type="button"
             className="crumb-action"
             disabled={docsState === "busy"}
             title="Install the LLM agent guide (AGENTS.md + CLAUDE.md) into this project"
@@ -548,6 +578,9 @@ export function App() {
         )}
         <main className="pane right" ref={mainRef} tabIndex={-1}>
           {(() => {
+            // The browser-settings page: its VIRTUAL path (`:.browser:…`) never names a server
+            // node — the document lives in localStorage — so it renders its own view, not NodeView.
+            if (isBrowserSettingsPath(current)) return <BrowserSettingsView onNavigate={navigate} />;
             // Cold start: the content fetch 404s ("no such node") until the FIRST index lands,
             // just like the tree. Show the index progress instead of NodeView's raw error; once
             // the tree is loaded NodeView renders and (re)fetches normally (refreshSignal/diff).

@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>yamlover</title>
+    <!-- Stamp the theme BEFORE first paint (no dark flash on a light reload). Reads the raw
+         mirror of the resolved theme (browser-settings.ts applyTheme keeps it fresh); the
+         yamlover settings document itself is the source of truth, parsed by the app bundle. -->
+    <script>
+      try { var t = localStorage.getItem("yamlover.theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

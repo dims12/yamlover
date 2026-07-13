@@ -183,6 +183,8 @@ export interface ConfigSettings {
   annotations: string;
   tags: string;
   sidecars: string;
+  width?: number; // reading width (ch) — the project layer; browser settings override it
+  theme?: string; // ui palette (dark | light) — the project layer; browser settings override it
 }
 export interface ConfigPayload {
   source: string; // raw settings.yamlover text ("" if the file does not exist yet)
@@ -312,6 +314,19 @@ export interface Edit {
  *  backing file server-side, one reindex per touched file. */
 export function editChunks(edits: Edit[]): Promise<{ ok: true }> {
   return postJson(api("/api/edit"), { edits });
+}
+
+/** Render a STANDALONE yamlover text (no file behind it — the browser-settings document) exactly
+ *  as /api/json renders a node. Stateless; always unlimited depth. Rejects on a parse error. */
+export function previewSource(source: string): Promise<NodeJson> {
+  return postJson(api("/api/preview"), { source });
+}
+
+/** Apply surgical {@link Edit}s to a STANDALONE yamlover text, returning the new text — the
+ *  caller persists it (the browser-settings document goes back into localStorage). Stateless;
+ *  rejects with the source untouched on a malformed edit. */
+export function editText(source: string, edits: Edit[]): Promise<{ source: string }> {
+  return postJson(api("/api/edit-text"), { source, edits });
 }
 
 /** Create an OBJECT of a schema (the right-click context menu) — an `insert` carrying the schema as
