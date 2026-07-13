@@ -50,8 +50,13 @@ export interface NodeMeta {
   /** A schema/meta attached via the `!!<…>` tag (yamlover). Its contents are themselves
    *  yamlover, so the schema is any Value: a Pointer to a hosted schema
    *  (`!!<*yamlover/$defs/chapter>`) OR an inline schema Node (`!!<format: text/x-plantuml>`).
-   *  Stored unresolved (see URIs.md / META.md). */
+   *  Stored unresolved (see URIs.md / META.md) — ALWAYS the authored tag, never a derived one. */
   schema?: Value;
+  /** The format the ENGINE derived for this node (walk.ts: a file's extension, a `meta.yamlover`
+   *  `format:`, or the resolved target of an authored `!!<…>` tag). Kept apart from `schema` so
+   *  the authored tag stays faithful in views and serialization; never authored, never emitted.
+   *  Where both could speak, this derived value wins (it already folded the authored tag in). */
+  derivedFormat?: string;
   /** This node is a DOCUMENT root — a self-contained instance: a parsed file, a directory with
    *  a `.yamlover/` overlay, or the served root. The `/` pointer scope resolves to the nearest
    *  enclosing such node (URIs.md: `/` = document root), so a reference is depth-independent. */

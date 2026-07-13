@@ -185,6 +185,30 @@ test('an unresolved pointer is persisted as dangling, and clears once it resolve
   assert.deepEqual(s.dangling(), []);
 });
 
+test('unrealizedRefs lists a holder\'s dangling/external pointer ENTRIES, key and position kept', () => {
+  const root = tmpRoot();
+  // an unresolved local pointer, an external-authority link, and a resolved sibling
+  writeFileSync(
+    join(root, 'doc.yamlover'),
+    'name: Rex\nfriend: *missing\nhome: *::: pet.store.com: kennels\nself: *name\n',
+  );
+  const s = new Store(':memory:');
+  reindex(s, root);
+
+  const u = s.unrealizedRefs(':doc.yamlover');
+  assert.deepEqual(
+    u.map(({ label, pos, raw, edge, external }) => ({ label, pos, raw, edge, external })),
+    [
+      { label: 'friend', pos: 1, raw: 'missing', edge: 'ref', external: false },
+      { label: 'home', pos: 2, raw: '::: pet.store.com: kennels', edge: 'ref', external: true },
+    ],
+  );
+  // the resolved `self` is an ordinary edge, not an unrealized ref
+  assert.equal(s.entries(':doc.yamlover').filter((e) => e.kind === 'ref').length, 1);
+  // an external link is NOT an error: the dangling report carries only the unresolved one
+  assert.deepEqual(s.dangling().map((d) => d.raw), ['missing']);
+});
+
 // --------------------------------------------------------------------------- //
 // watcher
 // --------------------------------------------------------------------------- //

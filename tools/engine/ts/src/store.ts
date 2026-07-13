@@ -8,8 +8,11 @@
 //   file(path, hash, size, mtime_ms)  -- the FILE MANIFEST: every filesystem file the walk read,
 //     keyed by root-relative path. It is the hash cache that makes a re-index cheap (unchanged
 //     blobs are never re-read) and the diff base for change detection / offline reconcile.
-//   dangling(from_path, raw, reason)  -- `*`/`~` pointers that did not resolve at index time;
-//     reported, never silently dropped (ENGINE.md).
+//   dangling(from_path, raw, reason, holder, label, pos, edge, external)  -- `*`/`~` pointers
+//     with no local target: unresolved ones (reported, never silently dropped; ENGINE.md) and
+//     external-authority links (legitimate, just not resolvable here). holder/label/pos/edge
+//     keep the ENTRY itself addressable, so projections can still show the authored pointer
+//     in place (a settings `annotations: *:: annotations` whose target does not exist yet).
 //
 // The DB is a DERIVED cache — always rebuildable from the filesystem (identity is the path,
 // no durable ids; ENGINE.md). v1 keeps ONE top-level DB at <root>/.yamlover/index.db; the
@@ -18,14 +21,14 @@
 // Uses Node's built-in `node:sqlite` (DatabaseSync) — zero dependency, matching the engine's
 // no-npm-install stance (PLAN.md said better-sqlite3; node:sqlite supersedes it on Node ≥22).
 
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import type { Document, Node } from '../../../parser/ts/src/ir.ts';
 import { isPointer } from '../../../parser/ts/src/ir.ts';
-import { resolveDocument } from './resolve.ts';
+import { resolveDocument, type ResolvedEdge } from './resolve.ts';
 
 // Bump when the table shapes change: a mismatched on-disk index is dropped and rebuilt from
 // the filesystem (the DB is a derived cache, so this is always safe).
-const SCHEMA_VERSION = 5; // 5: scalar value column tags non-finite numbers (±Infinity / NaN); 4: colon-form paths
+const SCHEMA_VERSION = 6; // 6: dangling carries holder/label/pos/edge/external; 5: non-finite scalar tags; 4: colon-form paths
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS node (
@@ -56,8 +59,14 @@ CREATE TABLE IF NOT EXISTS file (
 CREATE TABLE IF NOT EXISTS dangling (
   from_path TEXT NOT NULL,               -- the entry holding the pointer
   raw       TEXT NOT NULL,               -- the pointer text as authored
-  reason    TEXT NOT NULL                -- why it did not resolve
+  reason    TEXT NOT NULL,               -- why it did not resolve (externals: the authority)
+  holder    TEXT NOT NULL,               -- the mapping that holds the entry
+  label     TEXT,                        -- the entry's key; null for keyless/positional
+  pos       INTEGER,                     -- the entry's index in the holder (source order)
+  edge      TEXT NOT NULL,               -- ref | back (as authored)
+  external  INTEGER NOT NULL DEFAULT 0   -- 1 = an external-authority link, not an error
 );
+CREATE INDEX IF NOT EXISTS dangling_holder ON dangling (holder);
 `;
 
 // The scalar self-value lives in a JSON text column, but JSON cannot represent ±Infinity / NaN
@@ -110,6 +119,17 @@ export interface DanglingRef {
   from: string;
   raw: string;
   reason: string;
+}
+
+/** A pointer ENTRY with no local target, as its holder's projection needs it: its key/position
+ *  and the authored pointer text. `external` separates a legitimate external-authority link
+ *  from a genuinely dangling pointer. */
+export interface UnrealizedRef {
+  label: string | null;
+  pos: number | null;
+  raw: string;
+  edge: 'ref' | 'back';
+  external: boolean;
 }
 
 /** Open (creating if needed) the store DB at an absolute file path, with the schema applied. */
@@ -170,12 +190,12 @@ export class Store {
       });
       // resolved `*` / `~` reference edges (containment already emitted above). `pos` is the
       // entry's index in its holder, so a positional pointer (`- *file`) keeps its place in an
-      // array alongside the inline entries.
-      const insDangling = this.db.prepare('INSERT INTO dangling (from_path, raw, reason) VALUES (?, ?, ?)');
+      // array alongside the inline entries. Unresolved and external pointers land in `dangling`
+      // with the same holder/label/pos, so the entry stays projectable in place.
+      const insDangling = this.db.prepare(INSERT_DANGLING);
       for (const r of resolveDocument(doc)) {
         if (r.target.kind === 'node') insEdge.run(r.holder, r.target.path, r.label, r.edge, r.pos);
-        else if (r.target.kind === 'unresolved') insDangling.run(r.from, r.raw, r.target.reason);
-        // 'external' targets are legitimate out-of-tree links, not dangling
+        else insDanglingRef(insDangling, r);
       }
       if (files) {
         const insFile = this.db.prepare('INSERT OR REPLACE INTO file (path, hash, size, mtime_ms) VALUES (?, ?, ?, ?)');
@@ -232,7 +252,7 @@ export class Store {
     const insEdge = this.db.prepare(
       `INSERT INTO edge (from_path, to_path, label, kind, pos) VALUES (?, ?, ?, ?, ?)`,
     );
-    const insDangling = this.db.prepare('INSERT INTO dangling (from_path, raw, reason) VALUES (?, ?, ?)');
+    const insDangling = this.db.prepare(INSERT_DANGLING);
     const insFile = this.db.prepare('INSERT OR REPLACE INTO file (path, hash, size, mtime_ms) VALUES (?, ?, ?, ?)');
     this.db.exec('BEGIN');
     try {
@@ -244,7 +264,7 @@ export class Store {
       };
       delUnder('path', 'node');
       delUnder('from_path', 'edge'); // outgoing + interior contain edges; the inbound boundary edge survives
-      delUnder('from_path', 'dangling');
+      delUnder('holder', 'dangling'); // by holder — the same ownership the reinsert below uses
       if (relPrefix) this.db.prepare('DELETE FROM file WHERE substr(path,1,?) = ?').run(relPrefix.length, relPrefix);
 
       // reinsert the subtree's nodes + INTERIOR containment edges (skip the boundary edge into P)
@@ -264,7 +284,7 @@ export class Store {
       for (const r of edges) {
         if (!underP(r.holder)) continue;
         if (r.target.kind === 'node') insEdge.run(r.holder, r.target.path, r.label, r.edge, r.pos);
-        else if (r.target.kind === 'unresolved') insDangling.run(r.from, r.raw, r.target.reason);
+        else insDanglingRef(insDangling, r);
       }
       for (const f of files) insFile.run(f.path, f.hash, f.size, f.mtimeMs);
       this.db.exec('COMMIT');
@@ -411,10 +431,26 @@ export class Store {
     }
   }
 
-  /** The pointers that failed to resolve at index time (ENGINE.md: reported, never dropped). */
+  /** The pointers that failed to resolve at index time (ENGINE.md: reported, never dropped).
+   *  External-authority links are not errors, so they are excluded here. */
   dangling(): DanglingRef[] {
-    return (this.db.prepare('SELECT * FROM dangling').all() as Record<string, unknown>[]).map((r) => ({
+    return (this.db.prepare('SELECT * FROM dangling WHERE external = 0').all() as Record<string, unknown>[]).map((r) => ({
       from: r.from_path as string, raw: r.raw as string, reason: r.reason as string,
+    }));
+  }
+
+  /** A node's pointer ENTRIES with no local target — unresolved (dangling) plus external-
+   *  authority links — in source order. These are the entries {@link entries} cannot list (no
+   *  edge exists), returned so a projection can still show the authored pointer in place. */
+  unrealizedRefs(holder: string): UnrealizedRef[] {
+    return (
+      this.db.prepare('SELECT label, pos, raw, edge, external FROM dangling WHERE holder = ? ORDER BY pos').all(holder) as Record<string, unknown>[]
+    ).map((r) => ({
+      label: (r.label as string) ?? null,
+      pos: (r.pos as number) ?? null,
+      raw: r.raw as string,
+      edge: r.edge as 'ref' | 'back',
+      external: r.external === 1,
     }));
   }
 
@@ -510,6 +546,20 @@ export interface TocNode {
   children: TocNode[];
 }
 
+const INSERT_DANGLING =
+  'INSERT INTO dangling (from_path, raw, reason, holder, label, pos, edge, external) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+
+/** Record a pointer with no local target: unresolved → dangling proper; external → the same
+ *  table flagged `external` (its `reason` carries the authority). Resolved refs never come here.
+ *  A `&` anchor edge is not an entry of its holder — its holder is blanked so unrealizedRefs
+ *  (which projects ENTRIES) never lists it, while the dangling report still carries it. */
+function insDanglingRef(stmt: StatementSync, r: ResolvedEdge): void {
+  if (r.target.kind === 'node') return;
+  const ext = r.target.kind === 'external';
+  const reason = r.target.kind === 'external' ? r.target.authority : r.target.reason;
+  stmt.run(r.from, r.raw, reason, r.anchor ? '' : r.holder, r.label, r.pos, r.edge, ext ? 1 : 0);
+}
+
 /** Walk every Node depth-first, emitting (path, node, parentPath|null, label|null, pos). The
  *  path scheme matches resolve.ts/buildGraph: root ':', keyed child ':key', keyless '[i]'. */
 function walkNodes(
@@ -529,12 +579,15 @@ function walkNodes(
   });
 }
 
-/** Pull a `format` out of a node's attached schema (the `!!<…>` tag / walker tagging):
- *  - an inline schema Node `{format: …}` → that format (e.g. `text/x-plantuml`);
- *  - a pointer to a hosted schema `*…/$defs/<name>` → `x-yamlover-<name>` (so `$defs/chapter`
- *    routes to the chapter renderer, `$defs/tag` to the tag renderer).
+/** Pull a `format` out of a node's meta:
+ *  - the ENGINE-derived format (walk.ts: file extension / meta.yamlover / resolved `!!<…>`
+ *    target) wins — it already folded the authored tag in;
+ *  - else an authored inline schema Node `{format: …}` → that format (e.g. `text/x-plantuml`);
+ *  - else an authored pointer to a hosted schema `*…/$defs/<name>` → `x-yamlover-<name>` (so
+ *    `$defs/chapter` routes to the chapter renderer, `$defs/tag` to the tag renderer).
  *  Returns null when there is no schema or it yields no format. */
 function formatFromMeta(node: Node): string | null {
+  if (node.meta?.derivedFormat) return node.meta.derivedFormat;
   const s = node.meta?.schema;
   if (!s) return null;
   if (isPointer(s)) {

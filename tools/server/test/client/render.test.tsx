@@ -80,6 +80,30 @@ describe("Render", () => {
     expect(txt).toContain("!!set"); // type tag on crew
   });
 
+  it("renders the viewed node's OWN !!<…> tag / anchors as standalone lines above the body (yaml)", () => {
+    render(
+      <Render
+        value={{
+          annotations: { $yamloverRef: { text: ":: annotations", path: null } }, // dangling: no link
+          sidecars: "per-directory",
+        }}
+        syntax="yaml"
+        onNavigate={() => {}}
+        comments={{
+          "": { tag: "!!<*yamlover: $defs: config>", anchors: [": cfg"] },
+          "/annotations": { pointer: ":: annotations" },
+        }}
+      />,
+    );
+    const txt = document.body.textContent ?? "";
+    expect(txt).toContain("!!<*yamlover: $defs: config>"); // the tag application, kept in view
+    expect(txt.indexOf("!!<")).toBeLessThan(txt.indexOf("annotations")); // above the body
+    expect(txt).toContain("&: cfg"); // the root's own anchor line
+    expect(txt).toContain("*:: annotations"); // the dangling entry renders its authored pointer…
+    const ref = [...document.querySelectorAll(".s")].find((e) => e.textContent === "*:: annotations");
+    expect(ref).toBeTruthy(); // …as plain text (no hyperlink — nothing to navigate to)
+  });
+
   it("renders null as `null`, not the obsolete `~`", () => {
     render(<Render value={{ cain: null }} syntax="yaml" onNavigate={() => {}} />);
     const txt = document.body.textContent ?? "";

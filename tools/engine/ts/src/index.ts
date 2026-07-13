@@ -3,7 +3,7 @@ export type { Located, ResolvedEdge } from './resolve.ts';
 export { buildGraph, deriveInverses, normalize, edgesInto, edgesFrom } from './graph.ts';
 export type { Graph, Edge, EdgeKind } from './graph.ts';
 export { Store } from './store.ts';
-export type { NodeRow, EdgeRow, TocNode, FileRecord, DanglingRef } from './store.ts';
+export type { NodeRow, EdgeRow, TocNode, FileRecord, DanglingRef, UnrealizedRef } from './store.ts';
 export { walkDir, walkTree, walkTreeGen, walkTreeAsync, buildIndex, reindex, reindexAsync, reindexAsyncDoc, reindexPathAsync, diffManifest, hashFileAsync } from './walk.ts';
 export type { WalkOptions, AsyncWalkOptions, WalkResult, WalkProgress, ReindexProgress, IndexDiff } from './walk.ts';
 export { planRewrites, applyEdits, nominalPath, under } from './rewrite.ts';

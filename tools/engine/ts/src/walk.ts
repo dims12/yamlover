@@ -645,7 +645,7 @@ function applyMeta(node: Node, meta: Meta): Node {
     if (!m) continue;
     if (m.uniqueItems) e.value = { ...e.value, meta: { ...e.value.meta, set: true } };
     if (e.value.kind === 'blob') continue;
-    if (m.format && !e.value.meta?.schema) e.value = { ...e.value, meta: { ...e.value.meta, schema: inlineFormat(m.format) } };
+    if (m.format && !e.value.meta?.schema) e.value = { ...e.value, meta: { ...e.value.meta, derivedFormat: m.format } };
   }
   return node;
 }
@@ -672,7 +672,7 @@ function blob(abs: string, format: string, ctx: Ctx): Blob {
 /** A textual file kept as a raw string scalar (markdown/asciidoc/plantuml/csv …). */
 function textScalar(abs: string, format: string, ctx: Ctx): Node {
   const text = readTracked(ctx, abs).toString('utf8');
-  return { kind: 'scalar', value: text, raw: text, meta: { schema: inlineFormat(format) } };
+  return { kind: 'scalar', value: text, raw: text, meta: { derivedFormat: format } };
 }
 
 /** A structured/text file with no binary format: parse it into a node. The parser is chosen by
@@ -753,7 +753,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     return v && !isPointer(v) && v.kind === 'scalar' && v.value != null ? String(v.value) : null;
   };
   const hasFormat = (inst: Node): boolean => {
-    if (inst.kind === 'blob') return true;
+    if (inst.kind === 'blob' || inst.meta?.derivedFormat) return true;
     const s = inst.meta?.schema;
     return !!s && !isPointer(s) && s.kind === 'mapping' && !!field(s, 'format');
   };
@@ -806,7 +806,9 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     const stype = str(s, 'type');
     const named = name && (stype === 'object' || stype === 'variant' || stype === 'mixed' || !!field(s, 'allOf'));
     const fmt = str(s, 'format') ?? (named ? `x-yamlover-${name}` : null);
-    if (fmt && !hasFormat(inst)) inst.meta = { ...inst.meta, schema: inlineFormat(fmt) };
+    // record the derived format WITHOUT touching `schema` — the authored `!!<…>` tag (a pointer)
+    // must survive for views/serialization; the derived typing rides its own meta slot
+    if (fmt && !hasFormat(inst)) inst.meta = { ...inst.meta, derivedFormat: fmt };
     // recurse structurally — `variant`/`mixed` carry keyed fields exactly like `object`
     // (META.md vocabulary: variant = !!var, mixed = !!mix), so `properties`/
     // `additionalProperties` propagate through them too (e.g. a tag taxonomy whose tags
@@ -847,12 +849,6 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     for (const e of node.entries ?? []) if (!isPointer(e.value)) walk(e.value);
   };
   walk(root);
-}
-
-/** Wrap a `format` string as an inline schema Node (a one-line yamlover/meta `{format: …}`),
- *  matching the `!!<format: …>` tag form so the renderer keys off (type, format) uniformly. */
-function inlineFormat(format: string): Value {
-  return { kind: 'mapping', entries: [{ key: 'format', edge: 'contain', value: { kind: 'scalar', value: format, raw: format } }], array: false };
 }
 
 /** Merge `.yamlover/body.yamlover` over the directory mapping (YAMLOVER.md §5):

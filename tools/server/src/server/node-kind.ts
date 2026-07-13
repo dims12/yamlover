@@ -9,11 +9,22 @@ import type { NodeRow, Store } from "../../../engine/ts/src/index.ts";
 // `scalar`/`binary`.
 export type Kind = "object" | "array" | "scalar" | "binary" | "omni" | "mix";
 
+/** One of a node's owned entries: an edge row, or an UNREALIZED pointer entry (a `*` ref whose
+ *  target is dangling or external — no edge exists, `to` is empty and `raw` carries the authored
+ *  pointer text so the projection can still show it in place). */
+export type OwnedEntry = ReturnType<Store["entries"]>[number] & { raw?: string };
+
 /** A node's OWNED entries — the ones it authors, that constitute its content: containment children
- *  and forward `*` refs. A `~` back-edge (a REVERSE member, e.g. tag membership) is an upstream
- *  relation the node does NOT own, so it is excluded — it must not change the node's type. */
-export function ownedEntries(s: Store, p: string): ReturnType<Store["entries"]> {
-  return s.entries(p).filter((e) => e.kind !== "back");
+ *  and forward `*` refs, INCLUDING pointer entries with no local target (dangling / external —
+ *  authored content must not vanish from the node's shape just because it does not resolve). A `~`
+ *  back-edge (a REVERSE member, e.g. tag membership) is an upstream relation the node does NOT own,
+ *  so it is excluded — it must not change the node's type. */
+export function ownedEntries(s: Store, p: string): OwnedEntry[] {
+  const own: OwnedEntry[] = s.entries(p).filter((e) => e.kind !== "back");
+  const unrealized = s.unrealizedRefs(p).filter((u) => u.edge !== "back");
+  if (unrealized.length === 0) return own;
+  for (const u of unrealized) own.push({ to: "", label: u.label, pos: u.pos, kind: "ref", raw: u.raw });
+  return own.sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0));
 }
 
 /** A node's display {@link Kind}. A scalar/blob carrying OWNED fields is `omni`; a mapping that

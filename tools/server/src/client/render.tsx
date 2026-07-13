@@ -193,6 +193,21 @@ function valueTrailingComment(ctx: Ctx, frag: string, syntax: Syntax): ReactNode
   return <>{" "}<span className="c">{vt.map((t) => fmtComment(t, syntax)).join(" ")}</span></>;
 }
 
+/** The viewed node's OWN decorations as standalone lines above its value (yamlover syntax):
+ *  its `!!<…>` tag application / `!!set`, then its `&` path anchors — the same own-line
+ *  placement the canonical serializer uses for a document root. */
+function RootDeco({ ctx, frag }: { ctx: Ctx; frag: string }): ReactNode {
+  const d = commentsAt(ctx, frag);
+  const anchors = d?.anchors ?? [];
+  if (!d?.tag && anchors.length === 0) return null;
+  return (
+    <>
+      {d?.tag && <><span className="b">{d.tag}</span>{"\n"}</>}
+      {anchors.map((a, i) => <Fragment key={`ra${i}`}><span className="anchor">{fmtAnchor(a, "yaml")}</span>{"\n"}</Fragment>)}
+    </>
+  );
+}
+
 /** A file-level comment block ($head banner / $tail leftovers) at the rendered root, no indent. */
 function CommentBlock({ texts, syntax }: { texts: string[]; syntax: Syntax }): ReactNode {
   return <>{texts.map((t, i) => <Fragment key={`fc${i}`}><span className="c">{fmtComment(t, syntax)}</span>{"\n"}</Fragment>)}</>;
@@ -261,7 +276,10 @@ export function Render({
     <>
       {head && <CommentBlock texts={head} syntax={syntax} />}
       {syntax === "yaml" ? (
-        <YamlRoot value={v} indent={0} ctx={ctx} frag={base} path={nodePath} />
+        <>
+          <RootDeco ctx={ctx} frag={base} />
+          <YamlRoot value={v} indent={0} ctx={ctx} frag={base} path={nodePath} />
+        </>
       ) : (
         <JsonValue value={v} indent={0} ctx={ctx} frag={base} path={nodePath} root />
       )}

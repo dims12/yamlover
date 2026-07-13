@@ -43,7 +43,7 @@ class Emitter {
       for (const c of this.doc.head!) this.out.push('#' + c.text);
       this.out.push(''); // blank line sets the head banner off from the body (round-trips as head)
     }
-    if (root.meta?.schema !== undefined) this.out.push(`!!<${this.schemaText(root.meta.schema)}>`);
+    if (root.meta?.schema !== undefined) this.out.push(schemaTagToken(root.meta.schema));
     const ents = root.entries ?? [];
     const kept = ents.filter((e) => !isAnchorizableBack(e)); // conv backs re-emit as anchors
     if (root.kind === 'scalar') {
@@ -216,7 +216,7 @@ class Emitter {
    *  Anchors are NOT here — canonical style (SEPARATOR.md M3) puts them on own lines. */
   decorations(node: Node): string[] {
     const parts: string[] = [];
-    if (node.meta?.schema !== undefined) parts.push(`!!<${this.schemaText(node.meta.schema)}>`);
+    if (node.meta?.schema !== undefined) parts.push(schemaTagToken(node.meta.schema));
     const tag = this.containerTag(node);
     if (tag !== null) parts.push(tag);
     return parts;
@@ -261,16 +261,24 @@ class Emitter {
     return pointerToken(renderPointer(p)).slice(1); // pointerToken includes the `*`; head adds it
   }
 
-  /** The contents of a `!!<…>` tag: a pointer (`*…`) or an inline node. The contents are
-   *  reparsed as one-line yamlover, where a leading `{` does NOT reach the flow reader (the
-   *  block `key:` split runs first) — so a keyed schema must be the brace-less one-liner
-   *  `key: value`, which holds exactly one top-level entry. `>` would close the tag early —
-   *  refuse it. */
-  schemaText(v: Value): string {
-    const text = isPointer(v) ? `*${renderPointer(v)}` : schemaNodeText(v);
-    if (/[>\n]/.test(text)) throw new LossyError(`a !!<…> schema tag cannot contain ">" or a newline: ${text}`);
-    return text;
-  }
+}
+
+/** The contents of a `!!<…>` tag: a pointer (`*…`) or an inline node. The contents are
+ *  reparsed as one-line yamlover, where a leading `{` does NOT reach the flow reader (the
+ *  block `key:` split runs first) — so a keyed schema must be the brace-less one-liner
+ *  `key: value`, which holds exactly one top-level entry. `>` would close the tag early —
+ *  refuse it. */
+function schemaText(v: Value): string {
+  const text = isPointer(v) ? `*${renderPointer(v)}` : schemaNodeText(v);
+  if (/[>\n]/.test(text)) throw new LossyError(`a !!<…> schema tag cannot contain ">" or a newline: ${text}`);
+  return text;
+}
+
+/** The full `!!<…>` tag token for an attached schema (NodeMeta.schema) — the canonical
+ *  rendering of a tag application. Exported for the server's comment sidecar, so the data
+ *  view can show a node's authored tag. Throws LossyError on untaggable content. */
+export function schemaTagToken(v: Value): string {
+  return `!!<${schemaText(v)}>`;
 }
 
 // ---- helpers -------------------------------------------------------------------
