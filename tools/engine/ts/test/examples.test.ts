@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname } from 'node:path';
 import { parseYamlover } from '../../../parser/ts/src/yamlover.ts';
@@ -103,28 +103,52 @@ test('67-pdf-tags: a tag description is its BODY — the node value, untagged sc
   s.close();
 });
 
-test('59-all-formats-object: annotations.yamlover reverse-links materials to their annotations', () => {
-  // load the example in isolation — its annotations point at materials with RELATIVE pointers
-  // (`../../<key>`), so they resolve without depending on where the project is served from.
-  const s = new Store(':memory:');
-  s.indexDocument(load('59-all-formats-object'));
-  const ann = ':annotations.yamlover:markdown-phrase';
-  assert.equal(s.node(ann)?.format, 'x-yamlover-annotation'); // the $defs/annotation schema
-  assert.equal(s.node(ann + ':selector:exact')?.value, 'Hover a heading to reveal its');
-  // the markdown material sees the annotation as an incoming ref edge — the reverse link
-  const into = s.relationships(':markdown').in;
-  assert.ok(into.some((e) => e.kind === 'ref' && e.from === ann), 'markdown ← its annotation');
-  // each annotation is a TAG APPLICATION: a keyless `~-` membership in a built-in color tag,
-  // resolvable because the walker grafts the repo's `yamlover/` subtree into the served root
-  const tag = ':yamlover:tags:colors:yellow';
-  assert.equal(s.node(tag)?.format, 'x-yamlover-tag');
-  assert.equal(s.node(tag + ':color')?.value, '#f9e2af');
-  assert.ok(
-    s.relationships(tag).in.some((e) => e.kind === 'back' && e.from === ann && e.label === null),
-    'the annotation is a keyless reverse member of its color tag',
-  );
-  // every annotation's target AND tag resolves (no dangling), incl. the chapter/image/pdf ones
-  assert.deepEqual(buildGraph(load('59-all-formats-object')).unresolved, []);
+test('annotations.yamlover reverse-links materials to their annotations', () => {
+  // The standalone-annotations-file shape (formerly the 59-all-formats-object sample, retired
+  // until re-authored — kept here as a temp fixture): an annotation is ONE TAG APPLICATION, its
+  // `target` a RELATIVE pointer (`../../<key>`) escaping to a sibling material, its tag an
+  // ordinal `&…[]` anchor at a built-in pure color tag. The fixture lives UNDER the repo (a
+  // yamlover/$defs host), so the graft resolves both the $defs/annotation schema and the palette.
+  const dir = mkdtempSync(join(examples, '.yo-ann-'));
+  try {
+    writeFileSync(join(dir, 'markdown'), '## Anchors\nHover a heading to reveal its `§`\n');
+    writeFileSync(
+      join(dir, 'annotations.yamlover'),
+      `markdown-phrase: !!<*yamlover: $defs: annotation>
+  target: *..: ..: markdown
+  &:: yamlover: tags: colors: yellow[]
+  selector:
+    type: text
+    exact: Hover a heading to reveal its
+    prefix: "## Anchors\\n"
+    suffix: " \`§\`"
+  description: How the anchor affordance works.
+  created: 2026-06-09T10:00:00Z
+`,
+    );
+    const doc = walkDir(dir);
+    const s = new Store(':memory:');
+    s.indexDocument(doc);
+    const ann = ':annotations.yamlover:markdown-phrase';
+    assert.equal(s.node(ann)?.format, 'x-yamlover-annotation'); // the $defs/annotation schema
+    assert.equal(s.node(ann + ':selector:exact')?.value, 'Hover a heading to reveal its');
+    // the markdown material sees the annotation as an incoming ref edge — the reverse link
+    const into = s.relationships(':markdown').in;
+    assert.ok(into.some((e) => e.kind === 'ref' && e.from === ann), 'markdown ← its annotation');
+    // the annotation is a TAG APPLICATION: a keyless `~-` membership in a built-in color tag
+    const tag = ':yamlover:tags:colors:yellow';
+    assert.equal(s.node(tag)?.format, 'x-yamlover-tag');
+    assert.equal(s.node(tag + ':color')?.value, '#f9e2af');
+    assert.ok(
+      s.relationships(tag).in.some((e) => e.kind === 'back' && e.from === ann && e.label === null),
+      'the annotation is a keyless reverse member of its color tag',
+    );
+    // the annotation's target AND tag resolve — no dangling pointers
+    assert.deepEqual(buildGraph(doc).unresolved, []);
+    s.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // ─────────────────────── examples are SELF-CONTAINED ───────────────────────

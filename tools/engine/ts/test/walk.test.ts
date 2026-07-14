@@ -74,14 +74,28 @@ test('the ignore predicate skips matching children (e.g. node_modules at the roo
   s.close();
 });
 
-test('meta.yamlover format attaches to body-overlay text entries (59-all-formats-object)', () => {
-  const s = indexedDir('59-all-formats-object');
-  // these live in body.yamlover (block scalars); their formats are in meta.yamlover
-  assert.equal(s.node(':markdown')?.format, 'text/markdown');
-  assert.equal(s.node(':asciidoc')?.format, 'text/asciidoc');
-  assert.equal(s.node(':plantuml')?.format, 'text/x-plantuml');
-  assert.equal(s.node(':csv')?.format, 'text/csv');
-  s.close();
+test('meta.yamlover format attaches to body-overlay text entries', () => {
+  // a minimal overlay pair (the shape the retired 59-all-formats-object sidecar had, until that
+  // sample is re-authored): body.yamlover carries the block scalars, meta.yamlover their formats
+  const dir = mkdtempSync(join(tmpdir(), 'yamlover-meta-'));
+  try {
+    mkdirSync(join(dir, '.yamlover'));
+    writeFileSync(
+      join(dir, '.yamlover', 'body.yamlover'),
+      'markdown: |\n  # Markdown\n  Some *marked* prose.\nplantuml: |\n  @startuml\n  Alice -> Bob\n  @enduml\n',
+    );
+    writeFileSync(
+      join(dir, '.yamlover', 'meta.yamlover'),
+      'properties:\n  markdown: { type: string, format: text/markdown }\n  plantuml: { type: string, format: text/x-plantuml }\n',
+    );
+    const s = new Store(':memory:');
+    s.indexDocument(walkDir(dir));
+    assert.equal(s.node(':markdown')?.format, 'text/markdown');
+    assert.equal(s.node(':plantuml')?.format, 'text/x-plantuml');
+    s.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('a file is parsed by extension: .json/.json5p via json5p, else yamlover', () => {
