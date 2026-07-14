@@ -4,3 +4,4 @@
 - Plugins? L markdown preview functionality lost - DONE?
 - Design reverse tag into unkwonn location of an array? - DONE
 - Catch up YAML standard, why tuple key caused any confusions? 
+- Example 59-all-formats-object chapter sample is not migrated from old chapter format
