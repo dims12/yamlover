@@ -59,6 +59,15 @@ literal text.
 Marklower is **not a Markdown subset**, and does not try to be. `![](…)` is not image syntax here
 (see *Embeds*), and `*[a](b)` means something Markdown has no word for.
 
+### Line breaks
+
+A **single newline is a soft break**: the hard-wrapped lines of a block scalar are a *source*
+courtesy, so they rejoin into one flowing run and the rendered prose wraps at the reader's chosen
+width instead of the authored column — Markdown's rule, kept for the same reason. The join crosses
+an inline token (`text\n$$x$$` is one sentence), and emphasis may span it. A **blank line stays**:
+it renders as the vertical gap the author drew. A block embed's own line vanishes with the figure
+(see *Embeds*), never leaving a stray gap above or below it.
+
 ## Link targets
 
 A target is addressed in the app's **JSON instance space** — the same space the tree, the

@@ -123,35 +123,55 @@ function parse(value: unknown, onNavigate: (path: string) => void, documentPath?
   // the one that BEGINS the following run are the figure's line, and `.chapter-prose` preserves
   // whitespace (`pre-wrap`), so leaving them would open a blank line above and below the figure.
   let trimLead = false;
-  const plain = (text: string) => styleText(trimLead ? text.replace(/^[ \t]*\n/, "") : text);
+  // A SINGLE newline is a soft break — the hard-wrapped source line reflows at the reading width
+  // (markupWidthCh), the way Markdown joins a paragraph's lines. A blank line stays: under
+  // `pre-wrap` it is the gap the author drew. At a run's edge the newline joins across an *inline*
+  // token (`joinLead`/`joinTrail`: `text\n$$x$$` is one sentence) but stays hard beside a block
+  // figure, whose own line trimLead and the strip in the embed branch remove instead.
+  let joinLead = false;
+  const plain = (text: string) => {
+    if (trimLead) text = text.replace(/^[ \t]*\n/, "");
+    else if (joinLead) text = text.replace(/^\n(?!\n)/, " ");
+    return styleText(text.replace(/(?<=[^\n])\n(?=[^\n])/g, " "));
+  };
+  const joinTrail = () => {
+    html = html.replace(/(?<=[^\n])\n[ \t]*$/, " ");
+  };
   for (const m of src.matchAll(TOKEN)) {
     html += plain(src.slice(last, m.index)); // plain run before this token
     trimLead = false;
     const end = m.index + m[0].length;
+    joinLead = true; // every token below is inline — except a block figure, which resets this
     if (m[1] !== undefined) {
+      joinTrail();
       html += renderMath(m[1], false); // $$ inline math $$
     } else if (m[2] !== undefined) {
+      joinTrail();
       html += `<code>${escapeHtml(m[2])}</code>`; // `code` — contents literal
     } else if (m[3] !== undefined) {
       // *[label](target) — inline the target itself. A target nothing claims (an ordinary page, a
       // host off the provider allowlist) degrades to the link it already was.
       const spec = embed(m[4], documentPath);
       if (!spec) {
+        joinTrail();
         flush();
         nodes.push(link(m[3], m[4]));
       } else if (standsAlone(src, m.index, end)) {
         block = true;
         trimLead = true;
+        joinLead = false;
         html = html.replace(/\n[ \t]*$/, ""); // the newline that opened the figure's line
         flush();
         nodes.push(<EmbedFigure key={key++} spec={spec} label={m[3]} />);
       } else {
+        joinTrail();
         flush();
         nodes.push(<EmbedChip key={key++} spec={spec} label={m[3]} />);
       }
     } else {
       // [label](target) — a real anchor so it navigates in JSON instance space; the
       // label keeps its own inline styling.
+      joinTrail();
       flush();
       nodes.push(link(m[5], m[6]));
     }

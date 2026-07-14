@@ -112,6 +112,32 @@ describe("marklower (the default format for bare strings)", () => {
     expect(a.getAttribute("href")).toBe(":doc:children[0]");
   });
 
+  it("reflows a hard-wrapped source line: a single newline renders as a space", () => {
+    // Block scalars are hard-wrapped for source readability; the reading width (markupWidthCh),
+    // not the authored column, decides where a rendered line breaks.
+    const { container } = render(<MarklowerChunk chunk={chunk("wrapped at the\nauthored column")} onNavigate={noop} />);
+    expect(container.textContent).toBe("wrapped at the authored column");
+  });
+
+  it("keeps a blank line (it is the gap the author drew, shown by pre-wrap)", () => {
+    const { container } = render(<MarklowerChunk chunk={chunk("first\n\nsecond")} onNavigate={noop} />);
+    expect(container.textContent).toBe("first\n\nsecond");
+  });
+
+  it("joins a soft-wrapped line across an inline token", () => {
+    const { container } = render(
+      <MarklowerChunk chunk={chunk("breaks before\n$$x$$\nand after")} onNavigate={noop} />,
+    );
+    expect(container.textContent).not.toContain("\n"); // one flowing sentence around the math
+    expect(container.textContent).toContain("breaks before ");
+    expect(container.textContent).toContain(" and after");
+  });
+
+  it("styles emphasis that spans a soft-wrapped line", () => {
+    const { container } = render(<MarklowerChunk chunk={chunk("**bold across\nlines**")} onNavigate={noop} />);
+    expect(container.querySelector("strong")?.textContent).toBe("bold across lines");
+  });
+
   it("leaves a non-link [bracketed] word in prose untouched", () => {
     const { container } = render(<MarklowerChunk chunk={chunk("a [note] and [go](/x)", ":doc")} onNavigate={noop} />);
     expect(container.querySelectorAll("a")).toHaveLength(1); // only the real link
