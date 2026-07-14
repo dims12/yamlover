@@ -268,18 +268,45 @@ body {
 }
 .splitter {
   flex: 0 0 5px;
+  position: relative;
   cursor: col-resize;
   background: var(--line);
 }
 .splitter:hover {
   background: var(--accent);
 }
+/* a collapsed pane's line stays (it hosts the expand handle) but has nothing to resize */
+.splitter.collapsed {
+  cursor: default;
+}
+.splitter.collapsed:hover {
+  background: var(--line);
+}
 
 /* --- pane collapse toggles ------------------------------------------------ */
-/* Matching topbar chevrons hide/show the TOC (far left) and the fragments pane (far right); both
-   share the crumb-action shape, so the two panes collapse exactly the same way. */
-.pane-toggle {
-  margin: 0 4px;
+/* A chevron handle riding each splitter, vertically centered, hides/shows the TOC (LHS) and the
+   fragments pane (RHS) — the control sits on the line it acts on. It overhangs the 5px line, so
+   it stops the line's own mousedown (no drag from the handle). */
+.splitter-toggle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  width: 15px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--dim);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.splitter-toggle:hover {
+  color: var(--fg);
+  border-color: var(--accent);
 }
 
 /* --- fragments pane (RHS) ------------------------------------------------- */

@@ -25,6 +25,34 @@ function persistedFlag(key: string): boolean {
   try { return localStorage.getItem(key) === "1"; } catch { return false; }
 }
 
+/** A pane separator that both RESIZES (drag anywhere on the line) and COLLAPSES (the chevron
+ *  handle riding it) its pane. The handle replaced the old topbar toggles: the control lives on
+ *  the line it acts on, and the line stays put when the pane is collapsed, so the same spot
+ *  expands it back. Collapsed, the line no longer drags (there is nothing to resize). */
+function Splitter({ collapsed, glyph, label, onToggle, onDragStart }: {
+  collapsed: boolean;
+  glyph: string;
+  label: string;
+  onToggle: () => void;
+  onDragStart: () => void;
+}) {
+  return (
+    <div className={"splitter" + (collapsed ? " collapsed" : "")} onMouseDown={collapsed ? undefined : onDragStart}>
+      <button
+        type="button"
+        className="splitter-toggle"
+        title={label}
+        aria-label={label}
+        aria-expanded={!collapsed}
+        onClick={onToggle}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {glyph}
+      </button>
+    </div>
+  );
+}
+
 // Levels of the TOC fetched at once — initially and on each lazy expand. One
 // level keeps every fetch cheap on a huge/slow tree (a fetch only reads the
 // directories it actually shows); deeper levels load instantly on expand.
@@ -140,7 +168,8 @@ export function App() {
   // The DATA views (yamlover / json5p / schema) show the fragments *in the data* (overlay entries),
   // so the panel would duplicate them — it accompanies only the rendered views.
   const fragGroups = fragmentGroups(useAnnotations(current));
-  const showFragments = fragGroups.length > 0 && !rightCollapsed && !FORMATS.includes(format);
+  const fragmentsAvailable = fragGroups.length > 0 && !FORMATS.includes(format); // gates the RHS splitter
+  const showFragments = fragmentsAvailable && !rightCollapsed;
 
   // The breadcrumb head is the ROOT given on the command line (blank if omitted).
   useEffect(() => {
@@ -480,16 +509,6 @@ export function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <button
-          type="button"
-          className="crumb-action pane-toggle"
-          title={leftCollapsed ? "Show the tree" : "Hide the tree"}
-          aria-label={leftCollapsed ? "Show the tree" : "Hide the tree"}
-          aria-pressed={!leftCollapsed}
-          onClick={() => setLeftCollapsed((v) => !v)}
-        >
-          {leftCollapsed ? "»" : "«"}
-        </button>
         <nav className="crumbs">
           <button
             type="button"
@@ -536,46 +555,36 @@ export function App() {
           ))}
         </nav>
         {/* the right group is pinned to the topbar's right edge (via `.topbar-right`), so the
-            fragments toggle is ALWAYS there next to the RHS pane — independent of whether the task
-            strip is currently rendered (it returns null when idle, which used to drop the toggle's
-            right-alignment). */}
+            task strip always hugs the RHS pane. */}
         <div className="topbar-right">
           <TaskStrip tasks={tasks} />
-          {fragGroups.length > 0 && (
-            <button
-              type="button"
-              className="crumb-action pane-toggle"
-              title={rightCollapsed ? "Show fragments" : "Hide fragments"}
-              aria-label={rightCollapsed ? "Show fragments" : "Hide fragments"}
-              aria-pressed={!rightCollapsed}
-              onClick={() => setRightCollapsed((v) => !v)}
-            >
-              {rightCollapsed ? "«" : "»"}
-            </button>
-          )}
         </div>
       </header>
 
       <div className="body">
         {!leftCollapsed && (
-          <>
-            <aside className="pane left" style={{ width: leftWidth }}>
-              {(() => {
-                // no tree yet + a server task running ⇒ the index is still being built — show
-                // its progress instead of a stale fetch error / a bare "loading…"
-                const running = !tree ? tasks.find((t) => t.state === "running") : undefined;
-                if (running) {
-                  const { done, total } = running.progress;
-                  return <div className="loading">{running.label}… {total ? `${done}/${total}` : ""}</div>;
-                }
-                if (error) return <div className="error">{error}</div>;
-                if (!tree) return <div className="loading">loading…</div>;
-                return <Tree node={tree} current={current} onSelect={selectFromToc} onLoadChildren={loadChildren} onContext={onTocContext} />;
-              })()}
-            </aside>
-            <div className="splitter" onMouseDown={() => startDrag("left")} />
-          </>
+          <aside className="pane left" style={{ width: leftWidth }}>
+            {(() => {
+              // no tree yet + a server task running ⇒ the index is still being built — show
+              // its progress instead of a stale fetch error / a bare "loading…"
+              const running = !tree ? tasks.find((t) => t.state === "running") : undefined;
+              if (running) {
+                const { done, total } = running.progress;
+                return <div className="loading">{running.label}… {total ? `${done}/${total}` : ""}</div>;
+              }
+              if (error) return <div className="error">{error}</div>;
+              if (!tree) return <div className="loading">loading…</div>;
+              return <Tree node={tree} current={current} onSelect={selectFromToc} onLoadChildren={loadChildren} onContext={onTocContext} />;
+            })()}
+          </aside>
         )}
+        <Splitter
+          collapsed={leftCollapsed}
+          glyph={leftCollapsed ? "»" : "«"}
+          label={leftCollapsed ? "Show the tree" : "Hide the tree"}
+          onToggle={() => setLeftCollapsed((v) => !v)}
+          onDragStart={() => startDrag("left")}
+        />
         <main className="pane right" ref={mainRef} tabIndex={-1}>
           {(() => {
             // The browser-settings page: its VIRTUAL path (`:.browser:…`) never names a server
@@ -592,10 +601,16 @@ export function App() {
             return <NodeView path={current} format={format} refreshSignal={refreshSignal} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} onOpenUploaded={onOpenUploaded} />;
           })()}
         </main>
-        {showFragments && (
+        {fragmentsAvailable && (
           <>
-            <div className="splitter" onMouseDown={() => startDrag("right")} />
-            <Fragments path={current} groups={fragGroups} width={rightWidth} onNavigate={navigate} />
+            <Splitter
+              collapsed={rightCollapsed}
+              glyph={rightCollapsed ? "«" : "»"}
+              label={rightCollapsed ? "Show fragments" : "Hide fragments"}
+              onToggle={() => setRightCollapsed((v) => !v)}
+              onDragStart={() => startDrag("right")}
+            />
+            {showFragments && <Fragments path={current} groups={fragGroups} width={rightWidth} onNavigate={navigate} />}
           </>
         )}
       </div>
