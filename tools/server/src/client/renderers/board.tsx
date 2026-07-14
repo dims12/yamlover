@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { NodeJson, fetchNode, TagRef, saveBoardLanes } from "../api";
 import { memberItems } from "./explorer";
 import { touchesYamlover, useDiffBump } from "../live";
-import { resolveTagColor, tagFields } from "./tag";
+import { resolveTagColor, tagFields, tagStyle } from "./tag";
 import { displayPath } from "../paths";
 import { fetchWorkflowStates, WorkflowState, stateDetail, moveState, targetPath } from "./workflow";
-import { AnnotationMenu, tagStyle } from "./annotate";
+import { AnnotationMenu } from "./annotate";
 import { TagTip } from "./tagtip";
 
 export const BOARD_FORMAT = "x-yamlover-board";
@@ -217,7 +217,7 @@ export function BoardView({
                   >
                     {lane.tags.length > 1 && (
                       <div className="board-group-head">
-                        <span className="board-group-dot" style={{ background: color }} />
+                        <span className="board-group-dot" style={tagStyle(color)} />
                         <span className="board-group-title">{t.label}</span>
                         <span className="board-col-count">{groupCards.length}</span>
                         <button className="board-group-del" title="remove this sublane" onClick={() => removeTagFromLane(laneI, t.path)}>✕</button>

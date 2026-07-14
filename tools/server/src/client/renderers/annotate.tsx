@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation, fetchConfig } from "../api";
-import { TAG_FORMAT, explicitColor, isColorTagPath, resolveTagColor, tagFields } from "./tag";
+import { TAG_FORMAT, explicitColor, isColorTagPath, resolveTagColor, tagFields, tagStyle } from "./tag";
 import { TagTip } from "./tagtip";
 import { canonPath, displayPath, fragmentAnchorId, strToSegs } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
@@ -400,9 +400,6 @@ function rankTag(t: TagRef, q: string): number {
   return 3;
 }
 
-/** Expose a tag's colour to CSS as `--tag`, so a swatch / badge can render FILLED (applied) or
- *  HOLLOW (an outline in that colour, not applied) from one stylesheet rule — no per-state ring. */
-export const tagStyle = (color: string): React.CSSProperties => ({ ["--tag"]: color } as React.CSSProperties);
 
 /** The floating tag picker — ONE uniform toggle UI. It shows the color-tag swatches and a row of
  *  named-tag chips (the four default sources — see the file header — filtered live as you type); the
@@ -970,7 +967,9 @@ function wrapQuote(container: HTMLElement, a: Annotation, materialPath: string):
   const c = colorOf(a);
   const mark = document.createElement("mark");
   mark.className = "yo-annotation";
-  mark.style.backgroundColor = `color-mix(in srgb, ${c} 30%, transparent)`; // works for hex AND a named tag's hsl()
+  // Works for hex AND a named tag's hsl(). The mix weight is themed (--mark-mix, styles.css):
+  // the taxonomy pastels highlight fine at 30% on the dark bg but vanish on the light one.
+  mark.style.backgroundColor = `color-mix(in srgb, ${c} var(--mark-mix, 30%), transparent)`;
   mark.style.borderBottomColor = c;
   mark.dataset.annSel = annKey(a);
   if (fragId) mark.id = fragId;

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { asLink } from "../render";
 import { canonPath, strToSegs } from "../paths";
 
@@ -11,13 +12,18 @@ export function isColorTagPath(path: string): boolean {
   return /(^|:)tags:colors:/.test(canonPath(path));
 }
 
+/** Expose a tag's colour to CSS as `--tag`. Every chip/swatch/dot paints through it — CSS renders
+ *  `var(--tag-display)`, the colour re-inked for the active theme (see styles.css :root) — so no
+ *  element ever sets a tag colour as a literal `background`/`border` of its own. */
+export const tagStyle = (color: string): CSSProperties => ({ ["--tag"]: color } as CSSProperties);
+
 /** A pure color tag rendered as a filled circular swatch — its color IS its identity, so a name
  *  badge would be redundant. Mirrors the menu palette's applied swatch (`.annotate-swatch.on`). */
 export function TagSwatch({ color, title, onClick }: { color: string; title: string; onClick?: () => void }) {
   return (
     <span
       className="tagswatch"
-      style={{ background: color }}
+      style={tagStyle(color)}
       title={title}
       role={onClick ? "button" : undefined}
       onClick={onClick}
@@ -117,7 +123,7 @@ export function TagBadges({ tags, onNavigate }: { tags: TagLink[]; onNavigate: (
           <a
             key={t.path}
             className="tagtag"
-            style={{ background: color }}
+            style={tagStyle(color)}
             href={t.path}
             title={t.label}
             onClick={(e) => {

@@ -46,7 +46,7 @@ export function browserSettingsTemplate(width: number): string {
 !!<*yamlover:$defs:config>
 
 width: ${width}   # reading width (ch) for rendered prose (markdown, asciidoc, chapters)
-theme: dark   # ui palette: dark | light
+theme: light   # ui palette: dark | light
 `;
 }
 
@@ -55,7 +55,7 @@ theme: dark   # ui palette: dark | light
 // the template's line (settings are defaults; appending the default changes no behavior). The
 // `^key:` check is line-anchored, so a commented-out `# theme: …` still counts as absent.
 const TEMPLATE_UPGRADES: { key: string; line: string }[] = [
-  { key: "theme", line: "theme: dark   # ui palette: dark | light" },
+  { key: "theme", line: "theme: light   # ui palette: dark | light" },
 ];
 
 function upgraded(src: string): string {
@@ -153,17 +153,17 @@ export function browserTheme(): Theme | null {
 // stays the source of truth (browser-storage-as-cache doctrine).
 const THEME_MIRROR_KEY = "yamlover.theme";
 
-/** Resolve the effective theme (browser doc → project settings → dark) and stamp it on the
+/** Resolve the effective theme (browser doc → project settings → light) and stamp it on the
  *  document root (`html[data-theme]` — styles.css switches every palette var on it), mirroring
  *  it for the pre-paint script. Called at App mount, when the project layer arrives, and on
  *  every settings save — so a `theme:` edit applies instantly. */
 export function applyTheme(): void {
-  const theme: Theme = browserTheme() ?? projTheme ?? "dark";
+  const theme: Theme = browserTheme() ?? projTheme ?? "light";
   document.documentElement.dataset.theme = theme;
   try {
     localStorage.setItem(THEME_MIRROR_KEY, theme);
   } catch {
-    /* storage unavailable — the pre-paint script just falls back to dark */
+    /* storage unavailable — the pre-paint script just falls back to light */
   }
 }
 

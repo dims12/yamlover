@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NodeJson, fetchTagged, thumbUrl, blobUrl } from "../api";
 import { asLink, Link } from "../render";
 import { typeIcon, Glyph } from "../icons";
-import { TAG_FORMAT, tagLabel, tagBody, resolveTagColor } from "./tag";
+import { TAG_FORMAT, tagLabel, tagBody, resolveTagColor, tagStyle } from "./tag";
 import { displayPath, displayKey } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
 import { useExplorerTagMenu } from "./tagmenu";
@@ -208,7 +208,7 @@ function Item({ it, active, view, setRef, onFocus, onNavigate, onContext }: {
   const label =
     link.format === TAG_FORMAT ? (
       // a tag member (e.g. a subtag) keeps its badge color everywhere
-      <span className="tagtag" style={{ background: resolveTagColor({ name, color: link.color }) }}>{name}</span>
+      <span className="tagtag" style={tagStyle(resolveTagColor({ name, color: link.color }))}>{name}</span>
     ) : link.kind === "scalar" && !isDocFormat(link.format) ? (
       <>
         {name}: <span className="val">{scalarText(link.value)}</span>

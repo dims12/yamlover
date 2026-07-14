@@ -55,10 +55,10 @@ describe("browser settings document", () => {
     const src = browserSettingsSource();
     expect(src).toContain("width: 124"); // authored content untouched
     expect(src).toContain("# my settings");
-    expect(src).toMatch(/^theme: dark {3}# ui palette: dark \| light$/m); // the upgrade line appended
+    expect(src).toMatch(/^theme: light {3}# ui palette: dark \| light$/m); // the upgrade line appended
     expect(src.match(/^theme:/gm)?.length).toBe(1);
     expect(browserSettingsSource()).toBe(src); // idempotent — a second read appends nothing
-    expect(browserTheme()).toBe("dark"); // and it parses
+    expect(browserTheme()).toBe("light"); // and it parses
   });
 
   it("setBrowserSettingKey splices ONE key, preserving comments and other lines; appends when fresh", () => {
@@ -92,13 +92,13 @@ describe("browser settings document", () => {
 });
 
 describe("theme", () => {
-  it("browserTheme reads the doc's `theme` key; junk → null; an absent key upgrades to authored dark", () => {
-    saveBrowserSettings("theme: light\n");
-    expect(browserTheme()).toBe("light");
+  it("browserTheme reads the doc's `theme` key; junk → null; an absent key upgrades to authored light", () => {
+    saveBrowserSettings("theme: dark\n");
+    expect(browserTheme()).toBe("dark");
     saveBrowserSettings("theme: blue\n");
     expect(browserTheme()).toBe(null); // junk authored → this layer is silent
-    saveBrowserSettings("width: 72\n"); // absent → the read UPGRADES the doc to author `theme: dark`
-    expect(browserTheme()).toBe("dark"); // (the UI can only edit present keys, so the doc always offers it)
+    saveBrowserSettings("width: 72\n"); // absent → the read UPGRADES the doc to author `theme: light`
+    expect(browserTheme()).toBe("light"); // (the UI can only edit present keys, so the doc always offers it)
   });
 
   it("applyTheme stamps html[data-theme] and the pre-paint mirror key; browser doc wins, project is the fallback", async () => {
@@ -113,18 +113,18 @@ describe("theme", () => {
     expect(localStorage.getItem("yamlover.theme")).toBe("dark");
   });
 
-  it("with neither layer authoring a valid theme the default is dark", async () => {
+  it("with neither layer authoring a valid theme the default is light", async () => {
     configWith({});
     await prime(); // project authors no theme
     saveBrowserSettings("theme: nonsense\n"); // browser layer silent too
     applyTheme();
-    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(document.documentElement.dataset.theme).toBe("light");
   });
 
   it("a `theme` splice through setBrowserSettingKey re-applies instantly too", () => {
-    browserSettingsSource(); // materialize the template (theme: dark)
-    setBrowserSettingKey("theme", "light");
-    expect(document.documentElement.dataset.theme).toBe("light");
-    expect(browserSettingsSource()).toContain("theme: light");
+    browserSettingsSource(); // materialize the template (theme: light)
+    setBrowserSettingKey("theme", "dark");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(browserSettingsSource()).toContain("theme: dark");
   });
 });

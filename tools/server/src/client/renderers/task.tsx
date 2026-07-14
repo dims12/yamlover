@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { NodeJson, fetchAnnotations } from "../api";
 import { touchesYamlover, useDiffBump } from "../live";
 import { asLink } from "../render";
-import { resolveTagColor } from "./tag";
+import { resolveTagColor, tagStyle } from "./tag";
 import { tagFields } from "./tag";
 import { ChapterView } from "./chapter";
 import { isState, stateDetail, moveState, WorkflowState } from "./workflow";
@@ -64,7 +64,7 @@ export function TaskView({ node, onNavigate }: { node: NodeJson; onNavigate: (pa
     <div className="task">
       <div className="task-strip">
         {state && (
-          <span className="task-state" style={{ background: resolveTagColor({ name: state.label, color: state.color }) }}>
+          <span className="task-state" style={tagStyle(resolveTagColor({ name: state.label, color: state.color }))}>
             {state.label}
           </span>
         )}

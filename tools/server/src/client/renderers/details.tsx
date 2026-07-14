@@ -3,7 +3,7 @@ import type { ExplorerItem } from "./explorer";
 import { Annotation, fetchAnnotations } from "../api";
 import { typeIcon } from "../icons";
 import { displayPath } from "../paths";
-import { isColorTagPath, resolveTagColor, TagSwatch } from "./tag";
+import { isColorTagPath, resolveTagColor, TagSwatch, tagStyle } from "./tag";
 import { TagTip } from "./tagtip";
 import { touchesYamlover, useDiffPaths } from "../live";
 import { isDirConcrete } from "../../concrete";
@@ -122,7 +122,7 @@ export function DetailsView({
                         {isColorTagPath(a.tag.path) ? (
                           <TagSwatch color={color} title="" />
                         ) : (
-                          <span className="tagtag" style={{ background: color }}>
+                          <span className="tagtag" style={tagStyle(color)}>
                             {a.tag.name}
                           </span>
                         )}

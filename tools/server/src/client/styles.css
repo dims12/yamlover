@@ -23,6 +23,18 @@
   --scrim: rgba(24, 24, 37, 0.55); /* modal/overlay backdrop (a --bg-alt tint) */
   --swatch-ring: rgba(255, 255, 255, 0.25); /* color-swatch outline */
   --hover-filter: brightness(1.18); /* hover pop for colored chips (dims on light) */
+  /* A tag's color is DATA (the taxonomy's pastels were picked on the dark bg), so the light
+     theme re-inks it at the paint sites instead of changing it, with RELATIVE color syntax —
+     `oklch(from var(--tag) … c h)` — which pins lightness while keeping the hue and chroma
+     (mixing toward black also drained chroma: every colour converged on the same mud). A FILL
+     (a badge's body, dark text on it via --tag-text) normalizes to a pastel via --tag-fill-l;
+     a LINE (a hollow chip's rim + label) darkens and chroma-boosts via --tag-line-l/-c. The
+     defaults here are the identity (`l`/`c`: the authored colour verbatim — the dark theme);
+     the formulas repeat at the paint sites because a var() inside a :root custom property
+     would resolve THERE (no --tag). A filter can't do the job either: it would also re-ink the
+     hollow chips' punched `--bg-alt` interior. Text-highlight marks get their color-mix weight
+     from --mark-mix (annotate.tsx reads it via var()). */
+  --mark-mix: 30%;
 
   /* JetBrains Darcula syntax palette — used ONLY by the structured data view (`.code`: the
      yamlover / json5p / schema token classes). The hue roles are Darcula's, but each value is
@@ -52,8 +64,8 @@
   --bg-alt: #e6e9ef;
   --panel: #dce0e8;
   --line: #ccd0da;
-  --fg: #4c4f69;
-  --dim: #8c8fa1;
+  --fg: #000000; /* plain black — Latte's #4c4f69 read too dim for body/TOC text */
+  --dim: #5c5f77; /* Latte subtext1; overlay1 (#8c8fa1) was illegibly faint */
   --accent: #1e66f5;
   --key: #04a5e5;
   --string: #40a02b;
@@ -69,13 +81,21 @@
   --scrim: rgba(230, 233, 239, 0.65);
   --swatch-ring: rgba(0, 0, 0, 0.25);
   --hover-filter: brightness(0.94);
+  /* re-ink the dark-bg pastel tag colors (see the :root notes): badges FILL as uniform
+     pastels — the selection-highlight look — with near-black labels; hollow rims/labels go
+     darker and more chromatic; the text highlight gets heavier */
+  --tag-fill-l: 0.85;
+  --tag-line-l: 0.45;
+  --tag-line-c: calc(c * 1.4);
+  --tag-text: #000;
+  --mark-mix: 55%;
 
   --jb-key: #660e7a; /* mapping / property key (IntelliJ Light purple) */
   --jb-string: #067d17; /* string scalar (green) */
   --jb-number: #1750eb; /* number scalar (blue) */
   --jb-keyword: #0033b3; /* true / false / null (navy keyword) */
   --jb-comment: #8c8c8c; /* comments */
-  --jb-punct: #4c4f69; /* structural punctuation — the light fg */
+  --jb-punct: #000000; /* structural punctuation — the light fg */
   --jb-dash: #8c8c8c; /* the YAML list dash */
 }
 
@@ -1551,13 +1571,13 @@ textarea.chapter-latex-src {
   height: 18px;
   padding: 0;
   border-radius: 50%;
-  border: 2px solid var(--tag);
+  border: 2px solid oklch(from var(--tag) var(--tag-line-l, l) var(--tag-line-c, c) h);
   background: transparent;
   box-sizing: border-box;
   cursor: pointer;
 }
 .annotate-swatch.on {
-  background: var(--tag);
+  background: oklch(from var(--tag) var(--tag-fill-l, l) c h);
 }
 .annotate-tool {
   display: inline-flex;
@@ -1625,8 +1645,8 @@ textarea.chapter-latex-src {
   font-size: 11px;
   cursor: pointer;
   position: relative;
-  background: var(--tag); /* the rim */
-  color: var(--tag); /* hollow: text in the tag colour */
+  background: oklch(from var(--tag) var(--tag-line-l, l) var(--tag-line-c, c) h); /* the rim */
+  color: oklch(from var(--tag) var(--tag-line-l, l) var(--tag-line-c, c) h); /* hollow: text in the tag colour */
 }
 .annotate-recents .tagtag::before,
 .annotate-suggest .tagtag::before,
@@ -1655,12 +1675,12 @@ textarea.chapter-latex-src {
 .annotate-recents .tagtag.on,
 .annotate-suggest .tagtag.on,
 .board-col-tags .tagtag.on {
-  color: #fff;
+  color: var(--tag-text, #fff);
 }
 .annotate-recents .tagtag.on::after,
 .annotate-suggest .tagtag.on::after,
 .board-col-tags .tagtag.on::after {
-  background: var(--tag); /* filled */
+  background: oklch(from var(--tag) var(--tag-fill-l, l) c h); /* filled */
 }
 .annotate-suggest .tagtag.hi {
   background: var(--fg); /* focus: a light rim following the shape, not a fill */
@@ -1712,12 +1732,13 @@ textarea.chapter-latex-src {
   position: fixed;
   z-index: 1100;
   max-width: 320px;
+  background: oklch(from var(--tag) var(--tag-fill-l, l) c h); /* `--tag` re-inked for the theme (see :root) */
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: 5px 8px;
   border-radius: 5px;
-  color: #fff;
+  color: var(--tag-text, #fff);
   font-size: 11px;
   line-height: 1.35;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
@@ -2015,7 +2036,7 @@ mark.yo-annotation {
 .tagtag {
   position: relative;
   display: inline-block;
-  color: #fff;
+  color: var(--tag-text, #fff);
   font-size: 11px;
   line-height: 1.45;
   padding: 1px 9px 1px 17px; /* extra left clears the point + hole */
@@ -2024,6 +2045,7 @@ mark.yo-annotation {
   cursor: pointer;
   white-space: nowrap;
   clip-path: polygon(11px 0, 100% 0, 100% 100%, 11px 100%, 0 50%);
+  background: oklch(from var(--tag) var(--tag-fill-l, l) c h); /* `--tag` re-inked for the theme (see :root) */
 }
 .tagtag::before {
   content: "";
@@ -2050,6 +2072,7 @@ mark.yo-annotation {
   box-sizing: border-box;
   border: 1px solid var(--swatch-ring);
   cursor: pointer;
+  background: oklch(from var(--tag) var(--tag-fill-l, l) c h); /* `--tag` re-inked for the theme (see :root) */
 }
 .tagswatch:hover {
   filter: var(--hover-filter);
@@ -2149,6 +2172,7 @@ mark.yo-annotation {
   height: 7px;
   border-radius: 50%;
   flex: 0 0 auto;
+  background: oklch(from var(--tag) var(--tag-fill-l, l) c h); /* `--tag` re-inked for the theme (see :root) */
 }
 .board-group-title {
   flex: 1 1 auto;
@@ -2221,7 +2245,8 @@ mark.yo-annotation {
   font-weight: 600;
   padding: 2px 10px;
   border-radius: 12px;
-  color: var(--bg);
+  background: oklch(from var(--tag) var(--tag-fill-l, l) c h); /* `--tag` re-inked for the theme (see :root) */
+  color: var(--tag-text, var(--bg));
   text-transform: capitalize;
 }
 .task-advance {

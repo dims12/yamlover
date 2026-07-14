@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fetchNode, TagRef } from "../api";
 import { tagDisplayPath } from "../paths";
-import { resolveTagColor, tagBody } from "./tag";
+import { resolveTagColor, tagBody, tagStyle } from "./tag";
 
 // A tag's BODY (its own text value) is not carried in the menu's tag index, so it is fetched
 // once per path on first hover and remembered here — repeat hovers reuse it. `null` means
@@ -55,7 +55,7 @@ export function TagTip({
       {children}
       {pos &&
         createPortal(
-          <span className="tagtip" style={{ left: pos.left, top: pos.top, background: color }}>
+          <span className="tagtip" style={{ left: pos.left, top: pos.top, ...tagStyle(color) }}>
             <span className="tagtip-path">{tagDisplayPath(tag.path)}</span>
             {value && <span className="tagtip-value">{value}</span>}
           </span>,

@@ -29,9 +29,9 @@ function tagBadgesHtml(tags: TagLink[]): string {
     .map((t) => {
       const color = resolveTagColor({ name: t.label, color: t.color });
       if (isColorTagPath(t.path)) {
-        return `<span class="tagswatch" style="background:${color}" title="${escHtml(t.label)}"></span>`;
+        return `<span class="tagswatch" style="--tag:${color}" title="${escHtml(t.label)}"></span>`;
       }
-      return `<span class="tagtag" style="background:${color}">${escHtml(t.label)}</span>`;
+      return `<span class="tagtag" style="--tag:${color}">${escHtml(t.label)}</span>`;
     })
     .join("");
 }
