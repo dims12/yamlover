@@ -7,10 +7,11 @@ self-contained programs that demonstrate it.
 **Active:**
 - [`parser/`](parser/) — hand-written parsers (`ts/`, future `rust/`) for **json5p** &
   **yamlover** → the IR (`../IR.md`); gated by JSON/JSON5 conformance corpora.
-- [`engine/`](engine/) — the stateful core: pointer **resolver** now, SQLite-backed
-  `node`/`edge` graph + directory walker to come (`../ENGINE.md`).
-- [`server/`](server/) — browse a yamlover tree in the web browser:
-  `npx yamlover <root>` serves a React SPA. Being re-backed by the engine.
+- [`engine/`](engine/) — the stateful core: pointer **resolver**, SQLite-backed
+  `node`/`edge` graph, directory walker, FS watcher with three-tier sync,
+  mediated `mv`, and the query evaluator (`../ENGINE.md`).
+- [`server/`](server/) — browse **and edit** a yamlover tree in the web browser:
+  `npx yamlover <root>` serves a React SPA over an engine-backed JSON API.
 - [`jetbrains-plugin/`](jetbrains-plugin/) — `.yamlover`/`.json5p` file types + highlighting.
 
 **Deprecated (2026-06-07)** — Python predecessors, superseded by `parser/` + `engine/`;

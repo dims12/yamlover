@@ -23,7 +23,20 @@ engine/
   list (containment + resolved ref/back, with external/unresolved split out);
   `deriveInverses()` adds on-demand reverse edges (incoming queries); `normalize()` →
   forwards-only (folds each `~` back-edge into the forward `ref` it reverses, deduped).
-- **SQLite index, directory walker, FS sync, engine API** — TODO (Phase 3a/3b/3e/3f).
+- **SQLite index** (`ts/src/store.ts`) — done. Node/edge property graph on built-in
+  `node:sqlite`, plus a `file` manifest (path + hash + size + mtime) and a `dangling` table.
+- **directory walker** (`ts/src/walk.ts`) — done. Directory concrete → IR → store, with
+  **stat-first indexing**: files identified by `(size, mtime)`, content hashes (size-tiered
+  xxh64) filled in by a background task.
+- **FS sync** (`ts/src/watch.ts` + reconcile) — done. All three tiers: live watcher,
+  offline reconcile at startup, move inference with auto-relink. **Mediated `mv`**
+  (`ts/src/mv.ts`/`rewrite.ts`) moves a file/dir and surgically rewrites inbound refs.
+- **query evaluator** (`ts/src/query.ts`) — done. The 3g colon-grammar match templates
+  over the store, gated by the 77-case corpus (`query.cases.ts`).
+- **settings** (`ts/src/settings.ts`) — done. Loads/materializes `.yamlover/settings.yamlover`.
+- **engine API protocol** (versioned, per `../../ENGINE.md`) — TODO. Today the server
+  (`tools/server`) consumes the engine directly: relative-path imports in dev, an esbuild
+  bundle (`dist/server.js`) in the published package.
 
 Imports the parser via relative path (`../../../parser/ts/src/…`); no npm install (Node ≥22
 native type-stripping, `node:test`). Run: `npm test`.

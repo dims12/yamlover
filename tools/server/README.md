@@ -3,7 +3,7 @@
 Browse a yamlover tree in the web browser.
 
 ```console
-$ npx yamlover [ROOT] [--port N] [--headless] [--host ADDR] [--no-gitignore] [--prod]
+$ npx yamlover [ROOT] [--port N] [--headless] [--host ADDR] [--base-path PREFIX] [--no-gitignore] [--prod]
 ```
 
 `ROOT` is any yamlover entity — a project directory (one with a `.yamlover/`),
@@ -16,6 +16,14 @@ for remote access with no GUI), or `--host ADDR` for an explicit override.
 `--prod` forces the prebuilt static client + bundled server (the default when
 the dev sources aren't present, e.g. an installed package); without it, a
 checkout runs the client from source via Vite with HMR.
+
+The port defaults to **5173**; if it is taken, the launcher walks up (`+1`, up
+to 50 tries) and prints the URL it actually bound. `--base-path PREFIX` serves
+the **whole app** (assets, every `/api/*` route, the SSE stream) under a URL
+prefix instead of `/` — for hosting several instances behind one reverse proxy
+(see `tools/demo`); the server strips the prefix itself and injects it into the
+SPA shell as `window.__BASE__`. The `BASE_PATH` env var seeds the same setting
+(an explicit flag wins), so a shell-less container image can inject it.
 
 The page is split into two independently scrolling panes:
 
@@ -127,10 +135,13 @@ take an optional `depth` (container-nesting limit).
 | `GET /api/annotations?path` | the annotations on a node |
 | `GET /api/query?q&path` | the query evaluator (colon match templates) |
 | `GET /api/dangling` | pointers that did not resolve at index time |
+| `GET /api/config` | the effective `settings.yamlover` — raw source + parsed settings (read-only; written via `/api/edit`, hot-reloaded on change) |
 | `GET /api/events` | SSE: `{type:"diff",…}` reindex diffs + `{type:"task",…}` progress |
 | `GET /api/tasks` | long-running tasks in flight (a snapshot for a fresh page) |
 | `POST /api/reindex` | manual reconcile (the watcher's fallback) |
 | `POST /api/edit` | the yamlover **editor** — surgical source edits (see below) |
+| `POST /api/preview` | **stateless**: render a standalone yamlover source as `/api/json` would (nothing touches the store) |
+| `POST /api/edit-text` | **stateless**: apply `/api/edit` ops to a standalone source, returning the new source |
 | `POST /api/paste` | clipboard paste / upload (text or files) |
 | `POST /api/mv` | mediated move (surgical inbound-ref rewrite + auto-relink) |
 | `POST /api/tag` | create-on-miss a tag in the taxonomy |
@@ -283,13 +294,14 @@ both before pushing. (Run everything from the project root — see the root
 ```
 bin/yamlover.js        CLI entry — arg parsing + dev (Vite) / prod (dist) wiring
 scripts/build.mjs      prod build: vite build → dist/client, esbuild → dist/server.js
+src/concrete.ts        the concrete taxonomy + predicates (shared by server and client)
 src/server/            the engine-backed JSON API
   engine-api.ts          createHandlers: all /api/* routes, backed by the engine Store
   embed.ts               annotation / fragment / thumbnail embedding (overlay writes)
   node-kind.ts           node-kind classification (object|array|scalar|binary|omni|mix)
   tasks.ts               background task registry + SSE task frames
   gitignore.ts           .gitignore predicate for surfaced stray files
-  extract/               per-type extractors (thumbnails, fragments)
+  extract/               the thumbnail pipeline: decoder registry (raster/psd/webp/avif) + scaling
   agent-docs/            the AGENTS.md / CLAUDE.md guide installed by POST /api/agent-docs
 src/client/            the React SPA (tree, node view, render, icons, paths, live SSE)
   renderers/             facet-predicate renderer registry + per-format renderers

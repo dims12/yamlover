@@ -42,13 +42,15 @@ The project has the following goals
 > [`tools/`](tools/): [`parser`](tools/parser/) (hand-written json5p + yamlover
 > parsers → IR, conformance-gated against the JSON / JSON5 / YAML test suites),
 > [`engine`](tools/engine/) (SQLite property-graph store, directory walker,
-> pointer resolver), [`server`](tools/server/) (`npx yamlover <root>` — browse a
-> tree in the web, backed by the engine; see [`UI.md`](UI.md) for navigation,
-> views, pan/zoom, annotations, paste/drag-and-drop upload), and a
+> pointer resolver), [`server`](tools/server/) (`npx yamlover <root>` — browse
+> **and edit** a tree in the web, backed by the engine; see [`UI.md`](UI.md) for
+> navigation, views, pan/zoom, annotations, paste/drag-and-drop upload), and a
 > [JetBrains plugin](tools/jetbrains-plugin/) (filetypes + highlighting).
-> The write side has begun: serializers for the text concretes (IR → yamlover /
-> json5p, round-trip-gated), `mv` with surgical inbound-pointer rewriting, the
-> FS watcher with three-tier reconcile, and SSE live refresh are implemented.
+> The write side is running: serializers for the text concretes (IR → yamlover /
+> json5p, round-trip-gated), the surgical `/api/edit` editor (comment-preserving
+> source splices), paste/upload, `mv` with surgical inbound-pointer rewriting,
+> the FS watcher with three-tier reconcile, background indexing/tasks with
+> server-side thumbnails, and SSE live refresh are implemented.
 > The **query evaluator** is live too (colon-grammar match templates per
 > [`SEPARATOR.md`](SEPARATOR.md), evaluated over the index, `GET /api/query`).
 > Still missing: the *directory* serializer, inline-binary emission, and

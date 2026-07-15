@@ -1,4 +1,4 @@
-k# CONCRETES — the storage taxonomy
+# CONCRETES — the storage taxonomy
 
 A **concrete** records *how and where* a node's value is physically stored. Every
 materialized node carries exactly one. It is orthogonal to a node's **type**
@@ -171,9 +171,10 @@ that YAML file, so its concrete is the inlined `yaml` of the schema document.
 
 ## Where it shows up
 
-- The server (`tools/server/src/server/yamlover.ts`) assigns a concrete onto
-  every `YNode` during materialization and forwards it on `/api/json` and
-  `/api/tree`.
+- The server (`concreteOf` in `tools/server/src/server/engine-api.ts`) derives
+  a concrete for every node it serves — from a stat plus the enclosing
+  document's language (the engine tracks no per-node concrete yet) — and
+  forwards it on `/api/json` and `/api/tree`.
 - The web UI shows it as a dim chip in the node header (`NodeView`), and uses it
   for folder icons (`dir` / `dir/yamlover`) and to offer the json5p data view
   (json-family concretes only).

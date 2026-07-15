@@ -10,12 +10,14 @@ open decision that drives the implementation language.
 
 A **thin server, thick client** split:
 
-- The server (`tools/server`) walks the filesystem tree, infers `(type, format)`
-  from schema + extension, resolves refs/rels/tags, and serves raw bytes via
-  `/api/blob`. It does no conversion.
-- The React/TypeScript client does **all** format conversion in-browser (mammoth
-  for docx, SheetJS for xls/xlsx, pdf.js, KaTeX, the built-in rtf/csv converters,
-  …), fetching only file bytes from the local server.
+- The server (`tools/server`) is engine-backed: the directory walk builds a
+  SQLite index, an FS watcher keeps it live (SSE diffs), `(type, format)` is
+  inferred from schema + extension, refs/rels/tags resolve at index time, and
+  raw bytes stream via `/api/blob`. The first server-side conversion seam
+  already exists: `/api/thumb` builds and caches thumbnails.
+- The React/TypeScript client does nearly **all** format conversion in-browser
+  (mammoth for docx, SheetJS for xls/xlsx, pdf.js, KaTeX, the built-in rtf/csv
+  converters, …), fetching only file bytes from the local server.
 
 This keeps `npx yamlover` zero-install and conversions private/local. The one
 exception that leaves the machine is **PlantUML** (rendered by the public
@@ -46,7 +48,7 @@ app on the list above is a *frontend over that same model*.
 
 So the highest-leverage move is **specifying the protocol** (the tree / schema /
 blob / future `convert` API, today implicit in `tools/server`) as a versioned
-contract — e.g. OpenAPI + JSON-Schema over `/api/tree`, `/api/node`, `/api/blob`,
+contract — e.g. OpenAPI + JSON-Schema over `/api/tree`, `/api/json`, `/api/blob`,
 `/api/convert`. Once that's a real spec, the implementation language becomes
 swappable *and pluralizable*: a Kotlin server tomorrow, a Node server today, a Rust
 core in between — any client (JetBrains plugin, web, desktop) just speaks the

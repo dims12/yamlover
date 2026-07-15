@@ -99,10 +99,11 @@ Notes:
 
 ## Annotations
 
-An annotation is **a tag applied to a piece of a material** — one tag application, saved as a
-first-class node in the graph (a `$defs/annotation` object), reverse-linked to the material and
-a member of its tag — so it persists across reloads, shows up wherever the material is read, and
-is listed on the tag's own page among the tag's members. Its display color is **the applied
+An annotation is **a tag applied to a piece of a material** — one tag application, saved **into
+the target itself**: a selected region becomes a `yamlover-fragments` entry on the node, and each
+applied tag an element of its `yamlover-annotations` array (`ANNOTATIONS.md`) — so it travels
+with the document, persists across reloads, shows up wherever the material is read, and is
+listed on the tag's own page among the tag's members. Its display color is **the applied
 tag's**: a built-in **pure color tag** (`yamlover/tags/colors/…`) carries an explicit color, and
 any **named tag** gets its stable name-derived hue (the same hue its badges use everywhere). The
 flow is the **same for prose, images, maps, and PDFs**: you **select**, then pick a tag.
@@ -120,8 +121,9 @@ flow is the **same for prose, images, maps, and PDFs**: you **select**, then pic
    - **A tag path input** — type any tag's node path (e.g.
      `/examples/67-pdf-tags/tags/genre/humor/deadpan`) and press **Enter** to apply that tag.
      A **bare name** (no `/`) works too: if no such tag exists yet it is **created on the
-     spot** — appended to the project's tag taxonomy (the `tags: {location: …}` setting,
-     `<root>/tags` by default) as `<name>: !!<*$defs/tag>` — and then applied.
+     spot** — appended to the project's tag taxonomy (the `tags: *:: tags` setting in
+     `.yamlover/settings.yamlover`, `<root>/tags` by default) as `<name>: !!<*$defs/tag>` —
+     and then applied.
    - **⧉ Copy** (prose only) — copies the selected text to the clipboard and creates **no**
      annotation.
    - **✕ Close** (or click anywhere outside) — closes the picker, committing nothing extra.
@@ -136,8 +138,7 @@ tags — each application is its own annotation.
 
 **To re-tag or delete an annotation, click it.** The same picker reopens in *edit* mode over the
 mark's current tags (shown outlined): pick another tag to add, click an outlined one to remove,
-or close to leave it. (Any *standalone* annotation file can be edited this way, wherever it
-lives; an annotation authored inline in a shared document is shown but frozen.)
+or close to leave it.
 
 The built-in tags ship with the yamlover project (at its root: `tags/colors`, beside
 `$defs/`); the engine grafts the **self-import key `yamlover`** → {$defs, tags} into every
@@ -146,12 +147,12 @@ served root — including the yamlover project itself — so `/yamlover/tags/col
 Whole-node tagging stays as it was: an anchor membership on the node itself (no annotation
 object needed when there's no region and no comment).
 
-New annotations are written as ordinary `.yamlover` files (one per annotation) under the
-project's **default annotation location** — `<root>/annotations/` unless
-`.yamlover/settings.yamlover` configures `annotations: {location: …}`. The location is only a
-creation default: annotations are graph nodes, pointing at their material with a project-scoped
-pointer, so you can read, **move to any directory**, version, or hand-edit them like anything
-else in the tree and they keep working.
+New annotations are written **into the target's own source** — the `yamlover-fragments` /
+`yamlover-annotations` keys sit beside the node's value (yamlover's omni shape), and for an
+on-disk binary file they land in the enclosing directory's `.yamlover/body.yamlover` overlay
+under the file's key. An image/PDF region also embeds a **crop**, stored as a sidecar blob
+referenced by a `*` pointer. It is all ordinary yamlover in the tree — read, version, or
+hand-edit it like anything else (`ANNOTATIONS.md` has the exact shapes).
 
 ## Editing a chapter
 
@@ -166,7 +167,8 @@ each prose chunk edits as the paragraph you were just reading. **Enter** splits 
 one in, and the arrow keys walk out of a chunk into its neighbour — so the chapter's positional body
 is edited the way a document is written, not the way a tree is edited. Edits ride the surgical
 `/api/edit` write path in the background (debounced and coalesced), addressing each body element by
-its rank; a `🗑` removes a chunk.
+its **absolute entry index** (`:doc[3]` — keyed entries consume indices too, `CHAPTER.md`); a `🗑`
+removes a chunk.
 
 Prose is **marklower** (`MARKLOWER.md`): emphasis is edited live as markup, while its atomic
 tokens — `$$math$$`, `` `code` ``, links, and `*[…](…)` embeds — render as single non-editable
