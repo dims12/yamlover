@@ -1314,15 +1314,23 @@ function buildTree(dataRoot: string, s: Store, segs: Seg[], label: string, depth
  *  subchapter lives in its OWN subdirectory — a contain child sorted by directory scan — but is
  *  PLACED by a positional `*` body ref that carries the author's order. So order the children by
  *  their BODY position: a referenced child (subchapter / image chunk) takes its ref's `pos`, an
- *  inline chunk keeps its own contain `pos`. An inline chapter has no such refs (its body is inline,
- *  contain `pos` already IS body order), so the map is empty and this is a no-op. */
+ *  inline chunk keeps its own contain `pos`, and a dir-backed child the body never references
+ *  (`label` set, no ref) trails AFTER the ordered ones in dir-scan order — matching walk.ts
+ *  applyBody's unlisted-trailing convention. An inline chapter has no such refs (its body is
+ *  inline, contain `pos` already IS body order), so the map is empty and this is a no-op. */
 function chapterOrderedChildren(s: Store, p: string, format: string | null): ReturnType<Store["children"]> {
   const kids = s.children(p);
   if (format !== "x-yamlover-chapter" && format !== "x-yamlover-task") return kids;
   const bodyPos = new Map<string, number>();
   for (const e of s.entries(p)) if (e.kind === "ref" && !bodyPos.has(e.to)) bodyPos.set(e.to, e.pos ?? 0);
   if (bodyPos.size === 0) return kids;
-  const key = (c: (typeof kids)[number]): number => bodyPos.get(c.to) ?? c.pos ?? 0;
+  const maxPos = Math.max(...bodyPos.values(), ...kids.map((c) => c.pos ?? 0));
+  const key = (c: (typeof kids)[number]): number => {
+    const bp = bodyPos.get(c.to);
+    if (bp != null) return bp; // listed: body order
+    if (c.label != null) return maxPos + 1 + (c.pos ?? 0); // unlisted dir child: trailing
+    return c.pos ?? 0; // inline chunk: keeps its interleaved body position
+  };
   return kids.map((c, i) => ({ c, i })).sort((a, b) => key(a.c) - key(b.c) || a.i - b.i).map((x) => x.c);
 }
 

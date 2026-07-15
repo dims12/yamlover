@@ -481,4 +481,21 @@ describe("/api/tree — directory-chapter subchapter order", () => {
     const subchapters = tree.children.filter((c) => c.format === "x-yamlover-chapter").map((c) => c.label);
     expect(subchapters).toEqual(["Zebra", "Apple"]); // body order — NOT ["Apple", "Zebra"]
   });
+
+  it("trails on-disk subchapters the body never references AFTER the ordered ones, in dir-scan order", async () => {
+    // zebra and apple are placed by `*` body pointers; kiwi and mango exist on disk only.
+    const root = tmpTree({
+      "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Root\n- intro\n- *: zebra\n- *: apple\n",
+      "doc/zebra/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Zebra\n- z body\n",
+      "doc/apple/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Apple\n- a body\n",
+      "doc/mango/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Mango\n- m body\n",
+      "doc/kiwi/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Kiwi\n- k body\n",
+      ...DEFS,
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const tree = call(h, "/api/tree", { path: ":doc", depth: "1" }).json as { children: { label: string; format: string | null }[] };
+    const subchapters = tree.children.filter((c) => c.format === "x-yamlover-chapter").map((c) => c.label);
+    expect(subchapters).toEqual(["Zebra", "Apple", "Kiwi", "Mango"]); // listed first in body order, unlisted trailing
+  });
 });

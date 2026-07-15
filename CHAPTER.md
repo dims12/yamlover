@@ -23,7 +23,9 @@ and subchapter links — **in source order**, wherever the author placed it: the
 hoisted to the top, subchapters are not forced to the end, and base-level prose may follow a
 subchapter. The **TOC** likewise lists subchapters in **body order** — even when each subchapter is
 its own subdirectory (a directory chapter, `examples/66-pet-keeper-handbook`), whose alphabetical
-directory scan is overridden by the positional `*` body pointers that place them.
+directory scan is overridden by the positional `*` body pointers that place them. A subdirectory
+present on disk but never referenced by a body pointer sorts **after** the ordered ones, in
+directory-scan order.
 
 ```yamlover
 # a whole article in one tagged .yamlover file
