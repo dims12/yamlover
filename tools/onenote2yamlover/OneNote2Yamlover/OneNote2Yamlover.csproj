@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net10.0-windows</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <UseWPF>true</UseWPF>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- The WPF implicit-usings set omits System.IO. -->
+        <Using Include="System.IO" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="SSH.NET" Version="2025.1.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\OneNote2Yamlover.Core\OneNote2Yamlover.Core.csproj" />
+        <ProjectReference Include="..\OneNote2Yamlover.OneNote\OneNote2Yamlover.OneNote.csproj" />
+    </ItemGroup>
+
+</Project>

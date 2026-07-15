@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+  </PropertyGroup>
+
+  <!-- lib\Interop.OneNote.dll is generated ONCE by tlbimp from the type library embedded in
+       ONENOTE.EXE (resource \3) and checked in:
+
+         TlbImp.exe "C:\Program Files (x86)\Microsoft Office\root\Office16\ONENOTE.EXE\3" \
+                    /out:lib\Interop.OneNote.dll /namespace:OneNote /machine:Agnostic /silent
+
+       EmbedInteropTypes inlines the [ComImport] interfaces, so calls go through the interface
+       VTABLE. That matters: OneNote's own IDispatch resolves names through its type library, which
+       registers only a `win32` binary, so EVERY late-binding route (Type.InvokeMember, dynamic, even
+       a hand-rolled IDispatch::GetIDsOfNames) dies with TYPE_E_LIBNOTREGISTERED — from x64 AND x86.
+       The GAC PIA cannot substitute: it references mscorlib 2.0 and its IApplication lacks
+       [ComImport]. <COMReference> would generate this at build time, but ResolveComReference needs
+       .NET Framework MSBuild and errors under `dotnet build` (MSB4803). -->
+  <ItemGroup>
+    <Reference Include="Interop.OneNote">
+      <HintPath>..\lib\Interop.OneNote.dll</HintPath>
+      <EmbedInteropTypes>true</EmbedInteropTypes>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OneNote2Yamlover.Core\OneNote2Yamlover.Core.csproj" />
+  </ItemGroup>
+
+</Project>
