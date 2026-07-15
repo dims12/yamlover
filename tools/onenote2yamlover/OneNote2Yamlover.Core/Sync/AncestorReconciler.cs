@@ -30,7 +30,8 @@ public static class AncestorReconciler
     /// <para>
     /// The union matters: a fresh stage holds only THIS run's sections, so listing the stage would
     /// silently drop siblings synced earlier. Membership therefore comes from the destination, plus
-    /// whatever this run is about to write.
+    /// whatever this run is about to write — the synced sections AND every container on the path to
+    /// one (a section group written this run is a child too, and must appear in its parent's list).
     /// </para>
     /// <para>
     /// The destination ROOT is deliberately left alone — the user may have pointed at an existing
@@ -41,12 +42,14 @@ public static class AncestorReconciler
                                            IReadOnlyCollection<OneNoteNode> syncedSections,
                                            IDestinationIndex destination)
     {
-        var writtenThisRun = syncedSections.Select(plan.RelPath).ToHashSet(StringComparer.Ordinal);
-
         var containers = syncedSections
             .SelectMany(plan.Ancestors)
             .Distinct()
             .ToList();
+
+        var writtenThisRun = syncedSections.Select(plan.RelPath)
+            .Concat(containers.Select(plan.RelPath))
+            .ToHashSet(StringComparer.Ordinal);
 
         foreach (var c in containers)
         {

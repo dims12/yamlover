@@ -190,6 +190,12 @@ public class NamePlanAndReconcilerTests
         n.Children.AddRange(kids);
         return n;
     }
+    private static OneNoteNode Grp(string name, params OneNoteNode[] kids)
+    {
+        var n = new OneNoteNode(NodeKind.SectionGroup, name, name);
+        n.Children.AddRange(kids);
+        return n;
+    }
     private static OneNoteNode Sec(string name) => new(NodeKind.Section, name, name);
 
     [Fact]
@@ -228,6 +234,27 @@ public class NamePlanAndReconcilerTests
             Assert.Equal(
                 ChapterSerializer.Tag + "\ntitle: N\n- *: A\n- *: B\n",
                 body);
+        }
+        finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }
+    }
+
+    /// <summary>A section-group child written this run must appear in its parent's list, in OneNote order.</summary>
+    [Fact]
+    public void AncestorBodyListsSectionGroupsAmongSections()
+    {
+        var nb = Nb("N", Sec("A"), Grp("G", Sec("S")), Sec("B"));
+        var plan = new NamePlan([nb]);
+        string stage = Path.Combine(Path.GetTempPath(), "o2y-test-" + Guid.NewGuid().ToString("N")[..8]);
+        try
+        {
+            var synced = nb.DescendantsAndSelf().Where(n => n.IsSection).ToList();
+            AncestorReconciler.WriteAncestorBodies(stage, plan, synced, new EmptyDestinationIndex());
+
+            string nbBody = File.ReadAllText(Path.Combine(stage, "N", ".yamlover", "body.yamlover"));
+            Assert.Equal(ChapterSerializer.Tag + "\ntitle: N\n- *: A\n- *: G\n- *: B\n", nbBody);
+
+            string grpBody = File.ReadAllText(Path.Combine(stage, "N", "G", ".yamlover", "body.yamlover"));
+            Assert.Equal(ChapterSerializer.Tag + "\ntitle: G\n- *: S\n", grpBody);
         }
         finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }
     }
