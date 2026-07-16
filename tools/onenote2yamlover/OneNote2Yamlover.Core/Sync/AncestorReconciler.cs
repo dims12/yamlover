@@ -63,7 +63,7 @@ public static class AncestorReconciler
             string dir = plan.LocalPath(stageRoot, c);
             Fs.CreateDirectory(Path.Combine(dir, ".yamlover"));
             Fs.WriteText(Path.Combine(dir, @".yamlover\body.yamlover"),
-                         ChapterSerializer.Chapter(c.Name, null, present));
+                         ChapterSerializer.Chapter(c.DisplayName, null, present));
         }
     }
 }

@@ -117,8 +117,8 @@ public class PageMediaTests
         var c = PageConverter.Convert(Page(Outline(Oe(table))));
 
         Assert.Equal(2, c.Chunks.Count);
-        Assert.Equal(ChunkKind.Csv, c.Chunks[0].Kind);
-        Assert.Equal("cell text", c.Chunks[0].Text);
+        Assert.Equal(ChunkKind.Table, c.Chunks[0].Kind);
+        Assert.Equal("cell text", c.Chunks[0].Table!.Rows[0].Cells[0].Text);
         Assert.Equal(ChunkKind.Pointer, c.Chunks[1].Kind);
         Assert.Single(c.Assets);
     }

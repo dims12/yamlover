@@ -26,6 +26,7 @@ public sealed class TreeNodeVm : ObservableBase
     public ObservableCollection<TreeNodeVm> Children { get; }
 
     public string Name => _node.Name;
+    public string DisplayName => _node.DisplayName;
     public NodeKind Kind => _node.Kind;
     public bool IsSection => _node.IsSection;
     public string? SectionId => _node.IsSection ? _node.Id : null;

@@ -135,7 +135,8 @@ public sealed class MainViewModel : ObservableBase
             foreach (var c in n.Children) Walk(c);
         }
 
-        foreach (var nb in Notebooks.Where(n => n.Name == notebook)) Walk(nb);
+        // A notebook may be given by folder name or by the display name OneNote shows (its nickname).
+        foreach (var nb in Notebooks.Where(n => n.Name == notebook || n.DisplayName == notebook)) Walk(nb);
         OnSelectionChanged();
         return hits;
     }

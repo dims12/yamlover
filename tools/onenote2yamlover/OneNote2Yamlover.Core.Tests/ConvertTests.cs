@@ -33,16 +33,92 @@ public class PageConverterTests
         Assert.Equal("parent\n- kid", c.Chunks[0].Text);
     }
 
+    private static string Cell(string inner) => $"<one:Cell><one:OEChildren>{Oe(inner)}</one:OEChildren></one:Cell>";
+
     [Fact]
-    public void TableBecomesACsvChunk()
+    public void TableBecomesATableChunk()
     {
         string table = "<one:Table><one:Row>" +
-                       $"<one:Cell>{Oe(T("bpm"))}</one:Cell><one:Cell>{Oe(T("Tax, and more"))}</one:Cell>" +
+                       Cell(T("bpm")) + Cell(T("Tax, and more")) +
                        "</one:Row></one:Table>";
         var c = PageConverter.Convert(Page(Oe(table)));
-        var csv = Assert.Single(c.Chunks);
-        Assert.Equal(ChunkKind.Csv, csv.Kind);
-        Assert.Equal("bpm,\"Tax, and more\"", csv.Text);
+        var chunk = Assert.Single(c.Chunks);
+        Assert.Equal(ChunkKind.Table, chunk.Kind);
+        var row = Assert.Single(chunk.Table!.Rows);
+        Assert.Equal(["bpm", "Tax, and more"], row.Cells.Select(x => x.Text));
+    }
+
+    [Fact]
+    public void CellFormattingSurvivesAsMarklower()
+    {
+        string table = "<one:Table><one:Row>" +
+                       Cell(T("""<span style='font-weight:bold'>boss</span>""")) +
+                       "</one:Row></one:Table>";
+        var c = PageConverter.Convert(Page(Oe(table)));
+        Assert.Equal("**boss**", Assert.Single(c.Chunks).Table!.Rows[0].Cells[0].Text);
+    }
+
+    [Fact]
+    public void NestedTableStaysACellOfItsOwn()
+    {
+        // the old CSV path flattened a nested table's text into the outer cell
+        string inner = $"<one:Table><one:Row>{Cell(T("duty"))}{Cell(T("always"))}</one:Row></one:Table>";
+        string table = "<one:Table><one:Row>" +
+                       Cell(T("Bubbles")) + Cell(inner) +
+                       "</one:Row></one:Table>";
+        var c = PageConverter.Convert(Page(Oe(table)));
+        var cells = Assert.Single(Assert.Single(c.Chunks).Table!.Rows).Cells;
+        Assert.Equal("Bubbles", cells[0].Text);
+        Assert.Null(cells[0].Nested);
+        var nested = Assert.IsType<TableModel>(cells[1].Nested);
+        Assert.Equal(["duty", "always"], Assert.Single(nested.Rows).Cells.Select(x => x.Text));
+    }
+
+    [Fact]
+    public void MultiParagraphCellStacksLines()
+    {
+        string table = "<one:Table><one:Row>" +
+                       $"<one:Cell><one:OEChildren>{Oe(T("first"))}{Oe(T("second"))}</one:OEChildren></one:Cell>" +
+                       "</one:Row></one:Table>";
+        var c = PageConverter.Convert(Page(Oe(table)));
+        Assert.Equal("first\nsecond", Assert.Single(c.Chunks).Table!.Rows[0].Cells[0].Text);
+    }
+
+    /// <summary>Prose AND a table in one cell: nothing is dropped — the cell becomes a CHAPTER
+    /// whose body keeps prose and table in document order (TABLE.md §Cells).</summary>
+    [Fact]
+    public void CellMixingProseAndTableBecomesAChapterCell()
+    {
+        string inner = $"<one:Table><one:Row>{Cell(T("duty"))}{Cell(T("always"))}</one:Row></one:Table>";
+        string table = "<one:Table><one:Row>" +
+                       $"<one:Cell><one:OEChildren>{Oe(T("above"))}{Oe(inner)}{Oe(T("below"))}</one:OEChildren></one:Cell>" +
+                       "</one:Row></one:Table>";
+        var warnings = new List<string>();
+        var c = PageConverter.Convert(Page(Oe(table)), warn: warnings.Add);
+
+        var cell = Assert.Single(Assert.Single(Assert.Single(c.Chunks).Table!.Rows).Cells);
+        Assert.NotNull(cell.Chapter);
+        Assert.Equal([ChunkKind.Text, ChunkKind.Table, ChunkKind.Text], cell.Chapter.Select(x => x.Kind));
+        Assert.Equal("above", cell.Chapter[0].Text);
+        Assert.Equal(["duty", "always"], cell.Chapter[1].Table!.Rows[0].Cells.Select(x => x.Text));
+        Assert.Equal("below", cell.Chapter[2].Text);
+        Assert.Empty(warnings);
+    }
+
+    /// <summary>TWO nested tables in one cell also fit a chapter cell — the old code kept only the first.</summary>
+    [Fact]
+    public void CellWithTwoTablesKeepsBoth()
+    {
+        string t1 = $"<one:Table><one:Row>{Cell(T("one"))}</one:Row></one:Table>";
+        string t2 = $"<one:Table><one:Row>{Cell(T("two"))}</one:Row></one:Table>";
+        string table = "<one:Table><one:Row>" +
+                       $"<one:Cell><one:OEChildren>{Oe(t1)}{Oe(t2)}</one:OEChildren></one:Cell>" +
+                       "</one:Row></one:Table>";
+        var c = PageConverter.Convert(Page(Oe(table)));
+
+        var cell = Assert.Single(Assert.Single(Assert.Single(c.Chunks).Table!.Rows).Cells);
+        Assert.NotNull(cell.Chapter);
+        Assert.Equal(["one", "two"], cell.Chapter.Select(x => x.Table!.Rows[0].Cells[0].Text));
     }
 
     [Fact]
@@ -158,6 +234,27 @@ public class HierarchyTests
         Assert.DoesNotContain(nb.Children, c => c.Name == "OneNote_RecycleBin");
     }
 
+    /// <summary>Renaming a notebook changes `nickname` only; `name` stays the on-disk folder name.</summary>
+    [Fact]
+    public void NotebookNicknameIsTheDisplayName()
+    {
+        string xml = $"""
+            <?xml version="1.0"?>
+            <one:Notebooks xmlns:one="{Ns}">
+              <one:Notebook name="Freelance" nickname="Freelance и работа" ID="nb1">
+                <one:SectionGroup name="G" ID="g"><one:Section name="S" ID="s"/></one:SectionGroup>
+              </one:Notebook>
+              <one:Notebook name="Same" ID="nb2"/>
+            </one:Notebooks>
+            """;
+        var nbs = HierarchyParser.ParseNotebooks(xml);
+
+        Assert.Equal("Freelance", nbs[0].Name);
+        Assert.Equal("Freelance и работа", nbs[0].DisplayName);
+        Assert.Equal("Same", nbs[1].DisplayName);
+        Assert.Equal("G", nbs[0].Children[0].DisplayName);
+    }
+
     [Fact]
     public void SubpagesAreNestedByPageLevel()
     {
@@ -270,6 +367,23 @@ public class NamePlanAndReconcilerTests
             AncestorReconciler.WriteAncestorBodies(stage, plan, [nb.Children[1]], new EmptyDestinationIndex());
             string body = File.ReadAllText(Path.Combine(stage, "N", ".yamlover", "body.yamlover"));
             Assert.Equal(ChapterSerializer.Tag + "\ntitle: N\n- *: B\n", body);
+        }
+        finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }
+    }
+
+    /// <summary>A renamed notebook keeps its folder name; only the body's title shows the nickname.</summary>
+    [Fact]
+    public void RenamedNotebookTitlesTheBodyWithItsNickname()
+    {
+        var nb = new OneNoteNode(NodeKind.Notebook, "nb", "Бизнес", "Я, Расцвет, Бизнес");
+        nb.Children.Add(Sec("A"));
+        var plan = new NamePlan([nb]);
+        string stage = Path.Combine(Path.GetTempPath(), "o2y-test-" + Guid.NewGuid().ToString("N")[..8]);
+        try
+        {
+            AncestorReconciler.WriteAncestorBodies(stage, plan, [nb.Children[0]], new EmptyDestinationIndex());
+            string body = File.ReadAllText(Path.Combine(stage, "Бизнес", ".yamlover", "body.yamlover"));
+            Assert.Equal(ChapterSerializer.Tag + "\ntitle: Я, Расцвет, Бизнес\n- *: A\n", body);
         }
         finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }
     }

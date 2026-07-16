@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:OneNote2Yamlover.ViewModels"
         mc:Ignorable="d"
-        Title="OneNote → yamlover"
+        Title="OneNote → yamlover" Icon="icon.ico"
         Height="660" Width="1060" MinHeight="420" MinWidth="720"
         ResizeMode="CanResizeWithGrip" SizeToContent="Manual"
         WindowStartupLocation="CenterScreen">
@@ -18,7 +18,7 @@
                           VerticalAlignment="Center"
                           Checked="OnNodeChecked" Unchecked="OnNodeChecked" Indeterminate="OnNodeChecked" />
                 <TextBlock Text="{Binding Glyph}" Margin="4,0,4,0" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
             </StackPanel>
         </HierarchicalDataTemplate>
 
@@ -58,7 +58,7 @@
                 <Style TargetType="TreeViewItem">
                     <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
                     <!-- Without this, screen readers announce the view-model's type name. -->
-                    <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                    <Setter Property="AutomationProperties.Name" Value="{Binding DisplayName}" />
                 </Style>
             </TreeView.ItemContainerStyle>
         </TreeView>

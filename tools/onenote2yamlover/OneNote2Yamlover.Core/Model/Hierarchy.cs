@@ -10,11 +10,14 @@ public static class One
 public enum NodeKind { Notebook, SectionGroup, Section }
 
 /// <summary>A node of the OneNote tree ABOVE the page level: notebook, section group, or section.</summary>
-public sealed class OneNoteNode(NodeKind kind, string id, string name)
+public sealed class OneNoteNode(NodeKind kind, string id, string name, string? displayName = null)
 {
     public NodeKind Kind { get; } = kind;
     public string Id { get; } = id;
+    /// <summary>The `name` attribute — the on-disk folder name, frozen at creation. Keys all paths.</summary>
     public string Name { get; } = name;
+    /// <summary>What OneNote shows: the notebook `nickname` (tracks renames); elsewhere just the name.</summary>
+    public string DisplayName { get; } = displayName ?? name;
     public List<OneNoteNode> Children { get; } = [];
 
     public bool IsSection => Kind == NodeKind.Section;
@@ -59,7 +62,11 @@ public static class HierarchyParser
             "SectionGroup" => NodeKind.SectionGroup,
             _ => NodeKind.Section,
         };
-        var node = new OneNoteNode(kind, (string?)e.Attribute("ID") ?? "", (string?)e.Attribute("name") ?? "Untitled");
+        // Only notebooks carry `nickname` — the display name that tracks renames, while `name`
+        // stays the on-disk folder name (and may hold escaped control chars, e.g. "Linux^J Unix").
+        var nickname = kind == NodeKind.Notebook ? (string?)e.Attribute("nickname") : null;
+        var node = new OneNoteNode(kind, (string?)e.Attribute("ID") ?? "",
+                                   (string?)e.Attribute("name") ?? "Untitled", nickname);
 
         if (kind != NodeKind.Section)
             foreach (var child in e.Elements().Where(c => c.Name == One.Ns + "SectionGroup" || c.Name == One.Ns + "Section"))

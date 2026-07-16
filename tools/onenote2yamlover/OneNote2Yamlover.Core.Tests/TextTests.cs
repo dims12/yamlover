@@ -157,22 +157,19 @@ public class YamlTests
     [Fact]
     public void NullScalarIsEmptyQuoted() => Assert.Equal("\"\"", Yaml.Scalar(null));
 
+    /// <summary>Flow-cell quoting (TABLE.md): plain only when the flow lexer takes the token
+    /// whole; else single-quoted, <c>''</c> doubling (the one escape the parser reads).</summary>
     [Theory]
     [InlineData("Alice", "Alice")]
-    [InlineData("Designer, UX", "\"Designer, UX\"")]
-    [InlineData("say \"hi\"", "\"say \"\"hi\"\"\"")]
-    [InlineData("", "")]
-    [InlineData("**Motor** vehicle", "**Motor** vehicle")]
-    public void CsvQuoting(string input, string expected) => Assert.Equal(expected, Yaml.CsvField(input));
-
-    [Fact]
-    public void CsvNewlinesCollapseToSpace() => Assert.Equal("two lines", Yaml.CsvField("two\nlines"));
-
-    [Fact]
-    public void CsvCrLfCollapsesToOneSpace() => Assert.Equal("two lines", Yaml.CsvField("two\r\nlines"));
-
-    [Fact]
-    public void CsvPadIsQuoted() => Assert.Equal("\" pad \"", Yaml.CsvField(" pad "));
+    [InlineData("Designer, UX", "'Designer, UX'")]
+    [InlineData("say \"hi\"", "'say \"hi\"'")]
+    [InlineData("it's", "'it''s'")]
+    [InlineData("", "''")]
+    [InlineData("**Motor** vehicle", "'**Motor** vehicle'")] // opens with the deref sigil `*`
+    [InlineData("a:b", "'a:b'")]
+    [InlineData("[.-1]", "'[.-1]'")]
+    [InlineData(" pad ", "' pad '")]
+    public void FlowCellQuoting(string input, string expected) => Assert.Equal(expected, Yaml.FlowCell(input));
 }
 
 public class MimeTests

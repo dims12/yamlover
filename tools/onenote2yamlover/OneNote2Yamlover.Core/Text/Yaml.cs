@@ -12,7 +12,7 @@ public static partial class Yaml
     [GeneratedRegex(@"^\.+$")] private static partial Regex AllDots();
     [GeneratedRegex(@"^[\p{L}\p{N}]")] private static partial Regex StartsAlnum();
     [GeneratedRegex(@"[:#\r\n]")] private static partial Regex ScalarNeedsQuote();
-    [GeneratedRegex(@"["",]")] private static partial Regex CsvNeedsQuote();
+    [GeneratedRegex(@"[\s,\[\]:#'""{}]")] private static partial Regex FlowCellNeedsQuote();
 
     /// <summary>
     /// A pointer key: bare when unambiguous, else double-quoted. An all-dots key must be quoted too,
@@ -37,14 +37,17 @@ public static partial class Yaml
     }
 
     /// <summary>
-    /// RFC 4180. A cell's newlines collapse to a space: a bare newline inside a block-scalar CSV
-    /// chunk would read as a row break, and OneNote cells wrap for layout, not meaning.
+    /// A table cell in a FLOW row (TABLE.md; the caller keeps multi-line cells out — those force
+    /// the block row form). Plain only when the flow lexer takes the token whole: non-empty, no
+    /// whitespace or <c>, [ ] : # ' " { }</c>, and not opening with a yamlover sigil. Everything
+    /// else is single-quoted with <c>''</c> doubling — the one escape the parser reads (a
+    /// double-quoted backslash escape does NOT parse in flow).
     /// </summary>
-    public static string CsvField(string s)
+    public static string FlowCell(string s)
     {
-        s = s.Replace("\r", "").Replace("\n", " ");
-        if (CsvNeedsQuote().IsMatch(s) || s != s.Trim())
-            return "\"" + s.Replace("\"", "\"\"") + "\"";
-        return s;
+        s = s.Replace("\r", "");
+        bool plain = s.Length > 0 && s == s.Trim()
+            && !FlowCellNeedsQuote().IsMatch(s) && !"*&-|>!".Contains(s[0]);
+        return plain ? s : "'" + s.Replace("'", "''") + "'";
     }
 }

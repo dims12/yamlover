@@ -62,9 +62,9 @@ public static class PageConverter
     {
         if (oe.Element(One.Ns + "Table") is { } tbl)
         {
-            tail.Add(Chunk.Table(TableToCsv(tbl)));
+            tail.Add(Chunk.Grid(TableToModel(tbl, ctx)));
             // A table's cells hang off Table/Row/Cell/OEChildren/OE — NOT off this OE's OEChildren —
-            // so the recursion below never reaches them, and Table-ToCsv only takes text. Pull the
+            // so the recursion below never reaches them, and the cell model only takes text. Pull the
             // media out explicitly, or every picture in a table is lost (120 of them, here).
             foreach (var media in tbl.Descendants().Where(e => e.Name == One.Ns + "Image"
                                                             || e.Name == One.Ns + "InsertedFile"
@@ -157,19 +157,57 @@ public static class PageConverter
     private static string OeText(XElement oe) =>
         Marklower.FromHtml(string.Concat(oe.Elements(One.Ns + "T").Select(t => t.Value)));
 
-    private static string TableToCsv(XElement tbl)
+    /// <summary>A <c>one:Table</c> → the structured table model (TABLE.md): rows of cells, each
+    /// cell marklower prose, a NESTED table, or — when the cell mixes both — a chapter. The old
+    /// CSV path flattened a nested table's OEs into the outer cell (<c>Descendants</c>); here a
+    /// cell walks only its DIRECT paragraphs and recurses into a nested <c>one:Table</c> instead.</summary>
+    private static TableModel TableToModel(XElement tbl, Ctx ctx)
     {
-        var rows = new List<string>();
+        var rows = new List<TableRow>();
         foreach (var row in tbl.Elements(One.Ns + "Row"))
+            rows.Add(new TableRow([.. row.Elements(One.Ns + "Cell").Select(c => CellToModel(c, ctx))]));
+        return new TableModel(rows);
+    }
+
+    private static TableCell CellToModel(XElement cell, Ctx ctx)
+    {
+        // The cell's content in document order: prose runs and nested tables.
+        var items = new List<Chunk>();
+        var lines = new List<string>();
+        foreach (var oe in cell.Elements(One.Ns + "OEChildren").Elements(One.Ns + "OE"))
+            CollectCellOe(oe, lines, items, ctx);
+        FlushProse(lines, items);
+
+        return items switch
         {
-            var cells = row.Elements(One.Ns + "Cell").Select(cell =>
-            {
-                var parts = cell.Descendants(One.Ns + "OE").Select(OeText).Where(t => t.Length > 0);
-                return Yaml.CsvField(string.Join(" ", parts));
-            });
-            rows.Add(string.Join(",", cells));
+            // a cell's paragraphs stack as lines; a multi-line cell serializes as a block-row cell
+            [] => new TableCell(Text: ""),
+            [{ Kind: ChunkKind.Text } p] => new TableCell(Text: p.Text),
+            [{ Kind: ChunkKind.Table } t] => new TableCell(Nested: t.Table),
+            // prose AND a table (or several tables): a tagged chapter cell keeps everything in order
+            _ => new TableCell(Chapter: items),
+        };
+    }
+
+    private static void FlushProse(List<string> lines, List<Chunk> items)
+    {
+        if (lines.Count == 0) return;
+        items.Add(Chunk.Prose(string.Join("\n", lines)));
+        lines.Clear();
+    }
+
+    private static void CollectCellOe(XElement oe, List<string> lines, List<Chunk> items, Ctx ctx)
+    {
+        if (oe.Element(One.Ns + "Table") is { } t)
+        {
+            FlushProse(lines, items);
+            items.Add(Chunk.Grid(TableToModel(t, ctx)));
+            return;
         }
-        return string.Join("\n", rows);
+        string txt = OeText(oe);
+        if (txt.Length > 0) lines.Add(txt);
+        foreach (var child in oe.Elements(One.Ns + "OEChildren").Elements(One.Ns + "OE"))
+            CollectCellOe(child, lines, items, ctx);
     }
 
     /// <summary>

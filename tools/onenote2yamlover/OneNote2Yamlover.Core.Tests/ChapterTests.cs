@@ -19,19 +19,84 @@ public class ChapterSerializerTests
         Lines(Tag, "title: Avtomobil", "- *: Untitled.yamlover", "- *: Nomer.yamlover"),
         ChapterSerializer.Chapter("Avtomobil", null, ["Untitled.yamlover", "Nomer.yamlover"]));
 
-    /// <summary>Prose, a CSV table, an image, an attachment, then a subchapter — one ordered stream.</summary>
+    private const string TableTag = "!!<*yamlover: $defs: table>";
+    private static TableRow Row(params string[] cells) => new([.. cells.Select(c => new TableCell(c))]);
+
+    /// <summary>Prose, a table, an image, an attachment, then a subchapter — one ordered stream.</summary>
     [Fact]
     public void MixedBodyIsOnePositionalStream() => Assert.Equal(
         Lines(Tag, "title: Parent",
               "- |", "  intro prose",
-              "- !!<format: text/csv> |", "  a,b", "  1,2",
+              "- " + TableTag,
+              "  - [a, b]",
+              "  - [1, 2]",
               "- *: image-1a2b3c4d.png",
               "- *: Zvukozapis.3gp",
               "- *: Subpage.yamlover"),
         ChapterSerializer.Chapter("Parent",
-            [Chunk.Prose("intro prose"), Chunk.Table("a,b\n1,2"),
+            [Chunk.Prose("intro prose"), Chunk.Grid(new TableModel([Row("a", "b"), Row("1", "2")])),
              Chunk.Pointer("image-1a2b3c4d.png"), Chunk.Pointer("Zvukozapis.3gp")],
             ["Subpage.yamlover"]));
+
+    /// <summary>Flow-cell quoting (TABLE.md): a space / sigil / quote forces single quotes with
+    /// <c>''</c> doubling; a marklower-bold cell opens with <c>*</c> (a yamlover sigil) so it quotes.</summary>
+    [Fact]
+    public void FlowRowQuoting() => Assert.Contains(
+        "  - [plain, 'two words', '**bold**', 'it''s', '']",
+        ChapterSerializer.Chapter("T",
+            [Chunk.Grid(new TableModel([Row("plain", "two words", "**bold**", "it's", "")]))], null));
+
+    /// <summary>A multi-line cell forces the BLOCK row form: a lone <c>-</c>, each cell its own
+    /// item, the multi-line one a <c>|-</c> block scalar.</summary>
+    [Fact]
+    public void MultiLineCellMakesABlockRow() => Assert.Contains(
+        Lines("  -",
+              "    - single",
+              "    - |-",
+              "      two",
+              "      lines"),
+        ChapterSerializer.Chapter("T",
+            [Chunk.Grid(new TableModel([new TableRow([new TableCell("single"), new TableCell("two\nlines")])]))], null));
+
+    /// <summary>A nested-table cell: a lone <c>-</c> whose rows sit at its child indent — the
+    /// examples/74-table.yamlover shape.</summary>
+    [Fact]
+    public void NestedTableCellEmitsRecursively() => Assert.Contains(
+        Lines("- " + TableTag,
+              "  -",
+              "    - Bubbles",
+              "    -",
+              "      - [duty, always]"),
+        ChapterSerializer.Chapter("T",
+            [Chunk.Grid(new TableModel([new TableRow([
+                new TableCell("Bubbles"),
+                new TableCell(Nested: new TableModel([Row("duty", "always")])),
+            ])]))], null));
+
+    /// <summary>A chapter CELL (a cell mixing prose and a table): tagged — an untagged container
+    /// cell reads as a nested table — with the ordered body at its child indent.</summary>
+    [Fact]
+    public void ChapterCellEmitsTaggedBody() => Assert.Contains(
+        Lines("- " + TableTag,
+              "  -",
+              "    - single",
+              "    - " + Tag,
+              "      - above",
+              "      - " + TableTag,
+              "        - [duty, always]",
+              "      - |-",
+              "        below",
+              "        more"),
+        ChapterSerializer.Chapter("T",
+            [Chunk.Grid(new TableModel([new TableRow([
+                new TableCell("single"),
+                new TableCell(Chapter:
+                [
+                    Chunk.Prose("above"),
+                    Chunk.Grid(new TableModel([Row("duty", "always")])),
+                    Chunk.Prose("below\nmore"),
+                ]),
+            ])]))], null));
 
     [Fact]
     public void EmptyBodyIsTagAndTitleOnly() =>
