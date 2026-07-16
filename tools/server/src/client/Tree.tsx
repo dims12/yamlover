@@ -27,9 +27,11 @@ export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren
   // whether those rows are loaded yet (a renderer may unwrap/filter; default is
   // the node's own children, fetched lazily on first expand).
   const { children: kids, expandable, loaded, loadDepth } = tocView(node);
-  // Loaded branches start open (so the first levels show expanded); a branch
-  // whose children are not loaded yet starts closed and loads when opened.
-  const [open, setOpen] = useState(kids.length > 0);
+  // Every branch starts COLLAPSED except the root row — expanding is the user's
+  // act (or the reveal-the-selection effect below). Children being loaded says
+  // nothing about visibility: an expand may fetch several levels at once
+  // (`loadDepth`), and those deeper branches must not spring open with it.
+  const [open, setOpen] = useState(depth === 0);
   const [loading, setLoading] = useState(false);
   const selected = node.path === current;
   const onPath = isAncestorPath(node.path, current); // an ancestor of the selection

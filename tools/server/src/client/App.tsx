@@ -114,9 +114,10 @@ function nextToLoad(tree: TreeNode, current: string): string | null {
  *  shows — `tocView` applies the same per-renderer unwrap/filter (chapters
  *  surface subchapters, dirs show children). Used by Ctrl-PgDn/PgUp to step the
  *  selection to the neighbouring entry. Covers only the LOADED tree: per-branch
- *  collapse state lives in each `Tree`'s local `open`, not here — but a branch
- *  starts open once its children are loaded, so loaded ≈ visible in practice;
- *  deep unloaded branches simply aren't reachable until expanded (lazy load). */
+ *  collapse state lives in each `Tree`'s local `open`, not here — branches start
+ *  collapsed, so stepping may land on a row inside a collapsed branch; Tree's
+ *  reveal-the-selection effect opens its ancestors, making it visible. Deep
+ *  unloaded branches simply aren't reachable until expanded (lazy load). */
 function flattenToc(tree: TreeNode | null): string[] {
   if (!tree) return [];
   const out: string[] = [];

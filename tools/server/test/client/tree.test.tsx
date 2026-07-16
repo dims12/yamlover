@@ -37,6 +37,23 @@ describe("Tree", () => {
     expect(bRow?.className).toContain("selected");
   });
 
+  it("a branch starts collapsed even when its children are already loaded", () => {
+    // `:a` has `:a:b` loaded (e.g. a multi-level expand fetch), but nothing on the
+    // selection path — it must NOT spring open by itself.
+    render(<Tree node={tree} current=":" onSelect={() => {}} onLoadChildren={noop} />);
+    expect(screen.getByText("a")).toBeTruthy(); // the root row itself is open
+    expect(screen.queryByText("b")).toBeNull();
+  });
+
+  it("expanding a loaded branch shows its children without refetching", () => {
+    const onLoad = vi.fn().mockResolvedValue(undefined);
+    render(<Tree node={tree} current=":" onSelect={() => {}} onLoadChildren={onLoad} />);
+    const aRow = screen.getByText("a").closest(".tree-row") as HTMLElement;
+    fireEvent.click(within(aRow).getByRole("button"));
+    expect(screen.getByText("b")).toBeTruthy();
+    expect(onLoad).not.toHaveBeenCalled(); // children were already loaded
+  });
+
   it("selecting a row calls onSelect with its path", () => {
     const onSelect = vi.fn();
     render(<Tree node={tree} current=":" onSelect={onSelect} onLoadChildren={noop} />);
