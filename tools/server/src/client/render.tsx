@@ -43,15 +43,16 @@ export interface Link {
   preview?: string | null; // a representative image path to thumbnail (a fragment → its crop blob)
 }
 
-interface Ref {
+export interface Ref {
   text: string;
   path: string | null;
 }
 
-interface Mixed {
+export interface Mixed {
   kind: "omni" | "mix";
   value?: unknown; // omni: the node's own scalar self-value
   selfAt?: number; // omni: the self-value's authored display position among `entries` (0/absent → first)
+  format?: string | null; // the node's stamped/derived format — a renderer's branch point (a chapter CELL vs a nested table)
   entries: { key: string | null; value: unknown }[]; // key=null ⇒ positional item, else keyed field
 }
 
@@ -74,8 +75,10 @@ function asSingle<T>(v: unknown, key: string): T | null {
  *  need to treat a child's link specially (e.g. the chapter renderer). */
 export const asLink = (v: unknown) => asSingle<Link>(v, LINK_KEY);
 const asBinary = (v: unknown) => asSingle<BinaryPayload>(v, BINARY_KEY);
-const asRef = (v: unknown) => asSingle<Ref>(v, REF_KEY);
-const asMixed = (v: unknown) => asSingle<Mixed>(v, MIXED_KEY);
+/** Read a pointer marker ({text, path|null}) / an omni-mix marker — exported for custom
+ *  renderers that treat them specially (the table renderer's merged cells / nested tables). */
+export const asRef = (v: unknown) => asSingle<Ref>(v, REF_KEY);
+export const asMixed = (v: unknown) => asSingle<Mixed>(v, MIXED_KEY);
 const asNum = (v: unknown) => asSingle<string>(v, NUM_KEY);
 
 /** The literal for a non-finite number `name` ("Infinity"|"-Infinity"|"NaN") in the active syntax:

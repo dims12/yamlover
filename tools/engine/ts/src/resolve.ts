@@ -60,7 +60,8 @@ export function resolveDocument(doc: Document): ResolvedEdge[] {
     node.entries?.forEach((e, i) => {
       const seg = e.key != null ? ':' + e.key : '[' + i + ']';
       if (isPointer(e.value)) {
-        const target = resolve(doc, chains, chain, e.value, new Set([e.value]), keys);
+        const host = hasRelindex(e.value) ? hostPositions(chain, i) : undefined;
+        const target = resolve(doc, chains, chain, e.value, new Set([e.value]), keys, host);
         out.push({ from: prefix + seg, holder: base, label: e.key, pos: i, raw: e.value.raw, edge: e.edge as 'ref' | 'back', target, ptr: e.value, docRoot: dr });
       } else {
         walk(e.value, dr);
@@ -82,11 +83,38 @@ export function resolveDocument(doc: Document): ResolvedEdge[] {
   return out;
 }
 
-/** Resolve a single pointer, given the chain (root..node) of the mapping that holds it. */
-export function resolvePointer(doc: Document, fromChain: Node[], ptr: Pointer): Located {
+/** Resolve a single pointer, given the chain (root..node) of the mapping that holds it.
+ *  `hostIndex` is the pointer entry's own position in that mapping — the deepest slot of the
+ *  relative-index frame (URIs.md §Relative indexes); without it a `[.±k]` at full depth is
+ *  unresolved, while shallower ones (after `..`) still align. */
+export function resolvePointer(doc: Document, fromChain: Node[], ptr: Pointer, hostIndex?: number): Located {
   const chains = buildChains(doc.root);
   const { keys } = realizeAnchors(doc, chains);
-  return resolve(doc, chains, fromChain, ptr, new Set([ptr]), keys);
+  const host = hasRelindex(ptr) ? hostPositions(fromChain, hostIndex) : undefined;
+  return resolve(doc, chains, fromChain, ptr, new Set([ptr]), keys, host);
+}
+
+function hasRelindex(p: Pointer): boolean {
+  return p.steps.some((s) => s.sel === 'relindex');
+}
+
+/** The HOST FRAME of a relative index (URIs.md §Relative indexes): the host path's position
+ *  at every depth. `pos[d]` = the index of `chain[d]` within `chain[d-1]` (keyed entries hold
+ *  positions too — one ordered mapping), and `pos[chain.length]` = the pointer entry's own
+ *  index in the holder. A `[.±k]` step selecting a child at depth d reads `pos[d] + k`. */
+function hostPositions(chain: Node[], entryIdx?: number): (number | undefined)[] {
+  const pos: (number | undefined)[] = [];
+  for (let i = 1; i < chain.length; i++) {
+    const idx = chain[i - 1].entries?.findIndex((e) => e.value === chain[i]) ?? -1;
+    pos[i] = idx >= 0 ? idx : undefined;
+  }
+  pos[chain.length] = entryIdx;
+  return pos;
+}
+
+/** The authored spelling of a relative index, for diagnostics: `[.]`, `[.-1]`, `[.+2]`. */
+function relRaw(k: number): string {
+  return `[.${k === 0 ? '' : k > 0 ? '+' + k : k}]`;
 }
 
 /** The key a keyed anchor's container gains (the path's last step); null for ordinal. */
@@ -131,7 +159,7 @@ function realizeAnchors(doc: Document, chains: Map<Node, Node[]>): { edges: Anch
   return { edges, keys };
 }
 
-function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], ptr: Pointer, visited: Set<Pointer>, anchorKeys?: AnchorKeys): Located {
+function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], ptr: Pointer, visited: Set<Pointer>, anchorKeys?: AnchorKeys, host?: (number | undefined)[]): Located {
   const root = doc.root;
   let steps: Step[] = ptr.steps;
   let chain: Node[];
@@ -188,16 +216,21 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
       chain = chain.slice(0, -1);
       continue;
     }
-    if (st.sel === 'relindex') {
-      // parse-only for now (TABLE.md §Status): a relative index resolves against the host
-      // frame, which this resolver does not carry yet — surface as a dangling pointer
-      return { kind: 'unresolved', reason: 'relative index "[.±k]" — resolution pending (TABLE.md)' };
-    }
     const node = chain[chain.length - 1];
     if (node === undefined) return { kind: 'unresolved', reason: 'empty resolution scope' };
-    const entry = st.sel === 'key'
-      ? node.entries?.find((e) => e.key === st.name)
-      : node.entries?.[st.n];
+    // the entry INDEX each selector picks — a relative index is the host's own position at
+    // this depth ± k (the FRAME RULE, URIs.md §Relative indexes); keyed lookup finds its
+    // position too, so the transitive-deref tail below can hand the inner pointer its frame
+    let idx: number;
+    if (st.sel === 'key') idx = node.entries?.findIndex((e) => e.key === st.name) ?? -1;
+    else if (st.sel === 'index') idx = st.n;
+    else {
+      const at = host?.[chain.length];
+      if (at === undefined) return { kind: 'unresolved', reason: `relative index ${relRaw(st.k)} has no host frame at this depth (URIs.md §Relative indexes)` };
+      idx = at + st.k;
+      if (idx < 0) return { kind: 'unresolved', reason: `relative index ${relRaw(st.k)} out of range (position ${at})` };
+    }
+    const entry = idx >= 0 ? node.entries?.[idx] : undefined;
     if (!entry) {
       // a key that exists only as a `&` anchor-created entry (anchors are real keys)
       if (st.sel === 'key') {
@@ -205,14 +238,17 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
         if (via) { chain = chains.get(via) ?? [via]; continue; }
       }
       if (!node.entries) return isWorld ? external() : { kind: 'unresolved', reason: 'step into a node with no fields' };
-      return isWorld ? external() : { kind: 'unresolved', reason: `no ${st.sel === 'key' ? `key "${st.name}"` : `index [${st.n}]`}` };
+      return isWorld ? external() : { kind: 'unresolved', reason: `no ${st.sel === 'key' ? `key "${st.name}"` : st.sel === 'index' ? `index [${st.n}]` : `entry at relative index ${relRaw(st.k)} (position ${idx})`}` };
     }
 
     if (isPointer(entry.value)) {
       if (visited.has(entry.value)) return { kind: 'unresolved', reason: 'pointer cycle' };
       const next = new Set(visited);
       next.add(entry.value);
-      const r = resolve(doc, chains, chain, entry.value, next, anchorKeys);
+      // the inner pointer's host frame is ITS holder chain + its own entry index — so a
+      // chain of merge pointers (TABLE.md) resolves transitively to the origin cell
+      const innerHost = hasRelindex(entry.value) ? hostPositions(chain, idx) : undefined;
+      const r = resolve(doc, chains, chain, entry.value, next, anchorKeys, innerHost);
       if (r.kind !== 'node') return r; // external/unresolved propagates
       chain = chains.get(r.node) ?? [r.node];
     } else {

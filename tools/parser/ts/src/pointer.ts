@@ -134,7 +134,7 @@ function portionToSteps(p: string): Step[] {
   if (p === '..') return [{ sel: 'parent' }];
   // `..` with attached index groups (`..[.-1][.]` — the table rowspan idiom): the uplink,
   // then the indexes. (The literal key ".." arrives escaped, `\.\.`, and takes the name path.)
-  if (p.startsWith('..') && p[2] === '[') return [{ sel: 'parent' }, ...indexGroups(p.slice(2), p)];
+  if (p.startsWith('..') && p[2] === '[') return [{ sel: 'parent' }, ...indexGroups(p.slice(2), p, 'portion')];
   let name = '';
   let i = 0;
   if (p[0] === "'" || p[0] === '"') {

@@ -16,7 +16,7 @@ const TEXT_MATERIALS = new Set(["chapter", "markdown", "asciidoc", "marklower"])
 // Renderers editable in place under the lock: a chapter and a task (its body IS a chapter, reusing
 // ChapterView). Their prose chunks + title/description/subchapter titles become editable when
 // unlocked; the edits ride the /api/edit surgical write path.
-const EDITABLE_RENDERERS = new Set(["chapter", "task"]);
+const EDITABLE_RENDERERS = new Set(["chapter", "task", "table"]);
 import { TagBadges, splitTagRefs } from "./renderers/tag";
 import { Render } from "./render";
 import { strToSegs } from "./paths";
@@ -176,8 +176,8 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
           // A fixed-depth renderer needs EXACTLY its depth: at unlimited depth the explorer's members
           // inline as raw scalars / `$yamloverRef` markers instead of the `$yamloverLink` markers it
           // navigates by.
-          const d = active.depth ?? 1; // a renderer's own fixed depth
-          if (d !== settleDepth) fetchNode(path, d).then(swap).catch(fail);
+          const d = active.depth === null ? Infinity : active.depth ?? 1; // null = unlimited (the table renderer)
+          if (d !== settleDepth) fetchNode(path, d === Infinity ? null : d).then(swap).catch(fail);
           else setNode(n);
         } else {
           // A DATA view (yamlover / json5p / schema) shows the FULL document: default (`null`) = `.inf`,

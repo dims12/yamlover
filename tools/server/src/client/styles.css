@@ -1311,6 +1311,45 @@ textarea.chapter-latex-src {
   color: var(--dim);
 }
 
+/* ---- table (x-yamlover-table, TABLE.md) ---------------------------------- */
+.yl-table caption {
+  caption-side: top;
+  text-align: left;
+  font-weight: 600;
+  padding: 2px 0 6px;
+}
+.yl-table td .chapter-prose,
+.yl-table th .chapter-prose {
+  margin: 0; /* a marklower cell is the cell, not a paragraph in it */
+  max-width: none;
+}
+.yl-table td .csv-scroll {
+  margin: 0; /* a nested table sits flush in its cell */
+}
+.yl-table-notice {
+  color: var(--dim);
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+/* a CHAPTER cell (prose + tables mixed in one cell): stack its body items with a small gap */
+.yl-cell-chapter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.yl-cell-chapter-title,
+.yl-cell-chapter p {
+  margin: 0;
+}
+.yl-table-title-edit {
+  background: var(--bg-alt);
+  color: var(--fg);
+  border: 1px solid var(--border, #313244);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font: inherit;
+}
+
 /* ---- spreadsheet (xls/xlsx) sheet tabs ----------------------------------- */
 .sheet-tabs {
   display: flex;

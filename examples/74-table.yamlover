@@ -7,8 +7,8 @@
 # column count is inferred from the first row. MERGED cells are `*` pointers with RELATIVE
 # indexes (../URIs.md §Relative indexes): a cell that IS its left neighbor (*[.-1]) spans
 # columns, a cell that IS the one above (*..[.-1][.] — up to the table, previous row, my
-# column) spans rows. A container cell is a NESTED table, no tag needed.
-# NOTE: relative-index resolution and the table renderer are PENDING (TABLE.md §Status).
+# column) spans rows. A container cell is a NESTED table, no tag needed; a cell MIXING
+# prose and tables is a CHAPTER, entering only by its explicit tag (TABLE.md §Cells).
 !!<*yamlover: $defs: chapter>
 title: Household staff
 - The roster below is a **table** — a body element, not marklower syntax; cells are marklower.
@@ -22,3 +22,10 @@ title: Household staff
     - fish
     - header: [duty, shift]
       - [decoration, always]
+  -                                     # its third cell is a CHAPTER: prose AND a table, in order
+    - Rocky
+    - raccoon
+    - !!<*yamlover: $defs: chapter>
+      - night shift **only**
+      - !!<*yamlover: $defs: table>
+        - [bins, tipped]

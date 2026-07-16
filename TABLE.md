@@ -40,14 +40,30 @@ opening with a marklower `*`/`&` (a yamlover sigil), is quoted.
 
 ## Cells
 
-A cell is `anyOf: [chunk, table]`:
+A cell is `anyOf: [chunk, table, chapter]`:
 
 - **A chunk** (`$defs/chunk`) — the default. Schema propagation stamps every leaf cell
   `text/marklower`, exactly as a chapter's body prose is stamped, so cells carry bold,
   links, math, and embeds with no per-cell tag. An empty string is an empty cell.
-- **A nested table** — a *container* cell. The union has only one container branch, so a
-  nested table needs **no tag of its own**: shape routing (leaf → chunk, container → table)
-  stamps it, and the recursion bottoms out in marklower.
+- **A nested table** — the *untagged* container cell. Shape routing (leaf → chunk,
+  container → table) stamps it with **no tag of its own**, and the recursion bottoms out
+  in marklower.
+- **A chapter** (`$defs/chapter`) — a cell mixing prose and tables (or holding several
+  tables): a full document node inside a cell. A chapter and a table are both containers,
+  so shape cannot tell them apart; a chapter cell enters **only by its explicit tag**
+  `!!<*yamlover: $defs: chapter>` — the exact mirror of the chapter-body rule, where the
+  untagged container is the subchapter and the *table* is the tagged branch. Inside the
+  cell-chapter's body the ordinary chapter rules apply (its own tables are tagged again):
+
+  ```yamlover
+  -                                    # a block row — its third cell is a CHAPTER
+    - Rocky
+    - raccoon
+    - !!<*yamlover: $defs: chapter>
+      - night shift **only**
+      - !!<*yamlover: $defs: table>
+        - [bins, tipped]
+  ```
 - **A pointer** — a cell may be a `*` edge to any node; a pointer is an edge, not a schema
   branch, and the shared target conforms as whatever it is. Two pointer targets are special
   — the adjacent previous cells — and they mean **merging**:
@@ -104,12 +120,15 @@ properties:
       anyOf:
         - *:: yamlover: $defs: chunk
         - *:: yamlover: $defs: table
+        - *:: yamlover: $defs: chapter
 items:                             # a row
   type: array
   items:                           # a cell
     anyOf:
-      - *:: yamlover: $defs: chunk   # marklower prose (the default)
-      - *:: yamlover: $defs: table   # a nested table (the recursion)
+      - *:: yamlover: $defs: chunk    # marklower prose (the default)
+      - *:: yamlover: $defs: table    # a nested table — the UNTAGGED container branch
+      - *:: yamlover: $defs: chapter  #   (listed first, so shape routing keeps picking it);
+                                      #   a chapter cell enters only by its explicit tag
 ```
 
 A table enters a chapter body as an **explicitly tagged** element — the tag decides;
@@ -125,11 +144,23 @@ go deeper: `:[i][r][c][r'][c']`.
 
 ## Status
 
-Spec'd 2026-07-16; the schema is hosted (`$defs/table`, registered in
+Spec'd and **implemented** 2026-07-16; the schema is hosted (`$defs/table`, registered in
 `$defs/.yamlover/meta.yamlover`) and `examples/74-table.yamlover` is the worked fixture.
-**Implementation pending**, in the style of URIs.md §`&`: relative-index *resolution* (the
-engine treats `[.±k]` steps as unresolved — a dangling-pointer diagnostic, non-fatal) and
-the **table renderer** (a `byFormat("x-yamlover-table")` entry in
-`tools/server/src/client/renderers/registry.tsx` emitting `colSpan`/`rowSpan`;
-`renderers/csv.tsx` is the existing `<table>` emitter to model on). Until it lands, a
-tagged table shows in the default explorer view.
+
+- **Relative-index resolution** — `tools/engine/ts/src/resolve.ts`: a `[.±k]` step resolves
+  by the frame rule (the host positions vector rides the resolution chain), and a chain of
+  merge pointers resolves transitively to the origin cell. Out of range / no host frame at
+  the depth → the ordinary dangling diagnostic.
+- **The renderer** — `tools/server/src/client/renderers/table.tsx` (registry entry
+  `byFormat("x-yamlover-table")`): rows/header/caption, `colSpan`/`rowSpan` computed from the
+  resolved pointers' target paths + the rectangle rule above, nested tables inline, marklower
+  cells. A violating region (non-rectangular, header/body-crossing) renders unmerged. A
+  CHAPTER cell is told apart from a nested table by the stamped format the projection now
+  carries on its `$yamloverMixed` marker, and renders its body items in order.
+- **Cell editing** — under the chapter lock, a prose cell edits in place and emplaces at its
+  `<table>[r][c]` path; the server splices flow-row cells token-wise (a multi-line cell needs
+  the block row form and is rejected in flow). Structure editing (add/remove rows and
+  columns, making merges) is **pending**.
+- **onenote2yamlover** emits tables in this format (was: CSV) — nested tables and marklower
+  cell formatting preserved; OneNote has no header rows or merges, so none are emitted. A
+  OneNote cell mixing prose and tables becomes a **chapter cell** (nothing is dropped).

@@ -129,3 +129,68 @@ test('self-import: `::tags:x` and `::yamlover:tags:x` reach the SAME node in a p
   assert.equal((plain.target as { path: string }).path, ':tags:x');
   assert.equal((via.target as { path: string }).path, ':tags:x');
 });
+
+// ─────────────────────── relative indexes — [.±k] (URIs.md §Relative indexes) ───────────────────────
+
+test('relindex colspan: *[.-1] in a row targets the cell to my LEFT', () => {
+  const doc = parseYamlover('header: [Animal, Trait, *[.-1]]\n');
+  const e = find(resolveDocument(doc), ':header[2]');
+  assert.equal(e.target.kind, 'node');
+  assert.equal((e.target as { path: string }).path, ':header[1]');
+  assert.equal((e.target as any).node.value, 'Trait');
+});
+
+test('relindex rowspan: *..[.-1][.] targets the cell ABOVE (previous row, my column)', () => {
+  // rows are keyless arrays; the pointer sits at [1][1] and must land on [0][1]
+  const doc = parseYamlover('- [Mammals, warm]\n- [*..[.-1][.], barky]\n');
+  const e = find(resolveDocument(doc), '[1][0]');
+  assert.equal(e.target.kind, 'node');
+  assert.equal((e.target as { path: string }).path, '[0][0]');
+  assert.equal((e.target as any).node.value, 'Mammals');
+});
+
+test('relindex: keyed entries consume positions — header is a frame position too', () => {
+  // title(0), header(1), row(2): a rowspan pointer in the first BODY row lands on the header cell
+  const doc = parseYamlover('title: t\nheader: [a, b]\n- [*..[.-1][.], y]\n');
+  const e = find(resolveDocument(doc), '[2][0]');
+  assert.equal(e.target.kind, 'node');
+  assert.equal((e.target as { path: string }).path, ':header[0]');
+});
+
+test('relindex chain resolves transitively to the ORIGIN cell', () => {
+  const doc = parseYamlover('- [Origin, *[.-1], *[.-1]]\n');
+  const edges = resolveDocument(doc);
+  for (const from of ['[0][1]', '[0][2]']) {
+    const e = find(edges, from);
+    assert.equal(e.target.kind, 'node');
+    assert.equal((e.target as { path: string }).path, '[0][0]');
+  }
+});
+
+test('relindex out of range is the ordinary dangling diagnostic', () => {
+  const doc = parseYamlover('- [*[.-1], x]\n'); // first column has no left neighbor
+  const t = find(resolveDocument(doc), '[0][0]').target;
+  assert.equal(t.kind, 'unresolved');
+  assert.match((t as { reason: string }).reason, /out of range/);
+});
+
+test('relindex [.] names its own position — a self-pointer is a cycle, not infinite', () => {
+  const t = find(resolveDocument(parseYamlover('- [a, *[.]]\n')), '[0][1]').target;
+  assert.equal(t.kind, 'unresolved');
+  assert.equal((t as { reason: string }).reason, 'pointer cycle');
+});
+
+test('relindex deeper than the host path has no frame → unresolved', () => {
+  // the pointer's host sits at depth 1; a second [.±k] step would select at depth 2
+  const doc = parseYamlover('- a\n- *[.-1][.]\n');
+  const t = find(resolveDocument(doc), '[1]').target;
+  assert.equal(t.kind, 'unresolved');
+  assert.match((t as { reason: string }).reason, /no host frame/);
+});
+
+test('relindex: the examples/74 table resolves with no relindex-unresolved edges', () => {
+  const doc = parseYamlover(readFileSync(join(examples, '74-table.yamlover'), 'utf8'), '74-table.yamlover');
+  const rel = resolveDocument(doc).filter((e) => e.ptr.steps.some((s) => s.sel === 'relindex'));
+  assert.ok(rel.length >= 2); // the colspan + rowspan merges
+  for (const e of rel) assert.equal(e.target.kind, 'node', (e.target as any).reason);
+});

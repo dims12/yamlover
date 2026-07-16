@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, sep } from 'node:path';
 import { walkDir } from '../src/walk.ts';
 import { Store } from '../src/store.ts';
 import { resolveDocument } from '../src/resolve.ts';
@@ -68,7 +68,8 @@ test('an .ini file is an opaque text/plain blob (the plaintext renderer claims i
 test('the ignore predicate skips matching children (e.g. node_modules at the root)', () => {
   const s = new Store(':memory:');
   // ignore anything named "isAdmin" — it should not appear as a node
-  s.indexDocument(walkDir(join(examples, '51-object-in-dir'), { ignore: (abs) => abs.endsWith('/isAdmin') }));
+  // the predicate receives OS-native absolute paths (walkDir builds them with path.join)
+  s.indexDocument(walkDir(join(examples, '51-object-in-dir'), { ignore: (abs) => abs.endsWith(sep + 'isAdmin') }));
   assert.equal(s.node(':name')?.value, 'Alice');
   assert.equal(s.node(':isAdmin'), null); // filtered out
   s.close();
@@ -182,6 +183,45 @@ test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→c
   assert.equal(s.node(d + '[1]')?.format, 'text/marklower'); // leaf → chunk branch
   assert.equal(s.node(d + '[2]')?.format, 'x-yamlover-chapter'); // container → chapter branch
   assert.equal(s.node(d + '[2][1]')?.format, 'text/marklower'); // recursion into the subchapter's chunk
+  s.close();
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('table cells: leaf→chunk, untagged container→table, a TAGGED chapter cell→chapter (TABLE.md §Cells)', () => {
+  // The cell union is anyOf:[chunk, table, chapter] with table the FIRST container branch, so an
+  // untagged container cell keeps routing to a nested table; a chapter cell (a cell mixing prose
+  // and tables) enters only by its explicit tag — the mirror of the chapter-body rule.
+  const root = mkdtempSync(join(tmpdir(), 'yo-tablecell-'));
+  mkdirSync(join(root, '$defs'), { recursive: true });
+  writeFileSync(join(root, '$defs', 'chapter'),
+    'type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n');
+  writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
+  writeFileSync(join(root, '$defs', 'table'),
+    'type: variant\nproperties:\n  title:\n    type: string\nitems:\n  type: array\n  items:\n    anyOf:\n      - *//yamlover/$defs/chunk\n      - *//yamlover/$defs/table\n      - *//yamlover/$defs/chapter\n');
+  writeFileSync(join(root, 'doc.yamlover'), [
+    '!!<*yamlover/$defs/table>',
+    '- [plain, other]',
+    '-',
+    '  - leaf',
+    '  -',
+    '    - [nested]',
+    '-',
+    '  - leaf2',
+    '  - !!<*yamlover/$defs/chapter>',
+    '    - above',
+    '    - !!<*yamlover/$defs/table>',
+    '      - [duty]',
+    '',
+  ].join('\n'));
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(root));
+  const d = ':doc.yamlover';
+  assert.equal(s.node(d)?.format, 'x-yamlover-table');
+  assert.equal(s.node(d + '[0][0]')?.format, 'text/marklower'); // leaf cell → chunk branch
+  assert.equal(s.node(d + '[1][1]')?.format, 'x-yamlover-table'); // untagged container cell → nested table
+  assert.equal(s.node(d + '[2][1]')?.format, 'x-yamlover-chapter'); // the TAGGED chapter cell
+  assert.equal(s.node(d + '[2][1][0]')?.format, 'text/marklower'); // its prose body item
+  assert.equal(s.node(d + '[2][1][1]')?.format, 'x-yamlover-table'); // its tagged inner table
   s.close();
   rmSync(root, { recursive: true, force: true });
 });

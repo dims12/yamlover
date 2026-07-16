@@ -118,7 +118,7 @@ function parsePortion(r: string): Portion[] {
   return steps.map((st) => {
     if (st.sel === 'key') return { kind: 'key', name: st.name } as Portion;
     if (st.sel === 'index') return { kind: 'index', n: st.n } as Portion;
-    if (st.sel === 'relindex') throw new SyntaxError('query: a relative index "[.±k]" is a link step, not a query portion (resolution pending — TABLE.md)');
+    if (st.sel === 'relindex') throw new SyntaxError('query: a relative index "[.±k]" is a link step, not a query portion (URIs.md §Relative indexes)');
     return { kind: 'spine' } as Portion;
   });
 }

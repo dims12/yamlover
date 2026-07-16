@@ -178,8 +178,7 @@ export type Step =
   | { sel: 'key'; name: string }                // /x  — string key
   | { sel: 'index'; n: number }                 // [n] — integer key (position)
   | { sel: 'relindex'; k: number }              // [.±k] — RELATIVE position: the host's own position
-                                                //   at this depth ± k (URIs.md §Relative indexes;
-                                                //   parse-only — resolution pending, TABLE.md §Status)
+                                                //   at this depth ± k (URIs.md §Relative indexes)
   | { sel: 'parent' };                          // ..  — up one node
 
 export function isPointer(v: Value): v is Pointer {

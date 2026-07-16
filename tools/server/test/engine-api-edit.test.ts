@@ -499,3 +499,68 @@ describe("/api/tree — directory-chapter subchapter order", () => {
     expect(subchapters).toEqual(["Zebra", "Apple", "Kiwi", "Mango"]); // listed first in body order, unlisted trailing
   });
 });
+
+describe("/api/edit — flow-row cells (a table's `- [a, b, c]`, TABLE.md)", () => {
+  const TABLE =
+    "!!<*yamlover/$defs/chapter>\n" +
+    'title: "T"\n' +
+    "- !!<*yamlover/$defs/table>\n" +
+    "  title: Who\n" +
+    "  header: [Name, Class, *[.-1]]   # Class spans\n" +
+    "  - [Whiskers, mammal, '**manager**']\n" +
+    "  - [Rex, *..[.-1][.], security]\n" +
+    "  -\n" +
+    "    - Bubbles\n" +
+    "    - fish\n";
+  const TDEFS = {
+    ...DEFS,
+    "$defs/table":
+      "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  type: array\n  items:\n    anyOf:\n      - *//yamlover/$defs/chunk\n      - *//yamlover/$defs/table\n",
+  };
+  async function tableHandlers() {
+    const root = tmpTree({ "doc/.yamlover/body.yamlover": TABLE, ...TDEFS });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    return { root, h };
+  }
+
+  it("emplaces a plain cell in a flow body row", async () => {
+    const { root, h } = await tableHandlers();
+    // the table is body entry [1] (title consumes [0]); its row [2] is Whiskers; cell [0]
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[1][2][0]", op: "emplace", yamlover: "|-\n  Tom" });
+    expect(r.status).toBe(200);
+    expect(bodyOf(root)).toContain("- [Tom, mammal, '**manager**']");
+  });
+
+  it("quotes a cell containing spaces (single quotes, '' doubling) and keeps the comment", async () => {
+    const { root, h } = await tableHandlers();
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[1]:header[1]", op: "emplace", yamlover: "|-\n  Bob's class" });
+    expect(r.status).toBe(200);
+    expect(bodyOf(root)).toContain("header: [Name, 'Bob''s class', *[.-1]]   # Class spans");
+  });
+
+  it("leaves the neighbouring pointer cells verbatim", async () => {
+    const { root, h } = await tableHandlers();
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[1][3][2]", op: "emplace", yamlover: '"guard dog"' });
+    expect(r.status).toBe(200);
+    expect(bodyOf(root)).toContain("- [Rex, *..[.-1][.], 'guard dog']");
+  });
+
+  it("rejects multi-line text into a flow cell (block rows accept it)", async () => {
+    const { root, h } = await tableHandlers();
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[1][2][0]", op: "emplace", yamlover: "|-\n  a\n  b" });
+    expect(r.status).toBe(400);
+    expect(bodyOf(root)).toContain("- [Whiskers, mammal, '**manager**']"); // untouched
+    // the same text lands fine in a BLOCK row's cell, through the ordinary engine
+    const ok = await callBody(h, "POST", "/api/edit", { path: ":doc[1][4][0]", op: "emplace", yamlover: "|-\n  a\n  b" });
+    expect(ok.status).toBe(200);
+    expect(bodyOf(root)).toContain("- |-\n      a\n      b");
+  });
+
+  it("the edited cell round-trips through /api/json", async () => {
+    const { h } = await tableHandlers();
+    await callBody(h, "POST", "/api/edit", { path: ":doc[1][2][2]", op: "emplace", yamlover: "|-\n  the boss" });
+    const json = call(h, "/api/json", { path: ":doc[1][2]", depth: ".inf" }).json as { value: unknown[] };
+    expect(json.value[2]).toBe("the boss");
+  });
+});

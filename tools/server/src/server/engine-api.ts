@@ -984,6 +984,9 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
     // a `- item`) or keyed (`key: "scale"` → `scale: …`); an omni also carries its self-value.
     const entries = kids.map((c) => ({ key: c.label, value: project(c) }));
     const marker: Record<string, unknown> = { kind: k, entries };
+    // the node's stamped/derived format — an inlined container otherwise carries none, and the
+    // table renderer needs it to tell a CHAPTER cell from a nested table (TABLE.md §Cells)
+    if (row.format) marker.format = row.format;
     if (k === "omni") {
       // the node's own scalar self-value (the `!!var 5`); a FILE-backed omni (an image carrying
       // `yamlover-thumbnails`/annotations) shows its bytes as a navigable `< binary >`, not `null`
@@ -2249,7 +2252,9 @@ function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
     // value editor descending a `key:` → sequence/mapping.
     const raw = lines[r.marker].replace(/^\s*/, "");
     if (raw === "-" || raw.startsWith("- ")) {
-      const inline = raw.replace(/^-\s*/, "");
+      // the item's inline `!!<…>` schema tag is META, not an entry — surfacing it would inject a
+      // phantom first entry and shift every index (a `- !!<…table>` body item's rows, e.g.)
+      const inline = raw.replace(/^-\s*/, "").replace(/^!!<[^>]*>\s*/, "");
       if (inline.trim()) starts.push({ key: /^-/.test(inline) ? null : inline.match(/^([^:\s]+):/)?.[1] ?? null, start: r.marker, inline: true });
     }
   }
@@ -2608,6 +2613,96 @@ function setRootTag(lines: string[], meta: string | null): void {
   else lines.splice(Math.max(at, 0), 0, `!!<${meta}>`);
 }
 
+// --- flow-row cell surgery (TABLE.md) --------------------------------------------------------- //
+// A table's flow row (`- [a, 'b c', *[.-1]]`) is ONE source line; the block engine above cannot
+// descend into it. A cell edit — `<table>[r][c]` with a scalar payload — is spliced token-wise:
+// the row's `[…]` body splits on top-level commas (quotes and nested brackets respected), the
+// target token is re-rendered, and every other cell survives verbatim (pointer spellings and the
+// trailing comment included). Multi-line text cannot live in a flow cell (no representation) —
+// that edit is rejected; a block-form row accepts it through the ordinary engine.
+
+/** The offset of the flow-sequence `[` opening the entry's value on its own line, or -1. */
+function flowValueStart(raw: string, e: ChapterEntry): number {
+  let i = indentOf(raw);
+  if (raw.startsWith("- ", i)) i += 2;
+  while (raw[i] === " ") i++;
+  if (raw.startsWith("!!<", i)) {
+    const gt = raw.indexOf(">", i);
+    if (gt < 0) return -1;
+    i = gt + 1;
+    while (raw[i] === " ") i++;
+  }
+  if (e.key !== null) {
+    const c = raw.indexOf(":", i);
+    if (c < 0) return -1;
+    i = c + 1;
+    while (raw[i] === " ") i++;
+  }
+  return raw[i] === "[" ? i : -1;
+}
+
+/** Scan a flow sequence from its `[`: the matching `]` and each top-level cell's [start,end)
+ *  span — nested brackets (a nested flow seq, a `*…[.-1]` pointer) and quoted cells respected. */
+function scanFlowSeq(s: string, open: number): { close: number; cells: { start: number; end: number }[] } | null {
+  let depth = 0;
+  let q: string | null = null;
+  const cells: { start: number; end: number }[] = [];
+  let cellStart = open + 1;
+  for (let j = open; j < s.length; j++) {
+    const ch = s[j];
+    if (q) {
+      if (ch === q) {
+        if (q === "'" && s[j + 1] === "'") j++; // a doubled '' is a literal quote
+        else q = null;
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"') q = ch;
+    else if (ch === "[") depth++;
+    else if (ch === "]") {
+      depth--;
+      if (depth === 0) {
+        if (j > open + 1 || s.slice(open + 1, j).trim().length) cells.push({ start: cellStart, end: j });
+        return { close: j, cells };
+      }
+    } else if (ch === "," && depth === 1) {
+      cells.push({ start: cellStart, end: j });
+      cellStart = j + 1;
+    }
+  }
+  return null;
+}
+
+/** A cell value as a flow-sequence token: plain when the flow lexer takes it whole — non-empty,
+ *  no whitespace/`, [ ] : # ' "`, not opening with a sigil (`* & - | > !`) — else single-quoted
+ *  with `''` doubling (the one escape the parser reads; double-quote backslashes do NOT parse). */
+function flowCellToken(s: string): string {
+  const plain = s.length > 0 && s === s.trim() && !/[\s,[\]:#'"{}]/.test(s) && !/^[*&\-|>!]/.test(s);
+  return plain ? s : `'${s.replace(/'/g, "''")}'`;
+}
+
+/** Emplace a scalar into cell `cellIdx` of the flow row at `row`. Returns false when the row's
+ *  value is not a flow sequence (the caller falls through to the block engine's diagnostics). */
+function editFlowRowCell(lines: string[], row: ChapterEntry, cellIdx: number, op: string, valueSrc: string): boolean {
+  const raw = lines[row.start];
+  const open = flowValueStart(raw, row);
+  if (open < 0) return false;
+  const scan = scanFlowSeq(raw, open);
+  if (!scan) return false;
+  if (op !== "emplace" && op !== "replace") throw new Error(`a flow-row cell supports emplace/replace only (got \`${op}\`)`);
+  const payload = payloadFacets(valueSrc);
+  if (payload.scalar === undefined) throw new Error("a flow-row cell takes a scalar value");
+  const parsed = parseYamlover(payload.scalar, "cell").root as { kind?: string; value?: unknown };
+  if (parsed.kind !== "scalar") throw new Error("a flow-row cell takes a scalar value");
+  const text = String(parsed.value ?? "");
+  if (text.includes("\n")) throw new Error("a flow-row cell cannot hold multi-line text — rewrite the row in block form (TABLE.md)");
+  const cell = scan.cells[cellIdx];
+  if (!cell) throw new Error(`no cell [${cellIdx}] in the flow row (${scan.cells.length} cells)`);
+  const lead = cellIdx === 0 ? "" : " "; // the row's own style: none after `[`, one after `,`
+  lines[row.start] = raw.slice(0, cell.start) + lead + flowCellToken(text) + raw.slice(cell.end);
+  return true;
+}
+
 /** Apply one surgical edit to a `.yamlover` source, addressed by `within` — the edit path relative
  *  to its document root. Every segment is a key or an ABSOLUTE entry index; the last one names the
  *  node being edited. Returns the new source text.
@@ -2632,6 +2727,16 @@ function editChapterSource(src: string, within: Seg[], op: string, valueSrc: str
       return lines.join("\n");
     }
     throw new Error(`\`${op}\` at a document root needs a key or index target`);
+  }
+  // a numeric segment into a FLOW row (a table's `- [a, b, c]` / `header: […]`): the block
+  // engine cannot descend into the one-line row — splice the cell token instead (TABLE.md)
+  const last = within[within.length - 1];
+  if (within.length >= 2 && typeof last === "number") {
+    const parentR = reachChapter(lines, within.slice(0, -2));
+    const rowEntry = findEntry(lines, parentR, within[within.length - 2]);
+    if (rowEntry && !isContainerEntry(lines, rowEntry, parentR.indent + 2) && editFlowRowCell(lines, rowEntry, last, op, valueSrc)) {
+      return lines.join("\n");
+    }
   }
   assignAt(lines, reachChapter(lines, within.slice(0, -1)), within[within.length - 1], op, valueSrc, meta);
   return lines.join("\n");

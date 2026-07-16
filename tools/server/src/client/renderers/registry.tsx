@@ -10,6 +10,7 @@ import { MarklowerView, MarklowerChunk } from "./marklower";
 import { LatexView, LatexChunk } from "./latex";
 import { AsciidocView, AsciidocChunk } from "./asciidoc";
 import { CsvView, CsvChunk, CsvControls } from "./csv";
+import { TableView, TableChunk } from "./table";
 import { PlaintextView, PlaintextChunk, EncodingControl } from "./plaintext";
 import { RtfView, RtfChunk } from "./rtf";
 import { DocView, DocChunk } from "./doc";
@@ -139,9 +140,10 @@ export interface Renderer {
   /** Tie-break among matches — the highest wins. Format matchers are 2; the bare-string
    *  default (marklower) is 1. */
   specificity: number;
-  /** Value depth `NodeView` must fetch for this renderer (default 1). A chapter
-   *  needs 2: its `chunks`/`children` arrays one level, their elements the next. */
-  depth?: number;
+  /** Value depth `NodeView` must fetch for this renderer (default 1; `null` = unlimited —
+   *  the table renderer needs whole-subtree cells). A chapter needs 2: its `chunks`/`children`
+   *  arrays one level, their elements the next. */
+  depth?: number | null;
   /** This node's TOC presentation (default: its own children, lazily loaded). */
   tocView?: (node: TreeNode) => TocView;
   render: (node: NodeJson, onNavigate: (path: string) => void) => JSX.Element;
@@ -255,6 +257,18 @@ const REGISTRY: Renderer[] = [
     render: (node) => <CsvView node={node} />,
     renderChunk: (chunk) => <CsvChunk chunk={chunk} />,
     config: (rerender) => <CsvControls rerender={rerender} />,
+  },
+  {
+    // A TABLE node (TABLE.md): rows/header/caption from the omni entries, merged cells
+    // (colSpan/rowSpan) from resolved relative-index pointers, nested tables inline, marklower
+    // cells. Depth null: the grid needs the whole subtree (cells of nested tables included).
+    name: "table",
+    icon: "▤",
+    accepts: byFormat("x-yamlover-table"),
+    specificity: 2,
+    depth: null,
+    render: (node, onNavigate) => <TableView node={node} onNavigate={onNavigate} />,
+    renderChunk: (chunk, onNavigate) => <TableChunk chunk={chunk} onNavigate={onNavigate} />,
   },
   {
     // Plain text shown verbatim (no markup), with a node-bar encoding selector —
