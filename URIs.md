@@ -287,14 +287,16 @@ deref    = "*" pointer            ; dereference → a graph edge to the target (
 define   = "&" pointer [ "[]" ]   ; PATH anchor: this node is ALSO at that path (push);
                                   ;   trailing "[]" = ordinal membership (append)
 backedge = "~" name               ; DEPRECATED key prefix (see §~): ~key: *P ≡ &P/key
-pointer  = scope *( "/" ( name / ".." ) / index )
+pointer  = scope *( "/" ( name / ".." ) / index / relindex )
 scope    = link                   ; any OTHER start: project, sibling doc, external
          / "/"                    ; current document root  (a single leading "/")
          / ".."                   ; parent node
          / name                   ; STRING key in the current mapping
          / index                  ; INTEGER key (position) in the current mapping
+         / relindex               ; RELATIVE position (host frame; see §Relative indexes)
 link     = ( scheme "://" / "//" ) authority   ; scheme optional & ignored
 index    = "[" 1*DIGIT "]"        ; selects the integer key n
+relindex = "[" "." [ ("+" / "-") 1*DIGIT ] "]" ; the host's own position at this depth, ± k
 name     = 1*( nchar / "\" CHAR ) ; selects a string key; "\" escapes a metachar
 nchar    = <any char except unescaped  / [ ] * & # ~ ? ! ( ) < > = |  or whitespace>
 ```
@@ -307,6 +309,34 @@ key `"1":` is simply `[1]` versus `/1`.
 The empty brackets `[]` are legal only as the **last** token of an anchor (`&…[]`,
 ordinal membership — see §`&`); they never appear in a `*` pointer. The query
 wildcard `[?]` belongs to `QUERY.md` only.
+
+### Relative indexes — `[.]`, `[.-1]`, `[.+2]`
+
+A dot in the brackets makes the index **relative to the pointer's own position**: `.` is
+"my position at this depth", and an offset is arithmetic on it — `[.-1]` one before me,
+`[.+2]` two after me, bare `[.]` exactly my position. (Bracket bodies stay disjoint by
+form: digits = absolute, `.` = relative, `?` = query wildcard. A plain `[-1]` is
+deliberately *not* taken — it stays free for a possible future from-the-end index.)
+
+Resolution is the **frame rule (depth alignment)**: the frame is the **host entry's own
+path** — the entry holding the pointer. After the base and any `..` ascents, each step of
+the pointer consumes one depth; a `[.±k]` at depth *d* selects position *(the host's
+position at depth d) ± k*. Keyed entries hold positions too (see *Lists and dicts are one
+ordered mapping*), so the frame always exists.
+
+The motivating idiom is the **table** (`TABLE.md`) — a cell at row *r*, column *c* naming
+its adjacent previous cells (the base of a bare pointer is the current mapping — the row):
+
+```yamlover
+- *[.-1]          # the cell to my LEFT: row r, column c-1        → a colspan
+- *..[.-1][.]     # the cell ABOVE: .. to the table, previous row, my column → a rowspan
+```
+
+A relative index yields **at most one successor**, so it is a *link*, authorable after `*`
+(SEPARATOR.md §5 classifies it unambiguous). Out of range (`[.-1]` in the first position)
+is the ordinary dangling-pointer diagnostic. In `&` **anchors it is rejected**: an anchor
+claiming a position is already outlawed (`&path[3]`, §`&`), and a relative claim is still
+a claim.
 
 ### Literal characters (escaping)
 

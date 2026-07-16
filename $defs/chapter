@@ -22,4 +22,5 @@ properties:
 items:                             # the body — a positional sequence, read top to bottom
   anyOf:
     - *:: yamlover: $defs: chapter   # a nested subchapter (the recursion) — a container
+    - *:: yamlover: $defs: table     # a table — enters only by its EXPLICIT tag (TABLE.md)
     - *:: yamlover: $defs: chunk     # a content block — a leaf

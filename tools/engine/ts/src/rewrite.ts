@@ -177,7 +177,8 @@ export function nominalPath(doc: Document, e: ResolvedEdge): string | null {
       if (up === null) return null;
       p = up === ':' ? '' : up;
     } else if (st.sel === 'key') p += ':' + st.name;
-    else p += '[' + st.n + ']';
+    else if (st.sel === 'index') p += '[' + st.n + ']';
+    else return null; // a relative index has no canonical store path (host-frame; TABLE.md)
   }
   return p === '' ? ':' : p;
 }

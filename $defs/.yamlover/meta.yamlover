@@ -23,3 +23,6 @@ properties:
     board:
         type: string
         format: yamlover/meta
+    table:
+        type: string
+        format: yamlover/meta

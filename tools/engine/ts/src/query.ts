@@ -115,10 +115,12 @@ function parsePortion(r: string): Portion[] {
   if (test !== null) return [test];
   // a plain key portion, possibly quoted/escaped with [n] suffixes — the pointer fragment
   const steps = parsePointer(r).steps;
-  return steps.map((st) =>
-    st.sel === 'key' ? { kind: 'key', name: st.name } as Portion :
-    st.sel === 'index' ? { kind: 'index', n: st.n } as Portion :
-    { kind: 'spine' } as Portion);
+  return steps.map((st) => {
+    if (st.sel === 'key') return { kind: 'key', name: st.name } as Portion;
+    if (st.sel === 'index') return { kind: 'index', n: st.n } as Portion;
+    if (st.sel === 'relindex') throw new SyntaxError('query: a relative index "[.±k]" is a link step, not a query portion (resolution pending — TABLE.md)');
+    return { kind: 'spine' } as Portion;
+  });
 }
 
 function parseValTest(r: string): (Portion & { kind: 'valtest' }) | null {

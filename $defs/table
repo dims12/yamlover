@@ -1,0 +1,24 @@
+# $defs/table — a grid node: an OMNI node whose keyless entries are the ROWS (top to
+# bottom), each row an array of CELLS (left to right). A row keyed `header` is the header
+# row; optional keyed `title` is the caption. The column count is inferred from the first
+# row. A cell is marklower prose (a chunk) or a nested table; a cell that is a `*` pointer
+# to its adjacent previous cell (`*[.-1]` left, `*..[.-1][.]` up — relative indexes,
+# URIs.md) declares a MERGED cell: colspan/rowspan. Attach with !!<*yamlover: $defs: table>.
+# No explicit `format:` — `type: variant` derives x-yamlover-table. Spec: ../TABLE.md.
+type: variant
+properties:
+  title:                           # optional caption
+    type: string
+    format: text/marklower
+  header:                          # the header row — same shape as a body row (the schema
+    type: array                    #   loader follows only $defs pointers, so the row
+    items:                         #   schema is repeated literally rather than *: items)
+      anyOf:
+        - *:: yamlover: $defs: chunk
+        - *:: yamlover: $defs: table
+items:                             # a row
+  type: array
+  items:                           # a cell
+    anyOf:
+      - *:: yamlover: $defs: chunk   # marklower prose (the default)
+      - *:: yamlover: $defs: table   # a nested table (the recursion)

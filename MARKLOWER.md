@@ -5,8 +5,9 @@
 `format: text/marklower` and schema propagation stamps every prose chunk with it, so an article
 needs no per-chunk tag (`CHAPTER.md`). It is asked for by name: a format-less string *elsewhere* in
 the tree is data, not prose. This spec defines the language; companion specs: `CHAPTER.md`
-(the document model it serves), `SEPARATOR.md` (the `:` path grammar its links speak), `TYPES.md`
-(the type lattice), `META.md` (the schema vocabulary).
+(the document model it serves), `TABLE.md` (the table model it delegates to), `SEPARATOR.md`
+(the `:` path grammar its links speak), `TYPES.md` (the type lattice), `META.md` (the schema
+vocabulary).
 
 ## The model — inline only, structure delegated
 
@@ -16,10 +17,13 @@ the tree is data, not prose. This spec defines the language; companion specs: `C
 > what one chunk in that body *says*.
 
 This is the whole design. Markdown carries a document model of its own — `##` opens a section, `-`
-opens a list — and inside a yamlover chunk that model would compete with the chapter's positional
-body for the same job, and lose: a `##` buried in a chunk's text cannot become a subchapter that the
-TOC lists, that a `*` pointer addresses, or that `/api/edit` moves. A subchapter is a body element.
-So marklower gives up block syntax on purpose, and keeps exactly what a *sentence* needs.
+opens a list, `|---|` opens a table — and inside a yamlover chunk that model would compete with the
+chapter's positional body for the same job, and lose: a `##` buried in a chunk's text cannot become
+a subchapter that the TOC lists, that a `*` pointer addresses, or that `/api/edit` moves. A
+subchapter is a body element. So marklower gives up block syntax on purpose, and keeps exactly what
+a *sentence* needs. **Tables are the flagship case** of the delegation: where Markdown draws a grid
+out of pipe characters, marklower has nothing — a table is a *yamlover node* tagged
+`!!<*yamlover: $defs: table>` (`TABLE.md`), whose cells are themselves marklower.
 
 ```yamlover
 !!<*yamlover: $defs: chapter>
@@ -124,6 +128,24 @@ Reusing `*` costs exactly one collision, with emphasis:
 
 The trailing `*` decides. This is the price of spelling deref the way yamlover spells it, and it is
 worth paying.
+
+## Tables
+
+Marklower has **no table syntax** — no pipe rows, no separator lines. A table is structure, and
+structure is yamlover's job: it is a **body element** tagged
+
+```yamlover
+- !!<*yamlover: $defs: table>
+  header: [Name, Species]
+  - [Whiskers, cat]
+  - [Rex, dog]
+```
+
+— an omni node whose keyless entries are the rows, whose `header`-keyed row is the header, and
+whose **cells are marklower chunks**, so the inline grammar simply recurses into every cell (bold,
+links, math, embeds — all of it, per cell). Merged cells are `*` pointers to the adjacent previous
+cell (`*[.-1]` left, `*..[.-1][.]` up) — the same dereference `*` means everywhere else. The full
+model — header, caption, column inference, spans, nested tables — is `TABLE.md`.
 
 ## Atoms and the WYSIWYG round-trip
 

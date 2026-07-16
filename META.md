@@ -9,8 +9,9 @@ This is the thing we did *not* drop. What we dropped is **schema-as-storage** �
 data with `const:` so the schema *is* the instance (the old `.yamlover/schema.yaml` model).
 Data now lives in the instance (files and/or `body.yamlover`); the schema only *describes*
 it. Companion specs: `URIs.md` (pointers), `QUERY.md` (queries), `IR.md` (instance
-graph), `YAMLOVER.md` / `JSON5P.md` (surfaces), `CHAPTER.md` / `MARKLOWER.md` (the
-document model and its default prose format, `text/marklower`).
+graph), `YAMLOVER.md` / `JSON5P.md` (surfaces), `CHAPTER.md` / `MARKLOWER.md` /
+`TABLE.md` (the document model, its default prose format `text/marklower`, and its
+table node).
 
 ## Where it lives — the `.yamlover/` contract
 
@@ -45,7 +46,7 @@ file, the meta says how to read it).
    one-off chunk format needs no named `$defs` entry. See `YAMLOVER.md`; in the IR it is
    `NodeMeta.schema`, a `Value` (Pointer *or* Node), unresolved. json5p has no tags → overlay only.
 
-## Hosted schemas (`$defs`) — `chapter` & `chunk`
+## Hosted schemas (`$defs`) — `chapter`, `chunk` & `table`
 
 The yamlover project (URI `::: yamlover.inthemoon.net`, SEPARATOR.md §2) hosts reusable
 schema definitions at its project root, under **`$defs/`** — a project's tree IS its URI's
@@ -60,11 +61,16 @@ IMPORTS.md §4):
   selects the renderer; default `string`/`text/marklower` (prose), overridable per chunk;
   `type: [string, binary]` so an image/pdf/… pointer chunk fits too.
 - **`$defs/chapter`** — a document node, an **omni (`variant`)** shape: optional keyed `title`
-  and `description`, then a **positional body** whose elements are each *either* a nested
-  chapter (the recursion) *or* a chunk — one interleaved stream, read top to bottom (no
-  `chunks`/`children` arrays). The body element type is a **union**,
-  `items: {anyOf: [*chapter, *chunk]}`. Inter-schema references use `*` pointers, not `$ref`.
-  Full model: **`CHAPTER.md`**.
+  and `description`, then a **positional body** whose elements are each a nested
+  chapter (the recursion), an explicitly tagged table, or a chunk — one interleaved stream,
+  read top to bottom (no `chunks`/`children` arrays). The body element type is a **union**,
+  `items: {anyOf: [*chapter, *table, *chunk]}`. Inter-schema references use `*` pointers, not
+  `$ref`. Full model: **`CHAPTER.md`**.
+- **`$defs/table`** — a grid node, also omni: keyless entries are the **rows** (each an array
+  of cells), a row keyed `header` is the header, optional `title` the caption; cells are
+  marklower chunks or nested tables, and merged cells are `*` pointers with **relative
+  indexes** (`*[.-1]` colspan, `*..[.-1][.]` rowspan — URIs.md §Relative indexes). Derives
+  `format: x-yamlover-table`. Full model: **`TABLE.md`**.
 
 This **replaces the old chapter encoding** (title/description + two keyed arrays `chunks` and
 `children`): a `chapter` is now an omni node with `title`/`description` + a positional

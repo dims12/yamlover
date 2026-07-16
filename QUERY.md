@@ -73,6 +73,9 @@ exactly the `pointer` / `scope` / `link` / `index` / `name` / `nchar` production
 `URIs.md` (with this spec's enlarged metachar set). The authoring embeddings
 (`deref` / `define` / `backedge` — the `*`, `&`, `~` *prefixes*) are deliberately
 absent: they make edges in a document; a query is the bare pointer expression (§1.2).
+So is `relindex` (`[.±k]`, `URIs.md` §Relative indexes): it resolves against the
+*host entry's* position — a link step — and a query has no host frame, so a relative
+index in a query is rejected.
 
 ```
 query    = pointer                ; a query IS an extended pointer expression
@@ -103,6 +106,7 @@ nchar    = <any char except unescaped  / [ ] * & # ~ ? ! ( ) < > = |  or whitesp
 
 Bracket contents are disjoint by form — digits-only is the pointer index, `?` is the
 position wildcard, everything else is a keyword test — so no lookahead is needed.
+(A leading `.` — the relative index `[.±k]` — is a *link* form only, excluded above.)
 
 ## 4. Steps and axes
 

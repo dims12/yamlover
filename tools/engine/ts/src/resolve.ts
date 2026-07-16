@@ -188,6 +188,11 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
       chain = chain.slice(0, -1);
       continue;
     }
+    if (st.sel === 'relindex') {
+      // parse-only for now (TABLE.md §Status): a relative index resolves against the host
+      // frame, which this resolver does not carry yet — surface as a dangling pointer
+      return { kind: 'unresolved', reason: 'relative index "[.±k]" — resolution pending (TABLE.md)' };
+    }
     const node = chain[chain.length - 1];
     if (node === undefined) return { kind: 'unresolved', reason: 'empty resolution scope' };
     const entry = st.sel === 'key'

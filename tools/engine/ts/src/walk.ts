@@ -781,7 +781,11 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
   const applyItems = (inst: Node, items: Value, depth: number): void => {
     const { node: itemsNode } = resolveSchema(items);
     const anyOf = itemsNode ? field(itemsNode, 'anyOf') : null;
-    const elems = (inst.entries ?? []).filter((e) => e.key == null && !isPointer(e.value));
+    // An element that declares its OWN inline `!!<*…/$defs/X>` schema wins over the inherited
+    // `items` — its tag decides, not shape routing (a tagged table in a chapter body stays a
+    // table; CHAPTER.md §The schema). `walk()` applies the element's pointer separately.
+    const elems = (inst.entries ?? []).filter((e) =>
+      e.key == null && !isPointer(e.value) && !(e.value.meta?.schema && isPointer(e.value.meta.schema)));
     if (anyOf && !isPointer(anyOf) && anyOf.entries) {
       const branches = anyOf.entries
         .map((e) => e.value)

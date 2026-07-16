@@ -87,6 +87,13 @@ as the single rule.
 - A path is a sequence of **portions** separated by `:`. Canonical styling writes
   `: ` after each separator; the space is optional on input.
 - `[n]` attaches to a portion as before: `: some: path[12]: with: ordinal`.
+- **Relative indexes** ride in the same bracket position: `[.]` / `[.-1]` / `[.+2]` —
+  `.` is "my own position at this depth", an offset is arithmetic on it (bracket bodies
+  stay disjoint by form: digits = absolute, `.` = relative, `?` = wildcard). The frame is
+  the pointer HOST's own path, depth-aligned after `..` ascents: `*[.-1]` is my previous
+  sibling; `*..[.-1][.]` is "previous row, my column" — the table merge idiom (`TABLE.md`;
+  full resolution rule in `URIs.md` §Relative indexes). Link-legal (§5); **rejected in `&`
+  anchors** — a relative position claim is still a position claim (§7).
 - **A key containing a space MUST be quoted** (decided): `: tags: 'дорожный знак'`.
   This is what makes the matcher split (§4) unambiguous. Quoting is the string
   quoting of the host surface (`'…'` / `"…"`).
@@ -162,6 +169,7 @@ needed):
 | portion | class |
 |---|---|
 | `name`, `[n]`, scope openers `:`/`::`/`:::`, import keys | unambiguous |
+| `[.]`, `[.±k]` (relative index, §3) | unambiguous |
 | `?`, `[?]`, `...` | ambiguous |
 | every scalar / metadata matcher | ambiguous |
 | `key..`, `[]..`, `?..` (§6) | ambiguous |
@@ -199,6 +207,10 @@ a schema proves the step unique (§5).
 (unambiguous, link-legal; the corpus stays valid), `?..` is all parents
 (query-only). Noted for later: once edge kinds become queryable (the M1
 hypothesis), an edge-qualified uplink could subsume/refine `?..`.
+
+The uplink's downward twin is the **relative index** (§3): after `..` ascents, `[.±k]`
+re-descends *aligned to the host* — up the spine, back down a neighboring column
+(`*..[.-1][.]`, the table rowspan idiom).
 
 ## 7. Anchors, ordinals, the deprecated forms
 

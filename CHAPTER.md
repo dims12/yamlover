@@ -48,6 +48,8 @@ description: the shortest tour            # optional
 - **A subchapter** is a body element that is itself a chapter — recognized **structurally**: a
   *container* (it has keyed and/or positional entries) renders as a subchapter; a *leaf* (a scalar
   or a file pointer) renders as a chunk.
+- **A table** (`TABLE.md`) is a body element explicitly tagged `!!<*yamlover: $defs: table>` — a
+  container, so the tag (not shape) is what keeps it from being a subchapter.
 
 ## The schema
 
@@ -61,6 +63,7 @@ properties:
 items:                            # the body — a positional sequence
   anyOf:
     - *:: yamlover: $defs: chapter   # a subchapter (a container) — the recursion
+    - *:: yamlover: $defs: table     # a table (TABLE.md) — enters only by its explicit tag
     - *:: yamlover: $defs: chunk     # a content block (a leaf)
 ```
 
@@ -68,7 +71,10 @@ The body element type is a **union** (`items: {anyOf: […]}`) — the first con
 the taxonomy. The engine's schema propagation (walk.ts) routes each body element to the matching
 branch by shape (container → chapter, leaf → chunk) and stamps its `(type, format)`, so a chapter
 tagged only at its root makes every nested subchapter `x-yamlover-chapter` and every prose chunk
-`text/marklower` — no per-node tag needed.
+`text/marklower` — no per-node tag needed. A **table** (`$defs/table`, TABLE.md) does not take part
+in the shape routing — both a subchapter and a table are containers — so it enters the body only by
+its **explicit tag** (`!!<*yamlover: $defs: table>`), which wins over the structural default; an
+untagged container stays a subchapter.
 
 `$defs/chunk`:
 

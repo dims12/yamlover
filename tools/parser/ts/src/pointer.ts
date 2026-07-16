@@ -128,10 +128,13 @@ function portionsToSteps(portions: string[]): Step[] {
   return out;
 }
 
-/** One colon portion → steps: `..`, a (possibly quoted) name, optional `[n]` groups.
- *  A bare name containing a SPACE must be quoted (SEPARATOR.md §3). */
+/** One colon portion → steps: `..`, a (possibly quoted) name, optional `[n]` / `[.±k]`
+ *  groups. A bare name containing a SPACE must be quoted (SEPARATOR.md §3). */
 function portionToSteps(p: string): Step[] {
   if (p === '..') return [{ sel: 'parent' }];
+  // `..` with attached index groups (`..[.-1][.]` — the table rowspan idiom): the uplink,
+  // then the indexes. (The literal key ".." arrives escaped, `\.\.`, and takes the name path.)
+  if (p.startsWith('..') && p[2] === '[') return [{ sel: 'parent' }, ...indexGroups(p.slice(2), p)];
   let name = '';
   let i = 0;
   if (p[0] === "'" || p[0] === '"') {
@@ -157,12 +160,40 @@ function portionToSteps(p: string): Step[] {
   }
   const steps: Step[] = [];
   if (name !== '') steps.push({ sel: 'key', name });
-  while (i < p.length) {
-    if (p[i] !== '[') throw new SyntaxError(`pointer: malformed portion "${p}"`);
+  if (i < p.length) steps.push(...indexGroups(p.slice(i), p, 'portion'));
+  return steps;
+}
+
+/** A run of bracket groups on a portion/segment tail: `[n]` (absolute — the integer key n)
+ *  or `[.]` / `[.±k]` (RELATIVE — the host's own position at this depth, ± k; URIs.md
+ *  §Relative indexes). Bracket bodies are disjoint by form: digits = absolute, a leading
+ *  `.` = relative; an offset requires an explicit sign (`[.5]` is malformed). `whole` and
+ *  `noun` shape the error text of the calling grammar. */
+function indexGroups(s: string, whole: string, noun: 'portion' | 'segment'): Step[] {
+  const steps: Step[] = [];
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] !== '[') throw new SyntaxError(`pointer: malformed ${noun} "${whole}"`);
     let j = i + 1;
+    if (s[j] === '.') {
+      j++;
+      let k = 0;
+      if (s[j] === '+' || s[j] === '-') {
+        const sign = s[j] === '-' ? -1 : 1;
+        j++;
+        let digits = '';
+        while (j < s.length && s[j] >= '0' && s[j] <= '9') { digits += s[j]; j++; }
+        if (digits === '') throw new SyntaxError(`pointer: malformed index in "${whole}"`);
+        k = sign * Number.parseInt(digits, 10);
+      }
+      if (s[j] !== ']') throw new SyntaxError(`pointer: malformed index in "${whole}"`);
+      steps.push({ sel: 'relindex', k });
+      i = j + 1;
+      continue;
+    }
     let digits = '';
-    while (j < p.length && p[j] >= '0' && p[j] <= '9') { digits += p[j]; j++; }
-    if (digits === '' || p[j] !== ']') throw new SyntaxError(`pointer: malformed index in "${p}"`);
+    while (j < s.length && s[j] >= '0' && s[j] <= '9') { digits += s[j]; j++; }
+    if (digits === '' || s[j] !== ']') throw new SyntaxError(`pointer: malformed index in "${whole}"`);
     steps.push({ sel: 'index', n: Number.parseInt(digits, 10) });
     i = j + 1;
   }
@@ -184,10 +215,13 @@ export function renderPointer(p: Pointer, opts: { spaced?: boolean } = {}): stri
   const sep = spaced ? ': ' : ':';
   const toks: string[] = [];
   for (const st of p.steps) {
-    if (st.sel === 'parent') toks.push('..');
-    else if (st.sel === 'key') toks.push(colonSegment(st.name));
-    else if (toks.length > 0 && !toks[toks.length - 1].endsWith('..')) toks[toks.length - 1] += `[${st.n}]`;
-    else toks.push(`[${st.n}]`);
+    if (st.sel === 'parent') { toks.push('..'); continue; }
+    if (st.sel === 'key') { toks.push(colonSegment(st.name)); continue; }
+    // an index group: absolute `[n]`, or relative `[.]` / `[.±k]` — a relative group may
+    // attach to a `..` token (`..[.-1][.]` parses back as the uplink + the indexes)
+    const t = st.sel === 'index' ? `[${st.n}]` : `[.${st.k === 0 ? '' : (st.k > 0 ? '+' : '') + st.k}]`;
+    if (toks.length > 0 && (st.sel === 'relindex' || !toks[toks.length - 1].endsWith('..'))) toks[toks.length - 1] += t;
+    else toks.push(t);
   }
   const body = toks.join(sep);
   switch (p.base.scope) {
@@ -247,9 +281,12 @@ function readUntilSlash(s: string): { seg: string; rest: string } {
   return { seg, rest: s.slice(i) }; // rest starts at the '/' or is ''
 }
 
-/** A `/`-delimited segment → steps: a name (with optional [n] indices) or `..`. */
+/** A `/`-delimited segment → steps: a name (with optional `[n]` / `[.±k]` indices) or `..`. */
 function segToSteps(seg: string): Step[] {
   if (seg === '..') return [{ sel: 'parent' }];
+  // `..` with attached index groups (`..[.-1][.]`): the uplink, then the indexes.
+  // (The literal key ".." arrives escaped, `\.\.`, and takes the name path below.)
+  if (seg.startsWith('..') && seg[2] === '[') return [{ sel: 'parent' }, ...indexGroups(seg.slice(2), seg, 'segment')];
 
   let i = 0;
   let name = '';
@@ -262,16 +299,7 @@ function segToSteps(seg: string): Step[] {
 
   const steps: Step[] = [];
   if (name !== '') steps.push({ sel: 'key', name: unescape(name) });
-
-  while (i < seg.length) {
-    if (seg[i] !== '[') throw new SyntaxError(`pointer: malformed segment "${seg}"`);
-    let j = i + 1;
-    let digits = '';
-    while (j < seg.length && seg[j] >= '0' && seg[j] <= '9') { digits += seg[j]; j++; }
-    if (digits === '' || seg[j] !== ']') throw new SyntaxError(`pointer: malformed index in "${seg}"`);
-    steps.push({ sel: 'index', n: Number.parseInt(digits, 10) });
-    i = j + 1;
-  }
+  if (i < seg.length) steps.push(...indexGroups(seg.slice(i), seg, 'segment'));
   return steps;
 }
 
@@ -292,6 +320,9 @@ export function makeAnchor(body: string, fail: (msg: string) => never, yaml = fa
   let ordinal = false;
   if (body.endsWith('[]') && !body.endsWith('\\[]')) { ordinal = true; body = body.slice(0, -2); }
   const path = parsePointer(body, yaml);
+  // a relative index is link-only (URIs.md §Relative indexes): an anchor claiming a
+  // relative position is still a position claim
+  if (path.steps.some((s) => s.sel === 'relindex')) fail('an anchor may not claim a position — "[.±k]" is link-only');
   if (!ordinal) {
     const last = path.steps[path.steps.length - 1];
     if (last === undefined) fail('an anchor path needs a key segment (or a trailing "[]" for ordinal membership)');
