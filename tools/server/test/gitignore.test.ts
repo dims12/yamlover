@@ -29,6 +29,9 @@ describe("gitignore predicate", () => {
     const root = tmpRepo();
     const ig = buildGitIgnore(root);
     expect(ig(path.join(root, "node_modules"))).toBe(true); // dir matched by `node_modules/`
+    // a file INSIDE the ignored dir: the relative path crosses a separator — on Windows a
+    // backslash, which the `ignore` package's win32 patch converts itself
+    expect(ig(path.join(root, "node_modules", "x"))).toBe(true);
     expect(ig(path.join(root, "debug.log"))).toBe(true);
     expect(ig(path.join(root, "keep.txt"))).toBe(false);
     expect(ig(path.join(root, ".git"))).toBe(true);

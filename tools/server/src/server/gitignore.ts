@@ -56,6 +56,8 @@ export function buildGitIgnore(dataRoot: string): (absPath: string) => boolean {
     for (const d of dirs) {
       const ig = matcherFor(d);
       if (!ig) continue;
+      // path.relative yields backslashes on Windows; the `ignore` package converts them
+      // itself (its win32 makePosix patch), so no normalization is needed here
       const relToDir = path.relative(d, absPath);
       if (!relToDir) continue;
       if (ig.ignores(relToDir) || (isDir && ig.ignores(relToDir + "/"))) return true;
