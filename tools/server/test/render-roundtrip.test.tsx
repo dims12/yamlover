@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from "vitest";
 import { render, cleanup } from "@testing-library/react";
-import { createHandlers } from "../src/server/engine-api";
+import { createHandlers } from "./helpers";
 import { Render } from "../src/client/render";
 import { parseYamlover } from "../../parser/ts/src/yamlover.ts";
 import type { Document, Node, Pointer, Value } from "../../parser/ts/src/ir.ts";

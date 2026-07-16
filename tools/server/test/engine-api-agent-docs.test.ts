@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { createHandlers, mergeAgentDoc } from "../src/server/engine-api";
+import { createHandlers } from "./helpers";
+import { mergeAgentDoc } from "../src/server/engine-api";
 import { tmpTree } from "./helpers";
 import { callBody, sseCapture } from "./http";
 

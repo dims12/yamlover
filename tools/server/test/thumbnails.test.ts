@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Writable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { createHandlers } from "../src/server/engine-api.ts";
+import { createHandlers } from "./helpers";
 import { Store } from "../../engine/ts/src/store.ts";
 import { tmpTree } from "./helpers.ts";
 import { call, sseCapture } from "./http.ts";

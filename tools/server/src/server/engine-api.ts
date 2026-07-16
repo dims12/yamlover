@@ -825,11 +825,13 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
     }
   };
   // Tear-down for embedders/tests: stop the watcher + hasher, drop SSE subscribers, close the
-  // DB. `ready` resolves when the initial background index lands (tests await it; the bin
+  // DB. Idempotent — an embedder's explicit close may precede a blanket teardown's. `ready`
+  // resolves when the initial background index lands (tests await it; the bin
   // catches it so a failed index cannot crash as an unhandled rejection).
   return Object.assign(handler, {
     ready,
     close: (): void => {
+      if (closed) return;
       closed = true;
       stopWatch?.();
       for (const r of sseClients) r.end();

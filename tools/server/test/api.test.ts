@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createHandlers } from "../src/server/engine-api";
+import { createHandlers } from "./helpers";
 import { tmpExample, tmpTree } from "./helpers";
 import { call } from "./http";
 

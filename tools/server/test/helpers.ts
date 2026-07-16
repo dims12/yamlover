@@ -3,15 +3,27 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { onTestFinished } from "vitest";
+import { createHandlers as engineHandlers } from "../src/server/engine-api";
 
 // The repo root, three levels up from tools/server/test/.
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
-/** A fresh temp dir, removed when the current test finishes. */
+/** A fresh temp dir, removed when the current test finishes. (`maxRetries`: Windows delays
+ *  directory deletion while a scanner/indexer briefly holds a new file — rm retries EPERM.) */
 function tmpDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "yamlover-test-"));
-  onTestFinished(() => fs.rmSync(dir, { recursive: true, force: true }));
+  onTestFinished(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   return dir;
+}
+
+/** Engine-api handlers that are CLOSED when the current test finishes — the watcher stops
+ *  and the SQLite index closes. Without this Windows cannot rmSync the temp tree (the open
+ *  index.db makes the whole dir undeletable: EPERM). Drop-in for the engine-api export;
+ *  `onTestFinished` hooks run last-registered-first, so the close precedes tmpDir's rmSync. */
+export function createHandlers(...args: Parameters<typeof engineHandlers>): ReturnType<typeof engineHandlers> {
+  const h = engineHandlers(...args);
+  onTestFinished(() => h.close());
+  return h;
 }
 
 /** A DISPOSABLE COPY of one example fixture (e.g. tmpExample("51-object-in-dir")), in a temp

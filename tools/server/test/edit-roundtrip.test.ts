@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs"; import path from "node:path";
-import { createHandlers } from "../src/server/engine-api";
+import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
 import { buildChapterModel, snapshotChapter, diffChapter, newProsePart } from "../src/client/renderers/chapter-model";

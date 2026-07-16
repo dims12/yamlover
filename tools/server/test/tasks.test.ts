@@ -7,7 +7,7 @@ import { describe, it, expect, onTestFinished } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { createHandlers } from "../src/server/engine-api.ts";
+import { createHandlers } from "./helpers";
 import { Store } from "../../engine/ts/src/store.ts";
 import { tmpTree } from "./helpers.ts";
 import { call, callBody } from "./http.ts";

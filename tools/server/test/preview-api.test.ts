@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { createHandlers, applyTextEdits } from "../src/server/engine-api";
+import { createHandlers } from "./helpers";
+import { applyTextEdits } from "../src/server/engine-api";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
 

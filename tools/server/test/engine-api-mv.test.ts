@@ -4,7 +4,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { createHandlers } from "../src/server/engine-api.ts";
+import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers.js";
 import { call, callBody } from "./http.js";
 
