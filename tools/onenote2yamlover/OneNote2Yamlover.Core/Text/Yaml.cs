@@ -37,7 +37,7 @@ public static partial class Yaml
     }
 
     /// <summary>
-    /// A table cell in a FLOW row (TABLE.md; the caller keeps multi-line cells out — those force
+    /// A table cell in a FLOW row (MARKLOWER.md; the caller keeps multi-line cells out — those force
     /// the block row form). Plain only when the flow lexer takes the token whole: non-empty, no
     /// whitespace or <c>, [ ] : # ' " { }</c>, and not opening with a yamlover sigil. Everything
     /// else is single-quoted with <c>''</c> doubling — the one escape the parser reads (a

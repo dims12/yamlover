@@ -1,7 +1,8 @@
 // Hand-written parser for yamlover (YAML + pointers) → the IR. Spec: ../../../YAMLOVER.md.
 //
-// Covers a practical YAML subset: block mappings & sequences (incl. compact `- key:` and
-// `- &anchor`), flow `{}`/`[]`, plain/single/double-quoted scalars, `#` comments. Plus the
+// Covers a practical YAML subset: block mappings & sequences (incl. compact `- key:`,
+// `- - nested` and `- &anchor`), flow `{}`/`[]`, plain/single/double-quoted scalars,
+// `#` comments. Plus the
 // yamlover extensions: value `*pointer` (unquoted), PATH anchors `&path` / `&path[]`
 // (URIs.md §`&` — same line as the value or on their own lines; multiple per node), the
 // deprecated `~key:` back-edges and `~-` keyless back-edges (≡ `&P/key` / `&P[]`), and
@@ -289,10 +290,11 @@ class Block {
         const rest = afterDash.trim();
         if (rest === '') {
           value = this.node(indent + 1) ?? nul();
-        } else if (!/^(!!<|\*|&)/.test(rest) && splitKV(rest)) {
-          // compact `- key: value`: re-read this line (+ deeper siblings) as a container
-          // (a `!!<…>` tag, a `*` pointer, or a `&` anchor is a VALUE — a colon-form
-          // token's inner `: ` must not look like a key)
+        } else if (isSeqLine(rest) || (!/^(!!<|\*|&)/.test(rest) && splitKV(rest))) {
+          // compact `- key: value` or compact nesting `- - item`: re-read this line
+          // (+ deeper siblings) as a container — the rewrite recurses, so `- - - x`
+          // nests to any depth. (a `!!<…>` tag, a `*` pointer, or a `&` anchor is a
+          // VALUE — a colon-form token's inner `: ` must not look like a key)
           this.i--;
           this.lines[this.i] = { indent: contentCol, text: rest, n: l.n };
           value = this.container(contentCol);

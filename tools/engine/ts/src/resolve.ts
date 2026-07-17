@@ -246,7 +246,7 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
       const next = new Set(visited);
       next.add(entry.value);
       // the inner pointer's host frame is ITS holder chain + its own entry index — so a
-      // chain of merge pointers (TABLE.md) resolves transitively to the origin cell
+      // chain of merge pointers (MARKLOWER.md) resolves transitively to the origin cell
       const innerHost = hasRelindex(entry.value) ? hostPositions(chain, idx) : undefined;
       const r = resolve(doc, chains, chain, entry.value, next, anchorKeys, innerHost);
       if (r.kind !== 'node') return r; // external/unresolved propagates

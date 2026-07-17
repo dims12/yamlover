@@ -38,7 +38,7 @@ public class ChapterSerializerTests
              Chunk.Pointer("image-1a2b3c4d.png"), Chunk.Pointer("Zvukozapis.3gp")],
             ["Subpage.yamlover"]));
 
-    /// <summary>Flow-cell quoting (TABLE.md): a space / sigil / quote forces single quotes with
+    /// <summary>Flow-cell quoting (MARKLOWER.md): a space / sigil / quote forces single quotes with
     /// <c>''</c> doubling; a marklower-bold cell opens with <c>*</c> (a yamlover sigil) so it quotes.</summary>
     [Fact]
     public void FlowRowQuoting() => Assert.Contains(
@@ -58,14 +58,15 @@ public class ChapterSerializerTests
         ChapterSerializer.Chapter("T",
             [Chunk.Grid(new TableModel([new TableRow([new TableCell("single"), new TableCell("two\nlines")])]))], null));
 
-    /// <summary>A nested-table cell: a lone <c>-</c> whose rows sit at its child indent — the
-    /// examples/74-table.yamlover shape.</summary>
+    /// <summary>A nested-table cell: explicitly tagged (an untagged container cell is a
+    /// CHAPTER — MARKLOWER.md §Cells), its rows at its child indent — the
+    /// examples/61-table.yamlover shape.</summary>
     [Fact]
     public void NestedTableCellEmitsRecursively() => Assert.Contains(
         Lines("- " + TableTag,
               "  -",
               "    - Bubbles",
-              "    -",
+              "    - " + TableTag,
               "      - [duty, always]"),
         ChapterSerializer.Chapter("T",
             [Chunk.Grid(new TableModel([new TableRow([
@@ -73,8 +74,9 @@ public class ChapterSerializerTests
                 new TableCell(Nested: new TableModel([Row("duty", "always")])),
             ])]))], null));
 
-    /// <summary>A chapter CELL (a cell mixing prose and a table): tagged — an untagged container
-    /// cell reads as a nested table — with the ordered body at its child indent.</summary>
+    /// <summary>A chapter CELL (a cell mixing prose and a table): the tag is optional now
+    /// (an untagged container cell IS a chapter) but kept for clarity, with the ordered body
+    /// at its child indent.</summary>
     [Fact]
     public void ChapterCellEmitsTaggedBody() => Assert.Contains(
         Lines("- " + TableTag,

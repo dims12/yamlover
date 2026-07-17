@@ -188,8 +188,8 @@ test('relindex deeper than the host path has no frame → unresolved', () => {
   assert.match((t as { reason: string }).reason, /no host frame/);
 });
 
-test('relindex: the examples/74 table resolves with no relindex-unresolved edges', () => {
-  const doc = parseYamlover(readFileSync(join(examples, '74-table.yamlover'), 'utf8'), '74-table.yamlover');
+test('relindex: the examples/61 table resolves with no relindex-unresolved edges', () => {
+  const doc = parseYamlover(readFileSync(join(examples, '61-table.yamlover'), 'utf8'), '61-table.yamlover');
   const rel = resolveDocument(doc).filter((e) => e.ptr.steps.some((s) => s.sel === 'relindex'));
   assert.ok(rel.length >= 2); // the colspan + rowspan merges
   for (const e of rel) assert.equal(e.target.kind, 'node', (e.target as any).reason);

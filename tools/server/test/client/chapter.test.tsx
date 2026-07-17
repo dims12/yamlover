@@ -89,6 +89,40 @@ describe("ChapterView", () => {
     expect(uml).toBeDefined();
   });
 
+  it("routes a tagged LIST body element to the list renderer (fetched by path)", async () => {
+    const api = await import("../../src/client/api");
+    vi.spyOn(api, "fetchNode").mockResolvedValue({
+      path: ":[1]",
+      type: "variant",
+      format: "x-yamlover-bullets",
+      concrete: null,
+      title: null,
+      description: null,
+      value: { $yamloverMixed: { kind: "array", format: "x-yamlover-bullets", entries: [
+        { key: null, value: "first point" },
+        { key: null, value: "second point" },
+      ] } },
+    } as NodeJson);
+    const withList: NodeJson = {
+      ...chapter,
+      value: {
+        $yamloverMixed: {
+          kind: "mix",
+          entries: [
+            { key: null, value: { $yamloverLink: { kind: "array", type: "variant", format: "x-yamlover-bullets", path: ":[1]", count: 2 } } },
+          ],
+        },
+      },
+    };
+    const { container } = render(<ChapterView node={withList} onNavigate={vi.fn()} />);
+    await waitFor(() => expect(container.querySelector("ul.yl-list-bullets")).not.toBeNull());
+    expect([...container.querySelectorAll("ul.yl-list-bullets li")].map((e) => e.textContent)).toEqual([
+      "first point",
+      "second point",
+    ]);
+    vi.restoreAllMocks();
+  });
+
   it("renders a subchapter as a title hyperlink", () => {
     const onNav = vi.fn();
     render(<ChapterView node={chapter} onNavigate={onNav} />);

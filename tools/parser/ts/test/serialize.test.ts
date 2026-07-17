@@ -94,6 +94,16 @@ test('yamlover rt: nested mappings and sequences', () => {
   rtYamlover('user:\n  name: Alice\n  pets:\n    - Rex\n    - name: Whiskers\n      species: cat\n');
 });
 
+test('yamlover rt: compact nested sequences fold onto the dash', () => {
+  const out = rtYamlover('- - a\n  - b\n- - - deep\n');
+  assert.match(out, /- - a/);
+  assert.match(out, /- - - deep/);
+});
+
+test('yamlover rt: a leading ~- back-edge in a seq item stays block (no fold)', () => {
+  rtYamlover('crew:\n  -\n    ~- */teams\n    name: Al\nteams:\n  - x\n');
+});
+
 test('yamlover rt: pointers re-render in canonical colon form', () => {
   const out = rtYamlover('pets:\n  - name: Rex\nfeline: *pets[0]\ntop: */pets[0]/name\nrx: *pets[0]\n');
   assert.match(out, /\*pets\[0\]/);

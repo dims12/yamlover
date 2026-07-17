@@ -66,12 +66,12 @@ and (recursive) subchapters — tagged with the `chapter` schema (`$defs/chapter
 
 | # | example | concrete / shows |
 |---|---------|------------------|
-| 60 | [`60-simple-chapter.yamlover`](60-simple-chapter.yamlover)   | a single tagged **file** — the minimal chapter (`title` + a positional body of chunks and subchapters) |
+| 60 | [`60-simple-chapter.yamlover`](60-simple-chapter.yamlover)   | a single tagged **file** — the minimal chapter (`title` + a positional body of chunks and subchapters), plus tagged **typographical lists** (`$defs/bullets`, `$defs/numbered`) nesting untagged to any depth |
+| 61 | [`61-table.yamlover`](61-table.yamlover) | a tagged **file** — a chapter whose body holds a `!!<*yamlover: $defs: table>` **table**: an omni node of keyless rows (flow and compact `- - ` block forms) with a `header` row (an omni cell carrying a proportional `width`) and a caption, marklower cells, **merged cells** as relative-index pointers (`*[.-1]` colspan, `*..[.-1][.]` rowspan), a tagged nested-table cell, and an untagged **chapter cell**. See [MARKLOWER.md](../MARKLOWER.md) §Tables |
 | 65 | [`65-all-formats-chunks`](65-all-formats-chunks)             | a **directory** chapter — textual chunks (block scalars) interleaved with `*sample.*` pointers to binary files; per-chunk formats and file types in `meta.yamlover` |
 | 66 | [`66-pet-keeper-handbook`](66-pet-keeper-handbook)           | a recursive chapter **tree where each chapter is its own directory** — the root plus `dogs/`, `cats/`, `fish/` (and nested `dogs/puppies/`), each a directory chapter with its own `.yamlover/`; subchapters are `*`-pointers to those subdirectories, prose + `*png` image chunks + per-chunk PlantUML |
 | 68 | [`68-math-chapter`](68-math-chapter)                         | a **directory** chapter — marklower prose (inline `$$…$$`) plus standalone LaTeX chunks (`format: text/x-latex` in `meta`) |
 | 69 | [`69-marklower-links.yamlover`](69-marklower-links.yamlover) | a tagged **file** — nested chapters demonstrating document-relative, project-rooted, and external marklower links (all default format, no meta). Written in the **legacy** slash spelling (`/`, `//`); `:` / `::` are canonical — see `SEPARATOR.md`, `MARKLOWER.md` |
-| 74 | [`74-table.yamlover`](74-table.yamlover) | a tagged **file** — a chapter whose body holds a `!!<*yamlover: $defs: table>` **table**: an omni node of keyless rows with a `header` row and a caption, marklower cells, **merged cells** as relative-index pointers (`*[.-1]` colspan, `*..[.-1][.]` rowspan), and a nested-table cell. See [TABLE.md](../TABLE.md); resolution + renderer pending |
 
 ## Plain directories (format by extension)
 

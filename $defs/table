@@ -1,12 +1,16 @@
 # $defs/table — a grid node: an OMNI node whose keyless entries are the ROWS (top to
 # bottom), each row an array of CELLS (left to right). A row keyed `header` is the header
 # row; optional keyed `title` is the caption. The column count is inferred from the first
-# row. A cell is marklower prose (a chunk), a nested table (the untagged container), or a
-# CHAPTER — entering only by its explicit tag, for a cell mixing prose and tables; a cell
-# that is a `*` pointer to its adjacent previous cell (`*[.-1]` left, `*..[.-1][.]` up —
-# relative indexes, URIs.md) declares a MERGED cell: colspan/rowspan. Attach with
+# row. The table schema consumes exactly TWO nesting levels — rows, then cells; a cell
+# that is an untagged container switches BACK to a CHAPTER (prose, subchapters, tables —
+# the same rules as a top chapter). A NESTED table — like a list — enters a cell only by
+# its explicit !!<…> tag. A header cell may be an omni scalar carrying a keyed `width`
+# sidecar — a proportional column weight (AsciiDoc `cols` style), rendered weight/sum %;
+# `width` is deliberately schema-untyped (an omni cell must stay a LEAF for shape routing).
+# A cell that is a `*` pointer to its adjacent previous cell (`*[.-1]` left, `*..[.-1][.]`
+# up — relative indexes, URIs.md) declares a MERGED cell: colspan/rowspan. Attach with
 # !!<*yamlover: $defs: table>.
-# No explicit `format:` — `type: variant` derives x-yamlover-table. Spec: ../TABLE.md.
+# No explicit `format:` — `type: variant` derives x-yamlover-table. Spec: ../MARKLOWER.md.
 type: variant
 properties:
   title:                           # optional caption
@@ -17,13 +21,16 @@ properties:
     items:                         #   schema is repeated literally rather than *: items)
       anyOf:
         - *:: yamlover: $defs: chunk
-        - *:: yamlover: $defs: table
         - *:: yamlover: $defs: chapter
+        - *:: yamlover: $defs: table
+        - *:: yamlover: $defs: bullets
+        - *:: yamlover: $defs: numbered
 items:                             # a row
   type: array
   items:                           # a cell
     anyOf:
-      - *:: yamlover: $defs: chunk    # marklower prose (the default)
-      - *:: yamlover: $defs: table    # a nested table — the UNTAGGED container (listed first,
-      - *:: yamlover: $defs: chapter  #   so shape routing keeps picking it); a chapter cell
-                                      #   enters only by its explicit !!<…chapter> tag
+      - *:: yamlover: $defs: chunk    # marklower prose (the default leaf)
+      - *:: yamlover: $defs: chapter  # an UNTAGGED container cell IS a chapter (the first
+      - *:: yamlover: $defs: table    #   container branch wins shape routing); a nested
+      - *:: yamlover: $defs: bullets  #   table — and a list — enters a cell only by its
+      - *:: yamlover: $defs: numbered #   explicit !!<…> tag

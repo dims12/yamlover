@@ -1,0 +1,36 @@
+# A chapter carrying a TABLE — the structure marklower refuses to own (../MARKLOWER.md
+# §Tables): the grid is a yamlover node tagged with the table schema, and only its CELLS
+# are marklower.
+#
+# A table is an OMNI node: keyless entries are the ROWS (each an array of cells, left to
+# right); the row keyed `header` is the header row; optional `title` is the caption; the
+# column count is inferred from the first row. The table schema consumes exactly TWO
+# nesting levels — rows, then cells: an untagged container cell switches BACK to a CHAPTER,
+# and a nested table enters only by its explicit tag (MARKLOWER.md §Cells). A header cell
+# may be an omni scalar carrying a `width` sidecar — a proportional column weight
+# (§Header widths). MERGED cells are `*` pointers with RELATIVE indexes (../URIs.md
+# §Relative indexes): a cell that IS its left neighbor (*[.-1]) spans columns, a cell that
+# IS the one above (*..[.-1][.] — up to the table, previous row, my column) spans rows.
+!!<*yamlover: $defs: chapter>
+title: Household staff
+- The roster below is a **table** — a body element, not marklower syntax; cells are marklower.
+- !!<*yamlover: $defs: table>
+  title: Who does what
+  header:
+    - Name
+      width: 2                          # an omni header cell: text + a proportional weight
+    - Class                             # width-less columns default to weight 1
+    - *[.-1]                            # "Class" spans two columns — its neighbor IS it
+  - [Whiskers, mammal, '**manager**']   # a flow row; cells are marklower (a leading * is quoted)
+  - [Rex, *..[.-1][.], security]        # "mammal" spans down — this cell IS the one above
+  - - Bubbles                           # a block row in compact `- - ` form; its third cell
+    - fish                              #   is a NESTED table — entering by its explicit tag
+    - !!<*yamlover: $defs: table>
+      header: [duty, shift]
+      - [decoration, always]
+  - - Rocky
+    - raccoon
+    -                                   # an UNTAGGED container cell is a CHAPTER: prose AND
+      - night shift **only**            #   a table, in order — chapter rules resume here
+      - !!<*yamlover: $defs: table>
+        - [bins, tipped]

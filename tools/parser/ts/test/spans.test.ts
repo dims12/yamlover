@@ -64,6 +64,14 @@ test('span: compact "- k: *p" (the line-rewrite path)', () => {
   y('people:\n  - name: Al\n    boss: */people[1]\n  - name: Bo\n', ['*/people[1]']);
 });
 
+test('span: compact "- - *p" (the nested-seq line-rewrite path)', () => {
+  y('rows:\n  - - */a\n    - *b\n  - - c\na: 1\nb: 2\n', ['*/a', '*b']);
+});
+
+test('span: deeply compact "- - - *p"', () => {
+  y('- - - */x\nx: 1\n', ['*/x']);
+});
+
 test('span: after !!<…> and !!set strips (valueAfter column chain)', () => {
   const src = 'crew: !!set\n  - */fan\nfan: x\nt: !!<*yamlover/$defs/tag> body\n';
   // entry pointer first (document order), then the schema pointer (visited via meta)

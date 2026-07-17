@@ -1311,7 +1311,7 @@ textarea.chapter-latex-src {
   color: var(--dim);
 }
 
-/* ---- table (x-yamlover-table, TABLE.md) ---------------------------------- */
+/* ---- table (x-yamlover-table, MARKLOWER.md) ---------------------------------- */
 .yl-table caption {
   caption-side: top;
   text-align: left;
@@ -1348,6 +1348,19 @@ textarea.chapter-latex-src {
   border-radius: 4px;
   padding: 2px 6px;
   font: inherit;
+}
+
+/* ---- typographical lists (x-yamlover-bullets / x-yamlover-numbered) ------- */
+.yl-list {
+  margin: 4px 0;
+  padding-left: 24px;
+}
+.yl-list .yl-list {
+  margin: 0; /* a nested sublist sits flush under its parent item */
+}
+.yl-list li > .chapter-prose {
+  margin: 0; /* a marklower item is the item, not a paragraph in it */
+  max-width: none;
 }
 
 /* ---- spreadsheet (xls/xlsx) sheet tabs ----------------------------------- */

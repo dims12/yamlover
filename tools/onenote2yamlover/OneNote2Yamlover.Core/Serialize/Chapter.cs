@@ -7,21 +7,22 @@ public enum ChunkKind
 {
     /// <summary>Prose. Emitted as a bare block scalar; marklower is the default format.</summary>
     Text,
-    /// <summary>A table (TABLE.md). Emitted as a <c>!!&lt;*yamlover: $defs: table&gt;</c> node.</summary>
+    /// <summary>A table (MARKLOWER.md). Emitted as a <c>!!&lt;*yamlover: $defs: table&gt;</c> node.</summary>
     Table,
     /// <summary>A pointer to a sibling file (image, attachment) or a subchapter directory.</summary>
     Pointer,
 }
 
-/// <summary>A grid (TABLE.md): rows of cells, top to bottom / left to right. OneNote has no
+/// <summary>A grid (MARKLOWER.md): rows of cells, top to bottom / left to right. OneNote has no
 /// header rows and no merged cells, so the model carries neither — every row is a body row.</summary>
 public sealed record TableModel(IReadOnlyList<TableRow> Rows);
 
 public sealed record TableRow(IReadOnlyList<TableCell> Cells);
 
-/// <summary>A cell is marklower prose, a nested table, or — when a OneNote cell mixes prose and
-/// tables — a CHAPTER whose body keeps both in order (the cell schema is
-/// <c>anyOf: [chunk, table, chapter]</c>; the chapter branch enters by its explicit tag).</summary>
+/// <summary>A cell is marklower prose, a nested table (entering only by its explicit tag), or —
+/// when a OneNote cell mixes prose and tables — a CHAPTER whose body keeps both in order (the
+/// cell schema is <c>anyOf: [chunk, chapter, table]</c>; an untagged container cell is the
+/// chapter branch — MARKLOWER.md §Cells).</summary>
 public sealed record TableCell(string Text = "", TableModel? Nested = null, IReadOnlyList<Chunk>? Chapter = null);
 
 /// <param name="Text">Body for <see cref="ChunkKind.Text"/>.</param>
@@ -101,12 +102,13 @@ public static class ChapterSerializer
     }
 
     /// <summary>
-    /// A table's rows at <paramref name="indent"/> (TABLE.md; the worked shape is
-    /// examples/74-table.yamlover). A row of single-line prose cells is FLOW
+    /// A table's rows at <paramref name="indent"/> (MARKLOWER.md §Tables; the worked shape is
+    /// examples/61-table.yamlover). A row of single-line prose cells is FLOW
     /// (<c>- [a, 'b c']</c>); a row holding a multi-line cell or a nested table is BLOCK —
-    /// a lone <c>-</c> with each cell a <c>- </c> item two columns deeper (yamlover has no
-    /// compact <c>- - cell</c> nesting). A nested-table cell is itself a lone <c>-</c> whose
-    /// rows follow at its child indent — the recursion bottoms out in prose cells.
+    /// a lone <c>-</c> with each cell a <c>- </c> item two columns deeper. A nested-table
+    /// cell carries the EXPLICIT table tag (an untagged container cell is a chapter — the
+    /// table schema consumes exactly two nesting levels); the recursion bottoms out in
+    /// prose cells.
     /// </summary>
     private static void AppendTableRows(StringBuilder sb, TableModel table, int indent)
     {
@@ -125,13 +127,14 @@ public static class ChapterSerializer
             {
                 if (cell.Chapter is not null)
                 {
-                    // an untagged container cell reads as a nested table, so the chapter's tag decides
+                    // an untagged container cell IS a chapter; the tag is kept for clarity
                     sb.Append(pad).Append("  - ").Append(Tag).Append('\n');
                     AppendCellChapter(sb, cell.Chapter, indent + 4);
                 }
                 else if (cell.Nested is not null)
                 {
-                    sb.Append(pad).Append("  -\n");
+                    // a nested table enters a cell only by its explicit tag (MARKLOWER.md §Cells)
+                    sb.Append(pad).Append("  - ").Append(TableTag).Append('\n');
                     AppendTableRows(sb, cell.Nested, indent + 4);
                 }
                 else if (cell.Text.Contains('\n'))

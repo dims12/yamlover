@@ -1,16 +1,18 @@
-// The renderer for a TABLE node (format `x-yamlover-table` — TABLE.md): an omni node whose
-// keyless entries are the ROWS (arrays of cells), the row keyed `header` is the header, keyed
-// `title` is the caption. Cells are marklower prose (the default), NESTED tables (an untagged
-// container, rendered inline, recursively), CHAPTER cells (a tagged container mixing prose and
-// tables — told apart by the mixed marker's stamped format), or `*` pointers — a pointer to an
-// adjacent previous cell is a MERGE.
+// The renderer for a TABLE node (format `x-yamlover-table` — MARKLOWER.md §Tables): an omni
+// node whose keyless entries are the ROWS (arrays of cells), the row keyed `header` is the
+// header, keyed `title` is the caption. The table consumes exactly TWO nesting levels — rows,
+// then cells. A cell is marklower prose (the default), a CHAPTER (an untagged container cell
+// switches back to chapter rules), a NESTED table or a list (entering only by their explicit
+// tag — told apart by the mixed marker's stamped format), or a `*` pointer — a pointer to an
+// adjacent previous cell is a MERGE. A header cell may carry a `width` sidecar: a proportional
+// column weight (AsciiDoc `cols` style), rendered as weight/sum percent via <colgroup>.
 //
 // Merged cells: the engine resolves the relative-index pointers (`*[.-1]`, `*..[.-1][.]` —
 // URIs.md §Relative indexes) transitively to the ORIGIN cell, so every member of a merged
 // region arrives as a `$yamloverRef` marker whose `path` IS the origin cell's path. The grid
 // therefore detects merges by TARGET PATH + GEOMETRY: a ref cell targeting another cell of
 // this grid joins that origin's region; a region renders merged only when it tiles a filled
-// rectangle with the origin top-left, all on one side of the header/body boundary (TABLE.md
+// rectangle with the origin top-left, all on one side of the header/body boundary (MARKLOWER.md
 // §Merged cells). Anything else — a pointer to a non-adjacent cell, a non-cell target, a
 // non-rectangular region — renders as an ordinary deref cell, per the spec.
 //
@@ -20,8 +22,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { editChunks, fetchNode, NodeJson } from "../api";
-import { asLink, asMixed, asRef, Mixed } from "../render";
+import { asLink, asMixed, asRef, scalarValue } from "../render";
 import { childPath, escapeYamloverScalar } from "./chapter-model";
+import { ListBody, listKind } from "./list";
 import { MarklowerChunk } from "./marklower";
 import { MarklowerChunkEditor } from "./chunk-editors";
 import { useEditing } from "./editing";
@@ -49,11 +52,12 @@ interface TableGrid {
   title: string | null;
   rows: RowModel[]; // header + body rows, in authored order
   cols: number; // inferred from the first row (the header when present)
+  widths: (number | null)[] | null; // per-column proportional weights from the header's `width` sidecars, or null when none authored
 }
 
 /** Read a projected table value (a `$yamloverMixed` omni marker, or a plain array of rows for
  *  a fully keyless table) into the grid model. Rows keep their authored order; keyed rows other
- *  than `title` are rows too — the key just names them (TABLE.md §The model). */
+ *  than `title` are rows too — the key just names them (MARKLOWER.md §The model). */
 export function buildTableGrid(value: unknown, tablePath: string): TableGrid {
   const entries: { key: string | null; value: unknown }[] = Array.isArray(value)
     ? value.map((v) => ({ key: null, value: v }))
@@ -85,14 +89,25 @@ export function buildTableGrid(value: unknown, tablePath: string): TableGrid {
   const first = rows.find((r) => r.header) ?? rows[0];
   const cols = first?.cells.length ?? 0;
   for (const r of rows) r.overflow = Math.max(0, r.cells.length - cols);
-  return { title, rows, cols };
+
+  // header `width` sidecars: an omni header cell (scalar + fields) may carry a keyed `width`
+  // — a proportional column weight (MARKLOWER.md §Header widths). The cell keeps rendering
+  // its self-value; a pointer/merged or non-numeric width contributes nothing (weight 1).
+  const header = rows.find((r) => r.header);
+  const widths: (number | null)[] = (header?.cells ?? []).map((c) => {
+    const m = asMixed(c.value);
+    if (m?.kind !== "omni") return null;
+    const w = m.entries.find((e) => e.key === "width")?.value;
+    return typeof w === "number" && isFinite(w) && w > 0 ? w : null;
+  });
+  return { title, rows, cols, widths: widths.some((w) => w != null) ? widths : null };
 }
 
 /** The merge layout: for each grid position, either the spans it renders with (the ORIGIN of a
  *  merged region), `null` (a region member — emit nothing), or undefined (an ordinary cell). */
 type Spans = (null | { colSpan: number; rowSpan: number } | undefined)[][];
 
-/** Compute merged regions per TABLE.md §Merged cells: group ref cells by their (origin) target
+/** Compute merged regions per MARKLOWER.md §Merged cells: group ref cells by their (origin) target
  *  path; a group merges iff origin + members tile a filled rectangle, origin top-left, all on
  *  one side of the header/body boundary. Invalid groups render unmerged (ordinary deref cells). */
 export function computeSpans(grid: TableGrid): Spans {
@@ -222,14 +237,23 @@ function CellContent({
     );
   }
   const mixed = asMixed(cell.value);
-  if (mixed?.format === "x-yamlover-chapter") {
-    // a CHAPTER cell — a cell mixing prose and tables, entered by its explicit tag; the
-    // stamped format on the mixed marker is what tells it apart from a nested table
-    return <ChapterCell mixed={mixed} path={cell.path} tablePath={tablePath} documentPath={documentPath} onNavigate={onNavigate} />;
-  }
-  if (mixed || Array.isArray(cell.value)) {
-    // an UNTAGGED container cell IS a nested table (TABLE.md §Cells)
+  if (mixed?.format === "x-yamlover-table") {
+    // a NESTED table — entering only by its explicit tag; the stamped format on the
+    // mixed marker is what tells it apart from an untagged (chapter) container cell
     return <Grid value={cell.value} path={cell.path} documentPath={documentPath} onNavigate={onNavigate} caption />;
+  }
+  if (mixed?.format === "x-yamlover-bullets" || mixed?.format === "x-yamlover-numbered") {
+    // a tagged LIST cell — bullets / numbered (MARKLOWER.md §Lists)
+    return <ListBody value={cell.value} path={cell.path} kind={listKind(mixed.format)} documentPath={documentPath} onNavigate={onNavigate} />;
+  }
+  if ((mixed && mixed.kind !== "omni") || Array.isArray(cell.value)) {
+    // an UNTAGGED container cell IS a CHAPTER — the table schema consumes exactly two
+    // nesting levels, then switches back to chapter rules (MARKLOWER.md §Cells)
+    return <ChapterCell value={cell.value} path={cell.path} tablePath={tablePath} documentPath={documentPath} onNavigate={onNavigate} />;
+  }
+  if (mixed) {
+    // an omni SCALAR cell (an annotated / width-carrying scalar): render its self-value as prose
+    return <MarklowerChunk chunk={proseChunk({ value: scalarValue(cell.value), path: cell.path }, documentPath)} onNavigate={onNavigate} />;
   }
   const link = asLink(cell.value);
   if (link) {
@@ -250,27 +274,31 @@ function CellContent({
   return <MarklowerChunk chunk={proseChunk(cell, documentPath)} onNavigate={onNavigate} />;
 }
 
-/** A CHAPTER cell (TABLE.md §Cells): a cell mixing prose and tables, tagged
- *  `!!<*yamlover: $defs: chapter>`. Keyed `title`/`description` head the block; the positional
- *  body renders in order, each item through the ordinary cell routing (prose → marklower,
- *  a tagged table → an inline grid, a subchapter → recursion, pointers → links). Read-only,
- *  like every non-prose cell. */
+/** A CHAPTER cell (MARKLOWER.md §Cells): the UNTAGGED container cell — the table schema
+ *  consumes two nesting levels, so a container cell switches back to chapter rules (an
+ *  explicit `!!<…chapter>` tag stays legal). Keyed `title`/`description` head the block; the
+ *  positional body renders in order, each item through the ordinary cell routing (prose →
+ *  marklower, a tagged table → an inline grid, a subchapter → recursion, pointers → links).
+ *  Read-only, like every non-prose cell. Accepts a mixed marker or a plain array body. */
 function ChapterCell({
-  mixed,
+  value,
   path,
   tablePath,
   documentPath,
   onNavigate,
 }: {
-  mixed: Mixed;
+  value: unknown;
   path: string;
   tablePath: string;
   documentPath?: string;
   onNavigate: (path: string) => void;
 }) {
+  const entries: { key: string | null; value: unknown }[] = Array.isArray(value)
+    ? value.map((v) => ({ key: null, value: v }))
+    : (asMixed(value)?.entries ?? []);
   return (
     <div className="yl-cell-chapter">
-      {mixed.entries.map((e, i) => {
+      {entries.map((e, i) => {
         const p = childPath(path, e.key ?? i);
         if (e.key === "title")
           return (
@@ -356,18 +384,30 @@ export function Grid({
   let split = 0;
   while (split < grid.rows.length && grid.rows[split].header) split++;
 
+  // proportional column widths (AsciiDoc `cols` style): weight/sum percent, width-less columns
+  // default to weight 1 so a partial spec still lays out the whole grid
+  const weights = grid.widths ? Array.from({ length: grid.cols }, (_, c) => grid.widths![c] ?? 1) : null;
+  const weightSum = weights ? weights.reduce((a, b) => a + b, 0) : 0;
+
   return (
     <div className="csv-scroll">
       <table className="csv-table yl-table">
         {caption && grid.title != null && (
           <caption>{unlocked ? <EditableTitle title={grid.title} tablePath={path} /> : grid.title}</caption>
         )}
+        {weights && weightSum > 0 && (
+          <colgroup>
+            {weights.map((w, c) => (
+              <col key={c} style={{ width: `${(100 * w) / weightSum}%` }} />
+            ))}
+          </colgroup>
+        )}
         {split > 0 && <thead>{grid.rows.slice(0, split).map((row, r) => renderRow(row, r))}</thead>}
         <tbody>{grid.rows.slice(split).map((row, i) => renderRow(row, split + i))}</tbody>
       </table>
       {overflow > 0 && (
         <p className="yl-table-notice">
-          ⚠ {overflow} cell{overflow > 1 ? "s" : ""} beyond the column count inferred from the first row (TABLE.md)
+          ⚠ {overflow} cell{overflow > 1 ? "s" : ""} beyond the column count inferred from the first row (MARKLOWER.md)
         </p>
       )}
     </div>

@@ -10,7 +10,7 @@ data with `const:` so the schema *is* the instance (the old `.yamlover/schema.ya
 Data now lives in the instance (files and/or `body.yamlover`); the schema only *describes*
 it. Companion specs: `URIs.md` (pointers), `QUERY.md` (queries), `IR.md` (instance
 graph), `YAMLOVER.md` / `JSON5P.md` (surfaces), `CHAPTER.md` / `MARKLOWER.md` /
-`TABLE.md` (the document model, its default prose format `text/marklower`, and its
+`MARKLOWER.md` (the document model, its default prose format `text/marklower`, and its
 table node).
 
 ## Where it lives — the `.yamlover/` contract
@@ -70,7 +70,7 @@ IMPORTS.md §4):
   of cells), a row keyed `header` is the header, optional `title` the caption; cells are
   marklower chunks or nested tables, and merged cells are `*` pointers with **relative
   indexes** (`*[.-1]` colspan, `*..[.-1][.]` rowspan — URIs.md §Relative indexes). Derives
-  `format: x-yamlover-table`. Full model: **`TABLE.md`**.
+  `format: x-yamlover-table`. Full model: **`MARKLOWER.md`**.
 
 This **replaces the old chapter encoding** (title/description + two keyed arrays `chunks` and
 `children`): a `chapter` is now an omni node with `title`/`description` + a positional

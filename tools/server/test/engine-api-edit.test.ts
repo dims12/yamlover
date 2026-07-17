@@ -500,7 +500,7 @@ describe("/api/tree — directory-chapter subchapter order", () => {
   });
 });
 
-describe("/api/edit — flow-row cells (a table's `- [a, b, c]`, TABLE.md)", () => {
+describe("/api/edit — flow-row cells (a table's `- [a, b, c]`, MARKLOWER.md)", () => {
   const TABLE =
     "!!<*yamlover/$defs/chapter>\n" +
     'title: "T"\n' +

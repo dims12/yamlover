@@ -8,7 +8,7 @@ TypeScript, run directly on Node ≥ 22 (native type-stripping; tests via `node:
 - **json5p** (`src/json5p.ts`) — done. JSON5 + pointers (`*`), anchors (`&`), back-edges
   (`~`). Spec: `../../../JSON5P.md`. Gated by the full JSON & JSON5 positive corpora.
 - **yamlover** (`src/yamlover.ts`) — practical subset done. Block maps/sequences (incl.
-  compact `- key:` and `- &anchor`), flow `{}`/`[]`, plain/quoted scalars, `#` comments,
+  compact `- key:`, `- - nested` and `- &anchor`), flow `{}`/`[]`, plain/quoted scalars, `#` comments,
   plus the extensions (`*`/`&`/`~`). Parses `examples/05-tour.yaml` & `06-tour.yamlover`.
   **TODO:** block scalars (`|`/`>`), tags, multi-doc, then the yaml-test-suite gate with
   the divergence allowlist. Spec: `../../../YAMLOVER.md`.

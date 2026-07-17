@@ -1,0 +1,12 @@
+# $defs/bullets — a typographical UNORDERED (bullet) list: an ordinary yamlover list whose
+# keyless entries are the items. An item is marklower prose (a chunk) or — when it is an
+# UNTAGGED container — a nested bullets list: unlike table's two-level budget, the list
+# schema applies at ANY depth, until an explicit !!<…> tag switches to something else.
+# A titled list is a chapter holding a list — no keyed properties here on purpose.
+# Attach with !!<*yamlover: $defs: bullets>.
+# No explicit `format:` — `type: variant` derives x-yamlover-bullets. Spec: ../MARKLOWER.md.
+type: variant
+items:
+  anyOf:
+    - *:: yamlover: $defs: bullets   # an untagged container item = a nested sublist, SAME kind
+    - *:: yamlover: $defs: chunk     # a list item — marklower prose

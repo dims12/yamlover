@@ -11,6 +11,7 @@ import { LatexView, LatexChunk } from "./latex";
 import { AsciidocView, AsciidocChunk } from "./asciidoc";
 import { CsvView, CsvChunk, CsvControls } from "./csv";
 import { TableView, TableChunk } from "./table";
+import { ListView, ListChunk } from "./list";
 import { PlaintextView, PlaintextChunk, EncodingControl } from "./plaintext";
 import { RtfView, RtfChunk } from "./rtf";
 import { DocView, DocChunk } from "./doc";
@@ -259,9 +260,10 @@ const REGISTRY: Renderer[] = [
     config: (rerender) => <CsvControls rerender={rerender} />,
   },
   {
-    // A TABLE node (TABLE.md): rows/header/caption from the omni entries, merged cells
-    // (colSpan/rowSpan) from resolved relative-index pointers, nested tables inline, marklower
-    // cells. Depth null: the grid needs the whole subtree (cells of nested tables included).
+    // A TABLE node (MARKLOWER.md §Tables): rows/header/caption from the omni entries, merged
+    // cells (colSpan/rowSpan) from resolved relative-index pointers, tagged nested tables
+    // inline, marklower cells. Depth null: the grid needs the whole subtree (chapter cells
+    // and nested tables included).
     name: "table",
     icon: "▤",
     accepts: byFormat("x-yamlover-table"),
@@ -269,6 +271,28 @@ const REGISTRY: Renderer[] = [
     depth: null,
     render: (node, onNavigate) => <TableView node={node} onNavigate={onNavigate} />,
     renderChunk: (chunk, onNavigate) => <TableChunk chunk={chunk} onNavigate={onNavigate} />,
+  },
+  {
+    // A BULLET list node (MARKLOWER.md §Lists): keyless entries are the items; an untagged
+    // container item is a nested sublist of the same kind, at any depth. Depth null: the
+    // whole subtree renders as one list.
+    name: "bullets",
+    icon: "•",
+    accepts: byFormat("x-yamlover-bullets"),
+    specificity: 2,
+    depth: null,
+    render: (node, onNavigate) => <ListView node={node} onNavigate={onNavigate} />,
+    renderChunk: (chunk, onNavigate) => <ListChunk chunk={chunk} onNavigate={onNavigate} />,
+  },
+  {
+    // A NUMBERED list node (MARKLOWER.md §Lists) — the ordered twin of `bullets`.
+    name: "numbered",
+    icon: "1.",
+    accepts: byFormat("x-yamlover-numbered"),
+    specificity: 2,
+    depth: null,
+    render: (node, onNavigate) => <ListView node={node} onNavigate={onNavigate} />,
+    renderChunk: (chunk, onNavigate) => <ListChunk chunk={chunk} onNavigate={onNavigate} />,
   },
   {
     // Plain text shown verbatim (no markup), with a node-bar encoding selector —

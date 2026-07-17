@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-// The TABLE renderer (TABLE.md): grid from omni entries, header/caption, merged cells
-// (colSpan/rowSpan) from resolved relative-index pointer cells, nested tables, marklower cells.
+// The TABLE renderer (MARKLOWER.md §Tables): grid from omni entries, header/caption, merged
+// cells (colSpan/rowSpan) from resolved relative-index pointer cells, TAGGED nested tables,
+// untagged container cells as CHAPTERS, header `width` sidecars, marklower cells.
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 import { TableView, buildTableGrid, computeSpans } from "../../src/client/renderers/table";
@@ -30,13 +31,18 @@ const tableNode = (value: unknown): NodeJson => ({
   value,
 });
 
-// the examples/74 shape: title + header (colspan) + a rowspan + a nested-table cell
+// a TAGGED nested table arrives as a mixed marker whose `format` carries the stamp
+const taggedTable = (entries: { key: string | null; value: unknown }[]) => ({
+  $yamloverMixed: { kind: "mix", format: "x-yamlover-table", entries },
+});
+
+// the examples/61 shape: title + header (colspan) + a rowspan + a TAGGED nested-table cell
 const fixture = mixed([
   { key: "title", value: "Who does what" },
   { key: "header", value: ["Name", "Class", ref(":t:header[1]")] },
   { key: null, value: ["Whiskers", "mammal", "**manager**"] },
   { key: null, value: ["Rex", ref(":t[2][1]"), "security"] },
-  { key: null, value: ["Bubbles", "fish", mixed([
+  { key: null, value: ["Bubbles", "fish", taggedTable([
     { key: "header", value: ["duty", "shift"] },
     { key: null, value: ["decoration", "always"] },
   ])] },
@@ -75,7 +81,7 @@ describe("table renderer", () => {
     expect([...container.querySelectorAll("tbody td strong")].map((e) => e.textContent)).toContain("manager");
   });
 
-  it("renders a nested-table cell as an inline table with its own caption-less header", () => {
+  it("renders a TAGGED nested-table cell as an inline table with its own caption-less header", () => {
     const { container } = render(<TableView node={tableNode(fixture)} onNavigate={() => {}} />);
     const nested = container.querySelector("tbody td table");
     expect(nested).not.toBeNull();
@@ -83,13 +89,12 @@ describe("table renderer", () => {
     expect(nestedHeads).toEqual(["duty", "shift"]);
   });
 
-  it("a chapter cell (stamped x-yamlover-chapter) keeps prose AND its nested table", () => {
-    // a cell mixing prose and a table is a TAGGED chapter (TABLE.md §Cells); the engine stamps
-    // the mixed marker's `format`, which is what routes it away from the nested-table branch
-    const innerTable = { $yamloverMixed: { kind: "omni", format: "x-yamlover-table", entries: [
-      { key: null, value: ["duty", "always"] },
-    ] } };
-    const chapterCell = { $yamloverMixed: { kind: "omni", format: "x-yamlover-chapter", entries: [
+  it("an UNTAGGED container cell is a CHAPTER keeping prose AND its tagged table", () => {
+    // the table schema consumes exactly two nesting levels (MARKLOWER.md §Cells): a container
+    // cell switches back to chapter rules — the engine stamps it x-yamlover-chapter; a nested
+    // table inside it enters only by its explicit tag
+    const innerTable = taggedTable([{ key: null, value: ["duty", "always"] }]);
+    const chapterCell = { $yamloverMixed: { kind: "array", format: "x-yamlover-chapter", entries: [
       { key: null, value: "above the **table**" },
       { key: null, value: innerTable },
       { key: null, value: "below it" },
@@ -104,6 +109,55 @@ describe("table renderer", () => {
     expect(td.querySelector(".yl-cell-chapter strong")?.textContent).toBe("table"); // prose is marklower
     const inner = td.querySelector("table")!;
     expect([...inner.querySelectorAll("td")].map((e) => e.textContent)).toEqual(["duty", "always"]);
+  });
+
+  it("a depth-truncated bare-array container cell still renders as a chapter cell", () => {
+    const value = mixed([{ key: null, value: ["plain", ["one", "two"]] }]);
+    const { container } = render(<TableView node={tableNode(value)} onNavigate={() => {}} />);
+    const td = [...container.querySelectorAll("tbody > tr > td")][1];
+    expect(td.querySelector(".yl-cell-chapter")).not.toBeNull();
+    expect(td.querySelector("table")).toBeNull(); // NOT a nested table any more
+    expect(td.textContent).toContain("one");
+    expect(td.textContent).toContain("two");
+  });
+
+  it("a tagged LIST cell renders as a ul/ol", () => {
+    const listCell = { $yamloverMixed: { kind: "array", format: "x-yamlover-numbered", entries: [
+      { key: null, value: "step one" },
+      { key: null, value: "step two" },
+    ] } };
+    const value = mixed([{ key: null, value: ["plain", listCell] }]);
+    const { container } = render(<TableView node={tableNode(value)} onNavigate={() => {}} />);
+    const ol = container.querySelector("tbody td ol.yl-list");
+    expect(ol).not.toBeNull();
+    expect([...ol!.querySelectorAll("li")].map((e) => e.textContent)).toEqual(["step one", "step two"]);
+  });
+
+  it("header `width` sidecars emit a <colgroup> with weight/sum percentages", () => {
+    // an omni header cell: self-value + a keyed `width` — a proportional weight; the
+    // width-less column defaults to weight 1 → 3/(3+1+1)=60%, 20%, 20%
+    const widthCell = (text: string, w: unknown) => ({
+      $yamloverMixed: { kind: "omni", value: text, format: "text/marklower", entries: [{ key: "width", value: w }] },
+    });
+    const value = mixed([
+      { key: "header", value: [widthCell("Name", 3), "Class", widthCell("Duty", 1)] },
+      { key: null, value: ["Whiskers", "mammal", "manager"] },
+    ]);
+    const { container } = render(<TableView node={tableNode(value)} onNavigate={() => {}} />);
+    const cols = [...container.querySelectorAll("colgroup col")];
+    expect(cols.map((c) => (c as HTMLElement).style.width)).toEqual(["60%", "20%", "20%"]);
+    // the omni header cell still renders its self-value as the heading text
+    expect([...container.querySelectorAll("thead th")].map((e) => e.textContent)).toEqual(["Name", "Class", "Duty"]);
+  });
+
+  it("a non-numeric width is ignored (no colgroup when nothing valid remains)", () => {
+    const bad = { $yamloverMixed: { kind: "omni", value: "Name", entries: [{ key: "width", value: "wide" }] } };
+    const value = mixed([
+      { key: "header", value: [bad, "Class"] },
+      { key: null, value: ["a", "b"] },
+    ]);
+    const { container } = render(<TableView node={tableNode(value)} onNavigate={() => {}} />);
+    expect(container.querySelector("colgroup")).toBeNull();
   });
 
   it("a 3-wide colspan chain merges into one origin", () => {

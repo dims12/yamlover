@@ -324,7 +324,7 @@ the pointer consumes one depth; a `[.±k]` at depth *d* selects position *(the h
 position at depth d) ± k*. Keyed entries hold positions too (see *Lists and dicts are one
 ordered mapping*), so the frame always exists.
 
-The motivating idiom is the **table** (`TABLE.md`) — a cell at row *r*, column *c* naming
+The motivating idiom is the **table** (`MARKLOWER.md`) — a cell at row *r*, column *c* naming
 its adjacent previous cells (the base of a bare pointer is the current mapping — the row):
 
 ```yamlover

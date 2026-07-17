@@ -49,7 +49,7 @@ export interface Ref {
 }
 
 export interface Mixed {
-  kind: "omni" | "mix";
+  kind: "omni" | "mix" | "array"; // "array": a format-stamped all-keyless container (e.g. a tagged nested table)
   value?: unknown; // omni: the node's own scalar self-value
   selfAt?: number; // omni: the self-value's authored display position among `entries` (0/absent → first)
   format?: string | null; // the node's stamped/derived format — a renderer's branch point (a chapter CELL vs a nested table)

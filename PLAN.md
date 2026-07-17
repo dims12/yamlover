@@ -81,7 +81,7 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
 2c. **yamlover**: **DECIDED hand-write** (`ts/src/yamlover.ts` → IR; consistent with
    json5p — no stock YAML parser exposes hooks to reinterpret `*alias`/`~key`, and the
    Rust port wants a spec-driven parser). **Practical subset DONE** (280 tests total):
-   block maps/sequences (incl. compact `- key:`, `- &anchor`), flow `{}`/`[]`, plain &
+   block maps/sequences (incl. compact `- key:`, `- - nested`, `- &anchor`), flow `{}`/`[]`, plain &
    quoted scalars, basic block scalars (`|`/`>` with `-`/`+` chomping), `#` comments,
    yamlover tags (`!!mix`/`!!var`/`!!<…>`), plus extended `*`, `&` anchors, `~`
    back-edges; parses `examples/05-tour.yaml` & `06-tour.yamlover`. **Gate WIRED**

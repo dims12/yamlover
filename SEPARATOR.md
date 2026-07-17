@@ -91,7 +91,7 @@ as the single rule.
   `.` is "my own position at this depth", an offset is arithmetic on it (bracket bodies
   stay disjoint by form: digits = absolute, `.` = relative, `?` = wildcard). The frame is
   the pointer HOST's own path, depth-aligned after `..` ascents: `*[.-1]` is my previous
-  sibling; `*..[.-1][.]` is "previous row, my column" — the table merge idiom (`TABLE.md`;
+  sibling; `*..[.-1][.]` is "previous row, my column" — the table merge idiom (`MARKLOWER.md`;
   full resolution rule in `URIs.md` §Relative indexes). Link-legal (§5); **rejected in `&`
   anchors** — a relative position claim is still a position claim (§7).
 - **A key containing a space MUST be quoted** (decided): `: tags: 'дорожный знак'`.

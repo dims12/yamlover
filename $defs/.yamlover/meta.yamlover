@@ -26,3 +26,9 @@ properties:
     table:
         type: string
         format: yamlover/meta
+    bullets:
+        type: string
+        format: yamlover/meta
+    numbered:
+        type: string
+        format: yamlover/meta

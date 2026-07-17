@@ -978,14 +978,17 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
       ? refMarker(refPointerText(s, targetSegs, currentDoc), segsToStr(targetSegs))
       : linkMarker(dataRoot, s, targetSegs);
   };
-  if (k === "array") return kids.map(project);
-  if (k === "omni" || k === "mix") {
+  // a FORMAT-STAMPED array (a tagged/derived x-yamlover-* container, e.g. an all-keyless
+  // nested table or list) keeps its format via the marker path below; a plain data array
+  // projects bare — the client cannot otherwise tell a tagged keyless table from data.
+  if (k === "array" && !row.format) return kids.map(project);
+  if (k === "omni" || k === "mix" || k === "array") {
     // A `$yamloverMixed` marker preserving source order: each entry is positional (`key: null` →
     // a `- item`) or keyed (`key: "scale"` → `scale: …`); an omni also carries its self-value.
     const entries = kids.map((c) => ({ key: c.label, value: project(c) }));
     const marker: Record<string, unknown> = { kind: k, entries };
     // the node's stamped/derived format — an inlined container otherwise carries none, and the
-    // table renderer needs it to tell a CHAPTER cell from a nested table (TABLE.md §Cells)
+    // table renderer needs it to tell a CHAPTER cell from a nested table (MARKLOWER.md §Cells)
     if (row.format) marker.format = row.format;
     if (k === "omni") {
       // the node's own scalar self-value (the `!!var 5`); a FILE-backed omni (an image carrying
@@ -2613,7 +2616,7 @@ function setRootTag(lines: string[], meta: string | null): void {
   else lines.splice(Math.max(at, 0), 0, `!!<${meta}>`);
 }
 
-// --- flow-row cell surgery (TABLE.md) --------------------------------------------------------- //
+// --- flow-row cell surgery (MARKLOWER.md) --------------------------------------------------------- //
 // A table's flow row (`- [a, 'b c', *[.-1]]`) is ONE source line; the block engine above cannot
 // descend into it. A cell edit — `<table>[r][c]` with a scalar payload — is spliced token-wise:
 // the row's `[…]` body splits on top-level commas (quotes and nested brackets respected), the
@@ -2695,7 +2698,7 @@ function editFlowRowCell(lines: string[], row: ChapterEntry, cellIdx: number, op
   const parsed = parseYamlover(payload.scalar, "cell").root as { kind?: string; value?: unknown };
   if (parsed.kind !== "scalar") throw new Error("a flow-row cell takes a scalar value");
   const text = String(parsed.value ?? "");
-  if (text.includes("\n")) throw new Error("a flow-row cell cannot hold multi-line text — rewrite the row in block form (TABLE.md)");
+  if (text.includes("\n")) throw new Error("a flow-row cell cannot hold multi-line text — rewrite the row in block form (MARKLOWER.md)");
   const cell = scan.cells[cellIdx];
   if (!cell) throw new Error(`no cell [${cellIdx}] in the flow row (${scan.cells.length} cells)`);
   const lead = cellIdx === 0 ? "" : " "; // the row's own style: none after `[`, one after `,`
@@ -2729,7 +2732,7 @@ function editChapterSource(src: string, within: Seg[], op: string, valueSrc: str
     throw new Error(`\`${op}\` at a document root needs a key or index target`);
   }
   // a numeric segment into a FLOW row (a table's `- [a, b, c]` / `header: […]`): the block
-  // engine cannot descend into the one-line row — splice the cell token instead (TABLE.md)
+  // engine cannot descend into the one-line row — splice the cell token instead (MARKLOWER.md)
   const last = within[within.length - 1];
   if (within.length >= 2 && typeof last === "number") {
     const parentR = reachChapter(lines, within.slice(0, -2));

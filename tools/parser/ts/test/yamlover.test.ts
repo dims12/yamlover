@@ -34,6 +34,38 @@ test('compact sequence of mappings', () => {
   assert.deepEqual(toPlain(d.root), { pets: [{ name: 'Rex', species: 'dog' }, { name: 'Whiskers', species: 'cat' }] });
 });
 
+test('compact nested sequence `- - x`', () => {
+  const d = parseYamlover('- - a\n- - b\n');
+  assert.deepEqual(toPlain(d.root), [['a'], ['b']]);
+});
+
+test('compact nested sequence with continuation lines', () => {
+  const d = parseYamlover('- - Bubbles\n  - fish\n  - decoration\n- - Rocky\n  - raccoon\n');
+  assert.deepEqual(toPlain(d.root), [['Bubbles', 'fish', 'decoration'], ['Rocky', 'raccoon']]);
+});
+
+test('compact nesting to any depth `- - - x`', () => {
+  const d = parseYamlover('- - - x\n    - y\n  - z\n- w\n');
+  assert.deepEqual(toPlain(d.root), [[['x', 'y'], 'z'], 'w']);
+});
+
+test('compact `- -` with a deeper block', () => {
+  const d = parseYamlover('- -\n    k: 1\n');
+  assert.deepEqual(toPlain(d.root), [[{ k: 1 }]]);
+});
+
+test('compact `- - key: value` chains into the keyed rewrite', () => {
+  const d = parseYamlover('- - k: 1\n    m: 2\n  - t\n');
+  assert.deepEqual(toPlain(d.root), [[{ k: 1, m: 2 }, 't']]);
+});
+
+test('compact nested sequence mixing keyed siblings (omni continuation)', () => {
+  // the continuation line at the inner column joins the INNER container, which
+  // yamlover lets mix keyless and keyed entries — the outer item IS that container
+  const d = parseYamlover('- - a\n  k: v\n');
+  assert.deepEqual(toPlain(d.root), [{ 0: 'a', k: 'v' }]);
+});
+
 test('block sequence at the SAME indent as its key (zero-indent seq)', () => {
   // YAML allows `key:` then `- …` at the parent's column (a zero-indent block sequence under a key)
   const d = parseYamlover('markup:\n- x: 1\n  y: 2\n- x: 3\n  y: 4\nother: 9\n');
@@ -172,7 +204,7 @@ test('parses examples/60-simple-chapter.yamlover (tagged file)', () => {
   const keys = asMap(d.root).entries.map((e) => e.key);
   assert.equal(keys[0], 'title');
   assert.ok(keys.slice(1).every((k) => k === null), 'the body elements are keyless (positional)');
-  assert.equal(keys.length, 6); // title + 3 prose chunks + 2 subchapters
+  assert.equal(keys.length, 7); // title + 3 prose chunks + 3 subchapters (incl. the Lists demo)
 });
 
 test('parses examples/05-tour.yaml (YAML anchors/aliases)', () => {

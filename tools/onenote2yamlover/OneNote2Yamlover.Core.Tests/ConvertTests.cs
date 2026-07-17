@@ -85,7 +85,7 @@ public class PageConverterTests
     }
 
     /// <summary>Prose AND a table in one cell: nothing is dropped — the cell becomes a CHAPTER
-    /// whose body keeps prose and table in document order (TABLE.md §Cells).</summary>
+    /// whose body keeps prose and table in document order (MARKLOWER.md §Cells).</summary>
     [Fact]
     public void CellMixingProseAndTableBecomesAChapterCell()
     {

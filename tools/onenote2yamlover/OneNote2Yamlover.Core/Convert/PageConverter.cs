@@ -157,7 +157,7 @@ public static class PageConverter
     private static string OeText(XElement oe) =>
         Marklower.FromHtml(string.Concat(oe.Elements(One.Ns + "T").Select(t => t.Value)));
 
-    /// <summary>A <c>one:Table</c> → the structured table model (TABLE.md): rows of cells, each
+    /// <summary>A <c>one:Table</c> → the structured table model (MARKLOWER.md): rows of cells, each
     /// cell marklower prose, a NESTED table, or — when the cell mixes both — a chapter. The old
     /// CSV path flattened a nested table's OEs into the outer cell (<c>Descendants</c>); here a
     /// cell walks only its DIRECT paragraphs and recurses into a nested <c>one:Table</c> instead.</summary>

@@ -157,7 +157,7 @@ public class YamlTests
     [Fact]
     public void NullScalarIsEmptyQuoted() => Assert.Equal("\"\"", Yaml.Scalar(null));
 
-    /// <summary>Flow-cell quoting (TABLE.md): plain only when the flow lexer takes the token
+    /// <summary>Flow-cell quoting (MARKLOWER.md): plain only when the flow lexer takes the token
     /// whole; else single-quoted, <c>''</c> doubling (the one escape the parser reads).</summary>
     [Theory]
     [InlineData("Alice", "Alice")]

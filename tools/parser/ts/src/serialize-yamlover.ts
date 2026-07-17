@@ -195,9 +195,10 @@ class Emitter {
         return;
       }
       const anchored = this.anchorTokens(value).length > 0;
-      if (parts.length === 0 && !anchored && kept[0].key !== null) {
-        // compact `- key: …`: render the entries, then fold the first line onto the dash
-        // (STEP === the `- ` marker width, so the columns line up exactly)
+      if (parts.length === 0 && !anchored && (kept[0].key !== null || kept[0].edge === 'contain')) {
+        // compact `- key: …` / `- - item`: render the entries, then fold the first line onto
+        // the dash (STEP === the `- ` marker width, so the columns line up exactly). A keyless
+        // first entry folds only when it is containment — a leading `~-` back-edge stays block.
         const at = this.out.length;
         this.entries(ents, indent + STEP);
         this.out[at] = pad + '- ' + this.out[at].slice(indent + STEP);

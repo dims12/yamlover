@@ -187,30 +187,25 @@ test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→c
   rmSync(root, { recursive: true, force: true });
 });
 
-test('table cells: leaf→chunk, untagged container→table, a TAGGED chapter cell→chapter (TABLE.md §Cells)', () => {
-  // The cell union is anyOf:[chunk, table, chapter] with table the FIRST container branch, so an
-  // untagged container cell keeps routing to a nested table; a chapter cell (a cell mixing prose
-  // and tables) enters only by its explicit tag — the mirror of the chapter-body rule.
+test('table cells: leaf→chunk, untagged container→CHAPTER, a TAGGED table cell→table (MARKLOWER.md §Cells)', () => {
+  // The cell union is anyOf:[chunk, chapter, table] with chapter the FIRST container branch — the
+  // table schema consumes exactly TWO nesting levels (rows, cells), so an untagged container cell
+  // switches BACK to a chapter; a nested table enters only by its explicit tag.
   const root = mkdtempSync(join(tmpdir(), 'yo-tablecell-'));
   mkdirSync(join(root, '$defs'), { recursive: true });
   writeFileSync(join(root, '$defs', 'chapter'),
     'type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n');
   writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
   writeFileSync(join(root, '$defs', 'table'),
-    'type: variant\nproperties:\n  title:\n    type: string\nitems:\n  type: array\n  items:\n    anyOf:\n      - *//yamlover/$defs/chunk\n      - *//yamlover/$defs/table\n      - *//yamlover/$defs/chapter\n');
+    'type: variant\nproperties:\n  title:\n    type: string\nitems:\n  type: array\n  items:\n    anyOf:\n      - *//yamlover/$defs/chunk\n      - *//yamlover/$defs/chapter\n      - *//yamlover/$defs/table\n');
   writeFileSync(join(root, 'doc.yamlover'), [
     '!!<*yamlover/$defs/table>',
     '- [plain, other]',
-    '-',
-    '  - leaf',
-    '  -',
-    '    - [nested]',
-    '-',
-    '  - leaf2',
-    '  - !!<*yamlover/$defs/chapter>',
-    '    - above',
-    '    - !!<*yamlover/$defs/table>',
-    '      - [duty]',
+    '- - leaf',
+    '  - - an untagged container cell is a CHAPTER',
+    '- - leaf2',
+    '  - !!<*yamlover/$defs/table>',
+    '    - [duty]',
     '',
   ].join('\n'));
   const s = new Store(':memory:');
@@ -218,10 +213,44 @@ test('table cells: leaf→chunk, untagged container→table, a TAGGED chapter ce
   const d = ':doc.yamlover';
   assert.equal(s.node(d)?.format, 'x-yamlover-table');
   assert.equal(s.node(d + '[0][0]')?.format, 'text/marklower'); // leaf cell → chunk branch
-  assert.equal(s.node(d + '[1][1]')?.format, 'x-yamlover-table'); // untagged container cell → nested table
-  assert.equal(s.node(d + '[2][1]')?.format, 'x-yamlover-chapter'); // the TAGGED chapter cell
-  assert.equal(s.node(d + '[2][1][0]')?.format, 'text/marklower'); // its prose body item
-  assert.equal(s.node(d + '[2][1][1]')?.format, 'x-yamlover-table'); // its tagged inner table
+  assert.equal(s.node(d + '[1][1]')?.format, 'x-yamlover-chapter'); // untagged container cell → CHAPTER
+  assert.equal(s.node(d + '[1][1][0]')?.format, 'text/marklower'); // its prose body item (chapter rules resume)
+  assert.equal(s.node(d + '[2][1]')?.format, 'x-yamlover-table'); // a nested table — by its explicit tag
+  assert.equal(s.node(d + '[2][1][0][0]')?.format, 'text/marklower'); // the inner table's cell
+  s.close();
+  rmSync(root, { recursive: true, force: true });
+});
+
+test('list schemas: bullets/numbered apply at ANY depth until an explicit tag switches', () => {
+  // items: anyOf:[bullets, chunk] — an untagged container item is a nested sublist of the SAME
+  // kind (the container branch is the schema itself), a leaf is marklower prose; a tagged item
+  // switches schema explicitly (here: a numbered list inside a bullets list).
+  const root = mkdtempSync(join(tmpdir(), 'yo-lists-'));
+  mkdirSync(join(root, '$defs'), { recursive: true });
+  writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
+  writeFileSync(join(root, '$defs', 'bullets'),
+    'type: variant\nitems:\n  anyOf:\n    - *//yamlover/$defs/bullets\n    - *//yamlover/$defs/chunk\n');
+  writeFileSync(join(root, '$defs', 'numbered'),
+    'type: variant\nitems:\n  anyOf:\n    - *//yamlover/$defs/numbered\n    - *//yamlover/$defs/chunk\n');
+  writeFileSync(join(root, 'doc.yamlover'), [
+    '!!<*yamlover/$defs/bullets>',
+    '- top item',
+    '- - nested item',
+    '  - - deeper item',
+    '- !!<*yamlover/$defs/numbered>',
+    '  - step one',
+    '',
+  ].join('\n'));
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(root));
+  const d = ':doc.yamlover';
+  assert.equal(s.node(d)?.format, 'x-yamlover-bullets');
+  assert.equal(s.node(d + '[0]')?.format, 'text/marklower'); // a leaf item → chunk
+  assert.equal(s.node(d + '[1]')?.format, 'x-yamlover-bullets'); // untagged container → SAME kind
+  assert.equal(s.node(d + '[1][1]')?.format, 'x-yamlover-bullets'); // … at any depth
+  assert.equal(s.node(d + '[1][1][0]')?.format, 'text/marklower'); // the deep leaf
+  assert.equal(s.node(d + '[2]')?.format, 'x-yamlover-numbered'); // the explicit tag switches
+  assert.equal(s.node(d + '[2][0]')?.format, 'text/marklower');
   s.close();
   rmSync(root, { recursive: true, force: true });
 });
