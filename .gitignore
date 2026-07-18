@@ -33,3 +33,6 @@ tools/server/dist/
 # JetBrains plugin build transients (Kotlin daemon sessions, platform updater lock)
 tools/jetbrains-plugin/.kotlin/
 tools/jetbrains-plugin/.intellijPlatform/
+
+# Git Bash crash dumps (Windows)
+*.stackdump
