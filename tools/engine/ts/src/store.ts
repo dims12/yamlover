@@ -401,6 +401,15 @@ export class Store {
     return out;
   }
 
+  /** One manifest row by root-relative path, or null when the file is unknown to the index.
+   *  The cheap per-event lookup the watcher uses to drop SPURIOUS change notifications (a file
+   *  whose on-disk (size, mtime) still matches the manifest has not changed in any way a
+   *  reindex could see — Windows reports mere READS as changes via last-access-time updates). */
+  file(relPath: string): FileRecord | null {
+    const r = this.db.prepare('SELECT * FROM file WHERE path = ?').get(relPath) as Record<string, unknown> | undefined;
+    return r ? { path: r.path as string, hash: (r.hash as string) ?? null, size: r.size as number, mtimeMs: r.mtime_ms as number } : null;
+  }
+
   /** Manifest entries still lacking a content hash (large blobs the walk never read), smallest
    *  first so the background hasher shows progress early. */
   unhashedFiles(limit = -1): FileRecord[] {

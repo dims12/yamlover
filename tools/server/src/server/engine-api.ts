@@ -49,13 +49,14 @@ import { anchorBody } from "../../../parser/ts/src/serialize-common.ts";
 import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken, appendAnnotationAt, upsertMapEntryAt, removeAnnotationAt, removeMapEntryAt, annotationsRemainAt, reachBodyAt, type Region as EmbedRegion } from "./embed.js";
 import { dataFileConcrete, interiorOf, isDirConcrete } from "../concrete.js";
 import { renderThumbnail } from "./extract/thumbnails.js";
+import { isThumbnailable } from "./extract/registry.js";
 import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
 import type { Node as IrNode, Document, Comment as IrComment, Entry as IrEntry } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
 import { displayKind, ownedEntries, typeName, facetsOf } from "./node-kind.js";
 import { TaskRegistry } from "./tasks.js";
-import type { TaskHandle } from "./tasks.js";
+import type { TaskHandle, TaskInfo } from "./tasks.js";
 
 type Handler = (req: IncomingMessage, res: ServerResponse, url: URL) => void;
 interface Options {
@@ -161,7 +162,36 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   const announce = (d: Partial<IndexDiff>): void => broadcast({ added: [], changed: [], removed: [], moved: [], ...d });
   // a client JSON path (keys percent-encoded) as the root-relative FILE path diffs speak
   const relFileOf = (clientPath: string): string => strToSegs(clientPath).map(String).join("/");
-  const tasks = new TaskRegistry((t) => sseWrite({ type: "task", task: t }));
+  // EVERY task's lifecycle also lands in the caller terminal (start / throttled progress /
+  // done-with-duration / failure), so all phases — indexing, hashing, thumbnails, reconciling —
+  // are diagnosable from the log, not just the ones that hand-roll their own lines.
+  const taskLogLast = new Map<string, number>();
+  const logTask = (t: TaskInfo): void => {
+    if (!taskLogLast.has(t.id)) {
+      taskLogLast.set(t.id, 0);
+      log(`[${t.label}] started`);
+    }
+    if (t.state === "done") {
+      log(`[${t.label}] done in ${(((t.finishedAt ?? t.startedAt) - t.startedAt) / 1000).toFixed(1)}s`);
+      taskLogLast.delete(t.id);
+      return;
+    }
+    if (t.state === "error") {
+      log(`[${t.label}] FAILED: ${t.error ?? "unknown error"}`);
+      taskLogLast.delete(t.id);
+      return;
+    }
+    const now = Date.now();
+    if (now - (taskLogLast.get(t.id) ?? 0) < 1000) return; // terminal progress throttle
+    taskLogLast.set(t.id, now);
+    const p = t.progress;
+    if (p.done === 0 && p.total === undefined && p.message === undefined) return; // nothing to say yet
+    log(`[${t.label}] ${p.done}${p.total !== undefined ? `/${p.total}` : ""}${p.message ? ` — ${p.message}` : ""}`);
+  };
+  const tasks = new TaskRegistry((t) => {
+    sseWrite({ type: "task", task: t });
+    logTask(t);
+  });
 
   // Thumbnail generation surfaces as ONE coalesced task in the strip (like the index/hasher),
   // not a flood of per-image ones: opening a directory fires many /api/thumb misses, so a single
@@ -170,6 +200,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   let thumbTask: TaskHandle | null = null;
   let thumbDone = 0;
   let thumbTotal = 0;
+  const loggedNoThumb = new Set<string>(); // formats already reported as server-undecodable (log once each)
   const thumbBegin = (): void => {
     thumbTotal++;
     if (!thumbTask && !closed) thumbTask = tasks.start("building thumbnails");
@@ -215,7 +246,6 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
     void (async () => {
       const skip = new Set<string>();
       let done = 0;
-      let lastLog = 0;
       const t0 = Date.now();
       let h: TaskHandle | null = null;
       try {
@@ -228,13 +258,23 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           const total = done + pending.length;
           h.progress(done, total, next.path);
           const abs = path.join(dataRoot, ...next.path.split("/"));
+          // big files get their own start/finish lines (with throughput) — a multi-GB hash on a
+          // slow drive is exactly the stall the log must make visible
+          const big = next.size >= BIG_FILE_BYTES;
+          if (big) log(`hashing ${next.path} (${gib(next.size)} GiB)…`);
+          const tFile = Date.now();
           let hash: string | null = null;
           try {
             hash = await hashFileAsync(abs, (bytes) => {
-              if (next.size >= BIG_FILE_BYTES) h?.progress(done, total, `${next.path} — ${gib(bytes)}/${gib(next.size)} GiB`);
+              if (big) h?.progress(done, total, `${next.path} — ${gib(bytes)}/${gib(next.size)} GiB`);
             });
-          } catch {
+          } catch (e) {
             // unreadable or vanished — skip; a later reconcile re-queues it if it still exists
+            log(`hashing ${next.path} failed: ${String((e as Error)?.message ?? e)} — skipped`);
+          }
+          if (big && hash !== null) {
+            const secs = (Date.now() - tFile) / 1000;
+            log(`hashing ${next.path} done in ${secs.toFixed(1)}s (${(next.size / 2 ** 20 / Math.max(secs, 0.001)).toFixed(0)} MiB/s)`);
           }
           const st = hash !== null ? fs.statSync(abs, { throwIfNoEntry: false }) : undefined;
           const fresh = st !== undefined && st.size === next.size && st.mtimeMs === next.mtimeMs;
@@ -246,17 +286,11 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             continue;
           }
           done++;
-          const now = Date.now();
-          if (now - lastLog >= 500) {
-            lastLog = now;
-            log(`hashing ${done}/${total} — ${next.path}`);
-          }
         }
         h?.done();
-        if (h) log(`hashing done — ${done} file(s) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+        if (h) log(`hashed ${done} file(s) in ${((Date.now() - t0) / 1000).toFixed(1)}s${skip.size ? `, ${skip.size} skipped` : ""}`);
       } catch (e) {
         h?.fail(e);
-        log(`hashing FAILED — ${String((e as Error)?.message ?? e)}`);
       } finally {
         hashing = false;
       }
@@ -295,42 +329,57 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   const runIndexTask = (label: string): Promise<IndexDiff> =>
     enqueue(async () => {
       const h = tasks.start(label);
-      const t0 = Date.now();
-      let lastLog = 0;
-      log(`${label}…`);
       try {
+        // progress + start/done/failure lines land in the terminal via the task logger
         const { diff, doc } = await reindexAsyncDoc(store0, dataRoot, {
           ignore,
-          onProgress: (p) => {
-            h.progress(p.done, p.total, p.message);
-            const now = Date.now();
-            if (now - lastLog >= 500) {
-              lastLog = now;
-              log(`${label} ${p.done}/${p.total ?? "?"}${p.message ? ` — ${p.message}` : ""}`);
-            }
+          onProgress: (p) => h.progress(p.done, p.total, p.message),
+          // The TOC populates DURING the walk: every few seconds the partial tree commits and
+          // the newly visible files broadcast as an ordinary `added` diff — the client's branch
+          // merge splices them in without collapsing what the user already expanded.
+          partialCommitMs: 3000,
+          onPartial: (added) => {
+            log(`partial index commit — ${added.length} more file(s) visible`);
+            announce({ added }); // root-relative paths — broadcast maps them to client paths
           },
         });
         cachedDoc = doc;
         h.done();
-        log(
-          `${label} done in ${((Date.now() - t0) / 1000).toFixed(1)}s` +
-            ` (+${diff.added.length} ~${diff.changed.length} −${diff.removed.length} →${diff.moved.length})`,
-        );
+        log(`${label}: +${diff.added.length} ~${diff.changed.length} −${diff.removed.length} →${diff.moved.length}`);
         broadcast(diff);
         scheduleHasher();
         return diff;
       } catch (e) {
         h.fail(e);
-        log(`${label} FAILED — ${String((e as Error)?.message ?? e)}`);
         throw e;
       }
     });
 
+  // Files the server itself just wrote (thumbnail sidecars + the overlay embeds pointing at
+  // them). The watcher must not answer those with a reconcile: the store is already patched by
+  // the targeted reindex, and a full re-walk per generated thumbnail is exactly the feedback
+  // loop that stalled big trees. Keyed by root-relative POSIX path (the currency of watcher
+  // batches); entries expire after a TTL so a later GENUINE external edit still reconciles.
+  const SELF_WRITE_TTL_MS = 5000;
+  const selfWrites = new Map<string, number>();
+  const noteSelfWrite = (absFile: string): void => {
+    selfWrites.set(path.relative(dataRoot, absFile).split(path.sep).join("/"), Date.now());
+    if (selfWrites.size > 1000) {
+      const cutoff = Date.now() - SELF_WRITE_TTL_MS;
+      for (const [k, t] of selfWrites) if (t < cutoff) selfWrites.delete(k);
+    }
+  };
+
   // An UNMEDIATED move (mv in a shell, a file manager) shows up as an inferred `moved` —
   // relink the inbound refs the way the mediated tier would (ENGINE.md tier 2: "inferred
   // as a move and relinked"), then reconcile once more so the rewritten files re-index.
-  const reconcile = (): Promise<IndexDiff> =>
-    enqueue(async () => {
+  // COALESCED: a burst of watcher batches queues at most one pending reconcile — the full
+  // re-walk sees everything on disk anyway, so N queued repeats were pure waste.
+  let reconcilePending: Promise<IndexDiff> | null = null;
+  const reconcile = (): Promise<IndexDiff> => {
+    if (reconcilePending) return reconcilePending;
+    const p = enqueue(async () => {
+      reconcilePending = null; // changes landing while we run may schedule a fresh one
       const h = tasks.start("reconciling");
       try {
         const diff = await doReindex();
@@ -343,6 +392,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           }
         }
         h.done();
+        log(`reconcile: +${diff.added.length} ~${diff.changed.length} −${diff.removed.length} →${diff.moved.length}`);
         broadcast(diff);
         scheduleHasher();
         return diff;
@@ -351,11 +401,39 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         throw e;
       }
     });
+    reconcilePending = p;
+    return p;
+  };
+
+  // A watched event for a file whose on-disk (size, mtime) still matches the manifest is NOISE:
+  // nothing a reindex could see has changed — the diff is stat-based, so a reconcile would walk
+  // the whole tree just to report +0 ~0 −0 →0. Windows fires such events for mere READS (the
+  // ReadDirectoryChangesW subscription includes last-access-time updates), so without this
+  // filter the background hasher's own reads re-trigger a full re-walk per file it hashes.
+  // A path unknown to the manifest (new file, directory), a vanished file, or a real stat
+  // change all fall through as genuine.
+  const spuriousEvent = (rel: string): boolean => {
+    const rec = store0.file(rel);
+    if (!rec) return false;
+    const st = fs.statSync(path.join(dataRoot, ...rel.split("/")), { throwIfNoEntry: false });
+    if (!st || !st.isFile()) return false;
+    return st.size === rec.size && st.mtimeMs === rec.mtimeMs;
+  };
 
   const ready = runIndexTask(`indexing ${rootName}`);
   const stopWatch = opts.watch
-    ? watchTree(dataRoot, () => {
-        reconcile().catch((e) => log(`reconcile FAILED — ${String((e as Error)?.message ?? e)}`));
+    ? watchTree(dataRoot, (batch) => {
+        const now = Date.now();
+        const external = batch
+          .filter((rel) => now - (selfWrites.get(rel) ?? 0) >= SELF_WRITE_TTL_MS)
+          .filter((rel) => !spuriousEvent(rel));
+        if (external.length === 0) {
+          log(`watch: ${batch.length} event(s), all self-writes or stat-unchanged — skipping reconcile`);
+          return;
+        }
+        log(`watch: ${external.length} change(s) — ${external.slice(0, 5).join(", ")}${external.length > 5 ? ", …" : ""}`);
+        // failure surfaces via the task logger ([reconciling] FAILED: …)
+        reconcile().catch(() => {});
       }, { ignore })
     : null;
 
@@ -755,6 +833,18 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         if (!sourceRow || !fs.existsSync(sourceAbs) || fs.statSync(sourceAbs).isDirectory()) return notFound(res, url);
         const w = clampThumbDim(url.searchParams.get("w"), 256);
         const h = clampThumbDim(url.searchParams.get("h"), w);
+        // A format with no server-side decoder answers 415 IMMEDIATELY — before any hashing or
+        // reading. The old path discovered it only inside ensureThumbnail, AFTER stream-hashing
+        // and slurping the whole file: for a multi-GB djvu/pdf that serialized minutes of dead
+        // I/O through the writer queue while the UI sat on "building thumbnails".
+        const fmt = sourceRow.format ?? formatFromExt(sourceAbs);
+        if (!isThumbnailable(fmt)) {
+          if (!loggedNoThumb.has(fmt ?? "unknown")) {
+            loggedNoThumb.add(fmt ?? "unknown");
+            log(`thumb: no server decoder for ${fmt ?? "unknown"} — client renders the glyph/preview`);
+          }
+          return sendJson(res, 415, { error: `no thumbnail for format: ${fmt ?? "unknown"}` });
+        }
         const serve = (file: string): void => {
           res.statusCode = 200;
           res.setHeader("Content-Type", "image/jpeg");
@@ -767,14 +857,28 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         const ready = existingThumb(dataRoot, s, settings.sidecars, segs, sourceRow, w, h); // no-write fast path
         if (ready) return serve(ready);
         thumbBegin(); // count this generation into the coalesced "building thumbnails" task
-        enqueue(async () => {
-          thumbTask?.progress(thumbDone, thumbTotal, String(segs[segs.length - 1] ?? "")); // the one now building
-          const made = await ensureThumbnail(dataRoot, s, settings.sidecars, segs, sourceRow, w, h);
-          if (made) broadcast(await doReindex());
-          return made;
-        })
-          .then((made) => (made ? serve(made) : sendJson(res, 415, { error: `no thumbnail for format: ${sourceRow.format ?? "unknown"}` })))
-          .catch((e) => sendJson(res, 500, { error: String((e as Error).message || e) }))
+        const t0 = Date.now();
+        // The content hash (it names the sidecar) is computed OUTSIDE the writer queue — it only
+        // reads bytes, and an unhashed large image must not hold every queued write behind its I/O.
+        Promise.resolve(sourceRow.content_hash ?? hashFileAsync(sourceAbs))
+          .then((hash) =>
+            enqueue(async () => {
+              thumbTask?.progress(thumbDone, thumbTotal, String(segs[segs.length - 1] ?? "")); // the one now building
+              const made = await ensureThumbnail(dataRoot, s, settings.sidecars, segs, sourceRow, w, h, hash, noteSelfWrite);
+              // Patch only the owning directory into the index — the old FULL re-walk per
+              // generated thumbnail made every icon burst O(tree) and starved the queue.
+              if (made) broadcast(await doReindexFile(hostFor(dataRoot, s, segs).bodyFile));
+              return made;
+            }),
+          )
+          .then((made) => {
+            log(`thumb ${segs.map(String).join("/")} ${w}x${h} — ${made ? "ok" : "unsupported"} in ${Date.now() - t0}ms (${Math.max(thumbTotal - thumbDone - 1, 0)} queued)`);
+            return made ? serve(made) : sendJson(res, 415, { error: `no thumbnail for format: ${fmt ?? "unknown"}` });
+          })
+          .catch((e) => {
+            log(`thumb ${segs.map(String).join("/")} ${w}x${h} — FAILED in ${Date.now() - t0}ms: ${String((e as Error).message || e)}`);
+            sendJson(res, 500, { error: String((e as Error).message || e) });
+          })
           .finally(() => thumbEnd());
         return;
       }
@@ -1692,7 +1796,7 @@ function existingThumb(dataRoot: string, s: Store, mode: SidecarLocation, segs: 
 
 /** Splice/replace the `yamlover-thumbnails: [w, h]:` overlay entry on the source blob, pointing at
  *  the sidecar `name` under the mode-appropriate `.yamlover/thumbnails/`. */
-function embedThumbnail(dataRoot: string, s: Store, mode: SidecarLocation, segs: Seg[], w: number, h: number, name: string): void {
+function embedThumbnail(dataRoot: string, s: Store, mode: SidecarLocation, segs: Seg[], w: number, h: number, name: string, onWrite?: (absFile: string) => void): void {
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
   const { scope } = sidecarTarget(dataRoot, mode, THUMB_SUBDIR, bodyFile);
   fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
@@ -1700,15 +1804,18 @@ function embedThumbnail(dataRoot: string, s: Store, mode: SidecarLocation, segs:
   const ptr = pointerToken(sidecarPointerRaw(THUMB_SUBDIR, name, scope));
   const key = thumbResKey(w, h);
   fs.writeFileSync(bodyFile, upsertThumbnail(src, within, key, (indent) => [`${" ".repeat(indent)}${key}: ${ptr}`]));
+  onWrite?.(bodyFile);
 }
 
 /** Ensure a `[w, h]` thumbnail of the source blob at `segs` exists: return the sidecar path,
  *  generating (decode → fit → encode → write sidecar → embed overlay) on a miss. Null when no
- *  extractor can decode the format (the caller serves the type glyph). Idempotent — safe to call
- *  concurrently behind the writer queue; a second caller finds the file already written. */
-async function ensureThumbnail(dataRoot: string, s: Store, mode: SidecarLocation, segs: Seg[], row: NodeRow, w: number, h: number): Promise<string | null> {
+ *  extractor can decode the format (the caller serves the type glyph). `hash` is the source's
+ *  content hash, computed by the CALLER outside the writer queue — hashing is pure reading and
+ *  must not hold queued writes behind a large file's I/O. `onWrite` is told each file this
+ *  writes (sidecar + overlay embed) so the caller can suppress the watcher's echo. Idempotent —
+ *  safe to call concurrently behind the writer queue; a second caller finds the file written. */
+async function ensureThumbnail(dataRoot: string, s: Store, mode: SidecarLocation, segs: Seg[], row: NodeRow, w: number, h: number, hash: string, onWrite?: (absFile: string) => void): Promise<string | null> {
   const sourceAbs = path.join(dataRoot, ...segs.map(String));
-  const hash = row.content_hash ?? (await hashFileAsync(sourceAbs));
   const name = thumbName(hash, w, h);
   const { bodyFile } = hostFor(dataRoot, s, segs);
   const { dir } = sidecarTarget(dataRoot, mode, THUMB_SUBDIR, bodyFile);
@@ -1718,7 +1825,8 @@ async function ensureThumbnail(dataRoot: string, s: Store, mode: SidecarLocation
   if (!thumb) return null;
   fs.mkdirSync(dir, { recursive: true });
   writeInside(dataRoot, dir, name, thumb.buf);
-  embedThumbnail(dataRoot, s, mode, segs, w, h, name);
+  onWrite?.(abs);
+  embedThumbnail(dataRoot, s, mode, segs, w, h, name, onWrite);
   return abs;
 }
 

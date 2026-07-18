@@ -70,6 +70,18 @@ export interface WalkOptions {
   /** Suppress the `yamlover` self-import graft (IMPORTS.md §4). Set when loading the bundled
    *  taxonomy itself (mounts.ts) so the walk does not try to graft a self-import INTO it. */
   noGraft?: boolean;
+  /** Pass an empty object and {@link walkTreeGen} fills in `current` — a provisional snapshot of
+   *  the tree walked SO FAR, assembled on demand between generator steps (completed subtrees by
+   *  reference, in-progress directories as provisional mappings). Powers partial index commits
+   *  ({@link reindexAsyncDoc} `partialCommitMs`) so a TOC can populate while a big walk runs. */
+  snapshot?: PartialSnapshot;
+}
+
+export interface PartialSnapshot {
+  /** Assemble the tree walked so far, or null when no snapshot is available (walk not started,
+   *  already complete, or currently in an out-of-tree graft walk). `filePaths` is the manifest
+   *  paths recorded so far, in discovery order — the caller diffs consecutive snapshots by index. */
+  current?: () => { root: Node; filePaths: string[] } | null;
 }
 
 /** One walk progress tick: `done` filesystem children processed so far, `path` the latest
@@ -93,6 +105,19 @@ export interface AsyncWalkOptions extends WalkOptions {
   yieldEvery?: number;
 }
 
+export interface ReindexAsyncOptions extends AsyncWalkOptions {
+  /** Commit a PROVISIONAL index of the tree walked so far at most every this many ms, so the TOC
+   *  populates while a big walk runs. Adaptive: the interval stretches to 5× the last commit's
+   *  duration, bounding commit overhead on huge trees. Off when absent (the default — the plain
+   *  library API keeps the single atomic commit). Partial commits write nodes/edges only (never
+   *  the file manifest), so the final diff against the previous manifest is unaffected; derived
+   *  formats/grafts refine at the final commit. */
+  partialCommitMs?: number;
+  /** After each partial commit: the manifest paths (root-relative POSIX) that became visible
+   *  since the previous one — the caller broadcasts them as an incremental `added` diff. */
+  onPartial?: (addedPaths: string[]) => void;
+}
+
 /** A walk's two products: the IR Document and the file manifest (every file read, with its
  *  content identity) — the diff base for change detection and the next walk's hash cache. */
 export interface WalkResult {
@@ -111,14 +136,42 @@ export interface IndexDiff {
   moved: { from: string; to: string }[];
 }
 
+/** One in-progress directory on the partial-snapshot stack: its name (filesystem key in the
+ *  parent), the entries completed so far (the LIVE array {@link dirNode} appends to — snapshots
+ *  copy it), and any node meta the finished node would carry (`.yamlover` → hidden). */
+interface PartialFrame {
+  name: string;
+  entries: Entry[];
+  meta?: Node['meta'];
+}
+
 /** Everything a walk threads along: the root (for manifest-relative paths), the options,
  *  the manifest accumulator (a Map to dedupe re-reads), and the running progress count
- *  (filesystem children processed). */
+ *  (filesystem children processed). `open` (only when snapshots are requested) is the stack of
+ *  directories currently being walked, root-first — {@link assemblePartial} folds it into a
+ *  provisional tree. */
 interface Ctx {
   root: string;
   opts: WalkOptions;
   files: Map<string, FileRecord>;
   count: number;
+  open?: PartialFrame[];
+}
+
+/** Fold the open-directory stack into a provisional root: each frame's node holds its completed
+ *  entries plus the next (deeper) frame's provisional node under its name. O(depth) fresh wrapper
+ *  objects; completed subtrees ride by reference (they are never mutated after completion — the
+ *  walk only appends to the OPEN frames' entry arrays, which are copied here). */
+function assemblePartial(open: PartialFrame[]): Node | null {
+  let child: { name: string; node: Node } | null = null;
+  for (let k = open.length - 1; k >= 0; k--) {
+    const f = open[k];
+    const entries: Entry[] = child
+      ? [...f.entries, { key: child.name, edge: 'contain', value: child.node }]
+      : [...f.entries];
+    child = { name: f.name, node: { kind: 'mapping', array: false, entries, ...(f.meta ? { meta: { ...f.meta } } : {}) } };
+  }
+  return child?.node ?? null;
 }
 
 /** Walk a directory (absolute path) into an IR Document (concrete: "directory"). */
@@ -206,8 +259,17 @@ function builtinYamloverGraft(): { node: Node; defs: Map<string, Node> } {
 /** The walk as a generator: yields one {@link WalkProgress} per filesystem child processed,
  *  returns the {@link WalkResult}. */
 export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<WalkProgress, WalkResult, void> {
-  const ctx: Ctx = { root: path.resolve(absDir), opts, files: new Map(), count: 0 };
+  const ctx: Ctx = { root: path.resolve(absDir), opts, files: new Map(), count: 0, open: opts.snapshot ? [] : undefined };
+  if (opts.snapshot) {
+    opts.snapshot.current = () => {
+      const partial = ctx.open?.length ? assemblePartial(ctx.open) : null;
+      return partial ? { root: partial, filePaths: [...ctx.files.keys()] } : null;
+    };
+  }
   const root = yield* dirNode(ctx.root, ctx);
+  // Disable snapshots from here on: the graft walks below (an ancestor `$defs`/`tags`) are
+  // OUT-OF-TREE — their frames would masquerade as the root.
+  ctx.open = undefined;
   root.meta = { ...root.meta, documentRoot: true }; // the served root is always a document root
   // Resolve the SELF-IMPORT key `yamlover` — the yamlover project ({`$defs/` schemas, `tags/`
   // palette}, URI `::: yamlover.inthemoon.net`) — into the served tree, so `*::yamlover:…` (and the
@@ -297,7 +359,7 @@ export function reindex(store: Store, absDir: string, opts: WalkOptions = {}): I
 /** {@link reindex}, asynchronously: a cheap enumeration pre-pass gives a determinate `total`,
  *  then the walk yields the event loop between steps and reports progress. The final
  *  `indexDocument` transaction is still one synchronous commit (flagged by its own message). */
-export async function reindexAsync(store: Store, absDir: string, opts: AsyncWalkOptions = {}): Promise<IndexDiff> {
+export async function reindexAsync(store: Store, absDir: string, opts: ReindexAsyncOptions = {}): Promise<IndexDiff> {
   return (await reindexAsyncDoc(store, absDir, opts)).diff;
 }
 
@@ -307,15 +369,60 @@ export async function reindexAsync(store: Store, absDir: string, opts: AsyncWalk
 export async function reindexAsyncDoc(
   store: Store,
   absDir: string,
-  opts: AsyncWalkOptions = {},
+  opts: ReindexAsyncOptions = {},
 ): Promise<{ diff: IndexDiff; doc: Document; files: FileRecord[] }> {
   const prev = store.stale ? new Map<string, FileRecord>() : store.manifest();
   const onProgress = opts.onProgress;
-  const total = onProgress ? await countChildren(path.resolve(absDir), opts) : undefined;
+  // the enumeration pre-pass reports too — on a slow drive it can take minutes, and silence
+  // there is indistinguishable from a hang
+  let lastEnum = 0;
+  const total = onProgress
+    ? await countChildren(path.resolve(absDir), opts, (n) => {
+        const now = Date.now();
+        if (now - lastEnum < 250) return;
+        lastEnum = now;
+        onProgress({ done: 0, message: `enumerating… ${n} entries` });
+      })
+    : undefined;
+
+  // PARTIAL COMMITS (opt-in): between walk steps, commit a provisional snapshot of the tree so
+  // far — nodes/edges only, never the manifest — and report the newly visible file paths. The
+  // walk generator is suspended while the (synchronous) commit runs, so the snapshot cannot race.
+  const partialMs = opts.partialCommitMs;
+  const snapshot: PartialSnapshot = opts.snapshot ?? {};
+  let lastPartial = Date.now();
+  let minInterval = partialMs ?? 0;
+  let reported = 0; // filePaths already handed to onPartial
+  const maybeCommitPartial = (): void => {
+    if (!partialMs) return;
+    const now = Date.now();
+    if (now - lastPartial < minInterval) return;
+    const snap = snapshot.current?.();
+    if (!snap) return;
+    lastPartial = now;
+    const t0 = Date.now();
+    try {
+      snap.root.meta = { ...snap.root.meta, documentRoot: true };
+      store.indexDocument({ root: snap.root, source: { concrete: 'directory', uri: absDir } });
+      minInterval = Math.max(partialMs, 5 * (Date.now() - t0));
+      const added = snap.filePaths.slice(reported);
+      reported = snap.filePaths.length;
+      if (added.length > 0) opts.onPartial?.(added);
+    } catch {
+      // best-effort: a failed partial commit only delays visibility; the final commit is authoritative
+    }
+  };
+
   const { doc, files } = await walkTreeAsync(absDir, {
     ...opts,
     cache: opts.cache ?? manifestCache(prev),
-    onProgress: onProgress && ((p) => onProgress({ ...p, total })),
+    snapshot: partialMs ? snapshot : opts.snapshot,
+    onProgress: onProgress || partialMs
+      ? (p): void => {
+          onProgress?.({ ...p, total });
+          maybeCommitPartial();
+        }
+      : undefined,
   });
   onProgress?.({ done: total ?? files.length, total, message: 'writing index…' });
   await yieldLoop(); // let the message out before the blocking commit
@@ -402,9 +509,14 @@ function manifestCache(prev: Map<string, FileRecord>): NonNullable<WalkOptions['
 }
 
 /** Count the filesystem children a walk will process (same skip rules as {@link dirNode}) —
- *  the determinate `total` for progress. readdir-only; trivially cheap next to the walk. */
-async function countChildren(absRoot: string, opts: WalkOptions): Promise<number> {
+ *  the determinate `total` for progress. readdir-only; trivially cheap next to the walk on a
+ *  local disk, but minutes on a slow network drive — `onCount` reports the running count every
+ *  ~200 entries so the pre-pass is visibly alive. */
+async function countChildren(absRoot: string, opts: WalkOptions, onCount?: (n: number) => void): Promise<number> {
   let n = 0;
+  const tick = (): void => {
+    if (onCount && n % 200 === 0) onCount(n);
+  };
   // count a `.yamlover/` overlay dir's indexable sidecars (same skip-list as yamloverDirNode);
   // returns how many top-level entries survived (0 ⇒ the dir adds no node).
   const visitYamlover = async (dir: string): Promise<number> => {
@@ -420,6 +532,7 @@ async function countChildren(absRoot: string, opts: WalkOptions): Promise<number
       const abs = path.join(dir, e.name);
       if (opts.ignore?.(abs)) continue;
       n++; top++;
+      tick();
       const isDir = e.isDirectory() || (e.isSymbolicLink() && (await fs.promises.stat(abs).catch(() => null))?.isDirectory());
       if (isDir) await visit(abs);
     }
@@ -441,6 +554,7 @@ async function countChildren(absRoot: string, opts: WalkOptions): Promise<number
         continue;
       }
       n++;
+      tick();
       const isDir = e.isDirectory() || (e.isSymbolicLink() && (await fs.promises.stat(abs).catch(() => null))?.isDirectory());
       if (isDir) await visit(abs);
     }
@@ -566,6 +680,7 @@ function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
     .sort(); // filesystem order = sorted names (stable; body.yamlover can re-impose order)
 
   const entries: Entry[] = [];
+  ctx.open?.push({ name: path.basename(dir), entries });
   for (const name of names) {
     const abs = path.join(dir, name);
     if (name === YAMLOVER_DIR) {
@@ -582,6 +697,7 @@ function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
     entries.push({ key: name, edge: 'contain', value: child });
     yield { done: ++ctx.count, path: path.relative(ctx.root, abs).split(path.sep).join('/') };
   }
+  ctx.open?.pop();
 
   const node: Mapping = { kind: 'mapping', entries, array: false };
   return applyMeta(applyBody(dir, node, ctx), meta); // attach meta `format` to entries (incl. body-overlay ones)
@@ -604,12 +720,15 @@ function* yamloverDirNode(absYamlover: string, ctx: Ctx): Generator<WalkProgress
     return null;
   }
   const entries: Entry[] = [];
+  // hidden in the frame too, so a partial snapshot never shows a transient visible `.yamlover`
+  ctx.open?.push({ name: path.basename(absYamlover), entries, meta: { hidden: true } });
   for (const name of names) {
     const abs = path.join(absYamlover, name);
     const child = yield* childNode(abs, undefined, ctx);
     entries.push({ key: name, edge: 'contain', value: child });
     yield { done: ++ctx.count, path: path.relative(ctx.root, abs).split(path.sep).join('/') };
   }
+  ctx.open?.pop();
   if (entries.length === 0) return null;
   return { kind: 'mapping', entries, array: false, meta: { hidden: true } };
 }

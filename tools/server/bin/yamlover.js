@@ -265,6 +265,14 @@ if (prod) {
   };
 }
 
+// HH:MM:SS.mmm (local time) on every terminal line, so slow phases are diagnosable
+// against the wall clock.
+const ts = () => {
+  const d = new Date();
+  const p = (n, w = 2) => String(n).padStart(w, "0");
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+};
+
 // The initial index runs as a BACKGROUND task — the server listens immediately
 // (serving the previous on-disk index, or an empty tree on a cold start) while
 // progress lands here and in the web UI (SSE task frames + GET /api/tasks).
@@ -272,9 +280,9 @@ handle = createHandlers(dataRoot, {
   gitignore,
   watch: true, // re-index + push on external edits
   ensureSettings: true, // create .yamlover/settings.yamlover with defaults if absent (so the gear opens)
-  log: (line) => console.log(`yamlover  ${line}`),
+  log: (line) => console.log(`yamlover ${ts()}  ${line}`),
 });
-handle.ready.catch((e) => console.error("yamlover: indexing failed:", e));
+handle.ready.catch((e) => console.error(`yamlover ${ts()}  indexing failed:`, e));
 
 // --- static file server (production mode) --------------------------------- //
 const MIME = {
@@ -352,7 +360,7 @@ function listenWithFallback(p, triesLeft) {
   const onError = (err) => {
     server.off("listening", onListening); // drop this attempt's success handler
     if (err && err.code === "EADDRINUSE" && triesLeft > 0) {
-      console.log(`yamlover  port ${p} in use — trying ${p + 1}…`);
+      console.log(`yamlover ${ts()}  port ${p} in use — trying ${p + 1}…`);
       listenWithFallback(p + 1, triesLeft - 1);
     } else if (err && err.code === "EADDRINUSE") {
       console.error(`yamlover: no free port found in ${port}–${p}`);
@@ -363,8 +371,8 @@ function listenWithFallback(p, triesLeft) {
   };
   const onListening = () => {
     server.off("error", onError); // bound OK — stop intercepting listen errors
-    console.log(`yamlover  serving ${dataRoot}${prod ? "" : "  (live/Vite)"}`);
-    console.log(`          http://${shown}:${p}/  (bound to ${host})`);
+    console.log(`yamlover ${ts()}  serving ${dataRoot}${prod ? "" : "  (live/Vite)"}`);
+    console.log(`                        http://${shown}:${p}/  (bound to ${host})`);
   };
   server.once("error", onError);
   server.once("listening", onListening);

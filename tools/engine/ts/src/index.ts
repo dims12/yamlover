@@ -5,7 +5,7 @@ export type { Graph, Edge, EdgeKind } from './graph.ts';
 export { Store } from './store.ts';
 export type { NodeRow, EdgeRow, TocNode, FileRecord, DanglingRef, UnrealizedRef } from './store.ts';
 export { walkDir, walkTree, walkTreeGen, walkTreeAsync, buildIndex, reindex, reindexAsync, reindexAsyncDoc, reindexPathAsync, diffManifest, hashFileAsync } from './walk.ts';
-export type { WalkOptions, AsyncWalkOptions, WalkResult, WalkProgress, ReindexProgress, IndexDiff } from './walk.ts';
+export type { WalkOptions, AsyncWalkOptions, ReindexAsyncOptions, PartialSnapshot, WalkResult, WalkProgress, ReindexProgress, IndexDiff } from './walk.ts';
 export { planRewrites, applyEdits, nominalPath, under } from './rewrite.ts';
 export type { TextEdit, RewritePlan, RewrittenRef, UnrewrittenRef } from './rewrite.ts';
 export { mv, relinkMoved } from './mv.ts';
