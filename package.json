@@ -17,6 +17,7 @@
     "comment:typecheck": "Resolve tsc off the PATH npm builds from node_modules/.bin, NOT a hardcoded nested path: with a correct lockfile npm hoists typescript to the ROOT node_modules and tools/server/node_modules/.bin/tsc does not exist.",
     "typecheck": "tsc -p tools/server/tsconfig.json --noEmit",
     "start": "node tools/server/bin/yamlover.js",
-    "serve": "node tools/server/bin/yamlover.js"
+    "serve": "node tools/server/bin/yamlover.js",
+    "clean-index": "node tools/clean-index.mjs"
   }
 }
