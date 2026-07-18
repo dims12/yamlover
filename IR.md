@@ -37,8 +37,18 @@ decisions.
 /** One parse of one concrete (a file, or a directory tree) → one root. */
 export interface Document {
   root: Node;                       // usually a Mapping
-  anchors: Map<string, Node>;       // & declarations in this document (intra-doc)
   source: SourceInfo;               // concrete + origin (for diagnostics & round-trip)
+  head?: Comment[];                 // head-of-file banner (blank-line-separated from the body)
+}
+
+/** A retained source comment — TYPOGRAPHY, not graph identity: parsers capture it for
+ *  round-trip, canonical IR-equality ignores it. */
+export interface Comment {
+  text: string;                     // body with sigils stripped
+  span: Span;
+  placement: "leading" | "trailing";
+  style: "line" | "block";
+  blankBefore?: boolean;
 }
 
 export interface SourceInfo {
@@ -76,7 +86,8 @@ export interface Scalar extends NodeBase {
 export interface Blob extends NodeBase {
   kind: "blob";
   format: string;                   // inferred concrete/MIME, e.g. "image/png", "pdf"
-  contentHash: string;             // sha256 of bytes; bytes live in the store, not the IR
+  contentHash: string | null;       // `xxh64:…` of bytes (null until the background hasher
+                                    // reaches a large blob); bytes live in the store, not the IR
   size: number;
 }
 
@@ -102,26 +113,55 @@ export type Value = Node | Pointer; // Node iff edge==="contain"; Pointer iff re
 // ---- Pointers (unresolved `*` expressions) -----------------------------------
 /** Parsed `*` target. NOT resolved — the engine resolves against the graph, lazily. */
 export interface Pointer {
+  kind: "pointer";
   base: PointerBase;
   steps: Step[];                    // walked after the base, in order
   raw: string;                      // verbatim text after `*` (round-trip + diagnostics)
+  span?: Span;                      // the whole deref token — `mv` rewrites exactly this range
 }
 
 export type PointerBase =
   | { scope: "current" }                          // bare name/index: current mapping
-  | { scope: "document" }                         // "/"  — current document root
+  | { scope: "document" }                         // ":"  (legacy "/") — current document root
   | { scope: "parent" }                           // ".." — parent node (then steps)
-  | { scope: "link"; authority: string };         // [scheme]"//"authority — any OTHER start
-                                                  // (project root, sibling doc, external; virtual id)
+  | { scope: "link"; authority: string; world?: boolean };
+      // "::" — project scope: authority = an internal key at the served root (import /
+      // mounted authority); a miss is a DANGLING typo. `world: true` marks the ":::"
+      // WORLD scope (SEPARATOR.md §2) — the only form that stays external on a miss.
 
 export type Step =
-  | { sel: "key"; name: string }                  // /x  — string key
+  | { sel: "key"; name: string }                  // :x  — string key
   | { sel: "index"; n: number }                   // [n] — integer key (position)
+  | { sel: "relindex"; k: number }                // [.±k] — the host's own position ± k
+                                                  //   (URIs.md §Relative indexes)
   | { sel: "parent" };                            // ..  — up one node
 
 // ---- Metadata ----------------------------------------------------------------
-export interface NodeMeta  { span?: Span; }
-export interface EntryMeta { span?: Span; anchor?: string; } // anchor = `&name` on the value
+export interface NodeMeta {
+  span?: Span;
+  anchors?: Anchor[];               // `&P/k` / `&P[]` path anchors on this node (URIs.md §`&`)
+  schema?: Value;                   // the authored `!!<…>` tag: Pointer to a hosted schema or inline Node
+  derivedFormat?: string;           // engine-derived format (extension / meta / resolved tag); never authored
+  documentRoot?: boolean;           // a self-contained instance; the `/`-scope target
+  set?: boolean;                    // `!!set` / uniqueItems — survives into the graph
+  hidden?: boolean;                 // resolvable but omitted from TOC/listings (`.yamlover` sidecars)
+  comments?: Comment[];             // comments with no entry to attach to
+  head?: Comment[];                 // a document root's banner, carried onto the node
+  selfAt?: number;                  // omni: display position of the scalar self-value line
+}
+
+/** One `&` path-anchor declaration: this node ALSO lives at that path — the container at
+ *  the path's parent gains a ref edge to this node. Realized by the resolver. */
+export interface Anchor {
+  path: Pointer;
+  ordinal?: boolean;                // true for `&path[]` — keyless appended membership
+}
+
+export interface EntryMeta {
+  span?: Span;                      // the whole entry, key through value (post-strip)
+  comments?: Comment[];
+  blankBefore?: boolean;
+}
 export interface Span { uri: string; start: number; end: number; }
 ```
 
@@ -154,12 +194,12 @@ parse *permissions* whose effect is visible in the node's shape — `!!set` (≡
 `uniqueItems: true`) must survive into the graph, so it is recorded as `NodeMeta.set`.
 
 ### `&` anchors
-An anchor declaration is recorded both in `Document.anchors` (name → the owned node) and on
-the owning entry as `EntryMeta.anchor`. A `*name` referencing an anchor stays a `Pointer`
-with `base:{scope:"current"}` — the **resolver** applies the precedence rule from
-`URIs.md` ("declared anchor wins, else structural sibling"). Anchors are intra-document, so
-the parser *can* pre-resolve them, but keeping it in the resolver means one code path for
-all name resolution.
+An anchor is a **path**, not a name (`ANCHOR_REFACTOR.md` / URIs.md §`&`): `&P/k value`
+declares that the value *also* lives at `P/k`. The parser records it on the anchored node
+as `NodeMeta.anchors: Anchor[]` — anchors are not entries and never count toward the node's
+kind. There is **no anchor namespace and no precedence rule**: a `*name` is pure path
+lookup, and the **resolver** realizes each anchor as a ref edge from the target container
+(the push side of `*`'s pull; `resolve.ts realizeAnchors`).
 
 ### Scalars keep `raw`
 `Scalar.raw` is the verbatim token so serializers round-trip `1.0` vs `1`, quoting style,
@@ -179,13 +219,19 @@ not require it. A `Blob`'s `format` may thus be filled from `meta` rather than i
 
 ## Mapping IR → engine tables (`ENGINE.md`)
 
-A walk of the IR populates `node` and `edge` (path = identity, no ids):
+A walk of the IR populates `node` and `edge` (path = identity, no ids; the full as-built
+schema — including the `file` manifest and `dangling` side tables — is in `ENGINE.md`
+§Data model / `store.ts`):
 
-- Each `Node` → one `node(path, type=kind, format, content_hash, meta)` row. `path` is the
-  containment path from the document/project root.
-- Each `Entry` with `edge:"contain"` → `edge(parent, child, label=key‖position, kind="contain")`.
-- Each `Entry` with `edge:"ref"`  → `edge(owner, resolved-target, label=key, kind="ref")`.
-- Each `Entry` with `edge:"back"` → `edge(owner, resolved-target, label=key, kind="back")`.
+- Each `Node` → one `node(path, type=kind, format, value, content_hash, size, is_array, meta)`
+  row. `path` is the containment path from the document/project root; `value` is the JSON-
+  encoded scalar self-value; `is_array` is the all-keyless projection hint.
+- Each `Entry` with `edge:"contain"` → `edge(parent, child, label=key, kind="contain", pos)` —
+  `pos` is the entry's index in its holder (stable source order).
+- Each `Entry` with `edge:"ref"`  → `edge(owner, resolved-target, label=key, kind="ref", pos)`.
+- Each `Entry` with `edge:"back"` → `edge(owner, resolved-target, label=key, kind="back", pos)`.
+- A pointer that does not resolve → a `dangling` row (reported, never silently dropped);
+  the walk's file manifest → `file` rows (the hash cache / diff base).
 - `kind:"derived"` edges (inverse of a `*`, transitive closures) are **never** in the IR;
   the engine computes them from the above on demand.
 

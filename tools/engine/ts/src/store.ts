@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS node (
   type         TEXT NOT NULL,            -- mapping | scalar | blob
   format       TEXT,                     -- blob/meta format (e.g. image/png, text/markdown)
   value        TEXT,                     -- scalar self-value, JSON-encoded (scalar/omni only)
-  content_hash TEXT,                     -- blob bytes hash (xxh3/BLAKE3 later)
+  content_hash TEXT,                     -- blob bytes hash (prefix-tagged, e.g. xxh64:…)
   size         INTEGER,                  -- blob byte size
   is_array     INTEGER NOT NULL DEFAULT 0, -- projection hint: 1 ⇒ all-keyless (pure sequence)
   meta         TEXT                      -- JSON: schema ref, span, …

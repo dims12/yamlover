@@ -125,8 +125,9 @@ in `URIs.md` §`~-`.
 
 ### `&` — path anchors (in value position)
 
-> **Spec'd 2026-06-12 (`ANCHOR_REFACTOR.md`); implementation pending** — the parser
-> still implements the previous name-only anchor until PLAN.md Phase A lands.
+> **Implemented** (spec'd 2026-06-12, `ANCHOR_REFACTOR.md`; landed with PLAN.md
+> Phase A): `json5p.ts` parses path anchors via `makeAnchor` onto `NodeMeta.anchors`,
+> and the resolver realizes them (`resolve.ts realizeAnchors`).
 
 `&'path'` declares that the value that follows **also lives at that path**: the
 path's parent gains the last segment as a key, a ref edge to this node (the push

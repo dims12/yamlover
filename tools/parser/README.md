@@ -38,6 +38,7 @@ git submodule update --init
 | `ts/`   | ✅ done | ✅ practical subset | 199 tests green; Node ≥22 native TS, `node:test` |
 | `rust/` | — | — | planned |
 
-json5p is gated by the full JSON + JSON5 positive corpora. yamlover covers block/flow +
-the extensions (parses both `tour` examples); block scalars / tags / multi-doc and the
-yaml-test-suite gate (with divergence allowlist) are the remaining Phase 2c work.
+json5p is gated by the full JSON + JSON5 positive corpora. yamlover covers block/flow,
+block scalars (`|`/`>`) + the extensions (parses both `tour` examples), and the
+yaml-test-suite gate runs with the divergence allowlist (`YAML-CONFORMANCE.md`);
+multi-doc (`---`) and merge keys (`<<`) are the remaining Phase 2c work.

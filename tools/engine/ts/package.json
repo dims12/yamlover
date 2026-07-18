@@ -3,9 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "yamlover engine (TS): pointer resolver over the IR; SQLite-backed graph to come.",
+  "description": "yamlover engine (TS): SQLite-backed graph store, directory walker, pointer resolver, watcher, mediated mv, query evaluator.",
   "scripts": {
-    "test": "node --test test/resolve.test.ts test/graph.test.ts"
+    "test": "node --test test/*.test.ts"
   },
   "engines": {
     "node": ">=22.13"

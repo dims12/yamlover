@@ -360,10 +360,11 @@ escaping: `~1`=`/`, `~0`=`~`.)
 
 ### `&` — path anchors (the push side of `*`)
 
-> **Spec'd 2026-06-12 (`ANCHOR_REFACTOR.md`); implementation pending.** The parsers
-> still implement the previous `&` (a single intra-document NAME — plain YAML's
-> anchor, with anchor-over-sibling-key precedence in the resolver) until PLAN.md
-> Phase A lands. This section is the target semantics.
+> **Implemented** (spec'd 2026-06-12, `ANCHOR_REFACTOR.md`; landed with PLAN.md
+> Phase A). Both parsers emit path anchors (`pointer.ts makeAnchor` →
+> `NodeMeta.anchors`) and the resolver realizes them as ref edges
+> (`resolve.ts realizeAnchors`). The previous name-only anchor — and its
+> anchor-over-sibling-key precedence rule — is gone: `*name` is pure path lookup.
 
 `*path` **pulls** — "my value lives there". `&path` **pushes** — "I *also* live
 there". An anchor's name is a full pointer path (same scopes — current / `..` /

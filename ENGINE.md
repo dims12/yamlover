@@ -51,11 +51,14 @@ These needs are all one thing — a graph index with a resolver and a watcher:
 
 ## Data model: a property graph
 
-The store is small and is the heart of the engine:
+The store is small and is the heart of the engine (as built — `store.ts`,
+`SCHEMA_VERSION` 6):
 
 ```
-node(path, type, format, content_hash, meta…)   # path IS the identity
-edge(from_path, to_path, label, kind)            kind ∈ { contain, ref, back, derived }
+node(path, type, format, value, content_hash, size, is_array, meta)   # path IS the identity
+edge(from_path, to_path, label, kind, pos)       kind ∈ { contain, ref, back, derived }
+file(path, hash, size, mtime_ms)                 # the file manifest: hash cache + diff base
+dangling(from_path, raw, reason, holder, label, pos, edge, external)  # unresolved pointers, reported
 ```
 
 - **contain** — the tree spine (parent → child). The **TOC** is a traversal of
@@ -134,7 +137,7 @@ reports progress as `{type: task}` events backed by a task registry.
 Do **not** hand-roll graph traversal, caching, and invalidation — "derive
 relationships" is recursive/rule-based, exactly what query engines already do well.
 
-- **Stage 1 (now): embedded SQLite.** The two tables above + **recursive CTEs** for
+- **Stage 1 (now): embedded SQLite.** The tables above + **recursive CTEs** for
   TOC, ancestors, and transitive tag closures. Zero extra dependency, embeds in the
   current Node server, trivially portable later. Covers a long way.
 
@@ -183,8 +186,9 @@ Consequences:
 `content_hash` is kept as both a **change fingerprint** (did content actually change,
 vs. a bare mtime touch — validates caches) and the **recovery signal**: when a file
 appears/disappears without the engine being told, a matching hash is what lets it
-*infer* a move and relink. Prefer a fast non-crypto hash (**xxh3** / **BLAKE3**) over
-CRC32 — same speed class, far fewer collisions.
+*infer* a move and relink. The shipped hash is **xxh64** (`xxhash-wasm`), stored with
+an `xxh64:` prefix so the algorithm stays swappable (xxh3/BLAKE3 candidates) — a fast
+non-crypto hash: identity, not security.
 
 ## Filesystem interaction & sync
 
@@ -257,5 +261,5 @@ the binding changes.
    derivation gets rule-heavy — that doubles as the universal embeddable engine.
 4. **Identity is the path** — no durable ids. Mutate through the engine (`mv` / `rm`
    / …) so moves rewrite inbound refs transactionally; external changes are reconciled
-   best-effort via `content_hash` (xxh3/BLAKE3), and whatever can't be recovered is
+   best-effort via `content_hash` (prefix-tagged xxh64), and whatever can't be recovered is
    reported as lost (via the reverse edge index), never silently dropped.
