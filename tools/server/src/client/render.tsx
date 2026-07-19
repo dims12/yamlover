@@ -304,6 +304,18 @@ function BinaryYaml({ bin }: { bin: BinaryPayload }) {
   );
 }
 
+/** A ROOT multiline string as its authored block — the document IS the scalar, so the block
+ *  renders open with its own gutter toggle (mirrors {@link BinaryYaml} for a root binary). */
+function RootBigString({ value, ctx, frag }: { value: string; ctx: Ctx; frag: string }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <>
+      <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
+      <BigScalarYaml v={value} indent={2} open={open} raw={commentsAt(ctx, frag)?.raw} />
+    </>
+  );
+}
+
 /** A BIG scalar that folds like a container: a multiline string (shown as a `|` block) or a
  *  selected binary's bytes. Single-line scalars stay inline (never foldable). */
 const bigScalar = (v: unknown): boolean => (typeof v === "string" && v.includes("\n")) || !!asBinary(v);
@@ -315,13 +327,17 @@ function wrap76(b64: string): string[] {
   return out;
 }
 
-/** A BIG scalar's YAML rendering after its row head (`key:` / `- ` / an omni's own line): the `|`
+/** A BIG scalar's YAML rendering after its row head (`key:` / `- ` / an omni's own line): the
  *  block header (with the `!!binary # format, size` note for bytes) stays on the row; the body sits
  *  indented below when open, or a `{ N lines }` summary takes its place when folded. The FOLD TOGGLE
- *  is the caller's (it must anchor at the row START for the gutter alignment). */
-function BigScalarYaml({ v, indent, open, trail = null }: { v: string | BinaryPayload; indent: number; open: boolean; trail?: ReactNode }): ReactNode {
+ *  is the caller's (it must anchor at the row START for the gutter alignment). `raw` is the scalar's
+ *  AUTHORED block token from the comment sidecar (`|`/`|-`/`>`… header + content lines) — when
+ *  present it is reproduced verbatim; only without it is a `|`/`|-` block derived from the value. */
+function BigScalarYaml({ v, indent, open, trail = null, raw }: { v: string | BinaryPayload; indent: number; open: boolean; trail?: ReactNode; raw?: string }): ReactNode {
   const bin = typeof v === "string" ? null : v;
-  const lines = bin ? wrap76(bin.base64) : (v as string).replace(/\n$/, "").split("\n");
+  const blockRaw = !bin && raw && /^[|>]/.test(raw) && raw.includes("\n") ? raw : null;
+  const header = bin ? "|" : blockRaw ? blockRaw.slice(0, blockRaw.indexOf("\n")) : (v as string).endsWith("\n") ? "|" : "|-";
+  const lines = bin ? wrap76(bin.base64) : blockRaw ? blockRaw.split("\n").slice(1) : (v as string).replace(/\n$/, "").split("\n");
   const pad = " ".repeat(indent);
   return (
     <>
@@ -331,10 +347,10 @@ function BigScalarYaml({ v, indent, open, trail = null }: { v: string | BinaryPa
           <span className="c">{`# ${bin.format ?? "binary"}, ${bin.size} bytes`}</span>
         </>
       ) : (
-        <span className="punct">|</span>
+        <span className="punct">{header}</span>
       )}
       {open ? (
-        <>{trail}{"\n"}<span className="s">{lines.map((l) => pad + l).join("\n")}</span>{"\n"}</>
+        <>{trail}{"\n"}<span className="s">{lines.map((l) => (l ? pad + l : l)).join("\n")}</span>{"\n"}</>
       ) : (
         <>{" "}<span className="fold-summary">{`{ ${lines.length} lines }`}</span>{trail}{"\n"}</>
       )}
@@ -494,6 +510,7 @@ function YamlRoot({ value, indent, ctx, frag, path }: { value: unknown; indent: 
   if (foldable(value)) return <YamlBody value={value} indent={indent} ctx={ctx} frag={frag} path={path} />;
   if (isObj(value)) return <><span className="punct">{"{}"}</span>{"\n"}</>;
   if (Array.isArray(value)) return <><span className="punct">{"[]"}</span>{"\n"}</>;
+  if (typeof value === "string" && value.includes("\n")) return <RootBigString value={value} ctx={ctx} frag={frag} />;
   return <><ScalarLeaf value={value} syntax="yaml" path={path} editable={ctx.editable} concrete={ctx.concrete} raw={commentsAt(ctx, frag)?.raw} />{valueTrailingComment(ctx, frag, "yaml")}{"\n"}</>;
 }
 
@@ -553,7 +570,7 @@ function YamlSelfValue({ value, pad, indent, ctx, frag, path, noPad = false }: {
     <>
       <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
       {noPad ? null : pad}
-      <BigScalarYaml v={asBinary(value) ?? (value as string)} indent={indent + 2} open={open} trail={trail} />
+      <BigScalarYaml v={asBinary(value) ?? (value as string)} indent={indent + 2} open={open} trail={trail} raw={commentsAt(ctx, frag)?.raw} />
     </>
   );
 }
@@ -619,7 +636,7 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, path, noPad = false }: { k: s
         {head}
         {deco}
         {" "}
-        <BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} />
+        <BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} raw={commentsAt(ctx, frag)?.raw} />
       </>
     );
   }
@@ -664,7 +681,7 @@ function YamlItem({ v, pad, indent, ctx, frag, path, noPad = false }: { v: unkno
         {dash}
         {deco}
         {" "}
-        <BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} />
+        <BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} raw={commentsAt(ctx, frag)?.raw} />
       </>
     );
   }
@@ -720,7 +737,10 @@ function JsonValue({ value, indent, ctx, frag, path, root = false }: { value: un
   const objEntries = jsonObjEntries(value);
   if (objEntries) return objEntries.length ? <JsonBody value={value} indent={indent} ctx={ctx} frag={frag} path={path} /> : <span className="punct">{"{}"}</span>;
   if (Array.isArray(value)) return value.length ? <JsonBody value={value} indent={indent} ctx={ctx} frag={frag} path={path} /> : <span className="punct">{"[]"}</span>;
-  return <ScalarLeaf value={value} syntax="json" path={path} editable={ctx.editable} concrete={ctx.concrete} raw={commentsAt(ctx, frag)?.raw} />;
+  // a BLOCK scalar's raw (`|`/`>` + lines) is yamlover representation — JSON has no block form,
+  // so a multiline string falls back to its JSON escaping here
+  const raw = commentsAt(ctx, frag)?.raw;
+  return <ScalarLeaf value={value} syntax="json" path={path} editable={ctx.editable} concrete={ctx.concrete} raw={raw?.includes("\n") ? undefined : raw} />;
 }
 
 /** The object entries a JSON value projects: an omni/mix marker flattened (`$value` + entries), or a

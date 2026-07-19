@@ -1,0 +1,335 @@
+Yamlover Projectional Editor — the state machine
+description: |
+    Entries of this document are the STATES of the unlocked yamlover editor (the cell
+    tree). Each state is an omni node - the self-value is its TITLE, `description`
+    says what is drawn on screen and where the focus/caret sits. Every other keyed
+    entry is a TRANSITION - the key names the key press (or event), the value points
+    at the next state. A CONDITIONAL transition nests condition-keyed pointers instead
+    of a single pointer.
+
+    Conventions.
+    `alphanumeric` covers letters, digits and any ordinary character that starts or
+    extends a plain token. The single-quote states mirror the double-quote ones
+    verbatim (only the projected quote glyph differs). The keyed trigger mirrors how
+    one types yamlover SOURCE - `key_colon_space` (a word, the colon, a space) puts
+    the value INLINE on the same row, while `key_colon_enter` (the colon confirmed by
+    Enter) puts the value on the NEXT rows - the entry's value becomes a nested block
+    with an indented entry hole. In VALUE position the same triggers open a nested
+    structure COMPACTLY - `- name: `, `- - ` and their kin keep editing on the SAME
+    row (the first nested child rides the marker line, exactly like compact YAML);
+    only Enter breaks to the next row. A `key_colon` whose key ALREADY exists in the
+    node is rejected with the error ring - keys are unique per node. Backspace in an
+    empty value cell UNDOES the last structural token (the colon or the dash), never
+    the whole entry. Clicking any cell with the mouse enters that cell's focused
+    state. Commits never lose focus - every transition that persists a value ALSO
+    names the cell the caret lands in; behavior is guided by the state, never by
+    leftovers of the previous one.
+
+    THE LEVEL RULE (unified). Enter after committing a value DESCENDS - the entry
+    hole it opens lives INSIDE the just-committed node: the value becomes the
+    node's own scalar line (drawn on the marker's row) and the node is now an omni
+    whose body you are editing, one level deeper. Editing STAYS at that level until
+    Shift-Tab climbs back out; consecutive same-level entries therefore cost a
+    Shift-Tab each. The rule is the same at every depth, the document root
+    included - `12` + Enter grows the document's body exactly as `- scalar` + Enter
+    grows that entry's. The one exception - a committed REFERENCE holds no
+    children, so its Enter opens the next SIBLING hole.
+
+    THE REPRESENTATION RULE. The concrete stores the REPRESENTATION and the
+    renderer REPRODUCES it - never re-derives it from the decoded value. A quoted
+    scalar keeps its quotes, a hex int its spelling, and a block scalar its AUTHORED
+    header (`|`, `|-`, `|+`, `>`, ...) with its content lines exactly as they sit in
+    the source - no derived trailing blank line, no silently swapped chomping.
+    Editing keeps the representation too: committing a block cell re-emits the SAME
+    header over the edited lines (a fresh block typed via `|` is authored `|`), and
+    only a text that cannot live under a block header at all falls back to a quoted
+    scalar. The rule holds wherever a scalar is drawn - a value cell, an omni
+    SELF-VALUE line, the document root. The self-value line's POSITION among the
+    node's entries is representation too - the line is SAVED at the position it
+    was typed (after the entries that precede it), never hoisted to the top.
+
+    THE CONCRETE IS NOT A STATE. The editor edits ANY yamlover-shaped node the same
+    way - a file document, a directory, a directory-backed document. WHERE a newly
+    typed child is STORED (the parent directory's `.yamlover/body.yamlover` overlay
+    vs a nested real directory) is decided server-side by the concrete-derivation
+    module (derive-concrete.ts: a keyed CONTAINER child becomes a directory,
+    everything else lands in the body) - invisible to the editing states.
+
+    Pseudo-states (`nop`, `error_flash`, `focus_prev`, `focus_next`) stand for
+    "consume the event and stay", "flash the red ring and stay", and the two
+    focus-walk actions whose next real state is the adjacent cell's focused state.
+    Tab / Shift-Tab MOVE the focused entry and the FOCUS FOLLOWS it - the caret
+    stays in the same cell at its new depth, ready for the next keystroke. The
+    `open_brace` / `open_bracket` transitions apply IDENTICALLY at the document
+    root, in entry holes and in value holes - `{` always opens brace-style (flow)
+    mapping cells, `[` bracket-style sequence cells, with the closer projected and
+    the first inner cell holding the caret.
+
+nop: Nothing happens
+    description: A pseudo-state - the event is consumed, the current state stays
+
+error_flash: Rejected input
+    description: A pseudo-state - the cell flashes the error ring, text kept, the previous state stays
+
+focus_prev: Focus the previous cell
+    description: A pseudo-state - the caret lands at the END of the preceding cell in visual order; continue in that cell's focused state
+
+focus_next: Focus the next cell
+    description: A pseudo-state - the caret lands at the START of the following cell in visual order; continue in that cell's focused state
+
+locked: Editor locked
+    description: Pending edits are flushed and the read-only view returns. Esc reaches here from any state - the first press cancels the cell being edited (text reverts), the second locks
+
+empty: Empty document
+    description: The one root hole drawn with the cursor inside; no content exists yet
+    alphanumeric: *: unquoted_scalar_appending
+    double_quote: *: double_quoted_scalar_started
+    single_quote: *: double_quoted_scalar_started
+    asterisk: *: pointer_started
+    pipe: *: block_scalar_editing
+    dash_space: *: value_hole
+    key_colon_space: *: value_hole
+    key_colon_enter: *: entry_hole
+    bang_bang_lt: *: meta_tag_editing
+    open_brace: *: flow_map_editing
+    open_bracket: *: flow_seq_editing
+    enter: *: nop
+    backspace: *: nop
+    tab: *: nop
+    shift_tab: *: nop
+    left_arrow: *: nop
+    right_arrow: *: nop
+    up_arrow: *: nop
+    down_arrow: *: nop
+
+unquoted_scalar_appending: Plain token editing, caret at the end
+    description: A non-empty cell with the part of the plain scalar entered so far, cursor after the last character. The keyed trigger is LIVE here exactly as in a hole - the moment the text reads `key: ` the cell restructures, whether it grew from a hole or is a COMMITTED token being re-edited (`abc` + `:` + space behaves the same as typing `a b c : space` from scratch)
+    alphanumeric: *: unquoted_scalar_appending
+    key_colon_space:
+        "the key is free in the node": *: value_hole
+        "the key already exists in the node": *: error_flash
+    left_arrow: *: unquoted_scalar_inserting
+    right_arrow: *: nop
+    backspace:
+        "more than one character": *: unquoted_scalar_appending
+        "the only character removed, cell is a root hole or entry hole": *: empty_cell_of_origin
+    enter:
+        "the token is not a valid scalar": *: error_flash
+        "a BARE token in an entry hole, but the node already has its scalar line": *: error_flash
+        "valid": *: entry_hole
+    tab:
+        "the cell is an entry with a previous ordinal sibling": *: unquoted_scalar_appending
+        "otherwise": *: nop
+    shift_tab:
+        "the cell is an entry below the root level": *: unquoted_scalar_appending
+        "otherwise": *: nop
+    up_arrow: *: focus_prev
+    down_arrow: *: focus_next
+
+unquoted_scalar_inserting: Plain token editing, caret inside
+    description: A non-empty cell with part of the scalar entered so far, cursor at the beginning or in the middle. The keyed trigger is LIVE here too - an edit that makes the text read `key: ...` restructures the cell wherever the caret sits
+    alphanumeric:
+        "the text now reads `key: ` and the key is free in the node": *: value_hole
+        "caret reached the end": *: unquoted_scalar_appending
+        "otherwise": *: unquoted_scalar_inserting
+    left_arrow:
+        "was at the beginning": *: nop
+        "otherwise": *: unquoted_scalar_inserting
+    right_arrow:
+        "reached the end": *: unquoted_scalar_appending
+        "otherwise": *: unquoted_scalar_inserting
+    backspace:
+        "was at the beginning": *: focus_prev
+        "otherwise": *: unquoted_scalar_inserting
+    enter:
+        "the token is not a valid scalar": *: error_flash
+        "a BARE token in an entry hole, but the node already has its scalar line": *: error_flash
+        "valid": *: entry_hole
+
+scalar_committed: Committed scalar cell, focused
+    description: The value is persisted (the surgical op is queued/flushed in the background) and the cell keeps focus, caret after the last character. Reached by clicking a committed cell. The cell shows the AUTHORED representation - a bare `species>` in the file stays BARE, never re-derived into `"species>"`; an authored-quoted token opens as a quote-mode cell (paired projected quotes, the inner text edits). A committed token is NOT a dead end - re-editing its text into `key: value` (a QUOTED `"key": value` included) RESTRUCTURES it: the mistyped `species>` recovers into `species>: 12`; the same applies to the omni SELF-VALUE cell and the document root. Typed spaces are spaces - the browser's non-breaking substitutes are normalized before the grammar reads them
+    alphanumeric: *: unquoted_scalar_appending
+    enter:
+        "the text was edited into `key: value` (quoted key allowed) and the key is free in the node": *: scalar_committed
+        "the text was edited into a bare `key:` (no value yet) and the key is free": *: value_hole
+        "the text reads `key: value` but the key already exists in the node": *: error_flash
+        "otherwise": *: entry_hole
+    click_outside:
+        "the text was edited into `key: value`": *: scalar_committed
+        "otherwise": *: scalar_committed
+    backspace:
+        "caret at the start": *: focus_prev
+        "otherwise": *: unquoted_scalar_appending
+    tab:
+        "the cell is an entry with a previous ordinal sibling": *: scalar_committed
+        "otherwise": *: nop
+    shift_tab:
+        "the cell is an entry below the root level": *: scalar_committed
+        "otherwise": *: nop
+    left_arrow: *: unquoted_scalar_inserting
+    up_arrow: *: focus_prev
+    down_arrow: *: focus_next
+
+double_quoted_scalar_started: Quoted scalar started
+    description: Opening and closing quotes are projected with an empty editing cell in between, cursor inside. In an entry hole a committed quoted token is the node's scalar LINE (kept quoted, as entered); after `- ` or a key it is the entry's value
+    alphanumeric: *: double_quoted_scalar_appending
+    double_quote: *: quoted_token_closed
+    enter: *: entry_hole
+    backspace: *: empty_cell_of_origin
+    up_arrow: *: focus_prev
+    down_arrow: *: focus_next
+
+double_quoted_scalar_appending: Quoted scalar editing
+    description: The projected quotes with the partially entered string between them, cursor at the end. Any character is legal inside - the commit escapes and KEEPS the quoted concrete
+    alphanumeric: *: double_quoted_scalar_appending
+    double_quote: *: quoted_token_closed
+    enter: *: entry_hole
+    backspace:
+        "the string became empty": *: double_quoted_scalar_started
+        "otherwise": *: double_quoted_scalar_appending
+    up_arrow: *: focus_prev
+    down_arrow: *: focus_next
+
+quoted_token_closed: Quoted token closed
+    description: The quoted string is complete and the cursor sits right AFTER the projected closing quote. Nothing is committed yet - the next key decides what the quoted token IS. A colon makes it a KEY (`"value": ` with the value cell opening beside it; in value position a fresh nested mapping opens); Enter commits it as the scalar it reads as, quotes kept. Backspace steps back INSIDE the quotes - still without committing
+    colon:
+        "the key already exists in the node": *: error_flash
+        "otherwise": *: value_hole
+    enter:
+        "an entry-hole token, but the node already has its scalar line": *: error_flash
+        "otherwise": *: entry_hole
+    backspace: *: double_quoted_scalar_appending
+    alphanumeric: *: nop
+    up_arrow: *: focus_prev
+    down_arrow: *: focus_next
+
+pointer_started: Reference started
+    description: The `*` sigil is projected with an empty expression cell after it, cursor inside
+    alphanumeric: *: pointer_appending
+    enter: *: nop
+    backspace: *: empty_cell_of_origin
+
+pointer_appending: Reference editing
+    description: The `*` sigil with the partially entered pointer expression, cursor at the end
+    alphanumeric: *: pointer_appending
+    enter:
+        "the expression parses as a pointer": *: pointer_committed
+        "otherwise": *: error_flash
+    backspace:
+        "the expression became empty": *: pointer_started
+        "otherwise": *: pointer_appending
+
+pointer_committed: Committed reference cell, focused
+    description: The reference is persisted; the cell keeps focus; a small navigation affordance appears beside it. A reference holds no children, so its Enter opens the next SIBLING hole - the one exception to the level rule
+    alphanumeric: *: pointer_appending
+    enter:
+        "the cell is an ENTRY value": *: entry_hole
+        "the cell is the document ROOT": *: nop
+    up_arrow: *: focus_prev
+    down_arrow: *: focus_next
+
+block_scalar_editing: Block scalar editing
+    description: The AUTHORED header (`|`, `|-`, `|+`, `>`, ...) is PROJECTED verbatim from the concrete and KEPT - commits re-emit the same header over the edited lines (a fresh block typed via `|` is authored `|`). The text lines edit below it exactly as they sit in the source, indented, in the ordinary editor styling - not a foreign-looking box. The cell takes focus the moment the `|` is typed. A block SELF-VALUE line edits the same way. Enter is a NEWLINE here, never a commit; Ctrl+Enter, Tab and Shift-Tab all FINISH the block (the text is prose - the structural keys leave)
+    alphanumeric: *: block_scalar_editing
+    enter: *: block_scalar_editing
+    ctrl_enter: *: entry_hole
+    tab: *: entry_hole
+    shift_tab: *: entry_hole
+    click_outside: *: scalar_committed
+    up_arrow:
+        "caret on the first line": *: focus_prev
+        "otherwise": *: block_scalar_editing
+    down_arrow:
+        "caret on the last line": *: focus_next
+        "otherwise": *: block_scalar_editing
+
+flow_map_editing: Flow mapping editing
+    description: The `{` and `}` are projected with entry cells between them, comma-separated; the cursor sits in the current inner cell, which follows the entry-hole grammar (`key colon space` expected)
+    key_colon_space: *: value_hole
+    close_brace: *: scalar_committed
+    enter:
+        "the flow container is not yet committed": *: flow_map_editing
+        "otherwise": *: nop
+    backspace:
+        "the inner cell is empty and it is the only one": *: empty_cell_of_origin
+        "otherwise": *: flow_map_editing
+
+flow_seq_editing: Flow sequence editing
+    description: The `[` and `]` are projected with value cells between them, comma-separated; the cursor sits in the current inner cell
+    alphanumeric: *: unquoted_scalar_appending
+    close_bracket: *: scalar_committed
+    enter:
+        "the flow container is not yet committed": *: flow_seq_editing
+        "otherwise": *: nop
+    backspace:
+        "the inner cell is empty and it is the only one": *: empty_cell_of_origin
+        "otherwise": *: flow_seq_editing
+
+entry_hole: Fresh entry hole
+    description: An empty row without a marker yet - the typed prefix decides the row's shape, exactly as a line of yamlover source would. A BARE scalar token committed here becomes the NODE's own scalar line (the omni self-value, entered as-is, no marker; at most one per block). An array element is spelled with its `- ` marker, a field with its key and colon. Reached after every entry-level commit, so typing flows row to row without reaching for the mouse
+    alphanumeric: *: unquoted_scalar_appending
+    dash_space: *: value_hole
+    key_colon_space:
+        "the key already exists in the node": *: error_flash
+        "otherwise": *: value_hole
+    key_colon_enter:
+        "the key already exists in the node": *: error_flash
+        "otherwise": *: entry_hole
+    bang_bang_lt: *: meta_tag_editing
+    double_quote: *: double_quoted_scalar_started
+    single_quote: *: double_quoted_scalar_started
+    asterisk: *: pointer_started
+    pipe: *: block_scalar_editing
+    open_brace: *: flow_map_editing
+    open_bracket: *: flow_seq_editing
+    enter: *: nop
+    backspace: *: focus_prev
+    tab:
+        "a previous ordinal sibling exists": *: entry_hole
+        "otherwise": *: nop
+    shift_tab:
+        "the hole is below the root level": *: entry_hole
+        "otherwise": *: nop
+    up_arrow: *: focus_prev
+    down_arrow: *: focus_next
+
+value_hole: Entry value hole
+    description: The entry's marker is drawn (`- `, or the key with its colon) and the empty value cell after it holds the cursor. `dash_space` / `key_colon_space` here open the nested structure COMPACTLY - the fresh marker and its value cell stay on THIS row
+    alphanumeric: *: unquoted_scalar_appending
+    double_quote: *: double_quoted_scalar_started
+    single_quote: *: double_quoted_scalar_started
+    asterisk: *: pointer_started
+    pipe: *: block_scalar_editing
+    open_brace: *: flow_map_editing
+    open_bracket: *: flow_seq_editing
+    dash_space: *: value_hole
+    key_colon_space:
+        "the key already exists in the node": *: error_flash
+        "otherwise": *: value_hole
+    key_colon_enter: *: entry_hole
+    enter: *: entry_hole
+    backspace:
+        "an uncommitted QUOTED key - the colon is undone, the quoted token returns": *: quoted_token_closed
+        "an uncommitted plain key - the colon is undone, its text returns to the hole": *: unquoted_scalar_appending
+        "an uncommitted dash - the marker is undone": *: entry_hole
+        "otherwise": *: focus_prev
+    tab:
+        "a previous ordinal sibling exists": *: value_hole
+        "otherwise": *: nop
+    shift_tab:
+        "the entry is below the root level": *: value_hole
+        "otherwise": *: nop
+    up_arrow: *: focus_prev
+    down_arrow: *: focus_next
+
+meta_tag_editing: Meta tag editing
+    description: The `!!<` and `>` are projected with the tag-content cell between them, cursor inside
+    alphanumeric: *: meta_tag_editing
+    gt: *: value_hole
+    enter: *: value_hole
+    backspace:
+        "the content became empty": *: empty_cell_of_origin
+        "otherwise": *: meta_tag_editing
+
+empty_cell_of_origin: Back to the hole this cell grew from
+    description: A pseudo-state - the projected structure (quotes, sigil, braces, marker) is dismantled and the cell returns to the hole it was born from; the document root returns to the `empty` state, an entry returns to `entry_hole`

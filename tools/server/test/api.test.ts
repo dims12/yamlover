@@ -17,9 +17,24 @@ describe("api endpoints (engine-backed)", () => {
     const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
     await h.ready;
     const { json } = call(h, "/api/tree", { depth: "3" });
-    // filesystem order = sorted names (no body.yamlover to impose another); the built-in palette
-    // graft (`yamlover`) is always appended — ignore it here
-    expect(json.children.map((c: any) => c.label).filter((l: string) => l !== "yamlover")).toEqual(["age", "isAdmin", "name"]);
+    // filesystem order = sorted names (no body.yamlover to impose another); the `yamlover`
+    // self-import graft is HIDDEN plumbing and never appears in the listing
+    expect(json.children.map((c: any) => c.label)).toEqual(["age", "isAdmin", "name"]);
+  });
+
+  it("the `yamlover` self-import graft is HIDDEN from listings yet fully REACHABLE", async () => {
+    const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
+    await h.ready;
+    // hidden: not in the TOC (asserted above), not among the root projection's entries
+    const rootJson = call(h, "/api/json", { path: ":", depth: "1" }).json;
+    expect(Object.keys(rootJson.value as object)).not.toContain("yamlover");
+    // reachable: direct navigation works and serves the grafted taxonomy
+    const tags = call(h, "/api/json", { path: ":yamlover:tags:colors" });
+    expect(tags.status).toBe(200);
+    // reachable: project-scope pointers into it still resolve (schema application shows it)
+    const y = call(h, "/api/json", { path: ":yamlover" });
+    expect(y.status).toBe(200);
+    expect(Object.keys(y.json.value as object)).toContain("$defs");
   });
 
   it("/api/tree: a chunks-only chapter is a LEAF (no expand chevron); one with a subchapter expands", async () => {
@@ -41,6 +56,23 @@ describe("api endpoints (engine-backed)", () => {
     const ws = call(h, "/api/tree", { path: ":with-sub.yamlover", depth: "2" }).json;
     expect(ws.hasChildren).toBe(true); // has a subchapter → expandable
     expect(ws.children.some((c: { format?: string }) => c.format === "x-yamlover-chapter")).toBe(true);
+  });
+
+  it("/api/tree: an UNTITLED chapter is labeled by its first chunk's text, not `[index]`", async () => {
+    const DEFS = {
+      "$defs/chapter": "type: variant\nvalue:\n  type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n",
+      "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
+    };
+    const h = createHandlers(tmpTree({
+      // a titled chapter whose body holds an UNTITLED subchapter (compact `- - ` form)
+      "doc.yamlover": "!!<*yamlover/$defs/chapter>\nTitled\n- intro\n- - the first chunk of an untitled subchapter tells you what it is\n  - more\n",
+      ...DEFS,
+    }), { gitignore: false });
+    await h.ready;
+    const doc = call(h, "/api/tree", { path: ":doc.yamlover", depth: "2" }).json;
+    expect(doc.label).toBe("Titled");
+    const sub = doc.children.find((c: { format?: string }) => c.format === "x-yamlover-chapter");
+    expect(sub.label).toBe("the first chunk of an untitled subchapt…"); // clipped first-chunk text
   });
 
   it("/api/json is one level deep with link markers", async () => {
@@ -126,6 +158,27 @@ describe("comment projection (/api/json)", () => {
     expect((json.comments["/boss"] as any).anchors).toEqual([": chief"]); // the `&: chief` path anchor
     expect((json.comments["/team/lead"] as any).pointer).toBe(": chief"); // authored pointer (colon form)
     expect((json.comments["/crew"] as any).tag).toBe("!!set"); // the `!!set` type tag
+  });
+
+  it("carries a block scalar's AUTHORED token in `raw` (header + de-indented lines)", async () => {
+    const h = createHandlers(
+      tmpTree({
+        ".yamlover/body.yamlover": "clip: |\n  one\n  two\nstrip: |-\n  solo\n  duo\nfold: >\n  a\n  b\noneline: |-\n  alone\n",
+      }),
+      { gitignore: false },
+    );
+    await h.ready;
+    const { json } = call(h, "/api/json", { path: ":", depth: ".inf" });
+    // the representation lives in the concrete — the renderer reproduces it, never re-derives
+    expect((json.comments["/clip"] as any).raw).toBe("|\none\ntwo");
+    expect((json.comments["/strip"] as any).raw).toBe("|-\nsolo\nduo");
+    expect((json.comments["/fold"] as any).raw).toBe(">\na\nb");
+    // a block whose VALUE is one line normalizes to its inline form — no block raw carried
+    expect((json.comments["/oneline"] as any)?.raw).toBeUndefined();
+    expect(json.value.clip).toBe("one\ntwo\n"); // values keep their chomping semantics
+    expect(json.value.strip).toBe("solo\nduo");
+    expect(json.value.fold).toBe("a b\n");
+    expect(json.value.oneline).toBe("alone");
   });
 
   it("flags entries preceded by a blank source line (for empty-line rendering)", async () => {

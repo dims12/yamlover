@@ -54,6 +54,7 @@ import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
 import type { Node as IrNode, Document, Comment as IrComment, Entry as IrEntry } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
+import { deriveMemberEncoding } from "./derive-concrete.js";
 import { displayKind, ownedEntries, typeName, facetsOf } from "./node-kind.js";
 import { TaskRegistry } from "./tasks.js";
 import type { TaskHandle, TaskInfo } from "./tasks.js";
@@ -655,7 +656,8 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       //   insert  — the new entry takes the position `path` names; an index past the end appends.
       //   remove  — delete the node at `path`.
       // `yamlover` is valid inline yamlover SOURCE (the caller escapes its own prose); it is parsed
-      // to validate, then spliced verbatim. `concrete` is accepted only where content is born.
+      // to validate, then spliced verbatim. `concrete` is accepted only where content is born;
+      // `concrete:"dir"` births a BARE folder (an empty OS directory, no body, no pointer).
       //
       // A batch groups by backing file (a document can span several) and reindexes each once —
       // respecting that different parts live in different files/concretes.
@@ -1148,18 +1150,26 @@ type CommentBucket = {
   valueTrailing?: string[]; // a comment trailing the node's own SELF-VALUE line (an omni `5 # …`)
   raw?: string;           // a scalar's authored SOURCE token, carried only when it differs from the
                           // plain decoded form — so `"~"` reads as a string not null, `0xff`/`True`
-                          // keep their spelling (CONCRETES.md §Scalar representation). Single-line only.
+                          // keep their spelling (CONCRETES.md §Scalar representation). A BLOCK
+                          // scalar's is the whole authored token: the `|`/`|-`/`>`… header line
+                          // plus the de-indented content lines — renderers reproduce it verbatim.
 };
 
 /** A scalar's authored source token to render faithfully — but only when it differs from the plain
  *  decoded form (a quoted string, a `~`/word null, a hex/octal int, a `True` casing, `.inf`, …), so
- *  the sidecar stays sparse and a plain `Rex`/`42` carries nothing. Block (multi-line) scalars render
- *  as `|`/`>` blocks already, so they are skipped. */
+ *  the sidecar stays sparse and a plain `Rex`/`42` carries nothing. A BLOCK scalar's raw (the
+ *  authored `|`/`>` header + content lines) is always carried — the representation lives in the
+ *  concrete and the renderer must not re-derive it from the chomped value. */
 function scalarRawToken(node: IrNode): string | undefined {
   if (isPointer(node) || node.kind !== "scalar") return undefined;
   const raw = node.raw;
-  if (raw == null || raw.includes("\n")) return undefined;
+  if (raw == null) return undefined;
   const v = node.value;
+  if (raw.includes("\n")) {
+    // a block token is carried only for a genuinely MULTILINE value — a one-line `|-` chunk
+    // (what tagging produces) normalizes to its inline form instead
+    return /^[|>]/.test(raw) && typeof v === "string" && v.includes("\n") ? raw : undefined;
+  }
   if (typeof v === "string" && v.includes("\n")) return undefined;
   const plain = v === null ? "null" : String(v); // mirrors the client's default bare rendering
   return raw === plain ? undefined : raw;
@@ -1446,11 +1456,32 @@ function chapterOrderedChildren(s: Store, p: string, format: string | null): Ret
   return kids.map((c, i) => ({ c, i })).sort((a, b) => key(a.c) - key(b.c) || a.i - b.i).map((x) => x.c);
 }
 
-/** A node's tree label: an instance `title` child, else the key / `[index]`. */
+/** A node's tree label: its title (a chapter/task's scalar self-value — {@link titleOf}), else —
+ *  for an UNTITLED chapter/task — the opening text of its first prose chunk (clipped), else the
+ *  key / `[index]`. */
 function labelFor(s: Store, p: string, keyOrIdx: Seg): string {
   const t = titleOf(s, p);
   if (t) return t;
+  const row = s.node(p);
+  if (row?.format === "x-yamlover-chapter" || row?.format === "x-yamlover-task") {
+    const first = firstChunkText(s, p);
+    if (first) return first;
+  }
   return typeof keyOrIdx === "number" ? `[${keyOrIdx}]` : keyOrIdx;
+}
+
+/** The opening line of a chapter's first prose chunk (its first keyless scalar child), clipped to
+ *  label length — what an untitled chapter goes by in the TOC. */
+function firstChunkText(s: Store, p: string): string | null {
+  for (const e of s.entries(p)) {
+    if (e.kind !== "contain" || e.label != null) continue;
+    const c = s.node(e.to);
+    if (c?.type === "scalar" && c.value != null && String(c.value).trim()) {
+      const line = String(c.value).trim().split("\n")[0];
+      return line.length > 40 ? line.slice(0, 39).trimEnd() + "…" : line;
+    }
+  }
+  return null;
 }
 
 // --------------------------------------------------------------------------- //
@@ -2044,7 +2075,7 @@ function pasteTextAsChapterFile(dataRoot: string, segs: Seg[], text: string): Re
   const dir = path.resolve(dataRoot, ...dirSegs.map(String));
   const title = titleFromText(text);
   const final = uniqueName(dir, chapterFileName(title));
-  const src = ["!!<*::yamlover:$defs:chapter>", `title: ${JSON.stringify(title)}`, ...textChunkLines(text, 0), ""].join("\n");
+  const src = ["!!<*::yamlover:$defs:chapter>", JSON.stringify(title), ...textChunkLines(text, 0), ""].join("\n");
   writeInside(dataRoot, dir, final, Buffer.from(src, "utf8"));
   return { path: segsToStr([...dirSegs, final]), dir: segsToStr(dirSegs), open: dirSegs.length !== segs.length };
 }
@@ -2094,11 +2125,12 @@ function richItemLines(item: RichItem, indent: number, pointerFor: (name: string
   return [`${" ".repeat(indent)}- ${pointerFor(item.name, item.bytes)}`];
 }
 
-/** A subchapter as a positional body item: `- title: …` then its OWN body (chunks + recursive
- *  subchapters) as positional items 2 deeper — the omni chapter shape (CHAPTER.md). */
+/** A subchapter as a positional body item: `- "Title"` (the title is the omni node's scalar
+ *  SELF-VALUE — no `title:` key) then its OWN body (chunks + recursive subchapters) as positional
+ *  items 2 deeper — the fully-omni chapter shape (CHAPTER.md). */
 function richChildLines(node: Rich & { title: string }, indent: number, pointerFor: (name: string, bytes: Buffer) => string): string[] {
   const pad = " ".repeat(indent);
-  const lines = [`${pad}- title: ${JSON.stringify(node.title)}`];
+  const lines = [`${pad}- ${JSON.stringify(node.title)}`];
   for (const c of node.chunks) lines.push(...richItemLines(c, indent + 2, pointerFor));
   for (const k of node.children) lines.push(...richChildLines(k, indent + 2, pointerFor));
   return lines;
@@ -2168,9 +2200,10 @@ function pasteRichAsChapter(dataRoot: string, segs: Seg[], rich: Rich): Record<s
   return { path: segsToStr([...dirSegs, name]), dir: segsToStr(dirSegs), open: dirSegs.length !== segs.length };
 }
 
-/** The whole .yamlover source of a new rich chapter (the tag, the title, and the positional body). */
+/** The whole .yamlover source of a new rich chapter: the tag, the title as the root's scalar
+ *  SELF-VALUE line (CHAPTER.md — no `title:` key), and the positional body. */
 function renderChapterSource(title: string, rich: Rich, pointerFor: (name: string, bytes: Buffer) => string): string {
-  const lines = ["!!<*::yamlover:$defs:chapter>", `title: ${JSON.stringify(title)}`, ...richBodyLines(rich, 0, pointerFor)];
+  const lines = ["!!<*::yamlover:$defs:chapter>", JSON.stringify(title), ...richBodyLines(rich, 0, pointerFor)];
   return lines.join("\n") + "\n";
 }
 
@@ -2214,6 +2247,81 @@ function writeObject(dataRoot: string, dir: string, base: string, concrete: stri
   const final = uniqueName(dir, base + ".yamlover");
   writeInside(dataRoot, dir, final, Buffer.from(src, "utf8"));
   return final;
+}
+
+/** Materialize a directory's `.yamlover/body.yamlover` overlay (empty) when absent — the moment a
+ *  directory gains BODY-encoded content (derive-concrete.ts). Returns the body file path. */
+function ensureDirBody(dataRoot: string, absDir: string): string {
+  const overlay = path.join(absDir, ".yamlover");
+  const body = path.join(overlay, "body.yamlover");
+  if (!fs.existsSync(body)) {
+    fs.mkdirSync(overlay, { recursive: true });
+    writeInside(dataRoot, overlay, "body.yamlover", Buffer.from("", "utf8"));
+  }
+  return body;
+}
+
+/** The key and column-0 VALUE source of a keyed payload group (`key: inline` + continuation lines
+ *  one step deeper), or null when the head does not parse as a keyed line. */
+function keyedGroupParts(group: string[]): { key: string; src: string } | null {
+  const head = group[0];
+  const m = /^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*')\s*:\s*(.*)$/.exec(head) ?? /^([^:]+?)\s*:\s*(.*)$/.exec(head);
+  if (!m) return null;
+  let key: string;
+  try {
+    key = m[1].startsWith('"') ? (JSON.parse(m[1]) as string) : m[1].startsWith("'") ? m[1].slice(1, -1).replace(/''/g, "'") : m[1];
+  } catch {
+    return null;
+  }
+  const cont = group.slice(1).map((l) => (l.startsWith("  ") ? l.slice(2) : l));
+  const src = [...(m[2] ? [m[2]] : []), ...cont].join("\n").replace(/\n+$/, "");
+  return { key, src };
+}
+
+/** Write a keyed CONTAINER member of a directory as a NESTED real directory (derive-concrete.ts).
+ *  The key IS the directory name (must be filename-safe; an existing child is a conflict — no
+ *  uniqueName renaming, the key names the node). The member's scalar self-value, ordinal entries
+ *  and keyed SCALAR children land in its own `.yamlover/body.yamlover`; each keyed CONTAINER
+ *  child recurses into a deeper directory. A member with no body-bound content stays a bare
+ *  directory — a pure nested-object shell. */
+function writeDirMemberTree(dataRoot: string, absDir: string, key: string, valueSrc: string, meta?: string | null): void {
+  const name = String(key);
+  if (!name || name !== name.trim() || name.startsWith(".") || /[\\/:*?"<>|\u0000-\u001f]/.test(name)) {
+    throw new Error(`\`${name}\` cannot name a directory member`);
+  }
+  const dir = path.join(absDir, name);
+  if (fs.existsSync(dir)) throw new Error(`member \`${name}\` already exists in the directory`);
+  fs.mkdirSync(dir);
+  const f = payloadFacets(valueSrc);
+  const groups = orderedGroups(f);
+  const kinds: ("k" | "o")[] =
+    f.order && groups.length === f.order.length ? f.order : [...f.keyed.map(() => "k" as const), ...f.ordinal.map(() => "o" as const)];
+  const bodyLines: string[] = [];
+  const tag = metaTag(meta, undefined, false);
+  if (tag) bodyLines.push(tag);
+  const selfAt = f.scalar !== undefined ? Math.min(f.selfAt ?? 0, groups.length) : -1;
+  let emittedSelf = false;
+  const emitSelf = (): void => {
+    if (f.scalar !== undefined) bodyLines.push(...f.scalar.split("\n"));
+    emittedSelf = true;
+  };
+  groups.forEach((g, i) => {
+    if (i === selfAt) emitSelf();
+    const parts = kinds[i] === "k" ? keyedGroupParts(g) : null;
+    if (parts) {
+      const cf = payloadFacets(parts.src);
+      if (deriveMemberEncoding({ keyed: true, container: cf.keyed.length > 0 || cf.ordinal.length > 0 }) === "dir") {
+        writeDirMemberTree(dataRoot, dir, parts.key, parts.src);
+        return;
+      }
+    }
+    bodyLines.push(...g);
+  });
+  if (selfAt >= 0 && !emittedSelf) emitSelf();
+  if (bodyLines.length) {
+    fs.mkdirSync(path.join(dir, ".yamlover"));
+    writeInside(dataRoot, path.join(dir, ".yamlover"), "body.yamlover", Buffer.from(bodyLines.join("\n").replace(/\n*$/, "") + "\n", "utf8"));
+  }
 }
 
 /** A filename for a new chapter file, from its title: unicode letters/digits/space/dot/dash kept
@@ -2366,7 +2474,16 @@ function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
       // the item's inline `!!<…>` schema tag is META, not an entry — surfacing it would inject a
       // phantom first entry and shift every index (a `- !!<…table>` body item's rows, e.g.)
       const inline = raw.replace(/^-\s*/, "").replace(/^!!<[^>]*>\s*/, "");
-      if (inline.trim()) starts.push({ key: /^-/.test(inline) ? null : inline.match(/^([^:\s]+):/)?.[1] ?? null, start: r.marker, inline: true });
+      // Only an inline ENTRY OPENER is the first child: a nested `- ` item (compact `- - x`
+      // nesting) or a `key: …` field (`- title: X`). A plain/quoted/pointer scalar head is the
+      // node's own SELF-VALUE (an omni titled subchapter, `- Sub` + body — CHAPTER.md) — not an
+      // entry; surfacing it would inject a phantom [0] and shift every body index off the store.
+      if (inline.trim()) {
+        if (/^-/.test(inline)) starts.push({ key: null, start: r.marker, inline: true });
+        else if (/^[^\s"'*|>#-][^:]*:(\s|$)/.test(inline.replace(/\s+#.*$/, ""))) {
+          starts.push({ key: inline.match(/^([^:\s]+):/)?.[1] ?? null, start: r.marker, inline: true });
+        }
+      }
     }
   }
   for (let i = r.lo; i < r.hi; i++) {
@@ -2376,6 +2493,10 @@ function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
     if (ind !== r.indent) continue; // deeper → the current entry's body
     const t = lines[i].trim();
     if (t.startsWith("!!<")) continue; // the node's OWN schema tag line — not an entry
+    // A line that opens no entry (and is no quoted key either) is the node's scalar SELF-VALUE —
+    // a fully-omni chapter's title line (CHAPTER.md). It consumes NO index; a block-header
+    // self-value's content sits deeper and is skipped by the indent check above.
+    if (!opensEntry(t) && !opensQuotedKey(t)) continue;
     starts.push({ key: t === "-" || t.startsWith("- ") ? null : t.match(/^([^:\s]+):/)?.[1] ?? null, start: i, inline: false });
   }
   return starts.map((s, k) => ({
@@ -2465,11 +2586,16 @@ function appendBody(text: string, chapterPath: Seg[], renderItems: (indent: numb
 // `yamlover-annotations` overlay. `replace` drops all four and assigns the payload.
 
 /** A node's facets as column-0 yamlover source: the scalar's own source, and each keyed / ordinal
- *  entry as its own group of lines (kept verbatim, so re-emitting one never reformats it). */
+ *  entry as its own group of lines (kept verbatim, so re-emitting one never reformats it).
+ *  `selfAt` is the scalar's authored POSITION — the number of entries that precede its line
+ *  (0/undefined = it leads); `order` is the source order of the keyed/ordinal groups, carried so a
+ *  re-render can keep the authored interleaving when the groups come from one source. */
 interface Facets {
   scalar?: string;
   keyed: string[][];
   ordinal: string[][];
+  selfAt?: number;
+  order?: ("k" | "o")[];
 }
 
 /** True for a line that opens an entry — a `- ` item or a `key:` field. A block scalar's content is
@@ -2478,26 +2604,59 @@ const opensEntry = (t: string): boolean => t === "-" || t.startsWith("- ") || /^
 
 const isBlockHeader = (head: string): boolean => /^[|>][+-]?\d*$/.test(head.trim());
 
-/** Group column-0 source lines into entries, keyed and ordinal, each group verbatim. */
-function groupEntries(lines: string[], at: number): { keyed: string[][]; ordinal: string[][] } {
+/** True for a line opening a QUOTED-key entry (`"pic.png": …`) — `opensEntry`'s regex excludes
+ *  quote-led lines so a quoted scalar reads as a value, but a quoted key IS an entry opener. */
+const opensQuotedKey = (t: string): boolean => /^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*')\s*:(\s|$)/.test(t);
+
+/** Group column-`at` source lines into entries, keyed and ordinal, each group verbatim, plus their
+ *  source `order`. A line at the entry column that opens NO entry (a bare scalar or a block header
+ *  with its deeper content) is the node's SELF-VALUE line — returned as `self` with its authored
+ *  position (entries before it), never misfiled as a keyed group. Anchor / tag / pointer lines
+ *  (`&…`, `!!<…`, `*…`) keep their old keyed-group classification. */
+function groupEntries(lines: string[], at: number): { keyed: string[][]; ordinal: string[][]; order: ("k" | "o")[]; self?: { src: string; at: number } } {
   const starts = lines.map((l, i) => i).filter((i) => isContentLine(lines[i]) && indentOf(lines[i]) === at);
   const keyed: string[][] = [];
   const ordinal: string[][] = [];
+  const order: ("k" | "o")[] = [];
+  let self: { src: string; at: number } | undefined;
   starts.forEach((s, k) => {
     const group = lines.slice(s, k + 1 < starts.length ? starts[k + 1] : lines.length).map((l) => l.slice(at));
-    (lines[s].trim() === "-" || lines[s].trim().startsWith("- ") ? ordinal : keyed).push(group);
+    const head = lines[s].trim();
+    if (head === "-" || head.startsWith("- ")) {
+      ordinal.push(group);
+      order.push("o");
+    } else if (!self && !opensEntry(head) && !opensQuotedKey(head) && !/^[&*!]/.test(head)) {
+      self = { src: group.join("\n").replace(/\n+$/, ""), at: order.length };
+    } else {
+      keyed.push(group);
+      order.push("k");
+    }
   });
-  return { keyed, ordinal };
+  return { keyed, ordinal, order, self };
 }
 
 /** The facets a column-0 `yamlover` payload carries. A payload whose first content line opens no
- *  entry is a SCALAR — a block header, a quoted/plain scalar, or a `*…` pointer. */
+ *  entry is (or starts with) a SCALAR — a block header, a quoted/plain scalar, or a `*…` pointer.
+ *  A one-line scalar head followed by column-0 entry lines is an OMNI payload (a self-value plus
+ *  entries — e.g. a titled chapter, CHAPTER.md); a block-header payload keeps the whole source as
+ *  the scalar (its content lines live below the header, never entries). */
 function payloadFacets(src: string): Facets {
   const lines = src.split("\n");
-  const first = lines.find(isContentLine);
-  if (first === undefined) return { keyed: [], ordinal: [] };
-  if (!opensEntry(first.trim())) return { scalar: src, keyed: [], ordinal: [] };
-  return { scalar: undefined, ...groupEntries(lines, 0) };
+  const fi = lines.findIndex(isContentLine);
+  if (fi < 0) return { keyed: [], ordinal: [] };
+  const first = lines[fi].trim();
+  if (!opensEntry(first)) {
+    // the scalar head: one line, or a block header with its DEEPER content lines
+    let bend = fi + 1;
+    if (isBlockHeader(first)) while (bend < lines.length && (!isContentLine(lines[bend]) || indentOf(lines[bend]) > 0)) bend++;
+    const after = lines.slice(bend);
+    if (!after.some(isContentLine)) return { scalar: src, keyed: [], ordinal: [] };
+    const g = groupEntries(after, 0);
+    return { scalar: lines.slice(fi, bend).join("\n").replace(/\n+$/, ""), selfAt: 0, keyed: g.keyed, ordinal: g.ordinal, order: g.order };
+  }
+  const g = groupEntries(lines, 0);
+  // entries first — a non-entry line further down is the self-value at its authored position
+  return { scalar: g.self?.src, selfAt: g.self?.at, keyed: g.keyed, ordinal: g.ordinal, order: g.order };
 }
 
 /** The facets an EXISTING entry carries, as column-0 source (its own indentation stripped), plus
@@ -2523,10 +2682,50 @@ function entryFacets(lines: string[], e: ChapterEntry, indent: number): Facets &
   for (let i = e.start + 1; i < e.end; i++) {
     if (isContentLine(lines[i]) && indentOf(lines[i]) === childIndent) { firstChild = i; break; }
   }
-  const scalar = blockValue ? value(e.start + 1, firstChild, childIndent + 2) : undefined;
-  const groups = groupEntries(lines.slice(firstChild, e.end), childIndent);
-  if (!blockValue && head) groups.keyed.unshift([head]); // the key inlined on the `- ` marker
-  return { tag, scalar, ...groups };
+  // An inline head is the first KEYED entry (`- title: X`), the first ORDINAL entry (`- - x`,
+  // the compact nesting of an untitled subchapter), or — when it opens no entry — the node's own
+  // SELF-VALUE (`- Sub` + body: an omni titled subchapter, CHAPTER.md). Misfiling the compact
+  // `- ` head as the scalar would make a title emplace SWALLOW the first child.
+  const inlineKeyed = !blockValue && !!head && /^[^\s"'*|>#-][^:]*:(\s|$)/.test(head.replace(/\s+#.*$/, ""));
+  const inlineDash = !blockValue && !!head && /^-(\s|$)/.test(head);
+  let scalar = blockValue ? value(e.start + 1, firstChild, childIndent + 2) : head && !inlineKeyed && !inlineDash ? head : undefined;
+  const g = groupEntries(lines.slice(firstChild, e.end), childIndent);
+  let selfAt = scalar !== undefined ? 0 : undefined;
+  if (scalar === undefined && g.self) {
+    // a MID-position self-value line among the children — kept at its authored position
+    scalar = g.self.src;
+    selfAt = g.self.at;
+  }
+  if (inlineKeyed || inlineDash) {
+    // the entry inlined on the `- ` marker — with any continuation lines that sit DEEPER than the
+    // child column (e.g. the block content of a compact `- - |` head), kept verbatim
+    const headGroup = [head, ...lines.slice(e.start + 1, firstChild).map((l) => (l.trim().length ? l.slice(childIndent) : ""))];
+    (inlineKeyed ? g.keyed : g.ordinal).unshift(headGroup);
+    g.order.unshift(inlineKeyed ? "k" : "o");
+    if (selfAt !== undefined) selfAt += 1; // an inline head is an entry BEFORE the mid-position self
+  }
+  return { tag, scalar, selfAt, keyed: g.keyed, ordinal: g.ordinal, order: g.order };
+}
+
+/** A ONE-LINE double-quoted scalar as its bare plain spelling, when the bare line re-reads as the
+ *  SAME string — a title like `"Added title"` authors better as `Added title`. Anything the bare
+ *  spelling would change keeps its quotes: an entry opener (`a: b`), a sigil (`*x`, `- x`, `|`),
+ *  a number/bool/null (`30`, `true`), a ` #` comment, leading/trailing space, a multi-line value. */
+function preferPlainScalar(src: string): string {
+  const line = src.trim();
+  if (src.includes("\n") || !/^".*"$/.test(line)) return src;
+  try {
+    const q = parseYamlover(line, "<scalar>").root as { kind?: string; value?: unknown };
+    if (q.kind !== "scalar" || typeof q.value !== "string") return src;
+    const text = q.value;
+    if (!text || text !== text.trim() || text.includes("\n")) return src;
+    if (opensEntry(text) || opensQuotedKey(text)) return src;
+    const bare = parseYamlover(text, "<scalar>").root as { kind?: string; value?: unknown; entries?: unknown[] };
+    if (bare.kind === "scalar" && bare.value === text && !bare.entries?.length) return text;
+  } catch {
+    /* anything unparseable bare keeps its quotes */
+  }
+  return src;
 }
 
 /** Render a node from its facets at `indent`. `marker` is `"- "` (positional) or `` `${key}: ` ``.
@@ -2536,11 +2735,27 @@ function entryFacets(lines: string[], e: ChapterEntry, indent: number): Facets &
 function renderNode(f: Facets, indent: number, marker: string, tag?: string): string[] {
   const pad = " ".repeat(indent);
   const childPad = " ".repeat(indent + 2);
-  const groups = [...f.keyed, ...f.ordinal];
+  const groups = orderedGroups(f);
   const child = (g: string[]): string[] => g.map((l) => (l.trim().length ? childPad + l : ""));
 
+  const selfAt = f.scalar !== undefined ? Math.min(f.selfAt ?? 0, groups.length) : 0;
+  if (f.scalar !== undefined && selfAt > 0) {
+    // THE REPRESENTATION RULE: the self-value line keeps its authored position among the entries —
+    // entries before it, the scalar's lines (a child-column bare line or block), entries after
+    const selfLines = child(preferPlainScalar(f.scalar).split("\n"));
+    const before = groups.slice(0, selfAt);
+    const after = groups.slice(selfAt);
+    const rest = (gs: string[][]): string[] => gs.flatMap(child);
+    if (marker.startsWith("-") && !tag) {
+      const [g0, ...restB] = before;
+      return [`${pad}${marker}${g0[0]}`, ...child(g0.slice(1)), ...rest(restB), ...selfLines, ...rest(after)];
+    }
+    return [`${pad}${marker.trimEnd()}${tag ? " " + tag : ""}`, ...rest(before), ...selfLines, ...rest(after)];
+  }
   if (f.scalar !== undefined) {
-    return [...renderEntry(f.scalar, indent, marker, tag, groups.length > 0), ...groups.flatMap(child)];
+    // a container's scalar is its SELF-VALUE (a chapter's title) — author it plain when safe
+    const scalar = groups.length ? preferPlainScalar(f.scalar) : f.scalar;
+    return [...renderEntry(scalar, indent, marker, tag, groups.length > 0), ...groups.flatMap(child)];
   }
   if (!groups.length) return [`${pad}${marker.trimEnd()}${tag ? " " + tag : ""}`];
   if (marker.startsWith("-") && !tag) {
@@ -2553,6 +2768,18 @@ function renderNode(f: Facets, indent: number, marker: string, tag?: string): st
   return [`${pad}${marker.trimEnd()}${tag ? " " + tag : ""}`, ...groups.flatMap(child)];
 }
 
+/** The keyed/ordinal groups in their SOURCE order when `order` is consistent with them (groups
+ *  from one source), else keyed-then-ordinal (the mixed-source fallback). */
+function orderedGroups(f: Facets): string[][] {
+  const { keyed, ordinal, order } = f;
+  if (order && order.filter((x) => x === "k").length === keyed.length && order.filter((x) => x === "o").length === ordinal.length) {
+    let ki = 0;
+    let oi = 0;
+    return order.map((x) => (x === "k" ? keyed[ki++] : ordinal[oi++]));
+  }
+  return [...keyed, ...ordinal];
+}
+
 /** The `!!<…>` a payload asks for: the given `meta`, the entry's existing tag when `meta` is omitted
  *  and the op preserves (emplace), or none. */
 function metaTag(meta: string | null | undefined, existing: string | undefined, preserve: boolean): string | undefined {
@@ -2562,15 +2789,17 @@ function metaTag(meta: string | null | undefined, existing: string | undefined, 
 }
 
 /** `emplace` / `replace` / `remove` on the entry `seg` names within `r`; `insert` before it (or
- *  appended when `seg` is undefined — the path named the node itself). */
-function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, valueSrc: string, meta: string | null | undefined): void {
+ *  appended when `seg` is undefined — the path named the node itself). An insert with `key` makes
+ *  a KEYED entry at that position (`key: value`) instead of an ordinal one — a fresh keyed emplace
+ *  always splices at the top of the block, so this is how a caller keeps AUTHORED entry order. */
+function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, valueSrc: string, meta: string | null | undefined, key?: string, at?: number): void {
   const marker = (s: Seg | undefined): string => (typeof s === "string" ? `${s}: ` : "- ");
 
   if (op === "insert") {
     if (typeof seg === "string") throw new Error("`insert` needs a positional target (a path ending `[i]`, or the node itself)");
     const entry = seg === undefined ? undefined : findEntry(lines, r, seg);
     const at = entry ? entry.start : bodyAppendPoint(lines, r); // an index past the end appends
-    lines.splice(at, 0, ...renderNode(payloadFacets(valueSrc), r.indent, "- ", metaTag(meta, undefined, false)));
+    lines.splice(at, 0, ...renderNode(payloadFacets(valueSrc), r.indent, key !== undefined ? `${key}: ` : "- ", metaTag(meta, undefined, false)));
     return;
   }
 
@@ -2596,14 +2825,27 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
   const had = entryFacets(lines, entry, r.indent);
   const payload = payloadFacets(valueSrc);
   const inlineKey = entry.inline ? entry.key : null; // a key living on its parent's `- ` marker line
+  const keyed = payload.keyed.length ? payload.keyed : had.keyed;
+  const ordinal = payload.ordinal.length ? payload.ordinal : had.ordinal;
   const next: Facets =
     op === "replace"
-      ? payload
+      ? { ...payload, selfAt: at ?? payload.selfAt }
       : {
           scalar: payload.scalar ?? had.scalar,
-          keyed: payload.keyed.length ? payload.keyed : had.keyed,
-          ordinal: payload.ordinal.length ? payload.ordinal : had.ordinal,
+          keyed,
+          ordinal,
+          // the self line's position: the op's explicit `at`, else where the winning scalar sat
+          selfAt: at ?? (payload.scalar !== undefined ? payload.selfAt : had.selfAt),
+          // source order survives only when both group facets come from the same source
+          order: keyed === payload.keyed && ordinal === payload.ordinal ? payload.order
+               : keyed === had.keyed && ordinal === had.ordinal ? had.order : undefined,
         };
+  // An EMPTY scalar emplaced onto a container DROPS the self-value: an untitled chapter's title
+  // is no value at all, not an empty string (CHAPTER.md) — `emplace '""'` on a subchapter un-titles it.
+  if (op === "emplace" && payload.scalar !== undefined && next.scalar !== undefined && (next.keyed.length || next.ordinal.length)) {
+    const p = parseYamlover(next.scalar, "<scalar>").root as { kind?: string; value?: unknown };
+    if (p.kind === "scalar" && (p.value == null || p.value === "")) next.scalar = undefined;
+  }
   const tag = metaTag(meta, had.tag, op === "emplace");
 
   if (inlineKey) {
@@ -2709,6 +2951,57 @@ function splitChunkWithin(within: Seg[]): { indices: number[]; keys: string[] } 
   let i = 0;
   while (i < within.length && typeof within[i] === "number") i++;
   return { indices: within.slice(0, i).map(Number), keys: within.slice(i).map(String) };
+}
+
+/** Set, replace, or (an empty payload) DROP a document root's scalar SELF-VALUE line — a fully-omni
+ *  chapter's title (CHAPTER.md). The self-value is the content line at the root indent that is
+ *  neither the leading `!!<…>` tag line nor an entry opener; a block-header self-value owns its
+ *  deeper-indented content lines too. Replacement happens in place (the authored position among the
+ *  entries is the author's — YAMLOVER.md §4); a fresh self-value lands right after the tag line. */
+function setRootSelfValue(lines: string[], scalarSrc: string, selfAt?: number): void {
+  const indent = firstContentIndent(lines);
+  const parsed = parseYamlover(scalarSrc, "<self-value>").root as { kind?: string; value?: unknown };
+  if (parsed.kind !== "scalar") throw new Error("a document-root emplace takes a scalar self-value (the title)");
+  const empty = parsed.value == null || parsed.value === "";
+  // locate the existing self-value line and its span (a block scalar's content sits deeper)
+  let at = -1;
+  let end = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (!isContentLine(lines[i]) || indentOf(lines[i]) !== indent) continue;
+    const t = lines[i].trim();
+    if (t.startsWith("!!<") || opensEntry(t) || opensQuotedKey(t)) continue;
+    at = i;
+    end = i + 1;
+    if (isBlockHeader(t)) while (end < lines.length && (!isContentLine(lines[end]) || indentOf(lines[end]) > indent)) end++;
+    end = trimBack(lines, at, end);
+    break;
+  }
+  const rendered = empty
+    ? []
+    : preferPlainScalar(scalarSrc).split("\n").map((l) => (l.trim().length ? " ".repeat(indent) + l : ""));
+  if (at >= 0) {
+    lines.splice(at, end - at, ...rendered); // an existing line is replaced IN PLACE — position kept
+    return;
+  }
+  if (empty) return; // no self-value to drop
+  // a FRESH self-value line lands at its authored position: after the `selfAt` entries that
+  // precede it (THE REPRESENTATION RULE — the line is saved where it was typed, never hoisted)
+  if (selfAt !== undefined && selfAt > 0) {
+    const starts: number[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (!isContentLine(lines[i]) || indentOf(lines[i]) !== indent) continue;
+      const t = lines[i].trim();
+      if (opensEntry(t) || opensQuotedKey(t)) starts.push(i);
+    }
+    if (starts.length) {
+      const pos = selfAt < starts.length ? starts[selfAt] : trimBack(lines, starts[starts.length - 1], lines.length);
+      lines.splice(pos, 0, ...rendered);
+      return;
+    }
+  }
+  const first = lines.findIndex(isContentLine);
+  const tagLine = first >= 0 && lines[first].trim().startsWith("!!<") ? first : -1;
+  lines.splice(tagLine >= 0 ? tagLine + 1 : Math.max(first, 0), 0, ...rendered);
 }
 
 /** Set, replace, or drop (`meta === null`) a DOCUMENT's own leading `!!<…>` tag — the one place a
@@ -2826,16 +3119,26 @@ function editFlowRowCell(lines: string[], row: ChapterEntry, cellIdx: number, op
  *
  *  With an empty `within` the path named the document root: `insert` appends to it, and `emplace`
  *  may set its `!!<…>` tag. */
-function editChapterSource(src: string, within: Seg[], op: string, valueSrc: string, meta: string | null | undefined): string {
+function editChapterSource(src: string, within: Seg[], op: string, valueSrc: string, meta: string | null | undefined, key?: string, at?: number): string {
   const lines = src.split("\n");
   if (within.length === 0) {
     if (op === "insert") {
-      assignAt(lines, reachChapter(lines, []), undefined, op, valueSrc, meta);
+      assignAt(lines, reachChapter(lines, []), undefined, op, valueSrc, meta, key);
       return lines.join("\n");
     }
-    if (op === "emplace" && meta !== undefined && !valueSrc) {
-      setRootTag(lines, meta);
-      return lines.join("\n");
+    if (op === "emplace") {
+      if (meta !== undefined && !valueSrc) {
+        setRootTag(lines, meta);
+        return lines.join("\n");
+      }
+      // a scalar-only payload sets the document's SELF-VALUE — a chapter's title (an empty
+      // string drops it); the keyed/ordinal entries and the tag line all stand
+      const p = payloadFacets(valueSrc);
+      if (valueSrc && p.scalar !== undefined && !p.keyed.length && !p.ordinal.length) {
+        if (meta !== undefined && meta !== null) setRootTag(lines, meta);
+        setRootSelfValue(lines, p.scalar, at);
+        return lines.join("\n");
+      }
     }
     throw new Error(`\`${op}\` at a document root needs a key or index target`);
   }
@@ -2849,7 +3152,7 @@ function editChapterSource(src: string, within: Seg[], op: string, valueSrc: str
       return lines.join("\n");
     }
   }
-  assignAt(lines, reachChapter(lines, within.slice(0, -1)), within[within.length - 1], op, valueSrc, meta);
+  assignAt(lines, reachChapter(lines, within.slice(0, -1)), within[within.length - 1], op, valueSrc, meta, key, at);
   return lines.join("\n");
 }
 
@@ -2949,6 +3252,8 @@ interface ResolvedEdit {
   meta: string | null | undefined;
   concrete?: string;
   name?: string;
+  key?: string; // insert only: make a KEYED entry at the position (order-preserving)
+  at?: number; // scalar emplace: the self-value line's position — entries preceding it
   docSegs: Seg[];
   dirBacked: boolean;
 }
@@ -2992,6 +3297,68 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       continue;
     }
 
+    // A BARE folder (`concrete:"dir"`): just an OS directory — no body, no pointer, no .yamlover
+    // marker. Legal inside any filesystem directory (a plain dir OR a dir-backed document); the
+    // walk discovers it as a keyed member. `meta`/`yamlover` are ignored — it carries neither.
+    // Must divert BEFORE the body-splicing path: `"dir"` has no `/`, so falling through would
+    // misread it as an inline append into the parent's source.
+    if (op === "insert" && e.concrete === "dir") {
+      if (!editSegs.every((g) => typeof g === "string")) throw new Error("a folder needs a directory parent");
+      const abs = path.resolve(dataRoot, ...editSegs.map(String));
+      if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) throw new Error("a folder can only be created inside a directory");
+      const final = uniqueName(abs, objectBaseName(String(e.name || "New Folder")));
+      fs.mkdirSync(path.join(abs, final));
+      created.push(segsToStr([...editSegs, final]));
+      continue;
+    }
+
+    // A DIRECTORY TARGET (derive-concrete.ts): a directory is editable like any yamlover node —
+    // WHERE a new child is encoded is the derivation policy's call. A keyed CONTAINER child
+    // becomes a nested REAL directory (recursively); scalar/ordinal children and the directory's
+    // own scalar self-value live in its `.yamlover/body.yamlover` overlay, created on demand.
+    // A dir WITH a body keeps today's body-splicing for everything but keyed-container inserts
+    // (positional chapter edits depend on the body's index space); explicit `concrete:` branches
+    // above keep precedence.
+    {
+      const stripped = op === "insert" && typeof editSegs[editSegs.length - 1] === "number" ? editSegs.slice(0, -1) : editSegs;
+      const absDir = stripped.every((g) => typeof g === "string") ? path.resolve(dataRoot, ...stripped.map(String)) : null;
+      const isDirTarget = absDir !== null && fs.existsSync(absDir) && fs.statSync(absDir).isDirectory();
+      if (isDirTarget) {
+        const bodyFile = path.join(absDir, ".yamlover", "body.yamlover");
+        // route by what the STORE knows, not the filesystem: a body materialized EARLIER IN THIS
+        // BATCH exists on disk but the stale store would still route the edit to the enclosing
+        // document — within=[] against the dir's own body is correct in both worlds
+        const docRootKnown = !!s.node(storePath(stripped))?.meta?.documentRoot;
+        const valueSrc = String(e.yamlover ?? "");
+        const meta = e.meta === undefined ? undefined : e.meta === null ? null : String(e.meta);
+        const at = typeof e.at === "number" && Number.isFinite(e.at) && e.at >= 0 ? Math.floor(e.at) : undefined;
+        const pushBodyOp = (key?: string): void => {
+          ensureDirBody(dataRoot, absDir!);
+          const list = byFile.get(bodyFile) ?? [];
+          list.push({ within: [], op, valueSrc, meta, key, at, docSegs: stripped, dirBacked: true });
+          byFile.set(bodyFile, list);
+        };
+        if (op === "insert" && (!e.concrete || e.concrete === "yamlover")) {
+          if (valueSrc && !isPointerValue(valueSrc)) parseYamlover(valueSrc, "<edit>");
+          const p = payloadFacets(valueSrc);
+          const container = p.keyed.length > 0 || p.ordinal.length > 0;
+          const key = e.key === undefined ? undefined : String(e.key);
+          if (deriveMemberEncoding({ keyed: key !== undefined, container }) === "dir") {
+            writeDirMemberTree(dataRoot, absDir, key!, valueSrc, meta);
+            created.push(segsToStr([...stripped, key!]));
+            continue;
+          }
+          if (!docRootKnown && stripped.length) { pushBodyOp(key); continue; }
+          // an established document root: fall through — its body's own positional index space
+          // (chapter subchapter inserts and the like) applies
+        } else if (op === "emplace" && !docRootKnown && stripped.length && editSegs === stripped) {
+          // scalar self-value of a BODYLESS dir: materialize the overlay, splice the self line
+          pushBodyOp();
+          continue;
+        }
+      }
+    }
+
     // A JSON-family file (flow syntax) can't use the block engine — route its scalar `emplace` edits
     // to the span-surgical JSON editor. Only value edits for now (no insert/remove/structure).
     const backing = resolveBacking(dataRoot, s, editSegs);
@@ -3022,6 +3389,8 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       meta: e.meta === undefined ? undefined : e.meta === null ? null : String(e.meta),
       concrete,
       name: e.name ? String(e.name) : undefined,
+      key: e.key === undefined ? undefined : String(e.key),
+      at: typeof e.at === "number" && Number.isFinite(e.at) && e.at >= 0 ? Math.floor(e.at) : undefined,
       docSegs,
       dirBacked,
     });
@@ -3045,7 +3414,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
         valueSrc = born.pointer;
         meta = undefined;
       }
-      src = editChapterSource(src, o.within, o.op, valueSrc, meta);
+      src = editChapterSource(src, o.within, o.op, valueSrc, meta, o.key, o.at);
     }
     fs.writeFileSync(bodyFile, src);
     touched.push(bodyFile);
@@ -3066,8 +3435,13 @@ interface EditInput {
   op?: string; // emplace | replace | insert | remove
   yamlover?: string; // the node's value as VALID inline yamlover source — the caller escapes its own prose
   meta?: string | null; // the `!!<…>` schema pointer: set it, `null` to drop it, omit to leave it alone
-  concrete?: string; // yamlover | file/yamlover | dir/yamlover — only where content is BORN
-  name?: string; // the file/dir name when `concrete` births a document
+  concrete?: string; // yamlover | file/yamlover | dir/yamlover | dir (a bare folder) — only where content is BORN
+  name?: string; // the file/dir name when `concrete` births a document (or a bare folder)
+  key?: string; // insert only: create a KEYED entry (`key: value`) at the position — unlike a fresh
+                // keyed emplace (which splices at the top of the block), this keeps authored order
+  at?: number; // scalar emplace only: the self-value LINE's authored position — the number of
+               // entries that precede it. A fresh self line splices there instead of the top;
+               // replacing an existing line keeps its position regardless.
 }
 
 // A dataRoot that never exists: `concreteOf`'s stats throw and every node falls through to plain
@@ -3119,7 +3493,9 @@ export function applyTextEdits(src: string, edits: EditInput[]): string {
     const valueSrc = String(e.yamlover ?? "");
     const meta = e.meta === undefined ? undefined : e.meta === null ? null : String(e.meta);
     if (valueSrc && !isPointerValue(valueSrc)) parseYamlover(valueSrc, "<edit>");
-    out = editChapterSource(out, strToSegs(String(e.path ?? "")), String(e.op ?? ""), valueSrc, meta);
+    out = editChapterSource(out, strToSegs(String(e.path ?? "")), String(e.op ?? ""), valueSrc, meta,
+      e.key === undefined ? undefined : String(e.key),
+      typeof e.at === "number" && Number.isFinite(e.at) && e.at >= 0 ? Math.floor(e.at) : undefined);
   }
   parseYamlover(out, "<edit-result>");
   return out;
@@ -3167,8 +3543,14 @@ function documentPath(s: Store, segs: Seg[]): string {
   return segsToStr(documentRootSegs(s, segs));
 }
 
-/** A node's `title` child value (a scalar), if any — used as a friendly label. */
+/** A node's title, if any — used as a friendly label. A chapter/task is FULLY OMNI: its title
+ *  is the node's own scalar SELF-VALUE (CHAPTER.md), so read that first; the keyed `title`
+ *  child remains as the legacy read for unmigrated files (and for any other schema that still
+ *  keys a title). */
 function titleOf(s: Store, p: string): string | null {
+  const n = s.node(p);
+  if ((n?.format === "x-yamlover-chapter" || n?.format === "x-yamlover-task") && n.type === "scalar" && n.value != null)
+    return String(n.value);
   return scalarKeyOf(s, p, "title");
 }
 

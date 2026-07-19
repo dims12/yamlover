@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { parseYamlover } from '../src/yamlover.ts';
 import { serializeYamlover } from '../src/serialize-yamlover.ts';
 import { toPlain, isPointer } from '../src/ir.ts';
-import type { Mapping } from '../src/ir.ts';
+import type { Mapping, Scalar } from '../src/ir.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const examples = join(here, '..', '..', '..', '..', 'examples');
@@ -199,12 +199,22 @@ test('inline schema tag !!<format: …> attaches an inline schema Node (not a po
 
 test('parses examples/60-simple-chapter.yamlover (tagged file)', () => {
   const d = parseYamlover(readFileSync(join(examples, '60-simple-chapter.yamlover'), 'utf8'), '60');
-  assert.ok(asMap(d.root).meta?.schema, 'root tagged with chapter schema');
-  // an omni chapter: a keyed `title`, then a POSITIONAL body (chunks + subchapters), all keyless
-  const keys = asMap(d.root).entries.map((e) => e.key);
-  assert.equal(keys[0], 'title');
+  const root = d.root as Scalar;
+  assert.ok(root.meta?.schema, 'root tagged with chapter schema');
+  // a FULLY-OMNI chapter (CHAPTER.md): the root's scalar SELF-VALUE is the title (no `title:`
+  // key, and it is NOT an entry), `description` is the one keyed entry, the body is keyless
+  assert.equal(root.kind, 'scalar');
+  assert.equal(root.value, 'Getting Started with yamlover');
+  const keys = (root.entries ?? []).map((e) => e.key);
+  assert.equal(keys[0], 'description');
   assert.ok(keys.slice(1).every((k) => k === null), 'the body elements are keyless (positional)');
-  assert.equal(keys.length, 7); // title + 3 prose chunks + 3 subchapters (incl. the Lists demo)
+  // description + 9 body elements: 3 prose chunks, a title-only chunk ("Why one file"), a titled
+  // subchapter, an untitled subchapter, another title-only chunk ("Lists"), and the two lists
+  assert.equal(keys.length, 10);
+  const titled = (root.entries ?? [])[5].value as Scalar; // "Chunks and subchapters"
+  assert.equal(titled.kind, 'scalar');
+  assert.equal(titled.value, 'Chunks and subchapters'); // its self-value is its title…
+  assert.equal(titled.entries?.length, 3); // …and its entries are its body (an omni subchapter)
 });
 
 test('parses examples/05-tour.yaml (YAML anchors/aliases)', () => {

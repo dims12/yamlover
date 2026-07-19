@@ -52,8 +52,18 @@ export function creatablesFor(node: { format?: string | null; concrete?: string 
       out.push({ schema: c.schema, label, concretes: MEMBER_CONCRETES, defaultConcrete: "dir/yamlover" });
     }
   }
+  // Any filesystem directory (a plain dir OR a dir-backed document) can also gain a generic NODE —
+  // an UNTAGGED yamlover document (no schema meta, an empty scalar body), stored as a member file
+  // or (the default) a dir/yamlover directory. Creating one opens it in yamlover editing mode.
+  if (isDirConcrete(node.concrete)) {
+    out.push({ schema: NODE_SCHEMA, label: "node", concretes: MEMBER_CONCRETES, defaultConcrete: "dir/yamlover" });
+  }
   return out;
 }
+
+/** The pseudo-schema key of the generic-node create entry — no real schema backs it; App routes it
+ *  to {@link createNode} (api.ts) instead of `createObject`. */
+export const NODE_SCHEMA = "node";
 
 /** The readable schema path shown when a schema has no title — the leading `:` and the redundant
  *  `yamlover` self-import authority trimmed (e.g. `::yamlover:$defs:chapter` → `$defs: chapter`). */

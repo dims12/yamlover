@@ -308,6 +308,12 @@ export interface Edit {
   meta?: string | null;
   concrete?: string;
   name?: string;
+  /** insert only: create a KEYED entry (`key: value`) at the position — keeps authored order,
+   *  unlike a fresh keyed emplace (which the server splices at the top of the block). */
+  key?: string;
+  /** scalar emplace only: the self-value LINE's authored position — the number of entries that
+   *  precede it. A fresh self line splices there instead of at the top of the block. */
+  at?: number;
 }
 
 /** Send a BATCH of edits (the background sync's coalesced flush) — applied in order, grouped by
@@ -345,6 +351,15 @@ export function createObject(schema: string, parent: string, concrete: string, t
   });
 }
 
+/** Create a generic NODE — an UNTAGGED, EMPTY yamlover document (no schema meta, no body: an
+ *  empty document is not an empty-string scalar). The editor opens it as a root hole ready for
+ *  the first token. `concrete` picks the storage form (`file/yamlover` | `dir/yamlover`); the
+ *  parent decides member vs linked child, exactly like {@link createObject}. Returns the new
+ *  node's path (navigate to it). */
+export function createNode(parent: string, concrete: string, name = "New node"): Promise<{ path: string }> {
+  return postJson<{ ok: true; path: string }>(api("/api/edit"), { path: parent, op: "insert", concrete, name });
+}
+
 /** The default title for a new object of `schema` — "New <last segment>" (e.g. "New chapter"). */
 function defaultObjectTitle(schema: string): string {
   const segs = strToSegs(schema);
@@ -352,10 +367,11 @@ function defaultObjectTitle(schema: string): string {
 }
 
 /** A fresh object's body source: a title and one empty prose chunk, so it is immediately editable.
- *  (The server no longer knows what a chapter is — the body template lives with the client that
- *  offers the schema.) */
+ *  The title is the omni node's scalar SELF-VALUE — a bare quoted line, no `title:` key
+ *  (CHAPTER.md). (The server no longer knows what a chapter is — the body template lives with the
+ *  client that offers the schema.) */
 function objectBody(title: string): string {
-  return `title: ${JSON.stringify(title)}\n- ""`;
+  return `${JSON.stringify(title)}\n- ""`;
 }
 
 /** Remove the application of `tag` from the node at `target` (a whole node OR a fragment path) —

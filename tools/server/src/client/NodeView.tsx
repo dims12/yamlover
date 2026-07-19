@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useReducer, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { fetchNode, fetchSchema, NodeJson, pasteFile, pasteRich, pasteText, PasteResult } from "./api";
 import { arxivPdf, tweetUrl, fetchTweetText } from "./paste-links";
 import { countImages, htmlToRich, resolveImages, RichDraft } from "./paste-html";
@@ -6,6 +6,7 @@ import { clipboardFiles, fileToBase64, pastedName } from "./clipboard";
 import { renderersFor, rendererName, plaintextTab } from "./renderers/registry";
 import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
 import { EditingContext } from "./renderers/editing";
+import { YamloverEditor } from "./renderers/yamlover-editor/editor";
 import { DepthControl, viewDepth } from "./renderers/depth";
 import { useHashScroll } from "./renderers/headings";
 
@@ -58,14 +59,16 @@ function effectiveFormat(format: Format, node: NodeJson, tabs: Format[]): Format
 
 /** Whether the DATA view may be unlocked for in-place value editing. Only the **yamlover renderer**
  *  (the `yamlover` data view) offers editing — never the `json5p` or `yamlover/schema` views, nor
- *  opaque bytes / directories. The yamlover renderer is the UNIVERSAL edit surface: you edit yamlover
- *  source there, and the server writes it in the target file's concrete — a yaml/yamlover file gets
- *  the source verbatim, a json/json5/json5p file gets the parsed scalar re-serialized as JSON. So
- *  every data file (yaml-family AND json-family) is editable here. */
+ *  opaque bytes (nothing backs them). DIRECTORIES edit too — bare (`dir`) and dir-backed
+ *  (`dir/yamlover`) alike: the server derives where each new child is STORED (the dir's
+ *  `.yamlover/body.yamlover` overlay vs a nested directory — derive-concrete.ts). The yamlover
+ *  renderer is the UNIVERSAL edit surface: you edit yamlover source there, and the server writes
+ *  it in the target's concrete — a yaml/yamlover file gets the source verbatim, a json/json5/json5p
+ *  file gets the parsed scalar re-serialized as JSON. */
 function isEditableData(effective: Format, node: NodeJson): boolean {
   if (effective !== "yamlover") return false; // only the yamlover renderer, not json5p / schema
   if (node.type === "binary" || node.valueType === "binary") return false;
-  return !isBinaryConcrete(node.concrete) && !isDirConcrete(node.concrete);
+  return !isBinaryConcrete(node.concrete);
 }
 
 /** A node's bare name: its last path segment (a decoded key or `[index]`), or ""
@@ -88,6 +91,9 @@ interface Props {
   onContentChanged?: (path: string) => void;
   /** Called after a file was uploaded onto a directory MEMBER, to open the new file. */
   onOpenUploaded?: (result: PasteResult) => void;
+  /** Bumped by App right after an object is CREATED — the freshly navigated-to page opens
+   *  straight in editing mode (chapter editor / editable yamlover view) instead of read-only. */
+  unlockSignal?: number;
 }
 
 /** The RHS pane: one node shown in the selected representation. Every
@@ -96,7 +102,7 @@ interface Props {
 // memo: App re-renders on every SSE task-progress frame (background indexing/hashing — several
 // per second); the node pane — incl. a mounted PDF with all its pages — must only re-render
 // when its own props change, or scrolling a long document JANKS while a task runs.
-export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0, onFormat, onNavigate, onContentChanged, onOpenUploaded }: Props) {
+export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0, onFormat, onNavigate, onContentChanged, onOpenUploaded, unlockSignal = 0 }: Props) {
   const [node, setNode] = useState<NodeJson | null>(null); // header + data value
   const [schema, setSchema] = useState<unknown>(null);
   const [bin, setBin] = useState<unknown>(null); // base64 payload for a binary leaf
@@ -133,13 +139,24 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     return () => document.removeEventListener("keydown", onKey);
   }, [unlocked]);
 
+  // A bumped `unlockSignal` (App, right after a create) opens the page UNLOCKED — creating an
+  // object flows straight into editing it. The context `unlock` is the same door for renderers
+  // that create from INSIDE the page (the chapter view's right-click menu).
+  useEffect(() => {
+    if (unlockSignal) setUnlocked(true);
+  }, [unlockSignal]);
+  const unlock = useCallback(() => setUnlocked(true), []);
+
   useEffect(() => {
     const navigated = prevPath.current !== path;
     // While editing, PAUSE a live refresh (SSE → refreshSignal / reloadKey): the chapter editor holds
     // an authoritative in-memory model and must not be rebuilt under the caret. But ALWAYS fetch on a
     // genuine NAVIGATION, so clicking a subchapter opens it (still in edit mode). Locking (unlocked →
     // false) re-runs this with `navigated` false and refetches the freshly saved chapter.
-    if (unlocked && !navigated) return;
+    // `node === null` must NOT pause: when a CREATE navigates and unlocks in one batch, the unlock
+    // re-run's cleanup has cancelled the navigation's in-flight fetch — with nothing loaded yet,
+    // skipping here would leave the pane on "…" forever.
+    if (unlocked && !navigated && node !== null) return;
     setError(null);
     // Clear the node only on a genuine NAVIGATION (the path changed). A live REFRESH (refreshSignal /
     // reloadKey, e.g. an annotation written from a right-click menu) keeps the current node visible
@@ -513,7 +530,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
       {!showRendered && node.description && <p className="nodedesc">{node.description}</p>}
 
       {showRendered ? (
-        <EditingContext.Provider value={{ unlocked }}>
+        <EditingContext.Provider value={{ unlocked, unlock }}>
           {/* While UNLOCKED, skip the annotation wrapper: its document `mouseup` selection→picker and
               its per-render `<mark>` DOM rewrite both fight contentEditable. Highlights return on
               re-lock. A non-editable prose material keeps the annotation layer as before. */}
@@ -523,8 +540,13 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
             renderer!.render(node, onNavigate)
           )}
         </EditingContext.Provider>
+      ) : unlocked && isEditableView && !isJsonFamily(node.concrete) ? (
+        /* the UNLOCKED yamlover data view is the projectional STRUCTURE editor: the whole node
+           (fetched at unlimited depth) becomes an editable cell tree. JSON-family files stay on
+           the per-scalar editor below — their backing supports only scalar emplaces. */
+        <YamloverEditor path={path} onNavigate={onNavigate} />
       ) : (
-        <EditingContext.Provider value={{ unlocked }}>
+        <EditingContext.Provider value={{ unlocked, unlock }}>
           <pre className="code">
             {/* data views lead with the relations panel (reverse members / `..`),
                 an <hr/>, then the value; schema views embed rel inline already */}

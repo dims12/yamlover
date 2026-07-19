@@ -469,7 +469,12 @@ class Block {
     let body = folded ? foldLines(core) : core.join('\n');
     if (chomp === 'keep') body += '\n'.repeat(lines.length - (last + 1) + (last >= 0 ? 1 : 0));
     else if (chomp === 'clip' && last >= 0) body += '\n';          // strip → nothing
-    return { kind: 'scalar', value: body, raw: body };
+    // `raw` is the AUTHORED representation, normalized: the header token plus the de-indented
+    // content lines (trailing blanks only when `+` keeps them — under clip/strip they separate,
+    // they are not content). Renderers reproduce this instead of re-deriving a block from `value`.
+    const header = (folded ? '>' : '|') + (chomp === 'strip' ? '-' : chomp === 'keep' ? '+' : '');
+    const kept = chomp === 'keep' ? lines : core;
+    return { kind: 'scalar', value: body, raw: kept.length ? header + '\n' + kept.join('\n') : header };
   }
 
   /** Parse a single-line inline value: flow, pointer, anchor, quoted or plain scalar.

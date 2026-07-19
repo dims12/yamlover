@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createObject, fetchInfo, fetchTasks, fetchTree, installAgentDocs, PasteResult, TaskInfo, TreeNode } from "./api";
+import { createNode, createObject, fetchInfo, fetchTasks, fetchTree, installAgentDocs, PasteResult, TaskInfo, TreeNode } from "./api";
 import { api } from "./base";
 import { Tree } from "./Tree";
 import { TaskStrip } from "./TaskStrip";
@@ -18,6 +18,7 @@ import { broadcastDiff } from "./live";
 import { Fragments, fragmentGroups } from "./Fragments";
 import { useAnnotations } from "./renderers/annotate";
 import { useExplorerTagMenu } from "./renderers/tagmenu";
+import { NODE_SCHEMA } from "./renderers/create";
 
 /** Read a persisted boolean UI flag (collapse state) from localStorage, defaulting false when it
  *  is unset or unavailable (e.g. a jsdom test env). */
@@ -78,6 +79,13 @@ function mergeBranch(old: TreeNode | undefined, fresh: TreeNode): TreeNode {
       ? old.children // past the fetch depth — keep the loaded subtree
       : [];
   return { ...fresh, children };
+}
+
+/** How many levels of children are LOADED under `node` — the depth a live refresh must refetch
+ *  so no stale row survives past the fetch boundary (see mergeBranch). */
+function loadedDepth(node: TreeNode): number {
+  if (!node.children.length) return 0;
+  return 1 + Math.max(...node.children.map(loadedDepth));
 }
 
 /** Return a copy of `tree` with the fresh subtree merged in at `path` (see mergeBranch). */
@@ -269,7 +277,10 @@ export function App() {
     for (const p of paths) {
       const segs = strToSegs(p);
       let best = ":";
-      for (let k = 0; k < segs.length; k++) {
+      // walk INCLUDES the changed node itself (k === segs.length): an edit inside a document must
+      // refresh the document's own loaded branch — its subchapter rows and labels — not just the
+      // ancestor listing that names the document.
+      for (let k = 0; k <= segs.length; k++) {
         const anc = segsToStr(segs.slice(0, k));
         const node = findNode(t, anc);
         if (!node) break;
@@ -280,7 +291,10 @@ export function App() {
     const list = [...targets].filter((a) => ![...targets].some((b) => b !== a && isAncestorPath(b, a)));
     await Promise.all(
       list.map(async (p) => {
-        const sub = await fetchTree(p, INITIAL_DEPTH);
+        // fetch as deep as the user has this branch loaded: mergeBranch keeps rows past the fetch
+        // boundary, so a shallower fetch would leave the expanded tail showing stale labels.
+        const found = findNode(treeRef.current ?? t, p);
+        const sub = await fetchTree(p, Math.max(INITIAL_DEPTH, found ? loadedDepth(found) : 0));
         setTree((prev) => (prev ? mergeAt(prev, p, sub) : prev));
       }),
     );
@@ -337,6 +351,15 @@ export function App() {
         broadcastDiff({ paths, removed: diff.removed });
         refreshBranches(paths).catch(() => {});
         const cur = currentRef.current;
+        // The viewed node (or a document holding it) vanished from disk — e.g. the file was
+        // deleted while its page (even its editor) was open. Leave the tombstone: navigate to
+        // the removed node's PARENT, the nearest thing that still exists.
+        const gone = diff.removed.find((p) => p === cur || isAncestorPath(p, cur));
+        if (gone) {
+          const parent = segsToStr(strToSegs(gone).slice(0, -1));
+          navigateRef.current(parent === "" ? ":" : parent);
+          return;
+        }
         if (paths.some((p) => p === cur || isAncestorPath(p, cur) || isAncestorPath(cur, p))) {
           setRefreshSignal((s) => s + 1);
         }
@@ -390,9 +413,17 @@ export function App() {
   );
 
   // Right-click a TOC row → the whole-node tag picker, plus "＋ New <schema>" (with a concrete
-  // selector) for every schema creatable at that row (a directory / a chapter). Creating navigates.
+  // selector) for every schema creatable at that row (a directory / a chapter). Creating navigates
+  // into the new object and opens it UNLOCKED (chapter editor / editable yamlover view).
+  const [unlockSignal, setUnlockSignal] = useState(0);
   const { openAt: openTocMenu, tagMenu: tocMenu } = useExplorerTagMenu({
-    onCreate: (schema, parent, concrete) => void createObject(schema, parent, concrete).then((r) => navigate(r.path)).catch((e) => window.alert("create failed: " + (e as Error).message)),
+    onCreate: (schema, parent, concrete) =>
+      void (schema === NODE_SCHEMA ? createNode(parent, concrete) : createObject(schema, parent, concrete))
+        .then((r) => {
+          navigate(r.path);
+          setUnlockSignal((s) => s + 1);
+        })
+        .catch((e) => window.alert("create failed: " + (e as Error).message)),
   });
   const onTocContext = useCallback((n: TreeNode, x: number, y: number) => openTocMenu(n.path, x, y, n), [openTocMenu]);
 
@@ -599,7 +630,7 @@ export function App() {
               const { done, total } = running.progress;
               return <div className="loading">{running.label}… {total ? `${done}/${total}` : ""}</div>;
             }
-            return <NodeView path={current} format={format} refreshSignal={refreshSignal} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} onOpenUploaded={onOpenUploaded} />;
+            return <NodeView path={current} format={format} refreshSignal={refreshSignal} unlockSignal={unlockSignal} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} onOpenUploaded={onOpenUploaded} />;
           })()}
         </main>
         {fragmentsAvailable && (

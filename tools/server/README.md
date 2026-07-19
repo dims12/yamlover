@@ -156,9 +156,10 @@ One edit `{ path, op, yamlover?, meta?, concrete?, name? }`, or a batch `{ edits
 order and grouped by backing file. It **splices source lines** rather than reserializing, so
 comments, quoting, and block scalars elsewhere in the document survive an edit untouched.
 
-`path` is a plain yamlover path naming the node being edited; each segment is a key (`:doc:title`)
-or an **absolute entry index** (`:doc[3]` — keyed entries consume indices too). A node has four
-**facets**: its scalar value, its keyed entries, its ordinal entries, and its `!!<…>` meta tag.
+`path` is a plain yamlover path naming the node being edited; each segment is a key
+(`:doc:description`) or an **absolute entry index** (`:doc[3]` — keyed entries consume indices
+too). A node has four **facets**: its scalar value, its keyed entries, its ordinal entries, and
+its `!!<…>` meta tag.
 
 | op | facets | `meta` |
 |----|--------|--------|
@@ -169,6 +170,9 @@ or an **absolute entry index** (`:doc[3]` — keyed entries consume indices too)
 
 That is why editing a chunk's prose is an `emplace`: an annotated chunk is an omni node whose tag
 applications are keyed entries laid over its scalar, and only the scalar facet is being replaced.
+A chapter's **title** works the same way — it is the chapter node's own scalar self-value
+(CHAPTER.md), so a title edit is an `emplace` on the chapter path itself (an empty payload drops
+the title line).
 
 `yamlover` is valid inline yamlover **source**, not prose — the caller escapes its own text (the web
 client through `escapeYamloverScalar`), and the server parses the fragment to validate it before

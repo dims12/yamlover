@@ -424,14 +424,24 @@ export interface CreateEntry {
   onCreate: (concrete: string) => void;
 }
 
-/** A create entry: the `＋ New <label>` button + a `<select>` of concretes (when there's a choice). */
-function CreateRow({ label, concretes, defaultConcrete, onCreate }: CreateEntry) {
-  const [concrete, setConcrete] = useState(defaultConcrete);
+/** A create entry: the `＋ New <label>` button + a `<select>` of concretes (when there's a choice).
+ *  The picked concrete is REMEMBERED per schema (localStorage) — creating three file chapters in a
+ *  row should not mean re-selecting "file" three times. */
+function CreateRow({ schema, label, concretes, defaultConcrete, onCreate }: CreateEntry) {
+  const memoryKey = "yamlover-create-concrete:" + schema;
+  const [concrete, setConcrete] = useState(() => {
+    const last = localStorage.getItem(memoryKey);
+    return last !== null && concretes.some((o) => o.id === last) ? last : defaultConcrete;
+  });
+  const pick = (id: string) => {
+    setConcrete(id);
+    localStorage.setItem(memoryKey, id);
+  };
   return (
-    <div className="annotate-create">
+    <div className={"annotate-create" + (concretes.length > 1 ? " split" : "")}>
       <button type="button" className="annotate-action" onClick={() => onCreate(concrete)}>＋ New {label}</button>
       {concretes.length > 1 && (
-        <select className="annotate-concrete" value={concrete} onChange={(e) => setConcrete(e.target.value)} title="storage form">
+        <select className="annotate-concrete" value={concrete} onChange={(e) => pick(e.target.value)} title="storage form">
           {concretes.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
         </select>
       )}

@@ -140,6 +140,77 @@ describe("AnnotationMenu — default chips from the four sources", () => {
   });
 });
 
+// ---- the create section: a SPLIT button (action + fused concrete select) and plain one-concrete buttons ---- //
+describe("AnnotationMenu — create entries (split button + bare folder)", () => {
+  const noop = () => {};
+
+  it("a multi-concrete entry is one SPLIT pill: button + select side by side; the pick rides onCreate", () => {
+    const onCreate = vi.fn();
+    const creates = [{
+      schema: "::yamlover:$defs:chapter", label: "chapter", defaultConcrete: "yamlover",
+      concretes: [{ id: "yamlover", label: "inline" }, { id: "file/yamlover", label: "file" }, { id: "dir/yamlover", label: "directory" }],
+      onCreate,
+    }];
+    const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={noop} onUnpick={noop} onClose={noop} creates={creates} />);
+    const row = container.querySelector(".annotate-create.split")!;
+    expect(row).toBeTruthy();
+    // button and select are SIBLINGS in the same row — the fused segmented control
+    const button = row.querySelector("button.annotate-action")!;
+    const select = row.querySelector("select.annotate-concrete") as HTMLSelectElement;
+    expect(button.textContent).toBe("＋ New chapter");
+    expect(select).toBeTruthy();
+    // changing the segment's select then clicking the action creates with the PICKED concrete
+    fireEvent.change(select, { target: { value: "file/yamlover" } });
+    fireEvent.click(button);
+    expect(onCreate).toHaveBeenCalledWith("file/yamlover");
+  });
+
+  it("the generic-node entry: a split pill defaulted to `directory`; clicking creates with it", () => {
+    const onCreate = vi.fn();
+    const creates = [{
+      schema: "node", label: "node", defaultConcrete: "dir/yamlover",
+      concretes: [{ id: "file/yamlover", label: "file" }, { id: "dir/yamlover", label: "directory" }],
+      onCreate,
+    }];
+    const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={noop} onUnpick={noop} onClose={noop} creates={creates} />);
+    const row = container.querySelector(".annotate-create.split")!;
+    expect(row.querySelector("button.annotate-action")!.textContent).toBe("＋ New node");
+    const select = row.querySelector("select.annotate-concrete") as HTMLSelectElement;
+    expect(select.value).toBe("dir/yamlover"); // defaulted to directory
+    fireEvent.click(row.querySelector("button.annotate-action")!);
+    expect(onCreate).toHaveBeenCalledWith("dir/yamlover");
+  });
+
+  it("remembers the last-picked concrete per schema across menus (localStorage)", () => {
+    const entry = () => ({
+      schema: "::yamlover:$defs:chapter", label: "chapter", defaultConcrete: "yamlover",
+      concretes: [{ id: "yamlover", label: "inline" }, { id: "file/yamlover", label: "file" }, { id: "dir/yamlover", label: "directory" }],
+      onCreate: vi.fn(),
+    });
+    const first = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={noop} onUnpick={noop} onClose={noop} creates={[entry()]} />);
+    fireEvent.change(first.container.querySelector("select")!, { target: { value: "file/yamlover" } });
+    first.unmount();
+    // a FRESH menu (a new right-click) opens with the remembered pick, not the default
+    const second = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={noop} onUnpick={noop} onClose={noop} creates={[entry()]} />);
+    expect((second.container.querySelector("select") as HTMLSelectElement).value).toBe("file/yamlover");
+  });
+
+  it("a single-concrete entry is a plain button — no select, no split styling", () => {
+    const onCreate = vi.fn();
+    const creates = [{
+      schema: "x", label: "thing", defaultConcrete: "file/yamlover",
+      concretes: [{ id: "file/yamlover", label: "file" }],
+      onCreate,
+    }];
+    const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={noop} onUnpick={noop} onClose={noop} creates={creates} />);
+    const row = container.querySelector(".annotate-create")!;
+    expect(row.classList.contains("split")).toBe(false);
+    expect(row.querySelector("select")).toBeNull();
+    fireEvent.click(row.querySelector("button.annotate-action")!);
+    expect(onCreate).toHaveBeenCalledWith("file/yamlover");
+  });
+});
+
 // ---- the right-click driver: load → add → remove ---- //
 describe("useExplorerTagMenu — right-click whole-node tagging", () => {
   function Harness() {

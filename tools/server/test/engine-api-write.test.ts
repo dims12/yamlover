@@ -16,8 +16,12 @@ const bodyVals = (v: unknown): unknown[] => {
   const m = (v as { $yamloverMixed?: { entries: { key: string | null; value: unknown }[] } })?.$yamloverMixed;
   return m ? m.entries.filter((e) => e.key == null).map((e) => e.value) : [];
 };
-const subTitle = (marker: unknown): unknown =>
-  (marker as { $yamloverMixed?: { entries: { key: string | null; value: unknown }[] } })?.$yamloverMixed?.entries.find((e) => e.key === "title")?.value;
+const subTitle = (marker: unknown): unknown => {
+  // a fully-omni subchapter's title is the marker's `value` (its scalar self-value, CHAPTER.md);
+  // a legacy keyed `title:` entry still reads
+  const m = (marker as { $yamloverMixed?: { value?: unknown; entries: { key: string | null; value: unknown }[] } })?.$yamloverMixed;
+  return m?.value ?? m?.entries.find((e) => e.key === "title")?.value;
+};
 const CHAPTER_DEFS = {
   "$defs/chapter":
     "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n",
@@ -287,7 +291,8 @@ describe("/api/paste (text)", () => {
     expect(r.status).toBe(201);
     expect(r.json).toMatchObject({ path: ":dir:Hello%20World.yamlover", dir: ":dir", open: false });
     const src = fs.readFileSync(path.join(root, "dir", "Hello World.yamlover"), "utf8");
-    expect(src).toBe('!!<*::yamlover:$defs:chapter>\ntitle: "Hello World"\n- |\n  # Hello World\n\n  First paragraph.\n');
+    // the title is the root's scalar SELF-VALUE line — no `title:` key (CHAPTER.md)
+    expect(src).toBe('!!<*::yamlover:$defs:chapter>\n"Hello World"\n- |\n  # Hello World\n\n  First paragraph.\n');
 
     // the new file indexed as a chapter holding the text as its one body chunk
     const node = call(h, "/api/json", { path: ":dir:Hello%20World.yamlover", depth: "3" });

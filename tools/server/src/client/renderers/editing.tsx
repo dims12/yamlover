@@ -9,6 +9,9 @@ import type { Edit } from "../api";
  */
 export interface EditingApi {
   unlocked: boolean;
+  /** Turn the lock OFF programmatically — a renderer that just CREATED an object calls this so the
+   *  freshly navigated-to page opens straight in editing mode. Absent outside NodeView. */
+  unlock?: () => void;
   /** Where a scalar-leaf edit goes when the rendered value has NO file behind it (the browser
    *  settings document): the provider applies the edit to its own source text (via /api/edit-text)
    *  and persists it, resolving true on success. Absent → the default `/api/edit` file path. */

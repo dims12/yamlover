@@ -905,22 +905,11 @@ a.chunk-index:hover {
   padding-bottom: 6px;
   border-bottom: 1px solid var(--line);
 }
-/* the button + concrete select STACK vertically, LEFT-aligned like the rest of the menu, so a long
-   schema label never pushes the select out of the box (the menu is a fixed 280px wide). */
-.annotate-create { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
-.annotate-action { max-width: 100%; text-align: left; white-space: normal; }
-.annotate-concrete {
-  align-self: flex-start;
-  max-width: 100%;
-  background: var(--bg);
-  color: var(--fg);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  font: inherit;
-  font-size: 12px;
-  padding: 2px 4px;
-  cursor: pointer;
-}
+/* the button + concrete select fuse into ONE segmented pill on a single row — the select is the
+   right segment, so the concrete choice visibly belongs to the create action. The menu is a fixed
+   280px wide: the button wraps (`min-width:0` + `white-space:normal`) and the select is capped at
+   45% so a long schema label never pushes it out of the box. */
+.annotate-create { display: flex; flex-direction: row; align-items: stretch; }
 .annotate-action {
   background: none;
   border: 1px solid var(--border, rgba(127, 127, 127, 0.35));
@@ -929,9 +918,75 @@ a.chunk-index:hover {
   cursor: pointer;
   font-size: 13px;
   padding: 4px 10px;
-  white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
+  text-align: left;
+  white-space: normal;
 }
+.annotate-create.split .annotate-action { border-radius: 6px 0 0 6px; border-right: none; }
+.annotate-concrete {
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.35));
+  border-left-color: var(--line); /* the internal divider, subtler than the outer border */
+  border-radius: 0 6px 6px 0;
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 6px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  max-width: 45%;
+}
+/* hovering either segment lights the WHOLE pill; text accent stays on the action */
+.annotate-create.split:hover .annotate-action,
+.annotate-create.split:hover .annotate-concrete { border-color: var(--accent); }
 .annotate-action:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ---- the projectional yamlover editor (the UNLOCKED data view) ------------------------------- */
+/* Rows are block elements, one per source line; a node's block children live inside `.yed-indent`
+   — the DOM nesting mirrors the AST, and the 2ch padding IS the YAML indent step. Token colours
+   reuse the read-only view's classes (.k .s .n .b .null .punct .anchor .c). */
+.code.yed { white-space: pre-wrap; padding-left: 8px; margin-left: 0; }
+.yed .yed-row { display: block; min-height: 1.4em; }
+.yed .yed-indent { padding-left: 2ch; }
+.yed [contenteditable] { outline: none; min-width: 4px; display: inline-block; }
+.yed .yed-hole:empty::before { content: attr(data-placeholder); }
+.yed .yed-hole:empty::before, .yed .editable:empty::before { content: "…"; color: var(--dim, #777); opacity: 0.6; }
+.yed .c { opacity: 0.7; }
+.yed .yaml-dash { margin-right: 0; }
+.yed .yed-refnav { margin-left: 4px; text-decoration: none; }
+/* the `quoted_token_closed` landing spot: a caret-width cell right after the closing quote */
+.yed .yed-after { min-width: 2px; }
+/* the block-scalar text: ordinary editor styling under its projected `|` header — indented
+   lines with a subtle guide, NOT a foreign-looking box */
+.yed textarea.yed-blocktext {
+  display: block;
+  width: calc(100% - 2ch);
+  margin-left: 2ch;
+  background: none;
+  border: none;
+  border-left: 2px solid var(--line);
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  padding: 0 0 0 6px;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  outline: none;
+}
+/* the append affordance: a quiet ＋ row that opens a fresh entry hole */
+.yed .yed-tail {
+  background: none;
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  color: var(--dim, #777);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 0 6px;
+}
+.yed .yed-tail:hover { color: var(--accent); border-color: var(--accent); }
 
 /* a LaTeX chunk edits its raw source in a monospace, auto-growing textarea */
 textarea.chapter-latex-src {
