@@ -3,7 +3,7 @@
 # chunk carries its own inline schema, !!<format: text/x-latex> — no meta overlay needed.
 # The body is positional: prose and LaTeX chunks in order (CHAPTER.md).
 !!<*yamlover: $defs: chapter>
-title: A Pinch of Math
+A Pinch of Math
 - |
   Mathematics likes to hide **big ideas** in *short symbols*. The most famous of all,
   Euler's identity $$e^{i\pi} + 1 = 0$$, ties together five constants in a single breath —
@@ -11,8 +11,8 @@ title: A Pinch of Math
   __bold__, and ~~struck-out~~ text.
 - |
   When a formula deserves a line of its own, give it a whole chunk — see the Gaussian
-  integral at [/[3]](/[3]), a standalone LaTeX block (that link is relative to
-  this document).
+  integral at [/[2]](/[2]), a standalone LaTeX block (that link is relative to
+  this document; the title, being the node's self-value, consumes no index).
 - !!<format: text/x-latex> |
   \int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}
 - |

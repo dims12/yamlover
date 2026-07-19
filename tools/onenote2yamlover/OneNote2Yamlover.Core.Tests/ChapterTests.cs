@@ -8,15 +8,16 @@ public class ChapterSerializerTests
     private const string Tag = "!!<*yamlover: $defs: chapter>";
     private static string Lines(params string[] l) => string.Join("\n", l) + "\n";
 
+    // The title is the chapter root's scalar SELF-VALUE line (fully-omni, CHAPTER.md) — no `title:` key.
     [Fact]
     public void ProseChunks() => Assert.Equal(
-        Lines(Tag, "title: Change license plates", "- |", "  own car", "- |", "  line one", "  line two"),
+        Lines(Tag, "Change license plates", "- |", "  own car", "- |", "  line one", "  line two"),
         ChapterSerializer.Chapter("Change license plates",
             [Chunk.Prose("own car"), Chunk.Prose("line one\nline two")], null));
 
     [Fact]
     public void ChildrenOnly() => Assert.Equal(
-        Lines(Tag, "title: Avtomobil", "- *: Untitled.yamlover", "- *: Nomer.yamlover"),
+        Lines(Tag, "Avtomobil", "- *: Untitled.yamlover", "- *: Nomer.yamlover"),
         ChapterSerializer.Chapter("Avtomobil", null, ["Untitled.yamlover", "Nomer.yamlover"]));
 
     private const string TableTag = "!!<*yamlover: $defs: table>";
@@ -25,7 +26,7 @@ public class ChapterSerializerTests
     /// <summary>Prose, a table, an image, an attachment, then a subchapter — one ordered stream.</summary>
     [Fact]
     public void MixedBodyIsOnePositionalStream() => Assert.Equal(
-        Lines(Tag, "title: Parent",
+        Lines(Tag, "Parent",
               "- |", "  intro prose",
               "- " + TableTag,
               "  - [a, b]",
@@ -102,7 +103,7 @@ public class ChapterSerializerTests
 
     [Fact]
     public void EmptyBodyIsTagAndTitleOnly() =>
-        Assert.Equal(Lines(Tag, "title: Untitled"), ChapterSerializer.Chapter("Untitled", null, null));
+        Assert.Equal(Lines(Tag, "Untitled"), ChapterSerializer.Chapter("Untitled", null, null));
 
     /// <summary>The retired encoding must never reappear (yamlover commit d91c19a).</summary>
     [Fact]
@@ -120,7 +121,7 @@ public class ChapterSerializerTests
 
     [Fact]
     public void CyrillicTitleStaysBare() =>
-        Assert.Contains("title: Автомобиль", ChapterSerializer.Chapter("Автомобиль", null, null));
+        Assert.Contains("\nАвтомобиль\n", ChapterSerializer.Chapter("Автомобиль", null, null));
 
     [Fact]
     public void MetaDeclaresEachAssetsTypeAndFormat() => Assert.Equal(

@@ -33,7 +33,7 @@ properties:
   59-all-formats-object:
     description: a catalogue of every renderable (type, format) the viewer supports
   60-simple-chapter.yamlover:
-    description: the minimal chapter — a single `!!<…>`-tagged file with title/chunks/children, plus tagged bullet and numbered lists
+    description: the minimal chapter — a single `!!<…>`-tagged file, the title as the root's self-value, subchapters titled/untitled/title-only, plus tagged bullet and numbered lists
   61-table.yamlover:
     description: a chapter with a `$defs:table` — flow and compact block rows, header widths, merged cells, a tagged nested table, an untagged chapter cell
   65-all-formats-chunks:

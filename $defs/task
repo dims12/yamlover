@@ -1,7 +1,8 @@
 # $defs/task — a unit of work (a ticket), or a study card. A task IS-A chapter: it EXTENDS
-# the chapter schema (`allOf: [*chapter]`), inheriting the optional `title`/`description`
-# and the OMNI positional body — except its subchapter recursion means SUBTASKS (a task
-# tree). On top of that it adds a few OPTIONAL structured fields for planning and automation.
+# the chapter schema (`allOf: [*chapter]`), inheriting the FULLY-OMNI shape — the scalar
+# SELF-VALUE is the title (no `title:` key), `description` stays keyed — and the positional
+# body, except its subchapter recursion means SUBTASKS (a task tree). On top of that it adds
+# a few OPTIONAL structured fields for planning and automation.
 # It carries NO `state` field: a task's lifecycle position is a TAG APPLICATION
 # (`yamlover-annotations`) into a workflow taxonomy ($defs/workflow), so the whole tag / board
 # machinery is reused. Every planning field is optional — defaults-never-constraints: an

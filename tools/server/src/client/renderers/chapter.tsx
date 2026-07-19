@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { NodeJson, editChunks, createObject } from "../api";
+import { NodeJson, editChunks, createNode, createObject } from "../api";
+import { NODE_SCHEMA } from "./create";
 import { asLink, scalarValue } from "../render";
 import { fragmentOf } from "../paths";
 import { Chunk, rendererFor } from "./registry";
@@ -37,12 +38,18 @@ type FocusReq = { id: string; at: FocusAt };
  * stay read-only (deeper editing arrives later via "depth").
  */
 export function ChapterView({ node, onNavigate }: { node: NodeJson; onNavigate: (path: string) => void }) {
-  const { unlocked } = useEditing();
+  const { unlocked, unlock } = useEditing();
   // Right-click on EMPTY space (not on prose/links/controls) → the whole-chapter tag picker plus a
   // "＋ New <schema>" entry with a concrete selector (this page IS a chapter → a subchapter). Creating
-  // navigates into the new object (still in edit mode — see NodeView).
+  // navigates into the new object and opens it UNLOCKED (the context `unlock` — see NodeView).
   const { openAt, tagMenu } = useExplorerTagMenu({
-    onCreate: (schema, parent, concrete) => void createObject(schema, parent, concrete).then((r) => onNavigate(r.path)).catch((e) => window.alert("create failed: " + (e as Error).message)),
+    onCreate: (schema, parent, concrete) =>
+      void (schema === NODE_SCHEMA ? createNode(parent, concrete) : createObject(schema, parent, concrete))
+        .then((r) => {
+          onNavigate(r.path);
+          unlock?.();
+        })
+        .catch((e) => window.alert("create failed: " + (e as Error).message)),
   });
   const onContextMenu = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest(".chunk-body, .editable, a, button, textarea")) return; // native menu on text/links/controls

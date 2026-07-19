@@ -12,7 +12,7 @@
 # §Relative indexes): a cell that IS its left neighbor (*[.-1]) spans columns, a cell that
 # IS the one above (*..[.-1][.] — up to the table, previous row, my column) spans rows.
 !!<*yamlover: $defs: chapter>
-title: Household staff
+Household staff
 - The roster below is a **table** — a body element, not marklower syntax; cells are marklower.
 - !!<*yamlover: $defs: table>
   title: Who does what

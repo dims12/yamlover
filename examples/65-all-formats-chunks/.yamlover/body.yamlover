@@ -4,7 +4,7 @@
 # non-default textual chunk carries an inline schema (`!!<format: …>`); the binary file
 # types live in meta.yamlover. The body is one positional stream (CHAPTER.md).
 !!<*yamlover: $defs: chapter>
-title: All Supported Formats — as a chapter
+All Supported Formats — as a chapter
 - |
   A **marklower** chunk — the *default* for a chunk with no format. marklower is
   inline-only (no headings): **bold**, *italic*, ~~strikethrough~~, `inline code`,

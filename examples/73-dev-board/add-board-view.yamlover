@@ -1,5 +1,5 @@
 !!<*yamlover:$defs:task>
-title: Add the agile board renderer
+Add the agile board renderer
 description: Render a directory of tasks as kanban lanes with drag-to-retag.
 priority: normal
 assignee: claude

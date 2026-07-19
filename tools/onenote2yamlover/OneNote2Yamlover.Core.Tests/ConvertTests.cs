@@ -329,7 +329,7 @@ public class NamePlanAndReconcilerTests
 
             string body = File.ReadAllText(Path.Combine(stage, "N", ".yamlover", "body.yamlover"));
             Assert.Equal(
-                ChapterSerializer.Tag + "\ntitle: N\n- *: A\n- *: B\n",
+                ChapterSerializer.Tag + "\nN\n- *: A\n- *: B\n",
                 body);
         }
         finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }
@@ -348,10 +348,10 @@ public class NamePlanAndReconcilerTests
             AncestorReconciler.WriteAncestorBodies(stage, plan, synced, new EmptyDestinationIndex());
 
             string nbBody = File.ReadAllText(Path.Combine(stage, "N", ".yamlover", "body.yamlover"));
-            Assert.Equal(ChapterSerializer.Tag + "\ntitle: N\n- *: A\n- *: G\n- *: B\n", nbBody);
+            Assert.Equal(ChapterSerializer.Tag + "\nN\n- *: A\n- *: G\n- *: B\n", nbBody);
 
             string grpBody = File.ReadAllText(Path.Combine(stage, "N", "G", ".yamlover", "body.yamlover"));
-            Assert.Equal(ChapterSerializer.Tag + "\ntitle: G\n- *: S\n", grpBody);
+            Assert.Equal(ChapterSerializer.Tag + "\nG\n- *: S\n", grpBody);
         }
         finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }
     }
@@ -366,7 +366,7 @@ public class NamePlanAndReconcilerTests
         {
             AncestorReconciler.WriteAncestorBodies(stage, plan, [nb.Children[1]], new EmptyDestinationIndex());
             string body = File.ReadAllText(Path.Combine(stage, "N", ".yamlover", "body.yamlover"));
-            Assert.Equal(ChapterSerializer.Tag + "\ntitle: N\n- *: B\n", body);
+            Assert.Equal(ChapterSerializer.Tag + "\nN\n- *: B\n", body);
         }
         finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }
     }
@@ -383,7 +383,7 @@ public class NamePlanAndReconcilerTests
         {
             AncestorReconciler.WriteAncestorBodies(stage, plan, [nb.Children[0]], new EmptyDestinationIndex());
             string body = File.ReadAllText(Path.Combine(stage, "Бизнес", ".yamlover", "body.yamlover"));
-            Assert.Equal(ChapterSerializer.Tag + "\ntitle: Я, Расцвет, Бизнес\n- *: A\n", body);
+            Assert.Equal(ChapterSerializer.Tag + "\nЯ, Расцвет, Бизнес\n- *: A\n", body);
         }
         finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }
     }

@@ -1,7 +1,7 @@
 # The Puppies chapter — a directory chapter nested under dogs/. Positional body: prose, the
 # `puppy-paw.png` image chunk (a sibling file here), and a PlantUML gantt of the first months.
 !!<*yamlover: $defs: chapter>
-title: Puppies
+Puppies
 description: The first few months
 - |
   Puppies sleep most of the day and chew most of the rest.

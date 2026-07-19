@@ -212,7 +212,8 @@ page.
 
 - The URL path **is** the node path — link straight to `…/59-all-formats-object/markdown`,
   or share a deep link. The `?format=` query selects the active tab.
-- A node's **title** (a `title` child) drives both its tree label and the browser tab.
+- A node's **title** (a chapter/task's scalar self-value — CHAPTER.md — or a legacy `title`
+  child) drives both its tree label and the browser tab.
 - The SQLite index under `<root>/.yamlover/` is a derived cache; delete it to force a clean
   rebuild. External edits are picked up **live** by the FS watcher (and reconciled on
   startup for edits made while the server was down); `POST /api/reindex` is the manual

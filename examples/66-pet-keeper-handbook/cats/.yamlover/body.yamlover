@@ -1,7 +1,7 @@
 # The Cats chapter — its own directory chapter. Positional body: prose, the `cat-face.png`
 # image chunk (a sibling file here), and a PlantUML state diagram of a cat's day.
 !!<*yamlover: $defs: chapter>
-title: Cats
+Cats
 description: Independent roommates with opinions
 - |
   A cat tolerates your presence on terms it renews daily.

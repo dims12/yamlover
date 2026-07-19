@@ -172,8 +172,9 @@ subtree shallowly, pulling some descendants up to become constituent parts of
 *this* level instead of separate places you navigate away to. The data and its
 paths are unchanged — only how a renderer lays them out.
 
-The first instance is the **chapter** renderer (the `$defs/chapter` schema — an
-omni node with optional `title`/`description` and a **positional body** of chunks
+The first instance is the **chapter** renderer (the `$defs/chapter` schema — a
+fully omni node whose scalar self-value is the **title**, with an optional keyed
+`description` and a **positional body** of chunks
 and subchapters, `CHAPTER.md`): a chapter's chunks are flattened into one readable
 page (each chunk rendered inline by the renderer for its own type — prose chunks
 by marklower, which inlines images, video, and audio where the author wrote an

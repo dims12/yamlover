@@ -5,5 +5,5 @@
 - Design reverse tag into unkwonn location of an array? - DONE
 - Catch up YAML standard, why tuple key caused any confusions? 
 - Example 59-all-formats-object chapter sample is not migrated from old chapter format
-- Change title to omni scalar in chapter
 - Support for multilingual chunks in marklower (conditional? schemas level?)
+- Create full scaled test corpus for yamlover, including different concretes

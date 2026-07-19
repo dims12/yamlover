@@ -222,10 +222,10 @@ file needs no `.yamlover/` overlay:
 
 ```yamlover
 !!<*yamlover/$defs/chapter>      # tag on the document root
-title: My Article
+My Article                      # the root's SELF-VALUE — the chapter's title (CHAPTER.md)
 - The first paragraph.          # the body is POSITIONAL: chunks and subchapters, interleaved
 - The second.
-- title: A subsection           # a body element with its own title is a subchapter (CHAPTER.md)
+- A subsection                  # a container element is a subchapter; ITS self-value is its title
   - its own body chunk…
 ```
 

@@ -2,7 +2,7 @@
 # image chunk (a sibling file in this directory), a PlantUML sequence, and a `puppies`
 # SUBCHAPTER pointer into the nested `puppies/` directory chapter.
 !!<*yamlover: $defs: chapter>
-title: Dogs
+Dogs
 description: Loyal, loud, and endlessly hopeful
 - |
   A dog is a **social animal** that adopts your family as its pack.

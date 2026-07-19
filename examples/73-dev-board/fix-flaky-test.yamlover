@@ -1,5 +1,5 @@
 !!<*yamlover:$defs:task>
-title: Fix the flaky reconcile test
+Fix the flaky reconcile test
 description: `reconcile.test.ts` intermittently fails on the mtime-tiebreak path.
 priority: low
 - Reproduces ~1 in 20 runs locally; likely a same-second mtime collision in the manifest compare.

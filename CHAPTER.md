@@ -6,17 +6,23 @@ spec defines its shape; companion specs: `META.md` (the schema vocabulary), `TYP
 lattice), `YAMLOVER.md` (the surface), `MARKLOWER.md` (the inline markup a prose chunk is written
 in), `TICKETS.md` (`task`, which extends chapter).
 
-## The model — an omni node with a positional body
+## The model — a fully omni node with a positional body
 
-> A chapter is **just an omni (`variant`) node** (TYPES.md): optional keyed **`title`** and
-> **`description`**, and everything else is an **unkeyed (positional) body element**. Each body
-> element is *either* a **nested chapter** (the recursion) *or* a **chunk** (a renderable content
-> block). There is one interleaved body stream, read top to bottom — no `chunks` array and no
-> `children` array.
+> A chapter is **just an omni (`variant`) node** (TYPES.md) — a **fully** omni one: the node's own
+> scalar **self-value is the title** (there is no `title:` key), **`description`** is an optional
+> keyed field, and everything else is an **unkeyed (positional) body element**. Each body element
+> is *either* a **nested chapter** (the recursion) *or* a **chunk** (a renderable content block).
+> There is one interleaved body stream, read top to bottom — no `chunks` array and no `children`
+> array.
 
 This is the whole design. Prose, media, diagrams, and subchapters are **siblings in one ordered
 sequence**, the way a real document reads. A chapter with only prose is a flat article; a chapter
 with subchapters is a tree.
+
+Because the title is the self-value, a **bare string body element is indistinguishable from a
+title-only subchapter — and that is the design**: a title-only subchapter IS a chunk. With no body
+there is nothing to descend into, so it renders as prose in place; the moment it gains body
+entries it becomes a container and routes as a subchapter.
 
 **Position is the author's.** The renderer shows every element — `title`, `description`, chunks,
 and subchapter links — **in source order**, wherever the author placed it: the heading is not
@@ -30,24 +36,32 @@ directory-scan order.
 ```yamlover
 # a whole article in one tagged .yamlover file
 !!<*yamlover/$defs/chapter>
-title: Getting Started
-description: the shortest tour            # optional
+Getting Started                           # the node's SELF-VALUE — the title (no `title:` key)
+description: the shortest tour            # optional, keyed
 - yamlover is a YAML layer over the filesystem.   # a chunk (marklower prose by default)
 - !!<format: text/x-latex> |              # a chunk that overrides its (type, format)
   e^{i\pi} + 1 = 0
 - *: diagram.png                          # a chunk that is a pointer to a file
-- title: A subchapter                     # a nested chapter (a body element with a title)
+- A subchapter                            # a nested chapter: ITS self-value + its own body
   - its own body chunk, and so on…        # recursion
+- A title-only subchapter is a chunk      # a bare string — the same thing, by design
+- - an untitled subchapter                # a container with no self-value — still a chapter
+  - its second chunk
 ```
 
-- **`title` / `description`** are keyed and optional (`text/marklower`). They are the heading.
+- **The title** is the node's own scalar **self-value** (`text/marklower`) — declared in the
+  schema as the `value:` facet. **`description`** is keyed and optional (`text/marklower`).
+  Together they are the heading.
 - **A chunk** (`$defs/chunk`) is one renderable value; its `(type, format)` selects the renderer,
   defaulting to `text/marklower` prose (`MARKLOWER.md`). Override per chunk with an inline tag (`!!<format: …>`) or a file
   pointer (`*: pic.png`, whose format comes from the extension). A chunk may be a `string` or a
   `binary` (an image/pdf/… pointer).
 - **A subchapter** is a body element that is itself a chapter — recognized **structurally**: a
-  *container* (it has keyed and/or positional entries) renders as a subchapter; a *leaf* (a scalar
-  or a file pointer) renders as a chunk.
+  *container* (it has body entries — a titled one is an omni scalar whose self-value is its title,
+  an untitled one a plain container) renders as a subchapter; a *leaf* (a scalar or a file pointer)
+  renders as a chunk, which is exactly what a title-only subchapter is. (An annotated chunk's
+  overlay keys — `yamlover-annotations`/`yamlover-fragments`, ANNOTATIONS.md — are not body, so a
+  scalar carrying only those stays a chunk.)
 - **A table** (`MARKLOWER.md`) is a body element explicitly tagged `!!<*yamlover: $defs: table>` — a
   container, so the tag (not shape) is what keeps it from being a subchapter.
 
@@ -56,9 +70,9 @@ description: the shortest tour            # optional
 `$defs/chapter` is a normal yamlover/meta schema (META.md):
 
 ```yamlover
-type: variant                     # omni: keyed fields AND a positional body at once
+type: variant                     # fully omni: a scalar self-value, keyed fields, AND a positional body
+value:       { type: string, format: text/marklower }   # the self-value — the TITLE
 properties:
-  title:       { type: string, format: text/marklower }
   description: { type: string, format: text/marklower }
 items:                            # the body — a positional sequence
   anyOf:
@@ -99,27 +113,32 @@ Two ways, both in `META.md`:
 ## Addressing body elements
 
 A chapter node at path `P` addresses its **body elements by their store index** on the node itself:
-`P[i]` (the omni model indexes keyless entries by their absolute position — `title`/`description`,
-being keyed, consume indices too, so a titled chapter's first body element is `P[1]`). A
-document-relative marklower link therefore points at `:[i]` (`MARKLOWER.md`; the legacy slash
-spelling `/[i]` still parses — see `69-marklower-links.yamlover`), and a subchapter's chunk at
-`:[i][j]`.
+`P[i]` (the omni model indexes entries by their absolute position — a keyed entry like
+`description` consumes an index too, so a described chapter's first body element is `P[1]`). The
+**title consumes NO index**: it is the node's self-value, not an entry. A document-relative
+marklower link therefore points at `:[i]` (`MARKLOWER.md`; the legacy slash spelling `/[i]` still
+parses — see `69-marklower-links.yamlover`), and a subchapter's chunk at `:[i][j]`.
 
 The web editor's surgical edits (`/api/edit`, README §editor) use **the same absolute index** — an
 edit path is a plain yamlover path, nothing else. (It once addressed a body element by its *rank*
-among the positional items, a second index space in which `title` counted for nothing; the two
-disagreed about which `[i]` a subchapter was.) See `tools/server` `engine-api.ts`.
+among the positional items, a second index space in which keyed entries counted for nothing; the
+two disagreed about which `[i]` a subchapter was.) A **title edit is an `emplace` on the chapter
+node itself** — the payload's scalar facet replaces the self-value, the entries stand; an empty
+payload drops the title line. See `tools/server` `engine-api.ts`.
 
 ## `task` extends `chapter`
 
 `$defs/task` (TICKETS.md) is declared as an **extension** of chapter — `allOf: [*chapter]` — so it
-inherits `title`/`description` and the omni body, adds keyed planning fields (`priority`, `due`,
-`assignee`, `estimate`, `depends`), and **narrows** the body recursion to subtasks with its own
-`items: {anyOf: [*task, *chunk]}`. Because `task ⊆ chapter`, the intersection collapses to
-`task | chunk` — a subtask, not a subchapter.
+inherits the fully-omni shape (the self-value title, the keyed `description`) and the omni body,
+adds keyed planning fields (`priority`, `due`, `assignee`, `estimate`, `depends`), and **narrows**
+the body recursion to subtasks with its own `items: {anyOf: [*task, *chunk]}`. Because
+`task ⊆ chapter`, the intersection collapses to `task | chunk` — a subtask, not a subchapter.
 
 ## Status
 
 The positional-body model **replaces** the earlier `title`/`description`/`chunks`/`children`
-encoding (a chapter used to keep chunks and subchapters in two separate keyed arrays). Migrated
-across schemas, engine, the web renderer/editor, examples, and tests.
+encoding (a chapter used to keep chunks and subchapters in two separate keyed arrays), and the
+self-value title **replaces** the keyed `title:` (2026-07-18 — the TODO "Change title to omni
+scalar in chapter"). Migrated across schemas, engine, the web renderer/editor, the OneNote
+importer, examples, and tests; the server still *reads* a legacy keyed `title:` as a fallback, and
+the editor migrates one out on the first title edit.

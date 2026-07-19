@@ -19,13 +19,14 @@ beforeEach(() => {
 });
 
 /** An inlined prose chunk marker at body slot `i` (its marker points at its own slot `:doc[i+1]`,
- *  past the keyed `title` at store index 0 — inline ⇒ editable). */
+ *  past the keyed `description` at store index 0 — inline ⇒ editable). */
 const chunk = (i: number, value: string) => ({
   $yamloverLink: { kind: "scalar", type: "string", path: `:doc[${i + 1}]`, format: "text/marklower", concrete: "yamlover", value },
 });
 
-/** A chapter node: title/description keyed, then the positional body (prose chunks + one
- *  subchapter) as the mixed marker's keyless entries (CHAPTER.md). */
+/** A chapter node, FULLY OMNI (CHAPTER.md): the title is the mixed marker's `value` (the scalar
+ *  self-value — no index), `description` keyed at [0], then the positional body (prose chunks +
+ *  one subchapter) as the marker's keyless entries. */
 function chapterNode(chunks: string[], title = "My Title", description = "My subtitle"): NodeJson {
   return {
     path: ":doc",
@@ -37,9 +38,9 @@ function chapterNode(chunks: string[], title = "My Title", description = "My sub
     description,
     value: {
       $yamloverMixed: {
-        kind: "mix",
+        kind: "omni",
+        value: title,
         entries: [
-          { key: "title", value: title },
           ...(description ? [{ key: "description", value: description }] : []),
           ...chunks.map((t, i) => ({ key: null, value: chunk(i, t) })),
           { key: null, value: { $yamloverLink: { kind: "object", type: "object", path: ":doc[9]", format: "x-yamlover-chapter", title: "Sub", count: 2 } } },
@@ -194,7 +195,8 @@ describe("ChapterEditor (unlocked)", () => {
       fireEvent.blur(h1);
       await act(async () => { vi.advanceTimersByTime(600); });
       expect(editChunks).toHaveBeenCalledTimes(1);
-      expect(editChunks.mock.calls[0][0]).toEqual([{ path: ":doc:title", op: "emplace", yamlover: '"Renamed"' }]);
+      // the title is the omni self-value: the emplace addresses the chapter node ITSELF
+      expect(editChunks.mock.calls[0][0]).toEqual([{ path: ":doc", op: "emplace", yamlover: '"Renamed"' }]);
     } finally {
       vi.useRealTimers();
     }
@@ -214,6 +216,17 @@ describe("creatablesFor (what/where a schema object can be created)", () => {
     const dir = creatablesFor({ concrete: "dir" }, {});
     expect(dir[0].concretes.map((c) => c.id)).toEqual(["file/yamlover", "dir/yamlover"]);
     expect(dir[0].defaultConcrete).toBe("dir/yamlover"); // the last / richer form
+
+    // every filesystem directory ALSO offers a generic NODE (untagged document, default directory)
+    expect(dir[1]).toEqual({
+      schema: "node",
+      label: "node",
+      concretes: [{ id: "file/yamlover", label: "file" }, { id: "dir/yamlover", label: "directory" }],
+      defaultConcrete: "dir/yamlover",
+    });
+    const dirChap = creatablesFor({ format: "x-yamlover-chapter", concrete: "dir/yamlover" }, {});
+    expect(dirChap.map((c) => c.schema)).toEqual(["::yamlover:$defs:chapter", "node"]); // dir-backed chapter: both
+    expect(chap.map((c) => c.schema)).toEqual(["::yamlover:$defs:chapter"]); // inline chapter: no node — no dir to hold it
 
     expect(creatablesFor({ format: "text/markdown", concrete: "file/yaml" }, {})).toEqual([]);
     expect(creatablesFor({ format: null, concrete: null }, {})).toEqual([]);

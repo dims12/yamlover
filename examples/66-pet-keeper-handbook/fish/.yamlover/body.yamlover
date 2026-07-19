@@ -1,7 +1,7 @@
 # The Fish chapter — its own directory chapter. Positional body: prose, the `fish-tank.png`
 # image chunk (a sibling file here), and a PlantUML state diagram of the nitrogen cycle.
 !!<*yamlover: $defs: chapter>
-title: Fish
+Fish
 description: A quiet window into another world
 - |
   An aquarium is a small ecosystem, and **water quality is everything.**

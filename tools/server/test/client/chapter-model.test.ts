@@ -15,12 +15,20 @@ const subchapter = (base: string, i: number, title: string) => ({
   $yamloverLink: { kind: "mix", type: "variant", path: `${base}[${i}]`, format: "x-yamlover-chapter", title },
 });
 
-/** A titled chapter projects its body as a `$yamloverMixed` marker's KEYLESS entries. */
+/** A titled chapter is FULLY OMNI (CHAPTER.md): the title is the marker's `value` (the node's
+ *  scalar self-value — it consumes NO index); the keyed `description` entry is [0], so the body
+ *  starts at [1]. */
 const node = (body: unknown[], title = "T", description = "D", path = ":doc") => ({
   path,
   title,
   description,
-  value: { $yamloverMixed: { kind: "mix", entries: [{ key: "title", value: title }, ...body.map((value) => ({ key: null, value }))] } },
+  value: {
+    $yamloverMixed: {
+      kind: "omni",
+      value: title,
+      entries: [{ key: "description", value: description }, ...body.map((value) => ({ key: null, value }))],
+    },
+  },
 });
 
 describe("buildChapterModel", () => {
@@ -69,15 +77,20 @@ describe("chapterFlow", () => {
   const keyed = (key: string, value: unknown) => ({ key, value });
   const keyless = (value: unknown) => ({ key: null, value });
   const mixed = (...entries: unknown[]) => ({ $yamloverMixed: { kind: "mix", entries } });
+  const omni = (value: string, selfAt: number | undefined, ...entries: unknown[]) => ({
+    $yamloverMixed: { kind: "omni", value, ...(selfAt === undefined ? {} : { selfAt }), entries },
+  });
 
   it("streams title, description, chunks and subchapters in SOURCE order — no hoisting, no forcing to the end", () => {
-    // author order: an intro chunk FIRST, then the title mid-flow, a subchapter, then a closing chunk
-    const value = mixed(
+    // author order: an intro chunk FIRST, then the title (the self-value, authored at `selfAt` 1),
+    // a subchapter, then a closing chunk
+    const value = omni(
+      "The Title",
+      1,
       keyless(inlined(":doc", 0, "intro")),
-      keyed("title", "The Title"),
       keyed("description", "A subtitle"),
-      keyless(subchapter(":doc", 3, "Dogs")),
-      keyless(inlined(":doc", 4, "afterword")), // base-level text BACK after a subchapter
+      keyless(subchapter(":doc", 2, "Dogs")),
+      keyless(inlined(":doc", 3, "afterword")), // base-level text BACK after a subchapter
     );
     const flow = chapterFlow(value);
     expect(flow.map((f) => f.kind)).toEqual(["chunk", "title", "description", "subchapter", "chunk"]);
@@ -85,15 +98,30 @@ describe("chapterFlow", () => {
     expect(flowText(flow[2].value)).toBe("A subtitle");
   });
 
+  it("places a title with no `selfAt` FIRST, and one past every entry LAST", () => {
+    const first = omni("T", undefined, keyless(inlined(":doc", 0, "body")));
+    expect(chapterFlow(first).map((f) => f.kind)).toEqual(["title", "chunk"]);
+    const last = omni("T", 1, keyless(inlined(":doc", 0, "body")));
+    expect(chapterFlow(last).map((f) => f.kind)).toEqual(["chunk", "title"]);
+  });
+
   it("skips other keyed entries (directory members / task fields) — they are not chapter body content", () => {
-    const value = mixed(
+    const value = omni(
+      "T",
+      0,
       keyed("dogs", subchapter(":doc", 9, "Dogs")), // a directory-member key (dup of the body ref) — skipped
       keyed("priority", "high"), // a task planning field — skipped
-      keyed("title", "T"),
       keyless(inlined(":doc", 2, "body")),
       keyless(subchapter(":doc", 3, "Dogs")), // the SAME subchapter, placed positionally — kept
     );
     expect(chapterFlow(value).map((f) => f.kind)).toEqual(["title", "chunk", "subchapter"]);
+  });
+
+  it("still flows a LEGACY keyed `title` entry as the title (an unmigrated file)", () => {
+    const value = mixed(keyed("title", "T"), keyless(inlined(":doc", 1, "body")));
+    const flow = chapterFlow(value);
+    expect(flow.map((f) => f.kind)).toEqual(["title", "chunk"]);
+    expect(flowText(flow[0].value)).toBe("T");
   });
 
   it("reads an untitled chapter projected as a plain array (all keyless)", () => {
@@ -106,7 +134,7 @@ describe("chapterFlow", () => {
 const clone = (m: ChapterModel): ChapterModel => ({ ...m, chunks: m.chunks.map((c) => ({ ...c })) });
 const part = (id: string, text: string, absIndex = -1): ChunkPart => ({ id, rev: 0, editable: true, text, format: "text/marklower", concrete: "yamlover", subchapter: false, marker: null, absIndex });
 /** A model built by hand: `chunks` at absolute indices 0.., no keyed entries. */
-const model = (chunks: ChunkPart[]): ChapterModel => ({ path: ":doc", title: "T", description: "D", chunks, entryCount: chunks.length });
+const model = (chunks: ChunkPart[]): ChapterModel => ({ path: ":doc", title: "T", description: "D", chunks, entryCount: chunks.length, legacyTitleKeyed: false });
 
 describe("diffChapter", () => {
   const base = (): ChapterModel => buildChapterModel(node([inlined(":doc", 1, "one"), inlined(":doc", 2, "two")]));
@@ -116,25 +144,55 @@ describe("diffChapter", () => {
     expect(diffChapter(snapshotChapter(m), m)).toEqual([]);
   });
 
-  it("title change → an emplace of its escaped value", () => {
+  it("title change → an emplace of the chapter node ITSELF (the self-value consumes no index)", () => {
     const committed = base();
     const current = clone(committed);
     current.title = "New";
-    expect(diffChapter(committed, current)).toEqual([{ path: ":doc:title", op: "emplace", yamlover: '"New"' }]);
+    expect(diffChapter(committed, current)).toEqual([{ path: ":doc", op: "emplace", yamlover: '"New"' }]);
   });
 
-  it("an emptied title REMOVES the key, and every later entry slides down one", () => {
-    const committed = base(); // entries: title(0), one(1), two(2)
+  it("an emptied title emplaces an empty self-value (the server drops the line) — NO index shifts", () => {
+    const committed = base(); // entries: description(0), one(1), two(2) — the title is no entry
     const current = clone(committed);
     current.title = "";
     current.chunks[1].text = "TWO";
     expect(diffChapter(committed, current)).toEqual([
-      { path: ":doc:title", op: "remove" },
-      { path: ":doc[1]", op: "emplace", yamlover: "|-\n  TWO" }, // was [2] before the title went
+      { path: ":doc", op: "emplace", yamlover: '""' },
+      { path: ":doc[2]", op: "emplace", yamlover: "|-\n  TWO" }, // stays [2]: the title consumed no index
     ]);
   });
 
-  // The chunks sit at ABSOLUTE indices 1 and 2 — the keyed `title` consumes index 0 (CHAPTER.md).
+  it("an emptied DESCRIPTION removes the key, and every later entry slides down one", () => {
+    const committed = base(); // entries: description(0), one(1), two(2)
+    const current = clone(committed);
+    current.description = "";
+    current.chunks[1].text = "TWO";
+    expect(diffChapter(committed, current)).toEqual([
+      { path: ":doc:description", op: "remove" },
+      { path: ":doc[1]", op: "emplace", yamlover: "|-\n  TWO" }, // was [2] before the description went
+    ]);
+  });
+
+  it("a LEGACY keyed `title:` migrates out on the first title edit (remove the key, entries slide)", () => {
+    const legacy = buildChapterModel({
+      path: ":doc",
+      title: "T",
+      description: null,
+      value: { $yamloverMixed: { kind: "mix", entries: [{ key: "title", value: "T" }, { key: null, value: inlined(":doc", 1, "one") }] } },
+    });
+    expect(legacy.legacyTitleKeyed).toBe(true);
+    const current = clone(legacy);
+    current.title = "New";
+    current.chunks[0].text = "ONE";
+    expect(diffChapter(legacy, current)).toEqual([
+      { path: ":doc", op: "emplace", yamlover: '"New"' }, // the self-value (index-neutral)
+      { path: ":doc:title", op: "remove" }, // the keyed title migrates out…
+      { path: ":doc[0]", op: "emplace", yamlover: "|-\n  ONE" }, // …so `one` slid from [1] to [0]
+    ]);
+  });
+
+  // The chunks sit at ABSOLUTE indices 1 and 2 — the keyed `description` consumes index 0; the
+  // title, being the self-value, consumes none (CHAPTER.md).
   it("edited chunk text → an emplace at its absolute index", () => {
     const committed = base();
     const current = clone(committed);

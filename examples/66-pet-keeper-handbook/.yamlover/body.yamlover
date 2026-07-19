@@ -4,7 +4,7 @@
 # three SUBCHAPTERS that are `*`-pointers to the `dogs/`, `cats/`, `fish/` subdirectories — each
 # its own directory chapter with its own `.yamlover/body.yamlover`. Spec: ../CHAPTER.md, ../YAMLOVER.md.
 !!<*yamlover: $defs: chapter>
-title: The Pet Keeper's Handbook
+The Pet Keeper's Handbook
 description: A friendly guide to living with animals
 - |
   **Pets share our homes, our routines, and a surprising amount of our furniture.** This

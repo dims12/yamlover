@@ -8,7 +8,7 @@ The whole feature is built by **reuse**, not by inventing parallel machinery:
 
 | concern | reuses |
 |---|---|
-| body (title, description, positional chunks + subtasks) | `$defs/chapter` (`CHAPTER.md`, `$defs/chapter`) |
+| body (the self-value title, description, positional chunks + subtasks) | `$defs/chapter` (`CHAPTER.md`, `$defs/chapter`) |
 | lifecycle state (backlog → done, due, postponed) | **tags** + **tag applications** (`ANNOTATIONS.md`, `$defs/tag`) |
 | transitions / state machine | the tag **or-graph** — `next:` ref edges between state tags |
 | planning fields, scheduling fields | **parametrized annotations** (`additionalProperties: true`) |
@@ -25,7 +25,8 @@ applications), `META.md` / `TYPES.md` (`$defs`, facets, `variant`), `SEPARATOR.m
 ## 1. The `task` schema
 
 A task **IS-A chapter** (CHAPTER.md): it EXTENDS `$defs/chapter` with `allOf: [*chapter]`,
-inheriting the optional `title`/`description` and the omni **positional body** — where its
+inheriting the fully-omni shape — the scalar **self-value is the title** (no `title:` key), the
+optional keyed `description` — and the omni **positional body** — where its
 subchapter recursion means **subtasks** (a task tree) — **plus** a handful of **optional**
 structured fields for planning and automation. It carries **no `state` field**: state is a tag
 application (§2), so the entire tag / board machinery is reused.
@@ -37,7 +38,7 @@ state, and a study card the moment its body chunks are tagged as a quiz.
 ```yamlover
 # $defs/task — attach with  !!<*yamlover:$defs:task>
 allOf:
-  - *:: yamlover: $defs: chapter        # a task IS-A chapter (title/description + omni body)
+  - *:: yamlover: $defs: chapter        # a task IS-A chapter (self-value title + omni body)
 type: variant
 items:                                 # narrow the body recursion to SUBTASKS (the task tree)
   anyOf:
@@ -63,7 +64,7 @@ A minimal task as a standalone file:
 ```yamlover
 # write-tickets-spec.yamlover
 !!<*yamlover:$defs:task>
-title: Write the TICKETS spec
+Write the TICKETS spec
 description: Draft `TICKETS.md` reusing chapters + tags.
 priority: high
 assignee: claude
@@ -73,9 +74,9 @@ yamlover-annotations:
 - *::tags:workflow:dev:in-progress        # ← the current state (see §2)
 ```
 
-Subtasks are positional body elements that are themselves tasks (a `- title: …` element with its
-own body); a flat **board** is instead a *directory of task files* (§5). Both are valid and
-composable.
+Subtasks are positional body elements that are themselves tasks (a `- Its title` element — the
+self-value — with its own body below); a flat **board** is instead a *directory of task files*
+(§5). Both are valid and composable.
 
 ---
 
@@ -204,7 +205,7 @@ A multiple-choice card:
 
 ```yamlover
 !!<*yamlover:$defs:task>
-title: Capital of France
+Capital of France
 - !!var What is the capital of France?
   yamlover-annotations: [ *::tags:card:question ]
 - !!var Paris

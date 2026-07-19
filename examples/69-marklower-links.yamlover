@@ -1,39 +1,40 @@
 # A documentation tree about its own links — nested chapters of marklower prose, the whole
 # thing one tagged .yamlover file (all chunks are the default markdown/marklower format, so
 # no meta overlay is needed). The body is positional; a `/[i]` link addresses body element i
-# of the document root (title is not a body element). Spec: ../CHAPTER.md, ../YAMLOVER.md.
+# of the document root (the title is the node's SELF-VALUE, so it consumes no index — the
+# first chunk is [0]). Spec: ../CHAPTER.md, ../YAMLOVER.md.
 !!<*yamlover: $defs: chapter>
-title: A Tour of marklower Links
+A Tour of marklower Links
 - |
   marklower links live in **JSON instance space**, in three flavours. Jump to the
-  document-relative links subchapter at [/[3]](/[3]), the project-root one
-  at [/[4]](/[4]), or external links at [/[5]](/[5]) — each
+  document-relative links subchapter at [/[2]](/[2]), the project-root one
+  at [/[3]](/[3]), or external links at [/[4]](/[4]) — each
   its own subchapter below.
 - |
-  Wherever you are in this guide, the top of it at [/[1]](/[1]) is one
+  Wherever you are in this guide, the top of it at [/[0]](/[0]) is one
   document-relative link away. You can also leave for the wider world, like the KaTeX
   project at [https://katex.org](https://katex.org).
-- title: Document-relative links
+- Document-relative links
   - |
     A `/path` link is relative to **this document** — the whole guide — however deep you
-    are reading. So [/[1]](/[1]) always lands on the opening line.
+    are reading. So [/[0]](/[0]) always lands on the opening line.
   - |
-    From here, reach a sibling section at [/[4]](/[4]), or descend deeper
-    to [/[3][3]](/[3][3]).
-  - title: Going deeper
+    From here, reach a sibling section at [/[3]](/[3]), or descend deeper
+    to [/[2][2]](/[2][2]).
+  - Going deeper
     - |
       Even two levels down, a `/…` link still counts from the document root: the intro at
-      [/[1]](/[1]), and the external-links section at [/[5]](/[5]).
-- title: Project-root links
+      [/[0]](/[0]), and the external-links section at [/[4]](/[4]).
+- Project-root links
   - |
     A `//path` link is relative to the **project root** — the directory you served. Served
     from the repo, a sibling example is at [//examples/68-math-chapter](//examples/68-math-chapter),
-    or one formula in it at [//examples/68-math-chapter/[3]](//examples/68-math-chapter/[3]).
+    or one formula in it at [//examples/68-math-chapter/[2]](//examples/68-math-chapter/[2]).
   - |
     The pet handbook is at [//examples/66-pet-keeper-handbook](//examples/66-pet-keeper-handbook). To return home,
     regardless of mount point, use a document-relative link to this guide's intro at
-    [/[1]](/[1]).
-- title: External links
+    [/[0]](/[0]).
+- External links
   - |
     Any target with a scheme is an external link, opened in a new tab: Wikipedia on
     hyperlinks at [https://en.wikipedia.org/wiki/Hyperlink](https://en.wikipedia.org/wiki/Hyperlink),

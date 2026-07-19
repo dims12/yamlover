@@ -37,10 +37,11 @@ export interface ChunkPart {
 
 export interface ChapterModel {
   path: string; // the chapter's node path (the routing base for edits)
-  title: string;
+  title: string; // the omni node's scalar SELF-VALUE (CHAPTER.md) — consumes NO entry index
   description: string;
   chunks: ChunkPart[]; // the FULL ordered body (chunks + subchapters), in source order
   entryCount: number; // ALL entries, keyed ones included — the abs index an appended entry takes
+  legacyTitleKeyed: boolean; // an unmigrated keyed `title:` entry exists — a title edit migrates it out
 }
 
 /** One surgical edit the sync sends to `/api/edit` (see api.ts `Edit` for the op semantics). */
@@ -96,11 +97,21 @@ export function chapterBodyEntries(value: unknown): { value: unknown; absIndex: 
   return mixed.entries.map((e, i) => ({ e, i })).filter(({ e }) => e.key == null).map(({ e, i }) => ({ value: e.value, absIndex: i }));
 }
 
-/** How many entries the chapter has in all — the absolute index an APPENDED entry will take. */
+/** How many entries the chapter has in all — the absolute index an APPENDED entry will take.
+ *  The title (the omni self-value) is not an entry and never counts. */
 export function chapterEntryCount(value: unknown): number {
   if (Array.isArray(value)) return value.length;
   const mixed = (value as Record<string, unknown> | null | undefined)?.[MIXED_KEY] as { entries?: unknown[] } | undefined;
   return mixed?.entries?.length ?? 0;
+}
+
+/** True when the projection still carries a LEGACY keyed `title:` entry (an unmigrated file) —
+ *  a title edit then also removes that key, migrating the file to the self-value form. */
+export function hasKeyedTitle(value: unknown): boolean {
+  const mixed = (value as Record<string, unknown> | null | undefined)?.[MIXED_KEY] as
+    | { entries?: { key: string | null }[] }
+    | undefined;
+  return !!mixed?.entries?.some((e) => e.key === "title");
 }
 
 /** One element of a chapter's rendered FLOW — everything the page shows, in source order. */
@@ -110,26 +121,34 @@ export interface FlowItem {
   value: unknown; // the entry value (a `$yamloverLink` marker or an inline scalar)
 }
 
-/** The chapter's full rendered stream in SOURCE order — the keyed `title`/`description` entries and
- *  the keyless body (chunks + subchapter links) interleaved exactly where the author placed them, so
- *  the renderer never hoists the heading or forces subchapters to the end (CHAPTER.md — position is
- *  the author's). Any OTHER keyed entry (a directory member surfaced as a key, a task planning field)
- *  is skipped: it is not chapter body content. An untitled chapter (plain-array projection) is all
- *  keyless — chunks and subchapter links, in order. */
+/** The chapter's full rendered stream in SOURCE order — the title (the omni node's scalar
+ *  SELF-VALUE, CHAPTER.md), the keyed `description` entry, and the keyless body (chunks +
+ *  subchapter links) interleaved exactly where the author placed them, so the renderer never hoists
+ *  the heading or forces subchapters to the end (position is the author's; the self-value's
+ *  authored position rides the marker's `selfAt`). Any OTHER keyed entry (a directory member
+ *  surfaced as a key, a task planning field) is skipped: it is not chapter body content. An
+ *  untitled chapter (plain-array projection) is all keyless — chunks and subchapter links, in
+ *  order. A legacy keyed `title` entry still flows as the title. */
 export function chapterFlow(value: unknown): FlowItem[] {
   const kindOf = (v: unknown): FlowKind => (isSubchapter(asLink(v)?.format) ? "subchapter" : "chunk");
   if (Array.isArray(value)) return value.map((v) => ({ kind: kindOf(v), value: v }));
   const mixed = (value as Record<string, unknown> | null | undefined)?.[MIXED_KEY] as
-    | { entries?: { key: string | null; value: unknown }[] }
+    | { kind?: string; value?: unknown; selfAt?: number; entries?: { key: string | null; value: unknown }[] }
     | undefined;
   if (!mixed?.entries) return [];
+  const self = mixed.kind === "omni" && typeof mixed.value === "string" && mixed.value !== "" ? mixed.value : null;
+  const selfAt = typeof mixed.selfAt === "number" ? mixed.selfAt : 0;
   const out: FlowItem[] = [];
-  for (const e of mixed.entries) {
-    if (e.key === "title") out.push({ kind: "title", value: e.value });
+  let placed = self == null;
+  for (let i = 0; i < mixed.entries.length; i++) {
+    if (!placed && i >= selfAt) { out.push({ kind: "title", value: self }); placed = true; }
+    const e = mixed.entries[i];
+    if (e.key === "title") out.push({ kind: "title", value: e.value }); // legacy keyed title
     else if (e.key === "description") out.push({ kind: "description", value: e.value });
     else if (e.key == null) out.push({ kind: kindOf(e.value), value: e.value });
     // else: another keyed entry (directory member / task field) — not chapter body content
   }
+  if (!placed) out.push({ kind: "title", value: self });
   return out;
 }
 
@@ -179,23 +198,33 @@ export function buildChapterModel(node: { path: string; title: string | null; de
       absIndex,
     };
   });
-  return { path: node.path, title: node.title ?? "", description: node.description ?? "", chunks, entryCount: chapterEntryCount(node.value) };
+  return {
+    path: node.path,
+    title: node.title ?? "",
+    description: node.description ?? "",
+    chunks,
+    entryCount: chapterEntryCount(node.value),
+    legacyTitleKeyed: hasKeyedTitle(node.value),
+  };
 }
 
 /** A committed snapshot for diffing — the model's title/description and each part's id + text
  *  (only editable text can change; read-only parts are compared by id only). */
 export function snapshotChapter(m: ChapterModel): ChapterModel {
-  return { path: m.path, title: m.title, description: m.description, chunks: m.chunks.map((c) => ({ ...c })), entryCount: m.entryCount };
+  return { path: m.path, title: m.title, description: m.description, chunks: m.chunks.map((c) => ({ ...c })), entryCount: m.entryCount, legacyTitleKeyed: m.legacyTitleKeyed };
 }
 
 /**
  * The minimal ordered edit list to turn `committed` into `current`, addressed by node path:
- *  - title/description changed → `emplace` its new value; emptied → `remove` the key;
+ *  - title changed → `emplace` the chapter node ITSELF with the scalar — the title is the omni
+ *    node's SELF-VALUE (CHAPTER.md), so it consumes no index; an empty payload drops the line
+ *    server-side. A legacy keyed `title:` entry is removed alongside (migrate-on-edit).
+ *  - description changed → `emplace` its new value; emptied → `remove` the key;
  *  - part id gone → `remove` (last first, so an earlier remove never moves a pending one);
  *  - new part id → `insert` at the absolute index it takes (forward — each insertion makes room);
  *  - surviving editable chunk whose text changed → `emplace`, which keeps the chunk's annotations
  *    and its `!!<…>` tag (only its scalar facet is replaced).
- * Every index is the ABSOLUTE entry index — keyed entries (title/description) consume indices too —
+ * Every index is the ABSOLUTE entry index — a keyed entry (description) consumes an index too —
  * so an edit path is a plain yamlover path. Reordering existing parts is not supported (the editor
  * never moves them). The server applies the batch in this order, re-scanning the source per op.
  */
@@ -205,15 +234,23 @@ export function diffChapter(committed: ChapterModel, current: ChapterModel): Edi
   // a heading is one line: quote it rather than open a block scalar (`title: |-` reads badly)
   const scalar = (path: string, text: string): Edit =>
     text ? { path, op: "emplace", yamlover: JSON.stringify(text) } : { path, op: "remove" };
-  // A keyed entry consumes an absolute index. Emptying `title` REMOVES it, sliding every later entry
-  // down one; a fresh key is appended at the end, so it shifts nothing before it.
+  // A keyed entry consumes an absolute index. Emptying `description` REMOVES it, sliding every
+  // later entry down one; a fresh key is appended at the end, so it shifts nothing before it.
   let shift = 0; // existing entries sliding down as a key before them is removed
   let added = 0; // a fresh key, appended after them
-  for (const key of ["title", "description"] as const) {
-    if (current[key] === committed[key]) continue;
-    edits.push(scalar(childPath(base, key), current[key]));
-    if (!current[key] && committed[key]) shift -= 1;
-    else if (current[key] && !committed[key]) added += 1;
+  if (current.title !== committed.title) {
+    // the self-value emplace (empty drops the title line) — index-neutral by design
+    edits.push({ path: base, op: "emplace", yamlover: JSON.stringify(current.title) });
+    if (committed.legacyTitleKeyed) {
+      edits.push({ path: childPath(base, "title"), op: "remove" }); // migrate the keyed title out
+      current.legacyTitleKeyed = false;
+      shift -= 1;
+    }
+  }
+  if (current.description !== committed.description) {
+    edits.push(scalar(childPath(base, "description"), current.description));
+    if (!current.description && committed.description) shift -= 1;
+    else if (current.description && !committed.description) added += 1;
   }
 
   const curIds = current.chunks.map((c) => c.id);

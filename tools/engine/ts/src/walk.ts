@@ -320,6 +320,9 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
         node = built.node;
         builtinDefs = built.defs;
       }
+      // the self-import is plumbing, not content: HIDDEN from the TOC/explorer/projection like the
+      // `.yamlover` overlay, yet fully reachable — `:yamlover` navigates, `*::yamlover:…` resolves
+      node.meta = { ...node.meta, hidden: true };
       if (yEntry) { yEntry.value = node; yEntry.edge = 'contain'; } // materialize over the import pointer
       else root.entries.push({ key: 'yamlover', edge: 'contain', value: node });
     }
@@ -892,7 +895,14 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
   const isContainerSchema = (n: Node): boolean =>
     !!field(n, 'properties') || !!field(n, 'items') || !!field(n, 'allOf') ||
     ['object', 'variant', 'mixed', 'array'].includes(str(n, 'type') ?? '');
-  const elemIsContainer = (el: Node): boolean => el.kind === 'mapping';
+  // A mapping is a container; so is an omni scalar that carries BODY entries (a titled
+  // subchapter: its self-value is the title, its entries the body). A bare scalar stays a
+  // leaf — a chunk, which IS a title-only subchapter (CHAPTER.md). The overlay keys an
+  // annotated chunk gains (ANNOTATIONS.md) are not body — a scalar with only those stays a chunk.
+  const OVERLAY_KEYS = new Set(['yamlover-annotations', 'yamlover-fragments']);
+  const elemIsContainer = (el: Node): boolean =>
+    el.kind === 'mapping' ||
+    (el.entries ?? []).some((e) => e.key == null || !OVERLAY_KEYS.has(e.key));
 
   // propagate an `items` schema to the POSITIONAL (keyless) elements of `inst`. `items` may be
   // a single schema (pointer or literal) — applied to every element — or an `anyOf` union, where

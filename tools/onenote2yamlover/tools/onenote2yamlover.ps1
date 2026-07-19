@@ -301,7 +301,8 @@ function Convert-Page([string]$pageId) {
 function Serialize-Chapter([string]$title, $chunks, $childNames) {
   $sb = New-Object System.Collections.Generic.List[string]
   $sb.Add('!!<*yamlover: $defs: chapter>')
-  $sb.Add('title: ' + (Yaml-Scalar $title))
+  # the title is the chapter root's scalar SELF-VALUE line (fully-omni, CHAPTER.md) - no `title:` key
+  $sb.Add((Yaml-Scalar $title))
   # the .Count guards are load-bearing: in PS 5.1 `foreach ($x in $null)` runs one iteration
   if ($chunks -and $chunks.Count -gt 0) {
     foreach ($c in $chunks) {

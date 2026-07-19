@@ -48,13 +48,16 @@ public static class ChapterSerializer
     /// One positional body: chunks, then subchapter pointers. OneNote subpages always follow their
     /// parent page's own content, so appending them preserves the author's order. The
     /// <c>- *: name</c> pointers are what override the engine's alphabetical directory scan.
-    /// There is no <c>chunks:</c> key and no <c>children:</c> key (yamlover CHAPTER.md).
+    /// The chapter is FULLY OMNI (yamlover CHAPTER.md): the title is the root's scalar SELF-VALUE
+    /// line right after the tag — there is no <c>title:</c> key, no <c>chunks:</c> key and no
+    /// <c>children:</c> key. (<see cref="Yaml.Scalar"/> quotes any title a bare line could
+    /// misread — a leading sigil, a <c>:</c> or <c>#</c> — so the line never opens an entry.)
     /// </summary>
     public static string Chapter(string title, IReadOnlyList<Chunk>? chunks, IReadOnlyList<string>? childNames)
     {
         var sb = new StringBuilder();
         sb.Append(Tag).Append('\n');
-        sb.Append("title: ").Append(Yaml.Scalar(title)).Append('\n');
+        sb.Append(Yaml.Scalar(title)).Append('\n');
 
         foreach (var c in chunks ?? [])
         {

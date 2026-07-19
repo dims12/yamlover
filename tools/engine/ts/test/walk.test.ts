@@ -122,11 +122,15 @@ test('the attached chapter schema propagates down: subchapters & chunks get thei
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
   const ch = ':60-simple-chapter.yamlover';
-  // an omni chapter: title is entry 0, so the positional body starts at [1]; subchapters follow.
+  // a FULLY-OMNI chapter: the title is the root's self-value (no index); `description` is [0],
+  // so the positional body starts at [1].
   assert.equal(s.node(ch)?.format, 'x-yamlover-chapter'); // root (tagged)
-  assert.equal(s.node(ch + '[4]')?.format, 'x-yamlover-chapter'); // subchapter — NOT tagged, inherited via items anyOf
+  assert.equal(s.node(ch)?.value, 'Getting Started with yamlover'); // the self-value title
   assert.equal(s.node(ch + '[1]')?.format, 'text/marklower'); // first chunk — from the chunk branch
-  assert.equal(s.node(ch + '[4][1]')?.format, 'text/marklower'); // a chunk inside the subchapter (recursive)
+  assert.equal(s.node(ch + '[4]')?.format, 'text/marklower'); // "Why one file" — title-only ≡ a chunk
+  assert.equal(s.node(ch + '[5]')?.format, 'x-yamlover-chapter'); // titled subchapter (omni) — inherited via items anyOf
+  assert.equal(s.node(ch + '[5][1]')?.format, 'text/marklower'); // a chunk inside the subchapter (recursive)
+  assert.equal(s.node(ch + '[6]')?.format, 'x-yamlover-chapter'); // untitled subchapter (a container, no self-value)
   s.close();
 });
 
@@ -151,16 +155,18 @@ test('a directory chapter tree: each subchapter is its OWN directory, referenced
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
   const ch = ':66-pet-keeper-handbook';
-  // The root dir's members (`.yamlover`, cats, cover-paw.png, dogs, fish, title, description) sort as
-  // keyed entries first, so the positional body starts at [7]; the three subchapters are `*` refs to
-  // the sibling directories (dogs/cats/fish, in source order) at [12..14].
+  // The root dir's members (`.yamlover`, cats, cover-paw.png, dogs, fish, description) sort as
+  // keyed entries first — the title is the body root's SELF-VALUE and consumes no index — so the
+  // positional body starts at [6]; the three subchapters are `*` refs to the sibling directories
+  // (dogs/cats/fish, in source order) at [11..13].
   assert.equal(s.node(ch)?.format, 'x-yamlover-chapter'); // schema carried from body.yamlover root
-  assert.equal(s.node(ch + '[7]')?.format, 'text/marklower'); // first prose chunk
-  assert.equal(s.node(ch + '[11]')?.format, 'text/x-plantuml'); // the mindmap diagram chunk
+  assert.equal(s.node(ch)?.value, "The Pet Keeper's Handbook"); // the self-value title
+  assert.equal(s.node(ch + '[6]')?.format, 'text/marklower'); // first prose chunk
+  assert.equal(s.node(ch + '[10]')?.format, 'text/x-plantuml'); // the mindmap diagram chunk
   // each subchapter is a real directory chapter (its own body.yamlover root tag), reached by a body ref
-  assert.equal(s.entries(ch)[12]?.to, ch + ':dogs');
-  assert.equal(s.entries(ch)[13]?.to, ch + ':cats');
-  assert.equal(s.entries(ch)[14]?.to, ch + ':fish');
+  assert.equal(s.entries(ch)[11]?.to, ch + ':dogs');
+  assert.equal(s.entries(ch)[12]?.to, ch + ':cats');
+  assert.equal(s.entries(ch)[13]?.to, ch + ':fish');
   assert.equal(s.node(ch + ':dogs')?.format, 'x-yamlover-chapter');
   assert.equal(s.node(ch + ':cats')?.format, 'x-yamlover-chapter');
   assert.equal(s.node(ch + ':fish')?.format, 'x-yamlover-chapter');
@@ -169,20 +175,38 @@ test('a directory chapter tree: each subchapter is its OWN directory, referenced
 });
 
 test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→chapter, leaf→chunk', () => {
-  // A container body element (a mapping subchapter) takes the chapter branch (x-yamlover-chapter);
-  // a scalar leaf takes the chunk branch (text/marklower) — the union's structural dispatch.
+  // The union's structural dispatch, over the FULLY-OMNI chapter shape (title = the self-value):
+  // a titled subchapter (omni scalar + body entries) and an untitled one (a mapping) take the
+  // chapter branch; a bare scalar — a chunk, which IS a title-only subchapter — takes the chunk
+  // branch, and so does an annotated chunk (its overlay keys are not body — ANNOTATIONS.md).
   const root = mkdtempSync(join(tmpdir(), 'yo-anyof-'));
   mkdirSync(join(root, '$defs'), { recursive: true });
   writeFileSync(join(root, '$defs', 'chapter'),
-    'type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n');
+    'type: variant\nvalue:\n  type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n');
   writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
-  writeFileSync(join(root, 'doc.yamlover'), '!!<*yamlover/$defs/chapter>\ntitle: T\n- a leaf chunk\n- title: Sub\n  - deep chunk\n');
+  writeFileSync(join(root, 'doc.yamlover'), [
+    '!!<*yamlover/$defs/chapter>',
+    'T',
+    '- a leaf chunk',
+    '- Sub',
+    '  - deep chunk',
+    '- - an untitled subchapter (no self-value, only body)',
+    '- an annotated chunk stays a chunk',
+    '  yamlover-annotations:',
+    '  - a tag application',
+    '',
+  ].join('\n'));
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
   const d = ':doc.yamlover';
-  assert.equal(s.node(d + '[1]')?.format, 'text/marklower'); // leaf → chunk branch
-  assert.equal(s.node(d + '[2]')?.format, 'x-yamlover-chapter'); // container → chapter branch
-  assert.equal(s.node(d + '[2][1]')?.format, 'text/marklower'); // recursion into the subchapter's chunk
+  assert.equal(s.node(d)?.format, 'x-yamlover-chapter'); // the root, its self-value the title
+  assert.equal(s.node(d)?.value, 'T');
+  assert.equal(s.node(d + '[0]')?.format, 'text/marklower'); // leaf → chunk branch
+  assert.equal(s.node(d + '[1]')?.format, 'x-yamlover-chapter'); // titled subchapter (omni) → chapter branch
+  assert.equal(s.node(d + '[1]')?.value, 'Sub'); // its self-value is its title
+  assert.equal(s.node(d + '[1][0]')?.format, 'text/marklower'); // recursion into the subchapter's chunk
+  assert.equal(s.node(d + '[2]')?.format, 'x-yamlover-chapter'); // untitled subchapter (mapping) → chapter branch
+  assert.equal(s.node(d + '[3]')?.format, 'text/marklower'); // annotated chunk: overlay keys are not body
   s.close();
   rmSync(root, { recursive: true, force: true });
 });

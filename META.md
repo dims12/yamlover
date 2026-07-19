@@ -60,8 +60,9 @@ IMPORTS.md §4):
 - **`$defs/chunk`** — one renderable content block: a typed value whose `(type, format)`
   selects the renderer; default `string`/`text/marklower` (prose), overridable per chunk;
   `type: [string, binary]` so an image/pdf/… pointer chunk fits too.
-- **`$defs/chapter`** — a document node, an **omni (`variant`)** shape: optional keyed `title`
-  and `description`, then a **positional body** whose elements are each a nested
+- **`$defs/chapter`** — a document node, a **fully omni (`variant`)** shape: the node's scalar
+  **self-value is the title** (declared as the `value:` facet — no `title:` key), an optional
+  keyed `description`, then a **positional body** whose elements are each a nested
   chapter (the recursion), an explicitly tagged table, or a chunk — one interleaved stream,
   read top to bottom (no `chunks`/`children` arrays). The body element type is a **union**,
   `items: {anyOf: [*chapter, *table, *chunk]}`. Inter-schema references use `*` pointers, not
@@ -73,9 +74,9 @@ IMPORTS.md §4):
   `format: x-yamlover-table`. Full model: **`MARKLOWER.md`**.
 
 This **replaces the old chapter encoding** (title/description + two keyed arrays `chunks` and
-`children`): a `chapter` is now an omni node with `title`/`description` + a positional
-`anyOf[chapter, chunk]` body, attachable inline (`60-simple-chapter.yamlover`) or via a
-directory overlay. **`$defs/task`** (TICKETS.md) EXTENDS it with `allOf: [*chapter]` — the
+`children`): a `chapter` is now a fully omni node — the self-value title, a keyed `description`,
+and a positional `anyOf[chapter, chunk]` body — attachable inline (`60-simple-chapter.yamlover`)
+or via a directory overlay. **`$defs/task`** (TICKETS.md) EXTENDS it with `allOf: [*chapter]` — the
 (provisional) JSON-Schema mechanism for "a task IS-A chapter plus planning fields".
 
 ## Settings — project configuration (`settings.yamlover`)
@@ -168,8 +169,9 @@ An **omni** node (`variant`/`mixed`) has ONE ordered entry stream where an entry
 or unkeyed* — and, in the general model, even both (a key **and** an ordinal index). JSON Schema
 splits this into `properties`/`additionalProperties` (the **keyed** facet) and
 `prefixItems`/`items` (the **ordinal**, keyless facet), so no single keyword describes the omni
-stream. **For now the schemas use that JSON-Schema encoding** — e.g. a chapter is `properties:`
-(title/description) alongside `items:` (the body). **Proposed** (provisional — "we'll see", not
+stream. **For now the schemas use that JSON-Schema encoding** — e.g. a chapter is `value:` (the
+self-value title) + `properties:` (description) alongside `items:` (the body). **Proposed**
+(provisional — "we'll see", not
 yet adopted): a native pair **`elements` / `additionalElements`** — the ordinal analogue of
 `properties`/`additionalProperties` — that describes the ordered entry stream regardless of
 whether each element carries a key. Under it a chapter's body reads naturally as

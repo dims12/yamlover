@@ -58,15 +58,17 @@ or scalar can take.
 
 ## Chapters (the `chapter` schema)
 
-Documents — an omni node with optional `title`/`description` and a **positional body** of chunks
-and (recursive) subchapters — tagged with the `chapter` schema (`$defs/chapter`). A schema attaches
-*inline* in a `.yamlover` file via the `!!<…>` tag (no overlay needed), or through a directory's
+Documents — a **fully omni** node: its scalar *self-value* is the **title** (no `title:` key), an
+optional keyed `description`, and a **positional body** of chunks and (recursive) subchapters —
+tagged with the `chapter` schema (`$defs/chapter`). A bare-string body element is at once a chunk
+and a title-only subchapter — the same thing, by design. A schema attaches *inline* in a
+`.yamlover` file via the `!!<…>` tag (no overlay needed), or through a directory's
 `.yamlover/meta.yamlover`. See [CHAPTER.md](../CHAPTER.md), [YAMLOVER.md](../YAMLOVER.md) and
 [META.md](../META.md).
 
 | # | example | concrete / shows |
 |---|---------|------------------|
-| 60 | [`60-simple-chapter.yamlover`](60-simple-chapter.yamlover)   | a single tagged **file** — the minimal chapter (`title` + a positional body of chunks and subchapters), plus tagged **typographical lists** (`$defs/bullets`, `$defs/numbered`) nesting untagged to any depth |
+| 60 | [`60-simple-chapter.yamlover`](60-simple-chapter.yamlover)   | a single tagged **file** — the minimal chapter (the title as the root's **self-value** + a positional body), with subchapters in every shape: **titled** (self-value + body), **untitled** (body only), and **title-only** (a bare string ≡ a chunk), plus tagged **typographical lists** (`$defs/bullets`, `$defs/numbered`) nesting untagged to any depth |
 | 61 | [`61-table.yamlover`](61-table.yamlover) | a tagged **file** — a chapter whose body holds a `!!<*yamlover: $defs: table>` **table**: an omni node of keyless rows (flow and compact `- - ` block forms) with a `header` row (an omni cell carrying a proportional `width`) and a caption, marklower cells, **merged cells** as relative-index pointers (`*[.-1]` colspan, `*..[.-1][.]` rowspan), a tagged nested-table cell, and an untagged **chapter cell**. See [MARKLOWER.md](../MARKLOWER.md) §Tables |
 | 65 | [`65-all-formats-chunks`](65-all-formats-chunks)             | a **directory** chapter — textual chunks (block scalars) interleaved with `*sample.*` pointers to binary files; per-chunk formats and file types in `meta.yamlover` |
 | 66 | [`66-pet-keeper-handbook`](66-pet-keeper-handbook)           | a recursive chapter **tree where each chapter is its own directory** — the root plus `dogs/`, `cats/`, `fish/` (and nested `dogs/puppies/`), each a directory chapter with its own `.yamlover/`; subchapters are `*`-pointers to those subdirectories, prose + `*png` image chunks + per-chunk PlantUML |

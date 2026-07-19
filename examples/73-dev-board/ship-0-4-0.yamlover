@@ -1,16 +1,17 @@
 # A task with SUBTASKS — a subtask is a positional body element that is itself a $defs:task
-# (the task tree, the recursion), interleaved with the task's own chunks.
+# (the task tree, the recursion), interleaved with the task's own chunks. Like any chapter,
+# a task is FULLY OMNI: its scalar SELF-VALUE is the title (no `title:` key).
 !!<*yamlover:$defs:task>
-title: Ship yamlover 0.4.0
+Ship yamlover 0.4.0
 description: Cut the 0.4.0 release once the board feature lands.
 priority: high
 assignee: dims
 - The release bundles the tickets feature, the parser split, and the thumbnail fixes.
-- title: Tag the release commit
+- Tag the release commit
   - Bump the version in the workspace and server package.json.
-- title: Publish to npm + Nexus
+- Publish to npm + Nexus
   - The dual CI on version bump handles GitHub→npmjs (OIDC) and Forgejo→Nexus.
-- title: Write the announcement
+- Write the announcement
   - A short note covering tasks/boards and the colon-grammar migration.
 yamlover-annotations:
 - *::yamlover:tags:workflow:dev:done

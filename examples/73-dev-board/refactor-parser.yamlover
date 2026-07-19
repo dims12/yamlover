@@ -1,8 +1,9 @@
-# A TASK (ticket) — a chapter (title/description + a positional body of chunks/subtasks) plus
-# planning fields. Its lifecycle STATE is a tag application: the `yamlover-annotations` pointer into
-# the dev workflow. Move it across the board by changing that one pointer. Spec: ../../../TICKETS.md §1.
+# A TASK (ticket) — a chapter (the title as the node's SELF-VALUE, a keyed description, and a
+# positional body of chunks/subtasks) plus planning fields. Its lifecycle STATE is a tag
+# application: the `yamlover-annotations` pointer into the dev workflow. Move it across the
+# board by changing that one pointer. Spec: ../../../TICKETS.md §1.
 !!<*yamlover:$defs:task>
-title: Split the pointer parser into scope + step phases
+Split the pointer parser into scope + step phases
 description: The parser conflates scope detection with step walking; the colon grammar needs them apart.
 priority: high
 assignee: claude

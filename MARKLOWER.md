@@ -28,7 +28,7 @@ numbered lists delegate the same way (§Lists).
 
 ```yamlover
 !!<*yamlover: $defs: chapter>
-title: Embedding things                  # title/description are marklower too
+Embedding things                         # the SELF-VALUE title (CHAPTER.md) — marklower too
 - |
   Prose with **bold**, *italic*, `code`, inline math $$e^{i\pi}+1=0$$, and a
   [link to the next section](:[2]) — all inline, all in one chunk.
@@ -38,7 +38,7 @@ title: Embedding things                  # title/description are marklower too
   *[Kubrick on Napoleon](https://youtu.be/dQw4w9WgXcQ)
 
   The same token *[mid-sentence](https://youtu.be/dQw4w9WgXcQ) is a chip instead.
-- title: The next section               # STRUCTURE — a body element, never `##` in the prose
+- The next section                      # STRUCTURE — a body element, never `##` in the prose
   - deeper prose…
 ```
 
@@ -136,10 +136,10 @@ The structures marklower delegates to are all ordinary yamlover nodes, told apar
 schema tag and their shape:
 
 - **A chapter** (`$defs/chapter`) is a list whose elements are the **paragraphs** (chunks);
-  some keyed entries are supported — `title`, `description`. A **nested list is a
-  subchapter**: an untagged container element keeps routing to the chapter recursion, so
-  structure comes free. A table or a typographical list enters a body **only by its explicit
-  tag** (`CHAPTER.md`).
+  its scalar self-value is the **title**, and a keyed `description` is supported. A **nested
+  container is a subchapter** (titled when it carries its own self-value): an untagged container
+  element keeps routing to the chapter recursion, so structure comes free. A table or a
+  typographical list enters a body **only by its explicit tag** (`CHAPTER.md`).
 - **A table** (`$defs/table`) consumes exactly **two nesting levels**: the first level is the
   **rows**, the second the **cells**. A third-or-deeper untagged container **switches back to
   a chapter** — a cell holding prose and structure under the same rules as the top chapter.
@@ -179,9 +179,10 @@ marklower `*`/`&` (a yamlover sigil), is quoted.
 - **`header`** renders as the header (`<th>` cells) wherever it is authored; by convention
   it is written first. Other keyed rows have no table meaning — the key just makes the row
   addressable by name.
-- **`title`** is the caption, `text/marklower` like a chapter's. Being keyed, `title` and
-  `header` still **consume positions** in the omni stream (CHAPTER.md §Addressing) — a
-  captioned table's header is `[1]` and its first body row `[2]`.
+- **`title`** is the caption, `text/marklower` like a chapter's title (which, unlike this one,
+  is the chapter node's *self-value*). Being keyed, `title` and `header` **consume positions**
+  in the omni stream (CHAPTER.md §Addressing) — a captioned table's header is `[1]` and its
+  first body row `[2]`.
 
 ### Cells
 
