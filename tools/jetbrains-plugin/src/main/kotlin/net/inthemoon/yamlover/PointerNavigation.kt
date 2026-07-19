@@ -175,18 +175,29 @@ class PathIndex(
      *  keyed line at that indent (a sibling of the key), not by a dedent. */
     private class Frame(val indent: Int, val path: String, var count: Int = 0, val seqOnly: Boolean = false)
 
+    /** A container whose block MAY follow — the frame adopts the first deeper line's indent.
+     *  `sameIndentSeq`: a `key:` is also opened by a same-indent `- ` line (its child
+     *  sequence); a dash item's self-value is not — there a same-indent line is a sibling.
+     *  `count` seeds the frame (1 when an inline head already consumed the item's `[0]`). */
+    private class Pending(val indent: Int, val path: String, val count: Int = 0, val sameIndentSeq: Boolean = false)
+
     companion object {
         private fun seg(name: String) = "/" + name.replace("/", "\\/")
 
         /** Index a yamlover file by indentation. Heuristics: nesting = deeper indent; a block
          *  sequence may also sit at the SAME indent as its (empty-valued) key; back-edge
-         *  entries (`~key:` / `~-`) are skipped — they are not owned children. */
+         *  entries (`~key:` / `~-`) are skipped — they are not owned children. Omni: a tag
+         *  line (`!!…`) and a scalar self-value (the bare line under a document tag, or a
+         *  dash item's plain-scalar head) take NO position; a scalar-headed item's deeper
+         *  block holds its children. (A plain scalar's `key:`-looking continuation line can
+         *  still be mis-read as a child — chapter chunks are one-liners or block scalars,
+         *  which are guarded, so this stays a rare heuristic miss.) */
         fun ofYamlover(text: String): PathIndex {
             val byPath = HashMap<String, Int>()
             val anchors = HashMap<String, Int>()
             val containers = ArrayList<Pair<Int, String>>()
             val stack = ArrayList<Frame>().apply { add(Frame(0, "")) }
-            var pendingKey: Frame? = null // a `key:` with empty rest — its block may follow
+            var pending: Pending? = null // a container whose block may follow
             var lineStart = 0
 
             for (rawLine in text.lineSequence()) {
@@ -197,12 +208,13 @@ class PathIndex(
                 if (indent < 0) continue // blank or comment-only
                 val line = noComment.trim()
 
-                // open the pending key's block if this line starts it (deeper, or a same-indent seq)
+                // open the pending container's block if this line starts it (deeper, or —
+                // for a key — a same-indent seq)
                 val isSeqLine = line == "-" || line.startsWith("- ") || line == "~-" || line.startsWith("~- ")
-                pendingKey?.let { pk ->
-                    if (indent > pk.indent) stack.add(Frame(indent, pk.path))
-                    else if (indent == pk.indent && isSeqLine) stack.add(Frame(indent, pk.path, seqOnly = true))
-                    pendingKey = null
+                pending?.let { pk ->
+                    if (indent > pk.indent) stack.add(Frame(indent, pk.path, pk.count))
+                    else if (indent == pk.indent && isSeqLine && pk.sameIndentSeq) stack.add(Frame(indent, pk.path, pk.count, seqOnly = true))
+                    pending = null
                 }
                 while (stack.size > 1 &&
                     (indent < stack.last().indent || (stack.last().seqOnly && indent == stack.last().indent && !isSeqLine))
@@ -212,6 +224,7 @@ class PathIndex(
                 containers.add(offset to frame.path)
 
                 if (line == "~-" || line.startsWith("~- ") || line.startsWith("~")) continue // back-edges: not owned
+                if (line.startsWith("!!")) continue // a document/value tag line: not an entry
 
                 if (line == "-" || line.startsWith("- ")) {
                     val idx = frame.count++
@@ -223,15 +236,27 @@ class PathIndex(
                         anchors[name] = offset
                         rest = rest.substring(1 + name.length).trim()
                     }
-                    val key = splitKey(rest)
-                    if (key != null) {
-                        // compact `- key: …`: the item is a mapping whose keys sit at the
-                        // content column; index the first key and open the item's frame
-                        val contentCol = indent + 2
-                        byPath[itemPath + seg(key)] = offset
-                        stack.add(Frame(contentCol, itemPath, 1))
-                    } else if (rest.isEmpty()) {
-                        stack.add(Frame(indent + 1, itemPath)) // block item: children are deeper
+                    when {
+                        rest.isEmpty() -> stack.add(Frame(indent + 1, itemPath)) // block item: children are deeper
+                        rest == "-" || rest.startsWith("- ") -> {
+                            // compact `- - x`: the inline head is the item's FIRST child
+                            byPath["$itemPath[0]"] = offset
+                            pending = Pending(indent, itemPath, 1)
+                        }
+                        rest.matches(BLOCK_SCALAR_HEAD) -> {} // `- |` / `- >`: deeper lines are scalar content, not entries
+                        else -> {
+                            val key = splitKey(rest)
+                            if (key != null) {
+                                // compact `- key: …`: the item is a mapping whose keys sit at
+                                // the content column; index the first key and open the frame
+                                byPath[itemPath + seg(key)] = offset
+                                stack.add(Frame(indent + 2, itemPath, 1))
+                            } else {
+                                // a plain scalar head is the item's SELF-VALUE (omni title) —
+                                // it takes no index; a deeper block holds the item's children
+                                pending = Pending(indent, itemPath, 0)
+                            }
+                        }
                     }
                     continue
                 }
@@ -246,10 +271,13 @@ class PathIndex(
                     anchors[rest.substring(1).takeWhile { !it.isWhitespace() }] = offset
                     rest = ""
                 }
-                if (rest.isEmpty()) pendingKey = Frame(indent, entryPath)
+                if (rest.isEmpty()) pending = Pending(indent, entryPath, sameIndentSeq = true)
             }
             return PathIndex(byPath, anchors, containers)
         }
+
+        /** A YAML block-scalar header: `|` / `>` with optional chomping/indent indicators. */
+        private val BLOCK_SCALAR_HEAD = Regex("[|>][0-9+-]*")
 
         /** Index a json5p file by brace/bracket structure (strings/comments respected). */
         fun ofJson5p(text: String): PathIndex {

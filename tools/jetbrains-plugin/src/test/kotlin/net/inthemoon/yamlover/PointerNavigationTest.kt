@@ -86,6 +86,47 @@ class PointerNavigationTest {
         assertNull(ix.resolve(Pointers.parse("/fan[1]")!!, 0))
     }
 
+    // ---- yamlover chapter shape (omni self-values) --------------------------
+
+    private val C = """
+        !!<*yamlover: ${'$'}defs: chapter>
+        "The Title: with a colon"
+        description: sub
+        - first chunk
+        - Sub title
+          - sub chunk one
+          - sub chunk two
+        - - untitled head chunk
+          - second chunk
+        - Task like
+          status: open
+        - |
+          note: not an entry
+    """.trimIndent() + "\n"
+
+    private fun cOffsetOfLine(s: String) = C.indexOf(s).also { check(it >= 0) }.let { C.lastIndexOf('\n', it) + 1 }
+
+    @Test
+    fun `chapter tag line and self-values take no position, item bodies are indexed`() {
+        val ix = PathIndex.ofYamlover(C)
+        // the tag line and the title (the node's self-value) consume no index
+        assertEquals(cOffsetOfLine("description: sub"), ix.resolve(Pointers.parse("/[0]")!!, 0))
+        assertEquals(cOffsetOfLine("- first chunk"), ix.resolve(Pointers.parse("/[1]")!!, 0))
+        // a titled subchapter: a plain-scalar head is its self-value, the deeper block its body
+        assertEquals(cOffsetOfLine("- Sub title"), ix.resolve(Pointers.parse("/[2]")!!, 0))
+        assertEquals(cOffsetOfLine("- sub chunk one"), ix.resolve(Pointers.parse("/[2][0]")!!, 0))
+        assertEquals(cOffsetOfLine("- sub chunk two"), ix.resolve(Pointers.parse("/[2][1]")!!, 0))
+        // compact untitled container: the inline head is the item's first child
+        assertEquals(cOffsetOfLine("- - untitled head chunk"), ix.resolve(Pointers.parse("/[3][0]")!!, 0))
+        assertEquals(cOffsetOfLine("- second chunk"), ix.resolve(Pointers.parse("/[3][1]")!!, 0))
+        // keyed children of a titled item resolve, and still occupy positions
+        assertEquals(cOffsetOfLine("status: open"), ix.resolve(Pointers.parse("/[4]/status")!!, 0))
+        assertEquals(cOffsetOfLine("status: open"), ix.resolve(Pointers.parse("/[4][0]")!!, 0))
+        // block-scalar content stays un-indexed (no phantom `note` entry)
+        assertNull(ix.resolve(Pointers.parse("/[5][0]")!!, 0))
+        assertNull(ix.resolve(Pointers.parse("/[5]/note")!!, 0))
+    }
+
     // ---- json5p index -------------------------------------------------------
 
     private val J = """

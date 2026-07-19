@@ -14,6 +14,9 @@ plus highlighting of `yamlover`/`json5p` fenced code blocks inside Markdown.
 - **Markdown injection**: ` ```yamlover ` and ` ```json5p ` fenced code blocks are
   highlighted inside `.md` files (`YamloverCodeFenceLanguageProvider`; loads only when
   the bundled Markdown plugin is present).
+- **Pointer navigation** (Ctrl+B / Ctrl+click) understands the omni chapter shape:
+  scalar self-values and document tag lines take no position; a titled subchapter's
+  (`- Title` + deeper body) and a compact container's (`- - x`) children are indexed.
 
 This is intentionally a *thin* first cut. It does **not** yet build PSI, resolve
 references, or talk to the engine.
@@ -39,7 +42,7 @@ the IntelliJ Platform SDK.
 ./gradlew runIde        # launches a sandbox IDE with the plugin
 ```
 
-Verified building on 2026-06-07: produces `build/distributions/yamlover-jetbrains-0.1.0.zip`
+Verified building on 2026-07-19: produces `build/distributions/yamlover-jetbrains-0.3.0.zip`
 (all classes + patched `plugin.xml` + Markdown injection config). Built against the
 **2023.2 (build 232)** platform with an **open-ended** upper bound (`since-build=232`,
 no `until-build`) so one artifact loads on any 2023.2+ backend.
