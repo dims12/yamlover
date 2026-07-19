@@ -1,5 +1,13 @@
 # Global JSON space and graph-like references
 
+> **Rewritten to the COLON grammar (SEPARATOR.md, 2026-06-13).** The path separator
+> is `:` — the same character that means "key leads to value" everywhere in the
+> family — and the scope ladder is "more colons, wider scope" (`:` document, `::`
+> project, `:::` world). The old `/` separator and the `//authority` link form are
+> DEPRECATED: parsers still accept them through the migration window, serializers
+> emit colon only. Canonical styling writes `: ` (colon + space) in block positions;
+> machine surfaces (store keys, API paths) use the compact form (`:team:alice:age`).
+
 ## Languages: json5p and yamlover
 
 Two surface notations appear below; both denote the same data + pointer model.
@@ -98,7 +106,7 @@ graph axes — is `QUERY.md`, which extends this same grammar.)
           "height_cm": 168,
           "occupation": "Software Engineer",
           "married": true,
-          "manager": *"../../pets[1]"
+          "manager": *"..:..:pets[1]"
       },
       {
           "name": "Marcus Lee",
@@ -108,7 +116,7 @@ graph axes — is `QUERY.md`, which extends this same grammar.)
           "height_cm": 181,
           "occupation": "Graphic Designer",
           "married": false,
-          "manager": *"../../pets[0]"
+          "manager": *"..:..:pets[0]"
       },
       {
           "name": "Priya Patel",
@@ -118,7 +126,7 @@ graph axes — is `QUERY.md`, which extends this same grammar.)
           "height_cm": 159,
           "occupation": "Pediatrician",
           "married": true,
-          "manager": *"../../pets[2]"
+          "manager": *"..:..:pets[2]"
       }
   ]
 }
@@ -145,63 +153,68 @@ humans:
 - name: Alice Johnson
   age: 34
   gender: female
-  manager: *../../pets[1]
+  manager: *..: ..: pets[1]
 - name: Marcus Lee
   age: 28
   gender: male
-  manager: *../../pets[0]
+  manager: *..: ..: pets[0]
 - name: Priya Patel
   age: 45
   gender: female
-  manager: *../../pets[2]
+  manager: *..: ..: pets[2]
 ```
 
-The URIs are global and virtual, and are written like JSON-Schema `$id`/`$ref`
-URIs — they are **identifiers, not fetch instructions**. A `*` never performs a
-network request; the scheme is optional and ignored for resolution, and the
-authority is a namespace tag resolved against the local mount table. Structure:
+The URIs are global and virtual — **identities, not fetch instructions** — like an
+AWS ARN (`arn:aws:s3:::bucket`): a pure colon-chained name. A `*` never performs a
+network request; the world authority is a namespace tag resolved against the local
+mount table. Structure:
 
-    [{scheme}://]{project-name}.{company.name}/json/space/path
+    ::: {project-name}.{company.name}: json: space: path
 
-e.g. `https://pet.store.com/pets` — scheme `https:` (ignored), authority
-`pet.store.com` = `{project-name=pet}.{company.name=store.com}`, path `/pets`.
+e.g. `::: pet.store.com: pets` — authority `pet.store.com` =
+`{project-name=pet}.{company.name=store.com}`, then the path portions. Schemes,
+ports, and paths-with-slashes are gone from the identifier: how an engine *reaches*
+that project — https, ssh, a local checkout, sync mirrors — is engine
+configuration, never part of the name. (The old `scheme://authority/path` link form
+is retired with the slash; parsers accept it through the migration window.)
 
 For example
 
 ```yamlover
-pets: *https://pet.store.com/pets
+pets: *::: pet.store.com: pets
 humans:
 - name: Alice Johnson
   age: 34
   gender: female
-  manager: *../../pets[1]
+  manager: *..: ..: pets[1]
 - name: Marcus Lee
   age: 28
   gender: male
-  manager: *../../pets[0]
+  manager: *..: ..: pets[0]
 - name: Priya Patel
   age: 45
   gender: female
-  manager: *../../pets[2]
+  manager: *..: ..: pets[2]
 ```
 
-One can use a leading `/` to start from the current document root
+A **leading `:`** starts from the current document root (one rung down the ladder;
+`..` chains are usually better spelled this way):
 
 ```yamlover
-pets: *//pet.store.com/pets
+pets: *::: pet.store.com: pets
 humans:
 - name: Alice Johnson
   age: 34
   gender: female
-  manager: */pets[1]
+  manager: *: pets[1]
 - name: Marcus Lee
   age: 28
   gender: male
-  manager: */pets[0]
+  manager: *: pets[0]
 - name: Priya Patel
   age: 45
   gender: female
-  manager: */pets[2]
+  manager: *: pets[2]
 ```
 
 
@@ -234,7 +247,7 @@ directly at its integer key. It is all one mapping with integer ∪ string keys 
 is just its mapping-style spelling.) Two access syntaxes keep the axes apart:
 
 - **`[n]`** selects the **integer key** `n` (position).
-- **`/x`** selects the **string key** `x`.
+- **`: x`** selects the **string key** `x` (a colon portion).
 
 Ordering is data: in a file it follows text order; for a directory it is imposed by
 the `body.yamlover` overlay (an array of `*`-pointers to the files), or left to the
@@ -259,26 +272,29 @@ A pointer with no leading scope sigil is resolved **against the current mapping*
 — the object that contains the pointer:
 
 - `*cat` → key `cat` of the current mapping (a sibling).
-- `*../x` → `..` is the parent **node**; walk up, then descend.
+- `*..: x` → `..` is the parent **node**; walk up, then descend.
 
 There is **no implicit search up the ancestors**: a bare name is current-mapping
-only. Reach outward explicitly with `..`, `/` (the document root), or a **link**
-(a URI authority). (This avoids fragile dynamic-scope capture.)
+only. Reach outward explicitly with `..`, or a wider rung of the ladder — `:` (the
+document root), `::` (the project root), `:::` (the world). (This avoids fragile
+dynamic-scope capture.)
 
-### The scopes (the ladder)
+### The scopes (the ladder) — more colons, wider scope
 
-| Form                            | Base                                                                  | Example                  |
-|---------------------------------|-----------------------------------------------------------------------|--------------------------|
-| `*name`, `*../…`                | current mapping / its parents                                         | `*cat`, `*../../pets[1]` |
-| `*/…`                           | current **document** root                                             | `*/pets[1]`              |
-| `*//auth/…`, `*scheme://auth/…` | a **link** — any *other* start (project, sibling doc, external graph) | `*//pet.store.com/pets`  |
+| Form               | Base                                                     | Example                        |
+|--------------------|----------------------------------------------------------|--------------------------------|
+| `*name`, `*..: …`  | current mapping / its parents                            | `*cat`, `*..: ..: pets[1]`     |
+| `*: …`             | current **document** root                                | `*: pets[1]`                   |
+| `*:: …`            | current **project** root                                 | `*:: $defs: tag`               |
+| `*::: auth: …`     | the **world** — an ARN-like identity, never fetched      | `*::: pet.store.com: pets`     |
 
-A **link** is a URI authority; the scheme is optional and ignored (a link is an
-identifier, not a fetch). Everything that is neither current-mapping-relative nor the
-document root (`/`) is reached as a link — **including the project/tree root**. The
-single leading `/` is the document root; a leading `//` introduces a link authority.
-Well-known names: `*project` = the current project root (a link), `*yamlover` = the
-yamlover project itself.
+A **world** base names a project by its authority (`{project}.{company}` DNS name);
+resolution goes through the local mount table — a link is an identifier, not a
+fetch. Imports are root-level keys whose value is a world-scoped link
+(`yamlover: *::: yamlover.inthemoon.net`); inside this project the self-import
+makes `:: $defs: tag` ≡ `:: yamlover: $defs: tag`. (Deprecated, accepted through
+the migration window: `/`-separated paths, a single leading `/` for the document
+root, and `//auth` / `scheme://auth` links.)
 
 ### Grammar (ABNF-ish)
 
@@ -286,25 +302,28 @@ yamlover project itself.
 deref    = "*" pointer            ; dereference → a graph edge to the target (pull)
 define   = "&" pointer [ "[]" ]   ; PATH anchor: this node is ALSO at that path (push);
                                   ;   trailing "[]" = ordinal membership (append)
-backedge = "~" name               ; DEPRECATED key prefix (see §~): ~key: *P ≡ &P/key
-pointer  = scope *( "/" ( name / ".." ) / index / relindex )
-scope    = link                   ; any OTHER start: project, sibling doc, external
-         / "/"                    ; current document root  (a single leading "/")
+backedge = "~" name               ; DEPRECATED key prefix (see §~): ~key: *P ≡ &P: key
+pointer  = scope *( ":" portion )
+scope    = ":::" ws authority     ; the world — an ARN-like project identity
+         / "::"                   ; current project root
+         / ":"                    ; current document root
          / ".."                   ; parent node
-         / name                   ; STRING key in the current mapping
-         / index                  ; INTEGER key (position) in the current mapping
-         / relindex               ; RELATIVE position (host frame; see §Relative indexes)
-link     = ( scheme "://" / "//" ) authority   ; scheme optional & ignored
+         / portion                ; STRING key / position in the current mapping
+portion  = ( name / ".." ) *( index / relindex )
+         / 1*( index / relindex ) ; a bare position, e.g. *[1], *[.-1]
 index    = "[" 1*DIGIT "]"        ; selects the integer key n
 relindex = "[" "." [ ("+" / "-") 1*DIGIT ] "]" ; the host's own position at this depth, ± k
 name     = 1*( nchar / "\" CHAR ) ; selects a string key; "\" escapes a metachar
-nchar    = <any char except unescaped  / [ ] * & # ~ ? ! ( ) < > = |  or whitespace>
+         / quoted                 ; a key containing a SPACE must be quoted ('…' / "…")
+nchar    = <any char except unescaped  : [ ] * & # ~ ? ! ( ) < > = |  or whitespace>
+ws       = *( SP )                ; canonical styling: ": " after each separator;
+                                  ;   the space is optional on input, absent in flow
 ```
 
-`[n]` selects the **integer key** `n` (a position); `/x` selects the **string key**
-`x`. With one ordered container (see *Lists and dicts are one ordered mapping*), this
-is the only distinction needed — the old worry of an integer key `1:` versus a string
-key `"1":` is simply `[1]` versus `/1`.
+`[n]` selects the **integer key** `n` (a position); `: x` selects the **string
+key** `x`. With one ordered container (see *Lists and dicts are one ordered
+mapping*), this is the only distinction needed — the old worry of an integer key
+`1:` versus a string key `"1":` is simply `[1]` versus `: 1`.
 
 The empty brackets `[]` are legal only as the **last** token of an anchor (`&…[]`,
 ordinal membership — see §`&`); they never appear in a `*` pointer. The query
@@ -340,19 +359,25 @@ a claim.
 
 ### Literal characters (escaping)
 
-A key may itself contain a metacharacter — `/ [ ] * & # ~ \`, the query characters
+A key may itself contain a metacharacter — `: [ ] * & # ~ \`, the query characters
 `? ! ( ) < > = |` (reserved for `QUERY.md`; pointers and queries share one lexical
 space), or an all-dots segment `..` / `...` (parent / query descent). Escape it with
-a **backslash**, which suppresses the pointer meaning of the next
-character. Escaping is backslash-based, **not** quote-based: in JSON5 and YAML `'` and
-`"` are interchangeable string delimiters, so they cannot carry a "literal vs.
-interpreted" distinction — `*".."` and `*'..'` are the same string, both meaning
-*parent*.
+a **backslash**, which suppresses the pointer meaning of the next character; a key
+containing a **space** must instead be quoted (`'…'` / `"…"` — the host surface's
+string quoting). Backslash escaping carries the literal-vs-interpreted distinction
+that quotes cannot: in JSON5 and YAML `'` and `"` are interchangeable string
+delimiters — `*".."` and `*'..'` are the same string, both meaning *parent*.
+
+What `/` gained by leaving the metachar set: MIME-type keys (`text/html`), date
+keys (`01/02/2026`) and URL-ish keys now ride **bare** in paths. (During the
+migration window `\/` still parses.)
 
 ```yamlover
-weird: *../cat\/dog/x    # second step is the literal key "cat/dog"
-dots:  *\.\.             # the literal key ".." (not "parent")
-star:  *\*boss           # the literal key "*boss"
+mime:  *..: text/html: x     # "/" is no metacharacter — the key "text/html" rides bare
+colon: *schedule: 09\:30     # a literal ":" inside the key "09:30"
+space: *: tags: 'дорожный знак'  # a key with a space — quoted
+dots:  *\.\.                 # the literal key ".." (not "parent")
+star:  *\*boss               # the literal key "*boss"
 ```
 
 (For JSON-Schema `$ref` interop a resolver may additionally accept JSON-Pointer
@@ -367,22 +392,23 @@ escaping: `~1`=`/`, `~0`=`~`.)
 > anchor-over-sibling-key precedence rule — is gone: `*name` is pure path lookup.
 
 `*path` **pulls** — "my value lives there". `&path` **pushes** — "I *also* live
-there". An anchor's name is a full pointer path (same scopes — current / `..` /
-`/` document / `//` link — same metachars, same backslash escaping). Declaring
-`&P/k` on a node means: the container at `P` gains the entry `k`, a **ref edge to
-this node**. The authored position stays the containment spine and the node's
-identity path; anchor-created entries are ordinary non-owning ref edges, exactly
-what a forward `k: *me` authored at `P` would produce — `normalize` folds the two
-authorings of one edge together (see *Collisions* below).
+there". An anchor's name is a full pointer path (same scope ladder — current /
+`..` / `:` document / `::` project / `:::` world — same metachars, same backslash
+escaping). Declaring `&P: k` on a node means: the container at `P` gains the entry
+`k`, a **ref edge to this node**. The authored position stays the containment
+spine and the node's identity path; anchor-created entries are ordinary non-owning
+ref edges, exactly what a forward `k: *me` authored at `P` would produce —
+`normalize` folds the two authorings of one edge together (see *Collisions*
+below).
 
 ```yamlover
 humans:
   - age: 30
-    pet: &/supercat     # this pet node is ALSO the document-root key "supercat"
+    pet: &: supercat    # this pet node is ALSO the document-root key "supercat"
       species: cat
       color: pink
   - age: 10
-    pet: */supercat     # plain path — no anchor namespace involved
+    pet: *: supercat    # plain path — no anchor namespace involved
 ```
 
 **Anchors are real keys, not a separate namespace.** `*name` is pure path lookup;
@@ -396,13 +422,15 @@ reverse-tagged PDF `binary`. No `!!var` is needed to anchor a scalar. An anchor
 attaches to a NODE; a pointer entry (`k: *p`) cannot carry one.
 
 **Multiplicity & placement.** A node may declare any number of anchors: on the
-value's line (the YAML anchor position) or on their own lines inside the node's
-block — before or after the value line; line order is irrelevant. A whole-document
-scalar can therefore be tagged in two bare lines:
+value's line (the YAML anchor position — quoted when colon-styled, e.g.
+`path: &': another: path' 12`) or on their own lines inside the node's block; the
+CANONICAL style puts them on their own lines after the value (own-line tokens run
+to end of line, no quoting needed). A whole-document scalar can therefore be
+tagged in two bare lines:
 
 ```yamlover
 30
-&//tags/field/mathematics/numbers/whole[]
+&:: tags: field: mathematics: numbers: whole[]
 ```
 
 **Ordinal anchors — `&path[]`.** A trailing `[]` makes the membership **keyless**:
@@ -421,7 +449,8 @@ folded by `normalize` like any forward+reverse pair):
 
 ```yamlover
 some:
-  path: &/another/path 12
+  path: 12
+    &: another: path    # canonical own-line anchor
 
 another:
   path: 12              # same value — the two declarations agree; one node
@@ -429,14 +458,15 @@ another:
 
 Unequal declarations are a **reported conflict** — surfaced like dangling
 pointers, never silently dropped. Anchors within one document are checked at
-parse/resolve time; cross-document anchors (`//` links, document-root scopes
-across files) are realized and checked by the engine at index time.
+parse/resolve time; cross-document anchors (project `::` / world `:::` scopes,
+document-root scopes across files) are realized and checked by the engine at
+index time.
 
 **Relocation is just an edge** — there is no special `&` form for it; point a new
 place at the existing node with `*`:
 
 ```yamlover
-acting_boss: */pets[0]
+acting_boss: *: pets[0]
 ```
 
 ### `~` — reverse edges (DEPRECATED → path anchors)
@@ -444,7 +474,7 @@ acting_boss: */pets[0]
 > **Deprecated 2026-06-12 (`ANCHOR_REFACTOR.md`)** in favor of path anchors:
 >
 > ```
-> ~key: *P     ≡   &P/key        (keyed reverse edge)
+> ~key: *P     ≡   &P: key       (keyed reverse edge)
 > ~- *P        ≡   &P[]          (keyless reverse membership)
 > ```
 >
@@ -453,10 +483,10 @@ acting_boss: */pets[0]
 > three edges:
 >
 > ```yamlover
-> "Chemical-Free.pdf":                                "Chemical-Free.pdf":
->   ~chemical-free: */tags/field/chemistry              &/tags/field/chemistry/chemical-free
->   ~chemical-free: */tags/genre/brevity/empty-body     &/tags/genre/brevity/empty-body/chemical-free
->   ~chemical-free: */tags/genre/humor/satire           &/tags/genre/humor/satire/chemical-free
+> "Chemical-Free.pdf":                                    "Chemical-Free.pdf":
+>   ~chemical-free: *: tags: field: chemistry               &: tags: field: chemistry: chemical-free
+>   ~chemical-free: *: tags: genre: brevity: empty-body     &: tags: genre: brevity: empty-body: chemical-free
+>   ~chemical-free: *: tags: genre: humor: satire           &: tags: genre: humor: satire: chemical-free
 > ```
 >
 > Parsers keep accepting `~` through the migration window (PLAN.md Phase A);
@@ -471,10 +501,10 @@ works whether the forward `X` is a containment edge or a `*` reference:
 
 ```yamlover
 eve:
-  cain: */adam/cain      # forward:  eve --cain--> cain
+  cain: *: adam: cain    # forward:  eve --cain--> cain
 adam:
   cain:
-    ~cain: */eve         # reverse of eve's "cain" edge → eve
+    ~cain: *: eve        # reverse of eve's "cain" edge → eve
 ```
 
 A `~` edge is **up / non-owning**: it is not part of the containment spine (so the
@@ -506,11 +536,11 @@ with** — a key (`~name:`) or the `-` marker (`~-`):
 
 ```yamlover
 my_node:
-  ~- */some/other/location   # ⇒ the container at /some/other/location has  - *…/my_node
+  ~- *: some: other: location   # ⇒ the container at : some: other: location has  - *…my_node
 ```
 
 (In json5p, which has no `-` marker, the sigil prefixes the pointer directly:
-`~*'/some/other/location'`.) A `~-` entry's value must be a pointer — a back-edge needs
+`~*':some:other:location'`.) A `~-` entry's value must be a pointer — a back-edge needs
 a target.
 
 Keyless reversal differs from keyed reversal in two deliberate ways:
