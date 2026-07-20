@@ -322,10 +322,12 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", yamlover: "x" }]), { timeout: 2000 });
   });
 
-  it("`|` at the ROOT focuses the block cell immediately; Shift-Tab finishes it", async () => {
+  it("`|` + Enter at the ROOT opens the focused block cell; Shift-Tab finishes it", async () => {
     const { container } = await mount(":n");
     const hole = container.querySelector<HTMLElement>(".yed-hole")!;
     type(hole, "|");
+    expect(container.querySelector("textarea.yed-blocktext")).toBeNull(); // header still typing
+    fireEvent.keyDown(hole, { key: "Enter" }); // Enter allocates the cell
     const area = container.querySelector<HTMLTextAreaElement>("textarea.yed-blocktext")!;
     expect(document.activeElement).toBe(area); // the caret lands INSIDE the block, no mouse needed
     fireEvent.input(area, { target: { value: "line one\nline two" } });
@@ -349,6 +351,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     fireEvent.keyDown(lastHole(container), { key: "Tab", shiftKey: true }); // out to the document level
     const next = lastHole(container);
     type(next, "|");
+    fireEvent.keyDown(next, { key: "Enter" }); // the header resolves on Enter
     // the `|` header is PROJECTED and kept; the text edits below in the block area
     expect(Array.from(container.querySelectorAll(".punct")).some((p) => p.textContent?.startsWith("|"))).toBe(true);
     const area = container.querySelector<HTMLTextAreaElement>("textarea.yed-blocktext")!;
@@ -359,6 +362,82 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     await waitFor(() => expect(editChunks).toHaveBeenLastCalledWith([
       { path: ":n", op: "emplace", yamlover: "|\n  multi-line\n  self value", at: 1 },
     ]), { timeout: 2000 });
+  });
+
+  it("`>-` types WHOLLY before Enter — the folded header is projected and kept on commit", async () => {
+    const { container } = await mount(":n");
+    const hole = container.querySelector<HTMLElement>(".yed-hole")!;
+    type(hole, ">");
+    expect(container.querySelector("textarea.yed-blocktext")).toBeNull(); // still typing the header
+    type(hole, ">-"); // the chomping indicator lands in the hole, not past a stolen cell
+    expect(container.querySelector("textarea.yed-blocktext")).toBeNull();
+    fireEvent.keyDown(hole, { key: "Enter" });
+    const area = container.querySelector<HTMLTextAreaElement>("textarea.yed-blocktext")!;
+    expect(document.activeElement).toBe(area);
+    expect(Array.from(container.querySelectorAll(".punct")).map((p) => p.textContent)).toContain(">-");
+    fireEvent.input(area, { target: { value: "fold me\nplease" } });
+    fireEvent.keyDown(area, { key: "Enter", ctrlKey: true });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":n", op: "emplace", yamlover: ">-\n  fold me\n  please" },
+    ]), { timeout: 2000 });
+  });
+
+  it("Backspace in the EMPTIED fresh block steps back to the typed header in the hole", async () => {
+    const { container } = await mount(":n");
+    const hole = container.querySelector<HTMLElement>(".yed-hole")!;
+    type(hole, "|-");
+    fireEvent.keyDown(hole, { key: "Enter" });
+    const area = container.querySelector<HTMLTextAreaElement>("textarea.yed-blocktext")!;
+    fireEvent.input(area, { target: { value: "" } }); // (typed and deleted again)
+    fireEvent.keyDown(area, { key: "Backspace" });
+    expect(container.querySelector("textarea.yed-blocktext")).toBeNull(); // the cell dismantled
+    const back = container.querySelector<HTMLElement>(".yed-hole")!;
+    expect(back.textContent).toBe("|-"); // the pre-Enter state — keep deleting or retype
+    expect(document.activeElement).toBe(back);
+    expect(editChunks).not.toHaveBeenCalled(); // nothing was ever committed
+  });
+
+  it("an EMPTIED entry block dismantles to its header hole on the entry row", async () => {
+    const { container } = await mount(":n");
+    const hole = container.querySelector<HTMLElement>(".yed-hole")!;
+    type(hole, "- ");
+    const v = lastHole(container);
+    type(v, ">");
+    fireEvent.keyDown(v, { key: "Enter" });
+    const area = container.querySelector<HTMLTextAreaElement>("textarea.yed-blocktext")!;
+    fireEvent.keyDown(area, { key: "Backspace" }); // born empty — one press steps back
+    expect(container.querySelector("textarea.yed-blocktext")).toBeNull();
+    const back = lastHole(container);
+    expect(back.textContent).toBe(">");
+    expect(document.activeElement).toBe(back);
+  });
+
+  it("a PERSISTED block entry emptied + Backspace removes the entry", async () => {
+    fetchNode.mockResolvedValue({
+      path: ":d", type: "array", concrete: "yamlover", title: null, description: null,
+      value: ["one\ntwo", "tail"],
+    });
+    const { container } = await mount(":d");
+    const area = container.querySelector<HTMLTextAreaElement>("textarea.yed-blocktext")!;
+    fireEvent.input(area, { target: { value: "" } });
+    fireEvent.keyDown(area, { key: "Backspace" });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":d[0]", op: "remove" }]), { timeout: 2000 });
+    expect(container.querySelector("textarea.yed-blocktext")).toBeNull();
+  });
+
+  it("a PERSISTED block SELF-VALUE emptied + Backspace clears the line, a hole takes its place", async () => {
+    fetchNode.mockResolvedValue({
+      path: ":d", type: "object", concrete: "yamlover", title: null, description: null,
+      value: { $yamloverMixed: { kind: "omni", value: "self one\nself two\n", selfAt: 0, entries: [{ key: "key", value: "val" }] } },
+      comments: { "": { raw: "|\nself one\nself two" } },
+    });
+    const { container } = await mount(":d");
+    const area = container.querySelector<HTMLTextAreaElement>("textarea.yed-blocktext")!;
+    fireEvent.input(area, { target: { value: "" } });
+    fireEvent.keyDown(area, { key: "Backspace" });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":d", op: "emplace", yamlover: '""' }]), { timeout: 2000 });
+    expect(container.querySelector("textarea.yed-blocktext")).toBeNull();
+    expect(document.activeElement?.className ?? "").toContain("yed-hole"); // ready to retype
   });
 
   it("THE LEVEL RULE: `- scalar` ↵ descends — `- element` lands nested, the row keeps its shape", async () => {
@@ -681,6 +760,249 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
   });
 });
 
+describe("pointer cell — spaced commit, error ring, completion hints", () => {
+  const PETS = {
+    path: ":doc", type: "object", concrete: "yamlover", title: null, description: null,
+    value: { pets: [{ name: "Rex" }, { name: "Whiskers" }] },
+  };
+  beforeEach(() => fetchNode.mockResolvedValue(PETS));
+
+  const pointerCell = (container: HTMLElement): HTMLElement =>
+    container.querySelector<HTMLElement>(".yed-ptrwrap [contenteditable]")!;
+  const hintTexts = (container: HTMLElement): (string | null)[] =>
+    Array.from(container.querySelectorAll(".yed-hint")).map((h) => h.textContent);
+
+  it("the CANONICAL spaced form commits: `*` + `: pets[1]` + Enter → BARE op + next hole", async () => {
+    const { container } = await mount(":doc");
+    type(openHole(container), "*");
+    const cell = pointerCell(container);
+    type(cell, ": pets[1]");
+    fireEvent.keyDown(cell, { key: "Enter" });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":doc[1]", op: "insert", yamlover: "*:pets[1]" },
+    ]), { timeout: 2000 });
+    expect(container.querySelectorAll(".yed-hole:not(.yed-tail)").length).toBeGreaterThan(0); // advanced
+  });
+
+  it("Enter on an INVALID pointer paints the error ring and stays", async () => {
+    const { container } = await mount(":doc");
+    type(openHole(container), "*");
+    const cell = pointerCell(container);
+    type(cell, ":::"); // world scope with no authority — does not parse
+    fireEvent.keyDown(cell, { key: "Enter" });
+    expect(cell.className).toContain("edit-error");
+    expect(editChunks).not.toHaveBeenCalled();
+  });
+
+  it("a quoted key holding a space is rejected VISIBLY (the wire cannot carry it)", async () => {
+    const { container } = await mount(":doc");
+    type(openHole(container), "*");
+    const cell = pointerCell(container);
+    type(cell, ": 'a b'");
+    fireEvent.keyDown(cell, { key: "Enter" });
+    expect(cell.className).toContain("edit-error");
+    expect(editChunks).not.toHaveBeenCalled();
+  });
+
+  it("hints: open on focus, filter with typing, ArrowDown + Enter accepts and commits", async () => {
+    const { container } = await mount(":doc");
+    type(openHole(container), "*");
+    const cell = pointerCell(container);
+    fireEvent.focus(cell);
+    expect(container.querySelector(".yed-hints")).toBeTruthy();
+    expect(hintTexts(container)).toContain(": pets[1]");
+    type(cell, ":pets[1]:"); // spacing-insensitive filter narrows to the child
+    expect(hintTexts(container)).toEqual([": pets[1]: name"]);
+    fireEvent.keyDown(cell, { key: "ArrowDown" });
+    expect(container.querySelector(".yed-hint.hi")!.textContent).toBe(": pets[1]: name");
+    fireEvent.keyDown(cell, { key: "Enter" });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":doc[1]", op: "insert", yamlover: "*:pets[1]:name" },
+    ]), { timeout: 2000 });
+    expect(container.querySelector(".yed-hints")).toBeNull();
+  });
+
+  it("Escape closes the popup; free text with NO match still commits (dangling allowed)", async () => {
+    const { container } = await mount(":doc");
+    type(openHole(container), "*");
+    const cell = pointerCell(container);
+    fireEvent.focus(cell);
+    expect(container.querySelector(".yed-hints")).toBeTruthy();
+    fireEvent.keyDown(cell, { key: "Escape" });
+    expect(container.querySelector(".yed-hints")).toBeNull();
+    type(cell, ": nowhere[7]");
+    fireEvent.keyDown(cell, { key: "Enter" });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":doc[1]", op: "insert", yamlover: "*:nowhere[7]" },
+    ]), { timeout: 2000 });
+  });
+
+  it("clicking a hint commits the CANDIDATE, never the half-typed text", async () => {
+    const { container } = await mount(":doc");
+    type(openHole(container), "*");
+    const cell = pointerCell(container);
+    type(cell, ":pets[0]:");
+    const hint = container.querySelector<HTMLElement>(".yed-hint")!;
+    expect(hint.textContent).toBe(": pets[0]: name");
+    fireEvent.mouseDown(hint); // preventDefault'ed — the cell never blurs first
+    fireEvent.click(hint);
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":doc[1]", op: "insert", yamlover: "*:pets[0]:name" },
+    ]), { timeout: 2000 });
+  });
+
+  it("ROOT pointer: commits and STAYS (no entry — no advance)", async () => {
+    fetchNode.mockResolvedValue({
+      path: ":n", type: "null", format: null, valueType: "null", concrete: "file/yamlover",
+      documentPath: ":n", title: null, description: null, value: null, comments: {},
+    });
+    const { container } = await mount(":n");
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "*");
+    const cell = pointerCell(container);
+    type(cell, ": pets[1]");
+    fireEvent.keyDown(cell, { key: "Enter" });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":n", op: "emplace", yamlover: "*:pets[1]" },
+    ]), { timeout: 2000 });
+    expect(container.querySelector(".yed-hole")).toBeNull(); // stays on the pointer row
+  });
+
+  it("re-editing a committed SPACED-canonical pointer: unchanged Enter advances without an op", async () => {
+    fetchNode.mockResolvedValue({
+      path: ":d", type: "array", concrete: "yamlover", title: null, description: null,
+      value: [{ $yamloverRef: { text: ": pets[1]", path: null } }],
+      comments: { "[0]": { pointer: ": pets[1]" } },
+    });
+    const { container } = await mount(":d");
+    const cell = pointerCell(container);
+    expect(cell.textContent).toBe(": pets[1]"); // the sidecar's spaced display form
+    fireEvent.keyDown(cell, { key: "Enter" });
+    await waitFor(() => expect(container.querySelectorAll(".yed-hole:not(.yed-tail)").length).toBe(1), { timeout: 2000 });
+    expect(editChunks).not.toHaveBeenCalled(); // nothing re-emitted
+  });
+});
+
+describe("paste — valid yamlover source materializes structure", () => {
+  const clip = (text: string) => ({
+    clipboardData: { getData: (t: string) => (t === "text/plain" ? text : "<b>markup</b>"), files: [], items: [] },
+  });
+  const EMPTY = {
+    path: ":n", type: "null", format: null, valueType: "null", concrete: "file/yamlover",
+    documentPath: ":n", title: null, description: null, value: null, comments: {},
+  };
+
+  it("multi-line paste into an entry hole splices SIBLINGS: ordered inserts, rows render, hole follows", async () => {
+    const { container } = await mount(":doc"); // the OMNI doc — 3 committed entries
+    const dashes = container.querySelectorAll(".yaml-dash").length;
+    const hole = openHole(container);
+    fireEvent.paste(hole, clip("- name: Rex\n  species: dog\n- name: Tom"));
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":doc[3]", op: "insert", yamlover: "name: Rex\nspecies: dog" },
+      { path: ":doc[4]", op: "insert", yamlover: "name: Tom" },
+    ]), { timeout: 2000 });
+    expect(container.querySelectorAll(".yaml-dash").length).toBe(dashes + 2);
+    expect(document.activeElement?.className ?? "").toContain("yed-hole"); // continue typing below
+  });
+
+  it("multi-line paste into a VALUE hole becomes the entry's value (one keyed insert)", async () => {
+    fetchNode.mockResolvedValue(EMPTY);
+    const { container } = await mount(":n");
+    const hole = container.querySelector<HTMLElement>(".yed-hole")!;
+    type(hole, "pets: ");
+    const valueHole = container.querySelector<HTMLElement>(".yed-hole:not(.yed-tail)")!;
+    fireEvent.paste(valueHole, clip("- Rex\n- Tom"));
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":n[0]", op: "insert", key: "pets", yamlover: "- Rex\n- Tom" },
+    ]), { timeout: 2000 });
+  });
+
+  it("a parse error refuses with the error ring — nothing mutates", async () => {
+    const { container } = await mount(":doc");
+    const hole = openHole(container);
+    fireEvent.paste(hole, clip("a: [unclosed\nb: 2"));
+    expect(hole.className).toContain("edit-error");
+    expect(editChunks).not.toHaveBeenCalled();
+  });
+
+  it("anchors/!!set paste mid-document SUCCEEDS with the extras dropped from the ops", async () => {
+    const { container } = await mount(":doc");
+    const hole = openHole(container);
+    fireEvent.paste(hole, clip("boss: &: chief\n  name: Rex"));
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":doc[3]", op: "insert", key: "boss", yamlover: "name: Rex" }, // no `&` anywhere
+    ]), { timeout: 2000 });
+  });
+
+  it("single-line paste behaves exactly like typing (the live grammar classifies)", async () => {
+    const { container } = await mount(":doc");
+    const dashes = container.querySelectorAll(".yaml-dash").length;
+    const hole = openHole(container);
+    fireEvent.paste(hole, clip("- "));
+    expect(container.querySelectorAll(".yaml-dash").length).toBe(dashes + 1); // ordinal materialized
+    expect(editChunks).not.toHaveBeenCalled(); // nothing committed yet — same as typing
+  });
+
+  it("whole-document paste into the EMPTY editor: per-entry inserts (the root takes no payload emplace)", async () => {
+    fetchNode.mockResolvedValue(EMPTY);
+    const { container } = await mount(":n");
+    const hole = container.querySelector<HTMLElement>(".yed-hole")!;
+    const text = "pets:\n  - name: Rex\n    species: dog\n  - name: Whiskers\n    species: cat\nafter: 1";
+    fireEvent.paste(hole, clip(text));
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":n[0]", op: "insert", key: "pets", yamlover: "- name: Rex\n  species: dog\n- name: Whiskers\n  species: cat" },
+      { path: ":n[1]", op: "insert", key: "after", yamlover: "1" },
+    ]), { timeout: 2000 });
+    expect(Array.from(container.querySelectorAll(".k")).map((k) => k.textContent))
+      .toEqual(["pets", "name", "species", "name", "species", "after"]);
+  });
+
+  it("the LEGACY `\"\"` scalar fresh file takes a whole-document paste too (clear + inserts)", async () => {
+    fetchNode.mockResolvedValue({
+      path: ":n", type: "string", format: null, valueType: "string", concrete: "file/yamlover",
+      documentPath: ":n", title: null, description: null, value: "", comments: { "": { raw: '""' } },
+    });
+    const { container } = await mount(":n");
+    const cell = container.querySelector<HTMLElement>("[data-yed-cell]")!; // the root scalar cell
+    fireEvent.paste(cell, clip("pets:\n- name: Rex"));
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":n", op: "emplace", yamlover: '""' },
+      { path: ":n[0]", op: "insert", key: "pets", yamlover: "- name: Rex" },
+    ]), { timeout: 2000 });
+    expect(Array.from(container.querySelectorAll(".k")).map((k) => k.textContent)).toEqual(["pets", "name"]);
+  });
+
+  it("multi-line structure into a FLOW hole refuses; a non-empty hole guards its typed text", async () => {
+    fetchNode.mockResolvedValue(EMPTY);
+    const { container } = await mount(":n");
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "{");
+    const inner = container.querySelector<HTMLElement>(".yed-hole")!;
+    fireEvent.paste(inner, clip("a: 1\nb: 2"));
+    expect(inner.className).toContain("edit-error");
+    expect(editChunks).not.toHaveBeenCalled();
+  });
+
+  it("a non-empty hole refuses a multi-line paste — the typed text survives", async () => {
+    const { container } = await mount(":doc");
+    const hole = openHole(container);
+    type(hole, "abc");
+    fireEvent.paste(hole, clip("x: 1\ny: 2"));
+    expect(hole.className).toContain("edit-error");
+    expect(hole.textContent).toBe("abc");
+    expect(editChunks).not.toHaveBeenCalled();
+  });
+
+  it("EditableCell paste is sanitized plain text (the HTML flavour never lands)", async () => {
+    const { container } = await mount(":doc"); // the OMNI doc
+    const cell = Array.from(container.querySelectorAll<HTMLElement>("[data-yed-cell]"))
+      .find((el) => el.textContent === "chunk one")!;
+    fireEvent.paste(cell, clip(" extended"));
+    // jsdom's caret sits at position 0 (no layout) — assert content, not order
+    expect(cell.textContent).toContain(" extended");
+    expect(cell.textContent).toContain("chunk one");
+    expect(cell.innerHTML).not.toContain("<b>"); // the text/html flavour never lands
+  });
+});
+
 describe("NodeView — the create flow opens the fresh node IN the editor", () => {
   const FRESH = {
     path: ":New%20node.yamlover", type: "string", format: null, valueType: "string",
@@ -809,8 +1131,10 @@ describe("THE REPRESENTATION RULE — block scalars reproduce the authored concr
     fireEvent.keyDown(v, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", yamlover: "solid" }]), { timeout: 2000 });
     fireEvent.keyDown(lastHole(), { key: "Tab", shiftKey: true });
-    // `|` + block text — the self line, typed AFTER entry [0]: the emplace carries `at: 1`
-    type(lastHole(), "|");
+    // `|` ↵ + block text — the self line, typed AFTER entry [0]: the emplace carries `at: 1`
+    const bh = lastHole();
+    type(bh, "|");
+    fireEvent.keyDown(bh, { key: "Enter" });
     const area = container.querySelector<HTMLTextAreaElement>("textarea.yed-blocktext")!;
     fireEvent.input(area, { target: { value: "A block-scalar self-value\nmulti-line text" } });
     fireEvent.keyDown(area, { key: "Tab" });

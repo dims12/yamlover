@@ -8,12 +8,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { fetchNode, type Edit } from "../../api";
 import { parseYamlover } from "../../../../../parser/ts/src/yamlover.ts";
-import { parsePointer } from "../../../../../parser/ts/src/pointer.ts";
 import { acceptsAsScalar } from "../value-editors";
 import { focusEnd, focusStart } from "../caret";
 import * as M from "./model";
 import { enqueue, useOpSync, type OpQueue } from "./ops";
 import { keyedEditParts, normalizeSpaces, quoteSource, type HoleAction } from "./keys";
+import { enumeratePointerTargets } from "./pointer-hints";
+import * as P from "./paste";
 import { FlowCells, MetaTagCell, NodeCells, PointerCell, RootHole, ScalarCell, YedCtx, type YedActions, type YedCtxType } from "./cells";
 
 interface FocusReq {
@@ -124,11 +125,11 @@ function applyHoleAction(root: M.MNode, entryId: string, action: HoleAction, foc
       focus(node.id + ":meta", "start");
       return [];
     case "block":
-      // like `quote`: a bare `|` block in an entry hole is the node's scalar LINE on commit;
-      // the typed `|` IS the authored header — commits keep it
+      // like `quote`: a bare `|`/`>` block in an entry hole is the node's scalar LINE on commit;
+      // the typed header (`|`, `|-`, `>-`, …) IS the authored header — commits keep it
       if (container.flow) entry.decided = true;
       node.kind = "scalar";
-      node.scalar = { src: "|", value: "", block: true };
+      node.scalar = { src: action.header, value: "", block: true };
       node.dirty = true;
       node.rev++;
       focus(node.id, "start");
@@ -399,9 +400,13 @@ export function YamloverEditor({ path, onNavigate }: { path: string; onNavigate:
       return ok;
     },
     commitPointer(nodeId, raw) {
-      if (raw === "" || /\s/.test(raw)) return false; // ops carry bare pointers only (server guard)
-      try { parsePointer(raw); } catch { return false; }
-      step((r) => M.setNodeToken(path, r, nodeId, { pointer: raw }));
+      const text = normalizeSpaces(raw).trim();
+      if (text === "") return false;
+      // the CANONICAL spaced form (`: pets[1]`) is what documents display — accept it and every
+      // other parseable spelling; the op goes out BARE (ops carry `*\S*` only — server guard)
+      const bare = M.barePointer(text);
+      if (bare === null || /\s/.test(bare)) return false; // unparsable, or a quoted spaced key the wire can't carry
+      step((r) => M.setNodeToken(path, r, nodeId, { pointer: text }));
       return true;
     },
     commitSelfToken(nodeId, rawSrc) {
@@ -507,7 +512,7 @@ export function YamloverEditor({ path, onNavigate }: { path: string; onNavigate:
             return []; // the emplace fires on commit
           case "block":
             r.kind = "scalar";
-            r.scalar = { src: "|", value: "", block: true }; // the typed `|` is the authored header
+            r.scalar = { src: action.header, value: "", block: true }; // the typed header is the authored one
             r.dirty = true;
             r.rev++;
             focusReq.current = { key: r.id, at: "start" };
@@ -567,14 +572,18 @@ export function YamloverEditor({ path, onNavigate }: { path: string; onNavigate:
       step((r) => {
         const node = nodeId === r.id ? r : M.findNode(r, nodeId)?.node;
         if (!node || !node.dirty) return []; // persisted cells don't dismantle — they edit
+        // a block cell dismantles back to its typed HEADER text (the pre-Enter hole state), so
+        // continued Backspaces eat the header characters one by one
+        const prefill = node.scalar?.block ? M.blockHeader(node.scalar.src) : undefined;
         node.scalar = undefined;
         node.pointer = undefined;
         node.flow = undefined;
         node.entries = [];
         node.kind = nodeId === r.id ? "container" : "hole"; // the root's hole IS the empty container
         node.dirty = false;
+        node.prefill = prefill;
         node.rev++;
-        focusReq.current = { key: node.id, at: "start" };
+        focusReq.current = { key: node.id, at: prefill !== undefined ? "end" : "start" };
         return [];
       });
     },
@@ -652,6 +661,68 @@ export function YamloverEditor({ path, onNavigate }: { path: string; onNavigate:
         return edits;
       });
     },
+    pasteEntry(entryId, text) {
+      const doc = P.tryParse(text);
+      if (!doc || P.pasteBlockers(doc.root)) return false;
+      let ok = true;
+      step((r) => {
+        const spine = M.findEntry(r, entryId);
+        if (!spine) { ok = false; return []; }
+        const { container, index } = spine.parents[spine.parents.length - 1];
+        const parsed = doc.root;
+        const lone = P.isLoneScalar(parsed);
+        if (container.flow && !lone) { ok = false; return []; } // no block structure inside flow
+        if (!spine.entry.decided) {
+          // ENTRY stage — a lone (multi-line) scalar is the container's scalar LINE, exactly
+          // like typing the token; structure splices as siblings at the hole's position
+          if (lone) {
+            if (container.selfValue) { ok = false; return []; }
+            const edits = M.commitHoleAsSelf(path, r, entryId, P.scalarFromIR(parsed));
+            const hole = M.insertHoleAt(r, container.id, container.selfAt);
+            if (hole) focusReq.current = { key: hole.node.id, at: "start" };
+            return edits;
+          }
+          const holeEntry = spine.entry;
+          container.entries.splice(index, 1); // consume the hole (uncommitted — no ops)
+          const edits = P.pasteEntriesAt(path, r, container.id, index, parsed);
+          if (edits === null) {
+            container.entries.splice(index, 0, holeEntry); // refused — the hole survives untouched
+            ok = false;
+            return [];
+          }
+          const last = container.entries[index + (parsed.entries?.length ?? 0) - 1];
+          const hole = M.insertHoleAfter(r, container.id, last?.id ?? null); // continue below (holeSubmit's rule)
+          if (hole) focusReq.current = { key: hole.node.id, at: "start" };
+          return edits;
+        }
+        // VALUE stage — the parsed root is the entry's value
+        if (lone) {
+          const scalar = P.scalarFromIR(parsed);
+          const edits = M.setNodeToken(path, r, spine.entry.node.id, scalar);
+          focusReq.current = { key: spine.entry.node.id, at: "end" };
+          return edits;
+        }
+        const edits = P.pasteValueAt(path, r, entryId, parsed);
+        if (edits === null) { ok = false; return []; }
+        const hole = M.insertHoleAfter(r, container.id, spine.entry.id);
+        if (hole) focusReq.current = { key: hole.node.id, at: "start" };
+        return edits;
+      });
+      return ok;
+    },
+    pasteRoot(text) {
+      const doc = P.tryParse(text);
+      if (!doc || P.pasteBlockers(doc.root)) return false;
+      let ok = true;
+      step((r) => {
+        const edits = P.pasteRootDocument(path, r, doc);
+        if (edits === null) { ok = false; return []; }
+        const last = r.entries[r.entries.length - 1];
+        focusReq.current = last ? { key: last.node.id, at: "end" } : { key: r.id, at: "end" };
+        return edits;
+      });
+      return ok;
+    },
     removeEmpty(entryId) {
       step((r) => {
         const spine = M.findEntry(r, entryId);
@@ -675,6 +746,8 @@ export function YamloverEditor({ path, onNavigate }: { path: string; onNavigate:
     act,
     registerCell: (key, el) => { if (el) cellMap.current.set(key, el); else cellMap.current.delete(key); },
     onNavigate,
+    // a LAZY read of the mutable model — always current, no memo churn
+    pointerTargets: (excludeNodeId) => (rootRef.current ? enumeratePointerTargets(rootRef.current, excludeNodeId) : []),
   }), [path, act, onNavigate]);
 
   // apply the pending focus request once the fresh cells are in the DOM

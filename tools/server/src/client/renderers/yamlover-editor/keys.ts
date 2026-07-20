@@ -13,12 +13,17 @@ export type HoleAction =
   | { kind: "flowSeq" }                       // `[` — container + ordinal hole, `]` projected
   | { kind: "pointer"; rest: string }         // `*` — a reference cell
   | { kind: "metaTag" }                       // `!!<` — a meta-tag cell (entry stage only)
-  | { kind: "block" }                         // `|` — a block-scalar (multiline) cell
+  | { kind: "block"; header: string }         // `|`/`>` header + Enter — a block-scalar (multiline) cell
   | { kind: "text" }                          // anything else — keep accumulating as a plain token
   | null;                                     // nothing decisive yet
 
 /** A key token: bare (conservative — letters/digits/_/./- with inner spaces) up to the colon. */
 const KEYED = /^([^\s:#"'{}[\],*&!|>-][^:#]*):([ ]|$)/;
+
+/** A block-scalar header being typed: `|` / `>` plus optional chomping (`-` / `+`) and indentation
+ *  indicator, in either order — `|`, `|-`, `|+`, `>`, `>-`, `|2-`, `>-2`, … The cell materializes
+ *  only on ENTER so the whole header can be typed first. */
+const BLOCK_HEADER = /^[|>](?:\d[+-]?|[+-]\d?)?$/;
 
 /** Classify the full current `text` of a hole. `entryStage` gates `!!<`; `enterPressed` lets a
  *  bare `k:` (no trailing space) resolve as keyed on Enter. Browsers render a contentEditable's
@@ -34,7 +39,8 @@ export function classifyHoleInput(text: string, entryStage: boolean, enterPresse
   if (text[0] === "*") return { kind: "pointer", rest: text.slice(1) };
   if (entryStage && text.startsWith("!!<")) return { kind: "metaTag" };
   if (entryStage && (text === "!" || text === "!!" || text === "!!<")) return null; // building the sigil
-  if (text === "|") return { kind: "block" };
+  // a `|`/`>` header keeps accumulating (`-`, `+`, digits) until Enter allocates the block cell
+  if (BLOCK_HEADER.test(text)) return enterPressed ? { kind: "block", header: text } : null;
   const m = KEYED.exec(text);
   // the trigger mirrors SOURCE typing: `k: ` (space) → the value inline on this row;
   // `k:` + Enter → the value on the NEXT rows (a nested block)

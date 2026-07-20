@@ -975,6 +975,25 @@ a.chunk-index:hover {
   white-space: pre-wrap;
   outline: none;
 }
+/* the pointer cell's COMPLETION HINTS: the wrap anchors the popup right under the editable;
+   candidates are canonical paths, one per row, the highlighted one inverted (arrow keys / hover) */
+.yed .yed-ptrwrap { position: relative; display: inline-block; }
+.yed .yed-hints {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: 30;
+  min-width: 14ch;
+  max-height: 14em;
+  overflow-y: auto;
+  white-space: pre;
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 2px;
+}
+.yed .yed-hint { display: block; padding: 1px 8px; cursor: pointer; }
+.yed .yed-hint.hi { background: var(--line); }
 /* the append affordance: a quiet ＋ row that opens a fresh entry hole */
 .yed .yed-tail {
   background: none;

@@ -13,6 +13,7 @@ import { caretAtStart, caretOnFirstLine, caretOnLastLine } from "../caret";
 import { keyToken, type MEntry, type MNode } from "./model";
 import type { HoleAction } from "./keys";
 import { classifyHoleInput, keyedEditParts, normalizeSpaces } from "./keys";
+import { filterPointerTargets, PointerHints, type PointerTarget } from "./pointer-hints";
 
 /** The LIVE keyed trigger of a plain-token cell (unquoted_scalar_appending/inserting): fires the
  *  moment the text reads `key: ` (or already carries a value) — a committed `abc` grown into
@@ -84,6 +85,15 @@ export interface YedActions {
   removeEmpty(entryId: string): void;
   /** Move focus to the previous/next cell in visual order. */
   focusSibling(from: HTMLElement, dir: -1 | 1): void;
+  /** Paste multi-line yamlover into a hole. Entry stage: the parsed root's entries splice as
+   *  SIBLINGS at the hole (a self value becomes the container's omni line); value stage: the
+   *  parsed root becomes the entry's VALUE. False = refused (parse error, back edge, dup key,
+   *  second self line, structure into flow) → the cell's error ring. */
+  pasteEntry(entryId: string, text: string): boolean;
+  /** Paste a whole document into the EMPTY document's root hole — the same ops typing would
+   *  produce (per-entry inserts + self/tag emplaces; a document root takes no whole-payload
+   *  emplace). False = parse error, oversized, back edge, dup keys. */
+  pasteRoot(text: string): boolean;
 }
 
 export interface YedCtxType {
@@ -91,6 +101,8 @@ export interface YedCtxType {
   act: YedActions;
   registerCell(key: string, el: HTMLElement | null): void;
   onNavigate(path: string): void;
+  /** Candidate pointer targets enumerated from the live model (the hints popup's source). */
+  pointerTargets(excludeNodeId: string): PointerTarget[];
 }
 
 export const YedCtx = createContext<YedCtxType | null>(null);
@@ -108,6 +120,32 @@ export function tokenClass(value: unknown): string {
 // Shared editable-span behaviour
 // --------------------------------------------------------------------------- //
 
+/** The clipboard's text/plain, CR-normalized (the DOM and every payload are LF-only). */
+function clipboardText(e: React.ClipboardEvent): string {
+  return (e.clipboardData?.getData("text/plain") ?? "").replace(/\r\n?/g, "\n");
+}
+
+/** Insert plain text at the caret of a contentEditable — the sanitizing paste path (markup from
+ *  an HTML clipboard never enters a cell). execCommand is the caret-correct route in real
+ *  browsers; the fallbacks cover jsdom and engines that dropped it. */
+function insertTextAtCaret(el: HTMLElement, text: string): void {
+  el.focus();
+  try {
+    if (typeof document.execCommand === "function" && document.execCommand("insertText", false, text)) return;
+  } catch { /* fall through */ }
+  const sel = window.getSelection?.();
+  if (sel && sel.rangeCount > 0 && el.contains(sel.anchorNode)) {
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(document.createTextNode(text));
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } else {
+    el.textContent = (el.textContent ?? "") + text;
+  }
+}
+
 interface EditableProps {
   cellKey: string;
   className: string;
@@ -120,16 +158,23 @@ interface EditableProps {
   onCommit(text: string): boolean; // false = rejected → error ring, keep text
   onKeyDown?(e: React.KeyboardEvent, el: HTMLElement): boolean; // true = handled
   onInput?(el: HTMLElement): void; // live per-edit hook (the token cells' keyed trigger)
+  onFocus?(el: HTMLElement): void; // the pointer cell opens its hints popup here
+  onBlurred?(): void; // AFTER the blur commit — the popup closes once the commit resolved
+  onPaste?(text: string, el: HTMLElement): boolean; // true = consumed (the ROOT scalar cell's
+                                                    // structural paste); false = default insert
 }
 
 /** An uncontrolled contentEditable token cell: commits on blur, Enter commits (the caller's
  *  onKeyDown usually also opens the next hole), Esc reverts. `rev` gates DOM resets. */
-function EditableCell({ cellKey, className, initial, rev, placeholder, force = false, onCommit, onKeyDown, onInput }: EditableProps) {
+function EditableCell({ cellKey, className, initial, rev, placeholder, force = false, onCommit, onKeyDown, onInput, onFocus, onBlurred, onPaste }: EditableProps) {
   const { act, registerCell } = useYed();
   const ref = useRef<HTMLElement | null>(null);
   const [error, setError] = useState(false);
   const cancel = useRef(false);
-  useEffect(() => {
+  // LAYOUT effect (HoleCell's rule): the reset must land BEFORE the editor's focus placement —
+  // a model-driven text change (a popup-accepted pointer) must be in the DOM before the focus
+  // moves on, or the leaving cell's blur would commit the stale typed text
+  useLayoutEffect(() => {
     // skip when the DOM already shows the text: re-setting replaces the text node, which
     // collapses a just-placed caret back to the cell start
     if (ref.current && ref.current.textContent !== initial) ref.current.textContent = initial;
@@ -156,7 +201,18 @@ function EditableCell({ cellKey, className, initial, rev, placeholder, force = f
       spellCheck={false}
       data-placeholder={placeholder}
       onInput={(e) => onInput?.(e.currentTarget as HTMLElement)}
-      onBlur={commit}
+      onFocus={(e) => onFocus?.(e.currentTarget as HTMLElement)}
+      onPaste={(e) => {
+        // sanitized plain-text paste — markup never enters a token cell; a multi-line paste
+        // lands as-is and the existing commit validation decides (error ring on reject)
+        e.preventDefault();
+        const el = e.currentTarget as HTMLElement;
+        const text = clipboardText(e);
+        if (onPaste && onPaste(text, el)) return; // consumed structurally (the root scalar cell)
+        insertTextAtCaret(el, text);
+        onInput?.(el); // the live keyed trigger / pointer-hints refilter still see the paste
+      }}
+      onBlur={() => { commit(); onBlurred?.(); }}
       onKeyDown={(e) => {
         const el = e.currentTarget as HTMLElement;
         if (onKeyDown && onKeyDown(e, el)) return;
@@ -190,7 +246,7 @@ export function ScalarCell({ node, entryId }: { node: MNode; entryId: string | n
     return (
       <>
         <span className="punct">{header}</span>
-        <BlockScalarCell node={node} />
+        <BlockScalarCell node={node} entryId={entryId} />
       </>
     );
   }
@@ -205,6 +261,11 @@ export function ScalarCell({ node, entryId }: { node: MNode; entryId: string | n
           initial={String(s.value ?? "")}
           rev={node.rev}
           force={!!node.dirty}
+          onPaste={(text) =>
+            // the legacy fresh-file body projects as an EMPTY quoted ROOT (`""`) — a multi-line
+            // paste there is a whole-document paste; a quoted root WITH content keeps literal text
+            entryId === null && s.value === "" && text.replace(/\n+$/, "").includes("\n") &&
+            act.pasteRoot(text.replace(/\n+$/, ""))}
           onCommit={(text) => (node.scalar?.closed ? true : act.commitText(node.id, text))} // closed → the after-cell owns the commit
           onKeyDown={(e, el) => {
             if (e.key === "Backspace" && (el.textContent ?? "") === "" && node.dirty) {
@@ -241,6 +302,10 @@ export function ScalarCell({ node, entryId }: { node: MNode; entryId: string | n
       rev={node.rev}
       placeholder="…"
       force={!!node.dirty}
+      onPaste={(text) =>
+        // the legacy fresh-file body is a lone `""` ROOT scalar — a multi-line paste there is a
+        // whole-document paste, exactly like the root hole's (false falls back to text insert)
+        entryId === null && text.replace(/\n+$/, "").includes("\n") && act.pasteRoot(text.replace(/\n+$/, ""))}
       onCommit={(text) => act.commitToken(node.id, text.trim())}
       onInput={(el) => {
         // the LIVE keyed trigger — `abc` edited into `abc: ` restructures like a fresh hole
@@ -297,7 +362,7 @@ function AfterQuoteCell({ node }: { node: MNode }) {
 /** A multiline (block-scalar) cell: an auto-growing textarea editing the authored content TEXT;
  *  the commit re-emits the AUTHORED `|`/`>` header over the edited lines (or a quoted line when
  *  block form cannot hold them). With `self`, the cell edits the node's omni SELF-VALUE line. */
-function BlockScalarCell({ node, self = false }: { node: MNode; self?: boolean }) {
+function BlockScalarCell({ node, entryId = null, self = false }: { node: MNode; entryId?: string | null; self?: boolean }) {
   const { act, registerCell } = useYed();
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const cellKey = self ? node.id + ":self" : node.id;
@@ -327,6 +392,14 @@ function BlockScalarCell({ node, self = false }: { node: MNode; self?: boolean }
         if ((e.key === "Enter" && (e.ctrlKey || e.metaKey)) || e.key === "Tab") {
           e.preventDefault();
           commit(el.value, true);
+        } else if (e.key === "Backspace" && el.value === "") {
+          // the EMPTIED block steps back to the state before the cell was allocated: a fresh
+          // (dirty) block returns to its typed header in the hole; a persisted entry removes;
+          // a persisted self line clears and leaves a hole at its position
+          e.preventDefault();
+          if (self) act.commitSelfText(node.id, "", true);
+          else if (node.dirty) act.dismantle(node.id);
+          else if (entryId) act.removeEmpty(entryId);
         } else if (e.key === "ArrowUp" && !el.value.slice(0, el.selectionStart ?? 0).includes("\n")) {
           e.preventDefault();
           act.focusSibling(el, -1);
@@ -342,39 +415,71 @@ function BlockScalarCell({ node, self = false }: { node: MNode; self?: boolean }
 /** A reference cell: the `*` sigil, an editable pointer expression, and a `↗` that navigates to
  *  the resolved target (kept out of the editable so clicks don't fight the caret). */
 export function PointerCell({ node, entryId }: { node: MNode; entryId: string | null }) {
-  const { act, onNavigate } = useYed();
+  const { act, onNavigate, pointerTargets } = useYed();
   const p = node.pointer!;
+  // the completion hints popup: candidates from the live model, filtered by the typed text.
+  // `hi` starts (and resets) at -1 — Enter with NOTHING highlighted commits the typed text
+  // verbatim (free typing, dangling included, always wins); only an explicit ArrowDown/hover
+  // arms the popup's Enter.
+  const [open, setOpen] = useState(false);
+  const [hints, setHints] = useState<PointerTarget[]>([]);
+  const [hi, setHi] = useState(-1);
+  const refilter = (text: string): void => {
+    setHints(filterPointerTargets(pointerTargets(node.id), text));
+    setHi(-1);
+  };
+  const accept = (t: PointerTarget): void => {
+    if (!act.commitPointer(node.id, t.display)) return; // the DISPLAY (spaced) form; the op goes bare
+    setOpen(false);
+    if (entryId) act.enterAfter(entryId); // the same advance as a typed commit
+  };
   return (
     <>
       <span className="punct">*</span>
-      <EditableCell
-        cellKey={node.id}
-        className="s"
-        initial={p.raw}
-        rev={node.rev}
-        placeholder="pointer"
-        force={!!node.dirty}
-        onCommit={(text) => act.commitPointer(node.id, text.trim())}
-        onKeyDown={(e, el) => {
-          if (e.key === "Tab" && entryId) { e.preventDefault(); if (e.shiftKey) act.dedent(entryId); else act.indent(entryId); return true; }
-          if (e.key === "Backspace" && (el.textContent ?? "") === "") {
-            e.preventDefault();
-            // `pointer_started` + Backspace → empty_cell_of_origin (the `*` dismantles);
-            // a persisted pointer entry emptied → remove the entry, focus the previous cell
-            if (node.dirty) act.dismantle(node.id);
-            else if (entryId) act.removeEmpty(entryId);
-            return true;
-          }
-          if (e.key === "Enter") {
-            e.preventDefault();
-            if ((el.textContent ?? "").trim() === "") return true; // pointer_started + Enter → nop
-            if (!act.commitPointer(node.id, (el.textContent ?? "").trim())) return true;
-            if (entryId) act.enterAfter(entryId); // ENTRY → entry_hole; ROOT → pointer_committed (stays)
-            return true;
-          }
-          return false;
-        }}
-      />
+      <span className="yed-ptrwrap">
+        <EditableCell
+          cellKey={node.id}
+          className="s"
+          initial={p.raw}
+          rev={node.rev}
+          placeholder="pointer"
+          force={!!node.dirty}
+          onCommit={(text) => act.commitPointer(node.id, text.trim())}
+          onFocus={(el) => { setOpen(true); refilter(el.textContent ?? ""); }}
+          onInput={(el) => { setOpen(true); refilter(el.textContent ?? ""); }}
+          onBlurred={() => setOpen(false)}
+          onKeyDown={(e, el) => {
+            if (open && hints.length) {
+              // the popup owns the arrows while it shows; closed/empty → cell navigation
+              if (e.key === "ArrowDown") { e.preventDefault(); setHi((i) => (i + 1) % hints.length); return true; }
+              if (e.key === "ArrowUp") { e.preventDefault(); setHi((i) => (i - 1 + hints.length) % hints.length); return true; }
+              if (e.key === "Escape") { e.preventDefault(); setOpen(false); return true; } // next Esc reverts the cell
+              if (e.key === "Enter" && hi >= 0) { e.preventDefault(); accept(hints[hi]); return true; }
+            }
+            if (e.key === "Tab" && entryId) { e.preventDefault(); if (e.shiftKey) act.dedent(entryId); else act.indent(entryId); return true; }
+            if (e.key === "Backspace" && (el.textContent ?? "") === "") {
+              e.preventDefault();
+              // `pointer_started` + Backspace → empty_cell_of_origin (the `*` dismantles);
+              // a persisted pointer entry emptied → remove the entry, focus the previous cell
+              if (node.dirty) act.dismantle(node.id);
+              else if (entryId) act.removeEmpty(entryId);
+              return true;
+            }
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const text = normalizeSpaces(el.textContent ?? "").trim();
+              if (text === "") return true; // pointer_started + Enter → nop
+              const unchanged = text === p.raw && !node.dirty; // an untouched committed pointer just advances
+              if (!unchanged && !act.commitPointer(node.id, text)) return false; // → EditableCell's commit() paints the error ring
+              setOpen(false);
+              if (entryId) act.enterAfter(entryId); // ENTRY → entry_hole; ROOT → pointer_committed (stays)
+              return true;
+            }
+            return false;
+          }}
+        />
+        {open && <PointerHints hints={hints} hi={hi} onHi={setHi} onPick={accept} />}
+      </span>
       {p.refPath && (
         <a
           className="descend yed-refnav"
@@ -523,6 +628,20 @@ export function HoleCell({ entry, stage }: { entry: MEntry; stage: "entry" | "va
       suppressContentEditableWarning
       spellCheck={false}
       onInput={() => { setError(false); classify(false); }}
+      onPaste={(e) => {
+        e.preventDefault();
+        const el = e.currentTarget as HTMLElement;
+        const text = clipboardText(e).replace(/\n+$/, "");
+        setError(false);
+        if (!text.includes("\n")) {
+          // single line — exactly as if typed: caret insert, then the live grammar classifies
+          insertTextAtCaret(el, text);
+          classify(false);
+          return;
+        }
+        // multi-line — the STRUCTURAL paste; typed text must not be silently discarded
+        if ((el.textContent ?? "").trim() !== "" || !act.pasteEntry(entry.id, text)) setError(true);
+      }}
       onBlur={() => {
         const text = (ref.current?.textContent ?? "").trim();
         if (text !== "" && !classify(false)) setError(!act.holeText(entry.id, text));
@@ -774,6 +893,14 @@ export function RootHole({ node }: { node: MNode }) {
   const { act, registerCell } = useYed();
   const ref = useRef<HTMLElement | null>(null);
   const [error, setError] = useState(false);
+  // `prefill` restores a dismantled cell's typed text (a block header stepping back) — same
+  // consume-once contract as HoleCell's
+  useLayoutEffect(() => {
+    const want = node.prefill ?? "";
+    if (ref.current && ref.current.textContent !== want) ref.current.textContent = want;
+    node.prefill = undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node.rev]);
   const classify = (enter: boolean): boolean => {
     const action = classifyHoleInput(ref.current?.textContent ?? "", true, enter);
     if (action && action.kind !== "text") { act.rootHole(action); return true; }
@@ -788,6 +915,19 @@ export function RootHole({ node }: { node: MNode }) {
       suppressContentEditableWarning
       spellCheck={false}
       onInput={() => { setError(false); classify(false); }}
+      onPaste={(e) => {
+        e.preventDefault();
+        const el = e.currentTarget as HTMLElement;
+        const text = clipboardText(e).replace(/\n+$/, "");
+        setError(false);
+        if (!text.includes("\n")) {
+          insertTextAtCaret(el, text);
+          classify(false);
+          return;
+        }
+        // a whole document into the EMPTY editor — the verbatim full-fidelity path
+        if ((el.textContent ?? "").trim() !== "" || !act.pasteRoot(text)) setError(true);
+      }}
       onBlur={() => {
         const text = (ref.current?.textContent ?? "").trim();
         if (text !== "" && !classify(false)) setError(!act.rootText(text));

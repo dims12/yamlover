@@ -1,0 +1,10 @@
+clip: >
+  a
+  b
+strip: >-
+  c
+  d
+keep: >+
+  e
+
+after: 1

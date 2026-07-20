@@ -556,6 +556,46 @@ describe("/api/edit — creating objects (concrete)", () => {
     expect(j.value).toEqual({ pets: [{ name: "Rex" }] });
   });
 
+  it("the editor's whole-document PASTE batch lands on an empty file: per-entry inserts + the self emplace", async () => {
+    // exactly the ops pasteRootDocument (client paste.ts) emits for a pasted document with a
+    // self line, a nested keyed subtree, and a trailing keyed scalar — a document root takes
+    // no whole-payload emplace, so the paste must arrive in this per-entry shape
+    const root = tmpTree({ "n.yamlover": "\n" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { edits: [
+      { path: ":n.yamlover[0]", op: "insert", key: "pets", yamlover: "- name: Rex\n  species: dog\n- name: Whiskers\n  species: cat" },
+      { path: ":n.yamlover[1]", op: "insert", key: "after", yamlover: "1" },
+      { path: ":n.yamlover", op: "emplace", yamlover: "A Title" },
+    ] });
+    expect(r.status).toBe(200);
+    const j = call(h, "/api/json", { path: ":n.yamlover", depth: ".inf" }).json as { value: unknown };
+    expect(j.value).toEqual({
+      $yamloverMixed: {
+        kind: "omni", value: "A Title", // selfAt 0 is elided by the projection
+        entries: [
+          { key: "pets", value: [{ name: "Rex", species: "dog" }, { name: "Whiskers", species: "cat" }] },
+          { key: "after", value: 1 },
+        ],
+      },
+    });
+  });
+
+  it("the paste batch onto a LEGACY `\"\"` fresh file: the clearing emplace drops the line first", async () => {
+    const root = tmpTree({ "n.yamlover": '""\n' });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { edits: [
+      { path: ":n.yamlover", op: "emplace", yamlover: '""' },
+      { path: ":n.yamlover[0]", op: "insert", key: "pets", yamlover: "- name: Rex" },
+    ] });
+    expect(r.status).toBe(200);
+    const src = fs.readFileSync(path.join(root, "n.yamlover"), "utf8");
+    expect(src).not.toContain('""'); // the placeholder line LEFT
+    const j = call(h, "/api/json", { path: ":n.yamlover", depth: ".inf" }).json as { value: unknown };
+    expect(j.value).toEqual({ pets: [{ name: "Rex" }] });
+  });
+
   it("bare folder: `concrete:\"dir\"` makes an EMPTY OS directory member — no body, no .yamlover", async () => {
     const root = dirTree();
     const h = createHandlers(root, { gitignore: false });

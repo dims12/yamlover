@@ -3,10 +3,11 @@
 // holes never shift server addresses), op emission per mutation, and the op-queue coalescing.
 import { describe, it, expect } from "vitest";
 import {
-  buildModel, commitHoleAsSelf, commitSpine, dedentEntry, findEntry, indentEntry, insertHoleAfter,
-  parseTag, removeEntry, serializeMNode, setMetaTag, setNodeToken, setSelfValue,
+  barePointer, buildModel, commitHoleAsSelf, commitSpine, dedentEntry, findEntry, indentEntry,
+  insertHoleAfter, parseTag, removeEntry, serializeMNode, setMetaTag, setNodeToken, setSelfValue,
   type MNode,
 } from "../../src/client/renderers/yamlover-editor/model";
+import { enumeratePointerTargets, filterPointerTargets } from "../../src/client/renderers/yamlover-editor/pointer-hints";
 import { enqueue, type OpQueue } from "../../src/client/renderers/yamlover-editor/ops";
 import { classifyHoleInput, quoteSource, unquoteSource } from "../../src/client/renderers/yamlover-editor/keys";
 import type { NodeJson } from "../../src/client/api";
@@ -193,6 +194,86 @@ describe("op emission — the absolute-index discipline", () => {
     expect(setNodeToken(":doc", root, root.entries[2].node.id, { pointer: ":pets[0]" }))
       .toEqual([{ path: ":doc[2]", op: "emplace", yamlover: "*:pets[0]" }]);
   });
+
+  it("pointer: a SPACED raw keeps its display but the op goes BARE; a changed raw resets refPath and bumps rev", () => {
+    const root = buildModel(omniNode());
+    const node = root.entries[2].node;
+    node.pointer!.refPath = ":pets[1]"; // pretend the old raw resolved
+    const rev = node.rev;
+    expect(setNodeToken(":doc", root, node.id, { pointer: ": pets[0]" }))
+      .toEqual([{ path: ":doc[2]", op: "emplace", yamlover: "*:pets[0]" }]);
+    expect(node.pointer!.raw).toBe(": pets[0]"); // the DISPLAY form survives
+    expect(node.pointer!.refPath).toBeNull(); // the old ↗ would lie
+    expect(node.rev).toBeGreaterThan(rev); // a popup-accepted raw must reach the DOM
+    // re-committing the SAME raw keeps the resolved target
+    node.pointer!.refPath = ":pets[0]";
+    setNodeToken(":doc", root, node.id, { pointer: ": pets[0]" });
+    expect(node.pointer!.refPath).toBe(":pets[0]");
+  });
+
+  it("serializeMNode emits a sidecar-SPACED pointer bare (indent/replace payloads stay op-safe)", () => {
+    const n = omniNode();
+    n.comments!["[2]"] = { pointer: ": pets[1]" }; // the canonical spaced sidecar form
+    const root = buildModel(n);
+    expect(root.entries[2].node.pointer!.raw).toBe(": pets[1]");
+    expect(serializeMNode(root)).toBe('A Title\ndescription: "the blurb"\n- chunk one\n- *:pets[1]');
+  });
+});
+
+describe("barePointer — commit-time pointer normalization", () => {
+  it("spaced canonical → bare; every parseable spelling accepted", () => {
+    expect(barePointer(": pets[1]")).toBe(":pets[1]");
+    expect(barePointer(":pets[1]")).toBe(":pets[1]");
+    expect(barePointer("pets[1]")).toBe("pets[1]");
+    expect(barePointer("..: x")).toBe("..:x");
+    expect(barePointer(":: proj: x")).toBe("::proj:x");
+  });
+  it("quoted keys keep their inner space (the commit layer then refuses the wire)", () => {
+    expect(barePointer(": 'a b'[1]")).toBe(":'a b'[1]");
+  });
+  it("legacy slash raws canonicalize to colon compact", () => {
+    expect(barePointer("a/b")).toBe("a:b");
+  });
+  it("unparsable → null", () => {
+    expect(barePointer(":::")).toBeNull(); // world scope needs an authority
+    expect(barePointer("a[x]")).toBeNull(); // malformed index
+  });
+});
+
+describe("pointer hints — enumerate + filter", () => {
+  it("enumerates keys and ordinals in ONE index space, document scope, recursing into containers", () => {
+    const root = buildModel({
+      path: ":d", type: "object", concrete: null, title: null, description: null,
+      value: { pets: [{ name: "Rex" }, { name: "Whiskers" }] },
+    });
+    expect(enumeratePointerTargets(root).map((t) => t.display)).toEqual([
+      ": pets", ": pets[0]", ": pets[0]: name", ": pets[1]", ": pets[1]: name",
+    ]);
+    const omni = buildModel(omniNode()); // keyed `description` CONSUMES index 0 — ordinals start at [1]
+    expect(enumeratePointerTargets(omni).map((t) => t.compact)).toEqual([":description", ":[1]", ":[2]"]);
+  });
+
+  it("skips uncommitted holes and the edited node itself", () => {
+    const root = buildModel(omniNode());
+    const hole = insertHoleAfter(root, root.id, null)!;
+    expect(enumeratePointerTargets(root)).toHaveLength(3); // the hole adds nothing
+    expect(enumeratePointerTargets(root, root.entries[2].node.id).map((t) => t.compact))
+      .toEqual([":description", ":[1]"]); // no pointer to the cell being edited
+    void hole;
+  });
+
+  it("filter is spacing-insensitive, ranks prefix first, caps the list", () => {
+    const targets = [
+      { display: ": pets", compact: ":pets" },
+      { display: ": pets[1]", compact: ":pets[1]" },
+      { display: ": humans: pet-name", compact: ":humans:pet-name" },
+    ];
+    expect(filterPointerTargets(targets, ":pe").map((t) => t.compact)).toEqual([":pets", ":pets[1]", ":humans:pet-name"]);
+    expect(filterPointerTargets(targets, ": pe").map((t) => t.compact)).toEqual([":pets", ":pets[1]", ":humans:pet-name"]);
+    expect(filterPointerTargets(targets, "pet-")).toEqual([{ display: ": humans: pet-name", compact: ":humans:pet-name" }]);
+    expect(filterPointerTargets(targets, "nosuch")).toEqual([]);
+    expect(filterPointerTargets(targets, "", 2)).toHaveLength(2); // empty query: the head, capped
+  });
 });
 
 describe("indent / dedent (Tab / Shift-Tab)", () => {
@@ -242,12 +323,92 @@ describe("indent / dedent (Tab / Shift-Tab)", () => {
     expect(root.entries.map((e) => e.node.scalar?.src ?? "…")).toEqual(["…", "y", "tail"]);
   });
 
-  it("no-ops: first sibling, keyed entries, root level", () => {
+  it("no-ops (syntactically impossible only): first sibling, root level, pointer sibling, duplicate key", () => {
     const root = twoChunks();
     expect(indentEntry(":d", root, root.entries[0].id)).toEqual([]);
     expect(dedentEntry(":d", root, root.entries[0].id)).toEqual([]);
-    const keyed = buildModel({ path: ":d", type: "object", concrete: null, title: null, description: null, value: { a: 1, b: 2 } });
-    expect(indentEntry(":d", keyed, keyed.entries[1].id)).toEqual([]);
+    const ptr = buildModel({
+      path: ":d", type: "array", concrete: null, title: null, description: null,
+      value: { $yamloverMixed: { kind: "mix", entries: [{ key: null, value: { $yamloverRef: { text: ":p", path: null } } }, { key: null, value: "x" }] } },
+    });
+    expect(indentEntry(":d", ptr, ptr.entries[1].id)).toEqual([]); // a pointer can't grow children
+    const dup = buildModel({
+      path: ":d", type: "object", concrete: null, title: null, description: null,
+      value: { $yamloverMixed: { kind: "mix", entries: [
+        { key: "x", value: { $yamloverMixed: { kind: "mix", entries: [{ key: "b", value: 1 }] } } },
+        { key: "b", value: 2 },
+      ] } },
+    });
+    expect(indentEntry(":d", dup, dup.entries[1].id)).toEqual([]); // `b` already lives inside `x`
+    expect(dedentEntry(":d", dup, dup.entries[0].node.entries[0].id)).toEqual([]); // `b` already lives at root
+  });
+
+  it("Tab under a KEYED scalar sibling turns it omni — dedent is reversible across keyed parents", () => {
+    const root = buildModel({
+      path: ":d", type: "object", concrete: null, title: null, description: null,
+      value: { $yamloverMixed: { kind: "mix", entries: [{ key: "a", value: 1 }, { key: null, value: "beta" }] } },
+    });
+    const edits = indentEntry(":d", root, root.entries[1].id);
+    expect(edits).toEqual([
+      { path: ":d[1]", op: "remove" },
+      { path: ":d:a", op: "emplace", yamlover: "1\n- beta" },
+    ]);
+    expect(root.entries).toHaveLength(1);
+    expect(root.entries[0].node.selfValue?.src).toBe("1");
+    expect(root.entries[0].node.entries[0].node.scalar?.src).toBe("beta");
+  });
+
+  it("a KEYED entry indents and dedents too, carrying its key in the re-insert", () => {
+    const root = buildModel({
+      path: ":d", type: "array", concrete: null, title: null, description: null,
+      value: { $yamloverMixed: { kind: "mix", entries: [
+        { key: null, value: { $yamloverMixed: { kind: "mix", entries: [{ key: null, value: "kid" }] } } },
+        { key: "b", value: 2 },
+      ] } },
+    });
+    expect(indentEntry(":d", root, root.entries[1].id)).toEqual([
+      { path: ":d:b", op: "remove" },
+      { path: ":d[0]", op: "insert", key: "b", yamlover: "2" },
+    ]);
+    expect(root.entries[0].node.entries.map((e) => e.key)).toEqual([null, "b"]);
+    // and back out — the exact inverse
+    expect(dedentEntry(":d", root, root.entries[0].node.entries[1].id)).toEqual([
+      { path: ":d[0]:b", op: "remove" },
+      { path: ":d[1]", op: "insert", key: "b", yamlover: "2" },
+    ]);
+    expect(root.entries.map((e) => e.key)).toEqual([null, "b"]);
+  });
+
+  it("a client-side HOLE round-trips through every level (the pets/name repro)", () => {
+    const root = buildModel({
+      path: ":d", type: "object", concrete: null, title: null, description: null,
+      value: { pets: [{ name: "Rex" }] },
+    });
+    const pets = root.entries[0];
+    const item = pets.node.entries[0]; // the `- name: Rex` item
+    const hole = insertHoleAfter(root, item.node.id, item.node.entries[0].id)!; // after `name: Rex`
+    expect(dedentEntry(":d", root, hole.id)).toEqual([]); // holes move silently
+    expect(pets.node.entries[1]?.id).toBe(hole.id); // sibling of the `-` item
+    expect(indentEntry(":d", root, hole.id)).toEqual([]); // Tab re-enters the item PAST the keyed `name`
+    expect(item.node.entries[1]?.id).toBe(hole.id);
+    // out to the root and back under the keyed `pets`
+    expect(dedentEntry(":d", root, hole.id)).toEqual([]);
+    expect(dedentEntry(":d", root, hole.id)).toEqual([]);
+    expect(root.entries[1]?.id).toBe(hole.id);
+    expect(indentEntry(":d", root, hole.id)).toEqual([]);
+    expect(pets.node.entries[1]?.id).toBe(hole.id); // back inside `pets`
+  });
+
+  it("Tab under an UNCOMMITTED hole sibling decides it and re-inserts the moved content (no data loss)", () => {
+    const root = twoChunks();
+    const hole = insertHoleAfter(root, root.id, root.entries[0].id)!; // between alpha and beta
+    const edits = indentEntry(":d", root, root.entries[2].id); // beta under the hole
+    expect(edits).toEqual([
+      { path: ":d[1]", op: "remove" },
+      { path: ":d[1]", op: "insert", yamlover: "- beta" },
+    ]);
+    expect(hole.decided && hole.committed).toBe(true);
+    expect(hole.node.entries[0].node.scalar?.src).toBe("beta");
   });
 });
 
@@ -285,7 +446,14 @@ describe("classifyHoleInput — the typing grammar", () => {
     expect(classifyHoleInput("!!<", true)).toEqual({ kind: "metaTag" });
     expect(classifyHoleInput("!!", true)).toBeNull(); // still building the sigil
     expect(classifyHoleInput("!!<", false)).toEqual({ kind: "text" }); // value stage: not a tag site
-    expect(classifyHoleInput("|", false)).toEqual({ kind: "block" });
+  });
+  it("a block header accumulates (`|-`, `|+`, `>`, digits) and allocates the cell only on Enter", () => {
+    for (const h of ["|", "|-", "|+", ">", ">-", ">+", "|2", ">2-", "|-2"]) {
+      expect(classifyHoleInput(h, false)).toBeNull(); // still typing the header
+      expect(classifyHoleInput(h, false, true)).toEqual({ kind: "block", header: h }); // Enter allocates
+    }
+    expect(classifyHoleInput("|x", false)).toEqual({ kind: "text" }); // not a header — plain token
+    expect(classifyHoleInput("|--", false)).toEqual({ kind: "text" }); // chomping is single
   });
   it("keyed needs the colon plus a space or Enter", () => {
     expect(classifyHoleInput("name", true)).toEqual({ kind: "text" });

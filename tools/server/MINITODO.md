@@ -52,3 +52,9 @@
   (chapter-model.ts) requires `type === "string"`, and an annotated chunk's link marker is
   `type: "variant", valueType: "string"` (tagging turns it omni). Route on the VALUE facet like the
   renderer registry does. **Unblocked by 025** — an edit can no longer delete the annotations.
+- 027 POSTPONED: unified REFERENCE-entry UX in the projectional editor. The current `*` pointer
+  cell (typed pointer grammar + completion hints enumerated from the mounted document,
+  yamlover-editor/pointer-hints.tsx) works but is not the final shape. Redo entry as ONE unified
+  surface for every reference-like value — pointers/links, queries (`GET /api/query` expressions),
+  and later anchors: one cell grammar, one keyboard typeahead, and a target index shared with the
+  tag picker (item 015). Until then the pointer cell stays as-is.

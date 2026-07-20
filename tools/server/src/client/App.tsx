@@ -419,8 +419,22 @@ export function App() {
   const { openAt: openTocMenu, tagMenu: tocMenu } = useExplorerTagMenu({
     onCreate: (schema, parent, concrete) =>
       void (schema === NODE_SCHEMA ? createNode(parent, concrete) : createObject(schema, parent, concrete))
-        .then((r) => {
-          navigate(r.path);
+        .then(async (r) => {
+          // the fresh node is not in the TOC yet, so a plain navigate would CARRY the current
+          // format onto it (e.g. the folder's `large-icons`) — harmless while the node is empty,
+          // but once edits make it a CONTAINER the stale format becomes one of its tabs and the
+          // post-lock refetch would open the explorer instead of the data view. Load its branch
+          // (the TOC gains the file too) and land in the node's OWN default view.
+          let f: Format = DEFAULT_FORMAT;
+          try {
+            const sub = await fetchTree(parent || ":", INITIAL_DEPTH);
+            setTree((t) => (t ? replaceChildren(t, parent || ":", sub.children) : t));
+            const fresh = sub.children.find((c) => c.path === r.path);
+            if (fresh) f = (rendererName(fresh, fresh.concrete) as Format) ?? DEFAULT_FORMAT;
+          } catch { /* the default format still lands */ }
+          writeUrl(r.path, f, false);
+          setCurrent(r.path);
+          setFormat(f);
           setUnlockSignal((s) => s + 1);
         })
         .catch((e) => window.alert("create failed: " + (e as Error).message)),

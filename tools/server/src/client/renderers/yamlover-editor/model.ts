@@ -20,9 +20,10 @@ import { scalarToSource } from "../value-editors";
 import { escapeYamloverScalar } from "../chapter-model";
 import { unquoteSource } from "./keys";
 import { parseYamlover } from "../../../../../parser/ts/src/yamlover.ts";
+import { parsePointer, renderPointer } from "../../../../../parser/ts/src/pointer.ts";
 
 let idSeq = 0;
-const nid = () => `yed${idSeq++}`;
+export const nid = () => `yed${idSeq++}`;
 
 export type MKind = "scalar" | "container" | "pointer" | "link" | "hole";
 
@@ -94,6 +95,12 @@ export function parseTag(tag: string | undefined): { metaTag: string | null; set
   const setTag = /(^|\s)!!set$/.test(tag);
   const m = /^!!<([\s\S]*)>\s*(?:!!set)?$/.exec(tag);
   return { metaTag: m ? m[1] : null, setTag };
+}
+
+/** An MScalar from a decoded value + its AUTHORED raw token — the paste converter's entry point
+ *  into the representation rule (quote detection, block-header re-indent, bare preference). */
+export function scalarFromRaw(value: unknown, raw: string | undefined): MScalar {
+  return mkScalar(value, raw !== undefined ? { raw } : undefined);
 }
 
 function mkScalar(value: unknown, bucket: CommentBucket | undefined): MScalar {
@@ -273,9 +280,17 @@ export function serializeMNode(node: MNode): string {
   return serializeLines(node, 0).join("\n");
 }
 
+/** A pointer raw in BARE (compact) form for the wire — ops must carry `*<no-unquoted-space>`
+ *  (the server routes single-line `*\S*` payloads around the document parser), while the model
+ *  keeps the DISPLAY raw (typed or sidecar-spaced canonical). Whitespace survives only inside
+ *  quoted keys. Null when the raw does not parse as a pointer. */
+export function barePointer(raw: string): string | null {
+  try { return renderPointer(parsePointer(raw.trim()), { spaced: false }); } catch { return null; }
+}
+
 function valueToken(node: MNode): string | null {
   if (node.kind === "scalar") return node.scalar!.src;
-  if (node.kind === "pointer") return "*" + node.pointer!.raw;
+  if (node.kind === "pointer") return "*" + (barePointer(node.pointer!.raw) ?? node.pointer!.raw);
   if (node.kind === "hole") return '""';
   if (node.kind === "container" && node.flow) {
     const items = node.entries
@@ -338,7 +353,7 @@ function serializeLines(node: MNode, indent: number): string[] {
 // --------------------------------------------------------------------------- //
 
 /** Recursively mark an entry's whole subtree committed (its serialized payload just went out). */
-function markCommitted(entry: MEntry): void {
+export function markCommitted(entry: MEntry): void {
   entry.committed = true;
   entry.node.dirty = false;
   entry.node.metaOnServer = entry.node.metaTag !== null; // the payload carried the tag
@@ -397,9 +412,12 @@ export function setNodeToken(rootPath: string, root: MNode, nodeId: string, next
   if (!found) return [];
   const { node, spine } = found;
   if (next.pointer !== undefined) {
+    const changed = node.kind !== "pointer" || node.pointer?.raw !== next.pointer;
     node.kind = "pointer";
-    node.pointer = { raw: next.pointer, refPath: node.pointer?.refPath ?? null };
+    // a CHANGED raw invalidates the resolved target (the old ↗ would lie); same raw keeps it
+    node.pointer = { raw: next.pointer, refPath: changed ? null : node.pointer?.refPath ?? null };
     node.scalar = undefined;
+    if (changed) node.rev++; // a popup-accepted raw must reach the DOM (typed text already shows)
   } else {
     node.kind = "scalar";
     node.scalar = { ...(node.scalar ?? { value: null }), ...next } as MScalar;
@@ -408,7 +426,7 @@ export function setNodeToken(rootPath: string, root: MNode, nodeId: string, next
   node.dirty = false; // the commit below persists it
   if (spine && !allCommitted(spine)) return commitSpine(rootPath, root, spine.entry.id);
   const path = spine ? pathOfSpine(rootPath, spine) : rootPath;
-  const src = node.kind === "pointer" ? "*" + node.pointer!.raw : node.scalar!.src;
+  const src = node.kind === "pointer" ? "*" + (barePointer(node.pointer!.raw) ?? node.pointer!.raw) : node.scalar!.src;
   return [{ path, op: "emplace", yamlover: src }];
 }
 
@@ -539,18 +557,20 @@ export function removeEntry(rootPath: string, root: MNode, entryId: string): Edi
   return path !== null ? [{ path, op: "remove" }] : [];
 }
 
-/** Tab: the entry becomes the LAST CHILD of its previous ordinal sibling. A scalar sibling turns
- *  omni (its token becomes the self-value); a hole sibling becomes a container. Committed content
- *  moves as remove + re-insert of the serialized subtree. No previous sibling, a keyed target, a
- *  pointer/link sibling, or a keyed entry itself → no-op (starter cut). */
+/** Tab: the entry becomes the LAST CHILD of its previous sibling (keyed or ordinal — a keyed
+ *  entry moves WITH its key). A scalar sibling turns omni (its token becomes the self-value); a
+ *  hole sibling becomes a container. Committed content moves as remove + re-insert of the
+ *  serialized subtree. Only the syntactically impossible no-op: no previous sibling, a
+ *  pointer/link/flow sibling, or the entry's key already present in the target node. */
 export function indentEntry(rootPath: string, root: MNode, entryId: string): Edit[] {
   const spine = findEntry(root, entryId);
   if (!spine) return [];
   const { container, index } = spine.parents[spine.parents.length - 1];
   const entry = container.entries[index];
-  if (container.flow || entry.key !== null || index === 0) return [];
+  if (container.flow || index === 0) return [];
   const prev = container.entries[index - 1];
-  if (prev.key !== null || prev.node.kind === "pointer" || prev.node.kind === "link") return [];
+  if (prev.node.kind === "pointer" || prev.node.kind === "link" || prev.node.flow) return [];
+  if (entry.key !== null && prev.node.entries.some((e) => e.decided && e.key === entry.key)) return [];
   const edits: Edit[] = [];
   const wasCommitted = entry.committed && allCommitted(spine);
   const prevSpine: Spine = { entry: prev, parents: [...spine.parents.slice(0, -1), { container, index: index - 1 }] };
@@ -573,26 +593,39 @@ export function indentEntry(rootPath: string, root: MNode, entryId: string): Edi
   if (wasCommitted && prev.committed) {
     const payload = serializeMNode(entry.node) || '""';
     const meta = entry.node.metaTag !== null ? entry.node.metaTag : undefined;
-    edits.push({ path: prevPath, op: "insert", yamlover: payload, ...(meta !== undefined ? { meta } : {}) });
+    edits.push({
+      path: prevPath, op: "insert", yamlover: payload,
+      ...(entry.key !== null ? { key: keyToken(entry) } : {}),
+      ...(meta !== undefined ? { meta } : {}),
+    });
     // the insert path names the (childless-until-now) sibling → append; if the sibling just turned
     // omni, the emplace below re-renders it whole with self + child in one op instead
     if (prev.node.selfValue && prev.node.entries.length === 1) {
-      edits.length = wasCommitted ? 1 : 0; // drop the insert; replace with a single omni emplace
+      edits.length = 1; // drop the insert; the remove + one omni emplace replace it
       edits.push({ path: prevPath, op: "emplace", yamlover: serializeMNode(prev.node) });
     }
+  } else if (wasCommitted) {
+    // the target sibling is still client-side — its `remove` already fired above, so DECIDE the
+    // sibling and let the standard subtree commit re-insert the moved content in one unit
+    // (otherwise committed content would silently vanish server-side)
+    prev.decided = true;
+    edits.push(...commitSpine(rootPath, root, entry.id));
   }
   return edits;
 }
 
 /** Shift-Tab: the entry leaves its parent and lands right AFTER the parent entry in the
- *  grandparent. Root-level entries and keyed entries stay put (starter cut). */
+ *  grandparent (a keyed entry moves WITH its key). Only the syntactically impossible no-op:
+ *  root-level entries, flow containers, or the entry's key already present at the target level. */
 export function dedentEntry(rootPath: string, root: MNode, entryId: string): Edit[] {
   const spine = findEntry(root, entryId);
   if (!spine || spine.parents.length < 2) return [];
   const { container, index } = spine.parents[spine.parents.length - 1];
   const entry = container.entries[index];
-  if (container.flow || entry.key !== null) return [];
+  if (container.flow) return [];
   const { container: grand, index: parentIndex } = spine.parents[spine.parents.length - 2];
+  if (grand.flow) return [];
+  if (entry.key !== null && grand.entries.some((e) => e.decided && e.key === entry.key)) return [];
   const parentEntry = grand.entries[parentIndex];
   const edits: Edit[] = [];
   const wasCommitted = entry.committed && allCommitted(spine);
@@ -606,8 +639,13 @@ export function dedentEntry(rootPath: string, root: MNode, entryId: string): Edi
       : rootPath;
     const at = serverIndexOf(grand, parentIndex + 1);
     const payload = serializeMNode(entry.node) || '""';
+    const meta = entry.node.metaTag !== null ? entry.node.metaTag : undefined;
     if (!parentEntry.committed) return edits; // parent itself is client-side; its commit will carry us
-    edits.push({ path: appendSeg(grandPath, at), op: "insert", yamlover: payload });
+    edits.push({
+      path: appendSeg(grandPath, at), op: "insert", yamlover: payload,
+      ...(entry.key !== null ? { key: keyToken(entry) } : {}),
+      ...(meta !== undefined ? { meta } : {}),
+    });
   }
   return edits;
 }
