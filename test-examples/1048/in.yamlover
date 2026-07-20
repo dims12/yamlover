@@ -1,0 +1,2 @@
+val: &': shared: spot' 12
+ref: *: shared: spot

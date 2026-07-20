@@ -1,0 +1,8 @@
+clip: |
+  x
+strip: |-
+  y
+keep: |+
+  z
+
+after: 1

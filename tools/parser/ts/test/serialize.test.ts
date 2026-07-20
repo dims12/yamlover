@@ -8,8 +8,9 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { Comment, Document, Node, Pointer, Value } from '../src/ir.ts';
+import type { Comment, Document, Node } from '../src/ir.ts';
 import { isPointer } from '../src/ir.ts';
+import { canonDoc } from '../src/canon.ts';
 import { parseYamlover } from '../src/yamlover.ts';
 import { parseJson5p } from '../src/json5p.ts';
 import { serializeYamlover } from '../src/serialize-yamlover.ts';
@@ -20,53 +21,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..', '..', '..');
 const examples = join(root, 'examples');
 
-// ---- IR equality (graph, not typography) --------------------------------------
-
-function canonValue(v: Value): unknown {
-  if (isPointer(v)) return canonPtr(v);
-  return canonNode(v);
-}
-
-function canonPtr(p: Pointer): unknown {
-  // the dual window re-renders raws in colon form — identity is base + steps, not text
-  return { ptr: { base: p.base, steps: p.steps } };
-}
-
-/** A deprecated `~` back entry with an absolute-scoped pointer is EQUIVALENT to a `&`
- *  path anchor (`~k: *P` ≡ `&P/k`, `~- *P` ≡ `&P[]`) — and the serializers emit the
- *  anchor form. Canon folds both authorings into one anchor set (semantic identity =
- *  base+steps+ordinal; raw differs between the spellings by construction). */
-function convBack(e: { key: string | null; edge: string; value: Value }): boolean {
-  return e.edge === 'back' && isPointer(e.value) &&
-    ((e.value as Pointer).base.scope === 'document' || (e.value as Pointer).base.scope === 'link');
-}
-
-function canonNode(n: Node): unknown {
-  const ents = n.entries ?? [];
-  const anchors = [
-    ...(n.meta?.anchors ?? []).map((a) => ({ base: a.path.base, steps: a.path.steps, ordinal: a.ordinal === true })),
-    ...ents.filter(convBack).map((e) => {
-      const p = e.value as Pointer;
-      return e.key === null
-        ? { base: p.base, steps: p.steps, ordinal: true }
-        : { base: p.base, steps: [...p.steps, { sel: 'key' as const, name: e.key }], ordinal: false };
-    }),
-  ].sort((a, b) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1));
-  return {
-    kind: n.kind,
-    value: n.kind === 'scalar' ? n.value : undefined,
-    blob: n.kind === 'blob' ? { format: n.format, hash: n.contentHash, size: n.size } : undefined,
-    array: n.array === true,
-    set: n.meta?.set === true,
-    schema: n.meta?.schema !== undefined ? canonValue(n.meta.schema) : undefined,
-    anchors,
-    entries: ents.filter((e) => !convBack(e)).map((e) => ({ key: e.key, edge: e.edge, value: canonValue(e.value) })),
-  };
-}
-
-function canonDoc(d: Document): unknown {
-  return { root: canonNode(d.root) };
-}
+// ---- IR equality (graph, not typography) — canonDoc lives in src/canon.ts ------
 
 function rtYamlover(src: string, label = '<test>'): string {
   const doc = parseYamlover(src, label);

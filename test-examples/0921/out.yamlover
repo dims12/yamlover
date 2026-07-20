@@ -1,0 +1,36 @@
+!!<*yamlover: $defs: chapter>
+A Tour of marklower Links
+- |
+  marklower links live in **JSON instance space**, in three flavours. Jump to the
+  document-relative links subchapter at [/[2]](/[2]), the project-root one
+  at [/[3]](/[3]), or external links at [/[4]](/[4]) — each
+  its own subchapter below.
+- |
+  Wherever you are in this guide, the top of it at [/[0]](/[0]) is one
+  document-relative link away. You can also leave for the wider world, like the KaTeX
+  project at [https://katex.org](https://katex.org).
+- Document-relative links
+  - |
+    A `/path` link is relative to **this document** — the whole guide — however deep you
+    are reading. So [/[0]](/[0]) always lands on the opening line.
+  - |
+    From here, reach a sibling section at [/[3]](/[3]), or descend deeper
+    to [/[2][2]](/[2][2]).
+  - Going deeper
+    - |
+      Even two levels down, a `/…` link still counts from the document root: the intro at
+      [/[0]](/[0]), and the external-links section at [/[4]](/[4]).
+- Project-root links
+  - |
+    A `//path` link is relative to the **project root** — the directory you served. Served
+    from the repo, a sibling example is at [//examples/68-math-chapter](//examples/68-math-chapter),
+    or one formula in it at [//examples/68-math-chapter/[2]](//examples/68-math-chapter/[2]).
+  - |
+    The pet handbook is at [//examples/66-pet-keeper-handbook](//examples/66-pet-keeper-handbook). To return home,
+    regardless of mount point, use a document-relative link to this guide's intro at
+    [/[0]](/[0]).
+- External links
+  - |
+    Any target with a scheme is an external link, opened in a new tab: Wikipedia on
+    hyperlinks at [https://en.wikipedia.org/wiki/Hyperlink](https://en.wikipedia.org/wiki/Hyperlink),
+    or email the maintainer at [mailto:dimskraft@gmail.com](mailto:dimskraft@gmail.com).

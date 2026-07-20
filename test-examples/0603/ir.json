@@ -1,0 +1,46 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "chunks",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "one\ntwo\n",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "second",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

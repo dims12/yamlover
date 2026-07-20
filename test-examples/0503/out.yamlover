@@ -1,0 +1,4 @@
+chunks:
+  - !!<format: text/x-plantuml> |
+    @startuml
+    @enduml

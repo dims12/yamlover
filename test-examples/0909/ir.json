@@ -1,0 +1,22 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "age",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 30,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

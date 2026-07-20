@@ -1,0 +1,775 @@
+{
+  "root": {
+    "kind": "scalar",
+    "value": "All Supported Formats — as a chapter",
+    "array": false,
+    "set": false,
+    "schema": {
+      "ptr": {
+        "base": {
+          "scope": "current"
+        },
+        "steps": [
+          {
+            "sel": "key",
+            "name": "yamlover"
+          },
+          {
+            "sel": "key",
+            "name": "$defs"
+          },
+          {
+            "sel": "key",
+            "name": "chapter"
+          }
+        ]
+      }
+    },
+    "anchors": [],
+    "entries": [
+      {
+        "key": ".yamlover",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "thumbnails",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "xxh64-2a8e48bede9eff6a-256x256.jpg",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "blob",
+                      "blob": {
+                        "format": "image/jpeg",
+                        "hash": "xxh64:7c40c2ec5542595f",
+                        "size": 3232
+                      },
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "xxh64-852d9f6a62844d89-256x256.jpg",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "blob",
+                      "blob": {
+                        "format": "image/jpeg",
+                        "hash": "xxh64:05ff50b5c927a248",
+                        "size": 11646
+                      },
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "xxh64-b1ac4be4ce4fb34c-256x256.jpg",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "blob",
+                      "blob": {
+                        "format": "image/jpeg",
+                        "hash": "xxh64:2aa72461c6a68fb7",
+                        "size": 3061
+                      },
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "xxh64-d5eed55624a55a5e-256x256.jpg",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "blob",
+                      "blob": {
+                        "format": "image/jpeg",
+                        "hash": "xxh64:d8d09d0aadbca3e4",
+                        "size": 3110
+                      },
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "sample.bmp",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/bmp",
+            "hash": "xxh64:d5eed55624a55a5e",
+            "size": 153654
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "yamlover-thumbnails",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "[256, 256]",
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": ".yamlover"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "thumbnails"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "xxh64-d5eed55624a55a5e-256x256.jpg"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "sample.epub",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/epub+zip",
+            "hash": "xxh64:6d30ec9e5edc983d",
+            "size": 1645
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.fb2",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/x-fictionbook+xml",
+            "hash": "xxh64:13a54298b9f4189e",
+            "size": 622
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.gif",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/gif",
+            "hash": "xxh64:852d9f6a62844d89",
+            "size": 12613
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "yamlover-thumbnails",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "[256, 256]",
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": ".yamlover"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "thumbnails"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "xxh64-852d9f6a62844d89-256x256.jpg"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "sample.html",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "text/html",
+            "hash": "xxh64:08f16331e213dd8e",
+            "size": 406
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.ico",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/x-icon",
+            "hash": "xxh64:c6621c481a8d4c8a",
+            "size": 325
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.pdf",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/pdf",
+            "hash": "xxh64:7a8db9aeae3babd1",
+            "size": 621
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.png",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/png",
+            "hash": "xxh64:2a8e48bede9eff6a",
+            "size": 667
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "yamlover-thumbnails",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "[256, 256]",
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": ".yamlover"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "thumbnails"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "xxh64-2a8e48bede9eff6a-256x256.jpg"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "sample.psd",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/vnd.adobe.photoshop",
+            "hash": "xxh64:e0c6744be234e480",
+            "size": 3822
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.svg",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/svg+xml",
+            "hash": "xxh64:d628995827d08497",
+            "size": 352
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.tiff",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/tiff",
+            "hash": "xxh64:b1ac4be4ce4fb34c",
+            "size": 155272
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "yamlover-thumbnails",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "[256, 256]",
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": ".yamlover"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "thumbnails"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "xxh64-b1ac4be4ce4fb34c-256x256.jpg"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "A **marklower** chunk — the *default* for a chunk with no format. marklower is\ninline-only (no headings): **bold**, *italic*, ~~strikethrough~~, `inline code`,\ninline math $$e^{i\\pi}+1=0$$, and a [link back to this chapter](/).\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "# Markdown chunk\nRendered with **marked** — *emphasis*, lists, and `code`. Headings too, unlike marklower.\n",
+          "array": false,
+          "set": false,
+          "schema": {
+            "kind": "mapping",
+            "array": false,
+            "set": false,
+            "anchors": [],
+            "entries": [
+              {
+                "key": "format",
+                "edge": "contain",
+                "value": {
+                  "kind": "scalar",
+                  "value": "text/markdown",
+                  "array": false,
+                  "set": false,
+                  "anchors": [],
+                  "entries": []
+                }
+              }
+            ]
+          },
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "== AsciiDoc chunk\n\nRendered with Asciidoctor.\n\n* one\n* two\n",
+          "array": false,
+          "set": false,
+          "schema": {
+            "kind": "mapping",
+            "array": false,
+            "set": false,
+            "anchors": [],
+            "entries": [
+              {
+                "key": "format",
+                "edge": "contain",
+                "value": {
+                  "kind": "scalar",
+                  "value": "text/asciidoc",
+                  "array": false,
+                  "set": false,
+                  "anchors": [],
+                  "entries": []
+                }
+              }
+            ]
+          },
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "@startuml\nAlice -> Bob : hello\n@enduml\n",
+          "array": false,
+          "set": false,
+          "schema": {
+            "kind": "mapping",
+            "array": false,
+            "set": false,
+            "anchors": [],
+            "entries": [
+              {
+                "key": "format",
+                "edge": "contain",
+                "value": {
+                  "kind": "scalar",
+                  "value": "text/x-plantuml",
+                  "array": false,
+                  "set": false,
+                  "anchors": [],
+                  "entries": []
+                }
+              }
+            ]
+          },
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "name,role,city\nAlice,Engineer,Berlin\nBob,\"Designer, UX\",Lisbon\n",
+          "array": false,
+          "set": false,
+          "schema": {
+            "kind": "mapping",
+            "array": false,
+            "set": false,
+            "anchors": [],
+            "entries": [
+              {
+                "key": "format",
+                "edge": "contain",
+                "value": {
+                  "kind": "scalar",
+                  "value": "text/csv",
+                  "array": false,
+                  "set": false,
+                  "anchors": [],
+                  "entries": []
+                }
+              }
+            ]
+          },
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "sample.png"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "sample.svg"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "sample.gif"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "sample.bmp"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "sample.ico"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "sample.tiff"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "sample.html"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "sample.pdf"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "sample.fb2"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "sample.epub"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "sample.psd"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

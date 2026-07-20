@@ -1,0 +1,242 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "adam",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "cain",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [
+                  {
+                    "base": {
+                      "scope": "document"
+                    },
+                    "steps": [
+                      {
+                        "sel": "key",
+                        "name": "eve"
+                      },
+                      {
+                        "sel": "key",
+                        "name": "cain"
+                      }
+                    ],
+                    "ordinal": false
+                  }
+                ],
+                "entries": [
+                  {
+                    "key": "enoch",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": null,
+                      "array": false,
+                      "set": false,
+                      "anchors": [
+                        {
+                          "base": {
+                            "scope": "document"
+                          },
+                          "steps": [
+                            {
+                              "sel": "key",
+                              "name": "adam"
+                            },
+                            {
+                              "sel": "key",
+                              "name": "azura"
+                            },
+                            {
+                              "sel": "key",
+                              "name": "enoch"
+                            }
+                          ],
+                          "ordinal": false
+                        }
+                      ],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "seth",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": null,
+                "array": false,
+                "set": false,
+                "anchors": [
+                  {
+                    "base": {
+                      "scope": "document"
+                    },
+                    "steps": [
+                      {
+                        "sel": "key",
+                        "name": "eve"
+                      },
+                      {
+                        "sel": "key",
+                        "name": "seth"
+                      }
+                    ],
+                    "ordinal": false
+                  }
+                ],
+                "entries": []
+              }
+            },
+            {
+              "key": "azura",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [
+                  {
+                    "base": {
+                      "scope": "document"
+                    },
+                    "steps": [
+                      {
+                        "sel": "key",
+                        "name": "eve"
+                      },
+                      {
+                        "sel": "key",
+                        "name": "azura"
+                      }
+                    ],
+                    "ordinal": false
+                  }
+                ],
+                "entries": [
+                  {
+                    "key": "enoch",
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "adam"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "cain"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "enoch"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "eve",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "cain",
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "adam"
+                    },
+                    {
+                      "sel": "key",
+                      "name": "cain"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "key": "seth",
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "adam"
+                    },
+                    {
+                      "sel": "key",
+                      "name": "seth"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "key": "azura",
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "adam"
+                    },
+                    {
+                      "sel": "key",
+                      "name": "azura"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

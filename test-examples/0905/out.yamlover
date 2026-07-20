@@ -1,0 +1,7 @@
+- solid
+|
+  A block-scalar self-value —
+  arbitrary, multi-line text
+  that needs no !!var tag.
+- recommended
+scale: 10

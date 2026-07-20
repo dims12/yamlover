@@ -1,0 +1,191 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "sample.kml",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/vnd.google-earth.kml+xml",
+            "hash": "xxh64:99cd673308d18002",
+            "size": 1472
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "yamlover-fragments",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "mqee3kvz-mzzggs",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": false,
+                      "set": false,
+                      "schema": {
+                        "ptr": {
+                          "base": {
+                            "scope": "link",
+                            "authority": "yamlover"
+                          },
+                          "steps": [
+                            {
+                              "sel": "key",
+                              "name": "$defs"
+                            },
+                            {
+                              "sel": "key",
+                              "name": "fragment"
+                            }
+                          ]
+                        }
+                      },
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "type",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "map",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "n",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": 52.51767025395278,
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "s",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": 52.51558102789858,
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "e",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": 13.366348743438722,
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "w",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": 13.362057209014893,
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "created",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "2026-06-14T23:02:38.975Z",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "yamlover-annotations",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "mapping",
+                            "array": true,
+                            "set": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": null,
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "link",
+                                      "authority": "yamlover"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": "tags"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "forth tag"
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "sample.kmz",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/vnd.google-earth.kmz",
+            "hash": "xxh64:8f3d1fbb5156e91c",
+            "size": 654
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

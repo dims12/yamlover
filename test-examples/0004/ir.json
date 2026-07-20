@@ -1,0 +1,70 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "t",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "true",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "n",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "30",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "h",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "0x1F",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "z",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "null",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "tilde",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "~",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

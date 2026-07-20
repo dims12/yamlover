@@ -1,0 +1,36 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "thirty",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 30,
+          "array": false,
+          "set": false,
+          "anchors": [
+            {
+              "base": {
+                "scope": "link",
+                "authority": "tags"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "whole"
+                }
+              ],
+              "ordinal": true
+            }
+          ],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

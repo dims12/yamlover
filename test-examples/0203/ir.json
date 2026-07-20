@@ -1,0 +1,104 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "items",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "first",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Named",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "x",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "items"
+              },
+              {
+                "sel": "index",
+                "n": 0
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "y",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "items"
+              },
+              {
+                "sel": "index",
+                "n": 1
+              },
+              {
+                "sel": "key",
+                "name": "name"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

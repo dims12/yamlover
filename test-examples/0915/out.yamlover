@@ -1,0 +1,23 @@
+!!<*yamlover: $defs: chapter>
+Getting Started with yamlover
+description: the shortest tour of the chapter shape
+- yamlover is a YAML layer over the filesystem — data lives in files and directories.
+- An entire article fits in a single .yamlover file when it is tagged with a schema.
+- The bare line under the tag is the node's SELF-VALUE — this chapter's title.
+- Why one file
+- Chunks and subchapters
+  - Each chunk is a renderable block; by default it is marklower prose.
+  - A chunk can override its (type, format) to be a diagram, image, and so on.
+  - A body element with a self-value AND a body of its own is a subchapter — the recursion.
+- - An UNTITLED subchapter — body entries with no self-value.
+  - It is still a chapter; the page links it as "(untitled chapter)".
+- Lists
+- !!<*yamlover: $defs: bullets>
+  - the first point — items are marklower prose
+  - - a nested sub-point
+    - - and deeper still
+  - the last point
+- !!<*yamlover: $defs: numbered>
+  - step one
+  - step two
+  - - step two point one

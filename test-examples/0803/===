@@ -1,0 +1,1 @@
+meta.yamlover type: binary forces a file to Blob — serialization refuses (LossyError)

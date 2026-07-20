@@ -1,0 +1,106 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "pets",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Rex",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "species",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "dog",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Whiskers",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "species",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "cat",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "count",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 2,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

@@ -247,9 +247,11 @@ class Emitter {
     if (typeof v === 'boolean') return v ? 'true' : 'false';
     if (typeof v === 'number') {
       if (!Number.isFinite(v)) return nonFinite(v); // YAML float specials: .inf / -.inf / .nan
+      // keep the authored spelling (0x1F, 1.0, .5, -0) when it reparses to the same number —
+      // Object.is so `-0` keeps its sign (plain `===` treats -0 and 0 as one value)
       const raw = s.raw.trim();
-      if (raw !== '' && plainSafe(raw) && plainScalar(raw).value === v) return raw; // keep 0x1F etc.
-      return String(v);
+      if (raw !== '' && plainToken(raw) && Object.is(plainScalar(raw).value, v)) return raw;
+      return Object.is(v, -0) ? '-0' : String(v);
     }
     if (v === '') return "''";
     if (v.includes('\n') || /[\u0000-\u0008\u000b-\u001f\u007f]/.test(v)) return dq(v);
@@ -323,16 +325,23 @@ function hasUnquotedSpace(s: string): boolean {
   return false;
 }
 
-/** A string is safe to emit as a PLAIN scalar iff the reparse (in every context we emit:
- *  after `key:`, after `- `, alone on a line) returns the identical string. */
-function plainSafe(text: string): boolean {
+/** The token is structurally safe in every context we emit (after `key:`, after `- `,
+ *  alone on a line): no sigil/marker/comment/kv misreads. Says nothing about what VALUE
+ *  it reparses to — see {@link plainSafe} (strings) and the raw check in `inline` (numbers). */
+function plainToken(text: string): boolean {
   if (text === '' || text !== text.trim()) return false;
   if ("'\"*&~!|>{[".includes(text[0])) return false; // value-position sigils & quotes
   if (text === '-' || text.startsWith('- ')) return false; // would read as a seq marker
   if (/(^|[ \t])#/.test(text)) return false; // comment stripping
   if (splitKV(text) !== null) return false; // would read as `key: value` in a compact item
   if (/[\u0000-\u0008\u000b-\u001f\u007f]/.test(text)) return false;
-  return plainScalar(text).value === text;
+  return true;
+}
+
+/** A string is safe to emit as a PLAIN scalar iff the reparse (in every context we emit)
+ *  returns the identical string. */
+function plainSafe(text: string): boolean {
+  return plainToken(text) && plainScalar(text).value === text;
 }
 
 /** Double-quoted, JSON-escape style — the parser's dq escapes are a JSON superset. */

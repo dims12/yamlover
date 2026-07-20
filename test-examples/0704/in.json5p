@@ -1,0 +1,4 @@
+{
+  cat: { name: 'Tom' },
+  feline: *'cat',
+}

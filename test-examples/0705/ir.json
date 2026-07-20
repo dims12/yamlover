@@ -1,0 +1,51 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "cat",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "name",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Tom",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "feline",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "cat"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

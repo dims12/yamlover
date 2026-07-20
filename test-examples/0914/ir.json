@@ -1,0 +1,319 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "sample.bmp",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/bmp",
+            "hash": "xxh64:d5eed55624a55a5e",
+            "size": 153654
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.epub",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/epub+zip",
+            "hash": "xxh64:6d30ec9e5edc983d",
+            "size": 1645
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.fb2",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/x-fictionbook+xml",
+            "hash": "xxh64:13a54298b9f4189e",
+            "size": 622
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.gif",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/gif",
+            "hash": "xxh64:852d9f6a62844d89",
+            "size": 12613
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.html",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "text/html",
+            "hash": "xxh64:08f16331e213dd8e",
+            "size": 406
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.ico",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/x-icon",
+            "hash": "xxh64:c6621c481a8d4c8a",
+            "size": 325
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.pdf",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/pdf",
+            "hash": "xxh64:7a8db9aeae3babd1",
+            "size": 621
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.png",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/png",
+            "hash": "xxh64:2a8e48bede9eff6a",
+            "size": 667
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.psd",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/vnd.adobe.photoshop",
+            "hash": "xxh64:e0c6744be234e480",
+            "size": 3822
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.svg",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/svg+xml",
+            "hash": "xxh64:d628995827d08497",
+            "size": 352
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.tiff",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/tiff",
+            "hash": "xxh64:b1ac4be4ce4fb34c",
+            "size": 155272
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.txt",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "text/plain",
+            "hash": "xxh64:7efa2d1f5a0df48f",
+            "size": 695
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "markdown",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "# Markdown\nRendered with **marked** — *emphasis*, lists, and `code`. Each heading gets a\n`§` link, so `#markdown` and `#anchors` jump straight to a section.\n\n## Anchors\nHover a heading to reveal its `§`; the URL fragment is the heading's slug.\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "asciidoc",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "== AsciiDoc\n\nRendered with Asciidoctor.\n\n* one\n* two\n\n=== Anchors\n\nEach heading gets a `§` link; Asciidoctor's own section id is the fragment.\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "plantuml",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "@startuml\nAlice -> Bob : hello\nBob --> Alice : hi\n@enduml\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "csv",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "name,role,city\nAlice,Engineer,Berlin\nBob,\"Designer, UX\",Lisbon\nCarol,Manager,Oslo\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "chapter",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "chapter"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": "title",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A chapter, as one property",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A **chapter** is also a renderable format — here it sits as one property of this object.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Each chunk defaults to marklower; this sentence is the segment an annotation marks.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": true,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "anyfile01",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Alice",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "alsoany02",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 42,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "andany03.json",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": true,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

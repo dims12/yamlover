@@ -1,0 +1,74 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "sample.docx",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "hash": "xxh64:b937518af4ae0226",
+            "size": 1043
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.rtf",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/rtf",
+            "hash": "xxh64:5823f82fbc5dc4e7",
+            "size": 265
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.xls",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/vnd.ms-excel",
+            "hash": "xxh64:1e4fbc3030245515",
+            "size": 4096
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "sample.xlsx",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "hash": "xxh64:a17ac6e0a160db41",
+            "size": 17455
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

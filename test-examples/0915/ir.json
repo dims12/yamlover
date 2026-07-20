@@ -1,0 +1,375 @@
+{
+  "root": {
+    "kind": "scalar",
+    "value": "Getting Started with yamlover",
+    "array": false,
+    "set": false,
+    "schema": {
+      "ptr": {
+        "base": {
+          "scope": "current"
+        },
+        "steps": [
+          {
+            "sel": "key",
+            "name": "yamlover"
+          },
+          {
+            "sel": "key",
+            "name": "$defs"
+          },
+          {
+            "sel": "key",
+            "name": "chapter"
+          }
+        ]
+      }
+    },
+    "anchors": [],
+    "entries": [
+      {
+        "key": "description",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "the shortest tour of the chapter shape",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "yamlover is a YAML layer over the filesystem — data lives in files and directories.",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "An entire article fits in a single .yamlover file when it is tagged with a schema.",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "The bare line under the tag is the node's SELF-VALUE — this chapter's title.",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Why one file",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Chunks and subchapters",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Each chunk is a renderable block; by default it is marklower prose.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A chunk can override its (type, format) to be a diagram, image, and so on.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A body element with a self-value AND a body of its own is a subchapter — the recursion.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "An UNTITLED subchapter — body entries with no self-value.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "It is still a chapter; the page links it as \"(untitled chapter)\".",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Lists",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "bullets"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "the first point — items are marklower prose",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "a nested sub-point",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": true,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": null,
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "and deeper still",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "the last point",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "numbered"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "step one",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "step two",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "step two point one",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

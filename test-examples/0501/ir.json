@@ -1,0 +1,68 @@
+{
+  "root": {
+    "kind": "scalar",
+    "value": "Getting Started",
+    "array": false,
+    "set": false,
+    "schema": {
+      "ptr": {
+        "base": {
+          "scope": "current"
+        },
+        "steps": [
+          {
+            "sel": "key",
+            "name": "yamlover"
+          },
+          {
+            "sel": "key",
+            "name": "$defs"
+          },
+          {
+            "sel": "key",
+            "name": "chapter"
+          }
+        ]
+      }
+    },
+    "anchors": [],
+    "entries": [
+      {
+        "key": "description",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "A tiny chapter",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "first chunk",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "second chunk",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

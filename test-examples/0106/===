@@ -1,0 +1,1 @@
+empty flow containers: {} vs [] (the array projection hint survives)

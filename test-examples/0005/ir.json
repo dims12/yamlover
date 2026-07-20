@@ -1,0 +1,52 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "pinf",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": {
+            "$num": "inf"
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "ninf",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": {
+            "$num": "-inf"
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "nan",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": {
+            "$num": "nan"
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

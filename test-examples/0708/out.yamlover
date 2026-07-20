@@ -1,0 +1,7 @@
+pets:
+  -
+    &: whiskers
+    name: Whiskers
+humans:
+  - name: Alice
+    manager: *: whiskers

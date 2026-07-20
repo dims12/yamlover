@@ -1,0 +1,82 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "unicode",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Sosa did fine.☺",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "control",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "\b1998\t1999\t2000\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "hex esc",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "\r\n is \r\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "single",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "\"Howdy!\" he cried.",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "quoted",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": " # Not a 'comment'.",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "tie-fighter",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "|\\-*-/|",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

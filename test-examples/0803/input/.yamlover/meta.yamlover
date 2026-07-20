@@ -1,0 +1,3 @@
+properties:
+  age:
+    type: binary

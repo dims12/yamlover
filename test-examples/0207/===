@@ -1,0 +1,1 @@
+legacy slash pointers still parse; the serializer re-emits the colon form

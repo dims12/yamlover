@@ -1,0 +1,82 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "user",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "name",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Alice",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "address",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "city",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Springfield",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "zip",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "49007",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "age",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": 30,
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

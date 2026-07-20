@@ -1,0 +1,57 @@
+pets:
+  - name: Rex
+    species: dog
+  - name: Whiskers
+    species: cat
+  - name: Bubbles
+    species: fish
+humans:
+  - name: Alice
+    manager: *: pets[1]
+feline: *pets[1]
+topDog: *: pets[0]
+boss:
+  &: chief
+  name: Rex
+  species: dog
+team:
+  lead: *: chief
+secondPet: *pets[1]
+secondName: *pets[1]: name
+playlist:
+  - Intro
+  - Verse
+  title: Greatest Hits
+  - Chorus
+  encore: *: pets[0]
+firstTrack: *playlist[0]
+mixTitle: *playlist: title
+samePos: *playlist[2]
+rating: 5
+  - solid
+  - recommended
+  scale: 10
+  author: *: humans[0]
+ratingValue: *rating
+ratingTag: *rating[0]
+ratingScale: *rating: scale
+eve:
+  cain: *: adam: cain
+adam:
+  cain:
+    &: eve: cain
+favorites:
+  - *: pets[0]
+fan:
+  &: favorites[]
+  &: crew[]
+  name: Bob
+crew: !!set
+  - *: fan
+weird:
+  cat:dog:
+    n: 1
+  cat\/dog: 2
+ref: *weird: cat\:dog: n
+slsh: *weird: cat/dog
+dots: *\.\.

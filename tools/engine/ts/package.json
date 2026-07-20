@@ -5,7 +5,8 @@
   "type": "module",
   "description": "yamlover engine (TS): SQLite-backed graph store, directory walker, pointer resolver, watcher, mediated mv, query evaluator.",
   "scripts": {
-    "test": "node --test test/*.test.ts"
+    "test": "node --test test/*.test.ts",
+    "gen:fixtures": "node scripts/gen-fixtures.ts"
   },
   "engines": {
     "node": ">=22.13"

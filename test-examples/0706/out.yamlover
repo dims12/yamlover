@@ -1,0 +1,4 @@
+pinf: .inf
+ninf: -.inf
+nan: .nan
+hex: 0xCAFE

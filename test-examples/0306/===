@@ -1,0 +1,1 @@
+two nodes may declare the same anchor path at parse time (conflicts are the resolver's)

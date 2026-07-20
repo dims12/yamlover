@@ -1,0 +1,4 @@
+boss: &: chief
+  name: Rex
+team:
+  lead: *: chief

@@ -1,0 +1,3 @@
+my_node:
+  &: some: other: location[]
+  name: x

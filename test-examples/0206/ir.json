@@ -1,0 +1,113 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "weird",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "cat:dog",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "n",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": 1,
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "ref",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "weird"
+              },
+              {
+                "sel": "key",
+                "name": "cat:dog"
+              },
+              {
+                "sel": "key",
+                "name": "n"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "spacey",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "tags"
+              },
+              {
+                "sel": "key",
+                "name": "дорожный знак"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "slsh",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "formats"
+              },
+              {
+                "sel": "key",
+                "name": "text/html"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

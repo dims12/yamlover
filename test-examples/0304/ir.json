@@ -1,0 +1,74 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "adam",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "cain",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [
+                  {
+                    "base": {
+                      "scope": "document"
+                    },
+                    "steps": [
+                      {
+                        "sel": "key",
+                        "name": "eve"
+                      },
+                      {
+                        "sel": "key",
+                        "name": "cain"
+                      }
+                    ],
+                    "ordinal": false
+                  }
+                ],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Cain",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "eve",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

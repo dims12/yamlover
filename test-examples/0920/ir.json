@@ -1,0 +1,272 @@
+{
+  "root": {
+    "kind": "scalar",
+    "value": "A Pinch of Math",
+    "array": false,
+    "set": false,
+    "schema": {
+      "ptr": {
+        "base": {
+          "scope": "current"
+        },
+        "steps": [
+          {
+            "sel": "key",
+            "name": "yamlover"
+          },
+          {
+            "sel": "key",
+            "name": "$defs"
+          },
+          {
+            "sel": "key",
+            "name": "chapter"
+          }
+        ]
+      }
+    },
+    "anchors": [],
+    "entries": [
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Mathematics likes to hide **big ideas** in *short symbols*. The most famous of all,\nEuler's identity $$e^{i\\pi} + 1 = 0$$, ties together five constants in a single breath —\nnote how $$e^{i\\pi}$$ sits *inside* this sentence. marklower also styles `inline code`,\n__bold__, and ~~struck-out~~ text.\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "When a formula deserves a line of its own, give it a whole chunk — see the Gaussian\nintegral at [/[2]](/[2]), a standalone LaTeX block (that link is relative to\nthis document; the title, being the node's self-value, consumes no index).\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}\n",
+          "array": false,
+          "set": false,
+          "schema": {
+            "kind": "mapping",
+            "array": false,
+            "set": false,
+            "anchors": [],
+            "entries": [
+              {
+                "key": "format",
+                "edge": "contain",
+                "value": {
+                  "kind": "scalar",
+                  "value": "text/x-latex",
+                  "array": false,
+                  "set": false,
+                  "anchors": [],
+                  "entries": []
+                }
+              }
+            ]
+          },
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Inline math also handles the everyday: the area of a circle is $$A = \\pi r^2$$ and the\nquadratic formula $$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$ both flow through the prose.\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "\\sum_{k=1}^{n} k = \\frac{n(n+1)}{2}\n",
+          "array": false,
+          "set": false,
+          "schema": {
+            "kind": "mapping",
+            "array": false,
+            "set": false,
+            "anchors": [],
+            "entries": [
+              {
+                "key": "format",
+                "edge": "contain",
+                "value": {
+                  "kind": "scalar",
+                  "value": "text/x-latex",
+                  "array": false,
+                  "set": false,
+                  "anchors": [],
+                  "entries": []
+                }
+              }
+            ]
+          },
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "yamlover-fragments",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "mqgwoar6-xbn407",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "schema": {
+                  "ptr": {
+                    "base": {
+                      "scope": "link",
+                      "authority": "yamlover"
+                    },
+                    "steps": [
+                      {
+                        "sel": "key",
+                        "name": "$defs"
+                      },
+                      {
+                        "sel": "key",
+                        "name": "fragment"
+                      }
+                    ]
+                  }
+                },
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "type",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "text",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "exact",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Mathematics",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "prefix",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "suffix",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": " likes to hide ",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "created",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "2026-06-16T17:18:11.059Z",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "yamlover-annotations",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": true,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": null,
+                          "edge": "ref",
+                          "value": {
+                            "ptr": {
+                              "base": {
+                                "scope": "link",
+                                "authority": "yamlover"
+                              },
+                              "steps": [
+                                {
+                                  "sel": "key",
+                                  "name": "tags"
+                                },
+                                {
+                                  "sel": "key",
+                                  "name": "colors"
+                                },
+                                {
+                                  "sel": "key",
+                                  "name": "green"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

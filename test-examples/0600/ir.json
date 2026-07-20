@@ -1,0 +1,34 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "md",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "# Heading\nline two\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "other",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 1,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,1 @@
+walkDir keeps array: true on the reordered KEYED children (the array projection hint, walk.ts applyBody) — a yamlover file cannot express keyed entries inside an array node, so the golden reparses with array: false

@@ -1,0 +1,10 @@
+{
+  "root": {
+    "kind": "scalar",
+    "value": "literal\n\ttext\n",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": []
+  }
+}

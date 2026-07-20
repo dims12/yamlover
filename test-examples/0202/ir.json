@@ -1,0 +1,97 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "a",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "tiny"
+              },
+              {
+                "sel": "key",
+                "name": "object"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "b",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "pets"
+              },
+              {
+                "sel": "index",
+                "n": 1
+              },
+              {
+                "sel": "key",
+                "name": "name"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "c",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "link",
+              "authority": "$defs"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "tag"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "d",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "link",
+              "authority": "yamlover.inthemoon.net",
+              "world": true
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "$defs"
+              },
+              {
+                "sel": "key",
+                "name": "tag"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

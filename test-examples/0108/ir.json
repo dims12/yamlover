@@ -1,0 +1,70 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": true,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "k",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": 1,
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "m",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": 2,
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "t",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

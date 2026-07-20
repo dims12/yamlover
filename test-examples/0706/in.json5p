@@ -1,0 +1,6 @@
+{
+  pinf: Infinity,
+  ninf: -Infinity,
+  nan: NaN,
+  hex: 0xCAFE,
+}

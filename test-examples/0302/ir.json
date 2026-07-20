@@ -1,0 +1,47 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "fan",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "favorites"
+                }
+              ],
+              "ordinal": true
+            }
+          ],
+          "entries": [
+            {
+              "key": "name",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Bob",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

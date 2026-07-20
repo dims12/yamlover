@@ -1,0 +1,22 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "foo",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "bar",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

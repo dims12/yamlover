@@ -1,0 +1,1 @@
+a multi-line plain value falls back to double quotes on re-emit

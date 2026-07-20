@@ -1,0 +1,1 @@
+scalar zoo: string, int, hex, float, bool, null, empty string

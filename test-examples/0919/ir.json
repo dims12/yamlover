@@ -1,0 +1,1008 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/pdf",
+            "hash": "xxh64:bb8a51bd956f0006",
+            "size": 75240
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "yamlover-annotations",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "field"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "earth-science"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "seismology"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "genre"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "brevity"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "one-word-answer"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "genre"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "humor"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "deadpan"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "1110.2832v2.pdf",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/pdf",
+            "hash": "xxh64:835dcaa7a1762f0e",
+            "size": 724766
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "yamlover-annotations",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "field"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "physics"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "quantum"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "field"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "physics"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "particle"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "genre"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "brevity"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "one-word-answer"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "genre"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "humor"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "deadpan"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "fifth tag"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "colors"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "yellow"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "first tag"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "Chemical-Free.pdf",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/pdf",
+            "hash": "xxh64:794287efbd2acec4",
+            "size": 187608
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "yamlover-annotations",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "field"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "chemistry"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "genre"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "brevity"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "empty-body"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "genre"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "humor"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "satire"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "colors"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "yellow"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "first tag"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "S0002-9904-1966-11654-3.pdf",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/pdf",
+            "hash": "xxh64:4ff0004a0bf94d46",
+            "size": 35636
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "yamlover-annotations",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "field"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "mathematics"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "number-theory"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "genre"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "brevity"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "shortest-paper"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "fifth tag"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "jaba00061-0143a.pdf",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "application/pdf",
+            "hash": "xxh64:04f9403ddcdf61ce",
+            "size": 44428
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "yamlover-annotations",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "field"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "psychology"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "behavior-analysis"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "genre"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "brevity"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "empty-body"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "genre"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "humor"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "deadpan"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "tags",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "A small taxonomy for short / deadpan papers — two axes, field and genre",
+          "array": false,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "tag"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": "field",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "What the paper is about",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "mathematics",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Mathematics",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "number-theory",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Number theory — Diophantine equations, sums of powers",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "physics",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Physics",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "quantum",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Quantum mechanics and measurement",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "particle",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Particle physics — neutrinos and the like",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "earth-science",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Earth science",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "seismology",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Seismology — earthquakes and their statistics",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "chemistry",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Chemistry",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "psychology",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Psychology",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "behavior-analysis",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Applied behavior analysis",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "genre",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "How the paper is short",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "brevity",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "The paper is famously short",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "shortest-paper",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Famously the shortest paper in its journal",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "one-word-answer",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "The title is a question; the abstract answers it in a word",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "empty-body",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "The body of the paper is (almost) entirely blank",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "humor",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "The paper is a joke",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "deadpan",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Plays it completely straight",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "satire",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Mocks its target",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "annotation",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "A secondary / derivative edition of another paper",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "hello",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "world",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "_",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "underscore",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "$",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "dollar sign",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "one1",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "numerals",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "_$_",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "multiple symbols",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "$_$hello123world_$_",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "mixed",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

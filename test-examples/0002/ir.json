@@ -1,0 +1,94 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "name",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Alice",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "age",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 30,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "hex",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 31,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "floaty",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 0.5,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "admin",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": true,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "note",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": null,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "empty",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

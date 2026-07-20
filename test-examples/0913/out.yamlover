@@ -1,0 +1,14 @@
+adam:
+  cain:
+    &: eve: cain
+    enoch:
+      &: adam: azura: enoch
+  seth:
+    &: eve: seth
+  azura:
+    &: eve: azura
+    enoch: *: adam: cain: enoch
+eve:
+  cain: *: adam: cain
+  seth: *: adam: seth
+  azura: *: adam: azura

@@ -1,0 +1,1 @@
+SPEC GAP: URIs.md rejects ~[n]:, but the parser reads [0] as a literal key name

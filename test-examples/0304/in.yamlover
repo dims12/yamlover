@@ -1,0 +1,5 @@
+adam:
+  cain:
+    name: Cain
+    ~cain: *: eve
+eve: {}

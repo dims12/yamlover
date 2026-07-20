@@ -1,0 +1,83 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "weird",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "inner",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "up",
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "parent"
+                        },
+                        "steps": [
+                          {
+                            "sel": "parent"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "other"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "dots",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": ".."
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "other",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 9,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

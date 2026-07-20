@@ -1,0 +1,4 @@
+child:
+  &: p: kid
+  &: q: kid
+  x: 1

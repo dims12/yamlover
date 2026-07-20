@@ -1,0 +1,6 @@
+m: !!mix
+  - a
+  - b
+  title: T
+  - c
+  count: 2

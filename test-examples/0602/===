@@ -1,0 +1,1 @@
+block scalar chomping: clip |, strip |-, keep |+

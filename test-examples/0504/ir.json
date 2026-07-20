@@ -1,0 +1,68 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "alice",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 1,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "crew",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": true,
+          "anchors": [
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "teams"
+                },
+                {
+                  "sel": "key",
+                  "name": "crew"
+                }
+              ],
+              "ordinal": false
+            }
+          ],
+          "entries": [
+            {
+              "key": null,
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "alice"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

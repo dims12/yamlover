@@ -1,0 +1,35 @@
+{
+  "root": {
+    "kind": "scalar",
+    "value": 30,
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "one",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "two",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "three",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

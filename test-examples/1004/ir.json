@@ -1,0 +1,34 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "min",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": -1e+28,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "max",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 1e+28,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "my_node",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "some"
+                },
+                {
+                  "sel": "key",
+                  "name": "other"
+                },
+                {
+                  "sel": "key",
+                  "name": "location"
+                }
+              ],
+              "ordinal": true
+            }
+          ],
+          "entries": [
+            {
+              "key": "name",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "x",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

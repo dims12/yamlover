@@ -1,0 +1,866 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "schema": {
+      "ptr": {
+        "base": {
+          "scope": "current"
+        },
+        "steps": [
+          {
+            "sel": "key",
+            "name": "yamlover"
+          },
+          {
+            "sel": "key",
+            "name": "$defs"
+          },
+          {
+            "sel": "key",
+            "name": "board"
+          }
+        ]
+      }
+    },
+    "anchors": [],
+    "entries": [
+      {
+        "key": "add-board-view.yamlover",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Add the agile board renderer",
+          "array": false,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "task"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": "description",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Render a directory of tasks as kanban lanes with drag-to-retag.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "priority",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "normal",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "assignee",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "claude",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "estimate",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "1d",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Lanes come from the board's `workflow:` states; cards are the task members.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A drag DELETEs the old state annotation and POSTs the new one — reusing `/api/annotate`.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "yamlover-annotations",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "colors"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "yellow"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "workflow"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "dev"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "ready"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "fix-flaky-test.yamlover",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Fix the flaky reconcile test",
+          "array": false,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "task"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": "description",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "`reconcile.test.ts` intermittently fails on the mtime-tiebreak path.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "priority",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "low",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Reproduces ~1 in 20 runs locally; likely a same-second mtime collision in the manifest compare.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Pin the clock or compare on (size, hash) when mtimes tie.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "yamlover-annotations",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "workflow"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "dev"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "ready"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "refactor-parser.yamlover",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Split the pointer parser into scope + step phases",
+          "array": false,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "task"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": "description",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "The parser conflates scope detection with step walking; the colon grammar needs them apart.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "priority",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "high",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "assignee",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "claude",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "estimate",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "6h",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "The current `parsePointer` walks scopes and steps in one pass, so `::`/`:::` edge cases leak into step logic.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Target a two-phase parse — resolve the scope ladder first, then walk steps — so `SEPARATOR.md` rules live in one place.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "yamlover-annotations",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "colors"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "yellow"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "workflow"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "dev"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "ready"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "ship-0-4-0.yamlover",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Ship yamlover 0.4.0",
+          "array": false,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "task"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": "description",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Cut the 0.4.0 release once the board feature lands.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "priority",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "high",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "assignee",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "dims",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "The release bundles the tickets feature, the parser split, and the thumbnail fixes.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Tag the release commit",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Bump the version in the workspace and server package.json.",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Publish to npm + Nexus",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "The dual CI on version bump handles GitHub→npmjs (OIDC) and Forgejo→Nexus.",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Write the announcement",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "A short note covering tasks/boards and the colon-grammar migration.",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "yamlover-annotations",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "workflow"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "dev"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "done"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "colors"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "yellow"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "write-migration-guide.yamlover",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Write a slash→colon migration guide",
+          "array": false,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "task"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": "description",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A how-to for moving existing documents from the old `/` pointers to the colon grammar.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "priority",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "normal",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Dropped — the re-emitter already rewrites legacy slash input as colon (IR-equal), so no manual guide is needed.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "yamlover-annotations",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "link",
+                          "authority": "yamlover"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "tags"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "workflow"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "dev"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "cancelled"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "workflow",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "link",
+              "authority": "yamlover"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "tags"
+              },
+              {
+                "sel": "key",
+                "name": "workflow"
+              },
+              {
+                "sel": "key",
+                "name": "dev"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

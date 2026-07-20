@@ -1,0 +1,86 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": ".yamlover",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "fragments",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "pic.yamlover",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "region",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "full",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "pic.png",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/png",
+            "hash": "xxh64:6a634721b87742b7",
+            "size": 70
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "caption",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "The picture",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

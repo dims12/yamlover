@@ -1,0 +1,3 @@
+my_node:
+  name: x
+  ~- *: some: other: location

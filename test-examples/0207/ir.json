@@ -1,0 +1,96 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "pets",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Rex",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "ref",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "pets"
+              },
+              {
+                "sel": "index",
+                "n": 0
+              },
+              {
+                "sel": "key",
+                "name": "name"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "anch",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 1,
+          "array": false,
+          "set": false,
+          "anchors": [
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "alias"
+                }
+              ],
+              "ordinal": false
+            }
+          ],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

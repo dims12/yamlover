@@ -1,0 +1,6 @@
+pets:
+  - name: Rex
+    species: dog
+  - name: Whiskers
+    species: cat
+count: 2

@@ -1,0 +1,4 @@
+plain: just text         # a comment
+single: 'a # b'          # not a comment inside ''
+double: "x # y"          # nor inside ""
+esc: "she said \"hi\""   # \" must NOT end the string early

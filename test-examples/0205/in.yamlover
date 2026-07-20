@@ -1,0 +1,5 @@
+weird:
+  inner:
+    up: *..: ..: other
+dots: *\.\.
+other: 9

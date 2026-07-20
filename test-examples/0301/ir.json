@@ -1,0 +1,67 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "child",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "p"
+                },
+                {
+                  "sel": "key",
+                  "name": "kid"
+                }
+              ],
+              "ordinal": false
+            },
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "q"
+                },
+                {
+                  "sel": "key",
+                  "name": "kid"
+                }
+              ],
+              "ordinal": false
+            }
+          ],
+          "entries": [
+            {
+              "key": "x",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": 1,
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

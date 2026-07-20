@@ -1,0 +1,52 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "First occurrence",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Value",
+          "array": false,
+          "set": false,
+          "anchors": [
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "anchor"
+                }
+              ],
+              "ordinal": false
+            }
+          ],
+          "entries": []
+        }
+      },
+      {
+        "key": "Second occurrence",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "anchor"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

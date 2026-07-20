@@ -1,0 +1,54 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "chunks",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "@startuml\n@enduml\n",
+                "array": false,
+                "set": false,
+                "schema": {
+                  "kind": "mapping",
+                  "array": false,
+                  "set": false,
+                  "anchors": [],
+                  "entries": [
+                    {
+                      "key": "format",
+                      "edge": "contain",
+                      "value": {
+                        "kind": "scalar",
+                        "value": "text/x-plantuml",
+                        "array": false,
+                        "set": false,
+                        "anchors": [],
+                        "entries": []
+                      }
+                    }
+                  ]
+                },
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

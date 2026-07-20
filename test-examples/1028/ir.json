@@ -1,0 +1,10 @@
+{
+  "root": {
+    "kind": "scalar",
+    "value": "hello world",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": []
+  }
+}

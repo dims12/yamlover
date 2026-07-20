@@ -1,0 +1,30 @@
+!!<*yamlover: $defs: chapter>
+Household staff
+- The roster below is a **table** — a body element, not marklower syntax; cells are marklower.
+- !!<*yamlover: $defs: table>
+  title: Who does what
+  header:
+    - Name
+      width: 2
+    - Class
+    - *[.-1]
+  - - Whiskers
+    - mammal
+    - '**manager**'
+  - - Rex
+    - *..[.-1][.]
+    - security
+  - - Bubbles
+    - fish
+    - !!<*yamlover: $defs: table>
+      header:
+        - duty
+        - shift
+      - - decoration
+        - always
+  - - Rocky
+    - raccoon
+    - - night shift **only**
+      - !!<*yamlover: $defs: table>
+        - - bins
+          - tipped

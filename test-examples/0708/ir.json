@@ -1,0 +1,112 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "pets",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [
+                  {
+                    "base": {
+                      "scope": "document"
+                    },
+                    "steps": [
+                      {
+                        "sel": "key",
+                        "name": "whiskers"
+                      }
+                    ],
+                    "ordinal": false
+                  }
+                ],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Whiskers",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "humans",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Alice",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "manager",
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "whiskers"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

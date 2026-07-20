@@ -1,0 +1,1203 @@
+{
+  "root": {
+    "kind": "scalar",
+    "value": "The Pet Keeper's Handbook",
+    "array": false,
+    "set": false,
+    "schema": {
+      "ptr": {
+        "base": {
+          "scope": "current"
+        },
+        "steps": [
+          {
+            "sel": "key",
+            "name": "yamlover"
+          },
+          {
+            "sel": "key",
+            "name": "$defs"
+          },
+          {
+            "sel": "key",
+            "name": "chapter"
+          }
+        ]
+      }
+    },
+    "anchors": [],
+    "entries": [
+      {
+        "key": ".yamlover",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "thumbnails",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "xxh64-429a227f097399ce-256x256.jpg",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "blob",
+                      "blob": {
+                        "format": "image/jpeg",
+                        "hash": "xxh64:ca6bbac80c833eed",
+                        "size": 3761
+                      },
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "cats",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Cats",
+          "array": false,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "chapter"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": ".yamlover",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "thumbnails",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "xxh64-be1b2e864457e339-256x256.jpg",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "blob",
+                            "blob": {
+                              "format": "image/jpeg",
+                              "hash": "xxh64:d2eebf017fa99b0d",
+                              "size": 4188
+                            },
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "cat-face.png",
+              "edge": "contain",
+              "value": {
+                "kind": "blob",
+                "blob": {
+                  "format": "image/png",
+                  "hash": "xxh64:be1b2e864457e339",
+                  "size": 1548
+                },
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "yamlover-thumbnails",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "[256, 256]",
+                          "edge": "ref",
+                          "value": {
+                            "ptr": {
+                              "base": {
+                                "scope": "document"
+                              },
+                              "steps": [
+                                {
+                                  "sel": "key",
+                                  "name": ".yamlover"
+                                },
+                                {
+                                  "sel": "key",
+                                  "name": "thumbnails"
+                                },
+                                {
+                                  "sel": "key",
+                                  "name": "xxh64-be1b2e864457e339-256x256.jpg"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "description",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Independent roommates with opinions",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A cat tolerates your presence on terms it renews daily.\n",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "cat-face.png"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Vertical space — shelves, perches, a tall scratching post — keeps a cat content. And a\nclean litter box is the single most important thing you can offer a cat.\n",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A cat's day cycles through a few well-known states:\n",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "@startuml\n[*] --> Aloof\nAloof --> Hungry : dinnertime\nHungry --> Affectionate : fed\nAffectionate --> Aloof : had enough\nAloof --> Zoomies : 3 a.m.\nZoomies --> Aloof : worn out\n@enduml\n",
+                "array": false,
+                "set": false,
+                "schema": {
+                  "kind": "mapping",
+                  "array": false,
+                  "set": false,
+                  "anchors": [],
+                  "entries": [
+                    {
+                      "key": "format",
+                      "edge": "contain",
+                      "value": {
+                        "kind": "scalar",
+                        "value": "text/x-plantuml",
+                        "array": false,
+                        "set": false,
+                        "anchors": [],
+                        "entries": []
+                      }
+                    }
+                  ]
+                },
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "cover-paw.png",
+        "edge": "contain",
+        "value": {
+          "kind": "blob",
+          "blob": {
+            "format": "image/png",
+            "hash": "xxh64:429a227f097399ce",
+            "size": 1295
+          },
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "yamlover-thumbnails",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "[256, 256]",
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": ".yamlover"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "thumbnails"
+                          },
+                          {
+                            "sel": "key",
+                            "name": "xxh64-429a227f097399ce-256x256.jpg"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "dogs",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Dogs",
+          "array": false,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "chapter"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": ".yamlover",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "thumbnails",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "xxh64-5e505632672c09c5-256x256.jpg",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "blob",
+                            "blob": {
+                              "format": "image/jpeg",
+                              "hash": "xxh64:7500bea65ac033f2",
+                              "size": 2248
+                            },
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "dog-bone.png",
+              "edge": "contain",
+              "value": {
+                "kind": "blob",
+                "blob": {
+                  "format": "image/png",
+                  "hash": "xxh64:5e505632672c09c5",
+                  "size": 1051
+                },
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "yamlover-thumbnails",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "[256, 256]",
+                          "edge": "ref",
+                          "value": {
+                            "ptr": {
+                              "base": {
+                                "scope": "document"
+                              },
+                              "steps": [
+                                {
+                                  "sel": "key",
+                                  "name": ".yamlover"
+                                },
+                                {
+                                  "sel": "key",
+                                  "name": "thumbnails"
+                                },
+                                {
+                                  "sel": "key",
+                                  "name": "xxh64-5e505632672c09c5-256x256.jpg"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "puppies",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Puppies",
+                "array": false,
+                "set": false,
+                "schema": {
+                  "ptr": {
+                    "base": {
+                      "scope": "current"
+                    },
+                    "steps": [
+                      {
+                        "sel": "key",
+                        "name": "yamlover"
+                      },
+                      {
+                        "sel": "key",
+                        "name": "$defs"
+                      },
+                      {
+                        "sel": "key",
+                        "name": "chapter"
+                      }
+                    ]
+                  }
+                },
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": ".yamlover",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "thumbnails",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "xxh64-94be71edcf540dac-256x256.jpg",
+                                "edge": "contain",
+                                "value": {
+                                  "kind": "blob",
+                                  "blob": {
+                                    "format": "image/jpeg",
+                                    "hash": "xxh64:d1b6bf2c9ce4da9e",
+                                    "size": 3271
+                                  },
+                                  "array": false,
+                                  "set": false,
+                                  "anchors": [],
+                                  "entries": []
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "puppy-paw.png",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "blob",
+                      "blob": {
+                        "format": "image/png",
+                        "hash": "xxh64:94be71edcf540dac",
+                        "size": 999
+                      },
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "yamlover-thumbnails",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[256, 256]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yamlover"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-94be71edcf540dac-256x256.jpg"
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "description",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "The first few months",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Puppies sleep most of the day and chew most of the rest.\n",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "puppy-paw.png"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Begin house training the day they arrive, reward every success generously, and give\nearly, gentle exposure to people and places — it shapes a calm adult dog.\n",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "The first months follow a rough schedule:\n",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "@startgantt\nProject starts 2026-01-01\n[Settle in] lasts 3 days\n[House training] lasts 28 days\n[House training] starts at [Settle in]'s end\n[Socialisation] lasts 60 days\n[Socialisation] starts at [Settle in]'s end\n@endgantt\n",
+                      "array": false,
+                      "set": false,
+                      "schema": {
+                        "kind": "mapping",
+                        "array": false,
+                        "set": false,
+                        "anchors": [],
+                        "entries": [
+                          {
+                            "key": "format",
+                            "edge": "contain",
+                            "value": {
+                              "kind": "scalar",
+                              "value": "text/x-plantuml",
+                              "array": false,
+                              "set": false,
+                              "anchors": [],
+                              "entries": []
+                            }
+                          }
+                        ]
+                      },
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "description",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Loyal, loud, and endlessly hopeful",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A dog is a **social animal** that adopts your family as its pack.\n",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "dog-bone.png"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Daily walks are not optional; they are how a dog reads the news of the neighbourhood.\nConsistency matters more than severity — the same word should always mean the same thing.\n",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A walk is a small ritual you both know by heart:\n",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "@startuml\nactor Keeper\nparticipant Dog\nKeeper -> Dog : pick up the lead\nDog --> Keeper : spins with delight\nKeeper -> Dog : walk the usual route\nDog -> Dog : reads the news (sniffs)\nDog --> Keeper : returns home calm\n@enduml\n",
+                "array": false,
+                "set": false,
+                "schema": {
+                  "kind": "mapping",
+                  "array": false,
+                  "set": false,
+                  "anchors": [],
+                  "entries": [
+                    {
+                      "key": "format",
+                      "edge": "contain",
+                      "value": {
+                        "kind": "scalar",
+                        "value": "text/x-plantuml",
+                        "array": false,
+                        "set": false,
+                        "anchors": [],
+                        "entries": []
+                      }
+                    }
+                  ]
+                },
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "puppies"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "fish",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Fish",
+          "array": false,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "chapter"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": ".yamlover",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "thumbnails",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "xxh64-09ea0c272066f155-256x256.jpg",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "blob",
+                            "blob": {
+                              "format": "image/jpeg",
+                              "hash": "xxh64:1ac52e283b5dd1b7",
+                              "size": 3520
+                            },
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "fish-tank.png",
+              "edge": "contain",
+              "value": {
+                "kind": "blob",
+                "blob": {
+                  "format": "image/png",
+                  "hash": "xxh64:09ea0c272066f155",
+                  "size": 1434
+                },
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "yamlover-thumbnails",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "[256, 256]",
+                          "edge": "ref",
+                          "value": {
+                            "ptr": {
+                              "base": {
+                                "scope": "document"
+                              },
+                              "steps": [
+                                {
+                                  "sel": "key",
+                                  "name": ".yamlover"
+                                },
+                                {
+                                  "sel": "key",
+                                  "name": "thumbnails"
+                                },
+                                {
+                                  "sel": "key",
+                                  "name": "xxh64-09ea0c272066f155-256x256.jpg"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "description",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A quiet window into another world",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "An aquarium is a small ecosystem, and **water quality is everything.**\n",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "fish-tank.png"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Cycle a new tank for weeks before adding fish, so helpful bacteria can establish. Feed\nsparingly: uneaten food fouls the water faster than anything else.\n",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "The bacteria you are waiting for run the **nitrogen cycle**, turning toxic waste into\nsomething far milder:\n",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "@startuml\n[*] --> Ammonia : fish waste\nAmmonia --> Nitrite : Nitrosomonas\nNitrite --> Nitrate : Nitrobacter\nNitrate --> [*] : water change\n@enduml\n",
+                "array": false,
+                "set": false,
+                "schema": {
+                  "kind": "mapping",
+                  "array": false,
+                  "set": false,
+                  "anchors": [],
+                  "entries": [
+                    {
+                      "key": "format",
+                      "edge": "contain",
+                      "value": {
+                        "kind": "scalar",
+                        "value": "text/x-plantuml",
+                        "array": false,
+                        "set": false,
+                        "anchors": [],
+                        "entries": []
+                      }
+                    }
+                  ]
+                },
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "description",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "A friendly guide to living with animals",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "**Pets share our homes, our routines, and a surprising amount of our furniture.** This\nhandbook collects what every keeper learns sooner or later, one species at a time.\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Read the chapter for your companion, but the first rule is universal: *watch, listen, and\nbe patient.*\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "cover-paw.png"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Three needs run through every chapter — **company, exercise, and a clean environment** —\nweighted differently for each animal:\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "@startmindmap\n* Pet keeping\n** Dogs\n*** Daily walks\n*** Consistent training\n** Cats\n*** Vertical space\n*** A clean litter box\n** Fish\n*** Water quality\n*** Sparing feeding\n@endmindmap\n",
+          "array": false,
+          "set": false,
+          "schema": {
+            "kind": "mapping",
+            "array": false,
+            "set": false,
+            "anchors": [],
+            "entries": [
+              {
+                "key": "format",
+                "edge": "contain",
+                "value": {
+                  "kind": "scalar",
+                  "value": "text/x-plantuml",
+                  "array": false,
+                  "set": false,
+                  "anchors": [],
+                  "entries": []
+                }
+              }
+            ]
+          },
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "dogs"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "cats"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "fish"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "**Whatever shares your home**, the craft is the same: notice what it needs before it has to\nask. Return to the chapter above whenever a new question arrives — the animals are patient\nteachers.\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

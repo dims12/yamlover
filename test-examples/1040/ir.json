@@ -1,0 +1,46 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "hr",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 65,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "avg",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 0.278,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "rbi",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 147,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

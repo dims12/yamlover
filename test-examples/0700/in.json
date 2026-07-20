@@ -1,0 +1,6 @@
+{
+  "name": "Alice",
+  "age": 30,
+  "tags": ["a", "b"],
+  "nested": {"ok": true, "none": null}
+}

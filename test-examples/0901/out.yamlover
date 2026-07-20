@@ -1,0 +1,18 @@
+pets:
+  - name: Rex
+    species: dog
+  - name: Whiskers
+    species: cat
+  - name: Bubbles
+    species: fish
+humans:
+  - name: Alice
+    manager:
+      name: Whiskers
+      species: cat
+stats:
+  count: 0xCAFE
+  ratio: .5
+  rounded: 5.
+  max: .inf
+  missing: .nan

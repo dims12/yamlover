@@ -1,0 +1,520 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "pets",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Rex",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "species",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "dog",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [
+                  {
+                    "base": {
+                      "scope": "document"
+                    },
+                    "steps": [
+                      {
+                        "sel": "key",
+                        "name": "whiskers"
+                      }
+                    ],
+                    "ordinal": false
+                  }
+                ],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Whiskers",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "species",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "cat",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Bubbles",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "species",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "fish",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "humans",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Alice",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "manager",
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "whiskers"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "types",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "integer",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": 42,
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "negative",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": -7,
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "float",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": 3.14,
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "scientific",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": 6.022e+23,
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "hex",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": 255,
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "boolean",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": true,
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "disabled",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": false,
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "nothing",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": null,
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "empty",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": null,
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "plain",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "just text",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "single",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "single 'quoted'",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "double",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "she said \"hi\" — ok",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "literal",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "line one\nline two\n",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "folded",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "these three lines fold into one paragraph\n",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "flowseq",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "red",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "green",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "blue",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "flowmap",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "x",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": 1,
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "y",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": 2,
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "mixed",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": 1,
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "two",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": true,
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": null,
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

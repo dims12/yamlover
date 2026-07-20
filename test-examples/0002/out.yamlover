@@ -1,0 +1,7 @@
+name: Alice
+age: 30
+hex: 0x1F
+floaty: .5
+admin: true
+note:
+empty: ''

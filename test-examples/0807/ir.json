@@ -1,0 +1,62 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": ".yamlover",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "thumbnails",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "pic.png",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "blob",
+                      "blob": {
+                        "format": "image/png",
+                        "hash": "xxh64:6a634721b87742b7",
+                        "size": 70
+                      },
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "note",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "a picture gallery",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

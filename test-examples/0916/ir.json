@@ -1,0 +1,533 @@
+{
+  "root": {
+    "kind": "scalar",
+    "value": "Household staff",
+    "array": true,
+    "set": false,
+    "schema": {
+      "ptr": {
+        "base": {
+          "scope": "current"
+        },
+        "steps": [
+          {
+            "sel": "key",
+            "name": "yamlover"
+          },
+          {
+            "sel": "key",
+            "name": "$defs"
+          },
+          {
+            "sel": "key",
+            "name": "chapter"
+          }
+        ]
+      }
+    },
+    "anchors": [],
+    "entries": [
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "The roster below is a **table** — a body element, not marklower syntax; cells are marklower.",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "table"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": "title",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Who does what",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "header",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Name",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "width",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": 2,
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Class",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "current"
+                        },
+                        "steps": [
+                          {
+                            "sel": "relindex",
+                            "k": -1
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Whiskers",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "mammal",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "**manager**",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Rex",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "current"
+                        },
+                        "steps": [
+                          {
+                            "sel": "parent"
+                          },
+                          {
+                            "sel": "relindex",
+                            "k": -1
+                          },
+                          {
+                            "sel": "relindex",
+                            "k": 0
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "security",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Bubbles",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "fish",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": false,
+                      "set": false,
+                      "schema": {
+                        "ptr": {
+                          "base": {
+                            "scope": "current"
+                          },
+                          "steps": [
+                            {
+                              "sel": "key",
+                              "name": "yamlover"
+                            },
+                            {
+                              "sel": "key",
+                              "name": "$defs"
+                            },
+                            {
+                              "sel": "key",
+                              "name": "table"
+                            }
+                          ]
+                        }
+                      },
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "header",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "mapping",
+                            "array": true,
+                            "set": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": null,
+                                "edge": "contain",
+                                "value": {
+                                  "kind": "scalar",
+                                  "value": "duty",
+                                  "array": false,
+                                  "set": false,
+                                  "anchors": [],
+                                  "entries": []
+                                }
+                              },
+                              {
+                                "key": null,
+                                "edge": "contain",
+                                "value": {
+                                  "kind": "scalar",
+                                  "value": "shift",
+                                  "array": false,
+                                  "set": false,
+                                  "anchors": [],
+                                  "entries": []
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "key": null,
+                          "edge": "contain",
+                          "value": {
+                            "kind": "mapping",
+                            "array": true,
+                            "set": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": null,
+                                "edge": "contain",
+                                "value": {
+                                  "kind": "scalar",
+                                  "value": "decoration",
+                                  "array": false,
+                                  "set": false,
+                                  "anchors": [],
+                                  "entries": []
+                                }
+                              },
+                              {
+                                "key": null,
+                                "edge": "contain",
+                                "value": {
+                                  "kind": "scalar",
+                                  "value": "always",
+                                  "array": false,
+                                  "set": false,
+                                  "anchors": [],
+                                  "entries": []
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Rocky",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "raccoon",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": true,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": null,
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "night shift **only**",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": null,
+                          "edge": "contain",
+                          "value": {
+                            "kind": "mapping",
+                            "array": true,
+                            "set": false,
+                            "schema": {
+                              "ptr": {
+                                "base": {
+                                  "scope": "current"
+                                },
+                                "steps": [
+                                  {
+                                    "sel": "key",
+                                    "name": "yamlover"
+                                  },
+                                  {
+                                    "sel": "key",
+                                    "name": "$defs"
+                                  },
+                                  {
+                                    "sel": "key",
+                                    "name": "table"
+                                  }
+                                ]
+                              }
+                            },
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": null,
+                                "edge": "contain",
+                                "value": {
+                                  "kind": "mapping",
+                                  "array": true,
+                                  "set": false,
+                                  "anchors": [],
+                                  "entries": [
+                                    {
+                                      "key": null,
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "bins",
+                                        "array": false,
+                                        "set": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": null,
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "tipped",
+                                        "array": false,
+                                        "set": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

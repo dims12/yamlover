@@ -1,0 +1,5 @@
+adam:
+  cain:
+    &: eve: cain
+    name: Cain
+eve: {}

@@ -1,0 +1,42 @@
+pets:
+  - name: Rex
+    species: dog
+  -
+    &: whiskers
+    name: Whiskers
+    species: cat
+  - name: Bubbles
+    species: fish
+humans:
+  - name: Alice
+    manager: *: whiskers
+types:
+  integer: 42
+  negative: -7
+  float: 3.14
+  scientific: 6.022e23
+  hex: 0xFF
+  boolean: true
+  disabled: false
+  nothing:
+  empty:
+  plain: just text
+  single: single 'quoted'
+  double: she said "hi" — ok
+  literal: |
+    line one
+    line two
+  folded: |
+    these three lines fold into one paragraph
+  flowseq:
+    - red
+    - green
+    - blue
+  flowmap:
+    x: 1
+    y: 2
+  mixed:
+    - 1
+    - two
+    - true
+    -

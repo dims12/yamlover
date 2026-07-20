@@ -1,0 +1,7 @@
+unicode: Sosa did fine.☺
+control: |
+  1998	1999	2000
+hex esc: "\r\n is \r\n"
+single: '"Howdy!" he cried.'
+quoted: ' # Not a ''comment''.'
+tie-fighter: '|\-*-/|'

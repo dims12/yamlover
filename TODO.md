@@ -6,4 +6,4 @@
 - Catch up YAML standard, why tuple key caused any confusions? 
 - Example 59-all-formats-object chapter sample is not migrated from old chapter format
 - Support for multilingual chunks in marklower (conditional? schemas level?)
-- Create full scaled test corpus for yamlover, including different concretes
+- ~~Create full scaled test corpus for yamlover, including different concretes~~ — DONE (2026-07-20): `test-examples/` — 150 fixtures (source + canonical IR + byte goldens), one harness in `tools/engine/ts/test/fixtures.test.ts`, goldens via `npm run gen:fixtures`; format spec in `test-examples/README.md`

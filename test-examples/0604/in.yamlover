@@ -1,0 +1,3 @@
+name: Alice  # trailing comment
+# an own-line comment before age
+age: 30

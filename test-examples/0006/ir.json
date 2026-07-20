@@ -1,0 +1,68 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "1",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "one",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "two",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 2,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "byKey",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "1"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "byIndex",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "index",
+                "n": 0
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

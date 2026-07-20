@@ -1,0 +1,922 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "pets",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Rex",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "species",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "dog",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Whiskers",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "species",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "cat",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Bubbles",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "species",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "fish",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "humans",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "name",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Alice",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "manager",
+                    "edge": "ref",
+                    "value": {
+                      "ptr": {
+                        "base": {
+                          "scope": "document"
+                        },
+                        "steps": [
+                          {
+                            "sel": "key",
+                            "name": "pets"
+                          },
+                          {
+                            "sel": "index",
+                            "n": 1
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "feline",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "pets"
+              },
+              {
+                "sel": "index",
+                "n": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "topDog",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "document"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "pets"
+              },
+              {
+                "sel": "index",
+                "n": 0
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "boss",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "chief"
+                }
+              ],
+              "ordinal": false
+            }
+          ],
+          "entries": [
+            {
+              "key": "name",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Rex",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "species",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "dog",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "team",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "lead",
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "chief"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "secondPet",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "pets"
+              },
+              {
+                "sel": "index",
+                "n": 1
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "secondName",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "pets"
+              },
+              {
+                "sel": "index",
+                "n": 1
+              },
+              {
+                "sel": "key",
+                "name": "name"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "playlist",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Intro",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Verse",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "title",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Greatest Hits",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Chorus",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "encore",
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "pets"
+                    },
+                    {
+                      "sel": "index",
+                      "n": 0
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "firstTrack",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "playlist"
+              },
+              {
+                "sel": "index",
+                "n": 0
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "mixTitle",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "playlist"
+              },
+              {
+                "sel": "key",
+                "name": "title"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "samePos",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "playlist"
+              },
+              {
+                "sel": "index",
+                "n": 2
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "rating",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 5,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "solid",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "recommended",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "scale",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": 10,
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "author",
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "humans"
+                    },
+                    {
+                      "sel": "index",
+                      "n": 0
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "ratingValue",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "rating"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "ratingTag",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "rating"
+              },
+              {
+                "sel": "index",
+                "n": 0
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "ratingScale",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "rating"
+              },
+              {
+                "sel": "key",
+                "name": "scale"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "eve",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "cain",
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "adam"
+                    },
+                    {
+                      "sel": "key",
+                      "name": "cain"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "adam",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "cain",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": null,
+                "array": false,
+                "set": false,
+                "anchors": [
+                  {
+                    "base": {
+                      "scope": "document"
+                    },
+                    "steps": [
+                      {
+                        "sel": "key",
+                        "name": "eve"
+                      },
+                      {
+                        "sel": "key",
+                        "name": "cain"
+                      }
+                    ],
+                    "ordinal": false
+                  }
+                ],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "favorites",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "pets"
+                    },
+                    {
+                      "sel": "index",
+                      "n": 0
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "fan",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "crew"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "favorites"
+                }
+              ],
+              "ordinal": true
+            }
+          ],
+          "entries": [
+            {
+              "key": "name",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Bob",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "crew",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": true,
+          "set": true,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "document"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "fan"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "weird",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "cat:dog",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "n",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": 1,
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "cat/dog",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": 2,
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "ref",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "weird"
+              },
+              {
+                "sel": "key",
+                "name": "cat:dog"
+              },
+              {
+                "sel": "key",
+                "name": "n"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "slsh",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "weird"
+              },
+              {
+                "sel": "key",
+                "name": "cat/dog"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "dots",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "current"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": ".."
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,3 @@
+pets:
+  - name: Rex
+manager: *: pets[0]: name

@@ -1,0 +1,34 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": true,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "zzz",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "second",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "aaa",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "first",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

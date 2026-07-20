@@ -1,0 +1,4 @@
+pets:
+  - name: Rex
+ref: */pets[0]/name
+anch: &/alias 1

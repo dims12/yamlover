@@ -1,0 +1,8 @@
+# Goldens are BYTES: ir.json and out.* are compared byte-for-byte and input/ blobs are
+# content-hashed — CRLF conversion would corrupt both. No eol translation for anything here.
+* -text
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary

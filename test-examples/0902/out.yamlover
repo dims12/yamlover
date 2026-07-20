@@ -1,0 +1,37 @@
+pets:
+  - name: Rex
+    species: dog
+  - name: Whiskers
+    species: cat
+  - name: Bubbles
+    species: fish
+humans:
+  - name: Alice
+    manager: *: pets[1]
+feline: *pets[1]
+topDog: *: pets[0]
+boss:
+  &: chief
+  name: Rex
+  species: dog
+team:
+  lead: *: chief
+secondPet: *pets[1]
+secondName: *pets[1]: name
+eve:
+  cain: *: adam: cain
+adam:
+  cain: {}
+    &: eve: cain
+favorites:
+  - *: pets[0]
+fan:
+  &: favorites[]
+  &: crew[]
+  name: Bob
+crew:
+  - *: fan
+odd\/key:
+  n: 1
+oddRef: *odd/key: n
+dotsRef: *\.\.

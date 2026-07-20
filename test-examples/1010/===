@@ -1,0 +1,1 @@
+JSONTestSuite y_number_minus_zero: -0 survives via the canon $num sentinel

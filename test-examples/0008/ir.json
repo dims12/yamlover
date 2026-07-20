@@ -1,0 +1,46 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "имя",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Алиса",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "город",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Москва",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "emoji",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "🐱",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

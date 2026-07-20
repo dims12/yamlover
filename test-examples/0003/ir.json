@@ -1,0 +1,58 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "plain",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "just text",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "single",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "a # b",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "double",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "x # y",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "esc",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "she said \"hi\"",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

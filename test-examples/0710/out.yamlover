@@ -1,0 +1,6 @@
+cat:
+  name: Tom
+feline: *cat
+nums:
+  - 1
+  - 2

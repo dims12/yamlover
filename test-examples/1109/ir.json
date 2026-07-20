@@ -1,0 +1,38 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "a",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "anchors": [
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "x"
+                },
+                {
+                  "sel": "key",
+                  "name": "[0]"
+                }
+              ],
+              "ordinal": false
+            }
+          ],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

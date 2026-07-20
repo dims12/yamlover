@@ -1,0 +1,4 @@
+plain: just text
+single: 'a # b'
+double: 'x # y'
+esc: she said "hi"

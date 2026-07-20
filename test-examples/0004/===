@@ -1,0 +1,1 @@
+strings that look like other types stay strings (re-emit quoted)

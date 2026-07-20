@@ -1,0 +1,12 @@
+pets:
+  - name: Rex
+    species: dog
+  - name: Whiskers
+    species: cat
+  - name: Bubbles
+    species: fish
+humans:
+  - name: Alice
+    manager:
+      name: Whiskers
+      species: cat
