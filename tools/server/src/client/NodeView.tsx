@@ -94,6 +94,9 @@ interface Props {
   /** Bumped by App right after an object is CREATED — the freshly navigated-to page opens
    *  straight in editing mode (chapter editor / editable yamlover view) instead of read-only. */
   unlockSignal?: number;
+  /** The CLI ROOT's display name (/api/info) — the ROOT node's name for the window title
+   *  (the root has no path segment to fall back on the way every other node does). */
+  rootLabel?: string;
 }
 
 /** The RHS pane: one node shown in the selected representation. Every
@@ -102,7 +105,7 @@ interface Props {
 // memo: App re-renders on every SSE task-progress frame (background indexing/hashing — several
 // per second); the node pane — incl. a mounted PDF with all its pages — must only re-render
 // when its own props change, or scrolling a long document JANKS while a task runs.
-export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0, onFormat, onNavigate, onContentChanged, onOpenUploaded, unlockSignal = 0 }: Props) {
+export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0, onFormat, onNavigate, onContentChanged, onOpenUploaded, unlockSignal = 0, rootLabel }: Props) {
   const [node, setNode] = useState<NodeJson | null>(null); // header + data value
   const [schema, setSchema] = useState<unknown>(null);
   const [bin, setBin] = useState<unknown>(null); // base64 payload for a binary leaf
@@ -390,13 +393,20 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     }
   };
 
-  // The browser tab reflects where you are: the node's schema title if it has one,
-  // else its bare name (the last path segment), falling back to the app name at the
-  // (titleless) root. Re-set whenever the node settles.
+  // The browser tab reflects where you are: `<title> - <path down to it>` — the node's
+  // schema title if it has one, else its bare name (the last path segment), then the
+  // path of its ANCESTORS (the node itself would repeat the name), headed by the CLI
+  // ROOT's label (what the TOC's first row shows). The root has no path, so it shows
+  // the title alone — its name falling back to that same label, then the app name.
   useEffect(() => {
     if (!node) return;
-    document.title = node.title?.trim() || nodeName(path) || "yamlover";
-  }, [node, path]);
+    const title = node.title?.trim() || nodeName(path) || rootLabel || "yamlover";
+    const parents = strToSegs(path).slice(0, -1)
+      .map((s) => (typeof s === "number" ? `[${s}]` : `: ${s}`)).join("");
+    const where = ((rootLabel ?? "") + parents).replace(/^: /, ""); // no label yet — drop its separator
+    // the root IS the label — a `- <label>` suffix would just repeat the name
+    document.title = where && path !== ":" ? `${title} - ${where}` : title;
+  }, [node, path, rootLabel]);
 
   useEffect(() => {
     setSchema(null);

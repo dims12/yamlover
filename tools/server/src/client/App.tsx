@@ -674,7 +674,7 @@ export function App() {
               const { done, total } = running.progress;
               return <div className="loading">{running.label}… {total ? `${done}/${total}` : ""}</div>;
             }
-            return <NodeView path={current} format={format} refreshSignal={refreshSignal} unlockSignal={unlockSignal} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} onOpenUploaded={onOpenUploaded} />;
+            return <NodeView path={current} format={format} refreshSignal={refreshSignal} unlockSignal={unlockSignal} rootLabel={rootLabel} onFormat={changeFormat} onNavigate={navigate} onContentChanged={onContentChanged} onOpenUploaded={onOpenUploaded} />;
           })()}
         </main>
         {fragmentsAvailable && (

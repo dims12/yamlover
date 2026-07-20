@@ -206,19 +206,40 @@ describe("NodeView", () => {
     expect(await screen.findByText("Alice")).toBeTruthy();
   });
 
-  it("sets the document title to the node's schema title when it has one", async () => {
+  it("sets the document title to `<schema title> - <ancestor path>` when the node has one", async () => {
     // a dir-concrete node now defaults to the explorer view (an empty grid here)
     mNode.mockResolvedValue({ path: ":book", type: "object", concrete: "dir/yamlover", title: "My Book", description: null, value: {} });
-    render(<NodeView path=":book" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
+    render(<NodeView path=":book" format="yaml" rootLabel="examples" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("empty");
-    expect(document.title).toBe("My Book");
+    expect(document.title).toBe("My Book - examples");
   });
 
   it("falls back to the node's path name when it has no title", async () => {
     mNode.mockResolvedValue({ path: ":chapters[2]", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
-    render(<NodeView path=":chapters[2]" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
+    render(<NodeView path=":chapters[2]" format="yaml" rootLabel="examples" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("empty");
-    expect(document.title).toBe("[2]");
+    expect(document.title).toBe("[2] - examples: chapters");
+  });
+
+  it("the ancestor path drops its separator while the root label hasn't loaded yet", async () => {
+    mNode.mockResolvedValue({ path: ":a:b", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    render(<NodeView path=":a:b" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("empty");
+    expect(document.title).toBe("b - a");
+  });
+
+  it("the root (no path) shows its title alone", async () => {
+    mNode.mockResolvedValue({ path: ":", type: "object", concrete: "dir/yamlover", title: "My Root", description: null, value: {} });
+    render(<NodeView path=":" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("empty");
+    expect(document.title).toBe("My Root");
+  });
+
+  it("a titleless root falls back to the CLI ROOT's label (the TOC's first row)", async () => {
+    mNode.mockResolvedValue({ path: ":", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    render(<NodeView path=":" format="yaml" rootLabel="yamlover-examples" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("empty");
+    expect(document.title).toBe("yamlover-examples");
   });
 
   it("an editable (chapter) page shows a captioned Edit toggle leading the buttons (after the chips) that unlocks on click", async () => {
