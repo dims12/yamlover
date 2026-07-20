@@ -17,7 +17,7 @@ export function BrowserSettingsView({ onNavigate }: { onNavigate: (path: string)
   const [unlocked, setUnlocked] = useState(false); // the editing lock — locked by default
 
   useEffect(() => {
-    document.title = "Browser settings";
+    document.title = "Local settings";
     previewSource(browserSettingsSource())
       .then((n) => { setNode(n); setError(null); })
       .catch((e) => setError(String((e as Error).message || e)));

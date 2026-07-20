@@ -153,49 +153,6 @@ body {
   color: var(--dim);
   margin: 0 6px;
 }
-/* A topbar icon button. ONE box for all of them (the gears, the robot, the pane toggles) —
- * equal width/height/line-height keeps the mixed glyphs (symbol ⚙⛭, emoji 🤖, guillemets «»)
- * vertically aligned on the flex row; per-glyph font-size may vary, the BOX never does. */
-.crumb-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin-right: 8px;
-  padding: 0;
-  background: none;
-  border: none;
-  border-radius: 4px;
-  color: var(--dim);
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-  flex: 0 0 auto;
-}
-.crumb-action:hover:not(:disabled) {
-  color: var(--accent);
-  background: var(--bg);
-}
-.crumb-action:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-/* The settings gears are a primary affordance — brighter and a touch larger GLYPH than the other
- * crumb actions (same box), with a gentle spin on hover so they read as the way into config. */
-.crumb-settings {
-  font-size: 18px;
-  color: var(--fg);
-  transition: color 0.15s, background 0.15s, transform 0.2s ease;
-}
-.crumb-settings:hover:not(:disabled) {
-  transform: rotate(45deg);
-}
-/* The browser (per-device) gear sits right by the project gear; the dimmer tone tells them apart. */
-.crumb-settings-browser {
-  color: var(--dim);
-}
-
 /* --- long-running server tasks (indexing, hashing, …) ---------------------- */
 /* the topbar's right group (task chips + the fragments-pane toggle) — pinned to the right edge so
    the toggle is ALWAYS there, whether or not the task strip is currently rendered. */
@@ -276,7 +233,105 @@ body {
   flex: 0 0 auto;
   background: var(--panel);
   border-right: 1px solid var(--line);
+  /* an activity bar (icon tab strip) + the active tab's content, side by side;
+     the CONTENT scrolls, the bar stays put */
+  display: flex;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* --- LHS activity bar (VS Code-style icon tabs) --------------------------- */
+.activity-bar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 38px;
+  padding: 6px 0;
+  border-right: 1px solid var(--line);
+}
+.activity-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--dim);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.activity-tab:hover {
+  color: var(--fg);
+  background: var(--bg);
+}
+.activity-tab.active {
+  color: var(--accent);
+}
+/* the active-tab indicator — a slim bar hugging the pane's left edge, as in VS Code */
+.activity-tab.active::before {
+  content: "";
+  position: absolute;
+  left: -3px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+.left-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
   padding: 8px 0;
+}
+
+/* --- the settings tab: actions as icon + title rows ----------------------- */
+.side-actions {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+.side-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.side-action:hover:not(:disabled) {
+  background: var(--bg);
+  color: var(--accent);
+}
+.side-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.side-action-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  font-size: 16px;
+  line-height: 1;
+}
+.side-action-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .right {
   flex: 1 1 auto;

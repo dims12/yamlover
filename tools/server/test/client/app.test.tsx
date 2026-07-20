@@ -70,10 +70,12 @@ describe("App", () => {
     await waitFor(() => expect(selected()).toBe("a"));
   });
 
-  it("the second gear opens the BROWSER settings page at its virtual path, and navigating leaves it", async () => {
+  it("the settings tab's Local settings entry opens the BROWSER settings page at its virtual path, and navigating leaves it", async () => {
     render(<App />);
     await screen.findByText("myroot");
-    fireEvent.click(screen.getByRole("button", { name: "Browser settings" }));
+    // the actions live on the LHS settings tab — switch to it via the activity bar
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Local settings" }));
     expect(await screen.findByText("this browser")).toBeTruthy(); // the page's provenance chip
     // the page has a REAL address — `*:: .browser: settings.yamlover` — that survives a reload
     expect(window.location.pathname).toBe("/.browser/settings.yamlover");

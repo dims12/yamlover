@@ -163,6 +163,9 @@ export function App() {
     setCurrent(p);
     setFormat(DEFAULT_FORMAT);
   }, []);
+  // Which LHS tab is open — the TOC tree or the settings/actions list. The activity
+  // bar (VS Code-style icon strip on the pane's left margin) switches between them.
+  const [leftTab, setLeftTab] = useState<"toc" | "settings">("toc");
   const [leftWidth, setLeftWidth] = useState<number>(320);
   const [rightWidth, setRightWidth] = useState<number>(300); // the fragments pane (when shown)
   // The TOC (LHS) and the fragments pane (RHS) collapse independently; the choice persists.
@@ -529,7 +532,7 @@ export function App() {
     document.body.style.userSelect = "none";
   };
 
-  // Leftmost breadcrumb action: install the LLM-agent guidance docs (AGENTS.md + CLAUDE.md) into
+  // Settings-tab action: install the LLM-agent guidance docs (AGENTS.md + CLAUDE.md) into
   // this project's root. The guidance is a marker-fenced block, so an existing file gets it
   // appended (or updated in place) without clobbering the human's own rules — safe to repeat, no
   // confirm needed. The written files flow back over SSE (useDiffBump), so the tree self-refreshes.
@@ -556,34 +559,6 @@ export function App() {
     <div className="app">
       <header className="topbar">
         <nav className="crumbs">
-          <button
-            type="button"
-            className="crumb-action crumb-settings"
-            title="Project configuration (settings.yamlover)"
-            aria-label="Project configuration"
-            onClick={openSettings}
-          >
-            ⚙
-          </button>
-          <button
-            type="button"
-            className="crumb-action crumb-settings crumb-settings-browser"
-            title="Browser settings (this device — stored in this browser)"
-            aria-label="Browser settings"
-            onClick={openBrowserSettings}
-          >
-            {"⛭"}
-          </button>
-          <button
-            type="button"
-            className="crumb-action"
-            disabled={docsState === "busy"}
-            title="Install the LLM agent guide (AGENTS.md + CLAUDE.md) into this project"
-            aria-label="Install LLM agent guide"
-            onClick={installDocs}
-          >
-            🤖
-          </button>
           {crumbs(current, rootLabel).map((c, i) => (
             <span key={c.path}>
               {i > 0 && <span className="crumb-sep">:</span>}
@@ -610,18 +585,73 @@ export function App() {
       <div className="body">
         {!leftCollapsed && (
           <aside className="pane left" style={{ width: leftWidth }}>
-            {(() => {
-              // no tree yet + a server task running ⇒ the index is still being built — show
-              // its progress instead of a stale fetch error / a bare "loading…"
-              const running = !tree ? tasks.find((t) => t.state === "running") : undefined;
-              if (running) {
-                const { done, total } = running.progress;
-                return <div className="loading">{running.label}… {total ? `${done}/${total}` : ""}</div>;
-              }
-              if (error) return <div className="error">{error}</div>;
-              if (!tree) return <div className="loading">loading…</div>;
-              return <Tree node={tree} current={current} onSelect={selectFromToc} onLoadChildren={loadChildren} onContext={onTocContext} />;
-            })()}
+            <nav className="activity-bar" aria-label="Sidebar tabs">
+              <button
+                type="button"
+                className={"activity-tab" + (leftTab === "toc" ? " active" : "")}
+                title="Table of contents"
+                aria-label="Table of contents"
+                aria-pressed={leftTab === "toc"}
+                onClick={() => setLeftTab("toc")}
+              >
+                ☰
+              </button>
+              <button
+                type="button"
+                className={"activity-tab" + (leftTab === "settings" ? " active" : "")}
+                title="Settings"
+                aria-label="Settings"
+                aria-pressed={leftTab === "settings"}
+                onClick={() => setLeftTab("settings")}
+              >
+                ⚙
+              </button>
+            </nav>
+            <div className="left-content">
+              {leftTab === "settings" ? (
+                <div className="side-actions">
+                  <button
+                    type="button"
+                    className="side-action"
+                    title="Project settings (settings.yamlover)"
+                    onClick={openSettings}
+                  >
+                    <span className="side-action-icon" aria-hidden="true">⚙</span>
+                    <span className="side-action-title">Project settings</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="side-action"
+                    title="Local settings (this device — stored in this browser)"
+                    onClick={openBrowserSettings}
+                  >
+                    <span className="side-action-icon" aria-hidden="true">{"⛭"}</span>
+                    <span className="side-action-title">Local settings</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="side-action"
+                    disabled={docsState === "busy"}
+                    title="Install the LLM agent guide (AGENTS.md + CLAUDE.md) into this project"
+                    onClick={installDocs}
+                  >
+                    <span className="side-action-icon" aria-hidden="true">🤖</span>
+                    <span className="side-action-title">Install LLM agent guide</span>
+                  </button>
+                </div>
+              ) : (() => {
+                // no tree yet + a server task running ⇒ the index is still being built — show
+                // its progress instead of a stale fetch error / a bare "loading…"
+                const running = !tree ? tasks.find((t) => t.state === "running") : undefined;
+                if (running) {
+                  const { done, total } = running.progress;
+                  return <div className="loading">{running.label}… {total ? `${done}/${total}` : ""}</div>;
+                }
+                if (error) return <div className="error">{error}</div>;
+                if (!tree) return <div className="loading">loading…</div>;
+                return <Tree node={tree} current={current} onSelect={selectFromToc} onLoadChildren={loadChildren} onContext={onTocContext} />;
+              })()}
+            </div>
           </aside>
         )}
         <Splitter
