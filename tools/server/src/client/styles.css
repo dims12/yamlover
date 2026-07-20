@@ -233,23 +233,22 @@ body {
   flex: 0 0 auto;
   background: var(--panel);
   border-right: 1px solid var(--line);
-  /* an activity bar (icon tab strip) + the active tab's content, side by side;
-     the CONTENT scrolls, the bar stays put */
+  /* the active tab's content over an activity bar (icon tab strip) along the
+     bottom edge; the CONTENT scrolls, the bar stays put */
   display: flex;
+  flex-direction: column;
   overflow: hidden;
   padding: 0;
 }
 
-/* --- LHS activity bar (VS Code-style icon tabs) --------------------------- */
+/* --- LHS activity bar (icon tabs along the pane's bottom edge) ------------ */
 .activity-bar {
   flex: 0 0 auto;
   display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 2px;
-  width: 38px;
-  padding: 6px 0;
-  border-right: 1px solid var(--line);
+  padding: 3px 6px;
+  border-top: 1px solid var(--line);
 }
 .activity-tab {
   position: relative;
@@ -274,20 +273,20 @@ body {
 .activity-tab.active {
   color: var(--accent);
 }
-/* the active-tab indicator — a slim bar hugging the pane's left edge, as in VS Code */
+/* the active-tab indicator — a slim bar riding the strip's top border */
 .activity-tab.active::before {
   content: "";
   position: absolute;
-  left: -3px;
-  top: 6px;
-  bottom: 6px;
-  width: 2px;
+  left: 6px;
+  right: 6px;
+  top: -4px;
+  height: 2px;
   border-radius: 1px;
   background: var(--accent);
 }
 .left-content {
   flex: 1 1 auto;
-  min-width: 0;
+  min-height: 0;
   overflow: auto;
   padding: 8px 0;
 }

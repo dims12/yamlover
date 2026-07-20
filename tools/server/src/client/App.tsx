@@ -164,7 +164,7 @@ export function App() {
     setFormat(DEFAULT_FORMAT);
   }, []);
   // Which LHS tab is open — the TOC tree or the settings/actions list. The activity
-  // bar (VS Code-style icon strip on the pane's left margin) switches between them.
+  // bar (an icon strip along the pane's bottom edge) switches between them.
   const [leftTab, setLeftTab] = useState<"toc" | "settings">("toc");
   const [leftWidth, setLeftWidth] = useState<number>(320);
   const [rightWidth, setRightWidth] = useState<number>(300); // the fragments pane (when shown)
@@ -585,28 +585,6 @@ export function App() {
       <div className="body">
         {!leftCollapsed && (
           <aside className="pane left" style={{ width: leftWidth }}>
-            <nav className="activity-bar" aria-label="Sidebar tabs">
-              <button
-                type="button"
-                className={"activity-tab" + (leftTab === "toc" ? " active" : "")}
-                title="Table of contents"
-                aria-label="Table of contents"
-                aria-pressed={leftTab === "toc"}
-                onClick={() => setLeftTab("toc")}
-              >
-                ☰
-              </button>
-              <button
-                type="button"
-                className={"activity-tab" + (leftTab === "settings" ? " active" : "")}
-                title="Settings"
-                aria-label="Settings"
-                aria-pressed={leftTab === "settings"}
-                onClick={() => setLeftTab("settings")}
-              >
-                ⚙
-              </button>
-            </nav>
             <div className="left-content">
               {leftTab === "settings" ? (
                 <div className="side-actions">
@@ -652,6 +630,28 @@ export function App() {
                 return <Tree node={tree} current={current} onSelect={selectFromToc} onLoadChildren={loadChildren} onContext={onTocContext} />;
               })()}
             </div>
+            <nav className="activity-bar" aria-label="Sidebar tabs">
+              <button
+                type="button"
+                className={"activity-tab" + (leftTab === "toc" ? " active" : "")}
+                title="Table of contents"
+                aria-label="Table of contents"
+                aria-pressed={leftTab === "toc"}
+                onClick={() => setLeftTab("toc")}
+              >
+                ☰
+              </button>
+              <button
+                type="button"
+                className={"activity-tab" + (leftTab === "settings" ? " active" : "")}
+                title="Settings"
+                aria-label="Settings"
+                aria-pressed={leftTab === "settings"}
+                onClick={() => setLeftTab("settings")}
+              >
+                ⚙
+              </button>
+            </nav>
           </aside>
         )}
         <Splitter
