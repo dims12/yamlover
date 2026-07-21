@@ -13,16 +13,23 @@ vi.mock("../../src/client/api", () => ({
   query: vi.fn().mockResolvedValue([]),
   fetchNode: vi.fn().mockRejectedValue(new Error("no node")),
   createTag: vi.fn(),
+  // the shared query-cell kit (the popup's search row)
+  queryTree: vi.fn().mockResolvedValue([]),
+  queryFilter: vi.fn().mockResolvedValue({ root: { path: ":", label: "r", type: "object", format: null, concrete: null, hasChildren: false, children: [] }, matches: [], truncated: false }),
+  fetchTree: vi.fn().mockResolvedValue({ path: ":", label: "r", type: "object", format: null, concrete: null, hasChildren: false, children: [] }),
 }));
 
 import { AnnotationMenu, indexToRefs } from "../../src/client/renderers/annotate";
 import { useExplorerTagMenu } from "../../src/client/renderers/tagmenu";
-import { fetchAnnotations, annotate, deleteAnnotation, query } from "../../src/client/api";
+import { fetchAnnotations, annotate, deleteAnnotation, query, queryTree, queryFilter, fetchNode } from "../../src/client/api";
 
 const mAnns = fetchAnnotations as unknown as ReturnType<typeof vi.fn>;
 const mAnnotate = annotate as unknown as ReturnType<typeof vi.fn>;
 const mDelete = deleteAnnotation as unknown as ReturnType<typeof vi.fn>;
 const mQuery = query as unknown as ReturnType<typeof vi.fn>;
+const mQueryTree = queryTree as unknown as ReturnType<typeof vi.fn>;
+const mQueryFilter = queryFilter as unknown as ReturnType<typeof vi.fn>;
+const mFetchNode = fetchNode as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   localStorage.clear();
@@ -30,6 +37,9 @@ beforeEach(() => {
   mAnnotate.mockClear();
   mDelete.mockClear();
   mQuery.mockReset().mockResolvedValue([]);
+  mQueryTree.mockReset().mockResolvedValue([]);
+  mQueryFilter.mockReset().mockResolvedValue({ root: { path: ":", label: "r", type: "object", format: null, concrete: null, hasChildren: false, children: [] }, matches: [], truncated: false });
+  mFetchNode.mockReset().mockRejectedValue(new Error("no node"));
 });
 afterEach(cleanup);
 
@@ -53,18 +63,15 @@ describe("indexToRefs — a tag is just a node (both namespaces listed)", () => 
   });
 });
 
-// ---- no browse tree: empty input is quiet; typing shows the flat list; HOVER reveals the path ---- //
+// ---- no browse tree: the scoped taxonomy shows as chips; HOVER reveals the path ---- //
 describe("AnnotationMenu — no tree; hover-card reveals the path", () => {
-  it("shows no tree; typing filters the chip row to ranked matches; HOVER reveals the canonical path", async () => {
+  it("shows no tree; the scoped taxonomy shows as chips; HOVER reveals the canonical path", async () => {
     mQuery.mockResolvedValue([":tags:workflow:dev:ready", ":tags:workflow:dev:done", ":tags:first tag"]);
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
-    // the browse tree was removed — never rendered
-    await waitFor(() => expect(mQuery).toHaveBeenCalled());
+    // the browse tree was removed — never rendered; searching is the query-cell row's job now
+    await waitFor(() => expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).toEqual(["ready", "done", "first tag"]));
     expect(container.querySelector(".annotate-tree")).toBeNull();
-    // typing → the chip row filters to the ranked match (still no tree)
-    fireEvent.change(container.querySelector(".annotate-taginput")!, { target: { value: "rea" } });
-    await waitFor(() => expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).toEqual(["ready"]));
-    expect(container.querySelector(".annotate-tree")).toBeNull();
+    expect(container.querySelector(".annotate-cells")).toBeTruthy(); // the shared query cells
     // hovering a chip reveals its path canonically — `tags:` prefix dropped, space after colon
     fireEvent.mouseEnter(container.querySelector(".annotate-recents .tagtip-anchor")!);
     await waitFor(() => expect(document.querySelector(".tagtip-path")?.textContent).toBe("workflow: dev: ready"));
@@ -99,13 +106,12 @@ describe("AnnotationMenu — applied tags outline, no duplicates", () => {
   });
 });
 
-// ---- the typeahead shows each NAME once, even for two genuinely-different homonym tags ---- //
-describe("AnnotationMenu — typeahead dedupes the filtered chips by name", () => {
+// ---- the chip row shows each NAME once, even for two genuinely-different homonym tags ---- //
+describe("AnnotationMenu — the chip row dedupes by name", () => {
   it("shows one 'ready' chip when two distinct tags are both named 'ready'", async () => {
     // two REAL tags (different paths, NOT graft duplicates of each other) that read the same
     mQuery.mockResolvedValue([":tags:ready", ":tags:workflow:dev:ready"]);
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
-    fireEvent.change(container.querySelector(".annotate-taginput")!, { target: { value: "rea" } });
     await waitFor(() => {
       const chips = [...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent);
       expect(chips).toEqual(["ready"]); // one chip, not two identical "ready"
@@ -115,20 +121,73 @@ describe("AnnotationMenu — typeahead dedupes the filtered chips by name", () =
 
 // ---- default chips: the four sources shown without typing (graft · config location · node · recents) ---- //
 describe("AnnotationMenu — default chips from the four sources", () => {
-  it("shows grafted + configured-location tags as chips without typing; out-of-scope tags only via the typeahead", async () => {
+  it("shows grafted + configured-location tags as chips; out-of-scope nodes only via the query cells", async () => {
     // settings.tags is ":tags" (the mocked config). The graft lives at :yamlover:tags; a sub-document's
-    // own taxonomy (:67-pdf-tags:tags) is OUT of scope — reachable by typing, not a default chip.
+    // own taxonomy (:67-pdf-tags:tags) is OUT of scope — reachable through the search row, not a chip.
     mQuery.mockResolvedValue([":yamlover:tags:fifth tag", ":tags:mine", ":67-pdf-tags:tags:genre:humor"]);
-    const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
+    mQueryFilter.mockResolvedValue({
+      root: { path: ":", label: "r", type: "object", format: null, concrete: null, hasChildren: false, children: [] },
+      matches: [":67-pdf-tags:tags:genre:humor"],
+      truncated: false,
+    });
+    mFetchNode.mockResolvedValue({ path: ":67-pdf-tags:tags:genre:humor", type: "object", concrete: null, title: null, description: null, value: {} });
+    const onPick = vi.fn();
+    const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={onPick} onUnpick={() => {}} onClose={() => {}} />);
     await waitFor(() => {
       const chips = [...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent);
       expect(chips).toContain("fifth tag"); // (1) grafted yamlover
       expect(chips).toContain("mine"); // (2) configured tags location
       expect(chips).not.toContain("humor"); // out of scope → not a default chip
     });
-    // typing reaches the out-of-scope tag
-    fireEvent.change(container.querySelector(".annotate-taginput")!, { target: { value: "hum" } });
-    await waitFor(() => expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).toEqual(["humor"]));
+    // the SEARCH row reaches it: type into the query cells (seeded `: ...: ▮`), Enter applies
+    // the first match — resolved through fetchNode, named by title-or-key, no format gate
+    const cell = [...container.querySelectorAll<HTMLElement>(".annotate-cells .crumb-cell")].pop()!;
+    fireEvent.focus(cell);
+    cell.textContent = "humor";
+    fireEvent.input(cell);
+    fireEvent.keyDown(cell, { key: "Enter" });
+    await waitFor(() => expect(onPick).toHaveBeenCalledWith({ path: ":67-pdf-tags:tags:genre:humor", name: "humor", color: null }));
+    expect(mQueryFilter).toHaveBeenCalledWith(":: ...: humor"); // project-wide: the seeded descent + the typed name
+  });
+
+  it("opens PROJECT-scoped with the caret in the trailing cell; Backspace steps the ladder down", async () => {
+    const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
+    // ready to type at once — and the autofocus did not double the seeded cells
+    await waitFor(() => expect(document.activeElement?.classList.contains("crumb-cell")).toBe(true));
+    expect(container.querySelectorAll(".annotate-cells .crumb-cell")).toHaveLength(2);
+    // the opener spells the PROJECT rung — tags (the grafted palette included) live there
+    expect(container.querySelector(".annotate-cells .crumb-sep")?.textContent).toBe("::");
+    await waitFor(() => expect(mQueryTree).toHaveBeenCalledWith(":: ...: ?", ":"));
+    // Backspace at the emptied first cell's start narrows to the DOCUMENT scope
+    const first = container.querySelectorAll<HTMLElement>(".annotate-cells .crumb-cell")[0];
+    fireEvent.focus(first);
+    first.textContent = "";
+    fireEvent.input(first);
+    first.textContent = ""; // jsdom has no real focus, so the uncontrolled-cell resync restored the seed
+    const sel = window.getSelection()!;
+    const r = document.createRange();
+    r.setStart(first, 0);
+    r.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    fireEvent.keyDown(first, { key: "Backspace" });
+    expect(container.querySelector(".annotate-cells .crumb-sep")?.textContent).toBe(":");
+    await waitFor(() => expect(mQueryTree).toHaveBeenCalledWith(": ?", ":"));
+  });
+
+  it("Enter on a bare name with NO match CREATES the tag (create-on-miss)", async () => {
+    const { createTag } = await import("../../src/client/api");
+    const created = { path: ":tags:fresh", name: "fresh", color: null };
+    (createTag as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(created);
+    const onPick = vi.fn();
+    const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={onPick} onUnpick={() => {}} onClose={() => {}} />);
+    const cell = [...container.querySelectorAll<HTMLElement>(".annotate-cells .crumb-cell")].pop()!;
+    fireEvent.focus(cell);
+    cell.textContent = "fresh";
+    fireEvent.input(cell);
+    fireEvent.keyDown(cell, { key: "Enter" });
+    await waitFor(() => expect(onPick).toHaveBeenCalledWith(created));
+    expect(createTag).toHaveBeenCalledWith("fresh");
   });
 
   it("shows tags borne by OTHER components of the node (nodeTags) as default chips", async () => {
@@ -208,6 +267,37 @@ describe("AnnotationMenu — create entries (split button + bare folder)", () =>
     expect(row.querySelector("select")).toBeNull();
     fireEvent.click(row.querySelector("button.annotate-action")!);
     expect(onCreate).toHaveBeenCalledWith("file/yamlover");
+  });
+});
+
+// ---- the popup drives the TOC filter session: typing filters the TOC, a TOC click applies ---- //
+describe("AnnotationMenu — the TOC filter session", () => {
+  it("mirrors the query's filter into the session; a session pick APPLIES the node as the tag", async () => {
+    const { TocFilterCtx, useTocFilterSession } = await import("../../src/client/toc-filter-session");
+    const PRUNED = { path: ":", label: "r", type: "object", format: null, concrete: null, hasChildren: true, children: [] };
+    mQueryFilter.mockResolvedValue({ root: PRUNED, matches: [":topics:math"], truncated: false });
+    mFetchNode.mockResolvedValue({ path: ":topics:math", type: "object", concrete: null, title: "Mathematics", description: null, value: {} });
+    const onPick = vi.fn();
+    let session!: import("../../src/client/toc-filter-session").TocFilterSession;
+    function Host() {
+      session = useTocFilterSession();
+      return (
+        <TocFilterCtx.Provider value={session}>
+          <AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={onPick} onUnpick={() => {}} onClose={() => {}} />
+        </TocFilterCtx.Provider>
+      );
+    }
+    const { container } = render(<Host />);
+    await waitFor(() => expect(session.active).toBe(true)); // the open popup owns the session
+    // typing pushes the pruned filter tree into the session (App would swap the TOC to it)
+    const cell = [...container.querySelectorAll<HTMLElement>(".annotate-cells .crumb-cell")].pop()!;
+    fireEvent.focus(cell);
+    cell.textContent = "math";
+    fireEvent.input(cell);
+    await waitFor(() => expect(session.filter?.root).toEqual(PRUNED));
+    // a TOC row click routes to the popup and APPLIES the node — no format gate, title-named
+    session.pick(":topics:math");
+    await waitFor(() => expect(onPick).toHaveBeenCalledWith({ path: ":topics:math", name: "Mathematics", color: null }));
   });
 });
 

@@ -139,6 +139,56 @@ describe("/api/tag (create)", () => {
   });
 });
 
+// ANY node can be used as a tag — an annotation is just a `*` reference inside the target's
+// yamlover-annotations. The annotating entity is identified by its scalar OMNI title (the
+// value-plus-fields self-value), else by its key inside the parent.
+describe("any node as a tag", () => {
+  it("annotating with an arbitrary node succeeds; the name is its omni title else its key", async () => {
+    const root = tmpTree({
+      "topics.yamlover": 'math: "Mathematics"\n  level: hard\nplain:\n  x: 1\n',
+      "note.yamlover": 'body: "hello"\n',
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    // an OMNI node: scalar self-value "Mathematics" over a keyed child — the title wins
+    const a = await callBody(h, "POST", "/api/annotate", { target: ":note.yamlover", tag: ":topics.yamlover:math" });
+    expect(a.status).toBe(201);
+    // a plain mapping with no title — its key inside the parent identifies it
+    const b = await callBody(h, "POST", "/api/annotate", { target: ":note.yamlover", tag: ":topics.yamlover:plain" });
+    expect(b.status).toBe(201);
+    const list = call(h, "/api/annotations", { path: ":note.yamlover" }).json;
+    expect(list).toHaveLength(2);
+    expect(list[0].tag).toMatchObject({ path: ":topics.yamlover:math", name: "Mathematics", color: null });
+    expect(list[1].tag).toMatchObject({ path: ":topics.yamlover:plain", name: "plain" });
+
+    // /api/tagged answers for the arbitrary node: the annotator is filed under it
+    const tagged = call(h, "/api/tagged", { path: ":topics.yamlover:math" }).json;
+    expect(tagged).toHaveLength(1);
+    expect(tagged[0].$yamloverLink.path).toBe(":note.yamlover");
+  });
+
+  it("an ordinary pointer INTO a node is not a tagging — only annotation-array edges count", async () => {
+    const root = tmpTree({
+      "a.yamlover": "x: 1\n",
+      "b.yamlover": "ref: *:: a.yamlover: x\n",
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const tagged = call(h, "/api/tagged", { path: ":a.yamlover:x" }).json;
+    expect(tagged).toEqual([]); // b's plain ref does not file b under x
+  });
+
+  it("annotating with a MISSING node is still refused", async () => {
+    const root = tmpTree({ name: "Alice" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":nowhere" });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toMatch(/existing node/);
+  });
+});
+
 // TYPES.md §9: tagging a node turns it OMNI — keyed tag applications laid over its own value — and
 // nothing about how it READS may change. A chapter's title is a keyed scalar child, so annotating it
 // gives that child a child of its own; reading the title by "a CHILDLESS scalar" lost it entirely.

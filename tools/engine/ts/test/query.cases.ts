@@ -239,4 +239,12 @@ export const CASES: QueryCase[] = [
           '(graft de-materialized — no duplicate :yamlover: subtree)' },
   { q: ':: nowhere: x', fixture: 'graft', expect: [],
     note: '∅ + an external/dangling diagnostic — never an error' },
+  // ═══ `::` IS the project root: a plain NAME after it is the authority/import key; a
+  //     MATCHER portion applies at the project root itself (URIs.md ladder honored) ═══
+  { q: '::', fixture: 'graft', expect: [':'],
+    note: 'bare `::` binds the served project root' },
+  { q: ':: ...: colors', fixture: 'graft', expect: [':tags:colors'],
+    note: 'a matcher after `::` needs no authority — descend the whole PROJECT' },
+  { q: ':: ?', fixture: 'inline', expect: [':team', ':pets', ':thirty', ':tags'],
+    note: 'project-root fan-out, same children as `?` asked at the root' },
 ];

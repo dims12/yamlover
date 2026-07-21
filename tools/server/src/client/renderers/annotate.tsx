@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation, fetchConfig } from "../api";
-import { TAG_FORMAT, explicitColor, isColorTagPath, resolveTagColor, tagFields, tagStyle } from "./tag";
+import { explicitColor, isColorTagPath, resolveTagColor, tagFields, tagStyle } from "./tag";
 import { TagTip } from "./tagtip";
 import { canonPath, displayPath, fragmentAnchorId, strToSegs } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
+import { QueryCells, useQueryCellHost } from "../query-cells";
+import { splitQueryPortions, treeCandidateProvider } from "../query-complete";
+import { TocFilterHandle, useTocFilter } from "../toc-filter-session";
 
 /**
  * The annotation layer, shared across materials (the UI guide). An annotation is ONE TAG
@@ -198,14 +201,13 @@ function rememberRecent(t: TagRef): void {
   localStorage.setItem(RECENT_KEY, JSON.stringify(next));
 }
 
-/** Drop recents whose node is GONE (or stopped being a tag): the localStorage recents list
- *  outlives the tags themselves, so a deleted tag would linger as a clickable badge forever. Each
- *  recent is checked against the server; survivors are written back. (The last-used tag is no longer
- *  in localStorage — it lives in settings.yamlover, always valid for the project.) Resolves to the
- *  live recents — the menu shows those. */
+/** Drop recents whose node is GONE: the localStorage recents list outlives the tags
+ *  themselves, so a deleted tag would linger as a clickable badge forever. Each recent is
+ *  checked against the server; survivors are written back. ANY existing node counts — any
+ *  node can be a tag now, so liveness is existence, not format. */
 function pruneRememberedTags(): Promise<TagRef[]> {
   const isLive = (t: TagRef): Promise<boolean> =>
-    fetchNode(t.path, 0).then((n) => n.format === TAG_FORMAT).catch(() => false);
+    fetchNode(t.path, 0).then(() => true).catch(() => false);
   const recents = recentTags();
   return Promise.all(recents.map((t) => isLive(t).then((live) => (live ? t : null)))).then((kept) => {
     const live = kept.filter(Boolean) as TagRef[];
@@ -390,14 +392,25 @@ function tagNameOf(path: string): string {
   return segs.length ? String(segs[segs.length - 1]) : path;
 }
 
-/** Typeahead rank for a tag against the lowercased query `q` (lower is better): an exact name,
- *  then a name prefix, then a name substring, then matched only via the full path. */
-function rankTag(t: TagRef, q: string): number {
-  const n = t.name.toLowerCase();
-  if (n === q) return 0;
-  if (n.startsWith(q)) return 1;
-  if (n.includes(q)) return 2;
-  return 3;
+/** An OMNI node's scalar self-value (the `$yamloverMixed` marker) as its display title — a
+ *  plain LEAF scalar's value is data, not a title, so only the value-plus-fields shape reads. */
+function omniTitle(value: unknown): string | null {
+  const m = (value as { $yamloverMixed?: { value?: unknown } } | null | undefined)?.$yamloverMixed;
+  return m && typeof m.value === "string" && m.value !== "" ? m.value : null;
+}
+
+/** Resolve ANY node path into the annotation ref shape { path, name, color }: the name is its
+ *  omni scalar title, else its schema title, else its key inside the parent. */
+async function tagRefOf(p: string): Promise<TagRef> {
+  const n = await fetchNode(p, 1);
+  return { path: n.path, name: omniTitle(n.value) || n.title || tagNameOf(n.path), color: explicitColor(n.value) };
+}
+
+/** Whether an event landed inside the LEFT (TOC) pane — the popup's close-on-outside-click
+ *  must not fire for TOC interactions while the popup drives the TOC filter session. */
+export function withinTocPane(t: EventTarget | null): boolean {
+  const el = t instanceof Element ? t : t instanceof Node ? t.parentElement : null;
+  return !!el?.closest?.(".pane.left");
 }
 
 
@@ -462,13 +475,97 @@ export function AnnotationMenu({
   title?: string;
 }) {
   const colorTags = useColorTags();
-  const tagIndex = useTagIndex(); // all named tags (whole tree) — the typeahead searches these
+  const tagIndex = useTagIndex(); // named tags (whole tree) — the scoped ones show as default chips
   const tagsLoc = useConfigTagsLocation(); // the configured tags location → its tags show as default chips
   const [recents, setRecents] = useState(recentTags); // shown at once; pruned against the server
-  const [path, setPath] = useState("");
-  const [hi, setHi] = useState(-1); // highlighted suggestion (-1 = none)
   const [busy, setBusy] = useState(false); // a lookup/create round-trip is in flight
   const verb = mode === "edit" ? "re-tag" : "tag";
+  const session = useTocFilter(); // the shared TOC filter — typing here filters the TOC too
+
+  // Apply ANY picked node as the tag (no format gate — an annotation is just a reference).
+  const applyPath = (p: string): void => {
+    tagRefOf(p)
+      .then(onPick)
+      .catch((e) => window.alert(`cannot ${verb} with "${p}": ` + (e as Error).message));
+  };
+  const applyPathRef = useRef(applyPath);
+  applyPathRef.current = applyPath;
+
+  // The SEARCH input is the shared query-cell editor (breadcrumb machinery, PICK mode), opening
+  // at the PROJECT scope with a recursive-descent seed — typing a bare name spells
+  // `:: ...: name`, the "find a node by name anywhere IN THE PROJECT" query. The project rung
+  // is what makes the grafted yamlover taxonomy (the built-in palette included) searchable —
+  // `:` would be the document only (URIs.md ladder). The cells stay fully editable.
+  const host = useQueryCellHost({
+    ctx: () => ({ mode: "pick", ladder: 2, idlePortions: () => [...SEED_CELLS] }),
+    provider: useRef(treeCandidateProvider(":")).current,
+    onSelect: (p, meta) => {
+      if (meta && /^:*$/.test(meta.query.trim())) return; // empty cells: nothing to apply
+      if (p !== null) {
+        applyPathRef.current(p);
+        return;
+      }
+      if (!meta) return;
+      // CREATE-ON-MISS: a bare NAME (alone, or after the seeded `...`) that matches nothing is
+      // born as a named tag at the project's tags location. A missed multi-portion query stays
+      // an error — a typo'd path must not silently mint a tag named like a path.
+      const parts = splitQueryPortions(meta.query);
+      const name = unquotePortion(parts[parts.length - 1] ?? "");
+      const bareName =
+        name !== "" && !/[:[\]?*!<>=]/.test(name) && (parts.length === 1 || (parts.length === 2 && parts[0] === "..."));
+      if (!bareName) {
+        window.alert(`cannot ${verb} with "${meta.query}": no such node`);
+        return;
+      }
+      setBusy(true);
+      createTag(name)
+        .then(onPick)
+        .catch((e) => window.alert(`cannot create tag "${name}": ` + (e as Error).message))
+        .finally(() => setBusy(false));
+    },
+    session: null, // the menu drives the session itself — a TOC click APPLIES the tag (below)
+  });
+
+  // The popup OWNS the TOC filter session while open: the host's filter results mirror into it,
+  // and a TOC row click applies that node as the tag directly (the popup stays open, multi-tag).
+  const sessionHandle = useRef<TocFilterHandle | null>(null);
+  useEffect(() => {
+    if (!session || sessionHandle.current) return;
+    sessionHandle.current = session.begin({
+      onPick: (p) => applyPathRef.current(p),
+      onEvicted: () => {
+        sessionHandle.current = null; // another editor took the TOC — the popup keeps its dropdown
+      },
+    });
+    // session's identity churns with App renders — begin once per mount (guarded above)
+  }, [session]);
+  useEffect(
+    () => () => {
+      sessionHandle.current?.end();
+      sessionHandle.current = null;
+    },
+    [],
+  );
+  // Mirror the filter into the TOC only once the user typed PAST the seed — the bare seed
+  // (`: ...`) matches everything, and swapping the TOC to a 500-match pruned tree on a mere
+  // focus would be noise, not filtering.
+  const hostState = host.state;
+  const searching =
+    hostState.mode === "editing" &&
+    hostState.portions.some((p, i) => {
+      const live = i === hostState.active ? hostState.activeText : p;
+      return live.trim() !== "" && !(i === 0 && live.trim() === "...");
+    });
+  useEffect(() => {
+    sessionHandle.current?.set(searching && host.filterTree ? { root: host.filterTree, truncated: host.truncated } : null);
+  }, [searching, host.filterTree, host.truncated]);
+
+  // The popup opens READY TO TYPE: the caret lands in the trailing cell at once.
+  const hostRef = useRef(host);
+  hostRef.current = host;
+  useEffect(() => {
+    hostRef.current.dispatch({ type: "FOCUS_CELL", index: SEED_CELLS.length - 1, caret: "end" });
+  }, []);
 
   // A deleted tag must not survive as a badge: on open, drop remembered tags the server no
   // longer holds (the stored list is shown immediately; the pruned one replaces it quietly).
@@ -508,51 +605,13 @@ export function AnnotationMenu({
     return out;
   };
 
-  // The chips shown WITHOUT typing — the four sources, most-relevant first: (a) tags APPLIED to this
-  // target, (b) tags borne by OTHER components of the same node (sibling fragments), (c) the
-  // last-used / recent tags, (d) the project taxonomy — the grafted yamlover tags plus the
-  // configured tags location. Tags elsewhere in the tree stay reachable via the typeahead.
+  // The chips shown by the popup — the four sources, most-relevant first: (a) tags APPLIED to
+  // this target, (b) tags borne by OTHER components of the same node (sibling fragments), (c)
+  // the last-used / recent tags, (d) the project taxonomy — the grafted yamlover tags plus the
+  // configured tags location. ANYTHING else in the tree is reachable through the query cells
+  // (the dropdown + the filtered TOC), so the chip row no longer doubles as a search result.
   const scopedIndex = tagIndex.filter((t) => underAnyRoot(t.path, [...GRAFT_TAG_ROOTS, tagsLoc]));
-  const defaultChips = dedupeNamed([...applied, ...nodeTags, ...recents, ...scopedIndex]);
-
-  // Typeahead: while the user types, the chip row becomes a ranked filter over EVERY named tag
-  // (name or full path substring) — so any tag, even outside the default scope, is one click away.
-  const q = path.trim().toLowerCase();
-  const view: TagRef[] = q
-    ? dedupeNamed(
-        [...applied, ...nodeTags, ...recents, ...tagIndex]
-          .filter((t) => t.name.toLowerCase().includes(q) || canonPath(t.path).toLowerCase().includes(q))
-          .map((t) => ({ t, rank: rankTag(t, q) }))
-          .sort((a, b) => a.rank - b.rank || a.t.name.localeCompare(b.t.name))
-          .map(({ t }) => t),
-      ).slice(0, 8)
-    : defaultChips;
-  // Re-seat the highlight whenever the typed text changes (the filtered list derives from it).
-  useEffect(() => { setHi(q ? (view.length ? 0 : -1) : -1); }, [path]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Apply an arbitrary tag by its node path: fetch, verify it IS a tag, pick it. A bare NAME
-  // (no `/`) that matches no node is CREATED at the project's tags location and then picked —
-  // typing a fresh name is how a new named tag is born. A missed multi-segment path stays an
-  // error: a typo'd path must not silently mint a tag named like a path. `raw` lets a chosen
-  // suggestion route through the same fetch-verify (re-checking the tag still exists).
-  const pickPath = (raw?: string) => {
-    const p = (raw ?? path).trim();
-    if (!p || busy) return;
-    setBusy(true);
-    fetchNode(p.startsWith(":") ? p : p.startsWith("/") ? ":" + p.slice(1).split("/").join(":") : ":" + p, 1)
-      .then((n) => {
-        if (n.format !== TAG_FORMAT) throw new Error("not a tag node");
-        onPick({ path: n.path, name: n.title || tagNameOf(n.path), color: explicitColor(n.value) });
-      })
-      .catch((e) => {
-        if (p.includes(":") || p.includes("/")) throw new Error(`cannot ${verb} with "${p}": ` + (e as Error).message);
-        return createTag(p)
-          .then(onPick)
-          .catch((e2) => { throw new Error(`cannot create tag "${p}": ` + (e2 as Error).message); });
-      })
-      .catch((e) => window.alert((e as Error).message))
-      .finally(() => setBusy(false));
-  };
+  const view = dedupeNamed([...applied, ...nodeTags, ...recents, ...scopedIndex]);
 
   // Keep the fixed-position menu fully on-screen: it opens at the selection (x = left, y = the
   // selection's BOTTOM), but near the right/bottom edge that clips it — the tag input then sits
@@ -628,17 +687,16 @@ export function AnnotationMenu({
       </div>
       {view.length > 0 && (
         <div className="annotate-recents" role="listbox">
-          {view.map((t, i) => (
+          {view.map((t) => (
             <span key={t.path} className="tagframe">
               <TagTip tag={t}>
                 <button
                   type="button"
                   role="option"
-                  aria-selected={i === hi}
-                  className={"tagtag" + (isApplied(t.path) ? " on" : "") + (i === hi ? " hi" : "")}
+                  aria-selected={isApplied(t.path)}
+                  className={"tagtag" + (isApplied(t.path) ? " on" : "")}
                   style={tagStyle(resolveTagColor(t))}
                   onClick={() => toggle(t)}
-                  onMouseEnter={() => { if (q) setHi(i); }}
                 >
                   <span className="tt-label">{t.name}</span>
                 </button>
@@ -647,31 +705,30 @@ export function AnnotationMenu({
           ))}
         </div>
       )}
-      <div className="annotate-typeahead">
-        <input
-          className="annotate-taginput"
-          type="text"
-          placeholder={busy ? "creating tag…" : `${verb}: filter, tag path, or new name… ⏎`}
-          value={path}
-          disabled={busy}
-          autoComplete="off"
-          onChange={(e) => setPath(e.target.value)}
-          onKeyDown={(e) => {
-            // Plain Arrow/Enter never reach App.tsx's global nav (it bails on focused inputs),
-            // but guard anyway and keep the caret from jumping while we drive the list.
-            if (view.length && e.key === "ArrowDown") { e.preventDefault(); e.stopPropagation(); setHi((i) => (i + 1) % view.length); return; }
-            if (view.length && e.key === "ArrowUp") { e.preventDefault(); e.stopPropagation(); setHi((i) => (i - 1 + view.length) % view.length); return; }
-            if (e.key === "Escape" && path) { e.preventDefault(); e.stopPropagation(); setPath(""); return; }
-            if (e.key === "Enter") {
-              e.preventDefault(); e.stopPropagation();
-              if (hi >= 0 && view[hi]) toggle(view[hi]); // the highlighted tag wins
-              else pickPath(); // else the typed path / create-on-miss
-            }
-          }}
-        />
+      {/* the SEARCH row: the shared query cells (breadcrumb machinery, pick mode, PROJECT
+          scope) — the dropdown offers real nodes as TOC rows, the TOC filters live, Enter
+          applies the first match or creates a fresh named tag, a TOC click applies that node
+          directly. Backspace at the first cell's start steps the ladder down (document scope). */}
+      <div className="annotate-typeahead" title={`${verb}: type a name (creates on miss), a path, or any query ⏎`}>
+        {busy ? (
+          <span className="annotate-busy">creating tag…</span>
+        ) : (
+          <QueryCells host={host} idlePortions={[...SEED_CELLS]} leadingSep idleLadder={2} scopeKeys placeholder="tag name…" className="annotate-cells" />
+        )}
       </div>
     </div>
   );
+}
+
+// The query cells' seed: a recursive descent + the empty typing cell — a bare name typed into
+// the popup spells `:: ...: <name>` (find-by-name anywhere in the PROJECT, the grafted
+// taxonomy included); every cell stays editable.
+const SEED_CELLS = ["...", ""];
+
+/** Strip the query-cell quoting from a typed portion (`'дорожный знак'` → the raw name). */
+function unquotePortion(p: string): string {
+  if (/^'.*'$/.test(p)) return p.slice(1, -1).replace(/''/g, "'");
+  return p;
 }
 
 /** An open region picker — keyed by its SELECTOR (the join into the material's annotations), not by
@@ -745,13 +802,16 @@ export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       if (menuRef.current?.contains(e.target as Node)) return;
+      if (withinTocPane(e.target)) return; // a TOC row click APPLIES the tag — never a close
       close();
     };
     // Both a real scrollbar scroll AND a wheel gesture close it: the image / map / PDF viewers
     // pan & zoom on `wheel` WITHOUT a `scroll` event (Leaflet transforms, pdf zoom), so a wheel
-    // listener is what catches those. A wheel/scroll INSIDE the menu (its suggestion list) is kept.
+    // listener is what catches those. A wheel/scroll INSIDE the menu (its suggestion list) — or
+    // in the TOC pane the popup is filtering — is kept.
     const onShift = (e: Event) => {
       if (e.target instanceof Node && menuRef.current?.contains(e.target)) return; // scrolled INSIDE the menu
+      if (withinTocPane(e.target)) return;
       close();
     };
     document.addEventListener("mousedown", onDown);

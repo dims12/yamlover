@@ -473,13 +473,72 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       }
 
       // The QUERY evaluator (PLAN.md 3g / QUERY.md): a colon-grammar match template,
-      // evaluated at `path` (default: the root). Results are client JSON paths.
+      // evaluated at `path` (default: the root). Results are client JSON paths — or, with
+      // `shape=tree`, TreeNode rows (metadata only, children lazy — the breadcrumb dropdown's
+      // candidates), or, with `shape=filter`, ONE pruned tree of the matches plus ALL their
+      // ancestors AND each match's own children one level deep (the filtered TOC), each match
+      // flagged, capped at MATCH_CAP.
       if (url.pathname === "/api/query") {
         const q = url.searchParams.get("q") || "";
         const at = storePath(strToSegs(url.searchParams.get("path") || ":"));
+        const shape = url.searchParams.get("shape");
         try {
-          const results = evalQuery(s, q, at).map((p) => segsToStr(storePathToSegs(p)));
-          sendJson(res, 200, { results });
+          const paths = evalQuery(s, q, at);
+          // Hidden filtering honors the SCOPE LADDER (URIs.md): a PROJECT/world-scoped query
+          // (`::` / `:::`) sees the grafted self-import's CONTENT — that is project furniture,
+          // and searching `:: ...: colors` must find the built-in palette. Document/current
+          // scoped queries keep the strict TOC hiding: `:` is the document, not the project.
+          const projectScoped = /^\s*::/.test(q);
+          const dropHidden = (p: string): boolean => (projectScoped ? queryHidden(s, p) : inHiddenSubtree(s, p));
+          if (shape === "tree") {
+            const results = paths
+              .filter((p) => !dropHidden(p))
+              .map((p) => {
+                const segs = storePathToSegs(p);
+                const label = segs.length === 0 ? rootName : labelFor(s, p, segs[segs.length - 1]);
+                return buildTree(dataRoot, s, segs, label, 0);
+              });
+            sendJson(res, 200, { results });
+          } else if (shape === "filter") {
+            const all = paths.filter((p) => !dropHidden(p));
+            const capped = all.slice(0, MATCH_CAP);
+            const matchSet = new Set(capped);
+            // keep set: every match plus every containment ancestor (the pruned tree's rows)
+            const keep = new Set<string>();
+            for (const m of capped) {
+              for (let segs = storePathToSegs(m); ; segs = segs.slice(0, -1)) {
+                keep.add(storePath(segs));
+                if (!segs.length) break;
+              }
+            }
+            const buildFilterTree = (segs: Seg[]): TreeNode & { match?: boolean } => {
+              const p = storePath(segs);
+              const label = segs.length === 0 ? rootName : labelFor(s, p, segs[segs.length - 1]);
+              const node: TreeNode & { match?: boolean } = buildTree(dataRoot, s, segs, label, 0);
+              if (matchSet.has(p)) node.match = true;
+              for (const c of chapterOrderedChildren(s, p, s.node(p)?.format ?? null)) {
+                const seg = c.label ?? c.pos ?? 0;
+                // the KEEP chain always renders — a match INSIDE the (hidden) graft needs its
+                // ancestor rows down to it; other hidden children stay off the pruned tree
+                if (keep.has(c.to)) {
+                  node.children.push(buildFilterTree([...segs, seg]));
+                  continue;
+                }
+                if (isHidden(s, c.to)) continue;
+                // a MATCH also ships its real children one level deep (shallow rows) — the
+                // filtered TOC shows what lies below the matched path, like the dropdown does
+                if (node.match) node.children.push(buildTree(dataRoot, s, [...segs, seg], labelFor(s, c.to, seg), 0));
+              }
+              return node;
+            };
+            sendJson(res, 200, {
+              root: buildFilterTree([]),
+              matches: capped.map((p) => segsToStr(storePathToSegs(p))),
+              truncated: all.length > capped.length,
+            });
+          } else {
+            sendJson(res, 200, { results: paths.map((p) => segsToStr(storePathToSegs(p))) });
+          }
         } catch (e) {
           sendJson(res, 400, { error: String((e as Error).message || e) });
         }
@@ -504,8 +563,10 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             enqueue(async () => {
               const a = data as AnnotateInput;
               const tagStore = storePath(strToSegs(a.tag ?? ""));
-              if (!a?.tag || s.node(tagStore)?.format !== TAG_FORMAT) {
-                throw new Error("annotation needs a `tag` that is an x-yamlover-tag node");
+              // ANY node can be a tag — an annotation is just a `*` reference inside the
+              // target's yamlover-annotations. The node only has to exist.
+              if (!a?.tag || !s.node(tagStore)) {
+                throw new Error("annotation needs a `tag` naming an existing node");
               }
               const bodyFile = embedAnnotation(dataRoot, s, a);
               // A surgical body edit changes one file: patch just that file's subtree against the
@@ -793,10 +854,11 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       }
 
       // The materials filed under this tag (annotations resolved to their `target`; deduped) —
-      // the explorer renderer's member list for a tag page.
+      // the explorer renderer's member list for a tag page. ANY existing node answers: a node
+      // used as an annotation ref lists its annotators regardless of format.
       if (url.pathname === "/api/tagged") {
         const row = s.node(p);
-        if (!row || row.format !== TAG_FORMAT) return notFound(res, url);
+        if (!row) return notFound(res, url);
         sendJson(res, 200, taggedMaterials(dataRoot, s, p));
         return;
       }
@@ -1016,6 +1078,21 @@ const inHiddenSubtree = (s: Store, p: string): boolean => {
 /** Has a child that ISN'T hidden — the `hasChildren` a directory should report (a dir whose only
  *  child is `.yamlover` reads as a leaf). */
 const visibleHasChildren = (s: Store, p: string): boolean => s.children(p).some((c) => !isHidden(s, c.to));
+/** Hidden for PROJECT-SCOPED query results (`::` / `:::` — see the /api/query handler) —
+ *  looser than {@link inHiddenSubtree}: the `.yamlover` OVERLAY subtrees (dot-named hidden
+ *  ancestors) and hidden nodes THEMSELVES stay off search results, but the grafted `yamlover`
+ *  self-import's CONTENT answers — it is project furniture, hidden PLUMBING yet fully
+ *  reachable, and `:: ...: colors` must find the built-in palette (`:yamlover:tags:colors`).
+ *  So `:: ?` still omits the graft root (a hidden node itself) while `:: yamlover: ?` and
+ *  project-wide descent reach inside it. */
+const queryHidden = (s: Store, p: string): boolean => {
+  if (isHidden(s, p)) return true;
+  for (let segs = storePathToSegs(p); segs.length; segs = segs.slice(0, -1)) {
+    const sp = storePath(segs);
+    if (isHidden(s, sp) && String(segs[segs.length - 1]).startsWith(".")) return true;
+  }
+  return false;
+};
 
 /** Has a SUBCHAPTER child (a nested chapter/task) — the `hasChildren` hint a CHAPTER should report in
  *  the TOC: only subchapters are navigable there (chunks and overlay fields like `yamlover-fragments`
@@ -1404,7 +1481,12 @@ interface TreeNode {
   path: string; label: string; type: string; format: string | null;
   valueType?: string | null; hasKeyed?: boolean; hasOrdinal?: boolean; // renderer dispatch facets (TYPES.md §9)
   concrete: string | null; hasChildren: boolean; children: TreeNode[];
+  match?: boolean; // shape=filter only: this row is one of the query's matches
 }
+
+/** shape=filter's match cap — a huge result set prunes to its first rows (walk order) and
+ *  the response says so (`truncated`), instead of shipping an unbounded tree. */
+const MATCH_CAP = 500;
 
 /** The TOC subtree rooted at `segs`, `depth` levels deep (every node listed). */
 function buildTree(dataRoot: string, s: Store, segs: Seg[], label: string, depth: number): TreeNode {
@@ -1518,13 +1600,26 @@ interface FragmentInput {
 /** A child store-path: `parent` + `:key` (root `:` has no leading owner). */
 const childPath = (parent: string, key: string): string => (parent === ":" ? "" : parent) + ":" + key;
 
-/** A tag store-path projected as { path, name, color } — color = its explicit `color`, else null
- *  (the client derives a hue from the name). Null when `tagStore` is not an x-yamlover-tag node. */
+/** ANY node projected as an annotation ref { path, name, color } — annotating entities are
+ *  identified by their scalar OMNI title (or a keyed `title`), else by their key inside the
+ *  parent (the last path segment). `color` = the node's explicit `color` child, else null
+ *  (the client derives a hue from the name). Null only when the node does not exist. */
 function projectTag(s: Store, tagStore: string): { path: string; name: string; color: string | null } | null {
-  if (s.node(tagStore)?.format !== TAG_FORMAT) return null;
+  if (!s.node(tagStore)) return null;
   const segs = storePathToSegs(tagStore);
   const color = s.node(tagStore + ":color")?.value;
-  return { path: segsToStr(segs), name: String(segs[segs.length - 1] ?? ""), color: typeof color === "string" ? color : null };
+  const name = displayNameOf(s, tagStore) ?? String(segs[segs.length - 1] ?? "");
+  return { path: segsToStr(segs), name, color: typeof color === "string" ? color : null };
+}
+
+/** A node's DISPLAY identity, title-first: an OMNI node's scalar self-value (a tag/chapter
+ *  spelled `mytag: "My Tag Title"`), else the keyed/chapter title (titleOf). Null = untitled
+ *  (the caller falls back to the key inside the parent). A LEAF scalar's value is data, not
+ *  a title — only a value-plus-fields (variant) node reads its self-value as one. */
+function displayNameOf(s: Store, p: string): string | null {
+  const n = s.node(p);
+  if (n?.type === "scalar" && n.value != null && s.children(p).length > 0) return String(n.value);
+  return titleOf(s, p);
 }
 
 /** The tag applications in a host node's `yamlover-annotations` array: a bare tag pointer (a `ref`
@@ -1602,8 +1697,11 @@ function annotationsFor(dataRoot: string, s: Store, segs: Seg[]): unknown[] {
 /** The MATERIALS filed under a tag — the reverse of the forward `*::tag` pointers authored in
  *  `yamlover-annotations` arrays (a bare element's edge from the array, an object element's `tag`
  *  field, or a legacy direct `~`/`&` membership). Each is climbed to its owning material or
- *  fragment and deduped, ordered lexicographically by path. */
+ *  fragment and deduped, ordered lexicographically by path. For an ARBITRARY node (any node can
+ *  be a tag now) only annotation-array edges count — an ordinary pointer into it is not a
+ *  tagging; the direct-membership read stays for x-yamlover-tag pages. */
 function taggedMaterials(dataRoot: string, s: Store, tagStorePath: string): unknown[] {
+  const legacyDirect = s.node(tagStorePath)?.format === TAG_FORMAT;
   const seen = new Set<string>();
   const out: unknown[] = [];
   const ins = s.relationships(tagStorePath).in
@@ -1611,6 +1709,7 @@ function taggedMaterials(dataRoot: string, s: Store, tagStorePath: string): unkn
     .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
   for (const e of ins) {
     const arrOwner = e.from.replace(/\[\d+\]$/, "").match(/^(.*):yamlover-annotations$/);
+    if (!arrOwner && !legacyDirect) continue; // an ordinary inbound ref is not a tag application
     const owner = arrOwner ? arrOwner[1] || ":" : e.from; // an annotation array → its host; else a direct member
     // skip the tag itself, dups, missing nodes, and any owner in the hidden `.yamlover` overlay
     // subtree (e.g. settings.yamlover, whose `annotation-tag:` pointer back-references this tag)

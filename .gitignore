@@ -26,7 +26,7 @@ tools/server/dist/
 /.presentations/
 
 # Dev scratch at the repo root (created while serving the repo itself)
-/.screenshots/
+/screenshots
 /bad/
 /aaa.*
 

@@ -14,6 +14,7 @@ export interface TreeNode {
   concrete: string | null; // how it is stored; `dir` → a plain-folder icon
   hasChildren: boolean;
   children: TreeNode[];
+  match?: boolean; // queryFilter only: this row is one of the query's matches
 }
 
 export interface NodeJson {
@@ -166,6 +167,24 @@ export function fetchTagged(path: string): Promise<unknown[]> {
 export function query(q: string, at = ":"): Promise<string[]> {
   const params = new URLSearchParams({ q, path: at });
   return getJson<{ results: string[] }>(api(`/api/query?${params}`)).then((r) => r.results);
+}
+
+/** Evaluate a QUERY like {@link query}, but get each match as a TreeNode row (metadata only,
+ *  `children: []` — the chevron lazy-loads them like any TOC row). The breadcrumb dropdown's
+ *  candidate source. */
+export function queryTree(q: string, at = ":"): Promise<TreeNode[]> {
+  const params = new URLSearchParams({ q, path: at, shape: "tree" });
+  return getJson<{ results: TreeNode[] }>(api(`/api/query?${params}`)).then((r) => r.results);
+}
+
+/** Evaluate a QUERY into the FILTERED-TOC shape: ONE pruned tree from the root containing
+ *  the matches plus ALL their containment ancestors (normal TOC child order, each match row
+ *  flagged `match`) plus each match's own children one level deep (so the TOC shows what
+ *  lies below the matched path), the matched paths in evaluator walk order, and whether the
+ *  server's match cap clipped the set. */
+export function queryFilter(q: string, at = ":"): Promise<{ root: TreeNode; matches: string[]; truncated: boolean }> {
+  const params = new URLSearchParams({ q, path: at, shape: "filter" });
+  return getJson<{ root: TreeNode; matches: string[]; truncated: boolean }>(api(`/api/query?${params}`));
 }
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {

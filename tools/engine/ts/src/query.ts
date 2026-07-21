@@ -35,7 +35,12 @@ export type Portion =
   | { kind: 'combo'; test: Portion & { kind: 'valtest' }; then: Portion[] };
 
 export interface Query {
-  base: { scope: 'current' } | { scope: 'document' } | { scope: 'parent' } | { scope: 'link'; authority: string; world?: boolean };
+  base:
+    | { scope: 'current' }
+    | { scope: 'document' }
+    | { scope: 'parent' }
+    | { scope: 'project' } // `::` with no authority — the served project root itself
+    | { scope: 'link'; authority: string; world?: boolean };
   portions: Portion[];
 }
 
@@ -44,13 +49,23 @@ export function parseQuery(text: string): Query {
   let base: Query['base'] = { scope: 'current' };
   let world = false;
   if (rest.startsWith(':::')) { rest = rest.slice(3); base = { scope: 'link', authority: '' }; world = true; }
-  else if (rest.startsWith('::')) { rest = rest.slice(2); base = { scope: 'link', authority: '' }; }
+  else if (rest.startsWith('::')) { rest = rest.slice(2); base = { scope: 'project' }; }
   else if (rest.startsWith(':')) { rest = rest.slice(1); base = { scope: 'document' }; }
   const raws = splitPortions(rest);
   if (base.scope === 'link') {
+    // `:::` — the world: the first portion NAMES the project (an ARN-like authority)
     const auth = raws.shift();
-    if (auth === undefined || auth === '') throw new SyntaxError(`query: "::" needs an authority in "${text}"`);
+    if (auth === undefined || auth === '') throw new SyntaxError(`query: ":::" needs an authority in "${text}"`);
     base = { scope: 'link', authority: keyName(auth), world };
+  } else if (base.scope === 'project' && raws.length) {
+    // `::` — the project root. A plain NAME portion is the authority / import key
+    // (`:: yamlover: …`, self-import absorbed); a MATCHER portion applies AT the project
+    // root itself — `:: ...: colors` descends the whole project, `:: ?` fans its children.
+    const head = parsePortion(raws[0]);
+    if (head.length === 1 && head[0].kind === 'key') {
+      base = { scope: 'link', authority: head[0].name };
+      raws.shift();
+    }
   } else if (base.scope === 'current' && raws[0] === '..') {
     // a LEADING `..` is the parent scope opener; later `..` portions are spine steps
     base = { scope: 'parent' };
@@ -207,6 +222,8 @@ export function evalQuery(s: Store, text: string, from = ':'): string[] {
     case 'current': binds = [from]; break;
     case 'parent': binds = compact(spineParent(s, from) === null ? [] : [spineParent(s, from)!]); break;
     case 'document': binds = [docRootOf(s, from)]; break;
+    case 'project': binds = [':']; break; // bare `::` — the served project root
+
     case 'link': {
       // The yamlover world URI is the self-import alias (mirrors resolve.ts): `::: yamlover.inthemoon.net:…`
       // ≡ `:: yamlover:…` (IMPORTS.md §4).

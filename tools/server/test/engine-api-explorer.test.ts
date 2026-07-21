@@ -121,10 +121,12 @@ describe("GET /api/tagged", () => {
     expect(paths.some((p: string) => p.startsWith(":.yamlover"))).toBe(false); // the overlay owner is excluded
   });
 
-  it("404s for a path that is not a tag node", async () => {
+  it("answers for ANY existing node (any node can be a tag); a missing node stays 404", async () => {
     const h = createHandlers(tmpTree({ name: "Alice", ...TAG_FILE }), { gitignore: false });
     await h.ready;
-    expect(call(h, "/api/tagged", { path: ":name" }).status).toBe(404);
+    const r = call(h, "/api/tagged", { path: ":name" });
+    expect(r.status).toBe(200); // an ordinary node lists its annotators — none here
+    expect(r.json).toEqual([]);
     expect(call(h, "/api/tagged", { path: ":nowhere" }).status).toBe(404);
   });
 });

@@ -13,7 +13,10 @@ import { caretAtStart, caretOnFirstLine, caretOnLastLine } from "../caret";
 import { keyToken, type MEntry, type MNode } from "./model";
 import type { HoleAction } from "./keys";
 import { classifyHoleInput, keyedEditParts, normalizeSpaces } from "./keys";
-import { filterPointerTargets, PointerHints, type PointerTarget } from "./pointer-hints";
+import { QueryCells, useQueryCellHost } from "../../query-cells";
+import { treeCandidateProvider } from "../../query-complete";
+import { pointerCells, spellCells, spellPointer } from "../../pointer-spell";
+import { useTocFilter } from "../../toc-filter-session";
 
 /** The LIVE keyed trigger of a plain-token cell (unquoted_scalar_appending/inserting): fires the
  *  moment the text reads `key: ` (or already carries a value) — a committed `abc` grown into
@@ -101,8 +104,11 @@ export interface YedCtxType {
   act: YedActions;
   registerCell(key: string, el: HTMLElement | null): void;
   onNavigate(path: string): void;
-  /** Candidate pointer targets enumerated from the live model (the hints popup's source). */
-  pointerTargets(excludeNodeId: string): PointerTarget[];
+  /** The CONTAINER path holding the node — a reference cell's current-scope base (the
+   *  query `at`), read lazily from the live model. */
+  holderOf(nodeId: string): string;
+  /** The DOCUMENT holding the edited node — a `*:` pointer's spelling base. */
+  docPath(): string;
 }
 
 export const YedCtx = createContext<YedCtxType | null>(null);
@@ -412,73 +418,98 @@ function BlockScalarCell({ node, entryId = null, self = false }: { node: MNode; 
   );
 }
 
-/** A reference cell: the `*` sigil, an editable pointer expression, and a `↗` that navigates to
- *  the resolved target (kept out of the editable so clicks don't fight the caret). */
+/** A reference cell: the `*` sigil, the SHARED query-cell editor over the pointer expression
+ *  (breadcrumb machinery in PICK mode — the TOC filters live, a TOC click drops the picked
+ *  path into the cells, Enter reduces the query to a link-arity pointer), and a `↗` that
+ *  navigates to the resolved target. The scope ladder is the user's: bare `*` spells relative
+ *  to the holding container, `:` in the empty first cell climbs to `*:` / `*::` / `*:::`. */
 export function PointerCell({ node, entryId }: { node: MNode; entryId: string | null }) {
-  const { act, onNavigate, pointerTargets } = useYed();
+  const { act, onNavigate, registerCell, holderOf, docPath } = useYed();
   const p = node.pointer!;
-  // the completion hints popup: candidates from the live model, filtered by the typed text.
-  // `hi` starts (and resets) at -1 — Enter with NOTHING highlighted commits the typed text
-  // verbatim (free typing, dangling included, always wins); only an explicit ArrowDown/hover
-  // arms the popup's Enter.
-  const [open, setOpen] = useState(false);
-  const [hints, setHints] = useState<PointerTarget[]>([]);
-  const [hi, setHi] = useState(-1);
-  const refilter = (text: string): void => {
-    setHints(filterPointerTargets(pointerTargets(node.id), text));
-    setHi(-1);
+  const session = useTocFilter();
+  // a commit the wire refused (unparsable free text) keeps the TYPED text on screen with the
+  // error ring instead of silently reverting — cleared by the next successful commit
+  const [failed, setFailedState] = useState<string | null>(null);
+  const failedRef = useRef<string | null>(null);
+  const setFailed = (v: string | null) => {
+    failedRef.current = v;
+    setFailedState(v);
   };
-  const accept = (t: PointerTarget): void => {
-    if (!act.commitPointer(node.id, t.display)) return; // the DISPLAY (spaced) form; the op goes bare
-    setOpen(false);
-    if (entryId) act.enterAfter(entryId); // the same advance as a typed commit
+
+  const commitRaw = (raw: string): void => {
+    if (raw === node.pointer!.raw && !node.dirty) {
+      setFailed(null);
+      if (entryId) act.enterAfter(entryId); // an untouched committed pointer just advances
+      return;
+    }
+    if (act.commitPointer(node.id, raw)) {
+      setFailed(null);
+      if (entryId) act.enterAfter(entryId); // ENTRY → entry_hole; ROOT → pointer_committed (stays)
+    } else {
+      setFailed(raw); // the ring, not a revert — the text stands (hints are never validators)
+    }
   };
+
+  const host = useQueryCellHost({
+    ctx: () => ({
+      mode: "pick",
+      ladder: pointerCells(failedRef.current ?? node.pointer!.raw).ladder,
+      idlePortions: () => pointerCells(failedRef.current ?? node.pointer!.raw).portions,
+      spell: (path, ladder) => spellCells(path, holderOf(node.id), ladder, docPath()),
+    }),
+    provider: (ctxQ, prefix) => treeCandidateProvider(holderOf(node.id))(ctxQ, prefix),
+    onSelect: (path, meta) => {
+      if (meta && meta.query.trim() === "") return; // pointer_started + Enter → nop
+      if (path !== null) commitRaw(spellPointer(path, holderOf(node.id), meta?.ladder ?? 1, docPath()));
+      else if (meta) commitRaw(meta.query); // free-typed: verbatim if the wire accepts it
+    },
+    session,
+  });
+  const editing = host.state.mode === "editing";
+  const idle = pointerCells(failed ?? p.raw);
+  const ladder = editing && host.state.mode === "editing" ? host.state.ladder : idle.ladder;
+
   return (
     <>
       <span className="punct">*</span>
-      <span className="yed-ptrwrap">
-        <EditableCell
-          cellKey={node.id}
-          className="s"
-          initial={p.raw}
-          rev={node.rev}
-          placeholder="pointer"
-          force={!!node.dirty}
-          onCommit={(text) => act.commitPointer(node.id, text.trim())}
-          onFocus={(el) => { setOpen(true); refilter(el.textContent ?? ""); }}
-          onInput={(el) => { setOpen(true); refilter(el.textContent ?? ""); }}
-          onBlurred={() => setOpen(false)}
-          onKeyDown={(e, el) => {
-            if (open && hints.length) {
-              // the popup owns the arrows while it shows; closed/empty → cell navigation
-              if (e.key === "ArrowDown") { e.preventDefault(); setHi((i) => (i + 1) % hints.length); return true; }
-              if (e.key === "ArrowUp") { e.preventDefault(); setHi((i) => (i - 1 + hints.length) % hints.length); return true; }
-              if (e.key === "Escape") { e.preventDefault(); setOpen(false); return true; } // next Esc reverts the cell
-              if (e.key === "Enter" && hi >= 0) { e.preventDefault(); accept(hints[hi]); return true; }
-            }
-            if (e.key === "Tab" && entryId) { e.preventDefault(); if (e.shiftKey) act.dedent(entryId); else act.indent(entryId); return true; }
-            if (e.key === "Backspace" && (el.textContent ?? "") === "") {
-              e.preventDefault();
-              // `pointer_started` + Backspace → empty_cell_of_origin (the `*` dismantles);
-              // a persisted pointer entry emptied → remove the entry, focus the previous cell
-              if (node.dirty) act.dismantle(node.id);
-              else if (entryId) act.removeEmpty(entryId);
-              return true;
-            }
-            if (e.key === "Enter") {
-              e.preventDefault();
-              const text = normalizeSpaces(el.textContent ?? "").trim();
-              if (text === "") return true; // pointer_started + Enter → nop
-              const unchanged = text === p.raw && !node.dirty; // an untouched committed pointer just advances
-              if (!unchanged && !act.commitPointer(node.id, text)) return false; // → EditableCell's commit() paints the error ring
-              setOpen(false);
-              if (entryId) act.enterAfter(entryId); // ENTRY → entry_hole; ROOT → pointer_committed (stays)
-              return true;
-            }
-            return false;
+      {ladder > 0 && <span className="punct yed-scope">{":".repeat(ladder)}</span>}
+      <span
+        className={"yed-ptrwrap" + (failed !== null ? " yed-ptr-error" : "")}
+        tabIndex={-1}
+        data-yed-cell={node.id}
+        ref={(el) => registerCell(node.id, el)}
+        onFocus={(e) => {
+          // the editor's focus plumbing (enterAfter / focusSibling / the hole's `*`) lands on
+          // the wrapper — forward it into the machine, which places the caret in a cell
+          if (e.target === e.currentTarget) host.dispatch({ type: "FOCUS_CELL", caret: "end" });
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Tab" && entryId) {
+            e.preventDefault();
+            if (e.shiftKey) act.dedent(entryId);
+            else act.indent(entryId);
+            return;
+          }
+          // row navigation once the machine let the arrows through (dropdown closed)
+          if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.defaultPrevented) {
+            e.preventDefault();
+            act.focusSibling(e.target as HTMLElement, e.key === "ArrowUp" ? -1 : 1);
+          }
+        }}
+      >
+        <QueryCells
+          host={host}
+          idlePortions={idle.portions}
+          scopeKeys
+          onEmptyBackspace={() => {
+            // `pointer_started` + Backspace → empty_cell_of_origin (the `*` dismantles);
+            // a persisted pointer entry emptied → remove the entry
+            setFailed(null);
+            if (node.dirty) act.dismantle(node.id);
+            else if (entryId) act.removeEmpty(entryId);
           }}
+          className="yed-ptrcells"
         />
-        {open && <PointerHints hints={hints} hi={hi} onHi={setHi} onPick={accept} />}
       </span>
       {p.refPath && (
         <a

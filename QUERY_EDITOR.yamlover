@@ -1,0 +1,188 @@
+Breadcrumb Query Editor — the state machine
+description: |
+    Entries of this document are the STATES of the editable breadcrumb — the topbar's
+    locator and query editor in one (a permanent row of smart cells, one per query
+    portion). The format mirrors YAMLOVER_EDITOR.yamlover: each state is an omni node —
+    the self-value is its TITLE, `description` says what is drawn and where the caret
+    sits; every other keyed entry is a TRANSITION — the key names the key press (or
+    event), the value points at the next state. A CONDITIONAL transition nests
+    condition-keyed pointers. Unlike the yamlover editor's, this machine is ALSO
+    executable code — tools/server/src/client/breadcrumb-machine.ts is the pure reducer
+    these states compile to, and breadcrumb-machine.test.ts runs the table.
+
+    Conventions.
+    A PORTION is one colon-separated step of the query — a key (`pets[1]` includes its
+    index suffixes), a wildcard (`?`, `[?]`), descent (`...`), an uplink (`..`, `?..`),
+    a value test (`>10`, `=text`) or a meta test (`!!<type: integer>`). While any cell
+    is focused the TOC FILTERS live (matches + all their ancestors, expanded down to
+    the matches, no row selected); the dropdown under the cell offers the context's
+    REAL children as true TOC rows plus the operator hints. Hints are never
+    validators — free-typed text always stands, and the dropdown arms only on an
+    explicit ArrowDown or hover (nothing armed = Enter commits the typed query, the
+    pointer-hints doctrine). TAB is the ACCEPT key: it takes the armed candidate, or
+    the FIRST one when nothing is armed — the one deliberate way to commit a
+    completion without touching Enter's free-typed meaning. The dropdown itself is
+    PORTALED to the body at fixed coordinates under the cell (flipping upward near
+    the viewport's bottom edge), so no ancestor popup or scrolling pane can clip
+    it. A query that stops parsing mid-edit keeps the LAST GOOD
+    filter on screen and rings the cell red — it never blocks. Candidate and filter
+    fetches are debounced and sequence-guarded; a stale arrival is dropped.
+
+    HOST MODES. The SAME machine drives every query-cell surface, in one of two modes:
+    BROWSE — the breadcrumb: selecting means navigating, a committed query keeps the
+    `filtered` browsing state, and the scope is fixed at the document root (the root
+    label cell is the implied leading `:`). PICK — a selection host: selecting means
+    committing ONE node path (the query REDUCES to a path — a pointer, never a
+    matcher), `filtered` is unreachable, and the SCOPE LADDER is the user's: bare
+    (current scope, resolved at the pointer's holder), `:` document, `::` project,
+    `:::` world. The leading opener CELL SEPARATOR spells the current ladder (none /
+    `:` / `::` / `:::`). In pick mode a TOC click is an INSERTION, not a commit. The
+    TOC filter is ONE shared surface: a session owner holds it, and a host that
+    starts editing EVICTS the previous owner (the evicted machine takes the
+    `evicted` transition below). Browsing the filtered TOC is not a commit: the
+    chevron is a NON-FOCUSING control, so expanding/collapsing branches never blurs
+    the cells nor stops the search — only clicking a row (toc_click) reaches the
+    machine. The append cell (click_tail / F4) REUSES an already-empty trailing
+    cell, never doubles it.
+
+    THE THREE HOSTS. (1) The BREADCRUMB — browse mode, this document's main table.
+    (2) The yamlover editor's REFERENCE CELL (`*` in a hole) — pick mode; its outer
+    states live in YAMLOVER_EDITOR.yamlover (pointer_started / pointer_query_editing /
+    pointer_committed), which delegate the inner grammar here. (3) The TAG PICKER
+    (the annotation popup's search row) — pick mode, opening at the PROJECT scope
+    (`::` — tags are project furniture, and the grafted yamlover taxonomy/palette
+    lives only on that rung of the ladder) with the CARET ALREADY IN the trailing
+    cell, cells SEEDED `...` + an empty cell so a bare typed name spells the
+    find-anywhere-in-the-project query `:: ...: <name>`; the ladder still steps
+    (Backspace at the first cell's start — `:` narrows to the document); Enter
+    applies the first match as the annotation ref (create-on-miss births a named tag
+    from a bare name), and — unlike the other hosts — a TOC row click APPLIES that
+    node directly (the popup owns the session itself and stays open for
+    multi-tagging).
+
+    THE PORTION RULE. `:` and `[` are STRUCTURE, not text. Typing `:` splits the cell
+    at the caret — the tail becomes the next cell. Typing `[` projects the closing `]`
+    with the caret in between; `]` jumps OVER the projected closer; Backspace between
+    an empty projected pair dismantles it. An index belongs to the portion BEFORE it —
+    `[` in an EMPTY cell folds into the previous cell (`pets` `:` `[` `1` spells
+    `pets[1]`, never the non-canonical `pets: [1]`). For the FIRST cell the previous
+    portion is the ROOT itself: an index-headed first cell is an index on the root, its
+    `:` separator is not drawn, and the breadcrumb spells `root[0]` (the query `: [0]`).
+    Backspace at a cell's start (or Delete at a cell's end) deletes the `:` boundary —
+    the neighbouring cells merge with the caret at the junction.
+
+    THE REGRESSION RULE. Leaving the editor always lands somewhere honest: selecting a
+    node that MATCHES the query keeps the query (the `filtered` state — cells intact,
+    TOC still filtered); selecting anything else regresses the breadcrumb to that
+    node's plain path; Escape restores the current path's cells and the unfiltered TOC,
+    expanded to the root and the selection's ancestors (a branch the filter sprang open
+    never stays open once the filter is gone).
+
+    Pseudo-states (`nop`, `error_ring`, `focus_prev`, `focus_next`) follow
+    YAMLOVER_EDITOR.yamlover: consume-and-stay, red-ring-and-stay, and the two
+    focus-walk actions landing in the adjacent cell's focused state.
+
+nop: Nothing happens
+    description: A pseudo-state — the event is consumed, the current state stays
+
+error_ring: Query does not parse
+    description: A pseudo-state — the active cell wears the red ring while the text stands and the LAST GOOD filter stays on screen; typing on continues from the previous state
+
+focus_prev: Focus the previous cell
+    description: A pseudo-state — the caret lands at the END of the preceding cell; continue in cell_editing
+
+focus_next: Focus the next cell
+    description: A pseudo-state — the caret lands at the START of the following cell; continue in cell_editing
+
+idle_path: The current path as cells
+    description: No cell is focused. The cells spell the current node's path (indices folded — `pets[1]` is one cell), the root label first. The TOC is unfiltered and shows the normal selection. Every cell is click-to-edit — there is no separate view mode
+    click_cell: *: cell_editing
+    click_tail: *: cell_editing
+    f4: *: cell_editing
+    toc_click: *: idle_path
+
+cell_editing: A portion cell focused
+    description: The clicked (or focused) cell holds the caret where the click put it; the append cell opens empty after the last portion. The TOC swaps to the live FILTER of the query the cells spell — matches and all their ancestors, expanded, no selection. Candidate and filter fetches are (re)scheduled on every text change
+    alphanumeric: *: cell_editing
+    colon:
+        "(pick) the FIRST cell is empty — the scope ladder CLIMBS (bare → `:` → `::` → `:::`), the cells stay": *: cell_editing
+        "otherwise — the cell splits at the caret": *: cell_editing
+    open_bracket:
+        "the cell is empty and a previous portion exists — the index folds into it, caret inside the projected pair": *: index_editing
+        "otherwise — the pair is projected at the caret": *: index_editing
+    candidates_arrive: *: dropdown_open
+    backspace:
+        "the caret sits inside an empty projected `[]` — the pair dismantles": *: cell_editing
+        "the caret is at the cell's start and a previous cell exists — the `:` boundary deletes, cells merge at the junction": *: cell_editing
+        "(pick) the caret is at the FIRST cell's start and the ladder is above bare — the ladder steps DOWN": *: cell_editing
+        "otherwise": *: cell_editing
+    delete:
+        "the caret is at the cell's end and a next cell exists — the `:` boundary deletes, cells merge": *: cell_editing
+        "otherwise": *: cell_editing
+    left_arrow:
+        "the caret is at the cell's start": *: focus_prev
+        "otherwise": *: cell_editing
+    right_arrow:
+        "the caret is at the cell's end": *: focus_next
+        "otherwise": *: cell_editing
+    enter:
+        "(browse) the filter answered the current text and found matches — the FIRST match is selected, the RHS takes focus": *: filtered
+        "(pick) the filter answered — the query REDUCES to the first match's path (no match = null: the host commits a verbatim parseable pointer, or creates-on-miss); the host takes the commit": *: idle_path
+        "(browse) the filter answered and found nothing": *: nop
+        "the filter is still in flight — the Enter is remembered and commits on arrival": *: cell_editing
+        "the query does not parse": *: error_ring
+    escape: *: idle_path
+    click_outside: *: idle_path
+    evicted: *: idle_path
+    toc_click:
+        "(pick) the cells BECOME the clicked node's spelling in the current scope, caret at the end — editing continues, a click never commits": *: cell_editing
+        "(browse) the clicked row is a MATCH of the query — the query is kept": *: filtered
+        "(browse) otherwise — the breadcrumb regresses to the clicked node's plain path": *: idle_path
+
+index_editing: Inside a projected index
+    description: The `[` and `]` are in the cell with the caret between them — the index digits (or the `?` position wildcard) type inside. This is cell_editing wearing brackets; the same filter and dropdown scheduling applies
+    alphanumeric: *: index_editing
+    close_bracket: *: cell_editing
+    backspace:
+        "the pair is empty — it dismantles": *: cell_editing
+        "otherwise": *: index_editing
+    colon: *: cell_editing
+    escape: *: idle_path
+
+dropdown_open: Candidates offered, nothing armed
+    description: The dropdown hangs under the active cell — the context's real children as TOC rows (icons and all) followed by the operator hints, ranked by the typed prefix. NOTHING is highlighted (hi = -1): Enter here commits the typed query, never a hint; Tab takes the FIRST candidate
+    alphanumeric: *: dropdown_open
+    down_arrow: *: dropdown_armed
+    up_arrow: *: dropdown_armed
+    hover_candidate: *: dropdown_armed
+    click_candidate: *: cell_editing
+    tab: *: cell_editing
+    enter:
+        "the filter answered with matches": *: filtered
+        "the filter answered with none": *: nop
+        "the filter is in flight": *: dropdown_open
+    escape: *: cell_editing
+    toc_click:
+        "a MATCH row": *: filtered
+        "otherwise": *: idle_path
+
+dropdown_armed: A candidate highlighted
+    description: ArrowDown/Up (or hover) armed a row; arrows cycle with wraparound. Enter, Tab or a click takes it — the cell's text becomes the candidate's portion spelling. A MIDDLE cell keeps its tail (the query re-filters); the LAST cell opens a fresh append cell after it, ready for the next step
+    down_arrow: *: dropdown_armed
+    up_arrow: *: dropdown_armed
+    enter: *: cell_editing
+    tab: *: cell_editing
+    click_candidate: *: cell_editing
+    escape: *: dropdown_open
+    alphanumeric: *: dropdown_open
+
+filtered: Committed query, browsing the matches (browse mode only)
+    description: The query's cells stay in the breadcrumb (a ✕ after them clears), the TOC stays filtered, and a match is SELECTED — the post-Enter / post-click browsing state. Ctrl/Alt+arrows step through the filtered rows. Pick-mode machines never reach this state — their commit returns to idle_path
+    click_cell: *: cell_editing
+    toc_click:
+        "another MATCH row": *: filtered
+        "otherwise — e.g. a chevron-loaded real child; the breadcrumb regresses to its path": *: idle_path
+    escape: *: idle_path
+    evicted: *: idle_path
+    clear_button: *: idle_path
+    navigate_elsewhere: *: idle_path

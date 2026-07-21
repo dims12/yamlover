@@ -21,6 +21,7 @@ import { escapeYamloverScalar } from "../chapter-model";
 import { unquoteSource } from "./keys";
 import { parseYamlover } from "../../../../../parser/ts/src/yamlover.ts";
 import { parsePointer, renderPointer } from "../../../../../parser/ts/src/pointer.ts";
+import { segsToStr, strToSegs } from "../../paths";
 
 let idSeq = 0;
 export const nid = () => `yed${idSeq++}`;
@@ -266,6 +267,16 @@ export function pathOfSpine(rootPath: string, spine: Spine): string {
     p = appendSeg(p, e.key ?? serverIndexOf(container, index));
   }
   return p;
+}
+
+/** The CONTAINER path holding the node — the reference picker's `at` (a bare pointer's
+ *  current-scope base): the node's own path minus its last segment; for the document root
+ *  itself, the enclosing directory. */
+export function holderPathOfNode(rootPath: string, root: MNode, nodeId: string): string {
+  const found = findNode(root, nodeId);
+  const own = found?.spine ? pathOfSpine(rootPath, found.spine) : rootPath;
+  const segs = strToSegs(own);
+  return segsToStr(segs.slice(0, -1));
 }
 
 // --------------------------------------------------------------------------- //

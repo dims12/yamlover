@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createNode, createObject, fetchInfo, fetchTasks, fetchTree, installAgentDocs, PasteResult, TaskInfo, TreeNode } from "./api";
 import { api } from "./base";
 import { Tree } from "./Tree";
+import { Breadcrumb, useBreadcrumb } from "./Breadcrumb";
+import { BcEvent } from "./breadcrumb-machine";
 import { TaskStrip } from "./TaskStrip";
 import { NodeView, Format, FORMATS, DEFAULT_FORMAT, isJsonConcrete } from "./NodeView";
 import { rendererName, tocView } from "./renderers/registry";
@@ -11,7 +13,9 @@ const isStandardFormat = (f: Format) => (FORMATS as string[]).includes(f);
  *  `json5p`, which the target node only offers when it is a json-family file. */
 const formatTravelsTo = (f: Format, concrete?: string | null) =>
   isStandardFormat(f) && (f !== "json5p" || isJsonConcrete(concrete));
-import { crumbs, formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
+import { formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
+import { findNode, loadedDepth, mergeAt, replaceChildren } from "./tree-model";
+import { TocFilterCtx, useTocFilterSession } from "./toc-filter-session";
 import { BrowserSettingsView } from "./BrowserSettingsView";
 import { applyTheme, BROWSER_SETTINGS_PATH, isBrowserSettingsPath, primeProjectSettings } from "./browser-settings";
 import { broadcastDiff } from "./live";
@@ -58,52 +62,6 @@ function Splitter({ collapsed, glyph, label, onToggle, onDragStart }: {
 // level keeps every fetch cheap on a huge/slow tree (a fetch only reads the
 // directories it actually shows); deeper levels load instantly on expand.
 const INITIAL_DEPTH = 1;
-
-/** Return a copy of `tree` with the children of the node at `path` replaced. */
-function replaceChildren(tree: TreeNode, path: string, children: TreeNode[]): TreeNode {
-  if (tree.path === path) return { ...tree, children };
-  if (!tree.children.length) return tree;
-  return { ...tree, children: tree.children.map((c) => replaceChildren(c, path, children)) };
-}
-
-/** Merge a freshly fetched branch over the old one at the same path: the fresh rows win
- *  (labels, flags, order, additions/removals), but a row that already had its children
- *  loaded keeps them (recursively) when the fresh fetch didn't reach that deep — so a live
- *  refresh never collapses what the user has expanded. */
-function mergeBranch(old: TreeNode | undefined, fresh: TreeNode): TreeNode {
-  if (!old) return fresh;
-  const byPath = new Map(old.children.map((c) => [c.path, c] as const));
-  const children = fresh.children.length
-    ? fresh.children.map((c) => mergeBranch(byPath.get(c.path), c))
-    : fresh.hasChildren
-      ? old.children // past the fetch depth — keep the loaded subtree
-      : [];
-  return { ...fresh, children };
-}
-
-/** How many levels of children are LOADED under `node` — the depth a live refresh must refetch
- *  so no stale row survives past the fetch boundary (see mergeBranch). */
-function loadedDepth(node: TreeNode): number {
-  if (!node.children.length) return 0;
-  return 1 + Math.max(...node.children.map(loadedDepth));
-}
-
-/** Return a copy of `tree` with the fresh subtree merged in at `path` (see mergeBranch). */
-function mergeAt(tree: TreeNode, path: string, fresh: TreeNode): TreeNode {
-  if (tree.path === path) return mergeBranch(tree, fresh);
-  if (!tree.children.length) return tree;
-  return { ...tree, children: tree.children.map((c) => mergeAt(c, path, fresh)) };
-}
-
-/** Find the node at `path` in the (partially loaded) tree. */
-function findNode(tree: TreeNode, path: string): TreeNode | null {
-  if (tree.path === path) return tree;
-  for (const c of tree.children) {
-    const f = findNode(c, path);
-    if (f) return f;
-  }
-  return null;
-}
 
 /** The shallowest ancestor of `current` that is loaded but whose children are
  *  not yet fetched — the next branch to load while revealing `current`. */
@@ -373,11 +331,17 @@ export function App() {
     return () => es.close();
   }, [refreshBranches, upsertTask, retryInitial]);
 
+  // The breadcrumb machine's dispatch, reachable from `navigate`/popstate (which are
+  // declared before the hook that creates it) — external navigation feeds it NAVIGATED.
+  const bcDispatchRef = useRef<((e: BcEvent) => void) | null>(null);
+
   // Keep state in sync with the browser's back/forward buttons.
   useEffect(() => {
     const onPop = () => {
-      setCurrent(pathFromUrl());
+      const p = pathFromUrl();
+      setCurrent(p);
       setFormat(formatFromUrl(DEFAULT_FORMAT) as Format);
+      bcDispatchRef.current?.({ type: "NAVIGATED", path: p });
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -400,6 +364,7 @@ export function App() {
       writeUrl(p, f, false);
       setCurrent(p);
       if (f !== format) setFormat(f);
+      bcDispatchRef.current?.({ type: "NAVIGATED", path: p });
     },
     [format, tree],
   );
@@ -414,6 +379,21 @@ export function App() {
     },
     [navigate],
   );
+
+  // The TOC FILTER SESSION — the single owner of the filtered-TOC state. The breadcrumb
+  // claims it while editing; the yamlover editor's reference cells and the tag picker
+  // claim it the same way (eviction hands it over). TOC clicks route to the active owner.
+  const tocSession = useTocFilterSession();
+
+  // The editable breadcrumb: locator + query editor (breadcrumb-machine.ts). While the
+  // machine is not idle, the TOC swaps to the pruned filter tree and row clicks route
+  // through the machine (match → keep the query; non-match → regress to the plain path).
+  const bc = useBreadcrumb({ current, select: selectFromToc, session: tocSession });
+  bcDispatchRef.current = bc.dispatch;
+  const filtering = tocSession.filter !== null;
+  const displayedTree = filtering ? tocSession.filter!.root : tree;
+  const displayedTreeRef = useRef(displayedTree);
+  displayedTreeRef.current = displayedTree;
 
   // Right-click a TOC row → the whole-node tag picker, plus "＋ New <schema>" (with a concrete
   // selector) for every schema creatable at that row (a directory / a chapter). Creating navigates
@@ -455,7 +435,7 @@ export function App() {
       if (!(e.ctrlKey || e.altKey) || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
-      const order = flattenToc(treeRef.current);
+      const order = flattenToc(displayedTreeRef.current); // filtered rows while the query is on
       const i = order.indexOf(currentRef.current);
       if (i < 0) return; // current not in the loaded TOC yet — nothing to step from
       const next = Math.min(Math.max(i + (e.key === "ArrowDown" ? 1 : -1), 0), order.length - 1);
@@ -556,25 +536,10 @@ export function App() {
   }, [docsState]);
 
   return (
+    <TocFilterCtx.Provider value={tocSession}>
     <div className="app">
       <header className="topbar">
-        <nav className="crumbs">
-          {crumbs(current, rootLabel).map((c, i) => (
-            <span key={c.path}>
-              {i > 0 && <span className="crumb-sep">:</span>}
-              <a
-                className="crumb"
-                href={c.path}
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate(c.path);
-                }}
-              >
-                {c.label}
-              </a>
-            </span>
-          ))}
-        </nav>
+        <Breadcrumb current={current} rootLabel={rootLabel} api={bc} />
         {/* the right group is pinned to the topbar's right edge (via `.topbar-right`), so the
             task strip always hugs the RHS pane. */}
         <div className="topbar-right">
@@ -627,7 +592,22 @@ export function App() {
                 }
                 if (error) return <div className="error">{error}</div>;
                 if (!tree) return <div className="loading">loading…</div>;
-                return <Tree node={tree} current={current} onSelect={selectFromToc} onLoadChildren={loadChildren} onContext={onTocContext} />;
+                return (
+                  <>
+                    <Tree
+                      node={filtering ? tocSession.filter!.root : tree}
+                      current={bc.state.mode === "editing" ? "" : current} // editing: NO selection
+                      filterMode={filtering}
+                      onSelect={(p) => (tocSession.active ? tocSession.pick(p) : selectFromToc(p))}
+                      onLoadChildren={filtering ? tocSession.loadChildren : loadChildren}
+                      onContext={onTocContext}
+                    />
+                    {filtering && tocSession.filter!.truncated && <div className="toc-filter-note">first matches only (capped)</div>}
+                    {bc.state.mode === "editing" && bc.state.matches?.paths.length === 0 && !bc.state.queryError && (
+                      <div className="toc-filter-note">no results</div>
+                    )}
+                  </>
+                );
               })()}
             </div>
             <nav className="activity-bar" aria-label="Sidebar tabs">
@@ -692,5 +672,6 @@ export function App() {
       </div>
       {tocMenu}
     </div>
+    </TocFilterCtx.Provider>
   );
 }

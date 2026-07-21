@@ -204,24 +204,32 @@ quoted_token_closed: Quoted token closed
     down_arrow: *: focus_next
 
 pointer_started: Reference started
-    description: The `*` sigil is projected with an empty expression cell after it, cursor inside
-    alphanumeric: *: pointer_appending
+    description: The `*` sigil is projected with the SHARED QUERY-CELL editor after it (the breadcrumb machinery in PICK mode - QUERY_EDITOR.yamlover owns the inner grammar) - one empty portion cell, cursor inside. The TOC swaps to the live filter of the query the cells spell (claiming the shared filter session), and the dropdown offers the HOLDER's real children plus the operator hints. The scope ladder starts BARE (current scope, resolved at the holding container)
+    alphanumeric: *: pointer_query_editing
+    colon: *: pointer_query_editing
     enter: *: nop
     backspace: *: empty_cell_of_origin
 
-pointer_appending: Reference editing
-    description: The `*` sigil with the partially entered pointer expression, cursor at the end
-    alphanumeric: *: pointer_appending
+pointer_query_editing: Reference query editing
+    description: The `*` sigil, the scope chip (empty, `:`, `::` or `:::`), and the portion cells with the caret inside - cell mechanics, dropdown, TOC filtering and TOC-click insertion are QUERY_EDITOR.yamlover's cell_editing in PICK mode. `:` typed in the EMPTY first cell CLIMBS the scope ladder (`*` → `*:` → `*::` → `*:::`); Backspace at the first cell's start steps it back down (at the bare floor with everything empty it dismantles - empty_cell_of_origin). Clicking a TOC row drops the picked node's path INTO the cells, spelled in the current scope (bare: relative to the holder, climbing with `..:`); editing continues
+    alphanumeric: *: pointer_query_editing
+    colon: *: pointer_query_editing
+    toc_click: *: pointer_query_editing
     enter:
-        "the expression parses as a pointer": *: pointer_committed
-        "otherwise": *: error_flash
+        "the query REDUCED to a match - the match's path is spelled in the chosen scope and committed BARE on the wire": *: pointer_committed
+        "no match, but the text parses as a pointer - the typed expression commits verbatim (dangling allowed; hints are never validators)": *: pointer_committed
+        "the text is not a pointer the wire can carry": *: error_flash
+    escape: *: pointer_committed
+    click_outside:
+        "the edit is ABANDONED - the cells revert to the committed raw (breadcrumb semantics: blur cancels, it no longer commits)": *: pointer_committed
+    evicted: *: pointer_committed
     backspace:
-        "the expression became empty": *: pointer_started
-        "otherwise": *: pointer_appending
+        "the expression became empty at the bare scope": *: pointer_started
+        "otherwise": *: pointer_query_editing
 
 pointer_committed: Committed reference cell, focused
-    description: The reference is persisted; the cell keeps focus; a small navigation affordance appears beside it. A reference holds no children, so its Enter opens the next SIBLING hole - the one exception to the level rule
-    alphanumeric: *: pointer_appending
+    description: The reference is persisted (or the edit was abandoned - the committed raw stands); the scope chip and cells spell it; a small navigation affordance appears beside it; the TOC filter session is released. A reference holds no children, so its Enter opens the next SIBLING hole - the one exception to the level rule
+    alphanumeric: *: pointer_query_editing
     enter:
         "the cell is an ENTRY value": *: entry_hole
         "the cell is the document ROOT": *: nop

@@ -13,7 +13,6 @@ import { focusEnd, focusStart } from "../caret";
 import * as M from "./model";
 import { enqueue, useOpSync, type OpQueue } from "./ops";
 import { keyedEditParts, normalizeSpaces, quoteSource, type HoleAction } from "./keys";
-import { enumeratePointerTargets } from "./pointer-hints";
 import * as P from "./paste";
 import { FlowCells, MetaTagCell, NodeCells, PointerCell, RootHole, ScalarCell, YedCtx, type YedActions, type YedCtxType } from "./cells";
 
@@ -145,6 +144,8 @@ export function YamloverEditor({ path, onNavigate }: { path: string; onNavigate:
   const cellMap = useRef(new Map<string, HTMLElement>());
   const focusReq = useRef<FocusReq | null>(null);
   const rootEl = useRef<HTMLDivElement | null>(null);
+  // the DOCUMENT holding the edited node — a `*:` (document-scoped) pointer's spelling base
+  const docPathRef = useRef(path);
 
   // the editor's own unlimited-depth fetch — the model needs the WHOLE subtree
   useEffect(() => {
@@ -152,6 +153,7 @@ export function YamloverEditor({ path, onNavigate }: { path: string; onNavigate:
     fetchNode(path, null)
       .then((n) => {
         if (!live) return;
+        docPathRef.current = n.documentPath ?? path;
         const m = M.buildModel(n);
         rootRef.current = m;
         setRoot(m);
@@ -746,8 +748,9 @@ export function YamloverEditor({ path, onNavigate }: { path: string; onNavigate:
     act,
     registerCell: (key, el) => { if (el) cellMap.current.set(key, el); else cellMap.current.delete(key); },
     onNavigate,
-    // a LAZY read of the mutable model — always current, no memo churn
-    pointerTargets: (excludeNodeId) => (rootRef.current ? enumeratePointerTargets(rootRef.current, excludeNodeId) : []),
+    // LAZY reads of the mutable model — always current, no memo churn
+    holderOf: (nodeId) => (rootRef.current ? M.holderPathOfNode(path, rootRef.current, nodeId) : path),
+    docPath: () => docPathRef.current,
   }), [path, act, onNavigate]);
 
   // apply the pending focus request once the fresh cells are in the DOM

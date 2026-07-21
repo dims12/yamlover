@@ -52,9 +52,11 @@
   (chapter-model.ts) requires `type === "string"`, and an annotated chunk's link marker is
   `type: "variant", valueType: "string"` (tagging turns it omni). Route on the VALUE facet like the
   renderer registry does. **Unblocked by 025** — an edit can no longer delete the annotations.
-- 027 POSTPONED: unified REFERENCE-entry UX in the projectional editor. The current `*` pointer
-  cell (typed pointer grammar + completion hints enumerated from the mounted document,
-  yamlover-editor/pointer-hints.tsx) works but is not the final shape. Redo entry as ONE unified
-  surface for every reference-like value — pointers/links, queries (`GET /api/query` expressions),
-  and later anchors: one cell grammar, one keyboard typeahead, and a target index shared with the
-  tag picker (item 015). Until then the pointer cell stays as-is.
+- ~~027 POSTPONED: unified REFERENCE-entry UX in the projectional editor~~ — DONE (2026-07-21):
+  the `*` pointer cell now hosts the SHARED query-cell kit (query-cells.tsx — the breadcrumb
+  machinery in PICK mode): server-backed candidates (`GET /api/query` at the holder), the scope
+  ladder (`*` bare / `*:` / `*::`), live TOC filtering through the shared TocFilterSession, TOC
+  click inserts the picked path spelled in the chosen scope, Enter reduces the query to a
+  link-arity pointer. The tag picker's search row runs on the same kit (annotate.tsx);
+  yamlover-editor/pointer-hints.tsx deleted. State tables: QUERY_EDITOR.yamlover (pick mode),
+  YAMLOVER_EDITOR.yamlover (pointer_* states).

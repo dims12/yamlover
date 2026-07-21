@@ -140,18 +140,112 @@ body {
   align-items: center;
   flex-wrap: wrap;
   min-height: 1.3em; /* keep the bar from collapsing before the head loads */
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .crumb {
   color: var(--fg);
   text-decoration: none;
 }
-.crumb:hover {
-  color: var(--accent);
-  text-decoration: underline;
-}
 .crumb-sep {
   color: var(--dim);
   margin: 0 6px;
+}
+/* --- the editable breadcrumb (Breadcrumb.tsx): a row of smart cells ----------
+   Cells follow the yamlover editor's editable look: accent focus ring, danger
+   error ring, dim ellipsis placeholder. The dropdown is literal TOC rows. */
+.crumb-slot {
+  position: relative; /* anchors the completion dropdown under its cell */
+  display: inline-flex;
+  align-items: center;
+}
+.crumb-cell {
+  outline: none;
+  border-radius: 4px;
+  min-width: 6px;
+  display: inline-block;
+  padding: 0 3px;
+  cursor: text;
+  transition: box-shadow 0.12s, background 0.12s;
+  white-space: pre;
+}
+.crumb-cell:hover {
+  background: var(--hover, rgba(127, 127, 127, 0.06));
+}
+.crumb-cell:focus {
+  background: var(--hover, rgba(127, 127, 127, 0.08));
+  box-shadow: 0 0 0 2px var(--accent); /* the focused-cell ring, as in the yamlover editor */
+}
+.crumb-cell.edit-error {
+  box-shadow: 0 0 0 2px var(--danger, #e5484d); /* the query does not parse (tint, not a block) */
+}
+.crumb-cell:empty::before {
+  content: attr(data-placeholder);
+  color: var(--dim, #777);
+  opacity: 0.6;
+}
+/* the shared query-cell row (query-cells.tsx): inside the breadcrumb the wrapper melts
+   into the nav's flex row so slots/tail lay out exactly as before the extraction */
+.crumbs-cells {
+  display: contents;
+}
+.crumbs-tail {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 40px;
+  cursor: text;
+}
+.crumbs-clear {
+  background: none;
+  border: none;
+  color: var(--dim, #777);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 6px;
+}
+.crumbs-clear:hover {
+  color: var(--fg);
+}
+/* the completion dropdown: literally TOC rows (TreeRow) in a left-pane-styled panel.
+   PORTALED to the body (query-cells.tsx sets the fixed coordinates inline) so no ancestor
+   overflow box — the annotate popup, a scrolling pane — can clip it. */
+.crumb-dd {
+  position: fixed;
+  z-index: 1010; /* above the annotate popup (1000) */
+  min-width: 260px;
+  max-width: calc(100vw - 8px);
+  max-height: 18em;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 0;
+}
+.crumb-dd .tree-row {
+  cursor: pointer;
+  white-space: nowrap;
+}
+.crumb-dd .tree-row.hi {
+  background: var(--line);
+}
+.crumb-dd .icon.opicon {
+  color: var(--dim, #777);
+}
+.tree-row-detail {
+  margin-left: auto;
+  color: var(--dim, #777);
+  font-size: 11px;
+  padding-right: 8px;
+}
+/* a query-filter MATCH row in the filtered TOC */
+.tree-row.match > .tree-label {
+  color: var(--accent);
+  font-weight: 600;
+}
+.toc-filter-note {
+  padding: 6px 12px;
+  color: var(--dim, #777);
+  font-size: 12px;
 }
 /* --- long-running server tasks (indexing, hashing, …) ---------------------- */
 /* the topbar's right group (task chips + the fragments-pane toggle) — pinned to the right edge so
@@ -1031,23 +1125,15 @@ a.chunk-index:hover {
 }
 /* the pointer cell's COMPLETION HINTS: the wrap anchors the popup right under the editable;
    candidates are canonical paths, one per row, the highlighted one inverted (arrow keys / hover) */
-.yed .yed-ptrwrap { position: relative; display: inline-block; }
-.yed .yed-hints {
-  position: absolute;
-  left: 0;
-  top: 100%;
-  z-index: 30;
-  min-width: 14ch;
-  max-height: 14em;
-  overflow-y: auto;
-  white-space: pre;
-  background: var(--bg-alt);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  padding: 2px;
-}
-.yed .yed-hint { display: block; padding: 1px 8px; cursor: pointer; }
-.yed .yed-hint.hi { background: var(--line); }
+/* the in-place reference editor: the pointer cell hosts the SHARED query cells (query-cells.tsx)
+   — same slots/dropdown as the breadcrumb, laid inline in the code row. The `.crumb-slot`
+   position:relative anchors the dropdown under its cell as in the breadcrumb. */
+.yed .yed-ptrwrap { position: relative; display: inline-flex; align-items: center; outline: none; }
+.yed .yed-ptrwrap .qcells { display: inline-flex; align-items: center; }
+.yed .yed-ptrwrap .crumbs-tail { flex: 0 0 auto; min-width: 10px; align-self: stretch; }
+.yed .yed-scope { opacity: 0.8; }
+/* a refused verbatim commit: the typed text stands with the ring (hints are never validators) */
+.yed .yed-ptr-error .crumb-cell { box-shadow: 0 0 0 2px var(--danger, #e5484d); }
 /* the append affordance: a quiet ＋ row that opens a fresh entry hole */
 .yed .yed-tail {
   background: none;
@@ -1881,16 +1967,37 @@ textarea.chapter-latex-src {
   outline: none;
   border-color: var(--dim);
 }
-/* the typeahead: the path input plus a suggestion list below it, spanning the menu width */
+/* the search row: the SHARED query cells (query-cells.tsx) in a bordered field spanning the
+   menu width — the dropdown is body-portaled like everywhere else, so the popup's own
+   overflow box never clips it */
 .annotate-typeahead {
   min-width: 0;
   position: relative;
   margin-top: auto; /* dock the search input to the BOTTOM — the free space of a stretched window
                        collects above it, so the title/swatches/tags stay packed at the top */
+  display: flex;
+  align-items: center;
+  padding: 3px 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-size: 12px;
 }
-.annotate-typeahead .annotate-taginput {
-  width: 100%;
-  box-sizing: border-box;
+.annotate-typeahead:focus-within {
+  border-color: var(--dim);
+}
+.annotate-typeahead .annotate-cells {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.annotate-typeahead .crumbs-tail {
+  min-width: 24px;
+}
+.annotate-busy {
+  color: var(--dim, #777);
 }
 /* matched named tags as badges (the highlighted one rings via .tagframe.sel) */
 .annotate-suggest {

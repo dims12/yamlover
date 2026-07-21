@@ -3,11 +3,10 @@
 // holes never shift server addresses), op emission per mutation, and the op-queue coalescing.
 import { describe, it, expect } from "vitest";
 import {
-  barePointer, buildModel, commitHoleAsSelf, commitSpine, dedentEntry, findEntry, indentEntry,
+  barePointer, buildModel, commitHoleAsSelf, commitSpine, dedentEntry, findEntry, holderPathOfNode, indentEntry,
   insertHoleAfter, parseTag, removeEntry, serializeMNode, setMetaTag, setNodeToken, setSelfValue,
   type MNode,
 } from "../../src/client/renderers/yamlover-editor/model";
-import { enumeratePointerTargets, filterPointerTargets } from "../../src/client/renderers/yamlover-editor/pointer-hints";
 import { enqueue, type OpQueue } from "../../src/client/renderers/yamlover-editor/ops";
 import { classifyHoleInput, quoteSource, unquoteSource } from "../../src/client/renderers/yamlover-editor/keys";
 import type { NodeJson } from "../../src/client/api";
@@ -240,39 +239,19 @@ describe("barePointer — commit-time pointer normalization", () => {
   });
 });
 
-describe("pointer hints — enumerate + filter", () => {
-  it("enumerates keys and ordinals in ONE index space, document scope, recursing into containers", () => {
+describe("holderPathOfNode — a reference cell's current-scope base", () => {
+  it("names the container holding the node; the root's holder is the enclosing directory", () => {
     const root = buildModel({
       path: ":d", type: "object", concrete: null, title: null, description: null,
       value: { pets: [{ name: "Rex" }, { name: "Whiskers" }] },
     });
-    expect(enumeratePointerTargets(root).map((t) => t.display)).toEqual([
-      ": pets", ": pets[0]", ": pets[0]: name", ": pets[1]", ": pets[1]: name",
-    ]);
-    const omni = buildModel(omniNode()); // keyed `description` CONSUMES index 0 — ordinals start at [1]
-    expect(enumeratePointerTargets(omni).map((t) => t.compact)).toEqual([":description", ":[1]", ":[2]"]);
-  });
-
-  it("skips uncommitted holes and the edited node itself", () => {
-    const root = buildModel(omniNode());
-    const hole = insertHoleAfter(root, root.id, null)!;
-    expect(enumeratePointerTargets(root)).toHaveLength(3); // the hole adds nothing
-    expect(enumeratePointerTargets(root, root.entries[2].node.id).map((t) => t.compact))
-      .toEqual([":description", ":[1]"]); // no pointer to the cell being edited
-    void hole;
-  });
-
-  it("filter is spacing-insensitive, ranks prefix first, caps the list", () => {
-    const targets = [
-      { display: ": pets", compact: ":pets" },
-      { display: ": pets[1]", compact: ":pets[1]" },
-      { display: ": humans: pet-name", compact: ":humans:pet-name" },
-    ];
-    expect(filterPointerTargets(targets, ":pe").map((t) => t.compact)).toEqual([":pets", ":pets[1]", ":humans:pet-name"]);
-    expect(filterPointerTargets(targets, ": pe").map((t) => t.compact)).toEqual([":pets", ":pets[1]", ":humans:pet-name"]);
-    expect(filterPointerTargets(targets, "pet-")).toEqual([{ display: ": humans: pet-name", compact: ":humans:pet-name" }]);
-    expect(filterPointerTargets(targets, "nosuch")).toEqual([]);
-    expect(filterPointerTargets(targets, "", 2)).toHaveLength(2); // empty query: the head, capped
+    const pets = root.entries[0].node;
+    const rex = pets.entries[0].node;
+    const name = rex.entries[0].node;
+    expect(holderPathOfNode(":d", root, pets.id)).toBe(":d");
+    expect(holderPathOfNode(":d", root, rex.id)).toBe(":d:pets");
+    expect(holderPathOfNode(":d", root, name.id)).toBe(":d:pets[0]");
+    expect(holderPathOfNode(":d", root, root.id)).toBe(":"); // the document root itself
   });
 });
 

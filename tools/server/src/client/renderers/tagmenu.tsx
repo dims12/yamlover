@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { Annotation, TagRef, annotate, deleteAnnotation, fetchAnnotations } from "../api";
-import { AnnotationMenu, rememberTag, type CreateEntry } from "./annotate";
+import { AnnotationMenu, rememberTag, withinTocPane, type CreateEntry } from "./annotate";
 import { canonPath, displayPath } from "../paths";
 import { creatablesFor, useCreatableLabels } from "./create";
 
@@ -72,10 +72,12 @@ export function useExplorerTagMenu(opts?: {
     if (!menu) return;
     const onDown = (e: MouseEvent) => {
       if (ref.current?.contains(e.target as Node)) return;
+      if (withinTocPane(e.target)) return; // a TOC row click APPLIES the tag — never a close
       close();
     };
     const onShift = (e: Event) => {
       if (e.target instanceof Node && ref.current?.contains(e.target)) return;
+      if (withinTocPane(e.target)) return;
       close();
     };
     document.addEventListener("mousedown", onDown);

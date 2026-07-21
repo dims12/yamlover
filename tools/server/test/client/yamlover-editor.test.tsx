@@ -3,14 +3,17 @@
 // `- ` / `k: ` shaping, `{` flow pairing, `*` pointer cells), Enter opens sibling holes, Backspace
 // drops empty entries, Tab indents — and the op queue flushes the expected surgical batches.
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { render, cleanup, waitFor, fireEvent, act } from "@testing-library/react";
+import { TocFilterCtx, useTocFilterSession } from "../../src/client/toc-filter-session";
 
-const { editChunks, fetchNode, fetchAnnotations } = vi.hoisted(() => ({
+const { editChunks, fetchNode, fetchAnnotations, queryTree, queryFilter } = vi.hoisted(() => ({
   editChunks: vi.fn(),
   fetchNode: vi.fn(),
   fetchAnnotations: vi.fn().mockResolvedValue([]),
+  queryTree: vi.fn(),
+  queryFilter: vi.fn(),
 }));
-vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), editChunks, fetchNode, fetchAnnotations }));
+vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), editChunks, fetchNode, fetchAnnotations, queryTree, queryFilter }));
 
 import { YamloverEditor } from "../../src/client/renderers/yamlover-editor/editor";
 import { NodeView } from "../../src/client/NodeView";
@@ -38,6 +41,9 @@ const ARR = {
 beforeEach(() => {
   editChunks.mockReset().mockResolvedValue({ ok: true });
   fetchNode.mockReset().mockResolvedValue(OMNI);
+  // the reference cell's server-backed hints/filter: empty by default (operators-only dropdown)
+  queryTree.mockReset().mockResolvedValue([]);
+  queryFilter.mockReset().mockRejectedValue(new Error("no filter mock")); // pick Enter falls back to verbatim
 });
 afterEach(cleanup);
 
@@ -60,6 +66,18 @@ function openHole(container: HTMLElement): HTMLElement {
   fireEvent.click(container.querySelector(".yed-tail")!);
   const holes = container.querySelectorAll<HTMLElement>(".yed-hole");
   return holes[holes.length - 1];
+}
+
+/** Put the collapsed caret at `offset` inside a cell (jsdom Range) — the query-cell key
+ *  grammar (merges, scope steps) reads the caret position. */
+function setCaret(el: HTMLElement, offset: number) {
+  const sel = window.getSelection()!;
+  const r = document.createRange();
+  const t = el.firstChild ?? el;
+  r.setStart(t, offset);
+  r.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(r);
 }
 
 describe("rendering — the cell tree mirrors the structure", () => {
@@ -137,13 +155,13 @@ describe("hole typing — structure materializes as you type", () => {
     expect(container.querySelectorAll(".yed-hole").length).toBeGreaterThan(0); // the inner cell
   });
 
-  it("`*` opens a pointer cell", async () => {
+  it("`*` opens a pointer cell (the shared query cells)", async () => {
     const { container } = await mount();
     const hole = openHole(container);
     type(hole, "*pets");
     const row = hole.closest(".yed-row") ?? container;
     expect(container.textContent).toContain("*");
-    const editable = Array.from(container.querySelectorAll<HTMLElement>('[data-yed-cell]')).find((el) => el.textContent === "pets");
+    const editable = Array.from(container.querySelectorAll<HTMLElement>(".yed-ptrwrap .crumb-cell")).find((el) => el.textContent === "pets");
     expect(editable).toBeTruthy();
     void row;
   });
@@ -721,8 +739,13 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     // the root hole is back; now the same for a pointer
     hole = container.querySelector<HTMLElement>(".yed-hole")!;
     type(hole, "*");
-    const raw = container.querySelector<HTMLElement>('[data-yed-cell].s') ?? container.querySelector<HTMLElement>(".editable.s")!;
-    fireEvent.keyDown(raw!, { key: "Backspace" });
+    const raw = await waitFor(() => {
+      const el = container.querySelector<HTMLElement>(".yed-ptrwrap .crumb-cell");
+      expect(el).toBeTruthy();
+      return el!;
+    });
+    setCaret(raw, 0); // Backspace at the empty cell's start, at the ladder's floor → dismantle
+    fireEvent.keyDown(raw, { key: "Backspace" });
     await waitFor(() => expect(container.textContent).not.toContain("*"));
     expect(container.querySelector(".yed-hole")).toBeTruthy();
   });
@@ -749,117 +772,134 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     expect(rows[1].querySelector(".yaml-dash")).toBeNull(); // no marker — entered as-is
   });
 
-  it("`*` makes the ROOT a pointer cell", async () => {
+  it("`*` makes the ROOT a pointer cell; Enter commits (blur CANCELS — breadcrumb semantics)", async () => {
     const { container } = await mount(":n");
     const hole = container.querySelector<HTMLElement>(".yed-hole")!;
     type(hole, "*pets");
-    const cell = Array.from(container.querySelectorAll<HTMLElement>("[data-yed-cell]")).find((el) => el.textContent === "pets");
+    const cell = Array.from(container.querySelectorAll<HTMLElement>(".yed-ptrwrap .crumb-cell")).find((el) => el.textContent === "pets");
     expect(cell).toBeTruthy();
-    fireEvent.blur(cell!);
+    fireEvent.keyDown(cell!, { key: "Enter" }); // the dangling filter (rejected mock) hands the query back verbatim
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n", op: "emplace", yamlover: "*pets" }]), { timeout: 2000 });
   });
 });
 
-describe("pointer cell — spaced commit, error ring, completion hints", () => {
+describe("pointer cell — the SHARED query cells (pick mode): scope ladder, dropdown, reduction", () => {
   const PETS = {
     path: ":doc", type: "object", concrete: "yamlover", title: null, description: null,
     value: { pets: [{ name: "Rex" }, { name: "Whiskers" }] },
   };
+  const TREE = (path: string, label: string) => ({ path, label, type: "object", format: null, concrete: null, hasChildren: false, children: [] });
+  const FILTER = (matches: string[]) => ({ root: TREE(":", "r"), matches, truncated: false });
   beforeEach(() => fetchNode.mockResolvedValue(PETS));
 
   const pointerCell = (container: HTMLElement): HTMLElement =>
-    container.querySelector<HTMLElement>(".yed-ptrwrap [contenteditable]")!;
-  const hintTexts = (container: HTMLElement): (string | null)[] =>
-    Array.from(container.querySelectorAll(".yed-hint")).map((h) => h.textContent);
+    container.querySelector<HTMLElement>(".yed-ptrwrap .crumb-cell")!;
 
-  it("the CANONICAL spaced form commits: `*` + `: pets[1]` + Enter → BARE op + next hole", async () => {
+  it("a bare `*`: candidates are the HOLDER's children (`?` at the holder); the dropdown shows TOC rows", async () => {
+    queryTree.mockResolvedValue([TREE(":doc:pets", "pets")]);
     const { container } = await mount(":doc");
     type(openHole(container), "*");
+    await waitFor(() => expect(pointerCell(container)).toBeTruthy());
+    await waitFor(() => expect(queryTree).toHaveBeenCalledWith("?", ":doc")); // bare scope, at = the holder
+    // the dropdown is PORTALED to the body (never clipped by a scrolling ancestor)
+    await waitFor(() => expect(document.querySelector(".crumb-dd .tree-label")?.textContent).toBe("pets"));
+  });
+
+  it("`:` in the empty first cell CLIMBS the scope ladder (the chip shows it); Backspace steps down", async () => {
+    const { container } = await mount(":doc");
+    type(openHole(container), "*");
+    await waitFor(() => expect(pointerCell(container)).toBeTruthy());
     const cell = pointerCell(container);
-    type(cell, ": pets[1]");
+    fireEvent.keyDown(cell, { key: ":" });
+    expect(container.querySelector(".yed-scope")?.textContent).toBe(":");
+    fireEvent.keyDown(cell, { key: ":" });
+    expect(container.querySelector(".yed-scope")?.textContent).toBe("::");
+    await waitFor(() => expect(queryTree).toHaveBeenCalledWith(":: ?", ":doc"));
+    setCaret(cell, 0);
+    fireEvent.keyDown(cell, { key: "Backspace" });
+    expect(container.querySelector(".yed-scope")?.textContent).toBe(":");
+  });
+
+  it("Enter REDUCES the typed query to the first match, spelled in the chosen scope: bare op + advance", async () => {
+    queryFilter.mockResolvedValue(FILTER([":doc:pets[1]"]));
+    const { container } = await mount(":doc");
+    type(openHole(container), "*");
+    await waitFor(() => expect(pointerCell(container)).toBeTruthy());
+    const cell = pointerCell(container);
+    type(cell, "pets[1]"); // bare scope — relative to the holder :doc
     fireEvent.keyDown(cell, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":doc[1]", op: "insert", yamlover: "*:pets[1]" },
+      { path: ":doc[1]", op: "insert", yamlover: "*pets[1]" },
     ]), { timeout: 2000 });
     expect(container.querySelectorAll(".yed-hole:not(.yed-tail)").length).toBeGreaterThan(0); // advanced
   });
 
-  it("Enter on an INVALID pointer paints the error ring and stays", async () => {
+  it("free text with NO match still commits verbatim (dangling allowed — hints are never validators)", async () => {
+    queryFilter.mockResolvedValue(FILTER([]));
     const { container } = await mount(":doc");
     type(openHole(container), "*");
+    await waitFor(() => expect(pointerCell(container)).toBeTruthy());
     const cell = pointerCell(container);
-    type(cell, ":::"); // world scope with no authority — does not parse
-    fireEvent.keyDown(cell, { key: "Enter" });
-    expect(cell.className).toContain("edit-error");
-    expect(editChunks).not.toHaveBeenCalled();
-  });
-
-  it("a quoted key holding a space is rejected VISIBLY (the wire cannot carry it)", async () => {
-    const { container } = await mount(":doc");
-    type(openHole(container), "*");
-    const cell = pointerCell(container);
-    type(cell, ": 'a b'");
-    fireEvent.keyDown(cell, { key: "Enter" });
-    expect(cell.className).toContain("edit-error");
-    expect(editChunks).not.toHaveBeenCalled();
-  });
-
-  it("hints: open on focus, filter with typing, ArrowDown + Enter accepts and commits", async () => {
-    const { container } = await mount(":doc");
-    type(openHole(container), "*");
-    const cell = pointerCell(container);
-    fireEvent.focus(cell);
-    expect(container.querySelector(".yed-hints")).toBeTruthy();
-    expect(hintTexts(container)).toContain(": pets[1]");
-    type(cell, ":pets[1]:"); // spacing-insensitive filter narrows to the child
-    expect(hintTexts(container)).toEqual([": pets[1]: name"]);
-    fireEvent.keyDown(cell, { key: "ArrowDown" });
-    expect(container.querySelector(".yed-hint.hi")!.textContent).toBe(": pets[1]: name");
-    fireEvent.keyDown(cell, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":doc[1]", op: "insert", yamlover: "*:pets[1]:name" },
-    ]), { timeout: 2000 });
-    expect(container.querySelector(".yed-hints")).toBeNull();
-  });
-
-  it("Escape closes the popup; free text with NO match still commits (dangling allowed)", async () => {
-    const { container } = await mount(":doc");
-    type(openHole(container), "*");
-    const cell = pointerCell(container);
-    fireEvent.focus(cell);
-    expect(container.querySelector(".yed-hints")).toBeTruthy();
-    fireEvent.keyDown(cell, { key: "Escape" });
-    expect(container.querySelector(".yed-hints")).toBeNull();
-    type(cell, ": nowhere[7]");
+    fireEvent.keyDown(cell, { key: ":" }); // → document scope `*:`
+    type(cell, "nowhere[7]");
     fireEvent.keyDown(cell, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
       { path: ":doc[1]", op: "insert", yamlover: "*:nowhere[7]" },
     ]), { timeout: 2000 });
   });
 
-  it("clicking a hint commits the CANDIDATE, never the half-typed text", async () => {
+  it("UNPARSABLE free text keeps the typed text on screen with the error ring (no silent revert)", async () => {
+    queryFilter.mockRejectedValue(new Error("400"));
     const { container } = await mount(":doc");
     type(openHole(container), "*");
+    await waitFor(() => expect(pointerCell(container)).toBeTruthy());
     const cell = pointerCell(container);
-    type(cell, ":pets[0]:");
-    const hint = container.querySelector<HTMLElement>(".yed-hint")!;
-    expect(hint.textContent).toBe(": pets[0]: name");
-    fireEvent.mouseDown(hint); // preventDefault'ed — the cell never blurs first
-    fireEvent.click(hint);
+    type(cell, "a[x]"); // malformed index — not a pointer the wire can carry
+    fireEvent.keyDown(cell, { key: "Enter" });
+    await waitFor(() => expect(container.querySelector(".yed-ptr-error")).toBeTruthy(), { timeout: 2000 });
+    expect(container.querySelector(".yed-ptrwrap")!.textContent).toContain("a[x]"); // the text stands
+    expect(editChunks).not.toHaveBeenCalled();
+  });
+
+  it("a TOC pick (the session's onPick) lands the picked path IN THE CELLS, spelled in the current scope", async () => {
+    queryFilter.mockResolvedValue(FILTER([":doc:pets[0]:name"]));
+    let session!: import("../../src/client/toc-filter-session").TocFilterSession;
+    function Host() {
+      session = useTocFilterSession();
+      return (
+        <TocFilterCtx.Provider value={session}>
+          <YamloverEditor path=":doc" onNavigate={() => {}} />
+        </TocFilterCtx.Provider>
+      );
+    }
+    const { container } = render(<Host />);
+    await waitFor(() => expect(container.querySelector(".yed-row")).toBeTruthy());
+    type(openHole(container), "*");
+    await waitFor(() => expect(pointerCell(container)).toBeTruthy());
+    await waitFor(() => expect(session.active).toBe(true)); // editing a reference claims the TOC filter
+    act(() => session.pick(":doc:pets[0]:name")); // a TOC row click routes here
+    const cells = () => Array.from(container.querySelectorAll<HTMLElement>(".yed-ptrwrap .crumb-cell")).map((c) => c.textContent);
+    await waitFor(() => expect(cells()).toEqual(["pets[0]", "name"])); // spelled relative (bare scope)
+    // the pick INSERTED, not committed — Enter commits the reduced pointer
+    fireEvent.keyDown(pointerCell(container), { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":doc[1]", op: "insert", yamlover: "*:pets[0]:name" },
+      { path: ":doc[1]", op: "insert", yamlover: "*pets[0]:name" },
     ]), { timeout: 2000 });
+    await waitFor(() => expect(session.active).toBe(false)); // the commit released the TOC filter
   });
 
   it("ROOT pointer: commits and STAYS (no entry — no advance)", async () => {
+    queryFilter.mockResolvedValue(FILTER([]));
     fetchNode.mockResolvedValue({
       path: ":n", type: "null", format: null, valueType: "null", concrete: "file/yamlover",
       documentPath: ":n", title: null, description: null, value: null, comments: {},
     });
     const { container } = await mount(":n");
     type(container.querySelector<HTMLElement>(".yed-hole")!, "*");
+    await waitFor(() => expect(pointerCell(container)).toBeTruthy());
     const cell = pointerCell(container);
-    type(cell, ": pets[1]");
+    fireEvent.keyDown(cell, { key: ":" }); // document scope
+    type(cell, "pets[1]");
     fireEvent.keyDown(cell, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
       { path: ":n", op: "emplace", yamlover: "*:pets[1]" },
@@ -875,8 +915,10 @@ describe("pointer cell — spaced commit, error ring, completion hints", () => {
     });
     const { container } = await mount(":d");
     const cell = pointerCell(container);
-    expect(cell.textContent).toBe(": pets[1]"); // the sidecar's spaced display form
-    fireEvent.keyDown(cell, { key: "Enter" });
+    expect(cell.textContent).toBe("pets[1]"); // the cells spell the body; the chip carries the `:`
+    expect(container.querySelector(".yed-scope")?.textContent).toBe(":");
+    fireEvent.focus(cell);
+    fireEvent.keyDown(cell, { key: "Enter" }); // the dangling filter (rejected mock) hands the query back
     await waitFor(() => expect(container.querySelectorAll(".yed-hole:not(.yed-tail)").length).toBe(1), { timeout: 2000 });
     expect(editChunks).not.toHaveBeenCalled(); // nothing re-emitted
   });

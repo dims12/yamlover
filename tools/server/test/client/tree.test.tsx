@@ -69,9 +69,34 @@ describe("Tree", () => {
     expect(onLoad).toHaveBeenCalledWith(":c", undefined); // a plain node: default depth (one level)
   });
 
+  it("initialOpen={false} keeps even the depth-0 root collapsed (a TOC-search result row)", () => {
+    render(<Tree node={tree} current=":" onSelect={() => {}} onLoadChildren={noop} initialOpen={false} />);
+    expect(screen.getByText("root")).toBeTruthy(); // the row itself renders
+    expect(screen.queryByText("a")).toBeNull(); // …but does not spring open
+  });
+
   it("renders leaves without a toggle", () => {
     render(<Tree node={tree} current=":a:b" onSelect={() => {}} onLoadChildren={noop} />);
     const bRow = screen.getByText("b").closest(".tree-row") as HTMLElement;
     expect(within(bRow).queryByRole("button")).toBeNull();
+  });
+
+  it("filterMode: a pruned tree arrives expanded down to the matches, match rows marked", () => {
+    // the pruned shape: root → a → a:b (the match); `c` was pruned away server-side
+    const pruned: TreeNode = {
+      ...tree,
+      children: [
+        {
+          ...tree.children[0],
+          children: [{ ...tree.children[0].children[0], match: true }],
+        },
+      ],
+    };
+    render(<Tree node={pruned} current="" onSelect={() => {}} onLoadChildren={noop} filterMode />);
+    // every ancestor with pruned children starts OPEN — b is visible without any clicks
+    const bRow = screen.getByText("b").closest(".tree-row") as HTMLElement;
+    expect(bRow.className).toContain("match");
+    expect(screen.getByText("a").closest(".tree-row")?.className).not.toContain("match");
+    expect(bRow.className).not.toContain("selected"); // current="" suppresses selection
   });
 });

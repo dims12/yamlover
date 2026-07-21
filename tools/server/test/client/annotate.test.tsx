@@ -116,15 +116,17 @@ describe("AnnotationMenu remembered-tag pruning", () => {
     expect(container.querySelector(".annotate-recents .tagtag.on")?.textContent).toBe("forgotten");
   });
 
-  it("keeps a recent that exists but only while it IS a tag node", async () => {
+  it("keeps a recent that exists even when it is NOT a tag-format node (any node can be a tag)", async () => {
     localStorage.setItem(RECENT_KEY, JSON.stringify([{ path: ":notes", name: "notes", color: null }]));
-    mockFetch({ ":notes": { path: ":notes", format: null, value: {} } }); // exists, not a tag
+    mockFetch({ ":notes": { path: ":notes", format: null, value: {} } }); // exists — that is enough
 
     const { container } = render(
       <AnnotationMenu x={0} y={0} applied={[DEFAULT_TAG]} mode="create" onPick={vi.fn()} onClose={vi.fn()} />,
     );
-    await waitFor(() => expect(container.querySelectorAll(".annotate-recents .tagtag")).toHaveLength(0));
-    expect(JSON.parse(localStorage.getItem(RECENT_KEY)!)).toEqual([]);
+    // liveness is EXISTENCE now: the non-tag node survives the prune (still a valid annotation ref)
+    await new Promise((r) => setTimeout(r, 30));
+    await waitFor(() => expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).toEqual(["notes"]));
+    expect(JSON.parse(localStorage.getItem(RECENT_KEY)!)).toEqual([{ path: ":notes", name: "notes", color: null }]);
   });
 });
 
