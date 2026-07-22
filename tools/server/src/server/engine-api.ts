@@ -54,7 +54,7 @@ import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
 import type { Node as IrNode, Document, Comment as IrComment, Entry as IrEntry } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
-import { deriveMemberEncoding } from "./derive-concrete.js";
+import { deriveMemberEncoding, deriveDirEditRoute } from "./derive-concrete.js";
 import { displayKind, ownedEntries, typeName, facetsOf } from "./node-kind.js";
 import { TaskRegistry } from "./tasks.js";
 import type { TaskHandle, TaskInfo } from "./tasks.js";
@@ -2651,6 +2651,9 @@ function entryHead(lines: string[], e: ChapterEntry): string {
  *  it also carries keyed fields there (an omni node — see {@link itemHasFields}). */
 function isContainerEntry(lines: string[], e: ChapterEntry, childIndent: number): boolean {
   const head = entryHead(lines, e);
+  // compact `- - x` nesting: the head itself opens a nested item — it IS the first child, even
+  // when the entry is a single line (a scalar head can never start `- `; it would be quoted)
+  if (head === "-" || head.startsWith("- ")) return true;
   if (/^[|>][+-]?\d*$/.test(head.trim())) return itemHasFields(lines, e, childIndent); // omni block, or plain
   // The inline `key:` test must not read past a trailing comment: a scalar's comment may itself
   // contain a colon (`theme: dark   # ui palette: dark | light`), which is prose, not a mapping.
@@ -2931,6 +2934,12 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
 
   if (op === "remove") {
     if (!entry) throw new Error(`no entry at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+    if (entry.inline) {
+      // the entry lives on its parent's `- ` marker line — drop only the inline part, keeping
+      // the marker (splicing the whole line would take the parent and orphan its other children)
+      lines[entry.start] = `${" ".repeat(indentOf(lines[entry.start]))}-`;
+      return;
+    }
     lines.splice(entry.start, entry.end - entry.start);
     return;
   }
@@ -2971,10 +2980,13 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
   }
   const tag = metaTag(meta, had.tag, op === "emplace");
 
-  if (inlineKey) {
-    // `- title: X` — rewrite the marker line in place, keeping the `- `
+  if (entry.inline) {
+    // an entry living on its parent's `- ` marker line (`- title: X`, or a compact `- - x`
+    // nested item) — rewrite the marker line in place, keeping the outer `- `
     const pad = " ".repeat(indentOf(lines[entry.start]));
-    lines[entry.start] = `${pad}- ${tag ? tag + " " : ""}${inlineKey}: ${next.scalar ?? '""'}`;
+    lines[entry.start] = inlineKey
+      ? `${pad}- ${tag ? tag + " " : ""}${inlineKey}: ${next.scalar ?? '""'}`
+      : `${pad}- - ${tag ? tag + " " : ""}${next.scalar ?? '""'}`;
     return;
   }
   lines.splice(entry.start, entry.end - entry.start, ...renderNode(next, r.indent, marker(seg), tag));
@@ -3353,6 +3365,19 @@ function editJsonScalar(src: string, within: Seg[], token: string): string {
  *  goes through the document parser. */
 const isPointerValue = (src: string): boolean => /^\*\S*$/.test(src.trim()) && !src.includes("\n");
 
+/** The deepest prefix of `segs` that is an ON-DISK dir-backed document (its
+ *  `.yamlover/body.yamlover` exists) — the filesystem's view of the document root, independent
+ *  of the index. Null when no prefix (the served root included) has a body on disk. */
+function fsDocRootSegs(dataRoot: string, segs: Seg[]): { docSegs: Seg[]; bodyFile: string } | null {
+  for (let i = segs.length; i >= 0; i--) {
+    const sub = segs.slice(0, i);
+    if (!sub.every((g) => typeof g === "string")) continue;
+    const body = path.resolve(dataRoot, ...sub.map(String), ".yamlover", "body.yamlover");
+    if (fs.existsSync(body)) return { docSegs: sub, bodyFile: body };
+  }
+  return null;
+}
+
 /** A filesystem directory that backs NO yamlover document — it has no `.yamlover/body.yamlover` to
  *  splice, so what you add to it is a member file/directory, not an entry in some source. */
 function isPlainDir(dataRoot: string, s: Store, segs: Seg[]): boolean {
@@ -3448,10 +3473,12 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       const isDirTarget = absDir !== null && fs.existsSync(absDir) && fs.statSync(absDir).isDirectory();
       if (isDirTarget) {
         const bodyFile = path.join(absDir, ".yamlover", "body.yamlover");
-        // route by what the STORE knows, not the filesystem: a body materialized EARLIER IN THIS
-        // BATCH exists on disk but the stale store would still route the edit to the enclosing
-        // document — within=[] against the dir's own body is correct in both worlds
-        const docRootKnown = !!s.node(storePath(stripped))?.meta?.documentRoot;
+        // the routing DECISION is derive-concrete.ts's (deriveDirEditRoute) — only the observed
+        // state is gathered here; see the policy's doc for why disk and index must agree
+        const target = {
+          hasBody: fs.existsSync(bodyFile),
+          indexedAsDocument: !!s.node(storePath(stripped))?.meta?.documentRoot,
+        };
         const valueSrc = String(e.yamlover ?? "");
         const meta = e.meta === undefined ? undefined : e.meta === null ? null : String(e.meta);
         const at = typeof e.at === "number" && Number.isFinite(e.at) && e.at >= 0 ? Math.floor(e.at) : undefined;
@@ -3466,16 +3493,17 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
           const p = payloadFacets(valueSrc);
           const container = p.keyed.length > 0 || p.ordinal.length > 0;
           const key = e.key === undefined ? undefined : String(e.key);
-          if (deriveMemberEncoding({ keyed: key !== undefined, container }) === "dir") {
+          const route = deriveDirEditRoute(target, { keyed: key !== undefined, container });
+          if (route === "dir") {
             writeDirMemberTree(dataRoot, absDir, key!, valueSrc, meta);
             created.push(segsToStr([...stripped, key!]));
             continue;
           }
-          if (!docRootKnown && stripped.length) { pushBodyOp(key); continue; }
-          // an established document root: fall through — its body's own positional index space
-          // (chapter subchapter inserts and the like) applies
-        } else if (op === "emplace" && !docRootKnown && stripped.length && editSegs === stripped) {
-          // scalar self-value of a BODYLESS dir: materialize the overlay, splice the self line
+          if (route === "body") { pushBodyOp(key); continue; }
+          // "document": an established document root — fall through, its body's own positional
+          // index space (chapter subchapter inserts and the like) applies
+        } else if (op === "emplace" && editSegs === stripped && deriveDirEditRoute(target) === "body") {
+          // self-value of a dir with no established body: materialize the overlay, splice the self line
           pushBodyOp();
           continue;
         }
@@ -3493,7 +3521,15 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       continue;
     }
 
-    const { docSegs, bodyFile, dirBacked } = chapterSource(dataRoot, s, editSegs, BLOCK_YAML);
+    // A document body BORN EARLIER IN THIS BATCH (ensureDirBody / writeDirMemberTree) is
+    // invisible to the stale index: documentRootSegs would route a deep path to the ENCLOSING
+    // document. The filesystem already knows — the deepest on-disk dir-backed document wins
+    // when it sits STRICTLY deeper than the index's answer.
+    const fsDoc = fsDocRootSegs(dataRoot, editSegs);
+    const { docSegs, bodyFile, dirBacked } =
+      fsDoc && fsDoc.docSegs.length > documentRootSegs(s, editSegs).length
+        ? { ...fsDoc, dirBacked: true }
+        : chapterSource(dataRoot, s, editSegs, BLOCK_YAML);
     if (op === "insert" && !e.concrete?.includes("/")) {
       // an APPEND (no trailing index, or one past the end) creates the parent's new last child
       const last = editSegs[editSegs.length - 1];

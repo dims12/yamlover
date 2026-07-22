@@ -929,6 +929,33 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     expect(dBody(root)).toBe("12\n");
   });
 
+  it("the served ROOT of an empty project gains .yamlover/body.yamlover on its first keyed insert", async () => {
+    const root = tmpTree({}); // an empty project: no body, no files — only what the server adds
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: "[0]", op: "insert", key: "a", yamlover: "12" });
+    expect(r.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe("a: 12\n");
+    expect((call(h, "/api/json", { path: "", depth: ".inf" }).json.value as Record<string, unknown>).a).toBe(12);
+    // the body now exists — the NEXT edit takes the established route and appends to it
+    const r2 = await callBody(h, "POST", "/api/edit", { path: "[1]", op: "insert", key: "b", yamlover: "34" });
+    expect(r2.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe("a: 12\nb: 34\n");
+    // a keyed CONTAINER at the root derives to a real subdirectory, same as any dir target
+    const r3 = await callBody(h, "POST", "/api/edit", { path: "[2]", op: "insert", key: "sub", yamlover: "c: 1" });
+    expect(r3.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, "sub", ".yamlover", "body.yamlover"), "utf8")).toBe("c: 1\n");
+  });
+
+  it("emplace onto the BODYLESS served root materializes the body with the self-value", async () => {
+    const root = tmpTree({});
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: "", op: "emplace", yamlover: '"hello"' });
+    expect(r.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe("hello\n");
+  });
+
   it("DOD: one empty directory takes a self value, a scalar field, and a subdirectory", async () => {
     const root = emptyDirTree();
     const h = createHandlers(root, { gitignore: false });
@@ -945,5 +972,68 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     const m = j.value.$yamloverMixed!;
     expect(m.value).toBe(12); // the dir's own scalar line
     expect(Object.fromEntries(m.entries!.map((e) => [e.key, e.value]))).toEqual({ scale: 10, sub: { a: 1 } });
+  });
+});
+
+describe("/api/edit — compact `- - x` nesting (a one-line nested item is a container)", () => {
+  const emptyDirTree = () => {
+    const root = tmpTree({ "readme.txt": "x" });
+    fs.mkdirSync(path.join(root, "d"));
+    return root;
+  };
+  const dBody = (root: string) => fs.readFileSync(path.join(root, "d", ".yamlover", "body.yamlover"), "utf8");
+
+  it("the editor's typing flow: `- 12` then a nested `- - 12` / `- 13`, one request per pause", async () => {
+    const root = emptyDirTree();
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    await callBody(h, "POST", "/api/edit", { path: ":d[0]", op: "insert", yamlover: "12" });
+    await callBody(h, "POST", "/api/edit", { path: ":d[1]", op: "insert", yamlover: "- 12" });
+    // descending INTO the one-line `- - 12` (the "cannot descend into a scalar element" bug)
+    const r = await callBody(h, "POST", "/api/edit", { path: ":d[1][1]", op: "insert", yamlover: "13" });
+    expect(r.status).toBe(200);
+    expect(dBody(root)).toBe("- 12\n- - 12\n  - 13\n");
+    expect(call(h, "/api/json", { path: ":d[1]", depth: ".inf" }).json.value).toEqual([12, 13]);
+  });
+
+  it("the same flow typed FAST — one batch, the folder's body born mid-batch", async () => {
+    const root = emptyDirTree();
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { edits: [
+      { path: ":d[0]", op: "insert", yamlover: "12" },
+      { path: ":d[1]", op: "insert", yamlover: "- 12" },
+      { path: ":d[1][1]", op: "insert", yamlover: "13" },
+    ] });
+    expect(r.status).toBe(200);
+    expect(dBody(root)).toBe("- 12\n- - 12\n  - 13\n");
+  });
+
+  it("the same fast batch at the served ROOT of an empty project", async () => {
+    const root = tmpTree({});
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { edits: [
+      { path: "[0]", op: "insert", yamlover: "12" },
+      { path: "[1]", op: "insert", yamlover: "- 12" },
+      { path: "[1][1]", op: "insert", yamlover: "13" },
+    ] });
+    expect(r.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe("- 12\n- - 12\n  - 13\n");
+  });
+
+  it("emplace and remove on the INLINE nested item keep the outer `- ` marker", async () => {
+    const root = emptyDirTree();
+    fs.mkdirSync(path.join(root, "d", ".yamlover"));
+    fs.writeFileSync(path.join(root, "d", ".yamlover", "body.yamlover"), "- 12\n- - 12\n  - 13\n");
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: ":d[1][0]", op: "emplace", yamlover: "14" });
+    expect(r.status).toBe(200);
+    expect(dBody(root)).toBe("- 12\n- - 14\n  - 13\n");
+    const r2 = await callBody(h, "POST", "/api/edit", { path: ":d[1][0]", op: "remove" });
+    expect(r2.status).toBe(200);
+    expect(dBody(root)).toBe("- 12\n-\n  - 13\n");
+    expect(call(h, "/api/json", { path: ":d[1]", depth: ".inf" }).json.value).toEqual([13]);
   });
 });
