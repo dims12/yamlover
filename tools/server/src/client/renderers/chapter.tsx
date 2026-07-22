@@ -12,6 +12,7 @@ import { chunkEditorFor, isJoinableFormat, renderedTextLength, type FocusAt } fr
 import { markupWidthCh } from "./markup";
 import { viewDepth } from "./depth";
 import { InlineSubchapter } from "./subchapter";
+import { ChapterProjection } from "./chapter-editor/view";
 import {
   buildChapterModel,
   snapshotChapter,
@@ -69,10 +70,29 @@ export function ChapterView({ node, onNavigate }: { node: NodeJson; onNavigate: 
   // it rebuilds its model from the new chapter rather than keeping the old one.
   return (
     <div className="chapter-page" onContextMenu={onContextMenu}>
-      {unlocked ? <ChapterEditor key={node.path} initialNode={node} onNavigate={onNavigate} /> : <ChapterRead node={node} onNavigate={onNavigate} />}
+      {unlocked ? (
+        projectionalChapterEditor()
+          ? <ChapterProjection key={node.path} path={node.path} onNavigate={onNavigate} />
+          : <ChapterEditor key={node.path} initialNode={node} onNavigate={onNavigate} />
+      ) : (
+        <ChapterRead node={node} onNavigate={onNavigate} />
+      )}
       {tagMenu}
     </div>
   );
+}
+
+/** Whether the unlocked chapter uses the NEW projectional editor (TAB nesting, format switching)
+ *  instead of the flat one. Opt-in while it grows toward parity: `?chapterEditor=projectional` in
+ *  the URL, or `localStorage.chapterEditor`. Defaults off so nothing regresses. */
+function projectionalChapterEditor(): boolean {
+  try {
+    const q = new URLSearchParams(window.location.search).get("chapterEditor");
+    if (q) return q === "projectional";
+    return window.localStorage?.getItem("chapterEditor") === "projectional";
+  } catch {
+    return false;
+  }
 }
 
 /** The read-only chapter page (locked). Title, description, chunks, and subchapters all render in

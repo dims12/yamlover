@@ -953,6 +953,12 @@ body {
   color: var(--dim);
 }
 
+/* the projectional chapter editor's placeholder for a block it does not yet edit inline
+   (a tagged list/table): muted, so it reads as "not here yet" rather than content */
+.chapter-readonly-block {
+  color: var(--dim);
+  font-style: italic;
+}
 .chapter-prose {
   margin: 0 0 14px;
   white-space: pre-wrap;
