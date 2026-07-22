@@ -47,6 +47,11 @@ export interface MNode {
   pointer?: { raw: string; refPath: string | null }; // raw WITHOUT the leading `*`
   link?: Link; // an opaque $yamloverLink (binary leaf) — read-only
   entries: MEntry[]; // every entry, keyed and ordinal, in source order
+  /** The node's STAMPED format as the wire carried it (`x-yamlover-table`, `…-bullets`, …) — the
+   *  server's rendering of a resolved `!!<…$defs:X>` tag. The source projection ignores it; the
+   *  chapter projection branches on it to decide what a container IS (a subchapter, a table, a
+   *  list). `metaTag` wins over it once the user changes the tag, since this one goes stale. */
+  format?: string | null;
   flow?: "map" | "seq"; // a container born from `{` / `[` — rendered and serialized in FLOW form
   omniPending?: boolean; // this container's self line lives on the SERVER as a plain scalar entry
                          // (the level-rule descend converted it client-side) — a scalar entry
@@ -137,7 +142,7 @@ function mkScalar(value: unknown, bucket: CommentBucket | undefined): MScalar {
 
 /** True when `text` re-reads as the SAME string from a bare (unquoted) yamlover line — the
  *  client-side mirror of the server's preferPlainScalar. */
-function bareStringRoundTrips(text: string): boolean {
+export function bareStringRoundTrips(text: string): boolean {
   if (text === "" || text !== text.trim() || text.includes("\n")) return false;
   try {
     const r = parseYamlover(text, "<cell>").root as { kind?: string; value?: unknown; entries?: unknown[] };
@@ -164,7 +169,7 @@ function buildNode(v: unknown, frag: string, comments: CommentMap | undefined): 
 
   const mixed = asMixed(v);
   if (mixed) {
-    const node: MNode = { ...base, kind: "container" };
+    const node: MNode = { ...base, kind: "container", format: mixed.format ?? null };
     node.entries = mixed.entries.map((e, i) => buildEntry(e.key, e.value, frag + (e.key != null ? `/${e.key}` : `[${i}]`), comments));
     if (mixed.kind === "omni") {
       // a link self-value (blob-backed omni) stays un-modeled — read-only territory

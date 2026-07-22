@@ -448,3 +448,34 @@ describe("classifyHoleInput — the typing grammar", () => {
     expect(unquoteSource("plain")).toBeNull();
   });
 });
+
+// The wire stamps a container's resolved `!!<…$defs:X>` tag as a format (engine-api `projectValue`).
+// The source projection ignores it, but the chapter projection branches on it to tell a subchapter
+// from a table from a list — so the model has to carry it through.
+describe("buildModel — the stamped container format", () => {
+  const withFormat = (format: string | null): NodeJson => ({
+    path: ":doc", type: "object", concrete: "dir/yamlover", title: null, description: null,
+    value: {
+      $yamloverMixed: {
+        kind: "omni", value: "T", selfAt: 0, ...(format === null ? {} : { format }),
+        entries: [{ key: null, value: { $yamloverMixed: { kind: "array", format: "x-yamlover-table", entries: [] } } }],
+      },
+    },
+  } as unknown as NodeJson);
+
+  it("carries a container's stamped format, at the root and nested", () => {
+    const root = buildModel(withFormat("x-yamlover-chapter"));
+    expect(root.format).toBe("x-yamlover-chapter");
+    expect(root.entries[0].node.format).toBe("x-yamlover-table");
+  });
+
+  it("an untagged container carries null, not undefined", () => {
+    expect(buildModel(withFormat(null)).format).toBeNull();
+  });
+
+  it("a scalar / pointer node carries no format at all", () => {
+    const root = buildModel(omniNode());
+    expect(root.entries[1].node.format).toBeUndefined(); // an ordinal scalar chunk
+    expect(root.entries[2].node.format).toBeUndefined(); // the pointer chunk
+  });
+});
