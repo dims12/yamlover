@@ -25,6 +25,26 @@ description: |
     names the cell the caret lands in; behavior is guided by the state, never by
     leftovers of the previous one.
 
+    THE PROJECTION RULE. One model, several PROJECTIONS. The host
+    (yamlover-editor/host.ts) owns the fetch, the cell model, the op queue, the
+    action surface and the focus machinery; a projection only DRAWS. The source
+    projection (editor.tsx + cells.tsx) draws rows of yamlover tokens and applies
+    the typing grammar below. The chapter projection draws the same model as
+    prose, headings, sections, lists and grids, and does NOT use the typing
+    grammar at all - no holes, no `- `/`key:` decisions, no quote modes. The
+    states in this table are the MODEL's; a `chapter_*` state names the same model
+    state seen under the chapter projection.
+
+    THE FORMAT RULE. A block's format is its `!!<…$defs:X>` tag - table, bullets,
+    numbered - and NORMAL CHAPTER is the untagged case, so choosing it DROPS the
+    tag rather than stamping one (a task narrows its body to subtasks; a chapter
+    tag inside one would assert something false). An untagged container INHERITS
+    from its enclosing format, compounding down the whole chain: a sublist stays
+    that list's kind at any depth, a table is exactly two levels (rows, then
+    cells) and anything below a cell is a chapter again. The format is READ from
+    the spine on demand, never stored - so there is no "current format" to fall
+    out of step with the caret.
+
     THE LEVEL RULE (unified). Enter after committing a value DESCENDS - the entry
     hole it opens lives INSIDE the just-committed node: the value becomes the
     node's own scalar line (drawn on the marker's row) and the node is now an omni
@@ -34,6 +54,15 @@ description: |
     included - `12` + Enter grows the document's body exactly as `- scalar` + Enter
     grows that entry's. The one exception - a committed REFERENCE holds no
     children, so its Enter opens the next SIBLING hole.
+
+    THE PROSE EXCEPTION to THE LEVEL RULE. Under the CHAPTER projection Enter makes
+    a SIBLING block, not a descent, and TAB is the only descent. Prose is a stream
+    of paragraphs, not a tree of typed values: a writer pressing Enter means "next
+    paragraph", and every prose editor in the world agrees. Tab then nests the
+    block into the previous one, which is what makes that one a subchapter (or, in
+    a list, a sublist) - the same model move in both, per THE FORMAT RULE. Inside
+    a TABLE, Tab is not a move at all but a caret walk across the grid: next cell,
+    wrapping to the next row at a row's end, appending a row at the very last cell.
 
     THE REPRESENTATION RULE. The concrete stores the REPRESENTATION and the
     renderer REPRODUCES it - never re-derives it from the decoded value. A quoted
