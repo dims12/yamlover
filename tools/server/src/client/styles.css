@@ -799,6 +799,14 @@ body {
   opacity: 0.4;
   cursor: default;
 }
+/* an OFFERED representation the node could ADOPT but does not have yet (a plain folder's chapter
+   tab): live and clickable, but dashed and dimmed so it reads as an invitation, not a fact. */
+.tab.offered {
+  border-style: dashed;
+  opacity: 0.7;
+}
+.tab.offered:hover { opacity: 1; }
+.tab.offered.active { opacity: 1; }
 
 /* --- code ----------------------------------------------------------------- */
 .code {
@@ -923,6 +931,19 @@ body {
   margin: 0 0 18px;
   color: var(--dim);
   font-style: italic;
+}
+/* a chapter with nothing in it — usually a plain folder opened through the OFFERED chapter tab */
+.chapter-empty {
+  color: var(--dim);
+  font-style: italic;
+}
+.chapter-empty kbd {
+  font-family: var(--mono, monospace);
+  font-style: normal;
+  font-size: 0.9em;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 4px;
 }
 .chapter-prose {
   margin: 0 0 14px;

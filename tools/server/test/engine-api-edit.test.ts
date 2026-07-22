@@ -1037,3 +1037,68 @@ describe("/api/edit — compact `- - x` nesting (a one-line nested item is a con
     expect(call(h, "/api/json", { path: ":d[1]", depth: ".inf" }).json.value).toEqual([13]);
   });
 });
+
+// STAGE 0 (chapter WYSIWYG plan): the server contract the client's "make this folder a chapter"
+// flow rests on — a bodyless directory (the served root included) takes its `!!<…>` schema tag
+// through the SAME root emplace that materializes its body, and re-projects as a chapter.
+describe("/api/edit — stamping a schema tag on a bodyless directory", () => {
+  const CHAPTER_META = "*::yamlover:$defs:chapter";
+
+  it("meta alone on the empty served root writes a tagged body and projects as a chapter", async () => {
+    const root = tmpTree({});
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: "", op: "emplace", meta: CHAPTER_META });
+    expect(r.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe(`!!<${CHAPTER_META}>\n`);
+    expect(call(h, "/api/json", { path: "" }).json.format).toBe("x-yamlover-chapter");
+  });
+
+  it("meta + a scalar payload sets the tag AND the title in one op (the first-edit stamp)", async () => {
+    const root = tmpTree({});
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: "", op: "emplace", meta: CHAPTER_META, yamlover: '"My book"' });
+    expect(r.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe(`!!<${CHAPTER_META}>\nMy book\n`);
+    const j = call(h, "/api/json", { path: "" }).json;
+    expect(j.format).toBe("x-yamlover-chapter");
+    expect(j.title).toBe("My book");
+  });
+
+  it("the whole first-edit batch: stamp+title, then a first body chunk", async () => {
+    const root = tmpTree({});
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { edits: [
+      { path: "", op: "emplace", meta: CHAPTER_META, yamlover: '"My book"' },
+      { path: "", op: "insert", yamlover: '"first paragraph"' },
+    ] });
+    expect(r.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8"))
+      .toBe(`!!<${CHAPTER_META}>\nMy book\n- "first paragraph"\n`); // a body insert splices verbatim; only the title emplace unquotes
+    expect(call(h, "/api/json", { path: "" }).json.format).toBe("x-yamlover-chapter");
+  });
+
+  it("the same on a bodyless SUBdirectory — the directory itself becomes the chapter", async () => {
+    const root = tmpTree({ "readme.txt": "x" });
+    fs.mkdirSync(path.join(root, "d"));
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: ":d", op: "emplace", meta: CHAPTER_META, yamlover: '"Sub"' });
+    expect(r.status).toBe(200);
+    expect(call(h, "/api/json", { path: ":d" }).json.format).toBe("x-yamlover-chapter");
+    expect(call(h, "/api/json", { path: ":d" }).json.concrete).toBe("dir/yamlover");
+  });
+
+  it("a second edit carries no meta and leaves the tag standing", async () => {
+    const root = tmpTree({});
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    await callBody(h, "POST", "/api/edit", { path: "", op: "emplace", meta: CHAPTER_META, yamlover: '"T"' });
+    const r = await callBody(h, "POST", "/api/edit", { path: "", op: "emplace", yamlover: '"T2"' });
+    expect(r.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe(`!!<${CHAPTER_META}>\nT2\n`);
+    expect(call(h, "/api/json", { path: "" }).json.format).toBe("x-yamlover-chapter");
+  });
+});

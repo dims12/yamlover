@@ -45,7 +45,7 @@ const syntaxOf = (f: Format): "yaml" | "json" => (f === "json5p" ? "json" : "yam
 /** One tab-bar button: a representation name plus whether it applies to this node. A tab that
  *  does NOT apply is still RENDERED, greyed and inert — buttons keep their place across nodes
  *  instead of appearing/disappearing and reshaping the bar. */
-type TabEntry = { name: Format; enabled: boolean };
+type TabEntry = { name: Format; enabled: boolean; offered?: boolean };
 
 /** The standard data-view tabs — a FIXED set on every node: `yamlover` and `yamlover/schema`
  *  always work; `json5p` is enabled only for a json-family file (a yaml node must not be
@@ -67,7 +67,7 @@ function tabModel(node: NodeJson): { tabs: TabEntry[]; allRenderers: Renderer[] 
   const leading = rendererTabs(node);
   const trailing = plaintextTab(node);
   const tabs: TabEntry[] = [
-    ...leading.map((t) => ({ name: t.renderer.name as Format, enabled: t.enabled })),
+    ...leading.map((t) => ({ name: t.renderer.name as Format, enabled: t.enabled, offered: t.offered })),
     ...standardFormatsFor(node),
     ...(trailing ? [{ name: trailing.renderer.name as Format, enabled: trailing.enabled }] : []),
   ];
@@ -549,12 +549,16 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
           <span className="lockbtn-label">{unlocked && isEditableView ? "Done" : "Edit"}</span>
         </button>
         <div className="tabs">
-          {tabs.map(({ name: f, enabled }) => (
+          {tabs.map(({ name: f, enabled, offered }) => (
             <Fragment key={f}>
               <button
-                className={"tab" + (effective === f ? " active" : "")}
+                className={"tab" + (effective === f ? " active" : "") + (offered ? " offered" : "")}
                 disabled={!enabled}
-                title={enabled ? labelOf(f) : `${labelOf(f)} — not available for this node`}
+                title={
+                  offered ? `${labelOf(f)} — this node is not one yet; editing here makes it one`
+                  : enabled ? labelOf(f)
+                  : `${labelOf(f)} — not available for this node`
+                }
                 aria-label={labelOf(f)}
                 onClick={() => onFormat(f)}
               >

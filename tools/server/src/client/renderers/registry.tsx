@@ -138,6 +138,14 @@ export interface Renderer {
   icon?: string;
   /** Whether this renderer claims a node, from its {@link TypeFacets}. */
   accepts: Accepts;
+  /** A representation this node does not YET have but can ADOPT — an OFFER. The tab is shown and
+   *  selectable (dimmed), but it is never the default and never a dispatch target: only
+   *  {@link rendererTabs} reads this, so `rendererFor` / `getRenderer` / `rendererName` / the chunk
+   *  and TOC dispatchers are untouched and a plain folder still OPENS on its explorer. Taking the
+   *  offer is what the first edit persists (the chapter view stamps `!!<…$defs:chapter>`).
+   *  Unlike {@link accepts} this sees the whole node — `accepts` gets only (valueType, format,
+   *  hasKeyed, hasOrdinal), which cannot tell a directory from an inline object. */
+  offers?: (node: NodeJson) => boolean;
   /** Tie-break among matches — the highest wins. Format matchers are 2; the bare-string
    *  default (marklower) is 1. */
   specificity: number;
@@ -197,6 +205,10 @@ const REGISTRY: Renderer[] = [
     name: "chapter",
     icon: "§",
     accepts: byFormat("x-yamlover-chapter"),
+    // An UNTAGGED container directory can be written as a chapter: prose has to start somewhere,
+    // and an empty folder is where a book begins. Untagged only — a tag/board/chapter directory
+    // already has its own representation, and a file-backed node is not a chapter's home.
+    offers: (n) => n.format == null && isDirConcrete(n.concrete) && isContainerNode(n),
     specificity: 2,
     depth: 1, // the body elements are the chapter's own children now → one level reaches them as link markers
     tocView: chapterTocView,
@@ -494,19 +506,27 @@ function explorerViews(node: NodeJson): Renderer[] {
  *  only where the members are worth browsing (a container directory, or a json/yaml container; a
  *  SCALAR shows them disabled — the grids would be empty). So navigating between node kinds only
  *  ever swaps the single primary icon; the family and everything after it keep their place. */
-export function rendererTabs(node: NodeJson): { renderer: Renderer; enabled: boolean }[] {
-  const out: { renderer: Renderer; enabled: boolean }[] = [];
+export function rendererTabs(node: NodeJson): { renderer: Renderer; enabled: boolean; offered?: boolean }[] {
+  const out: { renderer: Renderer; enabled: boolean; offered?: boolean }[] = [];
   const primary = rendererFor(node);
   if (primary && primary !== EXPLORER) out.push({ renderer: primary, enabled: true }); // chapter/task/pdf… leads
+  else {
+    // The primary slot is EMPTY (a plain directory leads with its explorer) — an OFFER fills it,
+    // so a representation the node could adopt is exactly as discoverable as one it has, and the
+    // bar keeps its shape either way.
+    const offer = REGISTRY.find((r) => r.offers?.(node));
+    if (offer) out.push({ renderer: offer, enabled: true, offered: true });
+  }
   const eligible = primary === EXPLORER || explorerEligible(node);
   out.push(...explorerViews(node).map((r) => ({ renderer: r, enabled: eligible })));
   return out;
 }
 
-/** Every representation a node actually OFFERS, best first — {@link rendererTabs}' enabled
- *  projection (the single-valued default paths and the TOC don't care about disabled slots). */
+/** Every representation a node actually HAS, best first — {@link rendererTabs}' enabled projection
+ *  MINUS the offers (an offer is not yet a representation: the single-valued default paths and the
+ *  TOC must not see one, or a plain folder would start claiming to be a chapter). */
 export function renderersFor(node: NodeJson): Renderer[] {
-  return rendererTabs(node).filter((t) => t.enabled).map((t) => t.renderer);
+  return rendererTabs(node).filter((t) => t.enabled && !t.offered).map((t) => t.renderer);
 }
 
 // A node whose members are worth browsing as icons: object / array / mixed / variant (a `variant`

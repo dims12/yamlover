@@ -15,8 +15,8 @@
 // pure array mutations (instant), and `rev` lets the editor reset a chunk's DOM from the model when
 // WE change its text (a split head) without clobbering the caret while the user types.
 
-import { asLink, scalarValue } from "../render";
-import { segsToStr, strToSegs } from "../paths";
+import { asLink, asMixed, scalarValue } from "../render";
+import { fragmentOf, isAncestorPath, segsToStr, strToSegs } from "../paths";
 
 const MIXED_KEY = "$yamloverMixed"; // an omni/mix node's ordered entries (render.tsx / engine-api.ts)
 
@@ -42,6 +42,7 @@ export interface ChapterModel {
   chunks: ChunkPart[]; // the FULL ordered body (chunks + subchapters), in source order
   entryCount: number; // ALL entries, keyed ones included — the abs index an appended entry takes
   legacyTitleKeyed: boolean; // an unmigrated keyed `title:` entry exists — a title edit migrates it out
+  needsMeta: boolean; // not YET tagged a chapter (a plain folder being written as one) — the first edit stamps it
 }
 
 /** One surgical edit the sync sends to `/api/edit` (see api.ts `Edit` for the op semantics). */
@@ -49,6 +50,7 @@ export interface Edit {
   path: string;
   op: "emplace" | "replace" | "insert" | "remove";
   yamlover?: string;
+  meta?: string | null; // the `!!<…>` schema pointer: set it, `null` to drop it, omit to leave it alone
 }
 
 /** A prose string as yamlover VALUE source: a literal block scalar (`|-`, or `|` when the text ends
@@ -80,9 +82,34 @@ export function isSubchapter(format: string | null | undefined): boolean {
   return format === "x-yamlover-chapter" || format === "x-yamlover-task";
 }
 
+/** The chapter schema, and the `!!<…>` CONTENT `/api/edit`'s `meta` field wants for it (a `*`
+ *  pointer — the same spelling `create.ts` uses for a creatable chapter child). Editing a
+ *  formatless container AS a chapter stamps this on the document root with the first edit, which
+ *  is what makes a plain folder become one (the server materializes its body in the same op). */
+export const CHAPTER_SCHEMA = "::yamlover:$defs:chapter";
+export const CHAPTER_META = "*" + CHAPTER_SCHEMA;
+
 /** Append a key/index segment to a node path (root-safe: `:` + `title` → `:title`; `:` + 0 → `[0]`). */
 export function childPath(path: string, seg: string | number): string {
   return segsToStr([...strToSegs(path), seg]);
+}
+
+/** A body element's RENDER SLOT — where it sits on the PAGE, as an index chain from the page root
+ *  (`""` at the root, `"[3]"` for its 4th entry, `"[3][1]"` for that subchapter's 2nd entry). A page
+ *  that inlines subchapters needs this because an inlined element's identity on the page is its
+ *  render position, which is not always a path continuation of the page root (a `*`-pointer
+ *  subchapter's node lives elsewhere in the tree). */
+export const childSlot = (slot: string, absIndex: number): string => `${slot}[${absIndex}]`;
+
+/** The in-page anchor id for a chapter element: its PATH continuation from the page root — matching
+ *  today's `fragmentOf(basePath, chunk.path)` exactly, so existing `#[1]` deep links keep working —
+ *  falling back to its RENDER SLOT when the element's node lives OUTSIDE the page's own subtree.
+ *  That fallback is load-bearing once subchapters inline: `fragmentOf` is a blind prefix-length
+ *  slice, so `fragmentOf(":a:b", ":dogs")` silently returns `""` (every such element would collide
+ *  on the empty id). Root pages take the `fragmentOf` branch for everything, so nothing shifts. */
+export function anchorOf(base: string, nodePath: string | null | undefined, slot: string): string {
+  if (nodePath && (base === ":" || base === nodePath || isAncestorPath(base, nodePath))) return fragmentOf(base, nodePath);
+  return slot;
 }
 
 /** The body elements with their ABSOLUTE entry index — the index an edit path segment carries, in
@@ -119,6 +146,30 @@ export type FlowKind = "title" | "description" | "subchapter" | "chunk";
 export interface FlowItem {
   kind: FlowKind;
   value: unknown; // the entry value (a `$yamloverLink` marker or an inline scalar)
+  absIndex: number; // its ABSOLUTE entry index (-1 for the omni self-value, which consumes none)
+}
+
+/** An ANNOTATION OVERLAY key — a tag application / fragment set laid OVER a value (ANNOTATIONS.md).
+ *  Per CHAPTER.md these "are not body, so a scalar carrying only those stays a chunk". */
+const isOverlayKey = (k: string | null): boolean => k === "yamlover-annotations" || k === "yamlover-fragments";
+
+/** A body element's kind. A subchapter that ran out of depth budget arrives as a `$yamloverLink`
+ *  carrying its own `format`; an INLINED one (any deeper fetch) arrives as a `$yamloverMixed`
+ *  marker carrying `format` but NO `path`, and an untagged all-keyless one as a bare array. So the
+ *  rule is CHAPTER.md's own: a CONTAINER body element is a subchapter — unless an explicit tag (a
+ *  table, a typographical list) says it is content, or its only entries are annotation overlays,
+ *  which leave a scalar a scalar. A leaf is always a chunk. */
+export function bodyKindOf(v: unknown): FlowKind {
+  const link = asLink(v);
+  if (link) return isSubchapter(link.format) ? "subchapter" : "chunk";
+  const mixed = asMixed(v);
+  if (mixed) {
+    if (mixed.format != null) return isSubchapter(mixed.format) ? "subchapter" : "chunk"; // tagged: the tag decides
+    // untagged: a CONTAINER is a subchapter — but overlay keys are not body, so a scalar wearing
+    // only an annotation/fragment overlay is still the chunk it was
+    return mixed.entries.some((e) => !isOverlayKey(e.key)) ? "subchapter" : "chunk";
+  }
+  return Array.isArray(v) ? "subchapter" : "chunk";
 }
 
 /** The chapter's full rendered stream in SOURCE order — the title (the omni node's scalar
@@ -130,8 +181,7 @@ export interface FlowItem {
  *  untitled chapter (plain-array projection) is all keyless — chunks and subchapter links, in
  *  order. A legacy keyed `title` entry still flows as the title. */
 export function chapterFlow(value: unknown): FlowItem[] {
-  const kindOf = (v: unknown): FlowKind => (isSubchapter(asLink(v)?.format) ? "subchapter" : "chunk");
-  if (Array.isArray(value)) return value.map((v) => ({ kind: kindOf(v), value: v }));
+  if (Array.isArray(value)) return value.map((v, i) => ({ kind: bodyKindOf(v), value: v, absIndex: i }));
   const mixed = (value as Record<string, unknown> | null | undefined)?.[MIXED_KEY] as
     | { kind?: string; value?: unknown; selfAt?: number; entries?: { key: string | null; value: unknown }[] }
     | undefined;
@@ -141,14 +191,14 @@ export function chapterFlow(value: unknown): FlowItem[] {
   const out: FlowItem[] = [];
   let placed = self == null;
   for (let i = 0; i < mixed.entries.length; i++) {
-    if (!placed && i >= selfAt) { out.push({ kind: "title", value: self }); placed = true; }
+    if (!placed && i >= selfAt) { out.push({ kind: "title", value: self, absIndex: -1 }); placed = true; }
     const e = mixed.entries[i];
-    if (e.key === "title") out.push({ kind: "title", value: e.value }); // legacy keyed title
-    else if (e.key === "description") out.push({ kind: "description", value: e.value });
-    else if (e.key == null) out.push({ kind: kindOf(e.value), value: e.value });
+    if (e.key === "title") out.push({ kind: "title", value: e.value, absIndex: i }); // legacy keyed title
+    else if (e.key === "description") out.push({ kind: "description", value: e.value, absIndex: i });
+    else if (e.key == null) out.push({ kind: bodyKindOf(e.value), value: e.value, absIndex: i });
     // else: another keyed entry (directory member / task field) — not chapter body content
   }
-  if (!placed) out.push({ kind: "title", value: self });
+  if (!placed) out.push({ kind: "title", value: self, absIndex: -1 });
   return out;
 }
 
@@ -173,7 +223,7 @@ export function newProsePart(text: string, format: string | null = "text/marklow
  *  and its body elements as `$yamloverLink` markers. A body element is EDITABLE when it is an inlined
  *  prose scalar (its marker points at its OWN slot `<chapter>[i]`); a subchapter or a marker pointing
  *  elsewhere (a `*…` file/pointer chunk) is a read-only part this iteration. */
-export function buildChapterModel(node: { path: string; title: string | null; description: string | null; value: unknown }): ChapterModel {
+export function buildChapterModel(node: { path: string; title: string | null; description: string | null; value: unknown; format?: string | null }): ChapterModel {
   const body = chapterBodyEntries(node.value);
   const chunks: ChunkPart[] = body.map(({ value: item, absIndex }) => {
     const link = asLink(item);
@@ -205,13 +255,17 @@ export function buildChapterModel(node: { path: string; title: string | null; de
     chunks,
     entryCount: chapterEntryCount(node.value),
     legacyTitleKeyed: hasKeyedTitle(node.value),
+    // a node ALREADY tagged chapter-or-task keeps its own schema (never re-stamp a task as a
+    // chapter — `$defs/task` narrows the body to subtasks); anything else is being written as a
+    // chapter for the first time and gains the tag with its first edit
+    needsMeta: !isSubchapter(node.format ?? null),
   };
 }
 
 /** A committed snapshot for diffing — the model's title/description and each part's id + text
  *  (only editable text can change; read-only parts are compared by id only). */
 export function snapshotChapter(m: ChapterModel): ChapterModel {
-  return { path: m.path, title: m.title, description: m.description, chunks: m.chunks.map((c) => ({ ...c })), entryCount: m.entryCount, legacyTitleKeyed: m.legacyTitleKeyed };
+  return { path: m.path, title: m.title, description: m.description, chunks: m.chunks.map((c) => ({ ...c })), entryCount: m.entryCount, legacyTitleKeyed: m.legacyTitleKeyed, needsMeta: m.needsMeta };
 }
 
 /**
@@ -238,9 +292,15 @@ export function diffChapter(committed: ChapterModel, current: ChapterModel): Edi
   // later entry down one; a fresh key is appended at the end, so it shifts nothing before it.
   let shift = 0; // existing entries sliding down as a key before them is removed
   let added = 0; // a fresh key, appended after them
+  // A formatless container being written AS a chapter: the first batch stamps the document's root
+  // `!!<*::yamlover:$defs:chapter>`. The server takes `meta` at an empty path either alone
+  // (setRootTag) or riding the title emplace (setRootTag + setRootSelfValue) — and materializes a
+  // bodyless directory's `.yamlover/body.yamlover` in the same op, so a plain folder becomes a
+  // chapter with one edit. Like `legacyTitleKeyed`, this is migrate-on-first-edit.
+  const stamp = current.needsMeta ? CHAPTER_META : undefined;
   if (current.title !== committed.title) {
     // the self-value emplace (empty drops the title line) — index-neutral by design
-    edits.push({ path: base, op: "emplace", yamlover: JSON.stringify(current.title) });
+    edits.push({ path: base, op: "emplace", yamlover: JSON.stringify(current.title), ...(stamp ? { meta: stamp } : {}) });
     if (committed.legacyTitleKeyed) {
       edits.push({ path: childPath(base, "title"), op: "remove" }); // migrate the keyed title out
       current.legacyTitleKeyed = false;
@@ -298,5 +358,11 @@ export function diffChapter(committed: ChapterModel, current: ChapterModel): Edi
   // the NEXT diff (against the snapshot taken of `current`) must address it by the one it now has.
   current.chunks.forEach((c, j) => { c.absIndex = shadow[j].abs; });
   current.entryCount = entryCount;
+  // The stamp rides the title emplace when there is one; otherwise it leads the batch as its own
+  // op, so the very first content edit (a paragraph, no title) still makes the folder a chapter.
+  if (stamp && edits.length) {
+    if (!edits.some((e) => e.meta !== undefined)) edits.unshift({ path: base, op: "emplace", meta: stamp });
+    current.needsMeta = false;
+  }
   return edits;
 }

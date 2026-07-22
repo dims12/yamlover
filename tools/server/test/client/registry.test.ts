@@ -129,14 +129,45 @@ describe("renderer registry (facet predicates)", () => {
     expect(rendererTabs(node({ concrete: "file/binary", format: "application/pdf" })).map((t) => `${t.renderer.name}:${t.enabled}`)).toEqual([
       "pdf:true", "thumbnails:false", "large-icons:false", "small-icons:false", "details:false",
     ]);
-    // a directory: no primary slot (its natural view IS the explorer), the family enabled
+    // a directory: no primary slot of its own (its natural view IS the explorer), so the OFFERED
+    // chapter fills it — a folder can be written as a chapter — and the family rides along enabled
     expect(rendererTabs(node({ concrete: "dir" })).map((t) => `${t.renderer.name}:${t.enabled}`)).toEqual([
-      "thumbnails:true", "large-icons:true", "small-icons:true", "details:true",
+      "chapter:true", "thumbnails:true", "large-icons:true", "small-icons:true", "details:true",
     ]);
     // a data SCALAR: no primary, the family in place but disabled (its grids would be empty)
     expect(rendererTabs(node({ concrete: "file/json", type: "integer", valueType: "integer", value: 30 })).map((t) => `${t.renderer.name}:${t.enabled}`)).toEqual([
       "thumbnails:false", "large-icons:false", "small-icons:false", "details:false",
     ]);
+  });
+
+  // An OFFER is a representation the node could ADOPT, not one it HAS. It must reach the tab bar
+  // and nothing else: the moment it leaked into dispatch, every plain folder would claim to be a
+  // chapter (hijacking the explorer default, the chunk renderer, and the TOC).
+  it("the offered chapter tab never leaks into dispatch or into `renderersFor`", () => {
+    const dir = node({ concrete: "dir" });
+    expect(rendererTabs(dir)[0]).toMatchObject({ enabled: true, offered: true });
+    expect(rendererTabs(dir)[0].renderer.name).toBe("chapter");
+    // …but the node HAS no chapter representation
+    expect(renderersFor(dir).map((r) => r.name)).toEqual(["thumbnails", "large-icons", "small-icons", "details"]);
+    expect(rendererFor(dir)).toBeNull(); // chunk + TOC dispatch untouched
+    expect(getRenderer(dir)!.name).toBe("large-icons"); // a folder still OPENS on its explorer
+    expect(rendererName(dir, "dir")).toBe("large-icons");
+  });
+
+  it("the chapter is offered only to an UNTAGGED container directory", () => {
+    const offered = (n: NodeJson) => rendererTabs(n).some((t) => t.offered && t.renderer.name === "chapter");
+    expect(offered(node({ concrete: "dir" }))).toBe(true);
+    expect(offered(node({ concrete: "dir/yamlover" }))).toBe(true);
+    // already has a representation of its own
+    expect(offered(node({ concrete: "dir", format: "x-yamlover-chapter" }))).toBe(false);
+    expect(offered(node({ concrete: "dir", format: "x-yamlover-tag" }))).toBe(false);
+    expect(offered(node({ concrete: "dir", format: "x-yamlover-board" }))).toBe(false);
+    // not a container: a scalar-bodied directory holds a value, not prose
+    expect(offered(node({ concrete: "dir/yamlover", type: "integer", valueType: "integer", value: 30 }))).toBe(false);
+    // not a directory: a chapter's home is a folder or a tagged file, never a stray data file
+    expect(offered(node({ concrete: "file/json" }))).toBe(false);
+    expect(offered(node({ concrete: "file/yamlover" }))).toBe(false);
+    expect(offered(node({ concrete: "file/binary", format: "application/pdf" }))).toBe(false);
   });
 
   it("plaintextTab: ENABLED for a textual node; DISABLED (but present) for dirs and non-string inline nodes", () => {

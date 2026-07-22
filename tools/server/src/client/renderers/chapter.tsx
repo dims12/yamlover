@@ -74,6 +74,19 @@ function ChapterRead({ node, onNavigate }: { node: NodeJson; onNavigate: (path: 
   useHashScroll(node);
   let chunkNo = 0;
 
+  // Nothing to show at all — a plain folder opened through the offered chapter tab. Say how to
+  // start rather than rendering a blank page (the tab is an OFFER: the folder is not one yet).
+  if (!flow.length) {
+    return (
+      <div className="chapter" style={{ maxWidth: `${markupWidthCh()}ch` }}>
+        <p className="chapter-empty">
+          {isSubchapter(node.format) ? "This chapter is empty." : "This folder is not a chapter yet."} Press{" "}
+          <kbd>F2</kbd> or ✏️ Edit to start writing.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="chapter" style={{ maxWidth: `${markupWidthCh()}ch` }}>
       {flow.map((f, i) => {
@@ -184,6 +197,7 @@ function ChapterEditor({ initialNode, onNavigate }: { initialNode: NodeJson; onN
   const [model, setModel] = useState<ChapterModel>(() => buildChapterModel(initialNode));
   const [focusReq, setFocusReq] = useState<FocusReq | null>(null);
   const flush = useChapterSync(model);
+  useHashScroll(model); // a `#[1]` deep link must land while unlocked too, not only in the read view
 
   // Flush any pending edits when the editor unmounts (lock or navigation). Best-effort (unmount is
   // synchronous); the server then broadcasts, so the re-locked read-only view refetches fresh.
@@ -262,6 +276,15 @@ function ChapterEditor({ initialNode, onNavigate }: { initialNode: NodeJson; onN
     <div className="chapter" style={{ maxWidth: `${markupWidthCh()}ch` }}>
       <EditableScalar as="h1" className="chapter-title" placeholder="Title" value={model.title} onCommit={(t) => setModel((m) => ({ ...m, title: t }))} />
       <EditableScalar as="p" className="chapter-subtitle" placeholder="Description" value={model.description} onCommit={(d) => setModel((m) => ({ ...m, description: d }))} />
+
+      {/* An empty chapter (a folder just opened as one) has nothing to type INTO. The first
+          paragraph is created on purpose rather than seeded into the model: a seeded part would
+          ride the mount snapshot and get written 500ms after merely OPENING the editor. */}
+      {model.chunks.length === 0 && (
+        <div className="chunk-add">
+          <button className="chunk-addbtn" onClick={() => insertAfter(-1)}>＋ Start writing</button>
+        </div>
+      )}
 
       {model.chunks.map((c, i) =>
         c.subchapter ? (

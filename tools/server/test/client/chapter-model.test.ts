@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildChapterModel, snapshotChapter, diffChapter, chapterFlow, flowText, type ChapterModel, type ChunkPart } from "../../src/client/renderers/chapter-model";
+import { buildChapterModel, snapshotChapter, diffChapter, chapterFlow, flowText, bodyKindOf, anchorOf, childSlot, type ChapterModel, type ChunkPart } from "../../src/client/renderers/chapter-model";
 
 /** An inlined `$yamloverLink` scalar chunk marker at body slot `i` of chapter `base` (its marker
  *  points at its OWN slot `<base>[i]`, so the model classifies it as an editable inline chunk). */
@@ -22,6 +22,7 @@ const node = (body: unknown[], title = "T", description = "D", path = ":doc") =>
   path,
   title,
   description,
+  format: "x-yamlover-chapter", // an ALREADY-tagged chapter — no first-edit schema stamp (needsMeta false)
   value: {
     $yamloverMixed: {
       kind: "omni",
@@ -134,7 +135,7 @@ describe("chapterFlow", () => {
 const clone = (m: ChapterModel): ChapterModel => ({ ...m, chunks: m.chunks.map((c) => ({ ...c })) });
 const part = (id: string, text: string, absIndex = -1): ChunkPart => ({ id, rev: 0, editable: true, text, format: "text/marklower", concrete: "yamlover", subchapter: false, marker: null, absIndex });
 /** A model built by hand: `chunks` at absolute indices 0.., no keyed entries. */
-const model = (chunks: ChunkPart[]): ChapterModel => ({ path: ":doc", title: "T", description: "D", chunks, entryCount: chunks.length, legacyTitleKeyed: false });
+const model = (chunks: ChunkPart[]): ChapterModel => ({ path: ":doc", title: "T", description: "D", chunks, entryCount: chunks.length, legacyTitleKeyed: false, needsMeta: false });
 
 describe("diffChapter", () => {
   const base = (): ChapterModel => buildChapterModel(node([inlined(":doc", 1, "one"), inlined(":doc", 2, "two")]));
@@ -178,6 +179,7 @@ describe("diffChapter", () => {
       path: ":doc",
       title: "T",
       description: null,
+      format: "x-yamlover-chapter", // an unmigrated file is still a TAGGED chapter — no schema stamp
       value: { $yamloverMixed: { kind: "mix", entries: [{ key: "title", value: "T" }, { key: null, value: inlined(":doc", 1, "one") }] } },
     });
     expect(legacy.legacyTitleKeyed).toBe(true);
@@ -273,5 +275,135 @@ describe("diffChapter", () => {
     expect(flowText(omni)).toBe("The Title");
     const omniLink = { $yamloverLink: { kind: "omni", type: "variant", path: ":doc:title", concrete: "yamlover", value: "The Title" } };
     expect(flowText(omniLink)).toBe("The Title");
+  });
+});
+
+// A body element's kind is STRUCTURAL (CHAPTER.md): a container is a subchapter unless an explicit
+// tag says it is content. This is what lets a page inline subchapters — an inlined one arrives as a
+// `$yamloverMixed` marker carrying no `path`, where the old link-marker-only test saw a chunk.
+describe("bodyKindOf — inlined containers", () => {
+  const mixedOf = (format: string | null) => ({ $yamloverMixed: { kind: "omni", value: "Sub", format, entries: [] } });
+
+  it("a link marker routes on its own format", () => {
+    expect(bodyKindOf(subchapter(":doc", 1, "Sub"))).toBe("subchapter");
+    expect(bodyKindOf(inlined(":doc", 1, "prose"))).toBe("chunk");
+  });
+
+  it("an INLINED chapter marker (no path) is a subchapter, not a chunk", () => {
+    expect(bodyKindOf(mixedOf("x-yamlover-chapter"))).toBe("subchapter");
+    expect(bodyKindOf(mixedOf("x-yamlover-task"))).toBe("subchapter");
+  });
+
+  it("an UNTAGGED inlined container is a subchapter (structural recognition)", () => {
+    const withBody = { $yamloverMixed: { kind: "omni", value: "Sub", format: null, entries: [{ key: null, value: "a chunk" }] } };
+    expect(bodyKindOf(withBody)).toBe("subchapter");
+    expect(bodyKindOf(["a", "b"])).toBe("subchapter");
+  });
+
+  it("an ANNOTATED chunk stays a chunk — overlay keys are not body (CHAPTER.md)", () => {
+    const annotated = (key: string) => ({ $yamloverMixed: { kind: "omni", value: "a **bold** chunk", entries: [{ key, value: [] }] } });
+    expect(bodyKindOf(annotated("yamlover-annotations"))).toBe("chunk");
+    expect(bodyKindOf(annotated("yamlover-fragments"))).toBe("chunk");
+    // …but a real body entry alongside the overlay DOES make it a subchapter
+    const both = { $yamloverMixed: { kind: "omni", value: "T", entries: [{ key: "yamlover-annotations", value: [] }, { key: null, value: "body" }] } };
+    expect(bodyKindOf(both)).toBe("subchapter");
+  });
+
+  it("an empty untagged container is a chunk — nothing says it is a chapter", () => {
+    expect(bodyKindOf(mixedOf(null))).toBe("chunk");
+  });
+
+  it("a TAGGED table / list container is content, not a subchapter", () => {
+    expect(bodyKindOf(mixedOf("x-yamlover-table"))).toBe("chunk");
+    expect(bodyKindOf(mixedOf("x-yamlover-bullets"))).toBe("chunk");
+    expect(bodyKindOf(mixedOf("x-yamlover-numbered"))).toBe("chunk");
+  });
+
+  it("a bare scalar is always a chunk", () => {
+    expect(bodyKindOf("prose")).toBe("chunk");
+    expect(bodyKindOf(42)).toBe("chunk");
+  });
+});
+
+describe("chapterFlow — absIndex", () => {
+  it("carries each entry's ABSOLUTE index; the self-value title consumes none (-1)", () => {
+    const flow = chapterFlow(node([inlined(":doc", 1, "one"), subchapter(":doc", 2, "Sub")]).value);
+    expect(flow.map((f) => [f.kind, f.absIndex])).toEqual([
+      ["title", -1], // the omni self-value
+      ["description", 0],
+      ["chunk", 1],
+      ["subchapter", 2],
+    ]);
+  });
+
+  it("an untitled chapter (plain array) indexes from 0", () => {
+    const flow = chapterFlow([inlined(":doc", 0, "solo"), subchapter(":doc", 1, "Sub")]);
+    expect(flow.map((f) => f.absIndex)).toEqual([0, 1]);
+  });
+});
+
+describe("anchorOf / childSlot", () => {
+  it("a page root anchors everything by PATH — today's `#[1]` deep links are unchanged", () => {
+    expect(anchorOf(":", ":[1]", "[1]")).toBe("[1]");
+    expect(anchorOf(":", ":[3][1]", "[3][1]")).toBe("[3][1]");
+    expect(anchorOf(":", ":dogs", "[6]")).toBe("/dogs"); // a pointer subchapter under the root
+  });
+
+  it("a descendant of a non-root page still anchors by path", () => {
+    expect(anchorOf(":doc", ":doc[2]", "[2]")).toBe("[2]");
+  });
+
+  it("a node OUTSIDE the page's subtree falls back to the render slot", () => {
+    // `fragmentOf` is a blind prefix-length slice — it would return "" here and collide
+    expect(anchorOf(":a:b", ":dogs", "[2]")).toBe("[2]");
+    expect(anchorOf(":a:b", ":z:deep:er", "[0][1]")).toBe("[0][1]");
+  });
+
+  it("childSlot chains render positions", () => {
+    expect(childSlot("", 3)).toBe("[3]");
+    expect(childSlot("[3]", 1)).toBe("[3][1]");
+  });
+});
+
+describe("diffChapter — the first-edit schema stamp (a plain folder written as a chapter)", () => {
+  /** An untagged, empty directory opened in the chapter view: no format, no body. */
+  const folder = () => buildChapterModel({ path: ":", title: null, description: null, value: {}, format: null });
+
+  it("an untagged node needs the stamp; a tagged chapter or task does not", () => {
+    expect(folder().needsMeta).toBe(true);
+    expect(buildChapterModel(node([])).needsMeta).toBe(false);
+    expect(buildChapterModel({ path: ":t", title: "T", description: null, value: {}, format: "x-yamlover-task" }).needsMeta).toBe(false);
+  });
+
+  it("the first title edit carries the tag on the SAME op", () => {
+    const committed = folder();
+    const current = clone(committed);
+    current.title = "My book";
+    expect(diffChapter(committed, current)).toEqual([
+      { path: ":", op: "emplace", yamlover: '"My book"', meta: "*::yamlover:$defs:chapter" },
+    ]);
+    expect(current.needsMeta).toBe(false); // migrated — the next batch carries no meta
+  });
+
+  it("a first edit that is NOT a title still stamps, as its own leading op", () => {
+    const committed = folder();
+    const current = clone(committed);
+    current.chunks = [part("c1", "first paragraph")];
+    const edits = diffChapter(committed, current);
+    expect(edits[0]).toEqual({ path: ":", op: "emplace", meta: "*::yamlover:$defs:chapter" });
+    expect(edits[1]).toEqual({ path: ":", op: "insert", yamlover: "|-\n  first paragraph" });
+  });
+
+  it("no edits → no stamp (merely opening the editor writes nothing)", () => {
+    const committed = folder();
+    expect(diffChapter(committed, clone(committed))).toEqual([]);
+    expect(committed.needsMeta).toBe(true);
+  });
+
+  it("an already-tagged chapter never carries meta", () => {
+    const committed = buildChapterModel(node([inlined(":doc", 1, "one")]));
+    const current = clone(committed);
+    current.title = "New";
+    expect(diffChapter(committed, current)).toEqual([{ path: ":doc", op: "emplace", yamlover: '"New"' }]);
   });
 });

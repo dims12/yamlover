@@ -235,3 +235,64 @@ describe("creatablesFor (what/where a schema object can be created)", () => {
     expect(creatablesFor({ concrete: "dir" }, { "::yamlover:$defs:chapter": "Chapter" })[0].label).toBe("Chapter");
   });
 });
+
+// A plain folder opened through the OFFERED chapter tab (registry `offers`): it has no body, and
+// it is not a chapter yet. The editor must give it a place to type, and the first edit must stamp
+// `!!<*::yamlover:$defs:chapter>` — which is what turns the folder INTO one.
+describe("ChapterView (unlocked) — a folder written as a chapter", () => {
+  const emptyFolder = {
+    path: ":", type: "object", format: null, valueType: null, concrete: "dir",
+    documentPath: ":", title: null, description: null, value: {},
+  } as unknown as NodeJson;
+
+  it("offers a first paragraph; clicking it yields one editable chunk", () => {
+    const { container } = renderUnlocked(emptyFolder);
+    const add = container.querySelector(".chunk-addbtn") as HTMLButtonElement;
+    expect(add).toBeTruthy();
+    expect(container.querySelectorAll(".chunk").length).toBe(0);
+    fireEvent.click(add);
+    expect(container.querySelectorAll(".chunk").length).toBe(1);
+    expect(container.querySelector(".chunk-body [contenteditable=true]")).toBeTruthy();
+    expect(container.querySelector(".chunk-addbtn")).toBeNull(); // the offer goes once there is a body
+  });
+
+  /** Run `fn` with fake timers, so the editor's 500ms debounce can be flushed deterministically. */
+  const timed = async (fn: () => Promise<void>) => {
+    vi.useFakeTimers();
+    try { await fn(); } finally { vi.useRealTimers(); }
+  };
+  /** Retitle through the h1 and flush the debounce. */
+  const retitle = async (container: HTMLElement, text: string) => {
+    const h1 = container.querySelector("h1.chapter-title") as HTMLElement;
+    h1.textContent = text;
+    fireEvent.blur(h1);
+    await act(async () => { vi.advanceTimersByTime(600); });
+  };
+
+  it("merely OPENING the editor writes nothing", () => timed(async () => {
+    renderUnlocked(emptyFolder);
+    await act(async () => { vi.advanceTimersByTime(600); });
+    expect(editChunks).not.toHaveBeenCalled();
+  }));
+
+  it("the first title edit carries the schema stamp on the same op", () => timed(async () => {
+    const { container } = renderUnlocked(emptyFolder);
+    await retitle(container, "My book");
+    expect(editChunks).toHaveBeenCalledWith([
+      { path: ":", op: "emplace", yamlover: '"My book"', meta: "*::yamlover:$defs:chapter" },
+    ]);
+  }));
+
+  it("a SECOND edit carries no stamp — the folder is a chapter now", () => timed(async () => {
+    const { container } = renderUnlocked(emptyFolder);
+    await retitle(container, "One");
+    await retitle(container, "Two");
+    expect(editChunks).toHaveBeenLastCalledWith([{ path: ":", op: "emplace", yamlover: '"Two"' }]);
+  }));
+
+  it("an already-tagged chapter is never re-stamped", () => timed(async () => {
+    const { container } = renderUnlocked(chapterNode(["First"]));
+    await retitle(container, "Renamed");
+    expect(editChunks).toHaveBeenCalledWith([{ path: ":doc", op: "emplace", yamlover: '"Renamed"' }]);
+  }));
+});

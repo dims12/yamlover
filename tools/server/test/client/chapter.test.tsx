@@ -191,3 +191,26 @@ describe("ChapterView", () => {
     expect(body.querySelector("strong")?.textContent).toBe("bold");
   });
 });
+
+// A plain folder reached through the OFFERED chapter tab: it has no body at all yet. It must say
+// how to start rather than render a blank page, and the first edit is what makes it a chapter.
+describe("ChapterView — an empty node (a folder written as a chapter)", () => {
+  const emptyFolder = {
+    path: ":", type: "object", format: null, valueType: null, concrete: "dir", title: null, description: null, value: {},
+  } as unknown as NodeJson;
+
+  it("locked: says the folder is not a chapter yet and how to start", () => {
+    const { container } = render(<ChapterView node={emptyFolder} onNavigate={vi.fn()} />);
+    const empty = container.querySelector(".chapter-empty")!;
+    expect(empty).toBeTruthy();
+    expect(empty.textContent).toContain("not a chapter yet");
+    expect(empty.querySelector("kbd")?.textContent).toBe("F2");
+  });
+
+  it("locked: an already-tagged but empty chapter says so instead", () => {
+    const node = { ...emptyFolder, format: "x-yamlover-chapter" } as NodeJson;
+    const { container } = render(<ChapterView node={node} onNavigate={vi.fn()} />);
+    expect(container.querySelector(".chapter-empty")!.textContent).toContain("This chapter is empty");
+  });
+
+});
