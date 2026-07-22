@@ -90,4 +90,34 @@ describe("list renderers", () => {
     const { container } = render(<ListView node={listNode("x-yamlover-bullets", value)} onNavigate={() => {}} />);
     expect(container.querySelector("ul.yl-list > li > ol.yl-list li")?.textContent).toBe("ordered inside");
   });
+
+  // A nested item is an OMNI: nesting `- b` under `- a` makes `a` a container whose SELF-VALUE is
+  // its own text and whose entries are `[b]` (the shape indentEntry produces). The item's own words
+  // must render above its sublist, not vanish.
+  it("an item with a sublist keeps its OWN text (the omni self-value)", () => {
+    const omni = (self: string, subs: unknown[], format = "x-yamlover-bullets") => ({
+      $yamloverMixed: { kind: "omni", value: self, format, entries: subs.map((value) => ({ key: null, value })) },
+    });
+    const value = marker([
+      { key: null, value: "plain top" },
+      { key: null, value: omni("parent item", ["child one", "child two"]) },
+    ], "x-yamlover-bullets");
+    const { container } = render(<ListView node={listNode("x-yamlover-bullets", value)} onNavigate={() => {}} />);
+    const parentLi = container.querySelectorAll("ul.yl-list > li")[1]!;
+    // the parent's own text is there, ABOVE its sublist
+    expect(parentLi.textContent).toContain("parent item");
+    const sub = parentLi.querySelector(":scope > ul.yl-list")!;
+    expect(sub).not.toBeNull();
+    expect([...sub.querySelectorAll(":scope > li")].map((li) => li.textContent)).toEqual(["child one", "child two"]);
+  });
+
+  it("a container item with NO self-value renders just the sublist (no phantom prose)", () => {
+    const value = marker([
+      { key: null, value: marker([{ key: null, value: "only child" }], "x-yamlover-bullets") },
+    ], "x-yamlover-bullets");
+    const { container } = render(<ListView node={listNode("x-yamlover-bullets", value)} onNavigate={() => {}} />);
+    const li = container.querySelector("ul.yl-list > li")!;
+    expect(li.querySelector(":scope > ul li")?.textContent).toBe("only child");
+    expect(li.textContent).toBe("only child"); // nothing extra
+  });
 });

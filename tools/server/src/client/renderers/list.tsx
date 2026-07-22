@@ -66,8 +66,8 @@ function ListItem({
   }
   if (mixed || Array.isArray(value)) {
     // an untagged container item is a nested sublist of the SAME kind (any-depth rule);
-    // a marker stamped with the other list format switches kind explicitly
-    return (
+    // a marker stamped with the other list format switches kind explicitly.
+    const sublist = (
       <ListBody
         value={value}
         path={path}
@@ -75,6 +75,17 @@ function ListItem({
         documentPath={documentPath}
         onNavigate={onNavigate}
       />
+    );
+    // An OMNI item carries its OWN text as the container's self-value — the shape a nested item
+    // takes (`- a` with `- b` indented under it becomes `a:` self-value + `[b]`). Render that text
+    // as the item's prose ABOVE its sublist; without this the item's own words vanish.
+    const self = mixed && typeof mixed.value === "string" && mixed.value !== "" ? mixed.value : null;
+    if (self == null) return sublist;
+    return (
+      <>
+        <MarklowerChunk chunk={{ value: self, path, type: "string", format: "text/marklower", documentPath }} onNavigate={onNavigate} />
+        {sublist}
+      </>
     );
   }
   const link = asLink(value);
