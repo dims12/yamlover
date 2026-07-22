@@ -370,3 +370,42 @@ meta_tag_editing: Meta tag editing
 
 empty_cell_of_origin: Back to the hole this cell grew from
     description: A pseudo-state - the projected structure (quotes, sigil, braces, marker) is dismantled and the cell returns to the hole it was born from; the document root returns to the `empty` state, an entry returns to `entry_hole`
+
+# --- The CHAPTER projection (chapter-editor/view.tsx) ------------------------------------------- #
+# The SAME model, drawn as prose/headings/sections/lists. These states are the model's, seen under
+# the chapter projection; the typing grammar above does not apply here (no holes, no `- `/`key:`).
+# THE PROSE EXCEPTION governs Enter; THE FORMAT RULE governs Tab and the format commands.
+
+chapter_title_editing: A chapter title / subtitle, focused
+    description: The document's (or a subchapter's) self-value as an editable heading, or the keyed `description` as the subtitle. Opening the editor lands here in the root title, so writing begins with no click
+    enter: *: chapter_prose_editing               # title → description → the body (a first paragraph is made if none)
+    tab: *: nop                                    # a heading does not nest
+    shift_tab: *: nop
+    ctrl_alt_number: *: format_switched
+    down_arrow: *: focus_next
+
+chapter_prose_editing: A prose paragraph, focused
+    description: A body paragraph as the shared marklower editor. Enter makes a SIBLING paragraph (THE PROSE EXCEPTION), not a descent
+    enter: *: chapter_prose_editing               # split at the caret; the tail is a new sibling paragraph
+    tab:
+        "a previous sibling exists": *: chapter_prose_editing   # nest it → the previous block becomes a subchapter
+        "otherwise": *: nop
+    shift_tab:
+        "below the root level": *: chapter_prose_editing        # lift it out of its subchapter
+        "otherwise": *: nop
+    backspace:
+        "the caret is at the start": *: chapter_prose_editing   # join into the previous paragraph, caret at the junction
+        "otherwise": *: chapter_prose_editing
+    ctrl_alt_number: *: format_switched
+
+list_item_editing: A typographical-list item, focused
+    description: An item of a tagged bullets/numbered list. Tab nests it as a SUBLIST of the same kind - the same model move as a subchapter, since an untagged nested container inherits the list's kind
+    enter: *: list_item_editing
+    tab:
+        "a previous item exists": *: list_item_editing
+        "otherwise": *: nop
+    shift_tab: *: list_item_editing
+    ctrl_alt_number: *: format_switched
+
+format_switched: The block's format was chosen (bar / Ctrl+Alt+1..4)
+    description: A pseudo-state - the block the caret is in is retagged (→ chapter DROPS the tag, → bullets/numbered/table retag or wrap a leaf), re-projected in place, and the caret stays in its content. The target is the ENCLOSING block: standing in a list item retags the list, in a table cell the table
