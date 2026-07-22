@@ -55,8 +55,12 @@ export function splitProse(
   if (!owner) return null;
   const { container, index, entry } = owner;
   const edits: Edit[] = [];
-  // the head stays in place, keeping representation
+  // the head stays in place, keeping representation. WE change its text (the cell's DOM still
+  // shows the whole paragraph), so its rev must bump — that is the cell's reset gate; without it
+  // the head keeps showing the un-truncated text (setNodeToken never bumps: in the source view
+  // the cell itself typed the token, so its DOM already matches).
   edits.push(...M.setNodeToken(rootPath, root, entry.node.id, proseScalar(head)));
+  entry.node.rev++;
   // the tail becomes a new committed sibling right after it
   const tailEntry = proseEntry(tail);
   container.entries.splice(index + 1, 0, tailEntry);
@@ -90,6 +94,7 @@ export function joinProse(
   // unaffected by removing something after it, so both ops address correctly on the server's re-scan
   edits.push(...M.removeEntry(rootPath, root, drop.id));
   edits.push(...M.setNodeToken(rootPath, root, keep.node.id, proseScalar(keepText + dropText)));
+  keep.node.rev++; // programmatic text change — the survivor's cell must reset to the merged text
   return { edits, focusId: keep.node.id, caret: junction };
 }
 
@@ -167,6 +172,24 @@ export function promoteFormat(rootPath: string, root: M.MNode, nodeId: string, c
   node.rev++;
   const path = spine ? M.pathOfSpine(rootPath, spine) : rootPath;
   return [{ path, op: "replace", yamlover: M.serializeMNode(node), meta: tag }];
+}
+
+/** Create the chapter's keyed `description` as its FIRST entry (the conventional position, right
+ *  under the title line). The projection renders a Description cell even before the entry exists —
+ *  a chapter's head is Title then Description, and the field must be THERE to be typed into — so
+ *  the entry is born from the first committed text. Already present (a race) → a plain emplace. */
+export function createDescription(rootPath: string, root: M.MNode, nodeId: string, text: string): { edits: Edit[] } {
+  const found = M.findNode(root, nodeId);
+  const node = found?.node ?? root;
+  const existing = node.entries.find((e) => e.key === "description");
+  if (existing) return { edits: commitProse(rootPath, root, existing.node.id, text) };
+  const entry: M.MEntry = {
+    id: M.nid(), key: "description", decided: true, committed: true,
+    node: { id: M.nid(), rev: 0, kind: "scalar", scalar: { src: JSON.stringify(text), value: text }, entries: [], selfAt: 0, metaTag: null, setTag: false },
+  };
+  node.entries.splice(0, 0, entry);
+  const contPath = found?.spine ? M.pathOfSpine(rootPath, found.spine) : rootPath;
+  return { edits: [{ path: appendIndex(contPath, 0), op: "insert", key: "description", yamlover: JSON.stringify(text) }] };
 }
 
 // --- path helpers ------------------------------------------------------------------------------ //

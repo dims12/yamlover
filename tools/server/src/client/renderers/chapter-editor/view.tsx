@@ -15,7 +15,7 @@ import { MarklowerChunkEditor } from "../chunk-editors";
 import { focusEnd } from "../caret";
 import { formatOfNode, type ChosenFormat } from "./format";
 import { formatTarget } from "./tab";
-import { commitProse, joinProse, promoteFormat, splitProse, tabEdits } from "./blocks";
+import { commitProse, createDescription, joinProse, promoteFormat, splitProse, tabEdits } from "./blocks";
 import { clearFormatBus, publishFormatBus, useFormatBus } from "./format-bus";
 
 /** A pending caret placement — which model node to focus, and where. */
@@ -147,6 +147,12 @@ function ChapterNode({ node, nodePath, level }: { node: M.MNode; nodePath: strin
   const proj = useProj();
   const { host, focus, clearFocus, run } = proj;
   const Heading = `h${Math.min(level + 1, 6)}` as "h1";
+  // The page head is Title then Description — the Description CELL is there even before the keyed
+  // entry exists (an empty folder), or the user has nowhere to type one and writes it as a
+  // paragraph instead (which a later Tab then turns into a subchapter — the reported confusion).
+  // The keyed entry is born from the first committed text; the sentinel id focuses the empty cell.
+  const hasDesc = node.entries.some((e) => e.key === "description");
+  const descKey = node.id + ":desc";
   return (
     <>
       <HeadingCell
@@ -158,12 +164,26 @@ function ChapterNode({ node, nodePath, level }: { node: M.MNode; nodePath: strin
         onFocused={clearFocus}
         onCommit={(t) => run((r) => ({ edits: setSelf(host.path, r, node.id, t) }))}
         onEnter={() => run((r) => {
+          // Enter walks title → description → the body
           const found = M.findNode(r, node.id);
           const desc = (found?.node ?? r).entries.find((e) => e.key === "description");
           if (desc) return { edits: [], focus: { id: desc.node.id, at: "end" } };
+          if (level === 0) return { edits: [], focus: { id: descKey, at: "end" } };
           return firstBodyFocus(host.path, r, node.id);
         })}
       />
+      {level === 0 && !hasDesc && (
+        <HeadingCell
+          as="p"
+          className="chapter-subtitle"
+          placeholder="Description"
+          value=""
+          focusNow={focus?.id === descKey}
+          onFocused={clearFocus}
+          onCommit={(t) => { if (t) run((r) => createDescription(host.path, r, node.id, t)); }}
+          onEnter={() => run((r) => firstBodyFocus(host.path, r, node.id))}
+        />
+      )}
       <BlockBody node={node} nodePath={nodePath} level={level} />
     </>
   );
@@ -269,10 +289,21 @@ function ProseCell({ entry, tag = "chunk" }: { entry: M.MEntry; tag?: "chunk" | 
       placeholder={tag === "span" ? "List item" : "Write…"}
       onFocused={clearFocus}
       onChangeText={(t) => run(() => ({ edits: commit(t) }))}
-      onSplit={(head, tail) => run((r) => splitProse(host.path, r, entry.id, head, tail))}
+      onSplit={(head, tail) => run((r) => {
+        // the CARET must follow the tail — a split whose focus stays behind piles empty
+        // paragraphs up after the still-focused cell (the reported malfunction)
+        const out = splitProse(host.path, r, entry.id, head, tail);
+        return out && { edits: out.edits, focus: { id: out.focusId, at: "start" as const } };
+      })}
       onArrowOut={() => { /* caret walk between paragraphs — a later refinement */ }}
-      onJoinPrev={() => run((r) => joinProse(host.path, r, entry.id, "prev", isProse))}
-      onJoinNext={() => run((r) => joinProse(host.path, r, entry.id, "next", isProse))}
+      onJoinPrev={() => run((r) => {
+        const out = joinProse(host.path, r, entry.id, "prev", isProse);
+        return out && { edits: out.edits, focus: { id: out.focusId, at: out.caret } };
+      })}
+      onJoinNext={() => run((r) => {
+        const out = joinProse(host.path, r, entry.id, "next", isProse);
+        return out && { edits: out.edits, focus: { id: out.focusId, at: out.caret } };
+      })}
     />
   );
   const onKeyDownCapture = (e: React.KeyboardEvent) => {
@@ -331,6 +362,8 @@ function HeadingCell({
 }) {
   const ref = useRef<HTMLElement>(null);
   const focused = useRef(false);
+  const latest = useRef(value);
+  latest.current = value;
   const Tag = as;
   useEffect(() => {
     if (ref.current && !focused.current) ref.current.textContent = value;
@@ -341,6 +374,13 @@ function HeadingCell({
     onFocused?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusNow]);
+  // Commit ONLY when the text actually changed. A blur fires whenever the caret moves anywhere
+  // else (every Enter walk, every split), and an unchanged commit is not free here: each one
+  // emits a real op into the queue.
+  const commitIfChanged = () => {
+    const t = (ref.current?.textContent ?? "").trim();
+    if (t !== latest.current) onCommit(t);
+  };
   return (
     <Tag
       ref={ref as React.Ref<never>}
@@ -349,12 +389,12 @@ function HeadingCell({
       suppressContentEditableWarning
       data-placeholder={placeholder}
       onFocus={() => { focused.current = true; onFocus?.(); }}
-      onBlur={() => { focused.current = false; onCommit((ref.current?.textContent ?? "").trim()); }}
+      onBlur={() => { focused.current = false; commitIfChanged(); }}
       onKeyDown={(e) => {
         if (e.key !== "Enter") return;
         e.preventDefault();
         focused.current = false;
-        onCommit((ref.current?.textContent ?? "").trim());
+        commitIfChanged();
         onEnter?.();
       }}
     />

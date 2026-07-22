@@ -105,11 +105,38 @@ describe("ChapterProjection — editing", () => {
     sel.addRange(range);
     fireEvent.keyDown(p, { key: "Enter" });
     await act(async () => { await Promise.resolve(); });
-    expect(utils.container.querySelectorAll(".chapter-prose").length).toBe(2);
+    const paras = utils.container.querySelectorAll(".chapter-prose");
+    expect(paras.length).toBe(2);
+    expect(paras[0].textContent).toBe("hello"); // the head's DOM RESET to the head text (rev bump)
+    expect(paras[1].textContent).toBe("world");
+    expect(document.activeElement).toBe(paras[1]); // the caret FOLLOWED the tail — the malfunction pin
     const batch = await flush();
     expect(batch).toEqual([
       { path: ":doc[0]", op: "emplace", yamlover: "hello" },
       { path: ":doc[1]", op: "insert", yamlover: "world" },
+    ]);
+  });
+
+  it("Backspace at the start joins into the previous paragraph, caret at the junction", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: ["hello", "world"] }));
+    await settle();
+    const second = utils.container.querySelectorAll(".chapter-prose")[1] as HTMLElement;
+    const range = document.createRange();
+    range.setStart(second.firstChild ?? second, 0); // caret at the very start
+    range.collapse(true);
+    const sel = window.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    fireEvent.keyDown(second, { key: "Backspace" });
+    await act(async () => { await Promise.resolve(); });
+    const remaining = utils.container.querySelectorAll(".chapter-prose");
+    expect(remaining.length).toBe(1);
+    expect(remaining[0].textContent).toBe("helloworld"); // the survivor's DOM reset to the merge
+    expect(document.activeElement).toBe(remaining[0]);
+    const batch = await flush();
+    expect(batch).toEqual([
+      { path: ":doc[1]", op: "remove" },
+      { path: ":doc[0]", op: "emplace", yamlover: "helloworld" },
     ]);
   });
 
@@ -248,15 +275,46 @@ describe("ChapterProjection — Enter adds VISIBLE paragraphs (regression: invis
   };
   const settle = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
 
-  it("Enter from the title of an EMPTY chapter creates ONE paragraph and puts the caret in it", async () => {
-    const utils = renderSync(chapterNode({ title: "Book" })); // no body
+  it("Enter walks title → Description placeholder → ONE paragraph, caret following each step", async () => {
+    const utils = renderSync(chapterNode({ title: "Book" })); // no description, no body
     await settle();
+    // the Description CELL exists before the entry does — otherwise there is nowhere to type one
+    const desc = utils.container.querySelector("p.chapter-subtitle") as HTMLElement;
+    expect(desc).toBeTruthy();
     const h1 = utils.container.querySelector("h1.chapter-title") as HTMLElement;
     fireEvent.keyDown(h1, { key: "Enter" });
     await act(async () => { await Promise.resolve(); });
+    expect(document.activeElement).toBe(desc); // Enter from the title lands in the description
+    fireEvent.keyDown(desc, { key: "Enter" });
+    await act(async () => { await Promise.resolve(); });
     const paras = utils.container.querySelectorAll(".chunk-body .chapter-prose");
     expect(paras.length).toBe(1); // exactly one, and it EXISTS in the DOM
-    expect(document.activeElement).toBe(paras[0]); // the caret is IN it, not stuck in the title
+    expect(document.activeElement).toBe(paras[0]); // the caret is IN it, not stuck behind
+  });
+
+  it("typing in the Description placeholder creates the keyed entry at [0]", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: ["hi"] }));
+    await settle();
+    const desc = utils.container.querySelector("p.chapter-subtitle") as HTMLElement;
+    desc.textContent = "a friendly guide";
+    fireEvent.blur(desc);
+    await act(async () => { await Promise.resolve(); });
+    const batch = await flush();
+    expect(batch).toEqual([{ path: ":doc[0]", op: "insert", key: "description", yamlover: '"a friendly guide"' }]);
+    // the placeholder is replaced by the real entry-backed cell, still showing the text
+    expect(utils.container.querySelectorAll("p.chapter-subtitle").length).toBe(1);
+    expect(utils.container.querySelector("p.chapter-subtitle")?.textContent).toBe("a friendly guide");
+  });
+
+  it("Enter in the EMPTY Description placeholder skips to the body, creating no entry", async () => {
+    const utils = renderSync(chapterNode({ title: "Book" }));
+    await settle();
+    const desc = utils.container.querySelector("p.chapter-subtitle") as HTMLElement;
+    fireEvent.keyDown(desc, { key: "Enter" });
+    await act(async () => { await Promise.resolve(); });
+    const batch = await flush();
+    // one insert only — the fresh paragraph; no description entry was born from an empty commit
+    expect(batch).toEqual([{ path: ":doc[0]", op: "insert", yamlover: '""' }]);
   });
 
   it("a fresh paragraph carries a placeholder so an EMPTY one is visible", async () => {
@@ -266,13 +324,17 @@ describe("ChapterProjection — Enter adds VISIBLE paragraphs (regression: invis
     expect(p.getAttribute("data-placeholder")).toBeTruthy(); // the :empty::before hook the CSS needs
   });
 
-  it("Enter in an empty paragraph makes the next one — each is a real cell, not a phantom", async () => {
+  it("Enter in an empty paragraph makes the next one AND moves the caret into it", async () => {
     const utils = renderSync(chapterNode({ title: "Book", body: [""] }));
     await settle();
     const p = utils.container.querySelector(".chapter-prose") as HTMLElement;
     fireEvent.keyDown(p, { key: "Enter" });
     await act(async () => { await Promise.resolve(); });
-    expect(utils.container.querySelectorAll(".chunk-body .chapter-prose").length).toBe(2);
+    const paras = utils.container.querySelectorAll(".chunk-body .chapter-prose");
+    expect(paras.length).toBe(2);
+    // the caret follows the fresh paragraph — repeated Enters must not pile empties after a
+    // still-focused cell (the reported malfunction)
+    expect(document.activeElement).toBe(paras[1]);
   });
 });
 
