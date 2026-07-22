@@ -953,19 +953,6 @@ body {
   color: var(--dim);
 }
 
-/* a chapter with nothing in it — usually a plain folder opened through the OFFERED chapter tab */
-.chapter-empty {
-  color: var(--dim);
-  font-style: italic;
-}
-.chapter-empty kbd {
-  font-family: var(--mono, monospace);
-  font-style: normal;
-  font-size: 0.9em;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 0 4px;
-}
 .chapter-prose {
   margin: 0 0 14px;
   white-space: pre-wrap;
@@ -1234,18 +1221,6 @@ textarea.chapter-latex-src {
 }
 .chunk-tool:hover { color: var(--fg); background: var(--hover, rgba(127, 127, 127, 0.12)); }
 
-/* the trailing "＋ paragraph" affordance */
-.chunk-add { margin-top: 4px; }
-.chunk-addbtn {
-  background: none;
-  border: 1px dashed var(--dim);
-  border-radius: 6px;
-  color: var(--dim);
-  cursor: pointer;
-  font-size: 13px;
-  padding: 4px 10px;
-}
-.chunk-addbtn:hover { color: var(--accent); border-color: var(--accent); }
 /* an image / diagram chunk sits flush with its index: drop the standalone-view
    top padding so the object's top-left corner meets the gutter (the index) */
 .chunk-body .filemedia {

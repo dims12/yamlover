@@ -235,3 +235,58 @@ describe("text material right-click", () => {
     expect(container.querySelector(".annotate-title")?.textContent).toContain("doc");
   });
 });
+
+describe("selection never annotates page chrome", () => {
+  /** Drop a left-button text selection from `start` to `end` and release, the way the create menu
+   *  listens for it. */
+  const selectAndRelease = (container: HTMLElement, start: Node, so: number, end: Node, eo: number) => {
+    const sel = window.getSelection()!;
+    const r = document.createRange();
+    r.setStart(start, so);
+    r.setEnd(end, eo);
+    // jsdom stubs neither; the create handler reads a rect to place the menu
+    (r as unknown as { getBoundingClientRect: () => DOMRect }).getBoundingClientRect = () => ({ left: 10, bottom: 10 }) as DOMRect;
+    sel.removeAllRanges();
+    sel.addRange(r);
+    fireEvent.mouseUp(container.querySelector(".annotated > div")!, { button: 0, clientX: 10, clientY: 10 });
+  };
+
+  it("selecting a chunk's §N gutter does NOT open the tag menu", async () => {
+    mockFetch({});
+    const { container } = render(
+      <AnnotatedMaterial path=":doc">
+        <div className="chunk" data-node-path=":doc[1]">
+          <a className="chunk-index" href="#[1]">§0</a>
+          <div className="chunk-body"><p>real prose here</p></div>
+        </div>
+      </AnnotatedMaterial>,
+    );
+    const gutter = container.querySelector(".chunk-index")!.firstChild!;
+    selectAndRelease(container, gutter, 0, gutter, 2);
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(container.querySelector(".annotate-menu")).toBeNull();
+  });
+
+  it("selecting a `data-yo-chrome` technical note does NOT open the tag menu", async () => {
+    mockFetch({});
+    const { container } = render(
+      <AnnotatedMaterial path=":doc">
+        <p className="chapter-prose">body <span className="chapter-link-note" data-yo-chrome>failed to load</span></p>
+      </AnnotatedMaterial>,
+    );
+    const note = container.querySelector("[data-yo-chrome]")!.firstChild!;
+    selectAndRelease(container, note, 0, note, 6);
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(container.querySelector(".annotate-menu")).toBeNull();
+  });
+
+  it("selecting real prose STILL opens it (the guard is scoped to chrome)", async () => {
+    mockFetch({});
+    const { container } = render(
+      <AnnotatedMaterial path=":doc"><p className="chapter-prose">hello world foo</p></AnnotatedMaterial>,
+    );
+    const text = container.querySelector("p")!.firstChild!;
+    selectAndRelease(container, text, 6, text, 11); // "world"
+    await waitFor(() => expect(container.querySelector(".annotate-menu")).not.toBeNull());
+  });
+});

@@ -3,6 +3,7 @@ import { NodeJson, editChunks, createNode, createObject } from "../api";
 import { NODE_SCHEMA } from "./create";
 import { asLink, scalarValue } from "../render";
 import { canonPath } from "../paths";
+import { focusEnd } from "./caret";
 import { Chunk, rendererFor } from "./registry";
 import { useHashScroll } from "./headings";
 import { useEditing } from "./editing";
@@ -86,19 +87,6 @@ function ChapterRead({ node, onNavigate }: { node: NodeJson; onNavigate: (path: 
   // chunk inside a subchapter that was not in the DOM when the hash was first read.
   const [loads, noteLoad] = useReducer((n: number) => n + 1, 0);
   useHashScroll(loads);
-
-  // Nothing to show at all — a plain folder opened through the offered chapter tab. Say how to
-  // start rather than rendering a blank page (the tab is an OFFER: the folder is not one yet).
-  if (!chapterFlow(node.value).length) {
-    return (
-      <div className="chapter" style={{ maxWidth: `${markupWidthCh()}ch` }}>
-        <p className="chapter-empty">
-          {isSubchapter(node.format) ? "This chapter is empty." : "This folder is not a chapter yet."} Press{" "}
-          <kbd>F2</kbd> or ✏️ Edit to start writing.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="chapter" style={{ maxWidth: `${markupWidthCh()}ch` }}>
@@ -260,7 +248,7 @@ function SubchapterLink({
       >
         {title || "(untitled chapter)"}
       </a>
-      {note && <span className="chapter-link-note"> {note}</span>}
+      {note && <span className="chapter-link-note" data-yo-chrome> {note}</span>}
     </Heading>
   );
 }
@@ -313,6 +301,10 @@ function useChapterSync(model: ChapterModel): () => Promise<void> {
 function ChapterEditor({ initialNode, onNavigate }: { initialNode: NodeJson; onNavigate: (path: string) => void }) {
   const [model, setModel] = useState<ChapterModel>(() => buildChapterModel(initialNode));
   const [focusReq, setFocusReq] = useState<FocusReq | null>(null);
+  // Which HEADING field wants the caret. Unlocking lands in the title, and Enter walks title →
+  // description → the body: pressing Edit means "I am writing now", so the editor never asks for a
+  // click to begin, and no field is a dead end that drops the caret out of the document.
+  const [headFocus, setHeadFocus] = useState<"title" | "description" | null>("title");
   const flush = useChapterSync(model);
   useHashScroll(model); // a `#[1]` deep link must land while unlocked too, not only in the read view
 
@@ -346,6 +338,20 @@ function ChapterEditor({ initialNode, onNavigate }: { initialNode: NodeJson; onN
       chunks.splice(index + 1, 0, part);
       setFocusReq({ id: part.id, at: "start" });
       return { ...m, chunks };
+    });
+  }, []);
+  /** Enter out of the description: into the first editable paragraph, making one when the chapter
+   *  has no body yet — so a brand-new chapter is title → description → writing, with no dead end
+   *  and nothing to click. The paragraph is born from a KEYSTROKE, so merely opening the editor
+   *  still writes nothing. */
+  const enterBody = useCallback(() => {
+    setHeadFocus(null);
+    setModel((m) => {
+      const first = m.chunks.find((c) => c.editable);
+      if (first) { setFocusReq({ id: first.id, at: "start" }); return m; }
+      const part = newProsePart("");
+      setFocusReq({ id: part.id, at: "start" });
+      return { ...m, chunks: [...m.chunks, part] };
     });
   }, []);
   const removeChunk = useCallback((id: string) => {
@@ -391,17 +397,8 @@ function ChapterEditor({ initialNode, onNavigate }: { initialNode: NodeJson; onN
 
   return (
     <div className="chapter" style={{ maxWidth: `${markupWidthCh()}ch` }}>
-      <EditableScalar as="h1" className="chapter-title" placeholder="Title" value={model.title} onCommit={(t) => setModel((m) => ({ ...m, title: t }))} />
-      <EditableScalar as="p" className="chapter-subtitle" placeholder="Description" value={model.description} onCommit={(d) => setModel((m) => ({ ...m, description: d }))} />
-
-      {/* An empty chapter (a folder just opened as one) has nothing to type INTO. The first
-          paragraph is created on purpose rather than seeded into the model: a seeded part would
-          ride the mount snapshot and get written 500ms after merely OPENING the editor. */}
-      {model.chunks.length === 0 && (
-        <div className="chunk-add">
-          <button className="chunk-addbtn" onClick={() => insertAfter(-1)}>＋ Start writing</button>
-        </div>
-      )}
+      <EditableScalar as="h1" className="chapter-title" placeholder="Title" value={model.title} onCommit={(t) => setModel((m) => ({ ...m, title: t }))} focusNow={headFocus === "title"} onFocused={() => setHeadFocus(null)} onEnter={() => setHeadFocus("description")} />
+      <EditableScalar as="p" className="chapter-subtitle" placeholder="Description" value={model.description} onCommit={(d) => setModel((m) => ({ ...m, description: d }))} focusNow={headFocus === "description"} onFocused={() => setHeadFocus(null)} onEnter={enterBody} />
 
       {model.chunks.map((c, i) =>
         c.subchapter ? (
@@ -497,19 +494,30 @@ function EditChunk({
 }
 
 /** A single-line editable scalar (title / description). Uncontrolled: text is written on mount and
- *  when the model value changes while unfocused; commits on blur (and Enter, which blurs). */
+ *  when the model value changes while unfocused; commits on blur and on Enter.
+ *
+ *  Enter HANDS THE CARET ON (`onEnter`) rather than blurring: a heading field that drops focus into
+ *  nothing makes the writer click to get back into their own document, once per field. `focusNow`
+ *  is the other half — the caller says which field wants the caret, so unlocking starts in the
+ *  title instead of waiting to be clicked. */
 function EditableScalar({
   as,
   value,
   onCommit,
   className,
   placeholder,
+  focusNow,
+  onFocused,
+  onEnter,
 }: {
   as: "h1" | "p";
   value: string;
   onCommit: (text: string) => void;
   className?: string;
   placeholder?: string;
+  focusNow?: boolean;
+  onFocused?: () => void;
+  onEnter?: () => void;
 }) {
   const ref = useRef<HTMLElement>(null);
   const focused = useRef(false);
@@ -517,6 +525,14 @@ function EditableScalar({
   useEffect(() => {
     if (ref.current && !focused.current) ref.current.textContent = value;
   }, [value]);
+  // take the caret when this field is the one asked for, and place it at the END so typing appends
+  useEffect(() => {
+    if (!focusNow || !ref.current) return;
+    focusEnd(ref.current);
+    onFocused?.();
+    // `onFocused` clears the request; re-running on its identity would fight the next field for it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusNow]);
   return (
     <Tag
       ref={ref as React.Ref<never>}
@@ -526,7 +542,13 @@ function EditableScalar({
       data-placeholder={placeholder}
       onFocus={() => (focused.current = true)}
       onBlur={() => { focused.current = false; onCommit((ref.current?.textContent ?? "").trim()); }}
-      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLElement).blur(); } }}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        focused.current = false;
+        onCommit((ref.current?.textContent ?? "").trim());
+        onEnter?.(); // …and the caller moves the caret on; no blur, so nothing is ever left nowhere
+      }}
     />
   );
 }

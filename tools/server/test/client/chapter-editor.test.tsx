@@ -245,15 +245,33 @@ describe("ChapterView (unlocked) — a folder written as a chapter", () => {
     documentPath: ":", title: null, description: null, value: {},
   } as unknown as NodeJson;
 
-  it("offers a first paragraph; clicking it yields one editable chunk", () => {
+  it("opens with the caret in the title — no click needed to begin", () => {
     const { container } = renderUnlocked(emptyFolder);
-    const add = container.querySelector(".chunk-addbtn") as HTMLButtonElement;
-    expect(add).toBeTruthy();
-    expect(container.querySelectorAll(".chunk").length).toBe(0);
-    fireEvent.click(add);
+    expect(document.activeElement).toBe(container.querySelector("h1.chapter-title"));
+    expect(container.querySelector(".chunk-addbtn")).toBeNull(); // no button, no extra click
+  });
+
+  it("Enter walks title → description → a first paragraph, made on the way", () => {
+    const { container } = renderUnlocked(emptyFolder);
+    const h1 = container.querySelector("h1.chapter-title") as HTMLElement;
+    fireEvent.keyDown(h1, { key: "Enter" });
+    expect(document.activeElement).toBe(container.querySelector("p.chapter-subtitle"));
+    expect(container.querySelectorAll(".chunk").length).toBe(0); // no body yet — Enter alone made none
+
+    const desc = container.querySelector("p.chapter-subtitle") as HTMLElement;
+    fireEvent.keyDown(desc, { key: "Enter" });
     expect(container.querySelectorAll(".chunk").length).toBe(1);
-    expect(container.querySelector(".chunk-body [contenteditable=true]")).toBeTruthy();
-    expect(container.querySelector(".chunk-addbtn")).toBeNull(); // the offer goes once there is a body
+    const para = container.querySelector(".chunk-body [contenteditable=true]") as HTMLElement;
+    expect(para).toBeTruthy();
+    expect(document.activeElement).toBe(para); // the caret is IN the paragraph, ready to type
+  });
+
+  it("Enter from the description of an EXISTING chapter lands in its first paragraph, making none", () => {
+    const { container } = renderUnlocked(chapterNode(["First"]));
+    const desc = container.querySelector("p.chapter-subtitle") as HTMLElement;
+    fireEvent.keyDown(desc, { key: "Enter" });
+    expect(container.querySelectorAll(".chunk").length).toBe(1); // the existing one, not a new one
+    expect(document.activeElement).toBe(container.querySelector(".chunk-body [contenteditable=true]"));
   });
 
   /** Run `fn` with fake timers, so the editor's 500ms debounce can be flushed deterministically. */

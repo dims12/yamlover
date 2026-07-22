@@ -887,6 +887,14 @@ export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
   return { openCreate, openEdit, palette, preview, color: SELECTION_COLOR };
 }
 
+/** True for a node inside page CHROME rather than document content — the `§N` chunk gutter, any
+ *  button, and anything a renderer marks `data-yo-chrome`. Chrome is on the page but not in the
+ *  document, so it is never annotatable. */
+function isChrome(n: Node | null): boolean {
+  const el = n instanceof HTMLElement ? n : n?.parentElement;
+  return !!el?.closest?.(".chunk-index, button, [data-yo-chrome]");
+}
+
 export function AnnotatedMaterial({ path, children }: { path: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const material = useMaterialAnnotations(path);
@@ -923,6 +931,11 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
       // found in the body, leaving an un-highlightable, hard-to-delete phantom annotation.
       if (!sel || sel.isCollapsed || !sel.anchorNode || !sel.focusNode) return;
       if (!el.contains(sel.anchorNode) || !el.contains(sel.focusNode)) return;
+      // …and neither end may sit in CHROME. A material's page also carries text the document does
+      // not contain — the `§N` gutter, buttons, placeholders, empty-state notes. Annotating it
+      // would anchor a fragment to a string that is not in the body, so it could never be
+      // highlighted again and would be a chore to delete.
+      if (isChrome(sel.anchorNode) || isChrome(sel.focusNode)) return;
       const cap = capture(sel);
       if (!cap) return;
       const rect = sel.getRangeAt(0).getBoundingClientRect();
