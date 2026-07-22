@@ -1,19 +1,21 @@
 // The CHAPTER projection of the projectional editor: the same model host.ts drives for the source
-// view, drawn as prose, headings and sections instead of token rows. Enter makes a sibling
-// paragraph (THE PROSE EXCEPTION), Tab nests it into the previous block — a subchapter — and
-// Shift-Tab lifts it out; the structural moves are the shared indentEntry/dedentEntry.
+// view, drawn as prose, headings, sections and lists instead of token rows. Enter makes a sibling
+// paragraph (THE PROSE EXCEPTION), Tab nests it into the previous block — a subchapter, or a list
+// item — and Shift-Tab lifts it out; the structural moves are the shared indentEntry/dedentEntry.
+// A block's format is chosen from the bar or Ctrl+Alt+1..4 (Ctrl+1..9 is browser-reserved).
 //
 // Behind a flag for now (chapterEditorFlavor): the flat ChapterEditor keeps running until this
 // reaches parity, so nothing regresses while it grows.
 
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useYedHost, type FocusAt, type YedHost } from "../yamlover-editor/host";
 import * as M from "../yamlover-editor/model";
 import type { Edit } from "../../api";
 import { MarklowerChunkEditor } from "../chunk-editors";
 import { focusEnd } from "../caret";
-import { formatOfNode } from "./format";
-import { commitProse, joinProse, splitProse, tabEdits } from "./blocks";
+import { formatOfNode, type ChosenFormat } from "./format";
+import { formatTarget } from "./tab";
+import { commitProse, joinProse, promoteFormat, splitProse, tabEdits } from "./blocks";
 
 /** A pending caret placement — which model node to focus, and where. */
 interface Focus { id: string; at: FocusAt }
@@ -21,20 +23,32 @@ interface Focus { id: string; at: FocusAt }
 /** True for a node the projection edits as PROSE — an inlined scalar chunk. */
 const isProse = (node: M.MNode): boolean => node.kind === "scalar";
 
+/** Everything a cell needs from the projection, so the tree passes ONE value instead of six props. */
+interface Proj {
+  host: YedHost;
+  focus: Focus | null;
+  clearFocus: () => void;
+  /** Run a block mutation: step (mutate + enqueue ops), then take the caret where it says. */
+  run: (produce: (root: M.MNode) => { edits: Edit[]; focus?: Focus } | null) => void;
+  /** The entry the caret is in — the format bar's target. */
+  setActive: (entryId: string | null) => void;
+  onNavigate: (p: string) => void;
+}
+const ProjCtx = createContext<Proj | null>(null);
+const useProj = (): Proj => useContext(ProjCtx)!;
+
 export function ChapterProjection({ path, onNavigate }: { path: string; onNavigate: (p: string) => void }) {
   const host = useYedHost(path, onNavigate);
-  // The projection owns its own focus (blocks.ts returns the node to land on); the caret lands via
-  // each cell's `focusAt`. Opening puts it in the title, so writing begins with no click.
-  const [focus, setFocus] = useState<Focus | null>({ id: host.rootRef.current?.id ?? "", at: "start" });
+  const [focus, setFocus] = useState<Focus | null>(null);
+  const [active, setActive] = useState<string | null>(null);
   const opened = useRef(false);
   useEffect(() => {
     if (opened.current || !host.root) return;
     opened.current = true;
-    setFocus({ id: host.root.id, at: "start" }); // the root's self-value cell = the title
+    setFocus({ id: host.root.id, at: "start" }); // the root's self-value cell = the title; write with no click
   }, [host.root]);
 
-  /** Run a block mutation: step (mutate + enqueue ops), then take the caret where it says. */
-  const run = (produce: (root: M.MNode) => { edits: Edit[]; focus?: Focus } | null) => {
+  const run: Proj["run"] = (produce) => {
     let next: Focus | undefined;
     host.step((r) => {
       const out = produce(r);
@@ -44,85 +58,81 @@ export function ChapterProjection({ path, onNavigate }: { path: string; onNaviga
     if (next) setFocus(next);
   };
 
+  /** Set the active block's format. Ctrl+Alt+1..4 and the bar both land here. */
+  const choose = (fmt: ChosenFormat) => {
+    if (!active) return;
+    run((r) => {
+      const targetId = formatTarget(r, active);
+      if (!targetId) return { edits: [] };
+      const rootTag = r.metaTag;
+      return { edits: promoteFormat(host.path, r, targetId, fmt, rootTag) };
+    });
+  };
+
+  const proj: Proj = { host, focus, clearFocus: () => setFocus(null), run, setActive, onNavigate };
+
   if (!host.root) return <div className="chapter chapter-wysiwyg">…</div>;
   return (
-    <div className="chapter chapter-wysiwyg" ref={host.rootEl}>
-      <ChapterNode
-        host={host}
-        node={host.root}
-        nodePath={path}
-        level={0}
-        focus={focus}
-        clearFocus={() => setFocus(null)}
-        run={run}
-        onNavigate={onNavigate}
-      />
+    <ProjCtx.Provider value={proj}>
+      <div
+        className="chapter chapter-wysiwyg"
+        ref={host.rootEl}
+        onKeyDown={(e) => {
+          // Ctrl+Alt+1..4 chooses the block format (Ctrl+1..9 is a browser tab shortcut a page
+          // cannot intercept). `e.code` reads the digit through Alt's dead keys on macOS.
+          if (!(e.ctrlKey && e.altKey)) return;
+          const n = { Digit1: "chapter", Digit2: "table", Digit3: "bullets", Digit4: "numbered" }[e.code] as ChosenFormat | undefined;
+          if (!n) return;
+          e.preventDefault();
+          choose(n);
+        }}
+      >
+        <FormatBar active={active} host={host} choose={choose} />
+        <ChapterNode node={host.root} nodePath={host.path} level={0} />
+      </div>
+    </ProjCtx.Provider>
+  );
+}
+
+/** The block-format toolbar: four buttons acting on the block the caret is in. Highlights the
+ *  active block's current format. */
+function FormatBar({ active, host, choose }: { active: string | null; host: YedHost; choose: (f: ChosenFormat) => void }) {
+  const current = active && host.rootRef.current ? currentFormat(host.rootRef.current, active) : null;
+  const btn = (fmt: ChosenFormat, glyph: string, title: string) => (
+    <button
+      type="button"
+      className={"fmt-btn" + (current === fmt ? " active" : "")}
+      title={`${title} (Ctrl+Alt+${{ chapter: 1, table: 2, bullets: 3, numbered: 4 }[fmt]})`}
+      disabled={!active}
+      // mousedown, not click: a click would blur the caret cell first, losing `active`
+      onMouseDown={(e) => { e.preventDefault(); choose(fmt); }}
+    >{glyph}</button>
+  );
+  return (
+    <div className="fmt-bar" data-yo-chrome>
+      {btn("chapter", "¶", "Normal")}
+      {btn("bullets", "•", "Bullets")}
+      {btn("numbered", "1.", "Numbered")}
+      {btn("table", "▦", "Table")}
     </div>
   );
 }
 
-/** One chapter (the document root, or a subchapter) — its title, then its body of paragraphs and
- *  nested subchapters, and one level deeper for each subchapter. */
-function ChapterNode({
-  host, node, nodePath, level, focus, clearFocus, run, onNavigate,
-}: {
-  host: YedHost;
-  node: M.MNode;
-  nodePath: string;
-  level: number;
-  focus: Focus | null;
-  clearFocus: () => void;
-  run: (produce: (root: M.MNode) => { edits: Edit[]; focus?: Focus } | null) => void;
-  onNavigate: (p: string) => void;
-}) {
-  const Heading = `h${Math.min(level + 1, 6)}` as "h1";
-  const body: JSX.Element[] = [];
-  node.entries.forEach((entry, i) => {
-    if (entry.key === "description") {
-      body.push(
-        <HeadingCell
-          key={entry.id}
-          as="p"
-          className="chapter-subtitle"
-          placeholder="Description"
-          value={String(entry.node.scalar?.value ?? "")}
-          focusNow={focus?.id === entry.node.id}
-          onFocused={clearFocus}
-          onCommit={(t) => run((r) => ({ edits: commitProse(host.path, r, entry.node.id, t) }))}
-          onEnter={() => run((r) => firstBodyFocus(host.path, r, node.id))}
-        />,
-      );
-      return;
-    }
-    if (entry.key !== null) return; // other keyed fields are not chapter body content
-    const child = entry.node;
-    if (isProse(child)) {
-      body.push(
-        <ProseCell key={entry.id} host={host} entry={entry} focus={focus} clearFocus={clearFocus} run={run} />,
-      );
-      return;
-    }
-    if (child.kind === "container" && formatOfNode(child) === "chapter") {
-      body.push(
-        <section key={entry.id} className="chapter-sub" data-chapter-path={pathOf(host, nodePath, node, i)}>
-          <ChapterNode
-            host={host}
-            node={child}
-            nodePath={pathOf(host, nodePath, node, i)}
-            level={level + 1}
-            focus={focus}
-            clearFocus={clearFocus}
-            run={run}
-            onNavigate={onNavigate}
-          />
-        </section>,
-      );
-      return;
-    }
-    // a tagged list / table, a pointer, or a binary chunk — read-only in this projection for now
-    body.push(<ReadOnlyBlock key={entry.id} node={child} path={pathOf(host, nodePath, node, i)} onNavigate={onNavigate} />);
-  });
+/** The format the bar should show ACTIVE for the entry the caret is in — the format of the block
+ *  the format command would target (formatTarget). */
+function currentFormat(root: M.MNode, entryId: string): ChosenFormat | null {
+  const targetId = formatTarget(root, entryId);
+  const node = targetId ? M.findNode(root, targetId)?.node : null;
+  if (!node) return null;
+  const f = formatOfNode(node);
+  return f === "table" || f === "bullets" || f === "numbered" ? f : "chapter";
+}
 
+/** One chapter (the document root, or a subchapter) — its title, then its body. */
+function ChapterNode({ node, nodePath, level }: { node: M.MNode; nodePath: string; level: number }) {
+  const proj = useProj();
+  const { host, focus, clearFocus, run } = proj;
+  const Heading = `h${Math.min(level + 1, 6)}` as "h1";
   return (
     <>
       <HeadingCell
@@ -134,67 +144,165 @@ function ChapterNode({
         onFocused={clearFocus}
         onCommit={(t) => run((r) => ({ edits: setSelf(host.path, r, node.id, t) }))}
         onEnter={() => run((r) => {
-          // title → description (when the chapter has one) → the body
           const found = M.findNode(r, node.id);
           const desc = (found?.node ?? r).entries.find((e) => e.key === "description");
           if (desc) return { edits: [], focus: { id: desc.node.id, at: "end" } };
           return firstBodyFocus(host.path, r, node.id);
         })}
       />
-      {body}
+      <BlockBody node={node} nodePath={nodePath} level={level} />
     </>
   );
 }
 
-/** A prose paragraph — the shared marklower editor, wrapped so Tab nests it (Tab is not the
- *  editor's; it is intercepted here so the wrapper can dispatch to the chapter's Tab rules). */
-function ProseCell({
-  host, entry, focus, clearFocus, run,
-}: {
-  host: YedHost;
-  entry: M.MEntry;
-  focus: Focus | null;
-  clearFocus: () => void;
-  run: (produce: (root: M.MNode) => { edits: Edit[]; focus?: Focus } | null) => void;
-}) {
-  const node = entry.node;
-  const focusAt: FocusAt | null = focus?.id === node.id ? focus.at : null;
+/** A container's body entries rendered as blocks — shared by a chapter and a list item. */
+function BlockBody({ node, nodePath, level }: { node: M.MNode; nodePath: string; level: number }) {
+  const proj = useProj();
+  const out: JSX.Element[] = [];
+  node.entries.forEach((entry, i) => {
+    if (entry.key === "description") {
+      out.push(<DescriptionCell key={entry.id} entry={entry} node={node} />);
+      return;
+    }
+    if (entry.key !== null) return; // other keyed fields are not body content
+    const child = entry.node;
+    const childPath = pathOf(proj.host, nodePath, node, i);
+    if (isProse(child)) {
+      out.push(<ProseCell key={entry.id} entry={entry} />);
+      return;
+    }
+    if (child.kind === "container") {
+      const f = formatOfNode(child);
+      if (f === "bullets" || f === "numbered") {
+        out.push(<ListNode key={entry.id} node={child} nodePath={childPath} kind={f} />);
+        return;
+      }
+      if (f === "chapter") {
+        out.push(
+          <section key={entry.id} className="chapter-sub" data-chapter-path={childPath}>
+            <ChapterNode node={child} nodePath={childPath} level={level + 1} />
+          </section>,
+        );
+        return;
+      }
+    }
+    // a tagged table, a pointer, or a binary chunk — read-only in this projection for now
+    out.push(<ReadOnlyBlock key={entry.id} node={child} path={childPath} />);
+  });
+  return <>{out}</>;
+}
+
+/** An editable typographical list: <ul>/<ol> whose items are prose (or a nested sublist). Tab in an
+ *  item nests it — the SAME move as a subchapter, since an untagged nested container inherits the
+ *  list's kind (blocks.ts / MARKLOWER.md). */
+function ListNode({ node, nodePath, kind }: { node: M.MNode; nodePath: string; kind: "bullets" | "numbered" }) {
+  const proj = useProj();
+  const Tag = kind === "numbered" ? "ol" : "ul";
   return (
-    <div
-      className="chunk"
-      onKeyDownCapture={(e) => {
-        if (e.key !== "Tab") return;
-        e.preventDefault();
-        e.stopPropagation();
-        run((r) => {
-          const t = tabEdits(host.path, r, entry.id, e.shiftKey);
-          if (t.intent.kind === "cell" || t.intent.kind === "nop") return { edits: [] };
-          return { edits: t.edits, focus: t.focusId ? { id: t.focusId, at: "end" } : undefined };
-        });
-      }}
-    >
-      <div className="chunk-body">
-        <MarklowerChunkEditor
-          text={String(node.scalar?.value ?? "")}
-          rev={node.rev}
-          chapterPath={host.path}
-          focusAt={focusAt}
-          onFocused={clearFocus}
-          onChangeText={(t) => run((r) => ({ edits: commitProse(host.path, r, node.id, t) }))}
-          onSplit={(head, tail) => run((r) => splitProse(host.path, r, entry.id, head, tail))}
-          onArrowOut={() => { /* caret walk between paragraphs — a later refinement */ }}
-          onJoinPrev={() => run((r) => joinProse(host.path, r, entry.id, "prev", isProse))}
-          onJoinNext={() => run((r) => joinProse(host.path, r, entry.id, "next", isProse))}
-        />
-      </div>
+    <Tag className={`yl-list yl-list-${kind}`}>
+      {node.entries.map((entry, i) => {
+        if (entry.key !== null) return null;
+        const child = entry.node;
+        const childPath = pathOf(proj.host, nodePath, node, i);
+        return (
+          <li key={entry.id} data-node-path={childPath}>
+            {isProse(child) ? (
+              <ProseCell entry={entry} tag="span" />
+            ) : child.kind === "container" ? (
+              // an omni item — its OWN text (the container's self-value) above its nested SUBLIST,
+              // which inherits this list's kind unless the item carries an explicit tag of its own
+              <>
+                {child.selfValue != null && <ProseCell entry={entry} tag="span" />}
+                <ListNode node={child} nodePath={childPath} kind={sublistKind(child, kind)} />
+              </>
+            ) : (
+              <ReadOnlyBlock node={child} path={childPath} />
+            )}
+          </li>
+        );
+      })}
+    </Tag>
+  );
+}
+
+/** A nested list item's kind: its own tag if it carries one, else the parent list's (the any-depth
+ *  inheritance rule, MARKLOWER.md). */
+function sublistKind(node: M.MNode, parent: "bullets" | "numbered"): "bullets" | "numbered" {
+  const f = formatOfNode(node);
+  return f === "bullets" || f === "numbered" ? f : parent;
+}
+
+/** A prose paragraph — the shared marklower editor, wrapped so Tab nests it and focus tracks the
+ *  active block. `tag` is the wrapper element (a `div.chunk` in a chapter, a bare span in a list
+ *  item, so the <li> marker stays on one line). */
+function ProseCell({ entry, tag = "chunk" }: { entry: M.MEntry; tag?: "chunk" | "span" }) {
+  const proj = useProj();
+  const { host, focus, clearFocus, run, setActive } = proj;
+  const node = entry.node;
+  // a container entry standing in for its self-value (a list item's own text) edits the self-value
+  const self = node.kind === "container";
+  const text = String((self ? node.selfValue?.value : node.scalar?.value) ?? "");
+  const focusAt: FocusAt | null = focus?.id === node.id ? focus.at : null;
+  const commit = (t: string): Edit[] =>
+    self ? setSelf(host.path, host.rootRef.current!, node.id, t, /* asSelfValue */ true) : commitProse(host.path, host.rootRef.current!, node.id, t);
+
+  const inner = (
+    <MarklowerChunkEditor
+      text={text}
+      rev={node.rev}
+      chapterPath={host.path}
+      focusAt={focusAt}
+      onFocused={clearFocus}
+      onChangeText={(t) => run(() => ({ edits: commit(t) }))}
+      onSplit={(head, tail) => run((r) => splitProse(host.path, r, entry.id, head, tail))}
+      onArrowOut={() => { /* caret walk between paragraphs — a later refinement */ }}
+      onJoinPrev={() => run((r) => joinProse(host.path, r, entry.id, "prev", isProse))}
+      onJoinNext={() => run((r) => joinProse(host.path, r, entry.id, "next", isProse))}
+    />
+  );
+  const onKeyDownCapture = (e: React.KeyboardEvent) => {
+    if (e.key !== "Tab") return;
+    e.preventDefault();
+    e.stopPropagation();
+    run((r) => {
+      const t = tabEdits(host.path, r, entry.id, e.shiftKey);
+      if (t.intent.kind === "cell" || t.intent.kind === "nop") return { edits: [] };
+      return { edits: t.edits, focus: t.focusId ? { id: t.focusId, at: "end" } : undefined };
+    });
+  };
+  const onFocus = () => setActive(entry.id);
+
+  if (tag === "span") return <span className="chunk-inline" onKeyDownCapture={onKeyDownCapture} onFocus={onFocus}>{inner}</span>;
+  return (
+    <div className="chunk" onKeyDownCapture={onKeyDownCapture} onFocus={onFocus}>
+      <div className="chunk-body">{inner}</div>
     </div>
+  );
+}
+
+/** The chapter's description — an editable subtitle. */
+function DescriptionCell({ entry, node }: { entry: M.MEntry; node: M.MNode }) {
+  const proj = useProj();
+  const { host, focus, clearFocus, run, setActive } = proj;
+  return (
+    <HeadingCell
+      as="p"
+      className="chapter-subtitle"
+      placeholder="Description"
+      value={String(entry.node.scalar?.value ?? "")}
+      focusNow={focus?.id === entry.node.id}
+      onFocused={clearFocus}
+      onFocus={() => setActive(entry.id)}
+      onCommit={(t) => run((r) => ({ edits: commitProse(host.path, r, entry.node.id, t) }))}
+      onEnter={() => run((r) => firstBodyFocus(host.path, r, node.id))}
+    />
   );
 }
 
 /** A single-line editable heading (title / subtitle). Uncontrolled, reset on `value` while
  *  unfocused; Enter HANDS THE CARET ON via `onEnter` rather than blurring to nowhere. */
 function HeadingCell({
-  as, value, onCommit, className, placeholder, focusNow, onFocused, onEnter,
+  as, value, onCommit, className, placeholder, focusNow, onFocused, onEnter, onFocus,
 }: {
   as: "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p";
   value: string;
@@ -204,6 +312,7 @@ function HeadingCell({
   focusNow?: boolean;
   onFocused?: () => void;
   onEnter?: () => void;
+  onFocus?: () => void;
 }) {
   const ref = useRef<HTMLElement>(null);
   const focused = useRef(false);
@@ -224,7 +333,7 @@ function HeadingCell({
       contentEditable
       suppressContentEditableWarning
       data-placeholder={placeholder}
-      onFocus={() => (focused.current = true)}
+      onFocus={() => { focused.current = true; onFocus?.(); }}
       onBlur={() => { focused.current = false; onCommit((ref.current?.textContent ?? "").trim()); }}
       onKeyDown={(e) => {
         if (e.key !== "Enter") return;
@@ -237,9 +346,10 @@ function HeadingCell({
   );
 }
 
-/** A block this projection does not yet edit — a tagged list/table (Stage 6/7), a `*` pointer, or a
- *  binary chunk. Shown read-only with its own text so it is not lost; navigable when it is a link. */
-function ReadOnlyBlock({ node, path, onNavigate }: { node: M.MNode; path: string; onNavigate: (p: string) => void }) {
+/** A block this projection does not yet edit inline — a tagged table (Stage 7), a `*` pointer, or a
+ *  binary chunk. Shown read-only so it is not lost; navigable when it is a link. */
+function ReadOnlyBlock({ node, path }: { node: M.MNode; path: string }) {
+  const { onNavigate } = useProj();
   if (node.kind === "pointer" || node.kind === "link") {
     const target = node.kind === "pointer" ? node.pointer?.refPath : node.link?.path;
     const text = node.kind === "pointer" ? "*" + (node.pointer?.raw ?? "") : node.link?.title ?? node.link?.path ?? path;
@@ -249,7 +359,7 @@ function ReadOnlyBlock({ node, path, onNavigate }: { node: M.MNode; path: string
       </div></div>
     );
   }
-  const label = formatOfNode(node); // table / bullets / numbered
+  const label = formatOfNode(node); // table
   return (
     <div className="chunk"><div className="chunk-body">
       <p className="chapter-prose chapter-readonly-block" data-yo-chrome>[{label} — edit in the source view for now]</p>
@@ -259,20 +369,20 @@ function ReadOnlyBlock({ node, path, onNavigate }: { node: M.MNode; path: string
 
 // --- helpers ----------------------------------------------------------------------------------- //
 
-/** Commit a chapter's title (the node's self-value); an empty string drops the line. */
-function setSelf(rootPath: string, root: M.MNode, nodeId: string, text: string): Edit[] {
-  const scalar = text ? { src: JSON.stringify(text), value: text } : null; // a heading is one line — quote it
+/** Commit a chapter TITLE (`asSelfValue` false) or a list item's OWN text (a container's
+ *  self-value, `asSelfValue` true) — both are the node's self-value; an empty string drops it. */
+function setSelf(rootPath: string, root: M.MNode, nodeId: string, text: string, _asSelfValue = false): Edit[] {
+  const scalar = text ? { src: JSON.stringify(text), value: text } : null; // one line — quote it
   return M.setSelfValue(rootPath, root, nodeId, scalar);
 }
 
 /** Enter out of a heading: focus the first editable body paragraph, making an empty one when the
- *  chapter has none — so a fresh chapter is title → writing, with no dead end and nothing to click. */
+ *  chapter has none — so a fresh chapter is title → writing, no dead end and nothing to click. */
 function firstBodyFocus(rootPath: string, root: M.MNode, nodeId: string): { edits: Edit[]; focus?: Focus } {
   const found = M.findNode(root, nodeId);
   const node = found?.node ?? root;
   const firstProse = node.entries.find((e) => e.key === null && isProse(e.node));
   if (firstProse) return { edits: [], focus: { id: firstProse.node.id, at: "start" } };
-  // make one empty paragraph, focus it (born from the Enter keystroke, so merely opening writes nothing)
   const entry: M.MEntry = {
     id: M.nid(), key: null, decided: true, committed: true,
     node: { id: M.nid(), rev: 0, kind: "scalar", scalar: { src: '""', value: "" }, entries: [], selfAt: 0, metaTag: null, setTag: false },
@@ -291,3 +401,4 @@ function pathOf(host: YedHost, containerPath: string, container: M.MNode, i: num
   const found = M.findNode(host.rootRef.current!, container.entries[i].node.id);
   return found?.spine ? M.pathOfSpine(host.path, found.spine) : `${containerPath === ":" ? "" : containerPath}[${i}]`;
 }
+

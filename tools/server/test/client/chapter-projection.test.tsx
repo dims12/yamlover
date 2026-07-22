@@ -149,3 +149,90 @@ describe("ChapterProjection — editing", () => {
     expect(editChunks).not.toHaveBeenCalled();
   });
 });
+
+describe("ChapterProjection — lists and the format bar", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  const renderSync = (node: NodeJson) => {
+    fetchNode.mockResolvedValue(node);
+    return render(<ChapterProjection path=":doc" onNavigate={vi.fn()} />);
+  };
+  const settle = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
+  const taggedList = (format: string, items: string[]) =>
+    mixed({ kind: "array", format, entries: items.map((value) => ({ key: null, value })) });
+
+  it("draws a tagged bullets list as an editable <ul> of prose items", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: [taggedList("x-yamlover-bullets", ["one", "two"])] }));
+    await settle();
+    const ul = utils.container.querySelector("ul.yl-list-bullets")!;
+    expect(ul).toBeTruthy();
+    expect([...ul.querySelectorAll(":scope > li .chapter-prose")].map((p) => p.textContent)).toEqual(["one", "two"]);
+  });
+
+  it("a numbered list is an <ol>", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: [taggedList("x-yamlover-numbered", ["step"])] }));
+    await settle();
+    expect(utils.container.querySelector("ol.yl-list-numbered .chapter-prose")?.textContent).toBe("step");
+  });
+
+  it("Ctrl+Alt+3 turns the active paragraph into a bullets list (one replace op)", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: ["shopping"] }));
+    await settle();
+    const p = utils.container.querySelector(".chapter-prose") as HTMLElement;
+    fireEvent.focus(p); // sets the active block
+    fireEvent.keyDown(utils.container.querySelector(".chapter-wysiwyg")!, { key: "3", code: "Digit3", ctrlKey: true, altKey: true });
+    await act(async () => { await Promise.resolve(); });
+    expect(utils.container.querySelector("ul.yl-list-bullets")).toBeTruthy();
+    const batch = await flush();
+    expect(batch).toHaveLength(1);
+    expect(batch[0]).toMatchObject({ path: ":doc[0]", op: "replace", meta: "*yamlover: $defs: bullets" });
+    expect(batch[0].yamlover).toContain("shopping");
+  });
+
+  it("Ctrl+Alt+4 while in a bullets list switches it to numbered (one meta-only op)", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: [taggedList("x-yamlover-bullets", ["a", "b"])] }));
+    await settle();
+    const item = utils.container.querySelector("ul .chapter-prose") as HTMLElement;
+    fireEvent.focus(item);
+    fireEvent.keyDown(utils.container.querySelector(".chapter-wysiwyg")!, { key: "4", code: "Digit4", ctrlKey: true, altKey: true });
+    await act(async () => { await Promise.resolve(); });
+    expect(utils.container.querySelector("ol.yl-list-numbered")).toBeTruthy();
+    const batch = await flush();
+    expect(batch).toEqual([{ path: ":doc[0]", op: "emplace", meta: "*yamlover: $defs: numbered" }]);
+  });
+
+  it("Ctrl+Alt+1 in a list drops the tag — it becomes a subchapter", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: [taggedList("x-yamlover-bullets", ["a"])] }));
+    await settle();
+    const item = utils.container.querySelector("ul .chapter-prose") as HTMLElement;
+    fireEvent.focus(item);
+    fireEvent.keyDown(utils.container.querySelector(".chapter-wysiwyg")!, { key: "1", code: "Digit1", ctrlKey: true, altKey: true });
+    await act(async () => { await Promise.resolve(); });
+    const batch = await flush();
+    expect(batch).toEqual([{ path: ":doc[0]", op: "emplace", meta: null }]);
+  });
+
+  it("the format bar highlights the active block's current format", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: [taggedList("x-yamlover-bullets", ["a"])] }));
+    await settle();
+    const item = utils.container.querySelector("ul .chapter-prose") as HTMLElement;
+    fireEvent.focus(item);
+    await act(async () => { await Promise.resolve(); });
+    const active = utils.container.querySelector(".fmt-btn.active")!;
+    expect(active.textContent).toBe("•"); // bullets
+  });
+
+  it("Tab in a list item nests it — a sublist keeping the parent item's text", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: [taggedList("x-yamlover-bullets", ["parent", "child"])] }));
+    await settle();
+    const items = utils.container.querySelectorAll("ul > li");
+    const childProse = items[1].querySelector(".chapter-prose") as HTMLElement;
+    fireEvent.keyDown(childProse, { key: "Tab" });
+    await act(async () => { await Promise.resolve(); });
+    // parent item now holds a nested <ul> with the child, and keeps its own text
+    const parentLi = utils.container.querySelector("ul > li")!;
+    expect(parentLi.textContent).toContain("parent");
+    expect(parentLi.querySelector(":scope > ul.yl-list-bullets .chapter-prose")?.textContent).toBe("child");
+  });
+});
