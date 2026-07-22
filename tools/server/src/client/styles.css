@@ -793,6 +793,12 @@ body {
   background: var(--accent);
   border-color: var(--accent);
 }
+/* an inapplicable representation: the tab stays IN PLACE (a stable bar), just greyed and inert —
+   the same disabled treatment as .side-action */
+.tab:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 /* --- code ----------------------------------------------------------------- */
 .code {
@@ -983,8 +989,10 @@ a.chunk-index:hover {
 }
 .lockbtn-icon { font-size: 14px; line-height: 1; }
 .lockbtn-label { font-weight: 500; }
-.lockbtn:hover { opacity: 1; background: var(--hover, rgba(127, 127, 127, 0.12)); }
+.lockbtn:hover:not(:disabled) { opacity: 1; background: var(--hover, rgba(127, 127, 127, 0.12)); }
 .lockbtn.unlocked { opacity: 1; border-color: var(--accent); color: var(--accent); }
+/* a read-only view: the toggle stays IN PLACE (a stable bar), greyed and inert */
+.lockbtn:disabled { opacity: 0.4; cursor: default; }
 
 /* an editable field (chunk prose, title, description, subchapter title): a subtle focus affordance */
 .editable {
@@ -1253,6 +1261,36 @@ textarea.chapter-latex-src {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
+/* the unified drop CONFIRMATION popup (DropConfirm.tsx) — anchored at the drop point,
+   floating like .annotate-menu; above the drop overlay so it reads over any scrim */
+.drop-confirm {
+  position: fixed;
+  z-index: 3000;
+  max-width: 360px;
+  padding: 10px 12px;
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font-size: 13px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.drop-confirm-text {
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+.drop-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+/* the row/tile a valid in-project drag is hovering — the drop would land here */
+.tree-row.drop-target,
+.dirview-item.drop-target {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
 /* ---- file renderers: image / html / pdf / djvu / markup ------------------ */
 .filemedia {
   padding: 12px 0;
@@ -1260,7 +1298,10 @@ textarea.chapter-latex-src {
   max-width: 900px; /* don't span the whole pane (001) */
 }
 /* PDF / DjVu are a stable scroll VIEWPORT (like the Leaflet map), so ctrl/alt-wheel zoom enlarges
-   the pages and they scroll in BOTH axes within the frame — never clipped to a fixed-width column. */
+   the pages and they scroll in BOTH axes within the frame — never clipped to a fixed-width column.
+   The height here is only the PRE-MEASURE fallback: useFillHeight (paged.ts) sizes the frame to
+   fill exactly down to the window bottom right after mount — a fixed viewport calc can't know the
+   real chrome height above (the node bar wraps), and guessing left a dead band below the frame. */
 .filepdf,
 .filedjvu {
   padding: 12px;
@@ -1603,13 +1644,15 @@ textarea.chapter-latex-src {
   color: var(--fg);
 }
 
-/* ---- kml / kmz map renderer (Leaflet) ------------------------------------ */
+/* ---- kml / kmz map renderer (Leaflet); the pan/zoom image viewer reuses it ----
+   Borderless — the widget reads as part of the page, not a framed box. The height is only the
+   PRE-MEASURE fallback: useFillHeight sizes the full-page frame down to the window bottom after
+   mount (an inline chunk keeps its capped height below), and useLeafletRefit re-fits the Leaflet
+   canvas whenever the frame's size changes. */
 .filemap {
   width: 100%;
   height: calc(100vh - 160px);
   min-height: 360px;
-  border: 1px solid var(--border, #313244);
-  border-radius: 6px;
 }
 /* a map embedded inline as a chapter chunk: cap the height so the page stays readable */
 .chunk-body .filemap.chunk-map {

@@ -187,6 +187,19 @@ describe("any node as a tag", () => {
     expect(r.status).toBe(400);
     expect(r.json.error).toMatch(/existing node/);
   });
+
+  it("the ROOT is refused as a tag — and refused BEFORE any write (no corrupt body file)", async () => {
+    // The root has no project-scope pointer spelling: `::` alone is not a pointer, so writing
+    // `- *::` would make the body overlay unparseable — the original bug corrupted the file and
+    // only the follow-up reindex threw. The refusal must come before disk is touched.
+    const root = tmpTree({ name: "Alice" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":" });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toMatch(/root/);
+    expect(fs.existsSync(path.join(root, ".yamlover", "body.yamlover"))).toBe(false);
+  });
 });
 
 // TYPES.md §9: tagging a node turns it OMNI — keyed tag applications laid over its own value — and

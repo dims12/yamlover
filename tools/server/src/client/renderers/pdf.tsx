@@ -5,7 +5,7 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 import { Annotation, NodeJson, blobUrl } from "../api";
 import { fragmentAnchorId } from "../paths";
 import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
-import { usePagedScroll } from "./paged";
+import { useFillHeight, usePagedScroll } from "./paged";
 
 /** A rectangular annotation region on a PDF page, in points (origin top-left). `ann` is the source
  *  annotation when real/saved (→ clickable to edit); absent for the live preview. */
@@ -94,6 +94,7 @@ export function PdfView({ node }: { node: NodeJson }) {
     return out;
   };
   const paged = usePagedScroll(ref, getPageEls, width > 0 && pages > 0);
+  useFillHeight(ref); // the frame fills down to the window bottom — no dead band, no overflow
   const pagedRef = useRef(paged);
   pagedRef.current = paged;
   // After a zoom COMMIT reflows the pages, restore the captured reading position.

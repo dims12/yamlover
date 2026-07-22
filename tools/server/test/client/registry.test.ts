@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getRenderer, rendererFor, rendererName, renderersFor, plaintextTab, tocView } from "../../src/client/renderers/registry";
+import { getRenderer, rendererFor, rendererName, renderersFor, rendererTabs, plaintextTab, tocView } from "../../src/client/renderers/registry";
 import type { NodeJson, TreeNode } from "../../src/client/api";
 
 // Dispatch keys on TYPE FACETS (TYPES.md §9): the scalar self-value's type, the node's format,
@@ -124,16 +124,32 @@ describe("renderer registry (facet predicates)", () => {
     expect(rendererName(node({ concrete: "dir/yamlover", type: "integer", value: 30 }), "dir/yamlover")).toBeNull();
   });
 
-  it("plaintextTab: a textual node offers the raw-source tab; dirs and non-string inline nodes do not", () => {
-    // file-backed data + markdown/asciidoc files → plaintext (raw bytes via /api/blob)
-    expect(plaintextTab(node({ concrete: "file/yaml", hasKeyed: true }))?.name).toBe("plaintext");
-    expect(plaintextTab(node({ concrete: "file/binary", format: "text/markdown" }))?.name).toBe("plaintext");
+  it("rendererTabs: the explorer family is ALWAYS present — enabled per eligibility (a stable bar)", () => {
+    // a PDF file: its own renderer leads (the one node-specific slot), the family rides along disabled
+    expect(rendererTabs(node({ concrete: "file/binary", format: "application/pdf" })).map((t) => `${t.renderer.name}:${t.enabled}`)).toEqual([
+      "pdf:true", "thumbnails:false", "large-icons:false", "small-icons:false", "details:false",
+    ]);
+    // a directory: no primary slot (its natural view IS the explorer), the family enabled
+    expect(rendererTabs(node({ concrete: "dir" })).map((t) => `${t.renderer.name}:${t.enabled}`)).toEqual([
+      "thumbnails:true", "large-icons:true", "small-icons:true", "details:true",
+    ]);
+    // a data SCALAR: no primary, the family in place but disabled (its grids would be empty)
+    expect(rendererTabs(node({ concrete: "file/json", type: "integer", valueType: "integer", value: 30 })).map((t) => `${t.renderer.name}:${t.enabled}`)).toEqual([
+      "thumbnails:false", "large-icons:false", "small-icons:false", "details:false",
+    ]);
+  });
+
+  it("plaintextTab: ENABLED for a textual node; DISABLED (but present) for dirs and non-string inline nodes", () => {
+    // file-backed data + markdown/asciidoc files → plaintext enabled (raw bytes via /api/blob)
+    expect(plaintextTab(node({ concrete: "file/yaml", hasKeyed: true }))).toMatchObject({ enabled: true });
+    expect(plaintextTab(node({ concrete: "file/binary", format: "text/markdown" }))).toMatchObject({ enabled: true });
+    expect(plaintextTab(node({ concrete: "file/yaml", hasKeyed: true }))?.renderer.name).toBe("plaintext");
     // inline string content (no source file) → plaintext renders the value
-    expect(plaintextTab(node({ concrete: "yamlover", valueType: "string", format: "text/markdown", value: "# hi" }))?.name).toBe("plaintext");
-    // a directory and a non-string inline container get NONE
-    expect(plaintextTab(node({ concrete: "dir" }))).toBeNull();
-    expect(plaintextTab(node({ concrete: "json", hasKeyed: true, value: {} }))).toBeNull();
-    // a .txt already LEADS with plaintext → no duplicate trailing tab
+    expect(plaintextTab(node({ concrete: "yamlover", valueType: "string", format: "text/markdown", value: "# hi" }))).toMatchObject({ enabled: true });
+    // a directory and a non-string inline container keep the tab IN PLACE, disabled (a stable bar)
+    expect(plaintextTab(node({ concrete: "dir" }))).toMatchObject({ enabled: false });
+    expect(plaintextTab(node({ concrete: "json", hasKeyed: true, value: {} }))).toMatchObject({ enabled: false });
+    // a .txt already LEADS with plaintext → no duplicate trailing tab (the one true null)
     expect(plaintextTab(node({ concrete: "file/binary", format: "text/plain" }))).toBeNull();
   });
 

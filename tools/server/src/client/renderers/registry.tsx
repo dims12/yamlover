@@ -487,20 +487,26 @@ function explorerViews(node: NodeJson): Renderer[] {
   return isBoardNode(node) ? [TAG_BOARD, ...ICON_VIEWS] : ICON_VIEWS;
 }
 
-/** Every selectable rendered representation for a node, best first: its format renderer (when any),
- *  PLUS — for a tag / board / any node stored as a directory — the EXPLORER VIEW FAMILY (large
- *  icons / thumbnails / small icons / details, and tag board on a board dir), each its own tab.
- *  So a dir-backed chapter offers its chapter view then the directory views; a bare directory just
- *  the views. */
-export function renderersFor(node: NodeJson): Renderer[] {
-  const out: Renderer[] = [];
+/** The LEADING (rendered-view) tab slots for a node — the STABLE-BAR model: one PRIMARY slot (the
+ *  node's own format renderer — chapter/pdf/image…, when any; a plain directory's primary IS the
+ *  explorer, so its slot is empty) followed by the EXPLORER VIEW FAMILY, which is ALWAYS present
+ *  (thumbnails / large icons / small icons / details, `tag-board` leading on a board) — `enabled`
+ *  only where the members are worth browsing (a container directory, or a json/yaml container; a
+ *  SCALAR shows them disabled — the grids would be empty). So navigating between node kinds only
+ *  ever swaps the single primary icon; the family and everything after it keep their place. */
+export function rendererTabs(node: NodeJson): { renderer: Renderer; enabled: boolean }[] {
+  const out: { renderer: Renderer; enabled: boolean }[] = [];
   const primary = rendererFor(node);
-  if (primary && primary !== EXPLORER) out.push(primary); // a non-explorer primary (chapter/task) leads
-  // The explorer family is offered for a CONTAINER directory AND a json/yaml CONTAINER (a data
-  // document or sub-object/array) — so a json/yaml file browses its members as icons just like a
-  // folder. A SCALAR (incl. a scalar-bodied directory) gets no icon tabs (they would be empty).
-  if (primary === EXPLORER || explorerEligible(node)) out.push(...explorerViews(node));
+  if (primary && primary !== EXPLORER) out.push({ renderer: primary, enabled: true }); // chapter/task/pdf… leads
+  const eligible = primary === EXPLORER || explorerEligible(node);
+  out.push(...explorerViews(node).map((r) => ({ renderer: r, enabled: eligible })));
   return out;
+}
+
+/** Every representation a node actually OFFERS, best first — {@link rendererTabs}' enabled
+ *  projection (the single-valued default paths and the TOC don't care about disabled slots). */
+export function renderersFor(node: NodeJson): Renderer[] {
+  return rendererTabs(node).filter((t) => t.enabled).map((t) => t.renderer);
 }
 
 // A node whose members are worth browsing as icons: object / array / mixed / variant (a `variant`
@@ -517,19 +523,21 @@ function explorerEligible(node: NodeJson): boolean {
 /** The registry's plaintext renderer (raw-source view), reused as a TRAILING tab. */
 export const PLAINTEXT = REGISTRY.find((r) => r.name === "plaintext")!;
 
-/** The trailing `plaintext` (raw-source) tab a TEXTUAL node offers, or null. Textual = a data
- *  language (json/json5/json5p/yaml/yamlover) or markdown/asciidoc. It is renderable as text when
- *  the node is file-backed (raw bytes via /api/blob) or its value is an inline string. A directory,
- *  a non-string inline container, or a node already led by plaintext (a `.txt`) gets none. */
-export function plaintextTab(node: NodeJson): Renderer | null {
-  if (isDirConcrete(node.concrete)) return null;
+/** The trailing `plaintext` (raw-source) tab. It is part of the FIXED tab set — rendered on every
+ *  node, `enabled` only where a raw-text view exists: a TEXTUAL node (a data language —
+ *  json/json5/json5p/yaml/yamlover — or markdown/asciidoc) that is renderable as text (file-backed
+ *  raw bytes via /api/blob, or an inline string value). A directory or a non-string inline
+ *  container shows the tab DISABLED, so the bar keeps its shape. Null only for a node already LED
+ *  by plaintext (a `.txt`) — its leading renderer tab is this very view, a trailing duplicate
+ *  would be a second identical button. */
+export function plaintextTab(node: NodeJson): { renderer: Renderer; enabled: boolean } | null {
   if (rendererFor(node) === PLAINTEXT) return null; // a text/plain node already leads with it
   const textual =
-    isJsonFamily(node.concrete) || isYamlFamily(node.concrete) ||
-    node.format === "text/markdown" || node.format === "text/asciidoc";
-  if (!textual) return null;
+    !isDirConcrete(node.concrete) &&
+    (isJsonFamily(node.concrete) || isYamlFamily(node.concrete) ||
+      node.format === "text/markdown" || node.format === "text/asciidoc");
   const renderable = isFileConcrete(node.concrete) || typeof scalarValue(node.value) === "string";
-  return renderable ? PLAINTEXT : null;
+  return { renderer: PLAINTEXT, enabled: textual && renderable };
 }
 
 /** The name (= representation key / `?format=` value) of the renderer that claims `src` — with the

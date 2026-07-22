@@ -1,4 +1,20 @@
+import { useEffect } from "react";
 import L from "leaflet";
+
+/** Refit the Leaflet canvas whenever its CONTAINER resizes: Leaflet reads the container size only
+ *  at creation and on window resize, so a programmatic height change (useFillHeight sizing the
+ *  frame to the window bottom after mount) would otherwise leave tiles/overlays clipped to the old
+ *  box. `map()` is read per event — the map is created asynchronously (after fetch/decode). */
+export function useLeafletRefit(ref: React.RefObject<HTMLElement | null>, map: () => L.Map | null): void {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => map()?.invalidateSize());
+    ro.observe(el);
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
 
 /**
  * The unified pan/zoom/select gesture model for a Leaflet map (shared by the image viewer and the

@@ -82,6 +82,19 @@ function reachBody(lines: string[], within: string[]): Region {
   return reachBodyAt(lines, start, within);
 }
 
+/** The body region owned by the key at line `L` (its own lines deeper than `indent`, within `hi`).
+ *  The child key column: a deeper content line's indent if the node already has a block body, else
+ *  key-indent + 2 (a leaf/inline value gains its first field there — an omni node). */
+function bodyUnder(lines: string[], L: number, hi: number, indent: number): Region {
+  const bodyLo = L + 1;
+  const bodyHi = blockEnd(lines, bodyLo, hi, indent + 1); // anything deeper than the key
+  let childIndent = indent + 2;
+  for (let i = bodyLo; i < bodyHi; i++) {
+    if (isContentLine(lines[i]) && indentOf(lines[i]) > indent) { childIndent = indentOf(lines[i]); break; }
+  }
+  return { lo: bodyLo, hi: bodyHi, indent: childIndent };
+}
+
 /** {@link reachBody}'s mapping-KEY descent, but starting from an already-resolved `start` region
  *  rather than the file root — so a host reached by NON-key descent (a chapter chunk, by index) can
  *  then descend its own keyed fields (`yamlover-fragments`/`<slug>`). Creates missing keys. */
@@ -96,19 +109,21 @@ export function reachBodyAt(lines: string[], start: Region, within: string[]): R
       lo = at + 1; hi = at + 1; indent += 2; // its (empty) body
       continue;
     }
-    const inline = lines[L].slice(indentOf(lines[L])).slice(`${lines[L].trim().split(":")[0]}:`.length);
-    const bodyLo = L + 1;
-    const bodyHi = blockEnd(lines, bodyLo, hi, indent + 1); // anything deeper than the key
-    // the child key column: a deeper content line's indent if the node already has a block body,
-    // else key-indent + 2 (a leaf/inline value gains its first field there — an omni node).
-    let childIndent = indent + 2;
-    for (let i = bodyLo; i < bodyHi; i++) {
-      if (isContentLine(lines[i]) && indentOf(lines[i]) > indent) { childIndent = indentOf(lines[i]); break; }
-    }
-    void inline;
-    lo = bodyLo; hi = bodyHi; indent = childIndent;
+    ({ lo, hi, indent } = bodyUnder(lines, L, hi, indent));
   }
   return { lo, hi, indent };
+}
+
+/** READ-ONLY descent to the body region at `within` — null when any key is absent. The lookup the
+ *  prune path needs: {@link reachBody} would re-CREATE a key that a removal just deleted. */
+function findBody(lines: string[], within: string[]): Region | null {
+  let region: Region = { lo: 0, hi: lines.length, indent: firstContentIndent(lines) };
+  for (const key of within) {
+    const L = findKeyLine(lines, region.lo, region.hi, region.indent, key);
+    if (L < 0) return null;
+    region = bodyUnder(lines, L, region.hi, region.indent);
+  }
+  return region;
 }
 
 /** Start lines of the `- ` items of a sequence whose key sits at `indent` (items at the same
@@ -212,6 +227,53 @@ export function annotationsRemain(text: string, within: string[]): boolean {
 export function annotationsRemainAt(lines: string[], region: Region): boolean {
   const seq = seqItemLines(lines, region, ANNOTATIONS_KEY);
   return !!seq && seq.items.length > 0;
+}
+
+/** Drop an EMPTIED `yamlover-annotations:` key (present, zero items) at `region` — untagging the
+ *  last tag must not leave the key behind as a null-valued orphan. Mutates `lines`; returns
+ *  whether the husk was dropped. */
+export function pruneEmptyAnnotationsAt(lines: string[], region: Region): boolean {
+  const keyLine = findKeyLine(lines, region.lo, region.hi, region.indent, ANNOTATIONS_KEY);
+  if (keyLine < 0 || annotationsRemainAt(lines, region)) return false;
+  lines.splice(keyLine, 1); // the items sit at the key's own indent, and there are none — one line
+  return true;
+}
+
+/** Drop keys along `within` (deepest first) that are now EMPTY: a bare `key:` line with nothing
+ *  left in its block. An overlay key (a filename block) exists only to host what sat under it, so
+ *  once the last entry went the husk chain must go too. A key with an INLINE value is a real data
+ *  node — kept, and the walk stops (its ancestors hold it). Mutates `lines`; returns whether
+ *  anything was dropped. */
+function pruneEmptyKeys(lines: string[], within: string[]): boolean {
+  let pruned = false;
+  for (let d = within.length; d > 0; d--) {
+    const parent = findBody(lines, within.slice(0, d - 1));
+    if (!parent) break;
+    const L = findKeyLine(lines, parent.lo, parent.hi, parent.indent, within[d - 1]);
+    if (L < 0) break;
+    const t = lines[L].trim();
+    if (t !== `${within[d - 1]}:` && t !== `${keyToken(within[d - 1])}:`) break; // an inline value — keep
+    const body = bodyUnder(lines, L, parent.hi, parent.indent);
+    let empty = true;
+    for (let i = body.lo; i < body.hi; i++) if (isContentLine(lines[i])) { empty = false; break; }
+    if (!empty) break; // still hosts something
+    lines.splice(L, Math.max(1, body.hi - L));
+    pruned = true;
+  }
+  return pruned;
+}
+
+/** The untag AFTERMATH at `within`: drop an emptied `yamlover-annotations:` husk, and — when
+ *  `pruneHosts` (an overlay body, whose keys exist only to host overlay entries; never an in-place
+ *  document, whose keys are the user's data) — any host keys emptied with it. Read-only descent: a
+ *  path the removal already deleted is left alone, never re-created. */
+export function pruneEmptyAnnotations(text: string, within: string[], pruneHosts: boolean): string {
+  const lines = text.replace(/\n$/, "").split("\n");
+  const region = findBody(lines, within);
+  if (!region) return text;
+  const droppedHusk = pruneEmptyAnnotationsAt(lines, region);
+  const droppedHosts = pruneHosts && pruneEmptyKeys(lines, within);
+  return droppedHusk || droppedHosts ? lines.join("\n") + "\n" : text;
 }
 
 /** Remove the `<entryKey>:` block from the `<mapKey>:` mapping of the node at `within` (e.g. drop one

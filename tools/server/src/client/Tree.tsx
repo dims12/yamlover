@@ -1,8 +1,18 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { isDirConcrete } from "../concrete";
 import { TreeNode } from "./api";
+import { beginNodeDrag } from "./dnd";
 import { tocView } from "./renderers/registry";
 import { TreeRow } from "./TreeRow";
 import { isAncestorPath } from "./paths";
+
+/** In-project drag-drop wiring for the TOC: `canDrop` consults drop-policy against the
+ *  current drag; a drop hands the target + pointer spot to the owner's confirm popup.
+ *  Must be referentially STABLE (memoized by the owner) — Tree is memo'd against SSE churn. */
+export interface TreeDnd {
+  canDrop: (target: TreeNode) => boolean;
+  onDropNode: (target: TreeNode, x: number, y: number) => void;
+}
 
 interface Props {
   node: TreeNode;
@@ -10,6 +20,7 @@ interface Props {
   onSelect: (path: string) => void;
   onLoadChildren: (path: string, levels?: number) => Promise<void>;
   onContext?: (node: TreeNode, x: number, y: number) => void; // right-click → the node context menu
+  dnd?: TreeDnd; // rows drag out; directory rows accept drops
   depth?: number;
   // Whether this branch STARTS open (default: only the depth-0 root row does). The TOC search
   // renders each result as its own depth-indented root — those must start collapsed.
@@ -30,7 +41,7 @@ interface Props {
  */
 // memo: App re-renders on every SSE task-progress frame (background indexing/hashing — several
 // per second); the TOC must only re-render when its own props change.
-export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren, onContext, depth = 0, initialOpen, filterMode }: Props) {
+export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren, onContext, dnd, depth = 0, initialOpen, filterMode }: Props) {
   // How this node presents in the TOC: the rows to show, whether it expands, and
   // whether those rows are loaded yet (a renderer may unwrap/filter; default is
   // the node's own children, fetched lazily on first expand).
@@ -92,6 +103,8 @@ export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren
         chevron={expandable ? { open, loading, onToggle: toggle } : "leaf"}
         onSelect={() => onSelect(node.path)}
         onContext={onContext ? (x, y) => onContext(node, x, y) : undefined}
+        drag={dnd && node.path !== ":" ? { onStart: (e) => beginNodeDrag(e, { path: node.path, concrete: node.concrete ?? null, label: node.label }) } : undefined}
+        drop={dnd && isDirConcrete(node.concrete) ? { canDrop: () => dnd.canDrop(node), onDrop: (x, y) => dnd.onDropNode(node, x, y) } : undefined}
       />
       {open &&
         kids.map((c) => (
@@ -102,6 +115,7 @@ export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren
             onSelect={onSelect}
             onLoadChildren={onLoadChildren}
             onContext={onContext}
+            dnd={dnd}
             depth={depth + 1}
             filterMode={filterMode}
           />

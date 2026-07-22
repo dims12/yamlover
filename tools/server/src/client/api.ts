@@ -262,6 +262,22 @@ export function installAgentDocs(): Promise<{
   return postJson(api("/api/agent-docs"), {});
 }
 
+/** The report of an engine-mediated move: where the node went and which source files had
+ *  inbound pointers rewritten (`unrewritten` lists the ones the engine could not fix). */
+export interface MvResult {
+  from: string;
+  to: string;
+  editedFiles: string[];
+  unrewritten: unknown[];
+}
+
+/** Move a file-/directory-backed node (POST /api/mv): relocates the FS object and rewrites
+ *  inbound pointers. `from`/`to` are canonical colon paths (keyed segments only — the route
+ *  rejects positions); drop-policy.ts pre-screens what the client may even offer. */
+export function moveNode(from: string, to: string): Promise<MvResult> {
+  return postJson(api("/api/mv"), { from, to });
+}
+
 /** The result of pasting/uploading a file or text: the new file's node path (for a text chunk,
  *  the chapter it joined), and (for a chapter) the chapter path plus any chunk pointer appended. */
 export interface PasteResult {

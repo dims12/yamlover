@@ -125,6 +125,55 @@ describe("embedded annotations", () => {
     expect(call(h, "/api/annotations", { path: ":name" }).json).toHaveLength(0);
     h.close();
   });
+
+  it("untagging the LAST tag leaves no orphans — no `yamlover-annotations:` husk, no empty host key", async () => {
+    const root = tmpTree({ "docs/a.pdf": "%PDF-1.4 a", "docs/b.pdf": "%PDF-1.4 b" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    // tag one PDF with the other, then untag at once (the right-click → TOC-click → uncheck flow)
+    await callBody(h, "POST", "/api/annotate", { target: ":docs:a.pdf", tag: ":docs:b.pdf" });
+    const overlayFile = path.join(root, "docs", ".yamlover", "body.yamlover");
+    expect(fs.readFileSync(overlayFile, "utf8")).toContain("yamlover-annotations:");
+    const del = await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":docs:a.pdf")}&tag=${encodeURIComponent(":docs:b.pdf")}`, {});
+    expect(del.status).toBe(200);
+    const overlay = fs.readFileSync(overlayFile, "utf8");
+    expect(overlay).not.toContain("yamlover-annotations"); // no null-valued husk…
+    expect(overlay).not.toContain("a.pdf"); // …and no empty filename host key left behind either
+    h.close();
+  });
+
+  it("untagging ONE of two tags keeps the host key and the other annotation", async () => {
+    const root = tmpTree({
+      name: "Alice",
+      "tags.yamlover": 'yellow: !!<*::yamlover:$defs:tag>\n  color: "#f9e2af"\ngreen: !!<*::yamlover:$defs:tag>\n  color: "#a6e3a1"\n',
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":tags.yamlover:yellow" });
+    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":tags.yamlover:green" });
+    await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":name")}&tag=${encodeURIComponent(":tags.yamlover:yellow")}`, {});
+    const overlay = fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8");
+    expect(overlay).toContain("yamlover-annotations:"); // one tag remains — nothing pruned
+    expect(overlay).toContain("green");
+    expect(call(h, "/api/annotations", { path: ":name" }).json).toHaveLength(1);
+    h.close();
+  });
+
+  it("in an in-place DOCUMENT only the husk goes — a pre-existing empty data key survives untag", async () => {
+    // `stub:` is the USER's key (empty mapping) inside a real document — tagging must pass
+    // through it without adopting it: after untag the husk goes but `stub:` stays
+    const root = tmpTree({ "doc.yamlover": "stub:\nkeep: 1\n", ...TAG_FILE });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    await callBody(h, "POST", "/api/annotate", { target: ":doc.yamlover:stub", tag: TAG });
+    expect(fs.readFileSync(path.join(root, "doc.yamlover"), "utf8")).toContain("yamlover-annotations:");
+    await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":doc.yamlover:stub")}&tag=${encodeURIComponent(TAG)}`, {});
+    const doc = fs.readFileSync(path.join(root, "doc.yamlover"), "utf8");
+    expect(doc).not.toContain("yamlover-annotations"); // the husk is gone…
+    expect(doc).toContain("stub:"); // …but the user's empty key is NOT swallowed with it
+    expect(doc).toContain("keep: 1");
+    h.close();
+  });
 });
 
 // Removing a HAND-AUTHORED annotation whose pointer is spaced + document-scope (`*: tags: …`) —

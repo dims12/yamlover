@@ -186,16 +186,19 @@ export function rememberTag(t: TagRef): void {
   rememberRecent(t);
 }
 
-/** The recently applied NAMED tags (newest first, capped). */
+/** The recently applied NAMED tags (newest first, capped). The ROOT is filtered out even when an
+ *  old localStorage list holds it (a failed root-tag attempt used to file it before the write) —
+ *  it can never be a tag, so it must never surface as a clickable chip. */
 export function recentTags(): TagRef[] {
   try {
     const r = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]") as TagRef[];
-    if (Array.isArray(r)) return r.filter((t) => t?.path && t?.name);
+    if (Array.isArray(r)) return r.filter((t) => t?.path && t?.name && canonPath(t.path) !== ":");
   } catch { /* no/invalid recents */ }
   return [];
 }
 
 function rememberRecent(t: TagRef): void {
+  if (canonPath(t.path) === ":") return; // the root can never be a tag — never file it
   if (canonPath(t.path).startsWith(":yamlover:tags:colors:")) return; // the swatch row already shows these
   const next = [t, ...recentTags().filter((r) => r.path !== t.path)].slice(0, 6);
   localStorage.setItem(RECENT_KEY, JSON.stringify(next));
@@ -413,6 +416,16 @@ export function withinTocPane(t: EventTarget | null): boolean {
   return !!el?.closest?.(".pane.left");
 }
 
+/** Whether an event landed inside the query cells' PORTALED candidate dropdown (`.crumb-dd`,
+ *  parked on document.body — OUTSIDE the popup's own DOM): a click or scroll there is part of
+ *  the popup's editing session, so the close-on-outside-click must not fire — otherwise picking
+ *  a candidate by mouse would close the whole popup before the pick lands (Tab worked, clicks
+ *  cancelled). */
+export function withinQueryDropdown(t: EventTarget | null): boolean {
+  const el = t instanceof Element ? t : t instanceof Node ? t.parentElement : null;
+  return !!el?.closest?.(".crumb-dd");
+}
+
 
 /** The floating tag picker — ONE uniform toggle UI. It shows the color-tag swatches and a row of
  *  named-tag chips (the four default sources — see the file header — filtered live as you type); the
@@ -463,7 +476,7 @@ function CreateRow({ schema, label, concretes, defaultConcrete, onCreate }: Crea
 }
 
 export function AnnotationMenu({
-  x, y, applied, nodeTags = [], mode, onPick, onUnpick, onCopy, onClose, menuRef, creates, title,
+  x, y, applied, nodeTags = [], mode, onPick, onUnpick, onCopy, onClose, menuRef, creates, title, targetPath,
 }: {
   x: number; y: number; applied: TagRef[]; nodeTags?: TagRef[]; mode: "create" | "edit";
   onPick: (t: TagRef) => void; onUnpick?: (t: TagRef) => void;
@@ -473,6 +486,10 @@ export function AnnotationMenu({
   creates?: CreateEntry[];
   /** The path/label of the object the menu was opened for — shown in the draggable title bar. */
   title?: string;
+  /** The node the menu tags (canonical client path). A TOC/query pick of this very node CLOSES the
+   *  menu instead of tagging — clicking the node again reads as "dismiss", and a node never tags
+   *  itself. */
+  targetPath?: string;
 }) {
   const colorTags = useColorTags();
   const tagIndex = useTagIndex(); // named tags (whole tree) — the scoped ones show as default chips
@@ -482,57 +499,79 @@ export function AnnotationMenu({
   const verb = mode === "edit" ? "re-tag" : "tag";
   const session = useTocFilter(); // the shared TOC filter — typing here filters the TOC too
 
-  // Apply ANY picked node as the tag (no format gate — an annotation is just a reference).
-  const applyPath = (p: string): void => {
+  // Compare tag paths on a CANONICAL key — a palette ref is project-scope (`::yamlover:…`)
+  // while an applied/edited tag may arrive `:`-form (the API echoes paths in `:`-form, and
+  // older localStorage holds `:`-form); raw `===` would miss the match and duplicate the tag.
+  const same = (a: string, b: string) => canonPath(a) === canonPath(b);
+  const isColor = (t: TagRef) => colorTags.some((c) => same(c.path, t.path));
+  const appliedKeys = new Set(applied.map((t) => canonPath(t.path)));
+  const isApplied = (p: string) => appliedKeys.has(canonPath(p));
+
+  // Clicking a swatch/chip toggles: an APPLIED tag turns OFF (`onUnpick`, else re-picks), an
+  // un-applied one turns ON (`onPick`). The outline (not a separate chip) shows what is applied.
+  const toggle = (t: TagRef) => (isApplied(t.path) ? onUnpick ?? onPick : onPick)(t);
+
+  // EVERY picked PATH funnels here — the search row's Enter commit AND a TOC row click while the
+  // popup owns the filter session — under ONE rule set: the popup's own TARGET dismisses
+  // (clicking the node again = close; a node never tags itself), the ROOT is silently IGNORED
+  // (it has no project-scope pointer spelling, so it can never be a tag — and a modal alert for
+  // a stray click would out-annoy the mistake). The `how` is the one per-surface difference:
+  // a TOC row click TOGGLES (an applied tag turns off, as its chip would — the row reads like a
+  // checkbox), while Enter ASSIGNS the typed path — an already-applied tag is a satisfied no-op,
+  // never a surprise un-tag.
+  const pickPath = (p: string, how: "toggle" | "assign"): void => {
+    if (targetPath !== undefined && same(p, targetPath)) return onClose();
+    if (canonPath(p) === ":") return;
     tagRefOf(p)
-      .then(onPick)
+      .then((t) => {
+        if (how === "assign" && isApplied(t.path)) return; // already assigned — Enter is satisfied
+        (how === "assign" ? onPick : toggle)(t);
+      })
       .catch((e) => window.alert(`cannot ${verb} with "${p}": ` + (e as Error).message));
   };
-  const applyPathRef = useRef(applyPath);
-  applyPathRef.current = applyPath;
+  const pickPathRef = useRef(pickPath);
+  pickPathRef.current = pickPath;
 
   // The SEARCH input is the shared query-cell editor (breadcrumb machinery, PICK mode), opening
   // at the PROJECT scope with a recursive-descent seed — typing a bare name spells
   // `:: ...: name`, the "find a node by name anywhere IN THE PROJECT" query. The project rung
   // is what makes the grafted yamlover taxonomy (the built-in palette included) searchable —
   // `:` would be the document only (URIs.md ladder). The cells stay fully editable.
+  // `commitOnMiss` gates a no-match Enter: only a create-on-miss-ELIGIBLE bare name commits —
+  // any other miss keeps the machine editing with the red ring, the typed query still visible.
   const host = useQueryCellHost({
-    ctx: () => ({ mode: "pick", ladder: 2, idlePortions: () => [...SEED_CELLS] }),
+    ctx: () => ({ mode: "pick", ladder: 2, idlePortions: () => [...SEED_CELLS], commitOnMiss: (q) => creatableNameOf(q) !== null }),
     provider: useRef(treeCandidateProvider(":")).current,
     onSelect: (p, meta) => {
       if (meta && /^:*$/.test(meta.query.trim())) return; // empty cells: nothing to apply
       if (p !== null) {
-        applyPathRef.current(p);
+        pickPathRef.current(p, "assign"); // Enter assigns the typed path — never toggles it off
         return;
       }
       if (!meta) return;
       // CREATE-ON-MISS: a bare NAME (alone, or after the seeded `...`) that matches nothing is
-      // born as a named tag at the project's tags location. A missed multi-portion query stays
-      // an error — a typo'd path must not silently mint a tag named like a path.
-      const parts = splitQueryPortions(meta.query);
-      const name = unquotePortion(parts[parts.length - 1] ?? "");
-      const bareName =
-        name !== "" && !/[:[\]?*!<>=]/.test(name) && (parts.length === 1 || (parts.length === 2 && parts[0] === "..."));
-      if (!bareName) {
-        window.alert(`cannot ${verb} with "${meta.query}": no such node`);
-        return;
-      }
+      // born as a named tag at the project's tags location. A missed multi-portion query never
+      // reaches here — `commitOnMiss` kept the machine editing (ringed) instead of committing —
+      // so a typo'd path can neither mint a tag named like a path nor pop a modal error.
+      const name = creatableNameOf(meta.query);
+      if (name === null) return;
       setBusy(true);
       createTag(name)
         .then(onPick)
         .catch((e) => window.alert(`cannot create tag "${name}": ` + (e as Error).message))
         .finally(() => setBusy(false));
     },
-    session: null, // the menu drives the session itself — a TOC click APPLIES the tag (below)
+    session: null, // the menu drives the session itself — a TOC click TOGGLES the tag (pickPath)
   });
 
   // The popup OWNS the TOC filter session while open: the host's filter results mirror into it,
-  // and a TOC row click applies that node as the tag directly (the popup stays open, multi-tag).
+  // and a TOC row click routes through pickPath — toggling that node as the tag (the popup stays
+  // open, multi-tag), or CLOSING when the clicked row is the popup's own target.
   const sessionHandle = useRef<TocFilterHandle | null>(null);
   useEffect(() => {
     if (!session || sessionHandle.current) return;
     sessionHandle.current = session.begin({
-      onPick: (p) => applyPathRef.current(p),
+      onPick: (p) => pickPathRef.current(p, "toggle"),
       onEvicted: () => {
         sessionHandle.current = null; // another editor took the TOC — the popup keeps its dropdown
       },
@@ -575,17 +614,6 @@ export function AnnotationMenu({
     return () => { on = false; };
   }, []);
 
-  // Compare tag paths on a CANONICAL key — a palette ref is project-scope (`::yamlover:…`)
-  // while an applied/edited tag may arrive `:`-form (the API echoes paths in `:`-form, and
-  // older localStorage holds `:`-form); raw `===` would miss the match and duplicate the tag.
-  const same = (a: string, b: string) => canonPath(a) === canonPath(b);
-  const isColor = (t: TagRef) => colorTags.some((c) => same(c.path, t.path));
-  const appliedKeys = new Set(applied.map((t) => canonPath(t.path)));
-  const isApplied = (p: string) => appliedKeys.has(canonPath(p));
-
-  // Clicking a swatch/chip toggles: an APPLIED tag turns OFF (`onUnpick`, else re-picks), an
-  // un-applied one turns ON (`onPick`). The outline (not a separate chip) shows what is applied.
-  const toggle = (t: TagRef) => (isApplied(t.path) ? onUnpick ?? onPick : onPick)(t);
   // A tag chip shows its NAME only; its full path (its spine location) and text value are revealed
   // on HOVER via the coloured <TagTip> card — so same-named tags stay distinguishable without
   // cluttering the label.
@@ -707,8 +735,9 @@ export function AnnotationMenu({
       )}
       {/* the SEARCH row: the shared query cells (breadcrumb machinery, pick mode, PROJECT
           scope) — the dropdown offers real nodes as TOC rows, the TOC filters live, Enter
-          applies the first match or creates a fresh named tag, a TOC click applies that node
-          directly. Backspace at the first cell's start steps the ladder down (document scope). */}
+          toggles the first match or creates a fresh named tag, a TOC click toggles that node
+          directly (the popup's own target closes instead — see pickPath). Backspace at the
+          first cell's start steps the ladder down (document scope). */}
       <div className="annotate-typeahead" title={`${verb}: type a name (creates on miss), a path, or any query ⏎`}>
         {busy ? (
           <span className="annotate-busy">creating tag…</span>
@@ -729,6 +758,18 @@ const SEED_CELLS = ["...", ""];
 function unquotePortion(p: string): string {
   if (/^'.*'$/.test(p)) return p.slice(1, -1).replace(/''/g, "'");
   return p;
+}
+
+/** The bare NAME a query spells when it is create-on-miss ELIGIBLE — a name alone, or after the
+ *  seeded `...` — else null. A multi-portion path or an operator-bearing portion is never
+ *  creatable: a typo'd path must not silently mint a tag named like a path. The ONE predicate
+ *  behind both the machine's `commitOnMiss` gate and the host's create-on-miss commit. */
+function creatableNameOf(query: string): string | null {
+  const parts = splitQueryPortions(query);
+  const name = unquotePortion(parts[parts.length - 1] ?? "");
+  const bare =
+    name !== "" && !/[:[\]?*!<>=]/.test(name) && (parts.length === 1 || (parts.length === 2 && parts[0] === "..."));
+  return bare ? name : null;
 }
 
 /** An open region picker — keyed by its SELECTOR (the join into the material's annotations), not by
@@ -803,15 +844,17 @@ export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
     const onDown = (e: MouseEvent) => {
       if (menuRef.current?.contains(e.target as Node)) return;
       if (withinTocPane(e.target)) return; // a TOC row click APPLIES the tag — never a close
+      if (withinQueryDropdown(e.target)) return; // a candidate pick in the portaled dropdown — never a close
       close();
     };
     // Both a real scrollbar scroll AND a wheel gesture close it: the image / map / PDF viewers
     // pan & zoom on `wheel` WITHOUT a `scroll` event (Leaflet transforms, pdf zoom), so a wheel
     // listener is what catches those. A wheel/scroll INSIDE the menu (its suggestion list) — or
-    // in the TOC pane the popup is filtering — is kept.
+    // in the TOC pane the popup is filtering, or the portaled candidate dropdown — is kept.
     const onShift = (e: Event) => {
       if (e.target instanceof Node && menuRef.current?.contains(e.target)) return; // scrolled INSIDE the menu
       if (withinTocPane(e.target)) return;
+      if (withinQueryDropdown(e.target)) return;
       close();
     };
     document.addEventListener("mousedown", onDown);
@@ -829,7 +872,7 @@ export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
       menuRef={menuRef} x={open.x} y={open.y} applied={applied} nodeTags={nodeTags} mode="create"
       onPick={onPick} onUnpick={onUnpick}
       onCopy={open.copy ? () => { open.copy!(); close(); } : undefined}
-      onClose={close} title={open.title}
+      onClose={close} title={open.title} targetPath={open.nodePath}
     />
   ) : null;
 

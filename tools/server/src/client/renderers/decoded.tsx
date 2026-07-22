@@ -59,7 +59,7 @@ export function DecodedImageView({
         chunk ? (
           <StaticImageChunk key={i} src={url} path={node.path} onNavigate={chunk.onNavigate} />
         ) : (
-          <PanZoomImage key={i} src={url} className="filemap fileimagemap" />
+          <PanZoomImage key={i} src={url} className="filemap fileimagemap" fill={urls.length === 1} />
         ),
       )}
     </>

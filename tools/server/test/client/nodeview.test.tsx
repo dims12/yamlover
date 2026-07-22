@@ -57,10 +57,39 @@ describe("NodeView", () => {
     // format="" is not a real tab → falls to the node's natural default (a data file → yamlover)
     render(<NodeView path=":x.yaml" format="" onFormat={() => {}} onNavigate={() => {}} />);
     expect(await screen.findByText("Alice")).toBeTruthy(); // the yamlover data view, by default
-    // the unified bar, in order: icon views, the data views, then the trailing plaintext
-    for (const t of ["thumbnails", "large icons", "small icons", "details", "yamlover", "yamlover/schema", "plaintext"])
+    // the unified bar, in order: icon views, the FIXED data views, then the trailing plaintext
+    for (const t of ["thumbnails", "large icons", "small icons", "details", "yamlover", "json5p", "yamlover/schema", "plaintext"])
       expect(screen.getByRole("button", { name: t })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "json5p" })).toBeNull(); // yaml, not json-family
+    // yaml is not json-family: the json5p tab stays IN PLACE (a stable bar), just disabled
+    expect((screen.getByRole("button", { name: "json5p" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "yamlover" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: "plaintext" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("a PDF page shows the SAME families as a directory — the explorer tabs in place, disabled", async () => {
+    // the user's case: `/?format=large-icons` (a dir) vs `/x.pdf?format=pdf` must not differ in
+    // the tab families — only the single leading primary slot (pdf) is node-specific
+    mNode.mockResolvedValue({ path: ":a.pdf", type: "binary", format: "application/pdf", concrete: "file/binary", title: null, description: null, value: null });
+    render(<NodeView path=":a.pdf" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByRole("button", { name: "pdf" });
+    expect((screen.getByRole("button", { name: "pdf" }) as HTMLButtonElement).disabled).toBe(false);
+    for (const t of ["thumbnails", "large icons", "small icons", "details"])
+      expect((screen.getByRole("button", { name: t }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("a directory keeps the raw-source tab in place, DISABLED; a .txt never doubles it", async () => {
+    mNode.mockResolvedValue({ path: ":d", type: "object", concrete: "dir", title: null, description: null,
+      value: { f: { $yamloverLink: { kind: "object", type: "object", path: ":d:f", count: 1 } } } });
+    const r1 = render(<NodeView path=":d" format="large-icons" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByRole("button", { name: "plaintext" });
+    expect((screen.getByRole("button", { name: "plaintext" }) as HTMLButtonElement).disabled).toBe(true);
+    r1.unmount();
+    // a .txt LEADS with plaintext — exactly ONE plaintext tab (the leading renderer's), enabled.
+    // (Shown in the yamlover data view: the bar is the same and no real blob fetch is mounted.)
+    mNode.mockResolvedValue({ path: ":a.txt", type: "binary", format: "text/plain", concrete: "file/binary", title: null, description: null, value: null });
+    render(<NodeView path=":a.txt" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "plaintext" })).toHaveLength(1));
+    expect((screen.getByRole("button", { name: "plaintext" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("fetches a DATA view at the ?depth= setting, but a RENDERER at its OWN depth (regression: the explorer needs depth 1)", async () => {
@@ -118,15 +147,15 @@ describe("NodeView", () => {
     await waitFor(() => expect(mNode).toHaveBeenCalledWith(":66", null)); // .inf refetch past the depth-1 settle
   });
 
-  it("offers the json5p tab only for a json-family file", async () => {
+  it("ENABLES the json5p tab only for a json-family file — elsewhere it stays in place, disabled", async () => {
     mNode.mockResolvedValue({
       path: ":x", type: "object", concrete: "dir/yamlover", title: null, description: null, value: { name: "Alice" },
     });
     render(<NodeView path=":x" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("Alice");
-    expect(screen.queryByRole("button", { name: "json5p" })).toBeNull();
-    expect(screen.getByRole("button", { name: "yamlover" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "yamlover/schema" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "json5p" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "yamlover" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: "yamlover/schema" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("shows the relations panel (standard-title hyperlinks) above the value in a data view", async () => {
@@ -279,12 +308,13 @@ describe("NodeView", () => {
     expect(field.classList.contains("editable")).toBe(true);
   });
 
-  it("the derived schema view is read-only — no Edit toggle", async () => {
+  it("the derived schema view is read-only — the Edit toggle stays IN PLACE, disabled", async () => {
     mNode.mockResolvedValue({ path: ":x.yamlover", type: "object", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { a: 1 } });
     mSchema.mockResolvedValue({ widgetkey: "wv" });
     render(<NodeView path=":x.yamlover" format="yamlover/schema" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("wv");
-    expect(screen.queryByRole("button", { name: /Edit/ })).toBeNull();
+    const edit = screen.getByRole("button", { name: /Edit/ }) as HTMLButtonElement;
+    expect(edit.disabled).toBe(true); // present (a stable bar) but inert
   });
 
   it("a plain .yaml data page shows the Edit toggle (yaml-family, yaml-syntax view)", async () => {
@@ -297,7 +327,7 @@ describe("NodeView", () => {
   it("a .json file IS editable in the yamlover view (universal edit surface) but NOT the json5p view", async () => {
     const node = { path: ":x.json", type: "object", concrete: "file/json", hasKeyed: true, title: null, description: null, value: { a: 1 } };
     // the yamlover renderer edits any data file (the server writes JSON for a json-family target); the
-    // json5p view is not the yamlover renderer, so no Edit toggle there
+    // json5p view is not the yamlover renderer, so the Edit toggle is disabled there
     mNode.mockResolvedValue(node);
     const { unmount } = render(<NodeView path=":x.json" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("a");
@@ -306,7 +336,7 @@ describe("NodeView", () => {
     mNode.mockResolvedValue(node);
     render(<NodeView path=":x.json" format="json5p" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("1");
-    expect(screen.queryByRole("button", { name: /Edit/ })).toBeNull();
+    expect((screen.getByRole("button", { name: /Edit/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("the settings node (x-yamlover-config) falls back to the editable data view (custom renderer dropped)", async () => {
@@ -398,6 +428,40 @@ describe("link paste (arXiv, tweets)", () => {
     await screen.findByText("chunk added");
     expect(mPasteRich).not.toHaveBeenCalled();
     expect(mPasteText).toHaveBeenCalledWith(":notes", "just bold");
+  });
+
+  it("dropping an OS file shows the unified confirm popup — uploading only on confirm", async () => {
+    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    mPasteFile.mockResolvedValue({ path: ":notes:x.png", dir: ":notes", open: false });
+
+    render(<NodeView path=":notes" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("empty");
+    const file = new File(["PNG"], "x.png", { type: "image/png" });
+    fireEvent.drop(document, { dataTransfer: { types: ["Files"], files: [file] } });
+
+    // the drop no longer uploads directly — the popup describes it and waits
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain('Upload file onto');
+    expect(dialog.textContent).toContain("x.png");
+    expect(mPasteFile).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Upload" }));
+    await screen.findByText("uploaded");
+    expect(mPasteFile).toHaveBeenCalledTimes(1);
+    expect(mPasteFile.mock.calls[0].slice(0, 2)).toEqual([":notes", "x.png"]);
+  });
+
+  it("cancelling the drop confirm uploads nothing", async () => {
+    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+
+    render(<NodeView path=":notes" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("empty");
+    fireEvent.drop(document, { dataTransfer: { types: ["Files"], files: [new File(["PNG"], "x.png", { type: "image/png" })] } });
+
+    await screen.findByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(mPasteFile).not.toHaveBeenCalled();
   });
 
   it("pasting a tweet link fetches the full message via oEmbed and pastes it as TEXT", async () => {

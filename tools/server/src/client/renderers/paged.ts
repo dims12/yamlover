@@ -135,3 +135,28 @@ export function usePagedScroll(
 
   return { captureAnchor, restoreAnchor, scrollToPage, initialPage };
 }
+
+/** Size a self-scrolling viewer frame (the PDF/DjVu scroll container) to fill the window from
+ *  its own TOP edge down to the bottom (minus `bottomGap`, the pane's bottom padding). Replaces
+ *  the stylesheet's `calc(100vh - 160px)` guess, which assumed the chrome above (top bar + the
+ *  node bar, which WRAPS at narrow widths) is exactly 160px tall — anything shorter left a dead
+ *  band below the viewer, anything taller pushed it past the window. Measured after mount and on
+ *  every window resize (the bar only changes height on a resize); the top is computed as if the
+ *  outer pane were unscrolled, so a scrolled remount doesn't undersize the frame. `enabled` lets
+ *  a component that ALSO serves as an inline chunk preview (a capped-height embed in prose) opt
+ *  its inline form out — the flag is fixed per instance. */
+export function useFillHeight(ref: React.RefObject<HTMLElement | null>, bottomGap = 14, enabled = true): void {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !enabled) return;
+    const fit = () => {
+      const pane = el.closest(".pane");
+      const top = el.getBoundingClientRect().top + (pane?.scrollTop ?? 0);
+      el.style.height = `${Math.max(360, window.innerHeight - top - bottomGap)}px`;
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}

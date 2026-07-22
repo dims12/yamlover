@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Annotation, NodeJson, blobUrl } from "../api";
 import { fragmentAnchorId } from "../paths";
 import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
-import { usePagedScroll } from "./paged";
+import { useFillHeight, usePagedScroll } from "./paged";
 import { DecodedPage, decodeDjvuPage, openDjvu } from "./djvuWorker";
 
 const num = (v: unknown): number => Number(v) || 0;
@@ -67,6 +67,7 @@ export function DjvuView({ node }: { node: NodeJson }) {
     return out;
   };
   const paged = usePagedScroll(ref, getPageEls, count > 0 && width > 0);
+  useFillHeight(ref); // the frame fills down to the window bottom — no dead band, no overflow
   const pagedRef = useRef(paged);
   pagedRef.current = paged;
   useLayoutEffect(() => { paged.restoreAnchor(); }, [zoom]); // eslint-disable-line react-hooks/exhaustive-deps

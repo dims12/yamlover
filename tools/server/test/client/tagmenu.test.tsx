@@ -299,6 +299,123 @@ describe("AnnotationMenu — the TOC filter session", () => {
     session.pick(":topics:math");
     await waitFor(() => expect(onPick).toHaveBeenCalledWith({ path: ":topics:math", name: "Mathematics", color: null }));
   });
+
+  // Hosts for the pick-rules tests below: the same session harness, parameterized.
+  async function sessionHost(props: { targetPath?: string; applied?: { path: string; name: string; color: string | null }[]; onPick: ReturnType<typeof vi.fn>; onUnpick?: ReturnType<typeof vi.fn>; onClose?: ReturnType<typeof vi.fn> }) {
+    const { TocFilterCtx, useTocFilterSession } = await import("../../src/client/toc-filter-session");
+    let session!: import("../../src/client/toc-filter-session").TocFilterSession;
+    function Host() {
+      session = useTocFilterSession();
+      return (
+        <TocFilterCtx.Provider value={session}>
+          <AnnotationMenu
+            x={0} y={0} applied={props.applied ?? []} mode="create"
+            onPick={props.onPick} onUnpick={props.onUnpick ?? (() => {})} onClose={props.onClose ?? (() => {})}
+            targetPath={props.targetPath}
+          />
+        </TocFilterCtx.Provider>
+      );
+    }
+    render(<Host />);
+    await waitFor(() => expect(session.active).toBe(true));
+    return () => session;
+  }
+
+  it("a session pick of the popup's own TARGET closes it — click-again = dismiss, never a self-tag", async () => {
+    // the user's bug: right-click the ROOT (the popup opens for `:`), then left-click the root row
+    const onPick = vi.fn();
+    const onClose = vi.fn();
+    const session = await sessionHost({ targetPath: ":", onPick, onClose });
+    session().pick(":");
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onPick).not.toHaveBeenCalled();
+    expect(mAnnotate).not.toHaveBeenCalled(); // nothing round-trips — no `::` pointer is ever spelled
+  });
+
+  it("a session pick of the ROOT (when it is NOT the target) is silently IGNORED", async () => {
+    // the root has no project-scope pointer spelling (`::` needs a first portion), so it can never
+    // be a tag — and a modal alert for a stray click would out-annoy the mistake: just ignore
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const onPick = vi.fn();
+    const onClose = vi.fn();
+    const session = await sessionHost({ targetPath: ":doc.md", onPick, onClose });
+    session().pick(":");
+    expect(alert).not.toHaveBeenCalled(); // no modal — the pick is just a no-op
+    expect(onPick).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled(); // the popup stays open
+    alert.mockRestore();
+  });
+
+  it("a session pick of an ALREADY-APPLIED tag toggles it OFF — a TOC row obeys the chips' rule", async () => {
+    const math = { path: ":topics:math", name: "Mathematics", color: null };
+    mFetchNode.mockResolvedValue({ path: ":topics:math", type: "object", concrete: null, title: "Mathematics", description: null, value: {} });
+    const onPick = vi.fn();
+    const onUnpick = vi.fn();
+    const session = await sessionHost({ targetPath: ":doc.md", applied: [math], onPick, onUnpick });
+    session().pick(":topics:math");
+    await waitFor(() => expect(onUnpick).toHaveBeenCalledWith(math));
+    expect(onPick).not.toHaveBeenCalled();
+  });
+});
+
+// ---- Enter semantics: a miss rings in place (no modal); a match ASSIGNS (never toggles off) ---- //
+describe("AnnotationMenu — Enter commit semantics", () => {
+  it("a MISSED non-creatable query keeps the cells RINGED and editable — no modal, no commit", async () => {
+    // "x?y" carries an operator → not create-on-miss eligible; the filter finds nothing (the
+    // user's `tags: colors: yell` case). Enter must NOT pop a modal "no such node" — the typed
+    // query stays visible with the error ring, ready for correction.
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const onPick = vi.fn();
+    const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={onPick} onUnpick={() => {}} onClose={() => {}} />);
+    const cell = [...container.querySelectorAll<HTMLElement>(".annotate-cells .crumb-cell")].pop()!;
+    fireEvent.focus(cell);
+    cell.textContent = "x?y";
+    fireEvent.input(cell);
+    fireEvent.keyDown(cell, { key: "Enter" });
+    await waitFor(() => expect(container.querySelector(".crumb-cell.edit-error")).toBeTruthy()); // the ring
+    expect(cell.textContent).toBe("x?y"); // still visible, still editable
+    expect(alert).not.toHaveBeenCalled();
+    expect(onPick).not.toHaveBeenCalled();
+    alert.mockRestore();
+  });
+
+  it("Enter on an ALREADY-APPLIED tag is a satisfied no-op — assign, never a toggle-off", async () => {
+    const done = { path: ":tags:done", name: "done", color: null };
+    mQueryFilter.mockResolvedValue({
+      root: { path: ":", label: "r", type: "object", format: null, concrete: null, hasChildren: false, children: [] },
+      matches: [":tags:done"],
+      truncated: false,
+    });
+    mFetchNode.mockResolvedValue({ path: ":tags:done", type: "object", concrete: null, title: null, description: null, value: {} });
+    const onPick = vi.fn();
+    const onUnpick = vi.fn();
+    const { container } = render(<AnnotationMenu x={0} y={0} applied={[done]} mode="create" onPick={onPick} onUnpick={onUnpick} onClose={() => {}} />);
+    const cell = [...container.querySelectorAll<HTMLElement>(".annotate-cells .crumb-cell")].pop()!;
+    fireEvent.focus(cell);
+    cell.textContent = "done";
+    fireEvent.input(cell);
+    fireEvent.keyDown(cell, { key: "Enter" });
+    await waitFor(() => expect(mFetchNode).toHaveBeenCalled()); // the match resolved…
+    await new Promise((r) => setTimeout(r, 0)); // …and the assign settled
+    expect(onUnpick).not.toHaveBeenCalled(); // typing the tag again must not UN-tag it
+    expect(onPick).not.toHaveBeenCalled(); // already assigned — nothing to re-apply
+  });
+});
+
+// ---- recents: the root can never be a suggested tag ---- //
+describe("recent tags — the root is never filed nor surfaced", () => {
+  it("filters a stale ':' recent from storage and refuses to file the root anew", async () => {
+    const { rememberTag, recentTags } = await import("../../src/client/renderers/annotate");
+    // a pre-fix localStorage may hold the root: a failed root-tag attempt used to file it
+    // BEFORE the write round-trip — it then showed as a bare ':' chip in every popup
+    localStorage.setItem("yo-annotate-recent-tags", JSON.stringify([
+      { path: ":", name: ":", color: null },
+      { path: ":tags:ok", name: "ok", color: null },
+    ]));
+    expect(recentTags().map((t) => t.path)).toEqual([":tags:ok"]); // the stale root is invisible
+    rememberTag({ path: ":", name: ":", color: null }); // and can never be filed again
+    expect(recentTags().some((t) => t.path === ":")).toBe(false);
+  });
 });
 
 // ---- the right-click driver: load → add → remove ---- //
@@ -348,6 +465,26 @@ describe("useExplorerTagMenu — right-click whole-node tagging", () => {
     await waitFor(() => expect(mAnns).toHaveBeenCalledWith(":doc.md"));
     expect(screen.queryByText("верхушка")).toBeNull(); // the fragment's tag is not a whole-node tag
     expect(mAnnotate).not.toHaveBeenCalled(); // and nothing is auto-applied
+  });
+
+  it("a mousedown in the PORTALED candidate dropdown never closes the popup (a body click does)", async () => {
+    mAnns.mockResolvedValue([]);
+    render(<Harness />);
+    fireEvent.click(screen.getByText("open"));
+    await waitFor(() => expect(document.querySelector(".annotate-menu")).toBeTruthy());
+    // the query cells' dropdown is portaled to document.body — OUTSIDE the menu's own DOM. A
+    // mousedown there must not read as an outside click (it used to cancel the whole popup
+    // before the candidate PICK could land; only Tab worked).
+    const dd = document.createElement("div");
+    dd.className = "crumb-dd";
+    const row = document.createElement("div");
+    dd.appendChild(row);
+    document.body.appendChild(dd);
+    fireEvent.mouseDown(row);
+    expect(document.querySelector(".annotate-menu")).toBeTruthy(); // still open — the pick can land
+    dd.remove();
+    fireEvent.mouseDown(document.body);
+    await waitFor(() => expect(document.querySelector(".annotate-menu")).toBeNull()); // a true outside click closes
   });
 
   it("picking a palette tag APPLIES it to the node (no project-scoped 'last tag' persistence)", async () => {

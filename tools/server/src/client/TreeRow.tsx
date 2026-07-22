@@ -2,8 +2,9 @@
 // breadcrumb's completion dropdown, so both look identical by construction: `.tree-row` with
 // the chevron toggle, the (type, format, concrete) icon glyph, and the clickable label.
 
-import { Ref } from "react";
+import { DragEvent, Ref, useState } from "react";
 import { TreeNode } from "./api";
+import { dragHasNode, endNodeDrag } from "./dnd";
 import { typeIcon } from "./icons";
 import { displayPath } from "./paths";
 
@@ -18,10 +19,16 @@ export interface TreeRowProps {
   detail?: string; // dim right-hand note (operator rows: "any key", …)
   onSelect?: () => void;
   onContext?: (x: number, y: number) => void;
+  /** The row is a drag SOURCE (an in-project node drag; see dnd.ts). */
+  drag?: { onStart: (e: DragEvent) => void };
+  /** The row is a drop TARGET (a directory): `canDrop` consults drop-policy for the
+   *  current drag; a drop hands back the pointer spot for the confirm popup. */
+  drop?: { canDrop: () => boolean; onDrop: (x: number, y: number) => void };
   rowRef?: Ref<HTMLDivElement>;
 }
 
-export function TreeRow({ node, depth, selected, match, highlighted, chevron = "none", detail, onSelect, onContext, rowRef }: TreeRowProps) {
+export function TreeRow({ node, depth, selected, match, highlighted, chevron = "none", detail, onSelect, onContext, drag, drop, rowRef }: TreeRowProps) {
+  const [over, setOver] = useState(false);
   const ti = typeIcon(node.type, node.format, node.concrete);
   const open = typeof chevron === "object" && chevron.open;
   // a folder (plain `dir` concrete) shows open vs closed like a normal file manager
@@ -29,9 +36,29 @@ export function TreeRow({ node, depth, selected, match, highlighted, chevron = "
   return (
     <div
       ref={rowRef}
-      className={"tree-row" + (selected ? " selected" : "") + (match ? " match" : "") + (highlighted ? " hi" : "")}
+      className={"tree-row" + (selected ? " selected" : "") + (match ? " match" : "") + (highlighted ? " hi" : "") + (over ? " drop-target" : "")}
       style={{ paddingLeft: depth * 14 + 4 }}
       onContextMenu={onContext ? (e) => { e.preventDefault(); onContext(e.clientX, e.clientY); } : undefined}
+      draggable={!!drag}
+      onDragStart={drag?.onStart}
+      onDragEnd={drag ? () => endNodeDrag() : undefined}
+      onDragOver={drop ? (e) => {
+        if (!dragHasNode(e) || !drop.canDrop()) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (!over) setOver(true);
+      } : undefined}
+      // crossing the row's own label/icon spans fires dragleave too — only unhighlight on a real exit
+      onDragLeave={drop ? (e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setOver(false);
+      } : undefined}
+      onDrop={drop ? (e) => {
+        if (!dragHasNode(e)) return;
+        e.preventDefault();
+        setOver(false);
+        drop.onDrop(e.clientX, e.clientY);
+      } : undefined}
     >
       {typeof chevron === "object" ? (
         <button

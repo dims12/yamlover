@@ -3,7 +3,9 @@ import { fetchNode, fetchSchema, NodeJson, pasteFile, pasteRich, pasteText, Past
 import { arxivPdf, tweetUrl, fetchTweetText } from "./paste-links";
 import { countImages, htmlToRich, resolveImages, RichDraft } from "./paste-html";
 import { clipboardFiles, fileToBase64, pastedName } from "./clipboard";
-import { renderersFor, rendererName, plaintextTab } from "./renderers/registry";
+import { planFileUpload } from "../drop-policy";
+import { useDropConfirm } from "./DropConfirm";
+import { rendererTabs, rendererName, plaintextTab, Renderer } from "./renderers/registry";
 import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
 import { EditingContext } from "./renderers/editing";
 import { YamloverEditor } from "./renderers/yamlover-editor/editor";
@@ -40,20 +42,48 @@ const isSchema = (f: Format) => f.endsWith("schema");
 // Serialization syntax: json5p renders JSON-family; yamlover (+ its schema) renders YAML-family.
 const syntaxOf = (f: Format): "yaml" | "json" => (f === "json5p" ? "json" : "yaml");
 
-/** The standard data-view tabs a node offers: always `yamlover` + `yamlover/schema`, plus
- *  `json5p` only for a json-family file (so a yaml node isn't rendered as JSON). */
-function standardFormatsFor(node: NodeJson): Format[] {
-  return isJsonFamily(node.concrete) ? ["yamlover", "json5p", "yamlover/schema"] : ["yamlover", "yamlover/schema"];
+/** One tab-bar button: a representation name plus whether it applies to this node. A tab that
+ *  does NOT apply is still RENDERED, greyed and inert — buttons keep their place across nodes
+ *  instead of appearing/disappearing and reshaping the bar. */
+type TabEntry = { name: Format; enabled: boolean };
+
+/** The standard data-view tabs — a FIXED set on every node: `yamlover` and `yamlover/schema`
+ *  always work; `json5p` is enabled only for a json-family file (a yaml node must not be
+ *  rendered as JSON) and shows disabled elsewhere. */
+function standardFormatsFor(node: NodeJson): TabEntry[] {
+  return [
+    { name: "yamlover", enabled: true },
+    { name: "json5p", enabled: isJsonFamily(node.concrete) },
+    { name: "yamlover/schema", enabled: true },
+  ];
 }
 
-/** The representation actually shown: the requested `format` if it is one of this node's tabs;
- *  otherwise the node's NATURAL default — a directory → its explorer (large icons), a format
+/** The node's whole tab-bar model: the LEADING rendered-view slots (the node's one primary
+ *  renderer + the always-present explorer family — rendererTabs), the fixed STANDARD data views,
+ *  and the TRAILING raw-source tab — plus the renderer list the active view is looked up in. One
+ *  computation for the three consumers (depth choice, facet fetch, the bar itself), so they can
+ *  never disagree. */
+function tabModel(node: NodeJson): { tabs: TabEntry[]; allRenderers: Renderer[] } {
+  const leading = rendererTabs(node);
+  const trailing = plaintextTab(node);
+  const tabs: TabEntry[] = [
+    ...leading.map((t) => ({ name: t.renderer.name as Format, enabled: t.enabled })),
+    ...standardFormatsFor(node),
+    ...(trailing ? [{ name: trailing.renderer.name as Format, enabled: trailing.enabled }] : []),
+  ];
+  // the DISABLED slots ride along too: a greyed tab still needs its icon and label
+  const allRenderers = [...leading.map((t) => t.renderer), ...(trailing ? [trailing.renderer] : [])];
+  return { tabs, allRenderers };
+}
+
+/** The representation actually shown: the requested `format` if it is one of this node's ENABLED
+ *  tabs; otherwise the node's NATURAL default — a directory → its explorer (large icons), a format
  *  renderer (markdown/chapter) → its own view, a data node → `yamlover`. So the tab BAR is uniform
  *  while only the default differs by node kind (matches the navigation default, `rendererName`).
- *  Guards a stale format (a hand-edited URL, or one — e.g. `json5p` — carried onto a node that
- *  doesn't offer it). */
-function effectiveFormat(format: Format, node: NodeJson, tabs: Format[]): Format {
-  if ((tabs as string[]).includes(format)) return format;
+ *  Guards a stale format (a hand-edited URL, or one — e.g. `json5p` — carried onto a node where
+ *  its tab is disabled). */
+function effectiveFormat(format: Format, node: NodeJson, tabs: TabEntry[]): Format {
+  if (tabs.some((t) => t.enabled && t.name === format)) return format;
   return (rendererName(node, node.concrete) as Format) ?? DEFAULT_FORMAT;
 }
 
@@ -114,6 +144,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   const [unlocked, setUnlocked] = useState(false); // the editing lock — locked by default
   const [pasteMsg, setPasteMsg] = useState<string | null>(null); // transient upload status
   const [dragging, setDragging] = useState(false); // a file is being dragged over the window
+  const dropConfirm = useDropConfirm(); // the unified drop confirmation popup (drop-policy.ts)
   const prevPath = useRef(path); // last NAVIGATED path — distinguishes a navigation from a live refresh
   // Bumped by a renderer's bar `config` control (e.g. the markup width) after it writes a URL
   // param, so the whole node view re-renders and the rendered body picks up the new setting.
@@ -180,11 +211,9 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
         // deeper depth its members stop being `$yamloverLink` markers (overlayed/container members
         // inline), which would break navigation, icons and thumbnails. Switching renderer↔data tab
         // refetches (the effect depends on `format`); the node stays visible meanwhile (no-flash).
-        const rs = renderersFor(n);
-        const trailing = plaintextTab(n);
-        const tabsE: Format[] = [...rs.map((r) => r.name), ...standardFormatsFor(n), ...(trailing ? [trailing.name] : [])];
+        const { tabs: tabsE, allRenderers } = tabModel(n);
         const eff = effectiveFormat(format, n, tabsE);
-        const active = [...rs, ...(trailing ? [trailing] : [])].find((r) => r.name === eff);
+        const active = allRenderers.find((r) => r.name === eff);
         const swap = (dn: NodeJson) => !cancelled && setNode(dn);
         const fail = (e: Error) => !cancelled && setError(e.message);
         // The settle fetch used the SERVER'S per-concrete default depth — one level for a directory
@@ -282,7 +311,10 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
       depth = 0;
       setDragging(false);
       const files = Array.from(e.dataTransfer?.files || []);
-      if (files.length) void uploadFiles(files);
+      if (!files.length) return;
+      // the unified drop confirmation: show what the drop will do, upload only on confirm
+      const v = planFileUpload({ path, concrete: node.concrete, label: node.title ?? undefined }, files.map((f) => pastedName(f)));
+      if (v.allowed) dropConfirm.request(e.clientX, e.clientY, v.plan, () => uploadFiles(files));
     };
     document.addEventListener("dragenter", onEnter);
     document.addEventListener("dragover", onOver);
@@ -412,11 +444,9 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     setSchema(null);
     setBin(null);
     if (!node) return;
-    const rs = renderersFor(node);
-    const trailing = plaintextTab(node);
-    const tabsE: Format[] = [...rs.map((r) => r.name), ...standardFormatsFor(node), ...(trailing ? [trailing.name] : [])];
+    const { tabs: tabsE, allRenderers } = tabModel(node);
     const eff = effectiveFormat(format, node, tabsE);
-    if ([...rs, ...(trailing ? [trailing] : [])].some((r) => r.name === eff)) return; // a rendered view reads node.value (already fetched)
+    if (allRenderers.some((r) => r.name === eff)) return; // a rendered view reads node.value (already fetched)
     if (isSchema(eff)) {
       // `.inf`/default (viewDepth null) → omit depth so the server applies its per-concrete default
       fetchSchema(path, viewDepth() ?? undefined).then(setSchema).catch((e) => setError(e.message));
@@ -431,13 +461,10 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   if (!node) return <div className="loading">…</div>;
 
   // LEADING renderer tabs (format renderer / explorer views), then the standard DATA views, then the
-  // TRAILING `plaintext` (raw-source) tab for a textual node. The default tab is the node's natural
-  // one (effectiveFormat), so the bar order is uniform while only the default differs by node kind.
-  const renderers = renderersFor(node);
-  const standard = standardFormatsFor(node);
-  const trailing = plaintextTab(node);
-  const allRenderers = trailing ? [...renderers, trailing] : renderers;
-  const tabs: Format[] = [...renderers.map((r) => r.name), ...standard, ...(trailing ? [trailing.name] : [])];
+  // TRAILING `plaintext` (raw-source) tab. The default tab is the node's natural one
+  // (effectiveFormat), so the bar order is uniform while only the default differs by node kind;
+  // an inapplicable standard/raw tab renders DISABLED in place, never removed (a stable bar).
+  const { tabs, allRenderers } = tabModel(node);
   const effective = effectiveFormat(format, node, tabs);
   // A tab button shows an ICON; its human name (a renderer's `label`, else the format slug)
   // becomes the hover tooltip. The data views' glyphs: `y:` YAML-family, `{}` JSON-family,
@@ -488,6 +515,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     <div className="nodeview">
       {pasteMsg && <div className="paste-toast">{pasteMsg}</div>}
       {dragging && <div className="drop-overlay">Drop file to upload</div>}
+      {dropConfirm.element}
       <div className="nodehead">
         <div className="nodemeta">
           <span className="tag">{node.type}</span>
@@ -502,24 +530,31 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
             (read-only) by default; unlocking turns prose chunks, the title/description, and subchapter
             titles into editable fields (and suspends the annotation layer — see below). It sits at the
             LEFT of the buttons — after the type/concrete chips, before the representation tabs — with
-            an icon + caption so the action reads at a glance. */}
-        {isEditableView && (
-          <button
-            className={"lockbtn" + (unlocked ? " unlocked" : "")}
-            title={unlocked ? "Editing — click or Esc to finish" : "Read-only — click or F2 to edit"}
-            aria-pressed={unlocked}
-            onClick={() => setUnlocked((v) => !v)}
-          >
-            <span className="lockbtn-icon" aria-hidden="true">{unlocked ? "✓" : "✏️"}</span>
-            <span className="lockbtn-label">{unlocked ? "Done" : "Edit"}</span>
-          </button>
-        )}
+            an icon + caption so the action reads at a glance. ALWAYS rendered, DISABLED on a
+            non-editable view, so the bar keeps its shape. The lock STICKS across navigation
+            (`unlocked` stays true), but on a non-editable page the button wears the inert "Edit"
+            face — a disabled "Done" would claim an editor that isn't there. */}
+        <button
+          className={"lockbtn" + (unlocked && isEditableView ? " unlocked" : "")}
+          disabled={!isEditableView}
+          title={
+            !isEditableView ? "This view is not editable"
+            : unlocked ? "Editing — click or Esc to finish"
+            : "Read-only — click or F2 to edit"
+          }
+          aria-pressed={unlocked && isEditableView}
+          onClick={() => setUnlocked((v) => !v)}
+        >
+          <span className="lockbtn-icon" aria-hidden="true">{unlocked && isEditableView ? "✓" : "✏️"}</span>
+          <span className="lockbtn-label">{unlocked && isEditableView ? "Done" : "Edit"}</span>
+        </button>
         <div className="tabs">
-          {tabs.map((f) => (
+          {tabs.map(({ name: f, enabled }) => (
             <Fragment key={f}>
               <button
                 className={"tab" + (effective === f ? " active" : "")}
-                title={labelOf(f)}
+                disabled={!enabled}
+                title={enabled ? labelOf(f) : `${labelOf(f)} — not available for this node`}
                 aria-label={labelOf(f)}
                 onClick={() => onFormat(f)}
               >

@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createNode, createObject, fetchInfo, fetchTasks, fetchTree, installAgentDocs, PasteResult, TaskInfo, TreeNode } from "./api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createNode, createObject, fetchInfo, fetchTasks, fetchTree, installAgentDocs, moveNode, PasteResult, TaskInfo, TreeNode } from "./api";
 import { api } from "./base";
-import { Tree } from "./Tree";
+import { planNodeMove } from "../drop-policy";
+import { currentDrag } from "./dnd";
+import { useDropConfirm } from "./DropConfirm";
+import { Tree, TreeDnd } from "./Tree";
 import { Breadcrumb, useBreadcrumb } from "./Breadcrumb";
 import { BcEvent } from "./breadcrumb-machine";
 import { TaskStrip } from "./TaskStrip";
@@ -446,6 +449,34 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // In-project drag-drop on the TOC: dropping a node inside a directory row offers an
+  // engine-mediated move (drop-policy decides possibility; the popup confirms). Built on
+  // refs so the object stays REFERENTIALLY STABLE — Tree is memo'd against SSE churn.
+  const dropConfirm = useDropConfirm();
+  const treeDnd: TreeDnd = useMemo(
+    () => ({
+      canDrop: (t) => {
+        const s = currentDrag();
+        return !!s && planNodeMove(s, t).allowed;
+      },
+      onDropNode: (t, x, y) => {
+        const s = currentDrag();
+        if (!s) return; // a foreign-window drag — no facets to plan with
+        const v = planNodeMove(s, t);
+        if (!v.allowed) return;
+        const { from, to } = v.plan as { from: string; to: string };
+        dropConfirm.request(x, y, v.plan, async () => {
+          await moveNode(from, to);
+          // The SSE diff reports the move as `moved` (not `removed`), so nothing else
+          // re-navigates — rebase the open view ourselves when it sat inside the subtree.
+          const cur = currentRef.current;
+          if (cur === from || isAncestorPath(from, cur)) navigateRef.current(to + cur.slice(from.length));
+        });
+      },
+    }),
+    [dropConfirm.request],
+  );
+
   const changeFormat = useCallback(
     (f: Format) => {
       writeUrl(current, f, true);
@@ -601,6 +632,7 @@ export function App() {
                       onSelect={(p) => (tocSession.active ? tocSession.pick(p) : selectFromToc(p))}
                       onLoadChildren={filtering ? tocSession.loadChildren : loadChildren}
                       onContext={onTocContext}
+                      dnd={treeDnd}
                     />
                     {filtering && tocSession.filter!.truncated && <div className="toc-filter-note">first matches only (capped)</div>}
                     {bc.state.mode === "editing" && bc.state.matches?.paths.length === 0 && !bc.state.queryError && (
@@ -671,6 +703,7 @@ export function App() {
         )}
       </div>
       {tocMenu}
+      {dropConfirm.element}
     </div>
     </TocFilterCtx.Provider>
   );

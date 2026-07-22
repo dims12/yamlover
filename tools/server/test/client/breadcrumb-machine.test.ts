@@ -318,6 +318,45 @@ describe("pick mode (the reference cell / tag picker host)", () => {
     expect(fx).toEqual([{ type: "select", path: null, ladder: 0, query: "pets[0]: name" }]);
   });
 
+  it("ENTER with zero matches and a host that CANNOT take the miss stays editing, RINGED", () => {
+    // the tag picker: a missed multi-portion query must stay VISIBLE for correction — the ring
+    // shows, nothing commits, no modal error can fire (the host is never called)
+    const ctx: MachineCtx = { ...pickCtx(), commitOnMiss: (q) => q !== "pets[0]: name" };
+    let s = enterPick(ctx);
+    [s] = reduceCtx(s, { type: "MATCHES_ARRIVED", seq: mseq(s), ok: true, paths: [], truncated: false }, ctx);
+    const [next, fx] = reduceCtx(s, { type: "ENTER" }, ctx);
+    if (next.mode !== "editing") throw new Error();
+    expect(next.queryError).toBe(true); // the ring
+    expect(next.portions).toEqual(["pets[0]", "name"]); // the cells stay
+    expect(fx).toEqual([]); // no select effect at all
+    // a MATCH still commits normally under the same host
+    let m = enterPick(ctx);
+    [m] = reduceCtx(m, { type: "MATCHES_ARRIVED", seq: mseq(m), ok: true, paths: [":pets[0]:name"], truncated: false }, ctx);
+    const [done, fx2] = reduceCtx(m, { type: "ENTER" }, ctx);
+    expect(done.mode).toBe("idle");
+    expect((fx2[0] as any).path).toBe(":pets[0]:name");
+  });
+
+  it("a pending Enter arriving EMPTY under a no-miss host rings instead of committing", () => {
+    const ctx: MachineCtx = { ...pickCtx(), commitOnMiss: () => false };
+    let s = enterPick(ctx);
+    [s] = reduceCtx(s, { type: "SET_ACTIVE_TEXT", text: "zoe" }, ctx); // matches stale
+    [s] = reduceCtx(s, { type: "ENTER" }, ctx); // pendingEnter + immediate fetch
+    const [next, fx] = reduceCtx(s, { type: "MATCHES_ARRIVED", seq: mseq(s), ok: true, paths: [], truncated: false }, ctx);
+    if (next.mode !== "editing") throw new Error();
+    expect(next.queryError).toBe(true);
+    expect(next.pendingEnter).toBe(false);
+    expect(fx).toEqual([]);
+    // same for an evaluator-REJECTED pending pick: the host cannot take a verbatim miss either
+    let r = enterPick(ctx);
+    [r] = reduceCtx(r, { type: "SET_ACTIVE_TEXT", text: "..[.-1]" }, ctx);
+    [r] = reduceCtx(r, { type: "ENTER" }, ctx);
+    const [rn, rfx] = reduceCtx(r, { type: "MATCHES_ARRIVED", seq: mseq(r), ok: false, paths: [], truncated: false }, ctx);
+    if (rn.mode !== "editing") throw new Error();
+    expect(rn.queryError).toBe(true);
+    expect(rfx).toEqual([]);
+  });
+
   it("a pending Enter commits on arrival — first match or null, straight to idle", () => {
     const ctx = pickCtx();
     let s = enterPick(ctx);

@@ -55,10 +55,20 @@ description: |
     cell, cells SEEDED `...` + an empty cell so a bare typed name spells the
     find-anywhere-in-the-project query `:: ...: <name>`; the ladder still steps
     (Backspace at the first cell's start — `:` narrows to the document); Enter
-    applies the first match as the annotation ref (create-on-miss births a named tag
-    from a bare name), and — unlike the other hosts — a TOC row click APPLIES that
-    node directly (the popup owns the session itself and stays open for
-    multi-tagging).
+    commits the first match, and — unlike the other hosts — a TOC row click
+    commits that node directly (the popup owns the session itself and stays open
+    for multi-tagging). EVERY commit — Enter or TOC click — funnels through ONE
+    rule set: the popup's own TARGET closes the popup (clicking the node again
+    reads as "dismiss", and a node never tags itself), and the ROOT is silently
+    ignored (it has no project-scope pointer spelling — `::` alone is not a
+    pointer). The surfaces differ in ONE verb: a TOC row click TOGGLES the node
+    as the annotation ref (already applied → it unapplies — the row reads like a
+    checkbox), while Enter ASSIGNS the typed path (already applied → a satisfied
+    no-op, never a surprise un-tag). Create-on-miss births a named tag from a
+    bare unmatched name (alone, or after the seeded `...`); any OTHER miss —
+    e.g. a partial `tags: colors: yell` — keeps the cells ringed and editable
+    (the host's commitOnMiss gate → the pick-mode error_ring row above), never
+    a modal error.
 
     THE PORTION RULE. `:` and `[` are STRUCTURE, not text. Typing `:` splits the cell
     at the caret — the tail becomes the next cell. Typing `[` projects the closing `]`
@@ -127,7 +137,9 @@ cell_editing: A portion cell focused
         "otherwise": *: cell_editing
     enter:
         "(browse) the filter answered the current text and found matches — the FIRST match is selected, the RHS takes focus": *: filtered
-        "(pick) the filter answered — the query REDUCES to the first match's path (no match = null: the host commits a verbatim parseable pointer, or creates-on-miss); the host takes the commit": *: idle_path
+        "(pick) the filter answered with a match — the query REDUCES to the first match's path; the host takes the commit": *: idle_path
+        "(pick) the filter answered with NOTHING and the host TAKES the miss (a verbatim parseable pointer, or a create-on-miss-eligible bare name) — null commits; the host decides": *: idle_path
+        "(pick) the filter answered with NOTHING and the host cannot take the miss — the typed query STAYS in the cells for correction; never a modal error": *: error_ring
         "(browse) the filter answered and found nothing": *: nop
         "the filter is still in flight — the Enter is remembered and commits on arrival": *: cell_editing
         "the query does not parse": *: error_ring

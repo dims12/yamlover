@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { planBoardRetag } from "../../drop-policy";
 import { NodeJson, fetchNode, TagRef, saveBoardLanes } from "../api";
+import { useDropConfirm } from "../DropConfirm";
 import { memberItems } from "./explorer";
 import { touchesYamlover, useDiffBump } from "../live";
 import { resolveTagColor, tagFields, tagStyle } from "./tag";
@@ -107,6 +109,7 @@ export function BoardView({
   const [over, setOver] = useState<string | null>(null);
   const [picker, setPicker] = useState<{ lane: number; x: number; y: number } | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const dropConfirm = useDropConfirm(); // the unified drop confirmation popup (drop-policy.ts)
 
   useEffect(() => {
     let cancelled = false;
@@ -154,17 +157,23 @@ export function BoardView({
   const addLane = () => persist([...currentLanes(), []]);
   const removeLane = (laneI: number) => persist(currentLanes().filter((_, i) => i !== laneI));
 
-  const onDropTo = async (tagPath: string) => {
+  const onDropTo = (to: WorkflowState, x: number, y: number) => {
     const d = drag;
     setDrag(null);
     setOver(null);
-    if (!d || tagPath === d.from) return;
-    try {
-      await moveState(d.task, d.from, tagPath);
-      setCards((cs) => cs.map((c) => (c.path === d.task ? { ...c, tags: [...c.tags.filter((t) => t !== d.from), tagPath] } : c)));
-    } catch (e) {
-      setError(String((e as Error)?.message || e));
-    }
+    if (!d) return;
+    const card = cards.find((c) => c.path === d.task);
+    // drop-policy screens the retag (same-lane → refused silently); the popup confirms the rest
+    const v = planBoardRetag({ path: d.task, title: card?.title }, d.from, { path: to.path, label: to.label });
+    if (!v.allowed) return;
+    dropConfirm.request(x, y, v.plan, async () => {
+      try {
+        await moveState(d.task, d.from, to.path);
+        setCards((cs) => cs.map((c) => (c.path === d.task ? { ...c, tags: [...c.tags.filter((t) => t !== d.from), to.path] } : c)));
+      } catch (e) {
+        setError(String((e as Error)?.message || e));
+      }
+    });
   };
 
   // The lane-header tag picker (reuses the floating AnnotationMenu; create-on-miss mints new tags).
@@ -179,6 +188,7 @@ export function BoardView({
 
   return (
     <div className="board">
+      {dropConfirm.element}
       {lanes.map((lane, laneI) => {
         const headColor = lane.tags[0] ? resolveTagColor({ name: lane.tags[0].label, color: lane.tags[0].color }) : "#6c7086";
         const total = lane.tags.reduce((n, t) => n + cards.filter((c) => c.tags.includes(t.path)).length, 0);
@@ -213,7 +223,7 @@ export function BoardView({
                     key={t.path}
                     className={"board-group" + (gi > 0 ? " board-group-split" : "") + (over === t.path ? " board-group-over" : "")}
                     onDragOver={(e) => { if (drag) { e.preventDefault(); if (over !== t.path) setOver(t.path); } }}
-                    onDrop={(e) => { e.preventDefault(); onDropTo(t.path); }}
+                    onDrop={(e) => { e.preventDefault(); onDropTo(t, e.clientX, e.clientY); }}
                   >
                     {lane.tags.length > 1 && (
                       <div className="board-group-head">

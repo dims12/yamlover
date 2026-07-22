@@ -46,7 +46,7 @@ import { parseJson5p } from "../../../parser/ts/src/json5p.ts";
 import { pointerToken, schemaTagToken } from "../../../parser/ts/src/serialize-yamlover.ts";
 import { renderPointer } from "../../../parser/ts/src/pointer.ts";
 import { anchorBody } from "../../../parser/ts/src/serialize-common.ts";
-import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken, appendAnnotationAt, upsertMapEntryAt, removeAnnotationAt, removeMapEntryAt, annotationsRemainAt, reachBodyAt, type Region as EmbedRegion } from "./embed.js";
+import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken, appendAnnotationAt, upsertMapEntryAt, removeAnnotationAt, removeMapEntryAt, annotationsRemainAt, pruneEmptyAnnotations, pruneEmptyAnnotationsAt, reachBodyAt, type Region as EmbedRegion } from "./embed.js";
 import { dataFileConcrete, interiorOf, isDirConcrete } from "../concrete.js";
 import { renderThumbnail } from "./extract/thumbnails.js";
 import { isThumbnailable } from "./extract/registry.js";
@@ -562,12 +562,17 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           .then((data) =>
             enqueue(async () => {
               const a = data as AnnotateInput;
-              const tagStore = storePath(strToSegs(a.tag ?? ""));
+              const tagSegs = strToSegs(a.tag ?? "");
+              const tagStore = storePath(tagSegs);
               // ANY node can be a tag — an annotation is just a `*` reference inside the
               // target's yamlover-annotations. The node only has to exist.
               if (!a?.tag || !s.node(tagStore)) {
                 throw new Error("annotation needs a `tag` naming an existing node");
               }
+              // …any node but the ROOT: it has no project-scope pointer spelling (`::` alone
+              // is not a pointer), so the annotation could be written but never parsed back.
+              // Refuse BEFORE the write — a failed reindex must not leave a corrupt body file.
+              if (tagSegs.length === 0) throw new Error("the root cannot be a tag");
               const bodyFile = embedAnnotation(dataRoot, s, a);
               // A surgical body edit changes one file: patch just that file's subtree against the
               // cached tree (re-resolving in memory keeps cross-file links correct), instead of
@@ -1724,8 +1729,13 @@ function taggedMaterials(dataRoot: string, s: Store, tagStorePath: string): unkn
  *  raw text (`::key[0]:x`, keys RAW — quoted when spacey): pointer steps are matched against
  *  store keys verbatim — an encoded key would go dangling on the next re-walk. */
 function pointerRaw(clientPath: string): string {
+  const segs = strToSegs(clientPath);
+  // The ROOT has no project-scope spelling — `::` with no first portion is not a pointer, and
+  // writing it would corrupt the host body (the parse throws only at the NEXT read). Every
+  // writer (annotate, boards) funnels through here, so the invariant lives here.
+  if (segs.length === 0) throw new Error("the root has no project-scope pointer spelling");
   let out = "";
-  for (const seg of strToSegs(clientPath)) {
+  for (const seg of segs) {
     out += typeof seg === "number" ? `[${seg}]` : (out === "" ? "" : ":") + colonSegment(seg);
   }
   return "::" + out;
@@ -1980,6 +1990,11 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
     if (keys.length >= 2 && keys[keys.length - 2] === FRAG_KEY && !annotationsRemainAt(lines, fragRegion())) {
       removeMapEntryAt(lines, reachBodyAt(lines, chunkFieldRegion(lines, indices, false), keys.slice(0, -2)), FRAG_KEY, keys[keys.length - 1]);
       collapseChunkOmni(lines, indices); // no fields left → back to a plain `- |` chunk
+    } else if (keys.length === 0 && !annotationsRemainAt(lines, fragRegion())) {
+      // the CHUNK's last whole-node tag: drop the emptied `yamlover-annotations:` husk and — when
+      // that was the omni's only field — collapse the chunk back to a plain block
+      pruneEmptyAnnotationsAt(lines, fragRegion());
+      collapseChunkOmni(lines, indices);
     }
     fs.writeFileSync(bodyFile, lines.join("\n") + "\n");
     return bodyFile;
@@ -1993,9 +2008,18 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
   // the stored item reads `'fifthtag'` once stripped; an unstripped needle (`'fifth tag'`) would
   // then never match (every spacey-named tag was undeletable).
   let src = removeAnnotationItem(fs.readFileSync(bodyFile, "utf8"), within, (itemText) => itemText.replace(/\s+/g, "").includes(needle));
+  // Host-key pruning applies only to an OVERLAY body (`.yamlover/body.yamlover`) — its keys (a
+  // filename spine) exist solely to host overlay entries. An in-place document's keys are the
+  // user's data: a pre-existing empty mapping must not vanish because a tag passed through it.
+  const overlay = path.basename(bodyFile) === "body.yamlover" && path.basename(path.dirname(bodyFile)) === ".yamlover";
   // within = [...host, "yamlover-fragments", "<slug>"] for a fragment target; drop it when emptied.
   if (within.length >= 2 && within[within.length - 2] === FRAG_KEY && !annotationsRemain(src, within)) {
     src = removeMapEntry(src, within.slice(0, -2), FRAG_KEY, within[within.length - 1]);
+    src = pruneEmptyAnnotations(src, within.slice(0, -2), overlay); // the host may hold nothing else now
+  } else {
+    // untagging the last tag: drop the emptied `yamlover-annotations:` husk (a null-valued orphan
+    // key otherwise) and, in an overlay, the host keys emptied with it
+    src = pruneEmptyAnnotations(src, within, overlay);
   }
   fs.writeFileSync(bodyFile, src);
   return bodyFile;

@@ -107,6 +107,12 @@ export interface MachineCtx {
   /** pick mode: spell a picked node path as cells in the given scope (the machine passes
    *  its CURRENT editing ladder). */
   spell?: (path: string, ladder: Ladder) => { ladder: Ladder; portions: string[] };
+  /** pick mode: whether the host can take a NO-MATCH commit for this query (a verbatim
+   *  parseable pointer, or the tag picker's create-on-miss). When given and false, an Enter
+   *  that found nothing STAYS in editing with the error ring — the typed query remains
+   *  visible for correction — instead of committing null (which hosts surfaced as a modal
+   *  error). Absent = always commit (the reference-cell contract). */
+  commitOnMiss?: (query: string) => boolean;
 }
 
 /** The breadcrumb's ctx — the browse host over the current path. */
@@ -336,14 +342,22 @@ export function reduce(state: BcState, e: BcEvent, ctx: MachineCtx): [BcState, E
         if (s.pendingEnter && ctx.mode === "pick") {
           // the evaluator rejected the text (or the fetch failed) — the SERVER is only a
           // hint source. Hand the typed query to the host: a parseable POINTER (e.g. a
-          // relindex link the query grammar refuses) still commits verbatim.
+          // relindex link the query grammar refuses) still commits verbatim — unless the
+          // host says it CANNOT take a miss: then the ring shows and the cells stay.
+          if (ctx.commitOnMiss && !ctx.commitOnMiss(fullQueryOf(s))) {
+            return [{ ...s, queryError: true, pendingEnter: false }, []];
+          }
           return [{ mode: "idle" }, [{ type: "select", path: null, ladder: s.ladder, query: fullQueryOf(s) }]];
         }
         return [{ ...s, queryError: true, pendingEnter: false }, []];
       }
       const matches: Matches = { paths: e.paths, truncated: e.truncated };
       if (s.pendingEnter && ctx.mode === "pick") {
-        // a pending pick commits on arrival: the first match, or null (host decides)
+        // a pending pick commits on arrival: the first match, or null (host decides) — but a
+        // MISS the host cannot take keeps the editor open, ringed, the query still visible
+        if (e.paths.length === 0 && ctx.commitOnMiss && !ctx.commitOnMiss(fullQueryOf(s))) {
+          return [{ ...s, matches, matchesFresh: true, queryError: true, pendingEnter: false }, []];
+        }
         return [{ mode: "idle" }, [{ type: "select", path: e.paths[0] ?? null, ladder: s.ladder, query: fullQueryOf(s) }]];
       }
       if (s.pendingEnter && e.paths.length > 0) {
@@ -379,7 +393,11 @@ export function reduce(state: BcState, e: BcEvent, ctx: MachineCtx): [BcState, E
       if (s.matchesFresh && s.matches) {
         if (ctx.mode === "pick") {
           // pick: the query REDUCES to one node — the first match, or null (host decides:
-          // a free-typed parseable pointer commits verbatim; the tag host creates-on-miss)
+          // a free-typed parseable pointer commits verbatim; the tag host creates-on-miss).
+          // A MISS the host cannot take never commits: the ring shows, the cells stay.
+          if (s.matches.paths.length === 0 && ctx.commitOnMiss && !ctx.commitOnMiss(fullQueryOf(s))) {
+            return [{ ...s, queryError: true, pendingEnter: false }, []];
+          }
           return [{ mode: "idle" }, [{ type: "select", path: s.matches.paths[0] ?? null, ladder: s.ladder, query: fullQueryOf(s) }]];
         }
         if (s.matches.paths.length === 0) return [s, []]; // nothing to select; the tint says why

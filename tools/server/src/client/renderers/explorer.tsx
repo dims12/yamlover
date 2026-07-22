@@ -1,5 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import { NodeJson, fetchTagged, thumbUrl, blobUrl } from "../api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isDirConcrete } from "../../concrete";
+import { planNodeMove } from "../../drop-policy";
+import { NodeJson, fetchTagged, moveNode, thumbUrl, blobUrl } from "../api";
+import { beginNodeDrag, currentDrag, dragHasNode, endNodeDrag } from "../dnd";
+import { useDropConfirm } from "../DropConfirm";
 import { asLink, Link } from "../render";
 import { typeIcon, Glyph } from "../icons";
 import { TAG_FORMAT, tagLabel, tagBody, resolveTagColor, tagStyle } from "./tag";
@@ -177,7 +181,13 @@ function Thumb({ link, glyph, box }: { link: Link; glyph: Glyph; box: number }) 
   return <img className="dirview-icon dirview-thumb" src={src} alt="" loading="lazy" onError={() => setFailed(true)} />;
 }
 
-function Item({ it, active, view, setRef, onFocus, onNavigate, onContext }: {
+/** In-project drag-drop wiring for the explorer grid (see dnd.ts / drop-policy.ts). */
+export interface ExplorerDnd {
+  canDrop: (target: Link) => boolean;
+  onDropNode: (target: Link, x: number, y: number) => void;
+}
+
+function Item({ it, active, view, setRef, onFocus, onNavigate, onContext, dnd }: {
   it: ExplorerItem;
   active: boolean;
   view: ViewMode;
@@ -185,8 +195,35 @@ function Item({ it, active, view, setRef, onFocus, onNavigate, onContext }: {
   onFocus: () => void;
   onNavigate: (path: string) => void;
   onContext?: (path: string, x: number, y: number) => void;
+  dnd?: ExplorerDnd;
 }) {
   const link = it.link;
+  const [over, setOver] = useState(false);
+  // members drag out (uplinks stay put — dragging `..` would move the PARENT); any
+  // directory-concrete link accepts drops, `..` included (a handy "move up" gesture)
+  const dragProps = link && !it.up && dnd ? {
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => beginNodeDrag(e, { path: link.path, concrete: link.concrete ?? null, label: it.up ? undefined : link.title ?? it.key }),
+    onDragEnd: () => endNodeDrag(),
+  } : {};
+  const dropProps = link && dnd && isDirConcrete(link.concrete) ? {
+    onDragOver: (e: React.DragEvent) => {
+      if (!dragHasNode(e) || !dnd.canDrop(link)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (!over) setOver(true);
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+      setOver(false);
+    },
+    onDrop: (e: React.DragEvent) => {
+      if (!dragHasNode(e)) return;
+      e.preventDefault();
+      setOver(false);
+      dnd.onDropNode(link, e.clientX, e.clientY);
+    },
+  } : {};
   const tabIndex = active ? 0 : -1; // roving tabindex: only the selected item is in the tab order
   // right-click a real member (not an uplink) → the tagging menu, at the cursor
   const contextProps = link && !it.up && onContext ? { onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); onContext(link.path, e.clientX, e.clientY); } } : {};
@@ -218,7 +255,7 @@ function Item({ it, active, view, setRef, onFocus, onNavigate, onContext }: {
     );
   return (
     <a
-      className={"dirview-item" + (it.up ? " dirview-up" : "")}
+      className={"dirview-item" + (it.up ? " dirview-up" : "") + (over ? " drop-target" : "")}
       href={link.path}
       title={displayPath(link.path)}
       ref={setRef}
@@ -229,6 +266,8 @@ function Item({ it, active, view, setRef, onFocus, onNavigate, onContext }: {
         onNavigate(link.path);
       }}
       {...contextProps}
+      {...dragProps}
+      {...dropProps}
     >
       {THUMB_BOX[view] && !it.up ? <Thumb link={link} glyph={g} box={THUMB_BOX[view]!} /> : <span className={"dirview-icon " + g.cls} title={g.title}>{g.glyph}</span>}
       <span className="dirview-label">{label}</span>
@@ -243,6 +282,31 @@ export function ExplorerView({ node, view, onNavigate }: { node: NodeJson; view:
   const [tagged, setTagged] = useState<Link[]>([]);
   const diffBump = useDiffBump(touchesYamlover);
   const { openAt, tagMenu } = useExplorerTagMenu(); // right-click → the shared tag picker (all views)
+
+  // In-project drag-drop on the grid: dropping a member inside a directory item offers an
+  // engine-mediated move (drop-policy decides; the popup confirms). The dnd.ts drag ref is
+  // shared with the TOC tree, so tree↔explorer drags work in both directions for free.
+  // Post-move refresh is free too: the SSE diff paths under this directory bump refreshSignal.
+  const dropConfirm = useDropConfirm();
+  const dnd: ExplorerDnd = useMemo(
+    () => ({
+      canDrop: (target) => {
+        const s = currentDrag();
+        return !!s && planNodeMove(s, { path: target.path, concrete: target.concrete ?? null, label: target.title ?? undefined }).allowed;
+      },
+      onDropNode: (target, x, y) => {
+        const s = currentDrag();
+        if (!s) return; // a foreign-window drag — no facets to plan with
+        const v = planNodeMove(s, { path: target.path, concrete: target.concrete ?? null, label: target.title ?? undefined });
+        if (!v.allowed) return;
+        const { from, to } = v.plan as { from: string; to: string };
+        dropConfirm.request(x, y, v.plan, async () => {
+          await moveNode(from, to);
+        });
+      },
+    }),
+    [dropConfirm.request],
+  );
   useEffect(() => {
     setTagged([]);
     if (!isTag) return;
@@ -310,6 +374,7 @@ export function ExplorerView({ node, view, onNavigate }: { node: NodeJson; view:
   return (
     <div className="explorerview">
       {tagMenu}
+      {dropConfirm.element}
       {desc && (
         <div className="dirhead">
           <p className="tagdesc">{desc}</p>
@@ -330,6 +395,7 @@ export function ExplorerView({ node, view, onNavigate }: { node: NodeJson; view:
             onFocus={() => setActive(i)}
             onNavigate={onNavigate}
             onContext={openAt}
+            dnd={dnd}
           />
         ))}
         {items.length === 0 && <span className="dirview-empty">empty</span>}

@@ -7,7 +7,8 @@ import { Chunk } from "./registry";
 import { bytesToGeoJSON, GeoJSON } from "./kml";
 import { Annotation } from "../api";
 import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
-import { wireGestures } from "./panzoom";
+import { useLeafletRefit, wireGestures } from "./panzoom";
+import { useFillHeight } from "./paged";
 import { OpenChunk } from "./openable";
 
 /**
@@ -131,6 +132,10 @@ function MapBody({
   const [ready, setReady] = useState(0);
   const regionsKey = JSON.stringify(regions ?? []);
   const selectable = !!onSelectRegion;
+  // The FULL page fills down to the window bottom; an inline chunk preview (interactive=false)
+  // keeps its capped CSS height. Leaflet refits whenever the frame's size changes.
+  useFillHeight(ref, 14, interactive);
+  useLeafletRefit(ref, () => mapRef.current);
 
   useEffect(() => { onSelectRef.current = onSelectRegion; onRegionClickRef.current = onRegionClick; colorRef.current = selectColor; });
 

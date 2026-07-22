@@ -7,7 +7,8 @@ import { Annotation } from "../api";
 import { fragmentAnchorId } from "../paths";
 import { DEFAULT_COLOR, colorOf, editable, useAnnotationMenu, useMaterialAnnotations } from "./annotate";
 import { TagLink, resolveTagColor, isColorTagPath } from "./tag";
-import { wireGestures } from "./panzoom";
+import { useLeafletRefit, wireGestures } from "./panzoom";
+import { useFillHeight } from "./paged";
 import { OpenChunk } from "./openable";
 
 /** A rectangular annotation region in the image's own pixel space (origin top-left). `ann` is the
@@ -77,7 +78,7 @@ function imageRegions(anns: Annotation[], materialPath: string): ImageRegion[] {
  * wheel zooms. The map is built once (per `src`); regions redraw in place without resetting the view.
  */
 export function PanZoomImage({
-  src, className, regions, onSelectRegion, onRegionClick, selectColor,
+  src, className, regions, onSelectRegion, onRegionClick, selectColor, fill = true,
 }: {
   src: string;
   className: string;
@@ -85,6 +86,9 @@ export function PanZoomImage({
   onSelectRegion?: (selector: Record<string, unknown>, screen: { x: number; y: number }, imageBase64?: string) => void;
   onRegionClick?: (ann: Annotation, screen: { x: number; y: number }) => void;
   selectColor?: () => string;
+  /** Fill down to the window bottom (the standalone viewer). false = one of a stacked multi-page
+   *  decode (TIFF/PSD pages), where each page keeps the CSS fallback height instead. */
+  fill?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -98,6 +102,9 @@ export function PanZoomImage({
   const [ready, setReady] = useState(0); // bumps once the map (and its overlay layer) exist
   const regionsKey = JSON.stringify(regions ?? []);
   const selectable = !!onSelectRegion; // fixed per instance: full view annotates, chunk doesn't
+
+  useFillHeight(ref, 14, fill); // the viewer fills down to the window bottom (unless a stacked page)
+  useLeafletRefit(ref, () => mapRef.current); // Leaflet refits whenever the frame's size changes
 
   useEffect(() => { onSelectRef.current = onSelectRegion; onRegionClickRef.current = onRegionClick; colorRef.current = selectColor; });
 
