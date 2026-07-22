@@ -15,22 +15,26 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import { fetchNode, type Edit } from "../../api";
 import { parseYamlover } from "../../../../../parser/ts/src/yamlover.ts";
 import { acceptsAsScalar } from "../value-editors";
-import { focusEnd, focusStart } from "../caret";
+import { focusEnd, focusStart, placeCaret } from "../caret";
 import * as M from "./model";
 import { enqueue, useOpSync, type OpQueue } from "./ops";
 import { keyedEditParts, normalizeSpaces, quoteSource, type HoleAction } from "./keys";
 import * as P from "./paste";
 import { FlowCells, MetaTagCell, NodeCells, PointerCell, RootHole, ScalarCell, YedCtx, type YedActions, type YedCtxType } from "./cells";
 
-interface FocusReq {
+export interface FocusReq {
   key: string; // a cell key (node id, or `<id>:meta` / `<id>:self`)
-  at: "start" | "end";
+  at: FocusAt;
 }
+/** Where the caret lands: an end of the cell, or a visible-character offset (a prose join lands
+ *  the caret at the junction of the two merged paragraphs). */
+export type FocusAt = "start" | "end" | number;
 type FocusRef = { current: FocusReq | null };
 
 /** Focus a cell with the caret at `at`. A TEXTAREA (the block-scalar cell) needs its own caret
  *  API — the contentEditable range routines clobber a textarea's focus in real browsers. */
-function focusCell(el: HTMLElement, at: "start" | "end"): void {
+function focusCell(el: HTMLElement, at: FocusAt): void {
+  if (typeof at === "number") { placeCaret(el, at); return; }
   if (el instanceof HTMLTextAreaElement) {
     el.focus();
     const n = at === "end" ? el.value.length : 0;
@@ -156,6 +160,15 @@ export interface YedHost {
   rootEl: React.MutableRefObject<HTMLDivElement | null>;
   /** Flush the pending ops now (lock / navigation). */
   flush: () => Promise<void>;
+  /** The edited node's path — the op-routing base. */
+  path: string;
+  /** The live model (mutable) — a projection composing its own mutations reads it here. */
+  rootRef: React.MutableRefObject<M.MNode | null>;
+  /** The pending caret placement, applied against the cell map after the next render. A projection
+   *  sets this inside a `step` so the caret follows its own structural edit. */
+  focusReq: FocusRef;
+  /** One atomic editor step: mutate the model, queue the mirroring ops, re-render (and focus). */
+  step: (fn: (root: M.MNode) => Edit[]) => void;
 }
 
 /** Load `path`, build its model, and return the host driving it. */
@@ -787,5 +800,5 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
     }
   });
 
-  return { root, version, act, ctx, rootEl, flush };
+  return { root, version, act, ctx, rootEl, flush, path, rootRef, focusReq, step };
 }
