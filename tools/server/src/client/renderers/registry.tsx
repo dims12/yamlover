@@ -23,6 +23,7 @@ import { EpubView } from "./epub";
 import { HtmlView } from "./media";
 import { MarkupWidthControl } from "./markup";
 import { DepthControl } from "./depth";
+import { ChapterFormatControl } from "./chapter-editor/view";
 
 // pdf.js and DjVu.js are heavy and browser-only (they reach for canvas globals at
 // import time). Load them lazily so the registry — imported by the TOC and by
@@ -219,6 +220,7 @@ const REGISTRY: Renderer[] = [
     // level itself, so the node's own fetch depth never changes.
     config: (rerender) => (
       <>
+        <ChapterFormatControl />
         <MarkupWidthControl rerender={rerender} />
         <DepthControl onChange={rerender} />
       </>
@@ -237,6 +239,7 @@ const REGISTRY: Renderer[] = [
     render: (node, onNavigate) => <TaskView node={node} onNavigate={onNavigate} />,
     config: (rerender) => (
       <>
+        <ChapterFormatControl />
         <MarkupWidthControl rerender={rerender} />
         <DepthControl onChange={rerender} />
       </>

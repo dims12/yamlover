@@ -953,16 +953,12 @@ body {
   color: var(--dim);
 }
 
-/* the projectional chapter editor's format bar — four block-format buttons, sticky at the top of
-   the editor so the caret's block can always be retyped */
-.fmt-bar {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
+/* the projectional chapter editor's format buttons — they dock in the MAIN node-bar (the chapter
+   renderer's config slot), so there is one toolbar, not two */
+.fmt-group {
+  display: inline-flex;
   gap: 4px;
-  padding: 4px 0 8px;
-  background: var(--bg);
+  margin-right: 8px;
 }
 .fmt-btn {
   min-width: 30px;
@@ -991,6 +987,12 @@ body {
   margin: 0 0 14px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+/* an EMPTY editable paragraph must be a visible, clickable line — not a zero-height gap. The
+   placeholder (via .editable:empty::before) gives it text; min-height guarantees the line even
+   when a browser collapses an empty contenteditable. */
+.chapter-prose.editable {
+  min-height: 1.5em;
 }
 .chapter-link {
   font-size: 15px;

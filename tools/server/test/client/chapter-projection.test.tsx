@@ -6,7 +6,7 @@ import { render, cleanup, fireEvent, act, waitFor } from "@testing-library/react
 const { fetchNode, editChunks } = vi.hoisted(() => ({ fetchNode: vi.fn(), editChunks: vi.fn() }));
 vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchNode, editChunks }));
 
-import { ChapterProjection } from "../../src/client/renderers/chapter-editor/view";
+import { ChapterProjection, ChapterFormatControl } from "../../src/client/renderers/chapter-editor/view";
 import type { NodeJson } from "../../src/client/api";
 
 afterEach(cleanup);
@@ -213,8 +213,10 @@ describe("ChapterProjection — lists and the format bar", () => {
     expect(batch).toEqual([{ path: ":doc[0]", op: "emplace", meta: null }]);
   });
 
-  it("the format bar highlights the active block's current format", async () => {
-    const utils = renderSync(chapterNode({ title: "Book", body: [taggedList("x-yamlover-bullets", ["a"])] }));
+  it("the format buttons (in the main bar, via the bus) highlight the active block's format", async () => {
+    // the buttons live in the node-bar's config slot; render both so the format bus connects them
+    fetchNode.mockResolvedValue(chapterNode({ title: "Book", body: [taggedList("x-yamlover-bullets", ["a"])] }));
+    const utils = render(<><ChapterFormatControl /><ChapterProjection path=":doc" onNavigate={vi.fn()} /></>);
     await settle();
     const item = utils.container.querySelector("ul .chapter-prose") as HTMLElement;
     fireEvent.focus(item);
@@ -234,5 +236,70 @@ describe("ChapterProjection — lists and the format bar", () => {
     const parentLi = utils.container.querySelector("ul > li")!;
     expect(parentLi.textContent).toContain("parent");
     expect(parentLi.querySelector(":scope > ul.yl-list-bullets .chapter-prose")?.textContent).toBe("child");
+  });
+});
+
+describe("ChapterProjection — Enter adds VISIBLE paragraphs (regression: invisible empties)", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+  const renderSync = (node: NodeJson) => {
+    fetchNode.mockResolvedValue(node);
+    return render(<ChapterProjection path=":doc" onNavigate={vi.fn()} />);
+  };
+  const settle = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
+
+  it("Enter from the title of an EMPTY chapter creates ONE paragraph and puts the caret in it", async () => {
+    const utils = renderSync(chapterNode({ title: "Book" })); // no body
+    await settle();
+    const h1 = utils.container.querySelector("h1.chapter-title") as HTMLElement;
+    fireEvent.keyDown(h1, { key: "Enter" });
+    await act(async () => { await Promise.resolve(); });
+    const paras = utils.container.querySelectorAll(".chunk-body .chapter-prose");
+    expect(paras.length).toBe(1); // exactly one, and it EXISTS in the DOM
+    expect(document.activeElement).toBe(paras[0]); // the caret is IN it, not stuck in the title
+  });
+
+  it("a fresh paragraph carries a placeholder so an EMPTY one is visible", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: [""] }));
+    await settle();
+    const p = utils.container.querySelector(".chunk-body .chapter-prose") as HTMLElement;
+    expect(p.getAttribute("data-placeholder")).toBeTruthy(); // the :empty::before hook the CSS needs
+  });
+
+  it("Enter in an empty paragraph makes the next one — each is a real cell, not a phantom", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: [""] }));
+    await settle();
+    const p = utils.container.querySelector(".chapter-prose") as HTMLElement;
+    fireEvent.keyDown(p, { key: "Enter" });
+    await act(async () => { await Promise.resolve(); });
+    expect(utils.container.querySelectorAll(".chunk-body .chapter-prose").length).toBe(2);
+  });
+});
+
+describe("ChapterFormatControl — lives in the main bar via the bus", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+  const settle = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
+
+  it("renders nothing when no projectional editor is mounted", () => {
+    const { container } = render(<ChapterFormatControl />);
+    expect(container.querySelector(".fmt-btn")).toBeNull();
+  });
+
+  it("appears while the editor is mounted and its buttons act on the focused block", async () => {
+    fetchNode.mockResolvedValue(chapterNode({ title: "Book", body: ["shopping"] }));
+    const { container } = render(<><ChapterFormatControl /><ChapterProjection path=":doc" onNavigate={vi.fn()} /></>);
+    await settle();
+    expect(container.querySelectorAll(".fmt-btn").length).toBe(4); // the buttons are present
+    const p = container.querySelector(".chapter-prose") as HTMLElement;
+    fireEvent.focus(p);
+    await act(async () => { await Promise.resolve(); });
+    // clicking Bullets (mousedown, so focus is not lost) retags the paragraph
+    const bullets = [...container.querySelectorAll(".fmt-btn")].find((b) => b.textContent === "•")!;
+    fireEvent.mouseDown(bullets);
+    await act(async () => { await Promise.resolve(); });
+    expect(container.querySelector("ul.yl-list-bullets")).toBeTruthy();
+    const batch = await flush();
+    expect(batch[0]).toMatchObject({ op: "replace", meta: "*yamlover: $defs: bullets" });
   });
 });

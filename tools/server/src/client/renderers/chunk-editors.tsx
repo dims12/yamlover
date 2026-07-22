@@ -28,6 +28,8 @@ export interface ChunkEditorProps {
   onArrowOut: (dir: "up" | "down") => void; // caret left the first/last line → go to the adjacent chunk
   onJoinPrev: () => void; // Backspace at the very start → merge into the previous chunk
   onJoinNext: () => void; // Delete at the very end → pull the next chunk into this one
+  placeholder?: string; // shown (via CSS `:empty::before`) when the chunk has no text, so an empty
+                        // paragraph is a visible, clickable line rather than a zero-height gap
 }
 
 export type ChunkEditor = (props: ChunkEditorProps) => JSX.Element;
@@ -103,7 +105,7 @@ function applyFocus(el: HTMLElement, at: FocusAt): void {
  * CONTROLLED-ON-`rev`: the DOM is rewritten from `text` only when `rev` changes (mount + a
  * model-driven text change like a split head), never mid-type — so typing never loses the caret.
  */
-export const MarklowerChunkEditor: ChunkEditor = ({ text, rev, chapterPath, focusAt, onFocused, onChangeText, onSplit, onArrowOut, onJoinPrev, onJoinNext }) => {
+export const MarklowerChunkEditor: ChunkEditor = ({ text, rev, chapterPath, focusAt, onFocused, onChangeText, onSplit, onArrowOut, onJoinPrev, onJoinNext, placeholder }) => {
   const ref = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
@@ -122,6 +124,7 @@ export const MarklowerChunkEditor: ChunkEditor = ({ text, rev, chapterPath, focu
       className="chapter-prose editable"
       contentEditable
       suppressContentEditableWarning
+      data-placeholder={placeholder}
       onInput={() => { if (ref.current) onChangeText(domToMarklower(ref.current)); }}
       onPaste={(e) => {
         // An image on the clipboard becomes a FILE beside the chapter plus an embed atom here.
@@ -138,7 +141,9 @@ export const MarklowerChunkEditor: ChunkEditor = ({ text, rev, chapterPath, focu
       onKeyDown={(e) => {
         const el = ref.current;
         if (!el) return;
-        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); const p = splitAtCaret(el); if (p) onSplit(p.head, p.tail); return; }
+        // Enter ALWAYS makes a new paragraph: split at the caret, or — when no caret is detectable
+        // (an empty paragraph) — after the whole text, so the new one opens empty below.
+        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); const p = splitAtCaret(el) ?? { head: domToMarklower(el), tail: "" }; onSplit(p.head, p.tail); return; }
         if (e.key === "ArrowUp" && caretOnFirstLine(el)) { e.preventDefault(); onArrowOut("up"); return; }
         if (e.key === "ArrowDown" && caretOnLastLine(el)) { e.preventDefault(); onArrowOut("down"); return; }
         if (e.key === "Backspace" && caretAtStart(el)) { e.preventDefault(); onJoinPrev(); return; }

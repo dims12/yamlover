@@ -16,6 +16,7 @@ import { focusEnd } from "../caret";
 import { formatOfNode, type ChosenFormat } from "./format";
 import { formatTarget } from "./tab";
 import { commitProse, joinProse, promoteFormat, splitProse, tabEdits } from "./blocks";
+import { clearFormatBus, publishFormatBus, useFormatBus } from "./format-bus";
 
 /** A pending caret placement — which model node to focus, and where. */
 interface Focus { id: string; at: FocusAt }
@@ -71,6 +72,18 @@ export function ChapterProjection({ path, onNavigate }: { path: string; onNaviga
 
   const proj: Proj = { host, focus, clearFocus: () => setFocus(null), run, setActive, onNavigate };
 
+  // Publish the format state to the MAIN node-bar (the renderer's config slot renders
+  // ChapterFormatControl, which reads this) — one toolbar, not two. Cleared on unmount.
+  useEffect(() => {
+    publishFormatBus({
+      mounted: true,
+      active: !!active,
+      current: active && host.rootRef.current ? currentFormat(host.rootRef.current, active) : null,
+      choose,
+    });
+  });
+  useEffect(() => clearFormatBus, []);
+
   if (!host.root) return <div className="chapter chapter-wysiwyg">…</div>;
   return (
     <ProjCtx.Provider value={proj}>
@@ -87,34 +100,35 @@ export function ChapterProjection({ path, onNavigate }: { path: string; onNaviga
           choose(n);
         }}
       >
-        <FormatBar active={active} host={host} choose={choose} />
         <ChapterNode node={host.root} nodePath={host.path} level={0} />
       </div>
     </ProjCtx.Provider>
   );
 }
 
-/** The block-format toolbar: four buttons acting on the block the caret is in. Highlights the
- *  active block's current format. */
-function FormatBar({ active, host, choose }: { active: string | null; host: YedHost; choose: (f: ChosenFormat) => void }) {
-  const current = active && host.rootRef.current ? currentFormat(host.rootRef.current, active) : null;
+/** The block-format buttons, docked in the MAIN node-bar (the chapter renderer's `config` slot) —
+ *  they act on the projectional editor's focused block through the format bus, and vanish when no
+ *  such editor is mounted. */
+export function ChapterFormatControl() {
+  const { mounted, active, current, choose } = useFormatBus();
+  if (!mounted) return null;
   const btn = (fmt: ChosenFormat, glyph: string, title: string) => (
     <button
       type="button"
       className={"fmt-btn" + (current === fmt ? " active" : "")}
       title={`${title} (Ctrl+Alt+${{ chapter: 1, table: 2, bullets: 3, numbered: 4 }[fmt]})`}
       disabled={!active}
-      // mousedown, not click: a click would blur the caret cell first, losing `active`
+      // mousedown, not click: a click would blur the caret cell first, losing the active block
       onMouseDown={(e) => { e.preventDefault(); choose(fmt); }}
     >{glyph}</button>
   );
   return (
-    <div className="fmt-bar" data-yo-chrome>
+    <span className="fmt-group" data-yo-chrome>
       {btn("chapter", "¶", "Normal")}
       {btn("bullets", "•", "Bullets")}
       {btn("numbered", "1.", "Numbered")}
       {btn("table", "▦", "Table")}
-    </div>
+    </span>
   );
 }
 
@@ -252,6 +266,7 @@ function ProseCell({ entry, tag = "chunk" }: { entry: M.MEntry; tag?: "chunk" | 
       rev={node.rev}
       chapterPath={host.path}
       focusAt={focusAt}
+      placeholder={tag === "span" ? "List item" : "Write…"}
       onFocused={clearFocus}
       onChangeText={(t) => run(() => ({ edits: commit(t) }))}
       onSplit={(head, tail) => run((r) => splitProse(host.path, r, entry.id, head, tail))}
