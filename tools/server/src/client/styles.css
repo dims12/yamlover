@@ -932,6 +932,27 @@ body {
   color: var(--dim);
   font-style: italic;
 }
+/* A subchapter laid out IN PLACE (subchapter.tsx): the indent + rule is the only thing marking the
+   nesting, and it compounds naturally because the sections really are nested in the DOM. The
+   reading width belongs to the outer `.chapter` alone, so a deep subchapter's column narrows only
+   by its indent rather than being re-capped at every level. */
+.chapter-sub {
+  margin-left: 1.25em;
+  padding-left: 0.75em;
+  border-left: 1px solid var(--line);
+}
+/* a heading is a `#fragment` target like a chunk — keep it off the viewport's top edge */
+.chapter-sub > .chapter-title,
+.chapter-link {
+  scroll-margin-top: 12px;
+}
+/* why a subchapter is a LINK rather than laid out here: loading, failed, or a pointer cycle */
+.chapter-link-note {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--dim);
+}
+
 /* a chapter with nothing in it — usually a plain folder opened through the OFFERED chapter tab */
 .chapter-empty {
   color: var(--dim);

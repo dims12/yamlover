@@ -1,20 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { NodeJson, editChunks, createNode, createObject } from "../api";
 import { NODE_SCHEMA } from "./create";
 import { asLink, scalarValue } from "../render";
-import { fragmentOf } from "../paths";
+import { canonPath } from "../paths";
 import { Chunk, rendererFor } from "./registry";
 import { useHashScroll } from "./headings";
 import { useEditing } from "./editing";
 import { useExplorerTagMenu } from "./tagmenu";
 import { chunkEditorFor, isJoinableFormat, renderedTextLength, type FocusAt } from "./chunk-editors";
 import { markupWidthCh } from "./markup";
+import { viewDepth } from "./depth";
+import { InlineSubchapter } from "./subchapter";
 import {
   buildChapterModel,
   snapshotChapter,
   diffChapter,
   newProsePart,
   childPath,
+  childSlot,
+  anchorOf,
   chapterFlow,
   flowText,
   isSubchapter,
@@ -52,9 +56,13 @@ export function ChapterView({ node, onNavigate }: { node: NodeJson; onNavigate: 
         .catch((e) => window.alert("create failed: " + (e as Error).message)),
   });
   const onContextMenu = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest(".chunk-body, .editable, a, button, textarea")) return; // native menu on text/links/controls
+    const target = e.target as HTMLElement;
+    if (target.closest(".chunk-body, .editable, a, button, textarea")) return; // native menu on text/links/controls
     e.preventDefault();
-    openAt(node.path, e.clientX, e.clientY, { format: node.format, concrete: node.concrete });
+    // Subchapters are laid out IN PLACE, so the click may land inside one — create there, not at
+    // the page root. `data-chapter-path` is stamped by every nested chapter body (subchapter.tsx).
+    const within = target.closest("[data-chapter-path]")?.getAttribute("data-chapter-path");
+    openAt(within || node.path, e.clientX, e.clientY, { format: node.format, concrete: node.concrete });
   };
   // `key` on the chapter path: navigating to a subchapter (still in edit mode) remounts the editor so
   // it rebuilds its model from the new chapter rather than keeping the old one.
@@ -70,13 +78,18 @@ export function ChapterView({ node, onNavigate }: { node: NodeJson; onNavigate: 
  *  SOURCE order — the heading is not hoisted, subchapters are not forced to the end (CHAPTER.md).
  *  §N numbers the chunks only; subchapters render as heading links. */
 function ChapterRead({ node, onNavigate }: { node: NodeJson; onNavigate: (path: string) => void }) {
-  const flow = chapterFlow(node.value);
-  useHashScroll(node);
-  let chunkNo = 0;
+  // How many levels of SUBCHAPTER nesting are laid out in place before the rest stay links —
+  // the shared `?depth=` URL parameter (depth.tsx), infinity by default, so a chapter reads as one
+  // whole document. `depth=1` restores the page that only ever showed links.
+  const budget = viewDepth() ?? Infinity;
+  // Each lazily-loaded subtree that lands re-runs the `#fragment` scroll: a deep link may name a
+  // chunk inside a subchapter that was not in the DOM when the hash was first read.
+  const [loads, noteLoad] = useReducer((n: number) => n + 1, 0);
+  useHashScroll(loads);
 
   // Nothing to show at all — a plain folder opened through the offered chapter tab. Say how to
   // start rather than rendering a blank page (the tab is an OFFER: the folder is not one yet).
-  if (!flow.length) {
+  if (!chapterFlow(node.value).length) {
     return (
       <div className="chapter" style={{ maxWidth: `${markupWidthCh()}ch` }}>
         <p className="chapter-empty">
@@ -89,37 +102,127 @@ function ChapterRead({ node, onNavigate }: { node: NodeJson; onNavigate: (path: 
 
   return (
     <div className="chapter" style={{ maxWidth: `${markupWidthCh()}ch` }}>
-      {flow.map((f, i) => {
-        if (f.kind === "title") return <h1 key={i} className="chapter-title">{flowText(f.value)}</h1>;
-        if (f.kind === "description") return <p key={i} className="chapter-subtitle">{flowText(f.value)}</p>;
-        if (f.kind === "subchapter") {
-          const link = asLink(f.value);
-          return <SubchapterLink key={i} path={link?.path} title={link?.title} onNavigate={onNavigate} />;
-        }
-        return <ReadChunk key={i} index={chunkNo++} item={f.value} basePath={node.path} documentPath={node.documentPath} onNavigate={onNavigate} />;
-      })}
+      <ChapterBody
+        value={node.value}
+        nodePath={node.path}
+        documentPath={node.documentPath}
+        anchorBase={node.path}
+        slot=""
+        level={0}
+        budget={budget}
+        ancestors={[canonPath(node.path)]}
+        onLoaded={noteLoad}
+        onNavigate={onNavigate}
+      />
     </div>
   );
+}
+
+/** One chapter's own stream — title, description, chunks, and subchapters, in SOURCE order — and,
+ *  for each subchapter, the same thing again one level deeper (subchapter.tsx). `level` 0 is the
+ *  page root; deeper levels wrap in a `<section>` that carries the indent, and their headings step
+ *  down h1→h2→…→h6. `§N` restarts per chapter, so a chunk shows the same number here as it does on
+ *  that subchapter's own page — the number stays a stable citation either way. */
+function ChapterBody({
+  value, nodePath, documentPath, anchorBase, slot, level, budget, ancestors, onLoaded, onNavigate,
+}: {
+  value: unknown;
+  nodePath: string;
+  documentPath?: string;
+  anchorBase: string;
+  slot: string;
+  level: number;
+  budget: number;
+  ancestors: readonly string[];
+  onLoaded: () => void;
+  onNavigate: (path: string) => void;
+}) {
+  const flow = chapterFlow(value);
+  const Heading = `h${Math.min(level + 1, 6)}` as "h1";
+  let chunkNo = 0;
+
+  const body = flow.map((f, i) => {
+    if (f.kind === "title") {
+      return (
+        <Heading key={i} className="chapter-title" id={level > 0 ? slot : undefined}>
+          {flowText(f.value)}
+        </Heading>
+      );
+    }
+    if (f.kind === "description") return <p key={i} className="chapter-subtitle">{flowText(f.value)}</p>;
+    const childSlotId = childSlot(slot, f.absIndex);
+    if (f.kind === "subchapter") {
+      return (
+        <InlineSubchapter
+          key={i}
+          marker={f.value}
+          parentPath={nodePath}
+          absIndex={f.absIndex}
+          slot={childSlotId}
+          level={level + 1}
+          budget={budget - 1}
+          ancestors={ancestors}
+          onLoaded={onLoaded}
+          renderBody={(p) => (
+            <ChapterBody
+              value={p.value}
+              nodePath={p.nodePath}
+              documentPath={p.documentPath ?? documentPath}
+              anchorBase={anchorBase}
+              slot={p.slot}
+              level={p.level}
+              budget={budget - 1}
+              ancestors={p.ancestors}
+              onLoaded={onLoaded}
+              onNavigate={onNavigate}
+            />
+          )}
+          renderLink={(p) => <SubchapterLink {...p} onNavigate={onNavigate} />}
+        />
+      );
+    }
+    return (
+      <ReadChunk
+        key={i}
+        index={chunkNo++}
+        item={f.value}
+        anchorBase={anchorBase}
+        slot={childSlotId}
+        documentPath={documentPath}
+        onNavigate={onNavigate}
+      />
+    );
+  });
+
+  // The page root IS the `.chapter` container (ChapterRead draws it); a nested one takes a section
+  // of its own, which is what the indent hangs off. `data-chapter-path` lets the page's context
+  // menu target the NEAREST enclosing chapter rather than always the page node.
+  if (level === 0) return <>{body}</>;
+  return <section className="chapter-sub" data-chapter-path={nodePath}>{body}</section>;
 }
 
 /** One numbered chunk rendered read-only, by the renderer for its (type, format). */
 function ReadChunk({
   index,
   item,
-  basePath,
+  anchorBase,
+  slot,
   documentPath,
   onNavigate,
 }: {
   index: number;
   item: unknown;
-  basePath: string;
+  anchorBase: string;
+  slot: string;
   documentPath?: string;
   onNavigate: (path: string) => void;
 }) {
   const chunk = chunkOf(item, documentPath);
   const renderer = rendererFor(chunk);
   const body = renderer?.renderChunk ? renderer.renderChunk(chunk, onNavigate) : <p className="chapter-prose">{String(chunk.value ?? "")}</p>;
-  const anchor = chunk.path ? fragmentOf(basePath, chunk.path) : null;
+  // its path continuation from the page root when it lives under it, else its render slot — an
+  // inlined subchapter's chunks are addressed one way on a root page and the other on a subpage
+  const anchor = anchorOf(anchorBase, chunk.path, slot);
   return (
     // `data-node-path` maps this chunk's DOM back to its node path, so the annotation layer targets a
     // text fragment at the CHUNK (not the whole chapter) and scopes the highlight to it (annotate.tsx).
@@ -130,10 +233,23 @@ function ReadChunk({
   );
 }
 
-/** A subchapter as a navigable heading link (never edited in this iteration). */
-function SubchapterLink({ path, title, onNavigate }: { path?: string; title?: string; onNavigate: (path: string) => void }) {
+/** A subchapter as a navigable heading link — what a subchapter shows when it is NOT laid out in
+ *  place: past the depth budget, mid-load, failed, a pointer cycle, or in the editor. It keeps the
+ *  anchor `id` the inlined body would have had, so a `#fragment` to it still resolves, and it takes
+ *  its heading level from the nesting so a link and an inlined chapter read at the same rank. */
+function SubchapterLink({
+  path, title, level = 1, id, note, onNavigate,
+}: {
+  path?: string;
+  title?: string;
+  level?: number;
+  id?: string;
+  note?: string;
+  onNavigate: (path: string) => void;
+}) {
+  const Heading = `h${Math.min(level + 1, 6)}` as "h2";
   return (
-    <h2 className="chapter-link">
+    <Heading className="chapter-link" id={id || undefined}>
       <a
         className="descend"
         href={path ?? "#"}
@@ -144,7 +260,8 @@ function SubchapterLink({ path, title, onNavigate }: { path?: string; title?: st
       >
         {title || "(untitled chapter)"}
       </a>
-    </h2>
+      {note && <span className="chapter-link-note"> {note}</span>}
+    </Heading>
   );
 }
 
@@ -343,8 +460,7 @@ function EditChunk({
   onJoinNext: () => void;
   onRemove?: () => void;
 }) {
-  const anchor = childPath(basePath, index); // the body element's slot (`<chapter>[rank]`)
-  const id = fragmentOf(basePath, anchor);
+  const id = anchorOf(basePath, childPath(basePath, index), childSlot("", index)); // the body element's slot
   const Editor = part.editable ? chunkEditorFor(part.format) : null;
   let body;
   if (Editor) {

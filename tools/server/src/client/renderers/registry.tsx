@@ -22,6 +22,7 @@ import { Fb2View } from "./fb2";
 import { EpubView } from "./epub";
 import { HtmlView } from "./media";
 import { MarkupWidthControl } from "./markup";
+import { DepthControl } from "./depth";
 
 // pdf.js and DjVu.js are heavy and browser-only (they reach for canvas globals at
 // import time). Load them lazily so the registry — imported by the TOC and by
@@ -213,7 +214,15 @@ const REGISTRY: Renderer[] = [
     depth: 1, // the body elements are the chapter's own children now → one level reaches them as link markers
     tocView: chapterTocView,
     render: (node, onNavigate) => <ChapterView node={node} onNavigate={onNavigate} />,
-    config: (rerender) => <MarkupWidthControl rerender={rerender} />, // reading width, shared with markdown/asciidoc
+    // reading width (shared with markdown/asciidoc) + how many SUBCHAPTER levels lay out in place
+    // before the rest stay links. Depth is a pure re-render here: the page fetches each inlined
+    // level itself, so the node's own fetch depth never changes.
+    config: (rerender) => (
+      <>
+        <MarkupWidthControl rerender={rerender} />
+        <DepthControl onChange={rerender} />
+      </>
+    ),
   },
   {
     // A task / ticket (TICKETS.md): a chapter body (title + interleaved chunks/subtasks) plus a
@@ -226,7 +235,12 @@ const REGISTRY: Renderer[] = [
     depth: 1,
     tocView: chapterTocView,
     render: (node, onNavigate) => <TaskView node={node} onNavigate={onNavigate} />,
-    config: (rerender) => <MarkupWidthControl rerender={rerender} />, // reading width, shared with markdown/asciidoc
+    config: (rerender) => (
+      <>
+        <MarkupWidthControl rerender={rerender} />
+        <DepthControl onChange={rerender} />
+      </>
+    ),
   },
   {
     // Prose: marklower, a markup language a notch below Markdown (MARKLOWER.md). It is the format a

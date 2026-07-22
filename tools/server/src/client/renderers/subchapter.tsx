@@ -1,0 +1,133 @@
+// A subchapter rendered INLINE, one nesting level per component (CHAPTER.md, chapter.tsx).
+//
+// A chapter page reads as ONE document: its subchapters are laid out in place, indented, under
+// their own heading — not as links that navigate away. Two shapes reach us and both must inline:
+//
+//   - an INLINE subchapter (a container inside the chapter's own source) — its value is already
+//     in hand at the parent's fetch depth, nothing to load;
+//   - a POINTER/LINK subchapter (its own file or directory, `- *: dogs`) — it arrives as a
+//     `$yamloverLink` marker carrying its target `path`, and its content is FETCHED here.
+//
+// Why per-level fetching rather than one deep fetch: the projection never inlines a `*` reference.
+// At a finite depth a reference RESOLVES to a summary link marker, at `.inf` it becomes pointer
+// TEXT — neither is content. So a directory-backed chapter (the common shape for a book) could not
+// be inlined at any single fetch depth. Fetching each level as it renders makes both shapes behave
+// identically, and it is the pattern list.tsx `ListChunk` / table.tsx `TableChunk` already use.
+//
+// Everything that can stop the recursion — the depth budget running out, a POINTER CYCLE, the hard
+// caps, a load in flight, a load that failed — degrades to the same face: the navigable heading
+// link this page used to show for every subchapter. So the anchor exists before the body lands,
+// there is no layout jank, and a `#fragment` to a non-inlined subchapter still resolves.
+
+import { useEffect, useState } from "react";
+import { fetchNode, NodeJson } from "../api";
+import { asLink, asRef } from "../render";
+import { canonPath } from "../paths";
+import { childPath } from "./chapter-model";
+
+/** The deepest nesting a page will inline, and the most subchapters it will pull in — a cheap,
+ *  deterministic guard against a pathological tree (a book with hundreds of leaf chapters would
+ *  otherwise issue hundreds of requests on open). Past either cap the rest stay links. */
+export const MAX_INLINE_LEVELS = 12;
+export const MAX_INLINE_NODES = 200;
+
+/** How a subchapter renders when it is NOT inlined — supplied by chapter.tsx, so this module stays
+ *  free of the page's own presentation. */
+export interface SubchapterLinkProps {
+  path?: string;
+  title?: string;
+  level: number;
+  id: string;
+  note?: string;
+}
+
+/** The page's own body renderer, applied to an inlined subchapter. */
+export interface SubchapterBodyProps {
+  value: unknown;
+  nodePath: string;
+  documentPath?: string;
+  slot: string;
+  level: number;
+  ancestors: readonly string[];
+}
+
+export interface InlineSubchapterProps {
+  /** The body element as the parent projected it: a link marker, a ref, or an inline container. */
+  marker: unknown;
+  /** The parent chapter's node path — an INLINE subchapter's own path is this plus its index. */
+  parentPath: string;
+  /** Its absolute entry index in the parent (the addressing rule `P[i]`, CHAPTER.md). */
+  absIndex: number;
+  /** Its render position on the PAGE, as an index chain from the page root — its anchor id. */
+  slot: string;
+  /** Nesting level: 0 is the page root, so a subchapter is 1 or more (heading = h(level+1)). */
+  level: number;
+  /** Subchapter levels still allowed to inline; `Infinity` for all, `<= 0` for none. */
+  budget: number;
+  /** The canonical path of every enclosing chapter — the CYCLE guard. `*` pointers form an
+   *  arbitrary graph and nothing upstream forbids a chapter that points at its own ancestor;
+   *  without this an unlimited budget is an infinite fetch loop, not a deep page. */
+  ancestors: readonly string[];
+  /** Fires when a lazily-loaded subtree lands, so the page can re-run its `#fragment` scroll. */
+  onLoaded?: () => void;
+  renderBody: (p: SubchapterBodyProps) => JSX.Element;
+  renderLink: (p: SubchapterLinkProps) => JSX.Element;
+}
+
+/** The node a body element addresses: a link/ref marker names its own target (a separate document);
+ *  an INLINE container has none — the parent already holds its value, at slot `P[i]`. */
+export function subchapterTarget(marker: unknown): { path: string | null; linked: boolean } {
+  const link = asLink(marker);
+  if (link) return { path: typeof link.path === "string" ? link.path : null, linked: true };
+  const ref = asRef(marker);
+  if (ref) return { path: ref.path, linked: true }; // pointer TEXT (an `.inf` fetch) — still a target
+  return { path: null, linked: false };
+}
+
+/** One subchapter, inlined when the budget and the guards allow, else the page's heading link. */
+export function InlineSubchapter({
+  marker, parentPath, absIndex, slot, level, budget, ancestors, onLoaded, renderBody, renderLink,
+}: InlineSubchapterProps) {
+  const { path: target, linked } = subchapterTarget(marker);
+  const link = asLink(marker);
+  const cyclic = !!target && ancestors.includes(canonPath(target));
+  const capped = level > MAX_INLINE_LEVELS || ancestors.length > MAX_INLINE_NODES;
+  const allowed = budget > 0 && !cyclic && !capped;
+  const needsFetch = allowed && linked && !!target;
+
+  const [node, setNode] = useState<NodeJson | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!needsFetch) return;
+    let cancelled = false;
+    // depth 1 — the shape the chapter body renderer is written against (its own chunks as link
+    // markers, its subchapters inlined by the next level of this component)
+    fetchNode(target!, 1)
+      .then((n) => { if (!cancelled) { setNode(n); onLoaded?.(); } })
+      .catch((e) => { if (!cancelled) setError((e as Error).message); });
+    return () => { cancelled = true; };
+    // `onLoaded` is a stable page-level notifier — listing it would refetch on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target, needsFetch]);
+
+  const asLinkFace = (note?: string) => renderLink({ path: target ?? undefined, title: link?.title, level, id: slot, note });
+
+  if (!allowed) return asLinkFace(cyclic ? "↻ already shown above" : undefined);
+  if (!linked) {
+    // already in hand — render the parent's own value for this slot
+    const nodePath = childPath(parentPath, absIndex);
+    return renderBody({ value: marker, nodePath, slot, level, ancestors: [...ancestors, canonPath(nodePath)] });
+  }
+  if (error) return asLinkFace(`failed to load: ${error}`);
+  if (!node) return asLinkFace("…");
+  return renderBody({
+    value: node.value,
+    nodePath: node.path,
+    // the subchapter's OWN document: a marklower `/…` link inside `dogs/` resolves against `dogs/`,
+    // not against the page root — passing the parent's would silently misresolve every such link
+    documentPath: node.documentPath,
+    slot,
+    level,
+    ancestors: [...ancestors, canonPath(node.path)],
+  });
+}

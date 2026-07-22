@@ -1,10 +1,20 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+
+// A chapter page fetches each inlined subchapter itself (subchapter.tsx), so `fetchNode` is the
+// seam every depth/inlining test drives. (hoisted so the mock exists before vi.mock's factory runs)
+const { fetchNode } = vi.hoisted(() => ({ fetchNode: vi.fn() }));
+vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchNode }));
+
 import { ChapterView } from "../../src/client/renderers/chapter";
 import type { NodeJson } from "../../src/client/api";
 
 afterEach(cleanup);
+beforeEach(() => {
+  fetchNode.mockReset().mockReturnValue(new Promise(() => {})); // never settles unless a test says so
+  window.history.replaceState({}, "", "/"); // the depth budget rides `?depth=`
+});
 
 // A chapter (CHAPTER.md): title/description are keyed; the body is the mixed marker's KEYLESS
 // entries — scalar chunk link markers (text in `value`) and object subchapter markers (with a
@@ -90,8 +100,7 @@ describe("ChapterView", () => {
   });
 
   it("routes a tagged LIST body element to the list renderer (fetched by path)", async () => {
-    const api = await import("../../src/client/api");
-    vi.spyOn(api, "fetchNode").mockResolvedValue({
+    fetchNode.mockResolvedValue({
       path: ":[1]",
       type: "variant",
       format: "x-yamlover-bullets",
@@ -120,10 +129,12 @@ describe("ChapterView", () => {
       "first point",
       "second point",
     ]);
-    vi.restoreAllMocks();
   });
 
-  it("renders a subchapter as a title hyperlink", () => {
+  // At `?depth=1` a subchapter is a navigable heading link — the shape this page had before
+  // subchapters were laid out in place. (Inlining, the default, is covered further down.)
+  it("renders a subchapter as a title hyperlink at depth 1", () => {
+    window.history.replaceState({}, "", "/?depth=1");
     const onNav = vi.fn();
     render(<ChapterView node={chapter} onNavigate={onNav} />);
 
@@ -134,6 +145,7 @@ describe("ChapterView", () => {
   });
 
   it("renders title, description, subchapters and chunks in SOURCE order — heading not hoisted, text after a subchapter", () => {
+    window.history.replaceState({}, "", "/?depth=1"); // subchapters as links, so the flow is one flat list
     // author order: an intro chunk, THEN the title, a subchapter, then a closing chunk
     const flowed: NodeJson = {
       ...chapter,
@@ -213,4 +225,154 @@ describe("ChapterView — an empty node (a folder written as a chapter)", () => 
     expect(container.querySelector(".chapter-empty")!.textContent).toContain("This chapter is empty");
   });
 
+});
+
+// Subchapters lay out IN PLACE (subchapter.tsx): a chapter page reads as one whole document rather
+// than a table of links. A subchapter that is its OWN document (`- *: dogs`) is fetched per level —
+// the projection never inlines a `*` reference at any single fetch depth.
+describe("ChapterView — inline subchapters", () => {
+  /** A chapter whose body is one prose chunk then one subchapter LINK marker at `:[2]`. */
+  const withSub = (subPath: string): NodeJson => ({
+    path: ":", type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover",
+    documentPath: ":", title: "Book", description: null,
+    value: {
+      $yamloverMixed: {
+        kind: "omni", value: "Book", selfAt: 0,
+        entries: [
+          { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/marklower", path: ":[0]", value: "Opening." } } },
+          { key: null, value: { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: subPath, title: "Dogs" } } },
+        ],
+      },
+    },
+  } as unknown as NodeJson);
+
+  /** What the fetch of a subchapter returns: its own title + one chunk. */
+  const subNode = (path: string, title: string, chunk: string, deeper?: unknown) => ({
+    path, documentPath: path, type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover",
+    title, description: null,
+    value: {
+      $yamloverMixed: {
+        kind: "omni", value: title, selfAt: 0,
+        entries: [
+          { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/marklower", path: `${path}[0]`, value: chunk } } },
+          ...(deeper ? [{ key: null, value: deeper }] : []),
+        ],
+      },
+    },
+  });
+
+  afterEach(() => { window.history.replaceState({}, "", "/"); });
+
+  it("fetches the subchapter at depth 1 and lays its body out under an H2", async () => {
+    fetchNode.mockResolvedValue(subNode(":dogs", "Dogs", "Dogs are good."));
+    const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
+    await waitFor(() => expect(container.querySelector("section.chapter-sub")).toBeTruthy());
+    expect(fetchNode).toHaveBeenCalledWith(":dogs", 1);
+    const sub = container.querySelector("section.chapter-sub")!;
+    expect(sub.querySelector("h2.chapter-title")?.textContent).toBe("Dogs");
+    expect(sub.textContent).toContain("Dogs are good.");
+    expect(container.querySelector("a.descend")).toBeNull(); // laid out, not linked
+  });
+
+  it("anchors an inlined subchapter and its chunks by RENDER SLOT, and restarts §N", async () => {
+    fetchNode.mockResolvedValue(subNode(":dogs", "Dogs", "Dogs are good."));
+    const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
+    await waitFor(() => expect(container.querySelector("section.chapter-sub")).toBeTruthy());
+    // the subchapter sits at body index 1 of the page → its heading anchors at `[1]`
+    expect(container.querySelector("h2.chapter-title")?.id).toBe("[1]");
+    // its chunk is `[1][0]` — a slot chain, because `:dogs` is not under the page root `:`… but
+    // the page root IS `:`, an ancestor of everything, so the path branch wins and gives `/dogs[0]`
+    expect(document.getElementById("/dogs[0]")).not.toBeNull();
+    // §N restarts inside the subchapter: the page's own chunk is §0 and so is the subchapter's
+    const indices = Array.from(container.querySelectorAll(".chunk-index")).map((a) => a.textContent);
+    expect(indices).toEqual(["§0", "§0"]);
+  });
+
+  it("?depth=1 keeps today's link — no fetch at all", () => {
+    window.history.replaceState({}, "", "/?depth=1");
+    const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
+    expect(fetchNode).not.toHaveBeenCalled();
+    const link = container.querySelector("h2.chapter-link a.descend")!;
+    expect(link.textContent).toBe("Dogs");
+    expect(container.querySelector("h2.chapter-link")?.id).toBe("[1]"); // the anchor still resolves
+  });
+
+  it("?depth=2 inlines one level and leaves the next as a link", async () => {
+    window.history.replaceState({}, "", "/?depth=2");
+    const deeper = { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: ":dogs:puppies", title: "Puppies" } };
+    fetchNode.mockResolvedValue(subNode(":dogs", "Dogs", "Dogs are good.", deeper));
+    const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
+    await waitFor(() => expect(container.querySelector("section.chapter-sub")).toBeTruthy());
+    expect(container.querySelector("h2.chapter-title")?.textContent).toBe("Dogs"); // level 1 inlined
+    const deep = container.querySelector("h3.chapter-link a.descend")!; // level 2 is a link, one rank down
+    expect(deep.textContent).toBe("Puppies");
+    expect(fetchNode).toHaveBeenCalledTimes(1); // and never fetched
+  });
+
+  it("shows the heading link immediately while the body is loading", () => {
+    fetchNode.mockReturnValue(new Promise(() => {})); // never settles
+    const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
+    const head = container.querySelector("h2.chapter-link")!;
+    expect(head.querySelector("a.descend")?.textContent).toBe("Dogs");
+    expect(head.id).toBe("[1]"); // the anchor exists before the body lands
+    expect(head.querySelector(".chapter-link-note")?.textContent?.trim()).toBe("…");
+  });
+
+  it("a failed load degrades to a navigable link with the reason", async () => {
+    fetchNode.mockRejectedValue(new Error("boom"));
+    const onNav = vi.fn();
+    const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={onNav} />);
+    await waitFor(() => expect(container.querySelector(".chapter-link-note")?.textContent).toContain("boom"));
+    fireEvent.click(container.querySelector("a.descend")!);
+    expect(onNav).toHaveBeenCalledWith(":dogs"); // still navigable
+  });
+
+  it("a POINTER CYCLE stops the recursion instead of fetching forever", () => {
+    // the subchapter points back at the page root — an unguarded `.inf` budget would loop
+    const { container } = render(<ChapterView node={withSub(":")} onNavigate={vi.fn()} />);
+    expect(fetchNode).not.toHaveBeenCalled();
+    expect(container.querySelector(".chapter-link-note")?.textContent).toContain("↻");
+  });
+
+  it("an INLINE subchapter (a container in the chapter's own source) needs no fetch", async () => {
+    const inlineSub = {
+      $yamloverMixed: {
+        kind: "omni", value: "Cats", selfAt: 0,
+        entries: [{ key: null, value: "Cats are fine." }],
+      },
+    };
+    const node = {
+      path: ":", type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover", documentPath: ":",
+      title: "Book", description: null,
+      value: { $yamloverMixed: { kind: "omni", value: "Book", selfAt: 0, entries: [{ key: null, value: inlineSub }] } },
+    } as unknown as NodeJson;
+    const { container } = render(<ChapterView node={node} onNavigate={vi.fn()} />);
+    expect(fetchNode).not.toHaveBeenCalled();
+    const sub = container.querySelector("section.chapter-sub")!;
+    expect(sub.querySelector("h2.chapter-title")?.textContent).toBe("Cats");
+    expect(sub.textContent).toContain("Cats are fine.");
+  });
+});
+
+// Once subchapters are laid out in place, a right-click may land INSIDE one — creating there must
+// target that subchapter, not the page root.
+describe("ChapterView — creating inside an inlined subchapter", () => {
+  it("the context menu targets the nearest enclosing chapter", async () => {
+    const page = {
+      path: ":", type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover", documentPath: ":",
+      title: "Book", description: null,
+      value: { $yamloverMixed: { kind: "omni", value: "Book", selfAt: 0, entries: [
+        { key: null, value: { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: ":dogs", title: "Dogs" } } },
+      ] } },
+    } as unknown as NodeJson;
+    fetchNode.mockResolvedValue({
+      path: ":dogs", documentPath: ":dogs", type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover",
+      title: "Dogs", description: null,
+      value: { $yamloverMixed: { kind: "omni", value: "Dogs", selfAt: 0, entries: [] } },
+    });
+    const { container } = render(<ChapterView node={page} onNavigate={vi.fn()} />);
+    await waitFor(() => expect(container.querySelector("section.chapter-sub")).toBeTruthy());
+    const sub = container.querySelector("section.chapter-sub")!;
+    expect(sub.getAttribute("data-chapter-path")).toBe(":dogs"); // the create target the menu reads
+  });
 });
