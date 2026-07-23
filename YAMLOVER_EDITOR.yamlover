@@ -377,10 +377,14 @@ empty_cell_of_origin: Back to the hole this cell grew from
 # THE PROSE EXCEPTION governs Enter; THE FORMAT RULE governs Tab and the format commands.
 
 chapter_title_editing: A chapter title / subtitle, focused
-    description: The document's (or a subchapter's) self-value as an editable heading, or the keyed `description` as the subtitle. Opening the editor lands here in the root title, so writing begins with no click
-    enter: *: chapter_prose_editing               # title → description → the body (a first paragraph is made if none)
-    tab: *: nop                                    # a heading does not nest
-    shift_tab: *: nop
+    description: The document's (or a subchapter's) self-value as an editable heading, or the keyed `description` as the subtitle - the SAME editor at every level, indented, title and description both OPTIONAL (their cells exist as placeholders before their model does, born from the first committed text). Opening the editor lands here in the root title, so writing begins with no click
+    enter: *: chapter_title_editing               # title → description → the body (a first paragraph is made if none)
+    tab:
+        "a SUBCHAPTER title - the whole subchapter moves under its previous sibling": *: chapter_title_editing
+        "the root title - a document does not nest": *: nop
+    shift_tab:
+        "a SUBCHAPTER title - the whole subchapter lifts out one level. Its former parent, left with only a self line, DEMOTES back to the scalar paragraph it was (Shift-Tab is Tab's undo)": *: chapter_title_editing
+        "the root title": *: nop
     ctrl_alt_number: *: format_switched
     down_arrow: *: focus_next
 

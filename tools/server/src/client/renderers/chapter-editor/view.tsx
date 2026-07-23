@@ -12,6 +12,8 @@ import { useYedHost, type FocusAt, type YedHost } from "../yamlover-editor/host"
 import * as M from "../yamlover-editor/model";
 import type { Edit } from "../../api";
 import { MarklowerChunkEditor } from "../chunk-editors";
+import { markupWidthCh } from "../markup";
+import { anchorOf, childSlot } from "../chapter-model";
 import { focusEnd } from "../caret";
 import { formatOfNode, type ChosenFormat } from "./format";
 import { formatTarget } from "./tab";
@@ -31,6 +33,9 @@ interface Proj {
   clearFocus: () => void;
   /** Run a block mutation: step (mutate + enqueue ops), then take the caret where it says. */
   run: (produce: (root: M.MNode) => { edits: Edit[]; focus?: Focus } | null) => void;
+  /** Tab / Shift-Tab on the block owned by `entryId` — one dispatch for prose cells and
+   *  subchapter titles alike (tab.ts decides; the caret follows the moved block). */
+  tabRun: (entryId: string, shift: boolean) => void;
   /** The entry the caret is in — the format bar's target. */
   setActive: (entryId: string | null) => void;
   onNavigate: (p: string) => void;
@@ -70,7 +75,15 @@ export function ChapterProjection({ path, onNavigate }: { path: string; onNaviga
     });
   };
 
-  const proj: Proj = { host, focus, clearFocus: () => setFocus(null), run, setActive, onNavigate };
+  const tabRun: Proj["tabRun"] = (entryId, shift) => {
+    run((r) => {
+      const t = tabEdits(host.path, r, entryId, shift);
+      if (t.intent.kind === "cell" || t.intent.kind === "nop") return { edits: [] };
+      return { edits: t.edits, focus: t.focusId ? { id: t.focusId, at: "end" } : undefined };
+    });
+  };
+
+  const proj: Proj = { host, focus, clearFocus: () => setFocus(null), run, tabRun, setActive, onNavigate };
 
   // Publish the format state to the MAIN node-bar (the renderer's config slot renders
   // ChapterFormatControl, which reads this) — one toolbar, not two. Cleared on unmount.
@@ -89,6 +102,8 @@ export function ChapterProjection({ path, onNavigate }: { path: string; onNaviga
     <ProjCtx.Provider value={proj}>
       <div
         className="chapter chapter-wysiwyg"
+        // the same reading width as the read view — editing must not reflow the text
+        style={{ maxWidth: `${markupWidthCh()}ch` }}
         ref={host.rootEl}
         onKeyDown={(e) => {
           // Ctrl+Alt+1..4 chooses the block format (Ctrl+1..9 is a browser tab shortcut a page
@@ -142,15 +157,14 @@ function currentFormat(root: M.MNode, entryId: string): ChosenFormat | null {
   return f === "table" || f === "bullets" || f === "numbered" ? f : "chapter";
 }
 
-/** One chapter (the document root, or a subchapter) — its title, then its body. */
-function ChapterNode({ node, nodePath, level }: { node: M.MNode; nodePath: string; level: number }) {
+/** One chapter (the document root, or a subchapter) — its title, then its body. The SAME editor at
+ *  every level, indented: title, description, body — title and description are OPTIONAL, so their
+ *  cells exist (as placeholders) before the model does and are born from the first committed text.
+ *  `entryId` is the subchapter's own entry — Tab/Shift-Tab on its TITLE moves the whole subchapter. */
+function ChapterNode({ node, nodePath, level, entryId }: { node: M.MNode; nodePath: string; level: number; entryId?: string }) {
   const proj = useProj();
-  const { host, focus, clearFocus, run } = proj;
+  const { host, focus, clearFocus, run, tabRun } = proj;
   const Heading = `h${Math.min(level + 1, 6)}` as "h1";
-  // The page head is Title then Description — the Description CELL is there even before the keyed
-  // entry exists (an empty folder), or the user has nowhere to type one and writes it as a
-  // paragraph instead (which a later Tab then turns into a subchapter — the reported confusion).
-  // The keyed entry is born from the first committed text; the sentinel id focuses the empty cell.
   const hasDesc = node.entries.some((e) => e.key === "description");
   const descKey = node.id + ":desc";
   return (
@@ -168,11 +182,11 @@ function ChapterNode({ node, nodePath, level }: { node: M.MNode; nodePath: strin
           const found = M.findNode(r, node.id);
           const desc = (found?.node ?? r).entries.find((e) => e.key === "description");
           if (desc) return { edits: [], focus: { id: desc.node.id, at: "end" } };
-          if (level === 0) return { edits: [], focus: { id: descKey, at: "end" } };
-          return firstBodyFocus(host.path, r, node.id);
+          return { edits: [], focus: { id: descKey, at: "end" } };
         })}
+        onTab={entryId ? (shift) => tabRun(entryId, shift) : undefined}
       />
-      {level === 0 && !hasDesc && (
+      {!hasDesc && (
         <HeadingCell
           as="p"
           className="chapter-subtitle"
@@ -189,10 +203,13 @@ function ChapterNode({ node, nodePath, level }: { node: M.MNode; nodePath: strin
   );
 }
 
-/** A container's body entries rendered as blocks — shared by a chapter and a list item. */
+/** A container's body entries rendered as blocks — shared by a chapter and a list item. Chunks
+ *  carry the same `§N` gutter as the read view (numbering restarts per chapter, subchapters
+ *  consume no number), so the page reads identically locked and unlocked. */
 function BlockBody({ node, nodePath, level }: { node: M.MNode; nodePath: string; level: number }) {
   const proj = useProj();
   const out: JSX.Element[] = [];
+  let chunkNo = 0;
   node.entries.forEach((entry, i) => {
     if (entry.key === "description") {
       out.push(<DescriptionCell key={entry.id} entry={entry} node={node} />);
@@ -201,29 +218,44 @@ function BlockBody({ node, nodePath, level }: { node: M.MNode; nodePath: string;
     if (entry.key !== null) return; // other keyed fields are not body content
     const child = entry.node;
     const childPath = pathOf(proj.host, nodePath, node, i);
+    const anchor = anchorOf(proj.host.path, childPath, childSlot("", i));
     if (isProse(child)) {
-      out.push(<ProseCell key={entry.id} entry={entry} />);
+      out.push(<ProseCell key={entry.id} entry={entry} index={chunkNo++} anchor={anchor} />);
       return;
     }
     if (child.kind === "container") {
       const f = formatOfNode(child);
       if (f === "bullets" || f === "numbered") {
-        out.push(<ListNode key={entry.id} node={child} nodePath={childPath} kind={f} />);
+        out.push(
+          <div key={entry.id} className="chunk" id={anchor || undefined}>
+            <ChunkNo index={chunkNo++} anchor={anchor} />
+            <div className="chunk-body"><ListNode node={child} nodePath={childPath} kind={f} /></div>
+          </div>,
+        );
         return;
       }
       if (f === "chapter") {
         out.push(
           <section key={entry.id} className="chapter-sub" data-chapter-path={childPath}>
-            <ChapterNode node={child} nodePath={childPath} level={level + 1} />
+            <ChapterNode node={child} nodePath={childPath} level={level + 1} entryId={entry.id} />
           </section>,
         );
         return;
       }
     }
     // a tagged table, a pointer, or a binary chunk — read-only in this projection for now
-    out.push(<ReadOnlyBlock key={entry.id} node={child} path={childPath} />);
+    out.push(<ReadOnlyBlock key={entry.id} node={child} path={childPath} index={chunkNo++} anchor={anchor} />);
   });
   return <>{out}</>;
+}
+
+/** The `§N` gutter — the same in-page anchor link the read view draws. */
+function ChunkNo({ index, anchor }: { index: number; anchor: string }) {
+  return anchor ? (
+    <a className="chunk-index" href={`#${anchor}`}>§{index}</a>
+  ) : (
+    <span className="chunk-index">§{index}</span>
+  );
 }
 
 /** An editable typographical list: <ul>/<ol> whose items are prose (or a nested sublist). Tab in an
@@ -269,7 +301,7 @@ function sublistKind(node: M.MNode, parent: "bullets" | "numbered"): "bullets" |
 /** A prose paragraph — the shared marklower editor, wrapped so Tab nests it and focus tracks the
  *  active block. `tag` is the wrapper element (a `div.chunk` in a chapter, a bare span in a list
  *  item, so the <li> marker stays on one line). */
-function ProseCell({ entry, tag = "chunk" }: { entry: M.MEntry; tag?: "chunk" | "span" }) {
+function ProseCell({ entry, tag = "chunk", index, anchor }: { entry: M.MEntry; tag?: "chunk" | "span"; index?: number; anchor?: string }) {
   const proj = useProj();
   const { host, focus, clearFocus, run, setActive } = proj;
   const node = entry.node;
@@ -310,17 +342,14 @@ function ProseCell({ entry, tag = "chunk" }: { entry: M.MEntry; tag?: "chunk" | 
     if (e.key !== "Tab") return;
     e.preventDefault();
     e.stopPropagation();
-    run((r) => {
-      const t = tabEdits(host.path, r, entry.id, e.shiftKey);
-      if (t.intent.kind === "cell" || t.intent.kind === "nop") return { edits: [] };
-      return { edits: t.edits, focus: t.focusId ? { id: t.focusId, at: "end" } : undefined };
-    });
+    proj.tabRun(entry.id, e.shiftKey);
   };
   const onFocus = () => setActive(entry.id);
 
   if (tag === "span") return <span className="chunk-inline" onKeyDownCapture={onKeyDownCapture} onFocus={onFocus}>{inner}</span>;
   return (
-    <div className="chunk" onKeyDownCapture={onKeyDownCapture} onFocus={onFocus}>
+    <div className="chunk" id={anchor || undefined} onKeyDownCapture={onKeyDownCapture} onFocus={onFocus}>
+      {index !== undefined && <ChunkNo index={index} anchor={anchor ?? ""} />}
       <div className="chunk-body">{inner}</div>
     </div>
   );
@@ -348,7 +377,7 @@ function DescriptionCell({ entry, node }: { entry: M.MEntry; node: M.MNode }) {
 /** A single-line editable heading (title / subtitle). Uncontrolled, reset on `value` while
  *  unfocused; Enter HANDS THE CARET ON via `onEnter` rather than blurring to nowhere. */
 function HeadingCell({
-  as, value, onCommit, className, placeholder, focusNow, onFocused, onEnter, onFocus,
+  as, value, onCommit, className, placeholder, focusNow, onFocused, onEnter, onFocus, onTab,
 }: {
   as: "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p";
   value: string;
@@ -359,6 +388,9 @@ function HeadingCell({
   onFocused?: () => void;
   onEnter?: () => void;
   onFocus?: () => void;
+  /** Tab/Shift-Tab — a SUBCHAPTER title moves the whole subchapter; absent, the key is consumed
+   *  (a heading never lets the browser walk focus out of the document). */
+  onTab?: (shift: boolean) => void;
 }) {
   const ref = useRef<HTMLElement>(null);
   const focused = useRef(false);
@@ -391,6 +423,11 @@ function HeadingCell({
       onFocus={() => { focused.current = true; onFocus?.(); }}
       onBlur={() => { focused.current = false; commitIfChanged(); }}
       onKeyDown={(e) => {
+        if (e.key === "Tab") {
+          e.preventDefault();
+          onTab?.(e.shiftKey);
+          return;
+        }
         if (e.key !== "Enter") return;
         e.preventDefault();
         focused.current = false;
@@ -403,20 +440,21 @@ function HeadingCell({
 
 /** A block this projection does not yet edit inline — a tagged table (Stage 7), a `*` pointer, or a
  *  binary chunk. Shown read-only so it is not lost; navigable when it is a link. */
-function ReadOnlyBlock({ node, path }: { node: M.MNode; path: string }) {
+function ReadOnlyBlock({ node, path, index, anchor }: { node: M.MNode; path: string; index?: number; anchor?: string }) {
   const { onNavigate } = useProj();
+  const gutter = index !== undefined ? <ChunkNo index={index} anchor={anchor ?? ""} /> : null;
   if (node.kind === "pointer" || node.kind === "link") {
     const target = node.kind === "pointer" ? node.pointer?.refPath : node.link?.path;
     const text = node.kind === "pointer" ? "*" + (node.pointer?.raw ?? "") : node.link?.title ?? node.link?.path ?? path;
     return (
-      <div className="chunk"><div className="chunk-body">
+      <div className="chunk" id={anchor || undefined}>{gutter}<div className="chunk-body">
         <a className="descend" href={target ?? "#"} onClick={(e) => { e.preventDefault(); if (target) onNavigate(target); }}>{text}</a>
       </div></div>
     );
   }
   const label = formatOfNode(node); // table
   return (
-    <div className="chunk"><div className="chunk-body">
+    <div className="chunk" id={anchor || undefined}>{gutter}<div className="chunk-body">
       <p className="chapter-prose chapter-readonly-block" data-yo-chrome>[{label} — edit in the source view for now]</p>
     </div></div>
   );

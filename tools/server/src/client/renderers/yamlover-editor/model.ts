@@ -570,7 +570,24 @@ export function removeEntry(rootPath: string, root: MNode, entryId: string): Edi
   const entry = container.entries[index];
   const path = entry.committed && allCommitted(spine) ? pathOfSpine(rootPath, spine) : null;
   container.entries.splice(index, 1);
+  demoteIfEmptied(container, root);
   return path !== null ? [{ path, op: "remove" }] : [];
+}
+
+/** A container that lost its LAST entry and holds only a self line IS a scalar — on disk that is
+ *  exactly `- A`, one line, which the server reads as a scalar entry. The model must follow suit,
+ *  or it diverges from the file and every later op that descends into the phantom container 400s
+ *  ("cannot descend into a scalar element"). Never the ROOT (a document stays a document), never
+ *  flow, never a container with no self line (an empty `{}`/hole has nothing to demote to). */
+function demoteIfEmptied(container: MNode, root: MNode): void {
+  if (container === root || container.kind !== "container" || container.flow) return;
+  if (container.entries.length > 0 || !container.selfValue) return;
+  container.kind = "scalar";
+  container.scalar = container.selfValue;
+  container.selfValue = null;
+  container.selfAt = 0;
+  container.omniPending = false;
+  container.rev++;
 }
 
 /** Tab: the entry becomes the LAST CHILD of its previous sibling (keyed or ordinal — a keyed
@@ -648,6 +665,9 @@ export function dedentEntry(rootPath: string, root: MNode, entryId: string): Edi
   if (wasCommitted) edits.push({ path: pathOfSpine(rootPath, spine), op: "remove" });
   container.entries.splice(index, 1);
   grand.entries.splice(parentIndex + 1, 0, entry);
+  // dedenting the parent's last child: the parent reverts to the scalar it was before the indent
+  // (Shift-Tab is Tab's undo — the subchapter dissolves back into a paragraph)
+  demoteIfEmptied(container, root);
   if (wasCommitted) {
     const grandSpine = spine.parents.slice(0, -2);
     const grandPath = grandSpine.length

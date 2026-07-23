@@ -479,3 +479,54 @@ describe("buildModel — the stamped container format", () => {
     expect(root.entries[2].node.format).toBeUndefined(); // the pointer chunk
   });
 });
+
+// A container that loses its LAST entry and holds only a self line IS a scalar — `- A`, one line,
+// which is what the server's file then contains. Without the demotion the model diverges from the
+// file and every later op that descends into the phantom container 400s ("cannot descend into a
+// scalar element" — the chapter editor's Tab-then-Shift-Tab bug).
+describe("dedent/remove demote an emptied omni back to a scalar", () => {
+  it("Shift-Tab is Tab's undo: indent then dedent restores the scalar sibling", () => {
+    const doc = buildModel({
+      path: ":doc", type: "object", concrete: "dir/yamlover", title: null, description: null,
+      value: { $yamloverMixed: { kind: "mix", entries: [
+        { key: null, value: "alpha" },
+        { key: null, value: "beta" },
+      ] } },
+    } as never);
+    const alpha = doc.entries[0].node;
+    indentEntry(":doc", doc, doc.entries[1].id);
+    expect(alpha.kind).toBe("container"); // promoted: self "alpha", child "beta"
+    expect(String(alpha.selfValue?.value)).toBe("alpha");
+    dedentEntry(":doc", doc, alpha.entries[0].id);
+    // …and demoted right back: a scalar again, no phantom container left behind
+    expect(alpha.kind).toBe("scalar");
+    expect(String(alpha.scalar?.value)).toBe("alpha");
+    expect(alpha.selfValue).toBeNull();
+    expect(alpha.entries).toHaveLength(0);
+    expect(doc.entries.map((e) => String(e.node.scalar?.value))).toEqual(["alpha", "beta"]);
+  });
+
+  it("removing an omni's last child demotes it too", () => {
+    const doc = buildModel({
+      path: ":doc", type: "object", concrete: "dir/yamlover", title: null, description: null,
+      value: { $yamloverMixed: { kind: "mix", entries: [
+        { key: null, value: { $yamloverMixed: { kind: "omni", value: "A", selfAt: 0, entries: [{ key: null, value: "b" }] } } },
+      ] } },
+    } as never);
+    const a = doc.entries[0].node;
+    expect(a.kind).toBe("container");
+    removeEntry(":doc", doc, a.entries[0].id);
+    expect(a.kind).toBe("scalar");
+    expect(String(a.scalar?.value)).toBe("A");
+  });
+
+  it("the ROOT never demotes — a document stays a document", () => {
+    const doc = buildModel({
+      path: ":doc", type: "object", concrete: "dir/yamlover", title: null, description: null,
+      value: { $yamloverMixed: { kind: "omni", value: "T", selfAt: 0, entries: [{ key: null, value: "only" }] } },
+    } as never);
+    removeEntry(":doc", doc, doc.entries[0].id);
+    expect(doc.kind).toBe("container");
+    expect(String(doc.selfValue?.value)).toBe("T");
+  });
+});
