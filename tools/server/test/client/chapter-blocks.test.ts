@@ -94,13 +94,20 @@ describe("joinProse — Backspace/Delete merges paragraphs", () => {
 });
 
 describe("tabEdits — the dispatch", () => {
-  it("in a chapter, Tab indents and Shift-Tab dedents", () => {
+  it("in a chapter, Tab WRAPS the current chunk into a title and Shift-Tab unwraps it back", () => {
     const root = chapterModel(["a", "b"]);
     const tab = tabEdits(":doc", root, entryAt(root, 1), false);
-    expect(tab.intent.kind).toBe("indent");
-    // b became a's child — a is now an omni container
-    expect(nodeAt(root, 0).kind).toBe("container");
-    expect(String(nodeAt(root, 0).selfValue?.value)).toBe("a");
+    expect(tab.intent.kind).toBe("wrap");
+    expect(tab.edits).toEqual([]); // `- b` is the SAME line whether scalar or title-only chapter
+    // b ITSELF became a title-only container; a is untouched
+    expect(nodeAt(root, 1).kind).toBe("container");
+    expect(String(nodeAt(root, 1).selfValue?.value)).toBe("b");
+    expect(nodeAt(root, 0).kind).toBe("scalar");
+    const back = tabEdits(":doc", root, entryAt(root, 1), true);
+    expect(back.intent.kind).toBe("unwrap");
+    expect(back.edits).toEqual([]);
+    expect(nodeAt(root, 1).kind).toBe("scalar");
+    expect(String(nodeAt(root, 1).scalar?.value)).toBe("b");
   });
 
   it("in a table, Tab is a caret move to the next cell — no ops", () => {

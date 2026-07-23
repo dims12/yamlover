@@ -579,7 +579,7 @@ export function removeEntry(rootPath: string, root: MNode, entryId: string): Edi
  *  or it diverges from the file and every later op that descends into the phantom container 400s
  *  ("cannot descend into a scalar element"). Never the ROOT (a document stays a document), never
  *  flow, never a container with no self line (an empty `{}`/hole has nothing to demote to). */
-function demoteIfEmptied(container: MNode, root: MNode): void {
+export function demoteIfEmptied(container: MNode, root: MNode): void {
   if (container === root || container.kind !== "container" || container.flow) return;
   if (container.entries.length > 0 || !container.selfValue) return;
   container.kind = "scalar";

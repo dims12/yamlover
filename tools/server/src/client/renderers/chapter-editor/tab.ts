@@ -1,27 +1,35 @@
 // What TAB means, decided by the ENCLOSING format (format.ts).
 //
-//   chapter            Tab nests the block into the previous one — which makes that one a
-//                      SUBCHAPTER — and Shift-Tab lifts it back out.
-//   bullets / numbered exactly the same MODEL move: the block becomes a child of the previous
-//                      item, and an untagged container inside a list IS a sublist of the same kind.
+//   chapter            Tab acts on the CURRENT block, never the previous one: a chunk BECOMES a
+//                      subchapter title (wrap), a title nests its whole subchapter under an
+//                      existing chapter sibling (indent). Shift-Tab mirrors it: a title dissolves
+//                      back into a chunk (unwrap, its body splicing out after it), a chunk moves
+//                      out of its enclosing subchapter (dedent). Wrap and unwrap are exact
+//                      inverses, so Tab / Shift-Tab on the same block round-trips.
+//   bullets / numbered the classic outliner move: the item becomes a child of the previous item,
+//                      and an untagged container inside a list IS a sublist of the same kind.
 //   row-cell           a pure caret move between the cells of a table, OneNote style: next cell,
 //                      wrapping to the next row at a row's end, and appending a fresh row at the
 //                      very last cell. No ops at all except that append.
 //
-// The first two collapse to one operation on purpose. "Nest a subchapter" and "nest a list item"
-// look like different features and are the same tree move (`indentEntry`); the format lives on the
-// enclosing container's tag and the nested container inherits it. Saying so once here is what keeps
-// the list case from being a second implementation that drifts.
+// Chapter-Tab and list-Tab differ on purpose: a list item's identity is its POSITION under a
+// parent item, so nesting under the previous sibling is what the user means there; a chapter
+// block's identity is its own heading-ness, so Tab must promote THAT block, not conscript the
+// previous one into being a title it never asked to be.
 
 import type { MNode } from "../yamlover-editor/model";
 import { findEntry } from "../yamlover-editor/model";
 import { enclosingFormat, formatOfNode } from "./format";
 
 export type TabIntent =
-  /** move the entry under its previous sibling (a subchapter / a sublist) */
+  /** move the entry under its previous sibling (a deeper subchapter / a sublist) */
   | { kind: "indent" }
   /** move the entry out of its parent, after it */
   | { kind: "dedent" }
+  /** the CURRENT chunk becomes a subchapter title — a container with the text as its self line */
+  | { kind: "wrap" }
+  /** the CURRENT title dissolves back into a chunk — its body splices out after it */
+  | { kind: "unwrap" }
   /** move the caret to another cell of the table — `entryId` is the cell to focus */
   | { kind: "cell"; entryId: string }
   /** append a row to `tableId` and put the caret in its first cell */
@@ -35,7 +43,24 @@ export function resolveTab(root: MNode, entryId: string, shift: boolean): TabInt
   const spine = findEntry(root, entryId);
   if (!spine) return { kind: "nop" };
   const where = enclosingFormat(root, entryId);
-  if (where !== "row-cell") return shift ? { kind: "dedent" } : { kind: "indent" };
+  if (where === "bullets" || where === "numbered") return shift ? { kind: "dedent" } : { kind: "indent" };
+  if (where !== "row-cell") {
+    // a chapter: Tab acts on the CURRENT block (see the header)
+    const node = spine.entry.node;
+    const isTitle = node.kind === "container";
+    if (shift) return isTitle ? { kind: "unwrap" } : { kind: "dedent" };
+    if (!isTitle) {
+      // only a one-line chunk can become a self line (a title is one line by construction)
+      const oneLine = node.kind === "scalar" && !node.scalar?.block && !String(node.scalar?.value ?? "").includes("\n");
+      return oneLine ? { kind: "wrap" } : { kind: "nop" };
+    }
+    // a title goes DEEPER only under an existing chapter-shaped sibling — Tab never converts the
+    // previous chunk into a title implicitly
+    const { container, index } = spine.parents[spine.parents.length - 1];
+    const prev = index > 0 ? container.entries[index - 1] : null;
+    const prevIsChapter = !!prev && prev.node.kind === "container" && !prev.node.flow && formatOfNode(prev.node) === "chapter";
+    return prevIsChapter ? { kind: "indent" } : { kind: "nop" };
+  }
 
   // --- a table cell: walk the grid ---
   const parents = spine.parents;

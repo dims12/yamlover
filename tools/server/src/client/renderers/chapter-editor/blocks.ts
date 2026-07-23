@@ -98,12 +98,64 @@ export function joinProse(
   return { edits, focusId: keep.node.id, caret: junction };
 }
 
+/** Tab on a chunk: the CURRENT chunk becomes a subchapter title — a container whose self line is
+ *  the text. On disk this is STILL the same one line (`- A` is both a scalar and a title-only
+ *  chapter), so there are no ops — but the server holds a scalar entry, which cannot be descended
+ *  into, so the first body commit must re-emplace the whole omni (commitSpine's omniPending path). */
+export function wrapAsChapter(rootPath: string, root: M.MNode, entryId: string): { edits: Edit[]; focusId: string } | null {
+  const spine = M.findEntry(root, entryId);
+  if (!spine) return null;
+  const node = spine.entry.node;
+  if (node.kind !== "scalar" || node.scalar?.block || String(node.scalar?.value ?? "").includes("\n")) return null;
+  node.selfValue = node.scalar!;
+  node.selfAt = 0;
+  node.scalar = undefined;
+  node.kind = "container";
+  if (spine.entry.committed) node.omniPending = true;
+  node.rev++;
+  return { edits: [], focusId: node.id };
+}
+
+/** Shift-Tab on a title — the wrap's inverse: the title becomes a plain chunk and its body splices
+ *  out after it, in order. Children leave LAST-FIRST (each dedent lands right after this entry, so
+ *  the order holds), a keyed description dissolves into an ordinal chunk first so it can move, and
+ *  emptying the container demotes it back to the scalar it serializes as. */
+export function unwrapChapter(rootPath: string, root: M.MNode, entryId: string): { edits: Edit[]; focusId: string } | null {
+  const spine = M.findEntry(root, entryId);
+  if (!spine) return null;
+  const node = spine.entry.node;
+  if (node.kind !== "container" || !node.selfValue || node.flow) return null;
+  const edits: Edit[] = [];
+  const desc = node.entries.find((e) => e.key === "description");
+  if (desc) {
+    const out = demoteDescription(rootPath, root, desc.id);
+    if (out) edits.push(...out.edits);
+  }
+  for (let guard = node.entries.length; guard > 0 && node.entries.length > 0; guard--) {
+    const last = node.entries[node.entries.length - 1];
+    const before = node.entries.length;
+    edits.push(...M.dedentEntry(rootPath, root, last.id));
+    if (node.entries.length === before) break; // an immovable entry (an unknown key) — stop
+  }
+  // childless from the start (a freshly wrapped title): nothing moved, demote directly
+  M.demoteIfEmptied(node, root);
+  return { edits, focusId: node.id };
+}
+
 /** Dispatch a Tab / Shift-Tab to its model effect (tab.ts decides which). The projection performs
  *  the caret-only cases itself; the structural cases return ops. */
 export function tabEdits(
   rootPath: string, root: M.MNode, entryId: string, shift: boolean,
 ): { intent: TabIntent; edits: Edit[]; focusId?: string } {
   const intent = resolveTab(root, entryId, shift);
+  if (intent.kind === "wrap") {
+    const out = wrapAsChapter(rootPath, root, entryId);
+    return out ? { intent, edits: out.edits, focusId: out.focusId } : { intent: { kind: "nop" }, edits: [] };
+  }
+  if (intent.kind === "unwrap") {
+    const out = unwrapChapter(rootPath, root, entryId);
+    return out ? { intent, edits: out.edits, focusId: out.focusId } : { intent: { kind: "nop" }, edits: [] };
+  }
   if (intent.kind === "indent") {
     const spine = M.findEntry(root, entryId);
     const edits = M.indentEntry(rootPath, root, entryId);
@@ -175,21 +227,106 @@ export function promoteFormat(rootPath: string, root: M.MNode, nodeId: string, c
 }
 
 /** Create the chapter's keyed `description` as its FIRST entry (the conventional position, right
- *  under the title line). The projection renders a Description cell even before the entry exists —
- *  a chapter's head is Title then Description, and the field must be THERE to be typed into — so
- *  the entry is born from the first committed text. Already present (a race) → a plain emplace. */
-export function createDescription(rootPath: string, root: M.MNode, nodeId: string, text: string): { edits: Edit[] } {
+ *  under the title line). Already present (a race) → a plain emplace. */
+export function createDescription(rootPath: string, root: M.MNode, nodeId: string, text: string): { edits: Edit[]; focusId: string } {
   const found = M.findNode(root, nodeId);
   const node = found?.node ?? root;
   const existing = node.entries.find((e) => e.key === "description");
-  if (existing) return { edits: commitProse(rootPath, root, existing.node.id, text) };
+  if (existing) return { edits: commitProse(rootPath, root, existing.node.id, text), focusId: existing.node.id };
   const entry: M.MEntry = {
     id: M.nid(), key: "description", decided: true, committed: true,
     node: { id: M.nid(), rev: 0, kind: "scalar", scalar: { src: JSON.stringify(text), value: text }, entries: [], selfAt: 0, metaTag: null, setTag: false },
   };
   node.entries.splice(0, 0, entry);
   const contPath = found?.spine ? M.pathOfSpine(rootPath, found.spine) : rootPath;
-  return { edits: [{ path: appendIndex(contPath, 0), op: "insert", key: "description", yamlover: JSON.stringify(text) }] };
+  return { edits: [{ path: appendIndex(contPath, 0), op: "insert", key: "description", yamlover: JSON.stringify(text) }], focusId: entry.node.id };
+}
+
+// --- roles: any chunk can BECOME the title or the description, and back --------------------- //
+// A chapter's title and description are OPTIONAL — there are no placeholder cells for them. The
+// format bar's T / D buttons apply the role to the focused chunk, and applied to a cell that
+// already HOLDS the role, take it away (the text survives as a plain chunk).
+
+/** The focused chunk's text becomes the enclosing chapter's TITLE (its self line); the chunk
+ *  entry is removed. Refused when a title already exists — edit that one instead. */
+export function makeTitle(rootPath: string, root: M.MNode, entryId: string): { edits: Edit[]; focusId: string } | null {
+  const spine = M.findEntry(root, entryId);
+  if (!spine || spine.entry.key !== null) return null;
+  const { container } = spine.parents[spine.parents.length - 1];
+  if (container.selfValue || container.flow) return null;
+  const node = spine.entry.node;
+  if (node.kind !== "scalar" || node.scalar?.block || String(node.scalar?.value ?? "").includes("\n")) return null;
+  const text = String(node.scalar?.value ?? "");
+  const edits = [...M.removeEntry(rootPath, root, entryId)];
+  edits.push(...M.setSelfValue(rootPath, root, container.id, proseScalar(text)));
+  return { edits, focusId: container.id };
+}
+
+/** The title steps down: its text becomes the first body chunk (after a description when there is
+ *  one) and the self line is dropped. A title-only subchapter IS one line on disk, so dissolving
+ *  it is the wrap's model-only inverse — no ops. */
+export function demoteTitle(rootPath: string, root: M.MNode, nodeId: string): { edits: Edit[]; focusId: string } | null {
+  const found = M.findNode(root, nodeId);
+  const self = found?.node.selfValue;
+  if (!found || found.node.kind !== "container" || !self) return null;
+  const node = found.node;
+  const text = String(self.value ?? "");
+  if (node !== root && node.entries.length === 0) {
+    M.demoteIfEmptied(node, root);
+    return { edits: [], focusId: node.id };
+  }
+  const edits = [...M.setSelfValue(rootPath, root, nodeId, null)];
+  const descIdx = node.entries.findIndex((e) => e.key === "description");
+  const pos = descIdx >= 0 ? descIdx + 1 : 0;
+  const chunk = proseEntry(text);
+  node.entries.splice(pos, 0, chunk);
+  const at = M.serverIndexOf(node, pos);
+  edits.push({ path: appendIndex(containerPath(rootPath, root, node), at), op: "insert", yamlover: M.serializeMNode(chunk.node) || '""' });
+  node.rev++;
+  return { edits, focusId: chunk.node.id };
+}
+
+/** The focused chunk's text becomes the enclosing chapter's DESCRIPTION. Created FIRST, chunk
+ *  removed second — the other order could empty the container and demote it out from under us. */
+export function makeDescription(rootPath: string, root: M.MNode, entryId: string): { edits: Edit[]; focusId: string } | null {
+  const spine = M.findEntry(root, entryId);
+  if (!spine || spine.entry.key !== null) return null;
+  const { container } = spine.parents[spine.parents.length - 1];
+  if (container.entries.some((e) => e.key === "description")) return null;
+  const text = String(spine.entry.node.scalar?.value ?? "");
+  const created = createDescription(rootPath, root, container.id, text);
+  const edits = [...created.edits, ...M.removeEntry(rootPath, root, entryId)];
+  return { edits, focusId: created.focusId };
+}
+
+/** The description steps down into a plain chunk in its place. */
+export function demoteDescription(rootPath: string, root: M.MNode, entryId: string): { edits: Edit[]; focusId: string } | null {
+  const spine = M.findEntry(root, entryId);
+  if (!spine || spine.entry.key !== "description") return null;
+  const { container, index } = spine.parents[spine.parents.length - 1];
+  const text = String(spine.entry.node.scalar?.value ?? "");
+  // the chunk takes the description's place: insert right after it, then remove the keyed entry
+  const chunk = proseEntry(text);
+  container.entries.splice(index + 1, 0, chunk);
+  const at = M.serverIndexOf(container, index + 1);
+  const edits: Edit[] = [{ path: appendIndex(containerPath(rootPath, root, container), at), op: "insert", yamlover: M.serializeMNode(chunk.node) || '""' }];
+  edits.push(...M.removeEntry(rootPath, root, entryId));
+  return { edits, focusId: chunk.node.id };
+}
+
+/** A committed empty chapter's FIRST paragraph — born from the bootstrap cell's first text, or
+ *  from Enter walking out of the title. Goes through the commit machinery, so a freshly wrapped
+ *  title (whose entry is a scalar server-side) re-emplaces the whole omni instead of descending. */
+export function createFirstChunk(rootPath: string, root: M.MNode, containerId: string, text: string): { edits: Edit[]; focusId: string; entryId: string } | null {
+  const node = containerId === root.id ? root : M.findNode(root, containerId)?.node;
+  if (!node || node.kind !== "container") return null;
+  const entry: M.MEntry = {
+    id: M.nid(), key: null, decided: true, committed: false,
+    node: { id: M.nid(), rev: 0, kind: "scalar", scalar: proseScalar(text), entries: [], selfAt: 0, metaTag: null, setTag: false },
+  };
+  node.entries.push(entry);
+  const edits = M.commitSpine(rootPath, root, entry.id);
+  return { edits, focusId: entry.node.id, entryId: entry.id };
 }
 
 // --- path helpers ------------------------------------------------------------------------------ //

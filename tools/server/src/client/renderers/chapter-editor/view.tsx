@@ -1,8 +1,10 @@
 // The CHAPTER projection of the projectional editor: the same model host.ts drives for the source
 // view, drawn as prose, headings, sections and lists instead of token rows. Enter makes a sibling
-// paragraph (THE PROSE EXCEPTION), Tab nests it into the previous block — a subchapter, or a list
-// item — and Shift-Tab lifts it out; the structural moves are the shared indentEntry/dedentEntry.
-// A block's format is chosen from the bar or Ctrl+Alt+1..4 (Ctrl+1..9 is browser-reserved).
+// paragraph (THE PROSE EXCEPTION); Tab makes the CURRENT chunk a subchapter title and Shift-Tab
+// unmakes it (tab.ts); Up/Down walk the caret between cells. A block's format is chosen from the
+// bar or Ctrl+Alt+1..4 (Ctrl+1..9 is browser-reserved), and the bar's T / D buttons make the
+// focused chunk the chapter's title / description — there are NO placeholder cells for either,
+// since both are optional.
 //
 // Behind a flag for now (chapterEditorFlavor): the flat ChapterEditor keeps running until this
 // reaches parity, so nothing regresses while it grows.
@@ -14,14 +16,21 @@ import type { Edit } from "../../api";
 import { MarklowerChunkEditor } from "../chunk-editors";
 import { markupWidthCh } from "../markup";
 import { anchorOf, childSlot } from "../chapter-model";
-import { focusEnd } from "../caret";
-import { formatOfNode, type ChosenFormat } from "./format";
+import { focusEnd, focusStart } from "../caret";
+import { enclosingFormat, formatOfNode, type ChosenFormat } from "./format";
 import { formatTarget } from "./tab";
-import { commitProse, createDescription, joinProse, promoteFormat, splitProse, tabEdits } from "./blocks";
-import { clearFormatBus, publishFormatBus, useFormatBus } from "./format-bus";
+import {
+  commitProse, createFirstChunk, demoteDescription, demoteTitle, joinProse, makeDescription,
+  makeTitle, promoteFormat, splitProse, tabEdits,
+} from "./blocks";
+import { clearFormatBus, publishFormatBus, useFormatBus, type RoleState } from "./format-bus";
 
 /** A pending caret placement — which model node to focus, and where. */
 interface Focus { id: string; at: FocusAt }
+
+/** The cell the caret is in: a body entry, and — when it is a title cell — the titled node (the
+ *  title has no entry of its own; `entryId` is then the subchapter's, or null at the root). */
+interface Active { entryId: string | null; titleOf?: string }
 
 /** True for a node the projection edits as PROSE — an inlined scalar chunk. */
 const isProse = (node: M.MNode): boolean => node.kind === "scalar";
@@ -36,8 +45,8 @@ interface Proj {
   /** Tab / Shift-Tab on the block owned by `entryId` — one dispatch for prose cells and
    *  subchapter titles alike (tab.ts decides; the caret follows the moved block). */
   tabRun: (entryId: string, shift: boolean) => void;
-  /** The entry the caret is in — the format bar's target. */
-  setActive: (entryId: string | null) => void;
+  /** The cell the caret is in — the format bar's target. */
+  setActive: (a: Active | null) => void;
   onNavigate: (p: string) => void;
 }
 const ProjCtx = createContext<Proj | null>(null);
@@ -46,12 +55,18 @@ const useProj = (): Proj => useContext(ProjCtx)!;
 export function ChapterProjection({ path, onNavigate }: { path: string; onNavigate: (p: string) => void }) {
   const host = useYedHost(path, onNavigate);
   const [focus, setFocus] = useState<Focus | null>(null);
-  const [active, setActive] = useState<string | null>(null);
+  const [active, setActive] = useState<Active | null>(null);
   const opened = useRef(false);
   useEffect(() => {
     if (opened.current || !host.root) return;
     opened.current = true;
-    setFocus({ id: host.root.id, at: "start" }); // the root's self-value cell = the title; write with no click
+    // write with no click: the first cell that EXISTS — title, description, first paragraph, or
+    // the bootstrap cell of a still-empty chapter
+    const r = host.root;
+    const desc = r.entries.find((e) => e.key === "description");
+    const prose = r.entries.find((e) => e.key === null && isProse(e.node));
+    const id = r.selfValue ? r.id : desc ? desc.node.id : prose ? prose.node.id : r.id + ":boot";
+    setFocus({ id, at: "start" });
   }, [host.root]);
 
   const run: Proj["run"] = (produce) => {
@@ -66,12 +81,29 @@ export function ChapterProjection({ path, onNavigate }: { path: string; onNaviga
 
   /** Set the active block's format. Ctrl+Alt+1..4 and the bar both land here. */
   const choose = (fmt: ChosenFormat) => {
-    if (!active) return;
+    if (!active?.entryId) return;
+    const entryId = active.entryId;
     run((r) => {
-      const targetId = formatTarget(r, active);
+      const targetId = formatTarget(r, entryId);
       if (!targetId) return { edits: [] };
       const rootTag = r.metaTag;
       return { edits: promoteFormat(host.path, r, targetId, fmt, rootTag) };
+    });
+  };
+
+  /** Toggle a role (title / description) on the focused cell — the bar's T / D buttons. */
+  const applyRole = (role: "title" | "desc") => {
+    run((r) => {
+      const roles = rolesOf(r, active);
+      let out: { edits: Edit[]; focusId: string } | null = null;
+      if (role === "title") {
+        if (roles.title === "is" && active?.titleOf) out = demoteTitle(host.path, r, active.titleOf);
+        else if (roles.title === "can" && active?.entryId) out = makeTitle(host.path, r, active.entryId);
+      } else {
+        if (roles.desc === "is" && active?.entryId) out = demoteDescription(host.path, r, active.entryId);
+        else if (roles.desc === "can" && active?.entryId) out = makeDescription(host.path, r, active.entryId);
+      }
+      return out && { edits: out.edits, focus: { id: out.focusId, at: "end" as const } };
     });
   };
 
@@ -88,11 +120,14 @@ export function ChapterProjection({ path, onNavigate }: { path: string; onNaviga
   // Publish the format state to the MAIN node-bar (the renderer's config slot renders
   // ChapterFormatControl, which reads this) — one toolbar, not two. Cleared on unmount.
   useEffect(() => {
+    const r = host.rootRef.current;
     publishFormatBus({
       mounted: true,
-      active: !!active,
-      current: active && host.rootRef.current ? currentFormat(host.rootRef.current, active) : null,
+      active: !!active?.entryId,
+      current: active?.entryId && r ? currentFormat(r, active.entryId) : null,
       choose,
+      roles: r ? rolesOf(r, active) : { title: null, desc: null },
+      applyRole,
     });
   });
   useEffect(() => clearFormatBus, []);
@@ -123,9 +158,9 @@ export function ChapterProjection({ path, onNavigate }: { path: string; onNaviga
 
 /** The block-format buttons, docked in the MAIN node-bar (the chapter renderer's `config` slot) —
  *  they act on the projectional editor's focused block through the format bus, and vanish when no
- *  such editor is mounted. */
+ *  such editor is mounted. T / D toggle the title / description role on the focused chunk. */
 export function ChapterFormatControl() {
-  const { mounted, active, current, choose } = useFormatBus();
+  const { mounted, active, current, choose, roles, applyRole } = useFormatBus();
   if (!mounted) return null;
   const btn = (fmt: ChosenFormat, glyph: string, title: string) => (
     <button
@@ -137,12 +172,23 @@ export function ChapterFormatControl() {
       onMouseDown={(e) => { e.preventDefault(); choose(fmt); }}
     >{glyph}</button>
   );
+  const role = (r: "title" | "desc", glyph: string, name: string) => (
+    <button
+      type="button"
+      className={"fmt-btn" + (roles[r] === "is" ? " active" : "")}
+      title={`${name} — make this chunk the ${name.toLowerCase()}; on the ${name.toLowerCase()} itself, unmake it`}
+      disabled={roles[r] === null}
+      onMouseDown={(e) => { e.preventDefault(); applyRole(r); }}
+    >{glyph}</button>
+  );
   return (
     <span className="fmt-group" data-yo-chrome>
       {btn("chapter", "¶", "Normal")}
       {btn("bullets", "•", "Bullets")}
       {btn("numbered", "1.", "Numbered")}
       {btn("table", "▦", "Table")}
+      {role("title", "T", "Title")}
+      {role("desc", "D", "Description")}
     </span>
   );
 }
@@ -157,49 +203,100 @@ function currentFormat(root: M.MNode, entryId: string): ChosenFormat | null {
   return f === "table" || f === "bullets" || f === "numbered" ? f : "chapter";
 }
 
+/** What the T / D buttons would do to the focused cell (blocks.ts performs it). A one-line chunk
+ *  in a chapter CAN take a role its chapter does not have yet; the title / description cells ARE
+ *  theirs, and the buttons toggle them back off. */
+function rolesOf(root: M.MNode, active: Active | null): { title: RoleState; desc: RoleState } {
+  const none = { title: null, desc: null };
+  if (!active) return none;
+  if (active.titleOf) return { title: "is", desc: null };
+  if (!active.entryId) return none;
+  const spine = M.findEntry(root, active.entryId);
+  if (!spine) return none;
+  if (spine.entry.key === "description") return { title: null, desc: "is" };
+  if (spine.entry.key !== null) return none;
+  const node = spine.entry.node;
+  if (node.kind !== "scalar" || node.scalar?.block || String(node.scalar?.value ?? "").includes("\n")) return none;
+  if (enclosingFormat(root, active.entryId) !== "chapter") return none; // list items and cells have no title
+  const { container } = spine.parents[spine.parents.length - 1];
+  return {
+    title: container.selfValue || container.flow ? null : "can",
+    desc: container.entries.some((e) => e.key === "description") ? null : "can",
+  };
+}
+
 /** One chapter (the document root, or a subchapter) — its title, then its body. The SAME editor at
- *  every level, indented: title, description, body — title and description are OPTIONAL, so their
- *  cells exist (as placeholders) before the model does and are born from the first committed text.
+ *  every level, indented. Title and description are OPTIONAL and have NO placeholder cells: a cell
+ *  exists only when the model does, and any chunk becomes one via the bar's T / D buttons. An
+ *  empty chapter renders one bootstrap paragraph so there is always somewhere to type.
  *  `entryId` is the subchapter's own entry — Tab/Shift-Tab on its TITLE moves the whole subchapter. */
 function ChapterNode({ node, nodePath, level, entryId }: { node: M.MNode; nodePath: string; level: number; entryId?: string }) {
   const proj = useProj();
-  const { host, focus, clearFocus, run, tabRun } = proj;
+  const { host, focus, clearFocus, run, tabRun, setActive } = proj;
   const Heading = `h${Math.min(level + 1, 6)}` as "h1";
-  const hasDesc = node.entries.some((e) => e.key === "description");
-  const descKey = node.id + ":desc";
+  const hasBody = node.entries.some((e) => e.key === null);
   return (
     <>
-      <HeadingCell
-        as={Heading}
-        className="chapter-title"
-        placeholder={level === 0 ? "Title" : "Subchapter title"}
-        value={String(node.selfValue?.value ?? "")}
-        focusNow={focus?.id === node.id}
-        onFocused={clearFocus}
-        onCommit={(t) => run((r) => ({ edits: setSelf(host.path, r, node.id, t) }))}
-        onEnter={() => run((r) => {
-          // Enter walks title → description → the body
-          const found = M.findNode(r, node.id);
-          const desc = (found?.node ?? r).entries.find((e) => e.key === "description");
-          if (desc) return { edits: [], focus: { id: desc.node.id, at: "end" } };
-          return { edits: [], focus: { id: descKey, at: "end" } };
-        })}
-        onTab={entryId ? (shift) => tabRun(entryId, shift) : undefined}
-      />
-      {!hasDesc && (
+      {node.selfValue != null && (
         <HeadingCell
-          as="p"
-          className="chapter-subtitle"
-          placeholder="Description"
-          value=""
-          focusNow={focus?.id === descKey}
+          as={Heading}
+          className="chapter-title"
+          value={String(node.selfValue?.value ?? "")}
+          focusNow={focus?.id === node.id}
           onFocused={clearFocus}
-          onCommit={(t) => { if (t) run((r) => createDescription(host.path, r, node.id, t)); }}
-          onEnter={() => run((r) => firstBodyFocus(host.path, r, node.id))}
+          onFocus={() => setActive({ entryId: entryId ?? null, titleOf: node.id })}
+          onCommit={(t) => run((r) => ({ edits: setSelf(host.path, r, node.id, t) }))}
+          onEnter={() => run((r) => {
+            // Enter walks title → description → the body
+            const found = M.findNode(r, node.id);
+            const desc = (found?.node ?? r).entries.find((e) => e.key === "description");
+            if (desc) return { edits: [], focus: { id: desc.node.id, at: "end" } };
+            return firstBodyFocus(host.path, r, node.id);
+          })}
+          onTab={entryId ? (shift) => tabRun(entryId, shift) : undefined}
+          onArrow={(dir) => walkCaret(host.rootEl.current, dir)}
         />
       )}
       <BlockBody node={node} nodePath={nodePath} level={level} />
+      {!hasBody && <BootstrapCell node={node} />}
     </>
+  );
+}
+
+/** The one cell an EMPTY chapter shows — a paragraph that exists before its entry does, born from
+ *  the first typed text (nothing is written by merely opening the editor). */
+function BootstrapCell({ node }: { node: M.MNode }) {
+  const proj = useProj();
+  const { host, focus, clearFocus, run } = proj;
+  const bootId = node.id + ":boot";
+  return (
+    <div className="chunk">
+      <div className="chunk-body">
+        <MarklowerChunkEditor
+          text=""
+          rev={0}
+          chapterPath={host.path}
+          focusAt={focus?.id === bootId ? focus.at : null}
+          placeholder="Write…"
+          onFocused={clearFocus}
+          onChangeText={(t) => run((r) => {
+            const out = createFirstChunk(host.path, r, node.id, t);
+            // the real entry-backed cell replaces this one — the caret must follow into it
+            return out && { edits: out.edits, focus: { id: out.focusId, at: "end" } };
+          })}
+          onSplit={(head, tail) => run((r) => {
+            const first = createFirstChunk(host.path, r, node.id, head);
+            if (!first) return null;
+            const sp = splitProse(host.path, r, first.entryId, head, tail);
+            if (!sp) return { edits: first.edits, focus: { id: first.focusId, at: "end" } };
+            return { edits: [...first.edits, ...sp.edits], focus: { id: sp.focusId, at: "start" } };
+          })}
+          onArrowOut={(dir) => walkCaret(host.rootEl.current, dir)}
+          onJoinPrev={() => {}}
+          onJoinNext={() => {}}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -327,7 +424,7 @@ function ProseCell({ entry, tag = "chunk", index, anchor }: { entry: M.MEntry; t
         const out = splitProse(host.path, r, entry.id, head, tail);
         return out && { edits: out.edits, focus: { id: out.focusId, at: "start" as const } };
       })}
-      onArrowOut={() => { /* caret walk between paragraphs — a later refinement */ }}
+      onArrowOut={(dir) => walkCaret(host.rootEl.current, dir)}
       onJoinPrev={() => run((r) => {
         const out = joinProse(host.path, r, entry.id, "prev", isProse);
         return out && { edits: out.edits, focus: { id: out.focusId, at: out.caret } };
@@ -344,7 +441,7 @@ function ProseCell({ entry, tag = "chunk", index, anchor }: { entry: M.MEntry; t
     e.stopPropagation();
     proj.tabRun(entry.id, e.shiftKey);
   };
-  const onFocus = () => setActive(entry.id);
+  const onFocus = () => setActive({ entryId: entry.id });
 
   if (tag === "span") return <span className="chunk-inline" onKeyDownCapture={onKeyDownCapture} onFocus={onFocus}>{inner}</span>;
   return (
@@ -367,9 +464,10 @@ function DescriptionCell({ entry, node }: { entry: M.MEntry; node: M.MNode }) {
       value={String(entry.node.scalar?.value ?? "")}
       focusNow={focus?.id === entry.node.id}
       onFocused={clearFocus}
-      onFocus={() => setActive(entry.id)}
+      onFocus={() => setActive({ entryId: entry.id })}
       onCommit={(t) => run((r) => ({ edits: commitProse(host.path, r, entry.node.id, t) }))}
       onEnter={() => run((r) => firstBodyFocus(host.path, r, node.id))}
+      onArrow={(dir) => walkCaret(host.rootEl.current, dir)}
     />
   );
 }
@@ -377,7 +475,7 @@ function DescriptionCell({ entry, node }: { entry: M.MEntry; node: M.MNode }) {
 /** A single-line editable heading (title / subtitle). Uncontrolled, reset on `value` while
  *  unfocused; Enter HANDS THE CARET ON via `onEnter` rather than blurring to nowhere. */
 function HeadingCell({
-  as, value, onCommit, className, placeholder, focusNow, onFocused, onEnter, onFocus, onTab,
+  as, value, onCommit, className, placeholder, focusNow, onFocused, onEnter, onFocus, onTab, onArrow,
 }: {
   as: "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p";
   value: string;
@@ -391,6 +489,8 @@ function HeadingCell({
   /** Tab/Shift-Tab — a SUBCHAPTER title moves the whole subchapter; absent, the key is consumed
    *  (a heading never lets the browser walk focus out of the document). */
   onTab?: (shift: boolean) => void;
+  /** Up/Down — a heading is one line, so both always walk to the adjacent cell. */
+  onArrow?: (dir: "up" | "down") => void;
 }) {
   const ref = useRef<HTMLElement>(null);
   const focused = useRef(false);
@@ -426,6 +526,11 @@ function HeadingCell({
         if (e.key === "Tab") {
           e.preventDefault();
           onTab?.(e.shiftKey);
+          return;
+        }
+        if ((e.key === "ArrowUp" || e.key === "ArrowDown") && onArrow) {
+          e.preventDefault();
+          onArrow(e.key === "ArrowUp" ? "up" : "down"); // the focus move blurs → commitIfChanged
           return;
         }
         if (e.key !== "Enter") return;
@@ -470,23 +575,30 @@ function setSelf(rootPath: string, root: M.MNode, nodeId: string, text: string, 
 }
 
 /** Enter out of a heading: focus the first editable body paragraph, making an empty one when the
- *  chapter has none — so a fresh chapter is title → writing, no dead end and nothing to click. */
+ *  chapter has none — so a fresh chapter is title → writing, no dead end and nothing to click.
+ *  Creation goes through blocks.ts so a freshly wrapped title (a scalar entry server-side)
+ *  re-emplaces the whole omni instead of descending into it. */
 function firstBodyFocus(rootPath: string, root: M.MNode, nodeId: string): { edits: Edit[]; focus?: Focus } {
   const found = M.findNode(root, nodeId);
   const node = found?.node ?? root;
   const firstProse = node.entries.find((e) => e.key === null && isProse(e.node));
   if (firstProse) return { edits: [], focus: { id: firstProse.node.id, at: "start" } };
-  const entry: M.MEntry = {
-    id: M.nid(), key: null, decided: true, committed: true,
-    node: { id: M.nid(), rev: 0, kind: "scalar", scalar: { src: '""', value: "" }, entries: [], selfAt: 0, metaTag: null, setTag: false },
-  };
-  node.entries.push(entry);
-  const at = M.serverIndexOf(node, node.entries.length - 1);
-  const contPath = found?.spine ? M.pathOfSpine(rootPath, found.spine) : rootPath;
-  return {
-    edits: [{ path: `${contPath === ":" ? "" : contPath}[${at}]`, op: "insert", yamlover: '""' }],
-    focus: { id: entry.node.id, at: "start" },
-  };
+  const out = createFirstChunk(rootPath, root, node.id, "");
+  if (!out) return { edits: [] };
+  return { edits: out.edits, focus: { id: out.focusId, at: "start" } };
+}
+
+/** Up/Down between cells: the caret walks to the adjacent EDITABLE cell in document order —
+ *  titles, descriptions, paragraphs and list items are all one flat walk, exactly the order the
+ *  page reads in. */
+function walkCaret(rootEl: HTMLElement | null, dir: "up" | "down"): void {
+  if (!rootEl) return;
+  const cells = Array.from(rootEl.querySelectorAll<HTMLElement>('[contenteditable="true"]'));
+  const i = cells.indexOf(document.activeElement as HTMLElement);
+  if (i < 0) return;
+  const next = cells[i + (dir === "down" ? 1 : -1)];
+  if (!next) return;
+  (dir === "down" ? focusStart : focusEnd)(next);
 }
 
 /** The node path of a container's `i`-th entry. */

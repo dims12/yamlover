@@ -167,8 +167,8 @@ describe("resolveTab — the truth table", () => {
     ]),
   ]));
 
-  it("in a chapter: Tab nests into the previous block, Shift-Tab lifts out", () => {
-    expect(resolveTab(root, entryAt(root, 1), false)).toEqual({ kind: "indent" });
+  it("in a chapter: Tab makes the CURRENT chunk a title (wrap), Shift-Tab dedents it", () => {
+    expect(resolveTab(root, entryAt(root, 1), false)).toEqual({ kind: "wrap" });
     expect(resolveTab(root, entryAt(root, 1), true)).toEqual({ kind: "dedent" });
   });
 

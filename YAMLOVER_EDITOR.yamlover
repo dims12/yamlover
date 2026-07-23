@@ -58,10 +58,13 @@ description: |
     THE PROSE EXCEPTION to THE LEVEL RULE. Under the CHAPTER projection Enter makes
     a SIBLING block, not a descent, and TAB is the only descent. Prose is a stream
     of paragraphs, not a tree of typed values: a writer pressing Enter means "next
-    paragraph", and every prose editor in the world agrees. Tab then nests the
-    block into the previous one, which is what makes that one a subchapter (or, in
-    a list, a sublist) - the same model move in both, per THE FORMAT RULE. Inside
-    a TABLE, Tab is not a move at all but a caret walk across the grid: next cell,
+    paragraph", and every prose editor in the world agrees. In a CHAPTER, Tab acts
+    on the CURRENT block: a chunk becomes a subchapter title (and Shift-Tab unmakes
+    one - exact inverses, zero ops, since `- A` is the same line either way); it
+    never conscripts the previous chunk into being a title. In a LIST, Tab keeps
+    the classic outliner move - the item nests under the previous item as a sublist
+    of the same kind - because a list item's identity IS its position. Inside a
+    TABLE, Tab is not a move at all but a caret walk across the grid: next cell,
     wrapping to the next row at a row's end, appending a row at the very last cell.
 
     THE REPRESENTATION RULE. The concrete stores the REPRESENTATION and the
@@ -377,23 +380,24 @@ empty_cell_of_origin: Back to the hole this cell grew from
 # THE PROSE EXCEPTION governs Enter; THE FORMAT RULE governs Tab and the format commands.
 
 chapter_title_editing: A chapter title / subtitle, focused
-    description: The document's (or a subchapter's) self-value as an editable heading, or the keyed `description` as the subtitle - the SAME editor at every level, indented, title and description both OPTIONAL (their cells exist as placeholders before their model does, born from the first committed text). Opening the editor lands here in the root title, so writing begins with no click
+    description: The document's (or a subchapter's) self-value as an editable heading, or the keyed `description` as the subtitle - the SAME editor at every level, indented. Title and description are OPTIONAL and have NO placeholder cells - a cell exists only when its model does; any one-line chunk takes (or gives back) the role via the bar's T / D buttons. Opening the editor lands in the first cell that EXISTS - title, description, first paragraph, or an empty chapter's bootstrap paragraph
     enter: *: chapter_title_editing               # title → description → the body (a first paragraph is made if none)
     tab:
-        "a SUBCHAPTER title - the whole subchapter moves under its previous sibling": *: chapter_title_editing
-        "the root title - a document does not nest": *: nop
+        "a title whose PREVIOUS sibling is a chapter - the whole subchapter nests under it, one level deeper": *: chapter_title_editing
+        "otherwise (the root title, or a plain-paragraph neighbour) - Tab never conscripts the previous chunk": *: nop
     shift_tab:
-        "a SUBCHAPTER title - the whole subchapter lifts out one level. Its former parent, left with only a self line, DEMOTES back to the scalar paragraph it was (Shift-Tab is Tab's undo)": *: chapter_title_editing
+        "a SUBCHAPTER title - the title dissolves back into a plain paragraph (the wrap's inverse, zero ops when childless): its body splices out after it in order, a keyed description dissolving into an ordinal chunk to move": *: chapter_prose_editing
         "the root title": *: nop
     ctrl_alt_number: *: format_switched
-    down_arrow: *: focus_next
+    role_button: *: chapter_prose_editing         # T / D on the title/description itself UNMAKES it - the text survives as a plain chunk
+    up_down_arrow: *: chapter_title_editing       # one line - both walk to the adjacent editable cell in document order
 
 chapter_prose_editing: A prose paragraph, focused
-    description: A body paragraph as the shared marklower editor. Enter makes a SIBLING paragraph (THE PROSE EXCEPTION), not a descent
+    description: A body paragraph as the shared marklower editor. Enter makes a SIBLING paragraph (THE PROSE EXCEPTION), not a descent. An EMPTY chapter shows one bootstrap paragraph (no entry until the first typed text - merely opening writes nothing)
     enter: *: chapter_prose_editing               # split at the caret; the tail is a new sibling paragraph
     tab:
-        "a previous sibling exists": *: chapter_prose_editing   # nest it → the previous block becomes a subchapter
-        "otherwise": *: nop
+        "a one-line paragraph - the CURRENT chunk becomes a subchapter title (wrap). On disk `- A` is the SAME line either way, so this is zero ops; the server still holds a scalar entry, so the first body commit re-emplaces the whole omni (omniPending)": *: chapter_title_editing
+        "a multi-line (block) paragraph - a self line is one line": *: nop
     shift_tab:
         "below the root level": *: chapter_prose_editing        # lift it out of its subchapter
         "otherwise": *: nop
@@ -401,6 +405,8 @@ chapter_prose_editing: A prose paragraph, focused
         "the caret is at the start": *: chapter_prose_editing   # join into the previous paragraph, caret at the junction
         "otherwise": *: chapter_prose_editing
     ctrl_alt_number: *: format_switched
+    role_button: *: chapter_title_editing         # T / D makes THIS chunk the chapter's title / description (only offered where the chapter lacks one)
+    up_down_arrow: *: chapter_prose_editing       # at the first/last visual line, the caret walks to the adjacent cell
 
 list_item_editing: A typographical-list item, focused
     description: An item of a tagged bullets/numbered list. Tab nests it as a SUBLIST of the same kind - the same model move as a subchapter, since an untagged nested container inherits the list's kind
