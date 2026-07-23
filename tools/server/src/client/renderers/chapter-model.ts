@@ -161,7 +161,13 @@ const isOverlayKey = (k: string | null): boolean => k === "yamlover-annotations"
  *  which leave a scalar a scalar. A leaf is always a chunk. */
 export function bodyKindOf(v: unknown): FlowKind {
   const link = asLink(v);
-  if (link) return isSubchapter(link.format) ? "subchapter" : "chunk";
+  if (link) {
+    if (link.format != null) return isSubchapter(link.format) ? "subchapter" : "chunk";
+    // UNTAGGED at the depth boundary (a not-yet-stamped chapter, mid-write): the same structural
+    // rule as the mixed branch below — a container body element IS a subchapter. Ordinal entries
+    // only: an annotated scalar's keyed overlays must leave it the chunk it is.
+    return link.hasOrdinal ? "subchapter" : "chunk";
+  }
   const mixed = asMixed(v);
   if (mixed) {
     if (mixed.format != null) return isSubchapter(mixed.format) ? "subchapter" : "chunk"; // tagged: the tag decides

@@ -300,6 +300,16 @@ describe("bodyKindOf — inlined containers", () => {
     expect(bodyKindOf(["a", "b"])).toBe("subchapter");
   });
 
+  it("an UNTAGGED container LINK (depth boundary of a not-yet-stamped chapter) is a subchapter too", () => {
+    // exactly what the server sends for a nested container in a tagless document: an omni link
+    // with ordinal entries and NO format — the structural rule must hold at the boundary as well
+    const untaggedOmni = { $yamloverLink: { kind: "omni", type: "variant", hasKeyed: false, hasOrdinal: true, path: "[4]", concrete: "yamlover", count: 4, value: "Подчасть" } };
+    expect(bodyKindOf(untaggedOmni)).toBe("subchapter");
+    // …while an untagged link with only KEYED entries (an annotated scalar's overlays) stays a chunk
+    const annotatedLink = { $yamloverLink: { kind: "omni", type: "variant", hasKeyed: true, hasOrdinal: false, path: "[2]", concrete: "yamlover", value: "prose" } };
+    expect(bodyKindOf(annotatedLink)).toBe("chunk");
+  });
+
   it("an ANNOTATED chunk stays a chunk — overlay keys are not body (CHAPTER.md)", () => {
     const annotated = (key: string) => ({ $yamloverMixed: { kind: "omni", value: "a **bold** chunk", entries: [{ key, value: [] }] } });
     expect(bodyKindOf(annotated("yamlover-annotations"))).toBe("chunk");

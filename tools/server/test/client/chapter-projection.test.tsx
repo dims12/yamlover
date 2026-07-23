@@ -673,3 +673,57 @@ describe("ChapterProjection — an EMPTY chapter bootstraps its first paragraph"
     expect(batch).toEqual([{ path: ":doc[0]", op: "insert", yamlover: "hello" }]);
   });
 });
+
+describe("ChapterProjection — a plain folder gains the chapter tag with its first edit", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+  const settle = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
+  /** An UNTAGGED container — a plain folder opened via the offered chapter tab: no `!!<…>` tag in
+   *  the comments, no stamped format. */
+  const untagged = () => ({
+    path: ":doc", type: "variant", concrete: "dir/yamlover", documentPath: ":doc", title: null, description: null,
+    value: mixed({ kind: "array", entries: [{ key: null, value: "hi" }] }),
+    comments: {},
+  } as unknown as NodeJson);
+
+  it("the first WRITTEN batch leads with the meta stamp — TOC and read view need the tag", async () => {
+    fetchNode.mockResolvedValue(untagged());
+    const utils = render(<ChapterProjection path=":doc" onNavigate={vi.fn()} />);
+    await settle();
+    const p = utils.container.querySelector(".chapter-prose") as HTMLElement;
+    p.textContent = "hello";
+    fireEvent.input(p);
+    await act(async () => { await Promise.resolve(); });
+    const batch = await flush();
+    expect(batch).toEqual([
+      { path: ":doc", op: "emplace", meta: "*::yamlover:$defs:chapter" },
+      { path: ":doc[0]", op: "emplace", yamlover: "hello" },
+    ]);
+    // …and only ONCE: the next edit is not re-stamped
+    fireEvent.input((p.textContent = "hello there", p));
+    await act(async () => { await Promise.resolve(); });
+    const next = await flush();
+    expect(next).toEqual([{ path: ":doc[0]", op: "emplace", yamlover: "hello there" }]);
+  });
+
+  it("a zero-op action (Tab's wrap) does NOT stamp — nothing was written to tag", async () => {
+    fetchNode.mockResolvedValue(untagged());
+    const utils = render(<ChapterProjection path=":doc" onNavigate={vi.fn()} />);
+    await settle();
+    fireEvent.keyDown(utils.container.querySelector(".chapter-prose")!, { key: "Tab" });
+    await act(async () => { vi.advanceTimersByTime(600); });
+    expect(editChunks).not.toHaveBeenCalled();
+  });
+
+  it("an already-TAGGED chapter is never re-stamped", async () => {
+    fetchNode.mockResolvedValue(chapterNode({ title: "Book", body: ["hi"] }));
+    const utils = render(<ChapterProjection path=":doc" onNavigate={vi.fn()} />);
+    await settle();
+    const p = utils.container.querySelector(".chapter-prose") as HTMLElement;
+    p.textContent = "hello";
+    fireEvent.input(p);
+    await act(async () => { await Promise.resolve(); });
+    const batch = await flush();
+    expect(batch).toEqual([{ path: ":doc[0]", op: "emplace", yamlover: "hello" }]);
+  });
+});

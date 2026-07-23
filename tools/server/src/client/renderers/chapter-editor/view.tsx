@@ -15,7 +15,7 @@ import * as M from "../yamlover-editor/model";
 import type { Edit } from "../../api";
 import { MarklowerChunkEditor } from "../chunk-editors";
 import { markupWidthCh } from "../markup";
-import { anchorOf, childSlot } from "../chapter-model";
+import { anchorOf, childSlot, CHAPTER_META, isSubchapter } from "../chapter-model";
 import { focusEnd, focusStart } from "../caret";
 import { enclosingFormat, formatOfNode, type ChosenFormat } from "./format";
 import { formatTarget } from "./tab";
@@ -74,7 +74,18 @@ export function ChapterProjection({ path, onNavigate }: { path: string; onNaviga
     host.step((r) => {
       const out = produce(r);
       next = out?.focus;
-      return out?.edits ?? [];
+      const edits = out?.edits ?? [];
+      // A formerly PLAIN folder being written as a chapter (the offered tab): the first batch that
+      // actually says anything also stamps the document `!!<*::yamlover:$defs:chapter>` — that tag
+      // is what makes the TOC show subchapters (not every chunk) and the read view lay them out.
+      // Never a re-stamp (an already-tagged chapter/task keeps its own schema), and never on a
+      // batch of zero ops, so merely opening — or a byte-neutral Tab — still writes nothing.
+      if (edits.length && r.metaTag == null && !isSubchapter(r.format ?? null)) {
+        r.metaTag = CHAPTER_META;
+        r.metaOnServer = true;
+        edits.unshift({ path: host.path, op: "emplace", meta: CHAPTER_META });
+      }
+      return edits;
     });
     if (next) setFocus(next);
   };
