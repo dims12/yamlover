@@ -276,8 +276,15 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
   // world form `*::: yamlover.inthemoon.net:…`) resolve from ANY served root (IMPORTS.md §4). The
   // import may be AUTHORED as a root body key (`yamlover: *::: yamlover.inthemoon.net`) or left
   // IMPLICIT; either way the walk MATERIALIZES the taxonomy under the `yamlover` key (replacing the
-  // import pointer with the real subtree) so no world pointer is left to dangle. A root that
-  // PROJECTS AS AN ARRAY (all-keyless) is left alone — a keyed graft would flip its kind to mix.
+  // import pointer with the real subtree) so no world pointer is left to dangle.
+  //
+  // THE UNIFORM GRAFT: the graft applies to EVERY root, whatever its shape — array, omni, scalar,
+  // mapping. yamlover is tolerant of mixtures and omnis by design: a keyed entry beside keyless
+  // ones is a well-formed mix, the node's `array` flag keeps an authored seq projecting as the seq
+  // it is, and hidden entries are plumbing the views filter anyway. There are NO shape
+  // special-cases here — an earlier one ("skip array roots, a keyed graft would flip their kind")
+  // silently broke schema resolution for every untitled directory chapter, which is exactly the
+  // kind of divergence an ad-hoc skip breeds. Behavior must stay unified for every root.
   //
   // Three outcomes, by where the taxonomy lives:
   //  • served root IS the yamlover project (own `$defs/`): the taxonomy is ALREADY at `:$defs` /
@@ -297,9 +304,8 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
   // served root IS a project root: it has its OWN `$defs/` direct child (findDefsRoot falls back to
   // the dir itself for a foreign tree, so the existence check is what distinguishes self from foreign).
   const selfRoot = fs.existsSync(defsDir) && path.resolve(absDir) === defsRoot;
-  const arrayRoot = root.array || (root.entries?.length ? root.entries.every((e) => e.key === null) : false);
   let builtinDefs: Map<string, Node> | undefined; // the in-memory $defs for a BUNDLED/builtin graft (no disk)
-  if (!opts.noGraft && !arrayRoot && root.entries) {
+  if (!opts.noGraft && root.entries) {
     const yEntry = root.entries.find((e) => e.key === 'yamlover');
     const yIsSelfImport = !yEntry || (isPointer(yEntry.value) && isYamloverWorldPointer(yEntry.value));
     if (selfRoot) {
@@ -327,11 +333,9 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
       else root.entries.push({ key: 'yamlover', edge: 'contain', value: node });
     }
   }
-  // A root that skipped the graft (an ARRAY root, where a keyed `yamlover` entry would flip the
-  // all-keyless projection to mix) still needs its attached schemas to RESOLVE: an UNTITLED
-  // chapter (`!!<…$defs:chapter>` over a pure seq body) must derive its children's formats
-  // exactly like a titled one, or the TOC sees no subchapters. Load the bundled defs WITHOUT
-  // materializing them in-tree.
+  // Whatever path the graft took (or a user's own `yamlover` override left in place), attached
+  // schemas must ALWAYS resolve — no root reaches applySchemas without a defs source. Disk `$defs`
+  // wins; else the bundled taxonomy backs `loadDef` in memory.
   if (!opts.noGraft && !builtinDefs && !fs.existsSync(defsDir)) {
     builtinDefs = (graftTaxonomy() ?? builtinYamloverGraft()).defs;
   }

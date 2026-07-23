@@ -499,17 +499,24 @@ export class Store {
   }
 
   /** The containment subtree rooted at `path`, up to `depth` levels (TOC). A recursive CTE
-   *  over `contain` edges — the acyclic spine; ordered by `pos` at each level. */
+   *  over `contain` edges — the acyclic spine; ordered by `pos` at each level. HIDDEN nodes
+   *  (`meta.hidden` — the `.yamlover` overlay, the grafted `yamlover` self-import) are plumbing,
+   *  not contents: they are pruned here with their whole subtrees, so every TOC consumer gets the
+   *  same view without re-filtering. */
   toc(path = ':', depth = Infinity): TocNode[] {
     const rows = this.db
       .prepare(
         `WITH RECURSIVE sub(from_path, to_path, label, pos, lvl) AS (
-           SELECT from_path, to_path, label, pos, 1 FROM edge
-             WHERE kind = 'contain' AND from_path = ?
+           SELECT e.from_path, e.to_path, e.label, e.pos, 1 FROM edge e
+             JOIN node t ON t.path = e.to_path
+             WHERE e.kind = 'contain' AND e.from_path = ?
+               AND COALESCE(json_extract(t.meta, '$.hidden'), 0) != 1
            UNION ALL
            SELECT e.from_path, e.to_path, e.label, e.pos, sub.lvl + 1 FROM edge e
              JOIN sub ON e.from_path = sub.to_path
+             JOIN node t ON t.path = e.to_path
              WHERE e.kind = 'contain' AND sub.lvl < ?
+               AND COALESCE(json_extract(t.meta, '$.hidden'), 0) != 1
          )
          SELECT s.to_path AS path, s.from_path AS parent, s.label, s.pos, n.type, n.format
            FROM sub s JOIN node n ON n.path = s.to_path

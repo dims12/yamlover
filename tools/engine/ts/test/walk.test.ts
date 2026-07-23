@@ -392,7 +392,7 @@ test('built-in yamlover/ subtree is grafted when serving below a yamlover/$defs 
   s.close();
 });
 
-test('built-in graft outside a yamlover/$defs host (palette always available); none into an array-projecting root', () => {
+test('built-in graft outside a yamlover/$defs host (palette always available); UNIFORM into every root shape', () => {
   // a temp tree has no `yamlover/$defs/` ancestor → the BUILT-IN yamlover/ (the color palette +
   // the tag schema) is grafted, so the pure color tags resolve and annotations validate anywhere
   const root = mkdtempSync(join(tmpdir(), 'yo-builtin-'));
@@ -403,10 +403,15 @@ test('built-in graft outside a yamlover/$defs host (palette always available); n
   assert.equal(s.node(':yamlover:tags:colors:yellow:color')?.value, '#f9e2af');
   s.close();
   rmSync(root, { recursive: true, force: true });
-  // an all-keyless root under the repo stays a pure array — a keyed graft would flip it to mix
+  // THE UNIFORM GRAFT (walk.ts): an all-keyless root gets the graft like every other shape —
+  // yamlover tolerates mixtures, so the hidden keyed entry neither flips the authored seq's array
+  // projection nor shows in its TOC. (A skip here once broke schema derivation for every untitled
+  // directory chapter — shape special-cases are how projections silently diverge.)
   const arr = indexedDir('56-array-of-files');
-  assert.equal(arr.node(':')?.is_array, true);
-  assert.equal(arr.node(':yamlover'), null);
+  assert.equal(arr.node(':')?.is_array, true); // the authored seq still projects as a seq
+  assert.equal(arr.node(':yamlover')?.meta?.hidden, true); // grafted, hidden plumbing
+  assert.equal(arr.node(':yamlover:tags:colors:yellow:color')?.value, '#f9e2af'); // …and it resolves
+  assert.ok(!arr.toc(':', 1).some((n) => n.label === 'yamlover')); // …and stays off the TOC
   arr.close();
 });
 
