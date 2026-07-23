@@ -327,6 +327,14 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
       else root.entries.push({ key: 'yamlover', edge: 'contain', value: node });
     }
   }
+  // A root that skipped the graft (an ARRAY root, where a keyed `yamlover` entry would flip the
+  // all-keyless projection to mix) still needs its attached schemas to RESOLVE: an UNTITLED
+  // chapter (`!!<…$defs:chapter>` over a pure seq body) must derive its children's formats
+  // exactly like a titled one, or the TOC sees no subchapters. Load the bundled defs WITHOUT
+  // materializing them in-tree.
+  if (!opts.noGraft && !builtinDefs && !fs.existsSync(defsDir)) {
+    builtinDefs = (graftTaxonomy() ?? builtinYamloverGraft()).defs;
+  }
   applySchemas(root, defsRoot, builtinDefs); // propagate attached !!<…> schemas down the instance
   return {
     doc: { root, source: { concrete: 'directory', uri: absDir } },

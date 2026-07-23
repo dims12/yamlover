@@ -99,6 +99,31 @@ test('meta.yamlover format attaches to body-overlay text entries', () => {
   }
 });
 
+test('an UNTITLED directory chapter (pure seq body → ARRAY root) still derives child formats', () => {
+  // An array root skips the `yamlover` graft (a keyed entry would flip its all-keyless projection
+  // to mix) — but its attached `!!<…$defs:chapter>` must still RESOLVE via the bundled defs, or a
+  // title-less chapter written in a plain folder derives nothing: no chunk formats, no subchapter
+  // format, and the TOC sees no subchapters (the reported regression).
+  const dir = mkdtempSync(join(tmpdir(), 'yamlover-untitled-chapter-'));
+  try {
+    mkdirSync(join(dir, '.yamlover'));
+    writeFileSync(
+      join(dir, '.yamlover', 'body.yamlover'),
+      '!!<*::yamlover:$defs:chapter>\n- intro prose\n- Subpart\n  - sub chunk\n',
+    );
+    const s = new Store(':memory:');
+    s.indexDocument(walkDir(dir));
+    assert.equal(s.node(':')?.format, 'x-yamlover-chapter'); // the root tag
+    const kids = s.toc(':', 1).filter((n) => n.label !== '.yamlover');
+    assert.deepEqual(kids.map((n) => n.format ?? null), ['text/marklower', 'x-yamlover-chapter']); // chunk, then the subchapter
+    const subKids = s.toc(kids[1].path, 1);
+    assert.deepEqual(subKids.map((n) => n.format ?? null), ['text/marklower']); // recursion reaches the subchapter's own chunk
+    s.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('a file is parsed by extension: .json/.json5p via json5p, else yamlover', () => {
   // a directory holding multi-line JSON — the YAML parser would choke; json5p handles it
   const s = new Store(':memory:');
