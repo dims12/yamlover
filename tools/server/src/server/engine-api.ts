@@ -848,7 +848,9 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       const depth = parseDepth(url.searchParams.get("depth"));
 
       if (url.pathname === "/api/info") {
-        sendJson(res, 200, { root: rootName });
+        // the breadcrumb head goes by the root's TITLE when it has one (a titled chapter names
+        // itself), falling back to the served folder's name
+        sendJson(res, 200, { root: titleOf(s, ":") || rootName });
         return;
       }
 
@@ -871,7 +873,9 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       if (url.pathname === "/api/tree") {
         const row = s.node(p);
         if (!row) return notFound(res, url);
-        const label = segs.length === 0 ? rootName : labelFor(s, p, segs[segs.length - 1]);
+        // the root goes by its TITLE when it has one — a titled chapter shows its title in the
+        // TOC like every subchapter does — falling back to the served folder's name
+        const label = segs.length === 0 ? titleOf(s, p) || rootName : labelFor(s, p, segs[segs.length - 1]);
         sendJson(res, 200, buildTree(dataRoot, s, segs, label, depth ?? 3));
         return;
       }
