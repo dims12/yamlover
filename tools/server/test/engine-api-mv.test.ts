@@ -12,7 +12,7 @@ describe("POST /api/mv", () => {
   it("moves a file, rewrites the referrer on disk, and the node answers at the new path", async () => {
     const root = tmpTree({
       "old.md": "# doc",
-      "refs.yamlover": "link: *//old.md\n",
+      "refs.yamlover": "link: *:: old.md\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -25,7 +25,7 @@ describe("POST /api/mv", () => {
     // the reindex sees the rename as an inferred move (manifest-relative paths)
     expect(r.json.diff.moved).toEqual([{ from: "old.md", to: "new.md" }]);
     expect(r.json.diff.changed).toContain("refs.yamlover"); // the rewritten referrer
-    expect(fs.readFileSync(path.join(root, "refs.yamlover"), "utf8")).toBe("link: *//new.md\n");
+    expect(fs.readFileSync(path.join(root, "refs.yamlover"), "utf8")).toBe("link: *:: new.md\n");
     expect(fs.existsSync(path.join(root, "old.md"))).toBe(false);
 
     const node = call(h, "/api/json", { path: ":new.md" });

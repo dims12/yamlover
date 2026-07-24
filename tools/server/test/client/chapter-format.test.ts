@@ -36,10 +36,15 @@ function entryAt(root: MNode, ...indices: number[]): string {
 const nodeAt = (root: MNode, ...indices: number[]): MNode => indices.reduce((n, i) => n.entries[i].node, root);
 
 describe("schemaNameOfTag / formatFromMetaTag — every spelling the corpus uses", () => {
-  it("reads the `$defs` name from colon, ladder, and slash forms", () => {
+  it("reads the `$defs` name from the colon and ladder forms", () => {
     expect(schemaNameOfTag("*yamlover: $defs: table")).toBe("table");
     expect(schemaNameOfTag("*:: yamlover: $defs: bullets")).toBe("bullets");
-    expect(schemaNameOfTag("*yamlover/$defs/numbered")).toBe("numbered");
+    expect(schemaNameOfTag("*yamlover: $defs: numbered")).toBe("numbered");
+  });
+
+  it("does NOT read the dead slash spelling (the migration window is closed)", () => {
+    expect(schemaNameOfTag("*yamlover/$defs/table")).toBeNull();
+    expect(tagFor("*yamlover/$defs/chapter", "table")).toBe("*:: yamlover: $defs: table");
   });
 
   it("is null for a tag that names no `$defs`", () => {
@@ -147,7 +152,7 @@ describe("tagFor — a document keeps its own spelling", () => {
   it("swaps the `$defs` name, keeping the scope the document already uses", () => {
     expect(tagFor("*yamlover: $defs: chapter", "table")).toBe("*yamlover: $defs: table");
     expect(tagFor("*:: yamlover: $defs: chapter", "bullets")).toBe("*:: yamlover: $defs: bullets");
-    expect(tagFor("*yamlover/$defs/chapter", "numbered")).toBe("*yamlover/$defs/numbered");
+    expect(tagFor("*yamlover: $defs: chapter", "numbered")).toBe("*yamlover: $defs: numbered");
   });
 
   it("falls back to the project ladder when the document is untagged or tagged otherwise", () => {

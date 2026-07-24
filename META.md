@@ -27,7 +27,10 @@ A directory's `.yamlover/` holds up to two complementary overlays, plus engine s
 
 Both are keyed by node path, but with different shapes:
 
-- **`body.yamlover`** mirrors the instance directly (`name: Alice`).
+- **`body.yamlover`** mirrors the instance directly (`name: Alice`). A pure
+  pointer-array body (`- *file …`) is the ORDER overlay: it grants positions to
+  the children it names (the positional prefix); unnamed children stay
+  keyed-only, after the ordered block.
 - **`meta.yamlover`** nests under JSON-Schema keywords (`properties:`, `prefixItems:`),
   so the engine maps a **meta-path → instance-path** (`properties/age` annotates the
   instance node `age`).
@@ -153,7 +156,7 @@ yamlover specifics:
   `dir/yamlover` · …; full taxonomy in `CONCRETES.md`) is **inferable from the
   filesystem** — state it only when ambiguous. Keep meta minimal.
 - **References use `*` pointers, not `$ref`.** Reusable fragments go under a `$defs` (or
-  `$defs`) key and are referenced with a normal pointer — `*/$defs/box` (document root) —
+  `$defs`) key and are referenced with a normal pointer — `*: $defs: box` (document root) —
   so there is **one** reference mechanism across yamlover (`URIs.md`), not a second
   JSON-Pointer dialect.
 - **Combinators** (`anyOf`, `oneOf`, `allOf`, `not`, `type: [ … ]`) are kept from JSON Schema

@@ -230,8 +230,8 @@ describe("barePointer — commit-time pointer normalization", () => {
   it("quoted keys keep their inner space (the commit layer then refuses the wire)", () => {
     expect(barePointer(": 'a b'[1]")).toBe(":'a b'[1]");
   });
-  it("legacy slash raws canonicalize to colon compact", () => {
-    expect(barePointer("a/b")).toBe("a:b");
+  it("a slash never separates — `a/b` is the single literal key (migration window closed)", () => {
+    expect(barePointer("a/b")).toBe("a/b");
   });
   it("unparsable → null", () => {
     expect(barePointer(":::")).toBeNull(); // world scope needs an authority

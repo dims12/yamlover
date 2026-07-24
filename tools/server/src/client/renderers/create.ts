@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { fetchNode } from "../api";
 import { displayPath } from "../paths";
 import { isDirConcrete } from "../../concrete";
+import { allowedChildConcretes, defaultChildConcrete, type ChildConcrete } from "../../concrete-rules";
 
 interface CreatableSchema {
   schema: string; // the schema's client path (also the server registry key)
@@ -26,37 +27,37 @@ export interface Creatable {
   defaultConcrete: string;
 }
 
-// A child can be stored inline (in the parent body), as a linked file, or a linked directory —
-// default INLINE (lightest, keeps the document cohesive). A directory member is a file or a
-// directory — default `dir/yamlover` (the last, richer form: it can hold sibling image/pdf files).
-const CHILD_CONCRETES: ConcreteOption[] = [
-  { id: "yamlover", label: "inline" },
-  { id: "file/yamlover", label: "file" },
-  { id: "dir/yamlover", label: "directory" },
-];
-const MEMBER_CONCRETES: ConcreteOption[] = [
-  { id: "file/yamlover", label: "file" },
-  { id: "dir/yamlover", label: "directory" },
-];
+// The storage options and the default come from the RULES module (concrete-rules.ts) — this
+// file only maps concrete ids to their menu labels.
+const CONCRETE_LABELS: Record<ChildConcrete, string> = {
+  "yamlover": "inline",
+  "file/yamlover": "file",
+  "dir/yamlover": "directory",
+};
+const options = (parent: string | null | undefined, kind: "child" | "member"): ConcreteOption[] =>
+  allowedChildConcretes(parent, kind).map((id) => ({ id, label: CONCRETE_LABELS[id] }));
 
 /** The schemas creatable AT `node` (its format/concrete), each with its concrete options + default.
- *  A child of a compatible parent, else a member of a directory, else nothing. `labels` maps a schema
- *  to its (fetched) title; the schema path is the fallback. */
+ *  A child of a compatible parent, else a member of a directory, else nothing. Which concretes are
+ *  OFFERED and which one is the DEFAULT are the inheritance rules' calls (concrete-rules.ts —
+ *  a directory-concrete chapter defaults subchapters to subdirectories, the ex-66 shape; a
+ *  single-file chapter defaults inline). `labels` maps a schema to its (fetched) title; the
+ *  schema path is the fallback. */
 export function creatablesFor(node: { format?: string | null; concrete?: string | null }, labels: Record<string, string>): Creatable[] {
   const out: Creatable[] = [];
   for (const c of CREATABLE_SCHEMAS) {
     const label = labels[c.schema] || schemaLabel(c.schema);
     if (node.format && c.childOf.includes(node.format)) {
-      out.push({ schema: c.schema, label, concretes: CHILD_CONCRETES, defaultConcrete: "yamlover" });
+      out.push({ schema: c.schema, label, concretes: options(node.concrete, "child"), defaultConcrete: defaultChildConcrete(node.concrete) });
     } else if (isDirConcrete(node.concrete)) {
-      out.push({ schema: c.schema, label, concretes: MEMBER_CONCRETES, defaultConcrete: "dir/yamlover" });
+      out.push({ schema: c.schema, label, concretes: options(node.concrete, "member"), defaultConcrete: defaultChildConcrete(node.concrete) });
     }
   }
   // Any filesystem directory (a plain dir OR a dir-backed document) can also gain a generic NODE —
   // an UNTAGGED yamlover document (no schema meta, an empty scalar body), stored as a member file
   // or (the default) a dir/yamlover directory. Creating one opens it in yamlover editing mode.
   if (isDirConcrete(node.concrete)) {
-    out.push({ schema: NODE_SCHEMA, label: "node", concretes: MEMBER_CONCRETES, defaultConcrete: "dir/yamlover" });
+    out.push({ schema: NODE_SCHEMA, label: "node", concretes: options(node.concrete, "member"), defaultConcrete: defaultChildConcrete(node.concrete) });
   }
   return out;
 }

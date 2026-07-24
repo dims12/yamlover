@@ -1404,3 +1404,60 @@ describe("LIVE keyed trigger on committed tokens — `abc` + `: ` restructures l
     expect(container.textContent).not.toContain("A Title");
   });
 });
+
+// A dir-backed pointer-array body (examples/56-array-of-files): positional members arrive as
+// `$yamloverMixed` entries flagged `anchor: true` — drawn `- &key value`, the anchor a DIMMED
+// read-only decoration; the unreferenced remainder is ordinary keyed rows. Value edits address
+// the KEYED store path; structural ops (remove/indent/dedent) emit nothing for derived entries —
+// membership and order belong to body.yamlover, which the yed does not rewrite (v1).
+describe("derived anchors — positional members of a dir-backed pointer-array", () => {
+  const DIR56 = {
+    path: ":d", type: "mixed", concrete: "dir", title: null, description: null,
+    value: {
+      $yamloverMixed: {
+        kind: "mix",
+        entries: [
+          { key: "anyfile01", value: "Alice", anchor: true },
+          { key: "alsoany02", value: 42, anchor: true },
+          { key: "andany04.json", value: "string" }, // keyed-only remainder — no anchor
+        ],
+      },
+    },
+  };
+
+  it("draws `- &key value` rows with dimmed read-only anchors; the remainder keeps `key:`", async () => {
+    fetchNode.mockResolvedValue(DIR56);
+    const { container } = await mount(":d");
+    const anchors = Array.from(container.querySelectorAll<HTMLElement>(".anchor.derived"));
+    expect(anchors.map((a) => a.textContent)).toEqual(["&anyfile01", "&alsoany02"]);
+    expect(container.querySelectorAll(".yaml-dash")).toHaveLength(2); // one dash per positional member
+    for (const a of anchors) expect(a.hasAttribute("data-yed-cell")).toBe(false); // decoration, not a cell
+    // the value rides the dash row, right after the anchor
+    const row = anchors[0].closest(".yed-row")!;
+    expect(row.textContent).toContain("Alice");
+    // the unreferenced file is an ordinary keyed row — no dash, no anchor
+    expect(Array.from(container.querySelectorAll(".k")).map((k) => k.textContent)).toContain("andany04.json");
+  });
+
+  it("a value edit emplaces at the KEYED path", async () => {
+    fetchNode.mockResolvedValue(DIR56);
+    const { container } = await mount(":d");
+    const alice = Array.from(container.querySelectorAll<HTMLElement>("[data-yed-cell]")).find((c) => c.textContent === "Alice")!;
+    type(alice, "Alicia");
+    fireEvent.blur(alice);
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":d:anyfile01", op: "emplace", yamlover: "Alicia" }]), { timeout: 2000 });
+    expect(editChunks).toHaveBeenCalledTimes(1);
+  });
+
+  it("Tab on a derived member emits nothing and moves nothing (order is body.yamlover's)", async () => {
+    fetchNode.mockResolvedValue(DIR56);
+    const { container } = await mount(":d");
+    const fortyTwo = Array.from(container.querySelectorAll<HTMLElement>("[data-yed-cell]")).find((c) => c.textContent === "42")!;
+    fortyTwo.focus();
+    expect(document.activeElement).toBe(fortyTwo);
+    fireEvent.keyDown(fortyTwo, { key: "Tab" });
+    await new Promise((r) => setTimeout(r, 600)); // past the 500ms flush debounce
+    expect(editChunks).not.toHaveBeenCalled();
+    expect(container.querySelectorAll(".anchor.derived")).toHaveLength(2); // both rows still top-level
+  });
+});

@@ -12,13 +12,13 @@ import { call, callBody } from "./http";
 
 const DEFS = {
   "$defs/chapter":
-    "type: variant\nproperties:\n  title:\n    type: string\n  description:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n",
+    "type: variant\nproperties:\n  title:\n    type: string\n  description:\n    type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n",
   "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
 };
 const TAG_FILE = { "tags.yamlover": 'yellow: !!<*::yamlover:$defs:tag>\n  color: "#f9e2af"\n' };
 const TAG = ":tags.yamlover:yellow";
 // title (store index 0) + two prose block chunks (indices 1, 2); "word" repeats in the title and [1].
-const CHAPTER = "!!<*yamlover/$defs/chapter>\ntitle: The word in the title\n- |\n  the word appears here in a chunk\n- |\n  and again elsewhere\n";
+const CHAPTER = "!!<*yamlover: $defs: chapter>\ntitle: The word in the title\n- |\n  the word appears here in a chunk\n- |\n  and again elsewhere\n";
 const bodyOf = (root: string) => fs.readFileSync(path.join(root, "doc.yamlover"), "utf8");
 
 async function chapterHandlers() {
@@ -81,7 +81,7 @@ describe("chunk text fragments (ANNOTATIONS.md §3)", () => {
 
   it("refuses to tag a non-prose (pointer) chunk's text", async () => {
     const root = tmpTree({
-      "doc.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: T\n- *pic.png\n",
+      "doc.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: T\n- *pic.png\n",
       "pic.png": "\x89PNG binary",
       ...TAG_FILE,
       ...DEFS,

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 
 vi.mock("../../src/client/api", () => ({
   fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
@@ -298,12 +298,14 @@ describe("NodeView", () => {
     await screen.findByText("a");
     const edit = await screen.findByRole("button", { name: /Edit/ });
     expect(edit.classList.contains("lockbtn")).toBe(true);
-    // LOCKED: the scalar is read-only (a plain highlighted span, not contentEditable)
-    expect(screen.getByText("1").getAttribute("contenteditable")).toBeNull();
+    // LOCKED: the scalar is read-only (a plain highlighted span, not contentEditable).
+    // Scope to the code pane — the depth slider's tick labels also spell digits.
+    const scalar = () => within(document.querySelector("pre.code, .yed") as HTMLElement).getByText("1");
+    expect(scalar().getAttribute("contenteditable")).toBeNull();
     // UNLOCK: the scalar becomes an inline editable field
     fireEvent.click(edit);
     await screen.findByRole("button", { name: /Done/ });
-    const field = screen.getByText("1");
+    const field = scalar();
     expect(field.getAttribute("contenteditable")).toBe("true");
     expect(field.classList.contains("editable")).toBe(true);
   });
@@ -335,7 +337,7 @@ describe("NodeView", () => {
     unmount();
     mNode.mockResolvedValue(node);
     render(<NodeView path=":x.json" format="json5p" onFormat={() => {}} onNavigate={() => {}} />);
-    await screen.findByText("1");
+    await waitFor(() => expect(within(document.querySelector("pre.code") as HTMLElement).getByText("1")).toBeTruthy());
     expect((screen.getByRole("button", { name: /Edit/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -345,6 +347,74 @@ describe("NodeView", () => {
     render(<NodeView path=":.yamlover:settings.yamlover" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("sidecars"); // the raw data view, not the old settings textarea
     expect(await screen.findByRole("button", { name: /Edit/ })).toBeTruthy();
+  });
+
+  it("a dir-backed pointer-array renders positional members as `- &key value` with DIMMED derived anchors; the unreferenced remainder as plain keyed rows", async () => {
+    // the 56-array-of-files shape: three members named by the body (anchor: true), one file on
+    // disk the body never referenced — a keyed-only tail, never granted a position
+    mNode.mockResolvedValue({
+      path: ":d", type: "mixed", concrete: "dir", hasKeyed: true, hasOrdinal: true,
+      title: null, description: null,
+      value: {
+        $yamloverMixed: {
+          kind: "mix",
+          entries: [
+            { key: "anyfile01", value: "Alice", anchor: true },
+            { key: "alsoany02", value: 42, anchor: true },
+            { key: "andany04.json", value: "string" },
+          ],
+        },
+      },
+    });
+    const { container } = render(<NodeView path=":d" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByText("Alice");
+    const anchors = Array.from(container.querySelectorAll<HTMLElement>(".anchor.derived"));
+    expect(anchors.map((a) => a.textContent)).toEqual(["&anyfile01", "&alsoany02"]);
+    expect(container.querySelectorAll(".yaml-dash")).toHaveLength(2); // one dash per positional member
+    // the remainder is an ordinary `key: value` row — no dash, no anchor
+    expect(Array.from(container.querySelectorAll(".k")).map((k) => k.textContent)).toContain("andany04.json");
+    const text = container.textContent!;
+    expect(text).toContain("- &anyfile01 Alice");
+    expect(text).toContain("andany04.json:");
+  });
+});
+
+describe("chapter media drop — targets the ENCLOSING chapter section", () => {
+  const mixed = (o: Record<string, unknown>) => ({ $yamloverMixed: { kind: "mix", entries: [], ...o } });
+  const chapterPage = () => {
+    const sub = mixed({ kind: "omni", value: "Dogs", selfAt: 0, entries: [{ key: null, value: "woof" }] });
+    mNode.mockResolvedValue({
+      path: ":doc", type: "mixed", format: "x-yamlover-chapter", concrete: "dir/yamlover", documentPath: ":doc",
+      title: "Book", description: null,
+      value: mixed({
+        kind: "omni", value: "Book", selfAt: 0, format: "x-yamlover-chapter",
+        entries: [{ key: null, value: "intro" }, { key: null, value: sub }],
+      }),
+    });
+    mPasteFile.mockResolvedValue({ path: ":doc:bone.png", chapter: ":doc" });
+  };
+  const dropOn = (el: Element) => {
+    const file = new File(["PNG"], "bone.png", { type: "image/png" });
+    fireEvent.drop(el, { dataTransfer: { types: ["Files"], files: [file] } });
+  };
+
+  it("a drop INSIDE an inlined subchapter section uploads to THAT chapter's path", async () => {
+    chapterPage();
+    render(<NodeView path=":doc" format="chapter" onFormat={() => {}} onNavigate={() => {}} />);
+    await waitFor(() => expect(document.querySelector("section.chapter-sub")).toBeTruthy());
+    dropOn(document.querySelector("section.chapter-sub .chapter-prose")!);
+    // the unified confirm popup names the drop; confirm uploads to the SUBCHAPTER's path
+    fireEvent.click(await screen.findByRole("button", { name: "Upload" }));
+    await waitFor(() => expect(mPasteFile).toHaveBeenCalledWith(":doc[1]", "bone.png", expect.any(String)));
+  });
+
+  it("a drop OUTSIDE any section targets the page root", async () => {
+    chapterPage();
+    render(<NodeView path=":doc" format="chapter" onFormat={() => {}} onNavigate={() => {}} />);
+    await waitFor(() => expect(document.querySelector("h1.chapter-title")).toBeTruthy());
+    dropOn(document.querySelector("h1.chapter-title")!);
+    fireEvent.click(await screen.findByRole("button", { name: "Upload" }));
+    await waitFor(() => expect(mPasteFile).toHaveBeenCalledWith(":doc", "bone.png", expect.any(String)));
   });
 });
 

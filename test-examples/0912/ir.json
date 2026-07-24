@@ -1,7 +1,7 @@
 {
   "root": {
     "kind": "mapping",
-    "array": true,
+    "array": false,
     "set": false,
     "anchors": [],
     "entries": [
@@ -35,6 +35,18 @@
         "value": {
           "kind": "scalar",
           "value": true,
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "andany04.json",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "string",
           "array": false,
           "set": false,
           "anchors": [],

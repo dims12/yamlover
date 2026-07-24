@@ -24,7 +24,7 @@ const subTitle = (marker: unknown): unknown => {
 };
 const CHAPTER_DEFS = {
   "$defs/chapter":
-    "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n",
+    "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n",
   "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
 };
 
@@ -63,14 +63,14 @@ describe("/api/tag (create)", () => {
   });
 
   it("appends to an existing taxonomy body without clobbering it", async () => {
-    const root = tmpTree({ "tags/.yamlover/body.yamlover": "old: !!<*yamlover/$defs/tag>\n" });
+    const root = tmpTree({ "tags/.yamlover/body.yamlover": "old: !!<*yamlover: $defs: tag>\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
     const r = await callBody(h, "POST", "/api/tag", { name: "new" });
     expect(r.status).toBe(201);
     const body = fs.readFileSync(path.join(root, "tags", ".yamlover", "body.yamlover"), "utf8");
-    expect(body).toContain("old: !!<*yamlover/$defs/tag>");
+    expect(body).toContain("old: !!<*yamlover: $defs: tag>");
     expect(body).toContain("new: !!<*::yamlover:$defs:tag>");
     expect(call(h, "/api/json", { path: ":tags:old" }).json.format).toBe("x-yamlover-tag");
   });
@@ -223,7 +223,7 @@ describe("annotating a node never changes how it reads", () => {
   it("a chapter keeps its title after the title itself is annotated", async () => {
     const root = tmpTree({
       "chap.yamlover": "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n',
-      "$defs/chapter": "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n",
+      "$defs/chapter": "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n",
       "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
     });
     const h = createHandlers(root, { gitignore: false });
@@ -299,7 +299,7 @@ describe("/api/paste", () => {
 
   it("onto a chapter: the file lands in its directory AND a pointer chunk is appended", async () => {
     const root = tmpTree({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\n" + 'title: "T"\n- "Hello"\n',
+      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n',
       ...CHAPTER_DEFS,
     });
     const h = createHandlers(root, { gitignore: false });
@@ -307,20 +307,20 @@ describe("/api/paste", () => {
 
     const r = await callBody(h, "POST", "/api/paste", { path: ":doc", filename: "pic.png", contentBase64: b64("PNG") });
     expect(r.status).toBe(201);
-    expect(r.json).toMatchObject({ path: ":doc:pic.png", chapter: ":doc", pointer: "*/pic.png" });
+    expect(r.json).toMatchObject({ path: ":doc:pic.png", chapter: ":doc", pointer: "*: pic.png" });
     expect(fs.existsSync(path.join(root, "doc", "pic.png"))).toBe(true);
 
     // the pointer chunk is appended to the positional body, after the last item
     const body = fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8");
     const lines = body.split("\n");
-    expect(lines.indexOf("- */pic.png")).toBe(lines.indexOf('- "Hello"') + 1);
+    expect(lines.indexOf("- *: pic.png")).toBe(lines.indexOf('- "Hello"') + 1);
   });
 
   // `inline`: the WYSIWYG editor uploading an image pasted INTO a prose chunk. The file must land,
   // and the body must not gain a chunk — the editor is placing its own embed token in the sentence,
   // and an appended chunk would put the picture on the page twice.
   it("onto a chapter with inline: the file lands, the body is untouched, and it does not auto-open", async () => {
-    const source = "!!<*yamlover/$defs/chapter>\n" + 'title: "T"\n- "Hello"\n';
+    const source = "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n';
     const root = tmpTree({ "doc/.yamlover/body.yamlover": source, ...CHAPTER_DEFS });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -333,6 +333,48 @@ describe("/api/paste", () => {
     expect(fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8")).toBe(source);
   });
 
+  // A drop that lands on an inlined subchapter section targets THAT subchapter's path (NodeView
+  // resolves `data-chapter-path`): the media must go into the SUBCHAPTER's own directory and its
+  // body gains the pointer — the parent body stays untouched (the ex-66 shape).
+  it("onto a DIR-BACKED subchapter: the file lands in ITS directory, ITS body gains the pointer", async () => {
+    const root = tmpTree({
+      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\n" + '"Book"\n- intro\n- *: 01-Dogs\n',
+      "doc/01-Dogs/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\n" + '"Dogs"\n- woof\n',
+      ...CHAPTER_DEFS,
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const r = await callBody(h, "POST", "/api/paste", { path: ":doc:01-Dogs", filename: "bone.png", contentBase64: b64("PNG") });
+    expect(r.status).toBe(201);
+    expect(r.json).toMatchObject({ path: ":doc:01-Dogs:bone.png", chapter: ":doc:01-Dogs", pointer: "*: bone.png" });
+    expect(fs.existsSync(path.join(root, "doc", "01-Dogs", "bone.png"))).toBe(true);
+    const sub = fs.readFileSync(path.join(root, "doc", "01-Dogs", ".yamlover", "body.yamlover"), "utf8");
+    expect(sub).toContain("- woof\n- *: bone.png");
+    // the PARENT body is untouched
+    expect(fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8")).not.toContain("bone.png");
+  });
+
+  it("onto an INLINE subchapter path: the pointer lands INSIDE its region, the file in the doc's dir", async () => {
+    const root = tmpTree({
+      "doc/.yamlover/body.yamlover":
+        "!!<*yamlover: $defs: chapter>\n" + '"Book"\n- intro\n- Dogs\n  - woof\n- outro\n',
+      ...CHAPTER_DEFS,
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    // the inline subchapter `Dogs` is body entry [1] (after `- intro`)
+    const r = await callBody(h, "POST", "/api/paste", { path: ":doc[1]", filename: "bone.png", contentBase64: b64("PNG") });
+    expect(r.status).toBe(201);
+    expect(fs.existsSync(path.join(root, "doc", "bone.png"))).toBe(true); // the doc's own dir
+    const body = fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8");
+    const lines = body.split("\n");
+    // the pointer sits INSIDE the subchapter (indented under `- Dogs`), before `- outro`
+    expect(lines.indexOf("  - *: bone.png")).toBe(lines.indexOf("  - woof") + 1);
+    expect(lines.indexOf("- outro")).toBeGreaterThan(lines.indexOf("  - *: bone.png"));
+  });
+
   it("rejects an empty paste", async () => {
     const h = createHandlers(tmpTree({ name: "Alice" }), { gitignore: false });
     await h.ready;
@@ -343,7 +385,7 @@ describe("/api/paste", () => {
 
 describe("/api/paste (text)", () => {
   // an omni chapter: title (keyed), then a positional body (a chunk + a subchapter)
-  const CHAPTER = "!!<*yamlover/$defs/chapter>\n" + 'title: "T"\n- "Hello"\n- title: "Sub"\n  - "First"\n';
+  const CHAPTER = "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n- title: "Sub"\n  - "First"\n';
 
   it("text onto a directory: a new chapter .yamlover file, titled from the first line", async () => {
     const root = tmpTree({ "dir/keep.txt": "x", ...CHAPTER_DEFS });
@@ -429,7 +471,7 @@ describe("/api/paste (text)", () => {
 describe("/api/paste (rich — an HTML selection: image chunks + heading subchapters)", () => {
   const b64 = (s: string) => Buffer.from(s).toString("base64");
   // the wire `rich` payload still carries chunks/children; the SOURCE it writes is a positional body
-  const CHAPTER = "!!<*yamlover/$defs/chapter>\n" + 'title: "T"\n- "Hello"\n- title: "Old"\n  - "First"\n';
+  const CHAPTER = "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n- title: "Old"\n  - "First"\n';
 
   it("onto a chapter: chunks (text+image) then subchapters append to the positional body, in order", async () => {
     const root = tmpTree({ "doc/.yamlover/body.yamlover": CHAPTER, ...CHAPTER_DEFS });
@@ -461,7 +503,7 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
   });
 
   it("appends a body to a minimal (body-less) chapter", async () => {
-    const root = tmpTree({ "doc/.yamlover/body.yamlover": '!!<*yamlover/$defs/chapter>\ntitle: "Bare"\n', ...CHAPTER_DEFS });
+    const root = tmpTree({ "doc/.yamlover/body.yamlover": '!!<*yamlover: $defs: chapter>\ntitle: "Bare"\n', ...CHAPTER_DEFS });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
@@ -511,8 +553,8 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
     expect(fs.readFileSync(path.join(root, "dir", "A cat article", "cat.jpg"), "utf8")).toBe("JPG");
     expect(fs.readFileSync(path.join(root, "dir", "A cat article", "cat-1.jpg"), "utf8")).toBe("JPG2");
     const body = fs.readFileSync(path.join(root, "dir", "A cat article", ".yamlover", "body.yamlover"), "utf8");
-    expect(body).toContain("- */cat.jpg");
-    expect(body).toContain("- */cat-1.jpg");
+    expect(body).toContain("- *: cat.jpg");
+    expect(body).toContain("- *: cat-1.jpg");
 
     const node = call(h, "/api/json", { path: encodeURI(":dir:A cat article"), depth: "4" });
     expect(node.json.format).toBe("x-yamlover-chapter");

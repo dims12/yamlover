@@ -12,12 +12,19 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useYedHost, type FocusAt, type YedHost } from "../yamlover-editor/host";
 import * as M from "../yamlover-editor/model";
-import type { Edit } from "../../api";
-import { MarklowerChunkEditor } from "../chunk-editors";
+import { fetchNode, type Edit, type NodeJson } from "../../api";
+import { asMixed } from "../../render";
+import { canonPath } from "../../paths";
+import { chunkEditorFor, MarklowerChunkEditor } from "../chunk-editors";
 import { markupWidthCh } from "../markup";
 import { anchorOf, childSlot, CHAPTER_META, isSubchapter } from "../chapter-model";
+import { ChapterBody, ChunkGutter, ChunkShell, EditableLine, renderChunkBody, SubchapterHeading } from "../chapter-shared";
+import { sublistKind } from "../list";
+import { viewDepth } from "../depth";
+import { useHashScroll } from "../headings";
+import { TableChunk } from "../table";
 import { focusEnd, focusStart } from "../caret";
-import { enclosingFormat, formatOfNode, type ChosenFormat } from "./format";
+import { declaredFormat, enclosingFormat, formatOfNode, proseFormatOfTag, type BlockFormat, type ChosenFormat } from "./format";
 import { formatTarget } from "./tab";
 import {
   commitProse, createFirstChunk, demoteDescription, demoteTitle, joinProse, makeDescription,
@@ -54,8 +61,17 @@ const useProj = (): Proj => useContext(ProjCtx)!;
 
 export function ChapterProjection({ path, onNavigate }: { path: string; onNavigate: (p: string) => void }) {
   const host = useYedHost(path, onNavigate);
+  // The `?depth=` window (depth.tsx), the READ VIEW's semantics mirrored: depth 1 shows this
+  // page's own level with subchapters as heading links; each further level inlines one more.
+  // Re-read every render, so the slider's `rerender` repaints at the new depth with NO refetch
+  // (the host's own unlimited fetch is untouched). Inlined SEPARATE-document subchapters are
+  // read-only — only this page's document is editable; editing one means descending to it.
+  const budget = viewDepth() ?? Infinity;
   const [focus, setFocus] = useState<Focus | null>(null);
   const [active, setActive] = useState<Active | null>(null);
+  // a `#[1]` deep link must land while unlocked too — the anchors are the same anchorOf ids the
+  // read view renders (ChunkShell); re-run whenever the model rebuilds
+  useHashScroll(host.version);
   const opened = useRef(false);
   useEffect(() => {
     if (opened.current || !host.root) return;
@@ -87,7 +103,22 @@ export function ChapterProjection({ path, onNavigate }: { path: string; onNaviga
       }
       return edits;
     });
-    if (next) setFocus(next);
+    if (next) {
+      // AUTO-DESCEND: an edit whose caret lands DEEPER than the depth window (a Tab-wrap at the
+      // boundary, Enter walking into a hidden body) navigates the page one level down along the
+      // caret's path instead of leaving the focus in a cell that cannot render. Cheap by design:
+      // a pushState + one node fetch (pending ops flush on unmount, host.ts); the child page
+      // shows the edited level at depth 0, so the guard cannot re-fire there.
+      const r = host.rootRef.current;
+      const deeper = r && Number.isFinite(budget) ? beyondWindow(host, r, next.id, budget) : null;
+      if (deeper) {
+        // flush FIRST: a just-materialized member's insert op must reach the server before the
+        // child page fetches it (the op queue debounces; unmount-flush alone would race)
+        void host.flush().then(() => onNavigate(deeper));
+        return;
+      }
+      setFocus(next);
+    }
   };
 
   /** Set the active block's format. Ctrl+Alt+1..4 and the bar both land here. */
@@ -161,7 +192,7 @@ export function ChapterProjection({ path, onNavigate }: { path: string; onNaviga
           choose(n);
         }}
       >
-        <ChapterNode node={host.root} nodePath={host.path} level={0} />
+        <ChapterNode node={host.root} nodePath={host.path} level={0} budget={budget} />
       </div>
     </ProjCtx.Provider>
   );
@@ -241,7 +272,7 @@ function rolesOf(root: M.MNode, active: Active | null): { title: RoleState; desc
  *  exists only when the model does, and any chunk becomes one via the bar's T / D buttons. An
  *  empty chapter renders one bootstrap paragraph so there is always somewhere to type.
  *  `entryId` is the subchapter's own entry — Tab/Shift-Tab on its TITLE moves the whole subchapter. */
-function ChapterNode({ node, nodePath, level, entryId }: { node: M.MNode; nodePath: string; level: number; entryId?: string }) {
+function ChapterNode({ node, nodePath, level, budget, entryId }: { node: M.MNode; nodePath: string; level: number; budget: number; entryId?: string }) {
   const proj = useProj();
   const { host, focus, clearFocus, run, tabRun, setActive } = proj;
   const Heading = `h${Math.min(level + 1, 6)}` as "h1";
@@ -249,7 +280,7 @@ function ChapterNode({ node, nodePath, level, entryId }: { node: M.MNode; nodePa
   return (
     <>
       {node.selfValue != null && (
-        <HeadingCell
+        <EditableLine
           as={Heading}
           className="chapter-title"
           value={String(node.selfValue?.value ?? "")}
@@ -262,13 +293,13 @@ function ChapterNode({ node, nodePath, level, entryId }: { node: M.MNode; nodePa
             const found = M.findNode(r, node.id);
             const desc = (found?.node ?? r).entries.find((e) => e.key === "description");
             if (desc) return { edits: [], focus: { id: desc.node.id, at: "end" } };
-            return firstBodyFocus(host.path, r, node.id);
+            return firstBodyFocus(host.path, r, node.id, host.concreteRef.current, r.metaTag);
           })}
           onTab={entryId ? (shift) => tabRun(entryId, shift) : undefined}
           onArrow={(dir) => walkCaret(host.rootEl.current, dir)}
         />
       )}
-      <BlockBody node={node} nodePath={nodePath} level={level} />
+      <BlockBody node={node} nodePath={nodePath} level={level} budget={budget} />
       {!hasBody && <BootstrapCell node={node} />}
     </>
   );
@@ -291,12 +322,12 @@ function BootstrapCell({ node }: { node: M.MNode }) {
           placeholder="Write…"
           onFocused={clearFocus}
           onChangeText={(t) => run((r) => {
-            const out = createFirstChunk(host.path, r, node.id, t);
+            const out = createFirstChunk(host.path, r, node.id, t, host.concreteRef.current, r.metaTag);
             // the real entry-backed cell replaces this one — the caret must follow into it
             return out && { edits: out.edits, focus: { id: out.focusId, at: "end" } };
           })}
           onSplit={(head, tail) => run((r) => {
-            const first = createFirstChunk(host.path, r, node.id, head);
+            const first = createFirstChunk(host.path, r, node.id, head, host.concreteRef.current, r.metaTag);
             if (!first) return null;
             const sp = splitProse(host.path, r, first.entryId, head, tail);
             if (!sp) return { edits: first.edits, focus: { id: first.focusId, at: "end" } };
@@ -314,7 +345,7 @@ function BootstrapCell({ node }: { node: M.MNode }) {
 /** A container's body entries rendered as blocks — shared by a chapter and a list item. Chunks
  *  carry the same `§N` gutter as the read view (numbering restarts per chapter, subchapters
  *  consume no number), so the page reads identically locked and unlocked. */
-function BlockBody({ node, nodePath, level }: { node: M.MNode; nodePath: string; level: number }) {
+function BlockBody({ node, nodePath, level, budget }: { node: M.MNode; nodePath: string; level: number; budget: number }) {
   const proj = useProj();
   const out: JSX.Element[] = [];
   let chunkNo = 0;
@@ -335,35 +366,109 @@ function BlockBody({ node, nodePath, level }: { node: M.MNode; nodePath: string;
       const f = formatOfNode(child);
       if (f === "bullets" || f === "numbered") {
         out.push(
-          <div key={entry.id} className="chunk" id={anchor || undefined}>
-            <ChunkNo index={chunkNo++} anchor={anchor} />
-            <div className="chunk-body"><ListNode node={child} nodePath={childPath} kind={f} /></div>
-          </div>,
+          <ChunkShell key={entry.id} anchor={anchor} gutter={<ChunkGutter index={chunkNo++} anchor={anchor || null} />}>
+            <ListNode node={child} nodePath={childPath} kind={f} />
+          </ChunkShell>,
+        );
+        return;
+      }
+      if (f === "table") {
+        // an editable grid — the table renderer's own surface (its cells post their own
+        // single-op emplaces, gated by the same EditingContext). The model keeps no wire
+        // marker to feed Grid, so TableChunk's non-inline path fetches the node itself; the
+        // host's SSE refetch reconciles the model afterwards.
+        out.push(
+          <ChunkShell key={entry.id} anchor={anchor} gutter={<ChunkGutter index={chunkNo++} anchor={anchor || null} />}>
+            <TableChunk
+              chunk={{ value: null, path: childPath, type: "array", format: "x-yamlover-table", valueType: null, hasKeyed: false, hasOrdinal: true }}
+              onNavigate={proj.onNavigate}
+            />
+          </ChunkShell>,
         );
         return;
       }
       if (f === "chapter") {
+        // an inline (same-document) subchapter: editable while the depth window reaches its
+        // body; past the window only its heading shows, as a link one page down — the SAME
+        // face as the read view (the depth-styling rule, chapter-shared.tsx). A subchapter
+        // wrapped THIS session (omniPending — Tab, zero ops so far) stays editable at any
+        // depth: hiding it would strand the uncommitted wrap; the descend fires at its
+        // MATERIALIZATION instead (the run guard).
         out.push(
-          <section key={entry.id} className="chapter-sub" data-chapter-path={childPath}>
-            <ChapterNode node={child} nodePath={childPath} level={level + 1} entryId={entry.id} />
-          </section>,
+          budget > 1 || child.omniPending ? (
+            <section key={entry.id} className="chapter-sub" data-chapter-path={childPath}>
+              <ChapterNode node={child} nodePath={childPath} level={level + 1} budget={budget - 1} entryId={entry.id} />
+            </section>
+          ) : (
+            // SubchapterHeading brings its own chapter-sub section (same indent as inlined)
+            <SubchapterHeading
+              key={entry.id}
+              path={childPath}
+              title={String(child.selfValue?.value ?? "")}
+              level={level + 1}
+              id={anchor || undefined}
+              onNavigate={proj.onNavigate}
+            />
+          ),
         );
         return;
       }
     }
-    // a tagged table, a pointer, or a binary chunk — read-only in this projection for now
+    if (child.kind === "pointer" || child.kind === "link") {
+      out.push(<LinkedBlock key={entry.id} node={child} path={childPath} index={chunkNo++} anchor={anchor} level={level} budget={budget} />);
+      return;
+    }
+    // a binary chunk or a container of no known chapter shape — read-only placeholder
     out.push(<ReadOnlyBlock key={entry.id} node={child} path={childPath} index={chunkNo++} anchor={anchor} />);
   });
   return <>{out}</>;
 }
 
-/** The `§N` gutter — the same in-page anchor link the read view draws. */
-function ChunkNo({ index, anchor }: { index: number; anchor: string }) {
-  return anchor ? (
-    <a className="chunk-index" href={`#${anchor}`}>§{index}</a>
-  ) : (
-    <span className="chunk-index">§{index}</span>
-  );
+/** A `*`-pointer / link body element — a SEPARATE document. A chapter-shaped target lays out
+ *  READ-ONLY in place within the depth window (the read view's per-level recursion — the model
+ *  host never inlines a `*` reference at any fetch depth, so its body is fetched here at depth
+ *  1 exactly like the read view does); past the window it is the same `chapter-title` heading
+ *  with the title as a `descend` link. A non-chapter target (a pasted file, an image) keeps
+ *  today's navigable pointer face. Read-only by decision: only this page's document is
+ *  editable — editing a subchapter is descending to it. */
+function LinkedBlock({ node, path, index, anchor, level, budget }: { node: M.MNode; path: string; index: number; anchor: string; level: number; budget: number }) {
+  const proj = useProj();
+  const target = (node.kind === "pointer" ? node.pointer?.refPath : node.link?.path) ?? null;
+  const linkFormat = node.kind === "link" ? node.link?.format ?? null : null;
+  const cyclic = !!target && canonPath(target) === canonPath(proj.host.path);
+  const [loaded, setLoaded] = useState<NodeJson | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!target || cyclic) return;
+    let cancelled = false;
+    fetchNode(target, 1)
+      .then((n) => { if (!cancelled) setLoaded(n); })
+      .catch((e) => { if (!cancelled) setError((e as Error).message); });
+    return () => { cancelled = true; };
+  }, [target, cyclic]);
+  const chapterShaped = loaded ? isSubchapter(loaded.format ?? null) : isSubchapter(linkFormat);
+  if (target && !error && (chapterShaped || cyclic)) {
+    if (budget > 1 && !cyclic && loaded) {
+      return (
+        <ChapterBody
+          value={loaded.value}
+          nodePath={loaded.path}
+          documentPath={loaded.documentPath}
+          anchorBase={proj.host.path}
+          slot={anchor}
+          level={level + 1}
+          budget={budget - 1}
+          ancestors={[canonPath(proj.host.path), canonPath(loaded.path)]}
+          onLoaded={() => {}}
+          onNavigate={proj.onNavigate}
+        />
+      );
+    }
+    const title = (node.kind === "link" ? node.link?.title : undefined) ?? (loaded ? String(asMixed(loaded.value)?.value ?? "") : undefined);
+    const note = cyclic ? "↻ already shown above" : budget > 1 && !loaded ? "…" : undefined;
+    return <SubchapterHeading path={target} title={title} level={level + 1} id={anchor || undefined} note={note} onNavigate={proj.onNavigate} />;
+  }
+  return <ReadOnlyBlock node={node} path={path} index={index} anchor={anchor} />;
 }
 
 /** An editable typographical list: <ul>/<ol> whose items are prose (or a nested sublist). Tab in an
@@ -387,7 +492,7 @@ function ListNode({ node, nodePath, kind }: { node: M.MNode; nodePath: string; k
               // which inherits this list's kind unless the item carries an explicit tag of its own
               <>
                 {child.selfValue != null && <ProseCell entry={entry} tag="span" />}
-                <ListNode node={child} nodePath={childPath} kind={sublistKind(child, kind)} />
+                <ListNode node={child} nodePath={childPath} kind={sublistKind(formatOfNode(child), kind)} />
               </>
             ) : (
               <ReadOnlyBlock node={child} path={childPath} />
@@ -399,16 +504,12 @@ function ListNode({ node, nodePath, kind }: { node: M.MNode; nodePath: string; k
   );
 }
 
-/** A nested list item's kind: its own tag if it carries one, else the parent list's (the any-depth
- *  inheritance rule, MARKLOWER.md). */
-function sublistKind(node: M.MNode, parent: "bullets" | "numbered"): "bullets" | "numbered" {
-  const f = formatOfNode(node);
-  return f === "bullets" || f === "numbered" ? f : parent;
-}
-
-/** A prose paragraph — the shared marklower editor, wrapped so Tab nests it and focus tracks the
- *  active block. `tag` is the wrapper element (a `div.chunk` in a chapter, a bare span in a list
- *  item, so the <li> marker stays on one line). */
+/** A prose paragraph — the chunk editor for its FORMAT (`!!<format: text/x-latex>` opens the
+ *  LaTeX editor; the default is marklower), wrapped so Tab nests it and focus tracks the active
+ *  block. A format with NO editor (csv, plantuml, asciidoc, …) renders READ-ONLY through its own
+ *  renderer — the flat editor's rule, and what keeps structured text from being mangled as prose.
+ *  `tag` is the wrapper element (a `div.chunk` in a chapter, a bare span in a list item, so the
+ *  <li> marker stays on one line). */
 function ProseCell({ entry, tag = "chunk", index, anchor }: { entry: M.MEntry; tag?: "chunk" | "span"; index?: number; anchor?: string }) {
   const proj = useProj();
   const { host, focus, clearFocus, run, setActive } = proj;
@@ -420,8 +521,23 @@ function ProseCell({ entry, tag = "chunk", index, anchor }: { entry: M.MEntry; t
   const commit = (t: string): Edit[] =>
     self ? setSelf(host.path, host.rootRef.current!, node.id, t, /* asSelfValue */ true) : commitProse(host.path, host.rootRef.current!, node.id, t);
 
+  const fmt = proseFormatOfTag(node.metaTag);
+  const Editor = chunkEditorFor(fmt);
+  if (!Editor) {
+    const body = renderChunkBody(
+      { value: text, path: "", type: "string", format: fmt, valueType: "string", hasKeyed: false, hasOrdinal: false },
+      proj.onNavigate,
+    );
+    if (tag === "span") return <span className="chunk-inline">{body}</span>;
+    return (
+      <ChunkShell anchor={anchor} gutter={index !== undefined ? <ChunkGutter index={index} anchor={anchor ?? null} /> : null}>
+        {body}
+      </ChunkShell>
+    );
+  }
+
   const inner = (
-    <MarklowerChunkEditor
+    <Editor
       text={text}
       rev={node.rev}
       chapterPath={host.path}
@@ -456,10 +572,14 @@ function ProseCell({ entry, tag = "chunk", index, anchor }: { entry: M.MEntry; t
 
   if (tag === "span") return <span className="chunk-inline" onKeyDownCapture={onKeyDownCapture} onFocus={onFocus}>{inner}</span>;
   return (
-    <div className="chunk" id={anchor || undefined} onKeyDownCapture={onKeyDownCapture} onFocus={onFocus}>
-      {index !== undefined && <ChunkNo index={index} anchor={anchor ?? ""} />}
-      <div className="chunk-body">{inner}</div>
-    </div>
+    <ChunkShell
+      anchor={anchor}
+      gutter={index !== undefined ? <ChunkGutter index={index} anchor={anchor ?? null} /> : null}
+      onKeyDownCapture={onKeyDownCapture}
+      onFocus={onFocus}
+    >
+      {inner}
+    </ChunkShell>
   );
 }
 
@@ -468,7 +588,7 @@ function DescriptionCell({ entry, node }: { entry: M.MEntry; node: M.MNode }) {
   const proj = useProj();
   const { host, focus, clearFocus, run, setActive } = proj;
   return (
-    <HeadingCell
+    <EditableLine
       as="p"
       className="chapter-subtitle"
       placeholder="Description"
@@ -477,79 +597,8 @@ function DescriptionCell({ entry, node }: { entry: M.MEntry; node: M.MNode }) {
       onFocused={clearFocus}
       onFocus={() => setActive({ entryId: entry.id })}
       onCommit={(t) => run((r) => ({ edits: commitProse(host.path, r, entry.node.id, t) }))}
-      onEnter={() => run((r) => firstBodyFocus(host.path, r, node.id))}
+      onEnter={() => run((r) => firstBodyFocus(host.path, r, node.id, host.concreteRef.current, r.metaTag))}
       onArrow={(dir) => walkCaret(host.rootEl.current, dir)}
-    />
-  );
-}
-
-/** A single-line editable heading (title / subtitle). Uncontrolled, reset on `value` while
- *  unfocused; Enter HANDS THE CARET ON via `onEnter` rather than blurring to nowhere. */
-function HeadingCell({
-  as, value, onCommit, className, placeholder, focusNow, onFocused, onEnter, onFocus, onTab, onArrow,
-}: {
-  as: "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "p";
-  value: string;
-  onCommit: (text: string) => void;
-  className?: string;
-  placeholder?: string;
-  focusNow?: boolean;
-  onFocused?: () => void;
-  onEnter?: () => void;
-  onFocus?: () => void;
-  /** Tab/Shift-Tab — a SUBCHAPTER title moves the whole subchapter; absent, the key is consumed
-   *  (a heading never lets the browser walk focus out of the document). */
-  onTab?: (shift: boolean) => void;
-  /** Up/Down — a heading is one line, so both always walk to the adjacent cell. */
-  onArrow?: (dir: "up" | "down") => void;
-}) {
-  const ref = useRef<HTMLElement>(null);
-  const focused = useRef(false);
-  const latest = useRef(value);
-  latest.current = value;
-  const Tag = as;
-  useEffect(() => {
-    if (ref.current && !focused.current) ref.current.textContent = value;
-  }, [value]);
-  useEffect(() => {
-    if (!focusNow || !ref.current) return;
-    focusEnd(ref.current);
-    onFocused?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusNow]);
-  // Commit ONLY when the text actually changed. A blur fires whenever the caret moves anywhere
-  // else (every Enter walk, every split), and an unchanged commit is not free here: each one
-  // emits a real op into the queue.
-  const commitIfChanged = () => {
-    const t = (ref.current?.textContent ?? "").trim();
-    if (t !== latest.current) onCommit(t);
-  };
-  return (
-    <Tag
-      ref={ref as React.Ref<never>}
-      className={(className ? className + " " : "") + "editable"}
-      contentEditable
-      suppressContentEditableWarning
-      data-placeholder={placeholder}
-      onFocus={() => { focused.current = true; onFocus?.(); }}
-      onBlur={() => { focused.current = false; commitIfChanged(); }}
-      onKeyDown={(e) => {
-        if (e.key === "Tab") {
-          e.preventDefault();
-          onTab?.(e.shiftKey);
-          return;
-        }
-        if ((e.key === "ArrowUp" || e.key === "ArrowDown") && onArrow) {
-          e.preventDefault();
-          onArrow(e.key === "ArrowUp" ? "up" : "down"); // the focus move blurs → commitIfChanged
-          return;
-        }
-        if (e.key !== "Enter") return;
-        e.preventDefault();
-        focused.current = false;
-        commitIfChanged();
-        onEnter?.();
-      }}
     />
   );
 }
@@ -558,21 +607,21 @@ function HeadingCell({
  *  binary chunk. Shown read-only so it is not lost; navigable when it is a link. */
 function ReadOnlyBlock({ node, path, index, anchor }: { node: M.MNode; path: string; index?: number; anchor?: string }) {
   const { onNavigate } = useProj();
-  const gutter = index !== undefined ? <ChunkNo index={index} anchor={anchor ?? ""} /> : null;
+  const gutter = index !== undefined ? <ChunkGutter index={index} anchor={anchor ?? null} /> : null;
   if (node.kind === "pointer" || node.kind === "link") {
     const target = node.kind === "pointer" ? node.pointer?.refPath : node.link?.path;
     const text = node.kind === "pointer" ? "*" + (node.pointer?.raw ?? "") : node.link?.title ?? node.link?.path ?? path;
     return (
-      <div className="chunk" id={anchor || undefined}>{gutter}<div className="chunk-body">
+      <ChunkShell anchor={anchor} gutter={gutter}>
         <a className="descend" href={target ?? "#"} onClick={(e) => { e.preventDefault(); if (target) onNavigate(target); }}>{text}</a>
-      </div></div>
+      </ChunkShell>
     );
   }
   const label = formatOfNode(node); // table
   return (
-    <div className="chunk" id={anchor || undefined}>{gutter}<div className="chunk-body">
+    <ChunkShell anchor={anchor} gutter={gutter}>
       <p className="chapter-prose chapter-readonly-block" data-yo-chrome>[{label} — edit in the source view for now]</p>
-    </div></div>
+    </ChunkShell>
   );
 }
 
@@ -589,14 +638,39 @@ function setSelf(rootPath: string, root: M.MNode, nodeId: string, text: string, 
  *  chapter has none — so a fresh chapter is title → writing, no dead end and nothing to click.
  *  Creation goes through blocks.ts so a freshly wrapped title (a scalar entry server-side)
  *  re-emplaces the whole omni instead of descending into it. */
-function firstBodyFocus(rootPath: string, root: M.MNode, nodeId: string): { edits: Edit[]; focus?: Focus } {
+function firstBodyFocus(rootPath: string, root: M.MNode, nodeId: string, docConcrete: string | null = null, rootTag: string | null = null): { edits: Edit[]; focus?: Focus } {
   const found = M.findNode(root, nodeId);
   const node = found?.node ?? root;
   const firstProse = node.entries.find((e) => e.key === null && isProse(e.node));
   if (firstProse) return { edits: [], focus: { id: firstProse.node.id, at: "start" } };
-  const out = createFirstChunk(rootPath, root, node.id, "");
+  const out = createFirstChunk(rootPath, root, node.id, "", docConcrete, rootTag);
   if (!out) return { edits: [] };
   return { edits: out.edits, focus: { id: out.focusId, at: "start" } };
+}
+
+/** When a focus target sits DEEPER than the depth window allows, the path to descend to —
+ *  the top-level child on the caret's path (one level down) — else null. A cell's chapter
+ *  depth counts the `chapter-sub` SECTIONS enclosing it (the node itself included when it IS
+ *  a subchapter — its title cell lives inside its own section); the window shows depth `d`
+ *  cells while `budget > d` (depth 1 = this page's own level, the read view's semantics).
+ *  The count folds the same inheritance as {@link enclosingFormat}: an untagged container
+ *  inside a LIST is a sublist, never a section — only chapter-context chapters count. */
+function beyondWindow(host: YedHost, root: M.MNode, nodeId: string, budget: number): string | null {
+  const found = M.findNode(root, nodeId);
+  if (!found?.spine) return null; // the root itself — always visible
+  const parents = found.spine.parents;
+  const steps = [...parents.slice(1).map((p) => p.container), ...(found.node.kind === "container" ? [found.node] : [])];
+  let fmt: BlockFormat = "chapter"; // the context parents[0] (the root) provides
+  let d = 0;
+  for (const c of steps) {
+    const renders: BlockFormat = declaredFormat(c) ?? (fmt === "table" ? "row" : fmt === "row" ? "chapter" : fmt);
+    // an omniPending subchapter (a Tab-wrap this session) renders editable at ANY depth
+    // (BlockBody) — it never pushes the caret out of the window
+    if (fmt === "chapter" && renders === "chapter" && !c.omniPending) d++; // a `chapter-sub` section
+    fmt = renders;
+  }
+  if (budget > d) return null;
+  return pathOf(host, host.path, parents[0].container, parents[0].index);
 }
 
 /** Up/Down between cells: the caret walks to the adjacent EDITABLE cell in document order —

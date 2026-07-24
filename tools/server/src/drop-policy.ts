@@ -1,6 +1,6 @@
 // Drop POLICY — the rules deciding whether a drag-drop operation is possible and, when it
 // is, WHAT it will do. This module is deliberately tiny and pure (no I/O, no DOM): like
-// derive-concrete.ts it is the part meant to be refined over time (per-schema rules, new
+// concrete-rules.ts it is the part meant to be refined over time (per-schema rules, new
 // operation kinds, …) while the mechanics (HTML5 DnD wiring, /api/mv, /api/paste) stay in
 // the client surfaces and engine-api.ts.
 //

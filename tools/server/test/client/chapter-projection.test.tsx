@@ -19,12 +19,12 @@ const mixed = (o: Record<string, unknown>) => ({ $yamloverMixed: { kind: "mix", 
 
 /** A chapter node fetched by the host: title (self-value), optional description, prose body, and an
  *  optional inline subchapter. */
-function chapterNode(opts: { title?: string; description?: string; body?: unknown[] } = {}): NodeJson {
+function chapterNode(opts: { title?: string; description?: string; body?: unknown[]; concrete?: string } = {}): NodeJson {
   const entries: { key: string | null; value: unknown }[] = [];
   if (opts.description) entries.push({ key: "description", value: opts.description });
   for (const v of opts.body ?? []) entries.push({ key: null, value: v });
   return {
-    path: ":doc", type: "object", concrete: "dir/yamlover", documentPath: ":doc", title: null, description: null,
+    path: ":doc", type: "object", concrete: opts.concrete ?? "dir/yamlover", documentPath: ":doc", title: null, description: null,
     value: mixed({ kind: "omni", value: opts.title ?? "", selfAt: 0, format: "x-yamlover-chapter", entries }),
     comments: { "": { tag: "!!<*yamlover: $defs: chapter>" } },
   } as unknown as NodeJson;
@@ -158,8 +158,27 @@ describe("ChapterProjection — editing", () => {
     expect(editChunks).not.toHaveBeenCalled();
   });
 
-  it("Enter out of a freshly promoted title re-emplaces the whole omni (no scalar descent)", async () => {
+  it("Enter out of a freshly promoted title MATERIALIZES the subchapter (dir-concrete chapter)", async () => {
     const utils = renderSync(chapterNode({ title: "Book", body: ["parent", "child"] }));
+    await settle();
+    fireEvent.keyDown(utils.container.querySelectorAll(".chapter-prose")[1], { key: "Tab" });
+    await act(async () => { await Promise.resolve(); });
+    const h2 = utils.container.querySelector("section.chapter-sub h2.chapter-title")!;
+    fireEvent.keyDown(h2, { key: "Enter" });
+    await act(async () => { await Promise.resolve(); });
+    const batch = await flush();
+    // THE DEFERRED MATERIALIZATION: in a dir-concrete chapter the first body commit removes the
+    // inline `- child` line and re-inserts the subchapter as its OWN SUBDIRECTORY, named by its
+    // title and tagged with the enclosing chapter's schema
+    expect(batch).toEqual([
+      { path: ":doc[1]", op: "remove" },
+      { path: ":doc[1]", op: "insert", concrete: "dir/yamlover", name: "child", yamlover: 'child\n- ""', meta: "*yamlover: $defs: chapter" },
+    ]);
+    expect(document.activeElement).toBe(utils.container.querySelector("section.chapter-sub .chunk-body .chapter-prose"));
+  });
+
+  it("Enter out of a freshly promoted title re-emplaces the whole omni in a FILE chapter (no scalar descent)", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: ["parent", "child"], concrete: "file/yamlover" }));
     await settle();
     fireEvent.keyDown(utils.container.querySelectorAll(".chapter-prose")[1], { key: "Tab" });
     await act(async () => { await Promise.resolve(); });
@@ -171,6 +190,105 @@ describe("ChapterProjection — editing", () => {
     // the whole omni at the entry's own path, never insert INTO the scalar (a 400)
     expect(batch).toEqual([{ path: ":doc[1]", op: "emplace", yamlover: 'child\n- ""' }]);
     expect(document.activeElement).toBe(utils.container.querySelector("section.chapter-sub .chunk-body .chapter-prose"));
+  });
+
+  it("a Cyrillic title materializes under a pointer-safe UNICODE name; typing after Enter addresses it BY KEY", async () => {
+    // the EmptyYamlover regression: «Заголовок части» must not collapse into underscores, and
+    // the chunk typed after materialization must not address the subchapter positionally — the
+    // member sorts before the body entries once indexed, so `[i]` would hit the wrong sibling
+    // ("cannot descend into a scalar element")
+    const utils = renderSync(chapterNode({ title: "Книга", body: ["Абзац", "Заголовок части"] }));
+    await settle();
+    fireEvent.keyDown(utils.container.querySelectorAll(".chapter-prose")[1], { key: "Tab" });
+    await act(async () => { await Promise.resolve(); });
+    const h2 = utils.container.querySelector("section.chapter-sub h2.chapter-title")!;
+    fireEvent.keyDown(h2, { key: "Enter" });
+    await act(async () => { await Promise.resolve(); });
+    const batch = await flush();
+    expect(batch).toEqual([
+      { path: ":doc[1]", op: "remove" },
+      { path: ":doc[1]", op: "insert", concrete: "dir/yamlover", name: "Заголовок_части", yamlover: 'Заголовок части\n- ""', meta: "*yamlover: $defs: chapter" },
+    ]);
+    // now type into the fresh first chunk — the NEXT batch must go to the keyed member path
+    editChunks.mockClear();
+    const chunk = utils.container.querySelector("section.chapter-sub .chunk-body .chapter-prose") as HTMLElement;
+    chunk.textContent = "Первый абзац";
+    fireEvent.input(chunk);
+    const batch2 = await flush();
+    // the key is the PREDICTED numbered member name (nextMemberName — shared with the server)
+    expect(batch2).toEqual([{ path: `:doc:${encodeURIComponent("01-Заголовок_части")}[0]`, op: "emplace", yamlover: "Первый абзац" }]);
+  });
+
+  it("a wrap BETWEEN two linked members predicts the between-number key (01-1-…)", async () => {
+    // the numbered-name co-change: the client's follow-up key must match the server's
+    // nextMemberName pick, slotted between the NEIGHBOR members' numbers
+    const ref = (name: string) => ({ $yamloverRef: { text: `: ${name}`, path: `:doc:${name}` } });
+    const utils = renderSync(chapterNode({ title: "Book", body: [ref("01-A"), "Wrapped", ref("02-B")] }));
+    await settle();
+    fireEvent.keyDown(utils.container.querySelector(".chapter-prose")!, { key: "Tab" });
+    await act(async () => { await Promise.resolve(); });
+    const h2 = utils.container.querySelector("section.chapter-sub h2.chapter-title")!;
+    fireEvent.keyDown(h2, { key: "Enter" });
+    await act(async () => { await Promise.resolve(); });
+    const batch = await flush();
+    expect(batch).toEqual([
+      { path: ":doc[1]", op: "remove" },
+      { path: ":doc[1]", op: "insert", concrete: "dir/yamlover", name: "Wrapped", yamlover: 'Wrapped\n- ""', meta: "*yamlover: $defs: chapter" },
+    ]);
+    editChunks.mockClear();
+    const chunk = utils.container.querySelector("section.chapter-sub .chunk-body .chapter-prose") as HTMLElement;
+    chunk.textContent = "body text";
+    fireEvent.input(chunk);
+    const batch2 = await flush();
+    expect(batch2).toEqual([{ path: ":doc:01-1-Wrapped[0]", op: "emplace", yamlover: "body text" }]);
+  });
+
+  it("a NESTED wrap inside a freshly materialized member materializes too (recursive, same session)", async () => {
+    // the EmptyYamlover regression #2: wrap → materialize → keep typing chunks INSIDE the new
+    // member → wrap one of THOSE chunks. The inner subchapter's parent is not the edited root
+    // but the member born this session (wireKey) — it must materialize into a nested
+    // subdirectory (the ex-66 dogs/puppies shape), not fall back to an inline omni emplace.
+    const utils = renderSync(chapterNode({ title: "Book", body: ["intro", "Nested part"] }));
+    await settle();
+    fireEvent.keyDown(utils.container.querySelectorAll(".chapter-prose")[1], { key: "Tab" });
+    await act(async () => { await Promise.resolve(); });
+    fireEvent.keyDown(utils.container.querySelector("section.chapter-sub h2.chapter-title")!, { key: "Enter" });
+    await act(async () => { await Promise.resolve(); });
+    await flush(); // [remove :doc[1], insert :doc[1] {concrete, name: Nested_part}]
+    editChunks.mockClear();
+    // type the member's first chunk, then wrap IT and give it body content
+    const chunk = utils.container.querySelector("section.chapter-sub .chunk-body .chapter-prose") as HTMLElement;
+    chunk.textContent = "inner title";
+    fireEvent.input(chunk);
+    fireEvent.keyDown(chunk, { key: "Tab" });
+    await act(async () => { await Promise.resolve(); });
+    const innerTitle = utils.container.querySelector("section.chapter-sub section.chapter-sub .chapter-title")!;
+    expect(innerTitle.textContent).toBe("inner title");
+    fireEvent.keyDown(innerTitle, { key: "Enter" });
+    await act(async () => { await Promise.resolve(); });
+    const batch = await flush();
+    expect(batch).toEqual([
+      { path: ":doc:01-Nested_part[0]", op: "emplace", yamlover: "inner title" }, // the typing, coalesced
+      { path: ":doc:01-Nested_part[0]", op: "remove" },
+      { path: ":doc:01-Nested_part[0]", op: "insert", concrete: "dir/yamlover", name: "inner_title", yamlover: 'inner title\n- ""', meta: "*yamlover: $defs: chapter" },
+    ]);
+  });
+
+  it("Shift-Tab on a freshly MATERIALIZED subchapter nops (no verb to inline a linked document back)", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: ["parent", "child"] }));
+    await settle();
+    fireEvent.keyDown(utils.container.querySelectorAll(".chapter-prose")[1], { key: "Tab" });
+    await act(async () => { await Promise.resolve(); });
+    const h2 = utils.container.querySelector("section.chapter-sub h2.chapter-title")!;
+    fireEvent.keyDown(h2, { key: "Enter" });
+    await act(async () => { await Promise.resolve(); });
+    await flush(); // the materialization batch went out
+    editChunks.mockClear();
+    const h2b = utils.container.querySelector("section.chapter-sub h2.chapter-title") as HTMLElement;
+    fireEvent.keyDown(h2b, { key: "Tab", shiftKey: true });
+    await act(async () => { vi.advanceTimersByTime(600); await Promise.resolve(); });
+    expect(editChunks).not.toHaveBeenCalled();
+    expect(utils.container.querySelector("section.chapter-sub h2.chapter-title")).toBeTruthy(); // still a subchapter
   });
 
   it("Shift-Tab lifts a nested paragraph back out", async () => {
@@ -190,6 +308,178 @@ describe("ChapterProjection — editing", () => {
     await settle();
     await act(async () => { vi.advanceTimersByTime(600); });
     expect(editChunks).not.toHaveBeenCalled();
+  });
+});
+
+describe("ChapterProjection — parity: tables, per-format chunks", () => {
+  const settle = async (n = 2) => { await act(async () => { for (let i = 0; i < n; i++) await Promise.resolve(); }); };
+
+  /** A chapter whose body carries one entry with an inline `!!<…>` tag (comments frag "[0]"). */
+  function taggedChunkNode(tag: string, value: unknown): NodeJson {
+    return {
+      path: ":doc", type: "object", concrete: "dir/yamlover", documentPath: ":doc", title: null, description: null,
+      value: mixed({ kind: "omni", value: "Book", selfAt: 0, format: "x-yamlover-chapter", entries: [{ key: null, value }] }),
+      comments: { "": { tag: "!!<*yamlover: $defs: chapter>" }, "[0]": { tag } },
+    } as unknown as NodeJson;
+  }
+
+  it("a table block renders the editable Grid (its own fetch), not the placeholder", async () => {
+    const tableNode: NodeJson = {
+      path: ":doc[0]", documentPath: ":doc", type: "array", format: "x-yamlover-table", concrete: "dir/yamlover",
+      title: null, description: null,
+      value: [["a", "b"], ["1", "2"]],
+    } as unknown as NodeJson;
+    const root = taggedChunkNode("!!<*yamlover: $defs: table>", mixed({ kind: "array", format: "x-yamlover-table", entries: [] }));
+    fetchNode.mockImplementation((p: string) => Promise.resolve(p === ":doc" ? root : tableNode));
+    const utils = render(<ChapterProjection path=":doc" onNavigate={vi.fn()} />);
+    await waitFor(() => expect(utils.container.querySelector("table")).toBeTruthy());
+    expect(utils.container.textContent).not.toContain("edit in the source view");
+    expect(utils.container.querySelectorAll("td, th").length).toBeGreaterThan(0);
+  });
+
+  it("a `!!<format: text/x-latex>` chunk opens the LaTeX editor, not marklower", async () => {
+    fetchNode.mockResolvedValue(taggedChunkNode("!!<format: text/x-latex>", "E = mc^2"));
+    const utils = render(<ChapterProjection path=":doc" onNavigate={vi.fn()} />);
+    await waitFor(() => expect(utils.container.querySelector("h1.chapter-title")).toBeTruthy());
+    await settle();
+    expect(utils.container.querySelector("textarea.chapter-latex-src")).toBeTruthy();
+    expect(utils.container.querySelector(".chunk-body .chapter-prose[contenteditable=true]")).toBeNull();
+  });
+
+  it("a `!!<format: text/csv>` chunk renders READ-ONLY — never mangled as prose", async () => {
+    fetchNode.mockResolvedValue(taggedChunkNode("!!<format: text/csv>", "a,b\n1,2"));
+    const utils = render(<ChapterProjection path=":doc" onNavigate={vi.fn()} />);
+    await waitFor(() => expect(utils.container.querySelector("h1.chapter-title")).toBeTruthy());
+    await settle();
+    const chunk = utils.container.querySelector(".chunk .chunk-body")!;
+    expect(chunk.querySelector("[contenteditable=true]")).toBeNull();
+    expect(chunk.querySelector("textarea")).toBeNull();
+  });
+});
+
+describe("ChapterProjection — depth (?depth=, the read view's window mirrored)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    window.history.replaceState({}, "", "/");
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    window.history.replaceState({}, "", "/");
+  });
+
+  const renderSync = (node: NodeJson, onNavigate = vi.fn()) => {
+    fetchNode.mockResolvedValue(node);
+    return { onNavigate, ...render(<ChapterProjection path=":doc" onNavigate={onNavigate} />) };
+  };
+  const settle = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
+  const sub = mixed({ kind: "omni", value: "Dogs", selfAt: 0, format: "x-yamlover-chapter", entries: [{ key: null, value: "woof" }] });
+
+  it("?depth=1: an inline subchapter renders as a READ-ONLY chapter-title link — same face as the read view", async () => {
+    window.history.replaceState({}, "", "/?depth=1");
+    const utils = renderSync(chapterNode({ title: "Book", body: ["opening", sub] }));
+    await settle();
+    const section = utils.container.querySelector("section.chapter-sub")!;
+    const link = section.querySelector("h2.chapter-title a.descend")!;
+    expect(link.textContent).toBe("Dogs");
+    // the body is absent and NOTHING in the section is editable — only hyperlinks changed
+    expect(section.querySelector("[contenteditable=true]")).toBeNull();
+    // the page's own level stays editable
+    expect(utils.container.querySelectorAll(".chunk-body .chapter-prose[contenteditable=true]").length).toBe(1);
+  });
+
+  it("?depth=1: the heading link navigates to the subchapter's own page", async () => {
+    window.history.replaceState({}, "", "/?depth=1");
+    const utils = renderSync(chapterNode({ title: "Book", body: [sub] }));
+    await settle();
+    fireEvent.click(utils.container.querySelector("section.chapter-sub a.descend")!);
+    expect(utils.onNavigate).toHaveBeenCalledWith(":doc[0]");
+  });
+
+  it("default (∞): the same subchapter stays a fully editable section", async () => {
+    const utils = renderSync(chapterNode({ title: "Book", body: [sub] }));
+    await settle();
+    const section = utils.container.querySelector("section.chapter-sub")!;
+    expect(section.querySelector("h2.chapter-title")?.getAttribute("contenteditable")).toBe("true");
+    expect(section.querySelector(".chapter-prose")?.getAttribute("contenteditable")).toBe("true");
+  });
+
+  it("?depth=1: caret walk (ArrowDown) skips the read-only subchapter", async () => {
+    window.history.replaceState({}, "", "/?depth=1");
+    const utils = renderSync(chapterNode({ title: "Book", body: ["opening", sub] }));
+    await settle();
+    const cells = utils.container.querySelectorAll("[contenteditable=true]");
+    // title + the one editable paragraph — the subchapter contributes NO cells
+    expect([...cells].map((c) => c.className.includes("chapter-title") ? "title" : "prose")).toEqual(["title", "prose"]);
+  });
+
+  it("?depth=1: Tab-wrap keeps the fresh (omniPending) subchapter editable in place — no ops, no navigation", async () => {
+    window.history.replaceState({}, "", "/?depth=1");
+    const utils = renderSync(chapterNode({ title: "Book", body: ["parent", "child"] }));
+    await settle();
+    fireEvent.keyDown(utils.container.querySelectorAll(".chapter-prose")[1], { key: "Tab" });
+    await act(async () => { await Promise.resolve(); });
+    const h2 = utils.container.querySelector("section.chapter-sub h2.chapter-title")!;
+    expect(h2.getAttribute("contenteditable")).toBe("true"); // the wrap is NOT hidden by the window
+    expect(document.activeElement).toBe(h2);
+    expect(utils.onNavigate).not.toHaveBeenCalled();
+    await act(async () => { vi.advanceTimersByTime(600); });
+    expect(editChunks).not.toHaveBeenCalled(); // still a zero-op model transform
+  });
+
+  it("?depth=1: Enter out of the wrapped title MATERIALIZES, flushes, and descends one level", async () => {
+    window.history.replaceState({}, "", "/?depth=1");
+    const utils = renderSync(chapterNode({ title: "Book", body: ["parent", "child"] }));
+    await settle();
+    fireEvent.keyDown(utils.container.querySelectorAll(".chapter-prose")[1], { key: "Tab" });
+    await act(async () => { await Promise.resolve(); });
+    const h2 = utils.container.querySelector("section.chapter-sub h2.chapter-title")!;
+    fireEvent.keyDown(h2, { key: "Enter" });
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    // the batch flushed IMMEDIATELY (before navigation), not on the debounce timer
+    expect(editChunks.mock.calls.at(-1)?.[0]).toEqual([
+      { path: ":doc[1]", op: "remove" },
+      { path: ":doc[1]", op: "insert", concrete: "dir/yamlover", name: "child", yamlover: 'child\n- ""', meta: "*yamlover: $defs: chapter" },
+    ]);
+    // …and the page went one level down, to the born member's keyed path
+    expect(utils.onNavigate).toHaveBeenCalledWith(":doc:01-child");
+  });
+
+  it("a chapter-shaped POINTER target inlines READ-ONLY within the window and links past it", async () => {
+    const dogs: NodeJson = {
+      path: ":doc:01-Dogs", documentPath: ":doc:01-Dogs", type: "object", concrete: "dir/yamlover",
+      format: "x-yamlover-chapter", title: null, description: null,
+      value: mixed({ kind: "omni", value: "Dogs", selfAt: 0, format: "x-yamlover-chapter", entries: [{ key: null, value: "woof" }] }),
+    } as unknown as NodeJson;
+    const root = {
+      ...chapterNode({ title: "Book", body: ["opening"] }),
+      value: mixed({
+        kind: "omni", value: "Book", selfAt: 0, format: "x-yamlover-chapter",
+        entries: [{ key: null, value: "opening" }, { key: null, value: { $yamloverRef: { text: ": 01-Dogs", path: ":doc:01-Dogs" } } }],
+      }),
+    } as unknown as NodeJson;
+    fetchNode.mockImplementation((p: string) => Promise.resolve(p === ":doc" ? root : dogs));
+    const utils = render(<ChapterProjection path=":doc" onNavigate={vi.fn()} />);
+    await settle();
+    await settle(); // the LinkedBlock's own depth-1 fetch
+    // default ∞ → the member's body lays out in place, read-only, in a chapter-sub section
+    const section = utils.container.querySelector("section.chapter-sub[data-chapter-path=':doc:01-Dogs']")!;
+    expect(section).toBeTruthy();
+    expect(section.querySelector("h2.chapter-title")?.textContent).toBe("Dogs");
+    expect(section.querySelector("[contenteditable=true]")).toBeNull(); // read-only inline
+    utils.unmount();
+
+    window.history.replaceState({}, "", "/?depth=1");
+    const utils2 = render(<ChapterProjection path=":doc" onNavigate={vi.fn()} />);
+    await settle();
+    await settle();
+    // past the window: the SAME heading typography AND the same indented section — the title is
+    // now a descend hyperlink with the trailing » marker, and the body is absent
+    const section2 = utils2.container.querySelector("section.chapter-sub[data-chapter-path=':doc:01-Dogs']")!;
+    expect(section2).toBeTruthy(); // identical indent whether inlined or linked
+    const link = section2.querySelector("h2.chapter-title a.descend")!;
+    expect(link.textContent).toBe("Dogs");
+    expect(section2.querySelector(".chapter-link-more")?.textContent).toBe("»");
+    expect(section2.textContent).not.toContain("woof"); // the body is NOT laid out
   });
 });
 

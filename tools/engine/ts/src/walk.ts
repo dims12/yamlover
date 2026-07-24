@@ -1013,22 +1013,35 @@ function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
   // field-less scalar as an empty overlay so the directory still takes the scalar as its own value.
   const bodyEntries = body.entries ?? [];
   // a directory with a body.yamlover overlay is a self-contained instance = a DOCUMENT root
-  // (so `*/file` inside it resolves to this directory, at any nesting depth). The body's
+  // (so `*: file` inside it resolves to this directory, at any nesting depth). The body's
   // head-of-file banner rides onto the node so it survives past the parse.
   const meta = { ...node.meta, ...body.meta, documentRoot: true, ...(bodyDoc.head?.length ? { head: bodyDoc.head } : {}) };
 
-  // a pure pointer/positional array → reorder existing children to match
+  // a pure pointer/positional array → the body's elements are the POSITIONAL PREFIX, in body
+  // order; a `*name` element is consumed and replaced by the child it names (which keeps its
+  // key — the storage provenance a projection may show as a derived `&name` anchor). Children
+  // the body does NOT name are never granted positions: they trail as KEYED-ONLY entries
+  // (`meta.positional` marks the prefix length; the node is a mix, not an array).
   if (body.kind === 'mapping' && (body.array || (bodyEntries.length > 0 && bodyEntries.every((e) => e.key === null)))) {
     const byKey = new Map(node.entries.map((e) => [e.key, e] as const));
     const ordered: Entry[] = [];
+    let consumed = 0; // pointers that matched (and replaced) a keyed child
     for (const e of bodyEntries) {
       const targetKey = isPointer(e.value) ? pointerLeafKey(e.value) : null;
       const hit = targetKey != null ? byKey.get(targetKey) : null;
-      if (hit) { ordered.push(hit); byKey.delete(targetKey); }
-      else ordered.push(e); // an inline element (not a pointer to a child)
+      if (hit) { ordered.push(hit); byKey.delete(targetKey); consumed++; }
+      else ordered.push(e); // an inline element, or a dangling/duplicate pointer — keeps its body position
     }
-    for (const e of node.entries) if (e.key != null && byKey.has(e.key)) ordered.push(e); // unlisted, trailing
-    return { kind: 'mapping', entries: ordered, array: true, meta };
+    const positional = ordered.length;
+    for (const e of node.entries) if (e.key != null && byKey.has(e.key)) ordered.push(e); // unlisted → keyed-only remainder
+    // a body that names EVERYTHING keeps the array projection (`array: true` — the hidden
+    // built-in graft must not flip it, see THE UNIFORM GRAFT); a keyed-only remainder makes
+    // the node an honest mix (`array: false`). `meta.positional` marks the prefix ONLY where it
+    // says something disk order doesn't: a pointer was consumed (its key is provenance to show
+    // as a derived anchor) or a remainder exists — a pure inline seq body stays a plain array.
+    const remainder = ordered.length > positional;
+    const prefixMeta = (consumed > 0 || remainder) && positional > 0 ? { ...meta, positional } : meta;
+    return { kind: 'mapping', entries: ordered, array: !remainder, meta: prefixMeta };
   }
 
   // a mapping (or MIXED) body: ADD overlay-only keys; for a KEYED key that matches a dir child,
@@ -1047,8 +1060,19 @@ function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
       entries[entries.indexOf(existing)] = aug;
     }
   }
-  // a scalar body root → the directory node carries that scalar as its own value (omni)
-  if (body.kind === 'scalar') return { kind: 'scalar', value: body.value, raw: body.raw, entries, array: false, meta };
+  // a scalar body root → the directory node carries that scalar as its own value (omni). But an
+  // EMPTY body (null value, no authored `~`/`null` token) is only a self-value when the directory
+  // is OTHERWISE empty — a truly empty document (value: null → the editor's root hole). When the
+  // directory HAS members (e.g. one whose siblings were all promoted out, leaving the body blank,
+  // or a body that is only a `!!<…>` tag banner), the empty body is an empty OVERLAY, not a null
+  // self-value: keep the directory a plain mapping so it never reads as a spurious `null`-valued
+  // omni. An explicitly authored null (`~`/`null`) is always a value.
+  if (body.kind === 'scalar') {
+    const emptySelf = body.value === null && (body.raw == null || body.raw.trim() === '');
+    if (!(emptySelf && entries.length > 0)) {
+      return { kind: 'scalar', value: body.value, raw: body.raw, entries, array: false, meta };
+    }
+  }
   return { kind: 'mapping', entries, array: false, meta };
 }
 

@@ -44,18 +44,18 @@ import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { parseJson5p } from "../../../parser/ts/src/json5p.ts";
 import { pointerToken, schemaTagToken } from "../../../parser/ts/src/serialize-yamlover.ts";
-import { renderPointer } from "../../../parser/ts/src/pointer.ts";
+import { renderPointer, parsePointer } from "../../../parser/ts/src/pointer.ts";
 import { anchorBody } from "../../../parser/ts/src/serialize-common.ts";
 import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken, appendAnnotationAt, upsertMapEntryAt, removeAnnotationAt, removeMapEntryAt, annotationsRemainAt, pruneEmptyAnnotations, pruneEmptyAnnotationsAt, reachBodyAt, type Region as EmbedRegion } from "./embed.js";
-import { dataFileConcrete, interiorOf, isDirConcrete } from "../concrete.js";
+import { dataFileConcrete, interiorOf, isDirConcrete, pointerSafeName } from "../concrete.js";
 import { renderThumbnail } from "./extract/thumbnails.js";
 import { isThumbnailable } from "./extract/registry.js";
 import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
-import type { Node as IrNode, Document, Comment as IrComment, Entry as IrEntry } from "../../../parser/ts/src/ir.ts";
+import type { Node as IrNode, Document, Comment as IrComment, Entry as IrEntry, Step as IrStep } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
-import { deriveMemberEncoding, deriveDirEditRoute } from "./derive-concrete.js";
-import { displayKind, ownedEntries, typeName, facetsOf } from "./node-kind.js";
+import { deriveMemberEncoding, deriveDirEditRoute, nextMemberName, subchapterMaterializes } from "../concrete-rules.js";
+import { displayKind, ownedEntries, positionalOf, typeName, facetsOf } from "./node-kind.js";
 import { TaskRegistry } from "./tasks.js";
 import type { TaskHandle, TaskInfo } from "./tasks.js";
 
@@ -800,6 +800,51 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
+      // RENAME A KEY (the editor's key cell). One verb, two backends chosen by the node's STORAGE —
+      // THE CONCRETE IS NOT A STATE (YAMLOVER_EDITOR.yamlover): the editor asks to rename a key and
+      // the server routes it. An fs-backed member (a real directory/file named by the key — the
+      // promoted `world/`, a linked note) is renamed on disk via `mv`, which ALSO rewrites every
+      // inbound `*`/`~` pointer; an INLINE keyed entry (a scalar/flow field in a body) has its key
+      // token surgically rewritten in place, value and comments kept. Body: { path, key } as JSON
+      // paths (keyed target; the last segment is the OLD key, `key` the new one).
+      if (req.method === "POST" && url.pathname === "/api/rekey") {
+        readBody(req)
+          .then((data) =>
+            enqueue(async () => {
+              const { path: reqPath, key: newKey } = data as { path?: string; key?: string };
+              const segs = canonSegs(s, strToSegs(reqPath ?? ""), false);
+              if (segs.length === 0 || typeof segs[segs.length - 1] !== "string") throw new Error("rekey needs a keyed node path");
+              if (typeof newKey !== "string" || newKey === "" || newKey !== newKey.trim()) throw new Error("a key must be a non-empty, un-padded string");
+              const parentSegs = segs.slice(0, -1);
+              const oldKey = String(segs[segs.length - 1]);
+              if (newKey === oldKey) return { path: reqPath, unchanged: true };
+              // the new key must be FREE in the parent (keys are unique per node)
+              if (s.node(storePath([...parentSegs, newKey]))) throw new Error(`the key \`${newKey}\` already exists in the node`);
+              const abs = segs.every((g) => typeof g === "string") ? path.resolve(dataRoot, ...segs.map(String)) : null;
+              if (abs && fs.existsSync(abs)) {
+                // an fs-backed member — rename the directory/file and rewrite inbound pointers
+                const from = segs.map(String).join("/");
+                const to = [...parentSegs.map(String), newKey].join("/");
+                const report = mv(dataRoot, from, to, { ignore });
+                const diff = await doReindex();
+                broadcast(diff);
+                return { path: segsToStr([...parentSegs, newKey]), ...report, diff };
+              }
+              // an INLINE keyed entry — surgically rewrite its key token in the enclosing body
+              const backing = chapterSource(dataRoot, s, segs);
+              const within = segs.slice(backing.docSegs.length);
+              const src = editChapterSource(fs.readFileSync(backing.bodyFile, "utf8"), within, "rekey", "", undefined, newKey);
+              fs.writeFileSync(backing.bodyFile, src);
+              const diff = await doReindex();
+              broadcast(diff);
+              return { path: segsToStr([...parentSegs, newKey]), diff };
+            }),
+          )
+          .then((body) => sendJson(res, 200, body))
+          .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
+        return;
+      }
+
       // Install the bundled LLM-agent guidance docs (AGENTS.md + CLAUDE.md) into the served root,
       // so an AI agent co-editing this directory has the authoring/safety rules to hand. The
       // bundled guidance is a MARKER-FENCED block (mergeAgentDoc): a fresh file is created, an
@@ -843,7 +888,10 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      const segs = strToSegs(url.searchParams.get("path") || ":");
+      // canonicalized: a positional segment may alias a KEYED member (URIs.md — a keyed
+      // entry's position is an alias to it; the dir-backed pointer-array members of
+      // examples/56), and the store paths those by key
+      const segs = canonSegs(s, strToSegs(url.searchParams.get("path") || ":"), false);
       const p = storePath(segs);
       const depth = parseDepth(url.searchParams.get("depth"));
 
@@ -1173,11 +1221,20 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
   // a FORMAT-STAMPED array (a tagged/derived x-yamlover-* container, e.g. an all-keyless
   // nested table or list) keeps its format via the marker path below; a plain data array
   // projects bare — the client cannot otherwise tell a tagged keyless table from data.
-  if (k === "array" && !row.format) return kids.map(project);
+  // A POSITIONAL-PREFIX node (a dir-backed pointer-array body) always takes the marker
+  // path: its entry keys are storage provenance the client shows as derived `&` anchors.
+  const positional = positionalOf(row);
+  if (k === "array" && !row.format && !positional) return kids.map(project);
   if (k === "omni" || k === "mix" || k === "array") {
     // A `$yamloverMixed` marker preserving source order: each entry is positional (`key: null` →
     // a `- item`) or keyed (`key: "scale"` → `scale: …`); an omni also carries its self-value.
-    const entries = kids.map((c) => ({ key: c.label, value: project(c) }));
+    // `anchor: true` marks a positional member whose key is a DERIVED storage anchor
+    // (`- &key value`); keyed entries past the prefix are the ordinary keyed remainder.
+    const entries = kids.map((c) => ({
+      key: c.label,
+      value: project(c),
+      ...(positional > 0 && (c.pos ?? 0) < positional && c.label !== null ? { anchor: true } : {}),
+    }));
     const marker: Record<string, unknown> = { kind: k, entries };
     // the node's stamped/derived format — an inlined container otherwise carries none, and the
     // table renderer needs it to tell a CHAPTER cell from a nested table (MARKLOWER.md §Cells)
@@ -2077,23 +2134,39 @@ interface PasteInput {
   // caller is placing its own reference to it (an embed token inside a prose chunk it is editing)
 }
 
+/** Whether a paste at `segs` lands INSIDE a chapter: the node itself is chapter/task-formatted
+ *  (a page root, or a dir-backed subchapter — those carry the format), or it is a CONTAINER
+ *  nested in a chapter-formatted document (an INLINE subchapter, `:doc[2]` — untagged, so its
+ *  own row has no format; the enclosing document root decides). A drop onto an inlined
+ *  subchapter section targets that subchapter's path (NodeView), so both nested shapes must
+ *  route into-chapter rather than to `nearestDirSegs`. */
+function pasteTargetIsChapter(s: Store, segs: Seg[], row: NodeRow): boolean {
+  const chapterFmt = (f: string | null | undefined) => f === "x-yamlover-chapter" || f === "x-yamlover-task";
+  if (chapterFmt(row.format)) return true;
+  if (row.type !== "mapping") return false; // a scalar/blob chunk is never a chapter body
+  const docSegs = documentRootSegs(s, segs);
+  if (docSegs.length === segs.length) return false; // the document root itself — its format decided
+  return chapterFmt(s.node(storePath(docSegs))?.format);
+}
+
 /** Handle a paste/upload onto the node at `input.path`. Returns the new file's node path and,
  *  for a chapter, the chapter path + the chunk pointer appended to it. */
 function handlePaste(dataRoot: string, s: Store, input: PasteInput): Record<string, unknown> {
   const segs = strToSegs(input.path || ":");
   const row = s.node(storePath(segs));
   if (!row) throw new Error(`no such node: ${input.path}`);
+  const intoChapter = pasteTargetIsChapter(s, segs, row);
 
   if (input.rich != null) {
     const rich = parseRich(input.rich);
-    if (row.format === "x-yamlover-chapter") return pasteRichIntoChapter(dataRoot, s, segs, rich);
+    if (intoChapter) return pasteRichIntoChapter(dataRoot, s, segs, rich);
     return pasteRichAsChapter(dataRoot, segs, rich);
   }
 
   if (typeof input.text === "string") {
     const text = input.text.replace(/\r\n?/g, "\n");
     if (text.trim().length === 0) throw new Error("empty paste (no text)");
-    if (row.format === "x-yamlover-chapter") return pasteTextIntoChapter(dataRoot, s, segs, text);
+    if (intoChapter) return pasteTextIntoChapter(dataRoot, s, segs, text);
     return pasteTextAsChapterFile(dataRoot, segs, text);
   }
 
@@ -2105,7 +2178,7 @@ function handlePaste(dataRoot: string, s: Store, input: PasteInput): Record<stri
   // an `inline` paste, in which case the file merely lands beside the chapter and the caller writes
   // its own reference (a marklower embed token, mid-prose). Appending a chunk there would leave the
   // picture on the page twice: once in the sentence, once at the end.
-  if (row.format === "x-yamlover-chapter" && !input.inline) return pasteIntoChapter(dataRoot, s, segs, name, bytes);
+  if (intoChapter && !input.inline) return pasteIntoChapter(dataRoot, s, segs, name, bytes);
 
   // a directory page, or a MEMBER of one (any non-chapter node): the file lands in the nearest
   // enclosing directory. `open` marks the member case — the page is not the directory, so the
@@ -2163,6 +2236,66 @@ function chapterSource(dataRoot: string, s: Store, segs: Seg[], allow: RegExp = 
   return r;
 }
 
+/** Colon-form pointer raws (SEPARATOR.md — the slash separator is DEAD; the server never
+ *  authors it). A document member: `*: name` (spacey/metachar names portion-quoted). */
+function memberPointer(name: string): string {
+  return "*" + renderPointer({ kind: "pointer", base: { scope: "document" }, steps: [{ sel: "key", name }], raw: "" });
+}
+
+/** A project-rooted pointer `*:: dir: file` — the first segment is the `::` authority portion. */
+function projectPointer(segs: Seg[]): string {
+  const steps = segs.map((s): IrStep => (typeof s === "number" ? { sel: "index", n: s } : { sel: "key", name: s }));
+  const head = steps[0];
+  if (head === undefined || head.sel !== "key") throw new Error("a project pointer needs a leading key");
+  return "*" + renderPointer({ kind: "pointer", base: { scope: "link", authority: head.name }, steps: steps.slice(1), raw: "" });
+}
+
+/** The member NAME a positional body entry points at (`- *: name`), or null when the entry is
+ *  not a single-key document-scope pointer — the inverse of {@link memberPointer}. */
+function memberNameOfEntry(lines: string[], e: ChapterEntry): string | null {
+  if (e.key !== null) return null;
+  const head = entryHead(lines, e);
+  if (!head.startsWith("*")) return null;
+  try {
+    const p = parsePointer(head.slice(1));
+    if (p.base.scope === "document" && p.steps.length === 1 && p.steps[0].sel === "key") return p.steps[0].name;
+  } catch {
+    /* not a pointer token — not a member reference */
+  }
+  return null;
+}
+
+/** The body pointer-array NEIGHBOR member names around an insert at `index` within the region
+ *  `within` addresses (undefined index = append): the nearest member pointer strictly BEFORE the
+ *  position and the nearest AT/AFTER it — what {@link nextMemberName} slots a between-number
+ *  from. Best-effort: a missing/unreadable body (or a body whose splice is still queued in the
+ *  current batch) yields open ends, and the generated name simply appends past the on-disk max. */
+function memberNeighbors(bodyFile: string, within: Seg[], index: number | undefined): { prevName?: string; nextName?: string } {
+  let lines: string[];
+  try {
+    lines = fs.readFileSync(bodyFile, "utf8").split(/\r?\n/);
+  } catch {
+    return {};
+  }
+  let entries: ChapterEntry[];
+  try {
+    entries = chapterEntries(lines, reachChapter(lines, within));
+  } catch {
+    return {};
+  }
+  const at = index === undefined ? entries.length : index;
+  const out: { prevName?: string; nextName?: string } = {};
+  for (let i = Math.min(at, entries.length) - 1; i >= 0; i--) {
+    const n = memberNameOfEntry(lines, entries[i]);
+    if (n) { out.prevName = n; break; }
+  }
+  for (let i = at; i < entries.length; i++) {
+    const n = memberNameOfEntry(lines, entries[i]);
+    if (n) { out.nextName = n; break; }
+  }
+  return out;
+}
+
 /** A chapter paste: write the file into the chapter's owning directory, then append a pointer to
  *  it as the chapter's last chunk (editing the .yamlover source). */
 function pasteIntoChapter(dataRoot: string, s: Store, segs: Seg[], name: string, bytes: Buffer): Record<string, unknown> {
@@ -2173,10 +2306,10 @@ function pasteIntoChapter(dataRoot: string, s: Store, segs: Seg[], name: string,
   const final = uniqueName(writeDir, name);
   writeInside(dataRoot, writeDir, final, bytes);
 
-  // The chunk pointer: document-scoped (`*/file`) when the file sits inside the chapter's own
-  // document (directory-backed); else a project-root link (`*//dir/file`) reaching the sibling.
+  // The chunk pointer: document-scoped (`*: file`) when the file sits inside the chapter's own
+  // document (directory-backed); else a project-root link (`*:: dir: file`) reaching the sibling.
   const fileSegs = [...writeDirSegs, final];
-  const pointer = dirBacked ? `*/${final}` : `*/${segsToStr(fileSegs)}`;
+  const pointer = dirBacked ? memberPointer(final) : projectPointer(fileSegs);
   // The chapter's location WITHIN its document — absolute body-item indices (empty = top-level).
   const within = segs.slice(docSegs.length);
   const src = fs.readFileSync(bodyFile, "utf8");
@@ -2282,7 +2415,7 @@ function pasteRichIntoChapter(dataRoot: string, s: Store, segs: Seg[], rich: Ric
     const final = uniqueName(writeDir, name);
     writeInside(dataRoot, writeDir, final, bytes);
     files.push(segsToStr([...writeDirSegs, final]));
-    return dirBacked ? `*/${final}` : `*/${segsToStr([...writeDirSegs, final])}`;
+    return dirBacked ? memberPointer(final) : projectPointer([...writeDirSegs, final]);
   };
   const within = segs.slice(docSegs.length);
   let src = fs.readFileSync(bodyFile, "utf8");
@@ -2320,7 +2453,7 @@ function pasteRichAsChapter(dataRoot: string, segs: Seg[], rich: Rich): Record<s
   const pointerFor = (fname: string, bytes: Buffer): string => {
     const final = uniqueName(chDir, fname);
     writeInside(dataRoot, chDir, final, bytes);
-    return `*/${final}`;
+    return memberPointer(final);
   };
   const src = renderChapterSource(title, rich, pointerFor);
   writeInside(dataRoot, path.join(chDir, ".yamlover"), "body.yamlover", Buffer.from(src, "utf8"));
@@ -2377,7 +2510,7 @@ function writeObject(dataRoot: string, dir: string, base: string, concrete: stri
 }
 
 /** Materialize a directory's `.yamlover/body.yamlover` overlay (empty) when absent — the moment a
- *  directory gains BODY-encoded content (derive-concrete.ts). Returns the body file path. */
+ *  directory gains BODY-encoded content (concrete-rules.ts). Returns the body file path. */
 function ensureDirBody(dataRoot: string, absDir: string): string {
   const overlay = path.join(absDir, ".yamlover");
   const body = path.join(overlay, "body.yamlover");
@@ -2405,7 +2538,7 @@ function keyedGroupParts(group: string[]): { key: string; src: string } | null {
   return { key, src };
 }
 
-/** Write a keyed CONTAINER member of a directory as a NESTED real directory (derive-concrete.ts).
+/** Write a keyed CONTAINER member of a directory as a NESTED real directory (concrete-rules.ts).
  *  The key IS the directory name (must be filename-safe; an existing child is a conflict — no
  *  uniqueName renaming, the key names the node). The member's scalar self-value, ordinal entries
  *  and keyed SCALAR children land in its own `.yamlover/body.yamlover`; each keyed CONTAINER
@@ -2922,6 +3055,22 @@ function metaTag(meta: string | null | undefined, existing: string | undefined, 
  *  appended when `seg` is undefined — the path named the node itself). An insert with `key` makes
  *  a KEYED entry at that position (`key: value`) instead of an ordinal one — a fresh keyed emplace
  *  always splices at the top of the block, so this is how a caller keeps AUTHORED entry order. */
+/** The index of the colon that SEPARATES a key from its value in `s` (which begins at the key
+ *  token), quote-aware: a colon inside a `"…"`/`'…'` quoted key does not count. -1 if none. */
+function keySepColon(s: string): number {
+  if (s[0] === '"' || s[0] === "'") {
+    const q = s[0];
+    let i = 1;
+    for (; i < s.length; i++) {
+      if (q === '"' && s[i] === "\\") i++; // escaped char inside a double-quoted key
+      else if (s[i] === q) { i++; break; } // past the closing quote
+    }
+    while (i < s.length && s[i] !== ":") i++;
+    return i < s.length ? i : -1;
+  }
+  return s.indexOf(":"); // a plain key holds no colon — the first one separates
+}
+
 function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, valueSrc: string, meta: string | null | undefined, key?: string, at?: number): void {
   const marker = (s: Seg | undefined): string => (typeof s === "string" ? `${s}: ` : "- ");
 
@@ -2935,6 +3084,26 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
 
   if (seg === undefined) throw new Error(`\`${op}\` needs a key or index target`);
   const entry = findEntry(lines, r, seg);
+
+  if (op === "rekey") {
+    if (!entry) throw new Error(`no entry at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+    if (entry.key === null) throw new Error("a positional entry has no key to rename");
+    if (key === undefined || key === "") throw new Error("rekey needs a new key");
+    // rewrite ONLY the key token on the entry's opening line, keeping its value + all descendant
+    // rows: the span before the key is the indent and (for an inline `- key: v` member) the dash
+    // marker and any inline `!!<…>` tag; the key token itself is plain or quoted, so find the
+    // SEPARATING colon quote-aware and splice the new key in front of it.
+    const line = lines[entry.start];
+    const pre = /^(\s*(?:-\s+(?:!!<[^>]*>\s+)?)?)/.exec(line)![1];
+    const rest = line.slice(pre.length);
+    const colon = keySepColon(rest);
+    if (colon < 0) throw new Error("could not locate the key token to rename");
+    // `key` arrives RAW (the endpoint passes the user's text) — write it as a plain token when it
+    // is a safe identifier, otherwise double-quote it (a spacey/metachar key must not go bare).
+    const keyTok = /^[^\s"'*&!#|>@`,\[\]{}:][^:#]*$/.test(key) && !key.includes(": ") ? key : JSON.stringify(key);
+    lines[entry.start] = pre + keyTok + rest.slice(colon);
+    return;
+  }
 
   if (op === "remove") {
     if (!entry) throw new Error(`no entry at ${typeof seg === "number" ? `[${seg}]` : seg}`);
@@ -3396,6 +3565,27 @@ function isPlainDir(dataRoot: string, s: Store, segs: Seg[]): boolean {
   }
 }
 
+/** Store-CANONICALIZE a client path: a NUMERIC segment is a position (`[n]`), and a position may
+ *  alias a KEYED member (URIs.md — "a keyed entry's position is a `*`-alias to it"; the members
+ *  of a dir-backed pointer-array body, examples/56). The store paths keyed children BY KEY, so a
+ *  positional segment with no keyless node behind it rewrites to the key of the contain entry at
+ *  that position. `keepLast` leaves the FINAL segment untouched — an edit's terminal position
+ *  must stay positional so a file-level splice (remove/emplace of a pointer-array ELEMENT) hits
+ *  the body line, never the member document behind it. */
+function canonSegs(s: Store, segs: Seg[], keepLast: boolean): Seg[] {
+  const out: Seg[] = [];
+  const end = keepLast ? segs.length - 1 : segs.length;
+  for (let i = 0; i < segs.length; i++) {
+    const g = segs[i];
+    if (i < end && typeof g === "number" && !s.node(storePath([...out, g]))) {
+      const hit = s.entries(storePath(out)).find((c) => c.kind === "contain" && c.pos === g && c.label != null);
+      if (hit) { out.push(hit.label!); continue; }
+    }
+    out.push(g);
+  }
+  return out;
+}
+
 /** One edit, resolved to the file it lands in. */
 interface ResolvedEdit {
   within: Seg[];
@@ -3413,14 +3603,23 @@ interface ResolvedEdit {
 /** `concrete: file/yamlover | dir/yamlover` — the content is born as its OWN document beside the
  *  parent, and what lands in the parent's source is a `*` pointer to it. Returns the pointer source
  *  and the new document's node path (what a create navigates to). */
-function bornAsDocument(dataRoot: string, e: ResolvedEdit, tag: string | undefined): { pointer: string; path: string } {
+function bornAsDocument(dataRoot: string, e: ResolvedEdit, tag: string | undefined, neighbors: { prevName?: string; nextName?: string } = {}): { pointer: string; path: string } {
   const writeDirSegs = e.dirBacked ? e.docSegs : e.docSegs.slice(0, -1);
   const writeDir = path.resolve(dataRoot, ...writeDirSegs.map(String));
   const src = [...(tag ? [tag] : []), e.valueSrc, ""].join("\n");
-  // a linked document is reached by a `*` pointer → name it pointer-safe (no spaces/unicode)
-  const final = writeObject(dataRoot, writeDir, sanitizeName(e.name || "object"), e.concrete!, src);
+  // a linked document is reached by a `*` pointer → name it pointer-safe: no whitespace or
+  // metachars, but unicode letters KEPT (pointerSafeName — a Cyrillic title must not collapse
+  // into underscores). A DIRECTORY member additionally carries an order-number prefix
+  // (`01-Введение`; a between-insert slots `01-1-…` from its body neighbors — cosmetic listing
+  // order, existing members never renamed). The client births compute the same name
+  // (nextMemberName/pointerSafeName are shared) for keyed follow-up addressing.
+  const title = String(e.name || "object");
+  const base = e.concrete === "dir/yamlover"
+    ? nextMemberName(fs.existsSync(writeDir) ? fs.readdirSync(writeDir) : [], "title", { ...neighbors, title })
+    : pointerSafeName(title);
+  const final = writeObject(dataRoot, writeDir, base, e.concrete!, src);
   const targetSegs = [...writeDirSegs, final];
-  return { pointer: e.dirBacked ? `*/${final}` : `*/${segsToStr(targetSegs)}`, path: segsToStr(targetSegs) };
+  return { pointer: e.dirBacked ? memberPointer(final) : projectPointer(targetSegs), path: segsToStr(targetSegs) };
 }
 
 /** Apply a BATCH of edits, grouped by their backing file (a document can span several — each part
@@ -3432,8 +3631,25 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
   const jsonByFile = new Map<string, { within: Seg[]; valueSrc: string }[]>(); // JSON-family scalar edits
   const appended: Seg[][] = []; // parents an INLINE entry was appended to — their new last child is the created node
   const created: string[] = [];
+  // Members BORN EARLIER IN THIS BATCH at a known body position: a later edit in the same batch
+  // may still address them positionally (`:d[1][1]` — fast typing, Tab-wrap follow-ups) while the
+  // index is stale and canonSegs can't see them. Recorded at birth, prefix-rewritten here.
+  const remap: { parent: Seg[]; index: number; name: string }[] = [];
+  const applyRemap = (segs: Seg[]): Seg[] => {
+    let out = segs;
+    for (let changed = true; changed; ) {
+      changed = false;
+      for (const r of remap) {
+        if (out.length > r.parent.length && out[r.parent.length] === r.index && r.parent.every((g, i) => out[i] === g)) {
+          out = [...r.parent, r.name, ...out.slice(r.parent.length + 1)];
+          changed = true;
+        }
+      }
+    }
+    return out;
+  };
   for (const e of edits) {
-    const editSegs = strToSegs(e.path ?? "");
+    const editSegs = applyRemap(canonSegs(s, strToSegs(e.path ?? ""), true));
     const op = String(e.op ?? "");
 
     // A directory that backs no document has no source to splice: inserting into it creates a
@@ -3464,7 +3680,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       continue;
     }
 
-    // A DIRECTORY TARGET (derive-concrete.ts): a directory is editable like any yamlover node —
+    // A DIRECTORY TARGET (concrete-rules.ts): a directory is editable like any yamlover node —
     // WHERE a new child is encoded is the derivation policy's call. A keyed CONTAINER child
     // becomes a nested REAL directory (recursively); scalar/ordinal children and the directory's
     // own scalar self-value live in its `.yamlover/body.yamlover` overlay, created on demand.
@@ -3477,7 +3693,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       const isDirTarget = absDir !== null && fs.existsSync(absDir) && fs.statSync(absDir).isDirectory();
       if (isDirTarget) {
         const bodyFile = path.join(absDir, ".yamlover", "body.yamlover");
-        // the routing DECISION is derive-concrete.ts's (deriveDirEditRoute) — only the observed
+        // the routing DECISION is concrete-rules.ts's (deriveDirEditRoute) — only the observed
         // state is gathered here; see the policy's doc for why disk and index must agree
         const target = {
           hasBody: fs.existsSync(bodyFile),
@@ -3497,10 +3713,31 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
           const p = payloadFacets(valueSrc);
           const container = p.keyed.length > 0 || p.ordinal.length > 0;
           const key = e.key === undefined ? undefined : String(e.key);
-          const route = deriveDirEditRoute(target, { keyed: key !== undefined, container });
+          let route = deriveDirEditRoute(target, { keyed: key !== undefined, container, tagged: typeof meta === "string" });
+          // an explicit `concrete: "yamlover"` pins the INLINE encoding — derivation to a
+          // sequential item directory applies only to UNDERIVED (concrete-less) inserts
+          if (route === "dir-seq" && e.concrete) route = deriveDirEditRoute(target);
           if (route === "dir") {
             writeDirMemberTree(dataRoot, absDir, key!, valueSrc, meta);
             created.push(segsToStr([...stripped, key!]));
+            continue;
+          }
+          if (route === "dir-seq") {
+            // an UNTAGGED ordinal container: an order-numbered item directory (item01, item02, …;
+            // a between-insert slots item01-1, never renumbering) plus a body pointer-array
+            // element granting its POSITION — the examples/56 shape (concrete-rules.ts). The
+            // pointer splices at the insert's own index; the member's name is recorded so
+            // same-batch follow-ups addressing `[i][j]` land inside it.
+            const last = editSegs[editSegs.length - 1];
+            const nb = memberNeighbors(bodyFile, [], typeof last === "number" ? last : undefined);
+            const name = nextMemberName(fs.readdirSync(absDir), "item", nb);
+            writeObject(dataRoot, absDir, name, "dir/yamlover", [valueSrc, ""].join("\n"));
+            created.push(segsToStr([...stripped, name]));
+            if (typeof last === "number") remap.push({ parent: stripped, index: last, name });
+            ensureDirBody(dataRoot, absDir);
+            const list = byFile.get(bodyFile) ?? [];
+            list.push({ within: typeof last === "number" ? [last] : [], op: "insert", valueSrc: memberPointer(name), meta: undefined, docSegs: stripped, dirBacked: true });
+            byFile.set(bodyFile, list);
             continue;
           }
           if (route === "body") { pushBodyOp(key); continue; }
@@ -3509,6 +3746,79 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
         } else if (op === "emplace" && editSegs === stripped && deriveDirEditRoute(target) === "body") {
           // self-value of a dir with no established body: materialize the overlay, splice the self line
           pushBodyOp();
+          continue;
+        }
+      }
+    }
+
+    // THE SCALAR→CONTAINER PROMOTION (concrete-rules.ts {@link subchapterMaterializes}): the moment
+    // an inline keyed node living in a DIRECTORY-backed document gains CONTAINER content, its
+    // inherited storage family is "directory" (a dir keeps its members directory-concrete), so it
+    // lifts OUT of the enclosing body into its OWN real subdirectory (named by its key) and its old
+    // inline line is spliced out. Birth order stops mattering: `world: World` grown a child lands in
+    // the SAME shape as a `world` born already populated. The child re-derives INSIDE the new body
+    // (a scalar leaf stays inline, a container recurses — writeDirMemberTree). Two edit shapes reach
+    // the transition: the omni first-child commit EMPLACES the whole node (self + child in the
+    // payload — commitSpine), and a direct INSERT adds a child under a still-scalar member (the
+    // self-value is read from the body and the child appended). A pure scalar emplace (a title edit,
+    // no entries) is NOT a transition and stays inline.
+    if ((op === "insert" || op === "emplace" || op === "replace") && (!e.concrete || e.concrete === "yamlover")) {
+      const tail = editSegs[editSegs.length - 1];
+      // the node that WILL hold container content: for an insert-child it is the PARENT (the edit's
+      // trailing index is the child position); for emplace/replace it is the target itself.
+      const nodeSegs = op === "insert" && typeof tail === "number" ? editSegs.slice(0, -1) : editSegs;
+      const nodeKey = nodeSegs[nodeSegs.length - 1];
+      const nBack = resolveBacking(dataRoot, s, nodeSegs);
+      const nodeRow = s.node(storePath(nodeSegs));
+      const inlineKeyed =
+        typeof nodeKey === "string" &&
+        nodeSegs.every((g) => typeof g === "string") &&
+        nBack.docSegs.length < nodeSegs.length; // the node lives INSIDE the enclosing document's body
+      const docRow = inlineKeyed ? s.node(storePath(nBack.docSegs)) : null;
+      const encConcrete = docRow ? concreteOf(s, dataRoot, nBack.docSegs, docRow) : "yamlover";
+      if (inlineKeyed && subchapterMaterializes(encConcrete)) {
+        // the node's full VALUE source AFTER this edit, when the edit gives it container content
+        let memberSrc: string | null = null;
+        let memberMeta: string | null | undefined;
+        if (op === "emplace" || op === "replace") {
+          const f = payloadFacets(String(e.yamlover ?? ""));
+          if (f.keyed.length > 0 || f.ordinal.length > 0) { // the new value IS a container
+            memberSrc = String(e.yamlover ?? "");
+            memberMeta = e.meta;
+          }
+        } else if (nodeRow?.type === "scalar") {
+          // a scalar gains its FIRST child: old self-value (from the body) + the new child appended
+          let lines: string[] | null = null;
+          try { lines = fs.readFileSync(nBack.bodyFile, "utf8").split(/\r?\n/); } catch { /* no body */ }
+          const within = nodeSegs.slice(nBack.docSegs.length);
+          const region = lines ? reachChapter(lines, within.slice(0, -1)) : null;
+          const entry = lines && region ? findEntry(lines, region, within[within.length - 1]) : undefined;
+          // an inline `!!<…>` tag on the scalar is NOT carried by this path — leave it inline
+          if (lines && entry && !/!!<[^>]*>/.test(lines[entry.start])) {
+            const head = entryHead(lines, entry);
+            const rest: string[] = [];
+            let ci = -1;
+            for (let i = entry.start + 1; i < entry.end; i++) {
+              if (!isContentLine(lines[i])) { rest.push(""); continue; }
+              if (ci < 0) ci = indentOf(lines[i]);
+              rest.push(indentOf(lines[i]) >= ci ? lines[i].slice(ci) : lines[i].trimStart());
+            }
+            const selfSrc = [head, ...rest].join("\n").replace(/\s+$/, "");
+            const childVal = String(e.yamlover ?? "");
+            if (childVal && !isPointerValue(childVal)) parseYamlover(childVal, "<edit>");
+            const marker = e.key !== undefined ? `${String(e.key)}: ` : "- ";
+            const childLines = renderEntry(childVal, 0, marker, metaTag(e.meta, undefined, false));
+            memberSrc = [selfSrc, ...childLines].filter((l, i) => !(i === 0 && l === "")).join("\n");
+          }
+        }
+        if (memberSrc !== null) {
+          if (memberSrc && !isPointerValue(memberSrc)) parseYamlover(memberSrc, "<edit>");
+          writeDirMemberTree(dataRoot, path.resolve(dataRoot, ...nBack.docSegs.map(String)), nodeKey, memberSrc, memberMeta);
+          created.push(segsToStr(nodeSegs));
+          // splice the node's now-orphaned inline line out of the enclosing body (with the batch)
+          const list = byFile.get(nBack.bodyFile) ?? [];
+          list.push({ within: nodeSegs.slice(nBack.docSegs.length), op: "remove", valueSrc: "", meta: undefined, docSegs: nBack.docSegs, dirBacked: nBack.dirBacked });
+          byFile.set(nBack.bodyFile, list);
           continue;
         }
       }
@@ -3544,8 +3854,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
     if (concrete && concrete !== "yamlover" && op !== "insert" && !(op === "emplace" && !s.node(storePath(editSegs)))) {
       throw new Error("`concrete` is only for content being created — converting an existing node is a move, not an edit");
     }
-    const list = byFile.get(bodyFile) ?? [];
-    list.push({
+    const resolved: ResolvedEdit = {
       within: editSegs.slice(docSegs.length),
       op,
       valueSrc: String(e.yamlover ?? ""),
@@ -3556,27 +3865,42 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       at: typeof e.at === "number" && Number.isFinite(e.at) && e.at >= 0 ? Math.floor(e.at) : undefined,
       docSegs,
       dirBacked,
-    });
+    };
+    if (resolved.concrete === "file/yamlover" || resolved.concrete === "dir/yamlover") {
+      // birth at RESOLUTION time, not in the splice loop: a later edit in this batch may address
+      // the newborn member positionally (a Tab-wrap's follow-up chunks) — the remap needs the
+      // name NOW. The value becomes its own document; the parent splices a `*` pointer (no tag).
+      if (resolved.valueSrc && !isPointerValue(resolved.valueSrc)) parseYamlover(resolved.valueSrc, "<edit>");
+      const lastWithin = resolved.within[resolved.within.length - 1];
+      const nb = resolved.concrete === "dir/yamlover"
+        ? memberNeighbors(bodyFile, resolved.within.slice(0, -1), typeof lastWithin === "number" ? lastWithin : undefined)
+        : {};
+      const born = bornAsDocument(dataRoot, resolved, metaTag(resolved.meta, undefined, false), nb);
+      created.push(born.path);
+      const last = editSegs[editSegs.length - 1];
+      if (resolved.dirBacked && typeof last === "number") {
+        remap.push({ parent: editSegs.slice(0, -1), index: last, name: born.path.slice(born.path.lastIndexOf(":") + 1) });
+      }
+      resolved.valueSrc = born.pointer;
+      resolved.meta = undefined;
+      resolved.concrete = undefined;
+    }
+    const list = byFile.get(bodyFile) ?? [];
+    list.push(resolved);
     byFile.set(bodyFile, list);
   }
   const touched: string[] = [];
   for (const [bodyFile, ops] of byFile) {
     let src = fs.readFileSync(bodyFile, "utf8");
     for (const o of ops) {
-      let { valueSrc, meta } = o;
-      const tag = metaTag(meta, undefined, false);
+      const { valueSrc, meta } = o;
       // The CALLER's payload must be valid yamlover on its own — parse it before anything is
       // spliced, so a malformed fragment 400s with the document untouched. Two things are legal as
       // an entry's value but not as a whole document, and so are not parsed as one: the `!!<…>` tag
-      // (`!!<…> |-`), and a bare `*` pointer (which is also what `concrete` generates below).
+      // (`!!<…> |-`), and a bare `*` pointer (which is what a resolution-time document birth left
+      // in `valueSrc` — a `concrete: file/yamlover | dir/yamlover` op was born back there, its
+      // pointer swapped in and its concrete cleared).
       if (valueSrc && !isPointerValue(valueSrc)) parseYamlover(valueSrc, "<edit>");
-      if (o.concrete === "file/yamlover" || o.concrete === "dir/yamlover") {
-        // the value becomes its own document; the parent gets a `*` pointer, which carries no tag
-        const born = bornAsDocument(dataRoot, o, tag);
-        created.push(born.path);
-        valueSrc = born.pointer;
-        meta = undefined;
-      }
       src = editChapterSource(src, o.within, o.op, valueSrc, meta, o.key, o.at);
     }
     fs.writeFileSync(bodyFile, src);

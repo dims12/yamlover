@@ -52,7 +52,7 @@ or scalar can take.
 | 53 | [`53-plain-dir`](53-plain-dir)                     | a plain directory with **no** `.yamlover/` — the files themselves are the data |
 | 54 | [`54-scalar-file-overlay`](54-scalar-file-overlay) | a scalar carried in `body.yamlover` (the scalar twin of 50) |
 | 55 | [`55-scalar-as-binary`](55-scalar-as-binary)       | a binary file decoded by `meta.yamlover` (`type: binary`, `format: int32/le`) |
-| 56 | [`56-array-of-files`](56-array-of-files)           | a sequence whose elements live in files — order and per-element format come from meta |
+| 56 | [`56-array-of-files`](56-array-of-files)           | a sequence whose elements live in files — the `body.yamlover` pointer-array orders the members it names (shown `- &file value`, the derived anchor dimmed); the unreferenced `andany04.json` stays a keyed-only member |
 | 58 | [`58-genealogy-dag`](58-genealogy-dag)             | the canonical **directed graph**: containment is the paternal line, `*` a maternal cross-edge, `~` its reverse (one `body.yamlover`; acyclic here, but `*` / `~` cycles are allowed) |
 | 59 | [`59-all-formats-object`](59-all-formats-object)   | a catalogue of every renderable `(type, format)` — textual content inline in `body`, binary samples typed in `meta` |
 

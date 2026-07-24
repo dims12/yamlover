@@ -47,6 +47,24 @@ export function isFileConcrete(c?: string | null): boolean {
   return !!c && c.startsWith("file/");
 }
 
+/** A file/dir name for a document reached by a `*` POINTER, from its title. Unicode letters are
+ *  first-class in pointers (URIs.md `nchar` bars only metachars and whitespace), so they are KEPT
+ *  — «Заголовок части» must not collapse into underscores. Only what a pointer token cannot carry
+ *  goes: whitespace becomes `_`, punctuation-metachars are stripped, never hidden, never empty.
+ *  SHARED client/server: the client that births a linked document computes the SAME name the
+ *  server will write, so follow-up edits can address the member by key immediately. */
+export function pointerSafeName(raw: string): string {
+  const base = String(raw ?? "")
+    .replace(/[^\p{L}\p{N} ._-]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60)
+    .trim()
+    .replace(/^\.+/, "")
+    .replace(/ /g, "_");
+  return base || "object";
+}
+
 /** The opaque-bytes concrete. */
 export function isBinaryConcrete(c?: string | null): boolean {
   return c === "file/binary";

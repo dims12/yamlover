@@ -1,5 +1,3 @@
 pets:
   - name: Rex
-ref: *: pets[0]: name
-anch: 1
-  &: alias
+ref: */pets

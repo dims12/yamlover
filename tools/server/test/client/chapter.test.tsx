@@ -163,7 +163,7 @@ describe("ChapterView", () => {
     };
     const { container } = render(<ChapterView node={flowed} onNavigate={vi.fn()} />);
     // the DOM order of the rendered blocks matches the source flow
-    const blocks = [...container.querySelectorAll("h1.chapter-title, .chapter-link a, .chunk-body p")];
+    const blocks = [...container.querySelectorAll("h1.chapter-title, .chapter-title a.descend, .chunk-body p")];
     expect(blocks.map((b) => b.textContent)).toEqual([
       "Intro before the title.", // a chunk FIRST — the title is not hoisted above it
       "Mid-Flow Title", // the title, mid-flow (h1)
@@ -279,13 +279,13 @@ describe("ChapterView — inline subchapters", () => {
     expect(indices).toEqual(["§0", "§0"]);
   });
 
-  it("?depth=1 keeps today's link — no fetch at all", () => {
+  it("?depth=1 keeps today's link — no fetch at all, SAME heading face (the depth-styling rule)", () => {
     window.history.replaceState({}, "", "/?depth=1");
     const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
     expect(fetchNode).not.toHaveBeenCalled();
-    const link = container.querySelector("h2.chapter-link a.descend")!;
+    const link = container.querySelector("h2.chapter-title a.descend")!;
     expect(link.textContent).toBe("Dogs");
-    expect(container.querySelector("h2.chapter-link")?.id).toBe("[1]"); // the anchor still resolves
+    expect(container.querySelector("h2.chapter-title")?.id).toBe("[1]"); // the anchor still resolves
   });
 
   it("?depth=2 inlines one level and leaves the next as a link", async () => {
@@ -295,7 +295,7 @@ describe("ChapterView — inline subchapters", () => {
     const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
     await waitFor(() => expect(container.querySelector("section.chapter-sub")).toBeTruthy());
     expect(container.querySelector("h2.chapter-title")?.textContent).toBe("Dogs"); // level 1 inlined
-    const deep = container.querySelector("h3.chapter-link a.descend")!; // level 2 is a link, one rank down
+    const deep = container.querySelector("h3.chapter-title a.descend")!; // level 2 is a link, one rank down
     expect(deep.textContent).toBe("Puppies");
     expect(fetchNode).toHaveBeenCalledTimes(1); // and never fetched
   });
@@ -303,7 +303,7 @@ describe("ChapterView — inline subchapters", () => {
   it("shows the heading link immediately while the body is loading", () => {
     fetchNode.mockReturnValue(new Promise(() => {})); // never settles
     const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
-    const head = container.querySelector("h2.chapter-link")!;
+    const head = container.querySelector("h2.chapter-title")!;
     expect(head.querySelector("a.descend")?.textContent).toBe("Dogs");
     expect(head.id).toBe("[1]"); // the anchor exists before the body lands
     expect(head.querySelector(".chapter-link-note")?.textContent?.trim()).toBe("…");

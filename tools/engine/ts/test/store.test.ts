@@ -63,7 +63,7 @@ test('resolved `*` pointers become ref edges; relationships() derives inverses',
 
 test('entries() keeps positional pointers in order alongside inline values', () => {
   // an array mixing inline scalars and `*` pointers (like a chapter chunks list)
-  const s = indexed('pets:\n  rex: {}\nlist:\n  - a\n  - */pets/rex\n  - c\n');
+  const s = indexed('pets:\n  rex: {}\nlist:\n  - a\n  - *: pets: rex\n  - c\n');
   const e = s.entries(':list');
   assert.deepEqual(e.map((x) => x.pos), [0, 1, 2]); // order preserved across kinds
   assert.deepEqual(e.map((x) => x.kind), ['contain', 'ref', 'contain']);
@@ -93,12 +93,12 @@ test('indexes the 06-tour example (mix/omni nodes included)', () => {
 // material's backlink findable and file the annotation under its tag; removeAnnotation must erase
 // the annotation completely.
 test('addAnnotation : removeAnnotation update the index incrementally', () => {
-  const s = indexed('pic: !!<format: image/png> placeholder\nyellow: !!<*yamlover/$defs/tag>\n  color: "#f9e2af"\n');
+  const s = indexed('pic: !!<format: image/png> placeholder\nyellow: !!<*yamlover: $defs: tag>\n  color: "#f9e2af"\n');
   const annPath = ':annotations:x.yamlover';
   const target = ':pic';
   const tag = ':yellow';
   const doc = parseYamlover(
-    ['!!<*yamlover/$defs/annotation>', 'target: *//pic', '~- *//yellow', 'selector:', '  type: "rect"', '  x: 1', 'created: "t"', ''].join('\n'),
+    ['!!<*yamlover: $defs: annotation>', 'target: *:: pic', '~- *:: yellow', 'selector:', '  type: "rect"', '  x: 1', 'created: "t"', ''].join('\n'),
   );
 
   s.addAnnotation(annPath, target, doc, tag);

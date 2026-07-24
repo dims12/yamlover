@@ -6,11 +6,11 @@ import { call, callBody } from "./http";
 import { buildChapterModel, snapshotChapter, diffChapter, newProsePart } from "../src/client/renderers/chapter-model";
 
 const DEFS = {
-  "$defs/chapter": "type: variant\nproperties:\n  title:\n    type: string\n  description:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n",
+  "$defs/chapter": "type: variant\nproperties:\n  title:\n    type: string\n  description:\n    type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n",
   "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
 };
 // a document with COMMENTS and hand-quoting that a reserializer would destroy
-const SRC = `!!<*yamlover/$defs/chapter>
+const SRC = `!!<*yamlover: $defs: chapter>
 # a hand-written comment that must survive
 title: "The Handbook"
 - Hello **world**

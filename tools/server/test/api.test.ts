@@ -41,12 +41,12 @@ describe("api endpoints (engine-backed)", () => {
     // MINITODO: 68-math-chapter (chunks + a root fragment, no subchapters) must not show a chevron
     // that expands to nothing. A chapter's TOC hint counts SUBCHAPTERS only, not chunks/overlay.
     const DEFS = {
-      "$defs/chapter": "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n",
+      "$defs/chapter": "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n",
       "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
     };
     const h = createHandlers(tmpTree({
-      "chunks-only.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Only Chunks\n- one\n- two\n",
-      "with-sub.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Has Sub\n- intro\n- title: A Subchapter\n  - nested\n",
+      "chunks-only.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Only Chunks\n- one\n- two\n",
+      "with-sub.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Has Sub\n- intro\n- title: A Subchapter\n  - nested\n",
       ...DEFS,
     }), { gitignore: false });
     await h.ready;
@@ -60,12 +60,12 @@ describe("api endpoints (engine-backed)", () => {
 
   it("/api/tree: an UNTITLED chapter is labeled by its first chunk's text, not `[index]`", async () => {
     const DEFS = {
-      "$defs/chapter": "type: variant\nvalue:\n  type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n",
+      "$defs/chapter": "type: variant\nvalue:\n  type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n",
       "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
     };
     const h = createHandlers(tmpTree({
       // a titled chapter whose body holds an UNTITLED subchapter (compact `- - ` form)
-      "doc.yamlover": "!!<*yamlover/$defs/chapter>\nTitled\n- intro\n- - the first chunk of an untitled subchapter tells you what it is\n  - more\n",
+      "doc.yamlover": "!!<*yamlover: $defs: chapter>\nTitled\n- intro\n- - the first chunk of an untitled subchapter tells you what it is\n  - more\n",
       ...DEFS,
     }), { gitignore: false });
     await h.ready;
@@ -205,8 +205,8 @@ describe("reverse positional membership (~-) projection", () => {
   const tree = () =>
     tmpTree({
       ".yamlover/body.yamlover":
-        "items:\n- alpha\nmember:\n  name: m\n  ~- */items\n  ~- */unique\n" +
-        "dup:\n  ~- */items\n  ~- */items\nunique: !!set\n- */member\n",
+        "items:\n- alpha\nmember:\n  name: m\n  ~- *: items\n  ~- *: unique\n" +
+        "dup:\n  ~- *: items\n  ~- *: items\nunique: !!set\n- *: member\n",
     });
 
   it("appends reverse members after owned entries, lexicographically, ADDITIVE (repetition kept)", async () => {

@@ -31,7 +31,9 @@ subchapter. The **TOC** likewise lists subchapters in **body order** — even wh
 its own subdirectory (a directory chapter, `examples/66-pet-keeper-handbook`), whose alphabetical
 directory scan is overridden by the positional `*` body pointers that place them. A subdirectory
 present on disk but never referenced by a body pointer sorts **after** the ordered ones, in
-directory-scan order.
+directory-scan order — the general pointer-array rule (`README.md` §Equivalence rules,
+`examples/56-array-of-files`): the body orders the subset it names; the rest are keyed-only
+members. No chapter special case.
 
 ```yamlover
 # a whole article in one tagged .yamlover file
@@ -109,6 +111,32 @@ Two ways, both in `META.md`:
   **subdirectories** — each its own directory chapter, referenced by a `*`-pointer body element —
   giving a recursive tree where every chapter is a directory (`examples/66-pet-keeper-handbook`:
   `dogs/`, `cats/`, `fish/`, and nested `dogs/puppies/`).
+
+**Creating subchapters in a DIRECTORY chapter.** The create menu defaults a new subchapter of a
+dir-concrete chapter to `dir/yamlover` (a subdirectory + a `- *: <name>` body pointer; inline and
+file stay in the picker). The chapter editor's Tab-wrap defers: wrapping a chunk into a title is
+still a model-only transform (on disk `- A` is one line either way), but the FIRST body commit
+materializes the wrapped subchapter as its own subdirectory — named by its title under an ORDER
+NUMBER prefix (`01-Введение`, `02-Обзор`; an insert between siblings slots a sub-number,
+`01-1-Новая`, never renumbering — the numbers are cosmetic listing order, the body pointer-array
+is the order's data), tagged with the enclosing chapter's schema. A materialized (linked)
+subchapter does not unwrap (Shift-Tab nops — there is no verb for inlining a linked document
+back), and deleting its body element splices only the pointer line: the subdirectory is orphaned,
+resurfacing as a keyed-only member, never destroyed. An underived ordinal-container insert (the
+data editor's path) materializes too, under a generated order-numbered name (`item01`, …, between
+→ `item01-1` — CONCRETES.md §Member-encoding derivation).
+
+**Media drops and pastes.** Dropping a file onto a chapter page (read-only or unlocked) writes it
+into the chapter's owning directory and appends a `- *: <name>` pointer chunk to the body (the
+`examples/65-all-formats-chunks` shape). A drop that lands **inside an inlined subchapter
+section** targets THAT subchapter — the file goes into *its* directory and *its* body gains the
+pointer (the client resolves the enclosing `data-chapter-path`; the server routes any nested
+chapter path, dir-backed or inline, through the same into-chapter paste). A standalone `.yamlover`
+chapter file has no directory of its own: the file lands beside it, referenced `*:: dir: file`.
+
+**The editors.** The unlocked chapter opens the PROJECTIONAL editor (Tab nesting, format
+switching, depth, editable tables and per-format chunks); the deprecated flat editor remains
+reachable via `?chapterEditor=flat` for one cycle (TODO.md).
 
 ## Addressing body elements
 

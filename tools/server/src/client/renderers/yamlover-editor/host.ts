@@ -12,7 +12,7 @@
 // only the cells differ. That is why this file has no JSX.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
-import { fetchNode, type Edit } from "../../api";
+import { fetchNode, rekeyNode, type Edit } from "../../api";
 import { parseYamlover } from "../../../../../parser/ts/src/yamlover.ts";
 import { acceptsAsScalar } from "../value-editors";
 import { focusEnd, focusStart, placeCaret } from "../caret";
@@ -169,6 +169,10 @@ export interface YedHost {
   focusReq: FocusRef;
   /** One atomic editor step: mutate the model, queue the mirroring ops, re-render (and focus). */
   step: (fn: (root: M.MNode) => Edit[]) => void;
+  /** The edited node's CONCRETE from the fetch (`dir/yamlover`, `file/yamlover`, …; null until it
+   *  lands) — a projection's storage-form branch point (a dir-concrete chapter materializes
+   *  fresh subchapters as subdirectories). */
+  concreteRef: React.MutableRefObject<string | null>;
 }
 
 /** Load `path`, build its model, and return the host driving it. */
@@ -182,6 +186,7 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
   const rootEl = useRef<HTMLDivElement | null>(null);
   // the DOCUMENT holding the edited node — a `*:` (document-scoped) pointer's spelling base
   const docPathRef = useRef(path);
+  const concreteRef = useRef<string | null>(null);
 
   // the editor's own unlimited-depth fetch — the model needs the WHOLE subtree
   useEffect(() => {
@@ -190,6 +195,7 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
       .then((n) => {
         if (!live) return;
         docPathRef.current = n.documentPath ?? path;
+        concreteRef.current = n.concrete ?? null;
         const m = M.buildModel(n);
         rootRef.current = m;
         setRoot(m);
@@ -499,6 +505,35 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
         return [];
       });
     },
+    rekey(entryId, newKey) {
+      const r = rootRef.current;
+      if (!r) return false;
+      const spine = M.findEntry(r, entryId);
+      if (!spine || spine.entry.key === null) return false;
+      const trimmed = normalizeSpaces(newKey).trim();
+      if (trimmed === "") return false;
+      if (trimmed === spine.entry.key) return true; // unchanged — accept as a no-op
+      const { container } = spine.parents[spine.parents.length - 1];
+      if (container.entries.some((o) => o !== spine.entry && o.decided && o.key === trimmed)) return false; // dup key
+      const oldPath = M.pathOfSpine(path, spine); // the node's CURRENT server path (its OLD key)
+      const nodeId = spine.entry.node.id;
+      // optimistic rename — the caret stays in the key cell; the rekey persists via its OWN
+      // endpoint (a dir-member move or an inline key-token rewrite), NOT an /api/edit op
+      step((rr) => {
+        const sp = M.findEntry(rr, entryId);
+        if (sp) {
+          sp.entry.key = trimmed;
+          sp.entry.quotedKey = !/^[^\s"'*&!#|>@`,[\]{}:][^:#]*$/.test(trimmed); // quote a spacey/metachar key
+          sp.entry.node.rev++;
+        }
+        focusReq.current = { key: nodeId + ":key", at: "end" };
+        return [];
+      });
+      // sequence AFTER any pending body edits (so the entry exists on disk), then rename key/dir.
+      // A rare server rejection (a race with an external edit) is reconciled by the unlock refetch.
+      void flushRef.current().then(() => rekeyNode(oldPath, trimmed)).catch(() => {});
+      return true;
+    },
     undoDecision(entryId) {
       // Backspace in an EMPTY value hole UNDOES the last structural token (colon / dash) of an
       // uncommitted entry — never the whole entry
@@ -800,5 +835,5 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
     }
   });
 
-  return { root, version, act, ctx, rootEl, flush, path, rootRef, focusReq, step };
+  return { root, version, act, ctx, rootEl, flush, path, rootRef, focusReq, step, concreteRef };
 }

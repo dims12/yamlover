@@ -1,2 +1,2 @@
-a: &/shared 1
-b: &/shared 2
+a: &': shared' 1
+b: &': shared' 2

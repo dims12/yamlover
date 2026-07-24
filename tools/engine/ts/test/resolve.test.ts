@@ -69,7 +69,7 @@ test('yamlover 06-tour: same pointers resolve', () => {
 });
 
 test('parent scope (..) walks up the containment chain', () => {
-  const doc = parseJson5p(`{ a: { b: { up: *'../../x' }, }, x: 42 }`);
+  const doc = parseJson5p(`{ a: { b: { up: *'..: ..: x' }, }, x: 42 }`);
   const edges = resolveDocument(doc);
   assert.equal((find(edges, ':a:b:up').target as any).node.value, 42);
 });

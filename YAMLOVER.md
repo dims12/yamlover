@@ -76,7 +76,7 @@ The pointer layer, identical in meaning to json5p (grammar in `URIs.md`):
   The value **must be a pointer** — it names the container that holds me:
   ```yamlover
   my_node:
-    ~- */some/other/location   # ≡ &/some/other/location[] — that container holds me
+    ~- *: some: other: location   # ≡ &: some: other: location[] — that container holds me
   ```
   A `~-` membership is **unpositioned** (no `~[n]:` — order is the container's data) and
   **additive**: with no label and no index there is no identity to dedup on, so every `~-`
@@ -118,8 +118,11 @@ No separate list/dict type. A mapping is **ordered**; positions are integer keys
 entry (a `- item` sequence element, or the `:` spelling) takes only its position; a keyed
 entry's position is a `*`-alias to it. Access: **`[n]`** = integer key (position), **`/x`**
 = string key. Order is data — text order in a file; for a directory, the `body.yamlover`
-overlay imposes it (§5). Full treatment in `URIs.md` (*Lists and dicts are one ordered
-mapping*).
+overlay imposes it (§5) on the **subset it names**: a pointer-array element `- *file`
+consumes the pointer and grants the named child its position (the projection shows the
+consumed key as a dimmed derived anchor, `- &file value`); a child the body never names
+stays a **keyed-only member** after the ordered block — it is never granted an invented
+position. Full treatment in `URIs.md` (*Lists and dicts are one ordered mapping*).
 
 Concretely, keyless (`- value`) and keyed (`key: value`) entries can be **mixed in one node** —
 *partially ordered, partially keyed* — which plain YAML forbids. **Mixtures are the default**
@@ -263,11 +266,12 @@ star:  *\*boss           # the literal key "*boss"
 
 Identical to json5p (full rules in `URIs.md`), only unquoted here:
 
-| Form                            | Base                                                          |
-|---------------------------------|---------------------------------------------------------------|
-| `*name`, `*../…`                | current mapping / its parents                                 |
-| `*/…`                           | current **document** root                                     |
-| `*//auth/…`, `*scheme://auth/…` | a **link** — any other start (project, sibling doc, external) |
+| Form                | Base                                                       |
+|---------------------|------------------------------------------------------------|
+| `*name`, `*..: …`   | current mapping / its parents                              |
+| `*: …`              | current **document** root                                  |
+| `*:: name: …`       | the **project** root (first portion = authority)           |
+| `*::: auth: …`      | the **world** — an external project by its authority       |
 
 ## 8. Relationship to the rest of the system
 

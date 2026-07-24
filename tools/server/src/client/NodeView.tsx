@@ -91,7 +91,7 @@ function effectiveFormat(format: Format, node: NodeJson, tabs: TabEntry[]): Form
  *  (the `yamlover` data view) offers editing — never the `json5p` or `yamlover/schema` views, nor
  *  opaque bytes (nothing backs them). DIRECTORIES edit too — bare (`dir`) and dir-backed
  *  (`dir/yamlover`) alike: the server derives where each new child is STORED (the dir's
- *  `.yamlover/body.yamlover` overlay vs a nested directory — derive-concrete.ts). The yamlover
+ *  `.yamlover/body.yamlover` overlay vs a nested directory — concrete-rules.ts). The yamlover
  *  renderer is the UNIVERSAL edit surface: you edit yamlover source there, and the server writes
  *  it in the target's concrete — a yaml/yamlover file gets the source verbatim, a json/json5/json5p
  *  file gets the parsed scalar re-serialized as JSON. */
@@ -312,9 +312,19 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
       setDragging(false);
       const files = Array.from(e.dataTransfer?.files || []);
       if (!files.length) return;
+      // A drop that lands INSIDE an inlined subchapter section targets THAT chapter (the same
+      // `data-chapter-path` walk the right-click create menu does) — the media file goes into
+      // the subchapter's own directory and its body gains the pointer chunk, not the page
+      // root's. Anywhere else, the page node is the target.
+      const section = (e.target as HTMLElement | null)?.closest?.("[data-chapter-path]");
+      const within = section?.getAttribute("data-chapter-path") || null;
+      const target = within ?? path;
+      const label = within
+        ? section?.querySelector(".chapter-title")?.textContent?.trim() || within.slice(within.lastIndexOf(":") + 1)
+        : node.title ?? undefined;
       // the unified drop confirmation: show what the drop will do, upload only on confirm
-      const v = planFileUpload({ path, concrete: node.concrete, label: node.title ?? undefined }, files.map((f) => pastedName(f)));
-      if (v.allowed) dropConfirm.request(e.clientX, e.clientY, v.plan, () => uploadFiles(files));
+      const v = planFileUpload({ path: target, concrete: node.concrete, label: label || undefined }, files.map((f) => pastedName(f)));
+      if (v.allowed) dropConfirm.request(e.clientX, e.clientY, v.plan, () => uploadFiles(files, target));
     };
     document.addEventListener("dragenter", onEnter);
     document.addEventListener("dragover", onOver);
@@ -329,13 +339,14 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node, path]);
 
-  const uploadFiles = async (files: File[]) => {
+  /** Upload files to `target` (a nested chapter a drop landed in) — the page node by default. */
+  const uploadFiles = async (files: File[], target: string = path) => {
     try {
       setPasteMsg(`uploading ${files.length} file${files.length > 1 ? "s" : ""}…`);
       let last: PasteResult | null = null;
       for (const f of files) {
         const b64 = await fileToBase64(f);
-        last = await pasteFile(path, pastedName(f), b64);
+        last = await pasteFile(target, pastedName(f), b64);
       }
       setPasteMsg(files.length > 1 ? `uploaded ${files.length} files` : "uploaded");
       window.setTimeout(() => setPasteMsg(null), 1500);

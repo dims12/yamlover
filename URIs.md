@@ -4,9 +4,11 @@
 > is `:` — the same character that means "key leads to value" everywhere in the
 > family — and the scope ladder is "more colons, wider scope" (`:` document, `::`
 > project, `:::` world). The old `/` separator and the `//authority` link form are
-> DEPRECATED: parsers still accept them through the migration window, serializers
-> emit colon only. Canonical styling writes `: ` (colon + space) in block positions;
-> machine surfaces (store keys, API paths) use the compact form (`:team:alice:age`).
+> DEAD — the migration window CLOSED 2026-07-24: `/` is an ordinary key character,
+> so `*/pets` is a (dangling) reference to the literal key "/pets" and never a
+> rooted path (the parser test corpus pins this). Canonical styling writes `: `
+> (colon + space) in block positions; machine surfaces (store keys, API paths) use
+> the compact form (`:team:alice:age`).
 
 ## Languages: json5p and yamlover
 
@@ -176,7 +178,7 @@ e.g. `::: pet.store.com: pets` — authority `pet.store.com` =
 ports, and paths-with-slashes are gone from the identifier: how an engine *reaches*
 that project — https, ssh, a local checkout, sync mirrors — is engine
 configuration, never part of the name. (The old `scheme://authority/path` link form
-is retired with the slash; parsers accept it through the migration window.)
+is retired with the slash — since the window closed it no longer parses as a link.)
 
 For example
 
@@ -250,8 +252,11 @@ is just its mapping-style spelling.) Two access syntaxes keep the axes apart:
 - **`: x`** selects the **string key** `x` (a colon portion).
 
 Ordering is data: in a file it follows text order; for a directory it is imposed by
-the `body.yamlover` overlay (an array of `*`-pointers to the files), or left to the
-filesystem if there is no overlay.
+the `body.yamlover` overlay (an array of `*`-pointers to the files) on the **subset
+it names** — an unlisted child remains keyed-only, after the ordered block — or left
+to the filesystem if there is no overlay. A named member's storage key renders as a
+**derived** value-line anchor (`- &file value`, dimmed): a *view* of the consumed
+body pointer, not an authored `&` anchor — no ref edge is created (§`&`).
 
 ## Pointer grammar & resolution
 
@@ -292,9 +297,10 @@ A **world** base names a project by its authority (`{project}.{company}` DNS nam
 resolution goes through the local mount table — a link is an identifier, not a
 fetch. Imports are root-level keys whose value is a world-scoped link
 (`yamlover: *::: yamlover.inthemoon.net`); inside this project the self-import
-makes `:: $defs: tag` ≡ `:: yamlover: $defs: tag`. (Deprecated, accepted through
-the migration window: `/`-separated paths, a single leading `/` for the document
-root, and `//auth` / `scheme://auth` links.)
+makes `:: $defs: tag` ≡ `:: yamlover: $defs: tag`. (The legacy spellings —
+`/`-separated paths, a single leading `/` for the document root, and `//auth` /
+`scheme://auth` links — are DEAD: the migration window closed 2026-07-24; a `/`
+is an ordinary key character now.)
 
 ### Grammar (ABNF-ish)
 
@@ -369,8 +375,8 @@ that quotes cannot: in JSON5 and YAML `'` and `"` are interchangeable string
 delimiters — `*".."` and `*'..'` are the same string, both meaning *parent*.
 
 What `/` gained by leaving the metachar set: MIME-type keys (`text/html`), date
-keys (`01/02/2026`) and URL-ish keys now ride **bare** in paths. (During the
-migration window `\/` still parses.)
+keys (`01/02/2026`) and URL-ish keys now ride **bare** in paths. (A legacy `\/`
+escape still reads as the literal `/` — `\X` makes any X literal.)
 
 ```yamlover
 mime:  *..: text/html: x     # "/" is no metacharacter — the key "text/html" rides bare

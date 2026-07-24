@@ -53,8 +53,10 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    `body.yamlover` overlays a real directory: file → node/blob mapping, scalar/inline
    overrides, precedence when a key and a file collide, how a file's bytes attach to a
    node. **Ordering**: files supply the string keys (filenames → blobs); the overlay
-   is a **pointer-array** (`- *file1.ext …`) that assigns the integer-key positions; a
-   pure directory with no overlay takes filesystem order. This is the heart of "YAML
+   is a **pointer-array** (`- *file1.ext …`) that assigns the integer-key positions
+   **to the subset it names** (2026-07-24: unnamed children stay keyed-only after the
+   ordered block; consumed keys render as dimmed derived `&` anchors); a pure
+   directory with no overlay takes filesystem order. This is the heart of "YAML
    overlay over the filesystem."
 1d. **`.yamlover/` directory contract** — `body.yamlover` (instance) **and**
    `meta.yamlover` (metadata schema, `META.md`); plus reserved names for the SQLite cache;

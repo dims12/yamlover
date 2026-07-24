@@ -27,7 +27,7 @@ properties:
   55-scalar-as-binary:
     description: a binary file decoded by `meta.yamlover` (`type binary`, `format int32/le`)
   56-array-of-files:
-    description: a sequence whose elements live in files — order and per-element format from meta
+    description: a sequence whose elements live in files — the body pointer-array orders the members it names; an unreferenced file stays a keyed-only member
   58-genealogy-dag:
     description: the canonical DAG — containment is the paternal line, `*` the maternal cross-edge, `~` the reverses
   59-all-formats-object:

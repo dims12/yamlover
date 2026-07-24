@@ -61,6 +61,11 @@ export interface NodeMeta {
    *  a `.yamlover/` overlay, or the served root. The `/` pointer scope resolves to the nearest
    *  enclosing such node (URIs.md: `/` = document root), so a reference is depth-independent. */
   documentRoot?: boolean;
+  /** POSITIONAL PREFIX length (a dir-backed node whose `body.yamlover` is a pointer-array,
+   *  YAMLOVER.md §5): the first N entries are body-ordered (positional) members; keyed entries
+   *  past N are the keyed-only remainder the body never granted a position. Derived by the
+   *  engine's graft (walk.ts applyBody), never authored. */
+  positional?: number;
   /** SET semantics (`!!set` tag / `uniqueItems: true` in meta): an element appears at most
    *  once, so duplicate memberships — forward+forward, forward+`~-` reverse, reverse+reverse —
    *  collapse to one (URIs.md §`~-`). Unlike `!!mix`/`!!var` (parse permissions visible in the
@@ -165,7 +170,7 @@ export interface Pointer {
 
 export type PointerBase =
   | { scope: 'current' }                       // bare name/index: current mapping
-  | { scope: 'document' }                       // ":" (legacy "/") — current document root
+  | { scope: 'document' }                       // ":" — current document root
   | { scope: 'parent' }                         // ".." — parent node (then steps)
   /** "::" — project scope: authority = the first portion, an INTERNAL key at the served root
    *  (an import or a mounted authority). It is intra-project by definition, so an unresolved

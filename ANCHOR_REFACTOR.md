@@ -171,3 +171,14 @@ and the two-line tagged-scalar file (`30` + `&//tags/…[]`) parses with the nod
 staying a plain `integer`.
 
 
+
+---
+
+**Postscript (2026-07): derived anchors in projections.** The viewer's yamlover
+projection of a dir-backed pointer-array body renders each consumed `- *file`
+member as `- &file value` with the anchor **dimmed** (`.anchor.derived`). That
+token is a *derived* anchor — storage provenance surfaced by the projection,
+never authored source and never realized into a ref edge. Authored `&` path
+anchors (this document) are a different thing: they are parsed, resolved, and
+create edges. The two must not be conflated; only authored anchors ride
+`NodeMeta.anchors` / the comments-sidecar `anchors` bucket.

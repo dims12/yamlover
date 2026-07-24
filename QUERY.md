@@ -12,8 +12,8 @@ proposed extensions).
 > example below is taken from it verbatim. The old `/` separator, the `~` reverse
 > axis and the `[filter]` brackets of earlier drafts are GONE from the language
 > (reverse navigation is the `..` uplink family, node tests are `!!<…>` matchers).
-> The dual-separator migration window is still open for *data* files — parsers
-> accept legacy `/` paths there — but query strings are colon-only.
+> The dual-separator migration window CLOSED (2026-07-24): data files are
+> colon-only too — a legacy `/` path reads as one literal key and dangles.
 > First consumers: the breadcrumb query editor / filtered TOC, the tag-picker
 > autocomplete; find-usages next (JetBrains J3).
 
@@ -60,9 +60,9 @@ three unescaped dots is the descent operator; the literal keys `..` and `...` ar
 written `\.\.` and `\.\.\.`. **A key containing a space must be quoted** — that is
 what makes the matcher split inside a portion (§4.4) unambiguous.
 
-`/` is **no longer a metacharacter** (it leaves the set when the migration window
-closes): MIME-type keys (`text/html`), date keys (`01/02/2026`) and URL-ish keys
-ride bare in paths — `: weird: cat/dog` is a plain two-portion path.
+`/` is **no longer a metacharacter** (the migration window is closed): MIME-type
+keys (`text/html`), date keys (`01/02/2026`) and URL-ish keys ride bare in
+paths — `: weird: cat/dog` is a plain two-portion path.
 
 ## 3. Grammar (ABNF-ish)
 

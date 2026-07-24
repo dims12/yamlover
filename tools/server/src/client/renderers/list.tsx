@@ -20,6 +20,11 @@ export type ListKind = "bullets" | "numbered";
 export const listKind = (format: string | null | undefined): ListKind =>
   format === "x-yamlover-numbered" ? "numbered" : "bullets";
 
+/** A nested item's kind: its OWN (when it names one), else the parent list's — the any-depth
+ *  inheritance rule (MARKLOWER.md). Shared with the projectional editor's list cells. */
+export const sublistKind = (own: string | null, parent: ListKind): ListKind =>
+  own === "bullets" || own === "numbered" ? own : parent;
+
 function itemEntries(value: unknown): { key: string | null; value: unknown }[] {
   if (Array.isArray(value)) return value.map((v) => ({ key: null, value: v }));
   return (

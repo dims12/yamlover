@@ -169,6 +169,53 @@ A value defined directly in a `.yamlover/schema.yaml` overlay (via `const`, or
 built from `const` leaves, or otherwise instantiated from the schema) lives in
 that YAML file, so its concrete is the inlined `yaml` of the schema document.
 
+## Inheritance rules — `concrete-rules.ts`
+
+ALL composition rules — which concretes a new child MAY take, which one it takes by
+DEFAULT, and which language its content MUST speak — live in the single pure module
+`tools/server/src/concrete-rules.ts`, shared by client and server:
+
+- **Default (inheritance)**: an unspecified concrete inherits the storage family —
+  a directory-concrete parent keeps its children directory-concrete (`dir/yamlover`;
+  a subchapter of a dir chapter becomes a subdirectory member, the ex-66 shape);
+  everything else stays inline in the parent's source. An explicit `concrete:`
+  always wins.
+- **Obligatory (language lock)**: content inside a file document speaks that file's
+  language — the interior of a `.json5p` cannot switch to yaml; an existing node
+  never changes concrete through an edit (a conversion is a move).
+- **Member encoding** (the server-side face of the same inheritance, for edits that
+  name no concrete):
+  - a **keyed container** child → a nested real directory named by the key, recursively;
+  - an **untagged ordinal container** child → a real directory under an order-numbered
+    generated name (`item01`, `item02`, …) plus a `- *: itemNN` pointer-array element in
+    the parent's `body.yamlover` granting its position — the `examples/56-array-of-files`
+    shape. A *tagged* ordinal container (a table, a typographical list) is content and
+    stays inline;
+  - everything else (scalars, flow one-liners) → the parent's `body.yamlover` overlay.
+
+**Birth order does not matter — the derivation is re-evaluated on the scalar→container
+transition, not only at a child's birth.** A node built the incremental way (a `world: World`
+title typed first, its children added after) is born a keyed scalar → the body overlay; the
+moment it gains CONTAINER content — the omni first-child commit *emplaces* the whole node
+(self + child), or a child is *inserted* under the still-scalar member — it lifts OUT of the
+enclosing body into its own real subdirectory, and its old inline line is spliced away
+(`deriveMemberEncoding`'s promotion, `engine-api.ts`; gated by `subchapterMaterializes` so it
+only fires when the enclosing document is directory-backed). So `world: World`-then-grow lands
+in the SAME directory shape as a `world` born already populated — no birth-order asymmetry. A
+pure scalar emplace (a title edit, no entries) is not a transition and stays inline; an
+inline-tagged member is left inline (its `!!<…>` schema is not yet carried across the move).
+
+**Generated member names carry ORDER NUMBERS** (`nextMemberName`, concrete-rules.ts) so a
+plain directory listing sorts roughly in body order — item members as `item01`, `item02`,
+title-born subchapters as `01-Введение`, `02-Обзор`. The numbers are COSMETIC: order is the
+body pointer-array's data, never the filesystem's, and an existing member is **never
+renamed** — an insert between neighbors slots a *sub-number* instead (`item01` … `item01-1`
+… `item02`; `01-A` … `01-1-C` … `02-B`; an insert before `01` degrades to `00`). Uniqueness
+is guaranteed in-scheme (the key deepens), so a collision suffix never appears.
+
+Removing the positional element splices only the pointer line; the item directory is
+orphaned (never destroyed) and resurfaces as a keyed-only member.
+
 ## Where it shows up
 
 - The server (`concreteOf` in `tools/server/src/server/engine-api.ts`) derives

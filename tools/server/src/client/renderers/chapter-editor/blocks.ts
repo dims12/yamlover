@@ -5,6 +5,9 @@
 
 import * as M from "../yamlover-editor/model";
 import { bareStringRoundTrips } from "../yamlover-editor/model";
+import { parsePointer } from "../../../../../parser/ts/src/pointer.ts";
+import { pointerSafeName } from "../../../concrete";
+import { defaultChildConcrete, subchapterMaterializes, nextMemberName } from "../../../concrete-rules";
 import { escapeYamloverScalar } from "../chapter-model";
 import type { Edit } from "../../api";
 import { resolveTab, type TabIntent } from "./tab";
@@ -36,6 +39,22 @@ function proseEntry(text: string): M.MEntry {
     id: M.nid(), key: null, decided: true, committed: true,
     node: { id: M.nid(), rev: 0, kind: "scalar", scalar, entries: [], selfAt: 0, metaTag: null, setTag: false },
   };
+}
+
+/** The member name a sibling entry references, for birth-name prediction: a session-born
+ *  member's wireKey, or the single-key document-scope name a loaded `- *: name` entry points
+ *  at. Null for anything else (inline content, cross-document pointers). */
+function memberNameOfSibling(e: M.MEntry): string | null {
+  if (e.wireKey !== undefined) return e.wireKey;
+  if (e.node.kind === "pointer" && e.node.pointer) {
+    try {
+      const p = parsePointer(e.node.pointer.raw);
+      if (p.base.scope === "document" && p.steps.length === 1 && p.steps[0].sel === "key") return p.steps[0].name;
+    } catch {
+      /* not a pointer token */
+    }
+  }
+  return null;
 }
 
 /** The container + index of the entry named by `nodeId`'s owning entry, or null for the root. */
@@ -123,6 +142,9 @@ export function wrapAsChapter(rootPath: string, root: M.MNode, entryId: string):
 export function unwrapChapter(rootPath: string, root: M.MNode, entryId: string): { edits: Edit[]; focusId: string } | null {
   const spine = M.findEntry(root, entryId);
   if (!spine) return null;
+  // a MATERIALIZED (linked) subchapter does not unwrap — v1 has no verb for inlining a linked
+  // document back into the parent body (a cross-file destructive move); Shift-Tab nops
+  if (spine.entry.derivedKey) return null;
   const node = spine.entry.node;
   if (node.kind !== "container" || !node.selfValue || node.flow) return null;
   const edits: Edit[] = [];
@@ -316,15 +338,87 @@ export function demoteDescription(rootPath: string, root: M.MNode, entryId: stri
 
 /** A committed empty chapter's FIRST paragraph — born from the bootstrap cell's first text, or
  *  from Enter walking out of the title. Goes through the commit machinery, so a freshly wrapped
- *  title (whose entry is a scalar server-side) re-emplaces the whole omni instead of descending. */
-export function createFirstChunk(rootPath: string, root: M.MNode, containerId: string, text: string): { edits: Edit[]; focusId: string; entryId: string } | null {
-  const node = containerId === root.id ? root : M.findNode(root, containerId)?.node;
+ *  title (whose entry is a scalar server-side) re-emplaces the whole omni instead of descending.
+ *
+ *  THE DEFERRED MATERIALIZATION (CHAPTER.md §Attaching a chapter): a freshly Tab-wrapped
+ *  subchapter — an omniPending keyless child of a document whose inheritance rule says
+ *  "directory" (concrete-rules.ts {@link subchapterMaterializes}) — materializes as its OWN
+ *  SUBDIRECTORY the moment it gains body content: the inline line is removed and re-inserted
+ *  with the rules' default concrete, named by its title and tagged with the enclosing
+ *  chapter's schema (`rootTag`) so the born document reads as a chapter on its own. The
+ *  enclosing document is the edited ROOT (`docConcrete`), or — deeper, mid-session — a member
+ *  THIS session just materialized (its entry carries `wireKey` + `bornConcrete`), so a
+ *  recursive tree (ex-66 `dogs/puppies`) grows subdirectory-by-subdirectory without waiting
+ *  for refetches. A title-only wrap stays a model-only transform (nothing to materialize;
+ *  Shift-Tab before typing remains a zero-op round-trip). Same-batch follow-up edits route
+ *  into the member via its keyed path (on disk from birth); after the flush the SSE refetch
+ *  rebuilds the model with the member as a linked subchapter. */
+export function createFirstChunk(
+  rootPath: string, root: M.MNode, containerId: string, text: string,
+  docConcrete: string | null = null, rootTag: string | null = null,
+): { edits: Edit[]; focusId: string; entryId: string } | null {
+  const found = containerId === root.id ? null : M.findNode(root, containerId);
+  const node = containerId === root.id ? root : found?.node;
   if (!node || node.kind !== "container") return null;
   const entry: M.MEntry = {
     id: M.nid(), key: null, decided: true, committed: false,
     node: { id: M.nid(), rev: 0, kind: "scalar", scalar: proseScalar(text), entries: [], selfAt: 0, metaTag: null, setTag: false },
   };
   node.entries.push(entry);
+  const ownSpine = found?.spine;
+  // the wrapped subchapter's enclosing DOCUMENT — its concrete is what the inheritance rule
+  // is asked with, its path is where the member insert lands. Null: not a wrap that derives.
+  const doc = (() => {
+    if (!ownSpine || ownSpine.entry.key !== null || !node.omniPending || node.metaTag !== null) return null;
+    const parents = ownSpine.parents;
+    if (parents.length === 1) return { concrete: docConcrete, path: rootPath };
+    const holder = parents[parents.length - 2];
+    const holderEntry = holder.container.entries[holder.index];
+    if (holderEntry.wireKey === undefined) return null; // an inline ancestor — commitSpine's territory
+    return { concrete: holderEntry.bornConcrete ?? null, path: M.pathOfSpine(rootPath, { entry: holderEntry, parents: parents.slice(0, -1) }) };
+  })();
+  if (doc !== null && ownSpine && subchapterMaterializes(doc.concrete)) {
+    const memberConcrete = defaultChildConcrete(doc.concrete); // the rules' pick — dir/yamlover
+    const { container: holderC, index } = ownSpine.parents[ownSpine.parents.length - 1];
+    const at = M.serverIndexOf(holderC, index);
+    const edits: Edit[] = [];
+    if (ownSpine.entry.committed) edits.push({ path: appendIndex(doc.path, at), op: "remove" });
+    node.omniPending = false;
+    const title = String(node.selfValue?.value ?? "");
+    // the wire carries the TITLE-derived name; the server derives the member's on-disk name
+    // from it — an order-numbered `NN-Title` slotted between the neighboring linked members'
+    // numbers (nextMemberName is SHARED, so the prediction below computes the same name for
+    // keyed follow-up addressing). The prediction sees the MODEL's members, not the disk —
+    // an orphan (unreferenced) numbered dir can bump the server's pick past ours, the same
+    // divergence class as a duplicate-title uniqueName rename; the refetch reconciles.
+    const name = pointerSafeName(title || "subchapter");
+    const sibNames: string[] = [];
+    let prevName: string | undefined;
+    let nextName: string | undefined;
+    holderC.entries.forEach((s, i) => {
+      if (i === index) return; // ourselves
+      const n = memberNameOfSibling(s);
+      if (n === null) return;
+      sibNames.push(n);
+      if (i < index) prevName = n;
+      else if (nextName === undefined) nextName = n;
+    });
+    const predicted = nextMemberName(sibNames, "title", { prevName, nextName, title: title || "subchapter" });
+    edits.push({
+      path: appendIndex(doc.path, at), op: "insert", concrete: memberConcrete,
+      name, yamlover: M.serializeMNode(node),
+      ...(rootTag !== null ? { meta: rootTag } : {}),
+    });
+    M.markCommitted(ownSpine.entry);
+    // linked from here on: addressed by its predicted WIRE KEY (shift-immune — the member
+    // sorts as a keyed entry before the body entries once indexed, so `[i]` would drift)
+    // while still DRAWN as a body element; structural ops nop until the refetch rebuilds the
+    // model with the member as a proper linked subchapter
+    ownSpine.entry.wireKey = predicted;
+    ownSpine.entry.bornConcrete = memberConcrete;
+    ownSpine.entry.derivedKey = true;
+    return { edits, focusId: entry.node.id, entryId: entry.id };
+  }
   const edits = M.commitSpine(rootPath, root, entry.id);
   return { edits, focusId: entry.node.id, entryId: entry.id };
 }

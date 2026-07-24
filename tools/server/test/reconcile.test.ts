@@ -59,7 +59,7 @@ describe("reconcile: external edits reach the index", () => {
   });
 
   it("an external rename is inferred as a move and the inbound refs are RELINKED", async () => {
-    const root = tmpTree({ "old.md": "# unique doc", "refs.yamlover": "link: *//old.md\n" });
+    const root = tmpTree({ "old.md": "# unique doc", "refs.yamlover": "link: *:: old.md\n" });
     const h = await handlers(root);
 
     // an external actor renames the file — no engine mediation
@@ -69,7 +69,7 @@ describe("reconcile: external edits reach the index", () => {
     expect(r.json.added).toEqual([]);
     expect(r.json.removed).toEqual([]);
     // the mediated-tier rewrite ran on the inferred move (ENGINE.md tier 2: "relinked")
-    expect(fs.readFileSync(path.join(root, "refs.yamlover"), "utf8")).toBe("link: *//new.md\n");
+    expect(fs.readFileSync(path.join(root, "refs.yamlover"), "utf8")).toBe("link: *:: new.md\n");
     expect(call(h, "/api/dangling").json).toEqual([]);
   });
 

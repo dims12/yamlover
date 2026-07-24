@@ -98,8 +98,9 @@ as the single rule.
   This is what makes the matcher split (§4) unambiguous. Quoting is the string
   quoting of the host surface (`'…'` / `"…"`).
 - Escaping: `:` joins the metachar set — a literal colon in a key is `\:` (or the
-  key is quoted): `schedule: 09\:30`. `/` leaves the set when the migration window
-  closes. The literal keys `..` and `...` stay `\.\.` and `\.\.\.`.
+  key is quoted): `schedule: 09\:30`. `/` has LEFT the set (the migration window
+  closed 2026-07-24 — a slash never separates; `*/pets` is the literal key
+  "/pets"). The literal keys `..` and `...` stay `\.\.` and `\.\.\.`.
 
 ## 4. Queries: matchers between the colons
 

@@ -56,13 +56,13 @@ test('yamlover rt: compact nested sequences fold onto the dash', () => {
 });
 
 test('yamlover rt: a leading ~- back-edge in a seq item stays block (no fold)', () => {
-  rtYamlover('crew:\n  -\n    ~- */teams\n    name: Al\nteams:\n  - x\n');
+  rtYamlover('crew:\n  -\n    ~- *: teams\n    name: Al\nteams:\n  - x\n');
 });
 
 test('yamlover rt: pointers re-render in canonical colon form', () => {
-  const out = rtYamlover('pets:\n  - name: Rex\nfeline: *pets[0]\ntop: */pets[0]/name\nrx: *pets[0]\n');
+  const out = rtYamlover('pets:\n  - name: Rex\nfeline: *pets[0]\ntop: *:pets[0]:name\nrx: *pets[0]\n');
   assert.match(out, /\*pets\[0\]/);
-  assert.match(out, /\*: pets\[0\]: name/);
+  assert.match(out, /\*: pets\[0\]: name/); // compact input re-emits with the `: ` styling
 });
 
 test('yamlover rt: anchors and anchor references', () => {
@@ -72,7 +72,7 @@ test('yamlover rt: anchors and anchor references', () => {
 });
 
 test('yamlover rt: keyed back-edges and ~- membership', () => {
-  rtYamlover('eve:\n  cain: */adam/cain\nadam:\n  cain:\n    ~cain: */eve\nfavorites:\n  - */adam\nfan:\n  name: Bob\n  ~- */favorites\n');
+  rtYamlover('eve:\n  cain: *: adam: cain\nadam:\n  cain:\n    ~cain: *: eve\nfavorites:\n  - *: adam\nfan:\n  name: Bob\n  ~- *: favorites\n');
 });
 
 test('yamlover rt: !!mix / !!var are NOT emitted — omni is the default (no-op tags dropped)', () => {
@@ -84,7 +84,7 @@ test('yamlover rt: !!mix / !!var are NOT emitted — omni is the default (no-op 
 });
 
 test('yamlover rt: !!set survives via meta', () => {
-  const out = rtYamlover('crew: !!set\n  - */fan\nfan:\n  name: Bob\n');
+  const out = rtYamlover('crew: !!set\n  - *: fan\nfan:\n  name: Bob\n');
   assert.match(out, /crew: !!set/);
 });
 
@@ -129,13 +129,13 @@ test('yamlover rt: strings that look like other types get quoted', () => {
 });
 
 test('yamlover rt: schema tags — pointer, inline node, root', () => {
-  const out = rtYamlover('!!<*yamlover/$defs/tag>\ntags: !!<*yamlover/$defs/tag> A taxonomy\n  field: About\nchunk: !!<format: text/x-plantuml> diagram\n');
+  const out = rtYamlover('!!<*yamlover: $defs: tag>\ntags: !!<*yamlover: $defs: tag> A taxonomy\n  field: About\nchunk: !!<format: text/x-plantuml> diagram\n');
   assert.match(out, /^!!<\*yamlover: \$defs: tag>$/m);
 });
 
 test('yamlover rt: duplicate back keys re-emit as distinct anchors', () => {
   // two same-named `~slug` memberships (the 67-pdf-tags shape) → two `&` anchor tokens
-  const out = rtYamlover('"a.pdf":\n  ~slug: */tags/x\n  ~slug: */tags/y\ntags:\n  x: one\n  y: two\n');
+  const out = rtYamlover('"a.pdf":\n  ~slug: *: tags: x\n  ~slug: *: tags: y\ntags:\n  x: one\n  y: two\n');
   assert.match(out, /^ {2}&: tags: x: slug$/m);
   assert.match(out, /^ {2}&: tags: y: slug$/m);
   assert.doesNotMatch(out, /~slug/);
@@ -146,7 +146,7 @@ test('yamlover rt: empty containers, flow source', () => {
 });
 
 test('yamlover rt: spacey keys re-render as quoted portions', () => {
-  const out = rtYamlover('ref: */some file with spaces.pdf\nodd: *\'has #comment\'\n');
+  const out = rtYamlover('ref: *: \'some file with spaces.pdf\'\nodd: *\'has #comment\'\n');
   assert.match(out, /\*: 'some file with spaces\.pdf'/);
   assert.match(out, /\*'has #comment'/);
 });
@@ -204,7 +204,7 @@ test('json5p rt: object/array nesting, odd keys, escapes', () => {
 });
 
 test('json5p rt: pointers, anchors, back-edges (keyed and keyless)', () => {
-  const out = rtJson5p("{ boss: &'/chief' {name: 'Rex'}, team: {lead: *'/chief'}, eve: {cain: *'/adam/cain'}, adam: {cain: {~cain: *'/eve'}}, favorites: [*'/adam'], fan: {name: 'Bob', ~*'/favorites'}, thirty: &'/tags/whole[]' 30 }");
+  const out = rtJson5p("{ boss: &': chief' {name: 'Rex'}, team: {lead: *': chief'}, eve: {cain: *': adam: cain'}, adam: {cain: {~cain: *': eve'}}, favorites: [*': adam'], fan: {name: 'Bob', ~*': favorites'}, thirty: &': tags: whole[]' 30 }");
   assert.match(out, /&": chief" \{/);
   assert.match(out, /&": tags: whole\[\]" 30/);
   // deprecated `~` forms re-emit as anchors (absolute scopes), colon-rendered
@@ -219,16 +219,16 @@ test('json5p rt: numbers keep their spelling (hex, Infinity, NaN)', () => {
   assert.match(out, /Infinity/);
 });
 
-test('json5p rt: pointer raw with backslash escapes', () => {
-  const out = rtJson5p("{ oddRef: *'odd\\\\/key/n' }");
+test('json5p rt: a slash key rides bare in colon portions', () => {
+  const out = rtJson5p("{ oddRef: *'odd/key: n' }");
   assert.match(out, /\*"odd\/key: n"/); // `/` is literal in colon portions
 });
 
 test('json5p lossy: yamlover tags are refused with a pointer to the meta layer', () => {
-  assert.throws(() => serializeJson5p(parseYamlover('crew: !!set\n  - */fan\nfan: x\n')), LossyError);
+  assert.throws(() => serializeJson5p(parseYamlover('crew: !!set\n  - *: fan\nfan: x\n')), LossyError);
   assert.throws(() => serializeJson5p(parseYamlover('p: !!mix\n  - a\n  k: v\n')), LossyError);
   assert.throws(() => serializeJson5p(parseYamlover('r: 5\n  - solid\n')), LossyError); // omni
-  assert.throws(() => serializeJson5p(parseYamlover('t: !!<*yamlover/$defs/tag> body\n')), LossyError);
+  assert.throws(() => serializeJson5p(parseYamlover('t: !!<*yamlover: $defs: tag> body\n')), LossyError);
 });
 
 // ---- json5p: file round-trips ------------------------------------------------------

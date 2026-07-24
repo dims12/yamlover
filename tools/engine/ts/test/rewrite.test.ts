@@ -22,16 +22,16 @@ function applied(src: string, edits: Map<string, TextEdit[]>, uri = URI): string
 }
 
 test('rewrite: document-scope pointer', () => {
-  const { p, src } = plan('a:\n  ref: */old.md\nold.md: x\n', ':old.md', ':new.md');
+  const { p, src } = plan('a:\n  ref: *: old.md\nold.md: x\n', ':old.md', ':new.md');
   assert.equal(p.rewritten.length, 1);
-  assert.equal(p.rewritten[0].newRaw, '/new.md');
-  assert.equal(applied(src, p.edits), 'a:\n  ref: */new.md\nold.md: x\n');
+  assert.equal(p.rewritten[0].newRaw, ': new.md');
+  assert.equal(applied(src, p.edits), 'a:\n  ref: *: new.md\nold.md: x\n');
 });
 
 test('rewrite: link-scope pointer (project-root relative)', () => {
-  const { p, src } = plan('ref: *//dir/old.md\ndir:\n  old.md: x\n', ':dir:old.md', ':dir:new.md');
-  assert.equal(p.rewritten[0].newRaw, '//dir/new.md');
-  assert.match(applied(src, p.edits), /\*\/\/dir\/new\.md/);
+  const { p, src } = plan('ref: *:: dir: old.md\ndir:\n  old.md: x\n', ':dir:old.md', ':dir:new.md');
+  assert.equal(p.rewritten[0].newRaw, ':: dir: new.md');
+  assert.match(applied(src, p.edits), /\*:: dir: new\.md/);
 });
 
 test('rewrite: current-scope sibling stays relative', () => {
@@ -43,39 +43,39 @@ test('rewrite: current-scope sibling stays relative', () => {
 test('rewrite: current-scope deepens but stays current when still under the holder', () => {
   // from the root mapping, `sub/new` is still a current-scope path (first step = sibling key)
   const { p } = plan('ref: *old\nold: x\nsub: {}\n', ':old', ':sub:new');
-  assert.equal(p.rewritten[0].newRaw, 'sub/new');
+  assert.equal(p.rewritten[0].newRaw, 'sub: new');
 });
 
 test('rewrite: current-scope falls back to document form when the target leaves the holder', () => {
   const { p } = plan('a:\n  ref: *old\n  old: x\nb: {}\n', ':a:old', ':b:new');
-  assert.equal(p.rewritten[0].newRaw, '/b/new');
+  assert.equal(p.rewritten[0].newRaw, ': b: new');
 });
 
 test('rewrite: parent-scope keeps the .. form', () => {
-  const { p } = plan('a:\n  ref: *../old\nold: x\n', ':old', ':new');
-  assert.equal(p.rewritten[0].newRaw, '../new');
+  const { p } = plan('a:\n  ref: *..: old\nold: x\n', ':old', ':new');
+  assert.equal(p.rewritten[0].newRaw, '..: new');
 });
 
 test('rewrite: directory move retargets descendants (prefix)', () => {
-  const { p, src } = plan('r1: */dir/x.md\nr2: */dir/sub/y.md\ndir:\n  x.md: 1\n  sub:\n    y.md: 2\n', ':dir', ':moved');
+  const { p, src } = plan('r1: *: dir: x.md\nr2: *: dir: sub: y.md\ndir:\n  x.md: 1\n  sub:\n    y.md: 2\n', ':dir', ':moved');
   assert.equal(p.rewritten.length, 2);
-  assert.deepEqual(p.rewritten.map((r) => r.newRaw).sort(), ['/moved/sub/y.md', '/moved/x.md']);
+  assert.deepEqual(p.rewritten.map((r) => r.newRaw).sort(), [': moved: sub: y.md', ': moved: x.md']);
   const out = applied(src, p.edits);
-  assert.match(out, /\*\/moved\/x\.md/);
-  assert.match(out, /\*\/moved\/sub\/y\.md/);
+  assert.match(out, /\*: moved: x\.md/);
+  assert.match(out, /\*: moved: sub: y\.md/);
 });
 
 test('rewrite: a ref INSIDE the moved subtree that survives relatively is untouched', () => {
   // sibling ref within the moved dir: holder and target move together → same raw
-  const { p } = plan('dir:\n  a:\n    ref: *../b\n  b: x\n', ':dir', ':moved');
+  const { p } = plan('dir:\n  a:\n    ref: *..: b\n  b: x\n', ':dir', ':moved');
   assert.equal(p.rewritten.length, 0);
   assert.equal(p.unrewritten.length, 0);
 });
 
 test('rewrite: keyed back-edge and ~- membership are rewritten too', () => {
-  const src = 'tags:\n  t:\n    m: */doc.md\ndoc.md:\n  ~m: */tags/t\n  ~- */tags/t\n';
+  const src = 'tags:\n  t:\n    m: *: doc.md\ndoc.md:\n  ~m: *: tags: t\n  ~- *: tags: t\n';
   const { p } = plan(src, ':tags:t', ':tags:u');
-  assert.deepEqual(p.rewritten.map((r) => r.newRaw), ['/tags/u', '/tags/u']);
+  assert.deepEqual(p.rewritten.map((r) => r.newRaw), [': tags: u', ': tags: u']);
 });
 
 test('rewrite: a ref through an anchor-created key is rewritten to the moved path', () => {
@@ -89,39 +89,40 @@ test('rewrite: a ref through an anchor-created key is rewritten to the moved pat
 });
 
 test('rewrite: keyed and ordinal anchors retarget when their container moves (A4)', () => {
-  const { p, src } = plan('x: 1\n  &/tags/a/slug\n  &/tags/b[]\ntags:\n  a: one\n  b: two\n', ':tags', ':labels');
-  assert.deepEqual(p.rewritten.map((r) => r.newRaw).sort(), ['&/labels/a/slug', '&/labels/b[]']);
+  const { p, src } = plan('x: 1\n  &: tags: a: slug\n  &: tags: b[]\ntags:\n  a: one\n  b: two\n', ':tags', ':labels');
+  // rewritten anchors come back COMPACT (spaceless): a single token in any position
+  assert.deepEqual(p.rewritten.map((r) => r.newRaw).sort(), ['&:labels:a:slug', '&:labels:b[]']);
   assert.equal(p.unrewritten.length, 0);
-  assert.equal(applied(src, p.edits), 'x: 1\n  &/labels/a/slug\n  &/labels/b[]\ntags:\n  a: one\n  b: two\n');
+  assert.equal(applied(src, p.edits), 'x: 1\n  &:labels:a:slug\n  &:labels:b[]\ntags:\n  a: one\n  b: two\n');
 });
 
 test('rewrite: a current-scope anchor that moved WITH its container keeps its spelling', () => {
   // `&extra` grafts member as a sibling key — holder and container ride the move together,
-  // so the relative spelling survives. (A document-scoped `&/box/extra` would NOT: the
+  // so the relative spelling survives. (A document-scoped `&: box: extra` would NOT: the
   // document root stays put, so the path names the moved root and must be rewritten.)
   const { p } = plan('box:\n  member: 1\n    &extra\n', ':box', ':crate');
   assert.equal(p.rewritten.length, 0);
   assert.equal(p.unrewritten.length, 0);
-  const doc = plan('box:\n  member: 1\n    &/box/extra\n', ':box', ':crate');
-  assert.deepEqual(doc.p.rewritten.map((r) => r.newRaw), ['&/crate/extra']);
+  const doc = plan('box:\n  member: 1\n    &: box: extra\n', ':box', ':crate');
+  assert.deepEqual(doc.p.rewritten.map((r) => r.newRaw), ['&:crate:extra']);
 });
 
 test('rewrite: metachar keys are escaped in the new raw', () => {
-  const { p } = plan('ref: */plain\nplain: x\n', ':plain', ':we ird:odd~key');
-  assert.equal(p.rewritten[0].newRaw, '/we ird/odd\\~key');
+  const { p } = plan('ref: *: plain\nplain: x\n', ':plain', ':we ird:odd~key');
+  assert.equal(p.rewritten[0].newRaw, ": 'we ird': odd\\~key");
 });
 
 test('rewrite: json5p surface gets a quoted token', () => {
   const uri = '/root/doc.json5p';
-  const src = `{ ref: *'/old.md', "old.md": 1 }`;
+  const src = `{ ref: *': old.md', "old.md": 1 }`;
   const doc = parseJson5p(src, uri);
   doc.root.meta = { ...doc.root.meta, documentRoot: true };
   const p = planRewrites(doc, resolveDocument(doc), ':old.md', ':new.md', { root: '/root' });
-  assert.equal(p.edits.get(uri)![0].text, `*'/new.md'`);
+  assert.equal(p.edits.get(uri)![0].text, `*': new.md'`);
 });
 
 test('rewrite: source outside the served root is reported, not edited', () => {
-  const { p } = plan('ref: */old.md\nold.md: x\n', ':old.md', ':new.md', '/elsewhere/doc.yamlover');
+  const { p } = plan('ref: *: old.md\nold.md: x\n', ':old.md', ':new.md', '/elsewhere/doc.yamlover');
   assert.equal(p.rewritten.length, 0);
   assert.equal(p.unrewritten.length, 1);
   assert.match(p.unrewritten[0].reason, /outside the served root/);
@@ -140,7 +141,7 @@ test('applyEdits: descending application, overlap rejection', () => {
 });
 
 test('nominalPath: frames + steps without resolution', () => {
-  const src = 'a:\n  doc: */x/y\n  cur: *sib\n  up: *../z\nlink: *//auth/p\n';
+  const src = 'a:\n  doc: *: x: y\n  cur: *sib\n  up: *..: z\nlink: *:: auth: p\n';
   const doc = parseYamlover(src, URI);
   doc.root.meta = { ...doc.root.meta, documentRoot: true };
   const by = new Map(resolveDocument(doc).map((e) => [e.from, e]));

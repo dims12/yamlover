@@ -278,6 +278,15 @@ export function moveNode(from: string, to: string): Promise<MvResult> {
   return postJson(api("/api/mv"), { from, to });
 }
 
+/** Rename a node's KEY (POST /api/rekey). One verb, two backends routed server-side by storage:
+ *  an fs-backed member (a real directory/file) is renamed on disk via `mv` (inbound pointers
+ *  rewritten); an inline keyed entry has its key token rewritten in the body. `path` is the
+ *  node's current colon path (last segment = the old key); `key` is the new key. Returns the
+ *  node's new path. */
+export function rekeyNode(path: string, key: string): Promise<{ path: string }> {
+  return postJson(api("/api/rekey"), { path, key });
+}
+
 /** The result of pasting/uploading a file or text: the new file's node path (for a text chunk,
  *  the chapter it joined), and (for a chapter) the chapter path plus any chunk pointer appended. */
 export interface PasteResult {

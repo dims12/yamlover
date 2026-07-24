@@ -5,7 +5,11 @@
 //                      existing chapter sibling (indent). Shift-Tab mirrors it: a title dissolves
 //                      back into a chunk (unwrap, its body splicing out after it), a chunk moves
 //                      out of its enclosing subchapter (dedent). Wrap and unwrap are exact
-//                      inverses, so Tab / Shift-Tab on the same block round-trips.
+//                      inverses, so Tab / Shift-Tab on the same block round-trips — until the
+//                      wrap MATERIALIZES: in a dir-concrete chapter the first body commit turns
+//                      the wrapped subchapter into its own SUBDIRECTORY (blocks.ts
+//                      createFirstChunk), and a materialized (linked) subchapter does not unwrap
+//                      (v1 has no verb for inlining a linked document back) — Shift-Tab nops.
 //   bullets / numbered the classic outliner move: the item becomes a child of the previous item,
 //                      and an untagged container inside a list IS a sublist of the same kind.
 //   row-cell           a pure caret move between the cells of a table, OneNote style: next cell,

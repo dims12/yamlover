@@ -111,7 +111,10 @@ engine state (see `META.md` for the full contract):
 
 - **`body.yamlover`** — the **instance** overlay: data values laid over the
   directory (scalars, mappings, pointers, ordering). A pointer-array body
-  (`- *file1 …`) assigns the directory's element order — disk has none.
+  (`- *file1 …`) assigns element order to the **subset it names** — disk has
+  none; a child the body never names is a **keyed-only member** (present under
+  its filename, granted no position). The projection shows a named member's
+  filename as a dimmed derived `&` anchor: `- &file1 value`.
 - **`meta.yamlover`** — the **metadata schema**: a JSON-Schema-equivalent
   written in yamlover (`properties`, `type`, `format`, `prefixItems`, …) whose
   primary job is typing / decoding / presentation, with validation optional.
@@ -151,17 +154,20 @@ directory, without changing what the data means. `examples/51-object-in-dir`,
 
 1. **A directory is a mapping.** Its children are the keys; files supply string
    keys (filenames), the `body.yamlover` pointer-array supplies integer-key
-   positions when order matters.
+   positions when order matters — to the members it names; the rest stay
+   keyed-only, after the ordered block.
 2. **A file is equivalent to a subdirectory** — both represent the same node. A
    structured child may be stored either as `child.yamlover` (collapsed) or as
    `child/` (expanded). Tools may convert freely between the two.
 3. **The `.yamlover/` directory is the overlay marker.** Its presence promotes
    a plain *dir* into a node with instance/metadata overlays.
 4. **One ordered container.** There is no separate list/dict: a mapping is
-   ordered and its positions are integer keys (`[n]`); `/x` addresses a string
-   key. Order is data — text order in a file, the pointer-array for a directory.
+   ordered and its positions are integer keys (`[n]`); `: x` addresses a string
+   key. Order is data — text order in a file, the pointer-array for a directory
+   (a positional prefix over the named subset; unnamed children have no
+   position to lose).
 5. **Pointers are edges, not copies.** `*` dereferences a path
-   (`*../../pets[1]`, `*/people/alice`), `&` declares an anchor, `~key:` authors
+   (`*..: ..: pets[1]`, `*: people: alice`), `&` declares an anchor, `~key:` authors
    a back-edge. One reference mechanism across every concrete (`URIs.md`).
 
 ## Partial flattening

@@ -7,7 +7,7 @@ import { call, callBody } from "./http";
 // on /api/json, link markers, and the TOC — and GET /api/tagged, a tag's materials with
 // annotations resolved to their `target`.
 
-const TAG_FILE = { "tags.yamlover": 'yellow: !!<*yamlover/$defs/tag>\n  color: "#f9e2af"\n' };
+const TAG_FILE = { "tags.yamlover": 'yellow: !!<*yamlover: $defs: tag>\n  color: "#f9e2af"\n' };
 const TAG = ":tags.yamlover:yellow";
 
 describe("concrete (stat-derived)", () => {
@@ -77,7 +77,7 @@ describe("GET /api/tagged", () => {
   it("a directly-tagged node (authoring `~-` itself) appears as itself — once, even when also annotated", async () => {
     const root = tmpTree({
       ...TAG_FILE,
-      "direct.yamlover": 'title: "D"\n~- *//tags.yamlover/yellow\n',
+      "direct.yamlover": 'title: "D"\n~- *:: tags.yamlover: yellow\n',
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -95,7 +95,7 @@ describe("GET /api/tagged", () => {
     const root = tmpTree({
       name: "Alice",
       "tags.yamlover":
-        'yellow: !!<*yamlover/$defs/tag>\n  color: "#f9e2af"\n  pale: !!<*yamlover/$defs/tag>\n    color: "#fdf3c4"\n',
+        'yellow: !!<*yamlover: $defs: tag>\n  color: "#f9e2af"\n  pale: !!<*yamlover: $defs: tag>\n    color: "#fdf3c4"\n',
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;

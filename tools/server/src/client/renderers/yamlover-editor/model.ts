@@ -71,6 +71,18 @@ export interface MEntry {
   key: string | null; // null ⇒ ordinal (`- `)
   quotedKey?: boolean; // the key was AUTHORED quoted (`"value":`) — kept quoted on screen and disk
   decided: boolean; // false ⇒ a fresh entry hole that has not chosen `- ` vs `key:` yet
+  derivedKey?: boolean; // the key is a DERIVED storage anchor (a positional member of a dir-backed
+                        // pointer-array body): drawn `- &key value` with the anchor dimmed, key
+                        // read-only; membership/order live in body.yamlover, so structural ops
+                        // (remove/indent/dedent) emit nothing for this entry — value edits pass
+  wireKey?: string; // the server-side KEY this entry is ADDRESSED by when it differs from its
+                    // drawn form: a freshly MATERIALIZED dir member is still drawn as a body
+                    // element (key null), but the indexed store keys it by name — and the member
+                    // sorts before the body entries, shifting every keyless index, so positional
+                    // addressing would hit the wrong sibling. pathOfSpine prefers this.
+  bornConcrete?: string; // the concrete a materialized member was BORN with (`dir/yamlover`) —
+                         // what the inheritance rules (concrete-rules.ts) consult for a NESTED
+                         // wrap inside it, exactly as they consult the root document's concrete
   node: MNode;
   committed: boolean; // false ⇒ exists only client-side, no server entry behind it
   bucket?: CommentBucket;
@@ -170,7 +182,7 @@ function buildNode(v: unknown, frag: string, comments: CommentMap | undefined): 
   const mixed = asMixed(v);
   if (mixed) {
     const node: MNode = { ...base, kind: "container", format: mixed.format ?? null };
-    node.entries = mixed.entries.map((e, i) => buildEntry(e.key, e.value, frag + (e.key != null ? `/${e.key}` : `[${i}]`), comments));
+    node.entries = mixed.entries.map((e, i) => buildEntry(e.key, e.value, frag + (e.key != null ? `/${e.key}` : `[${i}]`), comments, e.anchor));
     if (mixed.kind === "omni") {
       // a link self-value (blob-backed omni) stays un-modeled — read-only territory
       node.selfValue = asLink(mixed.value) ? null : mkScalar(mixed.value, bucket);
@@ -191,8 +203,8 @@ function buildNode(v: unknown, frag: string, comments: CommentMap | undefined): 
   return { ...base, kind: "scalar", scalar: mkScalar(v, bucket) };
 }
 
-function buildEntry(key: string | null, v: unknown, frag: string, comments: CommentMap | undefined): MEntry {
-  return { id: nid(), key, decided: true, node: buildNode(v, frag, comments), committed: true, bucket: bucketAt(comments, frag) };
+function buildEntry(key: string | null, v: unknown, frag: string, comments: CommentMap | undefined, derivedKey?: boolean): MEntry {
+  return { id: nid(), key, decided: true, ...(derivedKey ? { derivedKey: true } : {}), node: buildNode(v, frag, comments), committed: true, bucket: bucketAt(comments, frag) };
 }
 
 /** Build the editor model from an unlimited-depth `/api/json` payload. */
@@ -263,13 +275,14 @@ export function serverIndexOf(container: MNode, index: number): number {
   return n;
 }
 
-/** The `/api/edit` path of the entry a spine names: root path + one segment per level — the key
- *  when the entry has one (stable under sibling churn), else the server index. */
+/** The `/api/edit` path of the entry a spine names: root path + one segment per level — the
+ *  wire key when one is set (a materialized dir member), else the key when the entry has one
+ *  (stable under sibling churn), else the server index. */
 export function pathOfSpine(rootPath: string, spine: Spine): string {
   let p = rootPath;
   for (const { container, index } of spine.parents) {
     const e = container.entries[index];
-    p = appendSeg(p, e.key ?? serverIndexOf(container, index));
+    p = appendSeg(p, e.wireKey ?? e.key ?? serverIndexOf(container, index));
   }
   return p;
 }
@@ -568,6 +581,7 @@ export function removeEntry(rootPath: string, root: MNode, entryId: string): Edi
   if (!spine) return [];
   const { container, index } = spine.parents[spine.parents.length - 1];
   const entry = container.entries[index];
+  if (entry.derivedKey) return []; // membership lives in body.yamlover — v1 does not rewrite it
   const path = entry.committed && allCommitted(spine) ? pathOfSpine(rootPath, spine) : null;
   container.entries.splice(index, 1);
   demoteIfEmptied(container, root);
@@ -600,6 +614,7 @@ export function indentEntry(rootPath: string, root: MNode, entryId: string): Edi
   if (!spine) return [];
   const { container, index } = spine.parents[spine.parents.length - 1];
   const entry = container.entries[index];
+  if (entry.derivedKey) return []; // a positional member's place is body.yamlover's — not movable here
   if (container.flow || index === 0) return [];
   const prev = container.entries[index - 1];
   if (prev.node.kind === "pointer" || prev.node.kind === "link" || prev.node.flow) return [];
@@ -655,6 +670,7 @@ export function dedentEntry(rootPath: string, root: MNode, entryId: string): Edi
   if (!spine || spine.parents.length < 2) return [];
   const { container, index } = spine.parents[spine.parents.length - 1];
   const entry = container.entries[index];
+  if (entry.derivedKey) return []; // a positional member's place is body.yamlover's — not movable here
   if (container.flow) return [];
   const { container: grand, index: parentIndex } = spine.parents[spine.parents.length - 2];
   if (grand.flow) return [];

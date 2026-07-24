@@ -727,23 +727,28 @@ body {
   border-color: var(--danger);
   color: var(--danger);
 }
-/* the data-view render-depth control — same chrome as the markup width; wide enough
-   for the default `.inf` (4 glyphs + padding, so 6ch — 3ch clipped it to garbage) */
+/* the render-depth control — a DISCRETE slider (stops 1..6 then ∞, the default) with its
+   tick labels justified under the track */
 .depth-control {
-  width: 6ch;
-  background: var(--bg-alt);
-  color: var(--fg);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 2px 4px;
-  font: inherit;
-  font-family: var(--font);
-  font-size: 12px;
-  text-align: right;
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: middle;
+  width: 108px;
 }
-.depth-control.invalid {
-  border-color: var(--danger);
-  color: var(--danger);
+.depth-control input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.depth-ticks {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 4px;
+  font-family: var(--font);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--muted);
+  user-select: none;
 }
 .nodemeta {
   display: flex;
@@ -848,6 +853,11 @@ body {
 .anchor {
   color: var(--jb-keyword);
 }
+/* a DERIVED storage anchor (a positional member's key, `- &name value`) — dimmed:
+   provenance shown by the projection, not authored source */
+.anchor.derived {
+  opacity: 0.55;
+}
 .c {
   color: var(--jb-comment);
   font-style: italic;
@@ -942,8 +952,7 @@ body {
   border-left: 1px solid var(--line);
 }
 /* a heading is a `#fragment` target like a chunk — keep it off the viewport's top edge */
-.chapter-sub > .chapter-title,
-.chapter-link {
+.chapter-sub > .chapter-title {
   scroll-margin-top: 12px;
 }
 /* why a subchapter is a LINK rather than laid out here: loading, failed, or a pointer cycle */
@@ -994,13 +1003,18 @@ body {
 .chapter-prose.editable {
   min-height: 1.5em;
 }
-.chapter-link {
-  font-size: 15px;
-  font-weight: 600;
-  margin: 18px 0 8px;
-}
-.chapter-link a {
+/* THE DEPTH-STYLING RULE (chapter-shared.tsx): a not-laid-out subchapter renders the SAME
+   `chapter-title` heading inside the SAME `chapter-sub` section (identical indent + left rule)
+   — only its text is a `descend` hyperlink, with a trailing » marking the collapsed link. */
+.chapter-title a.descend {
   border-bottom-width: 0;
+}
+.chapter-title .chapter-link-more {
+  float: right;
+  color: var(--accent);
+  opacity: 0.6;
+  font-weight: 400;
+  user-select: none;
 }
 
 /* a numbered chunk: an index gutter (linking to the chunk's own node) + body.

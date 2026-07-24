@@ -78,7 +78,7 @@ test('flow mapping and sequence', () => {
 });
 
 test('pointer value → ref edge with parsed base/steps (unquoted)', () => {
-  const d = parseYamlover('manager: */pets[1]/name\n');
+  const d = parseYamlover('manager: *: pets[1]: name\n');
   const e = entry(asMap(d.root), 'manager');
   assert.equal(e.edge, 'ref');
   assert.ok(isPointer(e.value));
@@ -89,9 +89,9 @@ test('pointer value → ref edge with parsed base/steps (unquoted)', () => {
 });
 
 test('& path anchor on a block value; * reaches the anchor-created key', () => {
-  const d = parseYamlover('boss: &/chief\n  name: Rex\nteam:\n  lead: */chief\n');
+  const d = parseYamlover('boss: &: chief\n  name: Rex\nteam:\n  lead: *: chief\n');
   const boss = entry(asMap(d.root), 'boss').value as Mapping;
-  assert.deepEqual(boss.meta?.anchors?.map((a) => a.path.raw), ['/chief']);
+  assert.deepEqual(boss.meta?.anchors?.map((a) => a.path.raw), [': chief']);
   assert.equal(boss.meta?.anchors?.[0].ordinal, undefined);
   const lead = entry(asMap(entry(asMap(d.root), 'team').value as Mapping), 'lead');
   assert.equal(lead.edge, 'ref');
@@ -100,32 +100,32 @@ test('& path anchor on a block value; * reaches the anchor-created key', () => {
 
 test('& anchors: own-line, multiple, ordinal []', () => {
   // the two-line tagged-scalar file (URIs.md §&) — order-free
-  const a = parseYamlover('30\n&//tags/whole[]\n').root as any;
+  const a = parseYamlover('30\n&:: tags: whole[]\n').root as any;
   assert.equal(a.value, 30);
-  assert.deepEqual(a.meta.anchors.map((x: any) => [x.path.raw, x.ordinal === true]), [['//tags/whole', true]]);
-  const b = parseYamlover('&//tags/whole[]\n30\n').root as any;
+  assert.deepEqual(a.meta.anchors.map((x: any) => [x.path.raw, x.ordinal === true]), [[':: tags: whole', true]]);
+  const b = parseYamlover('&:: tags: whole[]\n30\n').root as any;
   assert.equal(b.value, 30);
   assert.equal(b.meta.anchors.length, 1);
   // multiple anchors on their own lines inside a node's block
-  const c = parseYamlover('child:\n  &/p/kid\n  &/q/kid\n  x: 1\n');
+  const c = parseYamlover('child:\n  &: p: kid\n  &: q: kid\n  x: 1\n');
   const child = entry(asMap(c.root), 'child').value as Mapping;
-  assert.deepEqual(child.meta?.anchors?.map((x) => x.path.raw), ['/p/kid', '/q/kid']);
+  assert.deepEqual(child.meta?.anchors?.map((x) => x.path.raw), [': p: kid', ': q: kid']);
   assert.equal(child.entries.length, 1);
   // a position may not be claimed
-  assert.throws(() => parseYamlover('12\n&/seq[3]\n'), /may not claim a position/);
+  assert.throws(() => parseYamlover('12\n&: seq[3]\n'), /may not claim a position/);
 });
 
 test('~ back-edge key (sigil outside the key)', () => {
-  const d = parseYamlover('adam:\n  cain:\n    ~cain: */eve\n');
+  const d = parseYamlover('adam:\n  cain:\n    ~cain: *: eve\n');
   const cain = entry(asMap(entry(asMap(d.root), 'adam').value as Mapping), 'cain');
   const back = entry(cain.value as Mapping, 'cain');
   assert.equal(back.edge, 'back');
   assert.deepEqual((back.value as any).base, { scope: 'document' });
 });
 
-test('escaping: literal key with slash, and \\.\\.', () => {
-  const d = parseYamlover('weird:\n  cat\\/dog:\n    n: 1\nref: *weird/cat\\/dog/n\ndots: *\\.\\.\n');
-  // the literal key is "cat/dog"
+test('escaping: `/` is ordinary in keys and paths, and \\.\\.', () => {
+  const d = parseYamlover('weird:\n  cat/dog:\n    n: 1\nref: *weird: cat/dog: n\ndots: *\\.\\.\n');
+  // the key "cat/dog" needs no escaping — `/` left the metachar set (SEPARATOR.md §3)
   const weird = entry(asMap(d.root), 'weird').value as Mapping;
   assert.equal(weird.entries[0].key, 'cat/dog');
   const ref = entry(asMap(d.root), 'ref');
@@ -174,7 +174,7 @@ test('block scalar chomping: clip (default) vs strip (-)', () => {
 });
 
 test('schema tag !!<…> on the document root attaches a schema ref', () => {
-  const d = parseYamlover('!!<*yamlover/$defs/chapter>\ntitle: T\nchunks:\n- a\n- b\n');
+  const d = parseYamlover('!!<*yamlover: $defs: chapter>\ntitle: T\nchunks:\n- a\n- b\n');
   const ptr = asMap(d.root).meta?.schema;
   assert.ok(ptr && isPointer(ptr), 'root has a schema pointer');
   assert.deepEqual((ptr as any).steps.map((s: any) => s.name ?? s.sel), ['yamlover', '$defs', 'chapter']);
@@ -182,7 +182,7 @@ test('schema tag !!<…> on the document root attaches a schema ref', () => {
 });
 
 test('schema tag !!<…> on a value attaches to that node', () => {
-  const d = parseYamlover('doc: !!<*yamlover/$defs/chapter>\n  title: T\n');
+  const d = parseYamlover('doc: !!<*yamlover: $defs: chapter>\n  title: T\n');
   const doc = entry(asMap(d.root), 'doc').value as Mapping;
   assert.ok(doc.meta?.schema && isPointer(doc.meta.schema));
   assert.deepEqual(toPlain(doc), { title: 'T' });
@@ -235,13 +235,13 @@ test('parses examples/05-tour.yaml (YAML anchors/aliases)', () => {
 test('parses examples/06-tour.yamlover (full pointer layer)', () => {
   const d = parseYamlover(readFileSync(join(examples, '06-tour.yamlover'), 'utf8'), '06-tour.yamlover');
   const root = asMap(d.root);
-  // boss carries the `&/chief` path anchor (a real document-root key, no namespace)
+  // boss carries the `&: chief` path anchor (a real document-root key, no namespace)
   assert.deepEqual((entry(root, 'boss').value as any).meta?.anchors?.map((a: any) => a.path.raw), [': chief']);
   // a representative set of edges
   assert.equal(entry(root, 'feline').edge, 'ref');
   assert.equal(entry(root, 'topDog').edge, 'ref');
   assert.equal(entry(root, 'secondName').edge, 'ref');
-  // the reverse edge deep in adam.cain is anchor-spelled: &/eve/cain on the cain node
+  // the reverse edge deep in adam.cain is anchor-spelled: `&: eve: cain` on the cain node
   const cain = entry(asMap(entry(root, 'adam').value as Mapping), 'cain').value as Mapping;
   assert.deepEqual(cain.meta?.anchors?.map((a) => a.path.raw), [': eve: cain']);
   // fan's memberships are ordinal anchors (were `~-`)
@@ -379,29 +379,29 @@ test('a bare BLOCK-SCALAR self-value is omni (tagless) and may sit anywhere amon
 // ---- `~-` keyless back-edges (reverse positional membership) + `!!set` ----------
 
 test('~- entry: a keyless back-edge with a pointer value (URIs.md §~-)', () => {
-  const d = parseYamlover('my_node:\n  name: x\n  ~- */some/other/location\n');
+  const d = parseYamlover('my_node:\n  name: x\n  ~- *: some: other: location\n');
   const my = asMap(entry(asMap(d.root), 'my_node').value);
   const back = my.entries.find((e) => e.edge === 'back')!;
   assert.equal(back.key, null);
   assert.ok(isPointer(back.value));
-  assert.equal((back.value as { raw: string }).raw, '/some/other/location');
+  assert.equal((back.value as { raw: string }).raw, ': some: other: location');
   // the reverse declaration is NOT an owned member: no !!mix needed, not an array
   assert.equal(my.array, false);
 });
 
 test('~- entries do not make a node look like a sequence, but real items still do', () => {
-  const list = parseYamlover('- a\n- b\n~- */elsewhere\n');
+  const list = parseYamlover('- a\n- b\n~- *: elsewhere\n');
   const m = asMap(list.root);
   assert.equal(m.array, true); // owned entries are all keyless
   assert.equal(m.entries.filter((e) => e.edge === 'back').length, 1);
-  const backOnly = asMap(parseYamlover('~- */elsewhere\n').root);
+  const backOnly = asMap(parseYamlover('~- *: elsewhere\n').root);
   assert.equal(backOnly.array, false); // membership declarations alone are not a sequence
 });
 
 test('~- requires a pointer; the sigil must sit tight', () => {
   assert.throws(() => parseYamlover('a:\n  ~- not_a_pointer\n'), /needs a pointer/);
-  assert.throws(() => parseYamlover('a:\n  x: 1\n  ~ - */x\n'), /sit tight/); // entry position
-  assert.throws(() => parseYamlover('a:\n  ~ key: */x\n'), /sit tight/);
+  assert.throws(() => parseYamlover('a:\n  x: 1\n  ~ - *: x\n'), /sit tight/); // entry position
+  assert.throws(() => parseYamlover('a:\n  ~ key: *: x\n'), /sit tight/);
   // value position is untouched YAML: a lone `~ -…` line is a plain scalar
   assert.deepEqual(toPlain(parseYamlover('a: ~ - x\n').root), { a: '~ - x' });
 });
@@ -459,10 +459,20 @@ test('colon anchors: own-line form runs to end of line', () => {
   assert.deepEqual(thirty.meta.anchors[0].path.base, { scope: 'link', authority: 'tags' });
 });
 
-test('colon round-trip: legacy slash input re-emits as colon, IR-equal', () => {
-  const src = 'pets:\n  - name: Rex\nref: */pets[0]/name\nanch: &/alias 1\n';
-  const doc = parseYamlover(src);
-  const out: string = serializeYamlover(doc);
-  assert.match(out, /\*: pets\[0\]: name/);
-  assert.doesNotMatch(out, /\*\/pets/);
+test('legacy slash separator is DEAD: `/` is an ordinary key character', () => {
+  // `*/pets` no longer means "document root → pets" — it is a (dangling) reference
+  // to the literal key "/pets" in the current scope
+  const p = (entry(asMap(parseYamlover('ref: */pets\n').root), 'ref').value as any);
+  assert.deepEqual(p.base, { scope: 'current' });
+  assert.deepEqual(p.steps, [{ sel: 'key', name: '/pets' }]);
+  // `*//tags/x` no longer reaches the project scope — one literal key, current scope
+  const q = (entry(asMap(parseYamlover('ref: *//tags/x\n').root), 'ref').value as any);
+  assert.deepEqual(q.base, { scope: 'current' });
+  assert.deepEqual(q.steps, [{ sel: 'key', name: '//tags/x' }]);
+  // a slash path with index groups is a SYNTAX ERROR (text after an index group)
+  assert.throws(() => parseYamlover('ref: */pets[0]/name\n'), /malformed portion/);
+  // an anchor spelled the legacy way claims the literal key "/chief", not `: chief`
+  const boss = entry(asMap(parseYamlover('boss: &/chief\n  name: Rex\n').root), 'boss').value as Mapping;
+  assert.deepEqual(boss.meta?.anchors?.map((a) => [a.path.base.scope, a.path.steps]),
+    [['current', [{ sel: 'key', name: '/chief' }]]]);
 });

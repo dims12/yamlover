@@ -47,48 +47,15 @@
         "value": {
           "ptr": {
             "base": {
-              "scope": "document"
+              "scope": "current"
             },
             "steps": [
               {
                 "sel": "key",
-                "name": "pets"
-              },
-              {
-                "sel": "index",
-                "n": 0
-              },
-              {
-                "sel": "key",
-                "name": "name"
+                "name": "/pets"
               }
             ]
           }
-        }
-      },
-      {
-        "key": "anch",
-        "edge": "contain",
-        "value": {
-          "kind": "scalar",
-          "value": 1,
-          "array": false,
-          "set": false,
-          "anchors": [
-            {
-              "base": {
-                "scope": "document"
-              },
-              "steps": [
-                {
-                  "sel": "key",
-                  "name": "alias"
-                }
-              ],
-              "ordinal": false
-            }
-          ],
-          "entries": []
         }
       }
     ]

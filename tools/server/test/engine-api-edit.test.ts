@@ -18,7 +18,7 @@ import { call, callBody } from "./http";
 // (walk.ts applySchemas: an `items: {anyOf:[chapter, chunk]}` union routes a container element to
 // the chapter branch, a scalar element to the chunk branch).
 const CHAPTER =
-  "!!<*yamlover/$defs/chapter>\n" +
+  "!!<*yamlover: $defs: chapter>\n" +
   'title: "T"\n' +
   "description: Sub\n" +
   "- Hello\n" +
@@ -26,7 +26,7 @@ const CHAPTER =
   "- title: Sub\n  - First\n";
 const DEFS = {
   "$defs/chapter":
-    "type: variant\nproperties:\n  title:\n    type: string\n  description:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n",
+    "type: variant\nproperties:\n  title:\n    type: string\n  description:\n    type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n",
   "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
 };
 
@@ -59,7 +59,7 @@ describe("/api/edit — scalars", () => {
 
   it("adds a description when the chapter has none", async () => {
     const { root, h } = await chapterHandlers({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: T\n- Hello\n",
+      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: T\n- Hello\n",
     });
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc:description", op: "emplace", yamlover: '"A subtitle"' });
     expect(r.status).toBe(200);
@@ -179,8 +179,8 @@ describe("/api/edit — batch", () => {
 
   it("routes a batch touching two different chapter files, one reindex each", async () => {
     const root = tmpTree({
-      "a/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: A\n- one\n",
-      "b/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: B\n- two\n",
+      "a/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: A\n- one\n",
+      "b/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: B\n- two\n",
       ...DEFS,
     });
     const h = createHandlers(root, { gitignore: false });
@@ -224,7 +224,7 @@ describe("/api/edit — facets", () => {
 
   it("emplace keeps an inline `!!<…>` tag; replace drops it; `meta` sets it; `meta: null` removes it", async () => {
     const { root, h } = await chapterHandlers({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: T\n- !!<format: text/x-latex> |\n  e^{i\\pi}\n",
+      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: T\n- !!<format: text/x-latex> |\n  e^{i\\pi}\n",
     });
     await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "emplace", yamlover: "|-\n  \\sqrt{2}" });
     expect(bodyOf(root)).toContain("!!<format: text/x-latex>");
@@ -245,11 +245,11 @@ describe("/api/edit — facets", () => {
     const { root, h } = await chapterHandlers({
       "doc/pic.png": "PNG",
       "doc/other.png": "PNG2",
-      "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: T\n- */pic.png\n",
+      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: T\n- *: pic.png\n",
     });
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "replace", yamlover: "*/other.png" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "replace", yamlover: "*: other.png" });
     expect(r.status).toBe(200);
-    expect(bodyOf(root)).toContain("- */other.png");
+    expect(bodyOf(root)).toContain("- *: other.png");
   });
 });
 
@@ -290,7 +290,7 @@ describe("/api/edit — rejections", () => {
 // The FULLY-OMNI chapter (CHAPTER.md): the title is the node's own scalar SELF-VALUE — no `title:`
 // key — so it consumes NO absolute index. `description` (keyed) is [0], the body follows.
 const OMNI_CHAPTER =
-  "!!<*yamlover/$defs/chapter>\n" +
+  "!!<*yamlover: $defs: chapter>\n" +
   "T\n" +
   "description: Sub\n" +
   "- Hello\n" +
@@ -298,7 +298,7 @@ const OMNI_CHAPTER =
   "- Sub\n  - First\n";
 const OMNI_DEFS = {
   "$defs/chapter":
-    "type: variant\nvalue:\n  type: string\nproperties:\n  description:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n",
+    "type: variant\nvalue:\n  type: string\nproperties:\n  description:\n    type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n",
   "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
 };
 
@@ -339,11 +339,11 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
 
   it("re-adds a title to an untitled chapter: the self-value lands right after the tag line", async () => {
     const { root, h } = await omniChapterHandlers({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\n- Hello\n",
+      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\n- Hello\n",
     });
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "emplace", yamlover: '"Fresh"' });
     expect(r.status).toBe(200);
-    expect(bodyOf(root)).toBe("!!<*yamlover/$defs/chapter>\nFresh\n- Hello\n");
+    expect(bodyOf(root)).toBe("!!<*yamlover: $defs: chapter>\nFresh\n- Hello\n");
     expect(call(h, "/api/json", { path: ":doc" }).json.title).toBe("Fresh");
   });
 
@@ -369,7 +369,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     expect(bodyOf(root)).toBe("- solid\n- recommended\nlate title\n");
   });
 
-  it("an INSERT payload with a mid-position self line keeps the typed order", async () => {
+  it("an INSERT payload with a mid-position self line keeps the typed order (in its item directory)", async () => {
     const { root, h } = await omniChapterHandlers({
       "doc/.yamlover/body.yamlover": "- placeholder\n",
     });
@@ -377,8 +377,12 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
       path: ":doc[1]", op: "insert", yamlover: "- solid\n|\n  block text\n- recommended",
     });
     expect(r.status).toBe(200);
-    // the nested omni serializes with its self line BETWEEN its entries, as authored
-    expect(bodyOf(root)).toBe("- placeholder\n- - solid\n  |\n    block text\n  - recommended\n");
+    // an UNTAGGED ordinal container derives to a sequential item directory (derive-concrete.ts
+    // dir-seq); the parent body gains the pointer at the insert's position, and the member's own
+    // body keeps the typed order verbatim — the self line BETWEEN its entries, as authored
+    expect(bodyOf(root)).toBe("- placeholder\n- *: item01\n");
+    expect(fs.readFileSync(path.join(root, "doc", "item01", ".yamlover", "body.yamlover"), "utf8"))
+      .toBe("- solid\n|\n  block text\n- recommended\n");
   });
 
   it("title edits do not shift body indices: description is [0], the body starts at [1]", async () => {
@@ -407,19 +411,27 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     expect(call(h, "/api/json", { path: ":doc[3]", depth: "3" }).json.title).toBeNull();
   });
 
-  it("inserts a titled subchapter whole: a `\"Title\"\\n- chunk` payload is self-value + body", async () => {
+  it("inserts a titled subchapter whole: a `\"Title\"\\n- chunk` payload becomes an item directory", async () => {
     const { root, h } = await omniChapterHandlers();
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", yamlover: '"T2"\n- "c1"' });
     expect(r.status).toBe(200);
-    expect(bodyOf(root)).toContain('- T2\n  - "c1"');
-    expect(call(h, "/api/json", { path: ":doc[4]", depth: "3" }).json.title).toBe("T2");
+    // dir-seq: the subchapter is its own directory member, appended to the body as a pointer.
+    // Like ex-66, the dir member sorts as a keyed entry first and the body position holds a
+    // `*` ref to it — the KEYED path is its stable address. An UNDERIVED member is untagged
+    // (schema does not cross a document boundary): the self-value survives as data, but the
+    // chapter TITLE convenience needs the tag — the chapter flows pass meta/concrete explicitly.
+    expect(bodyOf(root)).toContain("- *: item01");
+    expect(fs.readFileSync(path.join(root, "doc", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe('"T2"\n- "c1"\n');
+    const j = call(h, "/api/json", { path: ":doc:item01", depth: "3" }).json;
+    expect((j.value as { $yamloverMixed?: { value?: unknown } }).$yamloverMixed?.value).toBe("T2");
+    expect(j.concrete).toBe("dir/yamlover");
   });
 
   it("titling a compact UNTITLED subchapter keeps ALL its chunks (the swallowed-first-chunk bug)", async () => {
     // the untitled subchapter is the compact `- - first` form: its first chunk lives inline on the
     // marker line, and a title emplace must file it as body — not replace it as the "scalar"
     const { root, h } = await omniChapterHandlers({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\nT\n- Hello\n- - first chunk\n  - second chunk\n",
+      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\nT\n- Hello\n- - first chunk\n  - second chunk\n",
     });
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "emplace", yamlover: '"Added title"' });
     expect(r.status).toBe(200);
@@ -453,19 +465,51 @@ describe("/api/edit — creating objects (concrete)", () => {
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", concrete: "file/yamlover", name: "Linked", meta: CHAP, yamlover: BODY });
     expect(r.status).toBe(200);
     expect(fs.existsSync(path.join(root, "doc", "Linked.yamlover"))).toBe(true); // dir-backed doc → inside doc/
-    expect(bodyOf(root)).toContain("- */Linked.yamlover");
+    expect(bodyOf(root)).toContain("- *: Linked.yamlover");
     expect(r.json.path).toBe(":doc:Linked.yamlover"); // navigates to the linked doc's own node
     expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
   });
 
-  it("child linked dir: writes <name>/.yamlover/body.yamlover + a pointer", async () => {
+  it("child linked dir: writes an order-numbered <NN-name>/.yamlover/body.yamlover + a pointer", async () => {
     const { root, h } = await chapterHandlers();
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", concrete: "dir/yamlover", name: "SubDir", meta: CHAP, yamlover: BODY });
     expect(r.status).toBe(200);
-    expect(fs.existsSync(path.join(root, "doc", "SubDir", ".yamlover", "body.yamlover"))).toBe(true);
-    expect(bodyOf(root)).toContain("- */SubDir");
-    expect(r.json.path).toBe(":doc:SubDir");
+    expect(fs.existsSync(path.join(root, "doc", "01-SubDir", ".yamlover", "body.yamlover"))).toBe(true);
+    expect(bodyOf(root)).toContain("- *: 01-SubDir");
+    expect(r.json.path).toBe(":doc:01-SubDir");
     expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
+  });
+
+  it("a UNICODE name stays readable (pointer-safe): «Заголовок части» → Заголовок_части, not underscores", async () => {
+    const { root, h } = await chapterHandlers();
+    const r = await callBody(h, "POST", "/api/edit", {
+      path: ":doc", op: "insert", concrete: "dir/yamlover", name: "Заголовок части", meta: CHAP, yamlover: 'Заголовок части\n- ""',
+    });
+    expect(r.status).toBe(200);
+    expect(r.json.path).toBe(":doc:" + encodeURIComponent("01-Заголовок_части"));
+    expect(fs.existsSync(path.join(root, "doc", "01-Заголовок_части", ".yamlover", "body.yamlover"))).toBe(true);
+    expect(bodyOf(root)).toContain("- *: 01-Заголовок_части");
+    // the member resolves as a chapter and edits address it by its KEYED path
+    expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
+    const r2 = await callBody(h, "POST", "/api/edit", { path: `${r.json.path}[0]`, op: "emplace", yamlover: "Первый абзац" });
+    expect(r2.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, "doc", "01-Заголовок_части", ".yamlover", "body.yamlover"), "utf8")).toContain("Первый абзац");
+  });
+
+  it("a subchapter inserted BETWEEN two siblings slots a sub-number — no renumbering", async () => {
+    const { root, h } = await chapterHandlers();
+    await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", concrete: "dir/yamlover", name: "A", meta: CHAP, yamlover: BODY });
+    await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", concrete: "dir/yamlover", name: "B", meta: CHAP, yamlover: BODY });
+    expect(bodyOf(root)).toContain("- *: 01-A\n- *: 02-B");
+    // the fixture body holds entries [0..4] (title, description, three chunks) — the two
+    // appended pointers sit at [5] and [6]; inserting AT [6] slots between them
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc[6]", op: "insert", concrete: "dir/yamlover", name: "C", meta: CHAP, yamlover: BODY });
+    expect(r.status).toBe(200);
+    expect(bodyOf(root)).toContain("- *: 01-A\n- *: 01-1-C\n- *: 02-B");
+    // the number is cosmetic; existing member directories are never renamed
+    for (const dir of ["01-A", "01-1-C", "02-B"]) {
+      expect(fs.existsSync(path.join(root, "doc", dir, ".yamlover", "body.yamlover"))).toBe(true);
+    }
   });
 
   it("member file: a plain directory has no body to splice, so the content becomes a member", async () => {
@@ -757,9 +801,9 @@ describe("/api/tree — directory-chapter subchapter order", () => {
     // a directory chapter whose subchapters are their OWN subdirectories, referenced by `*` body
     // pointers in a deliberately NON-alphabetical order: zebra, then apple.
     const root = tmpTree({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Root\n- intro\n- *: zebra\n- *: apple\n",
-      "doc/zebra/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Zebra\n- z body\n",
-      "doc/apple/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Apple\n- a body\n",
+      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Root\n- intro\n- *: zebra\n- *: apple\n",
+      "doc/zebra/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Zebra\n- z body\n",
+      "doc/apple/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Apple\n- a body\n",
       ...DEFS,
     });
     const h = createHandlers(root, { gitignore: false });
@@ -772,11 +816,11 @@ describe("/api/tree — directory-chapter subchapter order", () => {
   it("trails on-disk subchapters the body never references AFTER the ordered ones, in dir-scan order", async () => {
     // zebra and apple are placed by `*` body pointers; kiwi and mango exist on disk only.
     const root = tmpTree({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Root\n- intro\n- *: zebra\n- *: apple\n",
-      "doc/zebra/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Zebra\n- z body\n",
-      "doc/apple/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Apple\n- a body\n",
-      "doc/mango/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Mango\n- m body\n",
-      "doc/kiwi/.yamlover/body.yamlover": "!!<*yamlover/$defs/chapter>\ntitle: Kiwi\n- k body\n",
+      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Root\n- intro\n- *: zebra\n- *: apple\n",
+      "doc/zebra/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Zebra\n- z body\n",
+      "doc/apple/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Apple\n- a body\n",
+      "doc/mango/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Mango\n- m body\n",
+      "doc/kiwi/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Kiwi\n- k body\n",
       ...DEFS,
     });
     const h = createHandlers(root, { gitignore: false });
@@ -789,9 +833,9 @@ describe("/api/tree — directory-chapter subchapter order", () => {
 
 describe("/api/edit — flow-row cells (a table's `- [a, b, c]`, MARKLOWER.md)", () => {
   const TABLE =
-    "!!<*yamlover/$defs/chapter>\n" +
+    "!!<*yamlover: $defs: chapter>\n" +
     'title: "T"\n' +
-    "- !!<*yamlover/$defs/table>\n" +
+    "- !!<*yamlover: $defs: table>\n" +
     "  title: Who\n" +
     "  header: [Name, Class, *[.-1]]   # Class spans\n" +
     "  - [Whiskers, mammal, '**manager**']\n" +
@@ -802,7 +846,7 @@ describe("/api/edit — flow-row cells (a table's `- [a, b, c]`, MARKLOWER.md)",
   const TDEFS = {
     ...DEFS,
     "$defs/table":
-      "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  type: array\n  items:\n    anyOf:\n      - *//yamlover/$defs/chunk\n      - *//yamlover/$defs/table\n",
+      "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  type: array\n  items:\n    anyOf:\n      - *:: yamlover: $defs: chunk\n      - *:: yamlover: $defs: table\n",
   };
   async function tableHandlers() {
     const root = tmpTree({ "doc/.yamlover/body.yamlover": TABLE, ...TDEFS });
@@ -919,6 +963,121 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     expect(dBody(root)).toContain("- chunk");
   });
 
+  it("ordinal CONTAINER insert becomes a sequential item directory + a body pointer (dir-seq)", async () => {
+    const root = emptyDirTree();
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: ":d[0]", op: "insert", yamlover: "a: 1\n- 2" });
+    expect(r.status).toBe(200);
+    expect(dBody(root)).toBe("- *: item01\n");
+    expect(fs.readFileSync(path.join(root, "d", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("a: 1\n- 2\n");
+    expect(call(h, "/api/json", { path: ":d:item01", depth: ".inf" }).json.concrete).toBe("dir/yamlover");
+  });
+
+  it("two ordinal containers in one batch: item01 then item02, in order", async () => {
+    const root = emptyDirTree();
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { edits: [
+      { path: ":d[0]", op: "insert", yamlover: "- 1" },
+      { path: ":d[1]", op: "insert", yamlover: "- 2" },
+    ] });
+    expect(r.status).toBe(200);
+    expect(dBody(root)).toBe("- *: item01\n- *: item02\n");
+    expect(fs.readFileSync(path.join(root, "d", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("- 1\n");
+    expect(fs.readFileSync(path.join(root, "d", "item02", ".yamlover", "body.yamlover"), "utf8")).toBe("- 2\n");
+  });
+
+  it("an insert BETWEEN two items slots a sub-number (item01-1) — nothing is renumbered", async () => {
+    const root = emptyDirTree();
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    await callBody(h, "POST", "/api/edit", { edits: [
+      { path: ":d[0]", op: "insert", yamlover: "- 1" },
+      { path: ":d[1]", op: "insert", yamlover: "- 2" },
+    ] });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":d[1]", op: "insert", yamlover: "- between" });
+    expect(r.status).toBe(200);
+    // order lives in the body pointer-array; the number is cosmetic listing order
+    expect(dBody(root)).toBe("- *: item01\n- *: item01-1\n- *: item02\n");
+    expect(fs.readFileSync(path.join(root, "d", "item01-1", ".yamlover", "body.yamlover"), "utf8")).toBe("- between\n");
+    // the no-renumber invariant: the existing directories are untouched
+    expect(fs.readFileSync(path.join(root, "d", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("- 1\n");
+    expect(fs.readFileSync(path.join(root, "d", "item02", ".yamlover", "body.yamlover"), "utf8")).toBe("- 2\n");
+  });
+
+  it("inline scalars and item pointers interleave in body order", async () => {
+    const root = emptyDirTree();
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { edits: [
+      { path: ":d[0]", op: "insert", yamlover: "chunk" },
+      { path: ":d[1]", op: "insert", yamlover: "- nested" },
+      { path: ":d[2]", op: "insert", yamlover: "tail" },
+    ] });
+    expect(r.status).toBe(200);
+    expect(dBody(root)).toBe("- chunk\n- *: item01\n- tail\n");
+  });
+
+  it("a TAGGED ordinal container is CONTENT — it stays inline in the body", async () => {
+    const root = emptyDirTree();
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", {
+      path: ":d[0]", op: "insert", yamlover: "- a\n- b", meta: "*yamlover: $defs: bullets",
+    });
+    expect(r.status).toBe(200);
+    expect(dBody(root)).toContain("!!<*yamlover: $defs: bullets>");
+    expect(dBody(root)).toContain("- a");
+    expect(fs.existsSync(path.join(root, "d", "item01"))).toBe(false);
+  });
+
+  it("an explicit `concrete: yamlover` pins the INLINE encoding — no derivation", async () => {
+    const root = emptyDirTree();
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: ":d[0]", op: "insert", concrete: "yamlover", yamlover: "- 1\n- 2" });
+    expect(r.status).toBe(200);
+    expect(dBody(root)).toBe("- - 1\n  - 2\n");
+    expect(fs.existsSync(path.join(root, "d", "item01"))).toBe(false);
+  });
+
+  it("removing the positional element splices only the pointer line — the item directory survives", async () => {
+    const root = emptyDirTree();
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    await callBody(h, "POST", "/api/edit", { edits: [
+      { path: ":d[0]", op: "insert", yamlover: "chunk" },
+      { path: ":d[1]", op: "insert", yamlover: "- kept data" },
+    ] });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":d[1]", op: "remove" });
+    expect(r.status).toBe(200);
+    expect(dBody(root)).toBe("- chunk\n");
+    // never destroy user data: the directory is ORPHANED and resurfaces as a keyed-only member
+    expect(fs.readFileSync(path.join(root, "d", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("- kept data\n");
+    const m = (call(h, "/api/json", { path: ":d", depth: ".inf" }).json.value as
+      { $yamloverMixed?: { entries: { key: string | null; anchor?: boolean }[] } }).$yamloverMixed;
+    const item = m?.entries.find((e) => e.key === "item01");
+    expect(item).toBeTruthy();
+    expect(item?.anchor).toBeUndefined(); // unreferenced now — keyed-only, no position
+  });
+
+  it("a Tab-shaped batch (remove + insert concrete dir/yamlover) remaps same-batch follow-ups", async () => {
+    const root = emptyDirTree();
+    fs.mkdirSync(path.join(root, "d", ".yamlover"));
+    fs.writeFileSync(path.join(root, "d", ".yamlover", "body.yamlover"), "- one\n- two\n");
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { edits: [
+      { path: ":d[1]", op: "remove" },
+      { path: ":d[1]", op: "insert", concrete: "dir/yamlover", name: "Sub", yamlover: '"Sub"\n- two' },
+      { path: ":d[1][1]", op: "insert", yamlover: "three" },
+    ] });
+    expect(r.status).toBe(200);
+    expect(dBody(root)).toBe("- one\n- *: 01-Sub\n");
+    expect(fs.readFileSync(path.join(root, "d", "01-Sub", ".yamlover", "body.yamlover"), "utf8")).toBe('"Sub"\n- two\n- three\n');
+  });
+
   it("a MARKER-ONLY dir (.yamlover exists, no body) gains its body on emplace", async () => {
     const root = emptyDirTree();
     fs.mkdirSync(path.join(root, "d", ".yamlover"));
@@ -988,15 +1147,18 @@ describe("/api/edit — compact `- - x` nesting (a one-line nested item is a con
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     await callBody(h, "POST", "/api/edit", { path: ":d[0]", op: "insert", yamlover: "12" });
+    // the nested container derives to a sequential ITEM DIRECTORY (derive-concrete.ts dir-seq)
+    // referenced by a pointer-array element at its position
     await callBody(h, "POST", "/api/edit", { path: ":d[1]", op: "insert", yamlover: "- 12" });
-    // descending INTO the one-line `- - 12` (the "cannot descend into a scalar element" bug)
+    // descending INTO `[1]` — the position aliases the keyed item01 member (canonSegs)
     const r = await callBody(h, "POST", "/api/edit", { path: ":d[1][1]", op: "insert", yamlover: "13" });
     expect(r.status).toBe(200);
-    expect(dBody(root)).toBe("- 12\n- - 12\n  - 13\n");
+    expect(dBody(root)).toBe("- 12\n- *: item01\n");
+    expect(fs.readFileSync(path.join(root, "d", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("- 12\n- 13\n");
     expect(call(h, "/api/json", { path: ":d[1]", depth: ".inf" }).json.value).toEqual([12, 13]);
   });
 
-  it("the same flow typed FAST — one batch, the folder's body born mid-batch", async () => {
+  it("the same flow typed FAST — one batch, the member born mid-batch (the in-batch remap)", async () => {
     const root = emptyDirTree();
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -1006,7 +1168,8 @@ describe("/api/edit — compact `- - x` nesting (a one-line nested item is a con
       { path: ":d[1][1]", op: "insert", yamlover: "13" },
     ] });
     expect(r.status).toBe(200);
-    expect(dBody(root)).toBe("- 12\n- - 12\n  - 13\n");
+    expect(dBody(root)).toBe("- 12\n- *: item01\n");
+    expect(fs.readFileSync(path.join(root, "d", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("- 12\n- 13\n");
   });
 
   it("the same fast batch at the served ROOT of an empty project", async () => {
@@ -1019,7 +1182,8 @@ describe("/api/edit — compact `- - x` nesting (a one-line nested item is a con
       { path: "[1][1]", op: "insert", yamlover: "13" },
     ] });
     expect(r.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe("- 12\n- - 12\n  - 13\n");
+    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe("- 12\n- *: item01\n");
+    expect(fs.readFileSync(path.join(root, "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("- 12\n- 13\n");
   });
 
   it("emplace and remove on the INLINE nested item keep the outer `- ` marker", async () => {

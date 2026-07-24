@@ -31,6 +31,11 @@ A facet keyword takes a **sub-schema**, or **`false` to forbid** it; **omitting*
 {`false`, allowed} gives the **`2³` cube**; ordering corners by *capability-subset* **is** the
 subtype lattice (`000` bottom, `111` top).
 
+A **positional-prefix** node (a dir-backed pointer-array body, `meta.positional`) reports its
+prefix members as **ordinal** — their keys are storage provenance (derived `&` anchors), not
+authored keys — and only the keyed-only remainder as **keyed**. Fully referenced ⇒ pure ordinal
+(an array); with a remainder ⇒ both facets (a mix).
+
 ## 2. The value axis (A)
 
 The self-value's type — JSON Schema kept, **not flat**: it has its own subtyping.

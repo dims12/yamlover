@@ -70,8 +70,8 @@ key c". Canonical style writes `: ` (colon + space) after each step; a colon wit
 also parses.
 
 `/` is an **ordinary character** now — MIME-type keys (`text/html`), date keys (`01/02/2026`)
-and URL-ish keys ride bare in a path. (Legacy files may still use `/` as a separator during a
-migration window; **new content you author should use `:`**.)
+and URL-ish keys ride bare in a path. (The old `/`-separator form is DEAD — it no longer
+parses as a path: `*/pets` is a dangling reference to the literal key "/pets". Author `:` only.)
 
 ### The scope ladder — more colons, wider scope
 
@@ -175,6 +175,20 @@ A node can be materialized two ways:
 So to add a pointer or a value "to a folder", you edit (or create) that folder's
 `.yamlover/body.yamlover`. Plain files inside the directory are its members; a `.yamlover/`
 subdir does not appear as a member — it's the overlay.
+
+A pure pointer-array body (`- *file1` …) is the ORDER overlay: it grants positions to the
+members it names (the projection shows each consumed key as a dimmed derived `&` anchor,
+`- &file1 value`); a member the body never names stays keyed-only, after the ordered block.
+Editing derives storage for NEW children by the INHERITANCE RULES (`concrete-rules.ts` — one
+pure module, an explicit `concrete:` always wins): a directory-concrete parent keeps children
+directory-concrete; a keyed container child becomes a nested real directory; an untagged
+keyless (ordinal) container child becomes an order-numbered subdirectory (`item01`,
+`item02`, …) referenced by a `- *: itemNN` pointer-array element; scalars and tagged containers
+(tables, typographical lists) go inline into `body.yamlover`. Title-born subchapter members are
+numbered too (`01-Введение`). The numbers are COSMETIC listing order — the body pointer-array is
+the order's data, and an existing member is NEVER renamed: an insert between neighbors slots a
+sub-number (`item01-1`, `01-1-Новая`). Content inside a file document speaks that file's
+language (a `.json5p` interior never switches to yaml).
 
 ---
 

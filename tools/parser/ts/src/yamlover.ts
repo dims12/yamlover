@@ -310,7 +310,7 @@ class Block {
         const a = adv(l.text, 2, l.indent); // past the `~-` marker, to the pointer token
         const rest = a.rest;
         if (!rest.startsWith('*')) this.fail('a "~-" entry needs a pointer value (the container that holds this node)');
-        const ptr = parsePointer(unquoteIfQuoted(rest.slice(1)));
+        const ptr = parsePointer(rest.slice(1).trim());
         ptr.span = this.spanAt(l.n, a.col, rest.length);
         value = ptr;
         entry = { key: null, edge: 'back', value };
@@ -486,7 +486,7 @@ class Block {
       return new Flow(text, this.uri, (this.lineStarts[lineN] ?? 0) + col, this.yaml).parse();
     }
     if (c === '*') {
-      const p = parsePointer(unquoteIfQuoted(text.slice(1)), this.yaml);
+      const p = parsePointer(text.slice(1).trim(), this.yaml);
       p.span = this.spanAt(lineN, col, text.length); // the whole `*…` deref token
       return p;
     }
@@ -723,12 +723,6 @@ function foldLines(lines: string[]): string {
   return out;
 }
 
-
-function unquoteIfQuoted(s: string): string {
-  s = s.trim();
-  if ((s[0] === "'" || s[0] === '"') && s[s.length - 1] === s[0]) return quotedScalar(s).value as string;
-  return s;
-}
 
 /** An unescaped, unquoted `:` anywhere — marks a colon-form (SEPARATOR.md) token. */
 function hasSeparatorColon(s: string): boolean {

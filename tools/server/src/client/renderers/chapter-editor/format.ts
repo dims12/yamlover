@@ -34,11 +34,11 @@ const TAGGED: Record<string, BlockFormat> = {
   "x-yamlover-task": "chapter", // a task hosts subtasks the same way a chapter hosts subchapters
 };
 
-/** The `$defs` name a `!!<…>` tag's CONTENT points at, or null. Accepts every spelling the corpus
- *  uses — `*yamlover: $defs: table`, `*:: yamlover: $defs: table`, `*yamlover/$defs/table`. */
+/** The `$defs` name a `!!<…>` tag's CONTENT points at, or null. Accepts the colon spellings —
+ *  `*yamlover: $defs: table`, `*:: yamlover: $defs: table` (the slash separator is dead). */
 export function schemaNameOfTag(tag: string | null | undefined): string | null {
   if (!tag) return null;
-  const m = /\$defs\s*[:/]\s*([A-Za-z0-9_-]+)\s*$/.exec(tag);
+  const m = /\$defs\s*:\s*([A-Za-z0-9_-]+)\s*$/.exec(tag);
   return m ? m[1] : null;
 }
 
@@ -50,9 +50,19 @@ export function formatFromMetaTag(tag: string | null | undefined): string | null
   return name ? `x-yamlover-${name}` : null;
 }
 
+/** The PROSE format an inline-schema tag stamps on a chunk — `!!<format: text/x-latex>`,
+ *  `!!<format: text/csv>` (the examples/65 spelling; `type` and other keys may ride along in a
+ *  flow mapping). Null when the tag names no `format:` (or there is no tag) — the chunk is then
+ *  default marklower prose. What {@link chunkEditorFor} dispatches the projection's cells on. */
+export function proseFormatOfTag(tag: string | null | undefined): string | null {
+  if (!tag) return null;
+  const m = /(?:^|[,{\s])format\s*:\s*["']?([\w/+.-]+)/.exec(tag);
+  return m ? m[1] : null;
+}
+
 /** The format a node DECLARES for itself — its tag, else its stamped format — or null when it
  *  declares none and its format is therefore its context's to decide. */
-function declaredFormat(node: MNode): BlockFormat | null {
+export function declaredFormat(node: MNode): BlockFormat | null {
   const declared = formatFromMetaTag(node.metaTag) ?? node.format ?? null;
   return declared && TAGGED[declared] ? TAGGED[declared] : null;
 }
@@ -93,7 +103,7 @@ export function enclosingFormat(root: MNode, entryId: string): BlockFormat {
  *  document should stay internally consistent. Falls back to the project-scoped ladder form. */
 export function tagFor(rootTag: string | null | undefined, name: ChosenFormat): string {
   if (rootTag) {
-    const swapped = rootTag.replace(/(\$defs\s*[:/]\s*)[A-Za-z0-9_-]+\s*$/, `$1${name}`);
+    const swapped = rootTag.replace(/(\$defs\s*:\s*)[A-Za-z0-9_-]+\s*$/, `$1${name}`);
     if (swapped !== rootTag || schemaNameOfTag(rootTag) === name) return swapped;
   }
   return `*:: yamlover: $defs: ${name}`;

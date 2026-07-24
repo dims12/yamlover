@@ -16,7 +16,11 @@ afterEach(cleanup);
 beforeEach(() => {
   editChunks.mockReset().mockResolvedValue({ ok: true });
   createObject.mockReset().mockResolvedValue({ path: ":doc[9]" });
+  // These suites exercise the FLAT editor — since the projection became the default
+  // (chapter.tsx projectionalChapterEditor), opt back in via the escape hatch.
+  window.history.replaceState({}, "", "/?chapterEditor=flat");
 });
+afterEach(() => window.history.replaceState({}, "", "/"));
 
 /** An inlined prose chunk marker at body slot `i` (its marker points at its own slot `:doc[i+1]`,
  *  past the keyed `description` at store index 0 — inline ⇒ editable). */
@@ -66,7 +70,20 @@ describe("ChapterView (locked) read-only", () => {
     );
     expect(container.querySelector("[contenteditable=true]")).toBeNull();
     expect(container.querySelector("h1.chapter-title")?.textContent).toBe("My Title");
-    expect(container.querySelector("h2.chapter-link a.descend")?.textContent).toBe("Sub");
+    expect(container.querySelector("h2.chapter-title a.descend")?.textContent).toBe("Sub");
+  });
+});
+
+describe("ChapterView (unlocked) — editor dispatch", () => {
+  it("the PROJECTIONAL editor is the default; ?chapterEditor=flat is the escape hatch", () => {
+    window.history.replaceState({}, "", "/"); // no flag → the default
+    const { container, unmount } = renderUnlocked(chapterNode(["First"]));
+    expect(container.querySelector(".chapter-wysiwyg")).toBeTruthy(); // the projection mounts
+    unmount();
+    window.history.replaceState({}, "", "/?chapterEditor=flat");
+    const flat = renderUnlocked(chapterNode(["First"]));
+    expect(flat.container.querySelector(".chapter-wysiwyg")).toBeNull();
+    expect(flat.container.querySelector("h1.chapter-title.editable")).toBeTruthy(); // the flat editor
   });
 });
 
@@ -76,8 +93,8 @@ describe("ChapterEditor (unlocked)", () => {
     expect((container.querySelector("h1.chapter-title") as HTMLElement).getAttribute("contenteditable")).toBe("true");
     expect((container.querySelector("p.chapter-subtitle") as HTMLElement).getAttribute("contenteditable")).toBe("true");
     expect(container.querySelectorAll("p.chapter-prose.editable")).toHaveLength(2);
-    // subchapter is NOT edited in this iteration — still a navigable link
-    expect(container.querySelector("h2.chapter-link a.descend")?.textContent).toBe("Sub");
+    // subchapter is NOT edited in this iteration — still a navigable link (same heading face)
+    expect(container.querySelector("h2.chapter-title a.descend")?.textContent).toBe("Sub");
   });
 
   it("SPLIT: caret before the tail, Enter → head truncates in place AND a new chunk holds the tail (the reported bug)", () => {
@@ -211,7 +228,11 @@ describe("creatablesFor (what/where a schema object can be created)", () => {
     expect(chap[0].defaultConcrete).toBe("yamlover");
     expect(chap[0].label).toContain("chapter"); // schema title absent → path fallback
 
-    expect(creatablesFor({ format: "x-yamlover-task", concrete: "dir/yamlover" }, {})[0].defaultConcrete).toBe("yamlover"); // task also hosts subchapters
+    // a DIRECTORY-concrete chapter/task defaults new subchapters to a SUBDIRECTORY (the
+    // 66-pet-keeper-handbook shape); the inline/file options stay in the picker
+    const dirTask = creatablesFor({ format: "x-yamlover-task", concrete: "dir/yamlover" }, {})[0];
+    expect(dirTask.defaultConcrete).toBe("dir/yamlover");
+    expect(dirTask.concretes.map((c) => c.id)).toEqual(["yamlover", "file/yamlover", "dir/yamlover"]);
 
     const dir = creatablesFor({ concrete: "dir" }, {});
     expect(dir[0].concretes.map((c) => c.id)).toEqual(["file/yamlover", "dir/yamlover"]);

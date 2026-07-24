@@ -21,7 +21,12 @@ description: |
     node is rejected with the error ring - keys are unique per node. Backspace in an
     empty value cell UNDOES the last structural token (the colon or the dash), never
     the whole entry. Clicking any cell with the mouse enters that cell's focused
-    state. Commits never lose focus - every transition that persists a value ALSO
+    state. A committed KEY is itself an editable cell - the caret ENTERS it (a click
+    or an arrow walk) and editing its text RENAMES the key on commit; the server
+    routes the rename by STORAGE (a directory-backed member is moved on disk, an
+    inline keyed entry has its key token rewritten - THE CONCRETE IS NOT A STATE),
+    and a key duplicating a sibling is rejected with the error ring (see
+    key_cell_editing). Commits never lose focus - every transition that persists a value ALSO
     names the cell the caret lands in; behavior is guided by the state, never by
     leftovers of the previous one.
 
@@ -199,6 +204,20 @@ scalar_committed: Committed scalar cell, focused
         "the cell is an entry below the root level": *: scalar_committed
         "otherwise": *: nop
     left_arrow: *: unquoted_scalar_inserting
+    up_arrow: *: focus_prev
+    down_arrow: *: focus_next
+
+key_cell_editing: A committed key cell, focused
+    description: The entry's KEY as an editable cell - the caret ENTERS it (a click, or an arrow walk in visual order), the text edits in place. Reached by clicking a committed key or arrowing into it. Commit (Enter / blur) RENAMES the key: the server routes by STORAGE - a directory-backed member is renamed on disk (inbound `*`/`~` pointers rewritten), an inline keyed entry has its key token rewritten in the body, value and comments kept (THE CONCRETE IS NOT A STATE). The rename is OPTIMISTIC - the key updates in place and the caret stays in the cell, the persist runs after any pending body edits flush. A key that duplicates a sibling is rejected with the error ring, the typed text kept (keys are unique per node); an empty/unchanged key is a no-op. A DERIVED-anchor key (a positional dir-member's storage provenance) is not editable here
+    alphanumeric: *: key_cell_editing
+    enter:
+        "the new key duplicates a sibling in the node": *: error_flash
+        "empty, or unchanged": *: key_cell_editing
+        "a free key - the rename persists (dir move or inline rewrite), caret kept in the key cell": *: key_cell_editing
+    click_outside: *: key_cell_editing
+    backspace:
+        "caret at the start": *: focus_prev
+        "otherwise": *: key_cell_editing
     up_arrow: *: focus_prev
     down_arrow: *: focus_next
 

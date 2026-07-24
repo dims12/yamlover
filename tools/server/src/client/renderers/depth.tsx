@@ -1,18 +1,20 @@
-import { useEffect, useState } from "react";
-
 /**
- * The render depth for the structured-data views (`yamlover` / `json5p` / `yamlover/schema`).
- * Like the markup reading-width (markup.tsx), the depth is a **URL parameter** — `?depth=<n>`,
- * alongside `?format=` — so a particular depth is a shareable link.
+ * The render depth for the structured-data views (`yamlover` / `json5p` / `yamlover/schema`) and
+ * the chapter renderers. Like the markup reading-width (markup.tsx), the depth is a **URL
+ * parameter** — `?depth=<n>`, alongside `?format=` — so a particular depth is a shareable link.
  *
  * The default is **`.inf` (infinity)**: a text data file (json / json5 / yaml / yamlover) inlines
  * whole, and references show *as references* (their pointer text, local ones as in-page `#` links).
  * A FINITE depth `n` inlines `n` levels of nested containers (collapsible) and *resolves* references
- * within that budget; anything deeper becomes a `{ … }` continuation hyperlink. Infinity is `null`
- * here, the value the server treats as unlimited; non-text concretes fall back to one level
- * server-side. The control lives in the node bar next to the data tabs (see NodeView).
+ * within that budget; anything deeper becomes a continuation hyperlink. Infinity is `null` here,
+ * the value the server treats as unlimited; non-text concretes fall back to one level server-side.
+ * The control lives in the node bar next to the data tabs (see NodeView) and in the chapter
+ * renderer's config slot (registry.tsx).
  */
 const MIN_DEPTH = 1;
+/** The discrete slider's finite stops (1..MAX_STOP); one past it is the ∞ position. */
+const MAX_STOP = 6;
+const INF_STOP = MAX_STOP + 1;
 const params = () => new URLSearchParams(window.location.search);
 
 /** Whether `text` denotes infinity (`.inf` / `inf`, case-insensitive). */
@@ -46,31 +48,35 @@ function writeDepth(d: number | null): void {
 }
 
 /**
- * The depth control beside the data-view tabs (in the node bar). It accepts ANY input — a valid
- * level (`.inf`, or an integer ≥ 1) is applied to the URL and `onChange()` refetches the node value
- * at the new depth; an impossible/half-typed value is left unapplied and the field turns red (no
- * editing is blocked). No visible label: the hover title reads "depth".
+ * The depth control beside the data-view tabs (in the node bar): a DISCRETE slider with stops
+ * `1 2 3 4 5 6 ∞` — the LAST stop is infinity, the default (a released `?depth=` param). Moving
+ * the knob writes the URL and `onChange()` re-renders/refetches at the new depth. A hand-typed
+ * URL depth past 6 clamps the KNOB only — {@link viewDepth} still reports the true value. No
+ * visible label: the hover title reads "depth".
  */
 export function DepthControl({ onChange }: { onChange: () => void }) {
   const urlDepth = viewDepth();
-  const initial = urlDepth == null ? ".inf" : String(urlDepth);
-  const [text, setText] = useState(initial);
-  useEffect(() => setText(initial), [initial]); // resync when the URL changes (nav / apply)
-  const valid = validDepth(text);
+  const knob = urlDepth == null ? INF_STOP : Math.min(Math.max(urlDepth, MIN_DEPTH), MAX_STOP);
   return (
-    <input
-      className={"depth-control" + (valid ? "" : " invalid")}
-      type="text"
-      title="depth"
-      value={text}
-      onChange={(e) => {
-        const v = e.target.value;
-        setText(v);
-        if (validDepth(v)) {
-          writeDepth(isInf(v) ? null : Number(v));
+    <span className="depth-control">
+      <input
+        type="range"
+        min={MIN_DEPTH}
+        max={INF_STOP}
+        step={1}
+        title="depth"
+        value={knob}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          writeDepth(v >= INF_STOP ? null : v);
           onChange();
-        }
-      }}
-    />
+        }}
+      />
+      <span className="depth-ticks" aria-hidden="true">
+        {[...Array.from({ length: MAX_STOP }, (_, i) => String(i + 1)), "∞"].map((label) => (
+          <span key={label}>{label}</span>
+        ))}
+      </span>
+    </span>
   );
 }

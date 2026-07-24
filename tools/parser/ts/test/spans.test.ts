@@ -49,41 +49,41 @@ test('span: quoted pointer (spaces, comment chars)', () => {
 });
 
 test('span: keyed back-edge ~k:', () => {
-  y('adam:\n  cain:\n    ~cain: */eve\neve:\n  cain: */adam/cain\n', ['*/eve', '*/adam/cain']);
+  y('adam:\n  cain:\n    ~cain: *: eve\neve:\n  cain: *: adam: cain\n', ['*: eve', '*: adam: cain']);
 });
 
 test('span: keyless back-edge ~- (incl. extra spacing)', () => {
-  y('fan:\n  name: Bob\n  ~-   */favorites\nfavorites:\n  - x\n', ['*/favorites']);
+  y('fan:\n  name: Bob\n  ~-   *: favorites\nfavorites:\n  - x\n', ['*: favorites']);
 });
 
 test('span: seq item pointer', () => {
-  y('list:\n  - */a\n  - *b\na: 1\nb: 2\n', ['*/a', '*b']);
+  y('list:\n  - *: a\n  - *b\na: 1\nb: 2\n', ['*: a', '*b']);
 });
 
 test('span: compact "- k: *p" (the line-rewrite path)', () => {
-  y('people:\n  - name: Al\n    boss: */people[1]\n  - name: Bo\n', ['*/people[1]']);
+  y('people:\n  - name: Al\n    boss: *: people[1]\n  - name: Bo\n', ['*: people[1]']);
 });
 
 test('span: compact "- - *p" (the nested-seq line-rewrite path)', () => {
-  y('rows:\n  - - */a\n    - *b\n  - - c\na: 1\nb: 2\n', ['*/a', '*b']);
+  y('rows:\n  - - *: a\n    - *b\n  - - c\na: 1\nb: 2\n', ['*: a', '*b']);
 });
 
 test('span: deeply compact "- - - *p"', () => {
-  y('- - - */x\nx: 1\n', ['*/x']);
+  y('- - - *: x\nx: 1\n', ['*: x']);
 });
 
 test('span: after !!<…> and !!set strips (valueAfter column chain)', () => {
-  const src = 'crew: !!set\n  - */fan\nfan: x\nt: !!<*yamlover/$defs/tag> body\n';
+  const src = 'crew: !!set\n  - *: fan\nfan: x\nt: !!<*yamlover:$defs:tag> body\n';
   // entry pointer first (document order), then the schema pointer (visited via meta)
   const doc = parseYamlover(src, '<t>');
   const ps = pointers(doc);
   const toks = ps.map((p) => src.slice(p.span!.start, p.span!.end));
-  assert.deepEqual(new Set(toks), new Set(['*/fan', '*yamlover/$defs/tag']));
+  assert.deepEqual(new Set(toks), new Set(['*: fan', '*yamlover:$defs:tag']));
 });
 
 test('span: root !!<…> schema pointer', () => {
-  const src = '!!<*yamlover/$defs/annotation>\ntarget: *//x/y\n';
-  y(src, ['*yamlover/$defs/annotation', '*//x/y']);
+  const src = '!!<*yamlover:$defs:annotation>\ntarget: *:: x: y\n';
+  y(src, ['*yamlover:$defs:annotation', '*:: x: y']);
 });
 
 test('span: flow duplicates get distinct spans', () => {
@@ -100,8 +100,8 @@ test('span: flow map values', () => {
 });
 
 test('span: CRLF source offsets', () => {
-  const src = 'a: 1\r\nfeline: *a\r\n~back: */a\r\n';
-  y(src, ['*a', '*/a']);
+  const src = 'a: 1\r\nfeline: *a\r\n~back: *: a\r\n';
+  y(src, ['*a', '*: a']);
 });
 
 test('span: trailing comment after a pointer is excluded', () => {
@@ -116,35 +116,35 @@ test('span: anchored value is not a pointer; pointer after &name in seq', () => 
 });
 
 test('span: deep indentation', () => {
-  const src = 'a:\n  b:\n    c:\n      d: */a/b\n';
-  y(src, ['*/a/b']);
+  const src = 'a:\n  b:\n    c:\n      d: *: a: b\n';
+  y(src, ['*: a: b']);
 });
 
-test('span: spaced pointer path (unquoted raw with spaces)', () => {
-  y('ref: */some file, with spaces.pdf\n', ['*/some file, with spaces.pdf']);
+test('span: spaced pointer path (separator spaces + a quoted spacey portion)', () => {
+  y("ref: *: 'some file, with spaces.pdf'\n", ["*: 'some file, with spaces.pdf'"]);
 });
 
 // ---- json5p --------------------------------------------------------------------
 
 test('span: json5p single- and double-quoted pointers', () => {
-  j(`{ a: *'x/y', b: *"z" , x: {y: 1}, z: 2 }`, [`*'x/y'`, `*"z"`]);
+  j(`{ a: *'x: y', b: *"z" , x: {y: 1}, z: 2 }`, [`*'x: y'`, `*"z"`]);
 });
 
 test('span: json5p keyless back members in object and array', () => {
-  j(`{ fan: { name: 'Bob', ~*'/favorites' }, favorites: [ *'/fan' ] }`, [`~*'/favorites'`.slice(1), `*'/fan'`]);
+  j(`{ fan: { name: 'Bob', ~*': favorites' }, favorites: [ *': fan' ] }`, [`~*': favorites'`.slice(1), `*': fan'`]);
 });
 
 test('span: json5p pointers across comments and lines', () => {
   const src = `{
   // a comment
-  feline: *'pets[1]', /* block */ top: *'/pets[0]',
+  feline: *'pets[1]', /* block */ top: *': pets[0]',
   pets: [1, 2],
 }`;
-  j(src, [`*'pets[1]'`, `*'/pets[0]'`]);
+  j(src, [`*'pets[1]'`, `*': pets[0]'`]);
 });
 
 test('span: json5p escaped pointer string', () => {
-  j(`{ oddRef: *'odd\\\\/key/n', "odd/key": { n: 1 } }`, [`*'odd\\\\/key/n'`]);
+  j(`{ oddRef: *'odd/key: n', "odd/key": { n: 1 } }`, [`*'odd/key: n'`]);
 });
 
 // ---- entry spans (EntryMeta.span) ----------------------------------------------

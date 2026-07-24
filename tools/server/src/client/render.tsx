@@ -53,7 +53,10 @@ export interface Mixed {
   value?: unknown; // omni: the node's own scalar self-value
   selfAt?: number; // omni: the self-value's authored display position among `entries` (0/absent → first)
   format?: string | null; // the node's stamped/derived format — a renderer's branch point (a chapter CELL vs a nested table)
-  entries: { key: string | null; value: unknown }[]; // key=null ⇒ positional item, else keyed field
+  // key=null ⇒ positional item, else keyed field. `anchor` ⇒ a POSITIONAL member whose key is a
+  // DERIVED storage anchor (a dir-backed pointer-array body consumed the `*key` pointer): rendered
+  // `- &key value`, the anchor dimmed (`.anchor.derived`) — a view spelling, not authored source.
+  entries: { key: string | null; value: unknown; anchor?: boolean }[];
 }
 
 interface BinaryPayload {
@@ -157,6 +160,14 @@ function fmtPointer(raw: string, syntax: Syntax): string {
  *  end of the line). json5p JSON-quotes it. */
 function fmtAnchor(body: string, syntax: Syntax): string {
   return syntax === "json" ? "&" + JSON.stringify(body) : "&" + body;
+}
+
+/** The `&…` token for a DERIVED storage anchor (a positional member's key — see {@link Mixed}).
+ *  Quoting mirrors serialize-yamlover's `anchorToken`: anchor tokens end at whitespace, so a
+ *  name with spaces (or a leading quote) takes the `&'…'` form. Exported for the yed editor. */
+export function fmtDerivedAnchor(name: string): string {
+  if (/^['"]/.test(name) || /\s/.test(name)) return `&'${name.replace(/'/g, "''")}'`;
+  return "&" + name;
 }
 
 /** The syntax decorations on an entry's key line — its type tag then its `&` anchors (a tag is
@@ -596,6 +607,10 @@ function YamlMixed({ mixed, indent, ctx, frag, path, inlineHead = false }: { mix
             {i === selfAt && selfValue}
             {e.key === null ? (
               <YamlItem v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}[${i}]`} path={childPath(path, i)} noPad={noPad} />
+            ) : e.anchor ? (
+              // a positional member with a derived storage anchor: a `- &key value` row — but the
+              // frag/path stay KEYED (fragments, comment buckets and edits address `:key`, not [i])
+              <YamlItem v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}/${e.key}`} path={childPath(path, e.key)} noPad={noPad} anchorName={e.key} />
             ) : (
               <YamlEntry k={e.key} v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}/${e.key}`} path={childPath(path, e.key)} noPad={noPad} />
             )}
@@ -641,6 +656,12 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, path, noPad = false }: { k: s
     );
   }
   if (!foldable(v)) return <>{blank}{lead}{head}{deco}{inlineYamlValue(v, ctx, path, trail, ptr && fmtPointer(ptr, "yaml"), commentsAt(ctx, frag)?.raw)}</>;
+  // An OMNI whose self-value sits first renders that scalar ON the key row (`world: World`), its
+  // entries below — matching the source and the projectional editor (nodeHeadKind "self"). Only the
+  // node's OWN self-value inlines after a `key:`; a first CHILD may not (`person: name: Rex` is not
+  // valid yaml — that stays on its own line), unlike a `- ` item where both compact forms are legal.
+  const m = asMixed(v);
+  const inlineSelf = !!m && m.kind === "omni" && (m.selfAt ?? 0) === 0 && !bigScalar(m.value);
   return (
     <>
       {blank}
@@ -648,7 +669,13 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, path, noPad = false }: { k: s
       <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
       {head}
       {deco}
-      {open ? <>{trail}{"\n"}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} path={path} /></> : <>{" "}<span className="fold-summary">{foldSummary(v)}</span>{trail}{"\n"}</>}
+      {!open ? (
+        <>{" "}<span className="fold-summary">{foldSummary(v)}</span>{trail}{"\n"}</>
+      ) : inlineSelf ? (
+        <>{" "}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} path={path} inlineHead /></>
+      ) : (
+        <>{trail}{"\n"}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} path={path} /></>
+      )}
     </>
   );
 }
@@ -656,19 +683,22 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, path, noPad = false }: { k: s
 /** A `- value` array / positional row, with the same fold behaviour as {@link YamlEntry}. A foldable
  *  container value renders COMPACT (first child on this same line, `- name: Rex`) when it can — see
  *  {@link canInlineAfterDash} — else its body drops to indented lines below. */
-function YamlItem({ v, pad, indent, ctx, frag, path, noPad = false }: { v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; path: string | null; noPad?: boolean }): ReactNode {
+function YamlItem({ v, pad, indent, ctx, frag, path, noPad = false, anchorName }: { v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; path: string | null; noPad?: boolean; anchorName?: string }): ReactNode {
   const [open, setOpen] = useState(true);
   const blank = !noPad && commentsAt(ctx, frag)?.blankBefore ? "\n" : null;
   const lead = noPad ? null : <LeadingComments ctx={ctx} frag={frag} pad={pad} syntax="yaml" />;
   const trail = trailingComment(ctx, frag, "yaml");
   const ptr = commentsAt(ctx, frag)?.pointer; // a `- *…` item's authored pointer token
   const deco = decoSpan(ctx, frag, "yaml");
-  // `.yaml-dash` styles the marker (gray like the chevron) — kept a fixed cell so columns line up
+  // `.yaml-dash` styles the marker (gray like the chevron) — kept a fixed cell so columns line up.
+  // `anchorName` (a positional member's DERIVED storage anchor, {@link Mixed}) rides right after
+  // the dash, dimmed — provenance, not authored source.
   const dash = (
     <>
       {noPad ? null : pad}
       <Anchor ctx={ctx} frag={frag} />
       <span className="punct yaml-dash">{"-"}</span>
+      {anchorName !== undefined && <>{" "}<span className="anchor derived">{fmtDerivedAnchor(anchorName)}</span></>}
     </>
   );
   if (bigScalar(v)) {

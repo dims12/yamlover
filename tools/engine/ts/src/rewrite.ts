@@ -1,12 +1,13 @@
 // Surgical pointer rewriting (ENGINE.md mediated tier; PLAN.md 3e). Given a move
-// oldStore → newStore (store paths like '/dir/file.md'), plan the SOURCE-TEXT edits
+// oldStore → newStore (store paths like ':dir:file.md'), plan the SOURCE-TEXT edits
 // that retarget every inbound `*`/`~` pointer — replacing exactly the deref token at
 // its recorded span, never re-rendering the file (comments and formatting survive).
-// Pure: no filesystem access; `mv.ts` applies the plan.
+// Rewrites are emitted in CANONICAL colon form only (the slash separator is dead —
+// SEPARATOR.md). Pure: no filesystem access; `mv.ts` applies the plan.
 
 import * as path from 'node:path';
-import type { Document, Pointer } from '../../../parser/ts/src/ir.ts';
-import { escapeSegment, parsePointer, renderPointer } from '../../../parser/ts/src/pointer.ts';
+import type { Document, Pointer, PointerBase, Step } from '../../../parser/ts/src/ir.ts';
+import { renderPointer } from '../../../parser/ts/src/pointer.ts';
 import { pointerToken, anchorToken } from '../../../parser/ts/src/serialize-yamlover.ts';
 import type { ResolvedEdge } from './resolve.ts';
 
@@ -58,34 +59,34 @@ export function planRewrites(
       const holder = mapPath(e.holder);
       const docRoot = mapPath(e.docRoot);
       const container = mapPath(e.target.path);
-      let cRaw: string | null = null;
+      let cPtr: Pointer | null = null;
       switch (e.ptr.base.scope) {
         case 'link':
-          cRaw = '//' + renderSuffix('/', container).replace(/^\//, '');
+          cPtr = linkPtr(container);
           break;
         case 'document':
-          cRaw = under(container, docRoot) ? docForm(docRoot, container) : null;
+          cPtr = under(container, docRoot) ? docPtr(docRoot, container) : null;
           break;
         case 'current': {
           const p = parentOf(holder);
-          if (p !== null && under(container, p)) cRaw = renderSuffix(p, container).replace(/^\//, '');
-          else if (under(container, docRoot)) cRaw = docForm(docRoot, container);
+          if (p !== null && under(container, p)) cPtr = ptr({ scope: 'current' }, stepsBelow(p, container));
+          else if (under(container, docRoot)) cPtr = docPtr(docRoot, container);
           break;
         }
         case 'parent': {
           const p1 = parentOf(holder);
           const p2 = p1 === null ? null : parentOf(p1);
-          if (p2 !== null && under(container, p2)) cRaw = '..' + suffixAfter(p2, container);
-          else if (under(container, docRoot)) cRaw = docForm(docRoot, container);
+          if (p2 !== null && under(container, p2)) cPtr = ptr({ scope: 'parent' }, stepsBelow(p2, container));
+          else if (under(container, docRoot)) cPtr = docPtr(docRoot, container);
           break;
         }
       }
-      if (cRaw === null) { miss("anchor container left the holder's document"); continue; }
-      let newBody = e.label != null
-        ? (cRaw === '' ? '' : cRaw === '/' ? '/' : cRaw + '/') + escapeSegment(e.label)
-        : cRaw + '[]';
-      const tail = newBody.endsWith('[]') ? '[]' : '';
-      newBody = matchStyle(newBody.slice(0, newBody.length - tail.length), e.raw) + tail;
+      if (cPtr === null) { miss("anchor container left the holder's document"); continue; }
+      // COMPACT colon rendering: an anchor token ends at whitespace in inline positions,
+      // so the spaceless spelling stays a single token anywhere without quoting.
+      const newBody = e.label != null
+        ? renderPointer(ptr(cPtr.base, [...cPtr.steps, { sel: 'key', name: e.label }]), { spaced: false })
+        : renderPointer(cPtr, { spaced: false }) + '[]';
       if (newBody === e.raw.slice(1)) continue; // the authored spelling survived the move
       const tok = isJson5pUri(span.uri) ? json5pAnchorToken(newBody) : anchorToken(newBody);
       const list = plan.edits.get(span.uri) ?? [];
@@ -113,27 +114,27 @@ export function planRewrites(
     const docRoot = mapPath(e.docRoot);
     const target = mapPath(e.target.path);
 
-    let newRaw: string | null = null;
+    let newPtr: Pointer | null = null;
     switch (e.ptr.base.scope) {
       case 'link':
-        newRaw = '//' + renderSuffix('/', target).replace(/^\//, ''); // project-root relative
+        newPtr = linkPtr(target); // project-root relative
         break;
       case 'document':
-        newRaw = under(target, docRoot) ? docForm(docRoot, target) : null;
+        newPtr = under(target, docRoot) ? docPtr(docRoot, target) : null;
         break;
       case 'current':
-        if (under(target, holder) && target !== holder) newRaw = relForm(holder, target);
-        else if (under(target, docRoot)) newRaw = docForm(docRoot, target); // scope-form fallback
+        if (under(target, holder) && target !== holder) newPtr = ptr({ scope: 'current' }, stepsBelow(holder, target));
+        else if (under(target, docRoot)) newPtr = docPtr(docRoot, target); // scope-form fallback
         break;
       case 'parent': {
         const p = parentOf(holder);
-        if (p !== null && under(target, p)) newRaw = '..' + suffixAfter(p, target);
-        else if (under(target, docRoot)) newRaw = docForm(docRoot, target);
+        if (p !== null && under(target, p)) newPtr = ptr({ scope: 'parent' }, stepsBelow(p, target));
+        else if (under(target, docRoot)) newPtr = docPtr(docRoot, target);
         break;
       }
     }
-    if (newRaw === null) { miss("target left the holder's document"); continue; }
-    newRaw = matchStyle(newRaw, e.raw); // colon-authored files get colon rewrites
+    if (newPtr === null) { miss("target left the holder's document"); continue; }
+    const newRaw = renderPointer(newPtr); // canonical colon form (SEPARATOR.md)
     if (newRaw === e.raw) continue; // the relative form survived the move — nothing to edit
 
     const token = isJson5pUri(span.uri) ? json5pToken(newRaw) : pointerToken(newRaw);
@@ -210,29 +211,30 @@ function renderPath(toks: { key?: string; n?: number }[]): string {
   return s === '' ? ':' : s;
 }
 
-/** Render the remainder of `p` below `base` as pointer-path text: `key` segments are
- *  metachar-escaped, `[n]` ride verbatim; segments joined the pointer way. */
-function renderSuffix(base: string, p: string): string {
+/** The remainder of `p` below `base` as pointer steps (store tokens → key/index steps). */
+function stepsBelow(base: string, p: string): Step[] {
   const toks = tokensOf(p).slice(base === ':' ? 0 : tokensOf(base).length);
-  let s = '';
-  for (const t of toks) s += t.key !== undefined ? '/' + escapeSegment(t.key) : '[' + t.n + ']';
-  return s;
+  return toks.map((t): Step => (t.key !== undefined ? { sel: 'key', name: t.key } : { sel: 'index', n: t.n! }));
 }
 
-/** Document-scope raw: `/a/b`, `/[0]/x`, or `/` for the root itself. */
-function docForm(docRoot: string, target: string): string {
-  const s = renderSuffix(docRoot, target);
-  return s === '' ? '/' : s.startsWith('/') ? s : '/' + s;
+/** A Pointer value for renderPointer (the raw is re-rendered, never read). */
+function ptr(base: PointerBase, steps: Step[]): Pointer {
+  return { kind: 'pointer', base, steps, raw: '' };
 }
 
-/** Current-scope raw (a path from the holder): `a/b[0]` — never empty (caller ensures). */
-function relForm(holder: string, target: string): string {
-  return renderSuffix(holder, target).replace(/^\//, '');
+/** Document-scope pointer: `: a: b`, `: [0]: x`, or `:` for the root itself. */
+function docPtr(docRoot: string, target: string): Pointer {
+  return ptr({ scope: 'document' }, stepsBelow(docRoot, target));
 }
 
-/** Parent-scope suffix after `..`: '', '/a/b', or '[0]…'. */
-function suffixAfter(base: string, target: string): string {
-  return renderSuffix(base, target);
+/** Project-root pointer (`:: first: rest…`): the first store token is the `::` authority
+ *  portion. Null when the target is the project root itself or starts at a position —
+ *  neither has a `::` spelling. */
+function linkPtr(target: string): Pointer | null {
+  const steps = stepsBelow(':', target);
+  const head = steps[0];
+  if (head === undefined || head.sel !== 'key') return null;
+  return ptr({ scope: 'link', authority: head.name }, steps.slice(1));
 }
 
 function isJson5pUri(uri: string): boolean {
@@ -241,18 +243,6 @@ function isJson5pUri(uri: string): boolean {
 
 function json5pToken(raw: string): string {
   return `*'${raw.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
-}
-
-/** Re-render a freshly built (slash-form) raw in the ORIGINAL token's style: a
- *  colon-authored pointer/anchor gets a colon rewrite, a legacy one stays slash —
- *  surgical edits preserve the file's spelling through the dual window. */
-function matchStyle(slashRaw: string, originalRaw: string): string {
-  if (!originalRaw.includes(':')) return slashRaw;
-  try {
-    return renderPointer(parsePointer(slashRaw));
-  } catch {
-    return slashRaw;
-  }
 }
 
 function json5pAnchorToken(body: string): string {

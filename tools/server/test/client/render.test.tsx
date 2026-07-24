@@ -317,6 +317,23 @@ describe("Render", () => {
     expect(screen.getByText("[ 3 items ]")).toBeTruthy();
   });
 
+  it("renders a keyed OMNI's self-value ON the key row (`world: World`), children below — not wrapped", () => {
+    // issue: a titled directory chapter (`world: World` + child) dropped its self-value to the next
+    // line in the read-only view; it must ride the key row, matching the source and the editor.
+    render(<Render value={{ world: { $yamloverMixed: { kind: "omni", value: "World", entries: [{ key: "eurasia", value: "Eurasia" }] } } }} syntax="yaml" onNavigate={() => {}} />);
+    const txt = document.body.textContent ?? "";
+    expect(txt).toContain("world: World"); // the omni self-value rides the key's own row
+    expect(txt).not.toMatch(/world:\s*\n\s*World/); // NOT dropped to the next line
+    expect(screen.getByText("eurasia")).toBeTruthy(); // its child still renders below
+  });
+
+  it("does NOT inline a keyed container's first CHILD onto the key row (`person: name:` is invalid)", () => {
+    render(<Render value={{ person: { name: "Rex", age: 4 } }} syntax="yaml" onNavigate={() => {}} />);
+    const txt = document.body.textContent ?? "";
+    expect(txt).not.toContain("person: name"); // only a node's OWN self-value inlines after a key:
+    expect(screen.getByText("name")).toBeTruthy();
+  });
+
   it("renders a NESTED mixed/omni marker as an omni block (not a literal $yamloverMixed key)", () => {
     render(
       <Render

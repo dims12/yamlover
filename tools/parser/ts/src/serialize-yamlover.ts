@@ -297,8 +297,8 @@ function joinLine(head: string, parts: string[]): string {
 
 /** The full yamlover deref token for a pointer raw: `*` + the raw, quoted only when
  *  outer whitespace could not survive the line (rendered colon raws self-delimit:
- *  spacey keys arrive PORTION-quoted, `#` arrives escaped — both from renderPointer /
- *  escapeSegment). Exported for the engine's `mv` ref-rewriter. */
+ *  spacey keys arrive PORTION-quoted, `#` arrives escaped — both from renderPointer).
+ *  Exported for the engine's `mv` ref-rewriter. */
 export function pointerToken(raw: string): string {
   if (raw !== raw.trim()) return `*'${raw.replace(/'/g, "''")}'`;
   return '*' + raw;

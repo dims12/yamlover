@@ -40,18 +40,65 @@ test('single-file directory parses its scalar (53-plain-dir)', () => {
   s.close();
 });
 
-test('pointer-array body imposes order; the directory projects as an array (56-array-of-files)', () => {
+test('pointer-array body grants positions to the members it names; the rest stay keyed-only (56-array-of-files)', () => {
   const s = indexedDir('56-array-of-files');
-  // body order is anyfile01, alsoany02, andany03.json — TOC reflects it
+  // body order is anyfile01, alsoany02, andany03.json — the POSITIONAL PREFIX; andany04.json
+  // is on disk but unreferenced, so it trails as a keyed-only member (never granted a position)
   const top = s.toc(':');
   assert.deepEqual(
     top.map((n) => n.label),
-    ['anyfile01', 'alsoany02', 'andany03.json'],
+    ['anyfile01', 'alsoany02', 'andany03.json', 'andany04.json'],
   );
-  assert.equal(s.node(':')?.is_array, true);
+  const root = s.node(':');
+  assert.equal(root?.is_array, false); // entries carry keys — the node is a mix, not an array
+  assert.equal((root?.meta as { positional?: number } | null)?.positional, 3);
   assert.equal(s.node(':anyfile01')?.value, 'Alice');
   assert.equal(s.node(':andany03.json')?.value, true);
+  assert.equal(s.node(':andany04.json')?.value, 'string');
   s.close();
+});
+
+test('pointer-array body: inline elements and dangling pointers keep their positions; unlisted children trail keyed-only', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'yamlover-posprefix-'));
+  try {
+    mkdirSync(join(dir, '.yamlover'));
+    writeFileSync(join(dir, '.yamlover', 'body.yamlover'), '- *b\n- 42\n- *missing\n');
+    writeFileSync(join(dir, 'a'), 'alpha\n');
+    writeFileSync(join(dir, 'b'), 'beta\n');
+    const s = new Store(':memory:');
+    s.indexDocument(walkDir(dir));
+    const root = s.node(':');
+    assert.equal(root?.is_array, false);
+    assert.equal((root?.meta as { positional?: number } | null)?.positional, 3);
+    // prefix: b (consumed pointer, keeps its key), the inline 42, the dangling *missing;
+    // remainder: a (unlisted, keyed-only). The hidden built-in graft is plumbing — not content.
+    const entries = s.entries(':').filter((e) => e.label !== 'yamlover');
+    assert.deepEqual(entries.map((e) => e.label), ['b', null, 'a']); // dangling has no edge row
+    assert.equal(s.node(':b')?.value, 'beta');
+    assert.equal(s.node(':a')?.value, 'alpha');
+    assert.equal(s.unrealizedRefs(':').length, 1); // `*missing` reported, never dropped
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('pointer-array body: the DEAD slash spelling `- */file` does not consume a member', () => {
+  // The migration window is closed (SEPARATOR.md): `*/b` is a pointer to the literal key
+  // "/b" — it matches nothing, so it dangles at its position and `b` trails keyed-only.
+  // The colon spelling `- *b` (or `- *: b`) is the one that consumes.
+  const dir = mkdtempSync(join(tmpdir(), 'yamlover-deadslash-'));
+  try {
+    mkdirSync(join(dir, '.yamlover'));
+    writeFileSync(join(dir, '.yamlover', 'body.yamlover'), '- */b\n');
+    writeFileSync(join(dir, 'b'), 'beta\n');
+    const s = new Store(':memory:');
+    s.indexDocument(walkDir(dir));
+    const entries = s.entries(':').filter((e) => e.label !== 'yamlover');
+    assert.deepEqual(entries.map((e) => e.label), ['b']); // keyed-only remainder; the dangling ref has no edge row
+    assert.equal(s.unrealizedRefs(':').length, 1); // `*/b` reported as dangling, never resolved
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('an .ini file is an opaque text/plain blob (the plaintext renderer claims it)', () => {
@@ -207,10 +254,10 @@ test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→c
   const root = mkdtempSync(join(tmpdir(), 'yo-anyof-'));
   mkdirSync(join(root, '$defs'), { recursive: true });
   writeFileSync(join(root, '$defs', 'chapter'),
-    'type: variant\nvalue:\n  type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n');
+    'type: variant\nvalue:\n  type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n');
   writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
   writeFileSync(join(root, 'doc.yamlover'), [
-    '!!<*yamlover/$defs/chapter>',
+    '!!<*yamlover: $defs: chapter>',
     'T',
     '- a leaf chunk',
     '- Sub',
@@ -243,17 +290,17 @@ test('table cells: leaf→chunk, untagged container→CHAPTER, a TAGGED table ce
   const root = mkdtempSync(join(tmpdir(), 'yo-tablecell-'));
   mkdirSync(join(root, '$defs'), { recursive: true });
   writeFileSync(join(root, '$defs', 'chapter'),
-    'type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n');
+    'type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n');
   writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
   writeFileSync(join(root, '$defs', 'table'),
-    'type: variant\nproperties:\n  title:\n    type: string\nitems:\n  type: array\n  items:\n    anyOf:\n      - *//yamlover/$defs/chunk\n      - *//yamlover/$defs/chapter\n      - *//yamlover/$defs/table\n');
+    'type: variant\nproperties:\n  title:\n    type: string\nitems:\n  type: array\n  items:\n    anyOf:\n      - *:: yamlover: $defs: chunk\n      - *:: yamlover: $defs: chapter\n      - *:: yamlover: $defs: table\n');
   writeFileSync(join(root, 'doc.yamlover'), [
-    '!!<*yamlover/$defs/table>',
+    '!!<*yamlover: $defs: table>',
     '- [plain, other]',
     '- - leaf',
     '  - - an untagged container cell is a CHAPTER',
     '- - leaf2',
-    '  - !!<*yamlover/$defs/table>',
+    '  - !!<*yamlover: $defs: table>',
     '    - [duty]',
     '',
   ].join('\n'));
@@ -278,15 +325,15 @@ test('list schemas: bullets/numbered apply at ANY depth until an explicit tag sw
   mkdirSync(join(root, '$defs'), { recursive: true });
   writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
   writeFileSync(join(root, '$defs', 'bullets'),
-    'type: variant\nitems:\n  anyOf:\n    - *//yamlover/$defs/bullets\n    - *//yamlover/$defs/chunk\n');
+    'type: variant\nitems:\n  anyOf:\n    - *:: yamlover: $defs: bullets\n    - *:: yamlover: $defs: chunk\n');
   writeFileSync(join(root, '$defs', 'numbered'),
-    'type: variant\nitems:\n  anyOf:\n    - *//yamlover/$defs/numbered\n    - *//yamlover/$defs/chunk\n');
+    'type: variant\nitems:\n  anyOf:\n    - *:: yamlover: $defs: numbered\n    - *:: yamlover: $defs: chunk\n');
   writeFileSync(join(root, 'doc.yamlover'), [
-    '!!<*yamlover/$defs/bullets>',
+    '!!<*yamlover: $defs: bullets>',
     '- top item',
     '- - nested item',
     '  - - deeper item',
-    '- !!<*yamlover/$defs/numbered>',
+    '- !!<*yamlover: $defs: numbered>',
     '  - step one',
     '',
   ].join('\n'));
@@ -310,11 +357,11 @@ test('schema propagation: `allOf:[chapter]` (task extends chapter) inherits body
   const root = mkdtempSync(join(tmpdir(), 'yo-allof-'));
   mkdirSync(join(root, '$defs'), { recursive: true });
   writeFileSync(join(root, '$defs', 'chapter'),
-    'type: variant\nproperties:\n  title:\n    type: string\n    format: text/marklower\nitems:\n  anyOf:\n    - *//yamlover/$defs/chapter\n    - *//yamlover/$defs/chunk\n');
+    'type: variant\nproperties:\n  title:\n    type: string\n    format: text/marklower\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n');
   writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
   writeFileSync(join(root, '$defs', 'task'),
-    'allOf:\n  - *//yamlover/$defs/chapter\ntype: variant\nitems:\n  anyOf:\n    - *//yamlover/$defs/task\n    - *//yamlover/$defs/chunk\n');
-  writeFileSync(join(root, 'doc.yamlover'), '!!<*yamlover/$defs/task>\ntitle: T\n- a chunk\n- title: Sub\n  - sub chunk\n');
+    'allOf:\n  - *:: yamlover: $defs: chapter\ntype: variant\nitems:\n  anyOf:\n    - *:: yamlover: $defs: task\n    - *:: yamlover: $defs: chunk\n');
+  writeFileSync(join(root, 'doc.yamlover'), '!!<*yamlover: $defs: task>\ntitle: T\n- a chunk\n- title: Sub\n  - sub chunk\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
   const d = ':doc.yamlover';
@@ -380,8 +427,8 @@ test('a sub-document encoding format (yamlover/meta) parses the file — never a
 });
 
 // The BUILT-IN graft: serving a subdir of a `yamlover/$defs` host (the repo) grafts the host's
-// `yamlover/` subtree into the walked root, so `*yamlover/$defs/…` (the hosted schemas) and
-// `*//yamlover/tags/colors/…` (the pure color tags every annotation may apply) resolve from
+// `yamlover/` subtree into the walked root, so `*yamlover: $defs: …` (the hosted schemas) and
+// `*:: yamlover: tags: colors…` (the pure color tags every annotation may apply) resolve from
 // any served root.
 test('built-in yamlover/ subtree is grafted when serving below a yamlover/$defs host', () => {
   const s = indexedDir('59-all-formats-object'); // a subdir of the repo (the yamlover/$defs host)
@@ -406,9 +453,22 @@ test('built-in graft outside a yamlover/$defs host (palette always available); U
   // THE UNIFORM GRAFT (walk.ts): an all-keyless root gets the graft like every other shape —
   // yamlover tolerates mixtures, so the hidden keyed entry neither flips the authored seq's array
   // projection nor shows in its TOC. (A skip here once broke schema derivation for every untitled
-  // directory chapter — shape special-cases are how projections silently diverge.)
+  // directory chapter — shape special-cases are how projections silently diverge.) A FULLY
+  // referenced pointer-array root shows it: the graft alone never demotes `is_array`.
+  const seq = mkdtempSync(join(tmpdir(), 'yo-fullseq-'));
+  mkdirSync(join(seq, '.yamlover'));
+  writeFileSync(join(seq, '.yamlover', 'body.yamlover'), '- *a\n- *b\n');
+  writeFileSync(join(seq, 'a'), '1\n');
+  writeFileSync(join(seq, 'b'), '2\n');
+  const full = new Store(':memory:');
+  full.indexDocument(walkDir(seq));
+  assert.equal(full.node(':')?.is_array, true); // fully referenced — still a seq despite the graft
+  assert.equal((full.node(':')?.meta as { positional?: number } | null)?.positional, 2);
+  full.close();
+  rmSync(seq, { recursive: true, force: true });
+  // ex-56 has an authored keyed-only remainder (andany04.json) — an honest MIX, graft or not
   const arr = indexedDir('56-array-of-files');
-  assert.equal(arr.node(':')?.is_array, true); // the authored seq still projects as a seq
+  assert.equal(arr.node(':')?.is_array, false);
   assert.equal(arr.node(':yamlover')?.meta?.hidden, true); // grafted, hidden plumbing
   assert.equal(arr.node(':yamlover:tags:colors:yellow:color')?.value, '#f9e2af'); // …and it resolves
   assert.ok(!arr.toc(':', 1).some((n) => n.label === 'yamlover')); // …and stays off the TOC
@@ -495,7 +555,7 @@ test('~- membership in a body overlay: stored as a keyless back edge; !!set / un
   const root = mkdtempSync(join(tmpdir(), 'yo-backseq-'));
   mkdirSync(join(root, '.yamlover'));
   writeFileSync(join(root, '.yamlover', 'body.yamlover'),
-    'items:\n- plain\nmember:\n  name: m\n  ~- */items\nfixed: !!set\n- */member\n');
+    'items:\n- plain\nmember:\n  name: m\n  ~- *: items\nfixed: !!set\n- *: member\n');
   writeFileSync(join(root, '.yamlover', 'meta.yamlover'), 'properties:\n  items:\n    uniqueItems: true\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));

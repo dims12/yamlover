@@ -8,7 +8,7 @@
 
 import { createContext, Fragment, ReactNode, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CommentBucket } from "../../api";
-import type { Link } from "../../render";
+import { fmtDerivedAnchor, type Link } from "../../render";
 import { caretAtStart, caretOnFirstLine, caretOnLastLine } from "../caret";
 import { keyToken, type MEntry, type MNode } from "./model";
 import type { HoleAction } from "./keys";
@@ -45,6 +45,10 @@ export interface YedActions {
   /** A colon after the closed quote: the quoted string becomes a KEY (entry / root / nested).
    *  False = the key already exists in the node (keys are unique). */
   quotedKey(nodeId: string): boolean;
+  /** Rename an entry's KEY. The server routes by storage: a directory-backed member is renamed
+   *  on disk (inbound pointers rewritten), an inline keyed entry has its key token rewritten.
+   *  False = rejected (empty/padded, or a duplicate key in the node — keys are unique). */
+  rekey(entryId: string, newKey: string): boolean;
   /** Backspace in an EMPTY value hole: UNDO the last structural token (colon/dash) of an
    *  uncommitted entry — the quoted key returns closed, a plain key's text returns to the hole. */
   undoDecision(entryId: string): void;
@@ -800,19 +804,43 @@ function NodeHead({ node, entry, chainFirst }: { node: MNode; entry: MEntry | nu
   }
 }
 
-/** An entry's head: its marker, its node's tag/anchors, then the node's head. */
+/** An entry's KEY cell — click or arrow into it to rename the key (issue: the caret must ENTER
+ *  keys). Commit (Enter / blur) routes through {@link YedActions.rekey}: a directory-backed member
+ *  is renamed on disk, an inline keyed entry has its key token rewritten; a duplicate rings the
+ *  error. The cell edits the RAW key text — quoting is re-derived on commit. */
+function KeyCell({ entry }: { entry: MEntry }) {
+  const { act } = useYed();
+  return (
+    <EditableCell
+      cellKey={entry.node.id + ":key"}
+      className="k"
+      initial={String(entry.key ?? "")}
+      rev={entry.node.rev}
+      onCommit={(text) => act.rekey(entry.id, text)}
+    />
+  );
+}
+
+/** An entry's head: its marker, its node's tag/anchors, then the node's head. A `derivedKey`
+ *  entry (a positional member of a dir-backed pointer-array body) draws as a DASH row with its
+ *  key as a dimmed, read-only `&` anchor — the value rides the dash line like any ordinal's. */
 function EntryHead({ entry }: { entry: MEntry }) {
   const node = entry.node;
   const marker = !entry.decided ? null
-    : entry.key !== null
-      ? <><span className="k">{keyToken(entry)}</span><span className="punct">{":"}</span>{" "}</>
-      : <><span className="punct yaml-dash">-</span>{" "}</>;
+    : entry.derivedKey
+      ? <><span className="punct yaml-dash">-</span>{" "}<span className="anchor derived">{fmtDerivedAnchor(entry.key ?? "")}</span>{" "}</>
+      : entry.key !== null
+        ? <>{entry.committed
+              ? <KeyCell entry={entry} />
+              : <span className="k">{keyToken(entry)}</span> /* still being typed — the hole flow owns it */}
+            <span className="punct">{":"}</span>{" "}</>
+        : <><span className="punct yaml-dash">-</span>{" "}</>;
   return (
     <>
       {marker}
       {node.metaTag !== null && <MetaTagCell node={node} />}
       <Anchors node={node} />
-      <NodeHead node={node} entry={entry} chainFirst={entry.key === null} />
+      <NodeHead node={node} entry={entry} chainFirst={entry.key === null || !!entry.derivedKey} />
     </>
   );
 }
