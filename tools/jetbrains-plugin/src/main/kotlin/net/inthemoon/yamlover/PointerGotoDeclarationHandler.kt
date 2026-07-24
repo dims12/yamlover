@@ -18,9 +18,10 @@ import com.intellij.psi.PsiWhiteSpace
  *  - {@link PointerGotoDeclarationHandler} — the legacy action path, kept so keyboard
  *    Ctrl+B keeps working in contexts that bypass the new pipeline.
  *
- * Resolution: in-file paths, anchors, `..`, `/` document scope, `[n]` positions; plus, in a
- * `.yamlover/body.yamlover` overlay, a document-scope segment falls back to the overlaid
- * directory's child file/dir. `//`/scheme links wait for the engine protocol (PLAN.md J3).
+ * Resolution: in-file paths, `..` parent, `:` document scope, `[n]` positions (colon grammar,
+ * SEPARATOR.md); plus, in a `.yamlover/body.yamlover` overlay, a document-scope segment falls
+ * back to the overlaid directory's child file/dir. `::`/`:::` cross-tree links wait for the
+ * engine protocol (PLAN.md J3).
  */
 internal fun pointerTargetAt(file: PsiFile, offset: Int): PsiElement? {
     val yam = file.language == YamloverLanguage
@@ -34,8 +35,8 @@ internal fun pointerTargetAt(file: PsiFile, offset: Int): PsiElement? {
         return file.findElementAt(target) ?: file
     }
 
-    // body.yamlover overlay: `/name` may be a child of the OVERLAID directory on disk
-    if (yam && expr.document && expr.steps.isNotEmpty()) {
+    // body.yamlover overlay: `:name` may be a child of the OVERLAID directory on disk
+    if (yam && expr.scope is Scope.Document && expr.steps.isNotEmpty()) {
         val first = expr.steps[0] as? Step.Key ?: return null
         val vf = file.virtualFile ?: return null
         if (vf.name == "body.yamlover" && vf.parent?.name == ".yamlover") {

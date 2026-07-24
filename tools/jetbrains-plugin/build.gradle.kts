@@ -1,6 +1,7 @@
-// yamlover JetBrains plugin — v1: file type + syntax highlighting only.
+// yamlover JetBrains plugin — file type + syntax highlighting + heuristic pointer navigation.
 // Build:  ./gradlew buildPlugin     (needs JDK 17 and network for the IDE SDK)
 // Run:    ./gradlew runIde
+// Test:   ./gradlew test            (lexer + pointer-navigation unit tests)
 //
 // Pin versions to whatever matches your target IDE; the IntelliJ Platform Gradle
 // Plugin 2.x DSL is used below.
@@ -13,7 +14,7 @@ plugins {
 }
 
 group = "net.inthemoon.yamlover"
-version = "0.3.0"
+version = "0.4.0"
 
 repositories {
     mavenCentral()

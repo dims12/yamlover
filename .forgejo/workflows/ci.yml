@@ -1,6 +1,8 @@
 # CI quality gate: the full test suite (parser + engine, incl. the conformance corpora
 # from the submodules) and the server typecheck, on every push / PR. Node 22 is required
-# (native .ts type-stripping + the built-in node:sqlite the engine runs on).
+# (native .ts type-stripping + the built-in node:sqlite the engine runs on). A second job
+# runs the JetBrains plugin's Gradle tests — its Kotlin lexer + pointer navigation
+# reimplement the parser, so this gate catches drift when the grammar changes.
 on:
   push:
     branches: [main]
@@ -29,3 +31,16 @@ jobs:
 
       - name: Tests (server — vitest)
         run: npm --prefix tools/server test
+
+  jetbrains-plugin:
+    runs-on: docker
+    container:
+      image: eclipse-temurin:21-jdk
+    steps:
+      - uses: actions/checkout@v4
+
+      # JDK 21 runs Gradle; the jvmToolchain(17) target is auto-provisioned via the
+      # foojay resolver (settings.gradle.kts). The IntelliJ Platform SDK is fetched once.
+      - name: Tests (jetbrains plugin — lexer + pointer navigation)
+        working-directory: tools/jetbrains-plugin
+        run: ./gradlew --no-daemon test

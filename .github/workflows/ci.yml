@@ -1,7 +1,9 @@
 # CI quality gate: the full test suite (parser + engine, incl. the conformance corpora
 # from the submodules) and the server typecheck, on every push / PR. GitHub counterpart of
 # .forgejo/workflows/ci.yml. Node 22 is required (native .ts type-stripping + the built-in
-# node:sqlite the engine runs on).
+# node:sqlite the engine runs on). A second job runs the JetBrains plugin's Gradle tests —
+# its Kotlin lexer + pointer navigation reimplement the parser, so this gate catches drift
+# when the yamlover/pointer grammar changes (see tools/jetbrains-plugin).
 on:
   push:
     branches: [main]
@@ -34,3 +36,23 @@ jobs:
 
       - name: Tests (server — vitest)
         run: npm --prefix tools/server test
+
+  jetbrains-plugin:
+    # Real GitHub only — skipped on the Forgejo mirror, which runs the .forgejo copy.
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # JDK 21 runs Gradle; the jvmToolchain(17) target is auto-provisioned via the
+      # foojay resolver (settings.gradle.kts). The IntelliJ Platform SDK is fetched once.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Tests (jetbrains plugin — lexer + pointer navigation)
+        working-directory: tools/jetbrains-plugin
+        run: ./gradlew --no-daemon test

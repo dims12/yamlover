@@ -5,61 +5,169 @@ package net.inthemoon.yamlover
  * and no engine (that is PLAN.md J3 proper). Mirrors the heuristic-lexer spirit: parse the
  * pointer under the caret, resolve it against a lightweight path index of the SAME file.
  *
- * Supported: current-mapping scope (`*name`), `..` parents, `/` document scope, `/x` string
- * keys, `[n]` integer keys (positions — keyed entries occupy positions too), `&anchor`
- * precedence (a declared anchor wins over a sibling key), backslash escapes.
- * Out of scope: `//` / scheme links (cross-tree — waits for the engine protocol).
+ * Grammar: COLON (SEPARATOR.md — the ONLY form; the legacy `/` separator is DEAD, window
+ * closed 2026-07-24). Portions separated by `:`, canonical `: ` styling. Scope ladder:
+ * bare = current mapping, `:` = document root, `..` = parent, `::`/`:::` = project/world
+ * (cross-tree — needs the engine, resolves to null here). `/` is an ORDINARY key character.
+ * A key with a space must be quoted. Index groups: `[n]` absolute, `[.]`/`[.±k]` relative
+ * (relative positions need the host frame — parsed, but resolve returns null). There is NO
+ * anchor namespace and no precedence: `*name` is pure path lookup (resolve.ts §no-precedence).
+ * Out of scope: `::`/`:::` cross-tree links (waits for the engine protocol).
  */
 
 sealed class Step {
     data class Key(val name: String) : Step()
     data class Index(val n: Int) : Step()
+    data class RelIndex(val k: Int) : Step() // [.] / [.±k] — the host's own position ± k
     object Parent : Step()
 }
 
-data class PointerExpr(val document: Boolean, val steps: List<Step>) {
-    /** A bare single name in current scope — the case where a declared anchor wins. */
-    val bareName: String?
-        get() = if (!document && steps.size == 1 && steps[0] is Step.Key) (steps[0] as Step.Key).name else null
+sealed class Scope {
+    object Current : Scope()                                      // bare — current mapping
+    object Document : Scope()                                     // `:` — this document's root
+    object Parent : Scope()                                       // leading `..` — parent node
+    data class Link(val authority: String, val world: Boolean) : Scope() // `::` / `:::`
 }
 
+data class PointerExpr(val scope: Scope, val steps: List<Step>)
+
 object Pointers {
-    /** Parse the pointer PATH text (after the `*` sigil, unquoted). Null for links (`//…`,
-     *  `scheme://…`) and empty paths. */
+    /** Parse the pointer PATH text (after the `*` sigil, string already unquoted). Null on an
+     *  empty path or a malformed portion (a space in an unquoted key, a bad index group). */
     fun parse(raw: String): PointerExpr? {
-        var s = raw.trim()
+        val s = raw.trim()
         if (s.isEmpty()) return null
-        if (s.startsWith("//") || Regex("^[A-Za-z][A-Za-z0-9+.-]*://").containsMatchIn(s)) return null // a link
-        val document = s.startsWith("/")
-        if (document) s = s.substring(1)
+        return try { parseColon(s) } catch (e: Exception) { null }
+    }
+
+    // ---- colon form (SEPARATOR.md), ported from parser/ts/src/pointer.ts ------------------
+
+    private fun parseColon(raw: String): PointerExpr {
+        if (raw.startsWith(":::")) {
+            val portions = splitColon(raw.substring(3)).toMutableList()
+            if (portions.isEmpty()) throw IllegalArgumentException("\":::\" needs an authority")
+            val auth = portions.removeAt(0)
+            return PointerExpr(Scope.Link(portionName(auth), true), portionsToSteps(portions))
+        }
+        if (raw.startsWith("::")) {
+            val portions = splitColon(raw.substring(2)).toMutableList()
+            if (portions.isEmpty()) throw IllegalArgumentException("\"::\" needs a first portion")
+            val auth = portions.removeAt(0)
+            return PointerExpr(Scope.Link(portionName(auth), false), portionsToSteps(portions))
+        }
+        if (raw.startsWith(":")) {
+            return PointerExpr(Scope.Document, portionsToSteps(splitColon(raw.substring(1))))
+        }
+        val portions = splitColon(raw).toMutableList()
+        var scope: Scope = Scope.Current
+        if (portions.isNotEmpty() && portions[0] == "..") { scope = Scope.Parent; portions.removeAt(0) }
+        return PointerExpr(scope, portionsToSteps(portions))
+    }
+
+    /** Split on unescaped, unquoted `:`; trim each portion (the `: ` styling). Quotes and
+     *  backslash pairs ride through intact; empty portions are dropped. */
+    private fun splitColon(s: String): List<String> {
+        val out = ArrayList<String>()
+        val cur = StringBuilder()
+        var q: Char? = null
+        var i = 0
+        while (i < s.length) {
+            val c = s[i]
+            when {
+                q != null -> { cur.append(c); if (c == q) q = null }
+                c == '\\' && i + 1 < s.length -> { cur.append(c); cur.append(s[i + 1]); i++ }
+                c == '\'' || c == '"' -> { q = c; cur.append(c) }
+                c == ':' -> { out.add(cur.toString().trim()); cur.setLength(0) }
+                else -> cur.append(c)
+            }
+            i++
+        }
+        out.add(cur.toString().trim())
+        return out.filter { it.isNotEmpty() }
+    }
+
+    private fun portionsToSteps(portions: List<String>): List<Step> {
+        val out = ArrayList<Step>()
+        for (p in portions) out.addAll(portionToSteps(p))
+        return out
+    }
+
+    /** One colon portion → steps: `..`, a (possibly quoted) name, optional `[n]`/`[.±k]`
+     *  groups. A bare name containing a SPACE must be quoted (SEPARATOR.md §3). */
+    private fun portionToSteps(p: String): List<Step> {
+        if (p == "..") return listOf(Step.Parent)
+        // `..[.-1][.]` — the table rowspan idiom: the uplink, then the indexes. (The literal
+        // key ".." arrives escaped, `\.\.`, and takes the name path.)
+        if (p.startsWith("..") && p.length > 2 && p[2] == '[') return listOf(Step.Parent) + indexGroups(p.substring(2))
+        val name = StringBuilder()
+        var i = 0
+        if (p.isNotEmpty() && (p[0] == '\'' || p[0] == '"')) {
+            val q = p[0]; i = 1
+            while (i < p.length) {
+                if (p[i] == q) {
+                    if (q == '\'' && i + 1 < p.length && p[i + 1] == '\'') { name.append(q); i += 2; continue }
+                    i++; break
+                }
+                if (q == '"' && p[i] == '\\' && i + 1 < p.length) { name.append(p[i + 1]); i += 2; continue }
+                name.append(p[i]); i++
+            }
+        } else {
+            while (i < p.length) {
+                val c = p[i]
+                if (c == '\\' && i + 1 < p.length) { name.append(p[i + 1]); i += 2; continue }
+                if (c == '[') break
+                if (c == ' ' || c == '\t') throw IllegalArgumentException("a key containing a space must be quoted")
+                name.append(c); i++
+            }
+        }
+        val steps = ArrayList<Step>()
+        if (name.isNotEmpty()) steps.add(Step.Key(name.toString()))
+        if (i < p.length) steps.addAll(indexGroups(p.substring(i)))
+        return steps
+    }
+
+    /** A run of bracket groups on a portion tail: `[n]` (absolute) or `[.]`/`[.±k]` (relative:
+     *  the host's own position ± k). Digits = absolute; a leading `.` = relative; an offset
+     *  needs an explicit sign. */
+    private fun indexGroups(s: String): List<Step> {
         val steps = ArrayList<Step>()
         var i = 0
         while (i < s.length) {
-            when {
-                s[i] == '/' -> i++ // segment separator
-                s[i] == '[' -> {
-                    val close = s.indexOf(']', i)
-                    if (close < 0) return null
-                    steps.add(Step.Index(s.substring(i + 1, close).toIntOrNull() ?: return null))
-                    i = close + 1
+            if (s[i] != '[') throw IllegalArgumentException("malformed portion")
+            var j = i + 1
+            if (j < s.length && s[j] == '.') {
+                j++
+                var k = 0
+                if (j < s.length && (s[j] == '+' || s[j] == '-')) {
+                    val sign = if (s[j] == '-') -1 else 1; j++
+                    val d = StringBuilder()
+                    while (j < s.length && s[j].isDigit()) { d.append(s[j]); j++ }
+                    if (d.isEmpty()) throw IllegalArgumentException("malformed index")
+                    k = sign * d.toString().toInt()
                 }
-                else -> {
-                    val sb = StringBuilder()
-                    while (i < s.length && s[i] != '/' && s[i] != '[') {
-                        if (s[i] == '\\' && i + 1 < s.length) { sb.append(s[i + 1]); i += 2 } else { sb.append(s[i]); i++ }
-                    }
-                    val name = sb.toString()
-                    if (name == "..") steps.add(Step.Parent) else if (name.isNotEmpty()) steps.add(Step.Key(name))
-                }
+                if (j >= s.length || s[j] != ']') throw IllegalArgumentException("malformed index")
+                steps.add(Step.RelIndex(k)); i = j + 1; continue
             }
+            val d = StringBuilder()
+            while (j < s.length && s[j].isDigit()) { d.append(s[j]); j++ }
+            if (d.isEmpty() || j >= s.length || s[j] != ']') throw IllegalArgumentException("malformed index")
+            steps.add(Step.Index(d.toString().toInt())); i = j + 1
         }
-        return if (steps.isEmpty() && !document) null else PointerExpr(document, steps)
+        return steps
+    }
+
+    /** The authority portion of `::` / `:::` — a (possibly quoted) plain name. */
+    private fun portionName(p: String): String {
+        val steps = portionToSteps(p)
+        val first = steps.firstOrNull()
+        if (steps.size != 1 || first !is Step.Key) throw IllegalArgumentException("bad authority portion")
+        return first.name
     }
 
     /** The unquoted pointer path around `offset` in yamlover text. In BLOCK context an
-     *  unquoted `*` pointer runs to end of line (minus a ` #` comment) — interior spaces and
-     *  commas are path content (spaced filenames), matching the real parser. Inside FLOW
-     *  (`{…}`/`[…]`), space/comma/closing delimiters end it. */
+     *  unquoted `*` pointer runs to end of line (minus a ` #` comment) — the `: ` separator
+     *  styling keeps interior spaces, matching the real parser. Inside FLOW (`{…}`/`[…]`),
+     *  space/comma/closing delimiters end it. */
     fun yamloverPointerAt(text: String, offset: Int): String? {
         if (offset < 0 || offset > text.length) return null
         val ls = if (offset == 0) 0 else (text.lastIndexOf('\n', offset - 1) + 1)
@@ -137,12 +245,11 @@ object Pointers {
     }
 }
 
-/** A path → offset index of one file, plus anchor declarations and the enclosing-container
- *  lookup. Canonical path: "" for the root, then "/key" (with `/` in names escaped) and
- *  "[n]" segments. */
+/** A path → offset index of one file, plus the enclosing-container lookup. Canonical path:
+ *  "" for the root, then ":key" (compact colon; `:` and `\` escaped in a name, `/` literal)
+ *  and "[n]" segments — the same compact-colon store form the engine uses (SEPARATOR.md §M4). */
 class PathIndex(
     private val byPath: Map<String, Int>,
-    private val anchors: Map<String, Int>,
     private val containers: List<Pair<Int, String>>, // (startOffset, containerPath), ordered
 ) {
     fun containerOf(offset: Int): String {
@@ -154,18 +261,18 @@ class PathIndex(
     fun lookup(path: String): Int? = byPath[path]
 
     fun resolve(expr: PointerExpr, fromOffset: Int): Int? {
-        expr.bareName?.let { name -> anchors[name]?.let { return it } } // a declared anchor wins
-        var path = if (expr.document) "" else containerOf(fromOffset)
+        var path = when (expr.scope) {
+            is Scope.Current -> containerOf(fromOffset)
+            is Scope.Document -> ""
+            is Scope.Parent -> parentOf(containerOf(fromOffset)) ?: return null
+            is Scope.Link -> return null // cross-tree (::/:::): needs the engine
+        }
         for (step in expr.steps) {
             path = when (step) {
-                is Step.Parent -> when {
-                    path.isEmpty() -> return null
-                    path.endsWith("]") -> path.substring(0, path.lastIndexOf('['))
-                    path.lastIndexOf('/') >= 0 -> path.substring(0, path.lastIndexOf('/'))
-                    else -> return null
-                }
+                is Step.Parent -> parentOf(path) ?: return null
                 is Step.Key -> path + seg(step.name)
                 is Step.Index -> "$path[${step.n}]"
+                is Step.RelIndex -> return null // a relative position needs the host frame
             }
         }
         return byPath[path]
@@ -177,24 +284,37 @@ class PathIndex(
 
     /** A container whose block MAY follow — the frame adopts the first deeper line's indent.
      *  `sameIndentSeq`: a `key:` is also opened by a same-indent `- ` line (its child
-     *  sequence); a dash item's self-value is not — there a same-indent line is a sibling.
-     *  `count` seeds the frame (1 when an inline head already consumed the item's `[0]`). */
+     *  sequence); a dash item's / keyed omni's self-value is not — there a same-indent line is
+     *  a sibling. `count` seeds the frame (0: a self-value took no position → children from [0]). */
     private class Pending(val indent: Int, val path: String, val count: Int = 0, val sameIndentSeq: Boolean = false)
 
     companion object {
-        private fun seg(name: String) = "/" + name.replace("/", "\\/")
+        /** A canonical compact-colon segment: `:` prefix, then the name with `\` and `:`
+         *  escaped so `parentOf` can split back. `/` stays literal (SEPARATOR.md §3). */
+        private fun seg(name: String) = ":" + name.replace("\\", "\\\\").replace(":", "\\:")
+
+        /** The parent of a compact-colon path: drop a trailing `[n]`, else the last `:key`
+         *  segment (an unescaped `:`). Null at the root. */
+        private fun parentOf(path: String): String? {
+            if (path.isEmpty()) return null
+            if (path.endsWith("]")) { val i = path.lastIndexOf('['); return if (i < 0) null else path.substring(0, i) }
+            var i = path.length - 1
+            while (i >= 0) {
+                if (path[i] == ':' && (i == 0 || path[i - 1] != '\\')) return path.substring(0, i)
+                i--
+            }
+            return null
+        }
 
         /** Index a yamlover file by indentation. Heuristics: nesting = deeper indent; a block
          *  sequence may also sit at the SAME indent as its (empty-valued) key; back-edge
          *  entries (`~key:` / `~-`) are skipped — they are not owned children. Omni: a tag
-         *  line (`!!…`) and a scalar self-value (the bare line under a document tag, or a
-         *  dash item's plain-scalar head) take NO position; a scalar-headed item's deeper
-         *  block holds its children. (A plain scalar's `key:`-looking continuation line can
-         *  still be mis-read as a child — chapter chunks are one-liners or block scalars,
-         *  which are guarded, so this stays a rare heuristic miss.) */
+         *  line (`!!…`) and a scalar self-value take NO position — a scalar-headed dash item
+         *  OR a keyed line with a non-empty scalar value (`world: World`) whose deeper block
+         *  holds its children indexes those children from `[0]`. Anchors (`&…`) take the value
+         *  slot and are not indexed (there is no anchor namespace). */
         fun ofYamlover(text: String): PathIndex {
             val byPath = HashMap<String, Int>()
-            val anchors = HashMap<String, Int>()
             val containers = ArrayList<Pair<Int, String>>()
             val stack = ArrayList<Frame>().apply { add(Frame(0, "")) }
             var pending: Pending? = null // a container whose block may follow
@@ -209,7 +329,7 @@ class PathIndex(
                 val line = noComment.trim()
 
                 // open the pending container's block if this line starts it (deeper, or —
-                // for a key — a same-indent seq)
+                // for an empty-valued key — a same-indent seq)
                 val isSeqLine = line == "-" || line.startsWith("- ") || line == "~-" || line.startsWith("~- ")
                 pending?.let { pk ->
                     if (indent > pk.indent) stack.add(Frame(indent, pk.path, pk.count))
@@ -231,11 +351,7 @@ class PathIndex(
                     val itemPath = "${frame.path}[$idx]"
                     byPath[itemPath] = offset
                     var rest = stripTags(line.removePrefix("-").trim())
-                    if (rest.startsWith("&")) {
-                        val name = rest.substring(1).takeWhile { !it.isWhitespace() }
-                        anchors[name] = offset
-                        rest = rest.substring(1 + name.length).trim()
-                    }
+                    if (rest.startsWith("&")) rest = "" // an anchor takes the value slot
                     when {
                         rest.isEmpty() -> stack.add(Frame(indent + 1, itemPath)) // block item: children are deeper
                         rest == "-" || rest.startsWith("- ") -> {
@@ -267,13 +383,14 @@ class PathIndex(
                 byPath[entryPath] = offset
                 byPath["${frame.path}[$idx]"] = offset // a keyed entry still occupies its position
                 var rest = stripTags(line.substring(line.indexOf(':') + 1).trim())
-                if (rest.startsWith("&")) {
-                    anchors[rest.substring(1).takeWhile { !it.isWhitespace() }] = offset
-                    rest = ""
+                if (rest.startsWith("&")) rest = "" // an anchor takes the value slot
+                when {
+                    rest.isEmpty() -> pending = Pending(indent, entryPath, sameIndentSeq = true)
+                    rest.matches(BLOCK_SCALAR_HEAD) -> {} // `key: |`: deeper lines are scalar content
+                    else -> pending = Pending(indent, entryPath, 0) // keyed omni: a scalar self-value + maybe a deeper body
                 }
-                if (rest.isEmpty()) pending = Pending(indent, entryPath, sameIndentSeq = true)
             }
-            return PathIndex(byPath, anchors, containers)
+            return PathIndex(byPath, containers)
         }
 
         /** A YAML block-scalar header: `|` / `>` with optional chomping/indent indicators. */
@@ -282,7 +399,6 @@ class PathIndex(
         /** Index a json5p file by brace/bracket structure (strings/comments respected). */
         fun ofJson5p(text: String): PathIndex {
             val byPath = HashMap<String, Int>()
-            val anchors = HashMap<String, Int>()
             val containers = ArrayList<Pair<Int, String>>()
             val stack = ArrayList<Frame>().apply { add(Frame(0, "")) }
             var pendingKeyPath: String? = null // a key just seen — names the NEXT value
@@ -297,11 +413,11 @@ class PathIndex(
             }
 
             /** A name/string token read at `at`, ending at `after`: a key registers its path
-             *  and position; an anchored name records the anchor; else a primitive value. */
+             *  and position; an anchored name is skipped (no anchor namespace); else a value. */
             fun nameLike(word: String, at: Int, after: Int) {
                 val f = stack.last()
                 when {
-                    pendingAnchor -> { anchors[word] = at; pendingAnchor = false }
+                    pendingAnchor -> pendingAnchor = false // an anchor takes the value slot; not indexed
                     isKeyAhead(after) -> {
                         val idx = f.count++
                         byPath[f.path + seg(word)] = at
@@ -372,13 +488,14 @@ class PathIndex(
                     else -> {
                         val at = i
                         val sb = StringBuilder()
-                        while (i < text.length && !text[i].isWhitespace() && text[i] !in ":,{}[]'\"" && text[i] != '/') { sb.append(text[i]); i++ }
+                        // `/` is an ordinary key character now (SEPARATOR.md §3): it does not end a word
+                        while (i < text.length && !text[i].isWhitespace() && text[i] !in ":,{}[]'\"") { sb.append(text[i]); i++ }
                         if (sb.isEmpty()) i++ else nameLike(sb.toString(), at, i)
                         afterTilde = false
                     }
                 }
             }
-            return PathIndex(byPath, anchors, containers)
+            return PathIndex(byPath, containers)
         }
 
         /** Strip a trailing `#` comment (quote-aware, same rule as the parser). */
