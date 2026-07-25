@@ -5,7 +5,8 @@ description: |
     says what is drawn on screen and where the focus/caret sits. Every other keyed
     entry is a TRANSITION - the key names the key press (or event), the value points
     at the next state. A CONDITIONAL transition nests condition-keyed pointers instead
-    of a single pointer.
+    of a single pointer. The code these states project onto — the host/model/cells split
+    and the typing grammar in keys.ts — is documented in EDITOR.md.
 
     Conventions.
     `alphanumeric` covers letters, digits and any ordinary character that starts or

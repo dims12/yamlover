@@ -57,6 +57,32 @@ The project has the following goals
 > `rm`/`put`/`normalize`. The Python `walker`/`collector` are deprecated
 > (see [`tools/LEGACY.md`](tools/LEGACY.md)).
 
+## Documentation map
+
+The specs, grouped by concern (everything below lives at the repo root unless noted):
+
+- **Model & grammar** — [`URIs.md`](URIs.md) (pointer/path model),
+  [`SEPARATOR.md`](SEPARATOR.md) (the `:` / `::` colon grammar),
+  [`JSON5P.md`](JSON5P.md) & [`YAMLOVER.md`](YAMLOVER.md) (the two surface languages),
+  [`IR.md`](IR.md) (instance-graph contract), [`CONCRETES.md`](CONCRETES.md) (storage
+  taxonomy), [`TYPES.md`](TYPES.md) (type/facet/`variant` model),
+  [`ANCHOR_REFACTOR.md`](ANCHOR_REFACTOR.md) (the `&`-absorbs-`~` decision log).
+- **Engine & platform** — [`ENGINE.md`](ENGINE.md) (core design),
+  [`PLAN.md`](PLAN.md) (build plan, kept current), [`FUTURE.md`](FUTURE.md)
+  (platform/format direction), [`IMPORTS.md`](IMPORTS.md) (imports/exports),
+  [`VERSION-CONTROL.md`](VERSION-CONTROL.md) (git/versioning notes).
+- **Metadata & schema** — [`META.md`](META.md) (the `meta.yamlover` schema layer).
+- **Document model & prose** — [`CHAPTER.md`](CHAPTER.md) (the chapter/partial-flattening
+  model), [`MARKLOWER.md`](MARKLOWER.md) (the inline prose markup),
+  [`ANNOTATIONS.md`](ANNOTATIONS.md) (fragments + tag applications),
+  [`UI.md`](UI.md) (operating the web viewer/editor),
+  [`EDITOR.md`](EDITOR.md) (the projectional editor's architecture).
+- **Query & features** — [`QUERY.md`](QUERY.md) (the query language) &
+  [`QUERY-FUTURE.md`](QUERY-FUTURE.md) (its sketched future),
+  [`TICKETS.md`](TICKETS.md) (tasks / tickets / study cards).
+- **Working notes** — [`TODO.md`](TODO.md) (running backlog),
+  [`tools/`](tools/) (the implementations — see [`tools/README.md`](tools/README.md)).
+
 ## Isomorphisms briefly
 
 ### YAML vs JSON

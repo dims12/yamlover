@@ -9,6 +9,8 @@ description: |
     condition-keyed pointers. Unlike the yamlover editor's, this machine is ALSO
     executable code — tools/server/src/client/breadcrumb-machine.ts is the pure reducer
     these states compile to, and breadcrumb-machine.test.ts runs the table.
+    EDITOR.md (§4-§5) is the prose architecture doc for how this machine hosts the
+    breadcrumb, the pointer cell, and the tag picker.
 
     Conventions.
     A PORTION is one colon-separated step of the query — a key (`pets[1]` includes its

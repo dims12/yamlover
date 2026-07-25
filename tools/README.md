@@ -12,7 +12,17 @@ self-contained programs that demonstrate it.
   mediated `mv`, and the query evaluator (`../ENGINE.md`).
 - [`server/`](server/) — browse **and edit** a yamlover tree in the web browser:
   `npx yamlover <root>` serves a React SPA over an engine-backed JSON API.
+- [`desktop/`](desktop/) — Electron wrapper: runs the local server (127.0.0.1, prod
+  build) and opens a native window.
+- [`demo/`](demo/) — multi-tenant demo host: hands each visitor a private, disposable
+  yamlover instance behind one host, reaped after a TTL (powers `yamlover.inthemoon.net`).
 - [`jetbrains-plugin/`](jetbrains-plugin/) — `.yamlover`/`.json5p` file types + highlighting.
+
+**Importers:**
+- [`onenote2yamlover/`](onenote2yamlover/) — imports Microsoft OneNote notebooks into a
+  yamlover tree of chapters + marklower prose (C#/.NET WPF app + `.Core` library; a legacy
+  PowerShell prototype it was ported from also ships). See its
+  [`README`](onenote2yamlover/README.md).
 
 **Deprecated (2026-06-07)** — Python predecessors, superseded by `parser/` + `engine/`;
 kept for reference only, knowledge extracted to [`LEGACY.md`](LEGACY.md):

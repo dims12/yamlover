@@ -1,10 +1,11 @@
-# FUTURE — platform & architecture direction
+# FUTURE — platform, architecture & format direction
 
 Forward-looking notes, not commitments. yamlover is meant to be a **foundation for
 many applications** — mind-map / outliner desktop apps, reference managers, image
 managers, a tag manager, a JetBrains plugin or custom project type, and more. This
-document records how we think the engine should evolve to support that, and the
-open decision that drives the implementation language.
+document records how we think the engine should evolve to support that, the open
+decision that drives the implementation language, and — added below — the direction
+for the **prose format** (converging on marklower).
 
 ## Where we are today
 
@@ -96,6 +97,52 @@ conversion rather than in-language libraries.
 
 One-line summary: **not C++. Kotlin/JVM if JetBrains is first-class; otherwise stay
 TypeScript — and either way, spec the protocol before porting anything.**
+
+## Prose convergence: marklower as the canonical prose format
+
+A separate direction, about *content* rather than the engine language. Unlike the
+sections above (which weigh options), this one is a **committed aim** — only the
+migration is deferred.
+
+**The aim.** All prose in a yamlover tree is represented as **chapters of marklower
+chunks** (`CHAPTER.md`, `MARKLOWER.md`); `text/marklower` is *the* prose format.
+Marklower stays deliberately **inline-only** — bold/italic/strike, code, `$$math$$`,
+links, and `*[…](…)` embeds — and never grows block structure. Block structure is the
+graph's job: headings become **subchapters**, bullet/numbered lists become tagged
+`x-yamlover-bullets`/`-numbered` nodes, and tables become `x-yamlover-table` nodes. So a
+"document" is a chapter tree whose leaves are marklower, not one opaque HTML blob.
+
+**Consequence for Markdown / AsciiDoc.** They are demoted from first-class *stored*
+formats to **import sources**. `.md` / `.adoc` / `.txt` files (and OneNote notebooks,
+external HTML) get **converted** into chapters + marklower chunks on import. The existing
+whole-file renderers — `renderers/text.tsx` (`marked`) and `renderers/asciidoc.tsx`
+(asciidoctor) — remain as a **legacy / fallback** path for files that have not been
+converted, not as the target representation. The block delegations that already exist for
+marklower (tables, lists) are exactly the seams a converter targets.
+
+**Migration path (sketch, not committed).**
+
+1. A **Markdown/AsciiDoc → chapter+marklower importer**: block structure maps to a chapter
+   body (headings → subchapters, lists/tables → tagged nodes), inline runs map to marklower.
+2. The **OneNote importer already walks this path** — `tools/onenote2yamlover` emits
+   chapters with marklower prose and `$defs: table` grids today (its `.Core` C# library;
+   the legacy PowerShell prototype still emits CSV tables). It is the first worked example
+   of "foreign document → chapter+marklower".
+3. **Paste/HTML convergence** — `renderers/paste-html.ts` currently emits a few block
+   constructs marklower can't parse (`MARKLOWER.md` §divergence); folding those into the
+   chapter model closes the last in-app producer of non-marklower prose.
+
+**Open questions.**
+
+- Round-trip fidelity for imported Markdown/AsciiDoc — how much of an author's original
+  file is recoverable, and whether we keep the source blob alongside the converted chapter.
+- Whether the `marked` / asciidoctor renderers are ever **removed**, or kept permanently as
+  a fallback for un-converted files.
+- **Multilingual chunks** (`TODO.md`) — a per-chunk language dimension interacts with how a
+  converted document stores parallel prose.
+
+See `MARKLOWER.md` (the format), `CHAPTER.md` (the container it converges into), and the
+[Documentation map](README.md#documentation-map).
 
 ## Open question to settle
 

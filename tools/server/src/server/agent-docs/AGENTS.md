@@ -190,6 +190,18 @@ the order's data, and an existing member is NEVER renamed: an insert between nei
 sub-number (`item01-1`, `01-1-Новая`). Content inside a file document speaks that file's
 language (a `.json5p` interior never switches to yaml).
 
+**Collapse / expand / promotion — the same node, two shapes.** The two concretes are
+freely interconvertible without changing what the data means: a child stored as
+`child.yamlover` (collapsed) and the same child stored as `child/` with a
+`.yamlover/body.yamlover` (expanded) are equivalent. Converting a single-file node **into**
+a directory is called **directory promotion** (the UI's action; the engine keeps inbound
+pointers valid across it, like `mv`). If you do it by hand, it is a two-step move: create the
+`child/` directory, move the file's contents into `child/.yamlover/body.yamlover` (plus any
+members as files), and delete the old `child.yamlover` — then let the engine reindex. Because
+it is a move, treat it with the same care as any rename: pointers that addressed the old file
+path must still resolve (prefer the mediated `mv`/promotion in the UI, which rewrites them —
+see §10).
+
 ---
 
 ## 8. Annotations & fragments (tags applied to content)

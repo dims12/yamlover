@@ -176,6 +176,20 @@ objects that carry their own source, so a round trip through the editor never re
 LaTeX chunk edits its raw source in a textarea instead; a chunk whose format has no editor stays
 read-only in place.
 
+The chapter page is one **projection** of a single in-place editor; the **`yamlover`** /
+**`json5p`** data view is the other. Unlock that view (same lock button / **F2**) and it
+becomes the editor's **source projection** — you edit the node as yamlover tokens directly:
+add and **rename keys**, add entries and pointers, retype scalars. Structural edits derive
+their on-disk storage automatically (a member that grows children is **promoted to its own
+directory** — "directory promotion" — per the concrete inheritance rules, `CONCRETES.md`);
+inbound pointers are kept valid across a rename/promotion the same way `mv` rewrites them.
+Both projections write through the same background `/api/edit` path. The architecture — the
+two projections, the host/model/cells split, the write path, and how the caret is preserved
+— is documented in [`EDITOR.md`](EDITOR.md).
+
+> The projectional chapter editor is the default; `?chapterEditor=flat` selects the older
+> flat editor as a temporary escape hatch (slated for removal — `TODO.md`).
+
 ## Paste & drag-and-drop upload
 
 A file can be added to the tree straight from the clipboard (**Ctrl+V** on a node page) or
