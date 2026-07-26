@@ -420,10 +420,12 @@ function valueToken(node: MNode): string | null {
     // K&R: one element per line, indented two, the closer back at the token's own column. The
     // token is emitted RELATIVE to column 0 — `serializeLines` pads every line to the target
     // indent, and so does the server's `renderEntry` for the op payload.
-    if (node.jsonp && jsonpFits(node)) {
+    if (node.jsonp && jsonpFits(node) && items.length > 0) {
       const inner = items.map((t) => "  " + t.split("\n").join("\n  ")).join(",\n");
       return seq ? `[\n${inner}\n]` : `{\n${inner}\n}`;
     }
+    // …and a token with nothing WRITTEN in it stays tight (`[]`), spread or not: the row the caret
+    // is sitting in is not content, and emitting it left a blank line inside the brackets
     return seq ? `[${items.join(", ")}]` : `{${items.join(", ")}}`;
   }
   return null; // block container / link → block lines
@@ -512,6 +514,18 @@ export function flowAncestor(rootPath: string, root: MNode, spine: Spine): { nod
   }
   // the ROOT itself may be the flow container (a `[12, 13, 14]` document)
   return root.flow ? { node: root, path: rootPath } : null;
+}
+
+/** The OUTERMOST flow container on a spine — the token a SPREAD or a JOIN applies to.
+ *
+ *  A flow token is ONE token however deeply it nests (`flowAncestor` says the same thing about its
+ *  address), and the spread is a CONCRETE switch of that token: json5p expands everything under it.
+ *  Spreading only an inner container asked the parent's one-line projection to draw rows it has no
+ *  place for — the inner closer and its cells simply vanished (`{"a": [}`) and the caret with them,
+ *  while a commit wrote a file the screen disagreed with. */
+export function outerFlow(root: MNode, spine: Spine): MNode | null {
+  for (const { container } of spine.parents) if (container.flow) return container;
+  return root.flow ? root : null;
 }
 
 /** The whole-token emplace an edit inside a flow container must emit instead of its own op. */

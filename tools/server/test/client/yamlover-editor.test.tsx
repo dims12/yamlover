@@ -2026,3 +2026,53 @@ describe("flow tokens — the edges never trap the caret", () => {
     expect(document.activeElement).not.toBe(document.body);
   });
 });
+
+// A flow token is ONE token however deeply it nests, so the K&R spread — a CONCRETE switch — is a
+// property of the whole token, never of a level inside it. Spreading only the inner container asked
+// the one-line parent to draw rows it has no place for: the inner closer and its cells vanished
+// (`{"a": [}`), the caret with them, and a commit wrote a file the screen disagreed with.
+describe("the spread belongs to the WHOLE flow token", () => {
+  const rowsOf = (c: HTMLElement) => Array.from(c.querySelectorAll(".yed-row")).map((r) => r.textContent);
+  const openNested = async () => {
+    fetchNode.mockResolvedValue({ path: ":n", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    const { container } = await mount(":n");
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "{");            // the outer token
+    const inner = container.querySelector<HTMLElement>(".yed-hole")!;
+    type(inner, "a: ");                                                        // a keyed pair in it
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "[");             // a NESTED token
+    return container;
+  };
+
+  it("Enter in a NESTED token spreads from the outermost bracket", async () => {
+    const container = await openNested();
+    fireEvent.keyDown(container.querySelector<HTMLElement>(".yed-hole")!, { key: "Enter" });
+    // every level is spread: the outer opener, the pair, the inner's hole, then both closers
+    expect(rowsOf(container)).toEqual(["{", "a: [", "", "]", "}"]);
+    expect((document.activeElement as HTMLElement).className).toContain("yed-hole");
+  });
+
+  it("an untyped element is not written, so an empty token stays tight", async () => {
+    const container = await openNested();
+    fireEvent.keyDown(container.querySelector<HTMLElement>(".yed-hole")!, { key: "Enter" });
+    fireEvent.blur(document.activeElement as HTMLElement);
+    await waitFor(() => expect(editChunks).toHaveBeenCalled(), { timeout: 2000 });
+    const sent = editChunks.mock.calls.at(-1)![0] as { yamlover: string }[];
+    expect(sent[0].yamlover).toBe('{\n  a: []\n}'); // not a blank line between the brackets
+  });
+
+  it("a JOIN is symmetric — it collapses the whole token", async () => {
+    fetchNode.mockResolvedValue({
+      path: ":n", type: "object", concrete: "yamlover", title: null, description: null,
+      value: { a: { b: [1] } },
+      comments: { "/a": { concrete: "json5p" } },
+    });
+    const { container } = await mount(":n");
+    // the after-cell of the INNER token: joining only it would draw `[1]` inline inside a spread
+    // outer one, while json5p writes both expanded
+    const afters = Array.from(container.querySelectorAll<HTMLElement>(".yed-after"));
+    fireEvent.keyDown(afters[0], { key: "Backspace" });
+    await waitFor(() => expect(editChunks).toHaveBeenCalled(), { timeout: 2000 });
+    const sent = editChunks.mock.calls.at(-1)![0] as { yamlover: string }[];
+    expect(sent[0].yamlover).toBe("{b: [1]}"); // ONE line, all the way down
+  });
+});

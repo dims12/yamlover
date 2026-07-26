@@ -689,15 +689,17 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
         const spine = M.findEntry(r, entryId);
         if (!spine) return [];
         const { container } = spine.parents[spine.parents.length - 1];
-        // ENTER also SPREADS the token to K&R — a concrete switch to json5p. Skipped silently when
-        // json5p cannot hold the subtree (a keyed+keyless mixture): the element still lands, on the
-        // one line it already had, which is the editor showing the result rather than narrating it.
-        if (spread) M.setSpread(container, true);
+        // ENTER also SPREADS the token to K&R — a concrete switch to json5p, which belongs to the
+        // OUTERMOST bracket: a nested token is part of ONE token, and json5p expands everything
+        // under the switch. Skipped silently when json5p cannot hold the subtree (a keyed+keyless
+        // mixture): the element still lands, on the one line it already had.
+        const token = M.outerFlow(r, spine) ?? container;
+        if (spread) M.setSpread(token, true);
         // the token's own value changed shape (one line ⇄ rows), so a PERSISTED one must be
         // rewritten whole — the only edit the server accepts for a flow value. Taken BEFORE the
         // fresh hole is inserted: an undecided seq hole serializes as `""`, and the user has not
         // typed that element yet (its own commit will re-emplace the token again).
-        const edits = spread ? M.flowReshape(path, r, container.id) : [];
+        const edits = spread ? M.flowReshape(path, r, token.id) : [];
         const hole = M.insertHoleAfter(r, container.id, entryId);
         if (hole) focusReq.current = { key: hole.node.id, at: "start" };
         return edits;
@@ -712,7 +714,9 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
       step((r) => {
         const spine = M.findEntry(r, entryId);
         if (!spine) return [];
-        const { container } = spine.parents[spine.parents.length - 1];
+        // the spread applies to the OUTERMOST bracket — one token, one concrete
+        const container = M.outerFlow(r, spine);
+        if (!container) return [];
         if (container.jsonp) {
           // already spread: this Enter only means "stay here" (the caret is the point)
           ok = true;
@@ -747,13 +751,17 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
       step((r) => {
         const found = M.findNode(r, nodeId);
         if (!found || !found.node.jsonp) return [];
-        ok = M.setSpread(found.node, false);
+        // symmetric with the spread: the WHOLE token joins. Joining one level would draw an inline
+        // inner token inside a spread outer one, while json5p writes both expanded — the screen and
+        // the file disagreeing about the same bytes.
+        const token = (found.spine ? M.outerFlow(r, found.spine) : null) ?? found.node;
+        ok = M.setSpread(token, false);
         if (!ok) return [];
         // the closer ROW the caret was standing on is gone once the token is one line, so hand the
         // caret to the same after-cell in its new home — otherwise focus falls to <body> and the
         // join becomes a trap (the edit corpus catches exactly this)
         focusReq.current = { key: nodeId + ":flowafter", at: "start" };
-        return M.flowReshape(path, r, found.node.id);
+        return M.flowReshape(path, r, token.id);
       });
       return ok;
     },
