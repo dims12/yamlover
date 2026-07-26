@@ -78,9 +78,10 @@ export interface YedActions {
    *  (CONCRETES.md §Collection style). Spreading is skipped, not refused, when json5p cannot hold
    *  the subtree: the element still lands, inline. */
   flowNext(entryId: string, text: string, spread?: boolean): boolean;
-  /** Backspace at the head of a K&R token's CLOSER row: join the token back onto one line
-   *  (`jsonp` off), the reverse of the Enter gesture. False when this is not such a token. */
-  flowJoin(nodeId: string): boolean;
+  /** Backspace at the start of a spread token's FIRST element: join the whole token back onto one
+   *  line, the inverse of the Enter that spread it. False when this entry is not that element (or
+   *  the token is not spread), so the caller falls through to its ordinary Backspace. */
+  flowJoinFrom(entryId: string, cellKey?: string): boolean;
   /** Backspace just past the closer of an EMPTY flow token: re-open a cell INSIDE it, so the
    *  caret returns where it came from instead of having nowhere to go. */
   flowReopen(nodeId: string): boolean;
@@ -318,6 +319,14 @@ function flowKeys(
     e.preventDefault();
     if (text.trim() !== "") { ring(act.flowNext(entryId, text, true)); return true; }
     ring(act.flowSpread(entryId) || act.flowClose(entryId, "", flow.kind === "seq" ? "]" : "}"));
+    return true;
+  }
+  // JOIN, the text editor's gesture: Backspace at the START of the first element pulls that line
+  // up onto the opener's — the inverse of the Enter that spread the token. An EMPTY cell keeps the
+  // no-traps rule instead (the bracket collapses), so the token can still be unwound key by key.
+  if (e.key === "Backspace" && text !== "" && caretAtStart(el)
+      && act.flowJoinFrom(entryId, el.closest("[data-yed-cell]")?.getAttribute("data-yed-cell") ?? undefined)) {
+    e.preventDefault();
     return true;
   }
   if (e.key === "Tab") { e.preventDefault(); act.focusSibling(el, e.shiftKey ? -1 : 1); return true; }
@@ -1137,15 +1146,14 @@ function FlowAfterCell({ node }: { node: MNode }) {
           // other key here is consumed — without this the caret sat past the closer with no way
           // back, a lock in two keystrokes. Re-open a cell inside the brackets, where it came from.
           if (node.entries.length === 0) { act.flowReopen(node.id); return; }
-          if (e.key === "Backspace" && node.jsonp) {
-            // the caret sits just past a closer that has a ROW of its own: Backspace deletes that
-            // line break — the token JOINS back onto one line, the exact inverse of the Enter that
-            // spread it. Stepping inside is still ArrowLeft.
-            act.flowJoin(node.id);
-            return;
-          }
-          // step back INSIDE, onto the token's last cell — nothing is committed or removed
-          act.focusCellKey(node.entries[node.entries.length - 1].node.id, "end");
+          // …otherwise step back INSIDE, over the closer. The DOM-PREVIOUS cell is the token's last
+          // inner cell whatever it holds; asking for the last ENTRY's cell by id landed on nothing
+          // when that entry was a container (a container has no cell of its own — its cells are the
+          // ones inside it), and the caret stayed past the closer with every key consumed: a lock.
+          // Backspace does NOT join here: at document scale that silently reflowed the whole file
+          // out from under someone who was deleting. The join lives where a text editor puts it —
+          // Backspace at the START of the first element, joining that line onto the opener's.
+          act.focusSibling(e.currentTarget, -1);
           return;
         }
         // the universal escape, as everywhere else in the editor

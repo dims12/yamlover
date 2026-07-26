@@ -769,10 +769,21 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
       });
       return ok;
     },
-    flowJoin(nodeId) {
+    flowJoinFrom(entryId, cellKey) {
       let ok = false;
       step((r) => {
-        const found = M.findNode(r, nodeId);
+        const spine = M.findEntry(r, entryId);
+        if (!spine) return [];
+        // The caret must be at the head of the TOKEN's first line — so every level from the
+        // outermost bracket down to this entry is element 0. `{key: 13}`'s own first key is not
+        // that spot: it is the token's SECOND element, where Backspace keeps its ordinary meaning.
+        let d = 0;
+        while (d < spine.parents.length && !spine.parents[d].container.flow) d++;
+        if (d >= spine.parents.length) return [];
+        const container = spine.parents[d].container;
+        if (!container.jsonp) return [];
+        for (let k = d; k < spine.parents.length; k++) if (spine.parents[k].index !== 0) return [];
+        const found = M.findNode(r, container.id);
         if (!found || !found.node.jsonp) return [];
         // symmetric with the spread: the WHOLE token joins. Joining one level would draw an inline
         // inner token inside a spread outer one, while json5p writes both expanded — the screen and
@@ -783,7 +794,9 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
         // the closer ROW the caret was standing on is gone once the token is one line, so hand the
         // caret to the same after-cell in its new home — otherwise focus falls to <body> and the
         // join becomes a trap (the edit corpus catches exactly this)
-        focusReq.current = { key: nodeId + ":flowafter", at: "start" };
+        // the caret stays in the very cell the gesture came from (the key cell and the value cell
+        // register under different keys), at its head — not jumping to the closer or to a sibling
+        focusReq.current = { key: cellKey ?? spine.entry.node.id, at: "start" };
         return M.flowReshape(path, r, token.id);
       });
       return ok;

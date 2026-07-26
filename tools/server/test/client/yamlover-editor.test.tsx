@@ -1932,17 +1932,24 @@ describe("the K&R spread (a flow token over several rows)", () => {
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:a", op: "emplace", yamlover: "{\n  x: 5,\n  y: 2\n}" }]), { timeout: 2000 });
   });
 
-  it("Backspace past the closer JOINS it back to one line", async () => {
+  it("Backspace at the head of the first element JOINS it back to one line", async () => {
+    // the text editor's gesture — pull this line up onto the opener's. (Past the CLOSER, Backspace
+    // steps back inside instead: at document scale a join there reflowed a whole file under someone
+    // who was deleting.)
     fetchNode.mockResolvedValue({
       path: ":n", type: "object", concrete: "yamlover", title: null, description: null,
       value: { a: { x: 1 } },
       comments: { "/a": { concrete: "json5p" } },
     });
     const { container } = await mount(":n");
-    const after = container.querySelector<HTMLElement>(".yed-after")!;
-    fireEvent.keyDown(after, { key: "Backspace" });
+    const first = Array.from(container.querySelectorAll<HTMLElement>("[data-yed-cell]"))
+      .find((c) => c.textContent === "x")!;
+    first.focus();
+    const r = document.createRange(); r.selectNodeContents(first); r.collapse(true);
+    const sel = window.getSelection()!; sel.removeAllRanges(); sel.addRange(r);
+    fireEvent.keyDown(first, { key: "Backspace" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:a", op: "emplace", yamlover: "{x: 1}" }]), { timeout: 2000 });
-    expect(rowsOf(container).some((r) => r?.includes("a: {x: 1}"))).toBe(true);
+    expect(rowsOf(container).some((r2) => r2?.includes("a: {x: 1}"))).toBe(true);
   });
 
   it("a MIXED container does not spread — json5p cannot hold it", async () => {
@@ -2067,10 +2074,14 @@ describe("the spread belongs to the WHOLE flow token", () => {
       comments: { "/a": { concrete: "json5p" } },
     });
     const { container } = await mount(":n");
-    // the after-cell of the INNER token: joining only it would draw `[1]` inline inside a spread
-    // outer one, while json5p writes both expanded
-    const afters = Array.from(container.querySelectorAll<HTMLElement>(".yed-after"));
-    fireEvent.keyDown(afters[0], { key: "Backspace" });
+    // from the head of the INNER token's first element: joining only that level would draw `[1]`
+    // inline inside a spread outer one, while json5p writes both expanded
+    const inner = Array.from(container.querySelectorAll<HTMLElement>("[data-yed-cell]"))
+      .find((c) => c.textContent === "1")!;
+    inner.focus();
+    const rr = document.createRange(); rr.selectNodeContents(inner); rr.collapse(true);
+    const ss = window.getSelection()!; ss.removeAllRanges(); ss.addRange(rr);
+    fireEvent.keyDown(inner, { key: "Backspace" });
     await waitFor(() => expect(editChunks).toHaveBeenCalled(), { timeout: 2000 });
     const sent = editChunks.mock.calls.at(-1)![0] as { yamlover: string }[];
     expect(sent[0].yamlover).toBe("{b: [1]}"); // ONE line, all the way down
@@ -2350,5 +2361,75 @@ describe("a K&R DOCUMENT opens as rows", () => {
     await waitFor(() => expect(editChunks).toHaveBeenCalled(), { timeout: 2000 });
     const sent = (editChunks.mock.calls.at(-1)![0] as { yamlover: string }[])[0].yamlover;
     expect(sent).toContain("[\n  {\n"); // still K&R, all the way down
+  });
+});
+
+// --- THE END OF A DOCUMENT IS NOT A CLIFF ------------------------------------------------------ //
+// Reported: a K&R document, caret placed after the last `]`, Backspace — the whole structure
+// collapsed onto one row and then nothing worked. Two faults met there:
+//   1. Backspace past a closer JOINED the token. Fine for `[1, 2]`, but at document scale it
+//      reflowed the whole file out from under someone who was deleting. The join now lives where a
+//      text editor puts it: Backspace at the START of the first element, pulling that line up.
+//   2. "Step back inside" asked for the last ENTRY's cell by id — and a container entry has no cell
+//      of its own (its cells are the ones inside it), so focus went nowhere and every other key in
+//      that cell is consumed. It steps to the DOM-previous cell now, which is the token's last
+//      inner cell whatever it holds.
+describe("Backspace at the end of a K&R document", () => {
+  const DOC = {
+    path: ":n", type: "array", concrete: "file/yamlover", title: null, description: null,
+    value: [{ key: 12 }, { key: 13 }],
+    comments: { "": { concrete: "json5p" } },
+  };
+  const rowsOf = (c: HTMLElement) => Array.from(c.querySelectorAll(".yed-row")).map((r) => r.textContent);
+  const cellsOf = (c: HTMLElement) => Array.from(c.querySelectorAll<HTMLElement>("[data-yed-cell]"));
+  const caretTo = (el: HTMLElement, where: "start" | "end") => {
+    el.focus();
+    const r = document.createRange(); r.selectNodeContents(el); r.collapse(where === "start");
+    const s = window.getSelection()!; s.removeAllRanges(); s.addRange(r);
+  };
+
+  it("steps back INSIDE — it does not collapse the document", async () => {
+    fetchNode.mockResolvedValue(DOC);
+    const { container } = await mount(":n");
+    const before = rowsOf(container);
+    expect(before).toEqual(["[", "{", "key: 12", "},", "{", "key: 13", "}", "]"]);
+    const cells = cellsOf(container);
+    const docAfter = cells[cells.length - 1]; // the caret past the document's own `]`
+    docAfter.focus();
+    fireEvent.keyDown(docAfter, { key: "Backspace" });
+    expect(rowsOf(container)).toEqual(before);              // the structure is untouched…
+    expect(document.activeElement).toBe(cells[cells.length - 2]); // …and the caret moved one cell in
+    expect(editChunks).not.toHaveBeenCalled();              // nothing was written
+  });
+
+  it("keeps walking inwards, never trapping", async () => {
+    fetchNode.mockResolvedValue(DOC);
+    const { container } = await mount(":n");
+    const cells = cellsOf(container);
+    cells[cells.length - 1].focus();
+    for (let i = 0; i < 3; i++) {
+      fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Backspace" });
+      expect(document.activeElement, `press ${i + 1}`).not.toBe(document.body);
+    }
+    expect((document.activeElement as HTMLElement).textContent).toBe("13"); // the last value
+  });
+
+  it("JOINS from the start of the FIRST element, as a text editor would", async () => {
+    fetchNode.mockResolvedValue(DOC);
+    const { container } = await mount(":n");
+    const first = cellsOf(container)[0]; // the `key` of the first pair
+    caretTo(first, "start");
+    fireEvent.keyDown(first, { key: "Backspace" });
+    expect(rowsOf(container)).toEqual(["[{key: 12}, {key: 13}]"]);
+    expect((document.activeElement as HTMLElement).textContent).toBe("key"); // the caret stays put
+  });
+
+  it("but NOT from the start of a later element", async () => {
+    fetchNode.mockResolvedValue(DOC);
+    const { container } = await mount(":n");
+    const second = cellsOf(container).find((c, i) => c.textContent === "key" && i > 0)!;
+    caretTo(second, "start");
+    fireEvent.keyDown(second, { key: "Backspace" });
+    expect(rowsOf(container)).toEqual(["[", "{", "key: 12", "},", "{", "key: 13", "}", "]"]);
   });
 });

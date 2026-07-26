@@ -60,4 +60,4 @@
   link-arity pointer. The tag picker's search row runs on the same kit (annotate.tsx);
   yamlover-editor/pointer-hints.tsx deleted. State tables: QUERY_EDITOR.yamlover (pick mode),
   YAMLOVER_EDITOR.yamlover (pointer_* states).
-- Support copy in all json, json5, json5p, yaml and yamlover renderers and copy/paste in yamlover editor
+- Support copy to clipboard in all json, json5, json5p, yaml and yamlover renderers and copy/paste in yamlover editor
