@@ -446,3 +446,51 @@ describe("Render — the yaml/flow collection style", () => {
     expect(out).toContain("- |-"); // the member renders as the block scalar it needs to be
   });
 });
+
+// K&R — a flow token written across SEVERAL lines, which on the yamlover surface is an inline
+// concrete switch to json5p (CONCRETES.md §Collection style). It arrives as the sidecar's
+// `concrete: "json5p"`, set only WHERE THE SWITCH HAPPENS: the interior is json5p by language, so
+// this renderer expands the whole subtree — exactly what serialize-json5p.ts writes to the file.
+describe("Render — a K&R (multi-line flow) value", () => {
+  const show = (value: unknown, comments: Record<string, unknown>): string => {
+    const { container } = render(<Render value={value} syntax="yaml" onNavigate={() => {}} comments={comments as never} />);
+    return container.textContent ?? "";
+  };
+  const KR = { concrete: "json5p" };
+
+  it("opens on the key row and closes at that key's column", () => {
+    expect(show({ k: { a: 1, b: 2 }, z: 9 }, { "/k": KR })).toBe("k: {\n  a: 1,\n  b: 2\n}\nz: 9\n");
+  });
+
+  it("a sequence keeps its brackets, one element per line", () => {
+    expect(show({ k: [1, 2] }, { "/k": KR })).toBe("k: [\n  1,\n  2\n]\n");
+  });
+
+  it("a K&R DOCUMENT root closes back at column 0", () => {
+    expect(show({ a: 1 }, { "": KR })).toBe("{\n  a: 1\n}\n");
+  });
+
+  it("rides a dash, closing at the dash column", () => {
+    expect(show([[1, 2], 9], { "[0]": KR })).toBe("- [\n  1,\n  2\n]\n- 9\n");
+  });
+
+  it("EXPANDS every nested container — inside the switch the language is json5p", () => {
+    // the inner token carries no bit of its own (the parser strips it: one signal, the concrete),
+    // and the json5p emitter expands everything, so the view must too — else the screen and the
+    // file would disagree about the same bytes
+    expect(show({ k: { q: [1], y: 2 } }, { "/k": KR })).toBe("k: {\n  q: [\n    1\n  ],\n  y: 2\n}\n");
+  });
+
+  it("keeps authored scalar spellings, and an empty container stays tight", () => {
+    const out = show({ k: { n: 255, e: {} } }, { "/k": KR, "/k/n": { raw: "0xff" } });
+    expect(out).toBe("k: {\n  n: 0xff,\n  e: {}\n}\n");
+  });
+
+  it("FALLS BACK to block rows when a member cannot live in a token", () => {
+    // the same refusal flow makes — a multiline member has no in-token form, so the whole thing
+    // demotes to rows and the member becomes the block scalar it needs to be
+    const out = show({ k: { a: "x\ny" } }, { "/k": KR });
+    expect(out).not.toContain("{");
+    expect(out).toContain("a: |-");
+  });
+});

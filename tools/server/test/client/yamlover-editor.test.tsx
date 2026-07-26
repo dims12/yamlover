@@ -322,7 +322,9 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     type(inner, "a: ");
     const valueHole = lastHole(container);
     type(valueHole, "1");
-    fireEvent.keyDown(valueHole, { key: "Enter" });
+    // the CLOSER finishes the token on its line; Enter would mean "next element, next row" and
+    // spread it to K&R (see the K&R describe below)
+    fireEvent.keyDown(valueHole, { key: "}" });
     // the document IS the flow map the user typed. It used to emit `insert :n[0] key:a` — a BLOCK
     // mapping entry — so the braces were an input affordance that evaporated on the next reload.
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n", op: "emplace", yamlover: "{a: 1}" }]), { timeout: 2000 });
@@ -338,7 +340,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     expect(container.querySelector(".yaml-dash")).toBeNull(); // brackets, not a hyphen
     const inner = container.querySelector<HTMLElement>(".yed-hole")!;
     type(inner, "x");
-    fireEvent.keyDown(inner, { key: "Enter" });
+    fireEvent.keyDown(inner, { key: "]" }); // the closer finishes it; Enter would spread it to K&R
     // as with `{`: the whole flow token is emplaced, so `[x]` survives the round-trip instead of
     // being written as the block sequence `- x`
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n", op: "emplace", yamlover: "[x]" }]), { timeout: 2000 });
@@ -1621,16 +1623,19 @@ describe("flow tokens — typing a whole JSON value", () => {
     expect(ops()).toEqual([{ path: ":d", op: "emplace", yamlover: "[[1, 2], [3]]" }]);
   });
 
-  it("Enter acts as a comma; on an EMPTY cell it closes the token instead", async () => {
+  it("Enter opens the next element on a NEW ROW (the K&R spread); empty → it closes", async () => {
+    // A comma keeps the next element on this line; a NEWLINE puts it on the next one — which is a
+    // concrete switch to json5p, not a layout whim (CONCRETES.md §Collection style). On an EMPTY
+    // cell Enter still closes the token, as it always did.
     const container = await emptyDoc();
     type("[1");
-    press("Enter"); // the cell has text → a comma: commit, open the next element
+    press("Enter");
     type("2");
-    expect(rows(container)).toEqual(["[1, 2]"]);
-    press("Enter"); // again a comma — a third, empty element opens
-    expect(rows(container)).toEqual(["[1, 2, ]"]);
+    expect(rows(container)).toEqual(["[", "1,", "2", "]"]);
+    press("Enter"); // a third, empty element opens — still spread
+    expect(rows(container)).toEqual(["[", "1,", "2,", "", "]"]);
     press("Enter"); // NOW the cell is empty → close; the blank element is dropped, not written ""
-    expect(rows(container)).toEqual(["[1, 2]"]);
+    expect(rows(container)).toEqual(["[", "1,", "2", "]"]);
     expect((document.activeElement as HTMLElement).className).toContain("yed-after");
   });
 
@@ -1715,8 +1720,12 @@ describe("flow tokens — a PERSISTED token edits as one token", () => {
     cell.focus();
     fireEvent.keyDown(cell, { key: "Enter" });
     // it used to convert the element into a block container with an invisible hole, after which
-    // the whole token re-serialized as `[""]`
-    expect(container.querySelector(".yed-row")!.textContent).toContain("[1, ");
+    // the whole token re-serialized as `[""]`. Enter now also SPREADS the token (a new row is what
+    // a newline means), so the sibling opens below `1,` instead of after it — but the token is
+    // still one token, and the caret is still in it.
+    const rowText = Array.from(container.querySelectorAll(".yed-row")).map((r) => r.textContent);
+    expect(rowText).toContain("1,");
+    expect(rowText.some((t) => t?.trim() === "]")).toBe(true);
     expect(document.activeElement).not.toBe(document.body);
   });
 });
@@ -1858,5 +1867,93 @@ describe("flow tokens — caret, keys, and brackets", () => {
     press(":");
     expect(rows(container)[0]).not.toContain("]:"); // no key was made
     expect(document.activeElement).not.toBe(document.body);
+  });
+});
+
+// --- K&R: Enter spreads a flow token, Backspace joins it back ---------------------------------- //
+// CONCRETES.md §Collection style — a flow token written across lines IS a json5p subtree, so the
+// spread is a CONCRETE switch, not a layout preference. The gesture pair is the whole grammar:
+// a COMMA keeps the next element on this line, ENTER puts it on the next one. What the token cannot
+// be written as in json5p (a keyed+keyless mixture) simply does not spread.
+describe("the K&R spread (a flow token over several rows)", () => {
+  const rowsOf = (c: HTMLElement) => Array.from(c.querySelectorAll(".yed-row")).map((r) => r.textContent);
+  const lastHoleIn = (c: HTMLElement): HTMLElement => {
+    const holes = c.querySelectorAll<HTMLElement>(".yed-hole");
+    return holes[holes.length - 1];
+  };
+
+  it("Enter inside a token spreads it — the element lands on its own ROW", async () => {
+    fetchNode.mockResolvedValue({ path: ":n", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    const { container } = await mount(":n");
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "[");
+    const inner = container.querySelector<HTMLElement>(".yed-hole")!;
+    type(inner, "1");
+    fireEvent.keyDown(inner, { key: "Enter" });
+    // the opener keeps its row, the element moved to one of its own, the closer has a third
+    await waitFor(() => expect(rowsOf(container).length).toBeGreaterThan(2));
+    const flat = rowsOf(container).join("|");
+    expect(flat).toContain("[");
+    expect(flat).toContain("]");
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n", op: "emplace", yamlover: "[\n  1\n]" }]), { timeout: 2000 });
+  });
+
+  it("a COMMA keeps the next element on the same line", async () => {
+    fetchNode.mockResolvedValue({ path: ":n", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    const { container } = await mount(":n");
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "[");
+    const inner = container.querySelector<HTMLElement>(".yed-hole")!;
+    type(inner, "1");
+    fireEvent.keyDown(inner, { key: "," });
+    const next = lastHoleIn(container);
+    type(next, "2");
+    fireEvent.keyDown(next, { key: "]" });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n", op: "emplace", yamlover: "[1, 2]" }]), { timeout: 2000 });
+  });
+
+  it("a token loaded K&R from disk draws as rows and re-emplaces as K&R", async () => {
+    fetchNode.mockResolvedValue({
+      path: ":n", type: "object", concrete: "yamlover", title: null, description: null,
+      value: { a: { x: 1, y: 2 } },
+      comments: { "/a": { concrete: "json5p" } },
+    });
+    const { container } = await mount(":n");
+    const rows = rowsOf(container);
+    expect(rows.some((r) => r?.includes("a: {"))).toBe(true); // the opener rides the key row
+    expect(rows.some((r) => r?.trim() === "}")).toBe(true);   // and the closer has its own
+    // editing a cell re-emplaces the WHOLE token, still spread
+    const cells = Array.from(container.querySelectorAll<HTMLElement>(".editable"));
+    const xCell = cells.find((c) => c.textContent === "1")!;
+    type(xCell, "5");
+    fireEvent.blur(xCell);
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:a", op: "emplace", yamlover: "{\n  x: 5,\n  y: 2\n}" }]), { timeout: 2000 });
+  });
+
+  it("Backspace past the closer JOINS it back to one line", async () => {
+    fetchNode.mockResolvedValue({
+      path: ":n", type: "object", concrete: "yamlover", title: null, description: null,
+      value: { a: { x: 1 } },
+      comments: { "/a": { concrete: "json5p" } },
+    });
+    const { container } = await mount(":n");
+    const after = container.querySelector<HTMLElement>(".yed-after")!;
+    fireEvent.keyDown(after, { key: "Backspace" });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:a", op: "emplace", yamlover: "{x: 1}" }]), { timeout: 2000 });
+    expect(rowsOf(container).some((r) => r?.includes("a: {x: 1}"))).toBe(true);
+  });
+
+  it("a MIXED container does not spread — json5p cannot hold it", async () => {
+    // keyed + keyless in one node is yamlover's default and json5p's one refusal, so Enter still
+    // opens the next element, just not on a new row
+    fetchNode.mockResolvedValue({
+      path: ":n", type: "object", concrete: "yamlover", title: null, description: null,
+      value: { a: { $yamloverMixed: { kind: "mix", entries: [{ key: null, value: 1 }, { key: "k", value: 2 }] } } },
+      comments: { "/a": { repr: "yaml/flow" } },
+    });
+    const { container } = await mount(":n");
+    const cells = Array.from(container.querySelectorAll<HTMLElement>(".editable"));
+    const one = cells.find((c) => c.textContent === "1")!;
+    fireEvent.keyDown(one, { key: "Enter" });
+    await waitFor(() => expect(rowsOf(container).length).toBeGreaterThan(0));
+    expect(rowsOf(container).some((r) => r?.trim() === "}")).toBe(false); // never spread
   });
 });

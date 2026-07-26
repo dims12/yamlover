@@ -107,8 +107,9 @@ type-repository **content notations** (Ch. 10):
 ### Collection style (flow vs block)
 
 A container is written on ONE line (flow) or over many (block) — YAML's two collection
-styles, Ch. 7 and Ch. 8. JSON is valid YAML, so a JSON-looking value inside a `.yamlover`
-file is simply a flow container; the LANGUAGE is still yamlover (no `json5p` switch).
+styles, Ch. 7 and Ch. 8. A JSON-looking value **on one line** inside a `.yamlover` file is
+simply a flow container; the LANGUAGE is still yamlover. A flow token that **spans lines**
+is a different statement — see *K&R: the inline concrete switch* below.
 
 | concrete     | YAML term | example              |
 |--------------|-----------|----------------------|
@@ -129,6 +130,40 @@ a `~` back-edge, a leading comment, a multi-line scalar, a blob, or a keyed+keyl
 **falls back to block form** — silently and losslessly, never a throw and never a drop.
 The refusal list lives once, in the serializer's `flowTextOrNull`, and the projectional
 editor's `flowFits` mirrors it so the screen and the file agree.
+
+### K&R: a MULTI-LINE flow token is an inline concrete switch
+
+A flow token written **across several lines** — K&R braces — is not a third collection
+style. It is the one **concrete switch the surface can express on its own**: that node and
+its subtree are written in **json5p**, inside an otherwise yamlover document.
+
+```yamlover
+a: {                 # spans lines → concrete json5p, K&R by that language's layout
+  x: 1,
+  y: 2
+}
+b: {x: 1, y: 2}      # one line    → yamlover, repr yaml/flow
+```
+
+Concrete is the representation of the IR, and changing concrete mid-document is what
+yamlover is for — so the layout is not a preference recorded beside the value, it is the
+consequence of which language the subtree speaks. `json5p` and not `json`: JSON5 has
+comments and json5p adds pointers and `&` anchors, so the switch loses nothing that plain
+JSON would drop.
+
+- **Recorded** as `NodeMeta.concrete` (IR.md), set by the yamlover reader when a token spans
+  lines, and stripped of the per-node `style` bit below it — inside the switch the *language*
+  says flow, so there is one signal, not two. Like `style` it is authored provenance and
+  **not part of IR identity**: canon.ts ignores it, so a reflow is IR-equal.
+- **Written** by `serialize-json5p.ts` (whose layout *is* K&R), and everything json5p cannot
+  hold — a `!!<…>` tag, `!!set`, an omni value-plus-fields, a keyed+keyless mixture, a blob —
+  falls back to block form, exactly as flow's own refusals do.
+- **In YAML** (`.yaml`/`.yml`) a multi-line flow token is just flow (Ch. 7 allows it): there
+  is no json5p to switch to, and it re-emits on one line.
+- **Interior addressing.** A flow value is ONE source token, K&R included, so `/api/edit`
+  refuses a path *into* one and the whole token is emplaced instead.
+- **The editor's gesture:** a comma keeps the next element on the line, **Enter puts it on the
+  next one** — that newline is the switch. Backspace just past the closer joins it back.
 
 ### String styles (how a string is delimited / laid out)
 

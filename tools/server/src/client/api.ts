@@ -53,6 +53,10 @@ export type CommentBucket = {
                       // authored on one line, `yaml/single`/`yaml/hex`/… for a scalar. Carried only
                       // when it is not the default for the value — absent means "the canonical one"
   block?: { chomp?: "strip" | "keep"; indent?: number }; // a literal/folded scalar's qualifiers (CONCRETES.md §Scalar representation)
+  concrete?: string;  // an INLINE CONCRETE SWITCH — `json5p` for a flow token written K&R, i.e.
+                      // spanning lines (CONCRETES.md §Collection style). Present only where the
+                      // switch HAPPENS; below it the language lock makes the concrete derivable, so
+                      // a renderer reads it once and draws the whole subtree that way.
 };
 export type CommentMap = Record<string, CommentBucket | string[]>;
 

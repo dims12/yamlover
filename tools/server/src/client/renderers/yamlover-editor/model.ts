@@ -22,6 +22,7 @@ import { unquoteSource } from "./keys";
 import { parseYamlover } from "../../../../../parser/ts/src/yamlover.ts";
 import { parsePointer, renderPointer } from "../../../../../parser/ts/src/pointer.ts";
 import { segsToStr, strToSegs } from "../../paths";
+import { isJsonFamily } from "../../../concrete";
 
 let idSeq = 0;
 export const nid = () => `yed${idSeq++}`;
@@ -55,6 +56,12 @@ export interface MNode {
   flow?: "map" | "seq"; // a container born from `{` / `[`, OR authored on one line on disk (the
                         // `yaml/flow` representation concrete, carried per node as `bucket.repr`)
                         // — rendered as flow cells and serialized as one FLOW token
+  jsonp?: boolean;      // a flow container SPREAD over several lines — K&R braces, which on disk is
+                        // an inline concrete switch to json5p (`bucket.concrete`, CONCRETES.md
+                        // §Collection style). Still a flow container in every other respect (the
+                        // same cells, the same `,` grammar); this only says "drawn and written as
+                        // rows". Inherited by every container inside it: the switch is a LANGUAGE
+                        // change, and json5p's serializer expands everything under it.
   omniPending?: boolean; // this container's self line lives on the SERVER as a plain scalar entry
                          // (the level-rule descend converted it client-side) — a scalar entry
                          // cannot be descended into, so the FIRST child commit re-emplaces the
@@ -171,14 +178,18 @@ function bucketAt(comments: CommentMap | undefined, frag: string): CommentBucket
   return b && !Array.isArray(b) ? b : undefined;
 }
 
-function buildNode(v: unknown, frag: string, comments: CommentMap | undefined): MNode {
+function buildNode(v: unknown, frag: string, comments: CommentMap | undefined, inJson5p = false): MNode {
   const bucket = bucketAt(comments, frag);
   const { metaTag, setTag } = parseTag(bucket?.tag);
   const base = { id: nid(), rev: 0, entries: [] as MEntry[], selfAt: 0, metaTag, metaOnServer: metaTag !== null, setTag, bucket };
   // the AUTHORED collection style (repr.ts `yaml/flow`, carried per node in the sidecar): a
   // container written on one line on disk is drawn as flow cells and re-serialized as flow,
   // instead of being canonicalized to block rows the moment the page reloads
-  const flowStyle = bucket?.repr === "yaml/flow";
+  // ...and the inline CONCRETE switch beside it (`bucket.concrete`): a token written K&R. It is a
+  // flow container too — only spread over rows — and the switch is a LANGUAGE change, so every
+  // container UNDER it is spread as well, which is what `inJson5p` carries down.
+  const jsonp = inJson5p || isJsonFamily(bucket?.concrete);
+  const flowStyle = bucket?.repr === "yaml/flow" || jsonp;
 
   const link = asLink(v);
   if (link) return { ...base, kind: "link", link };
@@ -187,8 +198,8 @@ function buildNode(v: unknown, frag: string, comments: CommentMap | undefined): 
 
   const mixed = asMixed(v);
   if (mixed) {
-    const node: MNode = { ...base, kind: "container", format: mixed.format ?? null, ...(flowStyle ? { flow: (mixed.entries.every((e) => e.key === null) ? "seq" : "map") as "seq" | "map" } : {}) };
-    node.entries = mixed.entries.map((e, i) => buildEntry(e.key, e.value, frag + (e.key != null ? `/${e.key}` : `[${i}]`), comments, e.anchor));
+    const node: MNode = { ...base, kind: "container", format: mixed.format ?? null, ...(flowStyle ? { flow: (mixed.entries.every((e) => e.key === null) ? "seq" : "map") as "seq" | "map" } : {}), ...(jsonp ? { jsonp: true } : {}) };
+    node.entries = mixed.entries.map((e, i) => buildEntry(e.key, e.value, frag + (e.key != null ? `/${e.key}` : `[${i}]`), comments, e.anchor, jsonp));
     if (mixed.kind === "omni") {
       // a link self-value (blob-backed omni) stays un-modeled — read-only territory
       node.selfValue = asLink(mixed.value) ? null : mkScalar(mixed.value, bucket);
@@ -197,20 +208,20 @@ function buildNode(v: unknown, frag: string, comments: CommentMap | undefined): 
     return node;
   }
   if (isObj(v)) {
-    const node: MNode = { ...base, kind: "container", ...(flowStyle ? { flow: "map" as const } : {}) }; // an object: keyed by construction
-    node.entries = Object.entries(v).map(([k, cv]) => buildEntry(k, cv, `${frag}/${k}`, comments));
+    const node: MNode = { ...base, kind: "container", ...(flowStyle ? { flow: "map" as const } : {}), ...(jsonp ? { jsonp: true } : {}) }; // an object: keyed by construction
+    node.entries = Object.entries(v).map(([k, cv]) => buildEntry(k, cv, `${frag}/${k}`, comments, undefined, jsonp));
     return node;
   }
   if (Array.isArray(v)) {
-    const node: MNode = { ...base, kind: "container", ...(flowStyle ? { flow: "seq" as const } : {}) };
-    node.entries = v.map((cv, i) => buildEntry(null, cv, `${frag}[${i}]`, comments));
+    const node: MNode = { ...base, kind: "container", ...(flowStyle ? { flow: "seq" as const } : {}), ...(jsonp ? { jsonp: true } : {}) };
+    node.entries = v.map((cv, i) => buildEntry(null, cv, `${frag}[${i}]`, comments, undefined, jsonp));
     return node;
   }
   return { ...base, kind: "scalar", scalar: mkScalar(v, bucket) };
 }
 
-function buildEntry(key: string | null, v: unknown, frag: string, comments: CommentMap | undefined, derivedKey?: boolean): MEntry {
-  return { id: nid(), key, decided: true, ...(derivedKey ? { derivedKey: true } : {}), node: buildNode(v, frag, comments), committed: true, bucket: bucketAt(comments, frag) };
+function buildEntry(key: string | null, v: unknown, frag: string, comments: CommentMap | undefined, derivedKey?: boolean, inJson5p = false): MEntry {
+  return { id: nid(), key, decided: true, ...(derivedKey ? { derivedKey: true } : {}), node: buildNode(v, frag, comments, inJson5p), committed: true, bucket: bucketAt(comments, frag) };
 }
 
 /** Build the editor model from an unlimited-depth `/api/json` payload. */
@@ -353,12 +364,41 @@ export function flowFits(node: MNode): boolean {
   });
 }
 
+/** Can this flow container be written K&R — as a json5p subtree? THE CLIENT MIRROR of the json5p
+ *  emitter's `LossyError` refusals (serialize-json5p.ts): json5p has no `!!<…>` tag, no `!!set`, no
+ *  value-plus-fields node, and — the one flow itself allows — no container MIXING keyed and keyless
+ *  entries. Everything json5p refuses falls back to one-line flow, and from there to block. */
+export function jsonpFits(node: MNode): boolean {
+  if (!flowFits(node)) return false;
+  const decided = node.entries.filter((e) => e.decided);
+  const keyed = decided.filter((e) => e.key !== null).length;
+  if (keyed > 0 && keyed < decided.length) return false; // a mixture is not expressible in json5p
+  return decided.every((e) => e.node.kind !== "container" || jsonpFits(e.node));
+}
+
 /** Turn a flow container back into a block one, silently — the editor shows the result, it does
  *  not narrate. Called when content arrives that {@link flowFits} refuses. */
 export function demoteFlow(node: MNode): void {
   if (!node.flow) return;
   node.flow = undefined;
+  node.jsonp = undefined; // a block container has no token to spread
   node.rev++;
+}
+
+/** SPREAD a flow container to K&R (the Enter gesture), or JOIN it back to one line — the concrete
+ *  switch, in both directions. Spreading is inherited downward: json5p's serializer expands every
+ *  container under the switch, so the model must draw them expanded too. Returns false when json5p
+ *  cannot hold the subtree, which is how a mixed container refuses to spread. */
+export function setSpread(node: MNode, spread: boolean): boolean {
+  if (!node.flow) return false;
+  if (spread && !jsonpFits(node)) return false;
+  const apply = (n: MNode): void => {
+    n.jsonp = spread || undefined;
+    n.rev++;
+    for (const e of n.entries) if (e.node.kind === "container" && e.node.flow) apply(e.node);
+  };
+  apply(node);
+  return true;
 }
 
 function valueToken(node: MNode): string | null {
@@ -374,6 +414,13 @@ function valueToken(node: MNode): string | null {
       // keyToken, not the bare key: an AUTHORED quoted key stays quoted, and a key needing quotes
       // (a space, a `:`) keeps them — a flow token is one line, so an unquoted one would not parse
       .map((e) => (e.key !== null ? `${keyToken(e)}: ` : "") + (valueToken(e.node) ?? '""'));
+    // K&R: one element per line, indented two, the closer back at the token's own column. The
+    // token is emitted RELATIVE to column 0 — `serializeLines` pads every line to the target
+    // indent, and so does the server's `renderEntry` for the op payload.
+    if (node.jsonp && jsonpFits(node)) {
+      const inner = items.map((t) => "  " + t.split("\n").join("\n  ")).join(",\n");
+      return seq ? `[\n${inner}\n]` : `{\n${inner}\n}`;
+    }
     return seq ? `[${items.join(", ")}]` : `{${items.join(", ")}}`;
   }
   return null; // block container / link → block lines
@@ -398,9 +445,11 @@ function serializeLines(node: MNode, indent: number): string[] {
     const tok = valueToken(e.node);
     if (tok !== null && !tok.includes("\n")) {
       lines.push(pad + marker + tag + tok);
-    } else if (tok !== null && /^[|>]/.test(tok)) {
+    } else if (tok !== null && (/^[|>]/.test(tok) || e.node.jsonp)) {
       // a block scalar rides its marker (`- |` / `key: |`), content one step deeper — the token's
-      // lines already carry the 2-space step relative to the header
+      // lines already carry the 2-space step relative to the header. A K&R token rides it the same
+      // way: its opener joins the marker and its own relative lines (cells, then the closer back at
+      // column 0 of the token) are padded to the marker's column.
       const [head, ...body] = tok.split("\n");
       lines.push(pad + marker + tag + head);
       lines.push(...body.map((l) => (l ? pad + l : l)));
@@ -466,6 +515,22 @@ export function flowAncestor(rootPath: string, root: MNode, spine: Spine): { nod
 function flowEmplace(rootPath: string, root: MNode, spine: Spine): Edit[] | null {
   const fa = flowAncestor(rootPath, root, spine);
   return fa ? [{ path: fa.path, op: "emplace", yamlover: serializeMNode(fa.node) }] : null;
+}
+
+/** The whole-token emplace for the container `nodeId` — what a SHAPE change to a flow token emits
+ *  (spread to K&R, or joined back). Addressed at the token's OUTERMOST flow ancestor, the only
+ *  address the server has for it. Empty when nothing on the spine is persisted yet: the first real
+ *  content pushes the subtree through `commitSpine`, already carrying the new shape. */
+export function flowReshape(rootPath: string, root: MNode, nodeId: string): Edit[] {
+  const found = findNode(root, nodeId);
+  if (!found) return [];
+  const { node, spine } = found;
+  if (!spine) return node.flow ? [{ path: rootPath, op: "emplace", yamlover: serializeMNode(node) }] : [];
+  if (!allCommitted(spine)) return [];
+  // `flowEmplace` finds the token that ENCLOSES an edit; a reshape of a token that is not itself
+  // inside another has no such ancestor, and its own path is the address the server splices at
+  return flowEmplace(rootPath, root, spine)
+    ?? [{ path: pathOfSpine(rootPath, spine), op: "emplace", yamlover: serializeMNode(node) }];
 }
 
 function topUncommitted(spine: Spine): { container: MNode; index: number; entry: MEntry; depth: number } | null {

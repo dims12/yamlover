@@ -6,8 +6,9 @@
 // focus machinery), because a second projection — the chapter page — draws the same model as prose
 // and headings. This file is only the cells and their layout.
 
-import { FlowCells, MetaTagCell, NodeCells, PointerCell, RootHole, ScalarCell, YedCtx } from "./cells";
+import { FlowCells, KrRows, MetaTagCell, NodeCells, PointerCell, RootHole, ScalarCell, YedCtx } from "./cells";
 import { useYedHost } from "./host";
+import { flowIsSeq } from "./model";
 
 export function YamloverEditor({ path, onNavigate }: { path: string; onNavigate: (p: string) => void }) {
   const { root, version, act, ctx, rootEl } = useYedHost(path, onNavigate);
@@ -25,6 +26,13 @@ export function YamloverEditor({ path, onNavigate }: { path: string; onNavigate:
           <div className="yed-row"><ScalarCell node={root} entryId={null} /></div>
         ) : root.kind === "pointer" ? (
           <div className="yed-row"><PointerCell node={root} entryId={null} /></div>
+        ) : root.kind === "container" && root.jsonp && root.entries.length > 0 ? (
+          // the whole document as a K&R token: the opener has a row, the elements and the closer
+          // get their own (KrRows). Same cells, same grammar — only spread.
+          <>
+            <div className="yed-row"><span className="punct">{flowIsSeq(root) ? "[" : "{"}</span></div>
+            <KrRows node={root} />
+          </>
         ) : root.kind === "container" && root.flow ? (
           // the whole document as a flow container (`{` / `[` typed in the root hole)
           <div className="yed-row"><FlowCells node={root} /></div>

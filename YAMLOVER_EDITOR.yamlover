@@ -307,9 +307,10 @@ flow_map_editing: Flow mapping editing
     description: The `{` and `}` are projected with entry cells between them, comma-separated; the cursor sits in the current inner cell, which follows the entry-hole grammar (`key colon space` expected)
     key_colon_space: *: value_hole
     close_brace: *: scalar_committed
+    comma: *: flow_map_editing
     enter:
-        "the flow container is not yet committed": *: flow_map_editing
-        "otherwise": *: nop
+        "the inner cell is empty": *: scalar_committed
+        "otherwise": *: flow_map_spread
     backspace:
         "the inner cell is empty and it is the only one": *: empty_cell_of_origin
         "otherwise": *: flow_map_editing
@@ -318,12 +319,39 @@ flow_seq_editing: Flow sequence editing
     description: The `[` and `]` are projected with value cells between them, comma-separated; the cursor sits in the current inner cell
     alphanumeric: *: unquoted_scalar_appending
     close_bracket: *: scalar_committed
+    comma: *: flow_seq_editing
     enter:
-        "the flow container is not yet committed": *: flow_seq_editing
-        "otherwise": *: nop
+        "the inner cell is empty": *: scalar_committed
+        "otherwise": *: flow_seq_spread
     backspace:
         "the inner cell is empty and it is the only one": *: empty_cell_of_origin
         "otherwise": *: flow_seq_editing
+
+flow_map_spread: Flow mapping spread to K&R
+    description: THE NEWLINE GESTURE. A comma keeps the next pair on this line; ENTER puts it on the next one, which SPREADS the token - one pair per row, the closer alone on the last. On disk that is an inline concrete switch to json5p (CONCRETES.md Collection style), so it is written by json5p's own serializer. The cells and the comma/closer grammar are unchanged; only the layout differs. A container json5p cannot hold - a keyed+keyless MIXTURE - does not spread, and the pair simply opens inline. Backspace just past the closer JOINS the token back onto one line (the caret stays in the after-cell)
+    key_colon_space: *: value_hole
+    close_brace: *: scalar_committed
+    comma: *: flow_map_spread
+    enter:
+        "the inner cell is empty": *: scalar_committed
+        "otherwise": *: flow_map_spread
+    backspace:
+        "the inner cell is empty and it is the only one": *: empty_cell_of_origin
+        "the caret is past the closer": *: flow_map_editing
+        "otherwise": *: flow_map_spread
+
+flow_seq_spread: Flow sequence spread to K&R
+    description: The sequence half of `flow_map_spread` - Enter puts the next element on its own row (the json5p concrete switch), a comma keeps it on this one, and Backspace past the closer joins the token back
+    alphanumeric: *: unquoted_scalar_appending
+    close_bracket: *: scalar_committed
+    comma: *: flow_seq_spread
+    enter:
+        "the inner cell is empty": *: scalar_committed
+        "otherwise": *: flow_seq_spread
+    backspace:
+        "the inner cell is empty and it is the only one": *: empty_cell_of_origin
+        "the caret is past the closer": *: flow_seq_editing
+        "otherwise": *: flow_seq_spread
 
 entry_hole: Fresh entry hole
     description: An empty row without a marker yet - the typed prefix decides the row's shape, exactly as a line of yamlover source would. A BARE scalar token committed here becomes the NODE's own scalar line (the omni self-value, entered as-is, no marker; at most one per block). An array element is spelled with its `- ` marker, a field with its key and colon. Reached after every entry-level commit, so typing flows row to row without reaching for the mouse

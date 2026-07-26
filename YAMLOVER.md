@@ -218,6 +218,12 @@ yamlover instances materialize two ways (same logical graph):
 
 A file and a subdirectory are equivalent ways to represent the same node.
 
+A third, smaller materialization lives INSIDE a file: a flow token written across several
+lines (K&R braces) is an **inline concrete switch to json5p** — that node and its subtree
+speak the brace-family language, in the middle of a yamlover document. One line stays
+yamlover (the `yaml/flow` representation); several lines change the language. See
+`CONCRETES.md` §K&R and `JSON5P.md`.
+
 ### Attaching a schema inline — the `!!<…>` tag
 
 A node can carry a **schema/metadata** reference inline via a tag, so a plain `.yamlover`

@@ -180,6 +180,12 @@ in the JSON5 string to deliver one backslash through the *string* layer.
 
 ## 5. Relationship to the rest of the system
 
+**Inline, inside a yamlover document.** A `.yamlover` file can switch to json5p mid-document
+without a file boundary: a flow token written across several lines (K&R braces) IS a json5p
+subtree, written by this concrete's own serializer (`CONCRETES.md` §K&R). It is the reason the
+switch is json5p rather than json — comments, pointers and `&` anchors all survive it.
+
+
 - **IR** (`IR.md`): a json5p object/array → `Mapping` (ordered entries); a `*` value →
   an `Entry` with `edge:"ref"` carrying an unresolved `Pointer`; a `~`-key → `edge:"back"`.
   Positions are the derived integer keys (array index), not double-stored.

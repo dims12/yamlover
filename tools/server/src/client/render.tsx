@@ -1,6 +1,7 @@
 import { ReactNode, useState, Fragment } from "react";
 import { fragmentOf, isAncestorPath } from "./paths";
 import type { CommentBucket, CommentMap } from "./api";
+import { isJsonFamily } from "../concrete";
 import { ScalarLeaf } from "./renderers/value-editors";
 
 // Keep in sync with LINK_KEY / BINARY_KEY in src/server/yamlover.ts.
@@ -518,9 +519,10 @@ function YamlRoot({ value, indent, ctx, frag, path }: { value: unknown; indent: 
   if (link) return <>{linkNode(link, "yaml", ctx)}{"\n"}</>;
   const ref = asRef(value);
   if (ref) return <>{refNode(ref, "yaml", ctx)}{"\n"}</>;
-  if (foldable(value) && isFlowAt(ctx, frag)) {
-    // a whole DOCUMENT authored as one flow token (`[12, 13, 14]`) stays one line
-    const flow = flowLine(value, ctx, frag, path);
+  if (foldable(value)) {
+    // a whole DOCUMENT authored as one flow token (`[12, 13, 14]`) stays one line; a K&R one keeps
+    // its own lines, closing back at column 0
+    const flow = flowOrKr(value, ctx, frag, path, indent);
     if (flow) return <>{flow}{"\n"}</>;
   }
   if (foldable(value)) return <YamlBody value={value} indent={indent} ctx={ctx} frag={frag} path={path} />;
@@ -536,6 +538,71 @@ function YamlRoot({ value, indent, ctx, frag, path }: { value: unknown; indent: 
  *  the file says something it does not. */
 function isFlowAt(ctx: Ctx, frag: string): boolean {
   return commentsAt(ctx, frag)?.repr === "yaml/flow";
+}
+
+/** Whether the node at `frag` was AUTHORED as a flow token SPANNING LINES — K&R braces, which on
+ *  the yamlover surface is an inline concrete switch to json5p (CONCRETES.md §Collection style).
+ *  Carried as the sidecar's `concrete`, and only where the switch happens: below it the language
+ *  says flow, which is why {@link krBlock} recurses without re-asking. */
+function isKrAt(ctx: Ctx, frag: string): boolean {
+  return isJsonFamily(commentsAt(ctx, frag)?.concrete);
+}
+
+/** The node's authored flow rendering, whichever kind it is: a K&R block (several lines, `indent`
+ *  being the column its closer returns to) or a one-line token. Null ⇒ neither, so the caller draws
+ *  ordinary block rows. */
+function flowOrKr(v: unknown, ctx: Ctx, frag: string, path: string | null, indent: number): ReactNode | null {
+  if (isKrAt(ctx, frag)) return krBlock(v, ctx, frag, path, indent);
+  return isFlowAt(ctx, frag) ? flowLine(v, ctx, frag, path) : null;
+}
+
+/** A json5p subtree as K&R lines — the opener rides the caller's row, one element per line at
+ *  `indent + 2`, the closer alone at `indent`. The layout mirrors `serialize-json5p.ts` exactly
+ *  (that emitter writes the file), which is why nesting recurses into K&R unconditionally instead of
+ *  re-reading a per-node style: inside the switch the LANGUAGE is json5p, and it expands
+ *  everything. Null on anything one line cannot hold either (a self-value, a multiline scalar), so
+ *  the token falls back to block rows — the same refusal {@link flowLine} makes. */
+function krBlock(value: unknown, ctx: Ctx, frag: string, path: string | null, indent: number): ReactNode | null {
+  const mixed = asMixed(value);
+  if (mixed?.kind === "omni") return null; // a self-value needs its own line — json5p has no `!!var`
+  const entries: { key: string | null; value: unknown }[] = mixed
+    ? mixed.entries.map((e) => ({ key: e.key, value: e.value }))
+    : isObj(value)
+      ? Object.entries(value).map(([k, v]) => ({ key: k, value: v }))
+      : Array.isArray(value)
+        ? value.map((v) => ({ key: null, value: v }))
+        : [];
+  const seq = entries.length > 0 && entries.every((e) => e.key === null);
+  const cells = entries.map((e, i): ReactNode | null => {
+    const cf = e.key !== null ? `${frag}/${e.key}` : `${frag}[${i}]`;
+    const cp = childPath(path, e.key !== null ? e.key : i);
+    const link = asLink(e.value);
+    if (link) return linkNode(link, "yaml", ctx);
+    const ref = asRef(e.value);
+    if (ref) return refNode(ref, "yaml", ctx);
+    if (foldable(e.value)) return krBlock(e.value, ctx, cf, cp, indent + 2);
+    if (bigScalar(e.value)) return null;
+    if (isObj(e.value)) return <span className="punct">{"{}"}</span>;
+    if (Array.isArray(e.value)) return <span className="punct">{"[]"}</span>;
+    return <ScalarLeaf value={e.value} syntax="yaml" path={cp} editable={ctx.editable} concrete={ctx.concrete} raw={commentsAt(ctx, cf)?.raw} />;
+  });
+  if (cells.some((c) => c === null)) return null;
+  const inner = " ".repeat(indent + 2);
+  return (
+    <>
+      <span className="punct">{seq ? "[" : "{"}</span>{"\n"}
+      {entries.map((e, i) => (
+        <Fragment key={i}>
+          {inner}
+          {e.key !== null && <><span className="k">{e.key}</span><span className="punct">{": "}</span></>}
+          {cells[i]}
+          {i < entries.length - 1 && <span className="punct">{","}</span>}
+          {"\n"}
+        </Fragment>
+      ))}
+      {" ".repeat(indent)}<span className="punct">{seq ? "]" : "}"}</span>
+    </>
+  );
 }
 
 /** A flow container rendered as ONE line — `[a, b]` / `{k: v}`. Every element goes through the
@@ -721,8 +788,9 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, path, noPad = false }: { k: s
   // node's OWN self-value inlines after a `key:`; a first CHILD may not (`person: name: Rex` is not
   // valid yaml — that stays on its own line), unlike a `- ` item where both compact forms are legal.
   const m = asMixed(v);
-  // an AUTHORED flow token rides the key row (`k: [12, 13]`) — one line, so no fold toggle
-  const flowTok = isFlowAt(ctx, frag) ? flowLine(v, ctx, frag, path) : null;
+  // an AUTHORED flow token rides the key row (`k: [12, 13]`) — one line, so no fold toggle; a K&R
+  // one opens there and closes on its own line at this column
+  const flowTok = flowOrKr(v, ctx, frag, path, indent);
   if (flowTok) return <>{blank}{lead}{head}{deco}{" "}{flowTok}{trail}{"\n"}</>;
   const inlineSelf = !!m && m.kind === "omni" && (m.selfAt ?? 0) === 0 && !bigScalar(m.value);
   return (
@@ -779,8 +847,9 @@ function YamlItem({ v, pad, indent, ctx, frag, path, noPad = false, anchorName }
     );
   }
   if (!foldable(v)) return <>{blank}{lead}{dash}{deco}{inlineYamlValue(v, ctx, path, trail, ptr && fmtPointer(ptr, "yaml"), commentsAt(ctx, frag)?.raw)}</>;
-  // an AUTHORED flow token rides the dash (`- [12, 13]`) — one line, so no fold toggle
-  const flowTok = isFlowAt(ctx, frag) ? flowLine(v, ctx, frag, path) : null;
+  // an AUTHORED flow token rides the dash (`- [12, 13]`) — one line, so no fold toggle; a K&R one
+  // opens there and closes on its own line at the dash column
+  const flowTok = flowOrKr(v, ctx, frag, path, indent);
   if (flowTok) return <>{blank}{lead}{dash}{deco}{" "}{flowTok}{trail}{"\n"}</>;
   const compact = canInlineAfterDash(v);
   return (

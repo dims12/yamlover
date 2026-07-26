@@ -80,6 +80,12 @@ diagram, its mirror, and this doc aligned when any of the three changes.
   flow, `*` pointer, `!!<` tag, block scalar…). Mirror: the pure `classifyHoleInput → HoleAction`
   in `yamlover-editor/keys.ts`, applied by `applyHoleAction` in `host.ts:60-145`; the
   `MScalar` fields even name the machine's states verbatim (e.g. `quoted_token_closed`).
+  Inside a flow token the grammar adds one pair of verbs: a **comma** keeps the next element on
+  this line, **Enter** puts it on the next one — which SPREADS the token to K&R and is, on disk, an
+  inline concrete switch to json5p (`CONCRETES.md` §K&R). **Backspace** just past the closer joins it
+  back. Spreading is skipped, not refused, for a container json5p cannot hold (a keyed+keyless
+  mixture). Mirrors: `MNode.jsonp` + `setSpread`/`jsonpFits`/`flowReshape` in `model.ts`, `KrRows`
+  in `cells.tsx`, `flowNext(…, spread)`/`flowJoin` in `host.ts`.
 - **`QUERY_EDITOR.yamlover`** — the query/pointer editing machine (`idle` / `editing` /
   `filtered`; events `FOCUS_CELL` / `SPLIT_CELL` / `PICK` / …). Mirror: `client/breadcrumb-machine.ts`,
   a pure reducer `reduce(state, event, currentPath) → [state, effects]`; its header states

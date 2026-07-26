@@ -73,8 +73,14 @@ export interface YedActions {
   holeSubmit(entryId: string, text: string): boolean;
   /** A typed `,` inside a flow container: commit this cell, then open a fresh element AFTER it,
    *  caret inside. Works from a hole and from a committed token cell, seq and map alike. False =
-   *  the text is not one flow scalar (error ring; the comma is not consumed). */
-  flowNext(entryId: string, text: string): boolean;
+   *  the text is not one flow scalar (error ring; the comma is not consumed). With `spread` (the
+   *  ENTER form) the token is also spread to K&R — one element per row, a json5p subtree on disk
+   *  (CONCRETES.md §Collection style). Spreading is skipped, not refused, when json5p cannot hold
+   *  the subtree: the element still lands, inline. */
+  flowNext(entryId: string, text: string, spread?: boolean): boolean;
+  /** Backspace at the head of a K&R token's CLOSER row: join the token back onto one line
+   *  (`jsonp` off), the reverse of the Enter gesture. False when this is not such a token. */
+  flowJoin(nodeId: string): boolean;
   /** A typed `]` / `}`: commit the cell (an empty uncommitted hole is dropped instead), then land
    *  the caret in the zero-width cell AFTER the projected closer. The WRONG closer returns false
    *  and consumes nothing. */
@@ -291,8 +297,11 @@ function flowKeys(
   if (e.key === ",") { e.preventDefault(); ring(act.flowNext(entryId, text)); return true; }
   if (e.key === "]" || e.key === "}") { e.preventDefault(); ring(act.flowClose(entryId, text, e.key)); return true; }
   if (e.key === "Enter") {
+    // A NEWLINE inside a flow token means what it looks like: the next element goes on the next
+    // ROW, i.e. the token spreads to K&R. Enter keeps its meaning (open the next element) and adds
+    // the spread; on an EMPTY cell it still closes the token, as it always did.
     e.preventDefault();
-    ring(text.trim() === "" ? act.flowClose(entryId, "", flow.kind === "seq" ? "]" : "}") : act.flowNext(entryId, text));
+    ring(text.trim() === "" ? act.flowClose(entryId, "", flow.kind === "seq" ? "]" : "}") : act.flowNext(entryId, text, true));
     return true;
   }
   if (e.key === "Tab") { e.preventDefault(); act.focusSibling(el, e.shiftKey ? -1 : 1); return true; }
@@ -865,7 +874,9 @@ function canInlineEntry(e: MEntry): boolean {
 /** What a node's INLINE HEAD is — the part drawn right after a marker on the same row.
  *  `chainFirst` — the owner is a DASH: compact YAML lets the container's first child ride the
  *  dash line (`- name: Rex`); after a `key:` only the omni self may share the row. */
-function nodeHeadKind(node: MNode, chainFirst: boolean): "cell" | "self" | "first" | "empty" | "none" {
+function nodeHeadKind(node: MNode, chainFirst: boolean): "cell" | "self" | "first" | "empty" | "none" | "kr" {
+  // a SPREAD flow token opens on this row and continues below it — its elements are BODY rows
+  if (node.kind === "container" && node.jsonp && node.entries.length > 0) return "kr";
   if (node.kind !== "container" || node.flow) return "cell"; // hole/scalar/pointer/link/flow
   if (node.selfValue && node.selfAt === 0 && !node.selfValue.block) return "self";
   if (chainFirst && !node.selfValue && node.entries.length > 0 && canInlineEntry(node.entries[0])) return "first";
@@ -888,6 +899,8 @@ function NodeHead({ node, entry, chainFirst }: { node: MNode; entry: MEntry | nu
       return <EntryHead entry={node.entries[0]} />;
     case "empty":
       return <span className="punct">{"{}"}</span>;
+    case "kr":
+      return <span className="punct">{flowIsSeq(node) ? "[" : "{"}</span>;
     case "none":
       return null;
   }
@@ -936,6 +949,7 @@ function EntryHead({ entry }: { entry: MEntry }) {
 
 /** Whether a node has BODY rows at all (so no empty indent regions clutter the DOM). */
 function hasBody(node: MNode, chainFirst: boolean): boolean {
+  if (node.kind === "container" && node.jsonp && node.entries.length > 0) return true; // a K&R token
   if (node.kind !== "container" || node.flow) return false;
   switch (nodeHeadKind(node, chainFirst)) {
     case "self": return node.entries.length > 0;
@@ -947,6 +961,7 @@ function hasBody(node: MNode, chainFirst: boolean): boolean {
 
 /** The node's BODY rows — everything below its head row, indented one level (included here). */
 function NodeBody({ node, chainFirst }: { node: MNode; chainFirst: boolean }) {
+  if (node.kind === "container" && node.jsonp && node.entries.length > 0) return <KrRows node={node} />;
   if (node.kind !== "container" || node.flow) return null; // cell heads carry no body rows
   switch (nodeHeadKind(node, chainFirst)) {
     case "self":
@@ -985,6 +1000,49 @@ export function EntryRow({ entry }: { entry: MEntry }) {
         <TrailingComment bucket={entry.bucket} />
       </div>
       <NodeBody node={entry.node} chainFirst={entry.key === null} />
+    </>
+  );
+}
+
+/** A flow container SPREAD to K&R — one element per ROW, the closer on a row of its own at the
+ *  opener's column. The cells and the `,`/closer/arrow grammar are the inline token's, unchanged
+ *  (`FlowCtx` is provided here exactly as {@link FlowCells} provides it); only the layout differs.
+ *  On disk this is a json5p subtree, and json5p expands every container under it — so a nested
+ *  spread token delegates back here instead of drawing itself inline. */
+export function KrRows({ node, trailingComma = false }: { node: MNode; trailingComma?: boolean }) {
+  const seq = flowIsSeq(node);
+  const outer = useContext(FlowCtx); // the ENCLOSING token, for the after-cell past this closer
+  const last = node.entries.length - 1;
+  return (
+    <FlowCtx.Provider value={{ kind: seq ? "seq" : "map", nodeId: node.id }}>
+      <IndentRegion>
+        {node.entries.map((e, i) => <KrEntryRows key={e.id} entry={e} last={i === last} />)}
+      </IndentRegion>
+      <div className="yed-row">
+        <span className="punct">{seq ? "]" : "}"}</span>
+        {trailingComma && <span className="punct">{","}</span>}
+        {/* the after-cell belongs to the token OUTSIDE this one — the same rule as inline flow */}
+        <FlowCtx.Provider value={outer}>
+          <FlowAfterCell node={node} />
+        </FlowCtx.Provider>
+      </div>
+    </FlowCtx.Provider>
+  );
+}
+
+/** One element of a K&R token: its head row (`key: ` plus the value's cells) and — when the value is
+ *  itself a spread token — that token's rows below, its closer carrying this element's comma. */
+function KrEntryRows({ entry, last }: { entry: MEntry; last: boolean }) {
+  const n = entry.node;
+  const nested = n.kind === "container" && !!n.jsonp && n.entries.length > 0;
+  return (
+    <>
+      <div className="yed-row">
+        {entry.key !== null && <><span className="k">{keyToken(entry)}</span><span className="punct">{": "}</span></>}
+        <NodeHead node={n} entry={entry} chainFirst={false} />
+        {!nested && !last && <span className="punct">{","}</span>}
+      </div>
+      {nested && <KrRows node={n} trailingComma={!last} />}
     </>
   );
 }
@@ -1037,6 +1095,13 @@ function FlowAfterCell({ node }: { node: MNode }) {
       spellCheck={false}
       onKeyDown={(e) => {
         e.preventDefault();
+        if (e.key === "Backspace" && node.jsonp) {
+          // the caret sits just past a closer that has a ROW of its own: Backspace deletes that
+          // line break — the token JOINS back onto one line, the exact inverse of the Enter that
+          // spread it. Stepping inside is still ArrowLeft (or a second Backspace, once joined).
+          act.flowJoin(node.id);
+          return;
+        }
         if (e.key === "Backspace" || e.key === "ArrowLeft") {
           // step back INSIDE, onto the token's last cell — nothing is committed or removed
           const last = node.entries[node.entries.length - 1];
