@@ -1427,7 +1427,11 @@ function collectComments(doc: Document, segs: Seg[], depth: number): Record<stri
     nodeDeco(self, root);
     const raw = scalarRawToken(root);
     if (raw) self.raw = raw;
-    if (self.anchors || self.tag || self.valueTrailing || self.raw || self.repr) out[""] = self;
+    // ANY field is worth sending, not a hand-kept list of five: the list silently dropped the
+    // root's own `concrete` (a whole document written K&R rendered as block, because the switch
+    // never reached the client) and would have dropped a root block scalar's `block` qualifiers
+    // the same way. The per-child buckets below have always used this test.
+    if (Object.keys(self).length > 0) out[""] = self;
   }
   // $head is the head-of-file banner — shown when the VIEWED node is a document root (the walk
   // carries each document's head onto its root node, so sub-documents surface theirs too).

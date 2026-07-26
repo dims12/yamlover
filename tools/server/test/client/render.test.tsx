@@ -494,3 +494,20 @@ describe("Render — a K&R (multi-line flow) value", () => {
     expect(out).toContain("a: |-");
   });
 });
+
+// A whole DOCUMENT written K&R. Reported: a file that reads
+//   [ \n {"name": "Eurasia", "children": [ … ]} \n ]
+// rendered as block rows — the root's own `concrete` never left the server (its self bucket was
+// emitted only for a hand-kept list of five fields), so the view showed a shape the file did not
+// have. The bug was one layer down, but this is where it was visible.
+describe("Render — a K&R DOCUMENT", () => {
+  it("draws the whole document as written, at every level", () => {
+    const value = [{ name: "Eurasia", children: [{ name: "Europe" }, { name: "Asia" }] }];
+    const comments = { "": { concrete: "json5p" }, "[0]/name": { raw: '"Eurasia"' },
+      "[0]/children[0]/name": { raw: '"Europe"' }, "[0]/children[1]/name": { raw: '"Asia"' } };
+    const { container } = render(<Render value={value} syntax="yaml" onNavigate={() => {}} comments={comments as never} />);
+    expect(container.textContent).toBe(
+      '[\n  {\n    name: "Eurasia",\n    children: [\n      {\n        name: "Europe"\n      },\n      {\n        name: "Asia"\n      }\n    ]\n  }\n]\n',
+    );
+  });
+});

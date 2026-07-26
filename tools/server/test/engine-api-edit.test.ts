@@ -1613,6 +1613,16 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
     expect(disk()).toBe(KR); // and nothing was written
   });
 
+  it("carries the ROOT's own concrete — a whole document written K&R", async () => {
+    // the self bucket was emitted only when one of FIVE named fields was set, and `concrete` was
+    // not among them: a K&R document rendered as BLOCK, because the switch never reached the
+    // client. Any field is worth sending — the per-child buckets always used that test.
+    const { h } = await krHandlers('[\n  {\n    "name": "Eurasia"\n  }\n]\n');
+    const j = call(h, "/api/json", { path: ":note.yamlover", depth: ".inf" }).json as
+      { comments?: Record<string, { concrete?: string }> };
+    expect(j.comments?.[""]).toEqual({ concrete: "json5p" });
+  });
+
   it("carries `concrete` in the sidecar only where the switch happens", async () => {
     const { h } = await krHandlers("a: {\n  q: [\n    1\n  ]\n}\nb: {x: 1}\n");
     const j = call(h, "/api/json", { path: ":note.yamlover", depth: ".inf" }).json as

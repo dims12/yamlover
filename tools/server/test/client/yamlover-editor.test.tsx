@@ -2329,3 +2329,26 @@ describe("a flow token is walkable end to end", () => {
     expect(rows).toEqual(["[", "{", "", "}", "]"]); // rows, not `{}` inline
   });
 });
+
+// The EDITOR half of the same report: a whole document written K&R must open as rows, not be
+// canonicalized to block the moment it is unlocked (the root's `concrete` reaches the model through
+// the very bucket the read-only view reads).
+describe("a K&R DOCUMENT opens as rows", () => {
+  it("draws every level, and an edit keeps the layout", async () => {
+    fetchNode.mockResolvedValue({
+      path: ":n", type: "array", concrete: "file/yamlover", title: null, description: null,
+      value: [{ name: "Eurasia", children: [{ name: "Europe" }] }],
+      comments: { "": { concrete: "json5p" }, "[0]/name": { raw: '"Eurasia"' }, "[0]/children[0]/name": { raw: '"Europe"' } },
+    });
+    const { container } = await mount(":n");
+    const rows = Array.from(container.querySelectorAll(".yed-row")).map((r) => r.textContent);
+    expect(rows).toEqual(["[", "{", 'name: "Eurasia",', "children: [", "{", 'name: "Europe"', "}", "]", "}", "]"]);
+    const cell = Array.from(container.querySelectorAll<HTMLElement>("[data-yed-cell]"))
+      .find((c) => c.textContent === "Eurasia")!;
+    type(cell, "Eurasien");
+    fireEvent.blur(cell);
+    await waitFor(() => expect(editChunks).toHaveBeenCalled(), { timeout: 2000 });
+    const sent = (editChunks.mock.calls.at(-1)![0] as { yamlover: string }[])[0].yamlover;
+    expect(sent).toContain("[\n  {\n"); // still K&R, all the way down
+  });
+});
