@@ -81,6 +81,13 @@ export interface YedActions {
   /** Backspace at the head of a K&R token's CLOSER row: join the token back onto one line
    *  (`jsonp` off), the reverse of the Enter gesture. False when this is not such a token. */
   flowJoin(nodeId: string): boolean;
+  /** Backspace just past the closer of an EMPTY flow token: re-open a cell INSIDE it, so the
+   *  caret returns where it came from instead of having nowhere to go. */
+  flowReopen(nodeId: string): boolean;
+  /** SPREAD the token this entry lives in to K&R without adding an element — Enter in the
+   *  still-empty cell of a freshly opened `{`/`[`. The caret stays in the cell (which moves to its
+   *  own row). False when json5p cannot hold the subtree. */
+  flowSpread(entryId: string): boolean;
   /** A typed `]` / `}`: commit the cell (an empty uncommitted hole is dropped instead), then land
    *  the caret in the zero-width cell AFTER the projected closer. The WRONG closer returns false
    *  and consumes nothing. */
@@ -144,7 +151,7 @@ export const YedCtx = createContext<YedCtxType | null>(null);
  *  {@link FlowCells}; a nested flow container re-provides its own, so the value is always the
  *  INNERMOST one. Block containers never render inside FlowCells, so this is exact — the cells
  *  read it instead of threading a prop through every head/body component. */
-const FlowCtx = createContext<{ kind: "map" | "seq"; nodeId: string } | null>(null);
+const FlowCtx = createContext<{ kind: "map" | "seq"; nodeId: string; decided: number } | null>(null);
 
 /** The entry id that OWNS `nodeId` — what a nested flow token's `,`/closer acts on (the outer
  *  token's element), and what its Enter opens a sibling after. */
@@ -289,7 +296,7 @@ function flowKeys(
   e: React.KeyboardEvent,
   el: HTMLElement,
   entryId: string,
-  flow: { kind: "map" | "seq" },
+  flow: { kind: "map" | "seq"; nodeId: string; decided: number },
   act: YedActions,
 ): boolean {
   const text = normalizeSpaces(el.textContent ?? "");
@@ -299,9 +306,12 @@ function flowKeys(
   if (e.key === "Enter") {
     // A NEWLINE inside a flow token means what it looks like: the next element goes on the next
     // ROW, i.e. the token spreads to K&R. Enter keeps its meaning (open the next element) and adds
-    // the spread; on an EMPTY cell it still closes the token, as it always did.
+    // the spread. On an EMPTY cell it CLOSES the token — unless nothing has been put in it yet, in
+    // which case closing would throw away the token the user just opened: `[` then Enter must
+    // allocate the row and stay inside it, not commit `[]` and strand the caret past the closer.
     e.preventDefault();
-    ring(text.trim() === "" ? act.flowClose(entryId, "", flow.kind === "seq" ? "]" : "}") : act.flowNext(entryId, text, true));
+    if (text.trim() !== "") { ring(act.flowNext(entryId, text, true)); return true; }
+    ring(flow.decided === 0 ? act.flowSpread(entryId) : act.flowClose(entryId, "", flow.kind === "seq" ? "]" : "}"));
     return true;
   }
   if (e.key === "Tab") { e.preventDefault(); act.focusSibling(el, e.shiftKey ? -1 : 1); return true; }
@@ -1004,6 +1014,12 @@ export function EntryRow({ entry }: { entry: MEntry }) {
   );
 }
 
+/** How many of a token's entries have DECIDED what they are — an untouched `{`/`[` carries one
+ *  undecided hole, and Enter there means "open the row", not "close the token". */
+function decidedCount(node: MNode): number {
+  return node.entries.filter((e) => e.decided).length;
+}
+
 /** A flow container SPREAD to K&R — one element per ROW, the closer on a row of its own at the
  *  opener's column. The cells and the `,`/closer/arrow grammar are the inline token's, unchanged
  *  (`FlowCtx` is provided here exactly as {@link FlowCells} provides it); only the layout differs.
@@ -1014,7 +1030,7 @@ export function KrRows({ node, trailingComma = false }: { node: MNode; trailingC
   const outer = useContext(FlowCtx); // the ENCLOSING token, for the after-cell past this closer
   const last = node.entries.length - 1;
   return (
-    <FlowCtx.Provider value={{ kind: seq ? "seq" : "map", nodeId: node.id }}>
+    <FlowCtx.Provider value={{ kind: seq ? "seq" : "map", nodeId: node.id, decided: decidedCount(node) }}>
       <IndentRegion>
         {node.entries.map((e, i) => <KrEntryRows key={e.id} entry={e} last={i === last} />)}
       </IndentRegion>
@@ -1059,7 +1075,7 @@ export function FlowCells({ node }: { node: MNode }) {
   // whether a typed `,`/closer/`:` belongs to this token or to the one around it
   const outer = useContext(FlowCtx);
   return (
-    <FlowCtx.Provider value={{ kind: seq ? "seq" : "map", nodeId: node.id }}>
+    <FlowCtx.Provider value={{ kind: seq ? "seq" : "map", nodeId: node.id, decided: decidedCount(node) }}>
       <span className="punct">{open}</span>
       {node.entries.map((e, i) => (
         <Fragment key={e.id}>
@@ -1095,19 +1111,24 @@ function FlowAfterCell({ node }: { node: MNode }) {
       spellCheck={false}
       onKeyDown={(e) => {
         e.preventDefault();
-        if (e.key === "Backspace" && node.jsonp) {
-          // the caret sits just past a closer that has a ROW of its own: Backspace deletes that
-          // line break — the token JOINS back onto one line, the exact inverse of the Enter that
-          // spread it. Stepping inside is still ArrowLeft (or a second Backspace, once joined).
-          act.flowJoin(node.id);
-          return;
-        }
         if (e.key === "Backspace" || e.key === "ArrowLeft") {
+          // EMPTY FIRST: a token with nothing in it (`[]`) has no cell to step into, and every
+          // other key here is consumed — without this the caret sat past the closer with no way
+          // back, a lock in two keystrokes. Re-open a cell inside the brackets, where it came from.
+          if (node.entries.length === 0) { act.flowReopen(node.id); return; }
+          if (e.key === "Backspace" && node.jsonp) {
+            // the caret sits just past a closer that has a ROW of its own: Backspace deletes that
+            // line break — the token JOINS back onto one line, the exact inverse of the Enter that
+            // spread it. Stepping inside is still ArrowLeft.
+            act.flowJoin(node.id);
+            return;
+          }
           // step back INSIDE, onto the token's last cell — nothing is committed or removed
-          const last = node.entries[node.entries.length - 1];
-          if (last) act.focusCellKey(last.node.id, "end");
+          act.focusCellKey(node.entries[node.entries.length - 1].node.id, "end");
           return;
         }
+        // the universal escape, as everywhere else in the editor
+        if (e.key === "Tab") { act.focusSibling(e.currentTarget, e.shiftKey ? -1 : 1); return; }
         if (outer && outerEntry) {
           if (e.key === ",") { act.flowNext(outerEntry, ""); return; }
           if (e.key === "]" || e.key === "}") { act.flowClose(outerEntry, "", e.key); return; }

@@ -1957,3 +1957,68 @@ describe("the K&R spread (a flow token over several rows)", () => {
     expect(rowsOf(container).some((r) => r?.trim() === "}")).toBe(false); // never spread
   });
 });
+
+// --- NO TRAPS around a flow token's edges ------------------------------------------------------ //
+// Reported: a new document, `[` (the closer projects, caret between), then Enter — no row was
+// allocated, the caret jumped PAST `]` and nothing could undo it. Three separate dead ends met
+// there, and each one is pinned here by where the CARET ends up (a row that renders with the caret
+// on <body> is exactly the lock).
+describe("flow tokens — the edges never trap the caret", () => {
+  const rowsOf = (c: HTMLElement) => Array.from(c.querySelectorAll(".yed-row")).map((r) => r.textContent);
+  const emptyRoot = () => fetchNode.mockResolvedValue(
+    { path: ":n", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+  const openBracket = async () => {
+    emptyRoot();
+    const { container } = await mount(":n");
+    const hole = container.querySelector<HTMLElement>(".yed-hole")!;
+    type(hole, "[");
+    return container;
+  };
+
+  it("Enter right after `[` ALLOCATES the row and keeps the caret inside", async () => {
+    // it used to close the token (`[]`) and strand the caret past the closer: an empty cell means
+    // "close" only once something has been put in the token
+    const container = await openBracket();
+    fireEvent.keyDown(container.querySelector<HTMLElement>(".yed-hole")!, { key: "Enter" });
+    expect(rowsOf(container)).toEqual(["[", "", "]"]);
+    expect(document.activeElement).toBe(container.querySelector(".yed-hole"));
+    expect((document.activeElement as HTMLElement).className).toContain("yed-hole");
+  });
+
+  it("`[` then Backspace returns to the ROOT hole (not an empty screen)", async () => {
+    // `removeEmpty` gave the root kind "hole", which matched no branch in editor.tsx: the view
+    // rendered NOTHING and focus fell to <body>
+    const container = await openBracket();
+    fireEvent.keyDown(container.querySelector<HTMLElement>(".yed-hole")!, { key: "Backspace" });
+    expect(rowsOf(container).length).toBe(1);
+    expect(document.activeElement).not.toBe(document.body);
+    expect((document.activeElement as HTMLElement).className).toContain("editable");
+  });
+
+  it("Backspace past the closer of an EMPTY token re-opens a cell inside it", async () => {
+    const container = await openBracket();
+    fireEvent.keyDown(container.querySelector<HTMLElement>(".yed-hole")!, { key: "]" });
+    const after = document.activeElement as HTMLElement;
+    expect(after.className).toContain("yed-after");
+    fireEvent.keyDown(after, { key: "Backspace" });
+    expect((document.activeElement as HTMLElement).className).toContain("yed-hole");
+  });
+
+  it("…and past the closer of an emptied SPREAD token too", async () => {
+    const container = await openBracket();
+    fireEvent.keyDown(container.querySelector<HTMLElement>(".yed-hole")!, { key: "Enter" }); // spread
+    fireEvent.keyDown(container.querySelector<HTMLElement>(".yed-hole")!, { key: "]" });     // empty it
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Backspace" });
+    expect((document.activeElement as HTMLElement).className).toContain("yed-hole");
+    expect(rowsOf(container)).toEqual(["[", "", "]"]);
+  });
+
+  it("Tab is the universal escape from the after-cell", async () => {
+    const container = await openBracket();
+    const hole = container.querySelector<HTMLElement>(".yed-hole")!;
+    type(hole, "1");
+    fireEvent.keyDown(hole, { key: "Enter" });
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Tab" });
+    expect(document.activeElement).not.toBe(document.body);
+  });
+});

@@ -704,6 +704,38 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
       });
       return true;
     },
+    flowSpread(entryId) {
+      // Enter in the still-empty cell of a freshly opened `{`/`[`: allocate the row and STAY in the
+      // cell. Closing here would commit `[]` and strand the caret past the closer, which is not
+      // what a newline means — and used to be a dead end.
+      let ok = false;
+      step((r) => {
+        const spine = M.findEntry(r, entryId);
+        if (!spine) return [];
+        const { container } = spine.parents[spine.parents.length - 1];
+        ok = M.setSpread(container, true);
+        if (!ok) return [];
+        // the cell MOVES (from the opener's row into its own), so it remounts and loses focus —
+        // hand it back explicitly or the caret is lost, which is the trap in another costume
+        focusReq.current = { key: spine.entry.node.id, at: "start" };
+        return M.flowReshape(path, r, container.id);
+      });
+      return ok;
+    },
+    flowReopen(nodeId) {
+      // Backspace just past the closer of an EMPTY token (`[]`): put a cell back INSIDE it, which
+      // is exactly where the caret came from. No op — the hole is client-side until something is
+      // typed, and then the whole token re-emplaces.
+      let ok = false;
+      step((r) => {
+        const found = M.findNode(r, nodeId);
+        if (!found || !found.node.flow || found.node.entries.length > 0) return [];
+        const hole = M.insertHoleAt(r, nodeId, 0);
+        if (hole) { focusReq.current = { key: hole.node.id, at: "start" }; ok = true; }
+        return [];
+      });
+      return ok;
+    },
     flowJoin(nodeId) {
       let ok = false;
       step((r) => {
@@ -968,7 +1000,10 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
         // keystrokes. The container returns to the hole it came from, caret restored.
         if (container.flow && container.entries.length === 1) {
           const edits = M.removeEntry(path, r, entryId);
-          container.kind = "hole";
+          // the ROOT's hole IS the empty container (the same rule `dismantle` follows): giving the
+          // root kind "hole" matched no branch in editor.tsx, so the view rendered NOTHING and the
+          // caret fell to <body> — `[` then Backspace in a fresh document was a dead end
+          container.kind = container === r ? "container" : "hole";
           container.flow = undefined;
           container.rev++;
           focusReq.current = { key: container.id, at: "start" };
