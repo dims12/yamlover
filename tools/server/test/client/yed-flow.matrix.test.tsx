@@ -75,12 +75,10 @@ describe("flow × contexts", () => {
   });
 
   // LAW: one placeholder — `…` renders only in the hole awaiting content, never in gaps.
-  // BROKEN TODAY (the reported ellipsis clutter): after/gap spans are empty `.editable`s, so every
-  // one of them paints `…`. Stage B makes gaps positions, not editable spans — then these rows
-  // lose their `.fails` tag (which itself fails once they pass, so the tag cannot rot).
+  // (The reported ellipsis clutter: gaps used to be empty `.editable`s, each painting `…`.
+  // Stage B made gaps POSITIONS — GapCell — and the law holds everywhere.)
   for (const ctx of CONTEXTS.filter((c) => c.hosts === "flow" || c.name === "at the root")) {
-    const expectFail = ctx.hosts === "flow" ? it.fails : it; // the root row already holds
-    expectFail(`at most one placeholder mid-typing ${ctx.name}`, async () => {
+    it(`at most one placeholder mid-typing ${ctx.name}`, async () => {
       const kit = await mountKit(fetchNode);
       kit.run(ctx.prefix + "{{key: 12}");
       expect(kit.placeholders().length, "gaps must not display …").toBeLessThanOrEqual(1);

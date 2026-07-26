@@ -34,6 +34,8 @@ type FocusRef = { current: FocusReq | null };
 /** Focus a cell with the caret at `at`. A TEXTAREA (the block-scalar cell) needs its own caret
  *  API — the contentEditable range routines clobber a textarea's focus in real browsers. */
 function focusCell(el: HTMLElement, at: FocusAt): void {
+  // attribute, not isContentEditable (jsdom never implemented the property — tests run there)
+  if (!el.hasAttribute("contenteditable") && !(el instanceof HTMLTextAreaElement)) { el.focus(); return; } // a GAP: no range to place
   if (typeof at === "number") { placeCaret(el, at); return; }
   if (el instanceof HTMLTextAreaElement) {
     el.focus();
@@ -1094,15 +1096,55 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
   }), [path, act, onNavigate]);
 
   // apply the pending focus request once the fresh cells are in the DOM
+  // THE CARET LAW's safety net (yed-kit `caret()`): after every render the caret must resolve to a
+  // real cell. A requested focus is honored first; ABSENT one, a caret orphaned by a re-render (its
+  // cell unmounted, focus fell to <body>) is brought back to the nearest surviving cell — by the
+  // key it last stood on, else the cell before it in the last known order, else the first cell.
+  // This turns the "an action forgot to set focus" bug class from a LOCK into "the caret stays
+  // put", until Stage C's dispatcher makes the next cursor a required return value.
+  const lastFocus = useRef<{ key: string; order: string[] }>({ key: "", order: [] });
   useLayoutEffect(() => {
     const req = focusReq.current;
-    if (!req) return;
-    const el = cellMap.current.get(req.key);
-    if (el) {
-      focusReq.current = null;
-      focusCell(el, req.at);
+    if (req) {
+      const el = cellMap.current.get(req.key);
+      if (el) {
+        focusReq.current = null;
+        focusCell(el, req.at);
+        return;
+      }
     }
+    const live = document.activeElement;
+    if (live && live !== document.body && rootEl.current?.contains(live)) return; // the caret is fine
+    if (!rootEl.current) return;
+    const cells = Array.from(rootEl.current.querySelectorAll<HTMLElement>("[data-yed-cell]"));
+    if (cells.length === 0) return;
+    const byKey = cellMap.current.get(lastFocus.current.key);
+    if (byKey && cells.includes(byKey)) { focusCell(byKey, "end"); return; }
+    const order = lastFocus.current.order;
+    const at = order.indexOf(lastFocus.current.key);
+    for (let i = at - 1; i >= 0; i--) {
+      const el = cellMap.current.get(order[i]);
+      if (el && cells.includes(el)) { focusCell(el, "end"); return; }
+    }
+    focusCell(cells[0], "start");
   });
+
+  // track where the caret STANDS (and the cell order around it), so the net above has an anchor
+  useEffect(() => {
+    const root = rootEl.current;
+    if (!root) return;
+    const onFocusIn = (e: FocusEvent) => {
+      const cell = (e.target as HTMLElement | null)?.closest?.("[data-yed-cell]") as HTMLElement | null;
+      const key = cell?.getAttribute("data-yed-cell");
+      if (!key) return;
+      lastFocus.current = {
+        key,
+        order: Array.from(root.querySelectorAll<HTMLElement>("[data-yed-cell]")).map((c) => c.getAttribute("data-yed-cell")!),
+      };
+    };
+    root.addEventListener("focusin", onFocusIn);
+    return () => root.removeEventListener("focusin", onFocusIn);
+  }, [rootEl]);
 
   return { root, version, act, ctx, rootEl, flush, path, rootRef, focusReq, step, concreteRef };
 }

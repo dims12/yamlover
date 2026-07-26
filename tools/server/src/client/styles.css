@@ -1195,8 +1195,10 @@ a.chunk-index:hover {
 .yed .c { opacity: 0.7; }
 .yed .yaml-dash { margin-right: 0; }
 .yed .yed-refnav { margin-left: 4px; text-decoration: none; }
-/* the `quoted_token_closed` landing spot: a caret-width cell right after the closing quote */
-.yed .yed-after { min-width: 2px; }
+/* a GAP — a caret position between tokens (past a closer / closing quote): focusable, zero-width,
+   NOT editable, so the …-placeholder rule above can never touch it */
+.yed .yed-gap { min-width: 2px; outline: none; }
+.yed .yed-gap:focus { box-shadow: -1px 0 0 currentColor; }
 /* the block-scalar text: ordinary editor styling under its projected `|` header — indented
    lines with a subtle guide, NOT a foreign-looking box */
 .yed textarea.yed-blocktext {

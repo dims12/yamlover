@@ -117,8 +117,12 @@ export function press(stroke: Stroke): void {
   const ev = createEvent.keyDown(el, { key, ...("key" in stroke && stroke.key === "ShiftTab" ? { shiftKey: true } : {}) });
   fireEvent(el, ev);
   if (ev.defaultPrevented || "key" in stroke) return;
-  // the character lands in whatever cell has focus NOW — a keydown may have moved it
+  // the character lands in whatever cell has focus NOW — a keydown may have moved it. Only a
+  // contentEditable cell takes text (the browser's rule): a GAP is a caret position, and a
+  // character pressed there that no grammar consumed does not land anywhere.
   const cur = focused("the typed character");
+  // attribute, not isContentEditable — jsdom never implemented the property, and the corpus runs there
+  if (!cur.hasAttribute("contenteditable") && !(cur instanceof HTMLTextAreaElement)) return;
   cur.textContent = (cur.textContent ?? "") + stroke.ch;
   fireEvent.input(cur);
 }

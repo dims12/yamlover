@@ -43,9 +43,9 @@ describe("the walk", () => {
     for (const c of cells) expect(visited, `unreached cell: "${c.textContent}"`).toContain(c);
   });
 
-  // BROKEN TODAY (the report): the LAST gap — past the document's own closer — is not reachable
-  // by walking right; the walk stalls one gap short. Stage B (gaps as positions) delists.
-  it.fails("the walk ends at the document's LAST position", async () => {
+  // (The reported unreachable last gap: the after-cell swallowed the arrows it did not handle.
+  // Stage B's GapCell falls through to universal navigation, so the walk reaches the end.)
+  it("the walk ends at the document's LAST position", async () => {
     const kit = await mountKit(fetchNode);
     kit.run("[{{key: 12}, {{key: 13}]");
     const cells = contentCells(kit);

@@ -447,37 +447,61 @@ export function ScalarCell({ node, entryId }: { node: MNode; entryId: string | n
 /** The `quoted_token_closed` landing spot: a zero-width cell right AFTER the closing quote. The
  *  next key decides what the quoted token is — `:` makes it a KEY, Enter commits it as the scalar
  *  it reads as, Backspace steps back inside the quotes. Nothing else is legal here. */
-function AfterQuoteCell({ node }: { node: MNode }) {
+/** A GAP — a caret POSITION between tokens (past a closer, past a closing quote), NOT a cell that
+ *  holds content. Not contentEditable: nothing can ever be typed INTO a gap, so it never matches
+ *  the `…` placeholder CSS (the reported ellipsis clutter came from gaps being empty `.editable`s)
+ *  — it is a focusable zero-width slot the caret can stand in. `grammar` handles the keys that
+ *  MEAN something at this particular gap; everything else falls to the UNIVERSAL navigation
+ *  (arrows and Tab cross in DOM order — the same law everywhere), and keys neither knows pass
+ *  through untouched instead of being swallowed (a swallowed arrow was the unreachable-gap bug). */
+function GapCell({ id, error = false, onBlur, grammar }: {
+  id: string;
+  error?: boolean;
+  onBlur?: () => void;
+  grammar?: (e: React.KeyboardEvent) => boolean;
+}) {
   const { act, registerCell } = useYed();
+  return (
+    <span
+      ref={(el) => registerCell(id, el)}
+      data-yed-cell={id}
+      tabIndex={0}
+      className={"yed-after yed-gap" + (error ? " edit-error" : "")}
+      onBlur={onBlur}
+      onKeyDown={(e) => {
+        if (grammar && grammar(e)) { e.preventDefault(); return; }
+        if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); act.focusSibling(e.currentTarget, 1); return; }
+        if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); act.focusSibling(e.currentTarget, -1); return; }
+        if (e.key === "Tab") { e.preventDefault(); act.focusSibling(e.currentTarget, e.shiftKey ? -1 : 1); return; }
+      }}
+    />
+  );
+}
+
+function AfterQuoteCell({ node }: { node: MNode }) {
+  const { act } = useYed();
   const flow = useContext(FlowCtx);
   const ownEntry = useOuterEntryId(node.id);
   const [error, setError] = useState(false);
   const commit = (submit: boolean) => act.commitText(node.id, String(node.scalar?.value ?? ""), submit);
   return (
-    <span
-      ref={(el) => registerCell(node.id + ":after", el)}
-      data-yed-cell={node.id + ":after"}
-      className={"yed-after editable" + (error ? " edit-error" : "")}
-      contentEditable
-      suppressContentEditableWarning
-      spellCheck={false}
+    <GapCell
+      id={node.id + ":after"}
+      error={error}
       onBlur={() => { if (node.scalar?.closed) commit(false); }}
-      onKeyDown={(e) => {
-        e.preventDefault();
+      grammar={(e) => {
         setError(false);
         // inside a flow token the closed quote is a finished ELEMENT: `,` opens the next one and a
-        // closer ends the token, exactly as from a bare cell. Without this the after-quote cell
-        // swallowed them (it preventDefaults every key), stranding `['a, b'` mid-token.
+        // closer ends the token, exactly as from a bare cell
         if (flow && ownEntry && (e.key === "," || e.key === "]" || e.key === "}")) {
           commit(false); // the quoted token IS this element's value
           setError(!(e.key === "," ? act.flowNext(ownEntry, "") : act.flowClose(ownEntry, "", e.key)));
-          return;
+          return true;
         }
-        if (e.key === ":") setError(!act.quotedKey(node.id)); // duplicate key → error ring, stay
-        else if (e.key === "Enter") setError(!commit(true));
-        else if (e.key === "Backspace" || e.key === "ArrowLeft") act.quoteReopen(node.id); // back INSIDE, no commit
-        else if (e.key === "ArrowUp") act.focusSibling(e.currentTarget, -1);
-        else if (e.key === "ArrowDown") act.focusSibling(e.currentTarget, 1);
+        if (e.key === ":") { setError(!act.quotedKey(node.id)); return true; } // duplicate key → ring, stay
+        if (e.key === "Enter") { setError(!commit(true)); return true; }
+        if (e.key === "Backspace" || e.key === "ArrowLeft") { act.quoteReopen(node.id); return true; } // back INSIDE, no commit
+        return false; // arrows/Tab: the gap's universal navigation
       }}
     />
   );
@@ -1127,48 +1151,37 @@ export function FlowCells({ node }: { node: MNode }) {
  *  `]`/`}` puts the caret here, so the token can be finished and left without the caret ever
  *  falling out of the editor. A nested token's `,` / closer act on the token OUTSIDE this one. */
 function FlowAfterCell({ node }: { node: MNode }) {
-  const { act, registerCell } = useYed();
+  const { act } = useYed();
   const outer = useContext(FlowCtx); // set when THIS flow token is itself an element of another
   const outerEntry = useOuterEntryId(node.id);
   const [keyError, setKeyError] = useState(false);
   return (
-    <span
-      ref={(el) => registerCell(node.id + ":flowafter", el)}
-      data-yed-cell={node.id + ":flowafter"}
-      className={"yed-after editable" + (keyError ? " edit-error" : "")}
-      contentEditable
-      suppressContentEditableWarning
-      spellCheck={false}
-      onKeyDown={(e) => {
-        e.preventDefault();
-        if (e.key === "Backspace" || e.key === "ArrowLeft") {
-          // EMPTY FIRST: a token with nothing in it (`[]`) has no cell to step into, and every
-          // other key here is consumed — without this the caret sat past the closer with no way
-          // back, a lock in two keystrokes. Re-open a cell inside the brackets, where it came from.
-          if (node.entries.length === 0) { act.flowReopen(node.id); return; }
-          // …otherwise step back INSIDE, over the closer. The DOM-PREVIOUS cell is the token's last
-          // inner cell whatever it holds; asking for the last ENTRY's cell by id landed on nothing
-          // when that entry was a container (a container has no cell of its own — its cells are the
-          // ones inside it), and the caret stayed past the closer with every key consumed: a lock.
-          // Backspace does NOT join here: at document scale that silently reflowed the whole file
-          // out from under someone who was deleting. The join lives where a text editor puts it —
-          // Backspace at the START of the first element, joining that line onto the opener's.
-          act.focusSibling(e.currentTarget, -1);
-          return;
-        }
-        // the universal escape, as everywhere else in the editor
-        if (e.key === "Tab") { act.focusSibling(e.currentTarget, e.shiftKey ? -1 : 1); return; }
+    <GapCell
+      id={node.id + ":flowafter"}
+      error={keyError}
+      grammar={(e) => {
+        // Backspace on an EMPTY token (`[]`): no cell to step into — re-open one inside the
+        // brackets, where the caret came from. A non-empty token needs no case: Backspace falls to
+        // the universal navigation (previous position = the token's last inner cell, whatever the
+        // entry holds). The JOIN deliberately does NOT live here — deleting never restructures;
+        // it lives at the head of the token's first line.
+        if (e.key === "Backspace" && node.entries.length === 0) { act.flowReopen(node.id); return true; }
+        if (e.key === "Backspace") { act.focusSibling(e.currentTarget as HTMLElement, -1); return true; }
         if (outer && outerEntry) {
-          if (e.key === ",") { act.flowNext(outerEntry, ""); return; }
-          if (e.key === "]" || e.key === "}") { act.flowClose(outerEntry, "", e.key); return; }
+          if (e.key === ",") { act.flowNext(outerEntry, ""); return true; }
+          if (e.key === "]" || e.key === "}") { act.flowClose(outerEntry, "", e.key); return true; }
         }
         // `[12, 13]: 14` — the token becomes this entry's KEY (the `[256, 256]:` overlay shape),
         // and inside a flow MAP too: `{{}: 12}` is a pair whose key is a token. A flow SEQUENCE
-        // has no keys, so there the `:` is not offered (flowKeyed rings).
-        if (e.key === ":" && (!outer || outer.kind === "map")) { setKeyError(!act.flowKeyed(node.id)); return; }
-        if (e.key === "Enter" && outerEntry) { act.enterAfter(outerEntry); return; }
-        if (e.key === "ArrowUp") act.focusSibling(e.currentTarget, -1);
-        else if (e.key === "ArrowDown") act.focusSibling(e.currentTarget, 1);
+        // has no keys, so there the `:` is REFUSED — consumed with the error ring, visibly,
+        // rather than silently swallowed (the old blanket preventDefault) or left to fall into
+        // a cell as text.
+        if (e.key === ":") {
+          setKeyError(outer && outer.kind !== "map" ? true : !act.flowKeyed(node.id));
+          return true;
+        }
+        if (e.key === "Enter" && outerEntry) { act.enterAfter(outerEntry); return true; }
+        return false; // arrows/Tab: the gap's universal navigation
       }}
     />
   );
