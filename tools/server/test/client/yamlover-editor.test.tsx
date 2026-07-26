@@ -2076,3 +2076,111 @@ describe("the spread belongs to the WHOLE flow token", () => {
     expect(sent[0].yamlover).toBe("{b: [1]}"); // ONE line, all the way down
   });
 });
+
+// --- UNWINDING: one Backspace, one level, no hidden state --------------------------------------- //
+// Reported: `[` `{` then Backspace removed the inner `{}`, the NEXT Backspace did NOTHING, and only
+// a third removed `[]`. The wasted press was hidden state — collapsing a structure reset the NODE
+// but left the ENTRY marked `decided`, so the next Backspace matched "undo the marker" (there is no
+// marker on a flow element) and silently did nothing.
+//
+// The invariant these pin: EVERY Backspace on an empty cell removes exactly one level, the caret
+// always lands in a real cell, and a client-only structure never reaches the server.
+describe("Backspace unwinds one level per press", () => {
+  const rowsOf = (c: HTMLElement) => Array.from(c.querySelectorAll(".yed-row")).map((r) => r.textContent);
+  const fresh = async () => {
+    fetchNode.mockResolvedValue({ path: ":n", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    return (await mount(":n")).container;
+  };
+  /** Backspace on whatever cell has the caret, then report the rows. */
+  const back = (c: HTMLElement): (string | null)[] => {
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Backspace" });
+    expect(document.activeElement, "the caret must never fall out of the editor").not.toBe(document.body);
+    return rowsOf(c);
+  };
+  /** Type into the focused cell (the caret follows each projected structure). */
+  const at = (c: HTMLElement, text: string) => type(document.activeElement as HTMLElement, text);
+
+  // one press per level, for every pairing of the two brackets
+  for (const [outer, inner, opened] of [
+    ["[", "{", "[{}]"],
+    ["{", "[", "{[]}"],
+    ["[", "[", "[[]]"],
+    ["{", "{", "{{}}"],
+  ] as const) {
+    it(`\`${outer}\` then \`${inner}\` unwinds in TWO presses`, async () => {
+      const container = await fresh();
+      type(container.querySelector<HTMLElement>(".yed-hole")!, outer);
+      at(container, inner);
+      // (the brackets a token WEARS are derived from its entries — flowIsSeq — so the opened shape
+      // is asserted loosely: what matters here is how many presses undo it)
+      expect(rowsOf(container)[0]).toHaveLength(opened.length);
+      expect(back(container)[0]).toHaveLength(2); // the inner pair is gone, the outer remains
+      expect(back(container)).toEqual([""]);      // …and the second press clears the outer
+      expect((document.activeElement as HTMLElement).className).toContain("editable");
+    });
+  }
+
+  it("three levels take three presses", async () => {
+    const container = await fresh();
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "[");
+    at(container, "{");
+    at(container, "[");
+    expect(rowsOf(container)[0]).toHaveLength(6); // `[`+`[`+`[`+`]`+`]`+`]`, whatever the brackets
+    expect(back(container)[0]).toHaveLength(4);
+    expect(back(container)[0]).toHaveLength(2);
+    expect(back(container)).toEqual([""]);
+  });
+
+  it("a POINTER cell inside a token unwinds in two presses too", async () => {
+    // the pointer/quote/tag cells dismantle through `dismantle`, which had the same hidden state
+    const container = await fresh();
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "[");
+    at(container, "*");
+    expect(back(container)[0]).toHaveLength(2); // the reference cell is gone
+    expect(back(container)).toEqual([""]);      // and so is the token
+  });
+
+  it("a KEYED entry keeps its key when its value collapses", async () => {
+    // the entry decided more than the bracket, so it must NOT be reset — `a: ` survives, and the
+    // press after that undoes the key itself (its text returns to the hole to be edited)
+    const container = await fresh();
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "{");
+    at(container, "a: ");
+    at(container, "{");
+    expect(rowsOf(container)).toEqual(["{a: {}}"]);
+    expect(back(container)).toEqual(["{a: }"]);  // the inner pair only
+    expect(back(container)).toEqual(["{a}"]);    // the key's text returns to the cell
+    type(document.activeElement as HTMLElement, ""); // …the person then deletes that text
+    expect(back(container)).toEqual([""]);       // and the token goes
+  });
+
+  it("a SIBLING is untouched, and the emptied element goes on the next press", async () => {
+    const container = await fresh();
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "[");
+    at(container, "1");
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "," });
+    at(container, "{");
+    expect(rowsOf(container)).toEqual(["[1, {}]"]);
+    expect(back(container)).toEqual(["[1, ]"]); // the inner pair
+    expect(back(container)).toEqual(["[1]"]);   // the now-empty element
+  });
+
+  it("none of this reaches the SERVER — a client-only structure was never written", async () => {
+    const container = await fresh();
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "[");
+    at(container, "{");
+    back(container);
+    back(container);
+    expect(editChunks).not.toHaveBeenCalled();
+  });
+
+  it("and the editor is ALIVE afterwards — the cleared hole still types", async () => {
+    const container = await fresh();
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "[");
+    at(container, "{");
+    back(container);
+    back(container);
+    at(container, "42");
+    expect(rowsOf(container)).toEqual(["42"]);
+  });
+});

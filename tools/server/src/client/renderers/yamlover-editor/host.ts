@@ -148,6 +148,19 @@ function applyHoleAction(root: M.MNode, entryId: string, action: HoleAction, foc
   }
 }
 
+/** Restore the ENTRY that held a just-collapsed structure to what it was before that structure was
+ *  typed. Inside a FLOW token a keyless entry's `decided` flag came ONLY from the bracket / quote /
+ *  pointer that has just gone away, so it goes too: leaving it set cost the next Backspace an "undo
+ *  the marker" that finds no marker on a flow element and does nothing at all — `[` `{` took THREE
+ *  presses to unwind, the middle one silently wasted. In a BLOCK container `- ` is its own separate
+ *  decision and STAYS: undoing a bracket must not also undo the dash the person typed. */
+function undecideFlowOwner(root: M.MNode, nodeId: string): void {
+  const spine = M.findNode(root, nodeId)?.spine;
+  if (!spine) return;
+  const holder = spine.parents[spine.parents.length - 1]?.container;
+  if (holder?.flow && !spine.entry.committed && spine.entry.key === null) spine.entry.decided = false;
+}
+
 /** Everything a projection needs to draw the model and act on it. */
 export interface YedHost {
   /** The model root — null until the fetch lands. */
@@ -665,9 +678,11 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
         node.flow = undefined;
         node.entries = [];
         node.kind = nodeId === r.id ? "container" : "hole"; // the root's hole IS the empty container
+        node.jsonp = undefined;
         node.dirty = false;
         node.prefill = prefill;
         node.rev++;
+        undecideFlowOwner(r, node.id); // the entry goes back with it (see the helper)
         focusReq.current = { key: node.id, at: prefill !== undefined ? "end" : "start" };
         return [];
       });
@@ -1019,7 +1034,9 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
           // caret fell to <body> — `[` then Backspace in a fresh document was a dead end
           container.kind = container === r ? "container" : "hole";
           container.flow = undefined;
+          container.jsonp = undefined;
           container.rev++;
+          undecideFlowOwner(r, container.id); // …and the entry that held it (see the helper)
           focusReq.current = { key: container.id, at: "start" };
           return edits;
         }

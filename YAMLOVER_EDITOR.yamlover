@@ -314,6 +314,7 @@ flow_map_editing: Flow mapping editing
     backspace:
         "the inner cell is empty and it is the only one": *: empty_cell_of_origin
         "otherwise": *: flow_map_editing
+    comment_on_unwinding: ONE PRESS, ONE LEVEL - collapsing a structure returns the ENTRY that held it to what it was before it was typed. Inside a flow token a keyless entry was decided BY the bracket alone, so it goes back to undecided; in a block container the `- ` is its own decision and stays. Leaving the flag set made the next Backspace match "undo the marker" with no marker to undo - a silently wasted keystroke
 
 flow_seq_editing: Flow sequence editing
     description: The `[` and `]` are projected with value cells between them, comma-separated; the cursor sits in the current inner cell
