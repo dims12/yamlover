@@ -1138,7 +1138,7 @@ function concreteOf(s: Store, dataRoot: string, segs: Seg[], row: NodeRow): stri
 // value/schema projections and the relations panel — so nothing has to special-case `~`.
 // --------------------------------------------------------------------------- //
 
-const relKey = (label: string | null, other: string): string => `${label ?? ""} ${other}`;
+const relKey = (label: string | null, other: string): string => `${label ?? ""}\u0000${other}`;
 
 /** A node's DOWNSTREAM entries (it is the natural source), in source order: its containment
  *  children and forward `*` refs (authored here, positioned), then any `~` back-edges that target
