@@ -570,19 +570,15 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
       return true;
     },
     unname(entryId) {
-      // Backspace in an EMPTIED flow key cell: the pair loses its name and becomes a keyless
-      // element — the incomplete pair, drawn and not written (flowComplete gates every write), so
-      // the ladder continues through it instead of jamming on a key nothing could remove. The
-      // caret moves into the pair's value cell, the next thing deleting works on.
+      // Backspace in an EMPTIED key cell: the key goes, the VALUE stays — one press, one level —
+      // and the caret moves into the value cell, the next thing deleting works on. The model
+      // owns the two storage shapes (a flow pair → the incomplete `{12}`; a block `a: v` → the
+      // ordinal `- v`, remove+insert on disk).
       step((r) => {
         const spine = M.findEntry(r, entryId);
         if (!spine || spine.entry.key === null) return [];
-        spine.entry.key = null;
-        spine.entry.quotedKey = undefined;
-        spine.entry.node.rev++;
         focusReq.current = { key: spine.entry.node.id, at: "end" };
-        const token = M.outerFlow(r, spine);
-        return token ? M.flowReshape(path, r, token.id) : [];
+        return M.unnameEntry(path, r, entryId);
       });
     },
     undoDecision(entryId) {

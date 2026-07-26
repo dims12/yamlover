@@ -1012,17 +1012,17 @@ function KeyCell({ entry, token = false }: { entry: MEntry; token?: boolean }) {
       initial={token ? keyToken(entry) : String(entry.key ?? "")}
       rev={entry.node.rev}
       onKeyDown={(e, el) => {
-        // INSIDE A TOKEN the key is one of its cells: the arrows must cross it (a caret that
-        // cannot reach a key cannot rename it). `,` and the closers belong to the KEY's text.
-        if (!flow) return false;
         const intent = interpret({ key: e.key, shift: e.shiftKey }, siteOf(el, "key", flow));
         if (intent?.kind === "undoMarker") {
-          // Backspace in the EMPTIED key: the pair loses its name — `{: 12}` becomes `{12}`,
-          // the incomplete pair (drawn, never written), and deleting can continue
+          // Backspace in an EMPTIED key — flow AND block alike: the key goes, the value stays
+          // (`{: 12}` → `{12}`; `a: {}` → `- {}`), and deleting continues instead of jamming
           e.preventDefault();
           act.unname(entry.id);
           return true;
         }
+        // INSIDE A TOKEN the key is one of its cells: the arrows must cross it (a caret that
+        // cannot reach a key cannot rename it). `,` and the closers belong to the KEY's text.
+        if (!flow) return false;
         if (intent?.kind === "keyCommit") {
           // Enter means here what it means in a value cell — this pair takes its own ROW; the key
           // is committed first, so the spread cannot lose an edit

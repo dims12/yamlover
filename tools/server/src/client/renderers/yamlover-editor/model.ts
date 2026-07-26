@@ -200,6 +200,7 @@ function buildNode(v: unknown, frag: string, comments: CommentMap | undefined, i
   if (mixed) {
     const node: MNode = { ...base, kind: "container", format: mixed.format ?? null, ...(flowStyle ? { flow: (mixed.entries.every((e) => e.key === null) ? "seq" : "map") as "seq" | "map" } : {}), ...(jsonp ? { jsonp: true } : {}) };
     node.entries = mixed.entries.map((e, i) => buildEntry(e.key, e.value, frag + (e.key != null ? `/${e.key}` : `[${i}]`), comments, e.anchor, jsonp));
+    ensureFlowHole(node);
     if (mixed.kind === "omni") {
       // a link self-value (blob-backed omni) stays un-modeled — read-only territory
       node.selfValue = asLink(mixed.value) ? null : mkScalar(mixed.value, bucket);
@@ -210,11 +211,13 @@ function buildNode(v: unknown, frag: string, comments: CommentMap | undefined, i
   if (isObj(v)) {
     const node: MNode = { ...base, kind: "container", ...(flowStyle ? { flow: "map" as const } : {}), ...(jsonp ? { jsonp: true } : {}) }; // an object: keyed by construction
     node.entries = Object.entries(v).map(([k, cv]) => buildEntry(k, cv, `${frag}/${k}`, comments, undefined, jsonp));
+    ensureFlowHole(node);
     return node;
   }
   if (Array.isArray(v)) {
     const node: MNode = { ...base, kind: "container", ...(flowStyle ? { flow: "seq" as const } : {}), ...(jsonp ? { jsonp: true } : {}) };
     node.entries = v.map((cv, i) => buildEntry(null, cv, `${frag}[${i}]`, comments, undefined, jsonp));
+    ensureFlowHole(node);
     return node;
   }
   return { ...base, kind: "scalar", scalar: mkScalar(v, bucket) };
@@ -222,6 +225,17 @@ function buildNode(v: unknown, frag: string, comments: CommentMap | undefined, i
 
 function buildEntry(key: string | null, v: unknown, frag: string, comments: CommentMap | undefined, derivedKey?: boolean, inJson5p = false): MEntry {
   return { id: nid(), key, decided: true, ...(derivedKey ? { derivedKey: true } : {}), node: buildNode(v, frag, comments, inJson5p), committed: true, bucket: bucketAt(comments, frag) };
+}
+
+/** An EMPTY flow container always projects with one uncommitted HOLE inside its brackets — the
+ *  same state typing `{` leaves behind. Without it a `{}` LOADED from disk drew two punct spans
+ *  and a zero-width gap: no cell, no caret, no placeholder — unenterable content, which the laws
+ *  forbid. The hole is client-side only (an undecided entry serializes as nothing), so the file
+ *  keeps `{}` until something real is typed. */
+function ensureFlowHole(node: MNode): void {
+  if (node.kind === "container" && node.flow && node.entries.length === 0) {
+    node.entries.push(mkHoleEntry());
+  }
 }
 
 /** Build the editor model from an unlimited-depth `/api/json` payload. */
@@ -772,6 +786,34 @@ export function mkHoleEntry(): MEntry {
 
 /** Remove an entry. Committed → a `remove` op (by key, else server index); a client-side hole
  *  vanishes silently. */
+/** UN-NAME an entry — Backspace in its EMPTIED key cell (dispatch `undoMarker` at a key): the
+ *  key goes, the VALUE stays, and deleting can continue (one press, one level). In a flow token
+ *  the pair becomes the incomplete `{12}` (drawn, unwritten — flowComplete gates it); in a BLOCK
+ *  container `a: {}` becomes the ordinal `- {}`, on disk too: the keyed entry is removed and the
+ *  value re-inserted at its own index. */
+export function unnameEntry(rootPath: string, root: MNode, entryId: string): Edit[] {
+  const spine = findEntry(root, entryId);
+  if (!spine || spine.entry.key === null || spine.entry.derivedKey) return [];
+  const { container, index } = spine.parents[spine.parents.length - 1];
+  const persisted = spine.entry.committed && allCommitted(spine);
+  const oldPath = persisted ? pathOfSpine(rootPath, spine) : null;
+  // the entry's server index BEFORE mutation (committed entries only — the op address space)
+  const serverIdx = container.entries.slice(0, index).filter((e) => e.committed).length;
+  spine.entry.key = null;
+  spine.entry.quotedKey = undefined;
+  spine.entry.node.rev++;
+  const flow = persisted ? flowAncestor(rootPath, root, spine) : null;
+  if (flow) return flowComplete(flow.node) ? [{ path: flow.path, op: "emplace", yamlover: serializeMNode(flow.node) }] : [];
+  if (oldPath === null) return [];
+  const parentPath = pathOfSpine(rootPath, { entry: spine.entry, parents: spine.parents.slice(0, -1) });
+  const src = serializeMNode(spine.entry.node) || '""';
+  const base = parentPath === rootPath ? rootPath : parentPath;
+  return [
+    { path: oldPath, op: "remove" },
+    { path: base + `[` + serverIdx + `]`, op: "insert", yamlover: src },
+  ];
+}
+
 export function removeEntry(rootPath: string, root: MNode, entryId: string): Edit[] {
   const spine = findEntry(root, entryId);
   if (!spine) return [];
