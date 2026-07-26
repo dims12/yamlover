@@ -82,6 +82,17 @@ test('a flow token may SPAN LINES (K&R) — the value is the same graph', () => 
   assert.deepEqual(toPlain(d.root), { a: { x: 1, y: 2 }, b: [1, 2], c: 3 });
 });
 
+test('a flow map KEY may be a flow token — `{{}: 12}`, `{[1, 2]: 3}`', () => {
+  // the flow twin of the block surface's `[256, 256]: *…` (splitKV scans a leading token whole).
+  // A container key is a STRING key spelled that way, exactly as it is in block context.
+  const d = parseYamlover('a: {{}: 12, [1, 2]: 3, b: 4}\n');
+  const m = entry(asMap(d.root), 'a').value as Mapping;
+  assert.deepEqual(m.entries.map((e) => e.key), ['{}', '[1, 2]', 'b']);
+  assert.deepEqual(m.entries.map((e) => (e.value as Scalar).value), [12, 3, 4]);
+  // …and an unterminated one says so rather than mis-reading the pair
+  assert.throws(() => parseYamlover('a: {[1, 2: 3}\n'), /flow/);
+});
+
 test('a multi-line flow token refuses a comment and an unterminated bracket', () => {
   // v1: the flow reader collects no comments, and dropping one silently would lose content
   assert.throws(() => parseYamlover('a: [\n  1, # no\n  2\n]\n'), /comment inside a multi-line flow token/);

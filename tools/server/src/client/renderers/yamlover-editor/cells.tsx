@@ -1127,9 +1127,10 @@ function FlowAfterCell({ node }: { node: MNode }) {
           if (e.key === ",") { act.flowNext(outerEntry, ""); return; }
           if (e.key === "]" || e.key === "}") { act.flowClose(outerEntry, "", e.key); return; }
         }
-        // `[12, 13]: 14` — the token becomes this entry's KEY (the `[256, 256]:` overlay shape).
-        // Only outside another flow token: a flow map's own keys are typed in its cells.
-        if (e.key === ":" && !outer) { setKeyError(!act.flowKeyed(node.id)); return; }
+        // `[12, 13]: 14` — the token becomes this entry's KEY (the `[256, 256]:` overlay shape),
+        // and inside a flow MAP too: `{{}: 12}` is a pair whose key is a token. A flow SEQUENCE
+        // has no keys, so there the `:` is not offered (flowKeyed rings).
+        if (e.key === ":" && (!outer || outer.kind === "map")) { setKeyError(!act.flowKeyed(node.id)); return; }
         if (e.key === "Enter" && outerEntry) { act.enterAfter(outerEntry); return; }
         if (e.key === "ArrowUp") act.focusSibling(e.currentTarget, -1);
         else if (e.key === "ArrowDown") act.focusSibling(e.currentTarget, 1);

@@ -2184,3 +2184,81 @@ describe("Backspace unwinds one level per press", () => {
     expect(rowsOf(container)).toEqual(["42"]);
   });
 });
+
+// --- THE BRACKET YOU TYPED IS THE BRACKET YOU GET ---------------------------------------------- //
+// `{}` and `[]` are DIFFERENT VALUES, so the projection must not re-read one as the other. It used
+// to: the entries decided the brackets, so `{` `{` drew `[{}]` and `{12` committed as the list
+// `[12]` — both of them rewriting what the person typed while a key was still on its way.
+// A map's first key may be a TOKEN (`{{}: 12}`), which is exactly the continuation that was lost.
+describe("flow brackets are AUTHORED, not inferred", () => {
+  const rowsOf = (c: HTMLElement) => Array.from(c.querySelectorAll(".yed-row")).map((r) => r.textContent);
+  const fresh = async () => {
+    fetchNode.mockResolvedValue({ path: ":n", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    return (await mount(":n")).container;
+  };
+  const at = (c: HTMLElement, text: string) => type(document.activeElement as HTMLElement, text);
+
+  it("`{` stays a brace when its first element has no key YET", async () => {
+    const container = await fresh();
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "{");
+    at(container, "{");
+    expect(rowsOf(container)).toEqual(["{{}}"]); // NOT `[{}]`
+  });
+
+  it("`[` stays a bracket, and an empty one is not a map", async () => {
+    const container = await fresh();
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "[");
+    at(container, "[");
+    expect(rowsOf(container)).toEqual(["[[]]"]);
+  });
+
+  it("a pair in progress is DRAWN but never WRITTEN", async () => {
+    // `{12}` is not yamlover — but `{12: 3}` is one keystroke away, so the editor shows it and
+    // simply says nothing to the server until the key lands
+    const container = await fresh();
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "{");
+    at(container, "12");
+    fireEvent.blur(document.activeElement as HTMLElement);
+    expect(rowsOf(container)).toEqual(["{12}"]);
+    expect(editChunks).not.toHaveBeenCalled();
+  });
+
+  it("…and lands the whole pair once the key arrives", async () => {
+    const container = await fresh();
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "{");
+    at(container, "12: ");   // the key decision moves the caret to the VALUE cell…
+    at(container, "3");      // …which is where the rest is typed
+    fireEvent.blur(document.activeElement as HTMLElement);
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n", op: "emplace", yamlover: "{12: 3}" }]), { timeout: 2000 });
+  });
+
+  it("a KEYED entry still forces the map brackets — `[k: v]` is not yamlover", async () => {
+    // the one override, and it is the file's rule rather than a preference
+    const container = await fresh();
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "[");
+    at(container, "a: ");
+    at(container, "1");
+    expect(rowsOf(container)).toEqual(["{a: 1}"]);
+  });
+
+  it("a TOKEN can be a flow map's key — `{` `{` `}` `:` `12`", async () => {
+    // the continuation the re-bracketing used to make unreachable; the parser reads it as the
+    // string key `{}` (the flow twin of `[256, 256]: …`)
+    const container = await fresh();
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "{");
+    at(container, "{");
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "}" });   // close the inner one
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: ":" });   // …and make it the key
+    at(container, "12");
+    expect(rowsOf(container)).toEqual(["{{}: 12}"]);
+  });
+
+  it("but a flow SEQUENCE refuses a token key — it has no keys at all", async () => {
+    const container = await fresh();
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "[");
+    at(container, "[");
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "]" });
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: ":" });
+    expect(rowsOf(container)).toEqual(["[[]]"]); // unchanged, and the cell rings
+  });
+});

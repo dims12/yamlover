@@ -636,9 +636,23 @@ class Flow {
       if (this.i >= this.s.length) this.fail('unterminated flow map');
       let back = false;
       if (this.s[this.i] === '~') { back = true; this.i++; }
-      const key = this.s[this.i] === "'" || this.s[this.i] === '"'
-        ? (this.quoted().value as string)
-        : unquoteKey(this.readPlain(':,}\r\n'));
+      // A FLOW TOKEN may be the KEY — `{[1, 2]: 3}`, `{{}: 12}` — the flow-context twin of the
+      // block surface's `[256, 256]: *…` (splitKV scans a leading token whole for exactly this).
+      // The key is the token's VERBATIM TEXT, as it is there: a container key is a string key
+      // spelled that way, not a second kind of key. Without this the plain reader stopped at the
+      // nested closer and the pair failed with `expected ":" in flow map`.
+      const kc = this.s[this.i];
+      let key: string;
+      if (kc === "'" || kc === '"') {
+        key = this.quoted().value as string;
+      } else if (kc === '[' || kc === '{') {
+        const end = flowTokenEnd(this.s.slice(this.i));
+        if (end < 0) this.fail('unterminated flow token in a key');
+        key = this.s.slice(this.i, this.i + end);
+        this.i += end;
+      } else {
+        key = unquoteKey(this.readPlain(':,}\r\n'));
+      }
       this.ws();
       if (this.s[this.i] !== ':') this.fail('expected ":" in flow map');
       this.i++;

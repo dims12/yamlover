@@ -812,7 +812,11 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
           return wasCommitted ? [{ path, op: "emplace", yamlover: '""' }] : [];
         }
         const { container } = spine.parents[spine.parents.length - 1];
-        if (container.flow) { ok = false; return []; } // no keys inside a flow token
+        // a flow SEQUENCE has no keys — but a flow MAP does, and one of them may BE a token:
+        // `{{}: 12}` / `{[1, 2]: 3}`, the flow twin of the block surface's `[256, 256]: …`
+        // (the parser scans a `[`/`{` key whole, Flow.map). The node collapses to a value hole
+        // beside its new key exactly as in a block container.
+        if (container.flow && container.flow !== "map") { ok = false; return []; }
         // A COMMITTED element already stands on disk as `- [12, 13]`; turning it into a key is a
         // different line shape, which this surface cannot express as one surgical op. Refuse rather
         // than emit something incoherent — the ring says "not here", and the token stays.

@@ -340,12 +340,25 @@ export function barePointer(raw: string): string | null {
  *  once wrote `{12, 13}` for a wire-loaded sequence, which is not yamlover at all. The tag decides
  *  only the EMPTY case, where the entries cannot speak (`{}` vs `[]`). */
 export function flowIsSeq(node: MNode): boolean {
-  // only DECIDED entries can speak: a freshly opened `{` carries one undecided hole, which is
-  // keyless-so-far and would otherwise read as a sequence. Until something is decided the authored
-  // tag is the only evidence there is.
-  const decided = node.entries.filter((e) => e.decided);
-  if (decided.length === 0) return node.flow !== "map";
-  return decided.every((e) => e.key === null);
+  // THE AUTHORED BRACKET DECIDES. `{}` and `[]` are DIFFERENT VALUES — an empty mapping is not an
+  // empty list — and a map's first key may still be coming: `{` then `{` is on its way to
+  // `{{}: 12}`, a flow token used as a KEY (the flow twin of the block surface's `[256, 256]: …`).
+  // Re-reading it as a sequence rewrote what the person typed, and `{12` — on its way to
+  // `{12: 3}` — was committed as the list `[12]`.
+  //
+  // The ONE override is the shape the file cannot hold: `[k: v]` does not parse, so a decided
+  // KEYED entry wears the map's brackets whatever was typed. The reverse never applies — a keyless
+  // entry in a `{` is an INCOMPLETE map, which is drawn but not written ({@link valueToken}).
+  if (node.entries.some((e) => e.decided && e.key !== null)) return false;
+  return node.flow === "seq";
+}
+
+/** Is this flow container WRITABLE yet? A map whose decided entry has no key (`{12`, `{{}`) is a
+ *  pair in progress: `{12}` is not yamlover, but the key may be one keystroke away. The editor
+ *  draws it and simply does not write it — the same courtesy an untouched hole already gets. */
+export function flowComplete(node: MNode): boolean {
+  if (!node.flow || flowIsSeq(node)) return true;
+  return !node.entries.some((e) => e.decided && e.key === null);
 }
 
 /** Can this container still be WRITTEN as a flow token? THE CLIENT MIRROR of the serializer's
@@ -408,6 +421,7 @@ function valueToken(node: MNode): string | null {
   // THE CHOKE POINT: a flow container that no longer fits serializes as block, so a missed
   // demotion call site can never emit invalid source — it degrades instead
   if (node.kind === "container" && node.flow && flowFits(node)) {
+    if (!flowComplete(node)) return null; // a pair in progress — drawn, not written
     const seq = flowIsSeq(node);
     const items = node.entries
       // an UNDECIDED entry is written only when it came from the file: a FRESH hole is the cell the
@@ -531,7 +545,10 @@ export function outerFlow(root: MNode, spine: Spine): MNode | null {
 /** The whole-token emplace an edit inside a flow container must emit instead of its own op. */
 function flowEmplace(rootPath: string, root: MNode, spine: Spine): Edit[] | null {
   const fa = flowAncestor(rootPath, root, spine);
-  return fa ? [{ path: fa.path, op: "emplace", yamlover: serializeMNode(fa.node) }] : null;
+  if (!fa) return null; // not inside a flow token at all — the caller emits its own op
+  // an INCOMPLETE map (`{12`, a pair still missing its key) is drawn but NOT written: NO ops, so
+  // the file keeps what it had until the key arrives. `[]` still means "handled", unlike null.
+  return flowComplete(fa.node) ? [{ path: fa.path, op: "emplace", yamlover: serializeMNode(fa.node) }] : [];
 }
 
 /** The whole-token emplace for the container `nodeId` — what a SHAPE change to a flow token emits
@@ -542,6 +559,7 @@ export function flowReshape(rootPath: string, root: MNode, nodeId: string): Edit
   const found = findNode(root, nodeId);
   if (!found) return [];
   const { node, spine } = found;
+  if (!flowComplete(node)) return []; // a pair in progress is not written (see flowEmplace)
   if (!spine) return node.flow ? [{ path: rootPath, op: "emplace", yamlover: serializeMNode(node) }] : [];
   if (!allCommitted(spine)) return [];
   // `flowEmplace` finds the token that ENCLOSES an edit; a reshape of a token that is not itself
@@ -589,6 +607,9 @@ export function commitSpine(rootPath: string, root: MNode, entryId: string): Edi
     // the OUTERMOST flow container, not this one: a nested `[[1, 2], [3]]` is still ONE token, so
     // the inner container has no address of its own either — `flowAncestor` walks all the way out
     const fa = flowAncestor(rootPath, root, spine) ?? { node: container, path: parentPath };
+    // …and an INCOMPLETE map (a pair still missing its key) is drawn but not written: nothing is
+    // marked committed either, so the commit simply happens later, when the key arrives
+    if (!flowComplete(fa.node)) return [];
     for (const e of fa.node.entries) if (e.decided) markCommitted(e);
     for (const e of container.entries) if (e.decided) markCommitted(e);
     return [{ path: fa.path, op: "emplace", yamlover: serializeMNode(fa.node) }];

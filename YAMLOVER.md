@@ -23,7 +23,8 @@ yamlover keeps the YAML surface you know:
 | Feature | Example |
 |---|---|
 | Block mappings & sequences | `key: value` / `- item` |
-| Flow style | `{a: 1, b: 2}`, `[1, 2, 3]` |
+| Flow style (one line, or spanning them — §5) | `{a: 1, b: 2}`, `[1, 2, 3]` |
+| A flow token as a KEY | `{[1, 2]: 3}`, and `[256, 256]: *thumb` in block — the key is that text |
 | Comments | `# note` |
 | Scalars (plain/quoted/folded/literal) | `a`, `'a'`, `"a"`, `>`, `\|` |
 | `null` spellings, incl. `~` **in value position** | `key: ~`  → null |

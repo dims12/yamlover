@@ -1,0 +1,1 @@
+an empty map and an empty list stay distinct — `{}` is never written as `[]`
