@@ -316,7 +316,7 @@ flow_map_editing: Flow mapping editing
         "otherwise": *: flow_map_editing
 
 flow_seq_editing: Flow sequence editing
-    description: The `[` and `]` are projected with value cells between them, comma-separated; the cursor sits in the current inner cell. A sequence has NO keys, so a `:` past a closer inside one is refused (in a flow MAP it makes the token that entry's key)
+    description: The `[` and `]` are projected with value cells between them, comma-separated; the cursor sits in the current inner cell. A sequence has NO keys, so a `:` past a closer inside one is refused (in a flow MAP it makes the token that entry's key). EVERY CELL IS WALKABLE - a token is one line of several cells, so the left/right arrows CROSS them at a cell edge, including into and out of a quoted cell (there only the arrows are grammar; `,` and the closers are characters of the string) and into the KEY cells, which are editable like any other. A token opened INSIDE a spread one is spread too, since json5p expands everything under the switch
     alphanumeric: *: unquoted_scalar_appending
     close_bracket: *: scalar_committed
     comma: *: flow_seq_editing

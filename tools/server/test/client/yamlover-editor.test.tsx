@@ -2262,3 +2262,70 @@ describe("flow brackets are AUTHORED, not inferred", () => {
     expect(rowsOf(container)).toEqual(["[[]]"]); // unchanged, and the cell rings
   });
 });
+
+// --- WALKING a flow token: every cell is reachable, and the keys are cells ---------------------- //
+// Reported: inside `{"name": "Eurasia", …}` the caret could not leave the quoted value — not right
+// past it, and not back to the `name` key to rename it or to sit before the pair. Two causes: a
+// quoted cell handed NOTHING to the flow grammar (so the arrows died there), and a key inside a
+// token was a static span rather than a cell (so there was nothing to reach).
+describe("a flow token is walkable end to end", () => {
+  const mountWith = async (src: string) => {
+    fetchNode.mockResolvedValue({
+      path: ":n", type: "object", concrete: "yamlover", title: null, description: null,
+      value: { a: { name: "Eurasia", m: 2 } },
+      comments: { "/a": { repr: "yaml/flow" }, "/a/name": { raw: '"Eurasia"' } },
+    });
+    void src;
+    return (await mount(":n")).container;
+  };
+  const cellsOf = (c: HTMLElement) => Array.from(c.querySelectorAll<HTMLElement>("[data-yed-cell]"));
+  const caretAt = (el: HTMLElement, where: "start" | "end") => {
+    el.focus();
+    const r = document.createRange(); r.selectNodeContents(el); r.collapse(where === "start");
+    const s = window.getSelection()!; s.removeAllRanges(); s.addRange(r);
+  };
+
+  it("the KEY inside a token is a cell, so the arrows reach it from the value", async () => {
+    const container = await mountWith("");
+    const cells = cellsOf(container);
+    expect(cells.map((c) => c.textContent)).toEqual(["a", "name", "Eurasia", "m", "2", ""]);
+    const value = cells.find((c) => c.textContent === "Eurasia")!;
+    caretAt(value, "start");
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowLeft" });
+    expect((document.activeElement as HTMLElement).textContent).toBe("name"); // its own key
+    caretAt(value, "end");
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowRight" });
+    expect((document.activeElement as HTMLElement).textContent).toBe("m");    // the next key
+  });
+
+  it("renaming a key inside a token re-emplaces the WHOLE token", async () => {
+    // there is no interior address to rename at — `rekeyNode` would address a path the server
+    // refuses, so the pair changes in the model and the token is written whole
+    const container = await mountWith("");
+    const key = cellsOf(container).find((c) => c.textContent === "name")!;
+    type(key, "title");
+    fireEvent.blur(key);
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith(
+      [{ path: ":n:a", op: "emplace", yamlover: '{title: "Eurasia", m: 2}' }]), { timeout: 2000 });
+  });
+
+  it("a QUOTED cell keeps `,` and the closers as TEXT — only the arrows are grammar", async () => {
+    const container = await mountWith("");
+    const value = cellsOf(container).find((c) => c.textContent === "Eurasia")!;
+    caretAt(value, "end");
+    fireEvent.keyDown(value, { key: "," });   // a comma belongs to the string being typed
+    expect(cellsOf(container).map((c) => c.textContent)).toEqual(["a", "name", "Eurasia", "m", "2", ""]);
+  });
+
+  it("a token opened INSIDE a spread one is spread too", async () => {
+    // json5p expands everything under the switch, so an inline inner token would show a shape the
+    // file does not have — and Enter in it looked dead, the whole token being spread already
+    fetchNode.mockResolvedValue({ path: ":n", type: "object", concrete: "yamlover", title: null, description: null, value: {} });
+    const { container } = await mount(":n");
+    type(container.querySelector<HTMLElement>(".yed-hole")!, "[");
+    fireEvent.keyDown(container.querySelector<HTMLElement>(".yed-hole")!, { key: "Enter" }); // spread
+    type(document.activeElement as HTMLElement, "{");                                        // an inner token
+    const rows = Array.from(container.querySelectorAll(".yed-row")).map((r) => r.textContent);
+    expect(rows).toEqual(["[", "{", "", "}", "]"]); // rows, not `{}` inline
+  });
+});

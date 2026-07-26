@@ -116,6 +116,10 @@ function applyHoleAction(root: M.MNode, entryId: string, action: HoleAction, foc
       entry.decided = true;
       node.kind = "container";
       node.flow = action.kind === "flowSeq" ? "seq" : "map";
+      // a token opened INSIDE a spread one is spread too: the switch is a LANGUAGE change and
+      // json5p expands everything under it, so drawing this one inline would show a shape the file
+      // does not have — and Enter in it would look dead, since the whole token is already spread
+      if (container.jsonp) node.jsonp = true;
       node.rev++;
       const inner = M.insertHoleAt(root, node.id, 0);
       if (inner) focus(inner.node.id, "start");
@@ -542,6 +546,10 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
       if (container.entries.some((o) => o !== spine.entry && o.decided && o.key === trimmed)) return false; // dup key
       const oldPath = M.pathOfSpine(path, spine); // the node's CURRENT server path (its OLD key)
       const nodeId = spine.entry.node.id;
+      // INSIDE A FLOW TOKEN there is no interior address to rename at: the pair lives in one source
+      // token, so the key changes in the model and the WHOLE token re-emplaces — the same rule
+      // every other edit inside one follows (`rekeyNode` would address a path the server refuses).
+      const token = M.outerFlow(r, spine);
       // optimistic rename — the caret stays in the key cell; the rekey persists via its OWN
       // endpoint (a dir-member move or an inline key-token rewrite), NOT an /api/edit op
       step((rr) => {
@@ -552,11 +560,11 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
           sp.entry.node.rev++;
         }
         focusReq.current = { key: nodeId + ":key", at: "end" };
-        return [];
+        return token ? M.flowReshape(path, rr, token.id) : [];
       });
       // sequence AFTER any pending body edits (so the entry exists on disk), then rename key/dir.
       // A rare server rejection (a race with an external edit) is reconciled by the unlock refetch.
-      void flushRef.current().then(() => rekeyNode(oldPath, trimmed)).catch(() => {});
+      if (!token) void flushRef.current().then(() => rekeyNode(oldPath, trimmed)).catch(() => {});
       return true;
     },
     undoDecision(entryId) {

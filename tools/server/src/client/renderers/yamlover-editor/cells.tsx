@@ -12,7 +12,7 @@ import { fmtDerivedAnchor, type Link } from "../../render";
 import { caretAtEnd, caretAtStart, caretOnFirstLine, caretOnLastLine } from "../caret";
 import { flowIsSeq, keyToken, type MEntry, type MNode } from "./model";
 import type { HoleAction } from "./keys";
-import { classifyHoleInput, keyedEditParts, normalizeSpaces } from "./keys";
+import { classifyHoleInput, keyedEditParts, normalizeSpaces, unquoteSource } from "./keys";
 import { QueryCells, useQueryCellHost } from "../../query-cells";
 import { treeCandidateProvider } from "../../query-complete";
 import { pointerCells, spellCells, spellPointer } from "../../pointer-spell";
@@ -298,12 +298,18 @@ function flowKeys(
   entryId: string,
   flow: { kind: "map" | "seq"; nodeId: string },
   act: YedActions,
+  /** the cell is the INNER TEXT of a quoted scalar: `,` `]` `}` and Enter are characters of the
+   *  string, not grammar — but ARROWS are neither, and a caret that cannot leave a quoted cell is
+   *  stuck in it (the key beside it becomes unreachable, and so does the spot before the pair). */
+  textual = false,
 ): boolean {
   const text = normalizeSpaces(el.textContent ?? "");
   const ring = (ok: boolean) => { if (!ok) el.classList.add("edit-error"); else el.classList.remove("edit-error"); };
-  if (e.key === ",") { e.preventDefault(); ring(act.flowNext(entryId, text)); return true; }
-  if (e.key === "]" || e.key === "}") { e.preventDefault(); ring(act.flowClose(entryId, text, e.key)); return true; }
-  if (e.key === "Enter") {
+  if (!textual) {
+    if (e.key === ",") { e.preventDefault(); ring(act.flowNext(entryId, text)); return true; }
+    if (e.key === "]" || e.key === "}") { e.preventDefault(); ring(act.flowClose(entryId, text, e.key)); return true; }
+  }
+  if (e.key === "Enter" && !textual) {
     // A NEWLINE inside a flow token means what it looks like: this element goes on its own ROW, so
     // the token spreads to K&R. ENTER NEVER CLOSES — the closer does. Closing on an empty cell put
     // the caret past `]` of a perfectly legal `[12]`, where nothing can be typed: a legal construct
@@ -333,7 +339,7 @@ export function ScalarCell({ node, entryId }: { node: MNode; entryId: string | n
    *  characters of the string until the closing quote is typed. Only a bare TOKEN cell hands its
    *  structural keys to the flow grammar. */
   const structuralKeys = (e: React.KeyboardEvent, el: HTMLElement, quoted = false): boolean => {
-    if (flow && entryId && !quoted && flowKeys(e, el, entryId, flow, act)) return true;
+    if (flow && entryId && flowKeys(e, el, entryId, flow, act, quoted)) return true;
     if (e.key === "Tab" && entryId) { e.preventDefault(); if (e.shiftKey) act.dedent(entryId); else act.indent(entryId); return true; }
     if (e.key === "Backspace" && entryId && (el.textContent ?? "") === "") { e.preventDefault(); act.removeEmpty(entryId); return true; }
     if (e.key === "Backspace" && (el.textContent ?? "") !== "" && caretAtStart(el)) { e.preventDefault(); act.focusSibling(el, -1); return true; }
@@ -920,15 +926,34 @@ function NodeHead({ node, entry, chainFirst }: { node: MNode; entry: MEntry | nu
  *  keys). Commit (Enter / blur) routes through {@link YedActions.rekey}: a directory-backed member
  *  is renamed on disk, an inline keyed entry has its key token rewritten; a duplicate rings the
  *  error. The cell edits the RAW key text — quoting is re-derived on commit. */
-function KeyCell({ entry }: { entry: MEntry }) {
+function KeyCell({ entry, token = false }: { entry: MEntry; token?: boolean }) {
   const { act } = useYed();
+  const flow = useContext(FlowCtx);
+  // `token`: show the key as it is WRITTEN — a flow token reads as source, so an authored `"abc"`
+  // keeps its quotes on screen. A block row edits the bare key instead and re-derives the quoting
+  // on commit. Either way the commit hands `rekey` the RAW key.
+  const commit = (text: string) => act.rekey(entry.id, token ? (unquoteSource(text.trim())?.inner ?? text) : text);
   return (
     <EditableCell
       cellKey={entry.node.id + ":key"}
       className="k"
-      initial={String(entry.key ?? "")}
+      initial={token ? keyToken(entry) : String(entry.key ?? "")}
       rev={entry.node.rev}
-      onCommit={(text) => act.rekey(entry.id, text)}
+      onKeyDown={(e, el) => {
+        // INSIDE A TOKEN the key is one of its cells: the arrows must cross it (a caret that cannot
+        // reach a key cannot rename it), and Enter means here what it means in a value cell — this
+        // pair goes on its own ROW. The key is committed first, so the spread cannot lose an edit.
+        if (!flow) return false;
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit(normalizeSpaces(el.textContent ?? ""));
+          act.flowSpread(entry.id);
+          return true;
+        }
+        // `textual`: `,` and the closers belong to the KEY's text, not to the grammar
+        return flowKeys(e, el, entry.id, flow, act, /*textual*/ true);
+      }}
+      onCommit={commit}
     />
   );
 }
@@ -1048,7 +1073,7 @@ function KrEntryRows({ entry, last }: { entry: MEntry; last: boolean }) {
   return (
     <>
       <div className="yed-row">
-        {entry.key !== null && <><span className="k">{keyToken(entry)}</span><span className="punct">{": "}</span></>}
+        {entry.key !== null && <><KeyCell entry={entry} token /><span className="punct">{": "}</span></>}
         <NodeHead node={n} entry={entry} chainFirst={false} />
         {!nested && !last && <span className="punct">{","}</span>}
       </div>
@@ -1074,7 +1099,9 @@ export function FlowCells({ node }: { node: MNode }) {
       {node.entries.map((e, i) => (
         <Fragment key={e.id}>
           {i > 0 && <span className="punct">{", "}</span>}
-          {e.key !== null && <><span className="k">{keyToken(e)}</span><span className="punct">{": "}</span></>}
+          {/* a real KEY CELL, as in a block row: the caret must be able to reach a key and rename
+              it, and a static span made every key inside a token unreachable and read-only */}
+          {e.key !== null && <><KeyCell entry={e} token /><span className="punct">{": "}</span></>}
           <NodeHead node={e.node} entry={e} chainFirst={false} />
         </Fragment>
       ))}
