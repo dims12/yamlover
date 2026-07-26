@@ -48,7 +48,7 @@ describe("unwind × contexts", () => {
 
   // THE REPORTED SCENARIO: a finished two-element document, deletion started from a GAP near the
   // end. BROKEN TODAY — the ladder reached `[{key: 12}]` and jammed. Stage C/D delist.
-  it.fails("the reported ladder: [{key: 12}, {key: 13}] deleted from the pre-last gap", async () => {
+  it("the reported ladder: [{key: 12}, {key: 13}] deleted from the pre-last gap", async () => {
     const kit = await mountKit(fetchNode);
     kit.run("[{{key: 12}, {{key: 13}]");
     // the caret sits past the outer `]`; the user clicked into the PRE-LAST gap (after `13`'s `}`)
@@ -58,7 +58,7 @@ describe("unwind × contexts", () => {
   });
 
   // and the same document unwound from where typing LEFT the caret — no clicking at all
-  it.fails("the finished document unwinds from the caret's own resting place", async () => {
+  it("the finished document unwinds from the caret's own resting place", async () => {
     const kit = await mountKit(fetchNode);
     kit.run("[{{key: 12}, {{key: 13}]");
     unwindToEmpty(kit);

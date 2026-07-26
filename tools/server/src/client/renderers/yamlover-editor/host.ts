@@ -569,6 +569,22 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
       if (!token) void flushRef.current().then(() => rekeyNode(oldPath, trimmed)).catch(() => {});
       return true;
     },
+    unname(entryId) {
+      // Backspace in an EMPTIED flow key cell: the pair loses its name and becomes a keyless
+      // element — the incomplete pair, drawn and not written (flowComplete gates every write), so
+      // the ladder continues through it instead of jamming on a key nothing could remove. The
+      // caret moves into the pair's value cell, the next thing deleting works on.
+      step((r) => {
+        const spine = M.findEntry(r, entryId);
+        if (!spine || spine.entry.key === null) return [];
+        spine.entry.key = null;
+        spine.entry.quotedKey = undefined;
+        spine.entry.node.rev++;
+        focusReq.current = { key: spine.entry.node.id, at: "end" };
+        const token = M.outerFlow(r, spine);
+        return token ? M.flowReshape(path, r, token.id) : [];
+      });
+    },
     undoDecision(entryId) {
       // Backspace in an EMPTY value hole UNDOES the last structural token (colon / dash) of an
       // uncommitted entry — never the whole entry

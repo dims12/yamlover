@@ -13,6 +13,7 @@ import { caretAtEnd, caretAtStart, caretOnFirstLine, caretOnLastLine } from "../
 import { flowIsSeq, keyToken, type MEntry, type MNode } from "./model";
 import type { HoleAction } from "./keys";
 import { classifyHoleInput, keyedEditParts, normalizeSpaces, unquoteSource } from "./keys";
+import { interpret, type Intent, type Site } from "./dispatch";
 import { QueryCells, useQueryCellHost } from "../../query-cells";
 import { treeCandidateProvider } from "../../query-complete";
 import { pointerCells, spellCells, spellPointer } from "../../pointer-spell";
@@ -49,6 +50,9 @@ export interface YedActions {
    *  on disk (inbound pointers rewritten), an inline keyed entry has its key token rewritten.
    *  False = rejected (empty/padded, or a duplicate key in the node — keys are unique). */
   rekey(entryId: string, newKey: string): boolean;
+  /** UN-NAME a flow pair (Backspace in its emptied key cell): the entry becomes keyless — an
+   *  incomplete pair, drawn and not written — so deleting can continue through it. */
+  unname(entryId: string): void;
   /** Backspace in an EMPTY value hole: UNDO the last structural token (colon/dash) of an
    *  uncommitted entry — the quoted key returns closed, a plain key's text returns to the hole. */
   undoDecision(entryId: string): void;
@@ -293,49 +297,70 @@ function EditableCell({ cellKey, className, initial, rev, placeholder, force = f
  *   Tab      — moves between cells; indent/dedent are meaningless inside one line, and the old
  *              preventDefault-then-nop left the caret sitting still
  */
+/** The SITE a cell keydown happens at — everything `interpret` may branch on, read once. */
+function siteOf(el: HTMLElement, cell: Site["cell"], flow: { kind: "map" | "seq" } | null, entry?: Pick<MEntry, "decided" | "committed"> | null): Site {
+  const text = normalizeSpaces(el.textContent ?? "");
+  return {
+    cell,
+    container: flow ? (flow.kind === "seq" ? "flowSeq" : "flowMap") : "block",
+    textEmpty: text.trim() === "",
+    caretAtStart: caretAtStart(el),
+    caretAtEnd: caretAtEnd(el),
+    entryDecided: entry?.decided ?? true,
+    entryCommitted: entry?.committed ?? false,
+    caretFirstLine: caretOnFirstLine(el),
+    caretLastLine: caretOnLastLine(el),
+  };
+}
+
+/** Apply an interpreted intent through the host actions — the ONE implementation per intent for
+ *  every cell inside a flow token (holes, tokens, quoted inners, keys). Returns true when the
+ *  intent was consumed; `ring` paints the error class on a refused edit. */
+function runFlowIntent(
+  intent: Intent,
+  e: React.KeyboardEvent,
+  el: HTMLElement,
+  entryId: string,
+  flow: { kind: "map" | "seq"; nodeId: string },
+  act: YedActions,
+): boolean {
+  const text = normalizeSpaces(el.textContent ?? "");
+  const ring = (ok: boolean) => { if (!ok) el.classList.add("edit-error"); else el.classList.remove("edit-error"); };
+  switch (intent.kind) {
+    case "nextElement": e.preventDefault(); ring(act.flowNext(entryId, text, intent.spread)); return true;
+    case "closeToken": e.preventDefault(); ring(act.flowClose(entryId, text, intent.closer)); return true;
+    case "refuse": e.preventDefault(); ring(false); return true;
+    case "spreadOrClose":
+      // ENTER NEVER CLOSES a token someone is typing in — it allocates the row (the spread). The
+      // one exception is a token json5p cannot hold, whose only exit is the closer.
+      e.preventDefault();
+      ring(act.flowSpread(entryId) || act.flowClose(entryId, "", flow.kind === "seq" ? "]" : "}"));
+      return true;
+    case "join": {
+      // may not consume: a Backspace that is not at the token's first line keeps its ordinary
+      // meaning (the applier falls through to the block/site handling)
+      const ok = act.flowJoinFrom(entryId, el.closest("[data-yed-cell]")?.getAttribute("data-yed-cell") ?? undefined);
+      if (ok) e.preventDefault();
+      return ok;
+    }
+    case "move": e.preventDefault(); act.focusSibling(el, intent.dir); return true;
+    default: return false;
+  }
+}
+
+/** The flow grammar at a cell: build the site, interpret, apply. What a key MEANS lives in
+ *  dispatch.ts; this only carries it out. */
 function flowKeys(
   e: React.KeyboardEvent,
   el: HTMLElement,
   entryId: string,
   flow: { kind: "map" | "seq"; nodeId: string },
   act: YedActions,
-  /** the cell is the INNER TEXT of a quoted scalar: `,` `]` `}` and Enter are characters of the
-   *  string, not grammar — but ARROWS are neither, and a caret that cannot leave a quoted cell is
-   *  stuck in it (the key beside it becomes unreachable, and so does the spot before the pair). */
   textual = false,
 ): boolean {
-  const text = normalizeSpaces(el.textContent ?? "");
-  const ring = (ok: boolean) => { if (!ok) el.classList.add("edit-error"); else el.classList.remove("edit-error"); };
-  if (!textual) {
-    if (e.key === ",") { e.preventDefault(); ring(act.flowNext(entryId, text)); return true; }
-    if (e.key === "]" || e.key === "}") { e.preventDefault(); ring(act.flowClose(entryId, text, e.key)); return true; }
-  }
-  if (e.key === "Enter" && !textual) {
-    // A NEWLINE inside a flow token means what it looks like: this element goes on its own ROW, so
-    // the token spreads to K&R. ENTER NEVER CLOSES — the closer does. Closing on an empty cell put
-    // the caret past `]` of a perfectly legal `[12]`, where nothing can be typed: a legal construct
-    // must never be a place editing stops. An unspreadable token (a keyed+keyless mixture, which
-    // json5p cannot hold) has nothing to spread to, so there Enter still finishes the token.
-    e.preventDefault();
-    if (text.trim() !== "") { ring(act.flowNext(entryId, text, true)); return true; }
-    ring(act.flowSpread(entryId) || act.flowClose(entryId, "", flow.kind === "seq" ? "]" : "}"));
-    return true;
-  }
-  // JOIN, the text editor's gesture: Backspace at the START of the first element pulls that line
-  // up onto the opener's — the inverse of the Enter that spread the token. An EMPTY cell keeps the
-  // no-traps rule instead (the bracket collapses), so the token can still be unwound key by key.
-  if (e.key === "Backspace" && text !== "" && caretAtStart(el)
-      && act.flowJoinFrom(entryId, el.closest("[data-yed-cell]")?.getAttribute("data-yed-cell") ?? undefined)) {
-    e.preventDefault();
-    return true;
-  }
-  if (e.key === "Tab") { e.preventDefault(); act.focusSibling(el, e.shiftKey ? -1 : 1); return true; }
-  // A flow token is ONE line made of several cells, so left/right must CROSS them: at a cell edge
-  // the arrow steps into the neighbour instead of stopping dead. (Up/Down already move between
-  // rows; without this the caret could enter the last cell of `[12, 13]` and never leave it.)
-  if (e.key === "ArrowLeft" && caretAtStart(el)) { e.preventDefault(); act.focusSibling(el, -1); return true; }
-  if (e.key === "ArrowRight" && caretAtEnd(el)) { e.preventDefault(); act.focusSibling(el, 1); return true; }
-  return false;
+  const intent = interpret({ key: e.key, shift: e.shiftKey }, siteOf(el, textual ? "quotedInner" : "token", flow));
+  if (!intent) return false;
+  return runFlowIntent(intent, e, el, entryId, flow, act);
 }
 
 /** A scalar cell. Token mode edits the SOURCE token; quote mode projects the paired quotes around
@@ -349,10 +374,20 @@ export function ScalarCell({ node, entryId }: { node: MNode; entryId: string | n
    *  structural keys to the flow grammar. */
   const structuralKeys = (e: React.KeyboardEvent, el: HTMLElement, quoted = false): boolean => {
     if (flow && entryId && flowKeys(e, el, entryId, flow, act, quoted)) return true;
-    if (e.key === "Tab" && entryId) { e.preventDefault(); if (e.shiftKey) act.dedent(entryId); else act.indent(entryId); return true; }
-    if (e.key === "Backspace" && entryId && (el.textContent ?? "") === "") { e.preventDefault(); act.removeEmpty(entryId); return true; }
-    if (e.key === "Backspace" && (el.textContent ?? "") !== "" && caretAtStart(el)) { e.preventDefault(); act.focusSibling(el, -1); return true; }
-    return false;
+    const intent = interpret({ key: e.key, shift: e.shiftKey }, siteOf(el, quoted ? "quotedInner" : "token", null));
+    switch (intent?.kind) {
+      case "indent": if (!entryId) return false; e.preventDefault(); act.indent(entryId); return true;
+      case "dedent": if (!entryId) return false; e.preventDefault(); act.dedent(entryId); return true;
+      case "removeLevel": case "undoMarker":
+        if (!entryId) return false;
+        e.preventDefault(); act.removeEmpty(entryId); return true; // a committed token has no marker to undo
+      case "move":
+        // only the Backspace-at-start crossing here — vertical arrows keep the browser's behavior
+        // in a block token cell for now (Stage D unifies them)
+        if (e.key !== "Backspace") return false;
+        e.preventDefault(); act.focusSibling(el, intent.dir); return true;
+      default: return false;
+    }
   };
   if (s.block) {
     // the AUTHORED header is PROJECTED and kept — the text lines edit below it in ordinary styling
@@ -491,17 +526,26 @@ function AfterQuoteCell({ node }: { node: MNode }) {
       onBlur={() => { if (node.scalar?.closed) commit(false); }}
       grammar={(e) => {
         setError(false);
-        // inside a flow token the closed quote is a finished ELEMENT: `,` opens the next one and a
-        // closer ends the token, exactly as from a bare cell
-        if (flow && ownEntry && (e.key === "," || e.key === "]" || e.key === "}")) {
-          commit(false); // the quoted token IS this element's value
-          setError(!(e.key === "," ? act.flowNext(ownEntry, "") : act.flowClose(ownEntry, "", e.key)));
-          return true;
+        const site: Site = {
+          cell: "gapQuote",
+          container: "block",
+          outer: flow && ownEntry ? flow.kind : undefined,
+          textEmpty: true, caretAtStart: true, caretAtEnd: true,
+          entryDecided: true, entryCommitted: false,
+        };
+        const intent = interpret({ key: e.key, shift: e.shiftKey }, site);
+        if (!intent) return false;
+        switch (intent.kind) {
+          // inside a flow token the closed quote is a finished ELEMENT: `,` opens the next one
+          // and a closer ends the token, exactly as from a bare cell
+          case "quoteExitNext": commit(false); setError(!act.flowNext(ownEntry!, "")); return true;
+          case "quoteExitClose": commit(false); setError(!act.flowClose(ownEntry!, "", intent.closer)); return true;
+          case "quotedKey": setError(!act.quotedKey(node.id)); return true; // duplicate key → ring, stay
+          case "commit": setError(!commit(true)); return true;
+          case "reopenQuote": act.quoteReopen(node.id); return true; // back INSIDE, no commit
+          case "move": act.focusSibling(e.currentTarget as HTMLElement, intent.dir); return true;
+          default: return false;
         }
-        if (e.key === ":") { setError(!act.quotedKey(node.id)); return true; } // duplicate key → ring, stay
-        if (e.key === "Enter") { setError(!commit(true)); return true; }
-        if (e.key === "Backspace" || e.key === "ArrowLeft") { act.quoteReopen(node.id); return true; } // back INSIDE, no commit
-        return false; // arrows/Tab: the gap's universal navigation
       }}
     />
   );
@@ -831,25 +875,20 @@ export function HoleCell({ entry, stage }: { entry: MEntry; stage: "entry" | "va
         // classifier has had its say, so a typed `[` still opens a NESTED token rather than
         // closing this one, and `k: ` still names a flow-map pair
         if (flow && !classify(false) && flowKeys(e, el, entry.id, flow, act)) { setError(false); return; }
-        if (e.key === "Enter") {
-          e.preventDefault();
-          if (classify(true)) return;
-          if (text === "") {
-            // an EMPTY value hole's Enter opens the value as a nested block (entry-stage: nop)
-            if (stage === "value") act.nestValue(entry.id);
-            return;
-          }
-          if (!act.holeSubmit(entry.id, text)) setError(true);
-        } else if (e.key === "Tab") {
-          e.preventDefault();
-          if (e.shiftKey) act.dedent(entry.id); else act.indent(entry.id);
-        } else if (e.key === "Backspace" && text === "") {
-          e.preventDefault();
-          // an uncommitted DECIDED entry: undo the marker (colon/dash), never the whole entry
-          if (!entry.committed && entry.decided) act.undoDecision(entry.id);
-          else act.removeEmpty(entry.id);
-        } else if (e.key === "ArrowUp" && caretOnFirstLine(el)) { e.preventDefault(); act.focusSibling(el, -1); }
-        else if (e.key === "ArrowDown" && caretOnLastLine(el)) { e.preventDefault(); act.focusSibling(el, 1); }
+        const intent = interpret({ key: e.key, shift: e.shiftKey },
+          siteOf(el, stage === "entry" ? "holeEntry" : "holeValue", null, entry));
+        if (!intent) return;
+        e.preventDefault();
+        switch (intent.kind) {
+          case "commit": if (!classify(true)) setError(!act.holeSubmit(entry.id, text)); return;
+          case "nestValue": if (!classify(true)) act.nestValue(entry.id); return;
+          case "nop": void classify(true); return; // `k:`+Enter / a block header may still fire
+          case "indent": act.indent(entry.id); return;
+          case "dedent": act.dedent(entry.id); return;
+          case "undoMarker": act.undoDecision(entry.id); return; // the marker goes, never the entry
+          case "removeLevel": act.removeEmpty(entry.id); return;
+          case "move": act.focusSibling(el, intent.dir); return;
+        }
       }}
     />
   );
@@ -973,18 +1012,26 @@ function KeyCell({ entry, token = false }: { entry: MEntry; token?: boolean }) {
       initial={token ? keyToken(entry) : String(entry.key ?? "")}
       rev={entry.node.rev}
       onKeyDown={(e, el) => {
-        // INSIDE A TOKEN the key is one of its cells: the arrows must cross it (a caret that cannot
-        // reach a key cannot rename it), and Enter means here what it means in a value cell — this
-        // pair goes on its own ROW. The key is committed first, so the spread cannot lose an edit.
+        // INSIDE A TOKEN the key is one of its cells: the arrows must cross it (a caret that
+        // cannot reach a key cannot rename it). `,` and the closers belong to the KEY's text.
         if (!flow) return false;
-        if (e.key === "Enter") {
+        const intent = interpret({ key: e.key, shift: e.shiftKey }, siteOf(el, "key", flow));
+        if (intent?.kind === "undoMarker") {
+          // Backspace in the EMPTIED key: the pair loses its name — `{: 12}` becomes `{12}`,
+          // the incomplete pair (drawn, never written), and deleting can continue
+          e.preventDefault();
+          act.unname(entry.id);
+          return true;
+        }
+        if (intent?.kind === "keyCommit") {
+          // Enter means here what it means in a value cell — this pair takes its own ROW; the key
+          // is committed first, so the spread cannot lose an edit
           e.preventDefault();
           commit(normalizeSpaces(el.textContent ?? ""));
           act.flowSpread(entry.id);
           return true;
         }
-        // `textual`: `,` and the closers belong to the KEY's text, not to the grammar
-        return flowKeys(e, el, entry.id, flow, act, /*textual*/ true);
+        return intent ? runFlowIntent(intent, e, el, entry.id, flow, act) : false;
       }}
       onCommit={commit}
     />
@@ -1160,28 +1207,26 @@ function FlowAfterCell({ node }: { node: MNode }) {
       id={node.id + ":flowafter"}
       error={keyError}
       grammar={(e) => {
-        // Backspace on an EMPTY token (`[]`): no cell to step into — re-open one inside the
-        // brackets, where the caret came from. A non-empty token needs no case: Backspace falls to
-        // the universal navigation (previous position = the token's last inner cell, whatever the
-        // entry holds). The JOIN deliberately does NOT live here — deleting never restructures;
-        // it lives at the head of the token's first line.
-        if (e.key === "Backspace" && node.entries.length === 0) { act.flowReopen(node.id); return true; }
-        if (e.key === "Backspace") { act.focusSibling(e.currentTarget as HTMLElement, -1); return true; }
-        if (outer && outerEntry) {
-          if (e.key === ",") { act.flowNext(outerEntry, ""); return true; }
-          if (e.key === "]" || e.key === "}") { act.flowClose(outerEntry, "", e.key); return true; }
+        const site: Site = {
+          cell: "gapClose",
+          container: "block", // the gap's own container kind is not what its keys act on
+          outer: outer ? outer.kind : undefined,
+          textEmpty: true, caretAtStart: true, caretAtEnd: true,
+          entryDecided: true, entryCommitted: false,
+          tokenEmpty: node.entries.length === 0,
+        };
+        const intent = interpret({ key: e.key, shift: e.shiftKey }, site);
+        if (!intent) return false;
+        switch (intent.kind) {
+          case "reopenToken": act.flowReopen(node.id); return true;
+          case "move": act.focusSibling(e.currentTarget as HTMLElement, intent.dir); return true;
+          case "nextElement": act.flowNext(outerEntry!, ""); return true;
+          case "closeToken": act.flowClose(outerEntry!, "", intent.closer); return true;
+          case "tokenKey": setKeyError(!act.flowKeyed(node.id)); return true;
+          case "refuse": setKeyError(true); return true; // e.g. `:` in a SEQ — visibly, not swallowed
+          case "siblingAfter": if (!outerEntry) return false; act.enterAfter(outerEntry); return true;
+          default: return false;
         }
-        // `[12, 13]: 14` — the token becomes this entry's KEY (the `[256, 256]:` overlay shape),
-        // and inside a flow MAP too: `{{}: 12}` is a pair whose key is a token. A flow SEQUENCE
-        // has no keys, so there the `:` is REFUSED — consumed with the error ring, visibly,
-        // rather than silently swallowed (the old blanket preventDefault) or left to fall into
-        // a cell as text.
-        if (e.key === ":") {
-          setKeyError(outer && outer.kind !== "map" ? true : !act.flowKeyed(node.id));
-          return true;
-        }
-        if (e.key === "Enter" && outerEntry) { act.enterAfter(outerEntry); return true; }
-        return false; // arrows/Tab: the gap's universal navigation
       }}
     />
   );
