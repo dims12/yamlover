@@ -27,6 +27,32 @@
     "anchors": [],
     "entries": [
       {
+        "key": "workflow",
+        "edge": "ref",
+        "value": {
+          "ptr": {
+            "base": {
+              "scope": "link",
+              "authority": "yamlover"
+            },
+            "steps": [
+              {
+                "sel": "key",
+                "name": "tags"
+              },
+              {
+                "sel": "key",
+                "name": "workflow"
+              },
+              {
+                "sel": "key",
+                "name": "dev"
+              }
+            ]
+          }
+        }
+      },
+      {
         "key": "add-board-view.yamlover",
         "edge": "contain",
         "value": {
@@ -833,32 +859,6 @@
               }
             }
           ]
-        }
-      },
-      {
-        "key": "workflow",
-        "edge": "ref",
-        "value": {
-          "ptr": {
-            "base": {
-              "scope": "link",
-              "authority": "yamlover"
-            },
-            "steps": [
-              {
-                "sel": "key",
-                "name": "tags"
-              },
-              {
-                "sel": "key",
-                "name": "workflow"
-              },
-              {
-                "sel": "key",
-                "name": "dev"
-              }
-            ]
-          }
         }
       }
     ]

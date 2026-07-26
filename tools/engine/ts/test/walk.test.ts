@@ -51,7 +51,10 @@ test('pointer-array body grants positions to the members it names; the rest stay
   );
   const root = s.node(':');
   assert.equal(root?.is_array, false); // entries carry keys — the node is a mix, not an array
-  assert.equal((root?.meta as { positional?: number } | null)?.positional, 3);
+  // the members the body ORDERED by pointer, so their keys are storage provenance (a derived `&`
+  // anchor) rather than authored keys — per-key, not a prefix count, since a body that mixes keyed
+  // fields with its flow scatters them through source order
+  assert.deepEqual((root?.meta as { anchored?: string[] } | null)?.anchored, ['anyfile01', 'alsoany02', 'andany03.json']);
   assert.equal(s.node(':anyfile01')?.value, 'Alice');
   assert.equal(s.node(':andany03.json')?.value, true);
   assert.equal(s.node(':andany04.json')?.value, 'string');
@@ -69,7 +72,9 @@ test('pointer-array body: inline elements and dangling pointers keep their posit
     s.indexDocument(walkDir(dir));
     const root = s.node(':');
     assert.equal(root?.is_array, false);
-    assert.equal((root?.meta as { positional?: number } | null)?.positional, 3);
+    // only the pointer that MATCHED a child is an anchor; the inline 42 and the dangling *missing
+    // are ordinary keyless elements, which need no marker to read as ordinal
+    assert.deepEqual((root?.meta as { anchored?: string[] } | null)?.anchored, ['b']);
     // prefix: b (consumed pointer, keeps its key), the inline 42, the dangling *missing;
     // remainder: a (unlisted, keyed-only). The hidden built-in graft is plumbing — not content.
     const entries = s.entries(':').filter((e) => e.label !== 'yamlover');
@@ -212,14 +217,19 @@ test('`*: file` resolves within its OWN directory chapter, each dir a document b
   // Each chapter is its own directory (dogs/, cats/, fish/, dogs/puppies/), so each `.yamlover/
   // body.yamlover` is its own document boundary. The Puppies chapter's `*: puppy-paw.png` resolves to
   // the sibling file living in the puppies/ directory — not the root handbook dir.
-  const deep = s.entries(':66-pet-keeper-handbook:dogs:puppies').find((c) => c.kind === 'ref');
-  assert.equal(deep?.to, ':66-pet-keeper-handbook:dogs:puppies:puppy-paw.png');
-  // the Dogs chapter's `*: dog-bone.png` resolves to its own directory's file
-  const dog = s.entries(':66-pet-keeper-handbook:dogs').find((c) => c.kind === 'ref');
-  assert.equal(dog?.to, ':66-pet-keeper-handbook:dogs:dog-bone.png');
-  // a top-level chapter's `*: sample.png` resolves within that chapter too (a positional body ref)
-  const top = s.entries(':65-all-formats-chunks').find((c) => c.kind === 'ref');
-  assert.equal(top?.to, ':65-all-formats-chunks:sample.png');
+  // A body pointer naming a child of its OWN directory is CONSUMED (applyBody): the member rides
+  // the position the body gave it and its key becomes storage provenance (`meta.anchored`), so the
+  // edge that remains is CONTAINMENT, not a ref — the member appears once, never beside its own
+  // pointer. That it matched a child of THIS directory is exactly the document boundary.
+  const consumed = (p: string, name: string): void => {
+    assert.ok(((s.node(p)?.meta as { anchored?: string[] } | null)?.anchored ?? []).includes(name), `${p} should anchor ${name}`);
+    const e = s.entries(p).find((c) => c.label === name);
+    assert.equal(e?.kind, 'contain');
+    assert.equal(e?.to, `${p}:${name}`);
+  };
+  consumed(':66-pet-keeper-handbook:dogs:puppies', 'puppy-paw.png');
+  consumed(':66-pet-keeper-handbook:dogs', 'dog-bone.png'); // the Dogs chapter's own file
+  consumed(':65-all-formats-chunks', 'sample.png'); // a top-level chapter resolves within itself too
   s.close();
 });
 
@@ -227,18 +237,18 @@ test('a directory chapter tree: each subchapter is its OWN directory, referenced
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
   const ch = ':66-pet-keeper-handbook';
-  // The root dir's members (`.yamlover`, cats, cover-paw.png, dogs, fish, description) sort as
-  // keyed entries first — the title is the body root's SELF-VALUE and consumes no index — so the
-  // positional body starts at [6]; the three subchapters are `*` refs to the sibling directories
-  // (dogs/cats/fish, in source order) at [11..13].
+  // THE BODY IMPOSES ORDER (applyBody): its own entries in SOURCE order — `description:`, the prose
+  // chunks, and the members its `*` pointers CONSUMED, each riding the position its pointer held —
+  // then the children the body never named (here only the hidden `.yamlover`), in filesystem order.
+  // The title is the body root's SELF-VALUE and consumes no index.
   assert.equal(s.node(ch)?.format, 'x-yamlover-chapter'); // schema carried from body.yamlover root
   assert.equal(s.node(ch)?.value, "The Pet Keeper's Handbook"); // the self-value title
-  assert.equal(s.node(ch + '[6]')?.format, 'text/marklower'); // first prose chunk
-  assert.equal(s.node(ch + '[10]')?.format, 'text/x-plantuml'); // the mindmap diagram chunk
-  // each subchapter is a real directory chapter (its own body.yamlover root tag), reached by a body ref
-  assert.equal(s.entries(ch)[11]?.to, ch + ':dogs');
-  assert.equal(s.entries(ch)[12]?.to, ch + ':cats');
-  assert.equal(s.entries(ch)[13]?.to, ch + ':fish');
+  assert.equal(s.node(ch + '[1]')?.format, 'text/marklower'); // first prose chunk
+  assert.equal(s.node(ch + '[5]')?.format, 'text/x-plantuml'); // the mindmap diagram chunk
+  // each subchapter is a real directory chapter (its own body.yamlover root tag), sitting at the
+  // position its body pointer granted it — once, as a member, not beside a surviving ref
+  assert.deepEqual(s.entries(ch).slice(6, 9).map((e) => e.to), [ch + ':dogs', ch + ':cats', ch + ':fish']);
+  assert.deepEqual((s.node(ch)?.meta as { anchored?: string[] } | null)?.anchored, ['cover-paw.png', 'dogs', 'cats', 'fish']);
   assert.equal(s.node(ch + ':dogs')?.format, 'x-yamlover-chapter');
   assert.equal(s.node(ch + ':cats')?.format, 'x-yamlover-chapter');
   assert.equal(s.node(ch + ':fish')?.format, 'x-yamlover-chapter');
@@ -463,7 +473,7 @@ test('built-in graft outside a yamlover/$defs host (palette always available); U
   const full = new Store(':memory:');
   full.indexDocument(walkDir(seq));
   assert.equal(full.node(':')?.is_array, true); // fully referenced — still a seq despite the graft
-  assert.equal((full.node(':')?.meta as { positional?: number } | null)?.positional, 2);
+  assert.deepEqual((full.node(':')?.meta as { anchored?: string[] } | null)?.anchored, ['a', 'b']);
   full.close();
   rmSync(seq, { recursive: true, force: true });
   // ex-56 has an authored keyed-only remainder (andany04.json) — an honest MIX, graft or not

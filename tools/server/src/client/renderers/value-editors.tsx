@@ -73,6 +73,27 @@ export function acceptsAsScalar(text: string): boolean {
   }
 }
 
+/** True when `text` is ONE scalar element in FLOW context (inside `[…]` / `{…}`).
+ *
+ *  Defined by the real parser rather than by a character class: the text must lex as EXACTLY ONE
+ *  element of a flow sequence. So a bare `a, b` is still refused — it is two cells, not one padded
+ *  scalar — while `'a, b'`, `"x: y"` and `0xff` ride fine. Block context keeps
+ *  {@link acceptsAsScalar}'s stricter BARE_FLOW rule, where an unquoted comma or bracket genuinely
+ *  must be quoted; weakening that rule instead of splitting it would let block source break. */
+export function acceptsAsFlowScalar(text: string): boolean {
+  const t = text.trim();
+  if (t === "") return false;
+  try {
+    const root = parseYamlover(`[${t}]`, "<edit>").root;
+    const ents = root.entries ?? [];
+    if (root.array !== true || ents.length !== 1) return false;
+    const v = ents[0].value as { kind?: string };
+    return v.kind === "scalar";
+  } catch {
+    return false;
+  }
+}
+
 // --------------------------------------------------------------------------- //
 // Validation seam (schema/meta — deferred)
 // --------------------------------------------------------------------------- //

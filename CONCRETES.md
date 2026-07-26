@@ -82,10 +82,11 @@ of the singular concrete (`multi-yaml` ⇒ elements are `yaml`).
 > (Phase 2c). These concretes are defined and reserved, but no node carries one
 > today.
 
-## Scalar representation — the `yaml/…` styles
+## Representation — the `yaml/…` styles
 
-The concretes above answer *where / what language* a node is stored in. A **scalar**
-node has a second, orthogonal concrete axis: *how its token is written*. YAML (and so
+The concretes above answer *where / what language* a node is stored in. Every node has a
+second, orthogonal concrete axis: *how it is written*. A **container** picks a
+[collection style](#collection-style-flow-vs-block); a **scalar** picks a token style. YAML (and so
 yamlover / json5p, which share the scalar syntax) allows one value to be spelled many
 ways — `~`, `null` and an empty node are all null; `255`, `0xff` and `0o377` are all the
 same integer; a string may be plain, quoted, or a block. These are **not different
@@ -102,6 +103,32 @@ renderer, schema, or style-picker reasons about.
 
 The vocabulary is drawn from the YAML 1.2 spec (scalar **styles**, Ch. 7–8) and its core /
 type-repository **content notations** (Ch. 10):
+
+### Collection style (flow vs block)
+
+A container is written on ONE line (flow) or over many (block) — YAML's two collection
+styles, Ch. 7 and Ch. 8. JSON is valid YAML, so a JSON-looking value inside a `.yamlover`
+file is simply a flow container; the LANGUAGE is still yamlover (no `json5p` switch).
+
+| concrete     | YAML term | example              |
+|--------------|-----------|----------------------|
+| `yaml/flow`  | flow      | `b: [12, 13, 14]`    |
+| `yaml/block` | block     | `b:` then `  - 12` … |
+
+Block is the default and carries no marker. Flow is recorded by the parser
+(`NodeMeta.style`, IR.md) and re-emitted by the serializer, so an authored `{x: 1, y: 2}`
+comes back as `{x: 1, y: 2}` instead of being flattened to block form. A json-family
+document (`json`/`json5`/`json5p`) is flow END TO END by language, so its nodes need no
+per-node marker — `collectionRepr` derives it from the concrete.
+
+Formatting is NORMALIZED, not preserved byte-for-byte: `[1,2]` and `[ 1, 2 ]` are both
+`yaml/flow` and both re-emit as `[1, 2]`. The concrete is the classification, not the bytes.
+
+Flow cannot hold everything. A container carrying a path anchor, a `!!<…>` tag, a `!!set`,
+a `~` back-edge, a leading comment, a multi-line scalar, a blob, or a keyed+keyless mixture
+**falls back to block form** — silently and losslessly, never a throw and never a drop.
+The refusal list lives once, in the serializer's `flowTextOrNull`, and the projectional
+editor's `flowFits` mirrors it so the screen and the file agree.
 
 ### String styles (how a string is delimited / laid out)
 
@@ -157,11 +184,17 @@ a string picks a *style*, a null/int/float/bool picks a *notation*. (Sign, leadi
 and YAML 1.1 digit-separator `_` are finer still — recorded in `raw`, not yet given their
 own concrete.)
 
-> **Status.** Spec / terminology only. The IR already preserves `raw`; giving each scalar a
-> `yaml/…` representation concrete (surfaced on `/api/json`, rendered faithfully, editable
-> via a style-picker, and constrainable by schema/meta) is the next step. Fixes the "string
-> `"~"` renders like null" ambiguity by rendering the classified representation, not a
-> re-derived canonical one.
+> **Status.** The vocabulary and the classifier are IMPLEMENTED — `tools/server/src/repr.ts`,
+> a pure module beside `concrete.ts`. Every node is classified (`classifyScalar` from the
+> authored `Scalar.raw`, `collectionRepr` from `NodeMeta.style` + the language) and the result
+> rides `/api/json`'s comment sidecar as `repr`, carried only when it is NOT the default for
+> the value — so an ordinary `Rex`/`42`/block mapping costs nothing on the wire. `yaml/flow`
+> round-trips end to end (parser → serializer → index → wire → editor).
+>
+> Still open: a **style-picker** UI, and **schema/meta pinning** ("this id is hex", "this note
+> is a literal block"). Note that `yaml/oct`, `yaml/bin` and `yaml/bool11` are vocabulary the
+> core reader does not yet decode — it follows the YAML 1.2 CORE schema, where `0o377`,
+> `0b1111` and `yes` are ordinary strings; `repr.ts` classifies them the moment a reader does.
 
 ## Schema-pinned values
 
@@ -195,15 +228,28 @@ DEFAULT, and which language its content MUST speak — live in the single pure m
 
 **Birth order does not matter — the derivation is re-evaluated on the scalar→container
 transition, not only at a child's birth.** A node built the incremental way (a `world: World`
-title typed first, its children added after) is born a keyed scalar → the body overlay; the
+title typed first, its children added after) is born a scalar → the body overlay; the
 moment it gains CONTAINER content — the omni first-child commit *emplaces* the whole node
 (self + child), or a child is *inserted* under the still-scalar member — it lifts OUT of the
-enclosing body into its own real subdirectory, and its old inline line is spliced away
+enclosing body into its own real member, and its old inline line is spliced away
 (`deriveMemberEncoding`'s promotion, `engine-api.ts`; gated by `subchapterMaterializes` so it
 only fires when the enclosing document is directory-backed). So `world: World`-then-grow lands
 in the SAME directory shape as a `world` born already populated — no birth-order asymmetry. A
 pure scalar emplace (a title edit, no entries) is not a transition and stays inline; an
 inline-tagged member is left inline (its `!!<…>` schema is not yet carried across the move).
+
+**The promotion asks `deriveMemberEncoding` for the member's SHAPE, exactly as a birth does** —
+so both halves of the vocabulary are covered. A KEYED node becomes a directory named by its key
+and its inline line is removed. An untagged ORDINAL element becomes a sequentially-named member
+(`item01`) and *keeps its position*: its inline line is replaced by the `- *: itemNN` pointer
+that grants it. A *tagged* ordinal container is content and stays inline, at growth as at birth.
+This is why a list nested by typing (`- World`, then `- Eurasia` under it, then `- Europe`) puts
+each level in its own directory instead of accumulating in one body file.
+
+Both surfaces read the enclosing body WITH the current batch's pending ops folded in, and resolve
+the enclosing document filesystem-first — a member born a moment ago in the same batch (fast
+typing) is invisible to the still-stale index, and neither its body nor its concrete may be read
+from there.
 
 **Generated member names carry ORDER NUMBERS** (`nextMemberName`, concrete-rules.ts) so a
 plain directory listing sorts roughly in body order — item members as `item01`, `item02`,
@@ -215,6 +261,42 @@ is guaranteed in-scheme (the key deepens), so a collision suffix never appears.
 
 Removing the positional element splices only the pointer line; the item directory is
 orphaned (never destroyed) and resurfaces as a keyed-only member.
+
+## Layout invariants — `validate.ts`
+
+The rules above say where a value SHOULD live. `tools/server/src/validate.ts` — a pure module
+beside `concrete-rules.ts` — asserts that a write actually PUT it there. It restates no policy:
+each rule re-asks `deriveMemberEncoding` / `requiredChildLanguage` / `dataFileConcrete` /
+`nextMemberName`'s naming scheme and only checks that the plan obeyed the answer.
+
+These hold with **no schema at all**, so they protect a directory from the first keystroke.
+
+| code | invariant |
+| --- | --- |
+| `layout/nested-overlay` | a `.yamlover/` never sits inside another `.yamlover/` |
+| `layout/reserved-overlay-name` | a `.yamlover/` holds only `body`/`meta`/`settings.yamlover`, `index.db`, and the `fragments`/`thumbnails` sidecar dirs |
+| `layout/escapes-root` | a written path stays inside the served root |
+| `layout/unsafe-member-name` | a member name is non-empty, unpadded, not hidden, and carries no path metacharacter |
+| `layout/inline-collection` | a child that derived to `dir`/`dir-seq` is written as a REAL directory, never spliced into the parent's body |
+| `layout/duplicate-member` | a keyed member's key does not already name a child (the key names the node — there is no rename to fall back on) |
+| `layout/language-switch` | content spliced into a file document speaks that document's language |
+| `layout/off-scheme-name` | *(warning)* a generated member carries its family's order key |
+| `layout/orphan-overlay` | every `.yamlover/` has a directory to mark and holds at least one format file |
+| `layout/concrete-mismatch` | the concrete agrees with the shape backing it (`dir/yamlover` owns its marker, a plain `dir` does not, a `file/<lang>` matches its extension) |
+
+Enforcement is at the WRITE chokepoints, before any bytes land: `writeInside` and `mkdirInside`
+gate every file and directory this server creates, and the directory-target route in `applyEdits`
+runs the encoding rules once the routing decision is made. Dev and test **throw** (corruption
+turns the suite red); production **refuses** the write and logs. `YAMLOVER_VALIDATE` overrides
+(`throw` | `refuse` | `report` | `off`).
+
+`GET /api/doctor` sweeps a whole served tree after the fact — a FILESYSTEM walk, not an index
+walk, because the walker skips what it does not understand and so cannot see a buried overlay.
+Every `examples/` fixture is asserted clean by `test/validate-doctor.test.ts`, which is what keeps
+a new rule from becoming over-eager.
+
+The `value/*` codes and `compileMeta()` in the same module are the seam for `meta.yamlover`
+schema validation (META.md); today `compileMeta` returns `[]`.
 
 ## Where it shows up
 

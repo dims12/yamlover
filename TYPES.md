@@ -31,10 +31,19 @@ A facet keyword takes a **sub-schema**, or **`false` to forbid** it; **omitting*
 {`false`, allowed} gives the **`2³` cube**; ordering corners by *capability-subset* **is** the
 subtype lattice (`000` bottom, `111` top).
 
-A **positional-prefix** node (a dir-backed pointer-array body, `meta.positional`) reports its
-prefix members as **ordinal** — their keys are storage provenance (derived `&` anchors), not
-authored keys — and only the keyed-only remainder as **keyed**. Fully referenced ⇒ pure ordinal
-(an array); with a remainder ⇒ both facets (a mix).
+A node with **body-anchored** members (a dir-backed body whose positional flow names them by
+pointer, `meta.anchored`) reports those members as **ordinal** — their keys are storage provenance
+(derived `&` anchors), not authored keys — and only the remainder the body never named as
+**keyed**. Fully referenced ⇒ pure ordinal (an array); with a remainder ⇒ both facets (a mix).
+The rule is per-member, not a prefix: a body that mixes keyed fields with its positional flow (a
+chapter) scatters its anchors through source order.
+
+Because such a member is ordinal, the **TOC names it by position** (`[0]`, `[1]`) rather than by
+the directory that stores it — the storage name is provenance, not a name. A title still wins
+where there is one (a subchapter goes by its title). Its *path* stays keyed: the label is display,
+the address is storage. Each row also carries its scalar self-value as a short one-line tail, the
+`large-icons` grid's `key: value` convention — omitted for binaries and when it would merely
+repeat the label.
 
 ## 2. The value axis (A)
 

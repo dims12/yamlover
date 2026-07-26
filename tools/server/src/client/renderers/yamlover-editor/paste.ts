@@ -5,14 +5,16 @@
 //
 // Fidelity contract (user-decided): a paste always succeeds structurally; comments, `&` path
 // anchors and `!!set` in the snippet are DROPPED silently (the op pipeline cannot carry them —
-// scalar TOKENS keep their authored spelling), and flow authoring (`[1, 2]`) canonicalizes to
-// block form (the IR keeps no flow bit). Only genuinely unrepresentable content refuses: `~`
+// scalar TOKENS keep their authored spelling). Flow authoring (`[1, 2]`) is KEPT: the IR records
+// it (`NodeMeta.style`, the `yaml/flow` representation concrete) and `nodeFromIR` carries it onto
+// the model, so a pasted token stays one line. Only genuinely unrepresentable content refuses: `~`
 // back edges (dropping one would lose a whole entry), oversized pastes, parse errors. The
 // EMPTY document's root paste emits the very ops typing would — one insert per top-level entry
 // plus the self/tag emplaces — because the server's document root takes no whole-payload
 // emplace (root emplace is defined as tag/self-value only, engine-api editChapterSource).
 
 import { parseYamlover } from "../../../../../parser/ts/src/yamlover.ts";
+import { parseJson5p } from "../../../../../parser/ts/src/json5p.ts";
 import { isPointer } from "../../../../../parser/ts/src/ir.ts";
 import type {
   Document, Entry as IREntry, Node as IRNode, Scalar as IRScalar, Value as IRValue,
@@ -31,7 +33,32 @@ export function normalizeClipboard(text: string): string {
 /** Parse or null — a SyntaxError is the caller's error ring, never an exception. */
 export function tryParse(text: string): Document | null {
   if (text.length > MAX_PASTE) return null;
-  try { return parseYamlover(text, "<paste>"); } catch { return null; }
+  try {
+    return parseYamlover(text, "<paste>");
+  } catch {
+    /* not yamlover — it may still be JSON (see below) */
+  }
+  // A JSON / JSON5 blob is not yamlover source: trailing commas, `//` comments and the quoting
+  // rules diverge, and a pretty-printed one is many lines. It IS a value the user means to paste,
+  // so sniff the shape and read it with the json5p parser. That document is flow END TO END, so
+  // `flowFits` decides per node whether it lands as a one-liner or as block rows.
+  const t = text.trim();
+  if (!/^[[{]/.test(t) || !/[\]}]$/.test(t)) return null;
+  try {
+    const doc = parseJson5p(t, "<paste>");
+    markFlow(doc.root);
+    return doc;
+  } catch {
+    return null;
+  }
+}
+
+/** Stamp the authored collection style onto a json5p tree: the language is flow throughout, and
+ *  the model needs the bit per node (the serializer's fallback demotes whatever cannot fit). */
+function markFlow(n: IRNode): void {
+  if (n.kind === "blob") return;
+  if ((n.entries ?? []).length > 0 || n.kind === "mapping") n.meta = { ...n.meta, style: "flow" };
+  for (const e of n.entries ?? []) if (!isPointer(e.value)) markFlow(e.value);
 }
 
 /** The one thing the model cannot hold at all: a `~` back edge (deprecated; dropping it would
@@ -107,6 +134,9 @@ export function nodeFromIR(n: IRNode): M.MNode {
     return { ...base, kind: "scalar", scalar: scalarFromIR(n) };
   }
   base.entries = (n.entries ?? []).map(entryFromIR);
+  // the AUTHORED collection style survives the paste — `[1, 2]` stays one token instead of
+  // canonicalizing to block rows (CONCRETES.md §Collection style)
+  if (n.meta?.style === "flow") base.flow = (n.array ? "seq" : "map") as "seq" | "map";
   if (n.kind === "scalar") {
     // OMNI: the self-value rides the node alongside its entries, at its authored position
     base.selfValue = scalarFromIR(n as IRScalar);
@@ -162,12 +192,17 @@ export function pasteValueAt(rootPath: string, root: M.MNode, entryId: string, p
   const spine = M.findEntry(root, entryId);
   if (!spine || spine.entry.node.kind !== "hole") return null;
   const { container } = spine.parents[spine.parents.length - 1];
-  if (container.flow) return null; // no block structure inside flow
   const converted = nodeFromIR(parsed);
+  // Into a FLOW cell only what flow can hold: a scalar, a pointer, or another flow-expressible
+  // container (pasting `[1, 2]` into `[…]` nests it). Block structure has no one-line spelling,
+  // so it is refused rather than silently reshaped.
+  if (container.flow && converted.kind === "container" && !M.flowFits(converted)) return null;
+  if (container.flow && converted.kind === "container") converted.flow = converted.flow ?? (parsed.array ? "seq" : "map");
   const node = spine.entry.node;
   node.kind = converted.kind;
   node.scalar = converted.scalar;
   node.entries = converted.entries;
+  node.flow = converted.flow; // the pasted token keeps its authored collection style
   node.selfValue = converted.selfValue;
   node.selfAt = converted.selfAt;
   node.metaTag = converted.metaTag ?? node.metaTag;

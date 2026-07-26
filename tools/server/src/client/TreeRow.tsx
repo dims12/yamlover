@@ -78,6 +78,9 @@ export function TreeRow({ node, depth, selected, match, highlighted, chevron = "
       <span className={"icon " + ti.cls} title={ti.title}>{glyph}</span>
       <span className="tree-label" onClick={onSelect} title={`${displayPath(node.path)} (${node.type})`}>
         {node.label}
+        {/* the scalar self-value, dim after the label — the `large-icons` grid's `key: value`
+            convention (explorer.tsx), so a list of plain values reads without opening each row */}
+        {node.value != null && <span className="tree-value">{node.value}</span>}
       </span>
       {detail && <span className="tree-row-detail">{detail}</span>}
     </div>

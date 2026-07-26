@@ -59,6 +59,10 @@ class Emitter {
     } else if (kept.length === 0) {
       this.out.push(root.array ? '[]' : '{}');
       this.rootAnchors(root);
+    } else if (root.meta?.style === 'flow' && root.meta?.schema === undefined && flowTextOrNull(root) !== null) {
+      // a whole DOCUMENT authored as one flow token (`[12, 13, 14]`, `{a: 1}`) stays one line
+      this.out.push(flowTextOrNull(root)!);
+      this.rootAnchors(root);
     } else {
       const tag = this.containerTag(root);
       if (tag !== null) this.out.push(tag);
@@ -176,11 +180,25 @@ class Emitter {
     } else if (kept.length === 0) {
       this.out.push(joinLine(pad + head, [...parts, value.array ? '[]' : '{}']));
       this.anchorLines(value, indent + STEP);
+    } else if (this.flowLine(pad + head, value, parts)) {
+      // an AUTHORED flow container rides the key line as one token — nothing further to emit
     } else {
       this.out.push(joinLine(pad + head, parts));
       this.anchorLines(value, indent + STEP);
       this.entries(ents, indent + STEP);
     }
+  }
+
+  /** Emit `head [1, 2]` when the node was AUTHORED in flow form and flow can still hold it
+   *  losslessly (`flowTextOrNull`). False ⇒ nothing was emitted and the caller writes block form,
+   *  which is how a flow container that has since grown an anchor, a tag or a multiline value
+   *  degrades gracefully instead of producing invalid source. */
+  flowLine(head: string, value: Node, parts: string[]): boolean {
+    if (value.meta?.style !== 'flow') return false;
+    const tok = flowTextOrNull(value);
+    if (tok === null) return false;
+    this.out.push(joinLine(head, [...parts, tok]));
+    return true;
   }
 
   seqItem(value: Value, indent: number): void {
@@ -194,6 +212,7 @@ class Emitter {
         this.anchorLines(value, indent + STEP);
         return;
       }
+      if (this.flowLine(pad + '-', value, parts)) return; // `- [1, 2]`
       const anchored = this.anchorTokens(value).length > 0;
       if (parts.length === 0 && !anchored && (kept[0].key !== null || kept[0].edge === 'contain')) {
         // compact `- key: …` / `- - item`: render the entries, then fold the first line onto
@@ -401,27 +420,45 @@ function schemaNodeText(n: Node): string {
   return flowText(n);
 }
 
-/** Single-line FLOW rendering — used only inside `!!<…>` schema tags, so the supported
- *  surface is the schema vocabulary (nested maps/seqs, scalars, `*` pointers). */
+/** Single-line FLOW rendering for the `!!<…>` tag interior, where there is NO block fallback —
+ *  so anything flow cannot hold is an error. Content goes through {@link flowTextOrNull}, which
+ *  reports the same refusals as `null` and lets the caller emit block form instead. */
 function flowText(n: Node): string {
-  if (n.kind === 'blob') throw new LossyError('a blob has no flow form');
-  if (n.meta?.schema !== undefined || n.meta?.set === true) {
-    throw new LossyError('tags inside an inline !!<…> schema are not serializable');
-  }
+  const t = flowTextOrNull(n);
+  if (t === null) throw new LossyError('this node has no flow form');
+  return t;
+}
+
+/** Single-line FLOW rendering, or null when flow cannot hold the node LOSSLESSLY.
+ *
+ *  THE REFUSAL LIST IS A CONTRACT: the projectional editor's `flowFits` mirrors it exactly, so a
+ *  container the editor still draws as flow cells is one this can still write. Adding a refusal
+ *  here without adding it there makes the screen and the file disagree. */
+function flowTextOrNull(n: Node): string | null {
+  if (n.kind === 'blob') return null; // a blob's bytes live in a file, not in a token
+  if (n.meta?.schema !== undefined || n.meta?.set === true) return null; // a tag needs its own line
+  // a path anchor has NO flow spelling — emitting the node inline would silently drop it (which
+  // is what the tag-interior path did); block form carries it on its own line
+  if ((n.meta?.anchors ?? []).length > 0) return null;
+  // a LEADING comment has nowhere to live on a one-liner. A trailing one still rides: `emitTrailing`
+  // appends it to the single line this returns.
+  if ((n.entries ?? []).some((e) => (e.meta?.comments ?? []).some((c) => c.placement !== 'trailing'))) return null;
   const ents = n.entries ?? [];
   if (n.kind === 'scalar') {
-    if (ents.length > 0) throw new LossyError('a value-plus-fields node has no flow form');
+    if (ents.length > 0) return null; // a value-plus-fields (omni) node needs two lines
     return flowTok(n);
   }
   if (ents.length === 0) return n.array ? '[]' : '{}';
   const keyed = ents.filter((e) => e.key !== null);
-  if (keyed.length > 0 && keyed.length < ents.length) throw new LossyError('a mixed container has no flow form');
-  if (ents.some((e) => e.edge === 'back')) throw new LossyError('back-edges inside an inline !!<…> schema are not serializable');
-  const item = (e: Entry): string => {
-    const v = isPointer(e.value) ? flowPtr(e.value) : flowText(e.value);
-    return e.key === null ? v : `${flowKey(e.key)}: ${v}`;
-  };
-  return keyed.length === 0 ? `[${ents.map(item).join(', ')}]` : `{${ents.map(item).join(', ')}}`;
+  if (keyed.length > 0 && keyed.length < ents.length) return null; // a mixed container has no flow form
+  if (ents.some((e) => e.edge === 'back')) return null; // a `~` back-edge is authored on its own line
+  const items: string[] = [];
+  for (const e of ents) {
+    const v = isPointer(e.value) ? flowPtr(e.value) : flowTextOrNull(e.value);
+    if (v === null) return null; // one unrepresentable member demotes the whole token
+    items.push(e.key === null ? v : `${flowKey(e.key)}: ${v}`);
+  }
+  return keyed.length === 0 ? `[${items.join(', ')}]` : `{${items.join(', ')}}`;
 }
 
 /** The YAML float-special literal for a non-finite number (yamlover follows YAML). */
@@ -429,24 +466,29 @@ function nonFinite(v: number): string {
   return Number.isNaN(v) ? '.nan' : v === Infinity ? '.inf' : '-.inf';
 }
 
-function flowTok(s: Scalar): string {
+function flowTok(s: Scalar): string | null {
   const v = s.value;
   if (v === null) return 'null';
   if (typeof v === 'boolean') return v ? 'true' : 'false';
   if (typeof v === 'number') {
     if (!Number.isFinite(v)) return nonFinite(v);
-    return String(v);
+    // Keep the AUTHORED spelling (0xff, 1.0, .5, -0) when it reparses to the same number and holds
+    // no flow metachar — the rule `inline()` applies in block form, so a number's representation
+    // concrete (repr.ts: yaml/hex, yaml/exp, …) survives a flow round-trip too.
+    const raw = (s.raw ?? '').trim();
+    if (raw !== '' && !/[,:[\]{}'"#\s]/.test(raw) && plainToken(raw) && Object.is(plainScalar(raw).value, v)) return raw;
+    return Object.is(v, -0) ? '-0' : String(v);
   }
   if (v !== '' && /^[^,:[\]{}'"#\s]+$/.test(v) && !'*&~!|>'.includes(v[0]) && plainScalar(v).value === v) return v;
-  if (/[\n\r\u0000-\u0008\u000b-\u001f\u007f]/.test(v)) throw new LossyError('a control character has no flow form inside a !!<…> tag');
+  if (/[\n\r\u0000-\u0008\u000b-\u001f\u007f]/.test(v)) return null; // a control char needs a quoted or block form
   return `'${v.replace(/'/g, "''")}'`;
 }
 
-function flowPtr(p: Pointer): string {
+function flowPtr(p: Pointer): string | null {
   // flow plain pointers read to the next , } ] at depth 0 — emit COMPACT colon form;
   // a quoted portion (spacey key) cannot ride plain in flow
   const compact = renderPointer(p, { spaced: false });
-  if (/['"\s]/.test(compact)) throw new LossyError(`pointer "*${compact}" does not fit a flow context`);
+  if (/['"\s]/.test(compact)) return null;
   return `*${compact}`;
 }
 

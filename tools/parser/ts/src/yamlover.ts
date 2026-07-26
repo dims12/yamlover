@@ -615,7 +615,9 @@ class Flow {
       if (this.s[this.i] === '}') { this.i++; break; }
       this.fail('expected "," or "}"');
     }
-    return { kind: 'mapping', entries, array: false };
+    // `style: 'flow'` records the AUTHORED one-line form so the serializer re-emits it and a
+    // projection can offer flow cells — the `yaml/flow` representation concrete (CONCRETES.md).
+    return { kind: 'mapping', entries, array: false, meta: { style: 'flow' } };
   }
 
   seq(): Mapping {
@@ -632,7 +634,7 @@ class Flow {
       if (this.s[this.i] === ']') { this.i++; break; }
       this.fail('expected "," or "]"');
     }
-    return { kind: 'mapping', entries, array: true };
+    return { kind: 'mapping', entries, array: true, meta: { style: 'flow' } };
   }
 
   quoted(): Scalar {
@@ -670,10 +672,40 @@ function isBackSeqLine(text: string): boolean {
 /** Find the `key:` split: the first unquoted `:` followed by space or EOL. `restCol` is
  *  the offset of `rest` WITHIN `text` (for span tracking).
  *  (Exported for the serializer: a plain token that splits here must be quoted.) */
+/** The index just PAST a leading flow token (`[…]` / `{…}`), quote- and nesting-aware. 0 when the
+ *  text opens no flow token; -1 when it opens one that never closes. */
+function flowTokenEnd(text: string): number {
+  if (text[0] !== '[' && text[0] !== '{') return 0;
+  let depth = 0;
+  let q: string | null = null;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) {
+      if (ch === q) {
+        if (q === "'" && text[i + 1] === "'") i++; // a doubled '' is a literal quote
+        else q = null;
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"') q = ch;
+    else if (ch === '[' || ch === '{') depth++;
+    else if (ch === ']' || ch === '}') { if (--depth === 0) return i + 1; }
+  }
+  return -1;
+}
+
 export function splitKV(text: string): { key: string; rest: string; restCol: number } | null {
+  // A leading FLOW token is scanned WHOLE before the colon hunt: its interior colons belong to the
+  // flow grammar, not to a key. The token is a KEY only when a `:` follows it (`[256, 256]: *…` —
+  // the thumbnail overlay's flow-seq key); otherwise the line is a flow VALUE and this returns
+  // null so `valueInline` hands it to the flow reader. Without this a document root `{a: 1}` split
+  // at its first `: ` and parsed as the key `{a` with the string value `1}` — a SILENT misparse —
+  // while `{a: [1]}` failed outright on the trailing `}`.
+  const from = flowTokenEnd(text);
+  if (from < 0) return null; // an unterminated flow token: a value, and the flow reader says why
   let inS = false;
   let inD = false;
-  for (let i = 0; i < text.length; i++) {
+  for (let i = from; i < text.length; i++) {
     const c = text[i];
     if (c === "'" && !inD) inS = !inS;
     else if (c === '"' && !inS) inD = !inD;

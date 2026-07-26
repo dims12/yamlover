@@ -52,7 +52,9 @@ export interface MNode {
    *  chapter projection branches on it to decide what a container IS (a subchapter, a table, a
    *  list). `metaTag` wins over it once the user changes the tag, since this one goes stale. */
   format?: string | null;
-  flow?: "map" | "seq"; // a container born from `{` / `[` — rendered and serialized in FLOW form
+  flow?: "map" | "seq"; // a container born from `{` / `[`, OR authored on one line on disk (the
+                        // `yaml/flow` representation concrete, carried per node as `bucket.repr`)
+                        // — rendered as flow cells and serialized as one FLOW token
   omniPending?: boolean; // this container's self line lives on the SERVER as a plain scalar entry
                          // (the level-rule descend converted it client-side) — a scalar entry
                          // cannot be descended into, so the FIRST child commit re-emplaces the
@@ -173,6 +175,10 @@ function buildNode(v: unknown, frag: string, comments: CommentMap | undefined): 
   const bucket = bucketAt(comments, frag);
   const { metaTag, setTag } = parseTag(bucket?.tag);
   const base = { id: nid(), rev: 0, entries: [] as MEntry[], selfAt: 0, metaTag, metaOnServer: metaTag !== null, setTag, bucket };
+  // the AUTHORED collection style (repr.ts `yaml/flow`, carried per node in the sidecar): a
+  // container written on one line on disk is drawn as flow cells and re-serialized as flow,
+  // instead of being canonicalized to block rows the moment the page reloads
+  const flowStyle = bucket?.repr === "yaml/flow";
 
   const link = asLink(v);
   if (link) return { ...base, kind: "link", link };
@@ -181,7 +187,7 @@ function buildNode(v: unknown, frag: string, comments: CommentMap | undefined): 
 
   const mixed = asMixed(v);
   if (mixed) {
-    const node: MNode = { ...base, kind: "container", format: mixed.format ?? null };
+    const node: MNode = { ...base, kind: "container", format: mixed.format ?? null, ...(flowStyle ? { flow: (mixed.entries.every((e) => e.key === null) ? "seq" : "map") as "seq" | "map" } : {}) };
     node.entries = mixed.entries.map((e, i) => buildEntry(e.key, e.value, frag + (e.key != null ? `/${e.key}` : `[${i}]`), comments, e.anchor));
     if (mixed.kind === "omni") {
       // a link self-value (blob-backed omni) stays un-modeled — read-only territory
@@ -191,12 +197,12 @@ function buildNode(v: unknown, frag: string, comments: CommentMap | undefined): 
     return node;
   }
   if (isObj(v)) {
-    const node: MNode = { ...base, kind: "container" };
+    const node: MNode = { ...base, kind: "container", ...(flowStyle ? { flow: "map" as const } : {}) }; // an object: keyed by construction
     node.entries = Object.entries(v).map(([k, cv]) => buildEntry(k, cv, `${frag}/${k}`, comments));
     return node;
   }
   if (Array.isArray(v)) {
-    const node: MNode = { ...base, kind: "container" };
+    const node: MNode = { ...base, kind: "container", ...(flowStyle ? { flow: "seq" as const } : {}) };
     node.entries = v.map((cv, i) => buildEntry(null, cv, `${frag}[${i}]`, comments));
     return node;
   }
@@ -317,15 +323,58 @@ export function barePointer(raw: string): string | null {
   try { return renderPointer(parsePointer(raw.trim()), { spaced: false }); } catch { return null; }
 }
 
+/** Which BRACKETS a flow container wears. Derived from the entries, never from the stored `flow`
+ *  tag: all-keyless is a sequence, anything keyed is a mapping — the same rule the serializer and
+ *  the parser apply (`array`). Deriving it makes an invalid token unrepresentable; trusting the tag
+ *  once wrote `{12, 13}` for a wire-loaded sequence, which is not yamlover at all. The tag decides
+ *  only the EMPTY case, where the entries cannot speak (`{}` vs `[]`). */
+export function flowIsSeq(node: MNode): boolean {
+  // only DECIDED entries can speak: a freshly opened `{` carries one undecided hole, which is
+  // keyless-so-far and would otherwise read as a sequence. Until something is decided the authored
+  // tag is the only evidence there is.
+  const decided = node.entries.filter((e) => e.decided);
+  if (decided.length === 0) return node.flow !== "map";
+  return decided.every((e) => e.key === null);
+}
+
+/** Can this container still be WRITTEN as a flow token? THE CLIENT MIRROR of the serializer's
+ *  `flowTextOrNull` refusals (serialize-yamlover.ts) — same list, same reasons. A flow container
+ *  is one line, so a block/multiline scalar, an omni self-value, a `!!<…>` tag, a `!!set`, an
+ *  opaque link, or a nested BLOCK container forces block form. If the two lists disagree, the
+ *  editor draws flow cells for something the file cannot hold. */
+export function flowFits(node: MNode): boolean {
+  if (node.metaTag !== null || node.setTag || node.selfValue) return false;
+  return node.entries.every((e) => {
+    const n = e.node;
+    if (n.kind === "link") return false;
+    if (n.kind === "scalar") return !n.scalar!.block && !String(n.scalar!.src).includes("\n");
+    if (n.kind === "container") return !!n.flow && flowFits(n); // a nested BLOCK container needs rows
+    return true; // a hole or a pointer rides fine
+  });
+}
+
+/** Turn a flow container back into a block one, silently — the editor shows the result, it does
+ *  not narrate. Called when content arrives that {@link flowFits} refuses. */
+export function demoteFlow(node: MNode): void {
+  if (!node.flow) return;
+  node.flow = undefined;
+  node.rev++;
+}
+
 function valueToken(node: MNode): string | null {
   if (node.kind === "scalar") return node.scalar!.src;
   if (node.kind === "pointer") return "*" + (barePointer(node.pointer!.raw) ?? node.pointer!.raw);
   if (node.kind === "hole") return '""';
-  if (node.kind === "container" && node.flow) {
+  // THE CHOKE POINT: a flow container that no longer fits serializes as block, so a missed
+  // demotion call site can never emit invalid source — it degrades instead
+  if (node.kind === "container" && node.flow && flowFits(node)) {
+    const seq = flowIsSeq(node);
     const items = node.entries
-      .filter((e) => e.decided || node.flow === "seq")
-      .map((e) => (e.key !== null ? `${e.key}: ` : "") + (valueToken(e.node) ?? '""'));
-    return node.flow === "seq" ? `[${items.join(", ")}]` : `{${items.join(", ")}}`;
+      .filter((e) => e.decided || seq)
+      // keyToken, not the bare key: an AUTHORED quoted key stays quoted, and a key needing quotes
+      // (a space, a `:`) keeps them — a flow token is one line, so an unquoted one would not parse
+      .map((e) => (e.key !== null ? `${keyToken(e)}: ` : "") + (valueToken(e.node) ?? '""'));
+    return seq ? `[${items.join(", ")}]` : `{${items.join(", ")}}`;
   }
   return null; // block container / link → block lines
 }
@@ -391,6 +440,34 @@ export function markCommitted(entry: MEntry): void {
 
 /** The topmost UNCOMMITTED entry on the spine (the unit that must be inserted whole), or null when
  *  the spine is fully committed. */
+/** The OUTERMOST flow container on a spine, with its own server path — or null when the spine
+ *  runs entirely through block containers.
+ *
+ *  A FLOW CONTAINER IS ONE SOURCE TOKEN. `[1, 2]` occupies a single line and its elements have no
+ *  independent address to splice at, so ANY edit inside one — a value, a removal, a tag — has to
+ *  re-emplace the WHOLE token at the container's own path. `commitSpine` already did this for
+ *  uncommitted subtrees; a flow container loaded FROM DISK is committed everywhere, and without
+ *  this its interior ops (`:a:x`, `:b[0]`) reach a server that reads them as block addresses —
+ *  which for a flow map splices a fresh line under the one-liner and corrupts the row.
+ *
+ *  Outermost, not nearest: a nested `[[1, 2], [3]]` is still one token, written at the outer path. */
+export function flowAncestor(rootPath: string, root: MNode, spine: Spine): { node: MNode; path: string } | null {
+  for (let d = 0; d < spine.parents.length; d++) {
+    const { container } = spine.parents[d];
+    if (!container.flow) continue;
+    // the container's OWN path: the spine down to (not including) the level it owns
+    return { node: container, path: pathOfSpine(rootPath, { entry: spine.entry, parents: spine.parents.slice(0, d) }) };
+  }
+  // the ROOT itself may be the flow container (a `[12, 13, 14]` document)
+  return root.flow ? { node: root, path: rootPath } : null;
+}
+
+/** The whole-token emplace an edit inside a flow container must emit instead of its own op. */
+function flowEmplace(rootPath: string, root: MNode, spine: Spine): Edit[] | null {
+  const fa = flowAncestor(rootPath, root, spine);
+  return fa ? [{ path: fa.path, op: "emplace", yamlover: serializeMNode(fa.node) }] : null;
+}
+
 function topUncommitted(spine: Spine): { container: MNode; index: number; entry: MEntry; depth: number } | null {
   for (let d = 0; d < spine.parents.length; d++) {
     const { container, index } = spine.parents[d];
@@ -421,6 +498,19 @@ export function commitSpine(rootPath: string, root: MNode, entryId: string): Edi
   }
   // the CONTAINER's path: the spine up to (not including) the uncommitted entry's own level
   const parentPath = pathOfSpine(rootPath, { entry, parents: spine.parents.slice(0, top.depth) });
+  // A FLOW container is ONE token on the wire (`[1, 2]`, `{"a": 1}`) — its entries have no
+  // independent server address to insert at, so a commit inside one re-emplaces the WHOLE token at
+  // the container's own path. Without this the insert below described a block entry: typing `[1]`
+  // into a fresh document wrote `- 1`, and `{"abc": 1}` wrote a mapping entry with no map around
+  // it — the shapes the user typed simply did not survive the round-trip.
+  if (container.flow) {
+    // the OUTERMOST flow container, not this one: a nested `[[1, 2], [3]]` is still ONE token, so
+    // the inner container has no address of its own either — `flowAncestor` walks all the way out
+    const fa = flowAncestor(rootPath, root, spine) ?? { node: container, path: parentPath };
+    for (const e of fa.node.entries) if (e.decided) markCommitted(e);
+    for (const e of container.entries) if (e.decided) markCommitted(e);
+    return [{ path: fa.path, op: "emplace", yamlover: serializeMNode(fa.node) }];
+  }
   const payload = serializeMNode(entry.node) || '""';
   const meta = entry.node.metaTag !== null ? entry.node.metaTag : undefined;
   const at = serverIndexOf(container, index);
@@ -454,6 +544,8 @@ export function setNodeToken(rootPath: string, root: MNode, nodeId: string, next
   }
   node.dirty = false; // the commit below persists it
   if (spine && !allCommitted(spine)) return commitSpine(rootPath, root, spine.entry.id);
+  // inside a flow container there is no interior address — the whole token re-emplaces
+  if (spine) { const fe = flowEmplace(rootPath, root, spine); if (fe) return fe; }
   const path = spine ? pathOfSpine(rootPath, spine) : rootPath;
   const src = node.kind === "pointer" ? "*" + (barePointer(node.pointer!.raw) ?? node.pointer!.raw) : node.scalar!.src;
   return [{ path, op: "emplace", yamlover: src }];
@@ -491,6 +583,7 @@ export function setSelfValue(rootPath: string, root: MNode, nodeId: string, scal
   const clearing = scalar === null || scalar.src === "" || scalar.src === '""';
   node.selfValue = clearing ? null : scalar;
   if (spine && !allCommitted(spine)) return commitSpine(rootPath, root, spine.entry.id);
+  if (spine) { const fe = flowEmplace(rootPath, root, spine); if (fe) return fe; }
   const path = spine ? pathOfSpine(rootPath, spine) : rootPath;
   const at = serverIndexOf(node, node.selfAt); // a fresh line lands at its position; a replace stays put
   return [{ path, op: "emplace", yamlover: clearing ? '""' : scalar!.src, ...(clearing || at === 0 ? {} : { at }) }];
@@ -582,9 +675,15 @@ export function removeEntry(rootPath: string, root: MNode, entryId: string): Edi
   const { container, index } = spine.parents[spine.parents.length - 1];
   const entry = container.entries[index];
   if (entry.derivedKey) return []; // membership lives in body.yamlover — v1 does not rewrite it
-  const path = entry.committed && allCommitted(spine) ? pathOfSpine(rootPath, spine) : null;
+  // A removal INSIDE a flow token rewrites the whole token, not a (non-existent) interior address —
+  // but only when there IS something on disk to rewrite. Dropping an uncommitted hole is a
+  // client-side tidy-up; emplacing for it wrote the token a second time (`em: {}` twice).
+  const persisted = entry.committed && allCommitted(spine);
+  const flow = persisted ? flowAncestor(rootPath, root, spine) : null;
+  const path = persisted ? pathOfSpine(rootPath, spine) : null;
   container.entries.splice(index, 1);
   demoteIfEmptied(container, root);
+  if (flow) return [{ path: flow.path, op: "emplace", yamlover: serializeMNode(flow.node) }];
   return path !== null ? [{ path, op: "remove" }] : [];
 }
 

@@ -25,7 +25,7 @@ async function handlers(tree: Record<string, string>) {
 
 type MixedEntry = { key: string | null; value: unknown; anchor?: boolean };
 const mixedOf = (json: { value: unknown }) =>
-  (json.value as { $yamloverMixed?: { kind: string; entries: MixedEntry[] } }).$yamloverMixed;
+  (json.value as { $yamloverMixed?: { kind: string; value?: unknown; entries: MixedEntry[] } }).$yamloverMixed;
 
 describe("/api/json — positional prefix (dir-backed pointer-array body)", () => {
   it("named members carry anchor:true in body order; the unreferenced file is a keyed-only tail", async () => {
@@ -78,5 +78,60 @@ describe("/api/json — positional prefix (dir-backed pointer-array body)", () =
     const json = call(h, "/api/json", { path: ":d" }).json;
     expect(json.type).toBe("mixed");
     expect(json.hasOrdinal ?? json.facets?.hasOrdinal).not.toBe(false);
+  });
+});
+
+// A body's positional flow is the SAME facet whatever else the body carries. A directory whose
+// body is a scalar self-value plus a pointer element (`World` / `- *: item01` — what the editor
+// writes when a list is nested by typing) consumes the pointer exactly as a pure pointer-array
+// body does: the member appears ONCE, anchored at its body position. Before this it appeared
+// TWICE — as a plain keyed child AND as an unconsumed `- *: item01` element beside it.
+describe("/api/json — a member ordered from an OMNI or MIXED body is consumed too", () => {
+  it("a scalar-self-value body consumes its pointer element at every depth", async () => {
+    const h = await handlers({
+      ".yamlover/body.yamlover": "- *: item01\n",
+      "item01/.yamlover/body.yamlover": "World\n- *: item01\n",
+      "item01/item01/.yamlover/body.yamlover": "Eurasia\n- Europe\n- Asia\n",
+    });
+    const m = mixedOf(call(h, "/api/json", { path: ":", depth: ".inf" }).json);
+    expect(m!.entries).toEqual([
+      {
+        key: "item01",
+        anchor: true,
+        value: {
+          $yamloverMixed: {
+            kind: "omni",
+            value: "World",
+            entries: [
+              {
+                key: "item01",
+                anchor: true,
+                value: { $yamloverMixed: { kind: "omni", value: "Eurasia", entries: [{ key: null, value: "Europe" }, { key: null, value: "Asia" }] } },
+              },
+            ],
+          },
+        },
+      },
+    ]);
+  });
+
+  it("a MIXED body keeps keyed fields, the flow's source order, and the anchors together", async () => {
+    const h = await handlers({
+      "doc/.yamlover/body.yamlover": "Title\ndescription: Sub\n- one\n- *: pic.png\n- two\n- *: sub\n",
+      "doc/pic.png": "PNG",
+      "doc/sub/.yamlover/body.yamlover": "Deep\n",
+      "doc/unlisted.txt": "x", // never named by the body → keyed remainder, no anchor
+    });
+    const m = mixedOf(call(h, "/api/json", { path: ":doc", depth: "2" }).json);
+    expect(m!.kind).toBe("omni");
+    expect(m!.value).toBe("Title");
+    expect(m!.entries.map((e) => [e.key, e.anchor ?? false])).toEqual([
+      ["description", false],
+      [null, false], // "one"
+      ["pic.png", true],
+      [null, false], // "two"
+      ["sub", true],
+      ["unlisted.txt", false], // trails the body's own order, in filesystem order
+    ]);
   });
 });

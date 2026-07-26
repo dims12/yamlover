@@ -592,6 +592,11 @@ body {
 .tree-label:hover {
   color: var(--accent);
 }
+/* a row's scalar self-value, after its label — dim, so the label still reads as the name */
+.tree-value {
+  color: var(--dim, #777);
+  margin-left: 0.5em;
+}
 
 /* type/format icon */
 .icon {

@@ -14,6 +14,7 @@ export interface TreeNode {
   concrete: string | null; // how it is stored; `dir` → a plain-folder icon
   hasChildren: boolean;
   children: TreeNode[];
+  value?: string; // the scalar self-value, one line and capped — shown dim after the label
   match?: boolean; // queryFilter only: this row is one of the query's matches
 }
 
@@ -47,7 +48,11 @@ export type CommentBucket = {
   blankBefore?: boolean; // a blank source line precedes this entry — render an empty line
   valueTrailing?: string[]; // a comment trailing the node's own self-value line (omni `5 # …`)
   raw?: string;       // a scalar's authored SOURCE token — rendered faithfully so `"~"` reads as a
-                      // string not null, `0xff`/`True` keep their spelling (CONCRETES.md §Scalar representation)
+                      // string not null, `0xff`/`True` keep their spelling
+  repr?: string;      // the node's REPRESENTATION concrete (../repr): `yaml/flow` for a container
+                      // authored on one line, `yaml/single`/`yaml/hex`/… for a scalar. Carried only
+                      // when it is not the default for the value — absent means "the canonical one"
+  block?: { chomp?: "strip" | "keep"; indent?: number }; // a literal/folded scalar's qualifiers (CONCRETES.md §Scalar representation)
 };
 export type CommentMap = Record<string, CommentBucket | string[]>;
 

@@ -1,4 +1,5 @@
 !!<*yamlover: $defs: board>
+workflow: *:: yamlover: tags: workflow: dev
 add-board-view.yamlover: !!<*yamlover: $defs: task> Add the agile board renderer
   description: Render a directory of tasks as kanban lanes with drag-to-retag.
   priority: normal
@@ -46,4 +47,3 @@ write-migration-guide.yamlover: !!<*yamlover: $defs: task> Write a slash→colon
   - Dropped — the re-emitter already rewrites legacy slash input as colon (IR-equal), so no manual guide is needed.
   yamlover-annotations:
     - *:: yamlover: tags: workflow: dev: cancelled
-workflow: *:: yamlover: tags: workflow: dev

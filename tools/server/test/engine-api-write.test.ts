@@ -13,9 +13,14 @@ import { call, callBody, sseCapture } from "./http";
 // positional body values, a subchapter's title, and the hosted $defs the paste tests need.
 const bodyVals = (v: unknown): unknown[] => {
   if (Array.isArray(v)) return v;
-  const m = (v as { $yamloverMixed?: { entries: { key: string | null; value: unknown }[] } })?.$yamloverMixed;
-  return m ? m.entries.filter((e) => e.key == null).map((e) => e.value) : [];
+  const m = (v as { $yamloverMixed?: { entries: { key: string | null; anchor?: boolean; value: unknown }[] } })?.$yamloverMixed;
+  // a BODY-ANCHORED member is part of the positional flow: the body ordered it by pointer, which
+  // CONSUMED the pointer — it projects at that position, keyed by its storage name (walk.ts applyBody)
+  return m ? m.entries.filter((e) => e.key == null || e.anchor).map((e) => e.value) : [];
 };
+/** The mixed marker's entries (key + anchor flag), for asserting WHERE a member landed. */
+const bodyEntries = (v: unknown): { key: string | null; anchor?: boolean }[] =>
+  (v as { $yamloverMixed?: { entries: { key: string | null; anchor?: boolean }[] } })?.$yamloverMixed?.entries ?? [];
 const subTitle = (marker: unknown): unknown => {
   // a fully-omni subchapter's title is the marker's `value` (its scalar self-value, CHAPTER.md);
   // a legacy keyed `title:` entry still reads
@@ -494,6 +499,13 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
     const vals = bodyVals(call(h, "/api/json", { path: ":doc", depth: "7" }).json.value);
     expect(vals.filter((x) => typeof x === "string")).toEqual(["Hello", "intro", "outro"]);
     expect((vals.find((x) => (x as { $yamloverLink?: { path: string } })?.$yamloverLink) as { $yamloverLink: { path: string } }).$yamloverLink.path).toBe(":doc:cat.jpg");
+    // the image member is ANCHORED at its body position — its `- *: cat.jpg` pointer was consumed,
+    // so it appears ONCE, never also as a bare keyed child beside its own pointer
+    expect(
+      bodyEntries(call(h, "/api/json", { path: ":doc", depth: "7" }).json.value)
+        .filter((e) => e.key === "cat.jpg")
+        .map((e) => [e.key, e.anchor ?? false]),
+    ).toEqual([["cat.jpg", true]]);
     const subs = vals.filter((x) => subTitle(x) != null);
     expect(subs.map(subTitle)).toEqual(["Old", "Cats"]);
     const cats = subs[1];
@@ -560,6 +572,18 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
     expect(node.json.format).toBe("x-yamlover-chapter");
     const img = bodyVals(node.json.value).find((x) => (x as { $yamloverLink?: unknown })?.$yamloverLink) as { $yamloverLink: { path: string } };
     expect(img.$yamloverLink.path).toBe(encodeURI(":dir:A cat article:cat.jpg"));
+    // `cat.jpg` is ordered by the body's own top-level flow, so its pointer is CONSUMED and the
+    // member rides that position as an anchor. `cat-1.jpg` is referenced from INSIDE the inline
+    // "Gallery" subchapter — a cross-reference, not a body position — so it stays an ordinary keyed
+    // member of the directory. Either way each appears exactly once at this level.
+    expect(
+      bodyEntries(node.json.value)
+        .filter((e) => e.key?.startsWith("cat"))
+        .map((e) => [e.key, e.anchor ?? false]),
+    ).toEqual([
+      ["cat.jpg", true],
+      ["cat-1.jpg", false],
+    ]);
   });
 
   it("rejects an empty or malformed rich paste", async () => {
@@ -640,5 +664,66 @@ describe("/api/board (lane config)", () => {
     const empty = await callBody(h, "POST", "/api/board", { path: ":", lanes: [] });
     expect(empty.status).toBe(201);
     expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toContain("lanes: []");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The FORMAT GUARD (validate.ts) at the write chokepoints. These assert two things at once: the
+// write is refused, AND the tree is byte-identical afterwards — a guard that rejects but has
+// already mkdir'd half the damage is not a guard.
+// ---------------------------------------------------------------------------
+
+/** Every file and directory under `root`, with contents — the snapshot a refused write must not move. */
+function treeSnapshot(root: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const walk = (dir: string, rel: string): void => {
+    for (const d of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const abs = path.join(dir, d.name);
+      const key = rel ? `${rel}/${d.name}` : d.name;
+      if (d.name === "index.db" || d.name.startsWith("index.db-")) continue; // the derived index churns
+      if (d.isDirectory()) {
+        out[`${key}/`] = "";
+        walk(abs, key);
+      } else out[key] = fs.readFileSync(abs, "utf8");
+    }
+  };
+  walk(root, "");
+  return out;
+}
+
+describe("the format guard refuses corrupting edits", () => {
+  it("refuses an edit that would write INSIDE the hidden overlay, leaving the tree untouched", async () => {
+    const root = tmpTree({ "World/.yamlover/body.yamlover": "Europe: 1\n" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const before = treeSnapshot(root);
+    // `:World:.yamlover` resolves to a real directory, so this reaches the directory-target route
+    // and would compute <root>/World/.yamlover/.yamlover/body.yamlover.
+    const r = await callBody(h, "POST", "/api/edit", { path: ":World:.yamlover", op: "insert", key: "Asia", yamlover: "x: 1" });
+    expect(r.status).toBe(400);
+    expect(String(r.json.error)).toContain(".yamlover");
+    expect(treeSnapshot(root)).toEqual(before);
+  });
+
+  it("refuses a member name the filesystem cannot carry, leaving the tree untouched", async () => {
+    const root = tmpTree({ "World/.yamlover/body.yamlover": "Europe: 1\n" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const before = treeSnapshot(root);
+    const r = await callBody(h, "POST", "/api/edit", { path: ":World", op: "insert", key: ".hidden", yamlover: "x: 1" });
+    expect(r.status).toBe(400);
+    expect(treeSnapshot(root)).toEqual(before);
+  });
+
+  it("still writes the legitimate twin — a keyed container becomes a real directory", async () => {
+    const root = tmpTree({ "World/.yamlover/body.yamlover": "Europe: 1\n" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: ":World", op: "insert", key: "Eurasia", yamlover: "Asia: 1" });
+    expect(r.status).toBe(200);
+    expect(fs.statSync(path.join(root, "World", "Eurasia")).isDirectory()).toBe(true);
+    expect(fs.readFileSync(path.join(root, "World", "Eurasia", ".yamlover", "body.yamlover"), "utf8")).toContain("Asia: 1");
+    // and the promotion did NOT bury an overlay inside an overlay
+    expect(fs.existsSync(path.join(root, "World", ".yamlover", ".yamlover"))).toBe(false);
   });
 });

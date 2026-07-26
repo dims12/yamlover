@@ -9,8 +9,8 @@
 import { createContext, Fragment, ReactNode, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CommentBucket } from "../../api";
 import { fmtDerivedAnchor, type Link } from "../../render";
-import { caretAtStart, caretOnFirstLine, caretOnLastLine } from "../caret";
-import { keyToken, type MEntry, type MNode } from "./model";
+import { caretAtEnd, caretAtStart, caretOnFirstLine, caretOnLastLine } from "../caret";
+import { flowIsSeq, keyToken, type MEntry, type MNode } from "./model";
 import type { HoleAction } from "./keys";
 import { classifyHoleInput, keyedEditParts, normalizeSpaces } from "./keys";
 import { QueryCells, useQueryCellHost } from "../../query-cells";
@@ -71,11 +71,25 @@ export interface YedActions {
   holeText(entryId: string, text: string): boolean;
   /** The Enter form of {@link holeText}: commit AND open the follow-up hole, caret in it. */
   holeSubmit(entryId: string, text: string): boolean;
+  /** A typed `,` inside a flow container: commit this cell, then open a fresh element AFTER it,
+   *  caret inside. Works from a hole and from a committed token cell, seq and map alike. False =
+   *  the text is not one flow scalar (error ring; the comma is not consumed). */
+  flowNext(entryId: string, text: string): boolean;
+  /** A typed `]` / `}`: commit the cell (an empty uncommitted hole is dropped instead), then land
+   *  the caret in the zero-width cell AFTER the projected closer. The WRONG closer returns false
+   *  and consumes nothing. */
+  flowClose(entryId: string, text: string, closer: "]" | "}"): boolean;
+  /** A `:` typed just past a flow token's closer: the TOKEN becomes the entry's KEY (`[256, 256]:
+   *  *thumb` — the shape splitKV reads), and a fresh value hole opens beside it. False = the key
+   *  already exists, or this token is itself inside another flow token (no keys live there). */
+  flowKeyed(nodeId: string): boolean;
   /** The EMPTY document's root hole: its typed prefix shapes the ROOT itself (a scalar/pointer
    *  value, a first entry, or the root meta tag). */
   rootHole(action: HoleAction): void;
   /** Commit the root hole's plain text as the document's root scalar. False = rejected. */
   rootText(text: string): boolean;
+  /** Move the caret to a cell by its registration key (the flow-after cell steps back inside). */
+  focusCellKey(key: string, at: "start" | "end"): void;
   /** `empty_cell_of_origin`: dismantle an UNPERSISTED projected cell (quotes / `*` / braces)
    *  back to the hole it grew from. No-op for persisted cells. */
   dismantle(nodeId: string): void;
@@ -113,9 +127,25 @@ export interface YedCtxType {
   holderOf(nodeId: string): string;
   /** The DOCUMENT holding the edited node — a `*:` pointer's spelling base. */
   docPath(): string;
+  /** The id of the entry that OWNS a node, read lazily from the live model — a nested flow
+   *  token's `,`/closer/Enter act on the OUTER token's element, which is that entry. */
+  entryIdOfNode(nodeId: string): string | null;
 }
 
 export const YedCtx = createContext<YedCtxType | null>(null);
+
+/** The FLOW container a cell is drawn inside, or null in block position. Provided by
+ *  {@link FlowCells}; a nested flow container re-provides its own, so the value is always the
+ *  INNERMOST one. Block containers never render inside FlowCells, so this is exact — the cells
+ *  read it instead of threading a prop through every head/body component. */
+const FlowCtx = createContext<{ kind: "map" | "seq"; nodeId: string } | null>(null);
+
+/** The entry id that OWNS `nodeId` — what a nested flow token's `,`/closer acts on (the outer
+ *  token's element), and what its Enter opens a sibling after. */
+function useOuterEntryId(nodeId: string): string | null {
+  const { entryIdOfNode } = useYed();
+  return entryIdOfNode(nodeId);
+}
 export const useYed = (): YedCtxType => useContext(YedCtx)!;
 
 /** The token colour class of a decoded value — mirrors the read-only view. */
@@ -239,12 +269,52 @@ function EditableCell({ cellKey, className, initial, rev, placeholder, force = f
 // Value cells
 // --------------------------------------------------------------------------- //
 
+/** THE FLOW KEY GRAMMAR, shared by the hole and the token cell so both behave identically inside
+ *  `[…]` / `{…}`. Returns true when the key was consumed.
+ *
+ *   `,`      — commit this cell, open the next element (the only way to reach a second element)
+ *   `]`/`}`  — commit, then land the caret past the closer (the wrong closer rings, consuming nothing)
+ *   Enter    — a comma when the cell has text, a close when it is empty: it never descends (a
+ *              one-line token has no level below) and never leaves the caret nowhere
+ *   Tab      — moves between cells; indent/dedent are meaningless inside one line, and the old
+ *              preventDefault-then-nop left the caret sitting still
+ */
+function flowKeys(
+  e: React.KeyboardEvent,
+  el: HTMLElement,
+  entryId: string,
+  flow: { kind: "map" | "seq" },
+  act: YedActions,
+): boolean {
+  const text = normalizeSpaces(el.textContent ?? "");
+  const ring = (ok: boolean) => { if (!ok) el.classList.add("edit-error"); else el.classList.remove("edit-error"); };
+  if (e.key === ",") { e.preventDefault(); ring(act.flowNext(entryId, text)); return true; }
+  if (e.key === "]" || e.key === "}") { e.preventDefault(); ring(act.flowClose(entryId, text, e.key)); return true; }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    ring(text.trim() === "" ? act.flowClose(entryId, "", flow.kind === "seq" ? "]" : "}") : act.flowNext(entryId, text));
+    return true;
+  }
+  if (e.key === "Tab") { e.preventDefault(); act.focusSibling(el, e.shiftKey ? -1 : 1); return true; }
+  // A flow token is ONE line made of several cells, so left/right must CROSS them: at a cell edge
+  // the arrow steps into the neighbour instead of stopping dead. (Up/Down already move between
+  // rows; without this the caret could enter the last cell of `[12, 13]` and never leave it.)
+  if (e.key === "ArrowLeft" && caretAtStart(el)) { e.preventDefault(); act.focusSibling(el, -1); return true; }
+  if (e.key === "ArrowRight" && caretAtEnd(el)) { e.preventDefault(); act.focusSibling(el, 1); return true; }
+  return false;
+}
+
 /** A scalar cell. Token mode edits the SOURCE token; quote mode projects the paired quotes around
  *  an inner text cell; block mode is a multiline textarea committing via block-scalar escaping. */
 export function ScalarCell({ node, entryId }: { node: MNode; entryId: string | null }) {
   const { act } = useYed();
+  const flow = useContext(FlowCtx);
   const s = node.scalar!;
-  const structuralKeys = (e: React.KeyboardEvent, el: HTMLElement): boolean => {
+  /** `quoted` — the caller is the INNER text of a quote cell, where `,` `]` `}` are literal
+   *  characters of the string until the closing quote is typed. Only a bare TOKEN cell hands its
+   *  structural keys to the flow grammar. */
+  const structuralKeys = (e: React.KeyboardEvent, el: HTMLElement, quoted = false): boolean => {
+    if (flow && entryId && !quoted && flowKeys(e, el, entryId, flow, act)) return true;
     if (e.key === "Tab" && entryId) { e.preventDefault(); if (e.shiftKey) act.dedent(entryId); else act.indent(entryId); return true; }
     if (e.key === "Backspace" && entryId && (el.textContent ?? "") === "") { e.preventDefault(); act.removeEmpty(entryId); return true; }
     if (e.key === "Backspace" && (el.textContent ?? "") !== "" && caretAtStart(el)) { e.preventDefault(); act.focusSibling(el, -1); return true; }
@@ -284,7 +354,7 @@ export function ScalarCell({ node, entryId }: { node: MNode; entryId: string | n
               act.dismantle(node.id);
               return true;
             }
-            if (structuralKeys(e, el)) return true;
+            if (structuralKeys(e, el, /*quoted*/ true)) return true;
             if (e.key === q) {
               // the CLOSING quote → quoted_token_closed: caret jumps after it, nothing committed
               e.preventDefault();
@@ -345,6 +415,8 @@ export function ScalarCell({ node, entryId }: { node: MNode; entryId: string | n
  *  it reads as, Backspace steps back inside the quotes. Nothing else is legal here. */
 function AfterQuoteCell({ node }: { node: MNode }) {
   const { act, registerCell } = useYed();
+  const flow = useContext(FlowCtx);
+  const ownEntry = useOuterEntryId(node.id);
   const [error, setError] = useState(false);
   const commit = (submit: boolean) => act.commitText(node.id, String(node.scalar?.value ?? ""), submit);
   return (
@@ -359,6 +431,14 @@ function AfterQuoteCell({ node }: { node: MNode }) {
       onKeyDown={(e) => {
         e.preventDefault();
         setError(false);
+        // inside a flow token the closed quote is a finished ELEMENT: `,` opens the next one and a
+        // closer ends the token, exactly as from a bare cell. Without this the after-quote cell
+        // swallowed them (it preventDefaults every key), stranding `['a, b'` mid-token.
+        if (flow && ownEntry && (e.key === "," || e.key === "]" || e.key === "}")) {
+          commit(false); // the quoted token IS this element's value
+          setError(!(e.key === "," ? act.flowNext(ownEntry, "") : act.flowClose(ownEntry, "", e.key)));
+          return;
+        }
         if (e.key === ":") setError(!act.quotedKey(node.id)); // duplicate key → error ring, stay
         else if (e.key === "Enter") setError(!commit(true));
         else if (e.key === "Backspace" || e.key === "ArrowLeft") act.quoteReopen(node.id); // back INSIDE, no commit
@@ -634,6 +714,7 @@ export function SelfValueCell({ node }: { node: MNode }) {
  *  structural materializes the corresponding cells, plain text commits as a scalar on Enter/blur. */
 export function HoleCell({ entry, stage }: { entry: MEntry; stage: "entry" | "value" }) {
   const { act, registerCell } = useYed();
+  const flow = useContext(FlowCtx);
   const ref = useRef<HTMLElement | null>(null);
   const [error, setError] = useState(false);
   const node = entry.node;
@@ -669,7 +750,11 @@ export function HoleCell({ entry, stage }: { entry: MEntry; stage: "entry" | "va
         const text = clipboardText(e).replace(/\n+$/, "");
         setError(false);
         if (!text.includes("\n")) {
-          // single line — exactly as if typed: caret insert, then the live grammar classifies
+          // A whole FLOW TOKEN goes in STRUCTURALLY. Typed character by character the grammar
+          // builds it cell by cell, but a paste arrives at once: the classifier would see the
+          // leading `[`, open an empty flow container, and drop the rest of the text on the floor.
+          if (/^\s*[[{]/.test(text) && act.pasteEntry(entry.id, text)) return;
+          // otherwise single line — exactly as if typed: caret insert, then the live grammar classifies
           insertTextAtCaret(el, text);
           classify(false);
           return;
@@ -684,6 +769,10 @@ export function HoleCell({ entry, stage }: { entry: MEntry; stage: "entry" | "va
       onKeyDown={(e) => {
         const el = e.currentTarget as HTMLElement;
         const text = (el.textContent ?? "").trim();
+        // inside `[…]` / `{…}` the flow grammar owns `,` `]` `}` Enter Tab — but only AFTER the
+        // classifier has had its say, so a typed `[` still opens a NESTED token rather than
+        // closing this one, and `k: ` still names a flow-map pair
+        if (flow && !classify(false) && flowKeys(e, el, entry.id, flow, act)) { setError(false); return; }
         if (e.key === "Enter") {
           e.preventDefault();
           if (classify(true)) return;
@@ -903,10 +992,16 @@ export function EntryRow({ entry }: { entry: MEntry }) {
 /** A flow container rendered inline: `{ k: v, … }` / `[ v, … ]` — the paired closer is projected,
  *  each element is its own cell, Enter inside adds the next element (while still uncommitted). */
 export function FlowCells({ node }: { node: MNode }) {
-  const open = node.flow === "seq" ? "[" : "{";
-  const close = node.flow === "seq" ? "]" : "}";
+  // the ENTRIES decide the brackets (flowIsSeq), never the stored tag — see its doc: trusting the
+  // tag once drew `{12, 13}` for a wire-loaded sequence, which is not yamlover
+  const seq = flowIsSeq(node);
+  const open = seq ? "[" : "{";
+  const close = seq ? "]" : "}";
+  // the ENCLOSING token, captured BEFORE this one is provided — the after-cell needs it to know
+  // whether a typed `,`/closer/`:` belongs to this token or to the one around it
+  const outer = useContext(FlowCtx);
   return (
-    <>
+    <FlowCtx.Provider value={{ kind: seq ? "seq" : "map", nodeId: node.id }}>
       <span className="punct">{open}</span>
       {node.entries.map((e, i) => (
         <Fragment key={e.id}>
@@ -916,7 +1011,50 @@ export function FlowCells({ node }: { node: MNode }) {
         </Fragment>
       ))}
       <span className="punct">{close}</span>
-    </>
+      {/* the after-cell lives OUTSIDE this token's context — it is the spot past the closer */}
+      <FlowCtx.Provider value={outer}>
+        <FlowAfterCell node={node} />
+      </FlowCtx.Provider>
+    </FlowCtx.Provider>
+  );
+}
+
+/** The landing spot AFTER a flow token's closer — the mirror of {@link AfterQuoteCell}. A typed
+ *  `]`/`}` puts the caret here, so the token can be finished and left without the caret ever
+ *  falling out of the editor. A nested token's `,` / closer act on the token OUTSIDE this one. */
+function FlowAfterCell({ node }: { node: MNode }) {
+  const { act, registerCell } = useYed();
+  const outer = useContext(FlowCtx); // set when THIS flow token is itself an element of another
+  const outerEntry = useOuterEntryId(node.id);
+  const [keyError, setKeyError] = useState(false);
+  return (
+    <span
+      ref={(el) => registerCell(node.id + ":flowafter", el)}
+      data-yed-cell={node.id + ":flowafter"}
+      className={"yed-after editable" + (keyError ? " edit-error" : "")}
+      contentEditable
+      suppressContentEditableWarning
+      spellCheck={false}
+      onKeyDown={(e) => {
+        e.preventDefault();
+        if (e.key === "Backspace" || e.key === "ArrowLeft") {
+          // step back INSIDE, onto the token's last cell — nothing is committed or removed
+          const last = node.entries[node.entries.length - 1];
+          if (last) act.focusCellKey(last.node.id, "end");
+          return;
+        }
+        if (outer && outerEntry) {
+          if (e.key === ",") { act.flowNext(outerEntry, ""); return; }
+          if (e.key === "]" || e.key === "}") { act.flowClose(outerEntry, "", e.key); return; }
+        }
+        // `[12, 13]: 14` — the token becomes this entry's KEY (the `[256, 256]:` overlay shape).
+        // Only outside another flow token: a flow map's own keys are typed in its cells.
+        if (e.key === ":" && !outer) { setKeyError(!act.flowKeyed(node.id)); return; }
+        if (e.key === "Enter" && outerEntry) { act.enterAfter(outerEntry); return; }
+        if (e.key === "ArrowUp") act.focusSibling(e.currentTarget, -1);
+        else if (e.key === "ArrowDown") act.focusSibling(e.currentTarget, 1);
+      }}
+    />
   );
 }
 

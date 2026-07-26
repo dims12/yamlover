@@ -6,6 +6,288 @@
     "anchors": [],
     "entries": [
       {
+        "key": "tags",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "A small taxonomy for short / deadpan papers — two axes, field and genre",
+          "array": false,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "tag"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": "field",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "What the paper is about",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "mathematics",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Mathematics",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "number-theory",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Number theory — Diophantine equations, sums of powers",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "physics",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Physics",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "quantum",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Quantum mechanics and measurement",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "particle",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Particle physics — neutrinos and the like",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "earth-science",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Earth science",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "seismology",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Seismology — earthquakes and their statistics",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "chemistry",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Chemistry",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": "psychology",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "Psychology",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "behavior-analysis",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Applied behavior analysis",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "genre",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "How the paper is short",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": "brevity",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "The paper is famously short",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "shortest-paper",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Famously the shortest paper in its journal",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "one-word-answer",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "The title is a question; the abstract answers it in a word",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "empty-body",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "The body of the paper is (almost) entirely blank",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "humor",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "The paper is a joke",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "deadpan",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Plays it completely straight",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "satire",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Mocks its target",
+                            "array": false,
+                            "set": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "key": "annotation",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "A secondary / derivative edition of another paper",
+                      "array": false,
+                      "set": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
         "key": "1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf",
         "edge": "contain",
         "value": {
@@ -713,288 +995,6 @@
                           }
                         ]
                       }
-                    }
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      },
-      {
-        "key": "tags",
-        "edge": "contain",
-        "value": {
-          "kind": "scalar",
-          "value": "A small taxonomy for short / deadpan papers — two axes, field and genre",
-          "array": false,
-          "set": false,
-          "schema": {
-            "ptr": {
-              "base": {
-                "scope": "current"
-              },
-              "steps": [
-                {
-                  "sel": "key",
-                  "name": "yamlover"
-                },
-                {
-                  "sel": "key",
-                  "name": "$defs"
-                },
-                {
-                  "sel": "key",
-                  "name": "tag"
-                }
-              ]
-            }
-          },
-          "anchors": [],
-          "entries": [
-            {
-              "key": "field",
-              "edge": "contain",
-              "value": {
-                "kind": "scalar",
-                "value": "What the paper is about",
-                "array": false,
-                "set": false,
-                "anchors": [],
-                "entries": [
-                  {
-                    "key": "mathematics",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "scalar",
-                      "value": "Mathematics",
-                      "array": false,
-                      "set": false,
-                      "anchors": [],
-                      "entries": [
-                        {
-                          "key": "number-theory",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "scalar",
-                            "value": "Number theory — Diophantine equations, sums of powers",
-                            "array": false,
-                            "set": false,
-                            "anchors": [],
-                            "entries": []
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "key": "physics",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "scalar",
-                      "value": "Physics",
-                      "array": false,
-                      "set": false,
-                      "anchors": [],
-                      "entries": [
-                        {
-                          "key": "quantum",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "scalar",
-                            "value": "Quantum mechanics and measurement",
-                            "array": false,
-                            "set": false,
-                            "anchors": [],
-                            "entries": []
-                          }
-                        },
-                        {
-                          "key": "particle",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "scalar",
-                            "value": "Particle physics — neutrinos and the like",
-                            "array": false,
-                            "set": false,
-                            "anchors": [],
-                            "entries": []
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "key": "earth-science",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "scalar",
-                      "value": "Earth science",
-                      "array": false,
-                      "set": false,
-                      "anchors": [],
-                      "entries": [
-                        {
-                          "key": "seismology",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "scalar",
-                            "value": "Seismology — earthquakes and their statistics",
-                            "array": false,
-                            "set": false,
-                            "anchors": [],
-                            "entries": []
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "key": "chemistry",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "scalar",
-                      "value": "Chemistry",
-                      "array": false,
-                      "set": false,
-                      "anchors": [],
-                      "entries": []
-                    }
-                  },
-                  {
-                    "key": "psychology",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "scalar",
-                      "value": "Psychology",
-                      "array": false,
-                      "set": false,
-                      "anchors": [],
-                      "entries": [
-                        {
-                          "key": "behavior-analysis",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "scalar",
-                            "value": "Applied behavior analysis",
-                            "array": false,
-                            "set": false,
-                            "anchors": [],
-                            "entries": []
-                          }
-                        }
-                      ]
-                    }
-                  }
-                ]
-              }
-            },
-            {
-              "key": "genre",
-              "edge": "contain",
-              "value": {
-                "kind": "scalar",
-                "value": "How the paper is short",
-                "array": false,
-                "set": false,
-                "anchors": [],
-                "entries": [
-                  {
-                    "key": "brevity",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "scalar",
-                      "value": "The paper is famously short",
-                      "array": false,
-                      "set": false,
-                      "anchors": [],
-                      "entries": [
-                        {
-                          "key": "shortest-paper",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "scalar",
-                            "value": "Famously the shortest paper in its journal",
-                            "array": false,
-                            "set": false,
-                            "anchors": [],
-                            "entries": []
-                          }
-                        },
-                        {
-                          "key": "one-word-answer",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "scalar",
-                            "value": "The title is a question; the abstract answers it in a word",
-                            "array": false,
-                            "set": false,
-                            "anchors": [],
-                            "entries": []
-                          }
-                        },
-                        {
-                          "key": "empty-body",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "scalar",
-                            "value": "The body of the paper is (almost) entirely blank",
-                            "array": false,
-                            "set": false,
-                            "anchors": [],
-                            "entries": []
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "key": "humor",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "scalar",
-                      "value": "The paper is a joke",
-                      "array": false,
-                      "set": false,
-                      "anchors": [],
-                      "entries": [
-                        {
-                          "key": "deadpan",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "scalar",
-                            "value": "Plays it completely straight",
-                            "array": false,
-                            "set": false,
-                            "anchors": [],
-                            "entries": []
-                          }
-                        },
-                        {
-                          "key": "satire",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "scalar",
-                            "value": "Mocks its target",
-                            "array": false,
-                            "set": false,
-                            "anchors": [],
-                            "entries": []
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "key": "annotation",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "scalar",
-                      "value": "A secondary / derivative edition of another paper",
-                      "array": false,
-                      "set": false,
-                      "anchors": [],
-                      "entries": []
                     }
                   }
                 ]

@@ -87,6 +87,14 @@ export interface NodeMeta {
    *  itself is positionless data (`entries` keep their own [n] indices), but this preserves where
    *  the line was written so serialize + the renderer show it in place. Absent ⇒ first (0). */
   selfAt?: number;
+  /** FLOW STYLE (typography, not graph): this container was AUTHORED on one line — `{k: v, …}` /
+   *  `[v, …]` — inside an otherwise block-structured document. Recorded so the serializer re-emits
+   *  what was written and a projection can offer flow cells; classified as the `yaml/flow`
+   *  REPRESENTATION concrete (CONCRETES.md §Scalar representation, repr.ts). `array` remains the
+   *  sole source of truth for WHICH bracket (a flow map is never `array`) — this only says "one
+   *  line". Absent ⇒ block. Never set by the json5p reader: a json5p document is flow END TO END,
+   *  which its language already says. Not part of IR identity — canon.ts ignores it. */
+  style?: 'flow';
 }
 export interface Span { uri: string; start: number; end: number; }
 

@@ -3,7 +3,7 @@
 // `- ` / `k: ` shaping, `{` flow pairing, `*` pointer cells), Enter opens sibling holes, Backspace
 // drops empty entries, Tab indents — and the op queue flushes the expected surgical batches.
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, cleanup, waitFor, fireEvent, act } from "@testing-library/react";
+import { render, cleanup, waitFor, fireEvent, act, createEvent } from "@testing-library/react";
 import { TocFilterCtx, useTocFilterSession } from "../../src/client/toc-filter-session";
 
 const { editChunks, fetchNode, fetchAnnotations, queryTree, queryFilter } = vi.hoisted(() => ({
@@ -323,7 +323,9 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     const valueHole = lastHole(container);
     type(valueHole, "1");
     fireEvent.keyDown(valueHole, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", key: "a", yamlover: "1" }]), { timeout: 2000 });
+    // the document IS the flow map the user typed. It used to emit `insert :n[0] key:a` — a BLOCK
+    // mapping entry — so the braces were an input affordance that evaporated on the next reload.
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n", op: "emplace", yamlover: "{a: 1}" }]), { timeout: 2000 });
   });
 
   it("BUG 3: `[` at the ROOT opens bracket-style sequence editing — no dash", async () => {
@@ -337,7 +339,9 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     const inner = container.querySelector<HTMLElement>(".yed-hole")!;
     type(inner, "x");
     fireEvent.keyDown(inner, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", yamlover: "x" }]), { timeout: 2000 });
+    // as with `{`: the whole flow token is emplaced, so `[x]` survives the round-trip instead of
+    // being written as the block sequence `- x`
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n", op: "emplace", yamlover: "[x]" }]), { timeout: 2000 });
   });
 
   it("`|` + Enter at the ROOT opens the focused block cell; Shift-Tab finishes it", async () => {
@@ -1459,5 +1463,400 @@ describe("derived anchors — positional members of a dir-backed pointer-array",
     await new Promise((r) => setTimeout(r, 600)); // past the 500ms flush debounce
     expect(editChunks).not.toHaveBeenCalled();
     expect(container.querySelectorAll(".anchor.derived")).toHaveLength(2); // both rows still top-level
+  });
+});
+
+// JSON is valid YAML, and yamlover follows — so a flow token must be typeable to completion and
+// must SURVIVE the round-trip. These pin the two ways it used to fail: a flow container emitted an
+// entry insert (a block shape the server wrote as `- 1` where `[1]` was typed), and a flow map's
+// entry, `decided` from birth, could never take a key — so `{"abc":` replaced the key with an
+// invisible nested mapping. Plus the recovery path: no keystroke may leave a cell you cannot escape.
+describe("flow tokens — JSON typed into the editor", () => {
+  const EMPTY = { path: ":d", type: "scalar", concrete: "dir/yamlover", title: null, description: null, value: null };
+
+  /** One keystroke: keyDown first (cells may preventDefault), else the character lands. */
+  function press(ch: string) {
+    const el = document.activeElement as HTMLElement;
+    expect(el, `nothing focused when typing ${JSON.stringify(ch)} — an editor trap`).toBeTruthy();
+    expect(el).not.toBe(document.body);
+    const ev = createEvent.keyDown(el, { key: ch });
+    fireEvent(el, ev);
+    if (!ev.defaultPrevented && ch.length === 1) {
+      const cur = document.activeElement as HTMLElement;
+      cur.textContent = (cur.textContent ?? "") + ch;
+      fireEvent.input(cur);
+    }
+  }
+  const rows = (c: HTMLElement) => Array.from(c.querySelectorAll(".yed-row")).map((r) => r.textContent);
+  async function emptyDoc() {
+    fetchNode.mockResolvedValue(EMPTY);
+    const { container } = await mount(":d");
+    container.querySelector<HTMLElement>(".yed-hole")!.focus();
+    return container;
+  }
+
+  it("`[1]` at the root IS the document — one emplace, no `- ` marker invented", async () => {
+    const container = await emptyDoc();
+    for (const ch of ["[", "1"]) press(ch);
+    expect(rows(container)).toEqual(["[1]"]); // no dash: `[1]` is the whole document
+    fireEvent.blur(document.activeElement as HTMLElement);
+    await waitFor(() => expect(editChunks).toHaveBeenCalled());
+    expect(editChunks.mock.calls.flat(2)).toEqual([{ path: ":d", op: "emplace", yamlover: "[1]" }]);
+  });
+
+  it('`{"abc": 1}` at the root keeps the key — the quoted token names the entry', async () => {
+    const container = await emptyDoc();
+    for (const ch of ["{", '"', "a", "b", "c", '"', ":", "1"]) press(ch);
+    expect(rows(container)).toEqual(['{"abc": 1}']);
+    fireEvent.blur(document.activeElement as HTMLElement);
+    await waitFor(() => expect(editChunks).toHaveBeenCalled());
+    // the AUTHORED quotes survive: a flow token is one line, an unquoted spacey key would not parse
+    expect(editChunks.mock.calls.flat(2)).toEqual([{ path: ":d", op: "emplace", yamlover: '{"abc": 1}' }]);
+  });
+
+  it("`{abc: 1}` — an UNQUOTED key names the entry too, never a nested mapping", async () => {
+    const container = await emptyDoc();
+    for (const ch of ["{", "a", "b", "c", ":", " ", "1"]) press(ch);
+    expect(rows(container)).toEqual(["{abc: 1}"]);
+  });
+
+  it("a flow token as an ELEMENT keeps its `- ` and inserts at its own index", async () => {
+    fetchNode.mockResolvedValue({ path: ":d", type: "array", concrete: "dir/yamlover", title: null, description: null, value: ["alpha"] });
+    const { container } = await mount(":d");
+    openHole(container).focus();
+    for (const ch of ["[", "1"]) press(ch);
+    expect(rows(container)).toContain("- [1]"); // inside a sequence it IS an element
+    fireEvent.blur(document.activeElement as HTMLElement);
+    await waitFor(() => expect(editChunks).toHaveBeenCalled());
+    expect(editChunks.mock.calls.flat(2)).toEqual([{ path: ":d[1]", op: "insert", yamlover: "[1]" }]);
+  });
+
+  it("NO TRAPS: Backspace walks all the way back out of `[`, focus intact at every step", async () => {
+    fetchNode.mockResolvedValue({ path: ":d", type: "array", concrete: "dir/yamlover", title: null, description: null, value: ["alpha"] });
+    const { container } = await mount(":d");
+    openHole(container).focus();
+    press("[");
+    expect(rows(container)).toContain("- []");
+    const back = () => {
+      const el = document.activeElement as HTMLElement;
+      expect(el, "focus lost — the editor trapped the caret").toBeTruthy();
+      expect(el).not.toBe(document.body);
+      fireEvent.keyDown(el, { key: "Backspace" });
+    };
+    back(); // the flow container dismantles, the hole comes back
+    expect(rows(container)).toContain("- ");
+    back(); // the `- ` decision undoes
+    back(); // the entry itself goes
+    expect(rows(container)).toEqual(["- alpha", "＋"]);
+    expect(document.activeElement).not.toBe(document.body);
+  });
+});
+
+// The FLOW KEY GRAMMAR — `,` opens the next element, a typed closer ends the token, Enter is a
+// comma (or a close on an empty cell), Tab walks the cells. Before this there was no keystroke
+// that could open a SECOND element, and `acceptsAsScalar` rejected the comma outright, so only
+// single-element tokens (`[1]`) were authorable.
+describe("flow tokens — typing a whole JSON value", () => {
+  const EMPTY = { path: ":d", type: "scalar", concrete: "dir/yamlover", title: null, description: null, value: null };
+
+  function press(ch: string) {
+    const el = document.activeElement as HTMLElement;
+    expect(el, `nothing focused when typing ${JSON.stringify(ch)} — an editor trap`).toBeTruthy();
+    expect(el).not.toBe(document.body);
+    const ev = createEvent.keyDown(el, { key: ch });
+    fireEvent(el, ev);
+    if (!ev.defaultPrevented && ch.length === 1) {
+      const cur = document.activeElement as HTMLElement;
+      cur.textContent = (cur.textContent ?? "") + ch;
+      fireEvent.input(cur);
+    }
+  }
+  const type = (s: string) => { for (const ch of s) press(ch); };
+  const rows = (c: HTMLElement) => Array.from(c.querySelectorAll(".yed-row")).map((r) => r.textContent);
+  const ops = () => editChunks.mock.calls.flat(2);
+
+  async function emptyDoc() {
+    fetchNode.mockResolvedValue(EMPTY);
+    const { container } = await mount(":d");
+    container.querySelector<HTMLElement>(".yed-hole")!.focus();
+    return container;
+  }
+  async function commit() {
+    fireEvent.blur(document.activeElement as HTMLElement);
+    await waitFor(() => expect(editChunks).toHaveBeenCalled(), { timeout: 2000 });
+  }
+
+  it("THE CASE: `[12, 13, 14]` types to completion and lands as ONE token", async () => {
+    const container = await emptyDoc();
+    type("[12,13,14]");
+    expect(rows(container)).toEqual(["[12, 13, 14]"]);
+    await commit();
+    expect(ops()).toEqual([{ path: ":d", op: "emplace", yamlover: "[12, 13, 14]" }]);
+  });
+
+  it("`{a: 1, b: 2}` — an unquoted flow map, pair by pair", async () => {
+    const container = await emptyDoc();
+    type("{a: 1,b: 2}");
+    expect(rows(container)).toEqual(["{a: 1, b: 2}"]);
+    await commit();
+    // every op is a whole-token emplace at the document path; if the queue happened to flush
+    // mid-typing there are several, each a longer prefix — the LAST one is what lands on disk
+    expect(ops().every((o) => o.path === ":d" && o.op === "emplace")).toBe(true);
+    expect(ops().at(-1)).toEqual({ path: ":d", op: "emplace", yamlover: "{a: 1, b: 2}" });
+  });
+
+  it("authored quotes survive the round-trip", async () => {
+    const container = await emptyDoc();
+    for (const ch of ["{", '"', "a", '"', ":", "1", ",", '"', "b", '"', ":", "2", "}"]) press(ch);
+    expect(rows(container)).toEqual(['{"a": 1, "b": 2}']);
+    await commit();
+    expect(ops()).toEqual([{ path: ":d", op: "emplace", yamlover: '{"a": 1, "b": 2}' }]);
+  });
+
+  it("nested `[[1, 2], [3]]` — a typed `[` inside flow NESTS, it does not restart", async () => {
+    const container = await emptyDoc();
+    type("[[1,2],[3]]");
+    expect(rows(container)).toEqual(["[[1, 2], [3]]"]);
+    await commit();
+    expect(ops()).toEqual([{ path: ":d", op: "emplace", yamlover: "[[1, 2], [3]]" }]);
+  });
+
+  it("Enter acts as a comma; on an EMPTY cell it closes the token instead", async () => {
+    const container = await emptyDoc();
+    type("[1");
+    press("Enter"); // the cell has text → a comma: commit, open the next element
+    type("2");
+    expect(rows(container)).toEqual(["[1, 2]"]);
+    press("Enter"); // again a comma — a third, empty element opens
+    expect(rows(container)).toEqual(["[1, 2, ]"]);
+    press("Enter"); // NOW the cell is empty → close; the blank element is dropped, not written ""
+    expect(rows(container)).toEqual(["[1, 2]"]);
+    expect((document.activeElement as HTMLElement).className).toContain("yed-after");
+  });
+
+  it("a comma INSIDE quotes belongs to the scalar, not to the grammar", async () => {
+    const container = await emptyDoc();
+    for (const ch of ["[", "'", "a", ",", " ", "b", "'", ",", "0", "x", "f", "f", "]"]) press(ch);
+    expect(rows(container)).toEqual(["['a, b', 0xff]"]);
+  });
+
+  it("the WRONG closer rings and consumes nothing", async () => {
+    const container = await emptyDoc();
+    type("[1");
+    press("}");
+    expect(rows(container)).toEqual(["[1]"]);
+    expect(document.activeElement).not.toBe(document.body);
+    expect((document.activeElement as HTMLElement).className).toContain("edit-error");
+  });
+
+  it("Tab walks the cells instead of sitting still", async () => {
+    await emptyDoc();
+    type("[1,2");
+    const before = document.activeElement;
+    press("Tab");
+    expect(document.activeElement).not.toBe(before);
+    expect(document.activeElement).not.toBe(document.body);
+    expect((document.activeElement as HTMLElement).dataset.yedCell ?? "").not.toBe("");
+  });
+
+  it("NO TRAPS: Backspace from past the closer steps back INSIDE, then all the way out", async () => {
+    await emptyDoc();
+    type("[1]");
+    expect((document.activeElement as HTMLElement).className).toContain("yed-after");
+    for (let i = 0; i < 4; i++) {
+      const el = document.activeElement as HTMLElement;
+      expect(el, "focus lost — the editor trapped the caret").toBeTruthy();
+      expect(el).not.toBe(document.body);
+      fireEvent.keyDown(el, { key: "Backspace" });
+    }
+    expect(document.activeElement).not.toBe(document.body);
+  });
+});
+
+// A flow token loaded FROM DISK is committed everywhere, so its edits used to emit INTERIOR
+// addresses (`:d:a:x`, `:d[0]`) — which the server reads as block addresses. For a flow map that
+// splices a fresh line under the one-liner and corrupts the row.
+describe("flow tokens — a PERSISTED token edits as one token", () => {
+  const FLOW_SEQ = {
+    path: ":d", type: "array", concrete: "dir/yamlover", title: null, description: null,
+    value: [1, 2], comments: { "": { repr: "yaml/flow" } },
+  };
+  const FLOW_MAP = {
+    path: ":d", type: "object", concrete: "dir/yamlover", title: null, description: null,
+    value: { a: { x: 1 } }, comments: { "/a": { repr: "yaml/flow" } },
+  };
+  const cellWith = (c: HTMLElement, text: string) =>
+    Array.from(c.querySelectorAll<HTMLElement>("[data-yed-cell]")).find((el) => el.textContent === text)!;
+
+  it("renders a wire-flow container as FLOW cells, not block rows", async () => {
+    fetchNode.mockResolvedValue(FLOW_SEQ);
+    const { container } = await mount(":d");
+    expect(Array.from(container.querySelectorAll(".yed-row")).map((r) => r.textContent)).toEqual(["[1, 2]"]);
+    expect(container.querySelector(".yaml-dash")).toBeNull(); // no `- ` markers
+  });
+
+  it("editing a cell re-emplaces the WHOLE token at the CONTAINER's path", async () => {
+    fetchNode.mockResolvedValue(FLOW_MAP);
+    const { container } = await mount(":d");
+    const cell = cellWith(container, "1");
+    cell.focus();
+    cell.textContent = "2";
+    fireEvent.input(cell);
+    fireEvent.blur(cell);
+    await waitFor(() => expect(editChunks).toHaveBeenCalled(), { timeout: 2000 });
+    // `:d:a`, the flow container — NOT `:d:a:x`, which has no line of its own
+    expect(editChunks.mock.calls.flat(2)).toEqual([{ path: ":d:a", op: "emplace", yamlover: "{x: 2}" }]);
+  });
+
+  it("Enter on a COMMITTED element opens a sibling — it does not swallow the token", async () => {
+    fetchNode.mockResolvedValue(FLOW_SEQ);
+    const { container } = await mount(":d");
+    const cell = cellWith(container, "1");
+    cell.focus();
+    fireEvent.keyDown(cell, { key: "Enter" });
+    // it used to convert the element into a block container with an invisible hole, after which
+    // the whole token re-serialized as `[""]`
+    expect(container.querySelector(".yed-row")!.textContent).toContain("[1, ");
+    expect(document.activeElement).not.toBe(document.body);
+  });
+});
+
+// PASTING JSON. A flow token pasted into a hole keeps its collection style instead of
+// canonicalizing to block rows, and a pretty-printed JSON blob — which is NOT yamlover source
+// (trailing commas, `//` comments, different quoting rules) — is sniffed and read with the json5p
+// parser rather than refused.
+describe("flow tokens — pasting JSON", () => {
+  const EMPTY = { path: ":d", type: "scalar", concrete: "dir/yamlover", title: null, description: null, value: null };
+  const ARR = { path: ":d", type: "array", concrete: "dir/yamlover", title: null, description: null, value: ["alpha"] };
+  const rows = (c: HTMLElement) => Array.from(c.querySelectorAll(".yed-row")).map((r) => r.textContent);
+
+  function paste(el: HTMLElement, text: string) {
+    fireEvent.paste(el, { clipboardData: { getData: () => text } });
+  }
+
+  it("a single-line flow token pastes as ONE token, not as block rows", async () => {
+    fetchNode.mockResolvedValue(ARR);
+    const { container } = await mount(":d");
+    const hole = openHole(container);
+    hole.focus();
+    paste(hole, "[12, 13, 14]");
+    await waitFor(() => expect(rows(container).join("|")).toContain("[12, 13, 14]"));
+  });
+
+  it("a MULTI-LINE JSON blob is sniffed and read by the json5p parser", async () => {
+    fetchNode.mockResolvedValue(EMPTY);
+    const { container } = await mount(":d");
+    const hole = container.querySelector<HTMLElement>(".yed-hole")!;
+    hole.focus();
+    // not valid yamlover (double-quoted keys over several lines is json5p's grammar, and the
+    // yamlover reader rejects it) — the sniff is what makes this land at all
+    paste(hole, '{\n  "a": 1,\n  "b": [2, 3]\n}');
+    await waitFor(() => expect(container.textContent).toContain("a"));
+    expect(container.textContent).toContain("b");
+  });
+
+  it("refuses BLOCK structure into a flow cell — one line has no spelling for it", async () => {
+    fetchNode.mockResolvedValue(ARR);
+    const { container } = await mount(":d");
+    const hole = openHole(container);
+    hole.focus();
+    hole.textContent = "[";
+    fireEvent.input(hole);
+    const inner = Array.from(container.querySelectorAll<HTMLElement>(".yed-hole:not(.yed-tail)")).pop()!;
+    inner.focus();
+    paste(inner, "a: 1\nb: 2");
+    // the row keeps its shape; nothing was reshaped behind the user's back
+    expect(rows(container).join("|")).toContain("[");
+    expect(rows(container).join("|")).not.toContain("a: 1");
+  });
+});
+
+// Three flow-editing defects, each pinned:
+//  1) the caret could enter the last cell of `[12, 13]` and never leave it — arrows stopped at a
+//     cell edge instead of crossing into the neighbour;
+//  2) `[12, 13]: 14` — a flow token as a KEY, the shape splitKV reads (`[256, 256]: *thumb`) —
+//     could not be typed at all;
+//  3) a wire-loaded flow SEQUENCE re-rendered as `{12, 13}`, which is not yamlover: the brackets
+//     came from the stored tag instead of from the entries.
+describe("flow tokens — caret, keys, and brackets", () => {
+  const EMPTY = { path: ":d", type: "scalar", concrete: "dir/yamlover", title: null, description: null, value: null };
+  const WIRE_SEQ = {
+    path: ":d", type: "array", concrete: "dir/yamlover", title: null, description: null,
+    value: [12, 13], comments: { "": { repr: "yaml/flow" } },
+  };
+  const WIRE_MIXED_SEQ = {
+    path: ":d", type: "array", concrete: "dir/yamlover", title: null, description: null,
+    value: { $yamloverMixed: { kind: "array", entries: [{ key: null, value: 12 }, { key: null, value: 13 }] } },
+    comments: { "": { repr: "yaml/flow" } },
+  };
+
+  function press(ch: string) {
+    const el = document.activeElement as HTMLElement;
+    expect(el, `nothing focused when typing ${JSON.stringify(ch)}`).toBeTruthy();
+    expect(el).not.toBe(document.body);
+    const ev = createEvent.keyDown(el, { key: ch });
+    fireEvent(el, ev);
+    if (!ev.defaultPrevented && ch.length === 1) {
+      const cur = document.activeElement as HTMLElement;
+      cur.textContent = (cur.textContent ?? "") + ch;
+      fireEvent.input(cur);
+    }
+  }
+  const type = (s: string) => { for (const ch of s) press(ch); };
+  const rows = (c: HTMLElement) => Array.from(c.querySelectorAll(".yed-row")).map((r) => r.textContent);
+  const focusText = () => (document.activeElement as HTMLElement)?.textContent;
+
+  async function emptyDoc() {
+    fetchNode.mockResolvedValue(EMPTY);
+    const { container } = await mount(":d");
+    container.querySelector<HTMLElement>(".yed-hole")!.focus();
+    return container;
+  }
+
+  it("BRACKETS come from the entries: a wire-loaded sequence keeps `[` `]`", async () => {
+    for (const doc of [WIRE_SEQ, WIRE_MIXED_SEQ]) {
+      fetchNode.mockResolvedValue(doc);
+      const { container } = await mount(":d");
+      // `{12, 13}` — what the stored tag produced — is not yamlover at all, and the next edit
+      // would have written it to disk
+      expect(rows(container)).toEqual(["[12, 13]"]);
+      cleanup();
+    }
+  });
+
+  it("ArrowLeft/Right CROSS cell boundaries — the caret is never stuck in a cell", async () => {
+    await emptyDoc();
+    type("[12,13");
+    expect(focusText()).toBe("13");
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowLeft" });
+    expect(focusText()).toBe("12"); // left out of the cell, into its neighbour
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowRight" });
+    expect(focusText()).toBe("13"); // and back
+  });
+
+  it("`[12, 13]: 14` — the token becomes the entry's KEY", async () => {
+    const container = await emptyDoc();
+    type("[12,13]");
+    expect((document.activeElement as HTMLElement).className).toContain("yed-after");
+    press(":"); // past the closer, a colon makes the token a key
+    expect(rows(container)[0]).toContain("[12, 13]:");
+    type("14");
+    expect(rows(container)[0]).toContain("14");
+    fireEvent.blur(document.activeElement as HTMLElement);
+    await waitFor(() => expect(editChunks).toHaveBeenCalled(), { timeout: 2000 });
+    // the closer had already committed the token as the document's VALUE, so that line is cleared
+    // first (the coalesced emplace) and the keyed entry inserted — never an insert into a stale doc
+    expect(editChunks.mock.calls.flat(2)).toEqual([
+      { path: ":d", op: "emplace", yamlover: '""' },
+      { path: ":d[0]", op: "insert", yamlover: "14", key: "[12, 13]" },
+    ]);
+  });
+
+  it("a `:` INSIDE another flow token is refused — a flow map's keys are typed in its cells", async () => {
+    const container = await emptyDoc();
+    type("[[1,2]"); // the inner token is closed, the caret sits past its `]`
+    press(":");
+    expect(rows(container)[0]).not.toContain("]:"); // no key was made
+    expect(document.activeElement).not.toBe(document.body);
   });
 });

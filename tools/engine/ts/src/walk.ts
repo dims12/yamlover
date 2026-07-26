@@ -1015,50 +1015,63 @@ function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
   // a directory with a body.yamlover overlay is a self-contained instance = a DOCUMENT root
   // (so `*: file` inside it resolves to this directory, at any nesting depth). The body's
   // head-of-file banner rides onto the node so it survives past the parse.
-  const meta = { ...node.meta, ...body.meta, documentRoot: true, ...(bodyDoc.head?.length ? { head: bodyDoc.head } : {}) };
+  const meta0 = { ...node.meta, ...body.meta, documentRoot: true, ...(bodyDoc.head?.length ? { head: bodyDoc.head } : {}) };
 
-  // a pure pointer/positional array → the body's elements are the POSITIONAL PREFIX, in body
-  // order; a `*name` element is consumed and replaced by the child it names (which keeps its
-  // key — the storage provenance a projection may show as a derived `&name` anchor). Children
-  // the body does NOT name are never granted positions: they trail as KEYED-ONLY entries
-  // (`meta.positional` marks the prefix length; the node is a mix, not an array).
-  if (body.kind === 'mapping' && (body.array || (bodyEntries.length > 0 && bodyEntries.every((e) => e.key === null)))) {
-    const byKey = new Map(node.entries.map((e) => [e.key, e] as const));
-    const ordered: Entry[] = [];
-    let consumed = 0; // pointers that matched (and replaced) a keyed child
-    for (const e of bodyEntries) {
-      const targetKey = isPointer(e.value) ? pointerLeafKey(e.value) : null;
-      const hit = targetKey != null ? byKey.get(targetKey) : null;
-      if (hit) { ordered.push(hit); byKey.delete(targetKey); consumed++; }
-      else ordered.push(e); // an inline element, or a dangling/duplicate pointer — keeps its body position
-    }
-    const positional = ordered.length;
-    for (const e of node.entries) if (e.key != null && byKey.has(e.key)) ordered.push(e); // unlisted → keyed-only remainder
-    // a body that names EVERYTHING keeps the array projection (`array: true` — the hidden
-    // built-in graft must not flip it, see THE UNIFORM GRAFT); a keyed-only remainder makes
-    // the node an honest mix (`array: false`). `meta.positional` marks the prefix ONLY where it
-    // says something disk order doesn't: a pointer was consumed (its key is provenance to show
-    // as a derived anchor) or a remainder exists — a pure inline seq body stays a plain array.
-    const remainder = ordered.length > positional;
-    const prefixMeta = (consumed > 0 || remainder) && positional > 0 ? { ...meta, positional } : meta;
-    return { kind: 'mapping', entries: ordered, array: !remainder, meta: prefixMeta };
-  }
-
-  // a mapping (or MIXED) body: ADD overlay-only keys; for a KEYED key that matches a dir child,
-  // the overlay AUGMENTS it (YAMLOVER.md §5) — e.g. a file blob + body title/tags ⇒ an omni-blob.
-  // KEYLESS (positional) body entries are inline body content (a chapter's chunks/subchapters) and
-  // are always APPENDED as distinct entries — they must NOT be merged by key (all share `null`).
-  const keyed = new Map<string | null, Entry>(node.entries.filter((e) => e.key != null).map((e) => [e.key, e] as const));
-  const entries: Entry[] = [...node.entries]; // dir children first, in filesystem order
+  // THE POSITIONAL FACET of a directory body is its KEYLESS entries — the same thing whatever else
+  // the body carries: a pure pointer/inline sequence, a SCALAR self-value with a body under it (the
+  // omni chapter shape, `World` then `- *: item01`), or a mapping mixing keyed fields with them.
+  // They are the POSITIONAL PREFIX, in body order, and a `*name` element is CONSUMED — replaced by
+  // the child it names, which keeps its key as the storage provenance a projection shows as a
+  // derived `&name` anchor. So a member the body orders appears ONCE, at the position the body gave
+  // it — never a second time as a bare directory child beside its own pointer. Children the body
+  // does NOT name are never granted positions: they trail as KEYED-ONLY entries after the prefix.
+  // The directory's own children, by key — a slot is EMPTIED when a body pointer consumes it, so
+  // what survives is exactly the remainder the body never named.
+  const children: (Entry | null)[] = node.entries.slice();
+  const childAt = new Map<string, number>();
+  children.forEach((e, i) => { if (e!.key != null) childAt.set(e!.key, i); });
+  const bodyOrder: Entry[] = []; // the body's entries in SOURCE order — the addressing space
+  const anchored: string[] = []; // members the body ORDERED by pointer, and so consumed
+  const bodyAt = new Map<string, number>(); // key → its index in bodyOrder
   for (const e of bodyEntries) {
-    if (e.key == null) { entries.push(e); continue; } // positional body content — a distinct entry
-    const existing = keyed.get(e.key);
-    if (!existing) { keyed.set(e.key, e); entries.push(e); }
-    else {
-      const aug = augmentEntry(existing, e);
-      keyed.set(e.key, aug);
-      entries[entries.indexOf(existing)] = aug;
+    if (e.key == null) {
+      const targetKey = isPointer(e.value) ? pointerLeafKey(e.value) : null;
+      const ci = targetKey != null ? childAt.get(targetKey) : undefined;
+      const hit = ci !== undefined ? children[ci] : null;
+      if (!hit) { bodyOrder.push(e); continue; } // an inline element, or a dangling/duplicate pointer
+      children[ci!] = null; // consumed — it lives at its BODY position from here on
+      anchored.push(targetKey!);
+      bodyAt.set(targetKey!, bodyOrder.length);
+      bodyOrder.push(hit);
+      continue;
     }
+    // a keyed body entry AUGMENTS the member it names (YAMLOVER.md §5: a file blob + body
+    // title/tags ⇒ an omni-blob) — wherever that member already sits. Augmenting is not ORDERING:
+    // only a `*` pointer grants a position, so a merely-augmented child keeps its filesystem place.
+    const bi = bodyAt.get(e.key);
+    if (bi !== undefined) { bodyOrder[bi] = augmentEntry(bodyOrder[bi], e); continue; }
+    const ci = childAt.get(e.key);
+    if (ci !== undefined && children[ci]) { children[ci] = augmentEntry(children[ci]!, e); continue; }
+    bodyAt.set(e.key, bodyOrder.length);
+    bodyOrder.push(e); // an overlay-ONLY key: it exists nowhere on disk, so the body places it
+  }
+  const unlisted = children.filter((e): e is Entry => e !== null);
+  const remainder = unlisted.length > 0;
+  // `meta.anchored` names the members whose position came from the body — their keys are storage
+  // provenance a projection shows as a derived `&name` anchor, and they count as ORDINAL, not
+  // keyed. It is per-key, not a prefix count: a body that mixes keyed fields with its positional
+  // flow (a chapter) scatters them through source order.
+  const meta = anchored.length > 0 ? { ...meta0, anchored } : meta0;
+
+  // THE BODY IMPOSES ORDER: its own entries first, in source order (which is therefore the
+  // absolute-index addressing space an edit splices into), then the children it never named, in
+  // filesystem order. A child a keyed body entry merely AUGMENTS is not ordered by the body — it
+  // stays in the remainder, at its filesystem position.
+  const entries: Entry[] = [...bodyOrder, ...unlisted];
+  if (body.kind === 'mapping' && (body.array || (bodyEntries.length > 0 && bodyEntries.every((e) => e.key === null)))) {
+    // a body that names EVERYTHING keeps the array projection (`array: true` — the hidden built-in
+    // graft must not flip it, see THE UNIFORM GRAFT); a remainder makes the node an honest mix
+    return { kind: 'mapping', entries, array: !remainder, meta };
   }
   // a scalar body root → the directory node carries that scalar as its own value (omni). But an
   // EMPTY body (null value, no authored `~`/`null` token) is only a self-value when the directory

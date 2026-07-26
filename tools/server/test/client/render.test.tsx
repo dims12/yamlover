@@ -395,3 +395,54 @@ describe("Render", () => {
     expect(onNav).toHaveBeenCalledWith(":child");
   });
 });
+
+// FLOW in the READ-ONLY view. The two renderers are independent (this one draws the LOCKED view,
+// cells.tsx the unlocked editor), so flow has to be honoured in both — otherwise typing `[12, 13]`
+// and pressing Done showed `- 12` / `- 13`, telling the reader the file says something it does not.
+// The style arrives per node as `comments[frag].repr === "yaml/flow"`.
+describe("Render — the yaml/flow collection style", () => {
+  const show = (value: unknown, comments: Record<string, unknown>): string => {
+    const { container } = render(<Render value={value} syntax="yaml" onNavigate={() => {}} comments={comments as never} />);
+    return container.textContent ?? "";
+  };
+
+  it("a flow DOCUMENT root stays one line", () => {
+    expect(show([12, 13], { "": { repr: "yaml/flow" } })).toBe("[12, 13]\n");
+  });
+
+  it("a flow value rides its key row, and its siblings are untouched", () => {
+    expect(show({ k: [12, 13], b: 1 }, { "/k": { repr: "yaml/flow" } })).toBe("k: [12, 13]\nb: 1\n");
+  });
+
+  it("a flow ELEMENT rides its dash", () => {
+    expect(show([[12, 13], 9], { "[0]": { repr: "yaml/flow" } })).toBe("- [12, 13]\n- 9\n");
+  });
+
+  it("a flow MAP keeps its braces and keys", () => {
+    expect(show({ k: { a: 1, b: 2 } }, { "/k": { repr: "yaml/flow" } })).toBe("k: {a: 1, b: 2}\n");
+  });
+
+  it("nested flow nests — each level carries its own bit", () => {
+    const c = { "/k": { repr: "yaml/flow" }, "/k[0]": { repr: "yaml/flow" }, "/k[1]": { repr: "yaml/flow" } };
+    expect(show({ k: [[1, 2], [3]] }, c)).toBe("k: [[1, 2], [3]]\n");
+  });
+
+  it("BLOCK is the default — no bit, no braces", () => {
+    // (the leading `›` is the fold chevron a block container's row carries)
+    expect(show({ k: [12, 13] }, {})).toContain("k:\n  - 12\n  - 13\n");
+  });
+
+  it("scalar tokens inside a flow token keep their authored spelling", () => {
+    const out = show({ k: [255, "~"] }, { "/k": { repr: "yaml/flow" }, "/k[0]": { raw: "0xff" }, "/k[1]": { raw: '"~"' } });
+    expect(out).toBe('k: [0xff, "~"]\n'); // hex stays hex; the STRING "~" keeps its quotes
+  });
+
+  it("FALLS BACK to block when a member cannot live on one line", () => {
+    // the same refusal the serializer applies (flowTextOrNull) — the view must not claim a shape
+    // the file cannot carry, so a multiline member demotes the whole token
+    const out = show({ k: ["a\nb"] }, { "/k": { repr: "yaml/flow" } });
+    expect(out).not.toContain("["); // no brackets: the token demoted
+    expect(out).toContain("k:");
+    expect(out).toContain("- |-"); // the member renders as the block scalar it needs to be
+  });
+});

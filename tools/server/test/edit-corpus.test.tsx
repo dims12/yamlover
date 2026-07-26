@@ -1,0 +1,149 @@
+// @vitest-environment jsdom
+// THE EDIT-SEQUENCE CORPUS — `edit-examples/` (see its README). Each fixture is a keystroke script
+// replayed through the real client stack into a real server; the assertion is what came out on disk.
+//
+// This is the test the editor did not have. Every other editor test mocks `api.ts`, so a server
+// rejection ("edit sync failed: …") cannot reach it; the defects reported by hand over the last
+// rounds were all of exactly that kind. Here the ops are real, the handler is real, the tree is
+// real, and a keystroke with nowhere to go fails the fixture where it happened.
+//
+// THE ALLOWLIST is honest in BOTH directions: a listed fixture must still fail, so fixing a defect
+// tells you precisely which ids to delete. It only ever shrinks — it is the editor's defect list.
+import { describe, it, expect, afterEach } from "vitest";
+import { cleanup, render, waitFor } from "@testing-library/react";
+import fs from "node:fs";
+import path from "node:path";
+import { createHandlers, tmpTree, REPO } from "./helpers";
+import { call } from "./http";
+import { captureAlerts, installFetch, replay, settleOps } from "./edit-corpus-harness";
+import { YamloverEditor } from "../src/client/renderers/yamlover-editor/editor";
+import { parseYamlover } from "../../parser/ts/src/yamlover.ts";
+import { canonDoc } from "../../parser/ts/src/canon.ts";
+
+const CORPUS = path.join(REPO, "edit-examples");
+const FIXTURE_ID = /^\d{4}(-\d{2})?$/;
+
+// --- known-failing fixtures, each with its CAUSE. THE LIST ONLY SHRINKS. ---------------------
+// This is the editor's real defect inventory, discovered by the corpus rather than by hand. Fixing
+// a cause deletes its entries; the gate below fails if a listed fixture starts passing, so the list
+// cannot rot. It is EMPTY today — every fixture the generator can express round-trips.
+//
+// KEYED BY SOURCE (`from`), not by fixture id: generated ids are a sequence, so adding or skipping
+// one source renumbers everything after it and id-keyed entries would silently come to describe a
+// different document. A hand-written fixture (no `from`) is keyed by its id, which is stable.
+const ALLOWLIST = new Map<string, string>([]);
+
+interface Fixture {
+  id: string;
+  title: string;
+  keys: string;
+  input?: string;             // in.yamlover — the starting document
+  expect: "roundtrip" | "bytes";
+  out?: string;               // out.yamlover — required for `bytes`
+  from?: string;              // generated fixtures: the sample this came from
+}
+
+function loadFixture(id: string): Fixture {
+  const dir = path.join(CORPUS, id);
+  const read = (name: string): string | undefined => {
+    const p = path.join(dir, name);
+    return fs.existsSync(p) ? fs.readFileSync(p, "utf8") : undefined;
+  };
+  const mode = (read("expect") ?? "roundtrip").trim();
+  if (mode !== "roundtrip" && mode !== "bytes") throw new Error(`${id}: expect must be roundtrip|bytes, got ${mode}`);
+  const keys = read("keys");
+  if (keys === undefined) throw new Error(`${id}: no keys script`);
+  const out = read("out.yamlover");
+  if (mode === "bytes" && out === undefined) throw new Error(`${id}: expect=bytes needs out.yamlover`);
+  return { id, title: (read("===") ?? "").trim(), keys, input: read("in.yamlover"), expect: mode, out, from: read("from")?.trim() };
+}
+
+const ids = fs.existsSync(CORPUS)
+  ? fs.readdirSync(CORPUS).filter((n) => FIXTURE_ID.test(n) && fs.statSync(path.join(CORPUS, n)).isDirectory()).sort()
+  : [];
+
+/** Run one fixture; returns the failure reason, or null when it passed. Never throws for a
+ *  fixture-level failure — the allowlist gate needs to ask "did this pass?" either way. */
+async function runFixture(f: Fixture): Promise<string | null> {
+  // A STANDALONE FILE is the substrate, so a fixture tests the TYPING GRAMMAR and nothing else.
+  // In a DIRECTORY-backed document the storage policy also applies — a keyed node that gains
+  // container content is promoted into its own subdirectory (concrete-rules.ts) — so the content
+  // would leave this file mid-sequence and a one-file assertion would read empty. Fixtures for that
+  // policy belong in the server-side suites, which can assert over the whole tree.
+  const root = tmpTree({ "note.yamlover": f.input ?? "" });
+  const bodyPath = path.join(root, "note.yamlover");
+  const h = createHandlers(root, { gitignore: false });
+  await h.ready;
+  const restoreFetch = installFetch(h);
+  const alerts = captureAlerts();
+  try {
+    const { container } = render(<YamloverEditor path=":note.yamlover" onNavigate={() => {}} />);
+    await waitFor(() => expect(container.querySelector(".yed-row")).toBeTruthy(), { timeout: 3000 });
+    replay(f.keys);
+    await settleOps();
+
+    // 1. the sync itself — the seam a mocked editChunks can never show
+    if (alerts.messages.length) return `the server rejected an op: ${alerts.messages.join(" | ")}`;
+
+    const onDisk = fs.readFileSync(bodyPath, "utf8");
+
+    // 2. the assertion the fixture asked for
+    if (f.expect === "bytes") {
+      if (onDisk !== f.out) return `bytes differ\n  want: ${JSON.stringify(f.out)}\n  got:  ${JSON.stringify(onDisk)}`;
+    } else {
+      // ROUND-TRIP IDENTITY: what landed must reparse to the same IR as what was typed. No golden
+      // to bless — the property IS "the editor recorded what I typed".
+      const want = f.from !== undefined ? fs.readFileSync(path.join(REPO, f.from), "utf8") : (f.out ?? "");
+      try {
+        const a = canonDoc(parseYamlover(onDisk, "<disk>"));
+        const b = canonDoc(parseYamlover(want, "<source>"));
+        if (JSON.stringify(a) !== JSON.stringify(b)) {
+          return `the file does not reparse to the source's IR\n  disk: ${JSON.stringify(onDisk)}\n  want: ${JSON.stringify(want)}`;
+        }
+      } catch (e) {
+        return `the file does not even parse: ${(e as Error).message}\n  disk: ${JSON.stringify(onDisk)}`;
+      }
+    }
+
+    // 3. and the SERVER agrees about what is there (a splice the walker reads differently is a bug
+    //    the bytes alone would hide)
+    const j = call(h, "/api/json", { path: ":note.yamlover", depth: ".inf" }).json as { value: unknown };
+    if (j === undefined) return "the document no longer projects";
+    return null;
+  } catch (e) {
+    return `${(e as Error).message}`;
+  } finally {
+    alerts.restore();
+    restoreFetch();
+    cleanup();
+  }
+}
+
+afterEach(cleanup);
+
+describe("edit-examples — keystroke sequences, replayed for real", () => {
+  it(`the corpus is present (${ids.length} fixtures)`, () => {
+    expect(ids.length).toBeGreaterThan(0);
+  });
+
+  for (const id of ids) {
+    const f = loadFixture(id);
+    const known = ALLOWLIST.get(f.from ?? id);
+    it(`${id}: ${f.title}${known ? " [known-failing]" : ""}`, async () => {
+      const failure = await runFixture(f);
+      if (known) {
+        // the gate's other direction: a listed fixture that starts passing must be DELISTED, or the
+        // list stops meaning anything
+        expect(failure, `${id} now PASSES — remove it from the ALLOWLIST (was: ${known})`).not.toBeNull();
+      } else {
+        expect(failure, `${id} (${f.title})\n${failure}`).toBeNull();
+      }
+    }, 20000);
+  }
+
+  it("the allowlist references only real fixtures", () => {
+    const keys = new Set(ids.map((id) => loadFixture(id)).map((f) => f.from ?? f.id));
+    const stale = [...ALLOWLIST.keys()].filter((k) => !keys.has(k));
+    expect(stale, `the allowlist names sources/ids the corpus no longer has: ${stale.join(", ")}`).toEqual([]);
+  });
+});

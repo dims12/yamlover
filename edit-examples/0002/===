@@ -1,0 +1,1 @@
+a QUOTED nested key with children (the reported "cannot descend into a scalar element" bug)

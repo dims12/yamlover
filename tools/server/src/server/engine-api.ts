@@ -48,6 +48,7 @@ import { renderPointer, parsePointer } from "../../../parser/ts/src/pointer.ts";
 import { anchorBody } from "../../../parser/ts/src/serialize-common.ts";
 import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken, appendAnnotationAt, upsertMapEntryAt, removeAnnotationAt, removeMapEntryAt, annotationsRemainAt, pruneEmptyAnnotations, pruneEmptyAnnotationsAt, reachBodyAt, type Region as EmbedRegion } from "./embed.js";
 import { dataFileConcrete, interiorOf, isDirConcrete, pointerSafeName } from "../concrete.js";
+import { classifyScalar, isDefaultRepr, type BlockQualifiers, type Repr, type ScalarStyle } from "../repr.js";
 import { renderThumbnail } from "./extract/thumbnails.js";
 import { isThumbnailable } from "./extract/registry.js";
 import { colonSegment } from "../../../parser/ts/src/pointer.ts";
@@ -55,7 +56,20 @@ import { isPointer } from "../../../parser/ts/src/ir.ts";
 import type { Node as IrNode, Document, Comment as IrComment, Entry as IrEntry, Step as IrStep } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
 import { deriveMemberEncoding, deriveDirEditRoute, nextMemberName, subchapterMaterializes } from "../concrete-rules.js";
-import { displayKind, ownedEntries, positionalOf, typeName, facetsOf } from "./node-kind.js";
+import {
+  validatePath,
+  validateWrite,
+  validateTree,
+  enforce,
+  defaultMode,
+  type ConcreteNode,
+  type Diagnostic,
+  type EnforcementMode,
+  type PlannedWrite,
+  type TreeSnapshot,
+  type WriteSnapshot,
+} from "../validate.js";
+import { displayKind, ownedEntries, anchoredOf, typeName, facetsOf } from "./node-kind.js";
 import { TaskRegistry } from "./tasks.js";
 import type { TaskHandle, TaskInfo } from "./tasks.js";
 
@@ -123,7 +137,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   // edits made while the server was down show up immediately) and on every FS-watcher batch
   // (the WATCHED-LIVE tier), with POST /api/reindex as the manual fallback. Changes are pushed
   // to clients over GET /api/events (SSE). Move inference / relinking waits on the serializers.
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  mkdirInside(dataRoot, path.dirname(dbPath), { recursive: true });
   const store0 = new Store(dbPath);
   const store = (): Store => store0;
   // The assembled IR document, retained across reindexes: a single-file edit re-walks only its
@@ -132,6 +146,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   // index. Null until the first full reindex; invalidated when a path-rewriting reconcile runs.
   let cachedDoc: Document | null = null;
   const log = opts.log ?? ((): void => {});
+  setValidationLog(log); // non-fatal format diagnostics surface on the server's own log
   let closed = false;
 
   // SSE subscribers. Frames are typed: `{type:"diff", added,changed,removed,moved}` (a reindex
@@ -465,6 +480,21 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
+      // THE DOCTOR SWEEP — validate.ts's layout rules over the WHOLE served tree, after the fact.
+      // Deliberately a FILESYSTEM walk, not a Store walk: the index is built by a walker that
+      // SKIPS what it does not understand, so an overlay buried inside another overlay is exactly
+      // the corruption the index cannot see. The pre-flight guards stop this being written; the
+      // doctor finds what earlier versions (or an external editor) already left behind.
+      if (url.pathname === "/api/doctor") {
+        try {
+          const v = validateTree(scanTree(dataRoot, ignore));
+          sendJson(res, 200, { allowed: v.allowed, diagnostics: v.diagnostics });
+        } catch (e) {
+          sendJson(res, 500, { error: String((e as Error).message || e) });
+        }
+        return;
+      }
+
       // Long-running server tasks (indexing, hashing, …) currently in flight (or just
       // finished) — the snapshot a freshly loaded page needs; updates ride /api/events.
       if (url.pathname === "/api/tasks") {
@@ -672,7 +702,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               const b = data as { path?: string; lanes?: unknown };
               const lanes: string[][] = Array.isArray(b?.lanes) ? b.lanes.map((lane) => (Array.isArray(lane) ? lane.map((p) => String(p)) : [])) : [];
               const { bodyFile } = hostFor(dataRoot, s, strToSegs(b?.path || ":"));
-              fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
+              mkdirInside(dataRoot, path.dirname(bodyFile), { recursive: true });
               const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
               fs.writeFileSync(bodyFile, writeBoardLanes(src, lanes));
               broadcast(await doReindex());
@@ -1221,19 +1251,20 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
   // a FORMAT-STAMPED array (a tagged/derived x-yamlover-* container, e.g. an all-keyless
   // nested table or list) keeps its format via the marker path below; a plain data array
   // projects bare — the client cannot otherwise tell a tagged keyless table from data.
-  // A POSITIONAL-PREFIX node (a dir-backed pointer-array body) always takes the marker
-  // path: its entry keys are storage provenance the client shows as derived `&` anchors.
-  const positional = positionalOf(row);
-  if (k === "array" && !row.format && !positional) return kids.map(project);
+  // A node with BODY-ANCHORED members (a dir-backed body that ordered them by pointer) always
+  // takes the marker path: their keys are storage provenance the client shows as derived `&`
+  // anchors, which a bare array projection would throw away.
+  const anchored = anchoredOf(row);
+  if (k === "array" && !row.format && !anchored.size) return kids.map(project);
   if (k === "omni" || k === "mix" || k === "array") {
     // A `$yamloverMixed` marker preserving source order: each entry is positional (`key: null` →
     // a `- item`) or keyed (`key: "scale"` → `scale: …`); an omni also carries its self-value.
-    // `anchor: true` marks a positional member whose key is a DERIVED storage anchor
-    // (`- &key value`); keyed entries past the prefix are the ordinary keyed remainder.
+    // `anchor: true` marks a member the BODY positioned by pointer: its key is a DERIVED storage
+    // anchor (`- &key value`). Members the body never named are the ordinary keyed remainder.
     const entries = kids.map((c) => ({
       key: c.label,
       value: project(c),
-      ...(positional > 0 && (c.pos ?? 0) < positional && c.label !== null ? { anchor: true } : {}),
+      ...(c.label !== null && anchored.has(c.label) ? { anchor: true } : {}),
     }));
     const marker: Record<string, unknown> = { kind: k, entries };
     // the node's stamped/derived format — an inlined container otherwise carries none, and the
@@ -1296,6 +1327,13 @@ type CommentBucket = {
                           // keep their spelling (CONCRETES.md §Scalar representation). A BLOCK
                           // scalar's is the whole authored token: the `|`/`|-`/`>`… header line
                           // plus the de-indented content lines — renderers reproduce it verbatim.
+  repr?: string;          // the node's REPRESENTATION concrete (repr.ts) — `yaml/flow` for a
+                          // container authored in flow form, `yaml/hex`/`yaml/single`/… for a
+                          // scalar. Carried only when it is NOT the default for the value, so an
+                          // ordinary `Rex`/`42`/block mapping costs nothing. The COLLECTION half
+                          // has no other channel: `raw` is scalars-only and `NodeJson.concrete`
+                          // describes the viewed node alone, while nested flow needs it per node.
+  block?: BlockQualifiers; // a literal/folded scalar's chomping / indent indicator, when not clip
 };
 
 /** A scalar's authored source token to render faithfully — but only when it differs from the plain
@@ -1338,6 +1376,16 @@ function tagOf(n: IrNode): string | undefined {
   return parts.length ? parts.join(" ") : undefined;
 }
 
+/** An IR node's representation concrete: a scalar classifies from its authored token, a container
+ *  from the parser's authored flow bit. The LANGUAGE default (a json-family document is flow end to
+ *  end) is deliberately not consulted here — the client already knows the document's concrete, and
+ *  stamping every node of a `.json5p` file would bloat the sidecar to say what `concrete` says. */
+function classifyNodeRepr(node: IrNode): ScalarStyle | { repr: Repr; block?: undefined } | undefined {
+  if (node.kind === "scalar") return classifyScalar(node.value, node.raw);
+  if (node.kind === "blob") return undefined;
+  return node.meta?.style === "flow" ? { repr: "yaml/flow" as const } : undefined;
+}
+
 /** Syntax decorations of a value node (anchors, type tag, a self-value trailing comment),
  *  attached to its fragment. */
 function nodeDeco(bucket: CommentBucket, node: IrNode): void {
@@ -1345,6 +1393,13 @@ function nodeDeco(bucket: CommentBucket, node: IrNode): void {
   if (anchors.length > 0) bucket.anchors = anchors;
   const tag = tagOf(node);
   if (tag) bucket.tag = tag;
+  // the REPRESENTATION concrete (repr.ts), one rule for scalars and containers alike: classify,
+  // then send only what the default cannot re-derive
+  const style = isPointer(node) ? undefined : classifyNodeRepr(node);
+  if (style && !isDefaultRepr(style.repr, node.kind === "scalar" ? node.value : undefined)) {
+    bucket.repr = style.repr;
+    if (style.block) bucket.block = style.block;
+  }
   // a comment trailing the node's own SELF-VALUE line (an omni `5 # …`) — placement `trailing`
   // on the node itself (attachComments routes self-value trailers here, not to an entry)
   const vt = (node.meta?.comments ?? []).filter((c) => c.placement === "trailing").map((c) => c.text);
@@ -1360,7 +1415,7 @@ function collectComments(doc: Document, segs: Seg[], depth: number): Record<stri
     nodeDeco(self, root);
     const raw = scalarRawToken(root);
     if (raw) self.raw = raw;
-    if (self.anchors || self.tag || self.valueTrailing || self.raw) out[""] = self;
+    if (self.anchors || self.tag || self.valueTrailing || self.raw || self.repr) out[""] = self;
   }
   // $head is the head-of-file banner — shown when the VIEWED node is a document root (the walk
   // carries each document's head onto its root node, so sub-documents surface theirs too).
@@ -1547,7 +1602,20 @@ interface TreeNode {
   path: string; label: string; type: string; format: string | null;
   valueType?: string | null; hasKeyed?: boolean; hasOrdinal?: boolean; // renderer dispatch facets (TYPES.md §9)
   concrete: string | null; hasChildren: boolean; children: TreeNode[];
+  value?: string; // the scalar self-value as a short one-line preview (see tocValue)
   match?: boolean; // shape=filter only: this row is one of the query's matches
+}
+
+/** A node's scalar self-value as a TOC tail (`[0] <this>`) — the `large-icons` grid's convention
+ *  (explorer.tsx scalarText), so the two views read the same. First line only, capped: a long text
+ *  would bloat every TOC row's DOM, and CSS ellipsis only hides overflow it has already paid for.
+ *  BINARY has no readable value (blob bytes) and is omitted; so is a value that merely repeats the
+ *  label, which a titled chapter's self-value always does. */
+function tocValue(row: NodeRow, label: string): string | undefined {
+  if (row.type === "blob" || row.value === null || row.value === undefined) return undefined;
+  const line = String(row.value).split("\n", 1)[0].trim();
+  if (!line || line === label) return undefined;
+  return line.length > 80 ? line.slice(0, 79) + "…" : line;
 }
 
 /** shape=filter's match cap — a huge result set prunes to its first rows (walk order) and
@@ -1570,11 +1638,18 @@ function buildTree(dataRoot: string, s: Store, segs: Seg[], label: string, depth
     hasChildren: row.format === "x-yamlover-chapter" || row.format === "x-yamlover-task" ? hasSubchapterChild(s, p) : visibleHasChildren(s, p),
     children: [],
   };
+  const v = tocValue(row, label);
+  if (v !== undefined) node.value = v;
   if (node.hasChildren && depth > 0) {
+    // A BODY-ANCHORED member is ORDINAL (TYPES.md §1): its key is the storage name the body
+    // consumed a pointer to, not an authored key, so the TOC names it by POSITION like any other
+    // array element. The PATH stays keyed — that is the canonical, stable address.
+    const anchored = anchoredOf(row);
     for (const c of chapterOrderedChildren(s, p, row.format ?? null)) {
       if (isHidden(s, c.to)) continue; // omit the hidden `.yamlover` overlay subtree from the TOC
       const seg = c.label ?? c.pos ?? 0;
-      node.children.push(buildTree(dataRoot, s, [...segs, seg], labelFor(s, c.to, seg), depth - 1));
+      const shown = c.label !== null && anchored.has(c.label) ? (c.pos ?? 0) : seg;
+      node.children.push(buildTree(dataRoot, s, [...segs, seg], labelFor(s, c.to, shown), depth - 1));
     }
   }
   return node;
@@ -1926,7 +2001,7 @@ function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): string {
     return bodyFile;
   }
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
-  fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
+  mkdirInside(dataRoot, path.dirname(bodyFile), { recursive: true });
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
   fs.writeFileSync(bodyFile, appendAnnotation(src, within, (indent) => annotationItemLines(a, indent)));
   return bodyFile;
@@ -1956,13 +2031,13 @@ function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: Fra
     const bytes = Buffer.from(String(f.imageBase64).replace(/^data:[^,]*,/, ""), "base64");
     if (bytes.length > 0) {
       const { dir, scope } = sidecarTarget(dataRoot, mode, CROP_SUBDIR, bodyFile);
-      fs.mkdirSync(dir, { recursive: true });
+      mkdirInside(dataRoot, dir, { recursive: true });
       const cropName = `${slug}.png`;
       writeInside(dataRoot, dir, cropName, bytes);
       imagePtr = pointerToken(sidecarPointerRaw(CROP_SUBDIR, cropName, scope));
     }
   }
-  fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
+  mkdirInside(dataRoot, path.dirname(bodyFile), { recursive: true });
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
   fs.writeFileSync(bodyFile, upsertFragment(src, within, slug, (indent) => fragmentBlockLines(slug, f.selector, imagePtr, indent)));
   return { slug, fragmentPath: segsToStr([...segs, FRAG_KEY, slug]) };
@@ -2000,7 +2075,7 @@ function existingThumb(dataRoot: string, s: Store, mode: SidecarLocation, segs: 
 function embedThumbnail(dataRoot: string, s: Store, mode: SidecarLocation, segs: Seg[], w: number, h: number, name: string, onWrite?: (absFile: string) => void): void {
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
   const { scope } = sidecarTarget(dataRoot, mode, THUMB_SUBDIR, bodyFile);
-  fs.mkdirSync(path.dirname(bodyFile), { recursive: true });
+  mkdirInside(dataRoot, path.dirname(bodyFile), { recursive: true });
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
   const ptr = pointerToken(sidecarPointerRaw(THUMB_SUBDIR, name, scope));
   const key = thumbResKey(w, h);
@@ -2024,7 +2099,7 @@ async function ensureThumbnail(dataRoot: string, s: Store, mode: SidecarLocation
   if (fs.existsSync(abs)) return abs;
   const thumb = await renderThumbnail(fs.readFileSync(sourceAbs), row.format ?? formatFromExt(sourceAbs), w, h);
   if (!thumb) return null;
-  fs.mkdirSync(dir, { recursive: true });
+  mkdirInside(dataRoot, dir, { recursive: true });
   writeInside(dataRoot, dir, name, thumb.buf);
   onWrite?.(abs);
   embedThumbnail(dataRoot, s, mode, segs, w, h, name, onWrite);
@@ -2111,7 +2186,7 @@ function writeTag(
   if (!entry || isPointer(entry.value) || entry.value.meta?.schema === undefined) {
     throw new Error(`cannot write a tag named ${JSON.stringify(name)}`);
   }
-  fs.mkdirSync(dir, { recursive: true });
+  mkdirInside(dataRoot, dir, { recursive: true });
   fs.writeFileSync(file, body);
   return { node: entry.value, pos, file: [...strToSegs(location).map(String), ".yamlover", "body.yamlover"].join("/"), createdFile };
 }
@@ -2449,7 +2524,7 @@ function pasteRichAsChapter(dataRoot: string, segs: Seg[], rich: Rich): Record<s
   const name = uniqueName(dir, chapterFileName(title).replace(/\.yamlover$/, ""));
   const chDir = path.join(dir, name);
   if (!path.resolve(chDir).startsWith(path.resolve(dataRoot) + path.sep)) throw new Error("target escapes the data root");
-  fs.mkdirSync(path.join(chDir, ".yamlover"), { recursive: true });
+  mkdirInside(dataRoot, path.join(chDir, ".yamlover"), { recursive: true });
   const pointerFor = (fname: string, bytes: Buffer): string => {
     const final = uniqueName(chDir, fname);
     writeInside(dataRoot, chDir, final, bytes);
@@ -2500,7 +2575,7 @@ function objectBaseName(title: string): string {
 function writeObject(dataRoot: string, dir: string, base: string, concrete: string, src: string): string {
   if (concrete === "dir/yamlover") {
     const final = uniqueName(dir, base);
-    fs.mkdirSync(path.join(dir, final, ".yamlover"), { recursive: true });
+    mkdirInside(dataRoot, path.join(dir, final, ".yamlover"), { recursive: true });
     writeInside(dataRoot, path.join(dir, final, ".yamlover"), "body.yamlover", Buffer.from(src, "utf8"));
     return final;
   }
@@ -2515,7 +2590,7 @@ function ensureDirBody(dataRoot: string, absDir: string): string {
   const overlay = path.join(absDir, ".yamlover");
   const body = path.join(overlay, "body.yamlover");
   if (!fs.existsSync(body)) {
-    fs.mkdirSync(overlay, { recursive: true });
+    mkdirInside(dataRoot, overlay, { recursive: true });
     writeInside(dataRoot, overlay, "body.yamlover", Buffer.from("", "utf8"));
   }
   return body;
@@ -2551,7 +2626,7 @@ function writeDirMemberTree(dataRoot: string, absDir: string, key: string, value
   }
   const dir = path.join(absDir, name);
   if (fs.existsSync(dir)) throw new Error(`member \`${name}\` already exists in the directory`);
-  fs.mkdirSync(dir);
+  mkdirInside(dataRoot, dir);
   const f = payloadFacets(valueSrc);
   const groups = orderedGroups(f);
   const kinds: ("k" | "o")[] =
@@ -2579,7 +2654,7 @@ function writeDirMemberTree(dataRoot: string, absDir: string, key: string, value
   });
   if (selfAt >= 0 && !emittedSelf) emitSelf();
   if (bodyLines.length) {
-    fs.mkdirSync(path.join(dir, ".yamlover"));
+    mkdirInside(dataRoot, path.join(dir, ".yamlover"));
     writeInside(dataRoot, path.join(dir, ".yamlover"), "body.yamlover", Buffer.from(bodyLines.join("\n").replace(/\n*$/, "") + "\n", "utf8"));
   }
 }
@@ -2608,12 +2683,94 @@ function uniqueName(dir: string, name: string): string {
   }
 }
 
-/** Write `bytes` to `dir/name`, refusing any path that escapes the served root. */
+/** A root-relative POSIX path — the spelling validate.ts and the index both speak. */
+function relPosix(dataRoot: string, abs: string): string {
+  return path.relative(dataRoot, abs).split(path.sep).join("/");
+}
+
+/** The served tree as validate.ts sees it: one {@link ConcreteNode} per filesystem object, with
+ *  the same concrete derivation {@link concreteOf} uses for its FS branch. Git-ignored strays are
+ *  skipped (the walk skips them too, so they are not this format's business), but NOTHING else is
+ *  — including the hidden overlays, which is the point. */
+function scanTree(dataRoot: string, ignore?: (absPath: string) => boolean): TreeSnapshot {
+  const nodes: ConcreteNode[] = [];
+  const visit = (abs: string, segs: string[]): void => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(abs, { withFileTypes: true });
+    } catch {
+      return; // unreadable: not a format violation
+    }
+    const names = entries.map((d) => d.name);
+    nodes.push({
+      path: segsToStr(segs),
+      concrete: names.includes(".yamlover") ? "dir/yamlover" : "dir",
+      fsPath: segs.join("/"),
+      names,
+    });
+    for (const d of entries) {
+      const childAbs = path.join(abs, d.name);
+      if (ignore?.(childAbs)) continue;
+      // `.yamlover` is the ONE hidden name this format owns — and the one that must be descended
+      // into, since a nested overlay is what we are hunting. Every other dot-name (`.git`, an
+      // editor's droppings) is outside the data tree: the walk skips it, so the doctor does too.
+      if (d.name.startsWith(".") && d.name !== ".yamlover") continue;
+      const childSegs = [...segs, d.name];
+      if (d.isDirectory()) visit(childAbs, childSegs);
+      // a file's concrete comes from its extension alone; `null` (a material, a blob, an
+      // extensionless file) is honest — the sweep does not guess where the index would know.
+      else if (d.isFile()) nodes.push({ path: segsToStr(childSegs), concrete: dataFileConcrete(childAbs), fsPath: childSegs.join("/") });
+    }
+  };
+  visit(path.resolve(dataRoot), []);
+  return { nodes };
+}
+
+/** Where NON-fatal validation diagnostics (warnings, and everything in `report` mode) go. The
+ *  write chokepoints are module-level and hold no Options, so `createHandlers` wires its `log`
+ *  here — the same module-level-setter shape as yamlover.ts's `setIgnoreFilter`. */
+let validationLog: (line: string) => void = () => {};
+export function setValidationLog(fn: (line: string) => void): void {
+  validationLog = fn;
+}
+
+/** Report the diagnostics a verdict did not abort on. */
+function logDiagnostics(found: Diagnostic[]): void {
+  for (const x of found) validationLog(`validate ${x.severity}: ${x.code} at ${x.path ?? x.fsPath ?? "?"} — ${x.message}`);
+}
+
+/** How a validation verdict is acted on here: dev/test THROWS (so corruption turns the suite red
+ *  before it can reach a user's tree), production REFUSES the write and reports. `YAMLOVER_VALIDATE`
+ *  overrides. A per-project `validate:` in settings.yamlover is the natural next override, but the
+ *  byte/mkdir chokepoints below are module-level and hold no Settings — it would have to be threaded. */
+function validationMode(): EnforcementMode {
+  return defaultMode({ dev: process.env.NODE_ENV !== "production" || !!process.env.VITEST, setting: process.env.YAMLOVER_VALIDATE });
+}
+
+/** THE PATH GATE — every byte and every directory this server creates passes through here.
+ *  It re-asks validate.ts for the format's path invariants (no overlay inside an overlay, no
+ *  stray name in a `.yamlover/`, no root escape, no hidden/padded/metachar member name), so a
+ *  write that would corrupt the tree is refused before it can reach the disk. */
+function guardPath(dataRoot: string, abs: string): void {
+  logDiagnostics(enforce(validatePath(relPosix(dataRoot, abs)), validationMode()));
+}
+
+/** Write `bytes` to `dir/name`, refusing any path that escapes the served root or violates the
+ *  format's layout invariants. */
 function writeInside(dataRoot: string, dir: string, name: string, bytes: Buffer): void {
   const root = path.resolve(dataRoot);
   const target = path.resolve(dir, name);
   if (target !== root && !target.startsWith(root + path.sep)) throw new Error("target escapes the data root");
+  guardPath(dataRoot, target);
   fs.writeFileSync(target, bytes);
+}
+
+/** {@link fs.mkdirSync} behind the same gate as {@link writeInside}. Directory creation is the
+ *  OTHER way an object is born — the one that used to bypass every check, which is how a
+ *  `.yamlover` came to sit inside a `.yamlover`. Every mkdir in this module goes through here. */
+function mkdirInside(dataRoot: string, abs: string, opts?: { recursive?: boolean }): void {
+  guardPath(dataRoot, abs);
+  fs.mkdirSync(abs, opts);
 }
 
 // The bundled LLM-agent guidance docs (AGENTS.md + CLAUDE.md), shipped beside this module as real
@@ -2721,6 +2878,27 @@ interface ChapterEntry { absIndex: number; key: string | null; start: number; en
 /** The OWN entries of the chapter mapping at `region`, in source order — each a keyed field
  *  (`key: …`) or a positional item (`- …`), with its absolute index and [start,end) line span. A
  *  descended subchapter's first key inline on the `- ` marker line is surfaced as the first entry. */
+/** The DECODED key an entry line opens with, or null when it opens no KEYED entry (a `- ` item).
+ *
+ *  A quoted key is UNQUOTED, and a key may contain spaces: paths, the index and the model all speak
+ *  the decoded key, so `"australia and oceania":` has to answer `australia and oceania`. The old
+ *  `/^([^:\s]+):/` could not match a key with a space at all and silently answered null — recording
+ *  the entry as ORDINAL, so a later op addressing it by key got "no entry at …". */
+function entryKeyOf(text: string): string | null {
+  const t = text.trim();
+  if (t === "-" || t.startsWith("- ")) return null;
+  const m = /^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*')\s*:(?:\s|$)/.exec(t) ?? /^([^:#]+?)\s*:(?:\s|$)/.exec(t);
+  if (!m) return null;
+  const tok = m[1];
+  try {
+    if (tok.startsWith('"')) return JSON.parse(tok) as string;
+    if (tok.startsWith("'")) return tok.slice(1, -1).replace(/''/g, "'");
+  } catch {
+    return null; // an unparseable quoted token is not a key we can address
+  }
+  return tok;
+}
+
 function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
   const starts: { key: string | null; start: number; inline: boolean }[] = [];
   if (r.marker >= 0) {
@@ -2741,7 +2919,7 @@ function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
       if (inline.trim()) {
         if (/^-/.test(inline)) starts.push({ key: null, start: r.marker, inline: true });
         else if (/^[^\s"'*|>#-][^:]*:(\s|$)/.test(inline.replace(/\s+#.*$/, ""))) {
-          starts.push({ key: inline.match(/^([^:\s]+):/)?.[1] ?? null, start: r.marker, inline: true });
+          starts.push({ key: entryKeyOf(inline), start: r.marker, inline: true });
         }
       }
     }
@@ -2757,7 +2935,7 @@ function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
     // a fully-omni chapter's title line (CHAPTER.md). It consumes NO index; a block-header
     // self-value's content sits deeper and is skipped by the indent check above.
     if (!opensEntry(t) && !opensQuotedKey(t)) continue;
-    starts.push({ key: t === "-" || t.startsWith("- ") ? null : t.match(/^([^:\s]+):/)?.[1] ?? null, start: i, inline: false });
+    starts.push({ key: entryKeyOf(t), start: i, inline: false });
   }
   return starts.map((s, k) => ({
     absIndex: k,
@@ -2797,6 +2975,10 @@ function isContainerEntry(lines: string[], e: ChapterEntry, childIndent: number)
   // A plain scalar cannot contain ` #` (yamlover comments need the leading whitespace), and a
   // quoted head never enters the regex (its first char is excluded), so the strip is safe.
   const bare = head.replace(/\s+#.*$/, "");
+  // A whole FLOW token is a one-line VALUE, never an entry with an inline first child: `a: {x: 1}`
+  // otherwise satisfies the test below (`{x` + `: `) and the splicer keeps the old token as a
+  // phantom child — an emplace over it left `a: <new>\n  {x: 1}` orphaned in the file.
+  if (isFlowToken(bare)) return false;
   if (/^[^\s"'*|>#-][^:]*:(\s|$)/.test(bare)) return true; // an inline `- title: Sub`
   for (let i = e.start + 1; i < e.end; i++) {
     if (!isContentLine(lines[i])) continue;
@@ -2908,7 +3090,14 @@ function payloadFacets(src: string): Facets {
   const fi = lines.findIndex(isContentLine);
   if (fi < 0) return { keyed: [], ordinal: [] };
   const first = lines[fi].trim();
-  if (!opensEntry(first)) {
+  // a whole FLOW token is a VALUE, whatever it contains — it must never be grouped as entry lines
+  if (isFlowToken(src)) return { scalar: first, keyed: [], ordinal: [] };
+  // `opensEntry`'s regex excludes a quote-led line (so a quoted SCALAR reads as a value), so a
+  // payload whose first line is a QUOTED-KEY entry needs the same test `groupEntries` already
+  // applies. Without it such a payload was classified as a scalar and written INLINE after the
+  // key — `world: "a b":` — after which the next op could not descend into what had become a
+  // scalar ("cannot descend into a scalar element at world").
+  if (!opensEntry(first) && !opensQuotedKey(first)) {
     // the scalar head: one line, or a block header with its DEEPER content lines
     let bend = fi + 1;
     if (isBlockHeader(first)) while (bend < lines.length && (!isContentLine(lines[bend]) || indentOf(lines[bend]) > 0)) bend++;
@@ -3076,8 +3265,15 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
 
   if (op === "insert") {
     if (typeof seg === "string") throw new Error("`insert` needs a positional target (a path ending `[i]`, or the node itself)");
-    const entry = seg === undefined ? undefined : findEntry(lines, r, seg);
-    const at = entry ? entry.start : bodyAppendPoint(lines, r); // an index past the end appends
+    const entries = chapterEntries(lines, r);
+    const entry = seg === undefined ? undefined : entries[seg];
+    // An index PAST THE END means the end of the ENTRY list. `bodyAppendPoint` instead keeps the
+    // positional items grouped — right when the caller says "append an item to this body" (seg
+    // undefined), wrong for a RANKED insert into a MIX, where it tucks the new entry in front of
+    // the trailing keyed fields and loses the very order the rank was carrying.
+    const at = entry ? entry.start
+      : seg !== undefined && entries.length ? entries[entries.length - 1].end
+      : bodyAppendPoint(lines, r);
     lines.splice(at, 0, ...renderNode(payloadFacets(valueSrc), r.indent, key !== undefined ? `${key}: ` : "- ", metaTag(meta, undefined, false)));
     return;
   }
@@ -3150,6 +3346,13 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
   if (op === "emplace" && payload.scalar !== undefined && next.scalar !== undefined && (next.keyed.length || next.ordinal.length)) {
     const p = parseYamlover(next.scalar, "<scalar>").root as { kind?: string; value?: unknown };
     if (p.kind === "scalar" && (p.value == null || p.value === "")) next.scalar = undefined;
+  }
+  // A FLOW token is the entry's whole value, not a self-value beside fields: emplacing block
+  // content over `a: {x: 1}` REPLACES the token (a demoted flow), it does not make an omni whose
+  // title is a mapping — which would render `a: {x: 1}` with the new fields orphaned beneath it.
+  if (op === "emplace" && payload.scalar === undefined && next.scalar !== undefined
+      && (next.keyed.length || next.ordinal.length) && isFlowToken(next.scalar)) {
+    next.scalar = undefined;
   }
   const tag = metaTag(meta, had.tag, op === "emplace");
 
@@ -3266,6 +3469,29 @@ function splitChunkWithin(within: Seg[]): { indices: number[]; keys: string[] } 
  *  neither the leading `!!<…>` tag line nor an entry opener; a block-header self-value owns its
  *  deeper-indented content lines too. Replacement happens in place (the authored position among the
  *  entries is the author's — YAMLOVER.md §4); a fresh self-value lands right after the tag line. */
+/** Replace a document's whole body with one FLOW token. Unlike a self-value line, a flow token is
+ *  the entire value — nothing else may stand beside it — so every content line goes and the token
+ *  takes their place. The `!!<…>` banner and the head-of-file comments are not content and stay. */
+function setRootFlowValue(lines: string[], token: string): void {
+  const indent = firstContentIndent(lines);
+  let at = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!isContentLine(lines[i]) || lines[i].trim().startsWith("!!<")) continue;
+    if (at < 0) at = i;
+    lines.splice(i, 1);
+    at = i;
+  }
+  const rendered = " ".repeat(indent) + token;
+  if (at < 0) {
+    // a body of nothing but a banner/comments: the token follows the last of them
+    let end = lines.length;
+    while (end > 0 && !isContentLine(lines[end - 1])) end--;
+    lines.splice(end, 0, rendered);
+    return;
+  }
+  lines.splice(at, 0, rendered);
+}
+
 function setRootSelfValue(lines: string[], scalarSrc: string, selfAt?: number): void {
   const indent = firstContentIndent(lines);
   const parsed = parseYamlover(scalarSrc, "<self-value>").root as { kind?: string; value?: unknown };
@@ -3353,9 +3579,11 @@ function flowValueStart(raw: string, e: ChapterEntry): number {
   return raw[i] === "[" ? i : -1;
 }
 
-/** Scan a flow sequence from its `[`: the matching `]` and each top-level cell's [start,end)
- *  span — nested brackets (a nested flow seq, a `*…[.-1]` pointer) and quoted cells respected. */
-function scanFlowSeq(s: string, open: number): { close: number; cells: { start: number; end: number }[] } | null {
+/** Scan a FLOW token from its opener: the matching closer and each top-level cell's [start,end)
+ *  span — nesting (a nested flow container, a `*…[.-1]` pointer) and quoted cells respected. Both
+ *  bracket kinds nest, so `{a: [1, 2]}` and `[{a: 1}, 2]` scan correctly either way in. */
+function scanFlow(s: string, open: number): { close: number; cells: { start: number; end: number }[] } | null {
+  const closerOf = s[open] === "[" ? "]" : "}";
   let depth = 0;
   let q: string | null = null;
   const cells: { start: number; end: number }[] = [];
@@ -3370,10 +3598,11 @@ function scanFlowSeq(s: string, open: number): { close: number; cells: { start: 
       continue;
     }
     if (ch === "'" || ch === '"') q = ch;
-    else if (ch === "[") depth++;
-    else if (ch === "]") {
+    else if (ch === "[" || ch === "{") depth++;
+    else if (ch === "]" || ch === "}") {
       depth--;
       if (depth === 0) {
+        if (ch !== closerOf) return null; // `[1}` — mismatched, not a token
         if (j > open + 1 || s.slice(open + 1, j).trim().length) cells.push({ start: cellStart, end: j });
         return { close: j, cells };
       }
@@ -3383,6 +3612,23 @@ function scanFlowSeq(s: string, open: number): { close: number; cells: { start: 
     }
   }
   return null;
+}
+
+/** A flow SEQUENCE specifically (the MARKLOWER row surgery's entry point — a `{…}` is not a row). */
+function scanFlowSeq(s: string, open: number): { close: number; cells: { start: number; end: number }[] } | null {
+  return s[open] === "[" ? scanFlow(s, open) : null;
+}
+
+/** True when `src` is ONE complete flow token: a single line whose trimmed text opens with `[`/`{`
+ *  and whose MATCHING closer is its last character. Such a payload is a VALUE, not entry lines —
+ *  without this `{a: 1}` satisfies {@link opensEntry} (its leading `{` passes the first-character
+ *  class and `a: ` reads as a key), so the token the author typed is torn apart into a block
+ *  mapping. `[12, 13, 14]` slips through today only because it carries no colon. */
+function isFlowToken(src: string): boolean {
+  const t = src.trim();
+  if (t.includes("\n") || (t[0] !== "[" && t[0] !== "{")) return false;
+  const scan = scanFlow(t, 0);
+  return scan !== null && scan.close === t.length - 1;
 }
 
 /** A cell value as a flow-sequence token: plain when the flow lexer takes it whole — non-empty,
@@ -3437,6 +3683,14 @@ function editChapterSource(src: string, within: Seg[], op: string, valueSrc: str
     if (op === "emplace") {
       if (meta !== undefined && !valueSrc) {
         setRootTag(lines, meta);
+        return lines.join("\n");
+      }
+      // A whole FLOW token IS the document's value — `[12, 13, 14]` and `{a: 1}` are complete
+      // yamlover documents (JSON is valid YAML). It is not an omni self-value LINE beside entries,
+      // so it replaces the body outright; only the `!!<…>` banner and the leading comments stand.
+      if (isFlowToken(valueSrc)) {
+        if (meta !== undefined && meta !== null) setRootTag(lines, meta);
+        setRootFlowValue(lines, valueSrc.trim());
         return lines.join("\n");
       }
       // a scalar-only payload sets the document's SELF-VALUE — a chapter's title (an empty
@@ -3578,7 +3832,11 @@ function canonSegs(s: Store, segs: Seg[], keepLast: boolean): Seg[] {
   for (let i = 0; i < segs.length; i++) {
     const g = segs[i];
     if (i < end && typeof g === "number" && !s.node(storePath([...out, g]))) {
-      const hit = s.entries(storePath(out)).find((c) => c.kind === "contain" && c.pos === g && c.label != null);
+      // A HIDDEN member (the `.yamlover` overlay) occupies a position in the index but NOT in the
+      // body's positional space — the projections that define that space omit it. Aliasing to one
+      // would point a positional edit at the overlay: in a fresh project whose body is still empty,
+      // `:[0]` would resolve to `:.yamlover` and the edit would write `.yamlover/.yamlover/`.
+      const hit = s.entries(storePath(out)).find((c) => c.kind === "contain" && c.pos === g && c.label != null && !isHidden(s, c.to));
       if (hit) { out.push(hit.label!); continue; }
     }
     out.push(g);
@@ -3648,6 +3906,23 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
     }
     return out;
   };
+  /** A body's source INCLUDING the ops queued earlier in this batch but not yet written — the state
+   *  a later edit in the same batch is addressed against. Nothing is written, so a batch that fails
+   *  half-way still leaves the document untouched. */
+  const pendingSrc = (bodyFile: string): string => {
+    let src: string;
+    try {
+      src = fs.readFileSync(bodyFile, "utf8");
+    } catch {
+      return "";
+    }
+    try {
+      for (const o of byFile.get(bodyFile) ?? []) src = editChapterSource(src, o.within, o.op, o.valueSrc, o.meta, o.key, o.at);
+    } catch {
+      return src; // a queued op that cannot fold will fail loudly at the end of the batch
+    }
+    return src;
+  };
   for (const e of edits) {
     const editSegs = applyRemap(canonSegs(s, strToSegs(e.path ?? ""), true));
     const op = String(e.op ?? "");
@@ -3675,7 +3950,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       const abs = path.resolve(dataRoot, ...editSegs.map(String));
       if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) throw new Error("a folder can only be created inside a directory");
       const final = uniqueName(abs, objectBaseName(String(e.name || "New Folder")));
-      fs.mkdirSync(path.join(abs, final));
+      mkdirInside(dataRoot, path.join(abs, final));
       created.push(segsToStr([...editSegs, final]));
       continue;
     }
@@ -3717,6 +3992,34 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
           // an explicit `concrete: "yamlover"` pins the INLINE encoding — derivation to a
           // sequential item directory applies only to UNDERIVED (concrete-less) inserts
           if (route === "dir-seq" && e.concrete) route = deriveDirEditRoute(target);
+          // THE FORMAT GUARD (validate.ts). The routing decision is made and the writes it implies
+          // are known, but nothing has touched the disk yet — the one point where "this container
+          // is about to be spliced inline instead of promoted to a directory" is decidable. Names
+          // and neighbors are resolved here so the guard sees the member name the branch will use.
+          const dirNames = route === "dir" || route === "dir-seq" ? fs.readdirSync(absDir) : undefined;
+          const lastSeg = editSegs[editSegs.length - 1];
+          const seqName =
+            route === "dir-seq"
+              ? nextMemberName(dirNames!, "item", memberNeighbors(bodyFile, [], typeof lastSeg === "number" ? lastSeg : undefined))
+              : undefined;
+          const memberName = route === "dir" ? key : seqName;
+          const bodySplice: PlannedWrite = { kind: "splice", fsPath: relPosix(dataRoot, bodyFile) };
+          const snap: WriteSnapshot = {
+            target: {
+              path: segsToStr(stripped),
+              concrete: dirNames?.includes(".yamlover") ?? target.hasBody ? "dir/yamlover" : "dir",
+              fsPath: relPosix(dataRoot, absDir),
+              names: dirNames,
+            },
+            child: { keyed: key !== undefined, container, tagged: typeof meta === "string" },
+            route,
+            explicitConcrete: e.concrete ?? null,
+            memberName,
+            writes: memberName
+              ? [{ kind: "dir", fsPath: relPosix(dataRoot, path.join(absDir, memberName)), concrete: "dir/yamlover" }, ...(route === "dir-seq" ? [bodySplice] : [])]
+              : [bodySplice],
+          };
+          logDiagnostics(enforce(validateWrite(snap), validationMode()));
           if (route === "dir") {
             writeDirMemberTree(dataRoot, absDir, key!, valueSrc, meta);
             created.push(segsToStr([...stripped, key!]));
@@ -3728,9 +4031,8 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
             // element granting its POSITION — the examples/56 shape (concrete-rules.ts). The
             // pointer splices at the insert's own index; the member's name is recorded so
             // same-batch follow-ups addressing `[i][j]` land inside it.
-            const last = editSegs[editSegs.length - 1];
-            const nb = memberNeighbors(bodyFile, [], typeof last === "number" ? last : undefined);
-            const name = nextMemberName(fs.readdirSync(absDir), "item", nb);
+            const last = lastSeg;
+            const name = seqName!;
             writeObject(dataRoot, absDir, name, "dir/yamlover", [valueSrc, ""].join("\n"));
             created.push(segsToStr([...stripped, name]));
             if (typeof last === "number") remap.push({ parent: stripped, index: last, name });
@@ -3752,31 +4054,45 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
     }
 
     // THE SCALAR→CONTAINER PROMOTION (concrete-rules.ts {@link subchapterMaterializes}): the moment
-    // an inline keyed node living in a DIRECTORY-backed document gains CONTAINER content, its
-    // inherited storage family is "directory" (a dir keeps its members directory-concrete), so it
-    // lifts OUT of the enclosing body into its OWN real subdirectory (named by its key) and its old
-    // inline line is spliced out. Birth order stops mattering: `world: World` grown a child lands in
-    // the SAME shape as a `world` born already populated. The child re-derives INSIDE the new body
-    // (a scalar leaf stays inline, a container recurses — writeDirMemberTree). Two edit shapes reach
-    // the transition: the omni first-child commit EMPLACES the whole node (self + child in the
-    // payload — commitSpine), and a direct INSERT adds a child under a still-scalar member (the
-    // self-value is read from the body and the child appended). A pure scalar emplace (a title edit,
-    // no entries) is NOT a transition and stays inline.
+    // an inline node living in a DIRECTORY-backed document gains CONTAINER content, its inherited
+    // storage family is "directory" (a dir keeps its members directory-concrete), so it lifts OUT of
+    // the enclosing body into its own real member. Birth order stops mattering: `world: World` grown
+    // a child lands in the SAME shape as a `world` born already populated. The child re-derives
+    // INSIDE the new body (a scalar leaf stays inline, a container recurses — writeDirMemberTree).
+    // Two edit shapes reach the transition: the omni first-child commit EMPLACES the whole node
+    // (self + child in the payload — commitSpine), and a direct INSERT adds a child under a
+    // still-scalar member (the self-value is read from the body and the child appended). A pure
+    // scalar emplace (a title edit, no entries) is NOT a transition and stays inline.
+    //
+    // WHICH member shape it takes is {@link deriveMemberEncoding}'s call, exactly as it is at birth
+    // — a KEYED node becomes a directory named by its key, an untagged ORDINAL element a
+    // sequentially-named one whose position is granted by a `- *: itemNN` pointer left in its place.
+    // A tagged ordinal container (a table, a typographic list) is CONTENT and stays inline.
     if ((op === "insert" || op === "emplace" || op === "replace") && (!e.concrete || e.concrete === "yamlover")) {
       const tail = editSegs[editSegs.length - 1];
       // the node that WILL hold container content: for an insert-child it is the PARENT (the edit's
       // trailing index is the child position); for emplace/replace it is the target itself.
       const nodeSegs = op === "insert" && typeof tail === "number" ? editSegs.slice(0, -1) : editSegs;
       const nodeKey = nodeSegs[nodeSegs.length - 1];
-      const nBack = resolveBacking(dataRoot, s, nodeSegs);
+      // Resolve the enclosing document FS-FIRST, exactly as the generic path below does: a body born
+      // earlier in THIS batch is invisible to the stale index, which would otherwise route the node
+      // to the enclosing document instead of the one that now owns it.
+      const idxBack = resolveBacking(dataRoot, s, nodeSegs);
+      const fsBack = fsDocRootSegs(dataRoot, nodeSegs);
+      const nBack = fsBack && fsBack.docSegs.length > idxBack.docSegs.length ? { ...fsBack, dirBacked: true } : idxBack;
       const nodeRow = s.node(storePath(nodeSegs));
-      const inlineKeyed =
-        typeof nodeKey === "string" &&
-        nodeSegs.every((g) => typeof g === "string") &&
-        nBack.docSegs.length < nodeSegs.length; // the node lives INSIDE the enclosing document's body
-      const docRow = inlineKeyed ? s.node(storePath(nBack.docSegs)) : null;
-      const encConcrete = docRow ? concreteOf(s, dataRoot, nBack.docSegs, docRow) : "yamlover";
-      if (inlineKeyed && subchapterMaterializes(encConcrete)) {
+      const inlineHere = nBack.docSegs.length < nodeSegs.length; // the node lives INSIDE the enclosing document's body
+      const inlineKeyed = typeof nodeKey === "string" && nodeSegs.every((g) => typeof g === "string") && inlineHere;
+      // an ORDINAL element promotes the same way. Its pointer is DOCUMENT-scoped, so the member
+      // always lands beside the document root whatever depth the element itself sits at — only the
+      // document's own segments need to name real directories.
+      const inlineOrdinal = typeof nodeKey === "number" && inlineHere && nBack.docSegs.every((g) => typeof g === "string");
+      const docRow = inlineKeyed || inlineOrdinal ? s.node(storePath(nBack.docSegs)) : null;
+      // The enclosing document's concrete: from the index when it knows the node, else from the
+      // FILESYSTEM — a document born earlier in this batch is not indexed yet, and `dirBacked`
+      // already answers the only question the rule asks (is a directory backing it?).
+      const encConcrete = docRow ? concreteOf(s, dataRoot, nBack.docSegs, docRow) : nBack.dirBacked ? "dir/yamlover" : "yamlover";
+      if ((inlineKeyed || inlineOrdinal) && subchapterMaterializes(encConcrete)) {
         // the node's full VALUE source AFTER this edit, when the edit gives it container content
         let memberSrc: string | null = null;
         let memberMeta: string | null | undefined;
@@ -3786,15 +4102,24 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
             memberSrc = String(e.yamlover ?? "");
             memberMeta = e.meta;
           }
-        } else if (nodeRow?.type === "scalar") {
-          // a scalar gains its FIRST child: old self-value (from the body) + the new child appended
-          let lines: string[] | null = null;
-          try { lines = fs.readFileSync(nBack.bodyFile, "utf8").split(/\r?\n/); } catch { /* no body */ }
+        } else if (!nodeRow || nodeRow.type === "scalar") {
+          // A scalar gains its FIRST child: old self-value (from the body) + the new child appended.
+          // The body is read WITH this batch's pending ops folded in, so a node inserted a moment
+          // ago in the same batch (fast typing: `- World` then a child under it) is visible even
+          // though neither the index nor the disk knows it yet — which is also why the scalar test
+          // is made against the ENTRY rather than the index row.
+          const pending = pendingSrc(nBack.bodyFile);
+          const lines: string[] | null = pending ? pending.split(/\r?\n/) : null;
           const within = nodeSegs.slice(nBack.docSegs.length);
-          const region = lines ? reachChapter(lines, within.slice(0, -1)) : null;
+          let region: ReturnType<typeof reachChapter> | null = null;
+          try {
+            region = lines ? reachChapter(lines, within.slice(0, -1)) : null;
+          } catch {
+            region = null; // an ancestor is itself a scalar — not a transition this edit can make
+          }
           const entry = lines && region ? findEntry(lines, region, within[within.length - 1]) : undefined;
           // an inline `!!<…>` tag on the scalar is NOT carried by this path — leave it inline
-          if (lines && entry && !/!!<[^>]*>/.test(lines[entry.start])) {
+          if (lines && region && entry && !isContainerEntry(lines, entry, region.indent + 2) && !/!!<[^>]*>/.test(lines[entry.start])) {
             const head = entryHead(lines, entry);
             const rest: string[] = [];
             let ci = -1;
@@ -3811,13 +4136,54 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
             memberSrc = [selfSrc, ...childLines].filter((l, i) => !(i === 0 && l === "")).join("\n");
           }
         }
-        if (memberSrc !== null) {
-          if (memberSrc && !isPointerValue(memberSrc)) parseYamlover(memberSrc, "<edit>");
-          writeDirMemberTree(dataRoot, path.resolve(dataRoot, ...nBack.docSegs.map(String)), nodeKey, memberSrc, memberMeta);
-          created.push(segsToStr(nodeSegs));
-          // splice the node's now-orphaned inline line out of the enclosing body (with the batch)
+        // A TAGGED ordinal container is content, not structure — deriveMemberEncoding says "body",
+        // and this node stays where it is.
+        const enc = memberSrc === null ? "body" : deriveMemberEncoding({ keyed: inlineKeyed, container: true, tagged: typeof memberMeta === "string" });
+        if (enc !== "body") {
+          if (memberSrc && !isPointerValue(memberSrc!)) parseYamlover(memberSrc!, "<edit>");
+          const docAbs = path.resolve(dataRoot, ...nBack.docSegs.map(String));
+          const within = nodeSegs.slice(nBack.docSegs.length);
+          const idx = within[within.length - 1];
+          const names = fs.readdirSync(docAbs);
+          const memberName =
+            enc === "dir"
+              ? String(nodeKey)
+              : nextMemberName(names, "item", memberNeighbors(nBack.bodyFile, within.slice(0, -1), typeof idx === "number" ? idx : undefined));
+          // THE FORMAT GUARD (validate.ts), on the OTHER surface a member is born — same rules, same
+          // snapshot shape, still before the first mkdir.
+          logDiagnostics(
+            enforce(
+              validateWrite({
+                target: { path: segsToStr(nBack.docSegs), concrete: encConcrete, fsPath: relPosix(dataRoot, docAbs), names },
+                child: { keyed: inlineKeyed, container: true, tagged: typeof memberMeta === "string" },
+                route: enc,
+                memberName,
+                writes: [
+                  { kind: "dir", fsPath: relPosix(dataRoot, path.join(docAbs, memberName)), concrete: "dir/yamlover" },
+                  { kind: "splice", fsPath: relPosix(dataRoot, nBack.bodyFile) },
+                ],
+              }),
+              validationMode(),
+            ),
+          );
           const list = byFile.get(nBack.bodyFile) ?? [];
-          list.push({ within: nodeSegs.slice(nBack.docSegs.length), op: "remove", valueSrc: "", meta: undefined, docSegs: nBack.docSegs, dirBacked: nBack.dirBacked });
+          if (enc === "dir") {
+            writeDirMemberTree(dataRoot, docAbs, nodeKey as string, memberSrc!, memberMeta);
+            created.push(segsToStr(nodeSegs));
+            // the key still names the node, so the orphaned inline line simply goes
+            list.push({ within, op: "remove", valueSrc: "", meta: undefined, docSegs: nBack.docSegs, dirBacked: nBack.dirBacked });
+          } else {
+            // dir-seq: the member is born beside the document root under a generated order-numbered
+            // name, and the element KEEPS its position — its value becomes the pointer granting it.
+            writeObject(dataRoot, docAbs, memberName, "dir/yamlover", memberSrc!.replace(/\n*$/, "") + "\n");
+            created.push(segsToStr([...nBack.docSegs, memberName]));
+            list.push({ within, op: "emplace", valueSrc: memberPointer(memberName), meta: undefined, docSegs: nBack.docSegs, dirBacked: nBack.dirBacked });
+            // Same-batch positional follow-ups (`:[0][0]` typed fast) — recorded only for an element
+            // at the body's TOP level, the one depth at which the member's path IS parent+name. A
+            // document-scoped pointer further down resolves beside the document root instead, which
+            // this remap shape cannot express; after the batch, canonSegs resolves it either way.
+            if (within.length === 1 && typeof idx === "number") remap.push({ parent: nBack.docSegs, index: idx, name: memberName });
+          }
           byFile.set(nBack.bodyFile, list);
           continue;
         }

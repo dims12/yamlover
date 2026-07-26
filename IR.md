@@ -148,6 +148,10 @@ export interface NodeMeta {
   comments?: Comment[];             // comments with no entry to attach to
   head?: Comment[];                 // a document root's banner, carried onto the node
   selfAt?: number;                  // omni: display position of the scalar self-value line
+  style?: 'flow';                   // AUTHORED on one line (`{k: v}` / `[v, …]`) — the `yaml/flow`
+                                    // representation concrete (CONCRETES.md). Typography, not
+                                    // graph: `array` still decides WHICH bracket, canon ignores it,
+                                    // and json5p never sets it (that language is flow throughout).
 }
 
 /** One `&` path-anchor declaration: this node ALSO lives at that path — the container at

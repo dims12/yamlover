@@ -6,6 +6,123 @@
     "anchors": [],
     "entries": [
       {
+        "key": "markdown",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "# Markdown\nRendered with **marked** — *emphasis*, lists, and `code`. Each heading gets a\n`§` link, so `#markdown` and `#anchors` jump straight to a section.\n\n## Anchors\nHover a heading to reveal its `§`; the URL fragment is the heading's slug.\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "asciidoc",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "== AsciiDoc\n\nRendered with Asciidoctor.\n\n* one\n* two\n\n=== Anchors\n\nEach heading gets a `§` link; Asciidoctor's own section id is the fragment.\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "plantuml",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "@startuml\nAlice -> Bob : hello\nBob --> Alice : hi\n@enduml\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "csv",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "name,role,city\nAlice,Engineer,Berlin\nBob,\"Designer, UX\",Lisbon\nCarol,Manager,Oslo\n",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "chapter",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "schema": {
+            "ptr": {
+              "base": {
+                "scope": "current"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "yamlover"
+                },
+                {
+                  "sel": "key",
+                  "name": "$defs"
+                },
+                {
+                  "sel": "key",
+                  "name": "chapter"
+                }
+              ]
+            }
+          },
+          "anchors": [],
+          "entries": [
+            {
+              "key": "title",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A chapter, as one property",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A **chapter** is also a renderable format — here it sits as one property of this object.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Each chunk defaults to marklower; this sentence is the segment an annotation marks.",
+                "array": false,
+                "set": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
         "key": "sample.bmp",
         "edge": "contain",
         "value": {
@@ -195,123 +312,6 @@
           "set": false,
           "anchors": [],
           "entries": []
-        }
-      },
-      {
-        "key": "markdown",
-        "edge": "contain",
-        "value": {
-          "kind": "scalar",
-          "value": "# Markdown\nRendered with **marked** — *emphasis*, lists, and `code`. Each heading gets a\n`§` link, so `#markdown` and `#anchors` jump straight to a section.\n\n## Anchors\nHover a heading to reveal its `§`; the URL fragment is the heading's slug.\n",
-          "array": false,
-          "set": false,
-          "anchors": [],
-          "entries": []
-        }
-      },
-      {
-        "key": "asciidoc",
-        "edge": "contain",
-        "value": {
-          "kind": "scalar",
-          "value": "== AsciiDoc\n\nRendered with Asciidoctor.\n\n* one\n* two\n\n=== Anchors\n\nEach heading gets a `§` link; Asciidoctor's own section id is the fragment.\n",
-          "array": false,
-          "set": false,
-          "anchors": [],
-          "entries": []
-        }
-      },
-      {
-        "key": "plantuml",
-        "edge": "contain",
-        "value": {
-          "kind": "scalar",
-          "value": "@startuml\nAlice -> Bob : hello\nBob --> Alice : hi\n@enduml\n",
-          "array": false,
-          "set": false,
-          "anchors": [],
-          "entries": []
-        }
-      },
-      {
-        "key": "csv",
-        "edge": "contain",
-        "value": {
-          "kind": "scalar",
-          "value": "name,role,city\nAlice,Engineer,Berlin\nBob,\"Designer, UX\",Lisbon\nCarol,Manager,Oslo\n",
-          "array": false,
-          "set": false,
-          "anchors": [],
-          "entries": []
-        }
-      },
-      {
-        "key": "chapter",
-        "edge": "contain",
-        "value": {
-          "kind": "mapping",
-          "array": false,
-          "set": false,
-          "schema": {
-            "ptr": {
-              "base": {
-                "scope": "current"
-              },
-              "steps": [
-                {
-                  "sel": "key",
-                  "name": "yamlover"
-                },
-                {
-                  "sel": "key",
-                  "name": "$defs"
-                },
-                {
-                  "sel": "key",
-                  "name": "chapter"
-                }
-              ]
-            }
-          },
-          "anchors": [],
-          "entries": [
-            {
-              "key": "title",
-              "edge": "contain",
-              "value": {
-                "kind": "scalar",
-                "value": "A chapter, as one property",
-                "array": false,
-                "set": false,
-                "anchors": [],
-                "entries": []
-              }
-            },
-            {
-              "key": null,
-              "edge": "contain",
-              "value": {
-                "kind": "scalar",
-                "value": "A **chapter** is also a renderable format — here it sits as one property of this object.",
-                "array": false,
-                "set": false,
-                "anchors": [],
-                "entries": []
-              }
-            },
-            {
-              "key": null,
-              "edge": "contain",
-              "value": {
-                "kind": "scalar",
-                "value": "Each chunk defaults to marklower; this sentence is the segment an annotation marks.",
-                "array": false,
-                "set": false,
-                "anchors": [],
-                "entries": []
-              }
-            }
-          ]
         }
       }
     ]

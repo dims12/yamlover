@@ -518,11 +518,71 @@ function YamlRoot({ value, indent, ctx, frag, path }: { value: unknown; indent: 
   if (link) return <>{linkNode(link, "yaml", ctx)}{"\n"}</>;
   const ref = asRef(value);
   if (ref) return <>{refNode(ref, "yaml", ctx)}{"\n"}</>;
+  if (foldable(value) && isFlowAt(ctx, frag)) {
+    // a whole DOCUMENT authored as one flow token (`[12, 13, 14]`) stays one line
+    const flow = flowLine(value, ctx, frag, path);
+    if (flow) return <>{flow}{"\n"}</>;
+  }
   if (foldable(value)) return <YamlBody value={value} indent={indent} ctx={ctx} frag={frag} path={path} />;
   if (isObj(value)) return <><span className="punct">{"{}"}</span>{"\n"}</>;
   if (Array.isArray(value)) return <><span className="punct">{"[]"}</span>{"\n"}</>;
   if (typeof value === "string" && value.includes("\n")) return <RootBigString value={value} ctx={ctx} frag={frag} />;
   return <><ScalarLeaf value={value} syntax="yaml" path={path} editable={ctx.editable} concrete={ctx.concrete} raw={commentsAt(ctx, frag)?.raw} />{valueTrailingComment(ctx, frag, "yaml")}{"\n"}</>;
+}
+
+/** Whether the node at `frag` was AUTHORED as a one-line flow token — the `yaml/flow` representation
+ *  concrete (CONCRETES.md), carried per node in the comment sidecar. The read-only view honours it
+ *  for the same reason the editor does: rendering `[12, 13]` as two dashed rows tells the reader
+ *  the file says something it does not. */
+function isFlowAt(ctx: Ctx, frag: string): boolean {
+  return commentsAt(ctx, frag)?.repr === "yaml/flow";
+}
+
+/** A flow container rendered as ONE line — `[a, b]` / `{k: v}`. Every element goes through the
+ *  ordinary value renderers, so scalar tokens keep their authored spelling, pointers stay
+ *  clickable, and a nested flow token nests. A member flow cannot hold (a multiline scalar, a
+ *  nested BLOCK container) makes the whole token fall back to block rows — the same refusal the
+ *  serializer applies, so the screen never claims a shape the file cannot carry. */
+function flowLine(value: unknown, ctx: Ctx, frag: string, path: string | null): ReactNode | null {
+  const mixed = asMixed(value);
+  const entries: { key: string | null; value: unknown }[] = mixed
+    ? (mixed.kind === "omni" ? [] : mixed.entries.map((e) => ({ key: e.key, value: e.value })))
+    : isObj(value)
+      ? Object.entries(value).map(([k, v]) => ({ key: k, value: v }))
+      : Array.isArray(value)
+        ? value.map((v) => ({ key: null, value: v }))
+        : [];
+  if (mixed?.kind === "omni") return null; // a self-value needs its own line
+  const seq = entries.length > 0 && entries.every((e) => e.key === null);
+  const cell = (e: { key: string | null; value: unknown }, i: number): ReactNode | null => {
+    const cf = e.key !== null ? `${frag}/${e.key}` : `${frag}[${i}]`;
+    const cp = childPath(path, e.key !== null ? e.key : i);
+    const link = asLink(e.value);
+    if (link) return linkNode(link, "yaml", ctx);
+    const ref = asRef(e.value);
+    if (ref) return refNode(ref, "yaml", ctx);
+    if (foldable(e.value)) {
+      if (!isFlowAt(ctx, cf)) return null; // a nested BLOCK container needs rows of its own
+      return flowLine(e.value, ctx, cf, cp);
+    }
+    if (bigScalar(e.value)) return null; // a multiline scalar / bytes has no one-line form
+    return <ScalarLeaf value={e.value} syntax="yaml" path={cp} editable={ctx.editable} concrete={ctx.concrete} raw={commentsAt(ctx, cf)?.raw} />;
+  };
+  const cells = entries.map(cell);
+  if (cells.some((c) => c === null)) return null; // one unrepresentable member demotes the token
+  return (
+    <>
+      <span className="punct">{seq ? "[" : "{"}</span>
+      {entries.map((e, i) => (
+        <Fragment key={i}>
+          {i > 0 && <span className="punct">{", "}</span>}
+          {e.key !== null && <><span className="k">{e.key}</span><span className="punct">{": "}</span></>}
+          {cells[i]}
+        </Fragment>
+      ))}
+      <span className="punct">{seq ? "]" : "}"}</span>
+    </>
+  );
 }
 
 /** The lines of a non-empty container (object / array / mixed) at `indent` — no toggle of its own;
@@ -661,6 +721,9 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, path, noPad = false }: { k: s
   // node's OWN self-value inlines after a `key:`; a first CHILD may not (`person: name: Rex` is not
   // valid yaml — that stays on its own line), unlike a `- ` item where both compact forms are legal.
   const m = asMixed(v);
+  // an AUTHORED flow token rides the key row (`k: [12, 13]`) — one line, so no fold toggle
+  const flowTok = isFlowAt(ctx, frag) ? flowLine(v, ctx, frag, path) : null;
+  if (flowTok) return <>{blank}{lead}{head}{deco}{" "}{flowTok}{trail}{"\n"}</>;
   const inlineSelf = !!m && m.kind === "omni" && (m.selfAt ?? 0) === 0 && !bigScalar(m.value);
   return (
     <>
@@ -716,6 +779,9 @@ function YamlItem({ v, pad, indent, ctx, frag, path, noPad = false, anchorName }
     );
   }
   if (!foldable(v)) return <>{blank}{lead}{dash}{deco}{inlineYamlValue(v, ctx, path, trail, ptr && fmtPointer(ptr, "yaml"), commentsAt(ctx, frag)?.raw)}</>;
+  // an AUTHORED flow token rides the dash (`- [12, 13]`) — one line, so no fold toggle
+  const flowTok = isFlowAt(ctx, frag) ? flowLine(v, ctx, frag, path) : null;
+  if (flowTok) return <>{blank}{lead}{dash}{deco}{" "}{flowTok}{trail}{"\n"}</>;
   const compact = canInlineAfterDash(v);
   return (
     <>

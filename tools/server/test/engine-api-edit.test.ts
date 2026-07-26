@@ -1266,3 +1266,271 @@ describe("/api/edit — stamping a schema tag on a bodyless directory", () => {
     expect(call(h, "/api/json", { path: "" }).json.format).toBe("x-yamlover-chapter");
   });
 });
+
+// The ORDINAL half of the scalar→container promotion (concrete-rules.ts deriveMemberEncoding). A
+// keyed node grown a child lifts into a directory named by its key; an ORDINAL element lifts the
+// same way, into a sequentially-named member whose position is granted by the `- *: itemNN` pointer
+// left in its place. Before this, an ordinal element could only grow INLINE — so a list nested by
+// typing ended up entirely inside one body file, whatever depth it reached.
+describe("/api/edit — an ordinal element grows into a directory member", () => {
+  const body = (root: string, ...segs: string[]): string =>
+    fs.readFileSync(path.join(root, ...segs, ".yamlover", "body.yamlover"), "utf8");
+  const listing = (root: string): string[] => {
+    const out: string[] = [];
+    const walk = (dir: string, rel: string): void => {
+      for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (d.name.startsWith("index.db")) continue;
+        const key = rel ? `${rel}/${d.name}` : d.name;
+        if (d.isDirectory()) { out.push(key + "/"); walk(path.join(dir, d.name), key); } else out.push(key);
+      }
+    };
+    walk(root, "");
+    return out.sort();
+  };
+
+  it("nesting under an existing scalar element, one request per pause", async () => {
+    const root = tmpTree({});
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    for (const p of [":[0]", ":[0][0]", ":[0][0][0]", ":[0][0][1]"]) {
+      const val = { ":[0]": "World", ":[0][0]": "Eurasia", ":[0][0][0]": "Europe", ":[0][0][1]": "Asia" }[p]!;
+      const r = await callBody(h, "POST", "/api/edit", { path: p, op: "insert", yamlover: val });
+      expect(r.status, `${p} -> ${JSON.stringify(r.json)}`).toBe(200);
+    }
+    // each level is its OWN directory — the collection never accumulates in one file
+    expect(listing(root)).toEqual([
+      ".yamlover/",
+      ".yamlover/body.yamlover",
+      "item01/",
+      "item01/.yamlover/",
+      "item01/.yamlover/body.yamlover",
+      "item01/item01/",
+      "item01/item01/.yamlover/",
+      "item01/item01/.yamlover/body.yamlover",
+    ]);
+    expect(body(root)).toBe("- *: item01\n");
+    expect(body(root, "item01")).toBe("World\n- *: item01\n"); // the old scalar is the member's SELF-value
+    expect(body(root, "item01", "item01")).toBe("Eurasia\n- Europe\n- Asia\n");
+    // and the value still reads back as the list the user typed
+    expect(call(h, "/api/json", { path: ":", depth: ".inf" }).json.value).toMatchObject({
+      $yamloverMixed: { entries: [{ key: "item01" }] },
+    });
+  });
+
+  it("the same flow typed FAST — one batch, each level born mid-batch", async () => {
+    const root = tmpTree({});
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { edits: [
+      { path: ":[0]", op: "insert", yamlover: "World" },
+      { path: ":[0][0]", op: "insert", yamlover: "Eurasia" },
+      { path: ":[0][0][0]", op: "insert", yamlover: "Europe" },
+    ] });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(body(root)).toBe("- *: item01\n");
+    expect(body(root, "item01")).toBe("World\n- *: item01\n");
+    expect(body(root, "item01", "item01")).toBe("Eurasia\n- Europe\n");
+  });
+
+  it("an emplace that hands the element container content promotes it too (commitSpine)", async () => {
+    const root = tmpTree({});
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    expect((await callBody(h, "POST", "/api/edit", { path: ":[0]", op: "insert", yamlover: "World" })).status).toBe(200);
+    const r = await callBody(h, "POST", "/api/edit", { path: ":[0]", op: "emplace", yamlover: "World\n- Eurasia" });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(body(root)).toBe("- *: item01\n");
+    expect(body(root, "item01")).toBe("World\n- Eurasia\n");
+  });
+
+  it("a TAGGED ordinal container is CONTENT — it stays inline, exactly as at birth", async () => {
+    const root = tmpTree({});
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    expect((await callBody(h, "POST", "/api/edit", { path: ":[0]", op: "insert", yamlover: "Row" })).status).toBe(200);
+    const r = await callBody(h, "POST", "/api/edit", { path: ":[0]", op: "emplace", yamlover: "Row\n- a\n- b", meta: "format: text/marklower" });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(listing(root)).toEqual([".yamlover/", ".yamlover/body.yamlover"]); // no member directory
+    expect(body(root)).toContain("- !!<format: text/marklower> Row");
+  });
+
+  it("a FILE document keeps the grown element INLINE — there is no directory family to inherit", async () => {
+    // the same transition, the other storage family: defaultChildConcrete keeps a file document's
+    // children inline, so the element grows in place instead of lifting out
+    const root = tmpTree({ "note.yamlover": "- World\n" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yamlover[0]", op: "emplace", yamlover: "World\n- Eurasia" });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(fs.readFileSync(path.join(root, "note.yamlover"), "utf8")).toBe("- World\n  - Eurasia\n");
+    expect(listing(root).filter((p) => p.endsWith("/"))).toEqual([".yamlover/"]);
+  });
+
+  it("the hidden .yamlover overlay never takes a POSITIONAL address", async () => {
+    // In a fresh project the overlay is the root's only indexed child, so `:[0]` used to alias it —
+    // and the edit then wrote `.yamlover/.yamlover/`, the format violation this guards.
+    const root = tmpTree({});
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { edits: [
+      { path: ":[0]", op: "insert", yamlover: "World" },
+      { path: ":[0][0]", op: "insert", yamlover: "Eurasia" },
+    ] });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(fs.existsSync(path.join(root, ".yamlover", ".yamlover"))).toBe(false);
+    expect((call(h, "/api/doctor").json as { diagnostics: unknown[] }).diagnostics).toEqual([]);
+  });
+});
+
+// The TOC's two display rules for a body-ordered list (walk.ts applyBody + buildTree):
+// a BODY-ANCHORED member is ordinal, so it is named by POSITION like any array element rather than
+// by the directory that happens to store it; and a node's scalar self-value rides its row, the way
+// the `large-icons` grid shows `key: value`.
+describe("/api/tree — anchored members read as indices, scalars ride the row", () => {
+  type T = { label: string; value?: string; path: string; type: string; children: T[] };
+  const tree = (h: ReturnType<typeof createHandlers>, path = ":", depth = "4"): T => call(h, "/api/tree", { path, depth }).json as T;
+  const flat = (n: T, ind = ""): string[] => [`${ind}${n.label}${n.value != null ? " = " + n.value : ""}`, ...n.children.flatMap((c) => flat(c, ind + "  "))];
+
+  async function listTree() {
+    const root = tmpTree({
+      ".yamlover/body.yamlover": "- *: item01\n- plain\n",
+      "item01/.yamlover/body.yamlover": "World\n- *: item01\n",
+      "item01/item01/.yamlover/body.yamlover": "Eurasia\n- Europe\n- Asia\n",
+      "loose.yamlover": "Unlisted\n", // a child the body never named — keeps its storage name
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    return h;
+  }
+
+  it("names a consumed member by position, and trails an unlisted child by its own name", async () => {
+    const h = await listTree();
+    expect(flat(tree(h)).slice(1)).toEqual([
+      "  [0] = World",
+      "    [0] = Eurasia",
+      "      [0] = Europe",
+      "      [1] = Asia",
+      "  [1] = plain",
+      "  loose.yamlover = Unlisted", // never granted a position: still keyed, still named
+    ]);
+  });
+
+  it("keeps the PATH keyed — the label is display, the address is storage", async () => {
+    const h = await listTree();
+    const member = tree(h).children[0];
+    expect(member.label).toBe("[0]");
+    expect(member.path).toBe(":item01");
+    expect(member.children[0].path).toBe(":item01:item01");
+  });
+
+  it("truncates a long scalar to one capped line", async () => {
+    const long = "x".repeat(200);
+    const root = tmpTree({ ".yamlover/body.yamlover": "- *: item01\n", "item01/.yamlover/body.yamlover": `${long}\nkeyed: v\n` });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const v = tree(h).children[0].value!;
+    expect(v).toHaveLength(80);
+    expect(v.endsWith("…")).toBe(true);
+    // multi-line takes only the FIRST line
+    const root2 = tmpTree({ "note.yamlover": "|\n  first line\n  second line\n" });
+    const h2 = createHandlers(root2, { gitignore: false });
+    await h2.ready;
+    expect(tree(h2).children.find((c) => c.label === "note.yamlover")?.value).toBe("first line");
+  });
+
+  it("shows no value for a BINARY member, which still reads as an index", async () => {
+    const root = tmpTree({ "doc/.yamlover/body.yamlover": "- note\n- *: pic.png\n", "doc/pic.png": "PNG" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const pic = tree(h, ":doc").children.find((c) => c.path === ":doc:pic.png")!;
+    expect(pic.label).toBe("[1]"); // anchored: ordinal, not "pic.png"
+    expect(pic.value).toBeUndefined(); // blob bytes have no readable value
+  });
+
+  it("never repeats the label — a titled chapter's self-value IS its label", async () => {
+    const root = tmpTree({ "doc/.yamlover/body.yamlover": '!!<*yamlover: $defs: chapter>\n"The Title"\n- prose\n', ...DEFS });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const doc = tree(h, ":doc");
+    expect(doc.label).toBe("The Title");
+    expect(doc.value).toBeUndefined();
+  });
+
+  it("a TITLED anchored member still goes by its title — the index is only the fallback", async () => {
+    const root = tmpTree({
+      "doc/.yamlover/body.yamlover": '!!<*yamlover: $defs: chapter>\n"Book"\n- *: 01-Part\n',
+      "doc/01-Part/.yamlover/body.yamlover": '!!<*yamlover: $defs: chapter>\n"Part One"\n- text\n',
+      ...DEFS,
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    expect(tree(h, ":doc").children.map((c) => c.label)).toEqual(["Part One"]);
+  });
+});
+
+// A whole FLOW token is a VALUE, not entry lines. `opensEntry` matches `{a: 1}` (its leading `{`
+// passes the first-character class and `a: ` reads as a key), so a flow-MAP payload used to be torn
+// apart into a block mapping — a 400 at a document root, block children at a keyed target. A flow
+// SEQ slipped through only because it carries no colon. One grammatical rule (`isFlowToken`) now
+// covers both, at both targets, to any nesting depth.
+describe("/api/edit — a flow token payload stays one token", () => {
+  const bodyOf = (root: string) => fs.readFileSync(path.join(root, "d", ".yamlover", "body.yamlover"), "utf8");
+  const cases: [string, string][] = [
+    ["a flow seq", "[12, 13, 14]"],
+    ["a flow map", "{a: 1}"],
+    ["a map holding a seq", "{a: [1, 2]}"],
+    ["a seq holding maps", "[{a: 1}, 2]"],
+    ["quoted cells", "['a, b', \"x: y\"]"],
+  ];
+
+  for (const [name, token] of cases) {
+    it(`${name} emplaces verbatim at a KEYED path`, async () => {
+      const root = tmpTree({ "d/.yamlover/body.yamlover": "k: old\n" });
+      const h = createHandlers(root, { gitignore: false });
+      await h.ready;
+      const r = await callBody(h, "POST", "/api/edit", { path: ":d:k", op: "emplace", yamlover: token });
+      expect(r.status, JSON.stringify(r.json)).toBe(200);
+      expect(bodyOf(root)).toBe(`k: ${token}\n`);
+    });
+
+    it(`${name} emplaces verbatim at the document ROOT — it IS the document`, async () => {
+      const root = tmpTree({ "d/.yamlover/body.yamlover": "" });
+      const h = createHandlers(root, { gitignore: false });
+      await h.ready;
+      const r = await callBody(h, "POST", "/api/edit", { path: ":d", op: "emplace", yamlover: token });
+      expect(r.status, JSON.stringify(r.json)).toBe(200);
+      expect(bodyOf(root)).toBe(`${token}\n`);
+    });
+  }
+
+  it("replacing a document root's body with a flow token keeps the `!!<…>` banner", async () => {
+    const root = tmpTree({ "d/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\nTitle\n- chunk\n", ...DEFS });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: ":d", op: "emplace", yamlover: "[1, 2]" });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(bodyOf(root)).toBe("!!<*yamlover: $defs: chapter>\n[1, 2]\n"); // the body goes, the banner stands
+  });
+
+  it("an ordinary keyed payload is still entry lines — the rule is about FLOW, not braces", async () => {
+    // a FILE-backed document, so the keyed scalar→container promotion (a dir-backed concern) is
+    // not in play and the assertion is purely about how the payload is grammatically classified
+    const root = tmpTree({ "note.yamlover": "k: old\n" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yamlover:k", op: "emplace", yamlover: "a: 1\nb: 2" });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    // grouped as ENTRY LINES and written under the key (the old scalar stays as the omni
+    // self-value) — never carried across as one opaque token the way a flow payload is
+    expect(fs.readFileSync(path.join(root, "note.yamlover"), "utf8")).toBe("k: old\n  a: 1\n  b: 2\n");
+  });
+
+  it("an UNTERMINATED flow token is not one — it stays a plain scalar", async () => {
+    const root = tmpTree({ "d/.yamlover/body.yamlover": "k: old\n" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: ":d:k", op: "emplace", yamlover: "'[1, 2'" });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(bodyOf(root)).toBe("k: '[1, 2'\n");
+  });
+});

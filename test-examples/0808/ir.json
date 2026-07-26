@@ -6,6 +6,18 @@
     "anchors": [],
     "entries": [
       {
+        "key": "caption",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "The picture",
+          "array": false,
+          "set": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
         "key": ".yamlover",
         "edge": "contain",
         "value": {
@@ -63,18 +75,6 @@
             "hash": "xxh64:6a634721b87742b7",
             "size": 70
           },
-          "array": false,
-          "set": false,
-          "anchors": [],
-          "entries": []
-        }
-      },
-      {
-        "key": "caption",
-        "edge": "contain",
-        "value": {
-          "kind": "scalar",
-          "value": "The picture",
           "array": false,
           "set": false,
           "anchors": [],

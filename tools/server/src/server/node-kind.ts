@@ -27,29 +27,36 @@ export function ownedEntries(s: Store, p: string): OwnedEntry[] {
   return own.sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0));
 }
 
-/** The node's POSITIONAL PREFIX length (a dir-backed pointer-array body, walk.ts applyBody):
- *  entries with `pos < N` are body-ordered (positional) members — their keys are storage
- *  provenance, shown as derived `&` anchors; keyed entries at `pos >= N` are the keyed-only
- *  remainder the body never granted a position. 0 for every other node. */
-export function positionalOf(row: NodeRow): number {
-  const n = (row.meta as { positional?: unknown } | null)?.positional;
-  return typeof n === "number" && n > 0 ? n : 0;
+/** The members whose POSITION came from the node's `body.yamlover` (walk.ts applyBody): the body
+ *  named each by a `*` pointer, which consumed it, so its key is storage PROVENANCE — shown as a
+ *  derived `&` anchor — and it counts as ORDINAL, not keyed. Empty for every other node; a member
+ *  the body never named keeps its key and stays part of the keyed remainder. */
+export function anchoredOf(row: NodeRow): ReadonlySet<string> {
+  const a = (row.meta as { anchored?: unknown } | null)?.anchored;
+  return Array.isArray(a) ? new Set(a.filter((x): x is string => typeof x === "string")) : EMPTY;
+}
+const EMPTY: ReadonlySet<string> = new Set<string>();
+
+/** Whether an entry belongs to the node's ORDINAL facet: a keyless element, or a member the body
+ *  positioned by pointer ({@link anchoredOf}). */
+export function isOrdinalEntry(anchored: ReadonlySet<string>, label: string | null): boolean {
+  return label === null || anchored.has(label);
 }
 
 /** A node's display {@link Kind}. A scalar/blob carrying OWNED fields is `omni`; a mapping that
  *  mixes keyed and keyless OWNED entries is `mix`; otherwise object|array|scalar|binary. The
- *  `is_array` flag marks a pure-keyless container. A POSITIONAL-PREFIX node ({@link positionalOf})
- *  with a keyed-only remainder is a `mix` — the prefix is ordinal, the remainder keyed. Reverse
- *  (`~`) members never count — a tagged PDF is still a `binary`, not an `omni` (they are upstream
- *  relations, not owned content). */
+ *  `is_array` flag marks a pure-keyless container. A node with BODY-ANCHORED members
+ *  ({@link anchoredOf}) and a keyed remainder is a `mix` — the anchored ones are ordinal, the
+ *  remainder keyed. Reverse (`~`) members never count — a tagged PDF is still a `binary`, not an
+ *  `omni` (they are upstream relations, not owned content). */
 export function displayKind(s: Store, p: string, row: NodeRow): Kind {
   const ents = ownedEntries(s, p);
   if (row.type === "blob") return ents.length ? "omni" : "binary";
   if (row.type === "scalar") return ents.length ? "omni" : "scalar";
   if (!ents.length) return row.is_array ? "array" : "object"; // empty container
   if (row.is_array) return "array";
-  const n = positionalOf(row);
-  if (n > 0) return ents.some((e) => (e.pos ?? 0) >= n) ? "mix" : "array";
+  const anchored = anchoredOf(row);
+  if (anchored.size) return ents.some((e) => !isOrdinalEntry(anchored, e.label)) ? "mix" : "array";
   return ents.some((e) => e.label === null) ? "mix" : "object";
 }
 
@@ -77,12 +84,12 @@ export function scalarType(v: unknown): string {
  *  (ownedEntries) — a tagged node keeps its facets, so a renderer can tolerate the extra keys. */
 export function facetsOf(s: Store, p: string, row: NodeRow): { valueType: string | null; hasKeyed: boolean; hasOrdinal: boolean } {
   const ents = ownedEntries(s, p);
-  // a positional-prefix node ({@link positionalOf}): the prefix counts as ORDINAL (the keys there
-  // are storage provenance, not authored keys); only the keyed-only remainder counts as KEYED.
-  const n = positionalOf(row);
+  // a BODY-ANCHORED member ({@link anchoredOf}) counts as ORDINAL (its key is storage provenance,
+  // not an authored key); only the remainder the body never named counts as KEYED.
+  const anchored = anchoredOf(row);
   return {
     valueType: row.type === "scalar" ? scalarType(row.value) : row.type === "blob" ? "binary" : null,
-    hasKeyed: ents.some((e) => e.label !== null && (e.pos ?? 0) >= n),
-    hasOrdinal: ents.some((e) => e.label === null || (e.pos ?? 0) < n),
+    hasKeyed: ents.some((e) => e.label !== null && !isOrdinalEntry(anchored, e.label)),
+    hasOrdinal: ents.some((e) => isOrdinalEntry(anchored, e.label)),
   };
 }

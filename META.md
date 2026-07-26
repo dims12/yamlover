@@ -27,10 +27,12 @@ A directory's `.yamlover/` holds up to two complementary overlays, plus engine s
 
 Both are keyed by node path, but with different shapes:
 
-- **`body.yamlover`** mirrors the instance directly (`name: Alice`). A pure
-  pointer-array body (`- *file …`) is the ORDER overlay: it grants positions to
-  the children it names (the positional prefix); unnamed children stay
-  keyed-only, after the ordered block.
+- **`body.yamlover`** mirrors the instance directly (`name: Alice`). Its POSITIONAL
+  flow (`- *file …`) is the ORDER overlay: it grants positions to the children it
+  names, CONSUMING each pointer — the member rides that position, its key kept only
+  as the provenance a projection shows as a derived `&` anchor. Unnamed children stay
+  keyed-only, after the body's own entries. This holds whatever else the body carries
+  — a pure sequence, a scalar self-value, or keyed fields alongside the flow.
 - **`meta.yamlover`** nests under JSON-Schema keywords (`properties:`, `prefixItems:`),
   so the engine maps a **meta-path → instance-path** (`properties/age` annotates the
   instance node `age`).
@@ -232,7 +234,16 @@ Decided 2026-06-07 (replaces the earlier "schema deferred / instance-only" frami
 was never about storage; this is its real role). The precise **overlay-merge precedence**
 (directory ∪ `body.yamlover`, and how `meta.yamlover` attaches) is the Phase 1c spec
 (`PLAN.md`); `<<:` (YAML-1.1 merge key, extended to `<<: *pointer`) is the explicit
-mapping-merge tool. The validation semantics are a later, optional pass.
+mapping-merge tool.
+
+The validator itself already exists — `tools/server/src/validate.ts` — but only its *schema-less*
+half: the `layout/*` rules that keep the concrete tree well-formed (CONCRETES.md §Layout
+invariants). The `value/*` diagnostic codes and the `SchemaRule` / `compileMeta(meta, atPath)`
+seam are reserved there and `compileMeta` returns `[]` today. Landing the metadata semantics is
+therefore additive: compile the keyword nesting (`properties:` / `prefixItems:` / `items:`) into
+rules keyed by META-PATH, hand them to the existing runner as `opts.schema`, and every call site,
+diagnostic shape and enforcement decision stays as it is. An inline `!!<…>` tag compiles through
+the same entry point, so nothing downstream distinguishes overlay-schema from tag-schema.
 
 **Provisional:** the exact *authoring* shape of the meta schema — keyword set, how reuse /
 definitions / cross-refs work (the old `$defs`/`$ref`; here leaning toward `*` pointers) —

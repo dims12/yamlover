@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { Comment, Document, Node } from '../src/ir.ts';
+import type { Comment, Document, Entry, Node } from '../src/ir.ts';
 import { isPointer } from '../src/ir.ts';
 import { canonDoc } from '../src/canon.ts';
 import { parseYamlover } from '../src/yamlover.ts';
@@ -304,4 +304,70 @@ test('cross rt: genealogy body.yamlover → json5p → IR-equal', () => {
 test('cross lossy: 06-tour.yamlover does not fit json5p (mix/omni/set)', () => {
   const doc = parseYamlover(readFileSync(join(examples, '06-tour.yamlover'), 'utf8'), '06-tour');
   assert.throws(() => serializeJson5p(doc), LossyError);
+});
+
+// ── flow style: the `yaml/flow` representation concrete (CONCRETES.md) ──────────────────────
+// An AUTHORED flow container re-emits as flow; anything flow cannot hold LOSSLESSLY falls back to
+// block form rather than throwing or dropping. The refusal list here is the contract the editor's
+// `flowFits` mirrors — if the two disagree, the screen and the file disagree.
+
+test('yamlover rt: authored flow re-emits as flow, canonically spaced', () => {
+  const src = 'a: {x: 1, y: 2}\nb: [1, 2, 3]\nc: [[1, 2], [3]]\nd: {k: [1, {n: 2}]}\n';
+  assert.equal(serializeYamlover(parseYamlover(src, 't')), src);
+  // FORMATTING is normalized, the STYLE is kept: the concrete is a classification, not the bytes
+  assert.equal(serializeYamlover(parseYamlover('a: [1,2,  3]\n', 't')), 'a: [1, 2, 3]\n');
+});
+
+test('yamlover rt: a flow DOCUMENT root, and a flow element of a block sequence', () => {
+  for (const src of ['[12, 13, 14]\n', '{a: 1}\n', '- [one, two]\n- [three]\n']) {
+    assert.equal(serializeYamlover(parseYamlover(src, 't')), src);
+  }
+});
+
+test('yamlover rt: flow keeps quoting, pointers and number spellings', () => {
+  const src = "c: [x, 'a b', \"q\"]\nh: [0xff, 1.0, -0]\np: [*a[0], plain]\n";
+  const out = serializeYamlover(parseYamlover(src, 't'));
+  assert.match(out, /c: \[x, 'a b', q\]/); // a double-quoted cell with no metachar reads plain
+  assert.match(out, /h: \[0xff, 1\.0, -0\]/); // authored spellings survive (repr.ts yaml/hex …)
+  assert.match(out, /p: \[\*a\[0\], plain\]/);
+});
+
+test('yamlover: block form is untouched — only an AUTHORED flow bit turns flow on', () => {
+  const block = 'a:\n  x: 1\nb:\n  - 1\n  - 2\n';
+  assert.equal(serializeYamlover(parseYamlover(block, 't')), block);
+});
+
+test('yamlover: a json5p document still serializes to BLOCK yamlover', () => {
+  // json5p is flow END TO END by language; setting the per-node bit there would turn every
+  // json→yamlover conversion into one giant line
+  const out = serializeYamlover(parseJson5p('{a: 1, b: [2, 3]}', 't'));
+  assert.doesNotMatch(out, /^\{/);
+  assert.match(out, /a: 1/);
+});
+
+test('yamlover: flow FALLS BACK to block when it cannot hold the node losslessly', () => {
+  // Parse REAL yamlover, then stamp the flow bit on a node flow cannot hold. A parse can never
+  // produce this (the flow reader only ever sees flow-expressible content), but an editor or a
+  // programmatic IR can — and a silent drop, or a throw, would each be the wrong answer.
+  const cases: [string, string][] = [
+    ['an anchored member', 'k:\n  - &p 1\n'],
+    ['a tagged member', 'k:\n  - !!<format: text/x-plantuml> 1\n'],
+    ['a multiline member', 'k:\n  - |\n    one\n    two\n'],
+    ['a mixed keyed+keyless container', 'k:\n  a: 1\n  - 2\n'],
+  ];
+  for (const [name, src] of cases) {
+    const doc = parseYamlover(src, 't');
+    const k = doc.root.entries![0].value as Node;
+    k.meta = { ...k.meta, style: 'flow' };
+    const out = serializeYamlover(doc);
+    assert.doesNotMatch(out, /^k: [[{]/m, `${name} must fall back to BLOCK form`);
+    assert.ok(out.includes('k:'), `${name} must still serialize`);
+  }
+});
+
+test('yamlover: the same stamp DOES turn on flow when flow can hold it (the control)', () => {
+  const doc = parseYamlover('k:\n  - 1\n  - 2\n', 't');
+  const k = doc.root.entries![0].value as Node;
+  k.meta = { ...k.meta, style: 'flow' };
+  assert.equal(serializeYamlover(doc), 'k: [1, 2]\n');
 });

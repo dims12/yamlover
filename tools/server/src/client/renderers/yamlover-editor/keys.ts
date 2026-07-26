@@ -29,7 +29,11 @@ const BLOCK_HEADER = /^[|>](?:\d[+-]?|[+-]\d?)?$/;
  *  bare `k:` (no trailing space) resolve as keyed on Enter. Browsers render a contentEditable's
  *  trailing/collapsing spaces as NON-BREAKING — normalized here so a typed space IS a space. */
 export function classifyHoleInput(text: string, entryStage: boolean, enterPressed = false): HoleAction {
-  text = text.replace(/\u00a0/g, " ");
+  // LEADING whitespace is never content in a hole: indentation is drawn, not typed, and a fresh
+  // flow cell is reached past a `, ` whose space is the previous token's formatting. Without this,
+  // typing `{x: 1, y: 2}` left ` y: 2` unclassified (the keyed regex refuses a leading space), so
+  // the pair never formed and its text leaked into the previous cell's value.
+  text = text.replace(/\u00a0/g, " ").replace(/^\s+/, "");
   if (text === "") return null;
   if (text === "-" ) return null;              // could still become `- ` or a negative number
   if (text.startsWith("- ")) return { kind: "ordinal" };

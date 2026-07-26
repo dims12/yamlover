@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { fetchNode, rekeyNode, type Edit } from "../../api";
 import { parseYamlover } from "../../../../../parser/ts/src/yamlover.ts";
-import { acceptsAsScalar } from "../value-editors";
+import { acceptsAsScalar, acceptsAsFlowScalar } from "../value-editors";
 import { focusEnd, focusStart, placeCaret } from "../caret";
 import * as M from "./model";
 import { enqueue, useOpSync, type OpQueue } from "./ops";
@@ -83,7 +83,9 @@ function applyHoleAction(root: M.MNode, entryId: string, action: HoleAction, foc
       nestWith(null); // `- ` in value position opens a nested sequence
       return [];
     case "keyed":
-      if (!entry.decided) {
+      // as in `quotedKey`: a FLOW MAP's entry is decided from birth, so the question is whether it
+      // has a KEY yet — `{abc: 1}` names this entry, it does not open a nested mapping inside it
+      if (!entry.decided || (container.flow === "map" && entry.key === null)) {
         entry.decided = true;
         entry.key = action.key;
         node.rev++;
@@ -225,8 +227,15 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
    *  the containing node's scalar SELF-VALUE line (rejected when it already has one — at most
    *  one scalar line per block); a decided VALUE hole (and any flow cell) commits the entry. */
   const holeCommit = useCallback((entryId: string, rawText: string, submit: boolean): boolean => {
-    const text = normalizeSpaces(rawText); // a typed space is a space, never the browser's U+00A0
-    if (!acceptsAsScalar(text)) return false;
+    // a typed space is a space, never the browser's U+00A0 — and LEADING whitespace is not content
+    // in a hole (the same rule classifyHoleInput applies): a flow cell reached past a `, ` would
+    // otherwise commit ` 2` and render `[1,  2]`
+    const text = normalizeSpaces(rawText).replace(/^\s+/, "");
+    // FLOW context accepts what a flow cell can hold (`'a, b'`, `0xff`); BLOCK context keeps the
+    // stricter bare-token rule, where an unquoted comma or bracket must be quoted
+    const spine0 = rootRef.current ? M.findEntry(rootRef.current, entryId) : null;
+    const inFlow = !!spine0?.parents[spine0.parents.length - 1].container.flow;
+    if (!(inFlow ? acceptsAsFlowScalar(text) : acceptsAsScalar(text))) return false;
     let ok = true;
     step((r) => {
       const spine = M.findEntry(r, entryId);
@@ -396,12 +405,10 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
         const { node, spine } = found;
         const keyStr = String(node.scalar?.value ?? "");
         if (keyStr === "") return [];
-        if (spine) {
-          const { container } = spine.parents[spine.parents.length - 1];
-          if (container.entries.some((o) => o !== spine.entry && o.decided && o.key === keyStr)) {
-            ok = false; // duplicate key in this node — keys are unique
-            return [];
-          }
+        const holder = spine ? spine.parents[spine.parents.length - 1].container : null;
+        if (holder && holder.entries.some((o) => o !== spine!.entry && o.decided && o.key === keyStr)) {
+          ok = false; // duplicate key in this node — keys are unique
+          return [];
         }
         const asKeyedHole = (container: M.MNode): void => {
           const hole = M.insertHoleAt(r, container.id, 0);
@@ -421,8 +428,13 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
           asKeyedHole(node);
           return [];
         }
-        if (!spine.entry.decided) {
-          // the entry hole's quoted token IS the entry's key — its value cell opens beside it
+        // The entry hole's quoted token IS the entry's key — its value cell opens beside it. A FLOW
+        // MAP's entry is `decided` from birth (it is an element the moment `{` opens it), so
+        // decidedness cannot stand in for "the key is chosen": ask about the KEY. Without this,
+        // `{"abc":` fell through to the value-position branch below and replaced the quoted token
+        // with a nested BLOCK mapping — inside flow braces that renders as nothing, so the key the
+        // user had just typed vanished off the screen.
+        if (!spine.entry.decided || (holder?.flow === "map" && spine.entry.key === null)) {
           spine.entry.decided = true;
           spine.entry.key = keyStr;
           spine.entry.quotedKey = true;
@@ -666,6 +678,108 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
     holeSubmit(entryId, text) {
       return holeCommit(entryId, text, true);
     },
+    flowNext(entryId, text) {
+      // A typed `,` inside a flow container: commit this cell (an empty one is allowed — an
+      // authored `[a, , b]` keeps its hole), then open a fresh element AFTER it. The fresh entry
+      // is undecided, so a flow MAP's next pair can type `k: ` / `"k":` through the ordinary
+      // grammar — applyHoleAction and quotedKey already special-case `container.flow === "map"`.
+      if (text.trim() !== "" && !acceptsAsFlowScalar(text)) return false;
+      if (text.trim() !== "" && !holeCommit(entryId, text, false)) return false;
+      step((r) => {
+        const spine = M.findEntry(r, entryId);
+        if (!spine) return [];
+        const { container } = spine.parents[spine.parents.length - 1];
+        const hole = M.insertHoleAfter(r, container.id, entryId);
+        if (hole) focusReq.current = { key: hole.node.id, at: "start" };
+        return [];
+      });
+      return true;
+    },
+    flowKeyed(nodeId) {
+      // A `:` typed just past a flow token's closer makes the TOKEN the entry's key — the
+      // `[256, 256]: *…` shape the parser reads (splitKV scans a leading flow token whole and
+      // treats it as a key exactly when a `:` follows). The key is the token's SOURCE TEXT, so the
+      // container collapses back to a value hole and the caret opens beside it.
+      let ok = true;
+      step((r) => {
+        const found = M.findNode(r, nodeId);
+        if (!found) { ok = false; return []; }
+        const { node, spine } = found;
+        const token = M.serializeMNode(node);
+        if (!token || token.includes("\n")) { ok = false; return []; }
+        if (!spine) {
+          // the ROOT was the token: the document becomes a mapping whose FIRST key is it. The
+          // closer already committed the token as the document's VALUE, so that line has to go
+          // first — the same clearing emplace `restructureKeyed` uses for a root scalar.
+          const wasCommitted = node.entries.some((e) => e.committed);
+          node.kind = "container";
+          node.flow = undefined;
+          node.entries = [];
+          node.scalar = undefined;
+          node.dirty = false;
+          node.rev++;
+          const hole = M.insertHoleAt(r, node.id, 0);
+          if (hole) {
+            hole.decided = true;
+            hole.key = token;
+            focusReq.current = { key: hole.node.id, at: "start" };
+          }
+          return wasCommitted ? [{ path, op: "emplace", yamlover: '""' }] : [];
+        }
+        const { container } = spine.parents[spine.parents.length - 1];
+        if (container.flow) { ok = false; return []; } // no keys inside a flow token
+        // A COMMITTED element already stands on disk as `- [12, 13]`; turning it into a key is a
+        // different line shape, which this surface cannot express as one surgical op. Refuse rather
+        // than emit something incoherent — the ring says "not here", and the token stays.
+        if (spine.entry.committed) { ok = false; return []; }
+        if (container.entries.some((o) => o !== spine.entry && o.decided && o.key === token)) { ok = false; return []; }
+        spine.entry.decided = true;
+        spine.entry.key = token;
+        node.kind = "hole";
+        node.flow = undefined;
+        node.entries = [];
+        node.scalar = undefined;
+        node.dirty = false;
+        node.rev++;
+        focusReq.current = { key: node.id, at: "start" };
+        return [];
+      });
+      return ok;
+    },
+    flowClose(entryId, text, closer) {
+      let ok = true;
+      const spine0 = M.findEntry(rootRef.current!, entryId);
+      const container0 = spine0?.parents[spine0.parents.length - 1].container;
+      if (!container0?.flow) return false;
+      if ((container0.flow === "seq") !== (closer === "]")) return false; // the wrong closer rings
+      if (text.trim() !== "") {
+        if (!acceptsAsFlowScalar(text)) return false;
+        if (!holeCommit(entryId, text, false)) return false;
+      }
+      step((r) => {
+        const spine = M.findEntry(r, entryId);
+        if (!spine) { ok = false; return []; }
+        const { container, index } = spine.parents[spine.parents.length - 1];
+        const edits: Edit[] = [];
+        // an EMPTY uncommitted hole is dropped rather than written as `""` — the user typed the
+        // closer to END the token, not to author a blank element
+        if (text.trim() === "" && !spine.entry.committed && spine.entry.node.kind === "hole") {
+          edits.push(...M.removeEntry(path, r, entryId));
+          // …and if that was the ONLY hole, the token is EMPTY — `{}` / `[]`, which is real content
+          // (the only spelling those values have). No cell holds text, so nothing else would ever
+          // push it to the server: commit the container itself.
+          if (container.entries.length === 0) {
+            const owner = M.findNode(r, container.id)?.spine?.entry;
+            if (owner) { if (!owner.committed) edits.push(...M.commitSpine(path, r, owner.id)); }
+            else edits.push({ path, op: "emplace", yamlover: M.serializeMNode(container) }); // the ROOT is the token
+          }
+        }
+        void index;
+        focusReq.current = { key: container.id + ":flowafter", at: "start" };
+        return edits;
+      });
+      return ok;
+    },
     nestValue(entryId) {
       // Enter in an EMPTY inline value hole: the value becomes a nested BLOCK — an
       // indented entry hole on the next row (the `pets: ` + Enter path)
@@ -687,7 +801,8 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
         const spine = M.findEntry(r, entryId);
         if (!spine) return [];
         const { container } = spine.parents[spine.parents.length - 1];
-        if (container.flow && spine.entry.committed) return []; // no inserts into committed flow (starter)
+        // (a committed flow container accepts inserts now: the whole token re-emplaces —
+        // model.ts flowAncestor — so there is no interior address to get wrong)
         const hole = M.insertHoleAfter(r, container.id, entryId);
         if (hole) focusReq.current = { key: hole.node.id, at: "start" };
         return [];
@@ -700,6 +815,17 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
         const found = M.findNode(r, nodeId);
         if (!found) return [];
         const { node, spine } = found;
+        // INSIDE A FLOW CONTAINER there is no level to descend into — a one-line token has no
+        // rows. Ask the PARENT, before any conversion: converting first turned the element into a
+        // block container with an invisible hole (FlowCells draws no bodies), and `valueToken`
+        // then rendered the whole token as `[""]`. `commitText` has always asked the parent; this
+        // path was the gap. A fresh element opens instead, which is what Enter means in flow.
+        const parentFlow = spine ? spine.parents[spine.parents.length - 1].container : null;
+        if (parentFlow?.flow) {
+          const hole = M.insertHoleAfter(r, parentFlow.id, spine!.entry.id);
+          if (hole) focusReq.current = { key: hole.node.id, at: "start" };
+          return [];
+        }
         if (node.kind === "scalar") {
           // the token becomes the omni self-value (same source line); an EMPTY scalar (the
           // fresh-node body) just becomes a bare container
@@ -744,6 +870,17 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
         const { container, index } = spine.parents[spine.parents.length - 1];
         const parsed = doc.root;
         const lone = P.isLoneScalar(parsed);
+        // A whole FLOW TOKEN is ONE VALUE, not a run of sibling entries: `[12, 13, 14]` pasted
+        // into a hole is a single element that happens to be a sequence, so it becomes the hole's
+        // value. Splicing its members as siblings would turn the token the user copied into
+        // three separate block rows.
+        if (parsed.meta?.style === "flow" && !lone) {
+          const edits = P.pasteValueAt(path, r, entryId, parsed);
+          if (edits === null) { ok = false; return []; }
+          if (!spine.entry.decided) spine.entry.decided = true; // an entry-stage hole becomes the element
+          focusReq.current = { key: spine.entry.node.id, at: "end" };
+          return edits;
+        }
         if (container.flow && !lone) { ok = false; return []; } // no block structure inside flow
         if (!spine.entry.decided) {
           // ENTRY stage — a lone (multi-line) scalar is the container's scalar LINE, exactly
@@ -801,10 +938,26 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
         const spine = M.findEntry(r, entryId);
         if (!spine) return [];
         const { container, index } = spine.parents[spine.parents.length - 1];
+        // NO TRAPS: emptying a FLOW container undoes the `[` / `{` that opened it, exactly as
+        // Backspace undoes a `- ` / `key:` decision. Without this the brackets stayed on screen
+        // with nothing inside to type into and nothing focusable — a dead end reachable in two
+        // keystrokes. The container returns to the hole it came from, caret restored.
+        if (container.flow && container.entries.length === 1) {
+          const edits = M.removeEntry(path, r, entryId);
+          container.kind = "hole";
+          container.flow = undefined;
+          container.rev++;
+          focusReq.current = { key: container.id, at: "start" };
+          return edits;
+        }
         const prev = index > 0 ? container.entries[index - 1] : null;
         focusReq.current = prev ? { key: prev.node.id, at: "end" } : null;
         return M.removeEntry(path, r, entryId);
       });
+    },
+    focusCellKey(key, at) {
+      const el = cellMap.current.get(key);
+      if (el) focusCell(el, at);
     },
     focusSibling(from, dir) {
       const cells = Array.from(rootEl.current?.querySelectorAll<HTMLElement>("[data-yed-cell]") ?? []);
@@ -822,6 +975,7 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
     // LAZY reads of the mutable model — always current, no memo churn
     holderOf: (nodeId) => (rootRef.current ? M.holderPathOfNode(path, rootRef.current, nodeId) : path),
     docPath: () => docPathRef.current,
+    entryIdOfNode: (nodeId) => (rootRef.current ? M.findNode(rootRef.current, nodeId)?.spine?.entry.id ?? null : null),
   }), [path, act, onNavigate]);
 
   // apply the pending focus request once the fresh cells are in the DOM

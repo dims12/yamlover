@@ -8,23 +8,15 @@ Household staff
       width: 2
     - Class
     - *[.-1]
-  - - Whiskers
-    - mammal
-    - '**manager**'
-  - - Rex
-    - *..[.-1][.]
-    - security
+  - [Whiskers, mammal, '**manager**']
+  - [Rex, *..[.-1][.], security]
   - - Bubbles
     - fish
     - !!<*yamlover: $defs: table>
-      header:
-        - duty
-        - shift
-      - - decoration
-        - always
+      header: [duty, shift]
+      - [decoration, always]
   - - Rocky
     - raccoon
     - - night shift **only**
       - !!<*yamlover: $defs: table>
-        - - bins
-          - tipped
+        - [bins, tipped]
