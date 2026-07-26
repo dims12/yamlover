@@ -410,7 +410,10 @@ function valueToken(node: MNode): string | null {
   if (node.kind === "container" && node.flow && flowFits(node)) {
     const seq = flowIsSeq(node);
     const items = node.entries
-      .filter((e) => e.decided || seq)
+      // an UNDECIDED entry is written only when it came from the file: a FRESH hole is the cell the
+      // caret is sitting in, and writing it as `""` put an element in the document that nobody
+      // typed (visible the moment Enter began emitting an op for the spread)
+      .filter((e) => e.decided || (seq && e.committed))
       // keyToken, not the bare key: an AUTHORED quoted key stays quoted, and a key needing quotes
       // (a space, a `:`) keeps them — a flow token is one line, so an unquoted one would not parse
       .map((e) => (e.key !== null ? `${keyToken(e)}: ` : "") + (valueToken(e.node) ?? '""'));

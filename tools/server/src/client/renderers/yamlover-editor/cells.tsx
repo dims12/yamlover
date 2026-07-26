@@ -151,7 +151,7 @@ export const YedCtx = createContext<YedCtxType | null>(null);
  *  {@link FlowCells}; a nested flow container re-provides its own, so the value is always the
  *  INNERMOST one. Block containers never render inside FlowCells, so this is exact — the cells
  *  read it instead of threading a prop through every head/body component. */
-const FlowCtx = createContext<{ kind: "map" | "seq"; nodeId: string; decided: number } | null>(null);
+const FlowCtx = createContext<{ kind: "map" | "seq"; nodeId: string } | null>(null);
 
 /** The entry id that OWNS `nodeId` — what a nested flow token's `,`/closer acts on (the outer
  *  token's element), and what its Enter opens a sibling after. */
@@ -296,7 +296,7 @@ function flowKeys(
   e: React.KeyboardEvent,
   el: HTMLElement,
   entryId: string,
-  flow: { kind: "map" | "seq"; nodeId: string; decided: number },
+  flow: { kind: "map" | "seq"; nodeId: string },
   act: YedActions,
 ): boolean {
   const text = normalizeSpaces(el.textContent ?? "");
@@ -304,14 +304,14 @@ function flowKeys(
   if (e.key === ",") { e.preventDefault(); ring(act.flowNext(entryId, text)); return true; }
   if (e.key === "]" || e.key === "}") { e.preventDefault(); ring(act.flowClose(entryId, text, e.key)); return true; }
   if (e.key === "Enter") {
-    // A NEWLINE inside a flow token means what it looks like: the next element goes on the next
-    // ROW, i.e. the token spreads to K&R. Enter keeps its meaning (open the next element) and adds
-    // the spread. On an EMPTY cell it CLOSES the token — unless nothing has been put in it yet, in
-    // which case closing would throw away the token the user just opened: `[` then Enter must
-    // allocate the row and stay inside it, not commit `[]` and strand the caret past the closer.
+    // A NEWLINE inside a flow token means what it looks like: this element goes on its own ROW, so
+    // the token spreads to K&R. ENTER NEVER CLOSES — the closer does. Closing on an empty cell put
+    // the caret past `]` of a perfectly legal `[12]`, where nothing can be typed: a legal construct
+    // must never be a place editing stops. An unspreadable token (a keyed+keyless mixture, which
+    // json5p cannot hold) has nothing to spread to, so there Enter still finishes the token.
     e.preventDefault();
     if (text.trim() !== "") { ring(act.flowNext(entryId, text, true)); return true; }
-    ring(flow.decided === 0 ? act.flowSpread(entryId) : act.flowClose(entryId, "", flow.kind === "seq" ? "]" : "}"));
+    ring(act.flowSpread(entryId) || act.flowClose(entryId, "", flow.kind === "seq" ? "]" : "}"));
     return true;
   }
   if (e.key === "Tab") { e.preventDefault(); act.focusSibling(el, e.shiftKey ? -1 : 1); return true; }
@@ -1014,12 +1014,6 @@ export function EntryRow({ entry }: { entry: MEntry }) {
   );
 }
 
-/** How many of a token's entries have DECIDED what they are — an untouched `{`/`[` carries one
- *  undecided hole, and Enter there means "open the row", not "close the token". */
-function decidedCount(node: MNode): number {
-  return node.entries.filter((e) => e.decided).length;
-}
-
 /** A flow container SPREAD to K&R — one element per ROW, the closer on a row of its own at the
  *  opener's column. The cells and the `,`/closer/arrow grammar are the inline token's, unchanged
  *  (`FlowCtx` is provided here exactly as {@link FlowCells} provides it); only the layout differs.
@@ -1030,7 +1024,7 @@ export function KrRows({ node, trailingComma = false }: { node: MNode; trailingC
   const outer = useContext(FlowCtx); // the ENCLOSING token, for the after-cell past this closer
   const last = node.entries.length - 1;
   return (
-    <FlowCtx.Provider value={{ kind: seq ? "seq" : "map", nodeId: node.id, decided: decidedCount(node) }}>
+    <FlowCtx.Provider value={{ kind: seq ? "seq" : "map", nodeId: node.id }}>
       <IndentRegion>
         {node.entries.map((e, i) => <KrEntryRows key={e.id} entry={e} last={i === last} />)}
       </IndentRegion>
@@ -1075,7 +1069,7 @@ export function FlowCells({ node }: { node: MNode }) {
   // whether a typed `,`/closer/`:` belongs to this token or to the one around it
   const outer = useContext(FlowCtx);
   return (
-    <FlowCtx.Provider value={{ kind: seq ? "seq" : "map", nodeId: node.id, decided: decidedCount(node) }}>
+    <FlowCtx.Provider value={{ kind: seq ? "seq" : "map", nodeId: node.id }}>
       <span className="punct">{open}</span>
       {node.entries.map((e, i) => (
         <Fragment key={e.id}>

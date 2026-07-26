@@ -309,8 +309,7 @@ flow_map_editing: Flow mapping editing
     close_brace: *: scalar_committed
     comma: *: flow_map_editing
     enter:
-        "the inner cell is empty AND nothing has been put in the token yet": *: flow_map_spread
-        "the inner cell is empty": *: scalar_committed
+        "the token cannot be spread (a keyed+keyless mixture)": *: scalar_committed
         "otherwise": *: flow_map_spread
     backspace:
         "the inner cell is empty and it is the only one": *: empty_cell_of_origin
@@ -322,20 +321,18 @@ flow_seq_editing: Flow sequence editing
     close_bracket: *: scalar_committed
     comma: *: flow_seq_editing
     enter:
-        "the inner cell is empty AND nothing has been put in the token yet": *: flow_seq_spread
-        "the inner cell is empty": *: scalar_committed
+        "the token cannot be spread (a keyed+keyless mixture)": *: scalar_committed
         "otherwise": *: flow_seq_spread
     backspace:
         "the inner cell is empty and it is the only one": *: empty_cell_of_origin
         "otherwise": *: flow_seq_editing
 
 flow_map_spread: Flow mapping spread to K&R
-    description: NO TRAPS AT THE EDGES - Enter in the still-empty cell of a freshly opened token ALLOCATES the row (it does not close a token nothing has been put in yet), and just past the closer Backspace always has somewhere to go - it re-opens a cell inside an EMPTY token, joins a spread one, or steps onto the last cell. THE NEWLINE GESTURE. A comma keeps the next pair on this line; ENTER puts it on the next one, which SPREADS the token - one pair per row, the closer alone on the last. On disk that is an inline concrete switch to json5p (CONCRETES.md Collection style), so it is written by json5p's own serializer. The cells and the comma/closer grammar are unchanged; only the layout differs. A container json5p cannot hold - a keyed+keyless MIXTURE - does not spread, and the pair simply opens inline. Backspace just past the closer JOINS the token back onto one line (the caret stays in the after-cell)
+    description: NO TRAPS AT THE EDGES - ENTER NEVER CLOSES a token (the closer does): on an empty cell it allocates the row and the caret STAYS inside, because a legal construct like `[12]` must never be a place where editing stops. An untyped element is dropped rather than written as `""`. Just past the closer Backspace always has somewhere to go - it re-opens a cell inside an EMPTY token, joins a spread one, or steps onto the last cell. THE NEWLINE GESTURE. A comma keeps the next pair on this line; ENTER puts it on the next one, which SPREADS the token - one pair per row, the closer alone on the last. On disk that is an inline concrete switch to json5p (CONCRETES.md Collection style), so it is written by json5p's own serializer. The cells and the comma/closer grammar are unchanged; only the layout differs. A container json5p cannot hold - a keyed+keyless MIXTURE - does not spread, and the pair simply opens inline. Backspace just past the closer JOINS the token back onto one line (the caret stays in the after-cell)
     key_colon_space: *: value_hole
     close_brace: *: scalar_committed
     comma: *: flow_map_spread
     enter:
-        "the inner cell is empty": *: scalar_committed
         "otherwise": *: flow_map_spread
     backspace:
         "the inner cell is empty and it is the only one": *: empty_cell_of_origin
@@ -348,7 +345,6 @@ flow_seq_spread: Flow sequence spread to K&R
     close_bracket: *: scalar_committed
     comma: *: flow_seq_spread
     enter:
-        "the inner cell is empty": *: scalar_committed
         "otherwise": *: flow_seq_spread
     backspace:
         "the inner cell is empty and it is the only one": *: empty_cell_of_origin

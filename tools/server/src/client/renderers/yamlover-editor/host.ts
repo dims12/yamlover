@@ -713,6 +713,12 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
         const spine = M.findEntry(r, entryId);
         if (!spine) return [];
         const { container } = spine.parents[spine.parents.length - 1];
+        if (container.jsonp) {
+          // already spread: this Enter only means "stay here" (the caret is the point)
+          ok = true;
+          focusReq.current = { key: spine.entry.node.id, at: "start" };
+          return [];
+        }
         ok = M.setSpread(container, true);
         if (!ok) return [];
         // the cell MOVES (from the opener's row into its own), so it remounts and loses focus —

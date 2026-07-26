@@ -1623,18 +1623,22 @@ describe("flow tokens — typing a whole JSON value", () => {
     expect(ops()).toEqual([{ path: ":d", op: "emplace", yamlover: "[[1, 2], [3]]" }]);
   });
 
-  it("Enter opens the next element on a NEW ROW (the K&R spread); empty → it closes", async () => {
+  it("Enter opens the next element on a NEW ROW and NEVER closes the token", async () => {
     // A comma keeps the next element on this line; a NEWLINE puts it on the next one — which is a
-    // concrete switch to json5p, not a layout whim (CONCRETES.md §Collection style). On an EMPTY
-    // cell Enter still closes the token, as it always did.
+    // concrete switch to json5p, not a layout whim (CONCRETES.md §Collection style). Enter never
+    // CLOSES: doing that on an empty cell stranded the caret past the `]` of a legal `[1, 2]`,
+    // where nothing can be typed. The closer closes; the caret stays in the token until then.
     const container = await emptyDoc();
     type("[1");
     press("Enter");
     type("2");
     expect(rows(container)).toEqual(["[", "1,", "2", "]"]);
-    press("Enter"); // a third, empty element opens — still spread
+    press("Enter"); // a third, empty element opens — the caret stays in it
     expect(rows(container)).toEqual(["[", "1,", "2,", "", "]"]);
-    press("Enter"); // NOW the cell is empty → close; the blank element is dropped, not written ""
+    expect((document.activeElement as HTMLElement).className).toContain("yed-hole");
+    press("Enter"); // again: still inside, never past the closer
+    expect((document.activeElement as HTMLElement).className).toContain("yed-hole");
+    press("]");     // THIS closes it, and the untyped element is dropped rather than written ""
     expect(rows(container)).toEqual(["[", "1,", "2", "]"]);
     expect((document.activeElement as HTMLElement).className).toContain("yed-after");
   });

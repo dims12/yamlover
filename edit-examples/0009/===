@@ -1,0 +1,1 @@
+a comma then Enter keeps the caret INSIDE — `[12, ` + Enter is not a way out of the token
