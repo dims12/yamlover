@@ -1,0 +1,84 @@
+# The SERIES chapter for the yamlover screencasts — a directory chapter whose positional body
+# points at one subdirectory per presentation (`- *: 01-…`), the shape of
+# ../examples/66-pet-keeper-handbook. This file IS the unified plan: the format every deck
+# follows, the deck table, and the recording checklist. Each deck is a self-contained folder —
+# zip it and send it. Specs: ../CHAPTER.md (the document model), ../MARKLOWER.md (the prose).
+#
+# The BODY POINTERS at the foot carry the series ORDER (what the tree lists, and in which order).
+# The table is the CLICKABLE index: its deck cells are marklower links written DOCUMENT-relative
+# (`:00-template`, MARKLOWER.md §Link targets), so they resolve whether this repository or this
+# `slides/` folder is the served root. A cell opening with `[` must be quoted — bare, it would
+# lex as a flow sequence.
+!!<*yamlover: $defs: chapter>
+The yamlover screencast series
+description: Short, self-contained screencasts — one idea each, recorded over the app itself
+- |
+  Each deck is **one folder** holding **one file**: a yamlover *chapter* whose subchapters are
+  the slides. The app that renders them is the app they are about, so the projector and the
+  subject are the same program.
+- The format every deck follows
+- !!<*yamlover: $defs: bullets>
+  - one topic, **seven slides**, four to six minutes
+  - a slide is a **title** plus at most forty words — the screen shows the app, not the text
+  - what to *say* lives in a `notes:` field on the slide, and never renders on it
+  - structure comes from the taxonomy — a table is a `table` node, a list is a `bullets` node
+  - only what ships gets demoed; anything still planned is called planned
+- The series
+- !!<*yamlover: $defs: table>
+  header:
+    - '#'
+      width: 1
+    - Deck
+      width: 4
+    - What the viewer walks away with
+      width: 7
+    - Status
+      width: 2
+  - - '01'
+    - '[YAML vs yamlover](:01-yaml-vs-yamlover)'
+    - You already know the syntax; here are the four places the meaning differs
+    - written
+  - - '02'
+    - '[Mind-management in small doses](:02-mind-management)'
+    - Capture, outline, decide, track, tag, find — each one a plain file
+    - written
+  - - '03'
+    - '[Files and folders as the database](:03-files-as-database)'
+    - Concretes, the supersession lattice, and the two overlays
+    - scaffold
+  - - '04'
+    - '[Tags and annotations](:04-tags-and-annotations)'
+    - Filing without folders, and marking up a region of anything
+    - scaffold
+  - - '05'
+    - '[Chapters and marklower](:05-chapters-and-marklower)'
+    - Why the prose format refuses headings, and what carries them instead
+    - scaffold
+  - - '06'
+    - '[Pointers and the graph](:06-pointers-and-the-graph)'
+    - When a tree is not enough — shared nodes, DAGs, and path anchors
+    - scaffold
+  - - '07'
+    - '[The projectional editor](:07-the-projectional-editor)'
+    - Editing structure instead of text, one cell at a time
+    - scaffold
+  - - '00'
+    - '[The template](:00-template)'
+    - A three-slide deck that explains the skeleton — copy the folder and rewrite
+    - written
+- Recording checklist
+- !!<*yamlover: $defs: numbered>
+  - run `npm start -- .` from the repository root and open `http://localhost:5173`
+  - open the deck, e.g. `/slides/01-yaml-vs-yamlover` — the left tree is its slide list
+  - click a slide to project it as its own page; that URL is the slide's shareable address
+  - zoom the browser until the slide fills the frame — that is why slides stay short
+  - keep `notes:` open on the second monitor, in the `yamlover` tab or in the editor
+  - add `?depth=1` to read a whole deck as one scrolling page while rehearsing
+- *: 01-yaml-vs-yamlover
+- *: 02-mind-management
+- *: 03-files-as-database
+- *: 04-tags-and-annotations
+- *: 05-chapters-and-marklower
+- *: 06-pointers-and-the-graph
+- *: 07-the-projectional-editor
+- *: 00-template

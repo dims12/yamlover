@@ -1,0 +1,59 @@
+# DECK 06 — SCAFFOLD. Titles, demo targets and `notes:` stubs in place; TODO prose to write.
+# Sources: ../../URIs.md (the pointer and anchor grammar), ../../SEPARATOR.md (the `:` path
+# grammar), ../../YAMLOVER.md §2 and §7, ../../QUERY.md §4.3 (the uplink family).
+# Series rules: ../.yamlover/body.yamlover.
+!!<*yamlover: $defs: chapter>
+Pointers and the graph
+description: When a tree is not enough — shared nodes, cycles, and path anchors
+- A tree cannot hold a family
+  notes: |
+    TODO — open examples/58-genealogy-dag. Two parents, one child; the child is ONE node
+    reachable from both. In a tree you would copy it, and then maintain two copies.
+  - |
+    TODO — one sentence on the shape a tree cannot express.
+- A pointer is a path expression
+  notes: |
+    TODO — YAMLOVER.md §2 and §7. `*a` is a sibling key, `*[1]` a parent's position, a
+    leading `:` makes it document-scoped. No anchor namespace, no precedence rules.
+  - !!<*yamlover: $defs: table>
+    header: [Pointer, Reaches]
+    - - '`*a`'
+      - the sibling key `a` — no leading colon means relative to the parent
+    - - '`*[1]`'
+      - the parent's member at position 1
+    - - '`*: pets: [0]`'
+      - document scope — from the root of this document
+    - - '`*:: yamlover: $defs: chapter`'
+      - project scope — another document entirely
+- An anchor is a claim about a path
+  notes: |
+    TODO — the `&` row of YAMLOVER.md §3: in YAML an anchor names a node for local reuse;
+    here it says this node ALSO lives at that path, and the path's parent really gains
+    that key. That is the consequential difference, and why reading is concrete-aware.
+  - |
+    TODO — one sentence contrasting it with a YAML anchor.
+- Back-edges and finding usages
+  notes: |
+    TODO — the incoming-relations strip above the content. Inverses are derived, not
+    stored, so nothing can go stale. `N: ?..` in the breadcrumb lists every holder.
+  - |
+    Incoming edges are **derived**, never stored — so a "find usages" answer cannot go
+    stale.
+- Order is data
+  notes: |
+    TODO — examples/56-array-of-files: a body pointer array grants a directory child its
+    position; a child the body never names trails after the ordered ones. Show the dimmed
+    derived anchor in the projection.
+  - |
+    TODO — one sentence: the body orders the subset it names.
+- A file and a pointer look the same from above
+  notes: |
+    TODO — a pointer chunk to a picture beside a chapter (examples/65-all-formats-chunks)
+    versus an inline value. From the reader's side there is no difference.
+  - |
+    TODO — one sentence.
+- The graph you already had
+  notes: |
+    TODO — close on: your folders were already a graph the moment you made a shortcut or
+    copied a file to two places; this just writes the edge down. Hand off to deck 07.
+  - Next up — the projectional editor

@@ -1,0 +1,54 @@
+# DECK 03 — SCAFFOLD. Slide titles, demo targets and `notes:` stubs are in place; the prose
+# marked TODO is still to be written. Follow ../00-template and the series rules in
+# ../.yamlover/body.yamlover. Sources for this topic: ../../CONCRETES.md, ../../README.md
+# §Concrete representations and §The .yamlover overlays, ../../YAMLOVER.md §5.
+!!<*yamlover: $defs: chapter>
+Files and folders as the database
+description: Concretes, the supersession lattice, and the two overlays
+- The same datum, five ways
+  notes: |
+    TODO — open examples/01-tour.json, 02-tour.json5, 03-tour.json5p, 05-tour.yaml,
+    06-tour.yamlover in turn. One datum, five surfaces, one IR.
+  - |
+    TODO — one sentence: the same data, written five ways, read into one model.
+- A concrete is how it is written down
+  notes: |
+    TODO — define concrete against CONCRETES.md. A concrete is a STORAGE choice, not a
+    type; the value is the same either way.
+  - |
+    TODO — `file/yamlover`, `dir/yamlover`, `dir`, `file/json5p`, a bare blob.
+- The supersession lattice
+  notes: |
+    TODO — README.md §Concrete representations. Which concrete can express which: json
+    ⊂ json5 ⊂ json5p, yaml ⊂ yamlover, and a directory over all of them. Show why a
+    lossy conversion is refused rather than silently flattened.
+  - |
+    TODO — a `table` node with the lattice, or a `text/x-plantuml` diagram of it.
+- A folder that is a mapping
+  notes: |
+    TODO — examples/51-object-in-dir beside 50-object-in-overlay. Filename is the key,
+    bytes are the value, subdirectory is a nested node.
+  - |
+    TODO — one sentence on the directory concrete.
+- The two overlays
+  notes: |
+    TODO — examples/54-scalar-file-overlay. `body.yamlover` adds instance values the
+    filesystem cannot express and imposes child order; `meta.yamlover` says what the
+    bytes MEAN (types, formats, presentation). Metadata first, validation optional.
+  - !!<*yamlover: $defs: table>
+    header: [Overlay, 'What it carries']   # a flow scalar cannot hold a space unquoted
+    - - '`.yamlover/body.yamlover`'
+      - instance values over the directory, and the child **order**
+    - - '`.yamlover/meta.yamlover`'
+      - the schema — types, formats, concrete, presentation
+- Promotion and collapse
+  notes: |
+    TODO — a scalar grows children and the editor promotes it into its own directory
+    (concrete-rules.ts). Show it live: add a child to a leaf and watch the folder appear.
+  - |
+    TODO — one sentence: growing content moves storage; the data does not change.
+- Why this is the point
+  notes: |
+    TODO — close on: the database is the filesystem you already back up. Then hand off
+    to deck 04.
+  - Next up — tags and annotations

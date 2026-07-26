@@ -1,0 +1,164 @@
+# DECK 01 — a directory chapter whose subchapters are the SLIDES. Each slide carries `notes:`,
+# the spoken script: the chapter renderer draws the title, `description` and the keyless body,
+# and IGNORES every other keyed entry (tools/server/src/client/renderers/chapter-model.ts), so
+# the script sits in the file and never on the screen. Sources for every claim below:
+# ../../YAMLOVER.md §1–§5, ../../README.md §The core idea. Format rules: ../.yamlover/body.yamlover.
+!!<*yamlover: $defs: chapter>
+YAML vs yamlover
+description: You already know the syntax — here is where the meaning parts ways
+- You already know most of it
+  notes: |
+    Open examples/05-tour.yaml and leave it on screen for the whole slide.
+
+    Say: this is ordinary YAML, and almost all of it is also yamlover. The surface is
+    the same one you type every day — block and flow collections, both quote styles,
+    block scalars, comments, the merge key, the float specials. Nothing was taken away
+    and nothing needs converting.
+
+    Then say: so the interesting part of this talk is small. It is four places where the
+    same characters mean something different — and one place where the file stops being
+    the boundary of the document.
+  - |
+    yamlover **keeps YAML's surface**. Block and flow collections, `'single'` and
+    `"double"` quotes, `|` and `>` block scalars, comments, `<<:` merge keys, `.inf`
+    and `.nan` — unchanged.
+- Not a superset — a close twin
+  description: A .yaml file is read as YAML; a .yamlover file as yamlover. No porting step.
+  notes: |
+    Show examples/05-tour.yaml and examples/06-tour.yamlover side by side — the same
+    tour, once in each language.
+
+    Say: yamlover is deliberately NOT a superset of YAML. It is a distinct, closely
+    related language that shares the surface and differs in links and anchors. That
+    sounds like a problem for your existing files, and it would be — except that
+    reading is concrete-aware. The extension decides the semantics: a dot-yaml file is
+    parsed with YAML's link rules, a dot-yamlover file with yamlover's.
+
+    So your YAML is read faithfully, as YAML. There is no migration, and no dialect
+    guessing.
+  - |
+    Two languages, one surface — and the **file extension** picks which semantics apply.
+    Your existing YAML is read *as YAML*, faithfully.
+  - !!<format: text/markdown> |     # a per-chunk format override — the code block needs one
+    ```
+    YAML  ≈  yamlover        # close, but different in links and anchors
+    ```
+- The same token, two meanings
+  notes: |
+    Stay on this slide — the table IS the content. Read the rows out loud, one at a time.
+
+    Say: an ampersand in YAML names a node so an alias can reuse it inside that one
+    document. In yamlover it is a PATH anchor — a claim that this node also lives at
+    that path, and the path's parent really gains that key.
+
+    A star in YAML is an alias to such a name. In yamlover it is a pointer, and it takes
+    a whole path expression — a sibling key, a parent's position, a document root. No
+    anchor namespace to look a name up in.
+
+    Then the two smaller ones: double-bang-set in YAML is a mapping of null-valued keys;
+    here it is a container with set semantics, where membership dedups by identity. And a
+    scalar that also has fields is invalid YAML — two node kinds at once. In yamlover it
+    is one ordinary node, and that is the next slide.
+
+    Close by tapping the table itself: this grid is not pipe characters in a paragraph.
+    It is a yamlover node tagged with the table schema, and only the cells are prose.
+  - !!<*yamlover: $defs: table>
+    header:
+      - Token
+        width: 2
+      - In YAML
+        width: 5
+      - In yamlover
+        width: 6
+    - - '`&name`'
+      - a reusable name for this node, inside this document
+      - a **path anchor** — the node *also lives at* that path
+    - - '`*name`'
+      - an alias to the anchor called `name`
+      - a **pointer** — a path expression, with no anchor namespace at all
+    - - '`!!set`'
+      - a mapping whose keys all have null values
+      - a container with **set semantics** — membership dedups by identity
+    - - a scalar with fields
+      - invalid — a node is one kind or the other
+      - '**one node** — a value and fields together, by default'   # a leading `*` needs quoting
+- A pointer is a path
+  notes: |
+    Open examples/58-genealogy-dag and click through two or three people.
+
+    Say: because a star carries a path instead of a name, a pointer can leave the file.
+    It can name a sibling key, a position in the parent, a node in another document, a
+    file on disk. The result is that a yamlover tree is really a graph — the same person
+    node is reachable from both parents, and nobody had to copy it.
+
+    Point at the upstream relations strip above the content: those are the incoming
+    edges, computed from the pointers. A tree gives you one way in. This gives you all
+    of them.
+  - |
+    A pointer names a **path**, not an anchor — so it can reach a sibling, a position,
+    another document, or a file. That is what makes a yamlover tree a **graph** with
+    shared nodes and cycles.
+- One ordered container
+  notes: |
+    Open examples/07-omni.yamlover.
+
+    Say: YAML has two container kinds — a sequence and a mapping — and a node must
+    choose. yamlover has one. A mapping is ordered, positions are integer keys, and a
+    keyless entry simply takes its position. Which means keyed and keyless entries can
+    live in the same node, and a node can carry a scalar value alongside its fields.
+
+    That mixture is not an exotic mode; it is the default, and it is exactly what a
+    document needs. This deck's own slides are proof — every slide has a title, which is
+    the node's own value, a notes field, which is keyed, and a body of chunks, which are
+    keyless. Three facets, one node.
+  - |
+    No separate list and dict. A mapping is **ordered**, positions are integer keys, and
+    keyed and keyless entries **mix in one node** — which plain YAML forbids.
+  - !!<format: text/markdown> |
+    ```yamlover
+    a title of its own            # the node's self-value
+    notes: what to say            # a keyed entry
+    - the first body element      # a keyless entry — position 1
+    ```
+- A folder is a node
+  notes: |
+    Open examples/50-object-in-overlay, then 51-object-in-dir, then 52-scalar-as-file.
+    Same data, three shapes on disk.
+
+    Say: this is the part that has no YAML equivalent at all. An instance materializes
+    two ways. As a file — one dot-yamlover file holding the whole thing. Or as a
+    DIRECTORY, where the directory itself is the mapping: every file and subdirectory is
+    an entry, the filename is the key, the bytes are the value.
+
+    A directory can carry a hidden overlay, dot-yamlover slash body dot-yamlover, which
+    adds values the filesystem cannot express and — as an array of pointers — imposes the
+    order of the children. A bare directory just takes filesystem order.
+
+    And the punchline: a file and a subdirectory are equivalent ways to write the same
+    node. You can collapse a folder into one file, or explode a file into a folder,
+    without changing what the data means.
+
+    Say last: this deck is that. It is a folder, with one overlay file in it.
+  - |
+    An instance materializes as **one file** or as **a directory** — where the directory
+    *is* the mapping, filenames are keys, and `.yamlover/body.yamlover` adds values and
+    imposes child order.
+  - |
+    Collapsing a folder into a file, or exploding a file into a folder, does not change
+    what the data means.
+- Why a new dialect earns its keep
+  notes: |
+    Open any node and click across the yamlover and json5p tabs, then the schema tab.
+
+    Say: the payoff is that your data stays as files and folders, in a format a person
+    can read, with no proprietary database and no vendor to leave. Your editor works.
+    Git works — diffs are readable, merges are text merges. Your backup tool works,
+    because there is nothing to back up but files.
+
+    And on top of those same files you get this: an app that renders them. Which is
+    what the rest of this series is about. Next time — the six small jobs a day throws
+    at you, and how each one turns out to be a plain file.
+  - |
+    Your data stays **files in folders**, human-readable, in git, with no proprietary
+    store and no vendor to leave — and an app that renders them anyway.
+  - Next up — mind-management in small doses

@@ -1,0 +1,155 @@
+# DECK 02 — the same shape as deck 01: slides are subchapters, `notes:` is the spoken script and
+# never renders (chapter-model.ts skips keyed entries other than `description`). Every feature
+# demoed here SHIPS today; the native mindmap and outliner editors are still planned
+# (../../teasers/RU.md), so this deck shows a PlantUML chunk and the board instead.
+# Specs: ../../CHAPTER.md, ../../TICKETS.md §3 (the board), ../../QUERY.md (finding things).
+!!<*yamlover: $defs: chapter>
+Mind-management in small doses
+description: Capture, outline, decide, track, tag, find — six small jobs, six plain files
+- Six small jobs a day throws at you
+  notes: |
+    Start on an empty folder in the app — nothing in it yet.
+
+    Say: this is not a talk about a productivity system. It is about the six small jobs
+    that a working day actually hands you. Something arrives and you have to CAPTURE it.
+    A vague goal has to be OUTLINED into parts. Two options need a DECISION. Work in
+    progress needs TRACKING. Things need to be FILED so they can be FOUND again.
+
+    Most tools give you one of these and make you leave for the others. Here all six
+    land in the same place — a folder of ordinary files — and I will do each one in
+    about forty seconds.
+
+    Point at the mindmap: and this diagram is not a picture I pasted. It is three lines
+    of text inside the note, which is the third job. We will get there.
+  - !!<format: text/x-plantuml> |
+    @startmindmap
+    * A working day
+    ** Capture
+    ** Outline
+    ** Decide
+    ** Track
+    ** Tag
+    ** Find
+    @endmindmap
+- Capture, then outline
+  description: Type a flat list; press Tab; the indented line becomes a real folder on disk
+  notes: |
+    Create a note in the empty folder and type four or five short lines — whatever is on
+    your mind, one thought per line. Do not organize it yet.
+
+    Say: capture first. Every line is a chunk — a paragraph of prose, and nothing more
+    is being decided yet.
+
+    Now put the caret on one line and press Tab.
+
+    Say: Tab makes the line above it a heading and this line its content. That is
+    outlining — and here is the part worth noticing: the moment that new subchapter gets
+    its first body line, it materializes as its OWN SUBDIRECTORY on disk, named with an
+    order number and the title. Show the folder in the file manager beside the app.
+
+    So the outline you just typed is a folder tree. Not a proprietary outline stored in
+    a database — folders, with the names you typed.
+  - |
+    Type first, structure later. **Tab** turns a paragraph into a subchapter — and its
+    first body line makes it a **real subdirectory**, named after its title.
+- The diagram lives inside the note
+  notes: |
+    Open examples/66-pet-keeper-handbook and scroll to the mindmap. Then switch to the
+    yamlover tab so the source of that same mindmap is visible.
+
+    Say: when an outline wants to be a picture, the picture goes in the note as a chunk
+    with its own format — here, PlantUML. Six lines of text, rendered as a mindmap. It
+    diffs in git like text, because it is text.
+
+    Say: this is also the honest slide of the deck. A native mindmap editor — dragging
+    nodes around — is planned and not built. What works today is this: the diagram as a
+    chunk, written by hand, rendered in place, sitting in the same file as the prose it
+    belongs to.
+  - |
+    A chunk carries its own `(type, format)`. A `text/x-plantuml` chunk renders as a
+    diagram in place — **six lines of text**, which git can diff.
+- Decide
+  notes: |
+    Stay on this slide, then open examples/61-table.yamlover to show the general case.
+
+    Say: when a decision needs more than a shrug, the shape you want is a small matrix —
+    options down the side, what you care about across the top. This one is on the slide.
+
+    Say: and the point is what the grid IS. In Markdown a table is a drawing made of
+    pipe characters — the structure is fake, and nothing but the renderer understands it.
+    Here the table is a yamlover node with a table schema. The rows are entries, the
+    cells are entries, only the cell text is prose. Which means a cell can hold anything
+    a chunk can hold — including another table — and the whole thing is still editable
+    as a grid.
+  - !!<*yamlover: $defs: table>
+    title: Where should this note live
+    header:
+      - Option
+        width: 3
+      - Findable later
+        width: 3
+      - Survives the tool
+        width: 3
+    - - a folder of files
+      - yes — the filename is the key
+      - yes — nothing to export
+    - - a note in an app's database
+      - only through that app
+      - only if it can export
+    - - a chat message to yourself
+      - not really
+      - as long as the chat lives
+- Track
+  notes: |
+    Open examples/73-dev-board. Let the lanes load, then drag one card to the next lane.
+
+    Say: this folder holds five files. Each one is a task — a chapter with a few extra
+    keyed fields, priority and due and assignee. The folder itself carries one line in
+    its overlay saying which workflow it uses, and the workflow's states become the
+    lanes, in order.
+
+    Now drag a card. Say: that drag rewrote one annotation in one file — the task's state.
+    No board database, no ticket ids, no sync. The board is a VIEW of a folder, and the
+    same folder still opens as a plain file grid.
+  - |
+    A folder of task files **is** a board. Lanes come from the workflow's states; dragging
+    a card rewrites that task's state annotation — one line, in one file.
+- Tag it, then find it
+  notes: |
+    Open examples/67-pdf-tags and click a tag chip in the node header — the tag's own
+    page opens as a grid of everything filed under it. Then click into the breadcrumb
+    and type a query.
+
+    Say: folders make you choose one place for a thing. Tags do not — a tag is a node
+    like any other, and a tag chip on a document is an annotation pointing at it. Click
+    the chip and you get the tag's page: a grid of everything filed there, gathered from
+    all over the tree.
+
+    Now the breadcrumb. Say: this row of cells is not just a path, it is a query editor.
+    Type three dots and a type test and the tree filters to every binary under here.
+    Same grammar as a path, because a path is just a query with one answer.
+  - |
+    A tag is a node; filing something is an **annotation** pointing at it. Click a tag
+    chip for a grid of everything filed there.
+  - |
+    The **breadcrumb is a query editor** — `...` descends recursively, `!!<type: binary>`
+    tests a type, and the tree filters to the matches.
+- Six jobs, one folder
+  notes: |
+    Go back to the folder you started with, now full, and show it in the file manager
+    next to the app.
+
+    Say: everything from the last five minutes is in this folder. The outline is
+    subdirectories. The diagram is text in a file. The decision is a table node. The
+    board is five files and one line of overlay. The tags are annotations, which are
+    also files.
+
+    Which means you can zip it and mail it, commit it and see a readable diff, open it
+    on a machine that has never heard of this program and still read your notes. The
+    tool is optional. The notes are not.
+
+    Next time — files and folders as the database, and what a concrete actually is.
+  - |
+    An outline is subdirectories. A diagram is text. A board is five files. **Zip the
+    folder and mail it** — the notes stay readable without the tool.
+  - Next up — files and folders as the database
