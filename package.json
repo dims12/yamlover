@@ -20,6 +20,7 @@
     "start": "node tools/server/bin/yamlover.js",
     "serve": "node tools/server/bin/yamlover.js",
     "clean-index": "node tools/clean-index.mjs",
-    "gen:edit-fixtures": "npm run gen:edit-fixtures -w tools/server --"
+    "gen:edit-fixtures": "npm run gen:edit-fixtures -w tools/server --",
+    "debug-editor": "npm run debug-editor -w tools/server"
   }
 }
