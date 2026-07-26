@@ -37,7 +37,7 @@ export function parseYamlover(src: string, uri = '<yamlover>', opts: { yaml?: bo
   raw.push(src.slice(at));
   lineStarts.push(at);
   const lexed = lex(raw, lineStarts, uri);
-  const p = new Block(lexed.lines, raw, uri, lineStarts, yaml);
+  const p = new Block(lexed.lines, raw, uri, lineStarts, yaml, src);
   // YAML document markers are reserved until multi-document lands (Phase 2c). Without this
   // guard, omni-by-default would read a `---` line as the node's scalar VALUE — a misparse
   // that can accidentally project to the right value. Refuse instead.
@@ -123,14 +123,24 @@ function commentStart(s: string): number {
 class Block {
   lines: Line[];
   raw: string[];      // all source lines (for block scalars, which keep blanks and `#`)
+  src: string;        // the whole source — a MULTI-LINE flow token is sliced from it verbatim, so
+                      // its spans stay byte-exact whatever the line separators were (\r\n is 2)
   uri: string;        // source path/id, surfaced in parse-error messages
   lineStarts: number[]; // absolute offset of each raw line's first character
   blockLines = new Set<number>(); // raw lines consumed by a block scalar (their `#` is content)
   yaml: boolean;        // YAML concrete: bare `&`/`*` resolve at the document root
   i = 0;
 
-  constructor(lines: Line[], raw: string[], uri = '<yamlover>', lineStarts: number[] = [], yaml = false) {
+  constructor(lines: Line[], raw: string[], uri = '<yamlover>', lineStarts: number[] = [], yaml = false, src = '') {
     this.lines = lines; this.raw = raw; this.uri = uri; this.lineStarts = lineStarts; this.yaml = yaml;
+    this.src = src;
+  }
+
+  /** Consume every content line that BEGINS before absolute offset `absEnd` — how a multi-line flow
+   *  token takes its interior (and its own opening line, when the caller had not consumed it yet)
+   *  out of the block cursor's way. */
+  skipThrough(absEnd: number): void {
+    while (this.i < this.lines.length && (this.lineStarts[this.lines[this.i].n] ?? 0) < absEnd) this.i++;
   }
 
   /** Absolute span of `len` chars starting at column `col` of raw line `lineN`. Valid
@@ -483,7 +493,30 @@ class Block {
     ({ rest: text, col } = adv(text, 0, col));
     const c = text[0];
     if (c === '{' || c === '[') {
-      return new Flow(text, this.uri, (this.lineStarts[lineN] ?? 0) + col, this.yaml).parse();
+      const start = (this.lineStarts[lineN] ?? 0) + col;
+      // A token that does not close on its own line SPANS lines — K&R braces. Slice it from the
+      // source by bracket balance (flowTokenEnd is newline-agnostic: it counts quotes and brackets),
+      // hand the whole thing to the flow reader, and take its interior lines out of the block
+      // cursor. On the yamlover surface that spanning IS a concrete switch to json5p
+      // (CONCRETES.md §Collection style); in YAML it is ordinary multi-line flow (Ch. 7).
+      if (flowTokenEnd(text) < 0) {
+        const end = flowTokenEnd(this.src.slice(start));
+        if (end < 0) this.fail('unterminated flow token');
+        const tok = this.src.slice(start, start + end);
+        // v1: the flow reader collects no comments, and dropping one silently would lose content
+        if (commentStart(tok) >= 0) this.fail('a comment inside a multi-line flow token is not supported');
+        const v = new Flow(tok, this.uri, start, this.yaml).parse();
+        this.skipThrough(start + end);
+        // ONE signal, not two: the concrete already says flow (repr.ts `collectionRepr` derives
+        // `yaml/flow` for every json-family concrete), so the `style` bit the flow reader sets is
+        // dropped — otherwise the wire would carry a redundant `repr: yaml/flow` beside it.
+        if (!this.yaml && !isPointer(v)) {
+          stripFlowStyle(v);
+          v.meta = { ...v.meta, concrete: 'json5p' };
+        }
+        return v;
+      }
+      return new Flow(text, this.uri, start, this.yaml).parse();
     }
     if (c === '*') {
       const p = parsePointer(text.slice(1).trim(), this.yaml);
@@ -532,7 +565,9 @@ class Flow {
     return v;
   }
 
-  ws(): void { while (this.i < this.s.length && ' \t'.includes(this.s[this.i])) this.i++; }
+  /** Flow whitespace INCLUDES line breaks (YAML Ch. 7 — a flow collection may span lines; on the
+   *  yamlover surface that spanning is the json5p switch, see valueInline). */
+  ws(): void { while (this.i < this.s.length && ' \t\r\n'.includes(this.s[this.i])) this.i++; }
 
   value(): Node | Pointer {
     const c = this.s[this.i];
@@ -603,7 +638,7 @@ class Flow {
       if (this.s[this.i] === '~') { back = true; this.i++; }
       const key = this.s[this.i] === "'" || this.s[this.i] === '"'
         ? (this.quoted().value as string)
-        : unquoteKey(this.readPlain(':,}'));
+        : unquoteKey(this.readPlain(':,}\r\n'));
       this.ws();
       if (this.s[this.i] !== ':') this.fail('expected ":" in flow map');
       this.i++;
@@ -652,7 +687,9 @@ class Flow {
   }
 
   /** Read a plain scalar up to a stop char (default flow stops). */
-  readPlain(stop = ',:[]{} '): string {
+  // a LINE BREAK ends a plain flow scalar, like any other flow whitespace — else a multi-line
+  // token's `1\n  ]` would read the newline and the following indent into the token
+  readPlain(stop = ',:[]{} \r\n'): string {
     const start = this.i;
     while (this.i < this.s.length && !stop.includes(this.s[this.i])) this.i++;
     return this.s.slice(start, this.i).trim();
@@ -660,6 +697,19 @@ class Flow {
 }
 
 // ---- helpers -----------------------------------------------------------------
+/** Drop the per-node `style: 'flow'` bit from a node and everything under it — what the reader sets
+ *  for every flow container it meets. Inside an inline concrete switch the LANGUAGE already says
+ *  flow (json5p is flow end to end, exactly as `NodeMeta.style` documents for a json5p document),
+ *  so the per-node bit is noise: it would put a redundant `repr: yaml/flow` on the wire and invite a
+ *  renderer to draw an inner token inline while the json5p serializer writes it expanded. */
+function stripFlowStyle(v: Node): void {
+  if (v.meta?.style !== undefined) {
+    const { style: _dropped, ...rest } = v.meta;
+    v.meta = rest;
+  }
+  for (const e of v.entries ?? []) if (!isPointer(e.value)) stripFlowStyle(e.value);
+}
+
 function isSeqLine(text: string): boolean {
   return text === '-' || text.startsWith('- ');
 }

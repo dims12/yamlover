@@ -26,6 +26,14 @@ export function serializeJson5p(doc: Document, opts?: SerializeOpts): string {
   return head + e.value(doc.root, 0) + tail + '\n';
 }
 
+/** One SUBTREE as json5p text, laid out K&R from column `indent` — the emitter's own layout, reused
+ *  by the yamlover serializer for an inline concrete switch (`NodeMeta.concrete === 'json5p'`,
+ *  CONCRETES.md §Collection style). Throws {@link LossyError} for everything json5p cannot hold, so
+ *  the caller can fall back to block form exactly as it does when flow refuses a value. */
+export function json5pSubtree(node: Node, indent = 0, opts?: SerializeOpts): string {
+  return new Emitter(opts?.comments ?? false).value(node, indent);
+}
+
 class Emitter {
   comments: boolean;
 

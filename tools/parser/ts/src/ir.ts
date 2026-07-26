@@ -95,6 +95,15 @@ export interface NodeMeta {
    *  line". Absent ⇒ block. Never set by the json5p reader: a json5p document is flow END TO END,
    *  which its language already says. Not part of IR identity — canon.ts ignores it. */
   style?: 'flow';
+  /** An INLINE CONCRETE SWITCH — the one the surface can express on its own: this container and its
+   *  subtree are written in **json5p**, which on the yamlover surface looks like a flow token that
+   *  SPANS LINES (K&R braces). CONCRETES.md §Collection style: a one-line `{k: v}` in a `.yamlover`
+   *  file is yamlover with the `yaml/flow` representation, while a multi-line one is a concrete
+   *  switch — the language changes, so the interior is json5p and re-emits through its serializer.
+   *  Set only by the yamlover reader (a `.yaml` file's multi-line flow is plain YAML flow, and there
+   *  is no json5p to switch to). Like {@link style} this is typography-adjacent authored provenance,
+   *  NOT part of IR identity — canon.ts ignores it. */
+  concrete?: 'json5p';
 }
 export interface Span { uri: string; start: number; end: number; }
 

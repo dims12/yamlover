@@ -15,8 +15,27 @@ import { isPointer } from './ir.ts';
 import { plainScalar, splitKV } from './yamlover.ts';
 import { renderPointer } from './pointer.ts';
 import { LossyError, anchorBody, isAnchorizableBack, backAnchorBody } from './serialize-common.ts';
+import { json5pSubtree } from './serialize-json5p.ts';
 
 const STEP = 2;
+
+/** An inline concrete switch (`NodeMeta.concrete === 'json5p'` — a flow token that SPANS lines) as
+ *  its K&R lines, or null when json5p cannot hold the subtree (a `!!<…>` tag, `!!set`, an omni
+ *  value-plus-fields, a keyed+keyless mixture, a blob). Null ⇒ the caller writes block form, the
+ *  same graceful degradation {@link flowTextOrNull} gives when flow refuses a value. */
+function json5pLines(value: Node, indent: number): string[] | null {
+  if (value.meta?.concrete !== 'json5p') return null;
+  // An anchor ON THE SWITCH ITSELF would be emitted twice — inline by the json5p emitter and again
+  // as a yamlover anchor line by the caller. Block form carries it once, so refuse. (Anchors DEEPER
+  // in the subtree are the json5p emitter's alone and ride along fine.)
+  if ((value.meta?.anchors?.length ?? 0) > 0 || (value.entries ?? []).some(isAnchorizableBack)) return null;
+  try {
+    return json5pSubtree(value, indent).split('\n');
+  } catch (e) {
+    if (e instanceof LossyError) return null;
+    throw e;
+  }
+}
 
 /** Emit options. `comments` re-emits the retained comments (IR.md); off by default, so the
  *  output stays byte-identical to a comment-free serialization. */
@@ -58,6 +77,10 @@ class Emitter {
       this.entries(ents.slice(at), 0);
     } else if (kept.length === 0) {
       this.out.push(root.array ? '[]' : '{}');
+      this.rootAnchors(root);
+    } else if (root.meta?.schema === undefined && json5pLines(root, 0) !== null) {
+      // a whole DOCUMENT written as a K&R token — an inline concrete switch at the root
+      for (const l of json5pLines(root, 0)!) this.out.push(l);
       this.rootAnchors(root);
     } else if (root.meta?.style === 'flow' && root.meta?.schema === undefined && flowTextOrNull(root) !== null) {
       // a whole DOCUMENT authored as one flow token (`[12, 13, 14]`, `{a: 1}`) stays one line
@@ -180,7 +203,7 @@ class Emitter {
     } else if (kept.length === 0) {
       this.out.push(joinLine(pad + head, [...parts, value.array ? '[]' : '{}']));
       this.anchorLines(value, indent + STEP);
-    } else if (this.flowLine(pad + head, value, parts)) {
+    } else if (this.flowLine(pad + head, value, parts, indent)) {
       // an AUTHORED flow container rides the key line as one token — nothing further to emit
     } else {
       this.out.push(joinLine(pad + head, parts));
@@ -193,7 +216,15 @@ class Emitter {
    *  losslessly (`flowTextOrNull`). False ⇒ nothing was emitted and the caller writes block form,
    *  which is how a flow container that has since grown an anchor, a tag or a multiline value
    *  degrades gracefully instead of producing invalid source. */
-  flowLine(head: string, value: Node, parts: string[]): boolean {
+  flowLine(head: string, value: Node, parts: string[], indent: number): boolean {
+    // an inline concrete switch first: it spans lines, so its opener rides the head and its
+    // remaining lines (already padded by the json5p emitter) follow verbatim
+    const kr = json5pLines(value, indent);
+    if (kr !== null) {
+      this.out.push(joinLine(head, [...parts, kr[0]]));
+      for (const l of kr.slice(1)) this.out.push(l);
+      return true;
+    }
     if (value.meta?.style !== 'flow') return false;
     const tok = flowTextOrNull(value);
     if (tok === null) return false;
@@ -212,7 +243,7 @@ class Emitter {
         this.anchorLines(value, indent + STEP);
         return;
       }
-      if (this.flowLine(pad + '-', value, parts)) return; // `- [1, 2]`
+      if (this.flowLine(pad + '-', value, parts, indent)) return; // `- [1, 2]`, or a K&R block
       const anchored = this.anchorTokens(value).length > 0;
       if (parts.length === 0 && !anchored && (kept[0].key !== null || kept[0].edge === 'contain')) {
         // compact `- key: …` / `- - item`: render the entries, then fold the first line onto

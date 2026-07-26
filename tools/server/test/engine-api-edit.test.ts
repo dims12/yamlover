@@ -1534,3 +1534,91 @@ describe("/api/edit — a flow token payload stays one token", () => {
     expect(bodyOf(root)).toBe("k: '[1, 2'\n");
   });
 });
+
+// --- K&R values: a flow token that SPANS LINES ------------------------------------------------- //
+// CONCRETES.md §Collection style — a multi-line flow token is an inline concrete switch to json5p.
+// For the SPLICER the point is simpler: it is ONE value written across several lines, so every
+// line-level reader must step over its interior. Before `flowSpanEnd` the splicer read `a: {` plus
+// two indented lines as an entry WITH CHILDREN and rewrote them as block mapping lines, dropping
+// the flow commas — a silent corruption, and the file no longer parsed.
+describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
+  const KR = "a: {\n  x: 1,\n  y: 2\n}\nb: 9\n";
+  async function krHandlers(src = KR) {
+    const root = tmpTree({ "note.yamlover": src });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    return { root, h, disk: () => fs.readFileSync(path.join(root, "note.yamlover"), "utf8") };
+  }
+  const valueOf = (h: Parameters<typeof call>[0]) =>
+    (call(h, "/api/json", { path: ":note.yamlover", depth: ".inf" }).json as { value: unknown }).value;
+
+  it("projects the value and leaves its siblings alone", async () => {
+    const { h, disk } = await krHandlers();
+    expect(valueOf(h)).toEqual({ a: { x: 1, y: 2 }, b: 9 });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yamlover:b", op: "emplace", yamlover: "10" });
+    expect(r.status).toBe(200);
+    expect(disk()).toBe("a: {\n  x: 1,\n  y: 2\n}\nb: 10\n"); // the token is untouched, byte for byte
+  });
+
+  it("emplaces a MULTI-LINE payload as the whole value", async () => {
+    const { h, disk } = await krHandlers();
+    const r = await callBody(h, "POST", "/api/edit",
+      { path: ":note.yamlover:a", op: "emplace", yamlover: "{\n  x: 1,\n  y: 9\n}" });
+    expect(r.status).toBe(200);
+    expect(disk()).toBe("a: {\n  x: 1,\n  y: 9\n}\nb: 9\n"); // no orphaned interior lines
+    expect(valueOf(h)).toEqual({ a: { x: 1, y: 9 }, b: 9 });
+  });
+
+  it("switches between K&R, one-line flow and block without leaving orphans", async () => {
+    for (const [start, payload, want] of [
+      ["a: {\n  x: 1\n}\n", "{x: 2}", "a: {x: 2}\n"],           // K&R → one line
+      ["a: {x: 1}\n", "{\n  x: 2\n}", "a: {\n  x: 2\n}\n"],      // one line → K&R
+      ["a:\n  x: 1\n", "{\n  y: 9\n}", "a: {\n  y: 9\n}\n"],     // block → K&R (children replaced)
+      ["a: {\n  x: 1\n}\n", "y: 9", "a:\n  y: 9\n"],             // K&R → block
+    ] as const) {
+      const { h, disk } = await krHandlers(start);
+      const r = await callBody(h, "POST", "/api/edit", { path: ":note.yamlover:a", op: "emplace", yamlover: payload });
+      expect(r.status, `${start} + ${payload}`).toBe(200);
+      expect(disk(), `${start} + ${payload}`).toBe(want);
+    }
+  });
+
+  it("removes the whole token, interior included", async () => {
+    const { h, disk } = await krHandlers();
+    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yamlover:a", op: "remove" });
+    expect(r.status).toBe(200);
+    expect(disk()).toBe("b: 9\n");
+  });
+
+  it("nests, on a dash item and under several keys", async () => {
+    const { h: h1, disk: d1 } = await krHandlers("- [\n  1,\n  2\n]\n- 7\n");
+    expect(valueOf(h1)).toEqual([[1, 2], 7]);
+    expect((await callBody(h1, "POST", "/api/edit",
+      { path: ":note.yamlover[0]", op: "emplace", yamlover: "[\n  1,\n  3\n]" })).status).toBe(200);
+    expect(d1()).toBe("- [\n  1,\n  3\n]\n- 7\n");
+
+    const { h: h2, disk: d2 } = await krHandlers("a:\n  b: {\n    x: 1\n  }\n");
+    expect(valueOf(h2)).toEqual({ a: { b: { x: 1 } } });
+    expect((await callBody(h2, "POST", "/api/edit",
+      { path: ":note.yamlover:a:b", op: "emplace", yamlover: "{\n  x: 2\n}" })).status).toBe(200);
+    expect(d2()).toBe("a:\n  b: {\n    x: 2\n  }\n"); // the closer keeps its key's column
+  });
+
+  it("REFUSES a path INTO the token, naming the whole-token edit instead", async () => {
+    // a flow value has no interior line to splice (v1) — the diagnostic has to say what to do
+    const { h, disk } = await krHandlers();
+    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yamlover:a:x", op: "emplace", yamlover: "5" });
+    expect(r.status).toBe(400);
+    expect((r.json as { error: string }).error).toMatch(/written in flow form — edit it as a whole token/);
+    expect(disk()).toBe(KR); // and nothing was written
+  });
+
+  it("carries `concrete` in the sidecar only where the switch happens", async () => {
+    const { h } = await krHandlers("a: {\n  q: [\n    1\n  ]\n}\nb: {x: 1}\n");
+    const j = call(h, "/api/json", { path: ":note.yamlover", depth: ".inf" }).json as
+      { comments?: Record<string, { concrete?: string; repr?: string }> };
+    expect(j.comments?.["/a"]).toEqual({ concrete: "json5p" });
+    expect(j.comments?.["/a/q"]).toBeUndefined(); // inside the switch the language says flow
+    expect(j.comments?.["/b"]).toEqual({ repr: "yaml/flow" }); // a ONE-LINE token is still yamlover
+  });
+});

@@ -77,6 +77,17 @@ test('flow mapping and sequence', () => {
   assert.deepEqual(toPlain(d.root), { a: { x: 1, y: 2 }, b: [1, 2, 3] });
 });
 
+test('a flow token may SPAN LINES (K&R) — the value is the same graph', () => {
+  const d = parseYamlover('a: {\n  x: 1,\n  y: 2\n}\nb: [\n  1,\n  2\n]\nc: 3\n');
+  assert.deepEqual(toPlain(d.root), { a: { x: 1, y: 2 }, b: [1, 2], c: 3 });
+});
+
+test('a multi-line flow token refuses a comment and an unterminated bracket', () => {
+  // v1: the flow reader collects no comments, and dropping one silently would lose content
+  assert.throws(() => parseYamlover('a: [\n  1, # no\n  2\n]\n'), /comment inside a multi-line flow token/);
+  assert.throws(() => parseYamlover('a: [\n  1,\n'), /unterminated flow token/);
+});
+
 test('pointer value → ref edge with parsed base/steps (unquoted)', () => {
   const d = parseYamlover('manager: *: pets[1]: name\n');
   const e = entry(asMap(d.root), 'manager');

@@ -1,1 +1,1 @@
-ERROR: an unclosed flow sequence
+ERROR: an unclosed flow sequence (no closer anywhere in the source)

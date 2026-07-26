@@ -345,6 +345,57 @@ test('yamlover: a json5p document still serializes to BLOCK yamlover', () => {
   assert.match(out, /a: 1/);
 });
 
+// ── K&R: a MULTI-LINE flow token is an inline concrete switch to json5p ─────────────────────
+// CONCRETES.md §Collection style. One line ⇒ yamlover with the `yaml/flow` representation; several
+// lines ⇒ the LANGUAGE changes, so the subtree re-emits through the json5p serializer (whose layout
+// is K&R) and everything json5p cannot hold falls back to block, like flow's own refusals.
+
+test('yamlover rt: a K&R token round-trips, at the root, under a key and on a dash', () => {
+  for (const src of [
+    '{\n  a: 1,\n  b: 2\n}\n',
+    'k: {\n  a: 1,\n  b: 2\n}\n',
+    'k: [\n  1,\n  2\n]\nnext: 9\n',
+    '- [\n  1,\n  2\n]\n',
+    'a:\n  b:\n    c: [\n      1\n    ]\n', // the closer aligns under its own key, at any depth
+  ]) {
+    assert.equal(serializeYamlover(parseYamlover(src, 't')), src);
+  }
+});
+
+test('yamlover: the multi-line bit rides meta.concrete, and one line does NOT set it', () => {
+  const multi = parseYamlover('k: {\n  a: 1\n}\n', 't').root.entries![0].value as Node;
+  assert.equal(multi.meta?.concrete, 'json5p');
+  assert.equal(multi.meta?.style, undefined); // ONE signal: the concrete already says flow
+  const one = parseYamlover('k: {a: 1}\n', 't').root.entries![0].value as Node;
+  assert.equal(one.meta?.concrete, undefined);
+  assert.equal(one.meta?.style, 'flow');
+});
+
+test('yamlover: the switch is authored provenance, NOT part of IR identity', () => {
+  // the same graph written both ways canonicalizes identically — which is what lets every fixture
+  // and the edit corpus keep asserting canonDoc equality across a reflow
+  const a = canonDoc(parseYamlover('k: {a: 1, b: 2}\n', 't'));
+  const b = canonDoc(parseYamlover('k: {\n  a: 1,\n  b: 2\n}\n', 't'));
+  assert.deepEqual(a, b);
+});
+
+test('yamlover: a K&R subtree carrying a schema tag falls back to BLOCK', () => {
+  // json5p has no `!!<…>`, so its emitter refuses — and refusing means block form, never a drop
+  const out = serializeYamlover(parseYamlover('k: !!<*x> {\n  a: 1\n}\n', 't'));
+  assert.doesNotMatch(out, /\{/);
+  assert.match(out, /a: 1/);
+});
+
+test('yamlover: YAML mode reads multi-line flow with NO concrete switch', () => {
+  // yaml-test-suite 652Z/ZF4X/ZK9H — a flow collection may span lines (Ch. 7). There is no json5p
+  // to switch to in a `.yaml` file, so it stays plain flow and re-emits on one line.
+  const doc = parseYamlover('Sammy Sosa: {\n    hr: 63,\n    avg: 0.288\n  }\n', 't', { yaml: true });
+  const v = doc.root.entries![0].value as Node;
+  assert.equal(v.meta?.concrete, undefined);
+  assert.equal(v.meta?.style, 'flow');
+  assert.equal(serializeYamlover(doc), 'Sammy Sosa: {hr: 63, avg: 0.288}\n');
+});
+
 test('yamlover: flow FALLS BACK to block when it cannot hold the node losslessly', () => {
   // Parse REAL yamlover, then stamp the flow bit on a node flow cannot hold. A parse can never
   // produce this (the flow reader only ever sees flow-expressible content), but an editor or a

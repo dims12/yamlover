@@ -1334,6 +1334,11 @@ type CommentBucket = {
                           // has no other channel: `raw` is scalars-only and `NodeJson.concrete`
                           // describes the viewed node alone, while nested flow needs it per node.
   block?: BlockQualifiers; // a literal/folded scalar's chomping / indent indicator, when not clip
+  concrete?: string;      // an INLINE CONCRETE SWITCH (`NodeMeta.concrete`) — `json5p` for a flow
+                          // token written K&R, i.e. spanning lines (CONCRETES.md §Collection
+                          // style). Carried only where the switch HAPPENS: below it the language
+                          // lock makes the concrete derivable, so the interior stays silent (the
+                          // same economy as `yaml/block` and json-family nodes carrying no `repr`).
 };
 
 /** A scalar's authored source token to render faithfully — but only when it differs from the plain
@@ -1399,6 +1404,13 @@ function nodeDeco(bucket: CommentBucket, node: IrNode): void {
   if (style && !isDefaultRepr(style.repr, node.kind === "scalar" ? node.value : undefined)) {
     bucket.repr = style.repr;
     if (style.block) bucket.block = style.block;
+  }
+  // the inline CONCRETE switch (K&R) — one signal, so it replaces the repr rather than joining it:
+  // a json-family concrete already means flow (repr.ts `collectionRepr`)
+  const inline = isPointer(node) ? undefined : (node.meta as { concrete?: string } | undefined)?.concrete;
+  if (inline) {
+    bucket.concrete = inline;
+    delete bucket.repr;
   }
   // a comment trailing the node's own SELF-VALUE line (an omni `5 # …`) — placement `trailing`
   // on the node itself (attachComments routes self-value trailers here, not to an entry)
@@ -2936,6 +2948,10 @@ function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
     // self-value's content sits deeper and is skipped by the indent check above.
     if (!opensEntry(t) && !opensQuotedKey(t)) continue;
     starts.push({ key: entryKeyOf(t), start: i, inline: false });
+    // a K&R value spans the lines below: step over its interior so an inner `x: 1,` can never be
+    // read as an entry of THIS node (and the closer never as a self-value line)
+    const span = flowSpanEnd(lines, i);
+    if (span > i) i = span;
   }
   return starts.map((s, k) => ({
     absIndex: k,
@@ -2965,6 +2981,8 @@ function entryHead(lines: string[], e: ChapterEntry): string {
  *  leaf. A block scalar's content sits at the child column, so it only counts as a container when
  *  it also carries keyed fields there (an omni node — see {@link itemHasFields}). */
 function isContainerEntry(lines: string[], e: ChapterEntry, childIndent: number): boolean {
+  // a K&R value is ONE value spanning lines — its interior is not children (see flowSpanEnd)
+  if (flowSpanEnd(lines, e.start) > e.start) return false;
   const head = entryHead(lines, e);
   // compact `- - x` nesting: the head itself opens a nested item — it IS the first child, even
   // when the entry is a single line (a scalar head can never start `- `; it would be quoted)
@@ -2998,7 +3016,13 @@ function reachChapter(lines: string[], within: Seg[]): Region {
     const entry = findEntry(lines, r, seg);
     if (!entry) throw new Error(`no entry at ${typeof seg === "number" ? `[${seg}]` : seg}`);
     if (!isContainerEntry(lines, entry, r.indent + 2)) {
-      throw new Error(`cannot descend into a scalar element at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+      const at = typeof seg === "number" ? `[${seg}]` : seg;
+      // A FLOW value is one source token with no interior line to splice — a K&R one included. Say
+      // so, rather than reporting it as a scalar: the caller's move is to emplace the whole token.
+      if (isFlowToken(entryHead(lines, entry)) || flowSpanEnd(lines, entry.start) > entry.start) {
+        throw new Error(`${at} is written in flow form — edit it as a whole token (emplace on ${at} itself)`);
+      }
+      throw new Error(`cannot descend into a scalar element at ${at}`);
     }
     r = { lo: entry.start + 1, hi: entry.end, indent: r.indent + 2, marker: entry.start };
   }
@@ -3090,8 +3114,15 @@ function payloadFacets(src: string): Facets {
   const fi = lines.findIndex(isContentLine);
   if (fi < 0) return { keyed: [], ordinal: [] };
   const first = lines[fi].trim();
-  // a whole FLOW token is a VALUE, whatever it contains — it must never be grouped as entry lines
-  if (isFlowToken(src)) return { scalar: first, keyed: [], ordinal: [] };
+  // A whole FLOW token is a VALUE, whatever it contains — it must never be grouped as entry lines.
+  // The scalar is the WHOLE token: a K&R one spans lines (`{`, its cells, its closer), and taking
+  // only the first line wrote a bare `{` to the file.
+  if (isFlowToken(src)) {
+    // the payload arrives at COLUMN 0 (the wire contract above), so its continuation lines already
+    // carry the token's own relative indentation and `renderEntry` pads them to the target column
+    const text = src.replace(/\s+$/, "");
+    return { scalar: text.includes("\n") ? text : first, keyed: [], ordinal: [] };
+  }
   // `opensEntry`'s regex excludes a quote-led line (so a quoted SCALAR reads as a value), so a
   // payload whose first line is a QUOTED-KEY entry needs the same test `groupEntries` already
   // applies. Without it such a payload was classified as a scalar and written INLINE after the
@@ -3122,6 +3153,15 @@ function entryFacets(lines: string[], e: ChapterEntry, indent: number): Facets &
   // a value's continuation lines are re-emitted with their own relative indent (2 under the header)
   const value = (from: number, to: number, at: number): string =>
     [head, ...lines.slice(from, to).map((l) => (l.trim().length ? "  " + l.slice(at) : ""))].join("\n").replace(/\n+$/, "");
+
+  // A K&R VALUE is one token spanning lines: its continuation lines keep their OWN relative
+  // indentation (de-indented by the entry's own column, not the child column, and with nothing
+  // added), so renderEntry can re-emit the token verbatim at any indent.
+  const span = flowSpanEnd(lines, e.start);
+  if (span > e.start) {
+    const rest = lines.slice(e.start + 1, span + 1).map((l) => (l.trim().length ? l.slice(indent) : ""));
+    return { tag, scalar: [head, ...rest].join("\n"), keyed: [], ordinal: [] };
+  }
 
   if (!isContainerEntry(lines, e, childIndent)) {
     return { tag, scalar: value(e.start + 1, e.end, childIndent), keyed: [], ordinal: [] };
@@ -3347,9 +3387,15 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
     const p = parseYamlover(next.scalar, "<scalar>").root as { kind?: string; value?: unknown };
     if (p.kind === "scalar" && (p.value == null || p.value === "")) next.scalar = undefined;
   }
-  // A FLOW token is the entry's whole value, not a self-value beside fields: emplacing block
-  // content over `a: {x: 1}` REPLACES the token (a demoted flow), it does not make an omni whose
-  // title is a mapping — which would render `a: {x: 1}` with the new fields orphaned beneath it.
+  // A FLOW token is the entry's whole value, not a self-value beside fields — BOTH WAYS ROUND.
+  // Emplacing block content over `a: {x: 1}` replaces the token (a demoted flow); emplacing a flow
+  // token over `a:` + children replaces the children. Either merge would make an omni node whose
+  // self-value is a mapping, which renders as the token with the other facet orphaned beneath it.
+  if (op === "emplace" && payload.scalar !== undefined && isFlowToken(payload.scalar)) {
+    next.keyed = [];
+    next.ordinal = [];
+    next.order = undefined;
+  }
   if (op === "emplace" && payload.scalar === undefined && next.scalar !== undefined
       && (next.keyed.length || next.ordinal.length) && isFlowToken(next.scalar)) {
     next.scalar = undefined;
@@ -3626,9 +3672,48 @@ function scanFlowSeq(s: string, open: number): { close: number; cells: { start: 
  *  mapping. `[12, 13, 14]` slips through today only because it carries no colon. */
 function isFlowToken(src: string): boolean {
   const t = src.trim();
-  if (t.includes("\n") || (t[0] !== "[" && t[0] !== "{")) return false;
-  const scan = scanFlow(t, 0);
+  if (t[0] !== "[" && t[0] !== "{") return false;
+  const scan = scanFlow(t, 0); // newline-agnostic: it counts quotes and brackets, so K&R scans too
   return scan !== null && scan.close === t.length - 1;
+}
+
+/** The column of a flow opener on `line` that does NOT close there — the head of a **K&R value**, a
+ *  flow token spanning the lines below it (an inline concrete switch to json5p, CONCRETES.md
+ *  §Collection style). -1 when the line opens no such token. Quote-aware, and blind to a comment. */
+function flowOpenAt(line: string): number {
+  let q: string | null = null;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) {
+      if (ch === q) {
+        if (q === "'" && line[i + 1] === "'") i++;
+        else q = null;
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"') { q = ch; continue; }
+    if (ch === "#" && (i === 0 || line[i - 1] === " " || line[i - 1] === "\t")) return -1; // a comment
+    if (ch === "[" || ch === "{") return scanFlow(line, i) === null ? i : -1;
+  }
+  return -1;
+}
+
+/** The index of the line that CLOSES a K&R value opened on line `i`, or -1 when line `i` opens no
+ *  span (or nothing closes it — a malformed file keeps the old line-at-a-time behaviour).
+ *
+ *  THE WHOLE POINT: a K&R value is ONE value written across several lines, so every line-level
+ *  reader here — the entry scanner, the container test, the facet reader — must step OVER its
+ *  interior. Without this the splicer read `a: {` + two indented lines as an entry with children
+ *  and rewrote them as block mapping lines, dropping the flow commas and corrupting the file. */
+function flowSpanEnd(lines: string[], i: number): number {
+  const open = flowOpenAt(lines[i]);
+  if (open < 0) return -1;
+  let joined = lines[i];
+  for (let n = i + 1; n < lines.length; n++) {
+    joined += "\n" + lines[n];
+    if (scanFlow(joined, open) !== null) return n;
+  }
+  return -1;
 }
 
 /** A cell value as a flow-sequence token: plain when the flow lexer takes it whole — non-empty,
