@@ -8,7 +8,7 @@ import {
   type MNode,
 } from "../../src/client/renderers/yamlover-editor/model";
 import { enqueue, type OpQueue } from "../../src/client/renderers/yamlover-editor/ops";
-import { classifyHoleInput, quoteSource, unquoteSource } from "../../src/client/renderers/yamlover-editor/keys";
+import { classifyHoleInput, quoteSource, unquoteSource } from "../../../yed/src/grammar/keys";
 import type { NodeJson } from "../../src/client/api";
 
 /** A chapter-shaped omni fixture: self-value title, keyed description, two ordinal chunks, a

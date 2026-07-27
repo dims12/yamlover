@@ -7,9 +7,9 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 import { useState } from "react";
-import { DebugEditorPage, EditorView } from "../../src/client/yed2/page";
-import { watchdog } from "../../src/client/yed2/apply";
-import { initialState, sourceOf, type EditorState } from "../../src/client/yed2/state";
+import { DebugEditorPage, EditorView } from "../src/page";
+import { watchdog } from "../src/apply";
+import { initialState, sourceOf, type EditorState } from "../src/state";
 
 afterEach(cleanup);
 

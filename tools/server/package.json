@@ -32,7 +32,6 @@
     "build": "node scripts/build.mjs",
     "prepack": "node scripts/build.mjs",
     "gen:edit-fixtures": "node scripts/gen-edit-fixtures.ts",
-    "debug-editor": "vite --config debug-editor/vite.config.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

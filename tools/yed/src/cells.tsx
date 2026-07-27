@@ -12,7 +12,7 @@
 import { Fragment, type ReactNode } from "react";
 import type { Cursor, Document, Entry, Node, Path, Value } from "./state";
 import { bracketOf, isFlow, isSpread } from "./state";
-import { isPointer, type Pointer } from "../../../../parser/ts/src/ir.ts";
+import { isPointer, type Pointer } from "../../parser/ts/src/ir.ts";
 import type { Position } from "./apply";
 
 export interface CellCtx {

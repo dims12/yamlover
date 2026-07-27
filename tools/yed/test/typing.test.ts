@@ -2,8 +2,8 @@
 // the SERIALIZED document (the file that would be written) and that the editor never claimed an
 // edit it refused.
 import { describe, it, expect } from "vitest";
-import { applyKey, copySubtree, watchdog } from "../../src/client/yed2/apply";
-import { initialState, parseSource, sourceOf, type EditorState } from "../../src/client/yed2/state";
+import { applyKey, copySubtree, watchdog } from "../src/apply";
+import { initialState, parseSource, sourceOf, type EditorState } from "../src/state";
 import { parseScript } from "./keys-util";
 
 /** Type a script from the empty document — THE WATCHDOG runs after every keystroke: in every

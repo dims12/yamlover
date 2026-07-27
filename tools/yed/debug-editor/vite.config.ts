@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const here = dirname(fileURLToPath(import.meta.url)); // tools/server/debug-editor
+const here = dirname(fileURLToPath(import.meta.url)); // tools/yed/debug-editor
 
 export default defineConfig({
   root: here,

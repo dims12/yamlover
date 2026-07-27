@@ -18,7 +18,7 @@ import type { CommentBucket, CommentMap, Edit, NodeJson } from "../../api";
 import { asLink, asMixed, asRef, type Link } from "../../render";
 import { scalarToSource } from "../value-editors";
 import { escapeYamloverScalar } from "../chapter-model";
-import { unquoteSource } from "./keys";
+import { unquoteSource } from "../../../../../yed/src/grammar/keys";
 import { parseYamlover } from "../../../../../parser/ts/src/yamlover.ts";
 import { parsePointer, renderPointer } from "../../../../../parser/ts/src/pointer.ts";
 import { segsToStr, strToSegs } from "../../paths";

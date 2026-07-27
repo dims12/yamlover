@@ -18,7 +18,7 @@ import { acceptsAsScalar, acceptsAsFlowScalar } from "../value-editors";
 import { focusEnd, focusStart, placeCaret } from "../caret";
 import * as M from "./model";
 import { enqueue, useOpSync, type OpQueue } from "./ops";
-import { keyedEditParts, normalizeSpaces, quoteSource, type HoleAction } from "./keys";
+import { keyedEditParts, normalizeSpaces, quoteSource, type HoleAction } from "../../../../../yed/src/grammar/keys";
 import * as P from "./paste";
 import { FlowCells, MetaTagCell, NodeCells, PointerCell, RootHole, ScalarCell, YedCtx, type YedActions, type YedCtxType } from "./cells";
 

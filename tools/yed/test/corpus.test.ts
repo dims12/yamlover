@@ -7,14 +7,14 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { applyKey, watchdog } from "../../src/client/yed2/apply";
-import { initialState, parseSource, sourceOf, type EditorState } from "../../src/client/yed2/state";
+import { applyKey, watchdog } from "../src/apply";
+import { initialState, parseSource, sourceOf, type EditorState } from "../src/state";
 import { parseScript } from "./keys-util";
-import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
-import { canonDoc } from "../../../parser/ts/src/canon.ts";
-import { isPointer, type Node, type Value } from "../../../parser/ts/src/ir.ts";
+import { parseYamlover } from "../../parser/ts/src/yamlover.ts";
+import { canonDoc } from "../../parser/ts/src/canon.ts";
+import { isPointer, type Node, type Value } from "../../parser/ts/src/ir.ts";
 
-const REPO = path.resolve(__dirname, "../../../..");
+const REPO = path.resolve(__dirname, "../../..");
 const CORPUS = path.join(REPO, "edit-examples");
 const FIXTURE_ID = /^\d{4}(-\d{2})?$/;
 

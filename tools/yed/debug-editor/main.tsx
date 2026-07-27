@@ -1,6 +1,6 @@
 // yed2 entry — `npm run debug-editor`. No server: the corpus is inlined at build time.
 import { createRoot } from "react-dom/client";
-import { DebugEditorPage } from "../src/client/yed2/page";
+import { DebugEditorPage } from "../src/page";
 import "./yed2.css";
 
 // every corpus document, keyed by a readable name (repo-relative)

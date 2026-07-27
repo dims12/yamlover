@@ -8,7 +8,7 @@
 
 import { useMemo, useState } from "react";
 import { applyKey, applyText, commitPending, copySubtree, pasteSubtree, positionsOf, siteOf, watchdog, type Position } from "./apply";
-import { interpret } from "../renderers/yamlover-editor/dispatch";
+import { interpret } from "./grammar/dispatch";
 import { defaultRegistry, DocCells, type CellCtx, type CellRegistry } from "./cells";
 import { lineDiff } from "./diff";
 import { Legend } from "./legend";

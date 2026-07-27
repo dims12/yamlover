@@ -5,15 +5,15 @@
 // take e2 APPENDED as a new element. Pure — no DOM; cursor placement stands in for a click, every
 // edit is a keystroke through the same applyKey the page runs.
 import { describe, it, expect } from "vitest";
-import { applyKey } from "../../src/client/yed2/apply";
+import { applyKey } from "../src/apply";
 import {
   entryAt, initialState, isFlow, bracketOf, nodeAt, parseSource, sourceOf,
   type Cursor, type EditorState, type Node, type Path,
-} from "../../src/client/yed2/state";
+} from "../src/state";
 import { parseScript } from "./keys-util";
-import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
-import { canonDoc } from "../../../parser/ts/src/canon.ts";
-import { isPointer, type Entry } from "../../../parser/ts/src/ir.ts";
+import { parseYamlover } from "../../parser/ts/src/yamlover.ts";
+import { canonDoc } from "../../parser/ts/src/canon.ts";
+import { isPointer, type Entry } from "../../parser/ts/src/ir.ts";
 
 /** E — each expression as source text AND as the keystroke script that enters it ({ escaped). */
 const E = [

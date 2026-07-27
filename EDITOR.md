@@ -173,12 +173,15 @@ never on stored state:
   quoted vs `|` block so an edit doesn't rewrite a bare chunk into a block on the first
   keystroke.
 
-## 9. yed2 — the debug editor, and the REFERENCE implementation
+## 9. yed — the editor package, and the REFERENCE implementation
 
-`src/client/yed2/` is a clean-room, IR-backed editor whose semantics are the reference for
-this whole document: where the production cell layer and yed2 disagree, **yed2 is right** and
-the production layer owes a migration. Run it with `npm run debug-editor` (Vite, port 5199,
-no server — corpus samples are inlined at build time).
+`tools/yed/` (`@yamlover/yed`, an npm-workspace member like the parser: raw TS, no build) is a
+clean-room, IR-backed editor whose semantics are the reference for this whole document: where
+the production cell layer and yed disagree, **yed is right** and the production layer owes a
+migration. THE GRAMMAR LIVES HERE — `tools/yed/src/grammar/{dispatch,keys}.ts` — and the
+production editor imports it (the dependency was inverted when the package was extracted). Run
+the debug page with `npm run debug-editor` (Vite, port 5199, no server — corpus samples are
+inlined at build time).
 
 The design discipline that distinguishes it:
 
@@ -187,9 +190,15 @@ The design discipline that distinguishes it:
   is no flag web and no invisible state — the page shows the cursor, the Site, the live
   serialized source, the last line-diff and the intent history at all times.
 - **One grammar.** Every keystroke goes through the same `interpret(key, site)` table
-  (`renderers/yamlover-editor/dispatch.ts`) that draws the on-screen keyboard legend — the
+  (`tools/yed/src/grammar/dispatch.ts`) that draws the on-screen keyboard legend — the
   keycaps ARE the function being run. Effects are implemented once per intent in the pure
   `apply.ts` (`applyKey(state, key) → state`), no DOM anywhere.
+- **Dialects.** Language POLICY (block context, ordinals, the omni value, bare keys, scalar
+  spellings) lives in `dialect.ts` — `yamlover` is the default; `json`/`json5` are prepared,
+  and everything a dialect forbids refuses visibly.
+- **The cell registry.** `cells.tsx` dispatches through `CellRegistry` (format before kind) —
+  the plug point for prose (marklower) and format cells; a registered cell must draw a
+  focusable cell for every position `positionsOf` yields in its subtree.
 - **Refusal law.** An edit the state cannot take refuses visibly (`state.refused`) and
   changes nothing; moving away never drops pending text.
 - **THE LEVEL RULE.** Enter commits and DESCENDS into what was committed; Shift-Tab climbs;
@@ -198,19 +207,23 @@ The design discipline that distinguishes it:
 - **Per-container layout.** A flow container spreads to K&R by ITS OWN bit only; spreading
   propagates upward (a one-liner cannot contain a multi-liner), never downward.
 
-Its suites (`test/yed2/`) are the conformance gate: `typing` (grammar basics + unwind
+Its suites (`tools/yed/test/`) are the conformance gate: `typing` (grammar basics + unwind
 ladders with the jam detector — no (doc, cursor) state may repeat under Backspace),
 `corpus` (every `edit-examples` fixture ENTERS to its golden and DELETES to empty; honest
 shrink-only allowlists), `substitute` (every expression of the E-set replaced/appended at
 every site of every other), `clipboard` (subtree copy/paste as serialized text, under the
-same laws typing obeys), `cells` (the framed, titled, recursive cell projection).
+same laws typing obeys), `cells` (the framed, titled, recursive cell projection),
+`dom-typing` (real key events with the caret pinned per keystroke), `dialect` (json/json5
+policy smoke), `yed-dispatch` (the grammar table as data — the file
+`YAMLOVER_EDITOR.yamlover` mirrors).
 
 ## File index
 
 **`renderers/yamlover-editor/` (shared base):** `host.ts` (host, ops, focus), `model.ts`
 (mutable tree + mutation→ops), `cells.tsx` (contentEditable cells + `YedCtx`), `editor.tsx`
-(source projection layout), `keys.ts` (typing grammar), `ops.ts` (op-log + debounced flush),
-`paste.ts` (clipboard yamlover → entries).
+(source projection layout), `ops.ts` (op-log + debounced flush), `paste.ts` (clipboard
+yamlover → entries). The GRAMMAR (`dispatch.ts`, `keys.ts`) moved to `tools/yed/src/grammar/`
+— this layer imports it from there.
 
 **`renderers/chapter-editor/` (chapter projection):** `view.tsx` (`<ChapterProjection>` +
 keys/auto-descend), `blocks.ts` (chapter-shaped mutations, same mutate+return-ops contract as
@@ -225,10 +238,12 @@ seam), `renderers/marklower.tsx` + `renderers/marklower-serialize.ts` (the round
 `client/{query-cells,breadcrumb-machine,query-complete,toc-filter-session}.ts(x)` (the PICK/
 browse query-cell kit), `client/NodeView.tsx` (mounts the source projection).
 
-**`src/client/yed2/` (debug/reference editor, §9):** `state.ts` (IR state + cursor),
-`apply.ts` (pure intents + copy/paste), `cells.tsx` (framed recursive cells), `legend.tsx`
-(the on-screen dispatch table), `page.tsx` (the debug page), `diff.ts` (line diff);
-entry under `tools/server/debug-editor/`, suites under `test/yed2/`.
+**`tools/yed/` (the editor package, §9):** `src/state.ts` (IR state + cursor + dialectOf),
+`src/apply.ts` (pure intents + copy/paste + the watchdog), `src/dialect.ts` (language policy),
+`src/cells.tsx` (framed recursive cells + `CellRegistry`), `src/legend.tsx` (the dry-run
+keyboard), `src/page.tsx` (the debug page), `src/diff.ts` (line diff),
+`src/grammar/{dispatch,keys}.ts` (THE shared grammar — production imports it from here);
+debug page under `tools/yed/debug-editor/`, suites under `tools/yed/test/`.
 
 **State machines:** `YAMLOVER_EDITOR.yamlover`, `QUERY_EDITOR.yamlover` (repo root) — keep in
 sync with `keys.ts`/`host.ts` and `breadcrumb-machine.ts` respectively.

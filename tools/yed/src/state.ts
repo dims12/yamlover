@@ -4,10 +4,10 @@
 // key not yet named). There is no flag web to desynchronize: what is not committed is not in the
 // document, and everything in the document serializes.
 
-import type { Document, Node, Entry, Value } from "../../../../parser/ts/src/ir.ts";
-import { isPointer } from "../../../../parser/ts/src/ir.ts";
-import { parseYamlover } from "../../../../parser/ts/src/yamlover.ts";
-import { serializeYamlover } from "../../../../parser/ts/src/serialize-yamlover.ts";
+import type { Document, Node, Entry, Value } from "../../parser/ts/src/ir.ts";
+import { isPointer } from "../../parser/ts/src/ir.ts";
+import { parseYamlover } from "../../parser/ts/src/yamlover.ts";
+import { serializeYamlover } from "../../parser/ts/src/serialize-yamlover.ts";
 import { DIALECTS, type Dialect, type DialectId } from "./dialect";
 
 export type { Document, Node, Entry, Value };

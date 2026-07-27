@@ -3,7 +3,7 @@
 // applyKey, so the legend cannot lie: enabled means "changes the document or moves the caret",
 // never "would only ring". Hover shows the intent (or why the key is grey).
 
-import { interpret } from "../renderers/yamlover-editor/dispatch";
+import { interpret } from "./grammar/dispatch";
 import { keyVerdict, siteOf } from "./apply";
 import type { EditorState } from "./state";
 

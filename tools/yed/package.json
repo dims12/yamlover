@@ -1,0 +1,12 @@
+{
+  "name": "@yamlover/yed",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The yamlover projectional editor — IR-backed, pure apply layer, one grammar table; the reference implementation (EDITOR.md §9). Raw-TS workspace member like @yamlover/parser: consumed by relative imports, never built.",
+  "scripts": {
+    "test": "vitest run",
+    "debug-editor": "vite --config debug-editor/vite.config.ts"
+  },
+  "engines": { "node": ">=22" }
+}

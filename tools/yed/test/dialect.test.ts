@@ -2,9 +2,9 @@
 // forbids REFUSES visibly (the watchdog's law holds per dialect — R1: a gate must never
 // silently swallow), and everything it allows works exactly as in yamlover.
 import { describe, it, expect } from "vitest";
-import { applyKey, watchdog } from "../../src/client/yed2/apply";
-import { initialState, sourceOf, type EditorState } from "../../src/client/yed2/state";
-import type { DialectId } from "../../src/client/yed2/dialect";
+import { applyKey, watchdog } from "../src/apply";
+import { initialState, sourceOf, type EditorState } from "../src/state";
+import type { DialectId } from "../src/dialect";
 import { parseScript } from "./keys-util";
 
 function type(script: string, dialect?: DialectId, from?: EditorState): EditorState {

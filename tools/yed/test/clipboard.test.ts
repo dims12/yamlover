@@ -2,8 +2,8 @@
 // under the caret; pasteSubtree parses clipboard text and splices it into a hole under the same
 // laws typing obeys. A parse failure REFUSES — nothing lost, nothing half-applied.
 import { describe, it, expect } from "vitest";
-import { applyKey, copySubtree, pasteSubtree } from "../../src/client/yed2/apply";
-import { initialState, parseSource, sourceOf, type Cursor, type EditorState } from "../../src/client/yed2/state";
+import { applyKey, copySubtree, pasteSubtree } from "../src/apply";
+import { initialState, parseSource, sourceOf, type Cursor, type EditorState } from "../src/state";
 import { parseScript } from "./keys-util";
 
 function type(script: string, from: EditorState = initialState()): EditorState {

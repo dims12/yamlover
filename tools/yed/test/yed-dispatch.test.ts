@@ -2,7 +2,7 @@
 // as data. This is the file YAMLOVER_EDITOR.yamlover mirrors: a grammar change edits BOTH or the
 // review catches it. Pure — no DOM, no React; it runs in a plain node environment.
 import { describe, it, expect } from "vitest";
-import { interpret, type Site, type Intent } from "../../src/client/renderers/yamlover-editor/dispatch";
+import { interpret, type Site, type Intent } from "../src/grammar/dispatch";
 
 /** A site, tersely: defaults are a decided, uncommitted entry with the caret alone in an empty
  *  cell (both edges at once) — override what a row cares about. */

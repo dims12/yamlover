@@ -4,10 +4,10 @@
 // props, so the test hands it a state and reads the DOM.
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
-import { EditorView } from "../../src/client/yed2/page";
-import { defaultRegistry, type CellRegistry } from "../../src/client/yed2/cells";
-import { parseSource, initialState, type EditorState, type Node } from "../../src/client/yed2/state";
-import { applyKey } from "../../src/client/yed2/apply";
+import { EditorView } from "../src/page";
+import { defaultRegistry, type CellRegistry } from "../src/cells";
+import { parseSource, initialState, type EditorState, type Node } from "../src/state";
+import { applyKey } from "../src/apply";
 import { parseScript } from "./keys-util";
 
 afterEach(cleanup);

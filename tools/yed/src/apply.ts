@@ -9,14 +9,14 @@
 // lands it. A keystroke the state cannot take REFUSES visibly (`state.refused`) and changes
 // nothing else — never a silent swallow, never a half-applied edit.
 
-import { interpret, type Intent, type Site } from "../renderers/yamlover-editor/dispatch";
-import { classifyHoleInput, keyedEditParts } from "../renderers/yamlover-editor/keys";
+import { interpret, type Intent, type Site } from "./grammar/dispatch";
+import { classifyHoleInput, keyedEditParts } from "./grammar/keys";
 import {
   bracketOf, dialectOf, entryAt, isContainer, isFlow, isSpread, nodeAt, sourceOf,
   type Cursor, type Document, type EditorState, type Entry, type Node, type Path,
 } from "./state";
-import { parseYamlover } from "../../../../parser/ts/src/yamlover.ts";
-import { isPointer } from "../../../../parser/ts/src/ir.ts";
+import { parseYamlover } from "../../parser/ts/src/yamlover.ts";
+import { isPointer } from "../../parser/ts/src/ir.ts";
 
 // ---------------------------------------------------------------------------- //
 // Immutable IR surgery

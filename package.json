@@ -7,6 +7,7 @@
   "workspaces": [
     "tools/parser/ts",
     "tools/engine/ts",
+    "tools/yed",
     "tools/server",
     "tools/demo"
   ],
@@ -16,11 +17,12 @@
     "test:engine": "node --test tools/engine/ts/test/*.test.ts",
     "gen:fixtures": "npm run gen:fixtures -w tools/engine/ts --",
     "comment:typecheck": "Resolve tsc off the PATH npm builds from node_modules/.bin, NOT a hardcoded nested path: with a correct lockfile npm hoists typescript to the ROOT node_modules and tools/server/node_modules/.bin/tsc does not exist.",
-    "typecheck": "tsc -p tools/server/tsconfig.json --noEmit",
+    "typecheck": "tsc -p tools/server/tsconfig.json --noEmit && tsc -p tools/yed/tsconfig.json --noEmit",
     "start": "node tools/server/bin/yamlover.js",
     "serve": "node tools/server/bin/yamlover.js",
     "clean-index": "node tools/clean-index.mjs",
     "gen:edit-fixtures": "npm run gen:edit-fixtures -w tools/server --",
-    "debug-editor": "npm run debug-editor -w tools/server"
+    "debug-editor": "npm run debug-editor -w tools/yed",
+    "test:yed": "npm run test -w tools/yed"
   }
 }
