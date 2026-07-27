@@ -146,6 +146,31 @@ describe("the yed parity gate — every storage shape loads, edits, persists", (
     } finally { m.done(); }
   });
 
+  it("10. the reported CYCLE: a JSON hierarchy entered, UNWOUND to empty, then YAML entered", async () => {
+    const m = await mount({ "note.yamlover": "" }, ":note.yamlover");
+    try {
+      typeKeys("{a: 1}");                         // a JSON-like hierarchy ({ is a literal here)
+      await settleOps();
+      expect(m.read("note.yamlover")).toBe("{a: 1}\n");
+      // the Backspace ladder to the empty document (text clears ride onChange, like a browser)
+      for (let i = 0; i < 60; i++) {
+        const doc = document.querySelector("[data-testid=y2-doc]")!;
+        if ((doc.textContent ?? "").includes("(empty document)")) break;
+        const el = document.activeElement as HTMLInputElement;
+        expect(el && el !== document.body, "the ladder lost the caret").toBeTruthy();
+        if (el instanceof HTMLInputElement && el.value !== "") fireEvent.change(el, { target: { value: "" } });
+        else fireEvent.keyDown(el, { key: "Backspace" });
+      }
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      expect(m.read("note.yamlover"), "the deletion must PERSIST — the reported gap").toBe("");
+      typeKeys("- name: Eurasia→");
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]); // 'cannot descend into a scalar element at [0]' — gone
+      expect(m.read("note.yamlover")).toBe("- name: Eurasia\n");
+    } finally { m.done(); }
+  });
+
   it("9. COMMENTS SURVIVE an unrelated edit — the per-node-ops architecture's win", async () => {
     const m = await mount({ "c.yamlover": "# the lead comment\na: 1\nb: 2 # the trailing one\n" }, ":c.yamlover");
     try {

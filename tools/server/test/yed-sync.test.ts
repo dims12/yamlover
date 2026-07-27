@@ -2,9 +2,10 @@
 // so each case is two readable yamlover texts and the ops between them.
 import { describe, it, expect } from "vitest";
 import { diffToOps } from "../src/client/renderers/yed-sync";
-import { parseSource } from "../../yed/src/state";
+import { emptyDoc, parseSource } from "../../yed/src/state";
 
-const diff = (prev: string, next: string) => diffToOps(":doc", parseSource(prev), parseSource(next));
+const diff = (prev: string, next: string) =>
+  diffToOps(":doc", parseSource(prev), next === "" ? emptyDoc() : parseSource(next));
 
 describe("diffToOps — targeted, order-safe, concrete-blind", () => {
   it("a scalar VALUE change is one emplace at its keyed path", () => {
@@ -71,6 +72,22 @@ describe("diffToOps — targeted, order-safe, concrete-blind", () => {
     const d = diff("a: 1\n# c\nb: 2\n", "a: 1\n# c\nb: 2\n");
     expect(d.ops).toEqual([]);
     expect(d.renames).toEqual([]);
+  });
+
+  it("a FLOW-rooted document emptied is the explicit root CLEAR (`emplace \"\"`)", () => {
+    // the reported cycle: a JSON hierarchy unwound to nothing used to no-op silently — the
+    // TOC kept the old tree and every later op mis-addressed the stale document
+    const d = diff("{a: 1, b: [2, 3]}\n", "");
+    expect(d.ops).toEqual([{ path: ":doc", op: "emplace", yamlover: "" }]);
+    expect(d.fallback).toBe(false);
+  });
+
+  it("a BLOCK-rooted document emptied is targeted removes, last-first", () => {
+    const d = diff("a: 1\nb: 2\n", "");
+    expect(d.ops).toEqual([
+      { path: ":doc:b", op: "remove" },
+      { path: ":doc:a", op: "remove" },
+    ]);
   });
 
   it("the inexpressible falls back to ONE whole-node emplace — the shrink-only ledger", () => {

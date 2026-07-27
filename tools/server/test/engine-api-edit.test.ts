@@ -337,6 +337,29 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     expect(call(h, "/api/json", { path: ":doc" }).json.title).toBeNull();
   });
 
+  it("an EXPLICITLY EMPTY payload at the root CLEARS the body — the banner and comments stand", async () => {
+    // NOT the `""` case above: `""` is a payload CARRYING an empty scalar (it drops the title),
+    // while `` is the explicit CLEAR. It used to no-op silently (payloadFacets("") read as an
+    // empty self-value with nothing to drop) — the yed mount emits exactly this when a document
+    // is unwound to nothing, and the no-op left the editor and the disk DIVERGED (the reported
+    // 'TOC did not clear' + every later op mis-addressed the stale document). A flow-rooted body
+    // has no entry addresses, so a targeted-removes clear cannot exist — the root emplace is
+    // the one honest spelling.
+    const { root, h } = await omniChapterHandlers();
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "emplace", yamlover: "" });
+    expect(r.status).toBe(200);
+    expect(bodyOf(root)).toBe("!!<*yamlover: $defs: chapter>\n"); // the meta facet survives the clear
+  });
+
+  it("the ops that genuinely need a target still say so at the root", async () => {
+    const { h } = await omniChapterHandlers();
+    for (const op of ["remove", "rekey"]) {
+      const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op, yamlover: "" });
+      expect(r.status, `\`${op}\` at the root should be rejected`).toBe(400);
+      expect(String(r.json?.error ?? "")).toContain("needs a key or index target");
+    }
+  });
+
   it("re-adds a title to an untitled chapter: the self-value lands right after the tag line", async () => {
     const { root, h } = await omniChapterHandlers({
       "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\n- Hello\n",

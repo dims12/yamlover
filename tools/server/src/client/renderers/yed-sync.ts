@@ -102,9 +102,13 @@ function diffValue(prev: Value, next: Value, path: string, isRoot: boolean, ops:
   if (eq(prev, next)) return;
 
   // THE FLOW BOUNDARY: any difference at or under a flow/K&R node is ONE whole-token emplace —
-  // interiors have no addresses, and the token's text carries the layout (spread toggles too)
+  // interiors have no addresses, and the token's text carries the layout (spread toggles too).
+  // An EMPTY payload is a defined CLEAR only at the root (the "document emptied" flush); a
+  // non-root node emptied this way has no honest op — fall back rather than no-op.
   if (flowLike(prev) || flowLike(next)) {
-    ops.push({ path, op: "emplace", yamlover: payloadOf(next) });
+    const yamlover = payloadOf(next);
+    if (yamlover === "" && !isRoot) throw new Bail("a non-root node emptied across a flow boundary");
+    ops.push({ path, op: "emplace", yamlover });
     return;
   }
   if (isPointer(prev) || isPointer(next)) {
@@ -136,7 +140,6 @@ function diffValue(prev: Value, next: Value, path: string, isRoot: boolean, ops:
   }
 
   diffEntries(p.entries ?? [], n.entries ?? [], path, ops, renames);
-  void isRoot;
 }
 
 function diffEntries(prev: Entry[], next: Entry[], parentPath: string, ops: Edit[], renames: DiffResult["renames"]): void {

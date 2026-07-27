@@ -14,17 +14,21 @@ import { YedEditor, yedSourceEditor } from "../src/client/renderers/yed-editor";
 afterEach(cleanup);
 
 /** Type through yed's REAL key plumbing (its cells are <input>s: keydown first; a printable the
- *  grammar left alone lands via onChange). `⏎` = Enter, `⇤` = Shift-Tab, `→`/`←` = arrows. */
+ *  grammar left alone lands via onChange). `⏎` = Enter, `⇤` = Shift-Tab, `→`/`←` = arrows,
+ *  `⌫` = Backspace (caret parked at the end, so it eats the last character). */
 function typeKeys(script: string): void {
   for (const ch of script) {
     const el = document.activeElement;
     expect(el && el !== document.body, `the caret fell off the editor before ${JSON.stringify(ch)}`).toBeTruthy();
-    const key = ch === "⏎" ? "Enter" : ch === "⇤" ? "Tab" : ch === "→" ? "ArrowRight" : ch === "←" ? "ArrowLeft" : ch;
+    const key = ch === "⏎" ? "Enter" : ch === "⇤" ? "Tab" : ch === "→" ? "ArrowRight" : ch === "←" ? "ArrowLeft"
+      : ch === "⌫" ? "Backspace" : ch;
     const input = el as HTMLInputElement;
     const before = input instanceof HTMLInputElement ? input.value : "";
+    if (key === "Backspace" && input instanceof HTMLInputElement) input.setSelectionRange(before.length, before.length);
     const defaulted = fireEvent.keyDown(input, { key, shiftKey: ch === "⇤" });
-    if (key.length === 1 && defaulted && input instanceof HTMLInputElement) {
-      fireEvent.change(input, { target: { value: before + key } });
+    if (defaulted && input instanceof HTMLInputElement) {
+      if (key === "Backspace") fireEvent.change(input, { target: { value: before.slice(0, -1) } });
+      else if (key.length === 1) fireEvent.change(input, { target: { value: before + key } });
     }
   }
 }
@@ -63,6 +67,43 @@ describe("the yed mount — real server, real file", () => {
       await settleOps();
       expect(m.alerts).toEqual([]);
       expect(fs.readFileSync(m.bodyPath, "utf8")).toBe("z: 9\na: 1\nb: 2\n");
+    } finally { m.done(); }
+  });
+});
+
+// An EMPTY TREE is the coldest start there is: no file, no body, the mount is the DIRECTORY root,
+// and every path the editor can name is the document root itself. It is also the first thing a new
+// user sees, so the very first keystrokes have to survive.
+describe("the yed mount on an EMPTY TREE — the document root is the only address", () => {
+  async function mountEmpty() {
+    const root = tmpTree({});
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const restoreFetch = installFetch(h);
+    const alerts = captureAlerts();
+    const { container, unmount } = render(<YedEditor path=":" onNavigate={() => {}} />);
+    await waitFor(() => expect(container.querySelector("[data-testid=y2-doc]")).toBeTruthy(), { timeout: 3000 });
+    return {
+      bodyPath: path.join(root, ".yamlover", "body.yamlover"),
+      alerts: alerts.messages,
+      done: () => { unmount(); restoreFetch(); alerts.restore(); },
+    };
+  }
+
+  it("typing a flow token and ERASING it CLEARS the document (the explicit root clear)", async () => {
+    const m = await mountEmpty();
+    try {
+      typeKeys("["); // the grammar auto-closes it to `[]` and flushes an emplace at the root
+      await settleOps();
+      expect(m.alerts, `the flow token was rejected: ${m.alerts.join(" | ")}`).toEqual([]);
+      expect(fs.readFileSync(m.bodyPath, "utf8")).toBe("[]\n");
+
+      typeKeys("⌫"); // …and erasing it flushes the root CLEAR (an explicitly empty emplace)
+      await settleOps();
+      expect(m.alerts, `erasing it was rejected: ${m.alerts.join(" | ")}`).toEqual([]);
+      // the DELETION PERSISTS — the silent no-op here was the reported divergence (the TOC
+      // kept the old tree and every later op mis-addressed the stale document)
+      expect(fs.readFileSync(m.bodyPath, "utf8")).toBe("");
     } finally { m.done(); }
   });
 });

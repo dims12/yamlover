@@ -3565,7 +3565,7 @@ function setRootBody(lines: string[], valueSrc: string): void {
     lines.splice(i, 1);
     at = i;
   }
-  const rendered = valueSrc.split("\n").map((l) => (l.length ? " ".repeat(indent) + l : l));
+  const rendered = valueSrc === "" ? [] : valueSrc.split("\n").map((l) => (l.length ? " ".repeat(indent) + l : l));
   if (at < 0) {
     // a body of nothing but a banner/comments: the content follows the last of them
     let end = lines.length;
@@ -3836,6 +3836,15 @@ function editChapterSource(src: string, within: Seg[], op: string, valueSrc: str
         setRootFlowValue(lines, valueSrc.trim());
         return lines.join("\n");
       }
+      // an EXPLICITLY EMPTY emplace at the root CLEARS the body — the editor's "document
+      // emptied" flush, and the only clear a FLOW-rooted document can express (root
+      // remove/replace stay refused, and a flow body has no entry addresses). The `!!<…>`
+      // banner and the leading comments stand. This branch must run before the scalar-only
+      // one: payloadFacets("") reads as an empty SELF-VALUE and used to no-op silently.
+      if (op === "emplace" && !valueSrc && meta === undefined) {
+        setRootBody(lines, "");
+        return lines.join("\n");
+      }
       // a scalar-only payload sets the document's SELF-VALUE — a chapter's title (an empty
       // string drops it); the keyed/ordinal entries and the tag line all stand
       const p = payloadFacets(valueSrc);
@@ -3856,6 +3865,12 @@ function editChapterSource(src: string, within: Seg[], op: string, valueSrc: str
         setRootBody(lines, valueSrc);
         return lines.join("\n");
       }
+      // …and an EMPTY payload IS that no-op, here as everywhere else: `assignAt` keeps every `had`
+      // facet when the payload carries none, so the root must not be the one address where a
+      // facetless emplace is an ERROR. The yed mount emits exactly this op when the last token in
+      // a document is erased (in an empty tree: type `[`, which auto-closes to `[]` and flushes,
+      // then Backspace, which flushes the now-empty root) — a keyless path with nothing to say.
+      return lines.join("\n");
     }
     throw new Error(`\`${op}\` at a document root needs a key or index target`);
   }
