@@ -153,7 +153,7 @@ function ContainerCell({ node, path, ctx, spreadInherited }: { node: Node; path:
       {spread ? (
         <div className="y2-rows">
           <div className="y2-row"><span className="y2-punct">{open}</span></div>
-          {items.map((it, i) => <div key={i} className="y2-row y2-indent">{it}{i < items.length - 1 && <span className="y2-punct">,</span>}</div>)}
+          {items.map((it, i) => <div key={i} className="y2-row y2-indent">{it}{i < items.length - 1 && <span className="y2-punct y2-comma">,</span>}</div>)}
           <div className="y2-row"><span className="y2-punct">{close}</span><GapCell path={path} ctx={ctx} /></div>
         </div>
       ) : (

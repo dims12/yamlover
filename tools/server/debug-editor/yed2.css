@@ -30,6 +30,9 @@ body { margin: 0; font: 13px/1.5 ui-monospace, Consolas, monospace; background: 
 @keyframes y2blink { 50% { opacity: .2; } }
 .y2-rows { display: flex; flex-direction: column; align-items: flex-start; }
 .y2-row { display: flex; align-items: baseline; }
+/* a row's separating comma belongs after the element's LAST line (K&R: `},`) — flex baseline
+   alignment would pin it to a tall cell's FIRST line, drawing `{ ,` */
+.y2-comma { align-self: flex-end; }
 .y2-indent { margin-left: 2ch; }
 .y2-empty { color: #8c959f; font-style: italic; }
 
