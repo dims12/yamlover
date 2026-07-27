@@ -293,6 +293,70 @@ function setSpread(doc: Document, path: Path, on: boolean): Document {
 }
 
 // ---------------------------------------------------------------------------- //
+// Copy / paste — REQUIREMENT 10: subtrees travel as their serialized text
+// ---------------------------------------------------------------------------- //
+
+/** The serialized SUBTREE under the caret — the token or container the cursor stands on (a hole
+ *  holds nothing to copy). What goes to the clipboard is exactly what a file would hold. */
+export function copySubtree(state: EditorState): string | null {
+  const { doc, cursor } = state;
+  if (cursor.at === "hole") return null;
+  const v = cursor.path.length === 0 ? doc.root : entryAt(doc, cursor.path)?.value;
+  if (!v || isPointer(v)) return null;
+  return sourceOf({ ...doc, root: v } as Document).replace(/\n$/, "");
+}
+
+/** Paste INTO A HOLE: the clipboard parses as one yamlover document and its root splices in as
+ *  the hole's value (named by the hole's key), under the SAME laws typing obeys — the empty block
+ *  root takes it as the document, a bare scalar in a block container is the OMNI value, an
+ *  unnamed element cannot land in `{`. A parse failure REFUSES — nothing lost, nothing dropped. */
+export function pasteSubtree(state: EditorState, text: string): EditorState {
+  const { doc, cursor } = state;
+  if (cursor.at !== "hole" || cursor.text.trim() !== "" || text.trim() === "") return refuse(state);
+  let node: Node;
+  try {
+    const root = parseYamlover(text, "<paste>").root;
+    if (isPointer(root)) return refuse(state);
+    node = root as Node;
+  } catch {
+    return refuse(state);
+  }
+  const container = nodeAt(doc, cursor.path);
+  if (!container) return refuse(state);
+  if (cursor.key === null && isFlow(container) && bracketOf(container) === "{") return refuse(state);
+  if (cursor.key === null && cursor.ordinal !== true && !isFlow(container)) {
+    if (container.kind !== "mapping") return refuse(state); // the container already HAS a value
+    // the EMPTY container takes the paste as its whole value; among entries, a scalar paste is
+    // the omni value and a container paste refuses (it could not have been typed there either)
+    if ((container.entries ?? []).length === 0) {
+      return ok({ ...state, doc: withNode(doc, cursor.path, () => node), cursor: restCursor(node, cursor.path) });
+    }
+    if (node.kind !== "scalar" || (node.entries ?? []).length > 0) return refuse(state);
+    const v = node as { value?: unknown; raw?: string };
+    return ok({
+      ...state,
+      doc: withNode(doc, cursor.path, (n) => ({ ...n, kind: "scalar", value: v.value, ...(v.raw !== undefined ? { raw: v.raw } : {}) }) as unknown as Node),
+      cursor: { at: "token", path: cursor.path, text: String(v.raw ?? v.value ?? "") },
+    });
+  }
+  const entry = { key: cursor.key, edge: "contain", value: node } as unknown as Entry;
+  return ok({
+    ...state,
+    doc: insertEntry(doc, cursor.path, cursor.index, entry),
+    cursor: restCursor(node, [...cursor.path, cursor.index]),
+  });
+}
+
+/** Where the caret rests after a paste: on a scalar's token, past a container. */
+function restCursor(node: Node, path: Path): Cursor {
+  if (node.kind === "scalar" && (node.entries ?? []).length === 0) {
+    const v = node as { raw?: string; value?: unknown };
+    return { at: "token", path, text: String(v.raw ?? v.value ?? "") };
+  }
+  return { at: "after", path };
+}
+
+// ---------------------------------------------------------------------------- //
 // applyKey — interpret, then one implementation per intent
 // ---------------------------------------------------------------------------- //
 

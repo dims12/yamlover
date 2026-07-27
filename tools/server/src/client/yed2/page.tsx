@@ -7,7 +7,7 @@
 // state, the corpus picker and document-level copy/paste.
 
 import { useMemo, useState } from "react";
-import { applyKey, applyText, positionsOf, siteOf, type Position } from "./apply";
+import { applyKey, applyText, copySubtree, pasteSubtree, positionsOf, siteOf, type Position } from "./apply";
 import { DocCells, type CellCtx } from "./cells";
 import { lineDiff } from "./diff";
 import { Legend } from "./legend";
@@ -21,6 +21,21 @@ export function EditorView({ state, setState, debug = true }: { state: EditorSta
     cursor: state.cursor,
     refused: state.refused,
     onKey: (e, edges) => {
+      // SUBTREE copy/paste (requirement 10): Ctrl+C on a GAP copies the container it closes (the
+      // gap is the container, selected); Ctrl+V in an empty HOLE splices the clipboard in through
+      // pasteSubtree — the same laws typing obeys, a parse failure rings. Text-level copy/paste
+      // inside a cell input stays native.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "c" && state.cursor.at === "after") {
+        const text = copySubtree(state);
+        if (text !== null) { e.preventDefault(); void navigator.clipboard.writeText(text); }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "v" && state.cursor.at === "hole" && state.cursor.text.trim() === "") {
+        e.preventDefault();
+        void navigator.clipboard.readText().then((t) => setState(pasteSubtree(state, t)));
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return; // other chords stay native
       // printable characters flow into the controlled input natively (onText); the grammar takes
       // the rest — and ONLY when it has a meaning, so unknown keys are never swallowed
       const next = applyKey(state, { key: e.key, shift: e.shiftKey }, edges);

@@ -173,6 +173,38 @@ never on stored state:
   quoted vs `|` block so an edit doesn't rewrite a bare chunk into a block on the first
   keystroke.
 
+## 9. yed2 — the debug editor, and the REFERENCE implementation
+
+`src/client/yed2/` is a clean-room, IR-backed editor whose semantics are the reference for
+this whole document: where the production cell layer and yed2 disagree, **yed2 is right** and
+the production layer owes a migration. Run it with `npm run debug-editor` (Vite, port 5199,
+no server — corpus samples are inlined at build time).
+
+The design discipline that distinguishes it:
+
+- **The document is always the valid parser IR** (`state.ts`); incompleteness lives in the
+  CURSOR alone (pending text, a named-but-uncommitted key, the `- ` ordinal decision). There
+  is no flag web and no invisible state — the page shows the cursor, the Site, the live
+  serialized source, the last line-diff and the intent history at all times.
+- **One grammar.** Every keystroke goes through the same `interpret(key, site)` table
+  (`renderers/yamlover-editor/dispatch.ts`) that draws the on-screen keyboard legend — the
+  keycaps ARE the function being run. Effects are implemented once per intent in the pure
+  `apply.ts` (`applyKey(state, key) → state`), no DOM anywhere.
+- **Refusal law.** An edit the state cannot take refuses visibly (`state.refused`) and
+  changes nothing; moving away never drops pending text.
+- **THE LEVEL RULE.** Enter commits and DESCENDS into what was committed; Shift-Tab climbs;
+  a same-level sibling costs one Shift-Tab. `- ` is a decision (a keyless entry); a bare
+  scalar in a block container is the container's own OMNI value.
+- **Per-container layout.** A flow container spreads to K&R by ITS OWN bit only; spreading
+  propagates upward (a one-liner cannot contain a multi-liner), never downward.
+
+Its suites (`test/yed2/`) are the conformance gate: `typing` (grammar basics + unwind
+ladders with the jam detector — no (doc, cursor) state may repeat under Backspace),
+`corpus` (every `edit-examples` fixture ENTERS to its golden and DELETES to empty; honest
+shrink-only allowlists), `substitute` (every expression of the E-set replaced/appended at
+every site of every other), `clipboard` (subtree copy/paste as serialized text, under the
+same laws typing obeys), `cells` (the framed, titled, recursive cell projection).
+
 ## File index
 
 **`renderers/yamlover-editor/` (shared base):** `host.ts` (host, ops, focus), `model.ts`
@@ -192,6 +224,11 @@ seam), `renderers/marklower.tsx` + `renderers/marklower-serialize.ts` (the round
 `renderers/{subchapter,list,table,depth}.tsx`, `caret.ts` (caret primitives),
 `client/{query-cells,breadcrumb-machine,query-complete,toc-filter-session}.ts(x)` (the PICK/
 browse query-cell kit), `client/NodeView.tsx` (mounts the source projection).
+
+**`src/client/yed2/` (debug/reference editor, §9):** `state.ts` (IR state + cursor),
+`apply.ts` (pure intents + copy/paste), `cells.tsx` (framed recursive cells), `legend.tsx`
+(the on-screen dispatch table), `page.tsx` (the debug page), `diff.ts` (line diff);
+entry under `tools/server/debug-editor/`, suites under `test/yed2/`.
 
 **State machines:** `YAMLOVER_EDITOR.yamlover`, `QUERY_EDITOR.yamlover` (repo root) — keep in
 sync with `keys.ts`/`host.ts` and `breadcrumb-machine.ts` respectively.
