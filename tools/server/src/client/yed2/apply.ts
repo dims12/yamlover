@@ -230,14 +230,39 @@ function commitPending(state: EditorState): EditorState | null {
   return state;
 }
 
-/** The OUTERMOST flow container on the cursor's path — the token a spread applies to. */
-function outerFlowPath(doc: Document, path: Path): Path | null {
-  for (let len = 0; len <= path.length; len++) {
+/** SPREAD, upward-closed: the container at `path` (when flow) AND every flow ancestor become K&R
+ *  — a one-line container cannot contain a multi-line child, so spreading propagates UP. It never
+ *  propagates DOWN: children keep their own layout, and a NEW token defaults to one line. Returns
+ *  null when nothing on the path is a flow container (an unspreadable site). */
+function spreadUp(doc: Document, path: Path): Document | null {
+  let out = doc;
+  let any = false;
+  for (let len = path.length; len >= 0; len--) {
+    const p = path.slice(0, len);
+    const n = nodeAt(out, p);
+    if (n && isContainer(n) && isFlow(n) && !isSpread(n)) { out = setSpread(out, p, true); any = true; }
+    else if (n && isContainer(n) && isSpread(n)) { any = true; break; } // already spread above — closed
+  }
+  return any ? out : null;
+}
+
+/** The NEAREST flow container at or above `path` — the token the cursor is editing in. */
+function nearestFlowPath(doc: Document, path: Path): Path | null {
+  for (let len = path.length; len >= 0; len--) {
     const p = path.slice(0, len);
     const n = nodeAt(doc, p);
     if (n && isContainer(n) && isFlow(n)) return p;
   }
   return null;
+}
+
+/** Any spread container strictly INSIDE `n`? (Joining a parent around one would be unwritable.) */
+function hasSpreadInside(n: Node): boolean {
+  return (n.entries ?? []).some((e) => {
+    if (isPointer(e.value)) return false;
+    const v = e.value as Node;
+    return isSpread(v) || hasSpreadInside(v);
+  });
 }
 
 function setSpread(doc: Document, path: Path, on: boolean): Document {
@@ -339,7 +364,11 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
 
     case "move": {
       const committed = commitPending(state);
-      const s = committed ?? state; // pending that cannot land yet just stays; movement is free
+      // NOTHING IS EVER LOST: pending text that cannot land (an unnamed element in a `{`, a
+      // token that is not one scalar) REFUSES the move — the caret stays with the text — instead
+      // of abandoning the hole (the cursor is the only place a hole exists).
+      if (committed === null) return refuse(state);
+      const s = committed;
       const list = positionsOf(s.doc);
       if (list.length === 0) return ok(s);
       const slot = cursorSlot(s.doc, s.cursor);
@@ -359,18 +388,18 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       const index = entryPath[entryPath.length - 1] + 1;
       let s = committed;
       if (intent.spread) {
-        const op = outerFlowPath(s.doc, containerPath);
-        if (op !== null) s = { ...s, doc: setSpread(s.doc, op, true) };
-        else return refuse(state); // an unspreadable site
+        const spreadDoc = spreadUp(s.doc, containerPath);
+        if (spreadDoc === null) return refuse(state); // an unspreadable site
+        s = { ...s, doc: spreadDoc };
       }
       return ok({ ...s, cursor: { at: "hole", path: containerPath, index, text: "", key: null } });
     }
 
     case "spreadOrClose": {
       const path = cursor.at === "hole" ? cursor.path : cursor.path.slice(0, -1);
-      const op = outerFlowPath(doc, path);
-      if (op === null) return refuse(state);
-      return ok({ ...state, doc: setSpread(doc, op, true) });
+      const spreadDoc = spreadUp(doc, path);
+      if (spreadDoc === null) return refuse(state);
+      return ok({ ...state, doc: spreadDoc });
     }
 
     case "closeToken": {
@@ -459,22 +488,25 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
     }
 
     case "join": {
+      // INNERMOST-first: joining collapses the nearest spread container the caret's first line
+      // belongs to; a parent joins only after its children have (a one-liner cannot contain a
+      // multi-liner, so a join around a spread child is refused visibly).
       const p = cursor.at === "token" || cursor.at === "key" ? cursor.path.slice(0, -1) : cursor.at === "hole" ? cursor.path : cursor.path;
-      const op = outerFlowPath(doc, p);
+      const op = nearestFlowPath(doc, p);
       if (op === null) return state; // not a join spot — the key falls through
       const token = nodeAt(doc, op);
       if (!token || !isSpread(token)) return state;
-      // only from the head of the token's FIRST line: every level down to the cursor is index 0
       const rest = (cursor.at === "hole" ? [...cursor.path, cursor.index] : cursor.path).slice(op.length);
       if (rest.some((i) => i !== 0)) return state;
+      if (hasSpreadInside(token)) return refuse(state);
       return ok({ ...state, doc: setSpread(doc, op, false) });
     }
 
     case "keyCommit": {
       const committed = commitPending(state);
       if (!committed) return refuse(state);
-      const op = outerFlowPath(committed.doc, cursor.path.slice(0, -1));
-      return ok(op !== null ? { ...committed, doc: setSpread(committed.doc, op, true) } : committed);
+      const spreadDoc = spreadUp(committed.doc, cursor.path.slice(0, -1));
+      return ok(spreadDoc !== null ? { ...committed, doc: spreadDoc } : committed);
     }
 
     case "commit": {

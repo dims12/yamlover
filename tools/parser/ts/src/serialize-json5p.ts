@@ -12,6 +12,9 @@ import { renderPointer } from './pointer.ts';
 
 const STEP = 2;
 
+/** A key token on one line: bare when a clean identifier, JSON-quoted otherwise. */
+const keyTok = (k: string): string => (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k) ? k : JSON.stringify(k));
+
 /** Emit options. `comments` re-emits retained comments; off by default (byte-identical output). */
 export interface SerializeOpts { comments?: boolean }
 
@@ -67,6 +70,12 @@ class Emitter {
       throw new LossyError('a container mixing keyed and keyless entries (!!mix) is not expressible in json5p');
     }
     const asArray = owned.length > 0 ? keyed.length === 0 : n.array === true;
+    // PER-CONTAINER LAYOUT: a container that carries `style: 'flow'` was authored ON ONE LINE and
+    // stays there — an inner `{p: 1}` inside a K&R token round-trips as `{p: 1}`, not expanded.
+    if (n.meta?.style === 'flow') {
+      const inline = ents.map((e) => (e.key !== null ? `${keyTok(e.key)}: ` : '') + this.value(e.value, 0));
+      return (asArray ? '[' : '{') + inline.join(', ') + (asArray ? ']' : '}');
+    }
     const pad = ' '.repeat(indent);
     const inner = ' '.repeat(indent + STEP);
     const items = ents.map((e) => {

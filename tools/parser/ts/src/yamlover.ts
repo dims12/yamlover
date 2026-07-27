@@ -507,13 +507,9 @@ class Block {
         if (commentStart(tok) >= 0) this.fail('a comment inside a multi-line flow token is not supported');
         const v = new Flow(tok, this.uri, start, this.yaml).parse();
         this.skipThrough(start + end);
-        // ONE signal, not two: the concrete already says flow (repr.ts `collectionRepr` derives
-        // `yaml/flow` for every json-family concrete), so the `style` bit the flow reader sets is
-        // dropped — otherwise the wire would carry a redundant `repr: yaml/flow` beside it.
-        if (!this.yaml && !isPointer(v)) {
-          stripFlowStyle(v);
-          v.meta = { ...v.meta, concrete: 'json5p' };
-        }
+        // PER-CONTAINER LAYOUT: each container marked itself as it was read (layoutMeta) — the
+        // outer token by its own span, an inner one-liner keeping `style: 'flow'`, an inner
+        // multi-liner its own `concrete` — so nothing to stamp or strip here.
         return v;
       }
       return new Flow(text, this.uri, start, this.yaml).parse();
@@ -627,7 +623,16 @@ class Flow {
     return plainScalar(tok);
   }
 
+  /** The layout meta of the token that started at `open` and ends at the CURRENT position: its
+   *  own text decides — one line ⇒ `style: 'flow'`; spanning lines ⇒ the json5p switch, PER
+   *  CONTAINER (an inner one-liner inside a K&R token keeps its one-line form and round-trips).
+   *  YAML mode never switches concretes: multi-line flow there is plain YAML flow. */
+  layoutMeta(open: number): { style: 'flow' } | { concrete: 'json5p' } {
+    return !this.yaml && this.s.slice(open, this.i).includes('\n') ? { concrete: 'json5p' } : { style: 'flow' };
+  }
+
   map(): Mapping {
+    const open = this.i;
     this.i++; // {
     const entries: Entry[] = [];
     for (;;) {
@@ -666,10 +671,11 @@ class Flow {
     }
     // `style: 'flow'` records the AUTHORED one-line form so the serializer re-emits it and a
     // projection can offer flow cells — the `yaml/flow` representation concrete (CONCRETES.md).
-    return { kind: 'mapping', entries, array: false, meta: { style: 'flow' } };
+    return { kind: 'mapping', entries, array: false, meta: this.layoutMeta(open) };
   }
 
   seq(): Mapping {
+    const open = this.i;
     this.i++; // [
     const entries: Entry[] = [];
     for (;;) {
@@ -683,7 +689,7 @@ class Flow {
       if (this.s[this.i] === ']') { this.i++; break; }
       this.fail('expected "," or "]"');
     }
-    return { kind: 'mapping', entries, array: true, meta: { style: 'flow' } };
+    return { kind: 'mapping', entries, array: true, meta: this.layoutMeta(open) };
   }
 
   quoted(): Scalar {
@@ -711,19 +717,6 @@ class Flow {
 }
 
 // ---- helpers -----------------------------------------------------------------
-/** Drop the per-node `style: 'flow'` bit from a node and everything under it — what the reader sets
- *  for every flow container it meets. Inside an inline concrete switch the LANGUAGE already says
- *  flow (json5p is flow end to end, exactly as `NodeMeta.style` documents for a json5p document),
- *  so the per-node bit is noise: it would put a redundant `repr: yaml/flow` on the wire and invite a
- *  renderer to draw an inner token inline while the json5p serializer writes it expanded. */
-function stripFlowStyle(v: Node): void {
-  if (v.meta?.style !== undefined) {
-    const { style: _dropped, ...rest } = v.meta;
-    v.meta = rest;
-  }
-  for (const e of v.entries ?? []) if (!isPointer(e.value)) stripFlowStyle(e.value);
-}
-
 function isSeqLine(text: string): boolean {
   return text === '-' || text.startsWith('- ');
 }

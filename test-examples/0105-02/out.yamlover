@@ -3,8 +3,6 @@ outer: {
     1,
     2
   ],
-  tight: {
-    p: 1
-  },
+  tight: {p: 1},
   n: 3
 }

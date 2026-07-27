@@ -39,6 +39,13 @@ describe("yed2 typing — flow", () => {
   it("the reported document", () => {
     expect(src(type("[{{key: 12}, {{key: 13}]"))).toBe("[{key: 12}, {key: 13}]\n");
   });
+  it("PER-CONTAINER LAYOUT: a token typed inside a spread one defaults to ONE LINE", () => {
+    // [ Enter { … } , { … } ] — the outer is K&R, the inners stay tight until THEIR OWN Enter
+    expect(src(type("[{Enter}{{a: 1}, {{b: 2}]"))).toBe("[\n  {a: 1},\n  {b: 2}\n]\n");
+  });
+  it("…and spreading an inner spreads its ancestors too (a one-liner cannot hold a multi-liner)", () => {
+    expect(src(type("{{p: [1{Enter}2]"))).toBe("{\n  p: [\n    1,\n    2\n  ]\n}\n");
+  });
   it("an empty map and an empty seq stay distinct", () => {
     expect(src(type("{{}"))).toBe("{}\n");
     expect(src(type("[]"))).toBe("[]\n");
@@ -46,6 +53,14 @@ describe("yed2 typing — flow", () => {
 });
 
 describe("yed2 refusals — visible, and nothing half-applied", () => {
+  it("moving away NEVER drops pending text — it refuses and stays", () => {
+    // reported: `{"key": value` then Right made the text disappear (the hole lives only in the
+    // cursor, so an uncommittable move abandoned it). It refuses now, visibly.
+    const s = type('{{"key": v{ArrowRight}');
+    expect(s.refused).toBe(true);
+    expect(s.cursor.at).toBe("hole");
+    expect((s.cursor as { text: string }).text).toBe('"key": v'); // still there, still fixable
+  });
   it("`}` on an unnamed element in a `{` refuses and keeps everything", () => {
     const s = type("{{12}");
     expect(s.refused).toBe(true);

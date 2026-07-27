@@ -112,9 +112,12 @@ function PointerCell({ text }: { text: string }) {
 /** The container: brackets, entries, the hole (when the cursor's hole lives here), the gap after.
  *  A SPREAD container (or one inside a spread — json5p expands everything) lays out one entry per
  *  row; a flow one stays inline; a BLOCK one is rows with `- ` / `k: ` markers. */
-function ContainerCell({ node, path, ctx, spreadInherited, trailingComma = false }: { node: Node; path: Path; ctx: CellCtx; spreadInherited: boolean; trailingComma?: boolean }) {
+function ContainerCell({ node, path, ctx, trailingComma = false }: { node: Node; path: Path; ctx: CellCtx; trailingComma?: boolean }) {
   const flow = isFlow(node);
-  const spread = spreadInherited || isSpread(node);
+  // PER-CONTAINER LAYOUT: a container spreads only by ITS OWN bit. A new token inside a spread
+  // one defaults to ONE LINE; its own Enter spreads it (and spreading propagates UPWARD — apply
+  // enforces that a one-liner never contains a multi-liner).
+  const spread = isSpread(node);
   const entries = node.entries ?? [];
   const holeHere = ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, path);
   const holeIndex = holeHere ? (ctx.cursor as { index: number }).index : -1;
@@ -131,7 +134,7 @@ function ContainerCell({ node, path, ctx, spreadInherited, trailingComma = false
       if (i === entries.length) break;
       const e = entries[i];
       const p = [...path, i];
-      const childSpread = !isPointer(e.value) && (e.value as Node).kind === "mapping" && (spread && flow || isSpread(e.value as Node));
+      const childSpread = !isPointer(e.value) && (e.value as Node).kind === "mapping" && isSpread(e.value as Node);
       const wantComma = withCommas && childSpread && slot < total - 1;
       out.push({
         el: (
@@ -139,7 +142,7 @@ function ContainerCell({ node, path, ctx, spreadInherited, trailingComma = false
             {e.key != null && <><KeyCell entry={e} path={p} ctx={ctx} /><span className="y2-punct">: </span></>}
             {isPointer(e.value)
               ? <PointerCell text={(e.value as { raw?: string }).raw ?? ""} />
-              : <NodeCell node={e.value as Node} path={p} ctx={ctx} spreadInherited={spread && flow} trailingComma={wantComma} />}
+              : <NodeCell node={e.value as Node} path={p} ctx={ctx} trailingComma={wantComma} />}
           </Fragment>
         ),
         commaInside: wantComma,
@@ -194,9 +197,9 @@ function ContainerCell({ node, path, ctx, spreadInherited, trailingComma = false
 }
 
 /** THE closed set's root: dispatch by IR node kind, recurse. */
-export function NodeCell({ node, path, ctx, spreadInherited = false, trailingComma = false }: { node: Node; path: Path; ctx: CellCtx; spreadInherited?: boolean; trailingComma?: boolean }) {
+export function NodeCell({ node, path, ctx, trailingComma = false }: { node: Node; path: Path; ctx: CellCtx; trailingComma?: boolean }) {
   if (node.kind === "scalar" && (node.entries ?? []).length === 0) return <TokenCell node={node} path={path} ctx={ctx} />;
-  if (node.kind === "mapping") return <ContainerCell node={node} path={path} ctx={ctx} spreadInherited={spreadInherited} trailingComma={trailingComma} />;
+  if (node.kind === "mapping") return <ContainerCell node={node} path={path} ctx={ctx} trailingComma={trailingComma} />;
   return <Cell kind="other" active={false} refused={false}><span>({node.kind})</span></Cell>; // omni/blob: D3
 }
 

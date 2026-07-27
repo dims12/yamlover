@@ -1623,12 +1623,15 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
     expect(j.comments?.[""]).toEqual({ concrete: "json5p" });
   });
 
-  it("carries `concrete` in the sidecar only where the switch happens", async () => {
-    const { h } = await krHandlers("a: {\n  q: [\n    1\n  ]\n}\nb: {x: 1}\n");
+  it("carries PER-CONTAINER layout: each container's own bit, nothing inherited", async () => {
+    // Layout is per container (2026-07-27): a multi-line container carries its own `concrete`,
+    // an inner ONE-LINE token keeps `repr: yaml/flow` — and round-trips as one line.
+    const { h } = await krHandlers("a: {\n  q: [\n    1\n  ],\n  t: {p: 1}\n}\nb: {x: 1}\n");
     const j = call(h, "/api/json", { path: ":note.yamlover", depth: ".inf" }).json as
       { comments?: Record<string, { concrete?: string; repr?: string }> };
     expect(j.comments?.["/a"]).toEqual({ concrete: "json5p" });
-    expect(j.comments?.["/a/q"]).toBeUndefined(); // inside the switch the language says flow
-    expect(j.comments?.["/b"]).toEqual({ repr: "yaml/flow" }); // a ONE-LINE token is still yamlover
+    expect(j.comments?.["/a/q"]).toEqual({ concrete: "json5p" }); // its own span, its own bit
+    expect(j.comments?.["/a/t"]).toEqual({ repr: "yaml/flow" });  // an inner one-liner stays one
+    expect(j.comments?.["/b"]).toEqual({ repr: "yaml/flow" });
   });
 });
