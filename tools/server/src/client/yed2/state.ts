@@ -22,7 +22,7 @@ export type Path = number[];
  *  - `key`:   editing the KEY of the entry at `path`.
  *  - `after`: the caret stands in the GAP past the container value at `path` ([] = the root). */
 export type Cursor =
-  | { at: "hole"; path: Path; index: number; text: string; key: string | null }
+  | { at: "hole"; path: Path; index: number; text: string; key: string | null; ordinal?: boolean }
   | { at: "token"; path: Path; text: string }
   | { at: "key"; path: Path; text: string }
   | { at: "after"; path: Path };

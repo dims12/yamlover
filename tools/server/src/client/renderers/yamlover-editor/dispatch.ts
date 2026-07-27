@@ -120,6 +120,10 @@ export function interpret(k: Key, s: Site): Intent | null {
     return !s.entryCommitted && s.entryDecided ? { kind: "undoMarker" } : { kind: "removeLevel" };
   }
   if (k.key === "Backspace" && !s.textEmpty && s.caretAtStart) return { kind: "move", dir: -1 };
+  // the WALK LAW is universal: at a cell edge the horizontal arrows cross to the neighbour, in
+  // block containers exactly as inside flow tokens
+  if (k.key === "ArrowLeft" && s.caretAtStart) return { kind: "move", dir: -1 };
+  if (k.key === "ArrowRight" && s.caretAtEnd) return { kind: "move", dir: 1 };
   if (k.key === "ArrowUp" && (s.caretFirstLine ?? true)) return { kind: "move", dir: -1 };
   if (k.key === "ArrowDown" && (s.caretLastLine ?? true)) return { kind: "move", dir: 1 };
   return null;

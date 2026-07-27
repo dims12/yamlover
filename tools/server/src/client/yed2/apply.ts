@@ -57,7 +57,8 @@ function scalarFromText(text: string): Node | null {
     const root = parseYamlover(t, "<cell>").root;
     if (isPointer(root) || root.kind !== "scalar" || (root.entries ?? []).length > 0) return null;
     const raw = (root as { raw?: string }).raw;
-    return { kind: "scalar", value: (root as { value?: unknown }).value, ...(raw !== undefined ? { raw } : {}) } as unknown as Node;
+    const meta = (root as { meta?: unknown }).meta; // anchors ride the token (`&'…' 1`)
+    return { kind: "scalar", value: (root as { value?: unknown }).value, ...(raw !== undefined ? { raw } : {}), ...(meta !== undefined ? { meta } : {}) } as unknown as Node;
   } catch {
     return null;
   }
@@ -86,7 +87,7 @@ export function siteOf(state: EditorState): Site {
       cell: kind === "block" ? "holeEntry" : "holeValue",
       container: kind,
       textEmpty: cursor.text.trim() === "",
-      entryDecided: cursor.key !== null,
+      entryDecided: cursor.key !== null || cursor.ordinal === true,
     };
   }
   if (cursor.at === "token") {
@@ -130,12 +131,12 @@ export function positionsOf(doc: Document): Position[] {
       if (e.key != null) out.push({ at: "key", path: p });
       if (isPointer(e.value)) continue; // D3: pointer cells
       const v = e.value as Node;
-      if (v.kind === "scalar") out.push({ at: "token", path: p });
+      if (v.kind === "scalar") { out.push({ at: "token", path: p }); rec(v, p); } // omni: value, then fields
       else if (isContainer(v)) { rec(v, p); out.push({ at: "after", path: p }); }
     }
   };
   const root = doc.root as Node;
-  if (root.kind === "scalar") out.push({ at: "token", path: [] });
+  if (root.kind === "scalar") { out.push({ at: "token", path: [] }); rec(root, []); }
   else {
     rec(root, []);
     if (isFlow(root)) out.push({ at: "after", path: [] });
@@ -197,6 +198,23 @@ function commitPending(state: EditorState): EditorState | null {
     if (cursor.key === null && bracketOf(container) === "{" && isFlow(container)) return null; // an unnamed pair cannot land in `{`
     const value = cursor.text.trim() === "" ? scalarFromText('""')! : scalarFromText(cursor.text);
     if (!value) return null;
+    // THE OMNI RULE: a bare scalar in a BLOCK container (no key, no `- `) is the container's OWN
+    // value — `42` typed into a fresh file is the root value `42`, not `- 42`; typed after
+    // `world:` + Enter it makes `world: 42`; typed among entries it makes the value-plus-fields
+    // node (!!var). A `- ` decision (cursor.ordinal) opts OUT into a keyless entry instead.
+    if (cursor.key === null && cursor.ordinal !== true && !isFlow(container)) {
+      if (container.kind !== "mapping") return null; // the container already HAS a value
+      const v = value as { value?: unknown; raw?: string; meta?: unknown };
+      return {
+        ...state,
+        doc: withNode(doc, cursor.path, (n) => ({
+          ...n, kind: "scalar", value: v.value,
+          ...(v.raw !== undefined ? { raw: v.raw } : {}),
+          ...(v.meta !== undefined ? { meta: { ...(n.meta ?? {}), ...(v.meta as object) } } : {}),
+        }) as unknown as Node),
+        cursor: { at: "token", path: cursor.path, text: cursor.text },
+      };
+    }
     const entry = { key: cursor.key, edge: "contain", value } as unknown as Entry;
     return {
       ...state,
@@ -341,7 +359,7 @@ function classifyHole(state: EditorState): EditorState {
     const node = emptyFlow(action.kind === "flowSeq" ? "[" : "{");
     // at the EMPTY document root the token IS the document — `[1, 2]` typed into a fresh file is
     // the root value, not a block entry holding one (the same law production learned)
-    if (cursor.path.length === 0 && cursor.key === null && (container?.entries ?? []).length === 0 && container && !isFlow(container)) {
+    if (cursor.path.length === 0 && cursor.key === null && cursor.ordinal !== true && (container?.entries ?? []).length === 0 && container && !isFlow(container)) {
       return { ...state, doc: { ...doc, root: node }, cursor: { at: "hole", path: [], index: 0, text: "", key: null } };
     }
     const entry = { key: cursor.key, edge: "contain", value: node } as unknown as Entry;
@@ -355,10 +373,21 @@ function classifyHole(state: EditorState): EditorState {
   }
   if (action.kind === "keyed") {
     if (container && isFlow(container) && bracketOf(container) === "[") return refuse(state); // a seq has no keys
+    // `- k: …` — a keyless entry HOLDING a block mapping, the key naming its first pair (the
+    // block seq-of-maps shape). The `- ` decision materializes here, on the first key.
+    if (cursor.ordinal === true) {
+      const child: Node = { kind: "mapping", entries: [] } as unknown as Node;
+      const entry = { key: null, edge: "contain", value: child } as unknown as Entry;
+      return {
+        ...state,
+        doc: insertEntry(doc, cursor.path, cursor.index, entry),
+        cursor: { at: "hole", path: [...cursor.path, cursor.index], index: 0, text: "", key: action.key },
+      };
+    }
     return { ...state, cursor: { ...cursor, key: action.key, text: "" } };
   }
   if (action.kind === "ordinal") {
-    return { ...state, cursor: { ...cursor, key: null, text: "" } }; // `- ` — explicit keyless
+    return { ...state, cursor: { ...cursor, key: null, ordinal: true, text: "" } }; // `- ` — DECIDED keyless
   }
   return state; // quote/pointer/tag/block: D3
 }
@@ -366,8 +395,22 @@ function classifyHole(state: EditorState): EditorState {
 function applyIntent(state: EditorState, intent: Intent, site: Site): EditorState {
   const { doc, cursor } = state;
   switch (intent.kind) {
-    case "nop":
+    case "nop": {
+      // THE LEVEL RULE, descend half: Enter on an empty hole that already NAMED its key commits
+      // `key:` with a nested BLOCK container as the value and steps inside (`world:` + Enter).
+      // The shared dispatch table calls this site a nop because production resolves it inside its
+      // classifier; yed2's key already left the text, so the decision lands here.
+      if (cursor.at === "hole" && cursor.key !== null && cursor.text.trim() === "") {
+        const child: Node = { kind: "mapping", entries: [] } as unknown as Node;
+        const entry = { key: cursor.key, edge: "contain", value: child } as unknown as Entry;
+        return ok({
+          ...state,
+          doc: insertEntry(doc, cursor.path, cursor.index, entry),
+          cursor: { at: "hole", path: [...cursor.path, cursor.index], index: 0, text: "", key: null },
+        });
+      }
       return ok(state);
+    }
     case "refuse":
       return refuse(state);
 
@@ -440,6 +483,9 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       if (cursor.at === "hole" && cursor.key !== null) {
         return ok({ ...state, cursor: { ...cursor, key: null, text: cursor.key } });
       }
+      if (cursor.at === "hole" && cursor.ordinal === true) {
+        return ok({ ...state, cursor: { ...cursor, ordinal: false } }); // the `- ` decision undone
+      }
       return applyIntent(state, { kind: "removeLevel" }, site);
     }
 
@@ -455,9 +501,10 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
           return ok({ ...state, cursor: list.length ? toCursor(doc, list[idx]) : { at: "hole", path: [], index: 0, text: "", key: null } });
         }
         // an EMPTY container: one level goes — remove it from its parent. At the ROOT that means
-        // undoing the bracket itself: the document returns to the empty block mapping.
+        // undoing the bracket (or a scalar root's VALUE): the document returns to the empty
+        // block mapping.
         if (cursor.path.length === 0) {
-          if (!isFlow(container)) return ok(state); // already the empty document
+          if (!isFlow(container) && container.kind !== "scalar") return ok(state); // already the empty document
           return ok({ ...state, doc: { ...doc, root: { kind: "mapping", entries: [] } as unknown as Node }, cursor: { at: "hole", path: [], index: 0, text: "", key: null } });
         }
         const parentPath = cursor.path.slice(0, -1);
@@ -518,13 +565,42 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       return ok(spreadDoc !== null ? { ...committed, doc: spreadDoc } : committed);
     }
 
+    case "dedent": {
+      // THE LEVEL RULE, climb half: Shift-Tab moves an (empty) hole out one level — the next
+      // entry lands as a SIBLING of the container the hole was in.
+      if (cursor.at !== "hole" || cursor.path.length === 0) return refuse(state);
+      if (cursor.text.trim() !== "" || cursor.key !== null) return refuse(state); // climb empty-handed
+      const parentPath = cursor.path.slice(0, -1);
+      return ok({ ...state, cursor: { at: "hole", path: parentPath, index: cursor.path[cursor.path.length - 1] + 1, text: "", key: null } });
+    }
+
     case "commit": {
+      // `k:` + Enter — the LEVEL RULE's descend spelled without the trailing space: the bare-colon
+      // text is a key decision the plain classifier only makes when Enter confirms it
+      if (cursor.at === "hole" && cursor.key === null) {
+        const act = classifyHoleInput(cursor.text, true, /*enterPressed*/ true);
+        if (act && act.kind === "keyed" && act.viaEnter) {
+          const child: Node = { kind: "mapping", entries: [] } as unknown as Node;
+          const entry = { key: act.key, edge: "contain", value: child } as unknown as Entry;
+          return ok({
+            ...state,
+            doc: insertEntry(doc, cursor.path, cursor.index, entry),
+            cursor: { at: "hole", path: [...cursor.path, cursor.index], index: 0, text: "", key: null },
+          });
+        }
+      }
       const committed = commitPending(state);
       if (!committed) return refuse(state);
       const cur = committed.cursor;
       const entryPath = cur.at === "token" || cur.at === "key" ? cur.path
         : cursor.at === "hole" ? [...cursor.path, cursor.index] : cursor.path;
-      return ok({ ...committed, cursor: { at: "hole", path: entryPath.slice(0, -1), index: entryPath[entryPath.length - 1] + 1, text: "", key: null } });
+      // THE LEVEL RULE: Enter DESCENDS into what was just committed — the next hole opens INSIDE
+      // the entry's value (an omni-in-waiting for a scalar; the IR holds scalar+entries natively),
+      // and a same-level sibling costs one Shift-Tab (dedent). This is what every corpus script
+      // is written against.
+      const value = entryPath.length ? entryAt(committed.doc, entryPath)?.value : committed.doc.root;
+      const depth = value && !isPointer(value) ? ((value as Node).entries ?? []).length : 0;
+      return ok({ ...committed, cursor: { at: "hole", path: entryPath, index: depth, text: "", key: null } });
     }
 
     // D3: tokenKey, quotedKey, reopenQuote, quoteExit*, nestValue, indent/dedent
