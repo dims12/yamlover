@@ -10,17 +10,50 @@
 // position). What you see is `state`, all of it.
 
 import { Fragment, type ReactNode } from "react";
-import type { Cursor, Document, Entry, Node, Path } from "./state";
+import type { Cursor, Document, Entry, Node, Path, Value } from "./state";
 import { bracketOf, isFlow, isSpread } from "./state";
-import { isPointer } from "../../../../parser/ts/src/ir.ts";
+import { isPointer, type Pointer } from "../../../../parser/ts/src/ir.ts";
 import type { Position } from "./apply";
 
 export interface CellCtx {
   cursor: Cursor;
   refused: boolean;
+  /** The cell REGISTRY the projection dispatches through — recursion re-enters it. */
+  cells: CellRegistry;
   onKey: (e: React.KeyboardEvent, edges?: { atStart: boolean; atEnd: boolean }) => void;
   onText: (text: string) => void;
   onFocus: (pos: Position) => void;
+}
+
+// ---------------------------------------------------------------------------- //
+// THE CELL REGISTRY — the plug point for other projections (prose, formats)
+// ---------------------------------------------------------------------------- //
+
+export interface ValueCellProps {
+  node: Value; // Node | Pointer — pointers ride the same table
+  path: Path;
+  ctx: CellCtx;
+  trailingComma?: boolean; // flow layout: the comma drawn inside a spread child's closer row
+  lead?: ReactNode;        // the key fragment a spread child pulls into its first row
+}
+export type ValueCellComponent = (props: ValueCellProps) => ReactNode;
+
+/** Lookup precedence: the node's derived FORMAT first (a math or prose format plugs a cell
+ *  without touching kinds), then the IR kind, then the total fallback.
+ *  THE CONTRACT (the never-locked laws): a registered cell MUST draw a focusable cell for
+ *  every position `positionsOf` yields inside its subtree — a position no cell draws must
+ *  not exist. Registered cells recurse by rendering `<NodeCell node={child} …/>`; the ctx
+ *  carries this registry, so recursion re-enters the table. */
+export interface CellRegistry {
+  readonly byFormat: Readonly<Record<string, ValueCellComponent>>;
+  readonly byKind: Partial<Readonly<Record<"scalar" | "mapping" | "blob" | "pointer", ValueCellComponent>>>;
+  readonly fallback: ValueCellComponent;
+}
+
+export function cellFor(v: Value, reg: CellRegistry): ValueCellComponent {
+  const fmt = !isPointer(v) ? (v.meta as { derivedFormat?: string } | undefined)?.derivedFormat : undefined;
+  if (fmt !== undefined && reg.byFormat[fmt]) return reg.byFormat[fmt];
+  return reg.byKind[isPointer(v) ? "pointer" : (v.kind as "scalar" | "mapping" | "blob")] ?? reg.fallback;
 }
 
 const pathEq = (a: Path, b: Path): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -112,8 +145,23 @@ function KeyCell({ entry, path, ctx }: { entry: Entry; path: Path; ctx: CellCtx 
   );
 }
 
-function PointerCell({ text }: { text: string }) {
-  return <Cell kind="pointer" active={false} refused={false}><span className="y2-p">*{text}</span></Cell>;
+/** A pointer ATOM: walkable, focusable, deletable — NOT text-editable (PICK mode comes later;
+ *  typing rings). The caret stands ON it, never in it. */
+function PointerCell({ node, path, ctx }: ValueCellProps) {
+  const active = ctx.cursor.at === "ptr" && pathEq(ctx.cursor.path, path);
+  return (
+    <Cell kind="pointer" active={active} refused={ctx.refused}>
+      <span
+        className="y2-p"
+        tabIndex={0}
+        ref={(el) => { if (el && active && document.activeElement !== el) el.focus(); }}
+        onFocus={() => { if (!active) ctx.onFocus({ at: "ptr", path }); }}
+        onKeyDown={(e) => ctx.onKey(e)}
+      >
+        *{(node as Pointer as { raw?: string }).raw ?? ""}
+      </span>
+    </Cell>
+  );
 }
 
 /** The container: brackets, entries, the hole (when the cursor's hole lives here), the gap after.
@@ -166,9 +214,7 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow 
                   </div>
                 : <>
                     {keyFrag}
-                    {isPointer(e.value)
-                      ? <PointerCell text={(e.value as { raw?: string }).raw ?? ""} />
-                      : <NodeCell node={e.value as Node} path={p} ctx={ctx} trailingComma={wantComma} />}
+                    <NodeCell node={e.value} path={p} ctx={ctx} trailingComma={wantComma} />
                   </>}
           </Fragment>
         ),
@@ -256,27 +302,41 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow 
   );
 }
 
-/** THE closed set's root: dispatch by IR node kind, recurse. */
-export function NodeCell({ node, path, ctx, trailingComma = false, lead }: { node: Node; path: Path; ctx: CellCtx; trailingComma?: boolean; lead?: ReactNode }) {
-  if (node.kind === "scalar") {
-    const holeHere = ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, path);
-    if ((node.entries ?? []).length === 0 && !holeHere) return <TokenCell node={node} path={path} ctx={ctx} />;
-    // OMNI (value-plus-fields), or a scalar the cursor DESCENDED into (Enter's LEVEL RULE):
-    // the value line AT ITS AUTHORED POSITION (`meta.selfAt`) among the field rows — the hole
-    // among them stays VISIBLE, so the caret can never stand in a cell the projection not draw
-    return (
-      <Cell kind="omni" active={false} refused={false}>
-        <ContainerCell
-          node={node}
-          path={path}
-          ctx={ctx}
-          valueRow={{ at: (node.meta as { selfAt?: number } | undefined)?.selfAt ?? 0, el: <TokenCell node={node} path={path} ctx={ctx} /> }}
-        />
-      </Cell>
-    );
-  }
-  if (node.kind === "mapping") return <ContainerCell node={node} path={path} ctx={ctx} trailingComma={trailingComma} lead={lead} />;
-  return <Cell kind="other" active={false} refused={false}><span>({node.kind})</span></Cell>; // blob: later
+/** The SCALAR cell: a plain token, or — with fields or the descended-into hole — the OMNI form:
+ *  the value line AT ITS AUTHORED POSITION (`meta.selfAt`) among the field rows; the hole among
+ *  them stays VISIBLE, so the caret can never stand in a cell the projection does not draw. */
+function ScalarCell({ node: v, path, ctx }: ValueCellProps) {
+  const node = v as Node;
+  const holeHere = ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, path);
+  if ((node.entries ?? []).length === 0 && !holeHere) return <TokenCell node={node} path={path} ctx={ctx} />;
+  return (
+    <Cell kind="omni" active={false} refused={false}>
+      <ContainerCell
+        node={node}
+        path={path}
+        ctx={ctx}
+        valueRow={{ at: (node.meta as { selfAt?: number } | undefined)?.selfAt ?? 0, el: <TokenCell node={node} path={path} ctx={ctx} /> }}
+      />
+    </Cell>
+  );
+}
+
+/** The default table — exactly the closed set the debug editor ships. */
+export const defaultRegistry: CellRegistry = {
+  byFormat: {},
+  byKind: {
+    scalar: ScalarCell,
+    mapping: ({ node, path, ctx, trailingComma, lead }) =>
+      <ContainerCell node={node as Node} path={path} ctx={ctx} trailingComma={trailingComma} lead={lead} />,
+    pointer: PointerCell,
+  },
+  fallback: ({ node }) => <Cell kind="other" active={false} refused={false}><span>({isPointer(node) ? "pointer" : node.kind})</span></Cell>,
+};
+
+/** THE closed set's root: dispatch through the REGISTRY (ctx.cells), recurse. */
+export function NodeCell({ node, path, ctx, trailingComma = false, lead }: ValueCellProps) {
+  const C = cellFor(node, ctx.cells);
+  return <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} lead={lead} />;
 }
 
 /** The document surface. */

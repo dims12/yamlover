@@ -38,6 +38,21 @@ describe("the dispatch table — one meaning per (site, key)", () => {
     expect(kind("Tab", t("flowSeq"))).toBe("move"); // no indent levels inside a token
   });
 
+  it("an ATOM the caret stands ON (a pointer) — deletable, walkable, never editable", () => {
+    const a = (c: Site["container"]) => site("atom", c, { entryCommitted: true });
+    expect(kind("Backspace", a("block"))).toBe("removeLevel");    // the ladder: the value goes
+    expect(kind("Backspace", a("flowSeq"))).toBe("removeLevel");
+    expect(kind(",", a("flowSeq"))).toBe("nextElement");
+    expect(kind(",", a("block"))).toBe("refuse");                 // in block rows a comma is just typing — it rings
+    expect(kind("]", a("flowSeq"))).toBe("closeToken");
+    expect(kind("}", a("flowSeq"))).toBe("refuse");               // the wrong closer rings
+    expect(kind("Enter", a("block"))).toBe("nop");                // PICK later — claimed-to-swallow
+    expect(kind("x", a("block"))).toBe("refuse");                 // typing into an atom RINGS
+    expect(kind("ArrowLeft", a("block"))).toBe("move");
+    expect(kind("ArrowRight", a("block"))).toBe("move");
+    expect(kind("Tab", a("block"))).toBe("move");
+  });
+
   it("a QUOTED cell's text owns the punctuation — only navigation is grammar", () => {
     const q = site("quotedInner", "flowSeq", { textEmpty: false });
     expect(kind(",", q)).toBeNull();   // a comma is a CHARACTER of the string

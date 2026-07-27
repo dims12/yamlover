@@ -423,6 +423,22 @@ meta_tag_editing: Meta tag editing
 empty_cell_of_origin: Back to the hole this cell grew from
     description: A pseudo-state - the projected structure (quotes, sigil, braces, marker) is dismantled and the cell returns to the hole it was born from; the document root returns to the `empty` state, an entry returns to `entry_hole`
 
+atom_focused: The caret stands ON an atom (a `*` pointer)
+    description: |
+        The atom is a single non-text cell (dispatch.ts `cell: "atom"`) - the caret stands ON it,
+        never inside it. It walks, it deletes, it copies; it does not edit (the PICK/query mode
+        that will edit it is a later feature - until then typing rings).
+    backspace: *: entry_hole            # removeLevel - the value goes, a name survives as the named hole
+    comma:
+        "inside a flow container": *: entry_hole   # nextElement - the next element's hole
+        "in block rows": *: atom_focused           # no meaning - falls through, nothing
+    closer:
+        "the matching closer, in flow": *: gap_after_token   # closeToken
+        "the wrong closer": *: atom_focused                  # refuse - the ring
+    enter: *: atom_focused              # nop, claimed-to-swallow (PICK later); the keycap is greyed
+    alphanumeric: *: atom_focused       # refuse - typing into an atom RINGS
+    arrows: "the neighbouring position per the walk order"
+
 # --- The CHAPTER projection (chapter-editor/view.tsx) ------------------------------------------- #
 # The SAME model, drawn as prose/headings/sections/lists. These states are the model's, seen under
 # the chapter projection; the typing grammar above does not apply here (no holes, no `- `/`key:`).

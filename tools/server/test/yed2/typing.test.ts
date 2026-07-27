@@ -2,8 +2,8 @@
 // the SERIALIZED document (the file that would be written) and that the editor never claimed an
 // edit it refused.
 import { describe, it, expect } from "vitest";
-import { applyKey, watchdog } from "../../src/client/yed2/apply";
-import { initialState, sourceOf, type EditorState } from "../../src/client/yed2/state";
+import { applyKey, copySubtree, watchdog } from "../../src/client/yed2/apply";
+import { initialState, parseSource, sourceOf, type EditorState } from "../../src/client/yed2/state";
 import { parseScript } from "./keys-util";
 
 /** Type a script from the empty document — THE WATCHDOG runs after every keystroke: in every
@@ -248,6 +248,35 @@ describe("yed2 — an empty flow container is never a wall", () => {
     s = applyKey(s, { key: "}" });
     expect(src(s)).toBe("[\n  {key: 12},\n  {}\n]\n");
     watchdog(s);
+  });
+});
+
+describe("yed2 — pointer ATOMS: walkable, deletable, never editable", () => {
+  const load = (text: string): EditorState =>
+    ({ doc: parseSource(text), cursor: { at: "hole", path: [], index: 0, text: "", key: null }, refused: false, log: [] });
+  it("arrows reach the atom; it deletes down the ladder; the watchdog stays green", () => {
+    let s = load("a: *x\nb: 1\n");
+    s = { ...s, cursor: { at: "token", path: [1], text: "1" } };
+    s = applyKey(s, { key: "ArrowLeft" }, { atStart: true, atEnd: false }); // ← onto b's key
+    s = applyKey(s, { key: "ArrowLeft" }, { atStart: true, atEnd: true });  // ← onto the ATOM
+    expect(s.cursor).toEqual({ at: "ptr", path: [0] });
+    watchdog(s);
+    const rung = applyKey(s, { key: "Backspace" });                          // the value goes…
+    expect(rung.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: "a" }); // …the name survives
+    expect(src(rung)).toBe("b: 1\n");
+  });
+  it("typing into the atom RINGS and changes nothing", () => {
+    let s = load("a: *x\n");
+    s = { ...s, cursor: { at: "ptr", path: [0] } };
+    const t = applyKey(s, { key: "z" });
+    expect(t.refused).toBe(true);
+    expect(src(t)).toBe("a: *x\n");
+    expect(t.cursor).toEqual({ at: "ptr", path: [0] });
+  });
+  it("Ctrl+C on the atom copies its authored spelling", () => {
+    let s = load("a: *x\n");
+    s = { ...s, cursor: { at: "ptr", path: [0] } };
+    expect(copySubtree(s)).toBe("*x");
   });
 });
 

@@ -5,7 +5,8 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { EditorView } from "../../src/client/yed2/page";
-import { parseSource, initialState, type EditorState } from "../../src/client/yed2/state";
+import { defaultRegistry, type CellRegistry } from "../../src/client/yed2/cells";
+import { parseSource, initialState, type EditorState, type Node } from "../../src/client/yed2/state";
 import { applyKey } from "../../src/client/yed2/apply";
 import { parseScript } from "./keys-util";
 
@@ -83,6 +84,20 @@ describe("yed2 cells — the projection is visible", () => {
     const doc = container.querySelector("[data-testid=y2-doc]")!;
     const dashes = Array.from(doc.querySelectorAll(".y2-punct")).filter((p) => p.textContent === "- ");
     expect(dashes.length).toBe(2); // the committed keyless row's marker + the hole's own
+  });
+
+  it("the REGISTRY plugs a cell by FORMAT — the prose/math seam, format before kind", () => {
+    const state = stateFor("a: hello\n");
+    // what the engine's walk stamps on a format-carrying node
+    const v = (state.doc.root as Node).entries![0].value as Node;
+    v.meta = { ...(v.meta ?? {}), derivedFormat: "text/x-test" } as Node["meta"];
+    const reg: CellRegistry = {
+      ...defaultRegistry,
+      byFormat: { "text/x-test": ({ node }) => <span data-testid="custom-cell">FMT:{String((node as { value?: unknown }).value)}</span> },
+    };
+    const { getByTestId, container } = render(<EditorView state={state} setState={() => {}} cells={reg} />);
+    expect(getByTestId("custom-cell").textContent).toBe("FMT:hello");
+    expect(container.querySelector(".y2-cell[data-kind=token]")).toBeNull(); // the format cell REPLACED the kind cell
   });
 
   it("a refused state rings the active cell", () => {

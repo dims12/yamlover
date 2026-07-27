@@ -12,7 +12,7 @@
 import { interpret, type Intent, type Site } from "../renderers/yamlover-editor/dispatch";
 import { classifyHoleInput, keyedEditParts } from "../renderers/yamlover-editor/keys";
 import {
-  bracketOf, entryAt, isContainer, isFlow, isSpread, nodeAt, sourceOf,
+  bracketOf, dialectOf, entryAt, isContainer, isFlow, isSpread, nodeAt, sourceOf,
   type Cursor, type Document, type EditorState, type Entry, type Node, type Path,
 } from "./state";
 import { parseYamlover } from "../../../../parser/ts/src/yamlover.ts";
@@ -114,6 +114,10 @@ export function siteOf(state: EditorState): Site {
     const parent = nodeAt(doc, cursor.path.slice(0, -1));
     return { ...base, cell: "key", container: containerKind(parent), textEmpty: cursor.text.trim() === "", entryCommitted: true };
   }
+  if (cursor.at === "ptr") {
+    const parent = nodeAt(doc, cursor.path.slice(0, -1));
+    return { ...base, cell: "atom", container: containerKind(parent), entryCommitted: true };
+  }
   // after — the gap past the container at cursor.path
   const token = nodeAt(doc, cursor.path);
   const outer = cursor.path.length ? nodeAt(doc, cursor.path.slice(0, -1)) : null;
@@ -136,7 +140,8 @@ export type Position =
   | { at: "key"; path: Path }
   | { at: "token"; path: Path }
   | { at: "after"; path: Path }
-  | { at: "into"; path: Path }; // the inside of an EMPTY block container — its placeholder slot
+  | { at: "into"; path: Path }  // the inside of an EMPTY block container — its placeholder slot
+  | { at: "ptr"; path: Path };  // a pointer ATOM — walkable, focusable, not text-editable
 
 /** Every caret-occupiable position of the DOCUMENT, in reading order — which is the VISUAL
  *  order: an omni's value line sits at its authored row (`meta.selfAt`) among its fields. */
@@ -147,7 +152,7 @@ export function positionsOf(doc: Document): Position[] {
       const e = n.entries![i];
       const p = [...path, i];
       if (e.key != null) out.push({ at: "key", path: p });
-      if (isPointer(e.value)) continue; // pointer cells: later
+      if (isPointer(e.value)) { out.push({ at: "ptr", path: p }); continue; } // the atom IS the position
       const v = e.value as Node;
       if (v.kind === "scalar") omni(v, p);
       // only a FLOW container has a gap — a closer bracket to stand after. A block container has
@@ -214,12 +219,14 @@ function cursorSlot(doc: Document, cursor: Cursor): number {
  *  explicit deletion of the row's MARKER: one press, one level of the entry's form. */
 function applyUnmark(state: EditorState): EditorState {
   const { doc, cursor } = state;
+  const d = dialectOf(state);
   if (cursor.at !== "token" || cursor.path.length === 0) return refuse(state);
   const parentPath = cursor.path.slice(0, -1);
   const idx = cursor.path[cursor.path.length - 1];
   const container = nodeAt(doc, parentPath);
   const e = entryAt(doc, cursor.path);
   if (!container || !e || isFlow(container)) return refuse(state);
+  if (!d.ordinals) return refuse(state); // the ladder's rungs are block forms this dialect lacks
   if (e.key !== null) {
     // keyed → ordered: the name goes, the value stays (the mirror of naming it)
     return ok({
@@ -303,6 +310,7 @@ function toCursor(doc: Document, p: Position): Cursor {
   }
   if (p.at === "key") return { at: "key", path: p.path, text: String(entryAt(doc, p.path)?.key ?? "") };
   if (p.at === "into") return { at: "hole", path: p.path, index: 0, text: "", key: null };
+  if (p.at === "ptr") return { at: "ptr", path: p.path };
   return { at: "after", path: p.path };
 }
 
@@ -315,11 +323,13 @@ function toCursor(doc: Document, p: Position): Cursor {
  *  Exported for the page's whole-document actions (copy commits first; a failure is the ring). */
 export function commitPending(state: EditorState): EditorState | null {
   const { doc, cursor } = state;
+  const d = dialectOf(state);
   if (cursor.at === "hole") {
     if (cursor.text.trim() === "" && cursor.key === null) return state; // nothing pending
     const container = nodeAt(doc, cursor.path);
     if (!container) return null;
     if (cursor.key === null && bracketOf(container) === "{" && isFlow(container)) return null; // an unnamed pair cannot land in `{`
+    if (cursor.text.trim() !== "" && !d.scalarToken(cursor.text.trim())) return null; // not a scalar SPELLING here — visibly
     const value = cursor.text.trim() === "" ? scalarFromText('""')!
       : scalarFromText(cursor.text) ?? (cursor.key !== null ? valueScalarFromText(cursor.text) : null);
     if (!value) return null;
@@ -329,6 +339,7 @@ export function commitPending(state: EditorState): EditorState | null {
     // node (!!var). A `- ` decision (cursor.ordinal) opts OUT into a keyless entry instead.
     if (cursor.key === null && cursor.ordinal !== true && !isFlow(container)) {
       if (container.kind !== "mapping") return null; // the container already HAS a value
+      if ((container.entries ?? []).length > 0 && !d.omniValue) return null; // no value-plus-fields form here
       const v = value as { value?: unknown; raw?: string; meta?: unknown };
       // the value keeps its AUTHORED position among the entries (`meta.selfAt`) — typed after
       // `key1: value1`, it serializes after it; order is committed labour too
@@ -377,6 +388,8 @@ export function commitPending(state: EditorState): EditorState | null {
     // an EMPTIED key commits as UN-NAMED (`key1: v` edited to `: v` becomes the keyless `- v`) —
     // refusing here would trap the caret in a cell it can only Backspace out of
     const k = cursor.text.trim();
+    if (k === "" && !d.ordinals) return null; // this dialect has no keyless rows — the emptied key refuses
+    if (k !== "" && !d.bareKey(k) && entryAt(doc, cursor.path)?.key !== k) return null; // a bare spelling this dialect refuses
     const parentPath = cursor.path.slice(0, -1);
     const idx = cursor.path[cursor.path.length - 1];
     const next = {
@@ -390,8 +403,10 @@ export function commitPending(state: EditorState): EditorState | null {
     if (k !== "") return next;
     // the key CELL is gone — the caret lands on the entry's value (a cell that exists)
     const val = entryAt(doc, cursor.path)?.value;
-    const cursorAfter: Cursor = !val || isPointer(val)
+    const cursorAfter: Cursor = !val
       ? { at: "hole", path: parentPath, index: idx, text: "", key: null }
+      : isPointer(val)
+      ? { at: "ptr", path: cursor.path }
       : (val as Node).kind === "scalar" && ((val as Node).entries ?? []).length === 0
         ? { at: "token", path: cursor.path, text: String((val as { raw?: string }).raw ?? (val as { value?: unknown }).value ?? ""), caret: "start" }
         : isFlow(val as Node)
@@ -418,6 +433,10 @@ function tokenRowToEntry(state: EditorState): EditorState | null {
   }
   if (parsed.kind !== "mapping" || (parsed.entries ?? []).length !== 1) return null;
   const entry = parsed.entries![0] as Entry;
+  const d = dialectOf(state);
+  if (!d.blockContext) return null;                                    // block rows only
+  if (entry.key === null && !d.ordinals) return null;                  // no keyless rows here
+  if (entry.key !== null && !d.bareKey(entry.key)) return null;        // this dialect wants the key quoted
   const node = nodeAt(doc, cursor.path);
   if (!node || node.kind !== "scalar") return null;
   const parent = cursor.path.length > 0 ? nodeAt(doc, cursor.path.slice(0, -1)) : null;
@@ -543,7 +562,8 @@ export function copySubtree(state: EditorState): string | null {
   const { doc, cursor } = state;
   if (cursor.at === "hole") return null;
   const v = cursor.path.length === 0 ? doc.root : entryAt(doc, cursor.path)?.value;
-  if (!v || isPointer(v)) return null;
+  if (!v) return null;
+  if (isPointer(v)) return "*" + ((v as { raw?: string }).raw ?? ""); // the authored round-trip spelling
   return sourceOf({ ...doc, root: v } as Document).replace(/\n$/, "");
 }
 
@@ -572,6 +592,7 @@ export function pasteSubtree(state: EditorState, text: string): EditorState {
     if ((container.entries ?? []).length === 0) {
       return ok({ ...state, doc: withNode(doc, cursor.path, () => node), cursor: restCursor(node, cursor.path) });
     }
+    if (!dialectOf(state).omniValue) return refuse(state); // no value-plus-fields form here — the same law typing obeys
     if (node.kind !== "scalar" || (node.entries ?? []).length > 0) return refuse(state);
     const v = node as { value?: unknown; raw?: string };
     const selfAt = cursor.index > 0 ? { selfAt: cursor.index } : {};
@@ -652,12 +673,14 @@ function applyPrintable(state: EditorState, ch: string): EditorState {
   return classifyHole(ok({ ...state, cursor: { ...cursor, text: cursor.text + ch } }));
 }
 
-/** Run the hole's text through the classifier; structural prefixes commit structure EAGERLY. */
+/** Run the hole's text through the classifier; structural prefixes commit structure EAGERLY.
+ *  DIALECT gates live here and in the commit points — the classifier itself stays shared. */
 function classifyHole(state: EditorState): EditorState {
   const { doc, cursor } = state;
   if (cursor.at !== "hole") return state;
+  const d = dialectOf(state);
   const container = nodeAt(doc, cursor.path);
-  const entryStage = container !== null && !isFlow(container);
+  const entryStage = d.blockContext && container !== null && !isFlow(container);
   const action = classifyHoleInput(cursor.text, entryStage && cursor.key === null);
   // A CLOSED QUOTED KEY — `"name": rest` — is a key decision the plain classifier does not make
   // (quote-led text is a quote to it). keyedEditParts parses exactly this shape; quoted VALUES
@@ -690,6 +713,7 @@ function classifyHole(state: EditorState): EditorState {
     // the pair is ALREADY NAMED — `key2: ` inside the value is plain TEXT, not a re-keying and
     // not a one-line nesting (YAML conformance ZCZ6: invalid mapping in plain single line value)
     if (cursor.key !== null) return state;
+    if (!d.bareKey(action.key)) return refuse(state); // this dialect wants the key QUOTED — visibly
     // `- k: …` — a keyless entry HOLDING a block mapping, the key naming its first pair (the
     // block seq-of-maps shape). The `- ` decision materializes here, on the first key.
     if (cursor.ordinal === true) {
@@ -704,6 +728,7 @@ function classifyHole(state: EditorState): EditorState {
     return { ...state, cursor: { ...cursor, key: action.key, text: "" } };
   }
   if (action.kind === "ordinal") {
+    if (!d.ordinals) return state; // the dash stays TEXT — in json it is a number's sign
     return { ...state, cursor: { ...cursor, key: null, ordinal: true, text: "" } }; // `- ` — DECIDED keyless
   }
   return state; // quote/pointer/tag/block: D3
@@ -718,7 +743,11 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       // The shared dispatch table calls this site a nop because production resolves it inside its
       // classifier; yed2's key already left the text, so the decision lands here.
       if (cursor.at === "hole" && cursor.key !== null && cursor.text.trim() === "") {
-        const child: Node = { kind: "mapping", entries: [] } as unknown as Node;
+        // the descended-into child is a BLOCK mapping where the dialect has block context,
+        // else a flow `{}` (json's `"k": {` — Enter still acts, never a dead key)
+        const child: Node = dialectOf(state).blockContext
+          ? ({ kind: "mapping", entries: [] } as unknown as Node)
+          : emptyFlow("{");
         const entry = { key: cursor.key, edge: "contain", value: child } as unknown as Entry;
         return ok({
           ...state,
@@ -763,11 +792,11 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       const committed = commitPending(state);
       if (!committed) return refuse(state);
       const cur = committed.cursor;
-      const entryPath = cur.at === "token" || cur.at === "key" ? cur.path : cursor.at === "hole" ? [...cursor.path, cursor.index] : cursor.path;
+      const entryPath = cur.at === "token" || cur.at === "key" || cur.at === "ptr" ? cur.path : cursor.at === "hole" ? [...cursor.path, cursor.index] : cursor.path;
       const containerPath = entryPath.slice(0, -1);
       const index = entryPath[entryPath.length - 1] + 1;
       let s = committed;
-      if (intent.spread) {
+      if (intent.spread && dialectOf(state).spread) { // a no-spread dialect DEGRADES to the plain sibling — never a dead key
         const spreadDoc = spreadUp(s.doc, containerPath);
         if (spreadDoc === null) return refuse(state); // an unspreadable site
         s = { ...s, doc: spreadDoc };
@@ -777,6 +806,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
 
     case "spreadOrClose": {
       const path = cursor.at === "hole" ? cursor.path : cursor.path.slice(0, -1);
+      if (!dialectOf(state).spread) return refuse(state); // no K&R rows in this dialect — visibly
       const spreadDoc = spreadUp(doc, path);
       if (spreadDoc === null) return refuse(state);
       if (spreadDoc === doc) {
@@ -858,7 +888,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
           cursor: { at: "hole", path: parentPath, index: idx, text: "", key: named },
         });
       }
-      if (cursor.at === "token" || cursor.at === "key") {
+      if (cursor.at === "token" || cursor.at === "key" || cursor.at === "ptr") {
         if (cursor.path.length === 0) {
           return ok({ ...state, doc: { ...doc, root: { kind: "mapping", entries: [] } as unknown as Node }, cursor: { at: "hole", path: [], index: 0, text: "", key: null } });
         }
@@ -866,7 +896,8 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
         const idx = cursor.path[cursor.path.length - 1];
         const e = entryAt(doc, cursor.path);
         if (cursor.at === "key") {
-          // un-name: the key goes, the value stays (one press, one level)
+          // un-name: the key goes, the value stays (one press, one level) — a POINTER value's
+          // caret lands on the atom itself (the cell that exists)
           return ok({
             ...state,
             doc: withNode(doc, parentPath, (n) => {
@@ -874,7 +905,9 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
               entries[idx] = { ...entries[idx], key: null } as Entry;
               return { ...n, entries } as Node;
             }),
-            cursor: { at: "token", path: cursor.path, text: String((e?.value as { raw?: string; value?: unknown })?.raw ?? (e?.value as { value?: unknown })?.value ?? "") },
+            cursor: e && isPointer(e.value)
+              ? { at: "ptr", path: cursor.path }
+              : { at: "token", path: cursor.path, text: String((e?.value as { raw?: string; value?: unknown })?.raw ?? (e?.value as { value?: unknown })?.value ?? "") },
           });
         }
         return ok({
@@ -905,7 +938,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
     case "keyCommit": {
       const committed = commitPending(state);
       if (!committed) return refuse(state);
-      const spreadDoc = spreadUp(committed.doc, cursor.path.slice(0, -1));
+      const spreadDoc = dialectOf(state).spread ? spreadUp(committed.doc, cursor.path.slice(0, -1)) : null;
       const s = spreadDoc !== null ? { ...committed, doc: spreadDoc } : committed;
       // Enter on a key means the naming is DONE — the caret steps onto the pair's VALUE (in a
       // block pair with an empty value, onto its `into` slot); staying put would be a dead key

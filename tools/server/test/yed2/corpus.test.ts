@@ -112,10 +112,9 @@ function unwind(s: EditorState, maxSteps = 400): string | null {
  *  from the delete ladder EXPLICITLY, with the construct named (never silently). */
 function unsupportedIn(doc: { root: Value }): string | null {
   const walk = (v: Value): string | null => {
-    if (isPointer(v)) return "a `*` pointer";
+    if (isPointer(v)) return null; // pointer ATOMS are modeled: walkable, deletable
     const n = v as Node;
     if (n.kind === "blob") return "a blob";
-    if (n.kind === "scalar" && (n.entries ?? []).length > 0) return "an omni self-value";
     if (n.meta?.schema !== undefined) return "a `!!<…>` schema tag";
     if ((n.meta as { set?: boolean } | undefined)?.set) return "`!!set`";
     if ((n.meta?.anchors ?? []).length > 0) return "a `&` path anchor";

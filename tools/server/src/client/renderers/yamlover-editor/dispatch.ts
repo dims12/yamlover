@@ -11,8 +11,9 @@
 /** WHERE the caret stands. Everything the grammar may branch on — nothing else may. */
 export interface Site {
   /** The kind of cell under the caret. `gapClose` is the position past a flow token's closer,
-   *  `gapQuote` past a closing quote; `key` is a key cell inside a flow token. */
-  cell: "holeEntry" | "holeValue" | "token" | "quotedInner" | "key" | "gapClose" | "gapQuote";
+   *  `gapQuote` past a closing quote; `key` is a key cell inside a flow token; `atom` is a
+   *  non-text cell the caret stands ON (a pointer) — deletable, walkable, not editable. */
+  cell: "holeEntry" | "holeValue" | "token" | "quotedInner" | "key" | "gapClose" | "gapQuote" | "atom";
   /** The container the caret's entry lives in. */
   container: "block" | "flowMap" | "flowSeq";
   /** For gaps: the kind of the token AROUND this one (undefined ⇒ not nested in a flow token). */
@@ -90,6 +91,17 @@ export function interpret(k: Key, s: Site): Intent | null {
     if (k.key === ":") return { kind: "quotedKey" };
     if (k.key === "Enter") return { kind: "commit", submit: true };
     if (k.key === "Backspace" || k.key === "ArrowLeft") return { kind: "reopenQuote" };
+    return universalNav(k);
+  }
+  // ---- an ATOM the caret stands ON (a pointer) — deletable, walkable, NOT editable --------- //
+  if (s.cell === "atom") {
+    if (k.key === "Backspace") return { kind: "removeLevel" };  // the ladder: the value goes, a name survives
+    if (k.key === "," && inFlow(s)) return { kind: "nextElement", spread: false };
+    if ((k.key === "]" || k.key === "}") && inFlow(s)) {
+      return k.key === closerOf(s) ? { kind: "closeToken", closer: k.key } : { kind: "refuse" };
+    }
+    if (k.key === "Enter") return { kind: "nop" };              // PICK later — claimed-to-swallow, greyed
+    if (k.key.length === 1) return { kind: "refuse" };          // typing into an atom RINGS
     return universalNav(k);
   }
   // ---- a KEY cell inside a flow token ------------------------------------------------------ //

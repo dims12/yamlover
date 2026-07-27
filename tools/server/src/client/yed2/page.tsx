@@ -9,12 +9,12 @@
 import { useMemo, useState } from "react";
 import { applyKey, applyText, commitPending, copySubtree, pasteSubtree, positionsOf, siteOf, watchdog, type Position } from "./apply";
 import { interpret } from "../renderers/yamlover-editor/dispatch";
-import { DocCells, type CellCtx } from "./cells";
+import { defaultRegistry, DocCells, type CellCtx, type CellRegistry } from "./cells";
 import { lineDiff } from "./diff";
 import { Legend } from "./legend";
 import { initialState, parseSource, sourceOf, type Cursor, type EditorState } from "./state";
 
-export function EditorView({ state, setState, debug = true }: { state: EditorState; setState: (s: EditorState) => void; debug?: boolean }) {
+export function EditorView({ state, setState, debug = true, cells = defaultRegistry }: { state: EditorState; setState: (s: EditorState) => void; debug?: boolean; cells?: CellRegistry }) {
   const site = siteOf(state);
   const source = sourceOf(state.doc);
   const last = state.log[state.log.length - 1];
@@ -32,6 +32,7 @@ export function EditorView({ state, setState, debug = true }: { state: EditorSta
   const ctx: CellCtx = {
     cursor: state.cursor,
     refused: state.refused,
+    cells,
     onKey: (e, edges) => {
       // SUBTREE copy/paste (requirement 10): Ctrl+C on a GAP copies the container it closes (the
       // gap is the container, selected); Ctrl+V in an empty HOLE splices the clipboard in through
@@ -61,12 +62,13 @@ export function EditorView({ state, setState, debug = true }: { state: EditorSta
       const cursor: Cursor =
         pos.at === "after" ? { at: "after", path: pos.path }
         : pos.at === "into" ? { at: "hole", path: pos.path, index: 0, text: "", key: null }
+        : pos.at === "ptr" ? { at: "ptr", path: pos.path }
         : pos.at === "key" ? { at: "key", path: pos.path, text: "" }
         : { at: "token", path: pos.path, text: "" };
       // entering a token/key cell loads its current text (the same rule movement uses)
       const list = positionsOf(state.doc);
       void list;
-      apply({ ...state, cursor: cursor.at === "after" || cursor.at === "hole" ? cursor : loadText(state, cursor), refused: false });
+      apply({ ...state, cursor: cursor.at === "token" || cursor.at === "key" ? loadText(state, cursor) : cursor, refused: false });
     },
   };
   return (
@@ -97,7 +99,7 @@ export function EditorView({ state, setState, debug = true }: { state: EditorSta
         )}
         <Panel title="keyboard (what would each key DO here — a dry-run)"><Legend state={state} /></Panel>
         <Panel title="site (what interpret sees)"><pre data-testid="y2-site">{JSON.stringify(site, null, 1)}</pre></Panel>
-        <Panel title="cursor"><pre data-testid="y2-cursor">{JSON.stringify(state.cursor)}{state.refused ? "\nREFUSED" : ""}</pre></Panel>
+        <Panel title={`cursor (dialect: ${state.dialect ?? "yamlover"})`}><pre data-testid="y2-cursor">{JSON.stringify(state.cursor)}{state.refused ? "\nREFUSED" : ""}</pre></Panel>
         <Panel title="source (serialized IR, live)"><pre data-testid="y2-source">{source || "(empty)"}</pre></Panel>
         <Panel title="last diff">
           <pre data-testid="y2-diff">

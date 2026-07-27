@@ -8,6 +8,7 @@ import type { Document, Node, Entry, Value } from "../../../../parser/ts/src/ir.
 import { isPointer } from "../../../../parser/ts/src/ir.ts";
 import { parseYamlover } from "../../../../parser/ts/src/yamlover.ts";
 import { serializeYamlover } from "../../../../parser/ts/src/serialize-yamlover.ts";
+import { DIALECTS, type Dialect, type DialectId } from "./dialect";
 
 export type { Document, Node, Entry, Value };
 
@@ -20,12 +21,15 @@ export type Path = number[];
  *  - `token`: editing the SCALAR value of the entry at `path` ([] = the root scalar); `text` is
  *             the in-progress source token (committed on leave).
  *  - `key`:   editing the KEY of the entry at `path`.
- *  - `after`: the caret stands in the GAP past the container value at `path` ([] = the root). */
+ *  - `after`: the caret stands in the GAP past the container value at `path` ([] = the root).
+ *  - `ptr`:   the caret stands ON the pointer ATOM at `path` — no text; the atom is not
+ *             text-editable (PICK mode is a later feature; typing into it refuses). */
 export type Cursor =
   | { at: "hole"; path: Path; index: number; text: string; key: string | null; ordinal?: boolean }
   | { at: "token"; path: Path; text: string; caret?: "start" | "end" }
   | { at: "key"; path: Path; text: string; caret?: "start" | "end" }
-  | { at: "after"; path: Path };
+  | { at: "after"; path: Path }
+  | { at: "ptr"; path: Path };
 
 /** One applied edit, for the visible history pane. */
 export interface LogEntry {
@@ -36,6 +40,8 @@ export interface LogEntry {
 }
 
 export interface EditorState {
+  /** The language POLICY the edit layer applies (dialect.ts). Absent ⇒ "yamlover". */
+  dialect?: DialectId;
   doc: Document;
   cursor: Cursor;
   /** A refused edit — shown as the ring on the active cell, cleared by the next accepted one. */
@@ -43,14 +49,24 @@ export interface EditorState {
   log: LogEntry[];
 }
 
+/** The state's dialect, defaulting to yamlover — the id rides the state (serializable, visible
+ *  in the panels); the OBJECT is looked up here. */
+export const dialectOf = (s: EditorState): Dialect => DIALECTS[s.dialect ?? "yamlover"];
+
 /** An empty document: a mapping with no entries (what an empty file parses to is a null scalar;
  *  the editor's empty document is the empty container the first entry lands in). */
 export function emptyDoc(): Document {
   return { root: { kind: "mapping", entries: [] }, source: { concrete: "yamlover", uri: "<yed2>" } } as unknown as Document;
 }
 
-export function initialState(): EditorState {
-  return { doc: emptyDoc(), cursor: { at: "hole", path: [], index: 0, text: "", key: null }, refused: false, log: [] };
+export function initialState(dialect?: DialectId): EditorState {
+  return {
+    ...(dialect !== undefined ? { dialect } : {}),
+    doc: emptyDoc(),
+    cursor: { at: "hole", path: [], index: 0, text: "", key: null },
+    refused: false,
+    log: [],
+  };
 }
 
 /** Serialize for the panes — a document that cannot serialize is a yed2 BUG (the invariant says
