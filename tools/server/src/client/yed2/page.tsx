@@ -7,7 +7,8 @@
 // state, the corpus picker and document-level copy/paste.
 
 import { useMemo, useState } from "react";
-import { applyKey, applyText, copySubtree, pasteSubtree, positionsOf, siteOf, type Position } from "./apply";
+import { applyKey, applyText, copySubtree, pasteSubtree, positionsOf, siteOf, watchdog, type Position } from "./apply";
+import { interpret } from "../renderers/yamlover-editor/dispatch";
 import { DocCells, type CellCtx } from "./cells";
 import { lineDiff } from "./diff";
 import { Legend } from "./legend";
@@ -17,6 +18,17 @@ export function EditorView({ state, setState, debug = true }: { state: EditorSta
   const site = siteOf(state);
   const source = sourceOf(state.doc);
   const last = state.log[state.log.length - 1];
+  // THE WATCHDOG (debug mode only — never invoked otherwise, costing nothing): after every edit,
+  // every key the legend lights up must respond one keystroke deep. A dead advertised key raises
+  // THE ALARM — the red panel below, impossible to miss — and logs the full error.
+  const [alarm, setAlarm] = useState<string | null>(null);
+  const apply = (next: EditorState): void => {
+    setState(next);
+    if (debug) {
+      try { watchdog(next); setAlarm(null); }
+      catch (err) { setAlarm((err as Error).message); console.error(err); }
+    }
+  };
   const ctx: CellCtx = {
     cursor: state.cursor,
     refused: state.refused,
@@ -32,33 +44,53 @@ export function EditorView({ state, setState, debug = true }: { state: EditorSta
       }
       if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "v" && state.cursor.at === "hole" && state.cursor.text.trim() === "") {
         e.preventDefault();
-        void navigator.clipboard.readText().then((t) => setState(pasteSubtree(state, t)));
+        void navigator.clipboard.readText().then((t) => apply(pasteSubtree(state, t)));
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return; // other chords stay native
-      // printable characters flow into the controlled input natively (onText); the grammar takes
-      // the rest — and ONLY when it has a meaning, so unknown keys are never swallowed
+      // a PRINTABLE with no grammar meaning inserts NATIVELY — at the caret, wherever it stands
+      // (onChange → applyText picks up the result); intercepting it would append at the end
+      const withEdges = { ...site, ...(edges ? { caretAtStart: edges.atStart, caretAtEnd: edges.atEnd } : {}) };
+      if (e.key.length === 1 && interpret({ key: e.key, shift: e.shiftKey }, withEdges) === null) return;
+      // the grammar takes the rest — and ONLY when it has a meaning, so unknown keys are never swallowed
       const next = applyKey(state, { key: e.key, shift: e.shiftKey }, edges);
-      if (next !== state) { e.preventDefault(); setState(next); }
+      if (next !== state) { e.preventDefault(); apply(next); }
     },
-    onText: (text) => setState(applyText(state, text)),
+    onText: (text) => apply(applyText(state, text)),
     onFocus: (pos: Position) => {
       const cursor: Cursor =
         pos.at === "after" ? { at: "after", path: pos.path }
+        : pos.at === "into" ? { at: "hole", path: pos.path, index: 0, text: "", key: null }
         : pos.at === "key" ? { at: "key", path: pos.path, text: "" }
         : { at: "token", path: pos.path, text: "" };
       // entering a token/key cell loads its current text (the same rule movement uses)
       const list = positionsOf(state.doc);
       void list;
-      setState({ ...state, cursor: cursor.at === "after" ? cursor : loadText(state, cursor), refused: false });
+      apply({ ...state, cursor: cursor.at === "after" || cursor.at === "hole" ? cursor : loadText(state, cursor), refused: false });
     },
   };
   return (
     <div className={"y2-layout " + (debug ? "y2-debug" : "y2-plain")}>
-      <div className="y2-editor">
+      <div
+        className="y2-editor"
+        onCopy={(e) => {
+          // the projection's DOM text is NOT the document (captions, gap glyphs, CSS-only
+          // indentation) — a selection copy across cells gets the SERIALIZED source instead.
+          // Copying inside one cell input stays native.
+          if (e.target instanceof HTMLInputElement) return;
+          e.preventDefault();
+          e.clipboardData.setData("text/plain", sourceOf(state.doc));
+        }}
+      >
         <DocCells doc={state.doc} ctx={ctx} />
       </div>
       <div className="y2-panels">
+        {alarm && (
+          <section className="y2-panel y2-alarm" data-testid="y2-alarm">
+            <h3>⚠ watchdog</h3>
+            <pre>{alarm}</pre>
+          </section>
+        )}
         <Panel title="keyboard (what would each key mean HERE)"><Legend site={site} /></Panel>
         <Panel title="site (what interpret sees)"><pre data-testid="y2-site">{JSON.stringify(site, null, 1)}</pre></Panel>
         <Panel title="cursor"><pre data-testid="y2-cursor">{JSON.stringify(state.cursor)}{state.refused ? "\nREFUSED" : ""}</pre></Panel>

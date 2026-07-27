@@ -68,8 +68,8 @@ describe("yed2 paste — into a hole, under the typing laws", () => {
     const s0 = type("- one{Enter}{ShiftTab}");
     const s = pasteSubtree(s0, "30");
     expect(s.refused).toBe(false);
-    // the serializer's canonical order — the VALUE line leads its fields
-    expect(sourceOf(s.doc)).toBe("30\n- one\n");
+    // the value KEEPS the row it was pasted at (meta.selfAt) — order is committed labour
+    expect(sourceOf(s.doc)).toBe("- one\n30\n");
   });
   it("unparseable text REFUSES and loses nothing", () => {
     const s0 = type("[1, ");

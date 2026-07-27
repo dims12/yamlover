@@ -2,15 +2,17 @@
 // the SERIALIZED document (the file that would be written) and that the editor never claimed an
 // edit it refused.
 import { describe, it, expect } from "vitest";
-import { applyKey } from "../../src/client/yed2/apply";
+import { applyKey, watchdog } from "../../src/client/yed2/apply";
 import { initialState, sourceOf, type EditorState } from "../../src/client/yed2/state";
 import { parseScript } from "./keys-util";
 
-/** Type a script from the empty document. */
+/** Type a script from the empty document — THE WATCHDOG runs after every keystroke: in every
+ *  state these tests pass through, every advertised key must respond (a dead key throws). */
 function type(script: string, from: EditorState = initialState()): EditorState {
   let s = from;
   for (const k of parseScript(script)) {
     s = applyKey(s, "ch" in k ? { key: k.ch } : k);
+    watchdog(s);
   }
   return s;
 }
@@ -103,7 +105,150 @@ describe("yed2 refusals — visible, and nothing half-applied", () => {
   });
 });
 
+describe("yed2 — THE WATCHDOG: every key the LEGEND lights up must RESPOND", () => {
+  // The keycaps are drawn from `interpret` (the grammar); the effects live in applyIntent. The
+  // reported Tab bug was a SEAM between the two: the grammar claimed the key, the applier had no
+  // case, the browser default ran. watchdog() pins the invariant one keystroke deep — a changed
+  // document, a moved caret, or a visible refusal. NEVER a dead key. (type() also runs it after
+  // every keystroke of every script in this file.)
+  const STATES = ["", "[", "[1, ", "{{", "{{key: ", "- ", "k:{Enter}", "[1]",
+    "- name: Eurasia{Enter}{ShiftTab}children:{Enter}{ShiftTab}", "[{Enter}1, 2]",
+    "- name: Eurasia{Enter}{ShiftTab}children:{Enter}{ShiftTab}{ArrowUp}"];
+  for (const script of STATES) {
+    it(`state ${JSON.stringify(script)} — no enabled keycap is dead`, () => {
+      watchdog(type(script)); // type() already watched every intermediate state
+    });
+  }
+});
+
+describe("yed2 — Tab and Shift-Tab are inverses (THE LEVEL RULE)", () => {
+  it("a mistaken climb is undone by Tab — the hole returns INSIDE the previous sibling", () => {
+    const s = type("- name: Eurasia{Enter}{ShiftTab}children:{Enter}{ShiftTab}{Tab}- name: Europe{ArrowRight}");
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("- name: Eurasia\n  children:\n    - name: Europe\n");
+  });
+  it("Tab with nothing before the hole refuses — visibly, never a fall-through", () => {
+    const s = type("children:{Enter}{Tab}");
+    expect(s.refused).toBe(true);
+    expect(s.cursor).toMatchObject({ at: "hole", path: [0], index: 0 });
+  });
+  it("the reported LOCK: ⇤ then ↑ from an empty children WALKS BACK INSIDE it", () => {
+    // `children:` ⏎ ⇤ ↑ stranded the caret with the empty value unreachable — the empty block
+    // container had no position and no cell. Now it has an `into` slot: ↑ lands the hole back
+    // inside children, and typing simply continues.
+    const s = type("- name: Eurasia{Enter}{ShiftTab}children:{Enter}{ShiftTab}{ArrowUp}");
+    expect(s.cursor).toEqual({ at: "hole", path: [0, 1], index: 0, text: "", key: null });
+    const s2 = type("- name: Europe{ArrowRight}", s);
+    expect(src(s2)).toBe("- name: Eurasia\n  children:\n    - name: Europe\n");
+  });
+});
+
+describe("yed2 vertical walk — ↑/↓ move by ROWS", () => {
+  it("↑ lands on the PREVIOUS ROW's value, not this row's key; the top edge refuses", () => {
+    const s = type("key1: 12{Enter}{ShiftTab}key2: 13{ArrowRight}");
+    const up = type("{ArrowUp}", s);
+    expect(up.cursor).toEqual({ at: "token", path: [0], text: "12", caret: "end" });
+    expect(type("{ArrowUp}", up).refused).toBe(true);          // the document's top — visibly
+    const down = type("{ArrowDown}", up);
+    expect(down.cursor).toMatchObject({ at: "token", path: [1], text: "13" });
+  });
+});
+
+describe("yed2 — THE CONVERSION LADDER (Backspace at a block value's start)", () => {
+  it("keyed → ordered → the SCALAR value; a taken scalar slot refuses", () => {
+    const s = type("- value1{Enter}{ShiftTab}key2: value2{ArrowRight}");
+    expect(src(s)).toBe("- value1\nkey2: value2\n");
+    // the caret stands at the START of the committed value2 (a click + Home)
+    const at = (st: EditorState, path: number[], text: string): EditorState =>
+      ({ ...st, cursor: { at: "token", path, text }, refused: false });
+    const u1 = applyKey(at(s, [1], "value2"), { key: "Backspace" }, { atStart: true, atEnd: false });
+    expect(src(u1)).toBe("- value1\n- value2\n");            // the name went, the value stayed
+    const u2 = applyKey(at(u1, [1], "value2"), { key: "Backspace" }, { atStart: true, atEnd: false });
+    expect(src(u2)).toBe("- value1\nvalue2\n");              // now the container's OWN value — ON ITS ROW
+    expect(u2.cursor).toEqual({ at: "token", path: [], text: "value2", caret: "start" });
+    // the slot is taken — converting value1 too refuses, visibly
+    const u3 = applyKey(at(u2, [0], "value1"), { key: "Backspace" }, { atStart: true, atEnd: false });
+    expect(u3.refused).toBe(true);
+    expect(src(u3)).toBe("- value1\nvalue2\n");
+  });
+});
+
+describe("yed2 — ORDER is committed labour (meta.selfAt)", () => {
+  it("a trailing scalar KEEPS its row: `key1: value1` then `scalar` serializes in typed order", () => {
+    const s = type("key1: value1{Enter}{ShiftTab}scalar{ArrowRight}");
+    expect(src(s)).toBe("key1: value1\nscalar\n");
+  });
+});
+
+describe("yed2 — the walk follows the VISUAL order", () => {
+  it("↑ visits value4 → scalar → value2 → value1 — the value line at ITS row, not first", () => {
+    const s = type("key1: value1{Enter}{ShiftTab}- value2{Enter}{ShiftTab}scalar{Enter}{ShiftTab}- value4{ArrowRight}");
+    expect(src(s)).toBe("key1: value1\n- value2\nscalar\n- value4\n");
+    const u1 = type("{ArrowUp}", s);
+    expect(u1.cursor).toMatchObject({ at: "token", path: [], text: "scalar" });
+    const u2 = type("{ArrowUp}", u1);
+    expect(u2.cursor).toMatchObject({ at: "token", path: [1], text: "value2" });
+    const u3 = type("{ArrowUp}", u2);
+    expect(u3.cursor).toMatchObject({ at: "token", path: [0], text: "value1" });
+    expect(type("{ArrowUp}", u3).refused).toBe(true); // the top, visibly
+  });
+});
+
+describe("yed2 — the UPWARD conversion (retyping a value line with its marker)", () => {
+  const base = (): EditorState =>
+    type("key1: value1{Enter}{ShiftTab}scalar2{Enter}{ShiftTab}key3: value3{ArrowRight}");
+  it("the base document reads back in typed order", () => {
+    expect(src(base())).toBe("key1: value1\nscalar2\nkey3: value3\n");
+  });
+  it("`scalar2` retyped as `key2: scalar2` becomes a KEYED row, in place", () => {
+    const t = { ...base(), cursor: { at: "token", path: [], text: "key2: scalar2" }, refused: false } as EditorState;
+    const c = applyKey(t, { key: "ArrowRight" }, { atStart: false, atEnd: true });
+    expect(c.refused).toBe(false);
+    expect(src(c)).toBe("key1: value1\nkey2: scalar2\nkey3: value3\n");
+    watchdog(c);
+  });
+  it("`scalar2` retyped as `- scalar2` becomes an ORDERED row, in place", () => {
+    const t = { ...base(), cursor: { at: "token", path: [], text: "- scalar2" }, refused: false } as EditorState;
+    const c = applyKey(t, { key: "ArrowRight" }, { atStart: false, atEnd: true });
+    expect(c.refused).toBe(false);
+    expect(src(c)).toBe("key1: value1\n- scalar2\nkey3: value3\n");
+    watchdog(c);
+  });
+});
+
+describe("yed2 — an EMPTIED key never traps the caret", () => {
+  it("committing `: value1` un-names the pair; the caret lands on the value and arrows walk on", () => {
+    const s = type("key1: value1{ArrowRight}");
+    const k = { ...s, cursor: { at: "key", path: [0], text: "" }, refused: false } as EditorState;
+    const moved = applyKey(k, { key: "ArrowRight" }, { atStart: true, atEnd: true });
+    expect(moved.refused).toBe(false);
+    expect(src(moved)).toBe("- value1\n");
+    expect(moved.cursor).toMatchObject({ at: "token", path: [0], text: "value1" });
+    watchdog(moved);
+  });
+});
+
 describe("yed2 — committed labour is never dropped", () => {
+  it("Enter on an OMNI's value keeps its fields and descends to ADD more", () => {
+    // reported: `Eurasia` / `- Europe` / `- Asia`, ↑↑ to the value, Enter erased the whole
+    // list. The commit merges into the node — fields survive — and the descend opens the hole
+    // AFTER the last field, ready for the next `- `.
+    const s = type("Eurasia{Enter}- Europe{Enter}{ShiftTab}- Asia{ArrowRight}");
+    expect(src(s)).toBe("Eurasia\n- Europe\n- Asia\n");
+    const s2 = type("{ArrowUp}{ArrowUp}{Enter}", s);
+    expect(src(s2)).toBe("Eurasia\n- Europe\n- Asia\n");   // nothing dropped
+    expect(s2.cursor).toEqual({ at: "hole", path: [], index: 2, text: "", key: null });
+    expect(src(type("- Africa{ArrowRight}", s2))).toBe("Eurasia\n- Europe\n- Asia\n- Africa\n");
+  });
+
+  it("Backspace after Enter's descend STEPS BACK onto the value — never deletes it", () => {
+    // reported: `key1: value` ⏎ ⌫ erased the whole value. The descend hole sits under the
+    // scalar; the scalar IS content — the press steps the caret back onto it, caret at the end,
+    // and only further presses eat characters.
+    const s = type("key1: value{Enter}{Backspace}");
+    expect(src(s)).toBe("key1: value\n");
+    expect(s.cursor).toEqual({ at: "token", path: [0], text: "value", caret: "end" });
+  });
   it("Backspace on an empty `[` keeps the NAMED key (`{key: [` + Backspace → `key: ` hole)", () => {
     const s = type("{{key: [{Backspace}");
     expect(src(s)).toBe("{}\n");

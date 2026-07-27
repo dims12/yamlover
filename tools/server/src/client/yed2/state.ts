@@ -23,8 +23,8 @@ export type Path = number[];
  *  - `after`: the caret stands in the GAP past the container value at `path` ([] = the root). */
 export type Cursor =
   | { at: "hole"; path: Path; index: number; text: string; key: string | null; ordinal?: boolean }
-  | { at: "token"; path: Path; text: string }
-  | { at: "key"; path: Path; text: string }
+  | { at: "token"; path: Path; text: string; caret?: "start" | "end" }
+  | { at: "key"; path: Path; text: string; caret?: "start" | "end" }
   | { at: "after"; path: Path };
 
 /** One applied edit, for the visible history pane. */

@@ -7,7 +7,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { applyKey } from "../../src/client/yed2/apply";
+import { applyKey, watchdog } from "../../src/client/yed2/apply";
 import { initialState, parseSource, sourceOf, type EditorState } from "../../src/client/yed2/state";
 import { parseScript } from "./keys-util";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
@@ -134,9 +134,12 @@ describe("yed2 corpus — every sample enterable, then deletable", () => {
     const f = loadFixture(id);
     const enterKnown = ENTER_ALLOW.get(id);
     it(`${id} enters${enterKnown ? " [known-failing]" : ""}`, () => {
-      const { failure } = enter(f);
+      const { state, failure } = enter(f);
       if (enterKnown) expect(failure, `${id} now ENTERS — remove it from ENTER_ALLOW (was: ${enterKnown})`).not.toBeNull();
-      else expect(failure, `${id}\n${failure}`).toBeNull();
+      else {
+        expect(failure, `${id}\n${failure}`).toBeNull();
+        watchdog(state); // the entered state may hold no dead advertised key
+      }
     });
     if (!enterKnown) {
       const delKnown = DELETE_ALLOW.get(id);

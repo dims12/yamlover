@@ -53,6 +53,28 @@ describe("yed2 cells — the projection is visible", () => {
     expect(byLabel[":"]).toContain("y2-off");  // no meaning in a seq hole
   });
 
+  it("EVERY cursor state renders its cell — `- name: Eurasia` + Enter keeps a visible hole", () => {
+    // reported: after the descend into the committed scalar the hole had NO cell — focus fell on
+    // the floor. The law: the caret can never stand where the projection draws nothing.
+    let state = initialState();
+    for (const k of parseScript("- name: Eurasia{Enter}")) state = applyKey(state, "ch" in k ? { key: k.ch } : k);
+    expect(state.cursor.at).toBe("hole");
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    expect(container.querySelector(".y2-cell.y2-hole.y2-active .y2-input")).toBeTruthy();
+    expect(container.querySelector("[data-testid=y2-source]")?.textContent).toContain("- name: Eurasia");
+  });
+
+  it("the `- ` decision is VISIBLE on the hole, and block rows draw their markers", () => {
+    let state = initialState();
+    for (const k of parseScript("- a{Enter}{ShiftTab}- ")) state = applyKey(state, "ch" in k ? { key: k.ch } : k);
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    const hole = container.querySelector(".y2-cell.y2-hole");
+    expect(hole?.querySelector(".y2-punct")?.textContent).toBe("- "); // the ordinal decision, drawn
+    const doc = container.querySelector("[data-testid=y2-doc]")!;
+    const dashes = Array.from(doc.querySelectorAll(".y2-punct")).filter((p) => p.textContent === "- ");
+    expect(dashes.length).toBe(2); // the committed keyless row's marker + the hole's own
+  });
+
   it("a refused state rings the active cell", () => {
     let state = initialState();
     for (const k of parseScript("{{12}")) state = applyKey(state, "ch" in k ? { key: k.ch } : k);

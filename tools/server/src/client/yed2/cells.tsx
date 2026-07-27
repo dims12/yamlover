@@ -35,14 +35,20 @@ function Cell({ kind, active, refused, children }: { kind: string; active: boole
   );
 }
 
-/** A controlled inline input sized to its content — native caret, selection, text copy/paste. */
-function CellInput({ value, ctx, autoFocus }: { value: string; ctx: CellCtx; autoFocus: boolean }) {
+/** A controlled inline input sized to its content — native caret, selection, text copy/paste.
+ *  `caret` places the caret on the side the cursor ARRIVED from (movement stamps it). */
+function CellInput({ value, ctx, autoFocus, caret }: { value: string; ctx: CellCtx; autoFocus: boolean; caret?: "start" | "end" }) {
   return (
     <input
       className="y2-input"
       value={value}
       size={Math.max(1, value.length)}
-      ref={(el) => { if (el && autoFocus && document.activeElement !== el) el.focus(); }}
+      ref={(el) => {
+        if (el && autoFocus && document.activeElement !== el) {
+          el.focus();
+          if (caret) { const n = caret === "end" ? el.value.length : 0; el.setSelectionRange(n, n); }
+        }
+      }}
       onChange={(e) => ctx.onText(e.target.value)}
       onKeyDown={(e) => {
         const el = e.currentTarget;
@@ -59,6 +65,7 @@ function HoleCell({ ctx }: { ctx: CellCtx }) {
   if (c.at !== "hole") return null;
   return (
     <Cell kind="hole" active refused={ctx.refused}>
+      {c.ordinal === true && <span className="y2-punct">- </span>}
       {c.key !== null && <span className="y2-k">{c.key}: </span>}
       <CellInput value={c.text} ctx={ctx} autoFocus />
     </Cell>
@@ -88,7 +95,7 @@ function TokenCell({ node, path, ctx }: { node: Node; path: Path; ctx: CellCtx }
   return (
     <Cell kind="token" active={active} refused={ctx.refused}>
       {active
-        ? <CellInput value={(ctx.cursor as { text: string }).text} ctx={ctx} autoFocus />
+        ? <CellInput value={(ctx.cursor as { text: string }).text} ctx={ctx} autoFocus caret={(ctx.cursor as { caret?: "start" | "end" }).caret} />
         : <span className="y2-v" tabIndex={0} onFocus={() => ctx.onFocus({ at: "token", path })}>{display}</span>}
     </Cell>
   );
@@ -99,7 +106,7 @@ function KeyCell({ entry, path, ctx }: { entry: Entry; path: Path; ctx: CellCtx 
   return (
     <Cell kind="key" active={active} refused={ctx.refused}>
       {active
-        ? <CellInput value={(ctx.cursor as { text: string }).text} ctx={ctx} autoFocus />
+        ? <CellInput value={(ctx.cursor as { text: string }).text} ctx={ctx} autoFocus caret={(ctx.cursor as { caret?: "start" | "end" }).caret} />
         : <span className="y2-k" tabIndex={0} onFocus={() => ctx.onFocus({ at: "key", path })}>{String(entry.key)}</span>}
     </Cell>
   );
@@ -112,7 +119,7 @@ function PointerCell({ text }: { text: string }) {
 /** The container: brackets, entries, the hole (when the cursor's hole lives here), the gap after.
  *  A SPREAD container (or one inside a spread — json5p expands everything) lays out one entry per
  *  row; a flow one stays inline; a BLOCK one is rows with `- ` / `k: ` markers. */
-function ContainerCell({ node, path, ctx, trailingComma = false }: { node: Node; path: Path; ctx: CellCtx; trailingComma?: boolean }) {
+function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow }: { node: Node; path: Path; ctx: CellCtx; trailingComma?: boolean; lead?: ReactNode; valueRow?: { at: number; el: ReactNode } }) {
   const flow = isFlow(node);
   // PER-CONTAINER LAYOUT: a container spreads only by ITS OWN bit. A new token inside a spread
   // one defaults to ONE LINE; its own Enter spreads it (and spreading propagates UPWARD — apply
@@ -125,27 +132,48 @@ function ContainerCell({ node, path, ctx, trailingComma = false }: { node: Node;
   // Each item knows whether its separating comma must live INSIDE it: a MULTI-ROW child draws
   // the comma on its own closer row (`},` — K&R), because no parent-row alignment can put a
   // sibling span onto a nested block's last line. Single-line items take the parent's comma.
-  const mkItems = (withCommas: boolean): { el: ReactNode; commaInside: boolean }[] => {
-    const out: { el: ReactNode; commaInside: boolean }[] = [];
+  const mkItems = (withCommas: boolean): { el: ReactNode; commaInside: boolean; entry?: number }[] => {
+    const out: { el: ReactNode; commaInside: boolean; entry?: number }[] = [];
     const total = entries.length + (holeHere ? 1 : 0);
     let slot = 0;
     for (let i = 0; i <= entries.length; i++) {
-      if (holeHere && i === holeIndex) { out.push({ el: <HoleCell key="hole" ctx={ctx} />, commaInside: false }); slot++; }
+      if (holeHere && i === holeIndex) { out.push({ el: <HoleCell key="hole" ctx={ctx} />, commaInside: false, entry: holeIndex }); slot++; }
       if (i === entries.length) break;
       const e = entries[i];
       const p = [...path, i];
       const childSpread = !isPointer(e.value) && (e.value as Node).kind === "mapping" && isSpread(e.value as Node);
       const wantComma = withCommas && childSpread && slot < total - 1;
+      // the entry's lead marker: `k: ` for a named entry, `- ` for a keyless one in BLOCK rows
+      // (flow keyless entries take no marker — the commas separate them)
+      const keyFrag = e.key != null
+        ? <><KeyCell entry={e} path={p} ctx={ctx} /><span className="y2-punct">: </span></>
+        : !flow ? <span className="y2-punct">- </span> : null;
+      // a KEYED entry holding a BLOCK container WRAPS: the key alone on its row, the child's
+      // rows BELOW it, indented one step — `children:` / `  - name: Europe`. (A keyless `- `
+      // entry keeps the compact form: the child's first row rides the dash.)
+      const childBlock = !isPointer(e.value) && (e.value as Node).kind === "mapping" && !isFlow(e.value as Node);
       out.push({
         el: (
           <Fragment key={i}>
-            {e.key != null && <><KeyCell entry={e} path={p} ctx={ctx} /><span className="y2-punct">: </span></>}
-            {isPointer(e.value)
-              ? <PointerCell text={(e.value as { raw?: string }).raw ?? ""} />
-              : <NodeCell node={e.value as Node} path={p} ctx={ctx} trailingComma={wantComma} />}
+            {/* a SPREAD child takes the key INTO its first row (`children: [`) so its body rows
+                come back to the container's own indent — K&R, not a hang at the key's column */}
+            {childSpread
+              ? <NodeCell node={e.value as Node} path={p} ctx={ctx} trailingComma={wantComma} lead={keyFrag} />
+              : childBlock && e.key != null && !flow
+                ? <div className="y2-rows">
+                    <div className="y2-row">{keyFrag}</div>
+                    <div className="y2-row y2-indent"><NodeCell node={e.value as Node} path={p} ctx={ctx} /></div>
+                  </div>
+                : <>
+                    {keyFrag}
+                    {isPointer(e.value)
+                      ? <PointerCell text={(e.value as { raw?: string }).raw ?? ""} />
+                      : <NodeCell node={e.value as Node} path={p} ctx={ctx} trailingComma={wantComma} />}
+                  </>}
           </Fragment>
         ),
         commaInside: wantComma,
+        entry: i,
       });
       slot++;
     }
@@ -154,11 +182,36 @@ function ContainerCell({ node, path, ctx, trailingComma = false }: { node: Node;
   const items: ReactNode[] = mkItems(false).map((x) => x.el);
 
   if (!flow) {
-    // BLOCK: one row per entry (marker drawn by position), the hole as its own row
+    // BLOCK: one row per entry (marker drawn by position), the hole as its own row. An EMPTY
+    // block container draws its PLACEHOLDER slot — a clickable, focusable way back into the
+    // value (`children:` with nothing yet must never be a wall).
+    const itemRows = mkItems(false);
+    const rows: ReactNode[] = [];
+    let placedValue = false;
+    for (let i = 0; i < itemRows.length; i++) {
+      const it = itemRows[i];
+      // an OMNI's value line sits at its AUTHORED position among the rows (`meta.selfAt`)
+      if (valueRow && !placedValue && it.entry !== undefined && it.entry >= valueRow.at) {
+        rows.push(<div key="self" className="y2-row">{valueRow.el}</div>);
+        placedValue = true;
+      }
+      rows.push(<div key={i} className="y2-row">{it.el}</div>);
+    }
+    if (valueRow && !placedValue) rows.push(<div key="self" className="y2-row">{valueRow.el}</div>);
     return (
       <Cell kind="block" active={false} refused={false}>
         <div className="y2-rows">
-          {items.map((it, i) => <div key={i} className="y2-row">{it}</div>)}
+          {rows.length === 0
+            ? <div className="y2-row">
+                <button
+                  className="y2-gapslot"
+                  onFocus={() => ctx.onFocus({ at: "into", path })}
+                  onKeyDown={(e) => ctx.onKey(e)}
+                >
+                  ▏
+                </button>
+              </div>
+            : rows}
         </div>
       </Cell>
     );
@@ -170,7 +223,7 @@ function ContainerCell({ node, path, ctx, trailingComma = false }: { node: Node;
     <Cell kind={open === "[" ? "seq" : "map"} active={false} refused={false}>
       {spread ? (
         <div className="y2-rows">
-          <div className="y2-row"><span className="y2-punct">{open}</span></div>
+          <div className="y2-row">{lead}<span className="y2-punct">{open}</span></div>
           {mkItems(true).map((it, i, all) => (
             <div key={i} className="y2-row y2-indent">
               {it.el}
@@ -197,10 +250,26 @@ function ContainerCell({ node, path, ctx, trailingComma = false }: { node: Node;
 }
 
 /** THE closed set's root: dispatch by IR node kind, recurse. */
-export function NodeCell({ node, path, ctx, trailingComma = false }: { node: Node; path: Path; ctx: CellCtx; trailingComma?: boolean }) {
-  if (node.kind === "scalar" && (node.entries ?? []).length === 0) return <TokenCell node={node} path={path} ctx={ctx} />;
-  if (node.kind === "mapping") return <ContainerCell node={node} path={path} ctx={ctx} trailingComma={trailingComma} />;
-  return <Cell kind="other" active={false} refused={false}><span>({node.kind})</span></Cell>; // omni/blob: D3
+export function NodeCell({ node, path, ctx, trailingComma = false, lead }: { node: Node; path: Path; ctx: CellCtx; trailingComma?: boolean; lead?: ReactNode }) {
+  if (node.kind === "scalar") {
+    const holeHere = ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, path);
+    if ((node.entries ?? []).length === 0 && !holeHere) return <TokenCell node={node} path={path} ctx={ctx} />;
+    // OMNI (value-plus-fields), or a scalar the cursor DESCENDED into (Enter's LEVEL RULE):
+    // the value line AT ITS AUTHORED POSITION (`meta.selfAt`) among the field rows — the hole
+    // among them stays VISIBLE, so the caret can never stand in a cell the projection not draw
+    return (
+      <Cell kind="omni" active={false} refused={false}>
+        <ContainerCell
+          node={node}
+          path={path}
+          ctx={ctx}
+          valueRow={{ at: (node.meta as { selfAt?: number } | undefined)?.selfAt ?? 0, el: <TokenCell node={node} path={path} ctx={ctx} /> }}
+        />
+      </Cell>
+    );
+  }
+  if (node.kind === "mapping") return <ContainerCell node={node} path={path} ctx={ctx} trailingComma={trailingComma} lead={lead} />;
+  return <Cell kind="other" active={false} refused={false}><span>({node.kind})</span></Cell>; // blob: later
 }
 
 /** The document surface. */

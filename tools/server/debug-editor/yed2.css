@@ -30,11 +30,13 @@ body { margin: 0; font: 13px/1.5 ui-monospace, Consolas, monospace; background: 
 .y2-mode { margin-left: auto; display: flex; gap: 4px; align-items: center; }
 @keyframes y2ring { 50% { box-shadow: 0 0 0 3px #cf222e; } }
 .y2-input { font: inherit; color: #1f2328; background: transparent; border: none; outline: none; min-width: 1ch; }
-.y2-k { color: #0550ae; }
+.y2-k { color: #0550ae; white-space: pre; }
 .y2-v { color: #1f2328; outline: none; }
 .y2-p { color: #8250df; }
-.y2-punct { color: #656d76; }
-.y2-gapslot { font: inherit; color: #8c959f; background: transparent; border: none; padding: 0 1px; cursor: text; }
+/* pre keeps the authored spaces (`: `, `, `) — a flex row trims a trailing space at the
+   end of an inline box, which ate the colon's gap in plain mode */
+.y2-punct { color: #656d76; white-space: pre; }
+.y2-gapslot { font: inherit; color: #8c959f; background: transparent; border: none; padding: 0 1px; cursor: text; user-select: none; }
 .y2-cell.y2-gap.y2-active .y2-gapslot { color: #0969da; animation: y2blink 1s step-end infinite; }
 @keyframes y2blink { 50% { opacity: .2; } }
 .y2-rows { display: flex; flex-direction: column; align-items: flex-start; }
@@ -50,6 +52,11 @@ body { margin: 0; font: 13px/1.5 ui-monospace, Consolas, monospace; background: 
 .y2-keycap { border: 1px solid #d0d7de; border-bottom-width: 2px; border-radius: 4px; padding: 1px 7px; font-size: 12px; }
 .y2-on { color: #1f2328; background: #ffffff; }
 .y2-off { color: #b1b8c0; background: #f6f8fa; border-color: #e4e8ec; }
+
+/* the watchdog's alarm — impossible to miss */
+.y2-alarm { background: #ffebe9; border: 2px solid #cf222e; }
+.y2-alarm h3 { color: #cf222e; }
+.y2-alarm pre { color: #cf222e; font-weight: bold; }
 
 /* diff */
 .y2-add { color: #1a7f37; }

@@ -119,24 +119,42 @@ export function siteOf(state: EditorState): Site {
 export type Position =
   | { at: "key"; path: Path }
   | { at: "token"; path: Path }
-  | { at: "after"; path: Path };
+  | { at: "after"; path: Path }
+  | { at: "into"; path: Path }; // the inside of an EMPTY block container — its placeholder slot
 
-/** Every caret-occupiable position of the DOCUMENT, in reading order. */
+/** Every caret-occupiable position of the DOCUMENT, in reading order — which is the VISUAL
+ *  order: an omni's value line sits at its authored row (`meta.selfAt`) among its fields. */
 export function positionsOf(doc: Document): Position[] {
   const out: Position[] = [];
-  const rec = (n: Node, path: Path): void => {
-    for (let i = 0; i < (n.entries ?? []).length; i++) {
+  const rec = (n: Node, path: Path, from = 0, to = (n.entries ?? []).length): void => {
+    for (let i = from; i < to; i++) {
       const e = n.entries![i];
       const p = [...path, i];
       if (e.key != null) out.push({ at: "key", path: p });
-      if (isPointer(e.value)) continue; // D3: pointer cells
+      if (isPointer(e.value)) continue; // pointer cells: later
       const v = e.value as Node;
-      if (v.kind === "scalar") { out.push({ at: "token", path: p }); rec(v, p); } // omni: value, then fields
-      else if (isContainer(v)) { rec(v, p); out.push({ at: "after", path: p }); }
+      if (v.kind === "scalar") omni(v, p);
+      // only a FLOW container has a gap — a closer bracket to stand after. A block container has
+      // no closer and the projection draws no gap cell; a position no cell draws must not exist.
+      // An EMPTY block container instead has an `into` — its clickable placeholder slot, so the
+      // walk (and a click) can always reach the value waiting to be filled.
+      else if (isContainer(v)) {
+        if (!isFlow(v) && (v.entries ?? []).length === 0) out.push({ at: "into", path: p });
+        rec(v, p);
+        if (isFlow(v)) out.push({ at: "after", path: p });
+      }
     }
   };
+  /** the scalar's TOKEN at its authored row among its fields — the walk agrees with the eyes */
+  const omni = (v: Node, p: Path): void => {
+    const len = (v.entries ?? []).length;
+    const at = Math.min(Math.max((v.meta as { selfAt?: number } | undefined)?.selfAt ?? 0, 0), len);
+    rec(v, p, 0, at);
+    out.push({ at: "token", path: p });
+    rec(v, p, at, len);
+  };
   const root = doc.root as Node;
-  if (root.kind === "scalar") { out.push({ at: "token", path: [] }); rec(root, []); }
+  if (root.kind === "scalar") omni(root, []);
   else {
     rec(root, []);
     if (isFlow(root)) out.push({ at: "after", path: [] });
@@ -159,7 +177,8 @@ function cursorSlot(doc: Document, cursor: Cursor): number {
       for (let i = 0; i < list.length; i++) {
         const p = list[i];
         if (p.path.join(".").startsWith(prefix) && p.path.length > cursor.path.length) return i;
-        if (p.at === "after" && p.path.join(".") === prefix) return i;
+        if ((p.at === "after" || p.at === "into") && p.path.join(".") === prefix) return i;
+        if (p.at === "token" && p.path.join(".") === prefix) return i + 1; // a scalar's fields follow its value line
       }
       return list.length;
     }
@@ -173,6 +192,86 @@ function cursorSlot(doc: Document, cursor: Cursor): number {
   return i < 0 ? list.length : i;
 }
 
+/** Backspace at the START of a committed value in a BLOCK row — THE CONVERSION LADDER: a keyed
+ *  row un-names (`k: v` → `- v`), a keyless row's scalar becomes the container's OWN value
+ *  (`- v` → `v` at the container; only ONE scalar — a taken slot refuses, visibly). This is the
+ *  explicit deletion of the row's MARKER: one press, one level of the entry's form. */
+function applyUnmark(state: EditorState): EditorState {
+  const { doc, cursor } = state;
+  if (cursor.at !== "token" || cursor.path.length === 0) return refuse(state);
+  const parentPath = cursor.path.slice(0, -1);
+  const idx = cursor.path[cursor.path.length - 1];
+  const container = nodeAt(doc, parentPath);
+  const e = entryAt(doc, cursor.path);
+  if (!container || !e || isFlow(container)) return refuse(state);
+  if (e.key !== null) {
+    // keyed → ordered: the name goes, the value stays (the mirror of naming it)
+    return ok({
+      ...state,
+      doc: withNode(doc, parentPath, (n) => {
+        const entries = [...(n.entries ?? [])];
+        entries[idx] = { ...entries[idx], key: null } as Entry;
+        return { ...n, entries } as Node;
+      }),
+    });
+  }
+  // ordered → the container's scalar VALUE
+  if (isPointer(e.value)) return refuse(state);
+  const v = e.value as Node;
+  if (v.kind !== "scalar" || (v.entries ?? []).length > 0) return refuse(state); // a container cannot BE the value
+  if (container.kind !== "mapping") return refuse(state); // only one scalar — the slot is taken
+  const vv = v as unknown as { value?: unknown; raw?: string };
+  const selfAt = idx > 0 ? { selfAt: idx } : {}; // the value stays on ITS row — order is kept
+  return ok({
+    ...state,
+    doc: withNode(removeEntryAt(doc, parentPath, idx), parentPath, (n) => ({
+      ...n, kind: "scalar", value: vv.value, ...(vv.raw !== undefined ? { raw: vv.raw } : {}),
+      meta: { ...(n.meta ?? {}), ...selfAt },
+    }) as unknown as Node),
+    cursor: { at: "token", path: parentPath, text: cursor.text, caret: "start" },
+  });
+}
+
+/** Is this position a VISUAL ROW's representative? Keys share their row with their value;
+ *  everything inside a ONE-LINE flow container shares that container's row (only the outermost
+ *  one-liner's gap represents it). The anchors, in order, ARE the document's rows. */
+function isRowAnchor(doc: Document, p: Position): boolean {
+  if (p.at === "key") return false;
+  for (let len = 0; len < p.path.length; len++) {
+    const n = nodeAt(doc, p.path.slice(0, len));
+    if (n && isContainer(n) && isFlow(n) && !isSpread(n)) return false; // inside a one-liner
+  }
+  return true;
+}
+
+/** ↑/↓ — THE ROW WALK: vertical arrows move between VISUAL ROWS (anchor to anchor), never
+ *  through the same row's key/value pair. A hole is its own row between anchors. Refuses at the
+ *  document's top and bottom edges. */
+function applyVertical(state: EditorState, dir: -1 | 1): EditorState {
+  const committed = commitPending(state);
+  if (committed === null) return refuse(state); // moving away never drops pending text
+  const s = committed;
+  const list = positionsOf(s.doc);
+  const anchors: number[] = [];
+  for (let i = 0; i < list.length; i++) if (isRowAnchor(s.doc, list[i])) anchors.push(i);
+  if (anchors.length === 0) return refuse(state);
+  const slot = cursorSlot(s.doc, s.cursor);
+  let target: number | undefined;
+  if (s.cursor.at === "hole") {
+    // an `into` anchor IS this hole when the caret already stands in it — never a self-target
+    const other = (a: number): boolean => JSON.stringify(toCursor(s.doc, list[a])) !== JSON.stringify(s.cursor);
+    target = dir < 0 ? [...anchors].reverse().find((a) => a < slot && other(a)) : anchors.find((a) => a >= slot && other(a));
+  } else {
+    const mineIdx = anchors.findIndex((a) => a >= slot); // a key's row anchor is its value, just after it
+    const mine = mineIdx === -1 ? anchors.length : mineIdx;
+    const t = mine + dir;
+    target = t >= 0 && t < anchors.length ? anchors[t] : undefined;
+  }
+  if (target === undefined) return refuse(state);
+  const c = toCursor(s.doc, list[target]);
+  return ok({ ...s, cursor: c.at === "token" || c.at === "key" ? { ...c, caret: "end" } : c });
+}
+
 function toCursor(doc: Document, p: Position): Cursor {
   if (p.at === "token") {
     const e = entryAt(doc, p.path);
@@ -180,6 +279,7 @@ function toCursor(doc: Document, p: Position): Cursor {
     return { at: "token", path: p.path, text: String(v?.raw ?? v?.value ?? "") };
   }
   if (p.at === "key") return { at: "key", path: p.path, text: String(entryAt(doc, p.path)?.key ?? "") };
+  if (p.at === "into") return { at: "hole", path: p.path, index: 0, text: "", key: null };
   return { at: "after", path: p.path };
 }
 
@@ -205,12 +305,15 @@ function commitPending(state: EditorState): EditorState | null {
     if (cursor.key === null && cursor.ordinal !== true && !isFlow(container)) {
       if (container.kind !== "mapping") return null; // the container already HAS a value
       const v = value as { value?: unknown; raw?: string; meta?: unknown };
+      // the value keeps its AUTHORED position among the entries (`meta.selfAt`) — typed after
+      // `key1: value1`, it serializes after it; order is committed labour too
+      const selfAt = cursor.index > 0 ? { selfAt: cursor.index } : {};
       return {
         ...state,
         doc: withNode(doc, cursor.path, (n) => ({
           ...n, kind: "scalar", value: v.value,
           ...(v.raw !== undefined ? { raw: v.raw } : {}),
-          ...(v.meta !== undefined ? { meta: { ...(n.meta ?? {}), ...(v.meta as object) } } : {}),
+          meta: { ...(n.meta ?? {}), ...((v.meta as object) ?? {}), ...selfAt },
         }) as unknown as Node),
         cursor: { at: "token", path: cursor.path, text: cursor.text },
       };
@@ -224,28 +327,93 @@ function commitPending(state: EditorState): EditorState | null {
   }
   if (cursor.at === "token") {
     const value = scalarFromText(cursor.text);
-    if (!value) return null;
-    if (cursor.path.length === 0) return { ...state, doc: { ...doc, root: value } };
+    // THE UPWARD CONVERSION: a value line retyped WITH ITS MARKER (`key2: scalar2`, `- scalar2`)
+    // is not a scalar any more — it commits as an ENTRY on the same row (the inverse of the
+    // Backspace ladder's keyed → ordered → scalar)
+    if (!value) return tokenRowToEntry(state);
+    // the token edit changes the node's VALUE — its fields (an omni's entries) and its meta are
+    // committed labour and SURVIVE the edit; only the scalar spelling is replaced
+    const v = value as { value?: unknown; raw?: string; meta?: object };
+    const merge = (n: Node): Node => {
+      const out = { ...n, kind: "scalar", value: v.value } as Record<string, unknown>;
+      delete out.raw; // the OLD spelling must not shadow the new value
+      if (v.raw !== undefined) out.raw = v.raw;
+      const meta = { ...(n.meta ?? {}), ...(v.meta ?? {}) };
+      if (Object.keys(meta).length > 0) out.meta = meta; else delete out.meta;
+      return out as unknown as Node;
+    };
+    if (cursor.path.length === 0) return { ...state, doc: { ...doc, root: merge(doc.root as Node) } };
     return {
       ...state,
-      doc: withNode(doc, cursor.path, () => value),
+      doc: withNode(doc, cursor.path, merge),
     };
   }
   if (cursor.at === "key") {
+    // an EMPTIED key commits as UN-NAMED (`key1: v` edited to `: v` becomes the keyless `- v`) —
+    // refusing here would trap the caret in a cell it can only Backspace out of
     const k = cursor.text.trim();
-    if (k === "") return null;
     const parentPath = cursor.path.slice(0, -1);
     const idx = cursor.path[cursor.path.length - 1];
-    return {
+    const next = {
       ...state,
       doc: withNode(doc, parentPath, (n) => {
         const entries = [...(n.entries ?? [])];
-        entries[idx] = { ...entries[idx], key: k } as Entry;
+        entries[idx] = { ...entries[idx], key: k === "" ? null : k } as Entry;
         return { ...n, entries } as Node;
       }),
     };
+    if (k !== "") return next;
+    // the key CELL is gone — the caret lands on the entry's value (a cell that exists)
+    const val = entryAt(doc, cursor.path)?.value;
+    const cursorAfter: Cursor = !val || isPointer(val)
+      ? { at: "hole", path: parentPath, index: idx, text: "", key: null }
+      : (val as Node).kind === "scalar" && ((val as Node).entries ?? []).length === 0
+        ? { at: "token", path: cursor.path, text: String((val as { raw?: string }).raw ?? (val as { value?: unknown }).value ?? ""), caret: "start" }
+        : isFlow(val as Node)
+          ? { at: "after", path: cursor.path }
+          : { at: "hole", path: cursor.path, index: 0, text: "", key: null };
+    return { ...next, cursor: cursorAfter };
   }
   return state;
+}
+
+/** A token row retyped as `k: v` or `- v` — the node's VALUE becomes an ENTRY at its own row
+ *  (`meta.selfAt`), the marker deciding its form. Null when the text is not exactly one entry,
+ *  or the token does not stand in a block row. */
+function tokenRowToEntry(state: EditorState): EditorState | null {
+  const { doc, cursor } = state;
+  if (cursor.at !== "token") return null;
+  let parsed: Node;
+  try {
+    const root = parseYamlover(cursor.text, "<row>").root;
+    if (isPointer(root)) return null;
+    parsed = root as Node;
+  } catch {
+    return null;
+  }
+  if (parsed.kind !== "mapping" || (parsed.entries ?? []).length !== 1) return null;
+  const entry = parsed.entries![0] as Entry;
+  const node = nodeAt(doc, cursor.path);
+  if (!node || node.kind !== "scalar") return null;
+  const parent = cursor.path.length > 0 ? nodeAt(doc, cursor.path.slice(0, -1)) : null;
+  if (parent && isFlow(parent)) return null; // flow rows have their own grammar
+  const len = (node.entries ?? []).length;
+  const at = Math.min(Math.max((node.meta as { selfAt?: number } | undefined)?.selfAt ?? 0, 0), len);
+  const meta = { ...(node.meta ?? {}) } as Record<string, unknown>;
+  delete meta.selfAt;
+  const converted = {
+    ...node,
+    kind: "mapping",
+    entries: [...(node.entries ?? []).slice(0, at), entry, ...(node.entries ?? []).slice(at)],
+    ...(Object.keys(meta).length > 0 ? { meta } : {}),
+  } as Record<string, unknown>;
+  delete converted.value;
+  delete converted.raw;
+  if (Object.keys(meta).length === 0) delete converted.meta;
+  const doc2 = cursor.path.length === 0
+    ? { ...doc, root: converted as unknown as Node }
+    : withNode(doc, cursor.path, () => converted as unknown as Node);
+  return { ...state, doc: doc2 as Document, cursor: restCursor(entry.value as Node, [...cursor.path, at]) };
 }
 
 /** SPREAD, upward-closed: the container at `path` (when flow) AND every flow ancestor become K&R
@@ -293,6 +461,43 @@ function setSpread(doc: Document, path: Path, on: boolean): Document {
 }
 
 // ---------------------------------------------------------------------------- //
+// THE WATCHDOG — no advertised key is ever dead
+// ---------------------------------------------------------------------------- //
+
+/** Every non-printable key the legend draws. */
+export const WATCHDOG_KEYS: KeyInput[] = [
+  { key: "Enter" }, { key: "Tab" }, { key: "Tab", shift: true }, { key: "Backspace" },
+  { key: "ArrowLeft" }, { key: "ArrowRight" }, { key: "ArrowUp" }, { key: "ArrowDown" },
+  { key: "," }, { key: "]" }, { key: "}" },
+];
+
+/** DEBUG WATCHDOG: for the given state, every key the grammar CLAIMS (one keystroke deep) must
+ *  RESPOND — change the document, move the caret, or refuse visibly. `nop` intents are exempt
+ *  (claimed-to-swallow: Enter must not type a newline — and the legend greys them out). Throws
+ *  naming the dead key. Call it only in debug mode and in tests — it replays every legend key
+ *  against the state; when debug is off it is simply never invoked, costing nothing. */
+export function watchdog(state: EditorState): void {
+  // the ROOT's JSON, not the serialized bytes: layout meta (a spread bit) changes the PROJECTION
+  // while spelling the same bytes — that is a response, and bytes would miss it
+  const before = JSON.stringify(state.doc.root);
+  const cursorBefore = JSON.stringify(state.cursor);
+  for (const k of WATCHDOG_KEYS) {
+    const intent = interpret({ key: k.key, shift: k.shift }, siteOf(state));
+    // `nop` is claimed-to-swallow; `join` may decline and fall through to the native char
+    // delete (visible in the browser, invisible to this pure check) — both exempt BY CONTRACT
+    if (intent === null || intent.kind === "nop" || intent.kind === "join") continue;
+    const next = applyKey(state, k);
+    const dead = !next.refused && JSON.stringify(next.doc.root) === before && JSON.stringify(next.cursor) === cursorBefore;
+    if (dead) {
+      throw new Error(
+        `WATCHDOG: ${k.shift ? "⇧" : ""}${k.key} (intent "${intent.kind}") is advertised as allowed but DOES NOTHING\n` +
+        `  at cursor ${cursorBefore}\n  in ${JSON.stringify(sourceOf(state.doc))}`,
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------- //
 // Copy / paste — REQUIREMENT 10: subtrees travel as their serialized text
 // ---------------------------------------------------------------------------- //
 
@@ -333,9 +538,10 @@ export function pasteSubtree(state: EditorState, text: string): EditorState {
     }
     if (node.kind !== "scalar" || (node.entries ?? []).length > 0) return refuse(state);
     const v = node as { value?: unknown; raw?: string };
+    const selfAt = cursor.index > 0 ? { selfAt: cursor.index } : {};
     return ok({
       ...state,
-      doc: withNode(doc, cursor.path, (n) => ({ ...n, kind: "scalar", value: v.value, ...(v.raw !== undefined ? { raw: v.raw } : {}) }) as unknown as Node),
+      doc: withNode(doc, cursor.path, (n) => ({ ...n, kind: "scalar", value: v.value, ...(v.raw !== undefined ? { raw: v.raw } : {}), meta: { ...(n.meta ?? {}), ...selfAt } }) as unknown as Node),
       cursor: { at: "token", path: cursor.path, text: String(v.raw ?? v.value ?? "") },
     });
   }
@@ -379,7 +585,15 @@ export function applyKey(state: EditorState, k: KeyInput, edges?: Edges): Editor
   const before = sourceOf(state.doc);
   const site = { ...siteOf(state), ...(edges ? { caretAtStart: edges.atStart, caretAtEnd: edges.atEnd } : {}) };
   const intent = interpret({ key: k.key, shift: k.shift }, site);
-  const next = intent ? applyIntent(state, intent, site) : applyPrintable(state, k.key);
+  // the table calls both arrow axes "move"; the vertical pair walks ROWS, not positions — and
+  // BACKSPACE at a block value's start is the CONVERSION LADDER, not a walk
+  const next = intent
+    ? (intent.kind === "move" && (k.key === "ArrowUp" || k.key === "ArrowDown")
+        ? applyVertical(state, intent.dir)
+        : intent.kind === "move" && intent.dir === -1 && k.key === "Backspace" && state.cursor.at === "token"
+          ? applyUnmark(state)
+          : applyIntent(state, intent, site))
+    : applyPrintable(state, k.key);
   if (next === state) return state; // truly unhandled
   const after = sourceOf(next.doc);
   const entry = {
@@ -486,12 +700,23 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       if (committed === null) return refuse(state);
       const s = committed;
       const list = positionsOf(s.doc);
-      if (list.length === 0) return ok(s);
-      const slot = cursorSlot(s.doc, s.cursor);
-      const idx = s.cursor.at === "hole"
-        ? (intent.dir > 0 ? Math.min(slot, list.length - 1) : Math.max(slot - 1, 0))
-        : Math.max(0, Math.min(slot + intent.dir, list.length - 1));
-      return ok({ ...s, cursor: toCursor(s.doc, list[idx]) });
+      const slot = list.length === 0 ? 0 : cursorSlot(s.doc, s.cursor);
+      // a move that has nowhere to go REFUSES (the visible edge ring) — it never clamps to a
+      // position behind the caret's back, and never reports motion that did not happen. When the
+      // commit itself changed the document, that IS the response.
+      const same = (c: Cursor): boolean => JSON.stringify(c) === JSON.stringify(s.cursor);
+      let idx = s.cursor.at === "hole" ? (intent.dir > 0 ? slot : slot - 1) : slot + intent.dir;
+      while (idx >= 0 && idx < list.length && same(toCursor(s.doc, list[idx]))) idx += intent.dir;
+      if (idx < 0 || idx >= list.length) {
+        // at the edge with nowhere to go: the commit's own change is a response; a commit that
+        // rebuilt identical CONTENT is not — then the edge refuses, visibly
+        const changed = JSON.stringify(s.doc.root) !== JSON.stringify(state.doc.root)
+          || JSON.stringify(s.cursor) !== JSON.stringify(state.cursor);
+        return changed ? ok(s) : refuse(state);
+      }
+      // the caret lands on the side it ARRIVED from: entering from the right ends at the end
+      const c = toCursor(s.doc, list[idx]);
+      return ok({ ...s, cursor: c.at === "token" || c.at === "key" ? { ...c, caret: intent.dir < 0 ? "end" : "start" } : c });
     }
 
     case "nextElement": {
@@ -515,6 +740,13 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       const path = cursor.at === "hole" ? cursor.path : cursor.path.slice(0, -1);
       const spreadDoc = spreadUp(doc, path);
       if (spreadDoc === null) return refuse(state);
+      if (spreadDoc === doc) {
+        // ALREADY spread — the "or close" half: Enter on the empty cell exits past the token's
+        // closer (the first Enter allocated the row; a second empty one leaves the token)
+        const op = nearestFlowPath(doc, path);
+        if (op === null) return refuse(state);
+        return ok({ ...state, cursor: { at: "after", path: op } });
+      }
       return ok({ ...state, doc: spreadDoc });
     }
 
@@ -531,7 +763,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
 
     case "siblingAfter": {
       if (cursor.at !== "after") return refuse(state);
-      if (cursor.path.length === 0) return ok(state); // the document root has no sibling
+      if (cursor.path.length === 0) return refuse(state); // the document root has no sibling — visibly
       const containerPath = cursor.path.slice(0, -1);
       return ok({ ...state, cursor: { at: "hole", path: containerPath, index: cursor.path[cursor.path.length - 1] + 1, text: "", key: null } });
     }
@@ -557,18 +789,22 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       if (cursor.at === "hole") {
         const container = nodeAt(doc, cursor.path);
         if (!container) return refuse(state);
-        if ((container.entries ?? []).length > 0) {
-          // the hole vanishes; the caret steps onto the previous position
+        // a hole among ENTRIES, or the empty fields region of a SCALAR (the value is content —
+        // Enter's descend must not make it deletable wholesale): the hole vanishes and the caret
+        // steps back onto the previous position, its text intact, caret at the END
+        if ((container.entries ?? []).length > 0 || container.kind === "scalar") {
           const list = positionsOf(doc);
           const slot = cursorSlot(doc, cursor);
           const idx = Math.max(0, slot - 1);
-          return ok({ ...state, cursor: list.length ? toCursor(doc, list[idx]) : { at: "hole", path: [], index: 0, text: "", key: null } });
+          if (list.length === 0) return ok({ ...state, cursor: { at: "hole", path: [], index: 0, text: "", key: null } });
+          const c = toCursor(doc, list[idx]);
+          return ok({ ...state, cursor: c.at === "token" || c.at === "key" ? { ...c, caret: "end" } : c });
         }
         // an EMPTY container: one level goes — remove it from its parent. At the ROOT that means
-        // undoing the bracket (or a scalar root's VALUE): the document returns to the empty
-        // block mapping.
+        // undoing the bracket: the document returns to the empty block mapping. (A scalar root
+        // took the step-back branch above.)
         if (cursor.path.length === 0) {
-          if (!isFlow(container) && container.kind !== "scalar") return ok(state); // already the empty document
+          if (!isFlow(container)) return refuse(state); // already the empty document — the bottom, visibly
           return ok({ ...state, doc: { ...doc, root: { kind: "mapping", entries: [] } as unknown as Node }, cursor: { at: "hole", path: [], index: 0, text: "", key: null } });
         }
         const parentPath = cursor.path.slice(0, -1);
@@ -631,16 +867,33 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       const committed = commitPending(state);
       if (!committed) return refuse(state);
       const spreadDoc = spreadUp(committed.doc, cursor.path.slice(0, -1));
-      return ok(spreadDoc !== null ? { ...committed, doc: spreadDoc } : committed);
+      const s = spreadDoc !== null ? { ...committed, doc: spreadDoc } : committed;
+      // Enter on a key means the naming is DONE — the caret steps onto the pair's VALUE (in a
+      // block pair with an empty value, onto its `into` slot); staying put would be a dead key
+      return applyIntent({ ...s, refused: false }, { kind: "move", dir: 1 }, site);
     }
 
     case "dedent": {
       // THE LEVEL RULE, climb half: Shift-Tab moves an (empty) hole out one level — the next
       // entry lands as a SIBLING of the container the hole was in.
       if (cursor.at !== "hole" || cursor.path.length === 0) return refuse(state);
-      if (cursor.text.trim() !== "" || cursor.key !== null) return refuse(state); // climb empty-handed
+      if (cursor.text.trim() !== "" || cursor.key !== null || cursor.ordinal === true) return refuse(state); // climb empty-handed
       const parentPath = cursor.path.slice(0, -1);
       return ok({ ...state, cursor: { at: "hole", path: parentPath, index: cursor.path[cursor.path.length - 1] + 1, text: "", key: null } });
+    }
+
+    case "indent": {
+      // …and Tab is the climb's INVERSE: it re-enters the PREVIOUS sibling's value (`children:`
+      // ⏎ ⇤ — oops — ⇥ puts the hole back inside children). Refused when there is nothing
+      // before the hole to enter; always claimed, so Tab can never leak to the browser.
+      if (cursor.at !== "hole") return refuse(state);
+      if (cursor.text.trim() !== "" || cursor.key !== null || cursor.ordinal === true) return refuse(state); // indent empty-handed
+      if (cursor.index === 0) return refuse(state);
+      const container = nodeAt(doc, cursor.path);
+      const prev = (container?.entries ?? [])[cursor.index - 1];
+      if (!prev || isPointer(prev.value)) return refuse(state);
+      const v = prev.value as Node;
+      return ok({ ...state, cursor: { at: "hole", path: [...cursor.path, cursor.index - 1], index: (v.entries ?? []).length, text: "", key: null } });
     }
 
     case "commit": {
@@ -672,8 +925,10 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       return ok({ ...committed, cursor: { at: "hole", path: entryPath, index: depth, text: "", key: null } });
     }
 
-    // D3: tokenKey, quotedKey, reopenQuote, quoteExit*, nestValue, indent/dedent
+    // Not implemented yet: tokenKey, quotedKey, reopenQuote, quoteExit*, nestValue. A key the
+    // grammar CLAIMS must never fall through to the browser (a silent Tab would walk the focus
+    // out of the editor) — an unimplemented intent REFUSES, visibly.
     default:
-      return state;
+      return refuse(state);
   }
 }

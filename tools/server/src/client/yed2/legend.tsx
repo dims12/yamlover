@@ -25,7 +25,10 @@ export function Legend({ site }: { site: Site }) {
     <div className="y2-legend" data-testid="y2-legend">
       {KEYS.map((k) => {
         const intent = interpret({ key: k.key, shift: k.shift }, site);
-        const on = intent !== null;
+        // a `nop` is claimed-to-swallow (Enter must not type a newline into a hole) — it DOES
+        // nothing, so its keycap must not light up: an enabled key always responds (the
+        // watchdog's law)
+        const on = intent !== null && intent.kind !== "nop";
         return (
           <span key={k.label} className={"y2-keycap" + (on ? " y2-on" : " y2-off")} title={intent ? intent.kind : "(no meaning here)"}>
             {k.label}
