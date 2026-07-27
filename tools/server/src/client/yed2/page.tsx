@@ -13,7 +13,7 @@ import { lineDiff } from "./diff";
 import { Legend } from "./legend";
 import { initialState, parseSource, sourceOf, type Cursor, type EditorState } from "./state";
 
-export function EditorView({ state, setState }: { state: EditorState; setState: (s: EditorState) => void }) {
+export function EditorView({ state, setState, debug = true }: { state: EditorState; setState: (s: EditorState) => void; debug?: boolean }) {
   const site = siteOf(state);
   const source = sourceOf(state.doc);
   const last = state.log[state.log.length - 1];
@@ -39,7 +39,7 @@ export function EditorView({ state, setState }: { state: EditorState; setState: 
     },
   };
   return (
-    <div className="y2-layout">
+    <div className={"y2-layout " + (debug ? "y2-debug" : "y2-plain")}>
       <div className="y2-editor">
         <DocCells doc={state.doc} ctx={ctx} />
       </div>
@@ -95,6 +95,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
  *  (import.meta.glob), so the page needs no server at all. */
 export function DebugEditorPage({ corpus }: { corpus: Record<string, string> }) {
   const [state, setState] = useState<EditorState>(initialState);
+  const [debug, setDebug] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const names = useMemo(() => Object.keys(corpus).sort(), [corpus]);
 
@@ -119,9 +120,10 @@ export function DebugEditorPage({ corpus }: { corpus: Record<string, string> }) 
         </select>
         <button onClick={() => void navigator.clipboard.writeText(sourceOf(state.doc))}>copy document</button>
         <button onClick={() => void navigator.clipboard.readText().then(load)}>paste document</button>
+        <label className="y2-mode"><input type="checkbox" checked={debug} onChange={(e) => setDebug(e.target.checked)} /> debug</label>
         {loadError && <span className="y2-loaderr">parse failed: {loadError}</span>}
       </header>
-      <EditorView state={state} setState={setState} />
+      <EditorView state={state} setState={setState} debug={debug} />
     </div>
   );
 }

@@ -112,28 +112,43 @@ function PointerCell({ text }: { text: string }) {
 /** The container: brackets, entries, the hole (when the cursor's hole lives here), the gap after.
  *  A SPREAD container (or one inside a spread — json5p expands everything) lays out one entry per
  *  row; a flow one stays inline; a BLOCK one is rows with `- ` / `k: ` markers. */
-function ContainerCell({ node, path, ctx, spreadInherited }: { node: Node; path: Path; ctx: CellCtx; spreadInherited: boolean }) {
+function ContainerCell({ node, path, ctx, spreadInherited, trailingComma = false }: { node: Node; path: Path; ctx: CellCtx; spreadInherited: boolean; trailingComma?: boolean }) {
   const flow = isFlow(node);
   const spread = spreadInherited || isSpread(node);
   const entries = node.entries ?? [];
   const holeHere = ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, path);
   const holeIndex = holeHere ? (ctx.cursor as { index: number }).index : -1;
 
-  const items: ReactNode[] = [];
-  for (let i = 0; i <= entries.length; i++) {
-    if (holeHere && i === holeIndex) items.push(<HoleCell key="hole" ctx={ctx} />);
-    if (i === entries.length) break;
-    const e = entries[i];
-    const p = [...path, i];
-    items.push(
-      <Fragment key={i}>
-        {e.key != null && <><KeyCell entry={e} path={p} ctx={ctx} /><span className="y2-punct">: </span></>}
-        {isPointer(e.value)
-          ? <PointerCell text={(e.value as { raw?: string }).raw ?? ""} />
-          : <NodeCell node={e.value as Node} path={p} ctx={ctx} spreadInherited={spread && flow} />}
-      </Fragment>,
-    );
-  }
+  // Each item knows whether its separating comma must live INSIDE it: a MULTI-ROW child draws
+  // the comma on its own closer row (`},` — K&R), because no parent-row alignment can put a
+  // sibling span onto a nested block's last line. Single-line items take the parent's comma.
+  const mkItems = (withCommas: boolean): { el: ReactNode; commaInside: boolean }[] => {
+    const out: { el: ReactNode; commaInside: boolean }[] = [];
+    const total = entries.length + (holeHere ? 1 : 0);
+    let slot = 0;
+    for (let i = 0; i <= entries.length; i++) {
+      if (holeHere && i === holeIndex) { out.push({ el: <HoleCell key="hole" ctx={ctx} />, commaInside: false }); slot++; }
+      if (i === entries.length) break;
+      const e = entries[i];
+      const p = [...path, i];
+      const childSpread = !isPointer(e.value) && (e.value as Node).kind === "mapping" && (spread && flow || isSpread(e.value as Node));
+      const wantComma = withCommas && childSpread && slot < total - 1;
+      out.push({
+        el: (
+          <Fragment key={i}>
+            {e.key != null && <><KeyCell entry={e} path={p} ctx={ctx} /><span className="y2-punct">: </span></>}
+            {isPointer(e.value)
+              ? <PointerCell text={(e.value as { raw?: string }).raw ?? ""} />
+              : <NodeCell node={e.value as Node} path={p} ctx={ctx} spreadInherited={spread && flow} trailingComma={wantComma} />}
+          </Fragment>
+        ),
+        commaInside: wantComma,
+      });
+      slot++;
+    }
+    return out;
+  };
+  const items: ReactNode[] = mkItems(false).map((x) => x.el);
 
   if (!flow) {
     // BLOCK: one row per entry (marker drawn by position), the hole as its own row
@@ -153,14 +168,24 @@ function ContainerCell({ node, path, ctx, spreadInherited }: { node: Node; path:
       {spread ? (
         <div className="y2-rows">
           <div className="y2-row"><span className="y2-punct">{open}</span></div>
-          {items.map((it, i) => <div key={i} className="y2-row y2-indent">{it}{i < items.length - 1 && <span className="y2-punct y2-comma">,</span>}</div>)}
-          <div className="y2-row"><span className="y2-punct">{close}</span><GapCell path={path} ctx={ctx} /></div>
+          {mkItems(true).map((it, i, all) => (
+            <div key={i} className="y2-row y2-indent">
+              {it.el}
+              {i < all.length - 1 && !it.commaInside && <span className="y2-punct">,</span>}
+            </div>
+          ))}
+          <div className="y2-row">
+            <span className="y2-punct">{close}</span>
+            {trailingComma && <span className="y2-punct">,</span>}
+            <GapCell path={path} ctx={ctx} />
+          </div>
         </div>
       ) : (
         <>
           <span className="y2-punct">{open}</span>
           {body}
           <span className="y2-punct">{close}</span>
+          {trailingComma && <span className="y2-punct">,</span>}
           <GapCell path={path} ctx={ctx} />
         </>
       )}
@@ -169,9 +194,9 @@ function ContainerCell({ node, path, ctx, spreadInherited }: { node: Node; path:
 }
 
 /** THE closed set's root: dispatch by IR node kind, recurse. */
-export function NodeCell({ node, path, ctx, spreadInherited = false }: { node: Node; path: Path; ctx: CellCtx; spreadInherited?: boolean }) {
+export function NodeCell({ node, path, ctx, spreadInherited = false, trailingComma = false }: { node: Node; path: Path; ctx: CellCtx; spreadInherited?: boolean; trailingComma?: boolean }) {
   if (node.kind === "scalar" && (node.entries ?? []).length === 0) return <TokenCell node={node} path={path} ctx={ctx} />;
-  if (node.kind === "mapping") return <ContainerCell node={node} path={path} ctx={ctx} spreadInherited={spreadInherited} />;
+  if (node.kind === "mapping") return <ContainerCell node={node} path={path} ctx={ctx} spreadInherited={spreadInherited} trailingComma={trailingComma} />;
   return <Cell kind="other" active={false} refused={false}><span>({node.kind})</span></Cell>; // omni/blob: D3
 }
 
