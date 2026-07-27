@@ -19,6 +19,7 @@
  *   GET /api/query?q&path                 the 3g query evaluator (colon match templates)
  *   GET /api/dangling                     pointers that did not resolve at index time
  *   POST /api/reindex                     manual reconcile (the watcher's fallback)
+ *   GET  /api/source?path=P               the node's yamlover SOURCE (the yed editor's load)
  *   POST /api/preview                     render a STANDALONE yamlover text as /api/json would (stateless)
  *   POST /api/edit-text                   the /api/edit ops over a standalone text → new text (stateless)
  *
@@ -43,7 +44,7 @@ import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watch
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { parseJson5p } from "../../../parser/ts/src/json5p.ts";
-import { pointerToken, schemaTagToken } from "../../../parser/ts/src/serialize-yamlover.ts";
+import { pointerToken, schemaTagToken, serializeYamlover } from "../../../parser/ts/src/serialize-yamlover.ts";
 import { renderPointer, parsePointer } from "../../../parser/ts/src/pointer.ts";
 import { anchorBody } from "../../../parser/ts/src/serialize-common.ts";
 import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken, appendAnnotationAt, upsertMapEntryAt, removeAnnotationAt, removeMapEntryAt, annotationsRemainAt, pruneEmptyAnnotations, pruneEmptyAnnotationsAt, reachBodyAt, type Region as EmbedRegion } from "./embed.js";
@@ -53,7 +54,7 @@ import { renderThumbnail } from "./extract/thumbnails.js";
 import { isThumbnailable } from "./extract/registry.js";
 import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
-import type { Node as IrNode, Document, Comment as IrComment, Entry as IrEntry, Step as IrStep } from "../../../parser/ts/src/ir.ts";
+import type { Node as IrNode, Document, Comment as IrComment, Entry as IrEntry, Step as IrStep, Pointer as IrPointer } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
 import { deriveMemberEncoding, deriveDirEditRoute, nextMemberName, subchapterMaterializes } from "../concrete-rules.js";
 import {
@@ -777,6 +778,36 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           )
           .then((body) => sendJson(res, 200, body))
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
+        return;
+      }
+
+      // The node's yamlover SOURCE (a READ path — the yed editor's load): the raw body text at a
+      // document root; a DEEPER node is the parsed subtree re-serialized (yed reparses and
+      // normalizes spelling on save regardless). Returns { source }.
+      if (url.pathname === "/api/source") {
+        try {
+          const segs = canonSegs(s, strToSegs(url.searchParams.get("path") ?? ""), true);
+          const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
+          const within = segs.slice(docSegs.length);
+          const body = fs.readFileSync(bodyFile, "utf8");
+          if (within.length === 0) {
+            sendJson(res, 200, { source: body });
+            return;
+          }
+          const doc = parseYamlover(body, bodyFile);
+          let v: IrNode | IrPointer = doc.root;
+          for (const g of within) {
+            if (isPointer(v)) throw new Error("the path crosses a pointer");
+            const ents: IrEntry[] = (v as IrNode).entries ?? [];
+            const e: IrEntry | undefined = typeof g === "number" ? ents[g] : ents.find((x: IrEntry) => x.key === g);
+            if (!e) throw new Error(`no entry ${String(g)} under the node`);
+            v = e.value as IrNode | IrPointer;
+          }
+          if (isPointer(v)) throw new Error("a pointer has no editable source of its own");
+          sendJson(res, 200, { source: serializeYamlover({ ...doc, root: v as IrNode }) });
+        } catch (e) {
+          sendJson(res, 404, { error: String((e as Error).message || e) });
+        }
         return;
       }
 
@@ -3522,6 +3553,29 @@ function splitChunkWithin(within: Seg[]): { indices: number[]; keys: string[] } 
 /** Replace a document's whole body with one FLOW token. Unlike a self-value line, a flow token is
  *  the entire value — nothing else may stand beside it — so every content line goes and the token
  *  takes their place. The `!!<…>` banner and the head-of-file comments are not content and stay. */
+/** Replace the document's WHOLE BODY with a block payload — the yed editor's whole-document
+ *  flush (a root emplace whose yamlover carries ENTRY facets). The `!!<…>` banner and the
+ *  leading comments stand, exactly as the flow-token branch keeps them. */
+function setRootBody(lines: string[], valueSrc: string): void {
+  const indent = firstContentIndent(lines);
+  let at = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!isContentLine(lines[i]) || lines[i].trim().startsWith("!!<")) continue;
+    if (at < 0) at = i;
+    lines.splice(i, 1);
+    at = i;
+  }
+  const rendered = valueSrc.split("\n").map((l) => (l.length ? " ".repeat(indent) + l : l));
+  if (at < 0) {
+    // a body of nothing but a banner/comments: the content follows the last of them
+    let end = lines.length;
+    while (end > 0 && !isContentLine(lines[end - 1])) end--;
+    lines.splice(end, 0, ...rendered);
+    return;
+  }
+  lines.splice(at, 0, ...rendered);
+}
+
 function setRootFlowValue(lines: string[], token: string): void {
   const indent = firstContentIndent(lines);
   let at = -1;
@@ -3788,6 +3842,18 @@ function editChapterSource(src: string, within: Seg[], op: string, valueSrc: str
       if (valueSrc && p.scalar !== undefined && !p.keyed.length && !p.ordinal.length) {
         if (meta !== undefined && meta !== null) setRootTag(lines, meta);
         setRootSelfValue(lines, p.scalar, at);
+        return lines.join("\n");
+      }
+      // a payload carrying ENTRY facets replaces the BODY wholesale — the yed editor's
+      // whole-document flush. The facet semantics hold: the payload carries every content
+      // facet, so every content facet is replaced; the `!!<…>` banner (the META facet) and
+      // the leading comments stand. (An EMPTY emplace still carries no facets — a no-op by
+      // the same contract — so an emptied editor does not clear a document; a deliberate
+      // clear needs targeted `remove` ops.)
+      if (valueSrc) {
+        parseYamlover(valueSrc, "<edit>"); // validate before touching the file
+        if (meta !== undefined && meta !== null) setRootTag(lines, meta);
+        setRootBody(lines, valueSrc);
         return lines.join("\n");
       }
     }

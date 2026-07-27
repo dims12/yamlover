@@ -221,9 +221,16 @@ policy smoke), `yed-dispatch` (the grammar table as data — the file
 
 **`renderers/yamlover-editor/` (shared base):** `host.ts` (host, ops, focus), `model.ts`
 (mutable tree + mutation→ops), `cells.tsx` (contentEditable cells + `YedCtx`), `editor.tsx`
-(source projection layout), `ops.ts` (op-log + debounced flush), `paste.ts` (clipboard
-yamlover → entries). The GRAMMAR (`dispatch.ts`, `keys.ts`) moved to `tools/yed/src/grammar/`
-— this layer imports it from there.
+(**DEPRECATED** — the legacy source projection, no longer the default; `?yedEditor=legacy`
+brings it back during the rollout), `ops.ts` (op-log + debounced flush), `paste.ts`
+(clipboard yamlover → entries). The GRAMMAR (`dispatch.ts`, `keys.ts`) moved to
+`tools/yed/src/grammar/` — this layer imports it from there. Everything except `editor.tsx`
+survives for the CHAPTER projection until it is ported.
+
+**`renderers/yed-editor.tsx` (the yed mount):** the default unlocked-data-view editor —
+loads via `GET /api/source`, persists each change window as ONE root `emplace` carrying the
+serialized document (debounced 500 ms, one in flight, flush on unmount); `?yed=debug` turns
+the debug panels on in place.
 
 **`renderers/chapter-editor/` (chapter projection):** `view.tsx` (`<ChapterProjection>` +
 keys/auto-descend), `blocks.ts` (chapter-shaped mutations, same mutate+return-ops contract as

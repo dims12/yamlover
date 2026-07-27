@@ -6,6 +6,8 @@ vi.mock("../../src/client/api", () => ({
   fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
   fetchNode: vi.fn(),
   fetchSchema: vi.fn(),
+  fetchSource: vi.fn().mockResolvedValue({ source: "a: 1\n" }), // the yed mount's load
+  editChunks: vi.fn().mockResolvedValue({ ok: true }),          // …and its flush
   fetchAnnotations: vi.fn().mockResolvedValue([]), // header badges hop via /api/annotations
   pasteFile: vi.fn(),
   pasteText: vi.fn(),
@@ -292,7 +294,7 @@ describe("NodeView", () => {
     expect(done.getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("a .yamlover data page shows the Edit toggle and unlocks inline scalar editing", async () => {
+  it("a .yamlover data page shows the Edit toggle; unlocking mounts YED (the default editor)", async () => {
     mNode.mockResolvedValue({ path: ":x.yamlover", type: "object", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { a: 1 } });
     render(<NodeView path=":x.yamlover" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("a");
@@ -302,12 +304,27 @@ describe("NodeView", () => {
     // Scope to the code pane — the depth slider's tick labels also spell digits.
     const scalar = () => within(document.querySelector("pre.code, .yed") as HTMLElement).getByText("1");
     expect(scalar().getAttribute("contenteditable")).toBeNull();
-    // UNLOCK: the scalar becomes an inline editable field
+    // UNLOCK: the yed cell projection takes the pane (loaded via the mocked /api/source)
     fireEvent.click(edit);
     await screen.findByRole("button", { name: /Done/ });
-    const field = scalar();
-    expect(field.getAttribute("contenteditable")).toBe("true");
-    expect(field.classList.contains("editable")).toBe(true);
+    await waitFor(() => expect(document.querySelector("[data-testid=y2-doc]")).toBeTruthy());
+  });
+
+  it("…and `?yedEditor=legacy` still unlocks the DEPRECATED inline editor", async () => {
+    window.history.replaceState({}, "", "/?yedEditor=legacy");
+    try {
+      mNode.mockResolvedValue({ path: ":x.yamlover", type: "object", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { a: 1 } });
+      render(<NodeView path=":x.yamlover" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+      await screen.findByText("a");
+      const edit = await screen.findByRole("button", { name: /Edit/ });
+      fireEvent.click(edit);
+      await screen.findByRole("button", { name: /Done/ });
+      const field = within(document.querySelector("pre.code, .yed") as HTMLElement).getByText("1");
+      expect(field.getAttribute("contenteditable")).toBe("true");
+      expect(field.classList.contains("editable")).toBe(true);
+    } finally {
+      window.history.replaceState({}, "", "/");
+    }
   });
 
   it("the derived schema view is read-only — the Edit toggle stays IN PLACE, disabled", async () => {

@@ -6,14 +6,15 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, cleanup, waitFor, fireEvent, act, createEvent } from "@testing-library/react";
 import { TocFilterCtx, useTocFilterSession } from "../../src/client/toc-filter-session";
 
-const { editChunks, fetchNode, fetchAnnotations, queryTree, queryFilter } = vi.hoisted(() => ({
+const { editChunks, fetchNode, fetchAnnotations, fetchSource, queryTree, queryFilter } = vi.hoisted(() => ({
   editChunks: vi.fn(),
   fetchNode: vi.fn(),
   fetchAnnotations: vi.fn().mockResolvedValue([]),
+  fetchSource: vi.fn().mockResolvedValue({ source: "" }), // the yed mount's load (the create flow's fresh node)
   queryTree: vi.fn(),
   queryFilter: vi.fn(),
 }));
-vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), editChunks, fetchNode, fetchAnnotations, queryTree, queryFilter }));
+vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), editChunks, fetchNode, fetchAnnotations, fetchSource, queryTree, queryFilter }));
 
 import { YamloverEditor } from "../../src/client/renderers/yamlover-editor/editor";
 import { NodeView } from "../../src/client/NodeView";
@@ -1072,11 +1073,9 @@ describe("NodeView — the create flow opens the fresh node IN the editor", () =
       <NodeView path=":New%20node.yamlover" format={"yamlover" as never} unlockSignal={1} onFormat={noop} onNavigate={noop} />,
     );
     await waitFor(() => {
-      expect(container.querySelector(".nodehead")).toBeTruthy(); // the toolbar is back
-      expect(container.querySelector(".code.yed")).toBeTruthy(); // and the page is the EDITOR
+      expect(container.querySelector(".nodehead")).toBeTruthy();            // the toolbar is back
+      expect(container.querySelector("[data-testid=y2-doc]")).toBeTruthy(); // and the page is the EDITOR (yed, the default)
     }, { timeout: 2000 });
-    // the fresh empty scalar renders as an (empty) editable cell
-    expect(container.querySelector(".yed [data-yed-cell]")).toBeTruthy();
   });
 
   it("a BARE directory (concrete `dir`) unlocks into the editor too (concrete derivation)", async () => {
@@ -1089,8 +1088,8 @@ describe("NodeView — the create flow opens the fresh node IN the editor", () =
     const { container } = render(
       <NodeView path=":d" format={"yamlover" as never} unlockSignal={1} onFormat={noop} onNavigate={noop} />,
     );
-    await waitFor(() => expect(container.querySelector(".code.yed")).toBeTruthy(), { timeout: 2000 });
-    expect(container.querySelector(".yed-hole")).toBeTruthy(); // the empty dir opens on the root hole
+    await waitFor(() => expect(container.querySelector("[data-testid=y2-doc]")).toBeTruthy(), { timeout: 2000 });
+    expect(container.querySelector(".y2-hole")).toBeTruthy(); // the empty dir opens on the root hole
   });
 });
 

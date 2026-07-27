@@ -375,6 +375,12 @@ export function editChunks(edits: Edit[]): Promise<{ ok: true }> {
   return postJson(api("/api/edit"), { edits });
 }
 
+/** The node's yamlover SOURCE — the yed editor's load: the raw body at a document root, a
+ *  re-serialized subtree deeper. */
+export function fetchSource(path: string): Promise<{ source: string }> {
+  return getJson<{ source: string }>(api(`/api/source?${new URLSearchParams({ path })}`));
+}
+
 /** Render a STANDALONE yamlover text (no file behind it — the browser-settings document) exactly
  *  as /api/json renders a node. Stateless; always unlimited depth. Rejects on a parse error. */
 export function previewSource(source: string): Promise<NodeJson> {
