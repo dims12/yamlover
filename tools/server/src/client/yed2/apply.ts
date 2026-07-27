@@ -64,6 +64,22 @@ function scalarFromText(text: string): Node | null {
   }
 }
 
+/** A scalar read in VALUE POSITION — where the parser reads `key2: value` as the plain scalar
+ *  "key2: value" (YAML ZCZ6: no one-line nested mapping). The fallback for NAMED holes whose
+ *  text is not a standalone scalar. */
+function valueScalarFromText(text: string): Node | null {
+  const t = text.trim();
+  if (t === "" || t.includes("\n")) return null;
+  try {
+    const v = (parseYamlover("x: " + t, "<cell>").root as Node).entries?.[0]?.value;
+    if (!v || isPointer(v) || (v as Node).kind !== "scalar" || ((v as Node).entries ?? []).length > 0) return null;
+    const s = v as { value?: unknown; raw?: string; meta?: unknown };
+    return { kind: "scalar", value: s.value, ...(s.raw !== undefined ? { raw: s.raw } : {}) } as unknown as Node;
+  } catch {
+    return null;
+  }
+}
+
 /** An empty flow container node, bracket authored by the key typed. */
 function emptyFlow(bracket: "{" | "["): Node {
   return { kind: "mapping", entries: [], ...(bracket === "[" ? { array: true } : {}), meta: { style: "flow" } } as unknown as Node;
@@ -136,10 +152,10 @@ export function positionsOf(doc: Document): Position[] {
       if (v.kind === "scalar") omni(v, p);
       // only a FLOW container has a gap — a closer bracket to stand after. A block container has
       // no closer and the projection draws no gap cell; a position no cell draws must not exist.
-      // An EMPTY block container instead has an `into` — its clickable placeholder slot, so the
-      // walk (and a click) can always reach the value waiting to be filled.
+      // EVERY empty container instead has an `into` — its clickable inner slot, so the walk
+      // (and a click) can always reach the value waiting to be filled: `{}` must never be a wall.
       else if (isContainer(v)) {
-        if (!isFlow(v) && (v.entries ?? []).length === 0) out.push({ at: "into", path: p });
+        if ((v.entries ?? []).length === 0) out.push({ at: "into", path: p });
         rec(v, p);
         if (isFlow(v)) out.push({ at: "after", path: p });
       }
@@ -237,6 +253,13 @@ function applyUnmark(state: EditorState): EditorState {
  *  one-liner's gap represents it). The anchors, in order, ARE the document's rows. */
 function isRowAnchor(doc: Document, p: Position): boolean {
   if (p.at === "key") return false;
+  // a ONE-LINE empty container's row is represented by its `into` slot — the gap past its closer
+  // would double the row up. A SPREAD empty container's closer takes its OWN row, so its gap
+  // stays an anchor (↓ from inside lands on the `}` row, where `,` opens the next sibling).
+  if (p.at === "after") {
+    const n = nodeAt(doc, p.path);
+    if (n && !isSpread(n) && (n.entries ?? []).length === 0) return false;
+  }
   for (let len = 0; len < p.path.length; len++) {
     const n = nodeAt(doc, p.path.slice(0, len));
     if (n && isContainer(n) && isFlow(n) && !isSpread(n)) return false; // inside a one-liner
@@ -288,15 +311,17 @@ function toCursor(doc: Document, p: Position): Cursor {
 // ---------------------------------------------------------------------------- //
 
 /** Land the cursor's pending content into the document. Returns null when the pending content
- *  cannot land (an unnamed element in a `{`, a token that is not a scalar) — the caller refuses. */
-function commitPending(state: EditorState): EditorState | null {
+ *  cannot land (an unnamed element in a `{`, a token that is not a scalar) — the caller refuses.
+ *  Exported for the page's whole-document actions (copy commits first; a failure is the ring). */
+export function commitPending(state: EditorState): EditorState | null {
   const { doc, cursor } = state;
   if (cursor.at === "hole") {
     if (cursor.text.trim() === "" && cursor.key === null) return state; // nothing pending
     const container = nodeAt(doc, cursor.path);
     if (!container) return null;
     if (cursor.key === null && bracketOf(container) === "{" && isFlow(container)) return null; // an unnamed pair cannot land in `{`
-    const value = cursor.text.trim() === "" ? scalarFromText('""')! : scalarFromText(cursor.text);
+    const value = cursor.text.trim() === "" ? scalarFromText('""')!
+      : scalarFromText(cursor.text) ?? (cursor.key !== null ? valueScalarFromText(cursor.text) : null);
     if (!value) return null;
     // THE OMNI RULE: a bare scalar in a BLOCK container (no key, no `- `) is the container's OWN
     // value — `42` typed into a fresh file is the root value `42`, not `- 42`; typed after
@@ -470,6 +495,17 @@ export const WATCHDOG_KEYS: KeyInput[] = [
   { key: "ArrowLeft" }, { key: "ArrowRight" }, { key: "ArrowUp" }, { key: "ArrowDown" },
   { key: "," }, { key: "]" }, { key: "}" },
 ];
+
+/** The DRY-RUN verdict for one key at this state: does it ACT (change the document or move the
+ *  caret), only REFUSE (the ring), or fall through entirely? The legend lights EXACTLY the
+ *  acting keys — enabled means acts, never "would ring". */
+export function keyVerdict(state: EditorState, k: KeyInput): "acts" | "refuses" | "none" {
+  const next = applyKey(state, k);
+  if (next === state) return "none";
+  if (JSON.stringify(next.doc.root) !== JSON.stringify(state.doc.root)) return "acts";
+  if (JSON.stringify(next.cursor) !== JSON.stringify(state.cursor)) return "acts";
+  return next.refused ? "refuses" : "none";
+}
 
 /** DEBUG WATCHDOG: for the given state, every key the grammar CLAIMS (one keystroke deep) must
  *  RESPOND — change the document, move the caret, or refuse visibly. `nop` intents are exempt
@@ -651,6 +687,9 @@ function classifyHole(state: EditorState): EditorState {
   }
   if (action.kind === "keyed") {
     if (container && isFlow(container) && bracketOf(container) === "[") return refuse(state); // a seq has no keys
+    // the pair is ALREADY NAMED — `key2: ` inside the value is plain TEXT, not a re-keying and
+    // not a one-line nesting (YAML conformance ZCZ6: invalid mapping in plain single line value)
+    if (cursor.key !== null) return state;
     // `- k: …` — a keyless entry HOLDING a block mapping, the key naming its first pair (the
     // block seq-of-maps shape). The `- ` decision materializes here, on the first key.
     if (cursor.ordinal === true) {

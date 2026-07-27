@@ -7,7 +7,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
 import { useState } from "react";
-import { EditorView } from "../../src/client/yed2/page";
+import { DebugEditorPage, EditorView } from "../../src/client/yed2/page";
 import { watchdog } from "../../src/client/yed2/apply";
 import { initialState, sourceOf, type EditorState } from "../../src/client/yed2/state";
 
@@ -170,6 +170,37 @@ describe("yed2 DOM typing — the reported yaml, through real key events", () =>
     expect((token.compareDocumentPosition(hole) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0).toBe(true);
     domType("- sub→");
     expect(sourceOf(lastState.doc)).toBe("key1: value1\n  - sub\n");
+  });
+
+  it("an empty `{}` draws a clickable INNER slot — the reported [ {}, {} ] fills again", () => {
+    render(<Harness />);
+    domType("[⏎{}, {}]");
+    expect(sourceOf(lastState.doc)).toBe("[\n  {},\n  {}\n]\n");
+    const slot = document.querySelector(".y2-inner") as HTMLElement;
+    expect(slot, "no inner slot drawn between the empty brackets").toBeTruthy();
+    fireEvent.focus(slot);
+    expect(lastState.cursor).toEqual({ at: "hole", path: [0], index: 0, text: "", key: null });
+    domType("key: 12}");
+    expect(sourceOf(lastState.doc)).toBe("[\n  {key: 12},\n  {}\n]\n");
+    focusedInput();
+  });
+
+  it("copy document COMMITS pending input first; uncommittable input rings RED and copies NOTHING", () => {
+    const written: string[] = [];
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: (t: string) => { written.push(t); return Promise.resolve(); }, readText: () => Promise.resolve("") },
+    });
+    const { getByText, getByTestId, unmount } = render(<DebugEditorPage corpus={{}} />);
+    domType("{{12"); // an unnamed element in `{` — pending, and it cannot land
+    fireEvent.click(getByText("copy document"));
+    expect(written).toEqual([]);                                          // NOTHING copied
+    expect(getByTestId("y2-cursor").textContent).toContain("REFUSED");    // and it rang
+    unmount();
+    const second = render(<DebugEditorPage corpus={{}} />);
+    domType("[1, 2"); // pending but committable
+    fireEvent.click(second.getByText("copy document"));
+    expect(written).toEqual(["[1, 2]\n"]);                                // committed, THEN copied
   });
 
   it("a flow document types through the DOM too", () => {

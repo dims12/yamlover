@@ -31,7 +31,12 @@ const FIXTURE_ID = /^\d{4}(-\d{2})?$/;
 // KEYED BY SOURCE (`from`), not by fixture id: generated ids are a sequence, so adding or skipping
 // one source renumbers everything after it and id-keyed entries would silently come to describe a
 // different document. A hand-written fixture (no `from`) is keyed by its id, which is stable.
-const ALLOWLIST = new Map<string, string>([]);
+const ALLOWLIST = new Map<string, string>([
+  // The production editor NESTS the second `k: ` on a line (`key1:` + an indented `key2: value`);
+  // the parser reads the one-line form as the VALUE-POSITION SCALAR (YAML conformance ZCZ6 calls
+  // the nested reading an error), and yed2 — the reference — agrees with the parser.
+  ["0016", "production nests `key1: key2: value`; the parser (and yed2) read a value-position scalar"],
+]);
 
 interface Fixture {
   id: string;

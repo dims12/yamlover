@@ -1,8 +1,11 @@
 // yed2 — THE KEYBOARD LEGEND (requirement 6): every supported key drawn as a keycap; enabled
-// exactly when `interpret(key, site)` has a meaning at the CURRENT site — the same pure function
-// the editor runs, so the legend cannot lie. Hover shows the intent a key would mean.
+// exactly when pressing it WOULD ACT at the current state — each keycap is a DRY-RUN of the real
+// applyKey, so the legend cannot lie: enabled means "changes the document or moves the caret",
+// never "would only ring". Hover shows the intent (or why the key is grey).
 
-import { interpret, type Site } from "../renderers/yamlover-editor/dispatch";
+import { interpret } from "../renderers/yamlover-editor/dispatch";
+import { keyVerdict, siteOf } from "./apply";
+import type { EditorState } from "./state";
 
 const KEYS: { label: string; key: string; shift?: boolean }[] = [
   { label: ",", key: "," },
@@ -19,18 +22,24 @@ const KEYS: { label: string; key: string; shift?: boolean }[] = [
   { label: "↓", key: "ArrowDown" },
 ];
 
-export function Legend({ site }: { site: Site }) {
+export function Legend({ state }: { state: EditorState }) {
+  const site = siteOf(state);
   const textCell = site.cell === "holeEntry" || site.cell === "holeValue" || site.cell === "token" || site.cell === "key" || site.cell === "quotedInner";
   return (
     <div className="y2-legend" data-testid="y2-legend">
       {KEYS.map((k) => {
         const intent = interpret({ key: k.key, shift: k.shift }, site);
-        // a `nop` is claimed-to-swallow (Enter must not type a newline into a hole) — it DOES
-        // nothing, so its keycap must not light up: an enabled key always responds (the
-        // watchdog's law)
-        const on = intent !== null && intent.kind !== "nop";
+        const verdict = keyVerdict(state, { key: k.key, shift: k.shift });
+        // a key the grammar leaves alone still EDITS TEXT natively in a text cell
+        const nativeText = textCell && (k.key === "Backspace" || k.key.startsWith("Arrow"));
+        const on = verdict === "acts" || (verdict === "none" && nativeText);
+        const title =
+          verdict === "acts" ? (intent ? intent.kind : "text")
+          : verdict === "refuses" ? `${intent ? intent.kind + " — " : ""}refuses here`
+          : nativeText ? "text editing"
+          : "(no meaning here)";
         return (
-          <span key={k.label} className={"y2-keycap" + (on ? " y2-on" : " y2-off")} title={intent ? intent.kind : "(no meaning here)"}>
+          <span key={k.label} className={"y2-keycap" + (on ? " y2-on" : " y2-off")} title={title}>
             {k.label}
           </span>
         );

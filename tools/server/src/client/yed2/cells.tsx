@@ -219,11 +219,17 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow 
   const open = bracketOf(node);
   const close = open === "[" ? "]" : "}";
   const body = items.flatMap((it, i) => (i > 0 ? [<span key={"c" + i} className="y2-punct">, </span>, it] : [it]));
+  // an EMPTY flow container draws its INNER slot — clickable, focusable, the way back between
+  // the brackets (`{}` must never be a wall)
+  const innerSlot = entries.length === 0 && !holeHere
+    ? <button className="y2-gapslot y2-inner" onFocus={() => ctx.onFocus({ at: "into", path })} onKeyDown={(e) => ctx.onKey(e)}>▏</button>
+    : null;
   return (
     <Cell kind={open === "[" ? "seq" : "map"} active={false} refused={false}>
       {spread ? (
         <div className="y2-rows">
           <div className="y2-row">{lead}<span className="y2-punct">{open}</span></div>
+          {innerSlot && <div className="y2-row y2-indent">{innerSlot}</div>}
           {mkItems(true).map((it, i, all) => (
             <div key={i} className="y2-row y2-indent">
               {it.el}
@@ -239,6 +245,7 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow 
       ) : (
         <>
           <span className="y2-punct">{open}</span>
+          {innerSlot}
           {body}
           <span className="y2-punct">{close}</span>
           {trailingComma && <span className="y2-punct">,</span>}

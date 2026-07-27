@@ -180,6 +180,17 @@ describe("yed2 — ORDER is committed labour (meta.selfAt)", () => {
   });
 });
 
+describe("yed2 — a second colon is TEXT (YAML conformance ZCZ6)", () => {
+  it("`key1: key2: value` keeps key1 and commits the VALUE-POSITION scalar", () => {
+    // reported as a collapse to `key2: v…` — key1 was overwritten. YAML calls the one-line
+    // nested mapping an ERROR (ZCZ6); our parser reads the rest of the line as a plain scalar,
+    // and the editor now agrees: nothing collapses, nothing nests.
+    const s = type("key1: key2: value{ArrowRight}");
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("key1: 'key2: value'\n");
+  });
+});
+
 describe("yed2 — the walk follows the VISUAL order", () => {
   it("↑ visits value4 → scalar → value2 → value1 — the value line at ITS row, not first", () => {
     const s = type("key1: value1{Enter}{ShiftTab}- value2{Enter}{ShiftTab}scalar{Enter}{ShiftTab}- value4{ArrowRight}");
@@ -213,6 +224,30 @@ describe("yed2 — the UPWARD conversion (retyping a value line with its marker)
     expect(c.refused).toBe(false);
     expect(src(c)).toBe("key1: value1\n- scalar2\nkey3: value3\n");
     watchdog(c);
+  });
+});
+
+describe("yed2 — an empty flow container is never a wall", () => {
+  it("the reported K&R sequence: [ ⏎ { ⏎ ↓ , { ⏎ builds the two-element seq", () => {
+    // ↓ from inside the spread `{` lands on its CLOSER row (not the document's end), where `,`
+    // opens the outer seq's next element
+    const s1 = type("[{Enter}{{{Enter}{ArrowDown}");
+    expect(s1.cursor).toEqual({ at: "after", path: [0] });
+    const s = type(",{{{Enter}", s1);
+    expect(src(s)).toBe("[\n  {},\n  {}\n]\n");
+    expect(s.cursor).toEqual({ at: "hole", path: [1], index: 0, text: "", key: null });
+  });
+  it("arrows reach INSIDE `{}` in a K&R seq, and it fills", () => {
+    // reported: [ {}, {} ] entered, then the brackets were unreachable
+    const s0 = type("[{Enter}{{}, {{}]");
+    expect(src(s0)).toBe("[\n  {},\n  {}\n]\n");
+    let s: EditorState = { ...s0, cursor: { at: "after", path: [0] }, refused: false };
+    s = applyKey(s, { key: "ArrowLeft" });
+    expect(s.cursor).toEqual({ at: "hole", path: [0], index: 0, text: "", key: null });
+    s = type("key: 12", s);
+    s = applyKey(s, { key: "}" });
+    expect(src(s)).toBe("[\n  {key: 12},\n  {}\n]\n");
+    watchdog(s);
   });
 });
 

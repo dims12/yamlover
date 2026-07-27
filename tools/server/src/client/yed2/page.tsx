@@ -7,7 +7,7 @@
 // state, the corpus picker and document-level copy/paste.
 
 import { useMemo, useState } from "react";
-import { applyKey, applyText, copySubtree, pasteSubtree, positionsOf, siteOf, watchdog, type Position } from "./apply";
+import { applyKey, applyText, commitPending, copySubtree, pasteSubtree, positionsOf, siteOf, watchdog, type Position } from "./apply";
 import { interpret } from "../renderers/yamlover-editor/dispatch";
 import { DocCells, type CellCtx } from "./cells";
 import { lineDiff } from "./diff";
@@ -76,22 +76,26 @@ export function EditorView({ state, setState, debug = true }: { state: EditorSta
         onCopy={(e) => {
           // the projection's DOM text is NOT the document (captions, gap glyphs, CSS-only
           // indentation) — a selection copy across cells gets the SERIALIZED source instead.
-          // Copying inside one cell input stays native.
+          // Copying inside one cell input stays native. Pending input COMMITS first; input that
+          // cannot land rings and nothing is copied.
           if (e.target instanceof HTMLInputElement) return;
           e.preventDefault();
-          e.clipboardData.setData("text/plain", sourceOf(state.doc));
+          const committed = commitPending(state);
+          if (committed === null) { apply({ ...state, refused: true }); return; }
+          if (committed !== state) apply({ ...committed, refused: false });
+          e.clipboardData.setData("text/plain", sourceOf(committed.doc));
         }}
       >
         <DocCells doc={state.doc} ctx={ctx} />
       </div>
-      <div className="y2-panels">
+      {debug && <div className="y2-panels">
         {alarm && (
           <section className="y2-panel y2-alarm" data-testid="y2-alarm">
             <h3>⚠ watchdog</h3>
             <pre>{alarm}</pre>
           </section>
         )}
-        <Panel title="keyboard (what would each key mean HERE)"><Legend site={site} /></Panel>
+        <Panel title="keyboard (what would each key DO here — a dry-run)"><Legend state={state} /></Panel>
         <Panel title="site (what interpret sees)"><pre data-testid="y2-site">{JSON.stringify(site, null, 1)}</pre></Panel>
         <Panel title="cursor"><pre data-testid="y2-cursor">{JSON.stringify(state.cursor)}{state.refused ? "\nREFUSED" : ""}</pre></Panel>
         <Panel title="source (serialized IR, live)"><pre data-testid="y2-source">{source || "(empty)"}</pre></Panel>
@@ -105,7 +109,7 @@ export function EditorView({ state, setState, debug = true }: { state: EditorSta
         <Panel title={`history (${state.log.length})`}>
           <pre className="y2-history">{state.log.slice(-12).map((l, i) => `${l.key} → ${l.intent}`).join("\n")}</pre>
         </Panel>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -165,7 +169,16 @@ export function DebugEditorPage({ corpus }: { corpus: Record<string, string> }) 
           <option value="" disabled>load a corpus sample…</option>
           {names.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
-        <button onClick={() => void navigator.clipboard.writeText(sourceOf(state.doc))}>copy document</button>
+        <button
+          onClick={() => {
+            // COMMIT FIRST — unfinished input must not be silently left out of the copy; input
+            // that cannot land rings RED and copies NOTHING
+            const committed = commitPending(state);
+            if (committed === null) { setState({ ...state, refused: true }); return; }
+            setState({ ...committed, refused: false });
+            void navigator.clipboard.writeText(sourceOf(committed.doc));
+          }}
+        >copy document</button>
         <button onClick={() => void navigator.clipboard.readText().then(load)}>paste document</button>
         <label className="y2-mode"><input type="checkbox" checked={debug} onChange={(e) => setDebug(e.target.checked)} /> debug</label>
         {loadError && <span className="y2-loaderr">parse failed: {loadError}</span>}

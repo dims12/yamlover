@@ -41,16 +41,26 @@ describe("yed2 cells — the projection is visible", () => {
     expect(container.querySelector("[data-testid=y2-source]")?.textContent).toContain("[1]");
   });
 
-  it("the legend shows enabled and disabled keys for the current site", () => {
+  it("the legend lights EXACTLY the keys that ACT — a dry-run, not the grammar's claim", () => {
     let state = initialState();
     for (const k of parseScript("[1")) state = applyKey(state, "ch" in k ? { key: k.ch } : k);
     const { container } = render(<EditorView state={state} setState={() => {}} />);
     const caps = Array.from(container.querySelectorAll(".y2-keycap"));
     const byLabel = Object.fromEntries(caps.map((c) => [c.textContent, c.className]));
-    expect(byLabel["]"]).toContain("y2-on");   // the right closer has a meaning
-    expect(byLabel[","]).toContain("y2-on");
-    expect(byLabel["}"]).toContain("y2-on");   // interpret says refuse — a MEANING (the visible ring)
-    expect(byLabel[":"]).toContain("y2-off");  // no meaning in a seq hole
+    expect(byLabel["]"]).toContain("y2-on");   // closes the seq — acts
+    expect(byLabel[","]).toContain("y2-on");   // commits, opens the next element — acts
+    expect(byLabel["}"]).toContain("y2-off");  // could only RING (the wrong closer) — not "enabled"
+    expect(byLabel[":"]).toContain("y2-on");   // plain text in the hole (`1:30` is a scalar)
+  });
+
+  it("↑ at the TOP and ↓ at the BOTTOM are GREY — a key that can only refuse is not enabled", () => {
+    // reported: jumping ↑/↓ inside [ { } ] rang red at the edges while the keycaps showed on
+    let state = initialState();
+    for (const k of parseScript("[{Enter}{{{Enter}")) state = applyKey(state, "ch" in k ? { key: k.ch } : k);
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    const byLabel = Object.fromEntries(Array.from(container.querySelectorAll(".y2-keycap")).map((c) => [c.textContent, c.className]));
+    expect(byLabel["↑"]).toContain("y2-off"); // no row above the hole — pressing could only ring
+    expect(byLabel["↓"]).toContain("y2-on");  // the closer row below — acts
   });
 
   it("EVERY cursor state renders its cell — `- name: Eurasia` + Enter keeps a visible hole", () => {
