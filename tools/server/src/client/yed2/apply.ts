@@ -10,7 +10,7 @@
 // nothing else — never a silent swallow, never a half-applied edit.
 
 import { interpret, type Intent, type Site } from "../renderers/yamlover-editor/dispatch";
-import { classifyHoleInput } from "../renderers/yamlover-editor/keys";
+import { classifyHoleInput, keyedEditParts } from "../renderers/yamlover-editor/keys";
 import {
   bracketOf, entryAt, isContainer, isFlow, isSpread, nodeAt, sourceOf,
   type Cursor, type Document, type EditorState, type Entry, type Node, type Path,
@@ -327,6 +327,15 @@ function classifyHole(state: EditorState): EditorState {
   const container = nodeAt(doc, cursor.path);
   const entryStage = container !== null && !isFlow(container);
   const action = classifyHoleInput(cursor.text, entryStage && cursor.key === null);
+  // A CLOSED QUOTED KEY — `"name": rest` — is a key decision the plain classifier does not make
+  // (quote-led text is a quote to it). keyedEditParts parses exactly this shape; quoted VALUES
+  // need nothing (the scalar parser takes `"Eurasia"` with its quotes at any commit boundary).
+  if ((!action || action.kind === "quote") && cursor.key === null && cursor.text.trimStart().startsWith('"')) {
+    const kv = keyedEditParts(cursor.text.trimStart());
+    if (kv?.quoted && (container === null || !isFlow(container) || bracketOf(container) === "{")) {
+      return { ...state, cursor: { ...cursor, key: kv.key, text: kv.rest } };
+    }
+  }
   if (!action || action.kind === "text") return state;
   if (action.kind === "flowMap" || action.kind === "flowSeq") {
     const node = emptyFlow(action.kind === "flowSeq" ? "[" : "{");

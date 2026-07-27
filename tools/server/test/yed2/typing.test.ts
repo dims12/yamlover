@@ -52,14 +52,34 @@ describe("yed2 typing — flow", () => {
   });
 });
 
+describe("yed2 quoted tokens", () => {
+  it("a QUOTED KEY names the pair — the reported `{\"name\": \"Eurasia\"}`", () => {
+    const s = type('{{"name": "Eurasia"}');
+    expect(s.refused).toBe(false);
+    // both normalize to bare — the serializer's documented rule: quoting is REPRESENTATION, and
+    // a simple string reads the same without it (either spelling round-trips)
+    expect(src(s)).toBe("{name: Eurasia}\n");
+  });
+  it("a quoted key that NEEDS its quotes keeps them", () => {
+    expect(src(type('{{"two words": 1}'))).toBe("{'two words': 1}\n");
+  });
+  it("quoted VALUES in a seq (simple strings normalize to bare)", () => {
+    expect(src(type('["a", "b"]'))).toBe("[a, b]\n");
+  });
+  it("a value that NEEDS its quotes keeps them", () => {
+    expect(src(type('["a b"]'))).toBe("['a b']\n");
+  });
+});
+
 describe("yed2 refusals — visible, and nothing half-applied", () => {
   it("moving away NEVER drops pending text — it refuses and stays", () => {
-    // reported: `{"key": value` then Right made the text disappear (the hole lives only in the
-    // cursor, so an uncommittable move abandoned it). It refuses now, visibly.
-    const s = type('{{"key": v{ArrowRight}');
+    // reported as `{"key": value` + Right vanishing (that exact text now COMMITS — quoted keys
+    // are recognized); the law is pinned with text that still cannot land: an unnamed element in
+    // a `{`. The hole lives only in the cursor, so a move that cannot commit must refuse.
+    const s = type("{{12{ArrowRight}");
     expect(s.refused).toBe(true);
     expect(s.cursor.at).toBe("hole");
-    expect((s.cursor as { text: string }).text).toBe('"key": v'); // still there, still fixable
+    expect((s.cursor as { text: string }).text).toBe("12"); // still there, still fixable
   });
   it("`}` on an unnamed element in a `{` refuses and keeps everything", () => {
     const s = type("{{12}");
