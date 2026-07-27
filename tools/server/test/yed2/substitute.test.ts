@@ -85,8 +85,11 @@ function deleteEntry(state: EditorState, entryPath: Path): EditorState {
   let s: EditorState = { ...state, cursor, refused: false };
   const seen = new Set<string>();
   for (let i = 0; i < 200; i++) {
-    if ((nodeAt(s.doc, parentPath)?.entries ?? []).length === before - 1) {
-      // the ladder must leave the caret AS A HOLE at the vacated site, ready to take e2
+    // deletion is done when the parent shrank AND the hole is fully undecided — a keyed entry's
+    // name survives its value's removal (committed labour) and costs its own presses to unwind
+    if ((nodeAt(s.doc, parentPath)?.entries ?? []).length === before - 1
+      && s.cursor.at === "hole" && s.cursor.text === "" && s.cursor.key === null && s.cursor.ordinal !== true) {
+      // …and the ladder must leave the caret AT the vacated site, ready to take e2
       expect(s.cursor).toEqual({ at: "hole", path: parentPath, index: entryPath[entryPath.length - 1], text: "", key: null });
       return s;
     }

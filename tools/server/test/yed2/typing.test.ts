@@ -103,6 +103,24 @@ describe("yed2 refusals — visible, and nothing half-applied", () => {
   });
 });
 
+describe("yed2 — committed labour is never dropped", () => {
+  it("Backspace on an empty `[` keeps the NAMED key (`{key: [` + Backspace → `key: ` hole)", () => {
+    const s = type("{{key: [{Backspace}");
+    expect(src(s)).toBe("{}\n");
+    expect(s.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: "key" });
+    // …and the ladder stays one-press-one-level: the NEXT press only un-names
+    const s2 = applyKey(s, { key: "Backspace" });
+    expect(s2.cursor).toMatchObject({ at: "hole", key: null, text: "key" });
+  });
+  it("deleting a committed VALUE keeps its key — the pair returns to a named hole", () => {
+    const s0 = type("{{key: 12}");
+    // a click on the token, its text cleared, then Backspace: the value goes, `key:` stays
+    const s = applyKey({ ...s0, cursor: { at: "token", path: [0], text: "" } }, { key: "Backspace" });
+    expect(src(s)).toBe("{}\n");
+    expect(s.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: "key" });
+  });
+});
+
 describe("yed2 unwinding — one press, one level, to the empty document", () => {
   /** Backspace until empty, with the jam detector: no (doc, cursor) state may repeat. */
   function unwind(s: EditorState, maxSteps = 60): EditorState {

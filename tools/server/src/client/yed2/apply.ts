@@ -573,10 +573,14 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
         }
         const parentPath = cursor.path.slice(0, -1);
         const idx = cursor.path[cursor.path.length - 1];
+        // ONE press, ONE level: the container goes, but a NAME the entry already carried is
+        // committed labour — it survives as the named hole (`{key: [` + Backspace → `key: `),
+        // and only the NEXT press un-names it (undoMarker).
+        const named = entryAt(doc, cursor.path)?.key ?? null;
         return ok({
           ...state,
           doc: removeEntryAt(doc, parentPath, idx),
-          cursor: { at: "hole", path: parentPath, index: idx, text: "", key: null },
+          cursor: { at: "hole", path: parentPath, index: idx, text: "", key: named },
         });
       }
       if (cursor.at === "token" || cursor.at === "key") {
@@ -601,7 +605,8 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
         return ok({
           ...state,
           doc: removeEntryAt(doc, parentPath, idx),
-          cursor: { at: "hole", path: parentPath, index: idx, text: "", key: null },
+          // the VALUE goes, the entry's name stays — the mirror of un-name (key → value stays)
+          cursor: { at: "hole", path: parentPath, index: idx, text: "", key: e?.key ?? null },
         });
       }
       return refuse(state);
