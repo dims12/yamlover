@@ -321,6 +321,26 @@ function ScalarCell({ node: v, path, ctx }: ValueCellProps) {
   );
 }
 
+/** An opaque ATOM cell (blobs, unknown kinds): focusable and walkable like a pointer — never a
+ *  wall — but with nothing to edit; the label names what it is. */
+function OpaqueAtomCell({ node, path, ctx }: ValueCellProps) {
+  const active = ctx.cursor.at === "ptr" && pathEq(ctx.cursor.path, path);
+  const label = isPointer(node) ? "pointer" : node.kind;
+  return (
+    <Cell kind={String(label)} active={active} refused={ctx.refused}>
+      <span
+        className="y2-p"
+        tabIndex={0}
+        ref={(el) => { if (el && active && document.activeElement !== el) el.focus(); }}
+        onFocus={() => { if (!active) ctx.onFocus({ at: "ptr", path }); }}
+        onKeyDown={(e) => ctx.onKey(e)}
+      >
+        ({String(label)})
+      </span>
+    </Cell>
+  );
+}
+
 /** The default table — exactly the closed set the debug editor ships. */
 export const defaultRegistry: CellRegistry = {
   byFormat: {},
@@ -329,8 +349,9 @@ export const defaultRegistry: CellRegistry = {
     mapping: ({ node, path, ctx, trailingComma, lead }) =>
       <ContainerCell node={node as Node} path={path} ctx={ctx} trailingComma={trailingComma} lead={lead} />,
     pointer: PointerCell,
+    blob: OpaqueAtomCell,
   },
-  fallback: ({ node }) => <Cell kind="other" active={false} refused={false}><span>({isPointer(node) ? "pointer" : node.kind})</span></Cell>,
+  fallback: OpaqueAtomCell,
 };
 
 /** THE closed set's root: dispatch through the REGISTRY (ctx.cells), recurse. */

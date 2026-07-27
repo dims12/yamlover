@@ -227,10 +227,21 @@ brings it back during the rollout), `ops.ts` (op-log + debounced flush), `paste.
 `tools/yed/src/grammar/` — this layer imports it from there. Everything except `editor.tsx`
 survives for the CHAPTER projection until it is ported.
 
-**`renderers/yed-editor.tsx` (the yed mount):** the default unlocked-data-view editor —
-loads via `GET /api/source`, persists each change window as ONE root `emplace` carrying the
-serialized document (debounced 500 ms, one in flight, flush on unmount); `?yed=debug` turns
-the debug panels on in place.
+**`renderers/yed-editor.tsx` + `yed-load.ts` + `yed-sync.ts` (the yed mount):** the default
+unlocked-data-view editor, CONCRETE-AGNOSTIC by construction. LOAD is the `/api/json`
+projection (depth `.inf`) converted to parser IR (`yed-load.ts` — omni/`selfAt`, pointers via
+the sidecar's canonical text, authored raw spellings, flow/K&R meta at the switch, blobs as
+opaque atoms). PERSIST is an IR tree diff emitted as PER-NODE `/api/edit` ops (`yed-sync.ts`
+— whole-token emplaces at flow boundaries, self-value emplaces with `at`, removals last-first
+/ insertions forward, pure key renames via `POST /api/rekey` after the flush); the backend's
+concrete-inheritance rules (concrete-rules.ts) route every write, and untouched regions —
+comments included — survive on disk. What the diff cannot express falls back to ONE whole-node
+emplace (warned; a shrink-only ledger). Flush discipline mirrors ops.ts: 500 ms debounce, one
+in flight, re-diffed (never re-queued) after a failure, flushed on unmount. `?yed=debug` turns
+the debug panels on in place. THE PARITY GATE (`test/yed-parity.test.tsx`) holds the mount to
+the legacy editor's storage matrix — flat files, `.yaml`, dir-backed docs, bare directories,
+member dirs, deep mounts, omni, K&R, comment survival — against a real server; a mount swap
+must be gated by the superset of what it replaces. `GET /api/source` remains as a diagnostic.
 
 **`renderers/chapter-editor/` (chapter projection):** `view.tsx` (`<ChapterProjection>` +
 keys/auto-descend), `blocks.ts` (chapter-shaped mutations, same mutate+return-ops contract as

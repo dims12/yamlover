@@ -1,14 +1,22 @@
 // THE YED MOUNT — the @yamlover/yed reference editor behind the unlocked data view (EDITOR.md §9),
-// replacing the legacy source projection (editor.tsx). The wrapper owns everything server-shaped:
-// LOAD via GET /api/source (the node's yamlover source), PERSIST via ONE `emplace` op carrying the
-// serialized document (the same debounce discipline as ops.ts useOpSync: 500 ms after a change,
-// one batch in flight, kept-and-alerted on failure, flushed on unmount). The editor itself is the
-// package's pure EditorView — debug off; `?yed=debug` turns the panels on for diagnosis.
+// replacing the legacy source projection (editor.tsx). CONCRETE-AGNOSTIC by construction:
+// LOAD is the /api/json PROJECTION (depth `.inf`) converted to parser IR (yed-load.ts) — it
+// exists for every storage shape (flat files, dir-backed documents, bare directories, .yaml
+// bodies, deep nodes); PERSIST is an IR tree diff emitted as PER-NODE /api/edit ops
+// (yed-sync.ts) — the backend's concrete-inheritance rules route each write, and untouched
+// regions (comments, spellings) survive because nothing rewrites them. Key renames follow the
+// legacy sequencing: flush the ops, then POST /api/rekey.
+//
+// The flush discipline mirrors ops.ts useOpSync: 500 ms debounce, one batch in flight, kept-
+// and-alerted on failure (the NEXT flush re-diffs from the same committed snapshot against the
+// newest document — never a queued-op double-apply), flushed on unmount.
 
 import { useEffect, useRef, useState } from "react";
 import { EditorView } from "../../../../yed/src/page";
-import { emptyDoc, parseSource, sourceOf, type EditorState } from "../../../../yed/src/state";
-import { editChunks, fetchSource } from "../api";
+import { type Document, type EditorState } from "../../../../yed/src/state";
+import { editChunks, fetchNode, rekeyNode } from "../api";
+import { irFromNodeJson } from "./yed-load";
+import { diffToOps } from "./yed-sync";
 import "../../../../yed/src/yed.css";
 
 /** The rollout flag (the chapter editor's exact escape-hatch shape): yed is the DEFAULT;
@@ -30,23 +38,29 @@ export function YedEditor({ path, onNavigate }: { path: string; onNavigate: (p: 
   const [state, setState] = useState<EditorState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const stateRef = useRef<EditorState | null>(null);
-  const savedRef = useRef<string>("");   // the source the SERVER has (normalized-on-load baseline)
+  const committedRef = useRef<Document | null>(null); // the doc the SERVER has (per the last acked flush)
   const timerRef = useRef<number | null>(null);
   const inflightRef = useRef(false);
 
   const flush = (): void => {
     const st = stateRef.current;
-    if (!st || inflightRef.current) return;
-    const src = sourceOf(st.doc);
-    if (src === savedRef.current) return;
+    const committed = committedRef.current;
+    if (!st || !committed || inflightRef.current) return;
+    const snapshot = st.doc;
+    const { ops, renames, unserializable } = diffToOps(path, committed, snapshot);
+    if (unserializable) { window.alert("this edit cannot be persisted (a binary is inside the rewritten region)"); return; }
+    if (ops.length === 0 && renames.length === 0) return;
     inflightRef.current = true;
-    editChunks([{ path, op: "emplace", yamlover: src.replace(/\n$/, "") }])
-      .then(() => { savedRef.current = src; })
+    (ops.length > 0 ? editChunks(ops) : Promise.resolve({ ok: true as const }))
+      .then(async () => {
+        for (const r of renames) await rekeyNode(r.path, r.key);
+        committedRef.current = snapshot; // the server now has exactly this doc
+      })
       .catch((e) => window.alert(`edit sync failed: ${String((e as Error)?.message || e)}`))
       .finally(() => {
         inflightRef.current = false;
         // changes that arrived while the batch was in flight go out on the next tick
-        if (stateRef.current && sourceOf(stateRef.current.doc) !== savedRef.current) schedule();
+        if (stateRef.current && committedRef.current && stateRef.current.doc !== committedRef.current) schedule();
       });
   };
   const schedule = (): void => {
@@ -56,7 +70,7 @@ export function YedEditor({ path, onNavigate }: { path: string; onNavigate: (p: 
   const update = (next: EditorState): void => {
     stateRef.current = next;
     setState(next);
-    if (sourceOf(next.doc) !== savedRef.current) schedule();
+    if (committedRef.current && next.doc !== committedRef.current) schedule();
   };
 
   useEffect(() => {
@@ -64,12 +78,17 @@ export function YedEditor({ path, onNavigate }: { path: string; onNavigate: (p: 
     setState(null);
     setError(null);
     stateRef.current = null;
-    fetchSource(path)
-      .then(({ source }) => {
+    committedRef.current = null;
+    fetchNode(path, null) // depth `.inf` — the whole subtree, every storage shape
+      .then((node) => {
         if (!alive) return;
-        const doc = source.trim() === "" ? emptyDoc() : parseSource(source);
+        const doc = irFromNodeJson(node);
+        if ((doc.root as { kind?: string }).kind === "blob") {
+          setError("a binary node has no cell projection");
+          return;
+        }
         const st: EditorState = { doc, cursor: freshCursor(), refused: false, log: [] };
-        savedRef.current = sourceOf(doc); // the serializer's normal form is the dirty-check baseline
+        committedRef.current = doc;
         stateRef.current = st;
         setState(st);
       })

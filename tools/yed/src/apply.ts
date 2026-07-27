@@ -164,6 +164,9 @@ export function positionsOf(doc: Document): Position[] {
         rec(v, p);
         if (isFlow(v)) out.push({ at: "after", path: p });
       }
+      // anything else (a blob, an unknown kind) is an opaque ATOM — walkable and deletable
+      // like a pointer, never editable; a value with no position would be an invisible wall
+      else out.push({ at: "ptr", path: p });
     }
   };
   /** the scalar's TOKEN at its authored row among its fields — the walk agrees with the eyes */
