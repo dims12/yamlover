@@ -1,5 +1,5 @@
 # CI quality gate: the full test suite (parser + engine, incl. the conformance corpora
-# from the submodules) and the server typecheck, on every push / PR. GitHub counterpart of
+# from the submodules) and the server typecheck, on push / PR to main. GitHub counterpart of
 # .forgejo/workflows/ci.yml. Node 22 is required (native .ts type-stripping + the built-in
 # node:sqlite the engine runs on). A second job runs the JetBrains plugin's Gradle tests —
 # its Kotlin lexer + pointer navigation reimplement the parser, so this gate catches drift
@@ -8,6 +8,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 
 jobs:
   test:
