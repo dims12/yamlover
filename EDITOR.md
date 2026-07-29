@@ -31,25 +31,25 @@ machine (`tools/yed/src/` grammar for source, `tools/yed/src/chapter/` for chapt
 via the `yed-sync.ts` tree diff. They share the cell contract (`tools/yed/src/cells.tsx`) and
 the never-locked laws (watchdog, positions law, dry-run legend).
 
-**Legacy editors.** The pre-yed `<ChapterProjection>` (`chapter-editor/view.tsx`, over
-`useYedHost`/`model.ts`) is **deprecated**: `?chapterEditor=projectional` brings it back for
-one cycle before retirement (Stage 9 of the port plan). The pre-projectional flat
-`ChapterEditor` (in-memory `renderers/chapter-model.ts` + `useChapterSync`) remains the old
-escape hatch at `?chapterEditor=flat`, slated for deletion (`TODO.md`). The switch is
-`chapterEditorFlavor()` (`renderers/chapter.tsx`).
+**Legacy editors.** The pre-yed `<ChapterProjection>` is **RETIRED** (Stage 9 of the port
+plan — `chapter-editor/{view,blocks,format,tab}` deleted; only `format-bus.ts` +
+`format-control.tsx` survive, since the yed mount publishes to the same bus). The
+pre-projectional flat `ChapterEditor` (in-memory `renderers/chapter-model.ts` +
+`useChapterSync`) remains the old escape hatch at `?chapterEditor=flat`, slated for deletion
+(`TODO.md`). The switch is `chapterEditorFlavor()` (`renderers/chapter.tsx`).
 
 ```
 NodeView (unlocked data view) ──► yed-editor.tsx (source)          ┐  tools/yed machine + cells
                                                                     ├─ yed-load.ts / yed-sync.ts
 ChapterView (unlocked, DEFAULT) ─► yed-chapter-editor.tsx (chapter) ┘  (the SHARED yed base)
 
-ChapterView (?chapterEditor=projectional) ─► ChapterProjection ─► host.ts/model.ts   (DEPRECATED)
 ChapterView (?chapterEditor=flat) ─► ChapterEditor ─► chapter-model.ts + useChapterSync   (LEGACY, to be deleted)
 ```
 
-## 3. The shared base machinery — `yamlover-editor/`
+## 3. The LEGACY base machinery — `yamlover-editor/`
 
-Three files own everything that is *not* a specific projection. The split is strict:
+This whole layer now serves ONLY the deprecated legacy source projection (`?yedEditor=legacy`
+— the yed mounts, §2, do not touch it); it retires with that editor. The split is strict:
 
 - **`host.ts`** (~839 LOC) — the non-drawing host. It fetches the node at unlimited depth,
   builds the model once, owns the op queue + debounced flush, exposes the action surface
@@ -159,29 +159,25 @@ counterpart. The debug page: `npm --prefix tools/yed run debug-chapter` (port 51
 `YAMLOVER_EDITOR.yamlover` §CHAPTER is the machine's state diagram, mirrored by
 `tools/yed/test/chapter-dispatch.test.ts`.
 
-The DEPRECATED legacy projection below reads the shared `MNode` tree and branches on a
-**derived** format, never on stored state (the same doctrine the port kept):
+The same doctrine holds throughout: the format is **derived** per render (an explicit
+`!!<…$defs: X>` tag wins; otherwise the ENCLOSING format decides — a container inside a
+chapter is a subchapter; inside a list, a sublist; inside a table, a row/cell), and it is
+never stored. The derivation lives in `tools/yed/src/chapter/format.ts`
+(`declaredFormat`/`enclosingFormat`/`chunkModeOf`).
 
-- **`chapter-editor/format.ts`** derives a `BlockFormat`
-  (`chapter | table | bullets | numbered | chunk | row | row-cell`) from the spine each render:
-  an explicit `!!<…$defs: X>` tag wins; otherwise the **enclosing** format decides (a container
-  inside a chapter is a **subchapter**; inside a list, a sublist; inside a table, a row/cell).
-- **Subchapters** ride in the body as read-only-until-descended parts; editing one **descends**
-  into it (`view.tsx:64-70`), which forces a flush first (§6). `isSubchapter` / `anchorOf` /
-  `CHAPTER_META` come from `chapter-model.ts`.
-- **Prose chunks** — a `MNode.kind === "scalar"` node is prose (`view.tsx:43`), drawn through
-  `chapter-shared.tsx` (`renderChunkBody`, `EditableLine`, `ChunkShell`) and edited by a
-  **format-specific chunk editor** chosen by `chunkEditorFor(format)` in `chunk-editors.tsx`
-  (a `null` editor means read-only). Markdown/marklower get the WYSIWYG contentEditable editor;
-  LaTeX edits its raw source in a `<textarea>`.
-- **The marklower seam.** `chunk-editors.tsx` imports `marklowerToEditableHtml` (from
+- **Subchapters** lay out inline as the SAME editor one level down; beyond the `?depth=`
+  window they collapse to descend headings, and a session-born wrap stays editable in place.
+  `isSubchapter` / `anchorOf` / `CHAPTER_META` come from `chapter-model.ts`.
+- **Prose chunks** are the marklower WYSIWYG (identity-guarded contentEditable reconcile);
+  LaTeX edits its raw source in a `<textarea>`; formats with a read-only renderer keep their
+  read faces (`renderChunkBody` from `chapter-shared.tsx`).
+- **The marklower seam.** The yed mount's adapter injects `marklowerToEditableHtml` (from
   `renderers/marklower.tsx`, source → editable HTML) and `domToMarklower` (from
   `renderers/marklower-serialize.ts`, edited DOM → marklower source) — the round-trip pair.
   Emphasis edits live as markup; atomic tokens (`$$math$$`, `` `code` ``, links, `*[…](…)`
   embeds) render as single non-editable objects carrying their own source, so a round trip
-  never rewrites them (`MARKLOWER.md`). `proseScalar` / `escapeYamloverScalar` decide bare vs
-  quoted vs `|` block so an edit doesn't rewrite a bare chunk into a block on the first
-  keystroke.
+  never rewrites them (`MARKLOWER.md`). The IR serializer owns bare vs quoted vs `|` block
+  spelling, so an edit doesn't rewrite a bare chunk into a block on the first keystroke.
 
 ## 9. yed — the editor package, and the REFERENCE implementation
 
@@ -234,8 +230,8 @@ policy smoke), `yed-dispatch` (the grammar table as data — the file
 (**DEPRECATED** — the legacy source projection, no longer the default; `?yedEditor=legacy`
 brings it back during the rollout), `ops.ts` (op-log + debounced flush), `paste.ts`
 (clipboard yamlover → entries). The GRAMMAR (`dispatch.ts`, `keys.ts`) moved to
-`tools/yed/src/grammar/` — this layer imports it from there. Everything except `editor.tsx`
-survives for the CHAPTER projection until it is ported.
+`tools/yed/src/grammar/` — this layer imports it from there. With the chapter projection
+retired (Stage 9), this whole layer serves only the legacy source projection and dies with it.
 
 **`renderers/yed-editor.tsx` + `yed-load.ts` + `yed-sync.ts` (the yed mount):** the default
 unlocked-data-view editor, CONCRETE-AGNOSTIC by construction. LOAD is the `/api/json`
@@ -260,12 +256,11 @@ CHAPTER stamp and deferred subchapter materialization (predicted `meta.anchorKey
 shared `concrete-rules.ts`). Gate: `test/yed-chapter-parity.test.tsx` (disk-asserting, real
 handler, storage matrix; header = the behavior checklist).
 
-**`renderers/chapter-editor/` (DEPRECATED legacy chapter projection —
-`?chapterEditor=projectional`):** `view.tsx` (`<ChapterProjection>` + keys/auto-descend),
-`blocks.ts` (chapter-shaped mutations, same mutate+return-ops contract as `model.ts`),
-`format.ts` (`BlockFormat` derivation), `tab.ts` (Tab/Shift-Tab per enclosing format),
-`format-bus.ts` (bridges the editor's format state to the node-bar control — SURVIVES, both
-editors ride it).
+**`renderers/chapter-editor/` (what SURVIVED the Stage 9 retirement):** `format-bus.ts`
+(bridges the mounted editor's format state to the node-bar control) + `format-control.tsx`
+(`ChapterFormatControl`, the ¶/•/1./▦/T/D buttons over the bus's dry-run verdicts). The
+legacy projection itself (`view.tsx`, `blocks.ts`, `format.ts`, `tab.ts` and its suites) is
+DELETED — the yed chapter editor is the only projectional chapter editor.
 
 **Related:** `renderers/chapter.tsx` (`ChapterView` + the flat/projectional switch),
 `renderers/chapter-model.ts` (**legacy** flat model), `renderers/chapter-shared.tsx` (shared

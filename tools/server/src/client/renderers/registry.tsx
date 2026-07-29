@@ -23,7 +23,7 @@ import { EpubView } from "./epub";
 import { HtmlView } from "./media";
 import { MarkupWidthControl } from "./markup";
 import { DepthControl } from "./depth";
-import { ChapterFormatControl } from "./chapter-editor/view";
+import { ChapterFormatControl } from "./chapter-editor/format-control";
 
 // pdf.js and DjVu.js are heavy and browser-only (they reach for canvas globals at
 // import time). Load them lazily so the registry — imported by the TOC and by

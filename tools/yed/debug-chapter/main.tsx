@@ -28,7 +28,7 @@ import { domToMarklower } from "../../server/src/client/marklower-serialize";
 import { renderedTextLength } from "../../server/src/client/renderers/chunk-editors";
 import { diffToOps } from "../../server/src/client/renderers/yed-sync";
 import { publishFormatBus, clearFormatBus } from "../../server/src/client/renderers/chapter-editor/format-bus";
-import { ChapterFormatControl } from "../../server/src/client/renderers/chapter-editor/view";
+import { ChapterFormatControl } from "../../server/src/client/renderers/chapter-editor/format-control";
 import "../../server/src/client/styles.css";
 import "../src/yed.css";
 import "../src/chapter/chapter-cells.css";

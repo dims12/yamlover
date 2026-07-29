@@ -76,20 +76,20 @@ describe("ChapterView (locked) read-only", () => {
 });
 
 describe("ChapterView (unlocked) — editor dispatch", () => {
-  it("the YED editor is the default; ?chapterEditor=projectional / =flat are the escape hatches", async () => {
+  it("the YED editor is the default; ?chapterEditor=flat is the remaining escape hatch", async () => {
     fetchNode.mockResolvedValue(chapterNode(["First"]));
     window.history.replaceState({}, "", "/"); // no flag → the default
     const yed = renderUnlocked(chapterNode(["First"]));
     await waitFor(() => expect(yed.container.querySelector(".y2-cell")).toBeTruthy()); // yed cells mount
     yed.unmount();
+    // the legacy projectional editor is RETIRED (Stage 9): its flag now falls back to yed
     window.history.replaceState({}, "", "/?chapterEditor=projectional");
     const proj = renderUnlocked(chapterNode(["First"]));
-    await waitFor(() => expect(proj.container.querySelector(".chapter-wysiwyg")).toBeTruthy());
-    expect(proj.container.querySelector(".y2-cell")).toBeNull(); // the legacy projection, not yed
+    await waitFor(() => expect(proj.container.querySelector(".y2-cell")).toBeTruthy());
     proj.unmount();
     window.history.replaceState({}, "", "/?chapterEditor=flat");
     const flat = renderUnlocked(chapterNode(["First"]));
-    expect(flat.container.querySelector(".chapter-wysiwyg")).toBeNull();
+    expect(flat.container.querySelector(".y2-cell")).toBeNull();
     expect(flat.container.querySelector("h1.chapter-title.editable")).toBeTruthy(); // the flat editor
   });
 });

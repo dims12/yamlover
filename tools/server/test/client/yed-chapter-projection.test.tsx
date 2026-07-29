@@ -9,7 +9,7 @@ const { fetchNode, editChunks } = vi.hoisted(() => ({ fetchNode: vi.fn(), editCh
 vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchNode, editChunks }));
 
 import { YedChapterEditor } from "../../src/client/renderers/yed-chapter-editor";
-import { ChapterFormatControl } from "../../src/client/renderers/chapter-editor/view";
+import { ChapterFormatControl } from "../../src/client/renderers/chapter-editor/format-control";
 import type { NodeJson } from "../../src/client/api";
 
 afterEach(cleanup);

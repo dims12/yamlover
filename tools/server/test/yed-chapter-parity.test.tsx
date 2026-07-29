@@ -95,7 +95,7 @@ import path from "node:path";
 import { createHandlers, tmpTree } from "./helpers";
 import { captureAlerts, installFetch, settleOps } from "./edit-corpus-harness";
 import { YedChapterEditor } from "../src/client/renderers/yed-chapter-editor";
-import { ChapterFormatControl } from "../src/client/renderers/chapter-editor/view";
+import { ChapterFormatControl } from "../src/client/renderers/chapter-editor/format-control";
 
 afterEach(cleanup);
 

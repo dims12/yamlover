@@ -17,7 +17,7 @@ import type { Document, Entry, Node, Value } from "../../../../yed/src/state";
 import { parsePointer } from "../../../../parser/ts/src/pointer.ts";
 import { parseSchemaRef } from "../../../../parser/ts/src/yamlover.ts";
 import type { Pointer } from "../../../../parser/ts/src/ir.ts";
-import { formatFromMetaTag, proseFormatOfTag } from "./chapter-editor/format";
+import { formatFromMetaTag, proseFormatOfTag } from "../../../../yed/src/chapter/format";
 
 const MIXED_KEY = "$yamloverMixed";
 const REF_KEY = "$yamloverRef";

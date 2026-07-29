@@ -6,7 +6,7 @@
 // and the control renders nothing.
 
 import { useSyncExternalStore } from "react";
-import type { ChosenFormat } from "./format";
+import type { ChosenFormat } from "../../../../../yed/src/chapter/format";
 
 /** What the T / D buttons can do to the focused cell: it IS the role (button toggles it off), it
  *  CAN take the role, or the role does not apply there (`null` — disabled). */

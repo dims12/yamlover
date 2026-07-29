@@ -9,7 +9,6 @@ import { useExplorerTagMenu } from "./tagmenu";
 import { chunkEditorFor, isJoinableFormat, renderedTextLength, type FocusAt } from "./chunk-editors";
 import { markupWidthCh } from "./markup";
 import { viewDepth } from "./depth";
-import { ChapterProjection } from "./chapter-editor/view";
 import { YedChapterEditor } from "./yed-chapter-editor";
 import {
   buildChapterModel,
@@ -68,9 +67,7 @@ export function ChapterView({ node, onNavigate }: { node: NodeJson; onNavigate: 
       {unlocked ? (
         chapterEditorFlavor() === "yed"
           ? <YedChapterEditor key={node.path} path={node.path} onNavigate={onNavigate} />
-          : chapterEditorFlavor() === "projectional"
-            ? <ChapterProjection key={node.path} path={node.path} onNavigate={onNavigate} />
-            : <ChapterEditor key={node.path} initialNode={node} onNavigate={onNavigate} />
+          : <ChapterEditor key={node.path} initialNode={node} onNavigate={onNavigate} />
       ) : (
         <ChapterRead node={node} onNavigate={onNavigate} />
       )}
@@ -80,17 +77,14 @@ export function ChapterView({ node, onNavigate }: { node: NodeJson; onNavigate: 
 }
 
 /** Which unlocked chapter editor runs. The YED chapter editor is the DEFAULT — the superset
- *  parity gate passed (test/yed-chapter-parity.test.tsx, the port plan Stage 8). The legacy
- *  PROJECTIONAL editor stays reachable at `?chapterEditor=projectional` for one cycle before
- *  retirement (Stage 9); the FLAT editor remains the old escape hatch (`?chapterEditor=flat`)
- *  slated for deletion (TODO.md). */
-export function chapterEditorFlavor(): "yed" | "projectional" | "flat" {
+ *  parity gate passed (test/yed-chapter-parity.test.tsx, the port plan Stage 8) and the legacy
+ *  PROJECTIONAL editor is RETIRED (Stage 9). The FLAT editor remains the old escape hatch
+ *  (`?chapterEditor=flat`) slated for deletion (TODO.md). */
+export function chapterEditorFlavor(): "yed" | "flat" {
   try {
     const q = new URLSearchParams(window.location.search).get("chapterEditor")
       ?? window.localStorage?.getItem("chapterEditor");
-    if (q === "projectional") return "projectional";
-    if (q === "flat") return "flat";
-    return "yed";
+    return q === "flat" ? "flat" : "yed";
   } catch {
     return "yed";
   }

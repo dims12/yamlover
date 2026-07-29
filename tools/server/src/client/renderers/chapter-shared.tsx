@@ -1,6 +1,6 @@
 // The chapter family's shared presentation primitives — ONE implementation for the read view
 // (chapter.tsx), the flat editor (chapter.tsx), and the projectional chapter editor
-// (chapter-editor/view.tsx), so the page reads identically locked and unlocked and a styling
+// (the yed chapter cells), so the page reads identically locked and unlocked and a styling
 // decision is made exactly once.
 //
 // THE DEPTH-STYLING RULE: a subchapter looks the SAME whether its body is laid out in place or
@@ -176,7 +176,7 @@ export function EditableLine({
 
 // --------------------------------------------------------------------------- //
 // The read-only chapter stream — shared by the read view (chapter.tsx) and the
-// projectional editor's read-only inlined subchapters (chapter-editor/view.tsx).
+// yed chapter editor's read-only faces (linked previews, beyond-depth subchapters).
 // --------------------------------------------------------------------------- //
 
 /** One chapter's own stream — title, description, chunks, and subchapters, in SOURCE order — and,
