@@ -15,12 +15,13 @@ import { YedEditor } from "../src/client/renderers/yed-editor";
 
 afterEach(cleanup);
 
-/** Type through yed's real key plumbing (`⏎` Enter, `→` ArrowRight; printables land via
- *  onChange when the grammar leaves them alone). */
+/** Type through yed's real key plumbing (`⏎` Enter, `→` ArrowRight, `⇤` Shift-Tab; printables
+ *  land via onChange when the grammar leaves them alone). */
 function typeKeys(script: string): void {
   for (const ch of script) {
     const el = document.activeElement;
     expect(el && el !== document.body, `the caret fell off the editor before ${JSON.stringify(ch)}`).toBeTruthy();
+    if (ch === "⇤") { fireEvent.keyDown(el as HTMLElement, { key: "Tab", shiftKey: true }); continue; }
     const key = ch === "⏎" ? "Enter" : ch === "→" ? "ArrowRight" : ch;
     const input = el as HTMLInputElement;
     const before = input instanceof HTMLInputElement ? input.value : "";
@@ -167,6 +168,25 @@ describe("the yed parity gate — every storage shape loads, edits, persists", (
       typeKeys("- name: Eurasia→");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]); // 'cannot descend into a scalar element at [0]' — gone
+      expect(m.read("note.yamlover")).toBe("- name: Eurasia\n");
+    } finally { m.done(); }
+  });
+
+  it("11. the reported MID-TYPING flush: `- name: Eurasia` ⏎ ⇤ with a flush between every stroke", async () => {
+    // A flush that lands BEFORE Enter commits writes the pending item as a bare `-` — a NULL
+    // scalar on disk (block YAML has no empty container). The next flush must then emit the
+    // grown item as ONE whole-node replace, never a child insert the splicer cannot take
+    // ('edit sync failed: cannot descend into a scalar element at [0]', reported 2026-07-29).
+    const m = await mount({ "note.yamlover": "" }, ":note.yamlover");
+    try {
+      typeKeys("- name: Eurasia");
+      await settleOps(); // flush the PENDING state: disk holds `-`
+      expect(m.read("note.yamlover")).toBe("-\n");
+      typeKeys("⏎");
+      await settleOps();
+      typeKeys("⇤");
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
       expect(m.read("note.yamlover")).toBe("- name: Eurasia\n");
     } finally { m.done(); }
   });

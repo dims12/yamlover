@@ -139,10 +139,16 @@ function diffValue(prev: Value, next: Value, path: string, isRoot: boolean, ops:
   // paths (the explicit root clear / whole-document flows are pinned by the parity gate).
   // The omni↔mapping edge is NOT a conversion: those stay with the surgical self-line ops
   // below (`emplace '""'` drops the self line, a token emplace adds one) — entry comments
-  // survive. A conversion needs a LEAF on one side.
+  // survive. A conversion needs a LEAF on one side — and an EMPTY node growing entries IS one
+  // even when the model calls both sides "mapping": block YAML has no empty container, so a
+  // flushed empty item's disk form is a bare `-` / `key:` NULL line, a scalar entry the
+  // splicer refuses to descend into ("cannot descend into a scalar element" — the reported
+  // `- name: Eurasia` mid-typing flush).
+  const realSelf = (v: Node): boolean => (((v as { value?: unknown }).value ?? null) !== null) || (((v as { raw?: string }).raw ?? "") !== "");
   const pLeaf = p.kind === "scalar" && (p.entries ?? []).length === 0;
   const nLeaf = n.kind === "scalar" && (n.entries ?? []).length === 0;
-  if (!isRoot && p.kind !== n.kind && (pLeaf || nLeaf)) {
+  const pEmptyGrown = !realSelf(p) && (p.entries ?? []).length === 0 && (n.entries ?? []).length > 0;
+  if (!isRoot && ((p.kind !== n.kind && (pLeaf || nLeaf)) || pEmptyGrown)) {
     const nTag = tagContentOf(n);
     const bare: Node = nTag === null ? n : ({ ...n, meta: (({ schema: _, ...rest }) => rest)((n.meta ?? {}) as { schema?: unknown }) } as unknown as Node);
     ops.push({ path, op: "replace", yamlover: payloadOf(bare as Value), ...(nTag !== null ? { meta: nTag } : {}) });
@@ -166,8 +172,8 @@ function diffValue(prev: Value, next: Value, path: string, isRoot: boolean, ops:
   // FILE-concrete document) re-emplaces the WHOLE omni — the server holds a scalar entry, and
   // a scalar cannot be descended into (the legacy commitSpine omniPending rule). A NULL self
   // (`value: null` — the empty document's root) is not a real leaf: its growth is a plain
-  // surgical insert.
-  const realSelf = (v: Node): boolean => (((v as { value?: unknown }).value ?? null) !== null) || (((v as { raw?: string }).raw ?? "") !== "");
+  // surgical insert. (A non-root null-self node growing entries never reaches here — that is
+  // the empty-grown conversion above.)
   if (p.kind === "scalar" && realSelf(p) && (p.entries ?? []).length === 0 && n.kind === "scalar" && (n.entries ?? []).length > 0) {
     ops.push({ path, op: "emplace", yamlover: payloadOf(next) });
     return;
