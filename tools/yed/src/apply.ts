@@ -22,7 +22,8 @@ import { isPointer } from "../../parser/ts/src/ir.ts";
 // Immutable IR surgery
 // ---------------------------------------------------------------------------- //
 
-function withNode(doc: Document, path: Path, fn: (n: Node) => Node): Document {
+/** Exported for the CHAPTER machine (src/chapter/) — the same immutable surgery, one source. */
+export function withNode(doc: Document, path: Path, fn: (n: Node) => Node): Document {
   const rec = (v: Node, p: Path): Node => {
     if (p.length === 0) return fn(v);
     const entries = [...(v.entries ?? [])];
@@ -33,7 +34,7 @@ function withNode(doc: Document, path: Path, fn: (n: Node) => Node): Document {
   return { ...doc, root: rec(doc.root as Node, path) };
 }
 
-function insertEntry(doc: Document, containerPath: Path, index: number, entry: Entry): Document {
+export function insertEntry(doc: Document, containerPath: Path, index: number, entry: Entry): Document {
   return withNode(doc, containerPath, (n) => {
     const entries = [...(n.entries ?? [])];
     entries.splice(index, 0, entry);
@@ -41,7 +42,7 @@ function insertEntry(doc: Document, containerPath: Path, index: number, entry: E
   });
 }
 
-function removeEntryAt(doc: Document, containerPath: Path, index: number): Document {
+export function removeEntryAt(doc: Document, containerPath: Path, index: number): Document {
   return withNode(doc, containerPath, (n) => {
     const entries = [...(n.entries ?? [])];
     entries.splice(index, 1);

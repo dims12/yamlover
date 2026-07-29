@@ -13,6 +13,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { EditorView } from "../../../../yed/src/page";
+import type { CellRegistry } from "../../../../yed/src/cells";
 import { type Document, type EditorState } from "../../../../yed/src/state";
 import { editChunks, fetchNode, rekeyNode } from "../api";
 import { irFromNodeJson } from "./yed-load";
@@ -33,7 +34,7 @@ export function yedSourceEditor(): boolean {
 
 const freshCursor = (): EditorState["cursor"] => ({ at: "hole", path: [], index: 0, text: "", key: null });
 
-export function YedEditor({ path, onNavigate }: { path: string; onNavigate: (p: string) => void }) {
+export function YedEditor({ path, onNavigate, cells }: { path: string; onNavigate: (p: string) => void; cells?: CellRegistry }) {
   void onNavigate; // pointers open in PICK mode later; the atom is walkable already
   const [state, setState] = useState<EditorState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -105,5 +106,5 @@ export function YedEditor({ path, onNavigate }: { path: string; onNavigate: (p: 
   const debug = ((): boolean => {
     try { return new URLSearchParams(window.location.search).get("yed") === "debug"; } catch { return false; }
   })();
-  return <EditorView state={state} setState={update} debug={debug} />;
+  return <EditorView state={state} setState={update} debug={debug} cells={cells} />;
 }

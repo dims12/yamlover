@@ -28,8 +28,9 @@ describe("irFromNodeJson", () => {
     const ptr = root.entries![2].value;
     expect(isPointer(ptr)).toBe(true);
     expect((ptr as { raw?: string }).raw).toBe(":pets[1]"); // the sidecar's canonical spelling wins
-    // the serializer spells pointers in the CANONICAL spaced colon form
-    expect(sourceOf(doc)).toBe("A Title\ndescription: the blurb\n- chunk one\n- *: pets[1]\n");
+    // the serializer spells pointers in the CANONICAL spaced colon form — and the authored
+    // `!!<…>` tag (bucket.tag → meta.schema) is re-emitted, no longer dropped on re-serialize
+    expect(sourceOf(doc)).toBe("!!<*yamlover: $defs: chapter>\nA Title\ndescription: the blurb\n- chunk one\n- *: pets[1]\n");
   });
 
   it("authored raw SPELLINGS survive; absent raw spells the default", () => {
@@ -74,5 +75,80 @@ describe("irFromNodeJson", () => {
     expect(e[0].key).toBeNull();
     expect((e[0].meta as { anchorKey?: string }).anchorKey).toBe("item01");
     expect(e[1].key).toBe("named");
+  });
+});
+
+describe("irFromNodeJson — format facts (the chapter projection's inputs)", () => {
+  const metaOf = (v: unknown): Record<string, unknown> => ((v as Node).meta ?? {}) as Record<string, unknown>;
+
+  it("a `$defs` tag lands as meta.schema (a parsed Pointer) + the folded derivedFormat", () => {
+    const doc = irFromNodeJson(nj(
+      { $yamloverMixed: { kind: "omni", value: "T", entries: [{ key: null, value: "p" }] } },
+      { "": { tag: "!!<*yamlover: $defs: chapter>" } },
+    ));
+    const meta = metaOf(doc.root);
+    expect(isPointer(meta.schema as Parameters<typeof isPointer>[0])).toBe(true);
+    expect(meta.derivedFormat).toBe("x-yamlover-chapter");
+  });
+
+  it("the wire's stamped format WINS over the tag-folded one", () => {
+    const doc = irFromNodeJson(nj(
+      { $yamloverMixed: { kind: "omni", value: "T", format: "x-yamlover-task", entries: [] } },
+      { "": { tag: "!!<*yamlover: $defs: chapter>" } },
+    ));
+    expect(metaOf(doc.root).derivedFormat).toBe("x-yamlover-task");
+  });
+
+  it("an inline `format:` tag stamps the PROSE format (the latex chunk)", () => {
+    const doc = irFromNodeJson(nj({ $yamloverMixed: { kind: "mix", entries: [
+      { key: null, value: "E = mc^2" },
+    ] } }, { "[0]": { tag: "!!<format: text/x-latex>" } }));
+    const chunk = (doc.root as Node).entries![0].value;
+    expect(metaOf(chunk).derivedFormat).toBe("text/x-latex");
+    expect((metaOf(chunk).schema as Node).kind).toBe("mapping"); // the inline schema literal
+  });
+
+  it("the mount root's NodeJson.format stamps derivedFormat (it already folded everything)", () => {
+    const doc = irFromNodeJson(nj({ a: 1 }, undefined, { format: "x-yamlover-chapter" }));
+    expect(metaOf(doc.root).derivedFormat).toBe("x-yamlover-chapter");
+  });
+
+  it("a `$yamloverLink` atom keeps its navigable payload and its target's format", () => {
+    const doc = irFromNodeJson(nj({ $yamloverMixed: { kind: "mix", entries: [
+      { key: "01-child", value: { $yamloverLink: { kind: "object", path: ":doc:01-child", title: "Child", format: "x-yamlover-chapter" } }, anchor: true },
+    ] } }));
+    const atom = (doc.root as Node).entries![0].value as Node;
+    expect(atom.kind).toBe("blob");
+    expect(metaOf(atom).link).toEqual({ path: ":doc:01-child", title: "Child", format: "x-yamlover-chapter" });
+    expect(metaOf(atom).derivedFormat).toBe("x-yamlover-chapter");
+  });
+
+  it("format facts are INERT to the diff: loaded → loaded is zero ops", async () => {
+    const { diffToOps } = await import("../src/client/renderers/yed-sync");
+    const wire = nj(
+      { $yamloverMixed: { kind: "omni", value: "T", format: "x-yamlover-chapter", entries: [
+        { key: "description", value: "d" },
+        { key: null, value: "p1" },
+      ] } },
+      { "": { tag: "!!<*yamlover: $defs: chapter>" }, "[1]": { tag: "!!<format: text/x-latex>" } },
+    );
+    const a = irFromNodeJson(wire);
+    const b = irFromNodeJson(wire);
+    const r = diffToOps(":doc", a, b);
+    expect(r.ops).toEqual([]);
+    expect(r.renames).toEqual([]);
+  });
+
+  it("a value RETYPE beside a tag emits only the value op — never a meta op", async () => {
+    const { diffToOps } = await import("../src/client/renderers/yed-sync");
+    const wire = nj(
+      { $yamloverMixed: { kind: "omni", value: "T", entries: [{ key: null, value: "p1" }] } },
+      { "": { tag: "!!<*yamlover: $defs: chapter>" } },
+    );
+    const a = irFromNodeJson(wire);
+    const b = irFromNodeJson(wire);
+    ((doc => (doc.root as Node).entries![0].value as Node & { value?: unknown })(b)).value = "p2";
+    const r = diffToOps(":doc", a, b);
+    expect(r.ops).toEqual([{ path: ":doc[0]", op: "emplace", yamlover: "p2" }]);
   });
 });

@@ -320,8 +320,9 @@ class Emitter {
  *  reparsed as one-line yamlover, where a leading `{` does NOT reach the flow reader (the
  *  block `key:` split runs first) — so a keyed schema must be the brace-less one-liner
  *  `key: value`, which holds exactly one top-level entry. `>` would close the tag early —
- *  refuse it. */
-function schemaText(v: Value): string {
+ *  refuse it. Exported for the server's edit layer: an `/api/edit` op's `meta` facet carries
+ *  exactly this content (no `!!<…>` wrapper). */
+export function schemaText(v: Value): string {
   const text = isPointer(v) ? `*${renderPointer(v)}` : schemaNodeText(v);
   if (/[>\n]/.test(text)) throw new LossyError(`a !!<…> schema tag cannot contain ">" or a newline: ${text}`);
   return text;

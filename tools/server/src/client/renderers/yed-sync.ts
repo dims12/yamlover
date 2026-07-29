@@ -22,6 +22,7 @@
 import type { Edit } from "../api";
 import { isFlow, isSpread, sourceOf, type Document, type Entry, type Node, type Value } from "../../../../yed/src/state";
 import { isPointer } from "../../../../parser/ts/src/ir.ts";
+import { schemaText } from "../../../../parser/ts/src/serialize-yamlover.ts";
 
 export interface DiffResult {
   ops: Edit[];
@@ -46,19 +47,30 @@ const hasBlob = (v: Value): boolean => {
   return ((v as Node).entries ?? []).some((e) => hasBlob(e.value));
 };
 
-/** Deep equality over the parts the diff cares about (value, raw, entries, layout meta). */
+/** Deep equality over the parts the diff cares about (value, raw, entries, layout meta, and
+ *  the authored `!!<…>` tag — a retag alone must be a visible difference). */
 const canon = (v: Value): unknown => {
   if (isPointer(v)) return { ptr: (v as { raw?: string }).raw ?? "" };
   const n = v as Node & { value?: unknown; raw?: string; array?: boolean };
-  const meta = (n.meta ?? {}) as { style?: string; concrete?: string; selfAt?: number };
+  const meta = (n.meta ?? {}) as { style?: string; concrete?: string; selfAt?: number; schema?: Value };
   return {
     k: n.kind,
     v: n.kind === "scalar" ? (Number.isNaN(n.value as number) ? "NaN" : n.value) : undefined,
     r: n.raw,
     a: n.array === true,
     st: meta.style, c: meta.concrete, sa: meta.selfAt,
+    sch: meta.schema !== undefined ? canon(meta.schema) : undefined,
+    df: (meta as { derivedFormat?: string }).derivedFormat,
     e: (n.entries ?? []).map((e) => ({ key: e.key, v: canon(e.value) })),
   };
+};
+
+/** The node's authored tag as op-`meta` content (`schemaText` — no `!!<…>` wrapper), or null.
+ *  Untaggable content (a `>` inside) is carried in the IR but never diffed into an op. */
+const tagContentOf = (v: Node): string | null => {
+  const sch = (v.meta as { schema?: Value } | undefined)?.schema;
+  if (sch === undefined) return null;
+  try { return schemaText(sch); } catch { return null; }
 };
 const eq = (a: Value, b: Value): boolean => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
 const entryEq = (a: Entry, b: Entry): boolean => a.key === b.key && eq(a.value, b.value);
@@ -119,6 +131,47 @@ function diffValue(prev: Value, next: Value, path: string, isRoot: boolean, ops:
   const p = prev as Node;
   const n = next as Node;
   if (p.kind === "blob" || n.kind === "blob") throw new Bail("blob");
+
+  // a KIND CONVERSION (leaf ↔ container) is ONE `replace` — surgical entry ops cannot express
+  // it (an emplace-'""' would leave a phantom omni self line), and `replace` drops the old
+  // node's facets wholesale, which is what a conversion means. The node's own tag rides the
+  // op's `meta`; tags on INNER nodes stay inline in the payload. The ROOT keeps the existing
+  // paths (the explicit root clear / whole-document flows are pinned by the parity gate).
+  // The omni↔mapping edge is NOT a conversion: those stay with the surgical self-line ops
+  // below (`emplace '""'` drops the self line, a token emplace adds one) — entry comments
+  // survive. A conversion needs a LEAF on one side.
+  const pLeaf = p.kind === "scalar" && (p.entries ?? []).length === 0;
+  const nLeaf = n.kind === "scalar" && (n.entries ?? []).length === 0;
+  if (!isRoot && p.kind !== n.kind && (pLeaf || nLeaf)) {
+    const nTag = tagContentOf(n);
+    const bare: Node = nTag === null ? n : ({ ...n, meta: (({ schema: _, ...rest }) => rest)((n.meta ?? {}) as { schema?: unknown }) } as unknown as Node);
+    ops.push({ path, op: "replace", yamlover: payloadOf(bare as Value), ...(nTag !== null ? { meta: nTag } : {}) });
+    return;
+  }
+
+  // a TAG change alone (or alongside content edits) leads with a meta-only emplace: `meta`
+  // set = restamp, `meta: null` = DROP the tag (the "normal chapter is untagged" rule). The
+  // content ops below never carry the node's own tag, so there is no double-stamp.
+  const pTag = tagContentOf(p);
+  const nTag = tagContentOf(n);
+  if (pTag !== nTag) ops.push({ path, op: "emplace", meta: nTag });
+  else if (pTag === null) {
+    // a STAMPED (tagless) format dropped — the file still carries a `!!<…>` the model never
+    // parsed a schema from; only the DROP is expressible (a set always writes a tag above)
+    const df = (v: Node): string | undefined => ((v.meta ?? {}) as { derivedFormat?: string }).derivedFormat;
+    if (df(p) !== undefined && df(n) === undefined) ops.push({ path, op: "emplace", meta: null });
+  }
+
+  // a LEAF growing entries (scalar → omni: the freshly wrapped title's first body commit in a
+  // FILE-concrete document) re-emplaces the WHOLE omni — the server holds a scalar entry, and
+  // a scalar cannot be descended into (the legacy commitSpine omniPending rule). A NULL self
+  // (`value: null` — the empty document's root) is not a real leaf: its growth is a plain
+  // surgical insert.
+  const realSelf = (v: Node): boolean => (((v as { value?: unknown }).value ?? null) !== null) || (((v as { raw?: string }).raw ?? "") !== "");
+  if (p.kind === "scalar" && realSelf(p) && (p.entries ?? []).length === 0 && n.kind === "scalar" && (n.entries ?? []).length > 0) {
+    ops.push({ path, op: "emplace", yamlover: payloadOf(next) });
+    return;
+  }
 
   // the node's OWN scalar value (a leaf, or an omni's self line — which consumes no index)
   const pv = p.kind === "scalar" ? { value: (p as { value?: unknown }).value, raw: (p as { raw?: string }).raw } : null;

@@ -6,7 +6,8 @@
   "description": "The yamlover projectional editor — IR-backed, pure apply layer, one grammar table; the reference implementation (EDITOR.md §9). Raw-TS workspace member like @yamlover/parser: consumed by relative imports, never built.",
   "scripts": {
     "test": "vitest run",
-    "debug-editor": "vite --config debug-editor/vite.config.ts"
+    "debug-editor": "vite --config debug-editor/vite.config.ts",
+    "debug-chapter": "vite --config debug-chapter/vite.config.ts"
   },
   "engines": { "node": ">=22" }
 }

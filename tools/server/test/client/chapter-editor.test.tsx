@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, cleanup, fireEvent, act } from "@testing-library/react";
+import { render, cleanup, fireEvent, act, waitFor } from "@testing-library/react";
 
 // Mock the write APIs — the editor's background sync + the context menu's create call.
 // (hoisted so the mock fns exist before vi.mock's hoisted factory runs.)
-const { editChunks, createObject } = vi.hoisted(() => ({ editChunks: vi.fn(), createObject: vi.fn() }));
-vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), editChunks, createObject }));
+const { editChunks, createObject, fetchNode } = vi.hoisted(() => ({ editChunks: vi.fn(), createObject: vi.fn(), fetchNode: vi.fn() }));
+vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), editChunks, createObject, fetchNode }));
 
 import { ChapterView } from "../../src/client/renderers/chapter";
 import { EditingContext } from "../../src/client/renderers/editing";
@@ -16,6 +16,7 @@ afterEach(cleanup);
 beforeEach(() => {
   editChunks.mockReset().mockResolvedValue({ ok: true });
   createObject.mockReset().mockResolvedValue({ path: ":doc[9]" });
+  fetchNode.mockReset().mockRejectedValue(new Error("fetchNode not stubbed for this test"));
   // These suites exercise the FLAT editor — since the projection became the default
   // (chapter.tsx projectionalChapterEditor), opt back in via the escape hatch.
   window.history.replaceState({}, "", "/?chapterEditor=flat");
@@ -75,11 +76,17 @@ describe("ChapterView (locked) read-only", () => {
 });
 
 describe("ChapterView (unlocked) — editor dispatch", () => {
-  it("the PROJECTIONAL editor is the default; ?chapterEditor=flat is the escape hatch", () => {
+  it("the YED editor is the default; ?chapterEditor=projectional / =flat are the escape hatches", async () => {
+    fetchNode.mockResolvedValue(chapterNode(["First"]));
     window.history.replaceState({}, "", "/"); // no flag → the default
-    const { container, unmount } = renderUnlocked(chapterNode(["First"]));
-    expect(container.querySelector(".chapter-wysiwyg")).toBeTruthy(); // the projection mounts
-    unmount();
+    const yed = renderUnlocked(chapterNode(["First"]));
+    await waitFor(() => expect(yed.container.querySelector(".y2-cell")).toBeTruthy()); // yed cells mount
+    yed.unmount();
+    window.history.replaceState({}, "", "/?chapterEditor=projectional");
+    const proj = renderUnlocked(chapterNode(["First"]));
+    await waitFor(() => expect(proj.container.querySelector(".chapter-wysiwyg")).toBeTruthy());
+    expect(proj.container.querySelector(".y2-cell")).toBeNull(); // the legacy projection, not yed
+    proj.unmount();
     window.history.replaceState({}, "", "/?chapterEditor=flat");
     const flat = renderUnlocked(chapterNode(["First"]));
     expect(flat.container.querySelector(".chapter-wysiwyg")).toBeNull();

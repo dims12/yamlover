@@ -10,6 +10,7 @@ import { chunkEditorFor, isJoinableFormat, renderedTextLength, type FocusAt } fr
 import { markupWidthCh } from "./markup";
 import { viewDepth } from "./depth";
 import { ChapterProjection } from "./chapter-editor/view";
+import { YedChapterEditor } from "./yed-chapter-editor";
 import {
   buildChapterModel,
   snapshotChapter,
@@ -65,9 +66,11 @@ export function ChapterView({ node, onNavigate }: { node: NodeJson; onNavigate: 
   return (
     <div className="chapter-page" onContextMenu={onContextMenu}>
       {unlocked ? (
-        projectionalChapterEditor()
-          ? <ChapterProjection key={node.path} path={node.path} onNavigate={onNavigate} />
-          : <ChapterEditor key={node.path} initialNode={node} onNavigate={onNavigate} />
+        chapterEditorFlavor() === "yed"
+          ? <YedChapterEditor key={node.path} path={node.path} onNavigate={onNavigate} />
+          : chapterEditorFlavor() === "projectional"
+            ? <ChapterProjection key={node.path} path={node.path} onNavigate={onNavigate} />
+            : <ChapterEditor key={node.path} initialNode={node} onNavigate={onNavigate} />
       ) : (
         <ChapterRead node={node} onNavigate={onNavigate} />
       )}
@@ -76,17 +79,20 @@ export function ChapterView({ node, onNavigate }: { node: NodeJson; onNavigate: 
   );
 }
 
-/** Whether the unlocked chapter uses the projectional editor (TAB nesting, format switching,
- *  depth) — the DEFAULT since it reached parity. The flat editor remains reachable as an escape
- *  hatch (`?chapterEditor=flat`, or `localStorage.chapterEditor = "flat"`) for one cycle and is
- *  then deleted (TODO.md). */
-function projectionalChapterEditor(): boolean {
+/** Which unlocked chapter editor runs. The YED chapter editor is the DEFAULT — the superset
+ *  parity gate passed (test/yed-chapter-parity.test.tsx, the port plan Stage 8). The legacy
+ *  PROJECTIONAL editor stays reachable at `?chapterEditor=projectional` for one cycle before
+ *  retirement (Stage 9); the FLAT editor remains the old escape hatch (`?chapterEditor=flat`)
+ *  slated for deletion (TODO.md). */
+export function chapterEditorFlavor(): "yed" | "projectional" | "flat" {
   try {
-    const q = new URLSearchParams(window.location.search).get("chapterEditor");
-    if (q) return q !== "flat";
-    return window.localStorage?.getItem("chapterEditor") !== "flat";
+    const q = new URLSearchParams(window.location.search).get("chapterEditor")
+      ?? window.localStorage?.getItem("chapterEditor");
+    if (q === "projectional") return "projectional";
+    if (q === "flat") return "flat";
+    return "yed";
   } catch {
-    return true;
+    return "yed";
   }
 }
 

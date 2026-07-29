@@ -15,7 +15,9 @@
 import type { NodeJson, CommentBucket, CommentMap } from "../api";
 import type { Document, Entry, Node, Value } from "../../../../yed/src/state";
 import { parsePointer } from "../../../../parser/ts/src/pointer.ts";
+import { parseSchemaRef } from "../../../../parser/ts/src/yamlover.ts";
 import type { Pointer } from "../../../../parser/ts/src/ir.ts";
+import { formatFromMetaTag, proseFormatOfTag } from "./chapter-editor/format";
 
 const MIXED_KEY = "$yamloverMixed";
 const REF_KEY = "$yamloverRef";
@@ -58,12 +60,32 @@ function scalarNode(value: unknown, bucket: CommentBucket): Node {
   return { kind: "scalar", value: v, ...(raw !== undefined ? { raw } : {}) } as unknown as Node;
 }
 
+/** The inner text of a sidecar `!!<…>` tag (`bucket.tag` carries the full token, with an
+ *  optional trailing `!!set`), or null when there is no schema tag. */
+function tagInner(tag: string | undefined): string | null {
+  const m = tag ? /^!!<([\s\S]*)>\s*(?:!!set)?$/.exec(tag) : null;
+  return m ? m[1] : null;
+}
+
 /** Representation meta from a bucket: one-line flow, the K&R switch (NOT propagated — the IR
- *  carries it at the switch only, matching the walk), tags/anchors as OPAQUE carried fields. */
-function metaFrom(bucket: CommentBucket, extra?: Record<string, unknown>): Record<string, unknown> | undefined {
+ *  carries it at the switch only, matching the walk), plus the two FORMAT facts:
+ *  - the authored `!!<…>` tag (`bucket.tag`) parsed into the parser IR's own `meta.schema`,
+ *    so `sourceOf` re-emits it and a whole-token emplace no longer drops inner tags;
+ *  - `meta.derivedFormat` — the engine-derived format when the wire carries one
+ *    (`$yamloverMixed.format`, the mount root's `NodeJson.format`), else folded from the tag
+ *    the way walk.ts folds it (`$defs: X` → `x-yamlover-X`, inline `format:` verbatim).
+ *    This is the key `cellFor` dispatches `byFormat` on.
+ *  A trailing `!!set` stays sidecar-only for now (yed reads sets, it does not edit them). */
+function metaFrom(bucket: CommentBucket, extra?: Record<string, unknown>, wireFormat?: string | null): Record<string, unknown> | undefined {
   const meta: Record<string, unknown> = { ...(extra ?? {}) };
   if (bucket.repr === "yaml/flow") meta.style = "flow";
   if (bucket.concrete !== undefined && bucket.concrete !== null && bucket.concrete !== "yamlover") meta.concrete = bucket.concrete;
+  const inner = tagInner(bucket.tag);
+  if (inner !== null) {
+    try { meta.schema = parseSchemaRef(inner); } catch { /* a malformed authored tag stays sidecar-only, as before */ }
+  }
+  const fmt = wireFormat ?? formatFromMetaTag(inner) ?? proseFormatOfTag(inner);
+  if (fmt != null) meta.derivedFormat = fmt;
   return Object.keys(meta).length > 0 ? meta : undefined;
 }
 
@@ -84,9 +106,23 @@ function valueFrom(value: unknown, frag: string, comments: CommentMap | undefine
       return { kind: "pointer", raw: text } as unknown as Value; // dangling spelling, kept verbatim
     }
   }
-  // opaque binaries: a nested blob's link marker, or an explicit binary payload — an ATOM in
-  // the editor (walkable, deletable, never editable), never serialized as content
-  if (asSingle(value, LINK_KEY) !== null || asSingle(value, BINARY_KEY) !== null) {
+  // a `$yamloverLink` marker — still an ATOM (walkable, deletable, never editable as content,
+  // never serialized), but it keeps its navigable payload on `meta.link` so a projection can
+  // draw a descend link, and its target's derived format rides `meta.derivedFormat` (a
+  // chapter-shaped member draws a heading, not a bare pointer)
+  const link = asSingle<{ path: string; title?: string; format?: string | null }>(value, LINK_KEY);
+  if (link !== null) {
+    const meta = metaFrom(bucket, {
+      link: {
+        path: link.path,
+        ...(link.title != null ? { title: link.title } : {}),
+        ...(link.format != null ? { format: link.format } : {}),
+      },
+    }, link.format);
+    return { kind: "blob", entries: [], ...(meta ? { meta } : {}) } as unknown as Node;
+  }
+  // opaque binaries: an explicit binary payload — an ATOM with no payload to carry
+  if (asSingle(value, BINARY_KEY) !== null) {
     return { kind: "blob", entries: [] } as unknown as Node;
   }
 
@@ -96,11 +132,11 @@ function valueFrom(value: unknown, frag: string, comments: CommentMap | undefine
     if (mixed.kind === "omni") {
       const self = scalarNode(mixed.value, bucket);
       const selfAt = Math.min(mixed.selfAt ?? 0, entries.length);
-      const meta = metaFrom(bucket, selfAt > 0 ? { selfAt } : undefined);
+      const meta = metaFrom(bucket, selfAt > 0 ? { selfAt } : undefined, mixed.format);
       return { ...self, entries, ...(meta ? { meta } : {}) } as unknown as Node;
     }
     const array = mixed.entries.length > 0 && mixed.entries.every((e) => e.key === null);
-    const meta = metaFrom(bucket);
+    const meta = metaFrom(bucket, undefined, mixed.format);
     return { kind: "mapping", entries, ...(array ? { array: true } : {}), ...(meta ? { meta } : {}) } as unknown as Node;
   }
 
@@ -156,5 +192,12 @@ export function irFromNodeJson(node: NodeJson): Document {
     }
     return valueFrom(node.value, "", node.comments);
   })();
+  // the mount root's ENGINE-derived format (`NodeJson.format`, the top-level twin of
+  // `$yamloverMixed.format`) — it already folded the authored tag and the enclosing schema,
+  // so where both could speak it wins (the ir.ts `derivedFormat` doctrine)
+  if (node.format != null && (root as { kind?: string }).kind !== "pointer") {
+    const n = root as Node & { meta?: Record<string, unknown> };
+    n.meta = { ...(n.meta ?? {}), derivedFormat: node.format };
+  }
   return { root, source: { concrete: node.concrete ?? "yamlover", uri: node.path } } as unknown as Document;
 }

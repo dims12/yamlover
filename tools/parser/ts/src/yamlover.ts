@@ -789,8 +789,10 @@ function adv(s: string, k: number, col: number): { rest: string; col: number } {
 /** The contents of a `!!<…>` schema tag are themselves yamlover, yielding the attached
  *  schema as a Value: a Pointer to a hosted schema (`*yamlover/$defs/chapter`, or a link
  *  `https://…`) OR an inline schema Node (`format: text/x-plantuml`, `{type: string}`).
- *  `at` (when known) locates `src` in its raw line, so a schema pointer gets a span too. */
-function parseSchemaRef(src: string, at?: { block: Block; lineN: number; col: number }): Value {
+ *  `at` (when known) locates `src` in its raw line, so a schema pointer gets a span too.
+ *  Exported for the server's yed loader: the comment sidecar carries the authored tag as
+ *  TEXT (`bucket.tag`), and loading it back into `meta.schema` must parse it the one way. */
+export function parseSchemaRef(src: string, at?: { block: Block; lineN: number; col: number }): Value {
   const lead = src.length - src.trimStart().length;
   src = src.trim();
   if (src.startsWith('*')) {

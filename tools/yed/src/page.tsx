@@ -14,7 +14,7 @@ import { lineDiff } from "./diff";
 import { Legend } from "./legend";
 import { initialState, parseSource, sourceOf, type Cursor, type EditorState } from "./state";
 
-export function EditorView({ state, setState, debug = true, cells = defaultRegistry }: { state: EditorState; setState: (s: EditorState) => void; debug?: boolean; cells?: CellRegistry }) {
+export function EditorView({ state, setState, debug = true, cells = defaultRegistry, plantCaret = true }: { state: EditorState; setState: (s: EditorState) => void; debug?: boolean; cells?: CellRegistry; plantCaret?: boolean }) {
   const site = siteOf(state);
   const source = sourceOf(state.doc);
   const last = state.log[state.log.length - 1];
@@ -33,6 +33,7 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
     cursor: state.cursor,
     refused: state.refused,
     cells,
+    plantCaret, // an EMBEDDED editor (a chapter source chunk) plants only while it holds focus
     onKey: (e, edges) => {
       // SUBTREE copy/paste (requirement 10): Ctrl+C on a GAP copies the container it closes (the
       // gap is the container, selected); Ctrl+V in an empty HOLE splices the clipboard in through

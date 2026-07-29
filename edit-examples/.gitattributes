@@ -1,0 +1,4 @@
+# Goldens are BYTES: keys/out.yamlover/=== are compared byte-for-byte by the corpus suites
+# (tools/yed corpus.test.ts, tools/server edit-corpus.test.tsx) — CRLF conversion on checkout
+# corrupts them (the 0015/0016 regression). No eol translation for anything here.
+* -text

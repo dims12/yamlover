@@ -439,10 +439,20 @@ atom_focused: The caret stands ON an atom (a `*` pointer)
     alphanumeric: *: atom_focused       # refuse - typing into an atom RINGS
     arrows: "the neighbouring position per the walk order"
 
-# --- The CHAPTER projection (chapter-editor/view.tsx) ------------------------------------------- #
-# The SAME model, drawn as prose/headings/sections/lists. These states are the model's, seen under
-# the chapter projection; the typing grammar above does not apply here (no holes, no `- `/`key:`).
+# --- The CHAPTER projection ---------------------------------------------------------------------- #
+# The SAME document, drawn as prose/headings/sections/lists. The machine is PURE and lives in
+# tools/yed/src/chapter/ (site.ts -> dispatch.ts -> apply.ts, watchdog.ts enforcing the
+# never-locked law); tools/yed/test/chapter-dispatch.test.ts mirrors THIS section as data.
+# The legacy implementation (chapter-editor/view.tsx) runs the same states until the port flips.
+# The typing grammar above does not apply here (no holes, no `- `/`key:`) - EXCEPT inside a
+# SOURCE chunk (a structure with an explicit non-chapter `!!<...>` type), where the chapter
+# grammar DECLINES every key and the source grammar above owns the caret entirely.
 # THE PROSE EXCEPTION governs Enter; THE FORMAT RULE governs Tab and the format commands.
+# Closed intents: splitProse joinPrev joinNext nest unwrap indent dedent cellWalk appendRow
+# enterWalk move role format nop refuse. Re-choosing the ACTIVE format is idle (nop).
+# THE FORMAT RULE is ITEM-LOCAL for "normal": ¶ in a list extracts THE ITEM (the list splits
+# around it; a single-item list dissolves) - the leaf->list wrap's exact inverse, so the
+# format cycle converges and committed labour survives.
 
 chapter_title_editing: A chapter title / subtitle, focused
     description: The document's (or a subchapter's) self-value as an editable heading, or the keyed `description` as the subtitle - the SAME editor at every level, indented. Title and description are OPTIONAL and have NO placeholder cells - a cell exists only when its model does; any one-line chunk takes (or gives back) the role via the bar's T / D buttons. Opening the editor lands in the first cell that EXISTS - title, description, first paragraph, or an empty chapter's bootstrap paragraph
@@ -456,19 +466,24 @@ chapter_title_editing: A chapter title / subtitle, focused
     ctrl_alt_number: *: format_switched
     role_button: *: chapter_prose_editing         # T / D on the title/description itself UNMAKES it - the text survives as a plain chunk
     up_down_arrow: *: chapter_title_editing       # one line - both walk to the adjacent editable cell in document order
+    backspace:
+        "at the START of a subchapter title": *: chapter_prose_editing  # joinPrev - THE TITLE DISSOLVES into the preceding paragraph (Tab-wrap's inverse by deletion); a MATERIALIZED subchapter rings instead
+        "the root title, or mid-text": *: chapter_title_editing         # native editing
 
 chapter_prose_editing: A prose paragraph, focused
-    description: A body paragraph as the shared marklower editor. Enter makes a SIBLING paragraph (THE PROSE EXCEPTION), not a descent. An EMPTY chapter shows one bootstrap paragraph (no entry until the first typed text - merely opening writes nothing)
+    description: A body paragraph as the shared marklower editor. Enter makes a SIBLING paragraph (THE PROSE EXCEPTION), not a descent. An EMPTY chapter shows one bootstrap paragraph (no entry until the first typed text - merely opening writes nothing) - and the bootstrap is NOT an idle state; a format command MATERIALIZES the first entry of that kind (a one-cell table in its creation flow, a one-item list, an empty paragraph), T makes an empty title to type into, D an empty description
     enter: *: chapter_prose_editing               # split at the caret; the tail is a new sibling paragraph
     tab:
-        "a one-line paragraph - the CURRENT chunk becomes a subchapter title (wrap). On disk `- A` is the SAME line either way, so this is zero ops; the server still holds a scalar entry, so the first body commit re-emplaces the whole omni (omniPending)": *: chapter_title_editing
-        "a multi-line (block) paragraph - a self line is one line": *: nop
+        "any paragraph NESTS - it becomes the sole paragraph of a fresh UNTITLED group (`- x` -> `- - x`, one replace op), STAYING a paragraph one level deeper. The title role is EXPLICIT: T titles the group (and the group materializes in a dir chapter once it is titled with body). The group carries the session wrap badge": *: chapter_prose_editing
     shift_tab:
         "below the root level": *: chapter_prose_editing        # lift it out of its subchapter
         "otherwise": *: nop
     backspace:
-        "the caret is at the start": *: chapter_prose_editing   # join into the previous paragraph, caret at the junction
-        "otherwise": *: chapter_prose_editing
+        "the caret is at the start": *: chapter_prose_editing   # joinPrev - WALK-ADJACENT: into the previous walk cell (a paragraph merges, a non-ancestor subchapter TITLE dissolves in title-text-first); own-heading/description/table/atom partners RING
+        "otherwise": *: chapter_prose_editing                   # native contentEditable editing
+    delete:
+        "the caret is at the end": *: chapter_prose_editing     # joinNext - WALK-ADJACENT: pulls the next walk cell in (a following subchapter's TITLE dissolves, its body splicing out; an emptied untitled group husk-removes)
+        "otherwise": *: chapter_prose_editing                   # native
     ctrl_alt_number: *: format_switched
     role_button: *: chapter_title_editing         # T / D makes THIS chunk the chapter's title / description (only offered where the chapter lacks one)
     up_down_arrow: *: chapter_prose_editing       # at the first/last visual line, the caret walks to the adjacent cell
@@ -484,3 +499,27 @@ list_item_editing: A typographical-list item, focused
 
 format_switched: The block's format was chosen (bar / Ctrl+Alt+1..4)
     description: A pseudo-state - the block the caret is in is retagged (→ chapter DROPS the tag, → bullets/numbered/table retag or wrap a leaf), re-projected in place, and the caret stays in its content. The target is the ENCLOSING block: standing in a list item retags the list, in a table cell the table
+
+table_cell_editing: A table cell, focused (the spreadsheet flow)
+    description: A cell hosts the NORMAL chapter flow (row-cell folds back to chapter rules) - Enter splits it into chunks. The FIRST row defines the width (Tab grows columns while the table has one row); a second row fixes the column count
+    enter:
+        "plain": *: chapter_prose_editing           # splitProse - the cell becomes a container of chunks, the caret in the tail; a join that reduces the chunks back to ONE paragraph FOLDS the cell back to its scalar (the exact inverse - no one-item husk)
+        "ctrl": *: table_cell_editing               # appendRow - a fresh row of the table's width, from anywhere IN the table (a cell, or a split cell's inner chunks)
+    tab:
+        "mid-row": *: table_cell_editing            # cellWalk +1 - the next cell
+        "at a row's end": *: table_cell_editing     # cellWalk +1 wraps to the next row's first cell
+        "at a SINGLE row's end": *: table_cell_editing  # appendColumn - the creation flow grows the width
+        "at the VERY last cell": *: table_cell_editing  # appendRow - the width is fixed past row one
+    shift_tab:
+        "not the first cell": *: table_cell_editing # cellWalk -1
+        "the first cell": *: nop                    # never un-appends
+    up_down_arrow:
+        "an adjacent row exists": *: table_cell_editing   # a GRID move - the same column, one row up/down
+        "the top/bottom edge": *: chapter_prose_editing   # the caret LEAVES the table; past the DOCUMENT's last stop, ↓ ADDS a fresh chunk right AFTER THE TABLE in the table's own container - a table inside a subchapter grows the subchapter, never the root (and never spamming empties)
+    left_right_arrow:
+        "at the cell's start/end edge": *: table_cell_editing  # cellWalk - the caret hops to the previous/next cell
+        "mid-text": *: table_cell_editing                      # native editing
+    plus_buttons: *: table_cell_editing             # + row / + col show while the caret is in the grid; a scalar row becomes its two-cell array on + col
+
+source_chunk_editing: Inside a SOURCE chunk (an explicitly non-chapter-typed structure)
+    description: The chunk renders and edits as inline yamlover SOURCE - the standard cells and the typing grammar ABOVE own every key (holes, `- `/`key:`, flow); the chapter grammar declines. Arrows walk across the chunk's boundary into the neighbouring chapter cells. The mode is DERIVED per render - dropping the type reverts the chunk to prose/chapter editing

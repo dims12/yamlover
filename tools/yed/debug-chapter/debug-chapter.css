@@ -1,0 +1,10 @@
+/* the chapter debug page's chrome — the chapter content itself uses the app's styles.css */
+body { margin: 0; font-family: system-ui, sans-serif; }
+.dc-page { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 16px; padding: 12px; }
+.dc-left { min-width: 0; }
+.dc-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
+.dc-right { border-left: 1px solid #ddd; padding-left: 12px; font-size: 12px; overflow: auto; height: calc(100vh - 24px); position: sticky; top: 12px; }
+.dc-right h3 { margin: 10px 0 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #666; }
+.dc-right pre { margin: 0; white-space: pre-wrap; word-break: break-word; background: #f7f7f7; padding: 6px; border-radius: 4px; }
+.dc-ops { max-height: 30vh; overflow: auto; }
+.dc-alarm { background: #fee; border: 2px solid #c00; color: #900; padding: 8px; }

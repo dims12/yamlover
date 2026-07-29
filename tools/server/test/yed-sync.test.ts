@@ -97,3 +97,62 @@ describe("diffToOps — targeted, order-safe, concrete-blind", () => {
     expect(d.ops).toEqual([{ path: ":doc", op: "emplace", yamlover: "- one\n5" }]);
   });
 });
+
+describe("diffToOps — tags and kind conversions (the chapter projection's verbs)", () => {
+  it("a RETAG alone is one meta-only emplace", () => {
+    const d = diff("a: !!<*yamlover: $defs: bullets>\n  - x\n", "a: !!<*yamlover: $defs: numbered>\n  - x\n");
+    expect(d.ops).toEqual([{ path: ":doc:a", op: "emplace", meta: "*yamlover: $defs: numbered" }]);
+  });
+
+  it("a tag DROP is `meta: null` — normal chapter is untagged", () => {
+    const d = diff("a: !!<*yamlover: $defs: bullets>\n  - x\n", "a:\n  - x\n");
+    expect(d.ops).toEqual([{ path: ":doc:a", op: "emplace", meta: null }]);
+  });
+
+  it("a tag change LEADS the batch when content changes too", () => {
+    const d = diff("a: !!<*yamlover: $defs: bullets>\n  - x\n", "a: !!<*yamlover: $defs: numbered>\n  - y\n");
+    expect(d.ops).toEqual([
+      { path: ":doc:a", op: "emplace", meta: "*yamlover: $defs: numbered" },
+      { path: ":doc:a[0]", op: "emplace", yamlover: "y" },
+    ]);
+  });
+
+  it("LEAF → CONTAINER is one `replace` with the tag riding `meta` (the leaf promoteFormat)", () => {
+    const d = diff("a: prose\n", "a: !!<*yamlover: $defs: bullets>\n  - prose\n");
+    expect(d.ops).toEqual([{ path: ":doc:a", op: "replace", yamlover: "- prose", meta: "*yamlover: $defs: bullets" }]);
+  });
+
+  it("CONTAINER → LEAF is one `replace` (facets drop with the structure)", () => {
+    const d = diff("a: !!<*yamlover: $defs: bullets>\n  - one\n  - two\n", "a: prose\n");
+    expect(d.ops).toEqual([{ path: ":doc:a", op: "replace", yamlover: "prose" }]);
+  });
+
+  it("the OMNI↔mapping edge stays SURGICAL — not a conversion", () => {
+    // demoting the self line (T-demote): drop it via '""', the entries stay untouched
+    const d = diff("a:\n  Title\n  - p\n", "a:\n  - p\n");
+    expect(d.ops).toEqual([{ path: ":doc:a", op: "emplace", yamlover: '""' }]);
+  });
+
+  it("an INSERTED subtree carries its inner tags inline in the payload", () => {
+    const d = diff("a: 1\n", "a: 1\nkids: !!<*yamlover: $defs: bullets>\n  - x\n");
+    expect(d.ops).toEqual([{ path: ":doc[1]", op: "insert", yamlover: "!!<*yamlover: $defs: bullets>\n- x", key: "kids" }]);
+  });
+
+  it("a LEAF growing entries (scalar → omni) re-emplaces the WHOLE omni — never a descent into a scalar", () => {
+    // the freshly wrapped title's first body commit in a FILE-concrete chapter (the legacy
+    // commitSpine omniPending rule): the server holds a scalar entry at [1]
+    const d = diff("- a\n- fresh\n", "- a\n- fresh\n  - ''\n");
+    expect(d.ops).toEqual([{ path: ":doc[1]", op: "emplace", yamlover: "fresh\n- ''" }]);
+  });
+
+  it("a STAMPED (tagless) format's drop still emits the meta-null emplace", () => {
+    // the wire stamps `meta.derivedFormat` with no authored `!!<…>` in the model — the chapter's
+    // "¶" must still drop the tag the FILE carries (the legacy forced-drop rule)
+    const prev = parseSource("a:\n  - x\n");
+    const next = parseSource("a:\n  - x\n");
+    const node = (prev.root as { entries: { value: { meta?: object } }[] }).entries[0].value;
+    node.meta = { ...(node.meta ?? {}), derivedFormat: "x-yamlover-bullets" };
+    const d = diffToOps(":doc", prev, next);
+    expect(d.ops).toEqual([{ path: ":doc:a", op: "emplace", meta: null }]);
+  });
+});

@@ -23,28 +23,27 @@ the cells differ** — which is why the host file contains no JSX at all.
 
 | Projection | Component | File | Draws the model as… |
 |---|---|---|---|
-| **Source** | `<YamloverEditor>` | `yamlover-editor/editor.tsx` | rows of yamlover tokens (the `yamlover`/`json5p` data view, unlocked) |
-| **Chapter** | `<ChapterProjection>` | `chapter-editor/view.tsx` | prose, headings, sections (a chapter/task page, unlocked) |
+| **Source** | `<EditorView>` (yed mount) | `renderers/yed-editor.tsx` | rows of yamlover cells (the `yamlover`/`json5p` data view, unlocked) — DEFAULT |
+| **Chapter** | `<YedChapterEditor>` | `renderers/yed-chapter-editor.tsx` | prose, headings, sections, tables, source chunks (a chapter/task page, unlocked) — DEFAULT |
 
-Both call the **same** `useYedHost(path, onNavigate)` (chapter side at
-`chapter-editor/view.tsx:63`); they differ only in the cells they render and the verbs they
-expose. The source projection is mounted directly from `client/NodeView.tsx:607` behind the
-unlocked data view; the chapter projection is reached through the `chapter`/`task` renderer.
+Both are yed mounts over the parser IR: load via `/api/json` → `yed-load.ts`, edit via a pure
+machine (`tools/yed/src/` grammar for source, `tools/yed/src/chapter/` for chapters), persist
+via the `yed-sync.ts` tree diff. They share the cell contract (`tools/yed/src/cells.tsx`) and
+the never-locked laws (watchdog, positions law, dry-run legend).
 
-**Legacy flat editor.** A pre-projectional `ChapterEditor` still ships, built on the
-in-memory `renderers/chapter-model.ts` (`ChapterModel` = title/description/positional body)
-with a background `useChapterSync`. It is gated by `projectionalChapterEditor()`
-(`renderers/chapter.tsx:83-91`): the **projectional** editor is the default, and
-`?chapterEditor=flat` (or `localStorage.chapterEditor = "flat"`) selects the flat one as a
-temporary escape hatch. The flat editor and `chapter-model.ts` are **slated for deletion**
-once the projection has closed the remaining parity gaps (`TODO.md`) — treat `chapter-model.ts`
-as legacy that dies with it.
+**Legacy editors.** The pre-yed `<ChapterProjection>` (`chapter-editor/view.tsx`, over
+`useYedHost`/`model.ts`) is **deprecated**: `?chapterEditor=projectional` brings it back for
+one cycle before retirement (Stage 9 of the port plan). The pre-projectional flat
+`ChapterEditor` (in-memory `renderers/chapter-model.ts` + `useChapterSync`) remains the old
+escape hatch at `?chapterEditor=flat`, slated for deletion (`TODO.md`). The switch is
+`chapterEditorFlavor()` (`renderers/chapter.tsx`).
 
 ```
-NodeView (unlocked data view) ──► YamloverEditor (source projection)  ┐
-                                                                       ├─ useYedHost ─► host.ts / model.ts / cells.tsx
-ChapterView (unlocked, default) ─► ChapterProjection (chapter proj.)  ┘         (the SHARED base machinery)
+NodeView (unlocked data view) ──► yed-editor.tsx (source)          ┐  tools/yed machine + cells
+                                                                    ├─ yed-load.ts / yed-sync.ts
+ChapterView (unlocked, DEFAULT) ─► yed-chapter-editor.tsx (chapter) ┘  (the SHARED yed base)
 
+ChapterView (?chapterEditor=projectional) ─► ChapterProjection ─► host.ts/model.ts   (DEPRECATED)
 ChapterView (?chapterEditor=flat) ─► ChapterEditor ─► chapter-model.ts + useChapterSync   (LEGACY, to be deleted)
 ```
 
@@ -149,8 +148,19 @@ breaks caret placement fails CI rather than shipping.
 
 ## 8. Chapter / subchapter / prose projection
 
-The chapter projection reads the shared `MNode` tree and branches on a **derived** format,
-never on stored state:
+**The chapter editor is a yed projection now.** The pure machine lives in
+`tools/yed/src/chapter/` (`site.ts` → `dispatch.ts` → `apply.ts`, plus `format.ts`,
+`positions.ts`, `watchdog.ts`, the cell layer `cells.tsx` on the yed cell contract, and the
+dry-run `legend.tsx`); the server mount is `renderers/yed-chapter-editor.tsx` (marklower
+codec, linked previews, image paste, the CHAPTER stamp, deferred materialization via
+`renderers/yed-chapter/materialize.ts`). The superset parity gate is
+`test/yed-chapter-parity.test.tsx` — its header maps every legacy behavior to its yed
+counterpart. The debug page: `npm --prefix tools/yed run debug-chapter` (port 5198).
+`YAMLOVER_EDITOR.yamlover` §CHAPTER is the machine's state diagram, mirrored by
+`tools/yed/test/chapter-dispatch.test.ts`.
+
+The DEPRECATED legacy projection below reads the shared `MNode` tree and branches on a
+**derived** format, never on stored state (the same doctrine the port kept):
 
 - **`chapter-editor/format.ts`** derives a `BlockFormat`
   (`chapter | table | bullets | numbered | chunk | row | row-cell`) from the spine each render:
@@ -243,10 +253,19 @@ the legacy editor's storage matrix — flat files, `.yaml`, dir-backed docs, bar
 member dirs, deep mounts, omni, K&R, comment survival — against a real server; a mount swap
 must be gated by the superset of what it replaces. `GET /api/source` remains as a diagnostic.
 
-**`renderers/chapter-editor/` (chapter projection):** `view.tsx` (`<ChapterProjection>` +
-keys/auto-descend), `blocks.ts` (chapter-shaped mutations, same mutate+return-ops contract as
-`model.ts`), `format.ts` (`BlockFormat` derivation), `tab.ts` (Tab/Shift-Tab per enclosing
-format), `format-bus.ts` (bridges the editor's format state to the node-bar control).
+**`renderers/yed-chapter-editor.tsx` + `renderers/yed-chapter/materialize.ts` (the DEFAULT
+chapter editor):** the yed chapter mount — load `/api/json` → IR, the pure machine in
+`tools/yed/src/chapter/`, persistence through the `yed-sync.ts` diff with the exactly-once
+CHAPTER stamp and deferred subchapter materialization (predicted `meta.anchorKey` keys via the
+shared `concrete-rules.ts`). Gate: `test/yed-chapter-parity.test.tsx` (disk-asserting, real
+handler, storage matrix; header = the behavior checklist).
+
+**`renderers/chapter-editor/` (DEPRECATED legacy chapter projection —
+`?chapterEditor=projectional`):** `view.tsx` (`<ChapterProjection>` + keys/auto-descend),
+`blocks.ts` (chapter-shaped mutations, same mutate+return-ops contract as `model.ts`),
+`format.ts` (`BlockFormat` derivation), `tab.ts` (Tab/Shift-Tab per enclosing format),
+`format-bus.ts` (bridges the editor's format state to the node-bar control — SURVIVES, both
+editors ride it).
 
 **Related:** `renderers/chapter.tsx` (`ChapterView` + the flat/projectional switch),
 `renderers/chapter-model.ts` (**legacy** flat model), `renderers/chapter-shared.tsx` (shared
@@ -261,7 +280,10 @@ browse query-cell kit), `client/NodeView.tsx` (mounts the source projection).
 `src/cells.tsx` (framed recursive cells + `CellRegistry`), `src/legend.tsx` (the dry-run
 keyboard), `src/page.tsx` (the debug page), `src/diff.ts` (line diff),
 `src/grammar/{dispatch,keys}.ts` (THE shared grammar — production imports it from here);
-debug page under `tools/yed/debug-editor/`, suites under `tools/yed/test/`.
+`src/chapter/` (the CHAPTER machine + cells: `site/dispatch/apply/format/positions/watchdog`,
+`cells.tsx` + `caret.ts` + `legend.tsx` + `chapter-cells.css` — the server injects its
+capabilities through `ChapterCellsAdapter`); debug pages under `tools/yed/debug-editor/`
+(port 5199) and `tools/yed/debug-chapter/` (port 5198), suites under `tools/yed/test/`.
 
 **State machines:** `YAMLOVER_EDITOR.yamlover`, `QUERY_EDITOR.yamlover` (repo root) — keep in
 sync with `keys.ts`/`host.ts` and `breadcrumb-machine.ts` respectively.

@@ -1,4 +1,4 @@
-// yed2 CELLS — the recursive projection of the IR. ONE closed set of cell components, the same at
+﻿// yed2 CELLS — the recursive projection of the IR. ONE closed set of cell components, the same at
 // every depth (requirement 3): NodeCell dispatches on the IR node kind and recurses through
 // EntryCell. EVERY cell is visibly framed and titled with its kind (this is the debug editor —
 // debug styling is the default, not a mode), the active cell carries the accent frame, a refused
@@ -20,6 +20,9 @@ export interface CellCtx {
   refused: boolean;
   /** The cell REGISTRY the projection dispatches through — recursion re-enters it. */
   cells: CellRegistry;
+  /** False for an EMBEDDED editor that does not hold focus (a chapter source chunk): the
+   *  active cell renders but must not STEAL the caret. Absent ⇒ true. */
+  plantCaret?: boolean;
   onKey: (e: React.KeyboardEvent, edges?: { atStart: boolean; atEnd: boolean }) => void;
   onText: (text: string) => void;
   onFocus: (pos: Position) => void;
@@ -58,11 +61,26 @@ export function cellFor(v: Value, reg: CellRegistry): ValueCellComponent {
 
 const pathEq = (a: Path, b: Path): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 
-/** The uniform cell wrapper: frame + kind caption; accent when active; ring when refused. */
-function Cell({ kind, active, refused, children }: { kind: string; active: boolean; refused: boolean; children: ReactNode }) {
+/** The uniform cell wrapper: frame + kind caption; accent when active; ring when refused.
+ *  EXPORTED — the CHAPTER projection's cells wrap through this same component, so the whole
+ *  y2-debug/y2-plain CSS contract (frames, captions, accents, the ring) is one and shared.
+ *  `pos` stamps data-at/data-path (the positions-law-in-DOM tests); `badge` rides inside the
+ *  caption ("chapter · wrapped"); `block` marks display:block cells (titles, chunks, sections). */
+export function Cell({ kind, active, refused, pos, badge, block, children }: {
+  kind: string; active: boolean; refused: boolean;
+  pos?: { at: string; path: Path };
+  badge?: ReactNode;
+  block?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <span className={"y2-cell y2-" + kind + (active ? " y2-active" : "") + (active && refused ? " y2-refused" : "")} data-kind={kind}>
-      <span className="y2-tag">{kind}</span>
+    <span
+      className={"y2-cell y2-" + kind + (block ? " y2-block" : "") + (active ? " y2-active" : "") + (active && refused ? " y2-refused" : "")}
+      data-kind={kind}
+      data-at={pos?.at}
+      data-path={pos ? pos.path.join(".") : undefined}
+    >
+      <span className="y2-tag">{kind}{badge != null && <span className="y2-badge"> · {badge}</span>}</span>
       {children}
     </span>
   );
@@ -77,7 +95,7 @@ function CellInput({ value, ctx, autoFocus, caret }: { value: string; ctx: CellC
       value={value}
       size={Math.max(1, value.length)}
       ref={(el) => {
-        if (el && autoFocus && document.activeElement !== el) {
+        if (el && autoFocus && ctx.plantCaret !== false && document.activeElement !== el) {
           el.focus();
           if (caret) { const n = caret === "end" ? el.value.length : 0; el.setSelectionRange(n, n); }
         }
@@ -112,7 +130,7 @@ function GapCell({ path, ctx }: { path: Path; ctx: CellCtx }) {
     <Cell kind="gap" active={active} refused={ctx.refused}>
       <button
         className="y2-gapslot"
-        ref={(el) => { if (el && active && document.activeElement !== el) el.focus(); }}
+        ref={(el) => { if (el && active && ctx.plantCaret !== false && document.activeElement !== el) el.focus(); }}
         onFocus={() => { if (!active) ctx.onFocus({ at: "after", path }); }}
         onKeyDown={(e) => ctx.onKey(e)}
       >
@@ -154,7 +172,7 @@ function PointerCell({ node, path, ctx }: ValueCellProps) {
       <span
         className="y2-p"
         tabIndex={0}
-        ref={(el) => { if (el && active && document.activeElement !== el) el.focus(); }}
+        ref={(el) => { if (el && active && ctx.plantCaret !== false && document.activeElement !== el) el.focus(); }}
         onFocus={() => { if (!active) ctx.onFocus({ at: "ptr", path }); }}
         onKeyDown={(e) => ctx.onKey(e)}
       >
@@ -331,7 +349,7 @@ function OpaqueAtomCell({ node, path, ctx }: ValueCellProps) {
       <span
         className="y2-p"
         tabIndex={0}
-        ref={(el) => { if (el && active && document.activeElement !== el) el.focus(); }}
+        ref={(el) => { if (el && active && ctx.plantCaret !== false && document.activeElement !== el) el.focus(); }}
         onFocus={() => { if (!active) ctx.onFocus({ at: "ptr", path }); }}
         onKeyDown={(e) => ctx.onKey(e)}
       >
