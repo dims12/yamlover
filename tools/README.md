@@ -10,6 +10,9 @@ self-contained programs that demonstrate it.
 - [`engine/`](engine/) — the stateful core: pointer **resolver**, SQLite-backed
   `node`/`edge` graph, directory walker, FS watcher with three-tier sync,
   mediated `mv`, and the query evaluator (`../ENGINE.md`).
+- [`yed/`](yed/) — `@yamlover/yed`, the projectional **editor** core (the typing
+  grammar, cells, the chapter machine) the server's unlocked views mount; a raw-TS
+  workspace member like the parser, no build (`../EDITOR.md` §9).
 - [`server/`](server/) — browse **and edit** a yamlover tree in the web browser:
   `npx yamlover <root>` serves a React SPA over an engine-backed JSON API.
 - [`desktop/`](desktop/) — Electron wrapper: runs the local server (127.0.0.1, prod

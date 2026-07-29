@@ -134,9 +134,11 @@ pointer (the client resolves the enclosing `data-chapter-path`; the server route
 chapter path, dir-backed or inline, through the same into-chapter paste). A standalone `.yamlover`
 chapter file has no directory of its own: the file lands beside it, referenced `*:: dir: file`.
 
-**The editors.** The unlocked chapter opens the PROJECTIONAL editor (Tab nesting, format
-switching, depth, editable tables and per-format chunks); the deprecated flat editor remains
-reachable via `?chapterEditor=flat` for one cycle (TODO.md).
+**The editors.** The unlocked chapter opens the PROJECTIONAL yed chapter editor — a yed
+projection over the parser IR, sharing the source editor's machine and cells (`EDITOR.md`; Tab
+nesting, format switching, depth, editable tables and per-format chunks). The deprecated flat
+editor remains reachable via `?chapterEditor=flat` for one cycle (TODO.md); the earlier legacy
+chapter projection is retired.
 
 ## Addressing body elements
 

@@ -116,14 +116,16 @@ A cell edit becomes a batch of surgical server ops:
 4. **`ops.ts` `useOpSync`** flushes the batch to the server via `editChunks(batch)` → **`POST
    /api/edit`**, **debounced 500 ms** after the last version bump, serialized (one batch in
    flight; edits arriving mid-flight ride the next batch; the queue is kept on failure).
-5. `flush()` is forced on **lock, unmount, and navigation** (`host.ts:210-213`), and before an
-   auto-descend into a subchapter (`chapter-editor/view.tsx:115-118`).
+5. `flush()` is forced on **lock, unmount, and navigation** (`host.ts:210-213`). (The yed
+   chapter mount keeps the same discipline and additionally forces a flush before an
+   auto-descend into a subchapter — `yed-chapter-editor.tsx:112-118`.)
 
 The op shape is `{ path, op: "emplace" | "replace" | "insert" | "remove", yamlover?, meta? }`
 (`meta` carries the `!!<…>` facet). Ops address body elements by **absolute entry index**
 (`:doc[3]` — keyed entries consume indices too, `CHAPTER.md`); the server applies a batch
-strictly in order, re-scanning after each op. The chapter projection also auto-stamps the
-document's `!!<…$defs: chapter>` meta on the first non-empty batch (`view.tsx:96-104`).
+strictly in order, re-scanning after each op. The yed chapter mount likewise auto-stamps the
+document's `!!<…$defs: chapter>` meta with its first flush — the exactly-once CHAPTER stamp
+(`yed-chapter-editor.tsx` `stampedRef`, `yed-chapter/materialize.ts` `stampBorn`).
 
 ## 7. Caret / focus preservation
 
@@ -143,7 +145,7 @@ mechanism is a **focus-request + cell registry**, applied in a `useLayoutEffect`
   it rewrites that cell's text, never mid-type. So typing never clobbers the caret.
 
 This is the invariant the tests pin: `document.activeElement` is asserted after editor
-interactions (`yamlover-editor.test.tsx`, `chapter-projection.test.tsx`), so a change that
+interactions (`yamlover-editor.test.tsx`, `yed-chapter-projection.test.tsx`), so a change that
 breaks caret placement fails CI rather than shipping.
 
 ## 8. Chapter / subchapter / prose projection

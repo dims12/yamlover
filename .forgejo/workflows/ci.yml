@@ -1,5 +1,6 @@
 # CI quality gate: the full test suite (parser + engine, incl. the conformance corpora
-# from the submodules) and the server typecheck, on push / PR to main. Node 22 is required
+# from the submodules; the yed editor + server vitest suites) and the server typecheck,
+# on push / PR to main. Node 22 is required
 # (native .ts type-stripping + the built-in node:sqlite the engine runs on). A second job
 # runs the JetBrains plugin's Gradle tests — its Kotlin lexer + pointer navigation
 # reimplement the parser, so this gate catches drift when the grammar changes.
@@ -19,7 +20,7 @@ jobs:
         with:
           submodules: true # the JSON/JSON5/YAML conformance corpora (tests skip them if absent)
 
-      # One root `npm ci` installs every workspace (parser, engine, server) — the nested
+      # One root `npm ci` installs every workspace (parser, engine, yed, server) — the nested
       # lockfiles are gone since the workspaces migration, so `npm ci --prefix …` cannot work.
       - name: Install (npm workspaces)
         run: npm ci
@@ -29,6 +30,9 @@ jobs:
 
       - name: Typecheck (server)
         run: npm run typecheck
+
+      - name: Tests (yed — vitest)
+        run: npm --prefix tools/yed test
 
       - name: Tests (server — vitest)
         run: npm --prefix tools/server test

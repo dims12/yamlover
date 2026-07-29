@@ -289,10 +289,11 @@ $ npm test          # run once
 $ npm run test:watch
 ```
 
-This server suite is **separate** from the repository root's `npm test`, which
-runs only the parser and engine suites. CI gates on the server suite, so run
-both before pushing. (Run everything from the project root — see the root
-`package.json`.)
+This server suite is **separate** from the repository root's `npm test` (which
+runs only the parser and engine suites) and from the editor package's own suite
+(`npm --prefix tools/yed test` — the grammar/corpus conformance gate,
+`EDITOR.md` §9). CI gates on all of them, so run them before pushing. (Run
+everything from the project root — see the root `package.json`.)
 
 ## Layout
 
@@ -309,7 +310,8 @@ src/server/            the engine-backed JSON API
   extract/               the thumbnail pipeline: decoder registry (raster/psd/webp/avif) + scaling
   agent-docs/            the AGENTS.md / CLAUDE.md guide installed by POST /api/agent-docs
 src/client/            the React SPA (tree, node view, render, icons, paths, live SSE)
-  renderers/             facet-predicate renderer registry + per-format renderers
+  renderers/             facet-predicate renderer registry + per-format renderers; the
+                         unlocked editors are yed mounts over ../yed (@yamlover/yed) — EDITOR.md
   vendor/djvu.js         prebuilt DjVu.js bundle (GPL-v2; see vendor/README.md)
 test/                  Vitest suite (server logic + client components)
 index.html             SPA shell
