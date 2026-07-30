@@ -1,0 +1,11 @@
+# Fixture inputs are BYTES: test-examples fixtures reference into examples/ (`from`), and
+# their ir.json goldens pin each blob's content hash + size — CRLF conversion on checkout
+# corrupts both (the CI-red-since-0914 regression: goldens generated from a CRLF working
+# tree, LF on the runner). Same law as test-examples/ and edit-examples/: no eol
+# translation for anything here.
+* -text
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary

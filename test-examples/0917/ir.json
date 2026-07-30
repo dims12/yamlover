@@ -228,8 +228,8 @@
           "kind": "blob",
           "blob": {
             "format": "image/svg+xml",
-            "hash": "xxh64:d628995827d08497",
-            "size": 352
+            "hash": "xxh64:3ddf122765c30e54",
+            "size": 346
           },
           "array": false,
           "set": false,
@@ -422,8 +422,8 @@
           "kind": "blob",
           "blob": {
             "format": "text/html",
-            "hash": "xxh64:08f16331e213dd8e",
-            "size": 406
+            "hash": "xxh64:4110386ab4feb209",
+            "size": 401
           },
           "array": false,
           "set": false,
@@ -438,8 +438,8 @@
           "kind": "blob",
           "blob": {
             "format": "application/pdf",
-            "hash": "xxh64:7a8db9aeae3babd1",
-            "size": 621
+            "hash": "xxh64:f396566dbed5cd82",
+            "size": 588
           },
           "array": false,
           "set": false,
@@ -454,8 +454,8 @@
           "kind": "blob",
           "blob": {
             "format": "application/x-fictionbook+xml",
-            "hash": "xxh64:13a54298b9f4189e",
-            "size": 622
+            "hash": "xxh64:a006719dfe8a2539",
+            "size": 610
           },
           "array": false,
           "set": false,
