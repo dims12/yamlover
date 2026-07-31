@@ -1,0 +1,9 @@
+# docs/ is a served, server-edited yamlover tree — same law as examples/, test-examples/,
+# edit-examples/: no eol translation for anything here (the server and the engine read and
+# write these bytes; CRLF conversion on checkout would churn every .yo body).
+* -text
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary

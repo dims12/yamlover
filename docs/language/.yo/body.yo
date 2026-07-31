@@ -1,0 +1,4 @@
+# The yamlover language — from YAMLOVER.md (and JSON5P.md, if adopted). See ../../DOCSMIGRATION.md.
+!!<*yamlover: $defs: chapter>
+The yamlover language
+description: YAML's surface, the pointer layer on top, and where the two deliberately part ways
