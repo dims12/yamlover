@@ -1,4 +1,263 @@
-# The yamlover language — from YAMLOVER.md (and JSON5P.md, if adopted). See ../../DOCSMIGRATION.md.
+# The yamlover language — migrated from YAMLOVER.md (modernized to the colon grammar; the
+# stale slash-path spellings and closed-migration statuses of the MD are NOT carried over).
+# Structure per ../../DOCSMIGRATION.md: ## headings → inline subchapters, fenced code →
+# format-tagged chunks (text/x-yamlover / text/x-yaml), MD tables → $defs/table elements.
 !!<*yamlover: $defs: chapter>
 The yamlover language
 description: YAML's surface, the pointer layer on top, and where the two deliberately part ways
+- |
+  **yamlover** is the indentation / filesystem surface over the shared pointer model — the twin
+  of json5p's brace surface. It is *not* a superset of YAML — it is a distinct, closely-related
+  language: close in surface, different in links and anchors.
+- |
+  It shares YAML's surface syntax and **adds** the pointer layer (the extended `*`, `&`
+  reinterpreted as path anchors, keys-as-pointers) plus **concretes** — the same logical
+  document can live in one file *or* as a directory tree. Because links and anchors diverge
+  from YAML, yamlover needs its own parser, and reading is **concrete-aware**: a `.yaml`/`.yml`
+  file is parsed with YAML's link semantics, a `.yo` file with yamlover's — each read
+  faithfully into the one concrete-agnostic IR.
+- |
+  The file extension is `.yo` (the legacy `.yamlover` spelling is read forever, never
+  written); a directory is the other concrete (see *Concretes* below).
+- Everything from YAML (kept)
+  - 'yamlover keeps the YAML surface you know:'
+  - !!<*yamlover: $defs: table>
+    header:
+      - Feature
+      - Example
+        width: 2
+    - ['Block mappings & sequences', '`key: value` / `- item`']
+    - ['Flow style (one line, or spanning them — §Concretes)', '`{a: 1, b: 2}`, `[1, 2, 3]`']
+    - ['A flow token as a KEY', '`{[1, 2]: 3}`, and `[256, 256]: *thumb` in block — the key is that text']
+    - [Comments, '`# note`']
+    - ['Scalars (plain / quoted / folded / literal)', '`a`, `''a''`, `"a"`, `>`, `|`']
+    - ['`null` spellings, incl. `~` in value position', '`key: ~` → null']
+    - ['Float specials (YAML, **not** json5''s `Infinity`/`NaN`)', '`.inf`, `-.inf`, `.nan` (case-tolerant: `.Inf`/`.NaN`)']
+    - ['`&` anchors and `*` aliases', '`&a {…}` … `*a` — syntax kept, **meaning extended** (§What yamlover adds, §Breaks)']
+  - |
+    A YAML `- item` sequence entry is the same thing as a keyless entry in the one ordered
+    container (§One ordered container) — an entry with no string key.
+- What yamlover adds
+  - |
+    The pointer layer, identical in meaning to json5p; the full grammar lives in the
+    [pointers chapter](::pointers).
+  - |
+    **Extended dereference** — the `*` sigil. Beyond YAML's bare alias word, `*` takes a
+    **pointer expression**: a path with scopes, resolved purely structurally (a bare `*a` is
+    the sibling key `a`). Unquoted on this surface — and always a **shared edge**, never a
+    copy.
+  - !!<format: text/x-yamlover> |
+    feline: *pets[1]                   # current mapping (a sibling)
+    manager: *: pets[1]                # : = current document root
+    remote: *::: pet.store.com: pets   # ::: = the world — never fetched
+  - |
+    **Keys are pointers** — `[n]` vs `: x`. Positions are integer keys (`*pets[1]`), names are
+    string keys (`*pets[1]: name`). Arrays and mappings are the one ordered container
+    (§One ordered container).
+  - |
+    **Path anchors** — `&`, the push side of `*`. An anchor's name is a full pointer path:
+    `&: P: k` on a node means the container at `: P` gains the key `k` → a ref edge to **this
+    node** ("I also live there"). A trailing `[]` makes it a keyless, appended membership
+    (`&: P[]`). A node may carry **multiple** anchors — on the value's line (quoted when
+    colon-styled), or canonically on their own lines inside the node's block. Anchors are
+    **not entries**: they never change a node's kind (a scalar with anchors stays a scalar).
+    There is **no anchor namespace** — anchors create real keys, and `*name` is pure path
+    lookup. Full semantics (ordinal rules, collisions): the [pointers chapter](::pointers).
+  - !!<format: text/x-yamlover> |
+    pet: &: supercat       # ALSO the document-root key "supercat"
+      species: cat
+    friend: *: supercat    # a plain path reaches it
+  - |
+    `~` — back-edges. Deprecated → path anchors (`~key: *P` ≡ `&: P: key`, and the keyless
+    `~- *P` ≡ `&: P[]`); still parsed through the migration window, serialized as anchors
+    only. A `~-` membership is **unpositioned** (no `~[n]:` — order is the container's data)
+    and **additive**: with no label there is no identity to dedup on, so every `~-` adds one
+    element — unless the container is a `!!set` (§One ordered container).
+- Where yamlover deliberately breaks YAML
+  - |
+    yamlover is **not a superset of YAML** — it shares the surface syntax but differs in
+    **links and anchors** (and the `~` / `!!set` / omni points below). Reading is therefore
+    concrete-aware, so a YAML document is read *faithfully*, with no "porting" step. The
+    table is how the SAME token differs between the two surfaces:
+  - !!<*yamlover: $defs: table>
+    header:
+      - Construct
+      - 'YAML means'
+      - 'yamlover means'
+        width: 2
+    - - '`&anchor`'
+      - a reusable intra-document name for the node
+      - '**path anchor** — "this node also lives at that path"; the path''s parent gains a real key'
+    - - '`*alias`'
+      - 'alias to anchor `alias` (name only)'
+      - '**pointer** — a pure path/scope expression (`*a` = the sibling key `a`; no anchor namespace, no precedence rule)'
+    - - '`~key:` (key position)'
+      - 'the plain-scalar key `"~key"`'
+      - '**back-edge** sigil on key `key` (deprecated → `&: P: key`)'
+    - - '`~-` (entry position)'
+      - 'the plain scalar `~-` (rare)'
+      - '**keyless back-edge** (deprecated → `&: P[]`)'
+    - - '`~` (value position)'
+      - null spelled as a sigil
+      - '**unchanged — still null**'
+    - - '`!!set`'
+      - a mapping of null-valued keys
+      - 'a **set-semantics container** — memberships dedup by identity (§One ordered container)'
+    - - scalar + fields / mixed keyed+keyless
+      - invalid / two node kinds
+      - '**one node** — omni by default (§One ordered container)'
+  - |
+    The anchor row is the consequential one, and the reason reading is concrete-aware. A YAML
+    `&a` … `*a` pair is **document-wide**: the parser reading a `.yaml` file maps it to
+    yamlover's document scope — `&: a` … `*: a` (one shared key at the document root) — so the
+    alias resolves exactly as YAML intends. A `.yo` file's bare `&a`/`*a` instead mean the
+    **current/parent** scope (`*a` = a sibling key, `*[1]` = the parent's ordinal member);
+    document scope is written with the leading `:`. Either way the IR is concrete-agnostic and
+    renders back in yamlover syntax. The `yaml-test-suite` anchor/alias cases are a
+    *diverges-by-design* group, not failures (§Worked examples & conformance).
+- One ordered container
+  - |
+    No separate list/dict type. A mapping is **ordered**; positions are integer keys. A
+    keyless entry (a `- item` sequence element) takes only its position; a keyed entry's
+    position is a `*`-alias to it. Access: `[n]` = integer key (position), `: x` =
+    string key. Order is data — text order in a file; for a directory, the `body.yo` overlay
+    imposes it (§Concretes) on the **subset it names**: a pointer-array element `- *file`
+    consumes the pointer and grants the named child its position (the projection shows the
+    consumed key as a dimmed derived anchor); a child the body never names stays a
+    **keyed-only member** after the ordered block. Full treatment: the
+    [pointers chapter](::pointers).
+  - |
+    Concretely, keyless (`- value`) and keyed (`key: value`) entries can be **mixed in one
+    node** — *partially ordered, partially keyed* — which plain YAML forbids. **Mixtures are
+    the default**: an untagged node may mix keyed and keyless entries, and may carry a scalar
+    value alongside fields. The former opt-in tags remain parseable as optional no-op markers
+    (existing files round-trip, and they stay useful as documentation):
+  - |
+    `!!mix` — marks a container that mixes keyless and keyed entries (a dict ∪ list).
+  - |
+    `!!var` (formerly `!!omni`, still accepted as a deprecated alias) — marks a node that
+    carries a scalar value **and** fields at once; the schema spelling of the shape is
+    `type: variant` (the [types chapter](::types)). The node's **scalar value line** may sit
+    at any position among the entries — first, last, or between; at most **one** scalar line
+    per block, and line order does not change the data. This holds at the **document root**
+    too — a bare root scalar may be followed by entries and anchors, no tag needed, which is
+    what makes the two-line tagged-scalar file legal.
+  - |
+    `!!set` — a container with **set semantics**: an element appears at most once, so
+    duplicate memberships — forward+forward, forward+reverse, reverse+reverse — collapse to
+    one (dedup by target). The inline spelling of the schema keyword `uniqueItems: true`,
+    which is the route for json5p and directory overlays (no tags there). Reinterprets YAML's
+    `!!set` (§Breaks) — and unlike `!!mix`/`!!var` it is **not** a no-op: it carries real
+    dedup semantics.
+  - |
+    The tag sits in **value position** — right after the `key:` (or `- `) whose value it
+    types, exactly where a YAML tag goes; a lone tag on the first line marks the document
+    root, and with omni as the default every one of them is optional:
+  - !!<format: text/x-yamlover> |
+    playlist: !!mix
+      - Intro                 # [0]            keyless / positional
+      - Verse                 # [1]            keyless
+      title: Greatest Hits    # [2], key=title keyed — AND still positioned
+      - Chorus                # [3]            keyless
+    # *playlist[2] and *playlist: title resolve to the SAME node.
+
+    rating: !!var 5           # the node's own scalar value …
+      - solid                 # [0] … and positional + keyed fields together
+      scale: 10
+  - |
+    The self-value may also be a **block scalar** (`|` / `>`) — **tagless**, no `!!var`
+    needed. A block scalar is bounded by *its own content indent* (YAML's rule — `|2` can pin
+    it), so it is **self-delimiting**: it can sit anywhere among the entries, and the fields
+    resume as soon as a line dedents back to the node's own indent:
+  - !!<format: text/x-yamlover> |
+    # tagless — the self-value block scalar between the entries (any position works)
+    - solid
+    |
+      multi-line text is
+      the node's value
+    scale: 10
+  - |
+    A **multi-line** self-value must be a block scalar: an inline *plain* scalar keeps YAML's
+    plain-scalar limits (no `: ` or ` #` inside it, a leading `- ` is a sequence marker, and
+    consecutive plain lines fold together), so arbitrary text goes in a `|`/`>` block.
+- 'Concretes: one file, or a directory'
+  - 'yamlover instances materialize two ways (same logical graph):'
+  - |
+    **File concrete** — a single `.yo` file holds the whole instance.
+  - |
+    **Directory concrete** — a directory *is* the mapping: each file or subdirectory is an
+    entry (filename → string key, bytes → a blob or sub-document). Its `.yo/` holds up to two
+    overlays: `body.yo` — the *instance* overlay: adds scalars/pointers over the
+    directory and, as a pointer-array (`- *file …`), imposes child **order**; and
+    `meta.yo` — the *metadata* schema (types, `format`/decoding, `concrete`,
+    presentation): a JSON-Schema-equivalent written in yamlover, metadata-first with
+    validation optional (the [types chapter](::types)). A file and a subdirectory are
+    equivalent ways to represent the same node.
+  - |
+    A third, smaller materialization lives *inside* a file: a flow token written across
+    several lines (K&R braces) is an **inline concrete switch to json5p** — that node and its
+    subtree speak the brace-family language in the middle of a yamlover document. One line
+    stays yamlover (the flow representation); several lines change the language. The storage
+    taxonomy is the [concretes chapter](::concretes).
+  - Attaching a schema inline — the !!<…> tag
+    - |
+      A node can carry a **schema/metadata** reference inline via a tag, so a plain `.yo`
+      file needs no `.yo/` overlay:
+    - !!<format: text/x-yamlover> |
+      !!<*yamlover: $defs: chapter>   # tag on the document root
+      My Article                      # the root's SELF-VALUE — the title
+      - The first paragraph.          # the body is POSITIONAL
+      - The second.
+      - A subsection                  # a container = a subchapter
+        - its own body chunk…
+    - |
+      `!!<…>` borrows YAML's tag syntax, and **its contents are themselves yamlover** — either
+      a **pointer** to a hosted schema (`!!<*yamlover: $defs: chapter>` references the
+      `chapter` schema under the project's `$defs`), or an **inline schema literal**
+      (`!!<format: text/x-plantuml>` *is* a one-line yamlover/meta document — no named `$defs`
+      entry needed for a one-off format).
+    - |
+      The tag attaches the schema to the value that follows it (after `key:` or `- `), or —
+      on its own line at the top of a file — to the **document root**. The schema is
+      **metadata-first, not validation**: it gives the node its shape, type, and format. This
+      is the file-concrete counterpart to a directory's `.yo/meta.yo`. (json5p has no
+      tags; inline schema attachment is yamlover-only.)
+- Escaping
+  - |
+    Backslash-based, **not** quote-based (in YAML `'` and `"` are interchangeable, so they
+    cannot carry a literal-vs-interpreted distinction). A literal metacharacter
+    (`: [ ] * & # ~ \`, the query characters `? ! ( ) < > = |`, or an all-dots segment
+    `..` / `...`) in a key is escaped with `\`; a key containing a **space** is quoted
+    instead:
+  - !!<format: text/x-yamlover> |
+    colon: *schedule: 09\:30          # a literal ":" in the key
+    dots:  *\.\.                      # the literal key ".."
+    star:  *\*boss                    # the literal key "*boss"
+    space: *: tags: 'дорожный знак'   # a key with a space — quoted
+    mime:  *..: text/html: x          # "/" is no metachar — rides bare
+- Scopes (summary)
+  - 'Identical to json5p (full rules in the [pointers chapter](::pointers)), only unquoted here:'
+  - !!<*yamlover: $defs: table>
+    header:
+      - Form
+      - Base
+        width: 2
+    - ['`*name`, `*..: …`', 'current mapping / its parents']
+    - ['`*: …`', 'current **document** root']
+    - ['`*:: …`', 'the **project** root (a name portion is an import key; the self-import is absorbed)']
+    - ['`*::: auth: …`', 'the **world** — an external project by its authority; an identity, never a fetch']
+- Relationship to the rest of the system
+  - !!<*yamlover: $defs: bullets>
+    - '**IR** — a mapping/sequence becomes one ordered node; a `*` value an unresolved ref edge; a `&` anchor is recorded for the resolver; bytes in the directory concrete a blob by hash (IR.md).'
+    - '**Engine** — a parsed yamlover document or directory populates the node/edge store; anchors are realized as edges at resolve time (ENGINE.md).'
+    - '**json5p** — the brace twin: same `*`/`&`, `[n]`/`: x`, scopes; differs only in surface (`*` is quoted there) and in being a *clean* superset of JSON5, while yamlover breaks YAML (JSON5P.md).'
+- Worked examples & conformance
+  - |
+    The repository's `examples/05-tour.yaml` is plain YAML (the base): native `&`/`*` anchor
+    sharing, no paths. `examples/06-tour.yo` is the same data with the full pointer layer —
+    read them side by side.
+  - |
+    Because yamlover is a close-but-distinct language (not a YAML superset), the YAML
+    conformance corpus (`yaml/yaml-test-suite`) is run as *"accept all positive cases except
+    a documented divergence allowlist"* — the anchor/alias cases are diverges-by-design, not
+    failures. The walk parses `.yaml`/`.yml` files with YAML link semantics (concrete-aware).

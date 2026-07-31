@@ -75,7 +75,9 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
 - [x] `docs/` book root: intro prose + ordered chapter pointers (`docs/.yo/body.yo`)
 - [x] Empty toplevel chapters: `language/`, `pointers/`, `types/`, `concretes/`, `query/`,
       `documents/` (each a directory chapter with title + description, no body yet)
-- [ ] `YAMLOVER.md` → `language/`
+- [x] `YAMLOVER.md` → `language/` (2026-08-01 — modernized to the colon grammar: the MD's stale
+      slash-path examples and closed-window statuses were rewritten, not carried; two MD tables,
+      eight code chunks, one bullets list, cross-chapter links)
 - [ ] `SEPARATOR.md` + `URIs.md` + `ANCHOR_REFACTOR.md` decisions → `pointers/`
 - [ ] `TYPES.md` → `types/`
 - [ ] `META.md` → `types/`
@@ -84,6 +86,11 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
 - [ ] `CHAPTER.md` → `documents/`
 - [ ] `MARKLOWER.md` → `documents/`
 - [ ] Rule on the candidate files (§above)
-- [ ] Marklower improvements met along the way (code-block chunks, asides, …) — spec'd in
+- [ ] Marklower improvements met along the way (asides, syntax highlighting, …) — spec'd in
       `MARKLOWER.md` as they land
+  - [x] Code chunks render (2026-08-01): the `code` registry entry accepts `text/x-yamlover`,
+        `text/x-json5p`, `text/x-yaml` — verbatim `<pre>` for now, highlighting later;
+        `PlaintextChunk` reads an inline chunk's own text instead of fetching bytes
+  - Authoring gotcha worth knowing: marklower emphasis never spans a code token, so the MD
+    habit `` **`code`** `` renders literally — write the code span unbolded
 - [ ] Stub / retire the migrated MD files
