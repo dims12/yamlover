@@ -5,7 +5,7 @@
  *   npx yamlover [ROOT] [--port N]
  *
  * ROOT is the directory to browse (default: the current directory). It may be a
- * yamlover node (with `.yamlover/`), a plain directory, or a single file — the
+ * yamlover node (with `.yo/`), a plain directory, or a single file — the
  * same shapes `tools/walker` understands.
  *
  * Two serve modes, chosen automatically:
@@ -279,7 +279,7 @@ const ts = () => {
 handle = createHandlers(dataRoot, {
   gitignore,
   watch: true, // re-index + push on external edits
-  ensureSettings: true, // create .yamlover/settings.yamlover with defaults if absent (so the gear opens)
+  ensureSettings: true, // create .yo/settings.yo with defaults if absent (so the gear opens)
   log: (line) => console.log(`yamlover ${ts()}  ${line}`),
 });
 handle.ready.catch((e) => console.error(`yamlover ${ts()}  indexing failed:`, e));

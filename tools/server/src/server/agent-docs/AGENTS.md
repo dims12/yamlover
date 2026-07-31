@@ -24,7 +24,7 @@ surface it adds a small **pointer layer** so that data forms a graph, not just a
 - **`!!` tags** — type/schema markers, including inline schema references `!!<…>`.
 
 There is a sibling brace surface called **json5p** (`.json5p` files) — the same pointer layer
-expressed in JSON5 syntax. Most projects use `.yamlover`; treat `.json5p` as the JSON-flavored
+expressed in JSON5 syntax. Most projects use `.yo`; treat `.json5p` as the JSON-flavored
 twin (pointers are written as quoted strings, e.g. `*": pets[1]"`).
 
 **Important:** because `*` and `&` mean something different than in stock YAML (a `*` is a path
@@ -165,15 +165,15 @@ create real keys, so they must resolve to exactly one place.
 
 A node can be materialized two ways:
 
-1. **Single-file concrete** — a whole document in one `.yamlover` (or `.json5p`) file.
+1. **Single-file concrete** — a whole document in one `.yo` (or `.json5p`) file.
 2. **Directory concrete** — a directory **is** the node; its files/subdirs are its entries, and
-   two optional overlay files inside a hidden `.yamlover/` subdir add data and schema:
-   - `.yamlover/body.yamlover` — **instance** overlay: scalar values, ordering, pointers,
+   two optional overlay files inside a hidden `.yo/` subdir add data and schema:
+   - `.yo/body.yo` — **instance** overlay: scalar values, ordering, pointers,
      extra keyed/keyless entries layered onto the directory's contents.
-   - `.yamlover/meta.yamlover` — **schema** overlay: typing, format, validation.
+   - `.yo/meta.yo` — **schema** overlay: typing, format, validation.
 
 So to add a pointer or a value "to a folder", you edit (or create) that folder's
-`.yamlover/body.yamlover`. Plain files inside the directory are its members; a `.yamlover/`
+`.yo/body.yo`. Plain files inside the directory are its members; a `.yo/`
 subdir does not appear as a member — it's the overlay.
 
 A pure pointer-array body (`- *file1` …) is the ORDER overlay: it grants positions to the
@@ -184,7 +184,7 @@ pure module, an explicit `concrete:` always wins): a directory-concrete parent k
 directory-concrete; a keyed container child becomes a nested real directory; an untagged
 keyless (ordinal) container child becomes an order-numbered subdirectory (`item01`,
 `item02`, …) referenced by a `- *: itemNN` pointer-array element; scalars and tagged containers
-(tables, typographical lists) go inline into `body.yamlover`. Title-born subchapter members are
+(tables, typographical lists) go inline into `body.yo`. Title-born subchapter members are
 numbered too (`01-Введение`). The numbers are COSMETIC listing order — the body pointer-array is
 the order's data, and an existing member is NEVER renamed: an insert between neighbors slots a
 sub-number (`item01-1`, `01-1-Новая`). Content inside a file document speaks that file's
@@ -192,12 +192,12 @@ language (a `.json5p` interior never switches to yaml).
 
 **Collapse / expand / promotion — the same node, two shapes.** The two concretes are
 freely interconvertible without changing what the data means: a child stored as
-`child.yamlover` (collapsed) and the same child stored as `child/` with a
-`.yamlover/body.yamlover` (expanded) are equivalent. Converting a single-file node **into**
+`child.yo` (collapsed) and the same child stored as `child/` with a
+`.yo/body.yo` (expanded) are equivalent. Converting a single-file node **into**
 a directory is called **directory promotion** (the UI's action; the engine keeps inbound
 pointers valid across it, like `mv`). If you do it by hand, it is a two-step move: create the
-`child/` directory, move the file's contents into `child/.yamlover/body.yamlover` (plus any
-members as files), and delete the old `child.yamlover` — then let the engine reindex. Because
+`child/` directory, move the file's contents into `child/.yo/body.yo` (plus any
+members as files), and delete the old `child.yo` — then let the engine reindex. Because
 it is a move, treat it with the same care as any rename: pointers that addressed the old file
 path must still resolve (prefer the mediated `mv`/promotion in the UI, which rewrites them —
 see §10).
@@ -253,10 +253,10 @@ pushes the change to the human's browser over a live event stream — so your ed
 UI within a moment, and theirs appear to you on disk. Work with that, not against it:
 
 - **Make small, valid saves.** A half-written file will reindex as broken. Prefer complete edits.
-- **NEVER touch `.yamlover/index.db`** (nor its `-wal` / `-shm` companions). It is the server's
+- **NEVER touch `.yo/index.db`** (nor its `-wal` / `-shm` companions). It is the server's
   generated SQLite index — it regenerates itself from the source files. Editing or deleting it
-  does nothing useful and can confuse a running server. It is the *only* thing in `.yamlover/`
-  you must not edit; `body.yamlover` / `meta.yamlover` overlays (§7) are normal editable data.
+  does nothing useful and can confuse a running server. It is the *only* thing in `.yo/`
+  you must not edit; `body.yo` / `meta.yo` overlays (§7) are normal editable data.
 - **Renames and moves break inbound pointers.** Other files may point at a node by its path
   (`*: some: node`). If you move or rename it with a plain `mv`, those pointers dangle. The
   running server exposes a **mediated move** (`POST /api/mv`) that surgically rewrites inbound
@@ -264,7 +264,7 @@ UI within a moment, and theirs appear to you on disk. Work with that, not agains
   project for pointers to the old path (`*` followed by the path) and update them too.
 - **Don't reformat with a generic YAML/JSON tool.** It will mangle `*`, `&`, `!!<…>`, the
   colon paths, and the mixed keyed/keyless ordering. Edit the text directly and preserve style.
-- **Settings live in `.yamlover/settings.yamlover`** at the project root (e.g. where new tags and
+- **Settings live in `.yo/settings.yo`** at the project root (e.g. where new tags and
   annotations are written). Treat it as configuration; change it only when asked.
 - **When unsure of a path, query it.** The server answers `GET /api/query?...` using the path
   grammar above, and serves the tree at `GET /api/tree` / a node at `GET /api/json?path=:a:b`.

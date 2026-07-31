@@ -13,9 +13,9 @@ import { call, callBody } from "./http";
 // in one file because the scalar was entered first.
 
 const bodyAt = (root: string, ...segs: string[]) =>
-  fs.readFileSync(path.join(root, ...segs, ".yamlover", "body.yamlover"), "utf8");
+  fs.readFileSync(path.join(root, ...segs, ".yo", "body.yo"), "utf8");
 const hasBody = (root: string, ...segs: string[]) =>
-  fs.existsSync(path.join(root, ...segs, ".yamlover", "body.yamlover"));
+  fs.existsSync(path.join(root, ...segs, ".yo", "body.yo"));
 const edit = (h: unknown, body: Record<string, unknown>) => callBody(h as never, "POST", "/api/edit", body);
 const leaf = (h: unknown, p: string) => {
   const v = (call(h as never, "/api/json", { path: p }).json as { value: unknown }).value;
@@ -25,7 +25,7 @@ const leaf = (h: unknown, p: string) => {
 
 describe("scalar-first, grow-by-one → directories (the EmptyYamlover shape)", () => {
   it("EMPLACE (the real omni first-child commit) promotes a titled scalar to its own directory", async () => {
-    const root = tmpTree({ ".yamlover/settings.yamlover": "" }); // a bare dir-backed root
+    const root = tmpTree({ ".yo/settings.yo": "" }); // a bare dir-backed root
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
@@ -49,7 +49,7 @@ describe("scalar-first, grow-by-one → directories (the EmptyYamlover shape)", 
     expect(bodyAt(root, "world", "eurasia")).toContain("europe: Europe");
 
     // the root, whose body is now EMPTY (world moved out), must NOT read as a spurious null-valued
-    // omni — an empty body.yamlover is an empty overlay, not a self-value (walk.ts applyBody)
+    // omni — an empty body.yo is an empty overlay, not a self-value (walk.ts applyBody)
     const rootJson = call(h as never, "/api/json", { path: ":" }).json as { type: string; value: unknown };
     expect(rootJson.type).toBe("object"); // a plain mapping, not "variant" (omni)
     expect((rootJson.value as { $yamloverMixed?: { value: unknown } }).$yamloverMixed?.value).toBeUndefined();
@@ -62,7 +62,7 @@ describe("scalar-first, grow-by-one → directories (the EmptyYamlover shape)", 
   });
 
   it("INSERT (a child under a still-scalar member) promotes the same way", async () => {
-    const root = tmpTree({ ".yamlover/settings.yamlover": "" });
+    const root = tmpTree({ ".yo/settings.yo": "" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
@@ -78,12 +78,12 @@ describe("scalar-first, grow-by-one → directories (the EmptyYamlover shape)", 
 
   it("stays INLINE when the enclosing document is a FILE (inline storage family)", async () => {
     // a file-backed document keeps its interior inline — no promotion, the pre-existing behavior
-    const root = tmpTree({ "doc.yamlover": "world: World\n" });
+    const root = tmpTree({ "doc.yo": "world: World\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
-    expect((await edit(h, { path: ":doc.yamlover:world", op: "emplace", yamlover: "World\neurasia: Eurasia" })).status).toBe(200);
+    expect((await edit(h, { path: ":doc.yo:world", op: "emplace", yamlover: "World\neurasia: Eurasia" })).status).toBe(200);
     expect(fs.existsSync(path.join(root, "world"))).toBe(false); // no directory materialized
-    expect(fs.readFileSync(path.join(root, "doc.yamlover"), "utf8")).toContain("eurasia: Eurasia");
+    expect(fs.readFileSync(path.join(root, "doc.yo"), "utf8")).toContain("eurasia: Eurasia");
   });
 });

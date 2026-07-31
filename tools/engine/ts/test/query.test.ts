@@ -24,10 +24,10 @@ function fixture(name: string): Store {
   s = new Store(':memory:');
   switch (name) {
     case 'inline':
-      s.indexDocument(parseYamlover(INLINE_FIXTURE, 'inline.yamlover'));
+      s.indexDocument(parseYamlover(INLINE_FIXTURE, 'inline.yo'));
       break;
     case '06-tour':
-      s.indexDocument(parseYamlover(readFileSync(join(examples, '06-tour.yamlover'), 'utf8'), '06-tour.yamlover'));
+      s.indexDocument(parseYamlover(readFileSync(join(examples, '06-tour.yo'), 'utf8'), '06-tour.yo'));
       break;
     case '58-genealogy':
       s.indexDocument(walkDir(join(examples, '58-genealogy-dag')));
@@ -43,15 +43,15 @@ function fixture(name: string): Store {
         join(root, '$defs', 'tag'),
         'type: object\nformat: x-yamlover-tag\nproperties:\n  color:\n    type: string\nadditionalProperties: *:: yamlover: $defs: tag\n',
       );
-      mkdirSync(join(root, '$defs', '.yamlover'));
-      writeFileSync(join(root, '$defs', '.yamlover', 'meta.yamlover'), 'properties:\n  tag:\n    type: string\n    format: yamlover/meta\n');
+      mkdirSync(join(root, '$defs', '.yo'));
+      writeFileSync(join(root, '$defs', '.yo', 'meta.yo'), 'properties:\n  tag:\n    type: string\n    format: yamlover/meta\n');
       mkdirSync(join(root, 'tags'));
-      mkdirSync(join(root, 'tags', '.yamlover'));
+      mkdirSync(join(root, 'tags', '.yo'));
       writeFileSync(
-        join(root, 'tags', '.yamlover', 'body.yamlover'),
+        join(root, 'tags', '.yo', 'body.yo'),
         '!!<*yamlover:$defs:tag>\ncolors: The palette\n  yellow:\n    color: "#f9e2af"\n  green:\n    color: "#a6e3a1"\n',
       );
-      writeFileSync(join(root, 'data.yamlover'), 'x: 1\n');
+      writeFileSync(join(root, 'data.yo'), 'x: 1\n');
       s.indexDocument(walkDir(root));
       break;
     }

@@ -4,13 +4,13 @@
 //
 // Two halves, one runner:
 //
-//   LAYOUT (`layout/*`) — SCHEMA-LESS structure: where a value may live on disk. A `.yamlover`
+//   LAYOUT (`layout/*`) — SCHEMA-LESS structure: where a value may live on disk. A `.yo`
 //     overlay never nests inside another; a container derived to a real directory must actually be
 //     written as one; a `dir/yamlover` owns its marker and a plain `dir` does not. These need no
 //     metadata at all, so they hold for a fresh directory the user has only just started typing
 //     into — which is exactly where the corruption they catch is born.
 //
-//   VALUE (`value/*`) — a node's data against a `.yamlover/meta.yamlover` schema (META.md). The
+//   VALUE (`value/*`) — a node's data against a `.yo/meta.yo` schema (META.md). The
 //     codes and the {@link SchemaRule} shape are RESERVED here and {@link compileMeta} ships
 //     returning `[]`: the seam exists so that landing real schema rules later adds a rule SOURCE
 //     and changes no call site, no diagnostic shape, and no enforcement decision.
@@ -20,25 +20,25 @@
 // scheme, {@link dataFileConcrete}) and asserts only that the plan obeyed the answer. A rule that
 // needed a policy of its own would mean the policy is missing from concrete-rules.ts.
 //
-// Paths cross this boundary as ROOT-RELATIVE POSIX strings (`a/b/.yamlover/body.yamlover`, `""`
+// Paths cross this boundary as ROOT-RELATIVE POSIX strings (`a/b/.yo/body.yo`, `""`
 // for the root) — the caller converts, the way engine-api.ts already does for the index.
 
 import { baseLanguage, dataFileConcrete, isBinaryConcrete, isFileConcrete, type Inlined } from "./concrete";
 import { deriveMemberEncoding, requiredChildLanguage, type DirEditRoute } from "./concrete-rules";
 
 // --------------------------------------------------------------------------- //
-// The overlay vocabulary — the ONLY names that may live inside a `.yamlover/`
+// The overlay vocabulary — the ONLY names that may live inside a `.yo/`
 // --------------------------------------------------------------------------- //
 
 /** The hidden marker/overlay directory (CONCRETES.md, META.md §Where it lives). */
-export const OVERLAY_DIR = ".yamlover";
+export const OVERLAY_DIR = ".yo";
 
-/** The files a `.yamlover/` may hold: the instance overlay, the schema, the project config, and
+/** The files a `.yo/` may hold: the instance overlay, the schema, the project config, and
  *  the engine's derived index (plus SQLite's own journal siblings). */
-const OVERLAY_FILES = new Set(["body.yamlover", "meta.yamlover", "settings.yamlover", "index.db", "index.db-wal", "index.db-shm"]);
+const OVERLAY_FILES = new Set(["body.yo", "meta.yo", "settings.yo", "index.db", "index.db-wal", "index.db-shm"]);
 
-/** The sidecar subdirectories a `.yamlover/` may hold — derived/user blobs addressed by a
- *  `*::.yamlover:<subdir>:name` pointer (engine-api's CROP_SUBDIR / THUMB_SUBDIR). */
+/** The sidecar subdirectories a `.yo/` may hold — derived/user blobs addressed by a
+ *  `*::.yo:<subdir>:name` pointer (engine-api's CROP_SUBDIR / THUMB_SUBDIR). */
 const OVERLAY_SUBDIRS = new Set(["fragments", "thumbnails"]);
 
 /** Characters no path segment may carry (the writeDirMemberTree charset, hoisted). */
@@ -75,7 +75,7 @@ export type DiagnosticCode =
   // layout — whole-tree invariants (the doctor sweep)
   | "layout/orphan-overlay"
   | "layout/concrete-mismatch"
-  // value — RESERVED for meta.yamlover (META.md §Vocabulary)
+  // value — RESERVED for meta.yo (META.md §Vocabulary)
   | "value/type"
   | "value/required"
   | "value/enum"
@@ -91,7 +91,7 @@ export interface Diagnostic {
   path?: string;
   fsPath?: string;
   hint?: string;
-  /** FUTURE — the meta.yamlover keyword path that produced this (`properties/age/type`). */
+  /** FUTURE — the meta.yo keyword path that produced this (`properties/age/type`). */
   metaPath?: string;
   /** FUTURE — the schema keyword itself (`type`, `required`, `format`, …). */
   keyword?: string;
@@ -126,7 +126,7 @@ export interface ConcreteNode {
 export type PlannedWrite =
   | { kind: "file"; fsPath: string; concrete: string }
   | { kind: "dir"; fsPath: string; concrete: "dir" | "dir/yamlover" }
-  | { kind: "overlay"; fsPath: string } // a `<dir>/.yamlover/<entry>` write
+  | { kind: "overlay"; fsPath: string } // a `<dir>/.yo/<entry>` write
   | { kind: "splice"; fsPath: string; within?: (string | number)[] }; // an in-body edit
 
 /** PRE-FLIGHT input: what the routing decision saw, plus what it decided to write. Every optional
@@ -171,7 +171,7 @@ export interface LayoutRule {
   onNode?(node: ConcreteNode, tree: TreeSnapshot, fsPaths: ReadonlySet<string>): Diagnostic[];
 }
 
-/** FUTURE — one compiled `meta.yamlover` keyword, keyed by META-PATH (META.md's meta-path →
+/** FUTURE — one compiled `meta.yo` keyword, keyed by META-PATH (META.md's meta-path →
  *  instance-path contract). A plain string, so a later `$ref`/`$defs` scheme slots in without
  *  touching the runner. */
 export interface SchemaRule {
@@ -180,7 +180,7 @@ export interface SchemaRule {
   check(node: ConcreteNode, value: unknown): Diagnostic[];
 }
 
-/** FUTURE SEAM — compile a `meta.yamlover` document into value rules. Ships EMPTY: the type and
+/** FUTURE SEAM — compile a `meta.yo` document into value rules. Ships EMPTY: the type and
  *  the `opts.schema` plumbing are real from day one so landing the real body later is additive.
  *  When it grows, it walks the keyword nesting (`properties:` / `prefixItems:` / `items:`) and
  *  emits one rule per keyword; the engine's existing overlay read (walk.ts) supplies `meta`. */
@@ -204,7 +204,7 @@ function segsOf(fsPath: string): string[] {
 
 export const layoutRules: readonly LayoutRule[] = [
   {
-    // A `.yamlover/` is the marker of the directory it sits in; a second one below it would make
+    // A `.yo/` is the marker of the directory it sits in; a second one below it would make
     // the overlay itself a document root — the format violation that lets an editing session bury
     // content where no walk will ever look for it.
     code: "layout/nested-overlay",
@@ -220,7 +220,7 @@ export const layoutRules: readonly LayoutRule[] = [
     },
   },
   {
-    // Everything under a `.yamlover/` is format furniture with a fixed vocabulary (META.md). A
+    // Everything under a `.yo/` is format furniture with a fixed vocabulary (META.md). A
     // stray name here is content that has escaped the data tree.
     code: "layout/reserved-overlay-name",
     onPath(fsPath, segs) {
@@ -252,7 +252,7 @@ export const layoutRules: readonly LayoutRule[] = [
   },
   {
     // The writeDirMemberTree name check, hoisted out of engine-api so every write path shares it.
-    // `.yamlover` is the one legal dot-name: the data tree is never hidden.
+    // `.yo` is the one legal dot-name: the data tree is never hidden.
     code: "layout/unsafe-member-name",
     onPath(fsPath, segs) {
       const out: Diagnostic[] = [];
@@ -342,7 +342,7 @@ export const layoutRules: readonly LayoutRule[] = [
     },
   },
   {
-    // A `.yamlover/` whose directory is gone, or which holds only sidecar blobs, is debris: the
+    // A `.yo/` whose directory is gone, or which holds only sidecar blobs, is debris: the
     // walk will never reach it and the user cannot see it.
     code: "layout/orphan-overlay",
     onNode(node, _tree, fsPaths) {
@@ -355,7 +355,7 @@ export const layoutRules: readonly LayoutRule[] = [
       if (!fsPaths.has(parent)) {
         out.push(d("layout/orphan-overlay", `\`${OVERLAY_DIR}\` has no directory to mark`, { path: node.path, fsPath }));
       }
-      // A marker-only overlay (meta.yamlover alone — the scalar-as-binary shape) is LEGAL; an
+      // A marker-only overlay (meta.yo alone — the scalar-as-binary shape) is LEGAL; an
       // overlay with no format file at all is not.
       if (node.names && !node.names.some((n) => OVERLAY_FILES.has(n))) {
         out.push(

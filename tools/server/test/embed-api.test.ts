@@ -9,8 +9,8 @@ import { call, callBody } from "./http";
 // `yamlover-annotations`; /api/fragment adds a `yamlover-fragments` region; reads derive from
 // those forward `*::tag` edges. Synthetic temp trees only — never the repo.
 
-const TAG_FILE = { "tags.yamlover": 'yellow: !!<*::yamlover:$defs:tag>\n  color: "#f9e2af"\n' };
-const TAG = ":tags.yamlover:yellow";
+const TAG_FILE = { "tags.yo": 'yellow: !!<*::yamlover:$defs:tag>\n  color: "#f9e2af"\n' };
+const TAG = ":tags.yo:yellow";
 
 describe("embedded annotations", () => {
   it("tags a whole leaf node via the enclosing overlay (no untagged-omni source)", async () => {
@@ -23,9 +23,9 @@ describe("embedded annotations", () => {
 
     // a scalar leaf file is NOT rewritten in place — its annotations live in the root overlay
     expect(fs.readFileSync(path.join(root, "name"), "utf8")).toBe("Alice");
-    const overlay = fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8");
+    const overlay = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
     expect(overlay).toContain("yamlover-annotations:");
-    expect(overlay).toContain("*::tags.yamlover:yellow");
+    expect(overlay).toContain("*::tags.yo:yellow");
 
     const list = call(h, "/api/annotations", { path: ":name" }).json;
     expect(list).toHaveLength(1);
@@ -59,9 +59,9 @@ describe("embedded annotations", () => {
 
     const r = await callBody(h, "POST", "/api/annotate", { target: ":docs:pic.png", tag: TAG });
     expect(r.status).toBe(201);
-    const overlay = fs.readFileSync(path.join(root, "docs", ".yamlover", "body.yamlover"), "utf8");
+    const overlay = fs.readFileSync(path.join(root, "docs", ".yo", "body.yo"), "utf8");
     expect(overlay).toContain('"pic.png":');
-    expect(overlay).toContain("*::tags.yamlover:yellow");
+    expect(overlay).toContain("*::tags.yo:yellow");
 
     const list = call(h, "/api/annotations", { path: ":docs:pic.png" }).json;
     expect(list).toHaveLength(1);
@@ -104,8 +104,8 @@ describe("embedded annotations", () => {
       imageBase64: png,
     });
     expect(frag.status).toBe(201);
-    // per-directory mode: the crop sidecar lands under the target dir's hidden .yamlover/fragments/
-    expect(fs.existsSync(path.join(root, "docs", ".yamlover", "fragments", `${frag.json.slug}.png`))).toBe(true);
+    // per-directory mode: the crop sidecar lands under the target dir's hidden .yo/fragments/
+    expect(fs.existsSync(path.join(root, "docs", ".yo", "fragments", `${frag.json.slug}.png`))).toBe(true);
 
     await callBody(h, "POST", "/api/annotate", { target: frag.json.fragmentPath, tag: TAG });
     const list = call(h, "/api/annotations", { path: ":docs:pic.png" }).json;
@@ -132,7 +132,7 @@ describe("embedded annotations", () => {
     await h.ready;
     // tag one PDF with the other, then untag at once (the right-click → TOC-click → uncheck flow)
     await callBody(h, "POST", "/api/annotate", { target: ":docs:a.pdf", tag: ":docs:b.pdf" });
-    const overlayFile = path.join(root, "docs", ".yamlover", "body.yamlover");
+    const overlayFile = path.join(root, "docs", ".yo", "body.yo");
     expect(fs.readFileSync(overlayFile, "utf8")).toContain("yamlover-annotations:");
     const del = await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":docs:a.pdf")}&tag=${encodeURIComponent(":docs:b.pdf")}`, {});
     expect(del.status).toBe(200);
@@ -145,14 +145,14 @@ describe("embedded annotations", () => {
   it("untagging ONE of two tags keeps the host key and the other annotation", async () => {
     const root = tmpTree({
       name: "Alice",
-      "tags.yamlover": 'yellow: !!<*::yamlover:$defs:tag>\n  color: "#f9e2af"\ngreen: !!<*::yamlover:$defs:tag>\n  color: "#a6e3a1"\n',
+      "tags.yo": 'yellow: !!<*::yamlover:$defs:tag>\n  color: "#f9e2af"\ngreen: !!<*::yamlover:$defs:tag>\n  color: "#a6e3a1"\n',
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":tags.yamlover:yellow" });
-    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":tags.yamlover:green" });
-    await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":name")}&tag=${encodeURIComponent(":tags.yamlover:yellow")}`, {});
-    const overlay = fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8");
+    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":tags.yo:yellow" });
+    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":tags.yo:green" });
+    await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":name")}&tag=${encodeURIComponent(":tags.yo:yellow")}`, {});
+    const overlay = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
     expect(overlay).toContain("yamlover-annotations:"); // one tag remains — nothing pruned
     expect(overlay).toContain("green");
     expect(call(h, "/api/annotations", { path: ":name" }).json).toHaveLength(1);
@@ -162,13 +162,13 @@ describe("embedded annotations", () => {
   it("in an in-place DOCUMENT only the husk goes — a pre-existing empty data key survives untag", async () => {
     // `stub:` is the USER's key (empty mapping) inside a real document — tagging must pass
     // through it without adopting it: after untag the husk goes but `stub:` stays
-    const root = tmpTree({ "doc.yamlover": "stub:\nkeep: 1\n", ...TAG_FILE });
+    const root = tmpTree({ "doc.yo": "stub:\nkeep: 1\n", ...TAG_FILE });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    await callBody(h, "POST", "/api/annotate", { target: ":doc.yamlover:stub", tag: TAG });
-    expect(fs.readFileSync(path.join(root, "doc.yamlover"), "utf8")).toContain("yamlover-annotations:");
-    await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":doc.yamlover:stub")}&tag=${encodeURIComponent(TAG)}`, {});
-    const doc = fs.readFileSync(path.join(root, "doc.yamlover"), "utf8");
+    await callBody(h, "POST", "/api/annotate", { target: ":doc.yo:stub", tag: TAG });
+    expect(fs.readFileSync(path.join(root, "doc.yo"), "utf8")).toContain("yamlover-annotations:");
+    await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":doc.yo:stub")}&tag=${encodeURIComponent(TAG)}`, {});
+    const doc = fs.readFileSync(path.join(root, "doc.yo"), "utf8");
     expect(doc).not.toContain("yamlover-annotations"); // the husk is gone…
     expect(doc).toContain("stub:"); // …but the user's empty key is NOT swallowed with it
     expect(doc).toContain("keep: 1");
@@ -183,7 +183,7 @@ describe("DELETE /api/annotate — tolerant pointer matching", () => {
   it("removes a spaced, document-scope `*: tags: …` annotation", async () => {
     const root = tmpTree({
       "doc.md": "# hi",
-      ".yamlover/body.yamlover":
+      ".yo/body.yo":
         '"doc.md":\n  yamlover-annotations:\n  - *: tags: field: math\n  - *: tags: genre: short\n' +
         "tags: !!<*yamlover:$defs:tag>\n  field:\n    math: Math\n  genre:\n    short: Short\n",
     });
@@ -196,7 +196,7 @@ describe("DELETE /api/annotate — tolerant pointer matching", () => {
     // exactly one removed — the other spaced pointer survives (the matcher is path-specific)
     const left = call(h, "/api/annotations", { path: ":doc.md" }).json;
     expect(left.map((a: any) => a.tag?.path)).toEqual([":tags:genre:short"]);
-    const body = fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8");
+    const body = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
     expect(body).not.toContain("field: math");
     expect(body).toContain("genre: short");
     h.close();

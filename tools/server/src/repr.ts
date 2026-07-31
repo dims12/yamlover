@@ -7,7 +7,7 @@
 //                                  `file/yaml`, `dir/yamlover`, …
 //   REPRESENTATION (this module) — HOW it is written: `yaml/flow`, `yaml/single`, `yaml/hex`, …
 //
-// Both are real: a flow sequence inside a `.yamlover` file is `concrete: "yamlover"` AND
+// Both are real: a flow sequence inside a `.yo` file is `concrete: "yamlover"` AND
 // `repr: "yaml/flow"`. Flow is NOT a language switch — the language is still yamlover.
 //
 // The namespace is `yaml/…` (not `yamlover/…`) on purpose: yamlover, yaml and json5p share the

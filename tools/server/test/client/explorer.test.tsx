@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 
 vi.mock("../../src/client/api", () => ({
-  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
+  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yo:settings.yo" }),
   fetchTagged: vi.fn(),
   thumbUrl: (p: string, w: number, h: number) => `/api/thumb?path=${encodeURIComponent(p)}&w=${w}&h=${h}`,
   blobUrl: (p: string) => `/api/blob?path=${encodeURIComponent(p)}`,
@@ -188,18 +188,18 @@ describe("ExplorerView (a directory)", () => {
 
 describe("ExplorerView (a tag)", () => {
   const tag = node({
-    path: ":tags.yamlover:yellow",
+    path: ":tags.yo:yellow",
     format: "x-yamlover-tag",
     concrete: null,
     description: "things to revisit",
     value: {
-      color: link({ kind: "scalar", type: "string", path: ":tags.yamlover:yellow:color", value: "#f9e2af" }),
+      color: link({ kind: "scalar", type: "string", path: ":tags.yo:yellow:color", value: "#f9e2af" }),
       pale: link({
         kind: "object", type: "object", format: "x-yamlover-tag",
-        path: ":tags.yamlover:yellow:pale", count: 0, color: "#fdf3c4",
+        path: ":tags.yo:yellow:pale", count: 0, color: "#fdf3c4",
       }),
       // the raw back-edge member downstreamEntries appends — the mediating annotation node
-      a1: link({ kind: "object", type: "object", format: "x-yamlover-annotation", path: ":annotations:a1.yamlover", count: 3 }),
+      a1: link({ kind: "object", type: "object", format: "x-yamlover-annotation", path: ":annotations:a1.yo", count: 3 }),
     },
   });
 
@@ -207,33 +207,33 @@ describe("ExplorerView (a tag)", () => {
     mTagged.mockResolvedValue([
       link({ kind: "scalar", type: "string", path: ":name", value: "Alice" }),
       // a directly-tagged subtag-like member already present as an owned field — dedup by path
-      link({ kind: "object", type: "object", format: "x-yamlover-tag", path: ":tags.yamlover:yellow:pale", count: 0 }),
+      link({ kind: "object", type: "object", format: "x-yamlover-tag", path: ":tags.yo:yellow:pale", count: 0 }),
     ]);
     render(<ExplorerView node={tag} view="large" onNavigate={() => {}} />);
-    expect(mTagged).toHaveBeenCalledWith(":tags.yamlover:yellow");
+    expect(mTagged).toHaveBeenCalledWith(":tags.yo:yellow");
     await screen.findByText("name:"); // the material arrived
 
     const hrefs = items().map((el) => el.getAttribute("href"));
     expect(hrefs).toContain(":name");
-    expect(hrefs).not.toContain(":annotations:a1.yamlover"); // the annotation stays out
-    expect(hrefs.filter((h) => h === ":tags.yamlover:yellow:pale")).toHaveLength(1); // deduped
+    expect(hrefs).not.toContain(":annotations:a1.yo"); // the annotation stays out
+    expect(hrefs.filter((h) => h === ":tags.yo:yellow:pale")).toHaveLength(1); // deduped
   });
 
   it("shows NO uplinks (a tag lists its materials, not a folder to ascend from)", () => {
     const tagWithRel = node({
-      path: ":tags.yamlover:yellow",
+      path: ":tags.yo:yellow",
       format: "x-yamlover-tag",
       concrete: null,
-      value: { color: link({ kind: "scalar", type: "string", path: ":tags.yamlover:yellow:color", value: "#f9e2af" }) },
-      relations: { "..": link({ kind: "object", type: "object", path: ":tags.yamlover", count: 1 }) },
+      value: { color: link({ kind: "scalar", type: "string", path: ":tags.yo:yellow:color", value: "#f9e2af" }) },
+      relations: { "..": link({ kind: "object", type: "object", path: ":tags.yo", count: 1 }) },
     });
     render(<ExplorerView node={tagWithRel} view="large" onNavigate={() => {}} />);
     expect(items().every((el) => !el.className.includes("dirview-up"))).toBe(true);
-    expect(items().map((el) => el.getAttribute("href"))).not.toContain(":tags.yamlover");
+    expect(items().map((el) => el.getAttribute("href"))).not.toContain(":tags.yo");
   });
 
   it("previews a tagged FRAGMENT by its crop image (the link's `preview`), not a generic glyph", async () => {
-    const crop = ":72-images:eiffel-tower:.yamlover:fragments:abc.png";
+    const crop = ":72-images:eiffel-tower:.yo:fragments:abc.png";
     mTagged.mockResolvedValue([
       link({
         kind: "object", type: "object", format: "x-yamlover-fragment",

@@ -94,7 +94,7 @@ test('reindexAsync returns the same diff as reindex and reports determinate prog
   for (const root of [rootA, rootB]) {
     mkdirSync(join(root, 'd'));
     writeFileSync(join(root, 'a.md'), '# a');
-    writeFileSync(join(root, 'd', 'b.yamlover'), 'x: 1\n');
+    writeFileSync(join(root, 'd', 'b.yo'), 'x: 1\n');
   }
   const syncDiff = reindex(new Store(':memory:'), rootA);
 
@@ -102,7 +102,7 @@ test('reindexAsync returns the same diff as reindex and reports determinate prog
   const asyncDiff = await reindexAsync(new Store(':memory:'), rootB, { onProgress: (p) => progress.push(p) });
   assert.deepEqual(asyncDiff, syncDiff);
   assert.ok(progress.length > 0);
-  assert.ok(progress.every((p) => p.total === 3)); // a.md, d, d/b.yamlover
+  assert.ok(progress.every((p) => p.total === 3)); // a.md, d, d/b.yo
   assert.equal(progress.at(-1)!.message, 'writing index…');
   assert.equal(progress.at(-2)!.done, 3);
 });

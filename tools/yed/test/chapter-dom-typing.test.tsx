@@ -164,6 +164,37 @@ describe("chapter dom-typing — the reported bugs, pinned in real events", () =
     h.unmount();
   });
 
+  it("Ctrl+Enter on a paragraph INITIATES a table; the same key then appends rows", () => {
+    const h = mountChapter("- data point\n- x\n");
+    const p = prose(h, 0);
+    fireEvent.focus(p);
+    setCaret(p, 4);
+    lawCheck(h, "focus");
+    fireEvent.keyDown(p, { key: "Enter", ctrlKey: true });
+    lawCheck(h, "Ctrl+Enter (make the table)");
+    // the paragraph became the one-cell table's cell — an INPUT holding the prose, focused
+    expect(sourceOf(h.state().doc)).toBe("- !!<*:: yamlover: $defs: table>\n  - data point\n- x\n");
+    const cell = document.activeElement as HTMLInputElement;
+    expect(cell.tagName).toBe("INPUT");
+    expect(cell.value).toBe("data point");
+    // the SAME gesture from inside the table appends a row
+    fireEvent.keyDown(cell, { key: "Enter", ctrlKey: true });
+    lawCheck(h, "Ctrl+Enter (append a row)");
+    expect(h.container.querySelectorAll("tbody tr").length).toBe(2);
+    h.unmount();
+  });
+
+  it("Ctrl+Enter on the BOOTSTRAP materializes the table, caret in its creation flow", () => {
+    const h = mountChapter("");
+    lawCheck(h, "open (boot)");
+    const boot = document.activeElement as HTMLElement;
+    fireEvent.keyDown(boot, { key: "Enter", ctrlKey: true });
+    lawCheck(h, "Ctrl+Enter (boot table)");
+    expect(sourceOf(h.state().doc)).toBe("- !!<*:: yamlover: $defs: table>\n  - ''\n");
+    expect((document.activeElement as HTMLElement).tagName).toBe("INPUT");
+    h.unmount();
+  });
+
   it("typing into the BOOTSTRAP births the first entry and keeps the caret", () => {
     const h = mountChapter("");
     lawCheck(h, "open (boot)");

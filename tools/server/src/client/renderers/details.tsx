@@ -35,7 +35,7 @@ function sizeLabel(it: ExplorerItem): string {
 /**
  * The DETAILS view — a Windows-Explorer-style columnar table of a directory's members: Name (icon +
  * title), Kind, Tags, and Size. The Tags column reads each member's applied tags (one
- * `fetchAnnotations` per member, refreshed on any `.yamlover` write via `useDiffBump`) so a backlog
+ * `fetchAnnotations` per member, refreshed on any `.yo` write via `useDiffBump`) so a backlog
  * can be browsed and triaged. Rows navigate on click and raise the tagging menu on right-click
  * (the same `openContextMenu` the grid uses). Column set is provisional — to be refined.
  */
@@ -67,7 +67,7 @@ export function DetailsView({
   // Scoped refetch on a diff: only members the touched FILES actually affect — a tag toggle on one
   // row no longer re-fetches annotations for every row in the view. A member at node path `M` is
   // affected when a changed file IS `M` (a standalone-file node) or lives UNDER it (`M:…`, e.g. its
-  // `.yamlover/body.yamlover` overlay).
+  // `.yo/body.yo` overlay).
   useEffect(() => {
     if (seq === 0) return;
     const affected = paths.filter((p) => changed.some((f) => f === p || f.startsWith(p + ":")));

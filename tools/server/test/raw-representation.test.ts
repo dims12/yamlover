@@ -11,10 +11,10 @@ import { call } from "./http";
 describe("scalar raw representation (comment sidecar)", () => {
   it("carries raw for representation-significant scalars only, value unchanged", async () => {
     const src = 'humans:\n  - name: "~"\n    plain: Rex\n    id: 0xff\n    n: 42\n    b: True\n    nul: ~\n';
-    const root = tmpTree({ "d.yamlover": src });
+    const root = tmpTree({ "d.yo": src });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const j = call(h, "/api/json", { path: ":d.yamlover", depth: ".inf" }).json as { value: any; comments: Record<string, { raw?: string }> };
+    const j = call(h, "/api/json", { path: ":d.yo", depth: ".inf" }).json as { value: any; comments: Record<string, { raw?: string }> };
     const c = j.comments;
 
     expect(j.value.humans[0].name).toBe("~"); // still the STRING "~", not null
@@ -49,7 +49,7 @@ describe("representation concretes on the wire", () => {
     "blk: |-\n  one\n  two\n";
 
   async function comments() {
-    const h = createHandlers(tmpTree({ "d/.yamlover/body.yamlover": source }), { gitignore: false });
+    const h = createHandlers(tmpTree({ "d/.yo/body.yo": source }), { gitignore: false });
     await h.ready;
     return (call(h, "/api/json", { path: ":d", depth: "2" }).json as { comments: Record<string, { repr?: string; block?: unknown }> }).comments;
   }
@@ -79,7 +79,7 @@ describe("representation concretes on the wire", () => {
 // drives the classifier directly, so the vocabulary stays covered either way.
 describe("notations the core reader does not decode", () => {
   it("read as strings, so they carry no representation concrete", async () => {
-    const h = createHandlers(tmpTree({ "d/.yamlover/body.yamlover": "oct: 0o377\nbin: 0b1111\nyes11: yes\n" }), { gitignore: false });
+    const h = createHandlers(tmpTree({ "d/.yo/body.yo": "oct: 0o377\nbin: 0b1111\nyes11: yes\n" }), { gitignore: false });
     await h.ready;
     const j = call(h, "/api/json", { path: ":d", depth: "2" }).json as { value: Record<string, unknown>; comments: Record<string, { repr?: string }> };
     expect(j.value).toMatchObject({ oct: "0o377", bin: "0b1111", yes11: "yes" });

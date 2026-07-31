@@ -65,7 +65,12 @@ export function commitChapterText(s: ChapterState, path: Path, text: string): Ch
   const v = nodeAt(s.doc, path);
   if (!v) return s;
   if (text === "" && isChapterContainer(v) && (v as Node).kind === "scalar" && (v.entries ?? []).length > 0) {
-    return ok(s, { doc: dropSelf(s.doc, path) }, "commitText:dropTitle");
+    const doc = dropSelf(s.doc, path);
+    // the title CELL vanishes with its self line — the caret must land somewhere (reported:
+    // focus lost, editing dead until a click): the chapter's first remaining stop
+    const list = chapterPositionsOf(doc);
+    const inside = list.find((p) => isPrefix(path, p.path) && p.path.length > path.length) ?? list[0] ?? null;
+    return ok(s, { doc, ...(inside ? { focus: inside, caret: "start" as const } : {}) }, "commitText:dropTitle");
   }
   return ok(s, { doc: withText(s.doc, path, text) }, "commitText");
 }
@@ -152,7 +157,30 @@ export function joinWalk(s: ChapterState, dir: 1 | -1): ChapterState {
     return dissolveInto(s, partner.path, s.focus.path);
   }
   if (isProse(focusSite.cell) && partnerSite.cell === "title") {
-    if (isPrefix(partner.path, s.focus.path)) return refuse(s, "join"); // its own heading
+    if (isPrefix(partner.path, s.focus.path)) {
+      // its OWN heading — Backspace at the chapter's first stop: the heading dissolves, its
+      // text LEADING the merged paragraph (the caret sits at the junction, mid-deletion)
+      if (partnerSite.materialized) return refuse(s, "join"); // an anchored subchapter never dissolves by keystroke
+      const titlePath = partner.path;
+      if (titlePath.length === 0) {
+        // the ROOT title has no parent to flatten into — its self line drops and the text
+        // merges into the focused chunk directly
+        const root = nodeAt(s.doc, []);
+        if (!root || !hasSelfValue(root)) return refuse(s, "join");
+        const tText = scalarText(root);
+        const cText = scalarText(nodeAt(s.doc, s.focus.path)!);
+        let doc = dropSelf(s.doc, []);
+        doc = withText(doc, s.focus.path, tText + cText);
+        return ok(s, { doc, focus: { at: "token", path: s.focus.path }, caret: tText.length, revs: bumpRev(s.revs, s.focus.path) }, "join");
+      }
+      const flat = flattenChapter(s.doc, titlePath);
+      if (flat === null) return refuse(s, "join");
+      // the focus chunk was the title's child j — the flatten splices it to the parent
+      const j = s.focus.path[titlePath.length];
+      const rest = s.focus.path.slice(titlePath.length + 1);
+      const prose = [...titlePath.slice(0, -1), titlePath[titlePath.length - 1] + 1 + j, ...rest];
+      return absorb({ ...s, doc: flat.doc }, titlePath, prose);
+    }
     // Delete: the prose is earlier, its text leads; Backspace: the title's text lands first
     return dissolveInto(s, s.focus.path, partner.path, dir < 0);
   }
@@ -197,8 +225,8 @@ function absorb(s: ChapterState, earlierPath: Path, laterPath: Path): ChapterSta
   doc = withText(doc, ePath, eText + lText);
   // THE CELL FOLD-BACK (splitCell's exact inverse): a table CELL whose chunks joined down to
   // ONE plain paragraph is that scalar cell again — Enter's split reverts by deletion,
-  // leaving no one-item container husk (a split SCALAR row reads as a two-cell row — its
-  // entries are cells, so joins never reach here for it)
+  // leaving no one-item container husk (a split SCALAR row wraps to a one-cell array first,
+  // so its joins fold back through this same path)
   let focusPath = ePath;
   const cellHost = ePath.slice(0, -1);
   if (cellHost.length > 0) {
@@ -375,6 +403,30 @@ export function appendRow(s: ChapterState, cellPath: Path): ChapterState {
   const at = entries.length;
   const doc = insertEntry(s.doc, tablePath, at, row);
   return ok(s, { doc, focus: { at: "token", path: [...tablePath, at, 0] }, caret: "start" }, "appendRow");
+}
+
+/** Backspace at the first position of an ALL-EMPTY row: the row leaves the table, and the
+ *  LAST row's departure removes the emptied table itself (the husk) — so a table unwinds
+ *  gradually the way every structure does. The caret lands on the walk stop before the row. */
+export function deleteTableRow(s: ChapterState, cellPath: Path): ChapterState {
+  const tablePath = tableAncestor(s, cellPath);
+  if (tablePath === null) return refuse(s, "deleteRow");
+  const rowIdx = cellPath[tablePath.length];
+  const rowPath = [...tablePath, rowIdx];
+  const list = chapterPositionsOf(s.doc);
+  const first = list.findIndex((p) => isPrefix(rowPath, p.path));
+  let doc = removeEntryAt(s.doc, tablePath, rowIdx);
+  // the emptied table is a husk — it leaves with its last row (the ROOT table stays: its
+  // boot cell takes the caret instead)
+  const table = nodeAt(doc, tablePath);
+  if (table && tablePath.length > 0 && !hasSelfValue(table) && (table.entries ?? []).length === 0) {
+    doc = removeEntryAt(doc, tablePath.slice(0, -1), tablePath[tablePath.length - 1]);
+  }
+  // the stop BEFORE the removed row is untouched by the removal — it is the caret's home;
+  // a row that led the document falls back to whatever the new walk starts with
+  const prev = first > 0 ? list[first - 1] : null;
+  const focus = prev ?? chapterPositionsOf(doc)[0] ?? null;
+  return ok(s, { doc, focus, caret: "end" }, "deleteRow");
 }
 
 /** A new COLUMN: every row (the header included) gains a trailing empty cell; a SCALAR row
@@ -694,9 +746,22 @@ export function applyChapterIntent(s: ChapterState, intent: ChapterIntent, split
         const cell = nodeAt(s.doc, path);
         if (cell && cell.kind === "scalar" && (cell.entries ?? []).length === 0) {
           const text = split ?? { head: scalarText(cell), tail: "" };
+          const chunks = (): Node =>
+            ({ kind: "mapping", array: true, entries: [proseEntry(text.head), proseEntry(text.tail)] } as unknown as Node);
+          if (site.enclosing === "row") {
+            // a SCALAR row's entries are its CELLS — splitting it directly would mint a
+            // phantom column (the reported defect). The row wraps to its ONE cell first,
+            // and the chunks open INSIDE that cell (a chapter in the cell, as everywhere).
+            const doc = withNode(s.doc, path, (n) => {
+              const { value: _v, raw: _r, ...rest } = n as Node & { value?: unknown; raw?: string };
+              const cellEntry = { key: null, edge: "contain", value: chunks() } as unknown as Entry;
+              return { ...rest, kind: "mapping", array: true, entries: [cellEntry] } as unknown as Node;
+            });
+            return ok(s, { doc, focus: { at: "token", path: [...path, 0, 1] }, caret: "start" }, "splitCell");
+          }
           const doc = withNode(s.doc, path, (n) => {
             const { value: _v, raw: _r, ...rest } = n as Node & { value?: unknown; raw?: string };
-            return { ...rest, kind: "mapping", array: true, entries: [proseEntry(text.head), proseEntry(text.tail)] } as unknown as Node;
+            return { ...rest, ...chunks() } as unknown as Node;
           });
           return ok(s, { doc, focus: { at: "token", path: [...path, 1] }, caret: "start" }, "splitCell");
         }
@@ -711,6 +776,7 @@ export function applyChapterIntent(s: ChapterState, intent: ChapterIntent, split
     case "indent": return indentEntry(s, path);
     case "dedent": return dedentEntry(s, path);
     case "appendRow": return appendRow(s, path);
+    case "deleteRow": return deleteTableRow(s, path);
     case "role": {
       // on the BOOT cell the role MATERIALIZES: an empty title to type into / a description
       if (s.focus?.at === "into") {

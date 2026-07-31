@@ -155,8 +155,11 @@ class Block {
 
   /** Read ONE `&` anchor token at the head of `text` (URIs.md §`&`): `&path`, `&path[]`,
    *  or the quoted form `&'path with spaces'`. Plain tokens run to unescaped whitespace.
+   *  `inline` — the anchor PREFIXES a same-line value (valueAfter): the colon-form's
+   *  run-to-end-of-line rule then reads only the HEAD token (up to the first whitespace) —
+   *  a colon later in the line belongs to the value (`&item01 !!<…: …>`), not the anchor.
    *  Returns the Anchor plus the remaining text/column. */
-  anchorToken(text: string, lineN: number, col: number): { anchor: Anchor; rest: string; col: number } {
+  anchorToken(text: string, lineN: number, col: number, inline = false): { anchor: Anchor; rest: string; col: number } {
     let body: string;
     let tokenLen: number;
     if (text[1] === "'" || text[1] === '"') {
@@ -170,7 +173,7 @@ class Block {
       if (j >= text.length) this.fail('unterminated quoted anchor path');
       body = quotedScalar(text.slice(1, j + 1)).value as string;
       tokenLen = j + 1;
-    } else if (hasSeparatorColon(text.slice(1))) {
+    } else if (hasSeparatorColon(inline ? text.slice(1).split(/[ \t]/, 1)[0] : text.slice(1))) {
       // COLON-form anchor (SEPARATOR.md): the `: ` styling holds spaces, so the token
       // runs to END OF LINE — a same-line value needs the quoted form (M3).
       body = text.slice(1).trim();
@@ -386,24 +389,34 @@ class Block {
    *  `col` = the column of `rest` in raw line `srcLineN` (span tracking). */
   valueAfter(rest: string, parentIndent: number, srcLineN: number, col: number): Value {
     ({ rest, col } = adv(rest, 0, col));
+    // the DECORATION PREFIX, in any authored order: a `!!<…>` schema tag, an opt-in type tag
+    // (`!!mix` mixed container / `!!var <v>` scalar-plus-fields, `!!omni` its deprecated alias /
+    // `!!set` set semantics — NodeMeta.set), and inline `&` anchors — `&item01 !!<…>` is as
+    // legal as `!!<…> &item01` (the anchor-first spelling is what positional projections show)
     let schema: Value | undefined;
-    if (rest.startsWith('!!<')) {
-      const close = rest.indexOf('>');
-      if (close < 0) this.fail('unterminated "!!<…>" schema tag');
-      schema = parseSchemaRef(rest.slice(3, close), { block: this, lineN: srcLineN, col: col + 3 });
-      ({ rest, col } = adv(rest, close + 1, col));
-    }
-    // an opt-in type tag in value position: `key: !!mix` (mixed container), `key: !!var <v>`
-    // (scalar value + fields; `!!omni` is the deprecated alias), or `key: !!set` (set-semantics
-    // container — NodeMeta.set).
     let typeTag: 'mix' | 'omni' | 'set' | undefined;
-    const tag = /^!!(mix|var|omni|set)(?=\s|$)/.exec(rest);
-    if (tag) { typeTag = (tag[1] === 'var' ? 'omni' : tag[1]) as 'mix' | 'omni' | 'set'; ({ rest, col } = adv(rest, tag[0].length, col)); }
     const anchors: Anchor[] = [];
-    while (rest.startsWith('&')) {
-      const r = this.anchorToken(rest, srcLineN, col);
-      anchors.push(r.anchor);
-      ({ rest, col } = r);
+    for (;;) {
+      if (schema === undefined && rest.startsWith('!!<')) {
+        const close = rest.indexOf('>');
+        if (close < 0) this.fail('unterminated "!!<…>" schema tag');
+        schema = parseSchemaRef(rest.slice(3, close), { block: this, lineN: srcLineN, col: col + 3 });
+        ({ rest, col } = adv(rest, close + 1, col));
+        continue;
+      }
+      const tag = typeTag === undefined ? /^!!(mix|var|omni|set)(?=\s|$)/.exec(rest) : null;
+      if (tag) {
+        typeTag = (tag[1] === 'var' ? 'omni' : tag[1]) as 'mix' | 'omni' | 'set';
+        ({ rest, col } = adv(rest, tag[0].length, col));
+        continue;
+      }
+      if (rest.startsWith('&')) {
+        const r = this.anchorToken(rest, srcLineN, col, /*inline*/ true);
+        anchors.push(r.anchor);
+        ({ rest, col } = r);
+        continue;
+      }
+      break;
     }
     let value: Value;
     if (/^[|>][+-]?\d*$/.test(rest)) {
@@ -423,6 +436,16 @@ class Block {
       } else {
         value = this.node(parentIndent + 1) ?? nul();
       }
+    } else if (anchors.length > 0 && (isSeqLine(rest) || (!/^(!!<|\*|&)/.test(rest) && splitKV(rest)))) {
+      // COMPACT NESTED CONTENT after an inline anchor (`- &item01 - x` / `- &a k: v` — the
+      // positional projection's spelling): the first entry rides this line, and a deeper
+      // block CONTINUES the same container. Without this, the line read as the plain scalar
+      // "- x" — the reported mangling.
+      this.i--;
+      this.lines[this.i] = { indent: col, text: rest, n: srcLineN };
+      value = this.container(col);
+      const nxt = this.peek();
+      if (nxt && nxt.indent > parentIndent && nxt.indent < col) value = this.mergeCont(value, this.container(nxt.indent));
     } else {
       value = this.valueInline(rest, parentIndent, /*allowBlock*/ false, srcLineN, col);
       value = this.attachFields(value, parentIndent);

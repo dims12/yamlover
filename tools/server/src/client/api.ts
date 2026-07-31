@@ -215,12 +215,12 @@ export interface ConfigSettings {
   theme?: string; // ui palette (dark | light) — the project layer; browser settings override it
 }
 export interface ConfigPayload {
-  source: string; // raw settings.yamlover text ("" if the file does not exist yet)
+  source: string; // raw settings.yo text ("" if the file does not exist yet)
   settings: ConfigSettings; // parsed (defaults overlaid)
   path: string; // the hidden config file's colon path
 }
 
-/** Read the project config — `<root>/.yamlover/settings.yamlover` — for the parsed settings (e.g. the
+/** Read the project config — `<root>/.yo/settings.yo` — for the parsed settings (e.g. the
  *  tags location, used by the annotate flow). The config is EDITED through the ordinary yamlover data
  *  view + `/api/edit` now; the server reloads its settings on any change to that file. */
 export function fetchConfig(): Promise<ConfigPayload> {
@@ -242,12 +242,12 @@ export function annotate(a: { target: string; tag: string; description?: string;
 
 /** Persist a board directory's LANE configuration — `lanes` is the lanes, each a list of tag
  *  client-paths (1 = a plain lane, N = N sublanes). Rewrites the directory's board overlay
- *  (`.yamlover/body.yamlover` `lanes:`) and reindexes; the open board re-reads it over SSE. */
+ *  (`.yo/body.yo` `lanes:`) and reindexes; the open board re-reads it over SSE. */
 export function saveBoardLanes(path: string, lanes: string[][]): Promise<{ ok: true }> {
   return postJson(api("/api/board"), { path, lanes });
 }
 
-/** Create a named tag at the project's default tags location (settings.yamlover; `/tags` by
+/** Create a named tag at the project's default tags location (settings.yo; `/tags` by
  *  default) — the picker's create-on-miss. Idempotent: an existing tag at that path is returned
  *  as-is; a non-tag node already occupying the path is an error. */
 export function createTag(name: string): Promise<TagRef> {
@@ -331,14 +331,14 @@ export function pasteFileInline(target: string, filename: string, contentBase64:
 }
 
 /** Paste plain TEXT onto the page at `target`: a chapter gains it as a new chunk; anywhere else
- *  it becomes a new chapter .yamlover file in the nearest enclosing directory. */
+ *  it becomes a new chapter .yo file in the nearest enclosing directory. */
 export function pasteText(target: string, text: string): Promise<PasteResult> {
   return postPaste({ path: target, text });
 }
 
 /** Paste RICH content (an HTML selection: text + images + heading-nested subchapters) onto the
  *  page at `target`. A chapter appends the chunks and subchapters; anywhere else a new chapter
- *  is created — directory-backed when files are present, a standalone .yamlover file otherwise.
+ *  is created — directory-backed when files are present, a standalone .yo file otherwise.
  *  `rich` is the RichNode tree from paste-html.ts (images already inline as base64 files). */
 export function pasteRich(target: string, rich: unknown): Promise<PasteResult> {
   return postPaste({ path: target, rich });

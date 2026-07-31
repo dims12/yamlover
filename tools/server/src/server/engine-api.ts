@@ -23,7 +23,7 @@
  *   POST /api/preview                     render a STANDALONE yamlover text as /api/json would (stateless)
  *   POST /api/edit-text                   the /api/edit ops over a standalone text → new text (stateless)
  *
- * The on-disk index lives at <root>/.yamlover/index.db. It is a derived cache with a persistent
+ * The on-disk index lives at <root>/.yo/index.db. It is a derived cache with a persistent
  * FILE MANIFEST (path + hash + size + mtime): startup re-indexes against it (the offline
  * reconcile — unchanged blobs are never re-read, so it is cheap), and an FS watcher re-indexes
  * on external edits (the watched-live tier), broadcasting what changed over /api/events.
@@ -79,7 +79,7 @@ interface Options {
   gitignore?: boolean; // honor .gitignore for stray files (default: true)
   watch?: boolean; // watch the tree and re-index on external edits (default: false; bin turns it on)
   log?: (line: string) => void; // server-side progress lines (the bin wires console.log; tests stay silent)
-  // Materialize a defaults `settings.yamlover` when absent, so the gear button's settings node
+  // Materialize a defaults `settings.yo` when absent, so the gear button's settings node
   // always exists (default: false; the bin turns it on). OFF for programmatic/test use, so the
   // pure indexer never writes into the served tree.
   ensureSettings?: boolean;
@@ -106,24 +106,24 @@ type Seg = string | number;
 
 export function createHandlers(dataRoot: string, opts: Options = {}): Handler & { close: () => void; ready: Promise<IndexDiff> } {
   const rootName = path.basename(path.resolve(dataRoot)) || "/";
-  const dbPath = path.join(dataRoot, ".yamlover", "index.db");
-  // Project configuration (<root>/.yamlover/settings.yamlover) — defaults for WRITE paths
+  const dbPath = path.join(dataRoot, ".yo", "index.db");
+  // Project configuration (<root>/.yo/settings.yo) — defaults for WRITE paths
   // (e.g. where new annotations are created). Read at startup; reloaded when POST /api/config
   // rewrites the file (so write-path defaults track edits without a server restart).
-  const settingsFile = path.join(dataRoot, ".yamlover", "settings.yamlover");
+  const settingsFile = path.join(dataRoot, ".yo", "settings.yo");
   // The settings file's ROOT-RELATIVE path, in the `/`-joined form an IndexDiff speaks — so a reindex
   // that touched it (via ANY path: the FS watcher on a direct edit, `/api/edit`, `/api/config`) can
   // reload the in-memory Settings. See `broadcast` below.
   const settingsRel = path.relative(dataRoot, settingsFile).split(path.sep).join("/");
   // Materialize a defaults file when absent (serve boundary only — `opts.ensureSettings`), so the
-  // config node always exists: the gear button opens `:.yamlover:settings.yamlover`, and a missing
+  // config node always exists: the gear button opens `:.yo:settings.yo`, and a missing
   // file would 404 that fetch. A no-op when the file is already there. Tolerant of a read-only tree:
   // serving must not crash on a write failure.
   if (opts.ensureSettings) {
     try {
       ensureSettingsFile(dataRoot);
     } catch (e) {
-      (opts.log ?? (() => {}))(`could not create settings.yamlover: ${(e as Error).message}`);
+      (opts.log ?? (() => {}))(`could not create settings.yo: ${(e as Error).message}`);
     }
   }
   let settings: Settings = loadSettings(dataRoot);
@@ -584,7 +584,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
 
       // Create an annotation — TAG a target (a WRITE path; ANNOTATIONS.md). The tag application is
       // appended to the target's own `yamlover-annotations` array, embedded in the target's host
-      // body (a `*.yamlover` document, or a directory's `.yamlover/body.yamlover` overlay keyed by
+      // body (a `*.yo` document, or a directory's `.yo/body.yo` overlay keyed by
       // filename). The target may be a whole node OR a fragment (`…:yamlover-fragments:<slug>`).
       // Body: { target, tag, description?, params? } — target/tag are JSON paths; description/params
       // make it a PARAMETRIZED annotation (an object element), else it is a bare tag pointer.
@@ -656,7 +656,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
 
       // Create a NAMED TAG (a WRITE path — the picker's create-on-miss): add
       // `<name>: !!<*yamlover/$defs/tag>` to the taxonomy body at the project's default tags
-      // location (settings.yamlover; `/tags` by default → `<location>/.yamlover/body.yamlover`),
+      // location (settings.yo; `/tags` by default → `<location>/.yo/body.yo`),
       // then reconcile so it joins the graph. The direct schema attach makes the node an
       // `x-yamlover-tag` wherever the taxonomy lives — like an annotation, a created tag may be
       // moved anywhere and keeps working. Idempotent: a tag already at that path is returned
@@ -720,7 +720,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       // page → it lands in that directory; onto a CHAPTER page → it lands in the chapter's
       // owning directory AND a `*…` pointer to it is appended as the chapter's last chunk.
       // TEXT onto a chapter → the text itself is appended as a new chunk (no file); anywhere
-      // else → a new chapter .yamlover file in the nearest directory. RICH (an HTML selection:
+      // else → a new chapter .yo file in the nearest directory. RICH (an HTML selection:
       // text + image chunks + heading-nested subchapters) onto a chapter → chunks append to
       // `chunks:`, subchapters to `children:`; anywhere else → a new chapter (directory-backed
       // when it carries files). Body: { path, filename, contentBase64 } | { path, text } |
@@ -741,7 +741,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // The yamlover EDITOR (a WRITE path). Surgical source-text edits to any `.yamlover` document:
+      // The yamlover EDITOR (a WRITE path). Surgical source-text edits to any `.yo` document:
       // it splices lines rather than reserializing, so comments, quoting, and block scalars survive.
       // Body: one edit `{ path, op, yamlover?, meta?, concrete?, name? }` or a batch `{ edits: […] }`.
       //
@@ -862,7 +862,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       }
 
       // RENAME A KEY (the editor's key cell). One verb, two backends chosen by the node's STORAGE —
-      // THE CONCRETE IS NOT A STATE (YAMLOVER_EDITOR.yamlover): the editor asks to rename a key and
+      // THE CONCRETE IS NOT A STATE (YAMLOVER_EDITOR.yo): the editor asks to rename a key and
       // the server routes it. An fs-backed member (a real directory/file named by the key — the
       // promoted `world/`, a linked note) is renamed on disk via `mv`, which ALSO rewrites every
       // inbound `*`/`~` pointer; an INLINE keyed entry (a scalar/flow field in a body) has its key
@@ -937,15 +937,15 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // The project config (IMPORTS.md) — `<root>/.yamlover/settings.yamlover`, indexed as a HIDDEN
-      // node (`:.yamlover:settings.yamlover`, format x-yamlover-config). GET → { source, settings }:
+      // The project config (IMPORTS.md) — `<root>/.yo/settings.yo`, indexed as a HIDDEN
+      // node (`:.yo:settings.yo`, format x-yamlover-config). GET → { source, settings }:
       // the RAW source (the node projection drops comments) plus the PARSED settings, read by the
       // annotate flow (tags location). The config is EDITED through the ordinary yamlover data view +
       // `/api/edit` now; `broadcast` reloads `settings` on any change to the file (incl. direct disk
       // edits), so there is no dedicated write endpoint.
       if (req.method !== "POST" && url.pathname === "/api/config") {
         const source = fs.existsSync(settingsFile) ? fs.readFileSync(settingsFile, "utf8") : "";
-        sendJson(res, 200, { source, settings, path: ":.yamlover:settings.yamlover" });
+        sendJson(res, 200, { source, settings, path: ":.yo:settings.yo" });
         return;
       }
 
@@ -1140,7 +1140,7 @@ function tocType(s: Store, p: string, row: NodeRow): string {
  *  from a stat plus the enclosing document's language (the engine tracks no per-node concrete yet).
  *  A filesystem-backed node reports its own storage (`dir` / `dir/yamlover` / `file/<lang>` /
  *  `file/binary`); an interior (inlined) node reports the inlined language of the document it lives
- *  in — a directory document's values come from its `.yamlover/` overlay (`yamlover`), a parsed
+ *  in — a directory document's values come from its `.yo/` overlay (`yamlover`), a parsed
  *  file's from that file (its extension's language). Positional segments never name an FS entry, so
  *  they fall through to the inlined case; never null (every node carries a concrete). */
 function concreteOf(s: Store, dataRoot: string, segs: Seg[], row: NodeRow): string {
@@ -1149,7 +1149,7 @@ function concreteOf(s: Store, dataRoot: string, segs: Seg[], row: NodeRow): stri
     const abs = path.resolve(dataRoot, ...segs.map(String));
     let st: fs.Stats | undefined;
     try { st = fs.statSync(abs); } catch { /* not FS-backed — fall through to the inlined case */ }
-    if (st?.isDirectory()) return fs.existsSync(path.join(abs, ".yamlover")) ? "dir/yamlover" : "dir";
+    if (st?.isDirectory()) return fs.existsSync(path.join(abs, ".yo")) ? "dir/yamlover" : "dir";
     if (st?.isFile()) return dataFileConcrete(abs) ?? (row.type === "blob" ? "file/binary" : "file/yaml");
   }
   // 2. An interior (inlined) node: the inlined language of its enclosing document.
@@ -1182,22 +1182,22 @@ const relKey = (label: string | null, other: string): string => `${label ?? ""}\
  *  alongside a forward `- *member` (lists repeat) — unless the container is a `!!set` /
  *  `uniqueItems: true` (NodeMeta.set), where membership is by target and ALL duplicates
  *  (forward+forward, forward+reverse, reverse+reverse) collapse. */
-/** Whether a node is flagged hidden (the `.yamlover` overlay subtree): resolvable by pointer, but
+/** Whether a node is flagged hidden (the `.yo` overlay subtree): resolvable by pointer, but
  *  omitted from the TOC, directory-member projection, and visible child counts. */
 const isHidden = (s: Store, to: string): boolean => !!s.node(to)?.meta?.hidden;
-/** Whether a node lives in the hidden `.yamlover` overlay subtree: it OR a containment ancestor is
- *  hidden. `meta.hidden` is set only on the `.yamlover` dir node (not propagated to its children),
- *  so an own-meta check misses descendants like `settings.yamlover` — walk up to catch them. */
+/** Whether a node lives in the hidden `.yo` overlay subtree: it OR a containment ancestor is
+ *  hidden. `meta.hidden` is set only on the `.yo` dir node (not propagated to its children),
+ *  so an own-meta check misses descendants like `settings.yo` — walk up to catch them. */
 const inHiddenSubtree = (s: Store, p: string): boolean => {
   for (let segs = storePathToSegs(p); segs.length; segs = segs.slice(0, -1))
     if (isHidden(s, storePath(segs))) return true;
   return false;
 };
 /** Has a child that ISN'T hidden — the `hasChildren` a directory should report (a dir whose only
- *  child is `.yamlover` reads as a leaf). */
+ *  child is `.yo` reads as a leaf). */
 const visibleHasChildren = (s: Store, p: string): boolean => s.children(p).some((c) => !isHidden(s, c.to));
 /** Hidden for PROJECT-SCOPED query results (`::` / `:::` — see the /api/query handler) —
- *  looser than {@link inHiddenSubtree}: the `.yamlover` OVERLAY subtrees (dot-named hidden
+ *  looser than {@link inHiddenSubtree}: the `.yo` OVERLAY subtrees (dot-named hidden
  *  ancestors) and hidden nodes THEMSELVES stay off search results, but the grafted `yamlover`
  *  self-import's CONTENT answers — it is project furniture, hidden PLUMBING yet fully
  *  reachable, and `:: ...: colors` must find the built-in palette (`:yamlover:tags:colors`).
@@ -1227,7 +1227,7 @@ function downstreamEntries(s: Store, p: string): { to: string; label: string | n
   const isSet = !!s.node(p)?.meta?.set;
   // contain + forward ref (including UNREALIZED refs — dangling/external pointers, `to` empty,
   // `raw` the authored text — via ownedEntries), ordered by pos — but a CONTAIN edge to a hidden
-  // node (`.yamlover`) is omitted from the listing (forward `*` refs INTO the hidden subtree,
+  // node (`.yo`) is omitted from the listing (forward `*` refs INTO the hidden subtree,
   // e.g. a thumbnail pointer, are kept — they're how the overlay surfaces the sidecar).
   let own = ownedEntries(s, p).filter((e) => !(e.kind === "contain" && isHidden(s, e.to)));
   const seen = new Set(own.map((e) => relKey(e.label, e.to || e.raw || "")));
@@ -1554,7 +1554,7 @@ function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unk
     info.count = ownedEntries(s, p).length; // owned items + fields (reverse members excluded)
     if (k === "omni") info.value = wireScalar(row.value); // the self-scalar, for the link label
   } else {
-    // visible members only (omit `.yamlover`) — owned entries, so pointer members (including
+    // visible members only (omit `.yo`) — owned entries, so pointer members (including
     // unrealized ones) count the same as inline children (they all render as rows)
     info.count = ownedEntries(s, p).filter((e) => !(e.kind === "contain" && isHidden(s, e.to))).length;
   }
@@ -1693,7 +1693,7 @@ function buildTree(dataRoot: string, s: Store, segs: Seg[], label: string, depth
     // array element. The PATH stays keyed — that is the canonical, stable address.
     const anchored = anchoredOf(row);
     for (const c of chapterOrderedChildren(s, p, row.format ?? null)) {
-      if (isHidden(s, c.to)) continue; // omit the hidden `.yamlover` overlay subtree from the TOC
+      if (isHidden(s, c.to)) continue; // omit the hidden `.yo` overlay subtree from the TOC
       const seg = c.label ?? c.pos ?? 0;
       const shown = c.label !== null && anchored.has(c.label) ? (c.pos ?? 0) : seg;
       node.children.push(buildTree(dataRoot, s, [...segs, seg], labelFor(s, c.to, shown), depth - 1));
@@ -1760,8 +1760,8 @@ function firstChunkText(s: Store, p: string): string | null {
 // optional binary crop). TAGGING a target — a whole node or a fragment — appends to its
 // `yamlover-annotations` array: a bare tag pointer (`- *::tag`) or a `{tag, …params}` object. The
 // applied tag drives the color. A material's annotations / a tag's materials are derived from
-// these forward `*` edges. Writes edit the target's host body (a `*.yamlover` doc or a directory
-// `.yamlover/body.yamlover` overlay) surgically — see ./embed.ts.
+// these forward `*` edges. Writes edit the target's host body (a `*.yo` doc or a directory
+// `.yo/body.yo` overlay) surgically — see ./embed.ts.
 // --------------------------------------------------------------------------- //
 
 const TAG_FORMAT = "x-yamlover-tag";
@@ -1769,8 +1769,8 @@ const FRAGMENT_FORMAT = "x-yamlover-fragment";
 const ANN_KEY = "yamlover-annotations";
 const FRAG_KEY = "yamlover-fragments";
 const THUMB_KEY = "yamlover-thumbnails";
-const CROP_SUBDIR = "fragments"; // crop sidecar blobs, under a hidden .yamlover/ overlay dir
-const THUMB_SUBDIR = "thumbnails"; // derived thumbnail blobs, content-addressed, under .yamlover/
+const CROP_SUBDIR = "fragments"; // crop sidecar blobs, under a hidden .yo/ overlay dir
+const THUMB_SUBDIR = "thumbnails"; // derived thumbnail blobs, content-addressed, under .yo/
 
 interface AnnotateInput {
   target: string; // the target's JSON path — a node, or a fragment (`…:yamlover-fragments:<slug>`)
@@ -1876,7 +1876,7 @@ function annotationsFor(dataRoot: string, s: Store, segs: Seg[]): unknown[] {
   };
   gather(p, segsToStr(segs));
   for (const c of s.children(p)) {
-    if (isHidden(s, c.to)) continue; // skip the `.yamlover` overlay subtree
+    if (isHidden(s, c.to)) continue; // skip the `.yo` overlay subtree
     gather(c.to, segsToStr(storePathToSegs(c.to)));
   }
   return out;
@@ -1899,8 +1899,8 @@ function taggedMaterials(dataRoot: string, s: Store, tagStorePath: string): unkn
     const arrOwner = e.from.replace(/\[\d+\]$/, "").match(/^(.*):yamlover-annotations$/);
     if (!arrOwner && !legacyDirect) continue; // an ordinary inbound ref is not a tag application
     const owner = arrOwner ? arrOwner[1] || ":" : e.from; // an annotation array → its host; else a direct member
-    // skip the tag itself, dups, missing nodes, and any owner in the hidden `.yamlover` overlay
-    // subtree (e.g. settings.yamlover, whose `annotation-tag:` pointer back-references this tag)
+    // skip the tag itself, dups, missing nodes, and any owner in the hidden `.yo` overlay
+    // subtree (e.g. settings.yo, whose `annotation-tag:` pointer back-references this tag)
     if (owner === tagStorePath || seen.has(owner) || !s.node(owner) || inHiddenSubtree(s, owner)) continue;
     seen.add(owner);
     out.push(linkMarker(dataRoot, s, storePathToSegs(owner)));
@@ -1945,34 +1945,34 @@ function writeBoardLanes(src: string, lanes: string[][]): string {
 }
 
 // --- derived sidecars: where the bytes live + how the overlay points at them ------------------ //
-// A sidecar (thumbnail / fragment crop) lives under a HIDDEN `.yamlover/` overlay dir. Two modes
+// A sidecar (thumbnail / fragment crop) lives under a HIDDEN `.yo/` overlay dir. Two modes
 // (settings.sidecars.location): 'per-directory' keeps it beside the source — the source's own
-// directory `.yamlover/<subdir>/`, referenced by a DOCUMENT-scope pointer `*:.yamlover:<subdir>:name`
+// directory `.yo/<subdir>/`, referenced by a DOCUMENT-scope pointer `*:.yo:<subdir>:name`
 // that resolves against that directory (its documentRoot); 'project' centralizes under the served
-// root's `.yamlover/`, referenced by a PROJECT-scope pointer `*::.yamlover:<subdir>:name`.
+// root's `.yo/`, referenced by a PROJECT-scope pointer `*::.yo:<subdir>:name`.
 
 /** The directory a sidecar is written to + the pointer scope to emit, from the embed host's
- *  `bodyFile` (a directory overlay `<dir>/.yamlover/body.yamlover` lets per-directory work;
- *  a standalone-doc host has no `.yamlover` child, so per-directory falls back to project). */
+ *  `bodyFile` (a directory overlay `<dir>/.yo/body.yo` lets per-directory work;
+ *  a standalone-doc host has no `.yo` child, so per-directory falls back to project). */
 function sidecarTarget(
   dataRoot: string,
   mode: SidecarLocation,
   subdir: string,
   bodyFile: string,
 ): { dir: string; scope: "document" | "project" } {
-  const dirOverlay = bodyFile.endsWith(path.join(".yamlover", "body.yamlover"));
+  const dirOverlay = bodyFile.endsWith(path.join(".yo", "body.yo"));
   if (mode === "per-directory" && dirOverlay) {
-    const fileDir = path.dirname(path.dirname(bodyFile)); // <dir> from <dir>/.yamlover/body.yamlover
-    return { dir: path.join(fileDir, ".yamlover", subdir), scope: "document" };
+    const fileDir = path.dirname(path.dirname(bodyFile)); // <dir> from <dir>/.yo/body.yo
+    return { dir: path.join(fileDir, ".yo", subdir), scope: "document" };
   }
-  return { dir: path.join(dataRoot, ".yamlover", subdir), scope: "project" };
+  return { dir: path.join(dataRoot, ".yo", subdir), scope: "project" };
 }
 
-/** Pointer raw text for a sidecar `name` in `subdir` under `.yamlover/`, at the given scope:
- *  document → `:.yamlover:<subdir>:name` (single colon, resolves against the nearest documentRoot);
- *  project → `::.yamlover:<subdir>:name` (served-root relative). Wrap with {@link pointerToken}. */
+/** Pointer raw text for a sidecar `name` in `subdir` under `.yo/`, at the given scope:
+ *  document → `:.yo:<subdir>:name` (single colon, resolves against the nearest documentRoot);
+ *  project → `::.yo:<subdir>:name` (served-root relative). Wrap with {@link pointerToken}. */
 function sidecarPointerRaw(subdir: string, name: string, scope: "document" | "project"): string {
-  const body = [".yamlover", subdir, name].map(colonSegment).join(":");
+  const body = [".yo", subdir, name].map(colonSegment).join(":");
   return (scope === "document" ? ":" : "::") + body;
 }
 
@@ -1982,8 +1982,8 @@ function yScalar(v: unknown): string {
 }
 
 /** The yamlover host body holding the node at `segs`, and the mapping-key path WITHIN it to that
- *  node (ANNOTATIONS.md §3). A standalone `*.yamlover` document → the file itself (within = the
- *  path inside it); a directory → its `.yamlover/body.yamlover` overlay; an on-disk blob (a PDF) →
+ *  node (ANNOTATIONS.md §3). A standalone `*.yo` document → the file itself (within = the
+ *  path inside it); a directory → its `.yo/body.yo` overlay; an on-disk blob (a PDF) →
  *  the ENCLOSING directory's overlay, keyed by the filename. */
 function hostFor(dataRoot: string, s: Store, segs: Seg[]): { bodyFile: string; within: string[] } {
   for (let i = segs.length; i >= 0; i--) {
@@ -1991,7 +1991,7 @@ function hostFor(dataRoot: string, s: Store, segs: Seg[]): { bodyFile: string; w
     const abs = path.resolve(dataRoot, ...sub.map(String));
     let st: fs.Stats | undefined;
     try { st = fs.statSync(abs); } catch { continue; }
-    if (st.isDirectory()) return { bodyFile: path.join(abs, ".yamlover", "body.yamlover"), within: segs.slice(i).map(String) };
+    if (st.isDirectory()) return { bodyFile: path.join(abs, ".yo", "body.yo"), within: segs.slice(i).map(String) };
     if (st.isFile()) {
       const node = s.node(storePath(sub));
       // Edit a MAPPING document in place (a new top-level key is valid). A leaf file — scalar,
@@ -2003,10 +2003,10 @@ function hostFor(dataRoot: string, s: Store, segs: Seg[]): { bodyFile: string; w
         return { bodyFile: abs, within: segs.slice(i).map(String) };
       }
       const dir = path.resolve(dataRoot, ...sub.slice(0, -1).map(String));
-      return { bodyFile: path.join(dir, ".yamlover", "body.yamlover"), within: segs.slice(i - 1).map(String) };
+      return { bodyFile: path.join(dir, ".yo", "body.yo"), within: segs.slice(i - 1).map(String) };
     }
   }
-  return { bodyFile: path.join(dataRoot, ".yamlover", "body.yamlover"), within: segs.map(String) };
+  return { bodyFile: path.join(dataRoot, ".yo", "body.yo"), within: segs.map(String) };
 }
 
 /** One `yamlover-annotations` element's source lines at the list `indent`: a bare tag pointer when
@@ -2118,7 +2118,7 @@ function existingThumb(dataRoot: string, s: Store, mode: SidecarLocation, segs: 
 }
 
 /** Splice/replace the `yamlover-thumbnails: [w, h]:` overlay entry on the source blob, pointing at
- *  the sidecar `name` under the mode-appropriate `.yamlover/thumbnails/`. */
+ *  the sidecar `name` under the mode-appropriate `.yo/thumbnails/`. */
 function embedThumbnail(dataRoot: string, s: Store, mode: SidecarLocation, segs: Seg[], w: number, h: number, name: string, onWrite?: (absFile: string) => void): void {
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
   const { scope } = sidecarTarget(dataRoot, mode, THUMB_SUBDIR, bodyFile);
@@ -2191,10 +2191,10 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
   // the stored item reads `'fifthtag'` once stripped; an unstripped needle (`'fifth tag'`) would
   // then never match (every spacey-named tag was undeletable).
   let src = removeAnnotationItem(fs.readFileSync(bodyFile, "utf8"), within, (itemText) => itemText.replace(/\s+/g, "").includes(needle));
-  // Host-key pruning applies only to an OVERLAY body (`.yamlover/body.yamlover`) — its keys (a
+  // Host-key pruning applies only to an OVERLAY body (`.yo/body.yo`) — its keys (a
   // filename spine) exist solely to host overlay entries. An in-place document's keys are the
   // user's data: a pre-existing empty mapping must not vanish because a tag passed through it.
-  const overlay = path.basename(bodyFile) === "body.yamlover" && path.basename(path.dirname(bodyFile)) === ".yamlover";
+  const overlay = path.basename(bodyFile) === "body.yo" && path.basename(path.dirname(bodyFile)) === ".yo";
   // within = [...host, "yamlover-fragments", "<slug>"] for a fragment target; drop it when emptied.
   if (within.length >= 2 && within[within.length - 2] === FRAG_KEY && !annotationsRemain(src, within)) {
     src = removeMapEntry(src, within.slice(0, -2), FRAG_KEY, within[within.length - 1]);
@@ -2209,7 +2209,7 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
 }
 
 /** Persist a NEW named tag as a key of the tag-taxonomy body at the project's default tags
- *  location (`settings.yamlover`; `/tags` unless configured): `<location>/.yamlover/body.yamlover`
+ *  location (`settings.yo`; `/tags` unless configured): `<location>/.yo/body.yo`
  *  gains a `<name>: !!<*yamlover/$defs/tag>` entry. The would-be body is PARSED before
  *  committing, so a name the yamlover syntax cannot hold as a plain key (one that vanishes into
  *  a comment, say) is refused instead of corrupting the taxonomy. */
@@ -2220,11 +2220,11 @@ function writeTag(
 ): { node: IrNode; pos: number; file: string; createdFile: boolean } {
   if (/[/\\\r\n:]/.test(name)) throw new Error("a tag name cannot contain '/', '\\', ':' or line breaks");
   const root = path.resolve(dataRoot);
-  const dir = path.resolve(dataRoot, ...strToSegs(location).map(String), ".yamlover");
+  const dir = path.resolve(dataRoot, ...strToSegs(location).map(String), ".yo");
   if (!dir.startsWith(root + path.sep)) throw new Error("tags location escapes the data root");
-  const file = path.join(dir, "body.yamlover");
+  const file = path.join(dir, "body.yo");
   const createdFile = !fs.existsSync(file);
-  const head = "# Named tags created from the annotation picker (settings.yamlover: tags.location).\n";
+  const head = "# Named tags created from the annotation picker (settings.yo: tags.location).\n";
   const existing = createdFile ? head : fs.readFileSync(file, "utf8");
   const body = (existing === "" || existing.endsWith("\n") ? existing : existing + "\n") + `${name}: !!<*::yamlover:$defs:tag>\n`;
   const entries = parseYamlover(body, file).root.entries ?? [];
@@ -2235,14 +2235,14 @@ function writeTag(
   }
   mkdirInside(dataRoot, dir, { recursive: true });
   fs.writeFileSync(file, body);
-  return { node: entry.value, pos, file: [...strToSegs(location).map(String), ".yamlover", "body.yamlover"].join("/"), createdFile };
+  return { node: entry.value, pos, file: [...strToSegs(location).map(String), ".yo", "body.yo"].join("/"), createdFile };
 }
 
 // --------------------------------------------------------------------------- //
 // Paste / upload — drop a clipboard file OR plain text into the tree. A file: a directory target
 // takes it as a new child; a chapter target takes it into its owning directory and gains a `*…`
 // pointer chunk. Text: a chapter target gains it as an inline chunk (no file); any other target
-// gets a new chapter .yamlover file in the nearest directory, the text as its one chunk.
+// gets a new chapter .yo file in the nearest directory, the text as its one chunk.
 // --------------------------------------------------------------------------- //
 
 interface PasteInput {
@@ -2326,34 +2326,34 @@ function nearestDirSegs(dataRoot: string, segs: Seg[]): Seg[] | null {
   return null;
 }
 
-// The block-structured YAML family the surgical splice engine can edit: a standalone `.yamlover`
+// The block-structured YAML family the surgical splice engine can edit: a standalone `.yo`
 // (chapters, and the general editor's native format) or — for the general value editor — a plain
 // `.yaml`/`.yml`, whose block grammar (keyed `k:` fields, `- ` items, indentation, `|` blocks) is
 // exactly what the engine walks. JSON-family files (flow syntax) are edited on a separate path.
-const YAMLOVER_ONLY = /\.yamlover$/i;
-const BLOCK_YAML = /\.(ya?ml|yamlover)$/i;
+const YAMLOVER_ONLY = /\.(yo|yamlover)$/i; // `.yamlover` is the legacy spelling, read-only compat
+const BLOCK_YAML = /\.(ya?ml|yo|yamlover)$/i;
 const JSON_FILE = /\.(json|json5|json5p)$/i;
 
-/** The file backing the document at `segs` — directory-backed (`.yamlover/body.yamlover`) or a
+/** The file backing the document at `segs` — directory-backed (`.yo/body.yo`) or a
  *  standalone file — plus its document root. No extension gate: callers decide which editor (block
  *  YAML vs JSON surgery) the file's extension routes to. */
 function resolveBacking(dataRoot: string, s: Store, segs: Seg[]): { docSegs: Seg[]; bodyFile: string; dirBacked: boolean } {
   const docSegs = documentRootSegs(s, segs);
   const docFs = path.resolve(dataRoot, ...docSegs.map(String));
   const dirBacked = fs.existsSync(docFs) && fs.statSync(docFs).isDirectory();
-  const bodyFile = dirBacked ? path.join(docFs, ".yamlover", "body.yamlover") : docFs;
+  const bodyFile = dirBacked ? path.join(docFs, ".yo", "body.yo") : docFs;
   return { docSegs, bodyFile, dirBacked };
 }
 
 /** The block-YAML source holding the node at `segs`, validated by extension. `allow` restricts the
- *  STANDALONE file: `.yamlover` only for chapter/paste/annotate flows (the default), widened to
+ *  STANDALONE file: `.yo` only for chapter/paste/annotate flows (the default), widened to
  *  `.yaml`/`.yml` by the general value editor. A directory-backed document is always a
- *  `.yamlover/body.yamlover`. Throws for a JSON-family or otherwise unsupported file. */
+ *  `.yo/body.yo`. Throws for a JSON-family or otherwise unsupported file. */
 function chapterSource(dataRoot: string, s: Store, segs: Seg[], allow: RegExp = YAMLOVER_ONLY): { docSegs: Seg[]; bodyFile: string; dirBacked: boolean } {
   const r = resolveBacking(dataRoot, s, segs);
-  const okExt = r.dirBacked ? r.bodyFile.endsWith(".yamlover") : allow.test(r.bodyFile);
+  const okExt = r.dirBacked ? r.bodyFile.endsWith(".yo") : allow.test(r.bodyFile);
   if (!okExt || !fs.existsSync(r.bodyFile)) {
-    throw new Error("unsupported edit source (need a .yamlover / .yaml / .yml body)");
+    throw new Error("unsupported edit source (need a .yo / .yaml / .yml body)");
   }
   return r;
 }
@@ -2419,7 +2419,7 @@ function memberNeighbors(bodyFile: string, within: Seg[], index: number | undefi
 }
 
 /** A chapter paste: write the file into the chapter's owning directory, then append a pointer to
- *  it as the chapter's last chunk (editing the .yamlover source). */
+ *  it as the chapter's last chunk (editing the .yo source). */
 function pasteIntoChapter(dataRoot: string, s: Store, segs: Seg[], name: string, bytes: Buffer): Record<string, unknown> {
   const { docSegs, bodyFile, dirBacked } = chapterSource(dataRoot, s, segs);
   // the file lands in the doc-root dir (directory-backed) or beside the standalone chapter file.
@@ -2440,7 +2440,7 @@ function pasteIntoChapter(dataRoot: string, s: Store, segs: Seg[], name: string,
 }
 
 /** A text paste onto a chapter: the text itself becomes the chapter's last chunk — no file is
- *  written, only the .yamlover source gains an item. */
+ *  written, only the .yo source gains an item. */
 function pasteTextIntoChapter(dataRoot: string, s: Store, segs: Seg[], text: string): Record<string, unknown> {
   const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
   const within = segs.slice(docSegs.length);
@@ -2449,7 +2449,7 @@ function pasteTextIntoChapter(dataRoot: string, s: Store, segs: Seg[], text: str
   return { path: segsToStr(segs), chapter: segsToStr(segs) };
 }
 
-/** A text paste onto anything that is NOT a chapter: a new chapter .yamlover file lands in the
+/** A text paste onto anything that is NOT a chapter: a new chapter .yo file lands in the
  *  nearest enclosing directory — title from the text's first line, the text as its one chunk. */
 function pasteTextAsChapterFile(dataRoot: string, segs: Seg[], text: string): Record<string, unknown> {
   const dirSegs = nearestDirSegs(dataRoot, segs);
@@ -2548,7 +2548,7 @@ function pasteRichIntoChapter(dataRoot: string, s: Store, segs: Seg[], rich: Ric
 
 /** A rich paste onto anything that is NOT a chapter: a new chapter in the nearest enclosing
  *  directory — DIRECTORY-BACKED when it carries files (the images live inside it), else a
- *  standalone .yamlover file. A selection that STARTS with its own heading IS the chapter:
+ *  standalone .yo file. A selection that STARTS with its own heading IS the chapter:
  *  the sole top child is promoted to the root (its title names the chapter). */
 function pasteRichAsChapter(dataRoot: string, segs: Seg[], rich: Rich): Record<string, unknown> {
   const dirSegs = nearestDirSegs(dataRoot, segs);
@@ -2567,22 +2567,22 @@ function pasteRichAsChapter(dataRoot: string, segs: Seg[], rich: Rich): Record<s
     return { path: segsToStr([...dirSegs, final]), dir: segsToStr(dirSegs), open: dirSegs.length !== segs.length };
   }
 
-  // directory-backed: <name>/.yamlover/body.yamlover + the image files inside <name>/
-  const name = uniqueName(dir, chapterFileName(title).replace(/\.yamlover$/, ""));
+  // directory-backed: <name>/.yo/body.yo + the image files inside <name>/
+  const name = uniqueName(dir, chapterFileName(title).replace(/\.yo$/, ""));
   const chDir = path.join(dir, name);
   if (!path.resolve(chDir).startsWith(path.resolve(dataRoot) + path.sep)) throw new Error("target escapes the data root");
-  mkdirInside(dataRoot, path.join(chDir, ".yamlover"), { recursive: true });
+  mkdirInside(dataRoot, path.join(chDir, ".yo"), { recursive: true });
   const pointerFor = (fname: string, bytes: Buffer): string => {
     const final = uniqueName(chDir, fname);
     writeInside(dataRoot, chDir, final, bytes);
     return memberPointer(final);
   };
   const src = renderChapterSource(title, rich, pointerFor);
-  writeInside(dataRoot, path.join(chDir, ".yamlover"), "body.yamlover", Buffer.from(src, "utf8"));
+  writeInside(dataRoot, path.join(chDir, ".yo"), "body.yo", Buffer.from(src, "utf8"));
   return { path: segsToStr([...dirSegs, name]), dir: segsToStr(dirSegs), open: dirSegs.length !== segs.length };
 }
 
-/** The whole .yamlover source of a new rich chapter: the tag, the title as the root's scalar
+/** The whole .yo source of a new rich chapter: the tag, the title as the root's scalar
  *  SELF-VALUE line (CHAPTER.md — no `title:` key), and the positional body. */
 function renderChapterSource(title: string, rich: Rich, pointerFor: (name: string, bytes: Buffer) => string): string {
   const lines = ["!!<*::yamlover:$defs:chapter>", JSON.stringify(title), ...richBodyLines(rich, 0, pointerFor)];
@@ -2616,29 +2616,29 @@ function objectBaseName(title: string): string {
   return base || "new";
 }
 
-/** Write a new object document into `dir` in the given concrete — a `<base>.yamlover` file or a
- *  `<base>/.yamlover/body.yamlover` directory. `base` is the name WITHOUT extension (caller decides
+/** Write a new object document into `dir` in the given concrete — a `<base>.yo` file or a
+ *  `<base>/.yo/body.yo` directory. `base` is the name WITHOUT extension (caller decides
  *  unicode-vs-pointer-safe). Returns the file/dir NAME actually created (unique). */
 function writeObject(dataRoot: string, dir: string, base: string, concrete: string, src: string): string {
   if (concrete === "dir/yamlover") {
     const final = uniqueName(dir, base);
-    mkdirInside(dataRoot, path.join(dir, final, ".yamlover"), { recursive: true });
-    writeInside(dataRoot, path.join(dir, final, ".yamlover"), "body.yamlover", Buffer.from(src, "utf8"));
+    mkdirInside(dataRoot, path.join(dir, final, ".yo"), { recursive: true });
+    writeInside(dataRoot, path.join(dir, final, ".yo"), "body.yo", Buffer.from(src, "utf8"));
     return final;
   }
-  const final = uniqueName(dir, base + ".yamlover");
+  const final = uniqueName(dir, base + ".yo");
   writeInside(dataRoot, dir, final, Buffer.from(src, "utf8"));
   return final;
 }
 
-/** Materialize a directory's `.yamlover/body.yamlover` overlay (empty) when absent — the moment a
+/** Materialize a directory's `.yo/body.yo` overlay (empty) when absent — the moment a
  *  directory gains BODY-encoded content (concrete-rules.ts). Returns the body file path. */
 function ensureDirBody(dataRoot: string, absDir: string): string {
-  const overlay = path.join(absDir, ".yamlover");
-  const body = path.join(overlay, "body.yamlover");
+  const overlay = path.join(absDir, ".yo");
+  const body = path.join(overlay, "body.yo");
   if (!fs.existsSync(body)) {
     mkdirInside(dataRoot, overlay, { recursive: true });
-    writeInside(dataRoot, overlay, "body.yamlover", Buffer.from("", "utf8"));
+    writeInside(dataRoot, overlay, "body.yo", Buffer.from("", "utf8"));
   }
   return body;
 }
@@ -2663,7 +2663,7 @@ function keyedGroupParts(group: string[]): { key: string; src: string } | null {
 /** Write a keyed CONTAINER member of a directory as a NESTED real directory (concrete-rules.ts).
  *  The key IS the directory name (must be filename-safe; an existing child is a conflict — no
  *  uniqueName renaming, the key names the node). The member's scalar self-value, ordinal entries
- *  and keyed SCALAR children land in its own `.yamlover/body.yamlover`; each keyed CONTAINER
+ *  and keyed SCALAR children land in its own `.yo/body.yo`; each keyed CONTAINER
  *  child recurses into a deeper directory. A member with no body-bound content stays a bare
  *  directory — a pure nested-object shell. */
 function writeDirMemberTree(dataRoot: string, absDir: string, key: string, valueSrc: string, meta?: string | null): void {
@@ -2701,8 +2701,8 @@ function writeDirMemberTree(dataRoot: string, absDir: string, key: string, value
   });
   if (selfAt >= 0 && !emittedSelf) emitSelf();
   if (bodyLines.length) {
-    mkdirInside(dataRoot, path.join(dir, ".yamlover"));
-    writeInside(dataRoot, path.join(dir, ".yamlover"), "body.yamlover", Buffer.from(bodyLines.join("\n").replace(/\n*$/, "") + "\n", "utf8"));
+    mkdirInside(dataRoot, path.join(dir, ".yo"));
+    writeInside(dataRoot, path.join(dir, ".yo"), "body.yo", Buffer.from(bodyLines.join("\n").replace(/\n*$/, "") + "\n", "utf8"));
   }
 }
 
@@ -2710,7 +2710,7 @@ function writeDirMemberTree(dataRoot: string, absDir: string, key: string, value
  *  (non-ASCII names are first-class — see uniqueName for collisions), never hidden. */
 function chapterFileName(title: string): string {
   const base = title.replace(/[^\p{L}\p{N} ._-]+/gu, " ").replace(/\s+/g, " ").trim().slice(0, 60).trim().replace(/^\.+/, "");
-  return `${base || "pasted"}.yamlover`;
+  return `${base || "pasted"}.yo`;
 }
 
 /** A safe filename: basename only, restricted charset, never hidden; defaults when empty. */
@@ -2751,17 +2751,17 @@ function scanTree(dataRoot: string, ignore?: (absPath: string) => boolean): Tree
     const names = entries.map((d) => d.name);
     nodes.push({
       path: segsToStr(segs),
-      concrete: names.includes(".yamlover") ? "dir/yamlover" : "dir",
+      concrete: names.includes(".yo") ? "dir/yamlover" : "dir",
       fsPath: segs.join("/"),
       names,
     });
     for (const d of entries) {
       const childAbs = path.join(abs, d.name);
       if (ignore?.(childAbs)) continue;
-      // `.yamlover` is the ONE hidden name this format owns — and the one that must be descended
+      // `.yo` is the ONE hidden name this format owns — and the one that must be descended
       // into, since a nested overlay is what we are hunting. Every other dot-name (`.git`, an
       // editor's droppings) is outside the data tree: the walk skips it, so the doctor does too.
-      if (d.name.startsWith(".") && d.name !== ".yamlover") continue;
+      if (d.name.startsWith(".") && d.name !== ".yo") continue;
       const childSegs = [...segs, d.name];
       if (d.isDirectory()) visit(childAbs, childSegs);
       // a file's concrete comes from its extension alone; `null` (a material, a blob, an
@@ -2788,7 +2788,7 @@ function logDiagnostics(found: Diagnostic[]): void {
 
 /** How a validation verdict is acted on here: dev/test THROWS (so corruption turns the suite red
  *  before it can reach a user's tree), production REFUSES the write and reports. `YAMLOVER_VALIDATE`
- *  overrides. A per-project `validate:` in settings.yamlover is the natural next override, but the
+ *  overrides. A per-project `validate:` in settings.yo is the natural next override, but the
  *  byte/mkdir chokepoints below are module-level and hold no Settings — it would have to be threaded. */
 function validationMode(): EnforcementMode {
   return defaultMode({ dev: process.env.NODE_ENV !== "production" || !!process.env.VITEST, setting: process.env.YAMLOVER_VALIDATE });
@@ -2796,7 +2796,7 @@ function validationMode(): EnforcementMode {
 
 /** THE PATH GATE — every byte and every directory this server creates passes through here.
  *  It re-asks validate.ts for the format's path invariants (no overlay inside an overlay, no
- *  stray name in a `.yamlover/`, no root escape, no hidden/padded/metachar member name), so a
+ *  stray name in a `.yo/`, no root escape, no hidden/padded/metachar member name), so a
  *  write that would corrupt the tree is refused before it can reach the disk. */
 function guardPath(dataRoot: string, abs: string): void {
   logDiagnostics(enforce(validatePath(relPosix(dataRoot, abs)), validationMode()));
@@ -2814,7 +2814,7 @@ function writeInside(dataRoot: string, dir: string, name: string, bytes: Buffer)
 
 /** {@link fs.mkdirSync} behind the same gate as {@link writeInside}. Directory creation is the
  *  OTHER way an object is born — the one that used to bypass every check, which is how a
- *  `.yamlover` came to sit inside a `.yamlover`. Every mkdir in this module goes through here. */
+ *  `.yo` came to sit inside a `.yo`. Every mkdir in this module goes through here. */
 function mkdirInside(dataRoot: string, abs: string, opts?: { recursive?: boolean }): void {
   guardPath(dataRoot, abs);
   fs.mkdirSync(abs, opts);
@@ -3075,7 +3075,7 @@ function bodyAppendPoint(lines: string[], r: Region): number {
 }
 
 /** Append items (rendered by `renderItems` at the body's indent) to the positional body of the
- *  chapter at `chapterPath` within a .yamlover source. */
+ *  chapter at `chapterPath` within a .yo source. */
 function appendBody(text: string, chapterPath: Seg[], renderItems: (indent: number) => string[]): string {
   const lines = text.split("\n");
   const r = reachChapter(lines, chapterPath);
@@ -3804,7 +3804,7 @@ function editFlowRowCell(lines: string[], row: ChapterEntry, cellIdx: number, op
   return true;
 }
 
-/** Apply one surgical edit to a `.yamlover` source, addressed by `within` — the edit path relative
+/** Apply one surgical edit to a `.yo` source, addressed by `within` — the edit path relative
  *  to its document root. Every segment is a key or an ABSOLUTE entry index; the last one names the
  *  node being edited. Returns the new source text.
  *
@@ -3963,19 +3963,19 @@ function editJsonScalar(src: string, within: Seg[], token: string): string {
 const isPointerValue = (src: string): boolean => /^\*\S*$/.test(src.trim()) && !src.includes("\n");
 
 /** The deepest prefix of `segs` that is an ON-DISK dir-backed document (its
- *  `.yamlover/body.yamlover` exists) — the filesystem's view of the document root, independent
+ *  `.yo/body.yo` exists) — the filesystem's view of the document root, independent
  *  of the index. Null when no prefix (the served root included) has a body on disk. */
 function fsDocRootSegs(dataRoot: string, segs: Seg[]): { docSegs: Seg[]; bodyFile: string } | null {
   for (let i = segs.length; i >= 0; i--) {
     const sub = segs.slice(0, i);
     if (!sub.every((g) => typeof g === "string")) continue;
-    const body = path.resolve(dataRoot, ...sub.map(String), ".yamlover", "body.yamlover");
+    const body = path.resolve(dataRoot, ...sub.map(String), ".yo", "body.yo");
     if (fs.existsSync(body)) return { docSegs: sub, bodyFile: body };
   }
   return null;
 }
 
-/** A filesystem directory that backs NO yamlover document — it has no `.yamlover/body.yamlover` to
+/** A filesystem directory that backs NO yamlover document — it has no `.yo/body.yo` to
  *  splice, so what you add to it is a member file/directory, not an entry in some source. */
 function isPlainDir(dataRoot: string, s: Store, segs: Seg[]): boolean {
   if (!segs.every((g) => typeof g === "string")) return false;
@@ -4002,10 +4002,10 @@ function canonSegs(s: Store, segs: Seg[], keepLast: boolean): Seg[] {
   for (let i = 0; i < segs.length; i++) {
     const g = segs[i];
     if (i < end && typeof g === "number" && !s.node(storePath([...out, g]))) {
-      // A HIDDEN member (the `.yamlover` overlay) occupies a position in the index but NOT in the
+      // A HIDDEN member (the `.yo` overlay) occupies a position in the index but NOT in the
       // body's positional space — the projections that define that space omit it. Aliasing to one
       // would point a positional edit at the overlay: in a fresh project whose body is still empty,
-      // `:[0]` would resolve to `:.yamlover` and the edit would write `.yamlover/.yamlover/`.
+      // `:[0]` would resolve to `:.yo` and the edit would write `.yo/.yo/`.
       const hit = s.entries(storePath(out)).find((c) => c.kind === "contain" && c.pos === g && c.label != null && !isHidden(s, c.to));
       if (hit) { out.push(hit.label!); continue; }
     }
@@ -4110,7 +4110,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       continue;
     }
 
-    // A BARE folder (`concrete:"dir"`): just an OS directory — no body, no pointer, no .yamlover
+    // A BARE folder (`concrete:"dir"`): just an OS directory — no body, no pointer, no .yo
     // marker. Legal inside any filesystem directory (a plain dir OR a dir-backed document); the
     // walk discovers it as a keyed member. `meta`/`yamlover` are ignored — it carries neither.
     // Must divert BEFORE the body-splicing path: `"dir"` has no `/`, so falling through would
@@ -4128,7 +4128,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
     // A DIRECTORY TARGET (concrete-rules.ts): a directory is editable like any yamlover node —
     // WHERE a new child is encoded is the derivation policy's call. A keyed CONTAINER child
     // becomes a nested REAL directory (recursively); scalar/ordinal children and the directory's
-    // own scalar self-value live in its `.yamlover/body.yamlover` overlay, created on demand.
+    // own scalar self-value live in its `.yo/body.yo` overlay, created on demand.
     // A dir WITH a body keeps today's body-splicing for everything but keyed-container inserts
     // (positional chapter edits depend on the body's index space); explicit `concrete:` branches
     // above keep precedence.
@@ -4137,7 +4137,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       const absDir = stripped.every((g) => typeof g === "string") ? path.resolve(dataRoot, ...stripped.map(String)) : null;
       const isDirTarget = absDir !== null && fs.existsSync(absDir) && fs.statSync(absDir).isDirectory();
       if (isDirTarget) {
-        const bodyFile = path.join(absDir, ".yamlover", "body.yamlover");
+        const bodyFile = path.join(absDir, ".yo", "body.yo");
         // the routing DECISION is concrete-rules.ts's (deriveDirEditRoute) — only the observed
         // state is gathered here; see the policy's doc for why disk and index must agree
         const target = {
@@ -4177,7 +4177,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
           const snap: WriteSnapshot = {
             target: {
               path: segsToStr(stripped),
-              concrete: dirNames?.includes(".yamlover") ?? target.hasBody ? "dir/yamlover" : "dir",
+              concrete: dirNames?.includes(".yo") ?? target.hasBody ? "dir/yamlover" : "dir",
               fsPath: relPosix(dataRoot, absDir),
               names: dirNames,
             },
@@ -4307,8 +4307,27 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
           }
         }
         // A TAGGED ordinal container is content, not structure — deriveMemberEncoding says "body",
-        // and this node stays where it is.
-        const enc = memberSrc === null ? "body" : deriveMemberEncoding({ keyed: inlineKeyed, container: true, tagged: typeof memberMeta === "string" });
+        // and this node stays where it is. Content is content ALL THE WAY DOWN: a node INSIDE an
+        // inline tagged container (a table's row, a list's sublist) never promotes out of it —
+        // a `- *: itemNN` pointer in the middle of a content unit breaks the positional
+        // addressing every following edit uses (the reported "cannot descend into a scalar
+        // element" sync failure, reproduced by a table growing across two flushes).
+        const insideContent = ((): boolean => {
+          const pending = pendingSrc(nBack.bodyFile);
+          if (!pending) return false;
+          const lines = pending.split(/\r?\n/);
+          const within = nodeSegs.slice(nBack.docSegs.length);
+          try {
+            for (let i = 0; i < within.length - 1; i++) {
+              const region = reachChapter(lines, within.slice(0, i));
+              const entry = findEntry(lines, region, within[i]);
+              if (!entry) return false;
+              if (/!!<[^>]*>/.test(lines[entry.start])) return true; // the RAW line — entryHead strips the tag
+            }
+          } catch { return false; }
+          return false;
+        })();
+        const enc = memberSrc === null ? "body" : deriveMemberEncoding({ keyed: inlineKeyed, container: true, tagged: typeof memberMeta === "string", insideContent });
         if (enc !== "body") {
           if (memberSrc && !isPointerValue(memberSrc!)) parseYamlover(memberSrc!, "<edit>");
           const docAbs = path.resolve(dataRoot, ...nBack.docSegs.map(String));
@@ -4469,7 +4488,7 @@ interface EditInput {
 
 // A dataRoot that never exists: `concreteOf`'s stats throw and every node falls through to plain
 // "yamlover" — nothing a standalone-document projection does can reach the real filesystem.
-const PREVIEW_ROOT = path.join(os.tmpdir(), ".yamlover-preview-nonexistent");
+const PREVIEW_ROOT = path.join(os.tmpdir(), ".yo-preview-nonexistent");
 
 /** The /api/json-shaped payload for a STANDALONE yamlover document (no file behind it — e.g. the
  *  client's browser-settings text): parse, index into a throwaway in-memory store, project at
@@ -4551,7 +4570,7 @@ function readBody(req: IncomingMessage): Promise<unknown> {
 }
 
 /** The nearest enclosing DOCUMENT root for `segs` — the closest ancestor (or self) whose node
- *  is flagged `documentRoot` (a parsed file / `.yamlover` dir / served root), as segments. It is
+ *  is flagged `documentRoot` (a parsed file / `.yo` dir / served root), as segments. It is
  *  the anchor a document-relative (`/…`) pointer resolves against, mirroring the `/` pointer scope. */
 function documentRootSegs(s: Store, segs: Seg[]): Seg[] {
   for (let i = segs.length; i >= 0; i--) {
@@ -4652,7 +4671,7 @@ function parseDepth(raw: string | null): number | undefined {
 }
 
 /** The render depth when the request pins none: ONE level for a binary leaf or a directory (a plain
- *  folder or a `.yamlover`-backed directory — the explorer shows one level), else UNLIMITED
+ *  folder or a `.yo`-backed directory — the explorer shows one level), else UNLIMITED
  *  (Infinity) so a text document (json/json5/yaml/yamlover, and the value nodes inside it) inlines
  *  whole. A reference is never followed at unlimited depth — it shows as a reference — so the whole
  *  walk stays finite even on a cyclic graph. */

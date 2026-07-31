@@ -116,6 +116,9 @@ export interface YedActions {
   nestValue(entryId: string): void;
   /** Enter: a fresh sibling hole after this entry. */
   enterAfter(entryId: string): void;
+  /** Enter at the HEAD of a committed row: the row is pushed down — a fresh sibling hole
+   *  opens BEFORE this entry, caret in it. */
+  enterBefore(entryId: string): void;
   /** Enter on a self-value / root cell: a fresh hole as the container's first entry. */
   enterInto(nodeId: string): void;
   indent(entryId: string): void;
@@ -381,6 +384,11 @@ export function ScalarCell({ node, entryId }: { node: MNode; entryId: string | n
       case "removeLevel": case "undoMarker":
         if (!entryId) return false;
         e.preventDefault(); act.removeEmpty(entryId); return true; // a committed token has no marker to undo
+      case "siblingBefore":
+        // Enter at the HEAD of a committed row: the row pushes down, the fresh sibling hole opens
+        // BEFORE it. The ROOT has no row above — fall through to the LEVEL RULE's descend.
+        if (!entryId) return false;
+        e.preventDefault(); act.enterBefore(entryId); return true;
       case "move":
         // only the Backspace-at-start crossing here — vertical arrows keep the browser's behavior
         // in a block token cell for now (Stage D unifies them)

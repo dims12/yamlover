@@ -122,7 +122,7 @@ flow is the **same for prose, images, maps, and PDFs**: you **select**, then pic
      `/examples/67-pdf-tags/tags/genre/humor/deadpan`) and press **Enter** to apply that tag.
      A **bare name** (no `/`) works too: if no such tag exists yet it is **created on the
      spot** — appended to the project's tag taxonomy (the `tags: *:: tags` setting in
-     `.yamlover/settings.yamlover`, `<root>/tags` by default) as `<name>: !!<*$defs/tag>` —
+     `.yo/settings.yo`, `<root>/tags` by default) as `<name>: !!<*$defs/tag>` —
      and then applied.
    - **⧉ Copy** (prose only) — copies the selected text to the clipboard and creates **no**
      annotation.
@@ -149,7 +149,7 @@ object needed when there's no region and no comment).
 
 New annotations are written **into the target's own source** — the `yamlover-fragments` /
 `yamlover-annotations` keys sit beside the node's value (yamlover's omni shape), and for an
-on-disk binary file they land in the enclosing directory's `.yamlover/body.yamlover` overlay
+on-disk binary file they land in the enclosing directory's `.yo/body.yo` overlay
 under the file's key. An image/PDF region also embeds a **crop**, stored as a sidecar blob
 referenced by a `*` pointer. It is all ordinary yamlover in the tree — read, version, or
 hand-edit it like anything else (`ANNOTATIONS.md` has the exact shapes).
@@ -208,7 +208,7 @@ else.
 
 **Pasting text** follows the same shape: on a **chapter** the text becomes an inline
 block-scalar chunk appended to the page; anywhere else it becomes a **new chapter
-file** (`.yamlover`), titled from its first line. **Pasting links or rich HTML** goes
+file** (`.yo`), titled from its first line. **Pasting links or rich HTML** goes
 further: a pasted URL list becomes pointer chunks, an arXiv link fetches the PDF, a
 tweet link captures the full tweet, and a rich-HTML selection is decomposed into
 chunks (text, images, embedded video, subchapters) so the pasted page stays structured
@@ -228,7 +228,7 @@ page.
   or share a deep link. The `?format=` query selects the active tab.
 - A node's **title** (a chapter/task's scalar self-value — CHAPTER.md — or a legacy `title`
   child) drives both its tree label and the browser tab.
-- The SQLite index under `<root>/.yamlover/` is a derived cache; delete it to force a clean
+- The SQLite index under `<root>/.yo/` is a derived cache; delete it to force a clean
   rebuild. External edits are picked up **live** by the FS watcher (and reconciled on
   startup for edits made while the server was down); `POST /api/reindex` is the manual
   fallback.

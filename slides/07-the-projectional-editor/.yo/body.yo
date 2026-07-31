@@ -1,0 +1,56 @@
+# DECK 07 — SCAFFOLD. Titles, demo targets and `notes:` stubs in place; TODO prose to write.
+# Sources: ../../EDITOR.md (the architecture), ../../YAMLOVER_EDITOR.yo (the typing
+# grammar and THE LEVEL RULE), ../../CHAPTER.md §The editors, ../../CONCRETES.md
+# (directory promotion). Series rules: ../.yo/body.yo.
+!!<*yamlover: $defs: chapter>
+The projectional editor
+description: Editing structure instead of text, one cell at a time
+- There is no source textarea
+  notes: |
+    TODO — unlock a node and show that the rendered surface IS the editable one: a tree of
+    cells that mirror the syntax tree, not a text box beside a preview.
+  - |
+    The rendered surface **is** the editable surface — a tree of cells over the syntax
+    tree, with no source box beside it.
+- Structure appears as you type
+  notes: |
+    TODO — type `k:` and watch the pair form; type `[` and watch the closer be projected
+    and the caret land inside. The grammar decides what a keystroke means.
+  - |
+    TODO — one sentence: typing a delimiter materializes the structure it opens.
+- The level rule
+  notes: |
+    TODO — YAMLOVER_EDITOR.yo. Enter after committing a value DESCENDS into it; a
+    sibling at the same level costs a Shift-Tab. Type three levels, then climb back out.
+  - |
+    **Enter descends** into what you just wrote; **Shift-Tab** climbs back out. A sibling
+    costs one Shift-Tab.
+- Every edit is a surgical op
+  notes: |
+    TODO — show the ops going over the wire (or just say it): the editor sends emplace,
+    insert, remove against a path — it never rewrites the whole file. Which is why an
+    external edit and a UI edit can land in the same file.
+  - |
+    TODO — one sentence on surgical edits versus whole-file writes.
+- Storage moves under you
+  notes: |
+    TODO — add a child to a leaf and watch it promote into its own directory, named with
+    an order number. The value did not change; where it lives did.
+  - |
+    Content that outgrows a line **moves storage by itself** — a promoted node becomes its
+    own directory, order-numbered by title.
+- Two projections, one model
+  notes: |
+    TODO — the same node as a chapter and as data: switch tabs and edit in both. Same
+    model underneath, two ways of seeing it.
+  - |
+    TODO — one sentence.
+- What keeps it honest
+  notes: |
+    TODO — the edit corpus: keystroke scripts replayed through the real server, asserting
+    the file round-trips (edit-examples/). Say why that matters for a data editor: a
+    keystroke with nowhere to go is a bug, not a shrug.
+  - |
+    Keystroke scripts are replayed through the real server and the file must **round-trip**
+    — see `edit-examples/`.
+  - Back to the start — the series index

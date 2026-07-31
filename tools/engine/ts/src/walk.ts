@@ -2,11 +2,11 @@
 // Python walker / the server's legacy `loadEntity`, mirroring its file→value semantics so the
 // web UI works "as it was", but emitting the new IR (parser/ts/src/ir.ts) the engine consumes.
 //
-// A directory IS a mapping: each file/subdir is an entry keyed by its filename. The `.yamlover/`
+// A directory IS a mapping: each file/subdir is an entry keyed by its filename. The `.yo/`
 // overlay dir is not itself an entry; it carries:
-//   - body.yamlover — the INSTANCE overlay: a mapping merges over the dir (override/add); a
+//   - body.yo — the INSTANCE overlay: a mapping merges over the dir (override/add); a
 //     pointer-array (`- *file …`) imposes child ORDER (a bare dir takes filesystem order).
-//   - meta.yamlover — the metadata SCHEMA: `properties.<name>.{type,format}` types a child
+//   - meta.yo — the metadata SCHEMA: `properties.<name>.{type,format}` types a child
 //     (e.g. type: binary makes a textual-looking file a Blob; format names its decoding).
 //
 // File → value (legacy rule): a TEXT-format extension → a string scalar (raw content); a known
@@ -31,20 +31,20 @@ import { graftTaxonomy, YAMLOVER_AUTHORITY } from './mounts.ts';
 const { h64Raw, create64 } = await xxhash();
 const hashBytes = (bytes: Uint8Array): string => 'xxh64:' + h64Raw(bytes).toString(16).padStart(16, '0');
 
-const YAMLOVER_DIR = '.yamlover';
-// Engine-owned files inside `.yamlover/` that must NOT be indexed: the overlays are read into the
+const YAMLOVER_DIR = '.yo';
+// Engine-owned files inside `.yo/` that must NOT be indexed: the overlays are read into the
 // parent directory (applyBody/loadMeta), and the index db would otherwise index itself. Everything
-// else under `.yamlover/` (the derived `thumbnails/` and `fragments/` sidecar dirs) is walked
+// else under `.yo/` (the derived `thumbnails/` and `fragments/` sidecar dirs) is walked
 // normally — those blobs are addressable content (just hidden). See yamloverDirNode.
 const YAMLOVER_INTERNAL = new Set([
-  'body.yamlover', 'meta.yamlover', 'settings.yamlover',
+  'body.yo', 'meta.yo', 'settings.yo',
   'index.db', 'index.db-wal', 'index.db-shm', 'index.db-journal',
 ]);
-// `settings.yamlover` is engine-owned (read by loadSettings, never an overlay applied to the parent)
+// `settings.yo` is engine-owned (read by loadSettings, never an overlay applied to the parent)
 // but — UNLIKE body/meta/index.db — it IS indexed as a HIDDEN node, so the config file is openable
-// and editable at `:.yamlover:settings.yamlover` by the settings renderer (IMPORTS.md). It is the one
+// and editable at `:.yo:settings.yo` by the settings renderer (IMPORTS.md). It is the one
 // YAMLOVER_INTERNAL name admitted into the overlay subtree.
-const SETTINGS_FILE = 'settings.yamlover';
+const SETTINGS_FILE = 'settings.yo';
 const skipInYamloverDir = (name: string): boolean =>
   (YAMLOVER_INTERNAL.has(name) && name !== SETTINGS_FILE) || name.startsWith('.');
 const MAX_TEXT_BYTES = 1 << 20; // 1 MiB: above this we never slurp a file to sniff/parse it
@@ -55,7 +55,7 @@ const HASH_CHUNK = 8 << 20; // 8 MiB: streaming-hash chunk — constant memory a
 export interface WalkOptions {
   /** Skip a filesystem child when this returns true for its absolute path (e.g. a `.gitignore`
    *  matcher, so a project-root walk does not descend into `node_modules`). Hidden dotfiles and
-   *  the `.yamlover/` overlay dir are always skipped regardless. */
+   *  the `.yo/` overlay dir are always skipped regardless. */
   ignore?: (absPath: string) => boolean;
   /** Hash cache: given a file's root-relative path and its current (size, mtimeMs), return its
    *  known content hash, or null to force a read. Lets a re-index skip re-reading unchanged
@@ -138,7 +138,7 @@ export interface IndexDiff {
 
 /** One in-progress directory on the partial-snapshot stack: its name (filesystem key in the
  *  parent), the entries completed so far (the LIVE array {@link dirNode} appends to — snapshots
- *  copy it), and any node meta the finished node would carry (`.yamlover` → hidden). */
+ *  copy it), and any node meta the finished node would carry (`.yo` → hidden). */
 interface PartialFrame {
   name: string;
   entries: Entry[];
@@ -230,7 +230,7 @@ let builtinTemplate: { tag: Node; tags: Node } | null = null;
 function builtinYamloverGraft(): { node: Node; defs: Map<string, Node> } {
   builtinTemplate ??= {
     tag: parseYamlover(BUILTIN_TAG_SCHEMA, '$defs/tag').root,
-    tags: parseYamlover(BUILTIN_TAGS_BODY, 'tags/.yamlover/body.yamlover').root,
+    tags: parseYamlover(BUILTIN_TAGS_BODY, 'tags/.yo/body.yo').root,
   };
   const tagCopy = structuredClone(builtinTemplate.tag);
   const fragCopy = parseYamlover(BUILTIN_FRAGMENT_SCHEMA, '$defs/fragment').root;
@@ -327,7 +327,7 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
         builtinDefs = built.defs;
       }
       // the self-import is plumbing, not content: HIDDEN from the TOC/explorer/projection like the
-      // `.yamlover` overlay, yet fully reachable — `:yamlover` navigates, `*::yamlover:…` resolves
+      // `.yo` overlay, yet fully reachable — `:yamlover` navigates, `*::yamlover:…` resolves
       node.meta = { ...node.meta, hidden: true };
       if (yEntry) { yEntry.value = node; yEntry.edge = 'contain'; } // materialize over the import pointer
       else root.entries.push({ key: 'yamlover', edge: 'contain', value: node });
@@ -346,8 +346,8 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
   };
 }
 
-/** Build the index DB for a directory tree: walk → IR → SQLite at <root>/.yamlover/index.db.
- *  Creates the .yamlover/ dir if absent. The DB is a derived cache (ENGINE.md) — re-runnable. */
+/** Build the index DB for a directory tree: walk → IR → SQLite at <root>/.yo/index.db.
+ *  Creates the .yo/ dir if absent. The DB is a derived cache (ENGINE.md) — re-runnable. */
 export function buildIndex(absDir: string, opts: WalkOptions = {}): string {
   const overlay = path.join(absDir, YAMLOVER_DIR);
   fs.mkdirSync(overlay, { recursive: true });
@@ -462,7 +462,7 @@ export async function reindexPathAsync(
   opts: WalkOptions = {},
 ): Promise<{ diff: IndexDiff; doc: Document } | null> {
   const root = path.resolve(absDir);
-  // The splice unit is the directory that OWNS the change: for a `.yamlover/` overlay the directory
+  // The splice unit is the directory that OWNS the change: for a `.yo/` overlay the directory
   // the overlay belongs to; for any other file, its containing directory.
   const parts = changedRel.split('/');
   const yi = parts.indexOf(YAMLOVER_DIR);
@@ -532,7 +532,7 @@ async function countChildren(absRoot: string, opts: WalkOptions, onCount?: (n: n
   const tick = (): void => {
     if (onCount && n % 200 === 0) onCount(n);
   };
-  // count a `.yamlover/` overlay dir's indexable sidecars (same skip-list as yamloverDirNode);
+  // count a `.yo/` overlay dir's indexable sidecars (same skip-list as yamloverDirNode);
   // returns how many top-level entries survived (0 ⇒ the dir adds no node).
   const visitYamlover = async (dir: string): Promise<number> => {
     let entries;
@@ -565,7 +565,7 @@ async function countChildren(absRoot: string, opts: WalkOptions, onCount?: (n: n
       const abs = path.join(dir, e.name);
       if (opts.ignore?.(abs)) continue;
       if (e.name === YAMLOVER_DIR) {
-        if ((await visitYamlover(abs)) > 0) n++; // +1 for the hidden `.yamlover` node itself
+        if ((await visitYamlover(abs)) > 0) n++; // +1 for the hidden `.yo` node itself
         continue;
       }
       n++;
@@ -668,12 +668,12 @@ function readTracked(ctx: Ctx, abs: string): Buffer {
   return bytes;
 }
 
-/** Per-child metadata from `.yamlover/meta.yamlover` `properties`:
+/** Per-child metadata from `.yo/meta.yo` `properties`:
  *  { name → {type, format, uniqueItems} }. */
 type Meta = Record<string, { type?: string; format?: string; uniqueItems?: boolean }>;
 
 function loadMeta(dir: string, ctx: Ctx): Meta {
-  const file = path.join(dir, YAMLOVER_DIR, 'meta.yamlover');
+  const file = path.join(dir, YAMLOVER_DIR, 'meta.yo');
   if (!fs.existsSync(file)) return {};
   try {
     const plain = toPlain(parseYamlover(readTracked(ctx, file).toString('utf8'), file).root) as Record<string, unknown>;
@@ -684,15 +684,15 @@ function loadMeta(dir: string, ctx: Ctx): Meta {
   }
 }
 
-/** A directory → a Mapping node: one entry per file/subdir, then the body.yamlover overlay.
+/** A directory → a Mapping node: one entry per file/subdir, then the body.yo overlay.
  *  A generator: yields one progress tick per child processed (subtree ticks ride through). */
 function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
   const meta = loadMeta(dir, ctx);
   const names = fs
     .readdirSync(dir)
-    .filter((n) => n === YAMLOVER_DIR || !n.startsWith('.')) // keep `.yamlover` (hidden subtree); drop other dotfiles
+    .filter((n) => n === YAMLOVER_DIR || !n.startsWith('.')) // keep `.yo` (hidden subtree); drop other dotfiles
     .filter((n) => !ctx.opts.ignore?.(path.join(dir, n))) // skip git-ignored (e.g. node_modules)
-    .sort(); // filesystem order = sorted names (stable; body.yamlover can re-impose order)
+    .sort(); // filesystem order = sorted names (stable; body.yo can re-impose order)
 
   const entries: Entry[] = [];
   ctx.open?.push({ name: path.basename(dir), entries });
@@ -718,8 +718,8 @@ function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
   return applyMeta(applyBody(dir, node, ctx), meta); // attach meta `format` to entries (incl. body-overlay ones)
 }
 
-/** A `.yamlover/` overlay dir → a HIDDEN content subtree (its derived `thumbnails/`/`fragments/`
- *  sidecars, addressable as `*:.yamlover:…`), or null when nothing indexable remains (overlay /
+/** A `.yo/` overlay dir → a HIDDEN content subtree (its derived `thumbnails/`/`fragments/`
+ *  sidecars, addressable as `*:.yo:…`), or null when nothing indexable remains (overlay /
  *  index-db only). The engine's own files (overlays, the index db, nested dotfiles) are skipped;
  *  surviving entries walk through the normal {@link childNode}, so sidecar blobs index as usual.
  *  The node is flagged `meta.hidden` so the TOC/explorer omit it. */
@@ -735,7 +735,7 @@ function* yamloverDirNode(absYamlover: string, ctx: Ctx): Generator<WalkProgress
     return null;
   }
   const entries: Entry[] = [];
-  // hidden in the frame too, so a partial snapshot never shows a transient visible `.yamlover`
+  // hidden in the frame too, so a partial snapshot never shows a transient visible `.yo`
   ctx.open?.push({ name: path.basename(absYamlover), entries, meta: { hidden: true } });
   for (const name of names) {
     const abs = path.join(absYamlover, name);
@@ -768,7 +768,7 @@ function* childNode(abs: string, m: { type?: string; format?: string } | undefin
   return parsedScalar(abs, ext, ctx); // text, no format → parse by extension (json5p for .json*, else yamlover)
 }
 
-/** Apply `meta.yamlover` `properties.<key>.format` to the matching entries, so a body-overlay
+/** Apply `meta.yo` `properties.<key>.format` to the matching entries, so a body-overlay
  *  text entry (e.g. 59's `markdown:`) gets its (type, format) just like a file child does. A
  *  Blob already carries its format; a node with a format already wins; binary stays a Blob.
  *  `uniqueItems: true` marks the child a SET (≡ the `!!set` tag — META.md): NodeMeta.set. */
@@ -811,7 +811,7 @@ function textScalar(abs: string, format: string, ctx: Ctx): Node {
 
 /** A structured/text file with no binary format: parse it into a node. The parser is chosen by
  *  extension — `.json`/`.json5`/`.json5p` → json5p (handles JSON/JSON5 incl. multi-line + comments,
- *  which the YAML parser does not), everything else (`.yaml`/`.yamlover`/no extension) → yamlover,
+ *  which the YAML parser does not), everything else (`.yaml`/`.yo`/no extension) → yamlover,
  *  the DEFAULT. So `30`→number, `"Alice"`→string, a JSON doc → a structure. Falls back to a raw
  *  string if parsing fails. */
 function parsedScalar(abs: string, ext: string, ctx: Ctx): Node {
@@ -996,7 +996,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
   walk(root);
 }
 
-/** Merge `.yamlover/body.yamlover` over the directory mapping (YAMLOVER.md §5):
+/** Merge `.yo/body.yo` over the directory mapping (YAMLOVER.md §5):
  *  - a mapping body OVERRIDES same-key children and ADDS overlay-only keys (scalars/pointers);
  *  - a pointer-array body (`- *file …`) imposes ORDER over the existing children;
  *  - a SCALAR body root with fields (the omni shape, e.g. `!!var A taxonomy` over a tag
@@ -1004,7 +1004,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
  *  The body root's `meta` (e.g. a `!!<*yamlover/$defs/chapter>` tag attaching a schema to the
  *  whole directory) is carried onto the merged node, so a directory CHAPTER is recognized. */
 function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
-  const file = path.join(dir, YAMLOVER_DIR, 'body.yamlover');
+  const file = path.join(dir, YAMLOVER_DIR, 'body.yo');
   if (!fs.existsSync(file)) return node;
   const bodyDoc = parseYamlover(readTracked(ctx, file).toString('utf8'), file);
   const body = bodyDoc.root;
@@ -1012,7 +1012,7 @@ function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
   // A scalar body has no `entries` (a bare `30`); an omni scalar body / mapping body does. Treat a
   // field-less scalar as an empty overlay so the directory still takes the scalar as its own value.
   const bodyEntries = body.entries ?? [];
-  // a directory with a body.yamlover overlay is a self-contained instance = a DOCUMENT root
+  // a directory with a body.yo overlay is a self-contained instance = a DOCUMENT root
   // (so `*: file` inside it resolves to this directory, at any nesting depth). The body's
   // head-of-file banner rides onto the node so it survives past the parse.
   const meta0 = { ...node.meta, ...body.meta, documentRoot: true, ...(bodyDoc.head?.length ? { head: bodyDoc.head } : {}) };

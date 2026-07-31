@@ -27,7 +27,7 @@ decisions.
 - **`*` is the only edge-creator** beyond containment; `~` marks a back/non-owning edge;
   `&` is a plain intra-document anchor. Containment is the acyclic spine; `*`/`~` lay a
   general graph on top.
-- **Concrete-agnostic.** json5p, yamlover, and a directory+`body.yamlover` all parse to
+- **Concrete-agnostic.** json5p, yamlover, and a directory+`body.yo` all parse to
   the *same* IR. The originating concrete is recorded in metadata, not in the shape.
 
 ## Normative types
@@ -144,7 +144,7 @@ export interface NodeMeta {
   derivedFormat?: string;           // engine-derived format (extension / meta / resolved tag); never authored
   documentRoot?: boolean;           // a self-contained instance; the `/`-scope target
   set?: boolean;                    // `!!set` / uniqueItems — survives into the graph
-  hidden?: boolean;                 // resolvable but omitted from TOC/listings (`.yamlover` sidecars)
+  hidden?: boolean;                 // resolvable but omitted from TOC/listings (`.yo` sidecars)
   comments?: Comment[];             // comments with no entry to attach to
   head?: Comment[];                 // a document root's banner, carried onto the node
   selfAt?: number;                  // omni: display position of the scalar self-value line
@@ -216,7 +216,7 @@ A directory's foreign files become `Blob` nodes: the IR holds `format` + `conten
 
 ### Metadata (type/format) comes from the schema layer
 The IR carries *data*. A node's **`type`/`format`/presentation** metadata lives in the
-separate **metadata schema** (`.yamlover/meta.yamlover`, see `META.md`) — a JSON-Schema-
+separate **metadata schema** (`.yo/meta.yo`, see `META.md`) — a JSON-Schema-
 equivalent whose meta-path maps to an instance-path. The engine attaches it to nodes (e.g.
 to drive decoding a `Blob` via `format`, or rendering by `(type, format)`); the parser does
 not require it. A `Blob`'s `format` may thus be filled from `meta` rather than inferred.

@@ -433,7 +433,8 @@ function BootCell({ path }: { path: Path }): ReactNode {
               if (t !== "") ctx.boot(path, t);
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ctx.dispatch({ kind: "splitProse" }, { head: "", tail: "" }); return; }
+              // Ctrl+Enter falls through to the machine — on the boot cell it MATERIALIZES a table
+              if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey) { e.preventDefault(); ctx.dispatch({ kind: "splitProse" }, { head: "", tail: "" }); return; }
               const claimed = ctx.dispatchKey({ key: e.key, shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey }, { atStart: true, atEnd: true, firstLine: true, lastLine: true });
               if (claimed) e.preventDefault();
             }}

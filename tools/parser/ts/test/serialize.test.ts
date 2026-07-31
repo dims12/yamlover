@@ -182,12 +182,12 @@ test('cross-concrete: a json5 Infinity/NaN serializes to yamlover .inf/.nan (no 
 
 const yamloverFiles: string[] = [
   join(examples, '05-tour.yaml'),
-  join(examples, '06-tour.yamlover'),
-  join(root, 'tags', '.yamlover', 'body.yamlover'),
+  join(examples, '06-tour.yo'),
+  join(root, 'tags', '.yo', 'body.yo'),
 ];
 for (const dir of readdirSync(examples, { withFileTypes: true })) {
   if (!dir.isDirectory()) continue;
-  const body = join(examples, dir.name, '.yamlover', 'body.yamlover');
+  const body = join(examples, dir.name, '.yo', 'body.yo');
   if (existsSync(body)) yamloverFiles.push(body);
 }
 
@@ -294,15 +294,15 @@ test('cross rt: 03-tour.json5p → yamlover → IR-equal', () => {
   assert.deepEqual(canonDoc(parseYamlover(out, '03-as-yamlover')), canonDoc(doc), out);
 });
 
-test('cross rt: genealogy body.yamlover → json5p → IR-equal', () => {
-  const src = readFileSync(join(examples, '58-genealogy-dag', '.yamlover', 'body.yamlover'), 'utf8');
+test('cross rt: genealogy body.yo → json5p → IR-equal', () => {
+  const src = readFileSync(join(examples, '58-genealogy-dag', '.yo', 'body.yo'), 'utf8');
   const doc = parseYamlover(src, '58-genealogy');
   const out = serializeJson5p(doc);
   assert.deepEqual(canonDoc(parseJson5p(out, '58-as-json5p')), canonDoc(doc), out);
 });
 
-test('cross lossy: 06-tour.yamlover does not fit json5p (mix/omni/set)', () => {
-  const doc = parseYamlover(readFileSync(join(examples, '06-tour.yamlover'), 'utf8'), '06-tour');
+test('cross lossy: 06-tour.yo does not fit json5p (mix/omni/set)', () => {
+  const doc = parseYamlover(readFileSync(join(examples, '06-tour.yo'), 'utf8'), '06-tour');
   assert.throws(() => serializeJson5p(doc), LossyError);
 });
 

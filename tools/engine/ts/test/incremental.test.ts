@@ -45,34 +45,34 @@ async function fullIndex(root: string): Promise<Store> {
 test('standalone-file edit: incremental patch == full rebuild', async () => {
   const root = tmpRoot();
   mkdirSync(join(root, 'things', 'sub'), { recursive: true });
-  writeFileSync(join(root, 'things', 'a.yamlover'), 'title: Hello\nself: *title\n');
-  writeFileSync(join(root, 'things', 'sub', 'b.yamlover'), 'note: one\n');
+  writeFileSync(join(root, 'things', 'a.yo'), 'title: Hello\nself: *title\n');
+  writeFileSync(join(root, 'things', 'sub', 'b.yo'), 'note: one\n');
 
   const s = new Store(':memory:');
   const { doc } = await reindexAsyncDoc(s, root);
 
   // edit a deep standalone file (append a key) and patch incrementally
-  appendFileSync(join(root, 'things', 'sub', 'b.yamlover'), 'extra: two\n');
-  const res = await reindexPathAsync(s, root, doc, 'things/sub/b.yamlover');
+  appendFileSync(join(root, 'things', 'sub', 'b.yo'), 'extra: two\n');
+  const res = await reindexPathAsync(s, root, doc, 'things/sub/b.yo');
   assert.ok(res, 'a deep standalone-file edit should be patchable incrementally');
-  assert.deepEqual(res.diff.changed, ['things/sub/b.yamlover']);
-  assert.equal(s.node(':things:sub:b.yamlover:extra')?.value, 'two');
+  assert.deepEqual(res.diff.changed, ['things/sub/b.yo']);
+  assert.equal(s.node(':things:sub:b.yo:extra')?.value, 'two');
 
   assert.deepEqual(dump(s), dump(await fullIndex(root)));
 });
 
-test('body.yamlover overlay edit: incremental patch == full rebuild', async () => {
+test('body.yo overlay edit: incremental patch == full rebuild', async () => {
   const root = tmpRoot();
-  mkdirSync(join(root, 'things', 'sub', '.yamlover'), { recursive: true });
+  mkdirSync(join(root, 'things', 'sub', '.yo'), { recursive: true });
   writeFileSync(join(root, 'things', 'note.md'), 'hi');
-  writeFileSync(join(root, 'things', 'sub', '.yamlover', 'body.yamlover'), 'title: First\n');
+  writeFileSync(join(root, 'things', 'sub', '.yo', 'body.yo'), 'title: First\n');
 
   const s = new Store(':memory:');
   const { doc } = await reindexAsyncDoc(s, root);
   assert.equal(s.node(':things:sub:title')?.value, 'First');
 
-  writeFileSync(join(root, 'things', 'sub', '.yamlover', 'body.yamlover'), 'title: Second\ncolor: red\n');
-  const res = await reindexPathAsync(s, root, doc, 'things/sub/.yamlover/body.yamlover');
+  writeFileSync(join(root, 'things', 'sub', '.yo', 'body.yo'), 'title: Second\ncolor: red\n');
+  const res = await reindexPathAsync(s, root, doc, 'things/sub/.yo/body.yo');
   assert.ok(res, 'an overlay edit should be patchable incrementally');
   assert.equal(s.node(':things:sub:title')?.value, 'Second');
 
@@ -81,12 +81,12 @@ test('body.yamlover overlay edit: incremental patch == full rebuild', async () =
 
 test('cross-file inbound pointer into the changed subtree survives the patch', async () => {
   const root = tmpRoot();
-  mkdirSync(join(root, 'things', 'sub', '.yamlover'), { recursive: true });
-  mkdirSync(join(root, '.yamlover'), { recursive: true });
-  writeFileSync(join(root, 'things', 'sub', '.yamlover', 'body.yamlover'), 'title: Target\n');
+  mkdirSync(join(root, 'things', 'sub', '.yo'), { recursive: true });
+  mkdirSync(join(root, '.yo'), { recursive: true });
+  writeFileSync(join(root, 'things', 'sub', '.yo', 'body.yo'), 'title: Target\n');
   writeFileSync(join(root, 'things', 'note.md'), 'note');
   // a ROOT-scope pointer into the subtree we will edit (root is a document root, `things` a key)
-  writeFileSync(join(root, '.yamlover', 'body.yamlover'), 'link: *things:sub:title\n');
+  writeFileSync(join(root, '.yo', 'body.yo'), 'link: *things:sub:title\n');
 
   const s = new Store(':memory:');
   const { doc } = await reindexAsyncDoc(s, root);
@@ -107,8 +107,8 @@ test('cross-file inbound pointer into the changed subtree survives the patch', a
 
 test('outgoing ref + dangling inside the changed subtree are rewritten correctly', async () => {
   const root = tmpRoot();
-  mkdirSync(join(root, 'things', 'sub', '.yamlover'), { recursive: true });
-  writeFileSync(join(root, 'things', 'sub', '.yamlover', 'body.yamlover'), 'title: T\nself: *title\nbad: *nope\n');
+  mkdirSync(join(root, 'things', 'sub', '.yo'), { recursive: true });
+  writeFileSync(join(root, 'things', 'sub', '.yo', 'body.yo'), 'title: T\nself: *title\nbad: *nope\n');
   writeFileSync(join(root, 'things', 'keep.md'), 'k');
 
   const s = new Store(':memory:');
@@ -116,8 +116,8 @@ test('outgoing ref + dangling inside the changed subtree are rewritten correctly
   assert.equal(s.dangling().filter((d) => d.from === ':things:sub:bad').length, 1);
 
   // edit the overlay: fix the dangling pointer by adding the key it names
-  writeFileSync(join(root, 'things', 'sub', '.yamlover', 'body.yamlover'), 'title: T\nself: *title\nnope: 1\nbad: *nope\n');
-  const res = await reindexPathAsync(s, root, doc, 'things/sub/.yamlover/body.yamlover');
+  writeFileSync(join(root, 'things', 'sub', '.yo', 'body.yo'), 'title: T\nself: *title\nnope: 1\nbad: *nope\n');
+  const res = await reindexPathAsync(s, root, doc, 'things/sub/.yo/body.yo');
   assert.ok(res);
   assert.deepEqual(s.dangling(), [], 'the formerly-dangling pointer now resolves');
 
@@ -130,26 +130,26 @@ test('outgoing ref + dangling inside the changed subtree are rewritten correctly
 
 test('guard: removing an externally-referenced node forces a full reindex (returns null)', async () => {
   const root = tmpRoot();
-  mkdirSync(join(root, 'things', 'sub', '.yamlover'), { recursive: true });
-  mkdirSync(join(root, '.yamlover'), { recursive: true });
-  writeFileSync(join(root, 'things', 'sub', '.yamlover', 'body.yamlover'), 'gone: 1\nkept: 2\n');
-  writeFileSync(join(root, '.yamlover', 'body.yamlover'), 'link: *things:sub:gone\n');
+  mkdirSync(join(root, 'things', 'sub', '.yo'), { recursive: true });
+  mkdirSync(join(root, '.yo'), { recursive: true });
+  writeFileSync(join(root, 'things', 'sub', '.yo', 'body.yo'), 'gone: 1\nkept: 2\n');
+  writeFileSync(join(root, '.yo', 'body.yo'), 'link: *things:sub:gone\n');
 
   const s = new Store(':memory:');
   const { doc } = await reindexAsyncDoc(s, root);
   assert.equal(s.relationships(':things:sub:gone').in.filter((e) => e.label === 'link' && e.kind === 'ref').length, 1);
 
   // remove the node the external pointer targets → the inbound edge would change → not patchable
-  writeFileSync(join(root, 'things', 'sub', '.yamlover', 'body.yamlover'), 'kept: 2\n');
-  const res = await reindexPathAsync(s, root, doc, 'things/sub/.yamlover/body.yamlover');
+  writeFileSync(join(root, 'things', 'sub', '.yo', 'body.yo'), 'kept: 2\n');
+  const res = await reindexPathAsync(s, root, doc, 'things/sub/.yo/body.yo');
   assert.equal(res, null, 'the patch guard must decline and let the caller full-reindex');
 });
 
 test('a root-level file edit is not locally patchable (returns null)', async () => {
   const root = tmpRoot();
-  writeFileSync(join(root, 'top.yamlover'), 'x: 1\n');
+  writeFileSync(join(root, 'top.yo'), 'x: 1\n');
   const s = new Store(':memory:');
   const { doc } = await reindexAsyncDoc(s, root);
-  appendFileSync(join(root, 'top.yamlover'), 'y: 2\n');
-  assert.equal(await reindexPathAsync(s, root, doc, 'top.yamlover'), null);
+  appendFileSync(join(root, 'top.yo'), 'y: 2\n');
+  assert.equal(await reindexPathAsync(s, root, doc, 'top.yo'), null);
 });

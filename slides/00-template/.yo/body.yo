@@ -1,0 +1,51 @@
+# DECK 00 — the TEMPLATE. A real, working three-slide deck whose subject is its own skeleton:
+# copy this directory, rename it `NN-topic`, add the `- *: NN-topic` pointer to
+# ../.yo/body.yo, and rewrite the slides. The rules it describes are the series
+# rules; the file itself is the example of them. Spec: ../../CHAPTER.md.
+!!<*yamlover: $defs: chapter>
+The deck template
+description: Copy this folder, rename it, rewrite the slides — the rules are in the slides
+- What a deck is
+  notes: |
+    This slide is here so the template can be watched as a deck, not only read as a file.
+
+    Say: a deck is one directory holding one file. The directory exists so a screenshot
+    can be dropped in later without moving anything; the file is a yamlover chapter whose
+    subchapters are the slides.
+  - |
+    One directory, one file — `.yo/body.yo`, a chapter tagged
+    `!!<*yamlover: $defs: chapter>` whose **subchapters are the slides**.
+  - |
+    Seven slides, four to six minutes, one idea. The deck root carries a **title** and a
+    **`description`** and nothing else — so the tree on the left reads as the slide list.
+- What a slide is
+  notes: |
+    Read the code block out loud if this is ever recorded; otherwise this slide is
+    reference material for the author.
+
+    Say: a slide is a subchapter. Its own value is the title. `description` is the
+    optional one-line takeaway under it. `notes:` is what you say — the chapter renderer
+    draws the title, the description and the body, and ignores every other keyed entry,
+    so the script is in the file and never on the screen. Then one to three body chunks,
+    forty words at the very most, because the screen belongs to the app.
+  - !!<format: text/markdown> |
+    ```yamlover
+    - A slide title                    # the subchapter's self-value
+      description: the one takeaway    # optional, renders as a subtitle
+      notes: |                         # THE SPOKEN SCRIPT — never rendered
+        Open examples/… and click …
+      - |
+        At most forty words of **marklower** on screen.
+    ```
+- Rules worth not breaking
+  notes: |
+    Say: four of them, and they are all consequences of how the renderer works rather
+    than taste.
+  - !!<*yamlover: $defs: bullets>
+    - '`notes:` goes on slides only — a keyed entry at the root of a directory overlay is a member overlay, and would show up as a phantom `notes` child'
+    - demo paths belong in `notes:`, not in the slide body, so a deck stays readable on its own
+    - no `:[i]` links between slides — a keyed entry consumes an index, so inserting a slide would retarget them
+    - a cell or a line that starts with `*` must be quoted, or the parser reads a pointer
+  - |
+    Structure comes from the taxonomy, not from prose: a comparison is a `table` node, a
+    list is a `bullets` or `numbered` node, a diagram is a `text/x-plantuml` chunk.

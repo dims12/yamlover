@@ -78,11 +78,17 @@ export type MemberEncoding = "body" | "dir" | "dir-seq";
  *     generated name ({@link nextItemName}), referenced from the parent's body by a
  *     pointer-array element (`- *item01`) granting its position — the
  *     examples/56-array-of-files shape. A TAGGED ordinal container (a table, a typographical
- *     list — the edit carries `meta`) is CONTENT, not structure: it stays inline;
+ *     list — the edit carries `meta`) is CONTENT, not structure: it stays inline — and content
+ *     is content ALL THE WAY DOWN (`insideContent`): a node INSIDE an inline tagged container
+ *     (a table's row, a list's sublist) never promotes out of it, whatever its own shape —
+ *     promoting one would leave a `- *: itemNN` pointer inside the content unit, which the
+ *     positional addressing the editor uses cannot descend through (the reported
+ *     "cannot descend into a scalar element" sync failures);
  *   - everything else — a keyed scalar, an ordinal scalar, a flow one-liner — → the parent's
- *     `.yamlover/body.yamlover` overlay (created on demand).
+ *     `.yo/body.yo` overlay (created on demand).
  *  An explicit `concrete:` on the edit always overrides this derivation. */
-export function deriveMemberEncoding(child: { keyed: boolean; container: boolean; tagged?: boolean }): MemberEncoding {
+export function deriveMemberEncoding(child: { keyed: boolean; container: boolean; tagged?: boolean; insideContent?: boolean }): MemberEncoding {
+  if (child.insideContent) return "body";
   if (child.keyed && child.container) return "dir";
   if (!child.keyed && child.container && !child.tagged) return "dir-seq";
   return "body";
@@ -184,7 +190,7 @@ export function nextItemName(names: readonly string[]): string {
 /** The observed state of a DIRECTORY edit target — everything the routing decision needs.
  *  The caller gathers it (engine-api owns the I/O and the index); the decision lives here. */
 export interface DirTargetState {
-  hasBody: boolean; // `.yamlover/body.yamlover` exists on disk
+  hasBody: boolean; // `.yo/body.yo` exists on disk
   indexedAsDocument: boolean; // the index knows the directory as a document root
 }
 

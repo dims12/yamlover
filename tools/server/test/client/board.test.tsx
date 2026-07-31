@@ -43,15 +43,15 @@ describe("cardMemberPaths (board cards from the shared projection)", () => {
       // a nested tag link is container-tagish → excluded even though its key is not a config key
       "a-tag": link({ kind: "object", type: "object", format: "x-yamlover-tag", path: ":board:a-tag" }),
       // genuine content cards
-      "task-1.yamlover": link({ kind: "object", type: "object", format: "x-yamlover-task", path: ":board:task-1.yamlover", count: 4 }),
+      "task-1.yo": link({ kind: "object", type: "object", format: "x-yamlover-task", path: ":board:task-1.yo", count: 4 }),
       "note.md": link({ kind: "scalar", type: "string", path: ":board:note.md", format: "text/markdown" }),
     });
-    expect(cardMemberPaths(n)).toEqual([":board:task-1.yamlover", ":board:note.md"]);
+    expect(cardMemberPaths(n)).toEqual([":board:task-1.yo", ":board:note.md"]);
   });
 
   it("drops inert (non-link) members", () => {
-    const n = node({ stray: "not a link", "task.yamlover": link({ kind: "object", type: "object", path: ":board:task.yamlover" }) });
-    expect(cardMemberPaths(n)).toEqual([":board:task.yamlover"]);
+    const n = node({ stray: "not a link", "task.yo": link({ kind: "object", type: "object", path: ":board:task.yo" }) });
+    expect(cardMemberPaths(n)).toEqual([":board:task.yo"]);
   });
 });
 
@@ -59,7 +59,7 @@ describe("BoardView card drag (unified confirm popup)", () => {
   // an explicit two-lane board (todo | doing) with one card, tagged todo
   const boardNode = node({
     lanes: link({ kind: "array", type: "array", path: ":board:lanes", count: 2 }),
-    "t1.yamlover": link({ kind: "object", type: "object", format: "x-yamlover-task", path: ":board:t1.yamlover", count: 2 }),
+    "t1.yo": link({ kind: "object", type: "object", format: "x-yamlover-task", path: ":board:t1.yo", count: 2 }),
   });
   const tagLink = (p: string) => link({ kind: "object", type: "object", format: "x-yamlover-tag", path: p });
 
@@ -72,7 +72,7 @@ describe("BoardView card drag (unified confirm popup)", () => {
           return Promise.resolve({ path: p, type: "object", concrete: null, title: "todo", description: null, value: {} });
         case ":tags:doing":
           return Promise.resolve({ path: p, type: "object", concrete: null, title: "doing", description: null, value: {} });
-        case ":board:t1.yamlover": // the card, currently tagged todo
+        case ":board:t1.yo": // the card, currently tagged todo
           return Promise.resolve({
             path: p, type: "object", concrete: "file/yamlover", title: "Task One", description: null,
             value: { "yamlover-annotations": [tagLink(":tags:todo")] },
@@ -102,8 +102,8 @@ describe("BoardView card drag (unified confirm popup)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Move task" }));
     await vi.waitFor(() => expect(mAnnotate).toHaveBeenCalled());
-    expect(mDelete).toHaveBeenCalledWith(":board:t1.yamlover", ":tags:todo");
-    expect(mAnnotate).toHaveBeenCalledWith({ target: ":board:t1.yamlover", tag: ":tags:doing" });
+    expect(mDelete).toHaveBeenCalledWith(":board:t1.yo", ":tags:todo");
+    expect(mAnnotate).toHaveBeenCalledWith({ target: ":board:t1.yo", tag: ":tags:doing" });
   });
 
   it("cancelling the confirm retags nothing", async () => {

@@ -50,10 +50,10 @@ test('a blob with ONLY reverse members stays binary — reverse members never pr
   // a synthetic stand-in for the OLD 67 shape: a blob whose only entry is a reverse `&` membership
   // (a path anchor into a tag) — it must NOT become an omni/variant.
   const dir = mkdtempSync(join(tmpdir(), 'yo-revkind-'));
-  mkdirSync(join(dir, '.yamlover'));
+  mkdirSync(join(dir, '.yo'));
   writeFileSync(join(dir, 'doc.bin'), Buffer.from([0, 1, 2, 3, 0, 255])); // a NUL → a binary blob
   writeFileSync(
-    join(dir, '.yamlover', 'body.yamlover'),
+    join(dir, '.yo', 'body.yo'),
     'marker: !!<*::yamlover:$defs:tag> A tag\n"doc.bin":\n  &: marker: mention\n',
   );
   const s = new Store(':memory:');
@@ -68,9 +68,9 @@ test('a blob with ONLY reverse members stays binary — reverse members never pr
   s.close();
 });
 
-test('a node that OWNS fields is a variant (omni) — 07-omni.yamlover', () => {
+test('a node that OWNS fields is a variant (omni) — 07-omni.yo', () => {
   const s = new Store(':memory:');
-  s.indexDocument(parseYamlover(readFileSync(join(examples, '07-omni.yamlover'), 'utf8'), '07-omni.yamlover'));
+  s.indexDocument(parseYamlover(readFileSync(join(examples, '07-omni.yo'), 'utf8'), '07-omni.yo'));
   const row = s.node(':');
   assert.ok(row);
   assert.ok(s.entries(':').some((e) => e.kind !== 'back'), 'owns at least one forward/contain entry');

@@ -6,8 +6,8 @@ const n = (path: string, concrete: string | null, label?: string): DropNode => (
 
 describe("planNodeMove", () => {
   it("allows a file into a plain directory, composing the target path", () => {
-    const v = planNodeMove(n(":a:note.yamlover", "file/yamlover", "note"), n(":b", "dir", "b"));
-    expect(v).toMatchObject({ allowed: true, plan: { kind: "move-node", from: ":a:note.yamlover", to: ":b:note.yamlover" } });
+    const v = planNodeMove(n(":a:note.yo", "file/yamlover", "note"), n(":b", "dir", "b"));
+    expect(v).toMatchObject({ allowed: true, plan: { kind: "move-node", from: ":a:note.yo", to: ":b:note.yo" } });
     if (v.allowed) expect(v.plan.description).toBe('Move "note" into "b"');
   });
 
@@ -21,8 +21,8 @@ describe("planNodeMove", () => {
   });
 
   it("allows dropping onto the root", () => {
-    const v = planNodeMove(n(":a:note.yamlover", "file/yaml"), n(":", "dir", "root"));
-    expect(v).toMatchObject({ allowed: true, plan: { to: ":note.yamlover" } });
+    const v = planNodeMove(n(":a:note.yo", "file/yaml"), n(":", "dir", "root"));
+    expect(v).toMatchObject({ allowed: true, plan: { to: ":note.yo" } });
   });
 
   it("keeps a percent-encoded key intact in the composed target", () => {
@@ -51,8 +51,8 @@ describe("planNodeMove", () => {
   });
 
   it("rejects hidden/overlay segments in either path", () => {
-    expect(planNodeMove(n(":.yamlover:body.yamlover", "file/yamlover"), n(":b", "dir")).allowed).toBe(false);
-    expect(planNodeMove(n(":a:x", "file/yaml"), n(":.yamlover", "dir")).allowed).toBe(false);
+    expect(planNodeMove(n(":.yo:body.yo", "file/yamlover"), n(":b", "dir")).allowed).toBe(false);
+    expect(planNodeMove(n(":a:x", "file/yaml"), n(":.yo", "dir")).allowed).toBe(false);
   });
 
   it("rejects moving a node into itself or a descendant", () => {

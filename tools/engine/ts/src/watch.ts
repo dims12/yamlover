@@ -4,9 +4,9 @@
 //
 // What is filtered OUT, so the watcher never re-triggers itself or churns on noise:
 //   - anything git-ignored (the caller passes the same predicate the walker uses);
-//   - dotfiles/dot-dirs (the walker skips them), EXCEPT the `.yamlover/` overlay files the
-//     walker DOES read — body.yamlover / meta.yamlover / settings.yamlover. The engine's own
-//     `.yamlover/index.db*` writes are dotpath-filtered here, which is what breaks the
+//   - dotfiles/dot-dirs (the walker skips them), EXCEPT the `.yo/` overlay files the
+//     walker DOES read — body.yo / meta.yo / settings.yo. The engine's own
+//     `.yo/index.db*` writes are dotpath-filtered here, which is what breaks the
 //     rebuild → event → rebuild loop.
 //
 // Move inference (delete+create with a matching hash) is NOT done here — the reindex diff
@@ -15,8 +15,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const OVERLAY_FILES = new Set(['body.yamlover', 'meta.yamlover', 'settings.yamlover']);
-// Derived-sidecar subdirs inside `.yamlover/` that ARE indexed (thumbnails/, fragments/) — their
+const OVERLAY_FILES = new Set(['body.yo', 'meta.yo', 'settings.yo']);
+// Derived-sidecar subdirs inside `.yo/` that ARE indexed (thumbnails/, fragments/) — their
 // blobs are addressable content, so external writes there must trigger a reindex. The index db
 // (`index.db*`) is deliberately NOT here: it's rewritten by every reindex, so watching it would loop.
 const YAMLOVER_SIDECAR_DIRS = new Set(['thumbnails', 'fragments']);
@@ -43,14 +43,14 @@ export function watchTree(absRoot: string, onBatch: (relPaths: string[]) => void
     const segs = rel.split(path.sep);
     for (let i = 0; i < segs.length; i++) {
       if (!segs[i].startsWith('.')) continue;
-      // a dot-segment is data the walker reads only when it's `.yamlover/` holding either an
-      // overlay file (`.yamlover/body.yamlover`) or an indexed sidecar (`.yamlover/thumbnails/x`);
-      // anything else under a dot-dir — notably `.yamlover/index.db*` — is filtered (avoids a loop).
+      // a dot-segment is data the walker reads only when it's `.yo/` holding either an
+      // overlay file (`.yo/body.yo`) or an indexed sidecar (`.yo/thumbnails/x`);
+      // anything else under a dot-dir — notably `.yo/index.db*` — is filtered (avoids a loop).
       const rest = segs.slice(i + 1);
-      const isOverlay = segs[i] === '.yamlover' && rest.length === 1 && OVERLAY_FILES.has(rest[0]);
-      const isSidecar = segs[i] === '.yamlover' && rest.length >= 2 && YAMLOVER_SIDECAR_DIRS.has(rest[0]) && !rest.some((s) => s.startsWith('.'));
+      const isOverlay = segs[i] === '.yo' && rest.length === 1 && OVERLAY_FILES.has(rest[0]);
+      const isSidecar = segs[i] === '.yo' && rest.length >= 2 && YAMLOVER_SIDECAR_DIRS.has(rest[0]) && !rest.some((s) => s.startsWith('.'));
       if (!isOverlay && !isSidecar) return false;
-      break; // consumed the rest of the path under `.yamlover`; no further dot-segment check
+      break; // consumed the rest of the path under `.yo`; no further dot-segment check
     }
     return !opts.ignore?.(path.join(root, rel));
   };

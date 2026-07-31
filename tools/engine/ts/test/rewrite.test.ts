@@ -9,7 +9,7 @@ import { resolveDocument } from '../src/resolve.ts';
 import { planRewrites, applyEdits, nominalPath } from '../src/rewrite.ts';
 import type { TextEdit } from '../src/rewrite.ts';
 
-const URI = '/root/doc.yamlover';
+const URI = '/root/doc.yo';
 
 function plan(src: string, oldStore: string, newStore: string, uri = URI) {
   const doc = parseYamlover(src, uri);
@@ -122,7 +122,7 @@ test('rewrite: json5p surface gets a quoted token', () => {
 });
 
 test('rewrite: source outside the served root is reported, not edited', () => {
-  const { p } = plan('ref: *: old.md\nold.md: x\n', ':old.md', ':new.md', '/elsewhere/doc.yamlover');
+  const { p } = plan('ref: *: old.md\nold.md: x\n', ':old.md', ':new.md', '/elsewhere/doc.yo');
   assert.equal(p.rewritten.length, 0);
   assert.equal(p.unrewritten.length, 1);
   assert.match(p.unrewritten[0].reason, /outside the served root/);

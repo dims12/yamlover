@@ -15,8 +15,8 @@
 //     in place (a settings `annotations: *:: annotations` whose target does not exist yet).
 //
 // The DB is a DERIVED cache — always rebuildable from the filesystem (identity is the path,
-// no durable ids; ENGINE.md). v1 keeps ONE top-level DB at <root>/.yamlover/index.db; the
-// nested-`.yamlover` federation (each DB owns its subtree, stopping at the next) is future.
+// no durable ids; ENGINE.md). v1 keeps ONE top-level DB at <root>/.yo/index.db; the
+// nested-`.yo` federation (each DB owns its subtree, stopping at the next) is future.
 //
 // Uses Node's built-in `node:sqlite` (DatabaseSync) — zero dependency, matching the engine's
 // no-npm-install stance (PLAN.md said better-sqlite3; node:sqlite supersedes it on Node ≥22).
@@ -500,7 +500,7 @@ export class Store {
 
   /** The containment subtree rooted at `path`, up to `depth` levels (TOC). A recursive CTE
    *  over `contain` edges — the acyclic spine; ordered by `pos` at each level. HIDDEN nodes
-   *  (`meta.hidden` — the `.yamlover` overlay, the grafted `yamlover` self-import) are plumbing,
+   *  (`meta.hidden` — the `.yo` overlay, the grafted `yamlover` self-import) are plumbing,
    *  not contents: they are pruned here with their whole subtrees, so every TOC consumer gets the
    *  same view without re-filtering. */
   toc(path = ':', depth = Infinity): TocNode[] {
@@ -596,7 +596,7 @@ function walkNodes(
 }
 
 /** Pull a `format` out of a node's meta:
- *  - the ENGINE-derived format (walk.ts: file extension / meta.yamlover / resolved `!!<…>`
+ *  - the ENGINE-derived format (walk.ts: file extension / meta.yo / resolved `!!<…>`
  *    target) wins — it already folded the authored tag in;
  *  - else an authored inline schema Node `{format: …}` → that format (e.g. `text/x-plantuml`);
  *  - else an authored pointer to a hosted schema `*…/$defs/<name>` → `x-yamlover-<name>` (so

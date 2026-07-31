@@ -1,7 +1,7 @@
 // The BROWSER settings document — the per-device settings layer (the second gear in the topbar).
 //
 // A yamlover text stored in localStorage, carrying the SAME schema as the project's
-// `.yamlover/settings.yamlover` (`!!<*yamlover:$defs:config>`). It is a first-class, inspectable
+// `.yo/settings.yo` (`!!<*yamlover:$defs:config>`). It is a first-class, inspectable
 // document — rendered and edited in the same generic data view (BrowserSettingsView posts it to
 // the stateless /api/preview + /api/edit-text) — NOT a bag of ad-hoc keys. Resolution priority for
 // a viewer preference: URL param → this document → the project settings → the built-in default.
@@ -18,11 +18,11 @@ import type { Node } from "../../../parser/ts/src/ir.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { fetchConfig } from "./api";
 
-/** The browser settings document's VIRTUAL node path — `*:: .browser: settings.yamlover`. It is
+/** The browser settings document's VIRTUAL node path — `*:: .browser: settings.yo`. It is
  *  a real address (URL, breadcrumbs, edit targets) in a namespace no served tree can occupy: the
- *  walk skips every dot-directory except `.yamlover`, so `:.browser:…` never names a server node.
+ *  walk skips every dot-directory except `.yo`, so `:.browser:…` never names a server node.
  *  The document itself still lives in this browser's localStorage. */
-export const BROWSER_SETTINGS_PATH = ":.browser:settings.yamlover";
+export const BROWSER_SETTINGS_PATH = ":.browser:settings.yo";
 
 /** Whether a client path addresses the browser-settings namespace (the virtual `.browser` dir). */
 export function isBrowserSettingsPath(p: string): boolean {
@@ -39,8 +39,8 @@ const MAX_WIDTH = 400;
  *  the project template (engine settings.ts DEFAULT_SETTINGS_SOURCE), scoped to this device. */
 export function browserSettingsTemplate(width: number): string {
   return `# Browser settings — THIS DEVICE only (stored in this browser, not in any project), living
-# at the virtual path *:: .browser: settings.yamlover. The same schema as
-# .yamlover/settings.yamlover; a key authored here OVERRIDES the project's value for viewer
+# at the virtual path *:: .browser: settings.yo. The same schema as
+# .yo/settings.yo; a key authored here OVERRIDES the project's value for viewer
 # preferences (reading width). Server-side creation locations stay project-governed. Edit me
 # here, or via the second gear in the topbar.
 !!<*yamlover:$defs:config>

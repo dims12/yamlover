@@ -36,7 +36,7 @@ directory-scan order — the general pointer-array rule (`README.md` §Equivalen
 members. No chapter special case.
 
 ```yamlover
-# a whole article in one tagged .yamlover file
+# a whole article in one tagged .yo file
 !!<*yamlover/$defs/chapter>
 Getting Started                           # the node's SELF-VALUE — the title (no `title:` key)
 description: the shortest tour            # optional, keyed
@@ -103,9 +103,9 @@ format: text/marklower            # the default; overridden per chunk
 
 Two ways, both in `META.md`:
 
-- **Inline tag** (a `.yamlover` file or an inline value): `!!<*yamlover/$defs/chapter>` on the node.
-  A whole article fits in one file (`examples/60-simple-chapter.yamlover`).
-- **Directory overlay**: a directory's `.yamlover/body.yamlover` is tagged at its root, so the
+- **Inline tag** (a `.yo` file or an inline value): `!!<*yamlover/$defs/chapter>` on the node.
+  A whole article fits in one file (`examples/60-simple-chapter.yo`).
+- **Directory overlay**: a directory's `.yo/body.yo` is tagged at its root, so the
   *directory itself* is the chapter and its files can be referenced as pointer chunks
   (`examples/68-math-chapter`, `65-all-formats-chunks`). Subchapters can themselves be
   **subdirectories** — each its own directory chapter, referenced by a `*`-pointer body element —
@@ -131,7 +131,7 @@ into the chapter's owning directory and appends a `- *: <name>` pointer chunk to
 `examples/65-all-formats-chunks` shape). A drop that lands **inside an inlined subchapter
 section** targets THAT subchapter — the file goes into *its* directory and *its* body gains the
 pointer (the client resolves the enclosing `data-chapter-path`; the server routes any nested
-chapter path, dir-backed or inline, through the same into-chapter paste). A standalone `.yamlover`
+chapter path, dir-backed or inline, through the same into-chapter paste). A standalone `.yo`
 chapter file has no directory of its own: the file lands beside it, referenced `*:: dir: file`.
 
 **The editors.** The unlocked chapter opens the PROJECTIONAL yed chapter editor — a yed
@@ -147,7 +147,7 @@ A chapter node at path `P` addresses its **body elements by their store index** 
 `description` consumes an index too, so a described chapter's first body element is `P[1]`). The
 **title consumes NO index**: it is the node's self-value, not an entry. A document-relative
 marklower link therefore points at `:[i]` (`MARKLOWER.md`; the legacy slash spelling `/[i]` still
-parses — see `69-marklower-links.yamlover`), and a subchapter's chunk at `:[i][j]`.
+parses — see `69-marklower-links.yo`), and a subchapter's chunk at `:[i][j]`.
 
 The web editor's surgical edits (`/api/edit`, README §editor) use **the same absolute index** — an
 edit path is a plain yamlover path, nothing else. (It once addressed a body element by its *rank*

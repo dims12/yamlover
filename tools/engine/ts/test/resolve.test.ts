@@ -58,7 +58,7 @@ test('json5p 03-tour: pointers resolve to the right nodes', () => {
 });
 
 test('yamlover 06-tour: same pointers resolve', () => {
-  const doc = parseYamlover(readFileSync(join(examples, '06-tour.yamlover'), 'utf8'), '06-tour.yamlover');
+  const doc = parseYamlover(readFileSync(join(examples, '06-tour.yo'), 'utf8'), '06-tour.yo');
   const edges = resolveDocument(doc);
   assert.equal(scalarAt(find(edges, ':feline').target, 'name'), 'Whiskers');
   assert.equal(scalarAt(find(edges, ':topDog').target, 'name'), 'Rex');
@@ -189,7 +189,7 @@ test('relindex deeper than the host path has no frame → unresolved', () => {
 });
 
 test('relindex: the examples/61 table resolves with no relindex-unresolved edges', () => {
-  const doc = parseYamlover(readFileSync(join(examples, '61-table.yamlover'), 'utf8'), '61-table.yamlover');
+  const doc = parseYamlover(readFileSync(join(examples, '61-table.yo'), 'utf8'), '61-table.yo');
   const rel = resolveDocument(doc).filter((e) => e.ptr.steps.some((s) => s.sel === 'relindex'));
   assert.ok(rel.length >= 2); // the colspan + rowspan merges
   for (const e of rel) assert.equal(e.target.kind, 'node', (e.target as any).reason);

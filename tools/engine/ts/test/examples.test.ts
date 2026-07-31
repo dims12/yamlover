@@ -41,10 +41,10 @@ for (const name of entries) {
   });
 }
 
-// A directory whose ONLY content is a SCALAR `.yamlover/body.yamlover` (a bare `30`) IS that
+// A directory whose ONLY content is a SCALAR `.yo/body.yo` (a bare `30`) IS that
 // scalar — the overlay supplies the node's value, not an (empty) set of children. Regression: the
 // scalar body was dropped (it has no `entries`), so the directory projected as an empty mapping.
-test('54-scalar-file-overlay: a scalar body.yamlover makes the directory that scalar (30)', () => {
+test('54-scalar-file-overlay: a scalar body.yo makes the directory that scalar (30)', () => {
   const s = new Store(':memory:');
   s.indexDocument(load('54-scalar-file-overlay'));
   const root = s.node(':');
@@ -76,14 +76,14 @@ test('73-dev-board: tasks, board & workflow resolve; state is a ref edge into th
   // here via the `yamlover` self-import graft — so its nodes live under `:yamlover:tags:…` when the
   // board is loaded as a standalone subdir (the bare `:tags:…` form only exists at the project root).
   assert.equal(s.node(':')?.format, 'x-yamlover-board');
-  assert.equal(s.node(':refactor-parser.yamlover')?.format, 'x-yamlover-task');
+  assert.equal(s.node(':refactor-parser.yo')?.format, 'x-yamlover-task');
   assert.equal(s.node(':yamlover:tags:workflow:dev')?.format, 'x-yamlover-workflow');
   assert.equal(s.node(':yamlover:tags:workflow:dev:ready')?.format, 'x-yamlover-tag');
   // a task's state is a forward ref into the workflow's state; the reverse of that edge is the
   // board column (what /api/tagged surfaces). `refactor-parser` sits in the `ready` column.
   const into = s.relationships(':yamlover:tags:workflow:dev:ready').in;
   assert.ok(
-    into.some((e) => e.kind === 'ref' && e.from.startsWith(':refactor-parser.yamlover')),
+    into.some((e) => e.kind === 'ref' && e.from.startsWith(':refactor-parser.yo')),
     'the ready task annotates the ready state',
   );
   s.close();
@@ -103,7 +103,7 @@ test('67-pdf-tags: a tag description is its BODY — the node value, untagged sc
   s.close();
 });
 
-test('annotations.yamlover reverse-links materials to their annotations', () => {
+test('annotations.yo reverse-links materials to their annotations', () => {
   // The standalone-annotations-file shape (formerly the 59-all-formats-object sample, retired
   // until re-authored — kept here as a temp fixture): an annotation is ONE TAG APPLICATION, its
   // `target` a RELATIVE pointer (`../../<key>`) escaping to a sibling material, its tag an
@@ -113,7 +113,7 @@ test('annotations.yamlover reverse-links materials to their annotations', () => 
   try {
     writeFileSync(join(dir, 'markdown'), '## Anchors\nHover a heading to reveal its `§`\n');
     writeFileSync(
-      join(dir, 'annotations.yamlover'),
+      join(dir, 'annotations.yo'),
       `markdown-phrase: !!<*yamlover: $defs: annotation>
   target: *..: ..: markdown
   &:: yamlover: tags: colors: yellow[]
@@ -129,7 +129,7 @@ test('annotations.yamlover reverse-links materials to their annotations', () => 
     const doc = walkDir(dir);
     const s = new Store(':memory:');
     s.indexDocument(doc);
-    const ann = ':annotations.yamlover:markdown-phrase';
+    const ann = ':annotations.yo:markdown-phrase';
     assert.equal(s.node(ann)?.format, 'x-yamlover-annotation'); // the $defs/annotation schema
     assert.equal(s.node(ann + ':selector:exact')?.value, 'Hover a heading to reveal its');
     // the markdown material sees the annotation as an incoming ref edge — the reverse link

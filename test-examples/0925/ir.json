@@ -53,7 +53,7 @@
         }
       },
       {
-        "key": "add-board-view.yamlover",
+        "key": "add-board-view.yo",
         "edge": "contain",
         "value": {
           "kind": "scalar",
@@ -227,7 +227,7 @@
         }
       },
       {
-        "key": "fix-flaky-test.yamlover",
+        "key": "fix-flaky-test.yo",
         "edge": "contain",
         "value": {
           "kind": "scalar",
@@ -351,7 +351,7 @@
         }
       },
       {
-        "key": "refactor-parser.yamlover",
+        "key": "refactor-parser.yo",
         "edge": "contain",
         "value": {
           "kind": "scalar",
@@ -525,7 +525,7 @@
         }
       },
       {
-        "key": "ship-0-4-0.yamlover",
+        "key": "ship-0-4-0.yo",
         "edge": "contain",
         "value": {
           "kind": "scalar",
@@ -750,7 +750,7 @@
         }
       },
       {
-        "key": "write-migration-guide.yamlover",
+        "key": "write-migration-guide.yo",
         "edge": "contain",
         "value": {
           "kind": "scalar",

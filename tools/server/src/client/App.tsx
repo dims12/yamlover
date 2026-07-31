@@ -106,9 +106,9 @@ export function App() {
   const [rootLabel, setRootLabel] = useState<string>(""); // CLI ROOT (breadcrumb head)
   const [docsState, setDocsState] = useState<"idle" | "busy">("idle");
   // The BROWSER SETTINGS page (BrowserSettingsView) lives at the VIRTUAL path
-  // `:.browser:settings.yamlover` (`*:: .browser: settings.yamlover`): a real address — URL,
+  // `:.browser:settings.yo` (`*:: .browser: settings.yo`): a real address — URL,
   // history, breadcrumbs — in a namespace no served tree can occupy (the walk skips every
-  // dot-directory except `.yamlover`). The document itself is in localStorage, so the main pane
+  // dot-directory except `.yo`). The document itself is in localStorage, so the main pane
   // renders BrowserSettingsView for this path instead of the server-backed NodeView.
   const openBrowserSettings = useCallback(() => {
     writeUrl(BROWSER_SETTINGS_PATH, DEFAULT_FORMAT, false);
@@ -119,7 +119,7 @@ export function App() {
   // by the ordinary (editable) yamlover data view — it is NOT in the TOC tree, so navigate directly
   // with the default format rather than the tree-based `navigate` (which can't find a hidden node).
   const openSettings = useCallback(() => {
-    const p = ":.yamlover:settings.yamlover";
+    const p = ":.yo:settings.yo";
     writeUrl(p, DEFAULT_FORMAT, false);
     setCurrent(p);
     setFormat(DEFAULT_FORMAT);
@@ -587,7 +587,7 @@ export function App() {
                   <button
                     type="button"
                     className="side-action"
-                    title="Project settings (settings.yamlover)"
+                    title="Project settings (settings.yo)"
                     onClick={openSettings}
                   >
                     <span className="side-action-icon" aria-hidden="true">⚙</span>

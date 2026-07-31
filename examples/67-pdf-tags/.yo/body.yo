@@ -1,0 +1,74 @@
+# A heap of famously short / deadpan academic papers — the real files, with their real
+# (messy) names — organized by a tag taxonomy. This `.yo/body.yo` overlay turns the
+# bare directory into an instance: it adds the `tags` tree and gives each file (a blob) its tag
+# applications under `yamlover-annotations` (so a blob carries members). Spec: ../../ANNOTATIONS.md.
+#
+# Each paper is TAGGED by appending a bare tag pointer to its `yamlover-annotations` array — the
+# embedded model: the application lives ON the target (here a blob, via the omni overlay), and the
+# engine derives "the materials under a tag" as the reverse of those forward `*` edges. The tag
+# pointers are document-relative (`*: tags: …` — `:` is this directory's root). Keys are bare; a
+# messy file key is quoted.
+
+# A tag's description is its BODY (the node's own value): `name: <text>` with the sub-tags
+# in the deeper block — the schema ($defs/tag, type: variant) declares the value-plus-fields
+# shape, so no `!!var` tag is needed (YAMLOVER.md §4: the shape itself is the intention).
+tags: !!<*yamlover: $defs: tag> A small taxonomy for short / deadpan papers — two axes, field and genre
+  field: What the paper is about
+    mathematics: Mathematics
+      number-theory: Number theory — Diophantine equations, sums of powers
+    physics: Physics
+      quantum: Quantum mechanics and measurement
+      particle: Particle physics — neutrinos and the like
+    earth-science: Earth science
+      seismology: Seismology — earthquakes and their statistics
+    chemistry: Chemistry
+    psychology: Psychology
+      behavior-analysis: Applied behavior analysis
+  genre: How the paper is short
+    brevity: The paper is famously short
+      shortest-paper: Famously the shortest paper in its journal
+      one-word-answer: The title is a question; the abstract answers it in a word
+      empty-body: The body of the paper is (almost) entirely blank
+    humor: The paper is a joke
+      deadpan: Plays it completely straight
+      satire: Mocks its target
+    annotation: A secondary / derivative edition of another paper
+
+# --- the papers: each is the real file (a blob) tagged by the leaf tags it belongs to, as bare
+#     pointers in its `yamlover-annotations` array (ANNOTATIONS.md) ---
+
+"S0002-9904-1966-11654-3.pdf":
+  yamlover-annotations:
+  - *: tags: field: mathematics: number-theory
+  - *: tags: genre: brevity: shortest-paper
+  - *::yamlover:tags:'fifth tag'
+
+"jaba00061-0143a.pdf":
+  yamlover-annotations:
+  - *: tags: field: psychology: behavior-analysis
+  - *: tags: genre: brevity: empty-body
+  - *: tags: genre: humor: deadpan
+
+"Chemical-Free.pdf":
+  yamlover-annotations:
+  - *: tags: field: chemistry
+  - *: tags: genre: brevity: empty-body
+  - *: tags: genre: humor: satire
+  - *::yamlover:tags:colors:yellow
+  - *::yamlover:tags:'first tag'
+
+"1110.2832v2.pdf":
+  yamlover-annotations:
+  - *: tags: field: physics: quantum
+  - *: tags: field: physics: particle
+  - *: tags: genre: brevity: one-word-answer
+  - *: tags: genre: humor: deadpan
+  - *::yamlover:tags:'fifth tag'
+  - *::yamlover:tags:colors:yellow
+  - *::yamlover:tags:'first tag'
+
+"1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf":
+  yamlover-annotations:
+  - *: tags: field: earth-science: seismology
+  - *: tags: genre: brevity: one-word-answer
+  - *: tags: genre: humor: deadpan

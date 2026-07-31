@@ -56,7 +56,7 @@
         "edge": "contain",
         "value": {
           "kind": "scalar",
-          "value": "An entire article fits in a single .yamlover file when it is tagged with a schema.",
+          "value": "An entire article fits in a single .yo file when it is tagged with a schema.",
           "array": false,
           "set": false,
           "anchors": [],

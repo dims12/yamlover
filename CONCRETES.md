@@ -48,7 +48,7 @@ language **without** the `file/` prefix (the inlined forms above).
 | `file/json5`   | a whole `.json5` file |
 | `file/json5p`  | a whole `.json5p` file |
 | `file/yaml`    | a whole `.yaml`/`.yml` file |
-| `file/yamlover`| a whole `.yamlover` file |
+| `file/yamlover`| a whole `.yo` file |
 
 A non-data **text material** (markdown, asciidoc, csv, plantuml, …) is modeled as
 a `file/yaml` scalar: its single value is the raw text, kept verbatim and rendered
@@ -66,7 +66,7 @@ material type; the concrete only records "a text file holding one scalar".
 | concrete       | meaning |
 |----------------|---------|
 | `dir`          | a plain OS directory: filenames are keys, entries are blobs or nested documents. May host yamlover-concrete entries. |
-| `dir/yamlover` | a directory carrying a `.yamlover/` marker (`.yamlover/schema.yaml` etc.); the directory itself *is* a yamlover node and its described children resolve from the overlay. |
+| `dir/yamlover` | a directory carrying a `.yo/` marker (`body.yo` / `meta.yo` etc.); the directory itself *is* a yamlover node and its described children resolve from the overlay. |
 
 ### Multi-document — RESERVED (Phase 2c)
 
@@ -107,7 +107,7 @@ type-repository **content notations** (Ch. 10):
 ### Collection style (flow vs block)
 
 A container is written on ONE line (flow) or over many (block) — YAML's two collection
-styles, Ch. 7 and Ch. 8. A JSON-looking value **on one line** inside a `.yamlover` file is
+styles, Ch. 7 and Ch. 8. A JSON-looking value **on one line** inside a `.yo` file is
 simply a flow container; the LANGUAGE is still yamlover. A flow token that **spans lines**
 is a different statement — see *K&R: the inline concrete switch* below.
 
@@ -256,10 +256,10 @@ DEFAULT, and which language its content MUST speak — live in the single pure m
   - a **keyed container** child → a nested real directory named by the key, recursively;
   - an **untagged ordinal container** child → a real directory under an order-numbered
     generated name (`item01`, `item02`, …) plus a `- *: itemNN` pointer-array element in
-    the parent's `body.yamlover` granting its position — the `examples/56-array-of-files`
+    the parent's `body.yo` granting its position — the `examples/56-array-of-files`
     shape. A *tagged* ordinal container (a table, a typographical list) is content and
     stays inline;
-  - everything else (scalars, flow one-liners) → the parent's `body.yamlover` overlay.
+  - everything else (scalars, flow one-liners) → the parent's `body.yo` overlay.
 
 **Birth order does not matter — the derivation is re-evaluated on the scalar→container
 transition, not only at a child's birth.** A node built the incremental way (a `world: World`
@@ -308,15 +308,15 @@ These hold with **no schema at all**, so they protect a directory from the first
 
 | code | invariant |
 | --- | --- |
-| `layout/nested-overlay` | a `.yamlover/` never sits inside another `.yamlover/` |
-| `layout/reserved-overlay-name` | a `.yamlover/` holds only `body`/`meta`/`settings.yamlover`, `index.db`, and the `fragments`/`thumbnails` sidecar dirs |
+| `layout/nested-overlay` | a `.yo/` never sits inside another `.yo/` |
+| `layout/reserved-overlay-name` | a `.yo/` holds only `body`/`meta`/`settings.yo`, `index.db`, and the `fragments`/`thumbnails` sidecar dirs |
 | `layout/escapes-root` | a written path stays inside the served root |
 | `layout/unsafe-member-name` | a member name is non-empty, unpadded, not hidden, and carries no path metacharacter |
 | `layout/inline-collection` | a child that derived to `dir`/`dir-seq` is written as a REAL directory, never spliced into the parent's body |
 | `layout/duplicate-member` | a keyed member's key does not already name a child (the key names the node — there is no rename to fall back on) |
 | `layout/language-switch` | content spliced into a file document speaks that document's language |
 | `layout/off-scheme-name` | *(warning)* a generated member carries its family's order key |
-| `layout/orphan-overlay` | every `.yamlover/` has a directory to mark and holds at least one format file |
+| `layout/orphan-overlay` | every `.yo/` has a directory to mark and holds at least one format file |
 | `layout/concrete-mismatch` | the concrete agrees with the shape backing it (`dir/yamlover` owns its marker, a plain `dir` does not, a `file/<lang>` matches its extension) |
 
 Enforcement is at the WRITE chokepoints, before any bytes land: `writeInside` and `mkdirInside`
@@ -330,7 +330,7 @@ walk, because the walker skips what it does not understand and so cannot see a b
 Every `examples/` fixture is asserted clean by `test/validate-doctor.test.ts`, which is what keeps
 a new rule from becoming over-eager.
 
-The `value/*` codes and `compileMeta()` in the same module are the seam for `meta.yamlover`
+The `value/*` codes and `compileMeta()` in the same module are the seam for `meta.yo`
 schema validation (META.md); today `compileMeta` returns `[]`.
 
 ## Where it shows up

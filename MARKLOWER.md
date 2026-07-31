@@ -85,7 +85,7 @@ breadcrumbs, and the URL navigate — with the colon grammar of `SEPARATOR.md`:
 | `scheme://…`, `mailto:…` | an ordinary **external** link, opened in a new tab |
 
 Anything else does not resolve, and the label renders as plain text. The legacy slash spellings
-(`/a/b` document-relative, `//a/b` project-rooted) still parse; `examples/69-marklower-links.yamlover`
+(`/a/b` document-relative, `//a/b` project-rooted) still parse; `examples/69-marklower-links.yo`
 is a tour of all three flavours. One function, `resolveLink`, decides what a target means, for every
 renderer that emits links.
 
@@ -375,8 +375,8 @@ The inline grammar is implemented in `tools/server/src/client/renderers/marklowe
 The delegated structures — spec'd 2026-07-16, cell routing flipped and lists added 2026-07-17:
 
 - **Schemas** — hosted `$defs/table`, `$defs/bullets`, `$defs/numbered` (registered in
-  `$defs/.yamlover/meta.yamlover`); `examples/61-table.yamlover` is the worked table fixture,
-  `examples/60-simple-chapter.yamlover` carries the list demos.
+  `$defs/.yo/meta.yo`); `examples/61-table.yo` is the worked table fixture,
+  `examples/60-simple-chapter.yo` carries the list demos.
 - **Relative-index resolution** — `tools/engine/ts/src/resolve.ts`: a `[.±k]` step resolves
   by the frame rule (the host positions vector rides the resolution chain), and a chain of
   merge pointers resolves transitively to the origin cell. Out of range / no host frame at

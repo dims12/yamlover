@@ -26,7 +26,7 @@ test('plain directory: each file is an entry keyed by filename (51-object-in-dir
   s.close();
 });
 
-test('overlay-only directory: body.yamlover supplies the content (50-object-in-overlay)', () => {
+test('overlay-only directory: body.yo supplies the content (50-object-in-overlay)', () => {
   const s = indexedDir('50-object-in-overlay');
   assert.equal(s.node(':name')?.value, 'Alice');
   assert.equal(s.node(':age')?.value, 30);
@@ -64,8 +64,8 @@ test('pointer-array body grants positions to the members it names; the rest stay
 test('pointer-array body: inline elements and dangling pointers keep their positions; unlisted children trail keyed-only', () => {
   const dir = mkdtempSync(join(tmpdir(), 'yamlover-posprefix-'));
   try {
-    mkdirSync(join(dir, '.yamlover'));
-    writeFileSync(join(dir, '.yamlover', 'body.yamlover'), '- *b\n- 42\n- *missing\n');
+    mkdirSync(join(dir, '.yo'));
+    writeFileSync(join(dir, '.yo', 'body.yo'), '- *b\n- 42\n- *missing\n');
     writeFileSync(join(dir, 'a'), 'alpha\n');
     writeFileSync(join(dir, 'b'), 'beta\n');
     const s = new Store(':memory:');
@@ -93,8 +93,8 @@ test('pointer-array body: the DEAD slash spelling `- */file` does not consume a 
   // The colon spelling `- *b` (or `- *: b`) is the one that consumes.
   const dir = mkdtempSync(join(tmpdir(), 'yamlover-deadslash-'));
   try {
-    mkdirSync(join(dir, '.yamlover'));
-    writeFileSync(join(dir, '.yamlover', 'body.yamlover'), '- */b\n');
+    mkdirSync(join(dir, '.yo'));
+    writeFileSync(join(dir, '.yo', 'body.yo'), '- */b\n');
     writeFileSync(join(dir, 'b'), 'beta\n');
     const s = new Store(':memory:');
     s.indexDocument(walkDir(dir));
@@ -127,18 +127,18 @@ test('the ignore predicate skips matching children (e.g. node_modules at the roo
   s.close();
 });
 
-test('meta.yamlover format attaches to body-overlay text entries', () => {
+test('meta.yo format attaches to body-overlay text entries', () => {
   // a minimal overlay pair (the shape the retired 59-all-formats-object sidecar had, until that
-  // sample is re-authored): body.yamlover carries the block scalars, meta.yamlover their formats
+  // sample is re-authored): body.yo carries the block scalars, meta.yo their formats
   const dir = mkdtempSync(join(tmpdir(), 'yamlover-meta-'));
   try {
-    mkdirSync(join(dir, '.yamlover'));
+    mkdirSync(join(dir, '.yo'));
     writeFileSync(
-      join(dir, '.yamlover', 'body.yamlover'),
+      join(dir, '.yo', 'body.yo'),
       'markdown: |\n  # Markdown\n  Some *marked* prose.\nplantuml: |\n  @startuml\n  Alice -> Bob\n  @enduml\n',
     );
     writeFileSync(
-      join(dir, '.yamlover', 'meta.yamlover'),
+      join(dir, '.yo', 'meta.yo'),
       'properties:\n  markdown: { type: string, format: text/markdown }\n  plantuml: { type: string, format: text/x-plantuml }\n',
     );
     const s = new Store(':memory:');
@@ -158,15 +158,15 @@ test('an UNTITLED directory chapter (pure seq body → ARRAY root) still derives
   // format, and the TOC sees no subchapters (the reported regression).
   const dir = mkdtempSync(join(tmpdir(), 'yamlover-untitled-chapter-'));
   try {
-    mkdirSync(join(dir, '.yamlover'));
+    mkdirSync(join(dir, '.yo'));
     writeFileSync(
-      join(dir, '.yamlover', 'body.yamlover'),
+      join(dir, '.yo', 'body.yo'),
       '!!<*::yamlover:$defs:chapter>\n- intro prose\n- Subpart\n  - sub chunk\n',
     );
     const s = new Store(':memory:');
     s.indexDocument(walkDir(dir));
     assert.equal(s.node(':')?.format, 'x-yamlover-chapter'); // the root tag
-    const kids = s.toc(':', 1).filter((n) => n.label !== '.yamlover');
+    const kids = s.toc(':', 1).filter((n) => n.label !== '.yo');
     assert.deepEqual(kids.map((n) => n.format ?? null), ['text/marklower', 'x-yamlover-chapter']); // chunk, then the subchapter
     const subKids = s.toc(kids[1].path, 1);
     assert.deepEqual(subKids.map((n) => n.format ?? null), ['text/marklower']); // recursion reaches the subchapter's own chunk
@@ -189,7 +189,7 @@ test('a file is parsed by extension: .json/.json5p via json5p, else yamlover', (
 
 test('a chapter file gets format x-yamlover-chapter from its $defs pointer schema (60)', () => {
   const s = new Store(':memory:');
-  s.indexDocument(parseYamlover(readFileSync(join(examples, '60-simple-chapter.yamlover'), 'utf8')));
+  s.indexDocument(parseYamlover(readFileSync(join(examples, '60-simple-chapter.yo'), 'utf8')));
   assert.equal(s.node(':')?.format, 'x-yamlover-chapter');
   s.close();
 });
@@ -198,7 +198,7 @@ test('the attached chapter schema propagates down: subchapters & chunks get thei
   // via walkDir, which runs the schema-application pass (yamlover/$defs found by walking up from examples/)
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
-  const ch = ':60-simple-chapter.yamlover';
+  const ch = ':60-simple-chapter.yo';
   // a FULLY-OMNI chapter: the title is the root's self-value (no index); `description` is [0],
   // so the positional body starts at [1].
   assert.equal(s.node(ch)?.format, 'x-yamlover-chapter'); // root (tagged)
@@ -214,8 +214,8 @@ test('the attached chapter schema propagates down: subchapters & chunks get thei
 test('`*: file` resolves within its OWN directory chapter, each dir a document boundary (66-pet-keeper-handbook)', () => {
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
-  // Each chapter is its own directory (dogs/, cats/, fish/, dogs/puppies/), so each `.yamlover/
-  // body.yamlover` is its own document boundary. The Puppies chapter's `*: puppy-paw.png` resolves to
+  // Each chapter is its own directory (dogs/, cats/, fish/, dogs/puppies/), so each `.yo/
+  // body.yo` is its own document boundary. The Puppies chapter's `*: puppy-paw.png` resolves to
   // the sibling file living in the puppies/ directory — not the root handbook dir.
   // A body pointer naming a child of its OWN directory is CONSUMED (applyBody): the member rides
   // the position the body gave it and its key becomes storage provenance (`meta.anchored`), so the
@@ -239,13 +239,13 @@ test('a directory chapter tree: each subchapter is its OWN directory, referenced
   const ch = ':66-pet-keeper-handbook';
   // THE BODY IMPOSES ORDER (applyBody): its own entries in SOURCE order — `description:`, the prose
   // chunks, and the members its `*` pointers CONSUMED, each riding the position its pointer held —
-  // then the children the body never named (here only the hidden `.yamlover`), in filesystem order.
+  // then the children the body never named (here only the hidden `.yo`), in filesystem order.
   // The title is the body root's SELF-VALUE and consumes no index.
-  assert.equal(s.node(ch)?.format, 'x-yamlover-chapter'); // schema carried from body.yamlover root
+  assert.equal(s.node(ch)?.format, 'x-yamlover-chapter'); // schema carried from body.yo root
   assert.equal(s.node(ch)?.value, "The Pet Keeper's Handbook"); // the self-value title
   assert.equal(s.node(ch + '[1]')?.format, 'text/marklower'); // first prose chunk
   assert.equal(s.node(ch + '[5]')?.format, 'text/x-plantuml'); // the mindmap diagram chunk
-  // each subchapter is a real directory chapter (its own body.yamlover root tag), sitting at the
+  // each subchapter is a real directory chapter (its own body.yo root tag), sitting at the
   // position its body pointer granted it — once, as a member, not beside a surviving ref
   assert.deepEqual(s.entries(ch).slice(6, 9).map((e) => e.to), [ch + ':dogs', ch + ':cats', ch + ':fish']);
   assert.deepEqual((s.node(ch)?.meta as { anchored?: string[] } | null)?.anchored, ['cover-paw.png', 'dogs', 'cats', 'fish']);
@@ -266,7 +266,7 @@ test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→c
   writeFileSync(join(root, '$defs', 'chapter'),
     'type: variant\nvalue:\n  type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n');
   writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
-  writeFileSync(join(root, 'doc.yamlover'), [
+  writeFileSync(join(root, 'doc.yo'), [
     '!!<*yamlover: $defs: chapter>',
     'T',
     '- a leaf chunk',
@@ -280,7 +280,7 @@ test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→c
   ].join('\n'));
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
-  const d = ':doc.yamlover';
+  const d = ':doc.yo';
   assert.equal(s.node(d)?.format, 'x-yamlover-chapter'); // the root, its self-value the title
   assert.equal(s.node(d)?.value, 'T');
   assert.equal(s.node(d + '[0]')?.format, 'text/marklower'); // leaf → chunk branch
@@ -304,7 +304,7 @@ test('table cells: leaf→chunk, untagged container→CHAPTER, a TAGGED table ce
   writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
   writeFileSync(join(root, '$defs', 'table'),
     'type: variant\nproperties:\n  title:\n    type: string\nitems:\n  type: array\n  items:\n    anyOf:\n      - *:: yamlover: $defs: chunk\n      - *:: yamlover: $defs: chapter\n      - *:: yamlover: $defs: table\n');
-  writeFileSync(join(root, 'doc.yamlover'), [
+  writeFileSync(join(root, 'doc.yo'), [
     '!!<*yamlover: $defs: table>',
     '- [plain, other]',
     '- - leaf',
@@ -316,7 +316,7 @@ test('table cells: leaf→chunk, untagged container→CHAPTER, a TAGGED table ce
   ].join('\n'));
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
-  const d = ':doc.yamlover';
+  const d = ':doc.yo';
   assert.equal(s.node(d)?.format, 'x-yamlover-table');
   assert.equal(s.node(d + '[0][0]')?.format, 'text/marklower'); // leaf cell → chunk branch
   assert.equal(s.node(d + '[1][1]')?.format, 'x-yamlover-chapter'); // untagged container cell → CHAPTER
@@ -338,7 +338,7 @@ test('list schemas: bullets/numbered apply at ANY depth until an explicit tag sw
     'type: variant\nitems:\n  anyOf:\n    - *:: yamlover: $defs: bullets\n    - *:: yamlover: $defs: chunk\n');
   writeFileSync(join(root, '$defs', 'numbered'),
     'type: variant\nitems:\n  anyOf:\n    - *:: yamlover: $defs: numbered\n    - *:: yamlover: $defs: chunk\n');
-  writeFileSync(join(root, 'doc.yamlover'), [
+  writeFileSync(join(root, 'doc.yo'), [
     '!!<*yamlover: $defs: bullets>',
     '- top item',
     '- - nested item',
@@ -349,7 +349,7 @@ test('list schemas: bullets/numbered apply at ANY depth until an explicit tag sw
   ].join('\n'));
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
-  const d = ':doc.yamlover';
+  const d = ':doc.yo';
   assert.equal(s.node(d)?.format, 'x-yamlover-bullets');
   assert.equal(s.node(d + '[0]')?.format, 'text/marklower'); // a leaf item → chunk
   assert.equal(s.node(d + '[1]')?.format, 'x-yamlover-bullets'); // untagged container → SAME kind
@@ -371,10 +371,10 @@ test('schema propagation: `allOf:[chapter]` (task extends chapter) inherits body
   writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
   writeFileSync(join(root, '$defs', 'task'),
     'allOf:\n  - *:: yamlover: $defs: chapter\ntype: variant\nitems:\n  anyOf:\n    - *:: yamlover: $defs: task\n    - *:: yamlover: $defs: chunk\n');
-  writeFileSync(join(root, 'doc.yamlover'), '!!<*yamlover: $defs: task>\ntitle: T\n- a chunk\n- title: Sub\n  - sub chunk\n');
+  writeFileSync(join(root, 'doc.yo'), '!!<*yamlover: $defs: task>\ntitle: T\n- a chunk\n- title: Sub\n  - sub chunk\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
-  const d = ':doc.yamlover';
+  const d = ':doc.yo';
   assert.equal(s.node(d)?.format, 'x-yamlover-task'); // the task format from its $defs pointer
   assert.equal(s.node(d + ':title')?.format, 'text/marklower'); // inherited chapter title propagation
   assert.equal(s.node(d + '[1]')?.format, 'text/marklower'); // a chunk (leaf branch)
@@ -423,8 +423,8 @@ test('a sub-document encoding format (yamlover/meta) parses the file — never a
   // meta"): extensionless schema files typed `{type: string, format: yamlover/meta}` must
   // come out as parsed structure, not bytes.
   const root = mkdtempSync(join(tmpdir(), 'yo-docfmt-'));
-  mkdirSync(join(root, '.yamlover'));
-  writeFileSync(join(root, '.yamlover', 'meta.yamlover'), 'properties:\n  tag:\n    type: string\n    format: yamlover/meta\n');
+  mkdirSync(join(root, '.yo'));
+  writeFileSync(join(root, '.yo', 'meta.yo'), 'properties:\n  tag:\n    type: string\n    format: yamlover/meta\n');
   writeFileSync(join(root, 'tag'), 'type: object\nformat: x-yamlover-tag\nproperties:\n  description:\n    type: string\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
@@ -466,8 +466,8 @@ test('built-in graft outside a yamlover/$defs host (palette always available); U
   // directory chapter — shape special-cases are how projections silently diverge.) A FULLY
   // referenced pointer-array root shows it: the graft alone never demotes `is_array`.
   const seq = mkdtempSync(join(tmpdir(), 'yo-fullseq-'));
-  mkdirSync(join(seq, '.yamlover'));
-  writeFileSync(join(seq, '.yamlover', 'body.yamlover'), '- *a\n- *b\n');
+  mkdirSync(join(seq, '.yo'));
+  writeFileSync(join(seq, '.yo', 'body.yo'), '- *a\n- *b\n');
   writeFileSync(join(seq, 'a'), '1\n');
   writeFileSync(join(seq, 'b'), '2\n');
   const full = new Store(':memory:');
@@ -489,8 +489,8 @@ test('detached tree: the BUNDLED yamlover taxonomy resolves *::yamlover:tags:wor
   // a board copied away from its project (no ancestor `$defs/`) — the bug behind a board with no
   // lanes. The bundled taxonomy must supply the dev workflow + its states + the board/task schemas.
   const root = mkdtempSync(join(tmpdir(), 'yo-detached-'));
-  mkdirSync(join(root, '.yamlover'));
-  writeFileSync(join(root, '.yamlover', 'body.yamlover'),
+  mkdirSync(join(root, '.yo'));
+  writeFileSync(join(root, '.yo', 'body.yo'),
     '!!<*yamlover:$defs:board>\nworkflow: *::yamlover:tags:workflow:dev\n');
   const doc = walkDir(root);
   const s = new Store(':memory:');
@@ -510,8 +510,8 @@ test('detached tree: the BUNDLED yamlover taxonomy resolves *::yamlover:tags:wor
 
 test('world URI: ::: yamlover.inthemoon.net is the bundled self-import; other authorities stay external', () => {
   const root = mkdtempSync(join(tmpdir(), 'yo-world-'));
-  mkdirSync(join(root, '.yamlover'));
-  writeFileSync(join(root, '.yamlover', 'body.yamlover'),
+  mkdirSync(join(root, '.yo'));
+  writeFileSync(join(root, '.yo', 'body.yo'),
     'mine: *::: yamlover.inthemoon.net: tags: colors: yellow\nother: *::: acme.example: x\n');
   const edges = resolveDocument(walkDir(root));
   const mine = edges.find((e) => e.from === ':mine');
@@ -525,8 +525,8 @@ test('world URI: ::: yamlover.inthemoon.net is the bundled self-import; other au
 test('self-import: explicit `yamlover: *::: …` key materializes the taxonomy; a yamlover-key elsewhere is left as override', () => {
   // authoring the implicit import explicitly (IMPORTS.md §4 / Task 4) behaves like leaving it out
   const root = mkdtempSync(join(tmpdir(), 'yo-explicit-'));
-  mkdirSync(join(root, '.yamlover'));
-  writeFileSync(join(root, '.yamlover', 'body.yamlover'), 'yamlover: *::: yamlover.inthemoon.net\n');
+  mkdirSync(join(root, '.yo'));
+  writeFileSync(join(root, '.yo', 'body.yo'), 'yamlover: *::: yamlover.inthemoon.net\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
   assert.equal(s.node(':yamlover:tags:colors:yellow')?.format, 'x-yamlover-tag');
@@ -534,8 +534,8 @@ test('self-import: explicit `yamlover: *::: …` key materializes the taxonomy; 
   rmSync(root, { recursive: true, force: true });
   // a `yamlover` key pointing ELSEWHERE is a user override — no graft happens
   const root2 = mkdtempSync(join(tmpdir(), 'yo-override-'));
-  mkdirSync(join(root2, '.yamlover'));
-  writeFileSync(join(root2, '.yamlover', 'body.yamlover'), 'local:\n  hi: 1\nyamlover: *local\n');
+  mkdirSync(join(root2, '.yo'));
+  writeFileSync(join(root2, '.yo', 'body.yo'), 'local:\n  hi: 1\nyamlover: *local\n');
   const s2 = new Store(':memory:');
   s2.indexDocument(walkDir(root2));
   assert.equal(s2.node(':yamlover:tags:colors:yellow'), null);
@@ -543,19 +543,19 @@ test('self-import: explicit `yamlover: *::: …` key materializes the taxonomy; 
   rmSync(root2, { recursive: true, force: true });
 });
 
-test('settings.yamlover is indexed as a HIDDEN node (x-yamlover-config); body/meta stay unindexed', () => {
-  // the config file is openable/editable at :.yamlover:settings.yamlover by the settings editor,
+test('settings.yo is indexed as a HIDDEN node (x-yamlover-config); body/meta stay unindexed', () => {
+  // the config file is openable/editable at :.yo:settings.yo by the settings editor,
   // but hidden from the TOC (IMPORTS.md). body/meta remain consumed overlays (not nodes).
   const root = mkdtempSync(join(tmpdir(), 'yo-settingsnode-'));
-  mkdirSync(join(root, '.yamlover'));
-  writeFileSync(join(root, '.yamlover', 'settings.yamlover'), '!!<*yamlover:$defs:config>\ntags: *:: tags\n');
-  writeFileSync(join(root, '.yamlover', 'body.yamlover'), 'extra: 1\n');
+  mkdirSync(join(root, '.yo'));
+  writeFileSync(join(root, '.yo', 'settings.yo'), '!!<*yamlover:$defs:config>\ntags: *:: tags\n');
+  writeFileSync(join(root, '.yo', 'body.yo'), 'extra: 1\n');
   writeFileSync(join(root, 'name'), 'Alice\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
-  assert.equal(s.node(':.yamlover:settings.yamlover')?.format, 'x-yamlover-config');
-  assert.equal(s.node(':.yamlover')?.meta?.hidden, true); // parent overlay node is hidden
-  assert.equal(s.node(':.yamlover:body.yamlover'), null); // body stays a consumed overlay
+  assert.equal(s.node(':.yo:settings.yo')?.format, 'x-yamlover-config');
+  assert.equal(s.node(':.yo')?.meta?.hidden, true); // parent overlay node is hidden
+  assert.equal(s.node(':.yo:body.yo'), null); // body stays a consumed overlay
   assert.equal(s.node(':extra')?.value, 1); // …and is applied to the parent
   s.close();
   rmSync(root, { recursive: true, force: true });
@@ -563,10 +563,10 @@ test('settings.yamlover is indexed as a HIDDEN node (x-yamlover-config); body/me
 
 test('~- membership in a body overlay: stored as a keyless back edge; !!set / uniqueItems mark sets', () => {
   const root = mkdtempSync(join(tmpdir(), 'yo-backseq-'));
-  mkdirSync(join(root, '.yamlover'));
-  writeFileSync(join(root, '.yamlover', 'body.yamlover'),
+  mkdirSync(join(root, '.yo'));
+  writeFileSync(join(root, '.yo', 'body.yo'),
     'items:\n- plain\nmember:\n  name: m\n  ~- *: items\nfixed: !!set\n- *: member\n');
-  writeFileSync(join(root, '.yamlover', 'meta.yamlover'), 'properties:\n  items:\n    uniqueItems: true\n');
+  writeFileSync(join(root, '.yo', 'meta.yo'), 'properties:\n  items:\n    uniqueItems: true\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
   // the membership is a keyless back edge from the member to the container
@@ -591,57 +591,57 @@ test('self-import graft: a root that IS a project is DE-MATERIALIZED — `::yaml
   mkdirSync(join(dir, '$defs'));
   writeFileSync(join(dir, '$defs', 'thing'), 'type: object\n');
   mkdirSync(join(dir, 'tags'));
-  writeFileSync(join(dir, 'tags', 'red.yamlover'), 'Red things\n');
+  writeFileSync(join(dir, 'tags', 'red.yo'), 'Red things\n');
   // a material whose pointer uses the self-import (graft-scope) spelling the client emits
-  writeFileSync(join(dir, 'data.yamlover'), 'ref: *::yamlover:tags:red.yamlover\n');
+  writeFileSync(join(dir, 'data.yo'), 'ref: *::yamlover:tags:red.yo\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(dir));
   // the real taxonomy is at the root…
   assert.ok(s.node(':$defs:thing'));
-  assert.ok(s.node(':tags:red.yamlover'));
+  assert.ok(s.node(':tags:red.yo'));
   // …and NO duplicate self-import subtree is materialized
   assert.equal(s.node(':yamlover'), null);
-  assert.equal(s.node(':yamlover:tags:red.yamlover'), null);
+  assert.equal(s.node(':yamlover:tags:red.yo'), null);
   // the `::yamlover:…` pointer resolves VIRTUALLY to the REAL node (absorbed self-import)
-  const inb = s.relationships(':tags:red.yamlover').in.filter((e) => e.kind === 'ref');
+  const inb = s.relationships(':tags:red.yo').in.filter((e) => e.kind === 'ref');
   assert.equal(inb.length, 1);
-  assert.equal(inb[0].from, ':data.yamlover');
+  assert.equal(inb[0].from, ':data.yo');
   s.close();
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('.yamlover is indexed as a HIDDEN subtree: sidecars resolve, the overlay/db are skipped', () => {
+test('.yo is indexed as a HIDDEN subtree: sidecars resolve, the overlay/db are skipped', () => {
   const root = mkdtempSync(join(tmpdir(), 'yo-hidden-'));
   const dir = join(root, 'pics');
-  mkdirSync(join(dir, '.yamlover', 'thumbnails'), { recursive: true });
+  mkdirSync(join(dir, '.yo', 'thumbnails'), { recursive: true });
   writeFileSync(join(dir, 'pic.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 3]));
-  writeFileSync(join(dir, '.yamlover', 'thumbnails', 't.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0, 1, 2, 3]));
-  writeFileSync(join(dir, '.yamlover', 'index.db'), 'PRETEND DB'); // must NEVER be indexed (the db would index itself)
-  writeFileSync(join(dir, '.yamlover', 'body.yamlover'), `"pic.png":\n  yamlover-thumbnails:\n    [256, 256]: *:.yamlover:thumbnails:t.jpg\n`);
+  writeFileSync(join(dir, '.yo', 'thumbnails', 't.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0, 1, 2, 3]));
+  writeFileSync(join(dir, '.yo', 'index.db'), 'PRETEND DB'); // must NEVER be indexed (the db would index itself)
+  writeFileSync(join(dir, '.yo', 'body.yo'), `"pic.png":\n  yamlover-thumbnails:\n    [256, 256]: *:.yo:thumbnails:t.jpg\n`);
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
-  // the `.yamlover` node exists, is flagged hidden, and is a real child of :pics (resolvable)
-  assert.equal(s.node(':pics:.yamlover')?.meta?.hidden, true);
-  assert.ok(s.children(':pics').map((c) => c.label).includes('.yamlover'));
+  // the `.yo` node exists, is flagged hidden, and is a real child of :pics (resolvable)
+  assert.equal(s.node(':pics:.yo')?.meta?.hidden, true);
+  assert.ok(s.children(':pics').map((c) => c.label).includes('.yo'));
   // its derived sidecar is indexed + addressable; the engine's own files are NOT
-  assert.equal(s.node(':pics:.yamlover:thumbnails:t.jpg')?.type, 'blob');
-  assert.equal(s.node(':pics:.yamlover:index.db'), null);
-  assert.equal(s.node(':pics:.yamlover:body.yamlover'), null);
-  // the DOCUMENT-relative pointer `*:.yamlover:thumbnails:t.jpg` resolved (nothing dangling)
+  assert.equal(s.node(':pics:.yo:thumbnails:t.jpg')?.type, 'blob');
+  assert.equal(s.node(':pics:.yo:index.db'), null);
+  assert.equal(s.node(':pics:.yo:body.yo'), null);
+  // the DOCUMENT-relative pointer `*:.yo:thumbnails:t.jpg` resolved (nothing dangling)
   assert.deepEqual(s.dangling(), []);
   s.close();
   rmSync(root, { recursive: true, force: true });
 });
 
-test('a .yamlover holding only the overlay + index db adds NO node (plain dirs keep their shape)', () => {
+test('a .yo holding only the overlay + index db adds NO node (plain dirs keep their shape)', () => {
   const root = mkdtempSync(join(tmpdir(), 'yo-hidden2-'));
-  mkdirSync(join(root, '.yamlover'), { recursive: true });
+  mkdirSync(join(root, '.yo'), { recursive: true });
   writeFileSync(join(root, 'a'), 'Alice\n');
-  writeFileSync(join(root, '.yamlover', 'body.yamlover'), 'a: !!<format: text/plain>\n');
-  writeFileSync(join(root, '.yamlover', 'index.db'), 'DB');
+  writeFileSync(join(root, '.yo', 'body.yo'), 'a: !!<format: text/plain>\n');
+  writeFileSync(join(root, '.yo', 'index.db'), 'DB');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
-  assert.equal(s.node(':.yamlover'), null); // nothing indexable under .yamlover → no hidden node
+  assert.equal(s.node(':.yo'), null); // nothing indexable under .yo → no hidden node
   s.close();
   rmSync(root, { recursive: true, force: true });
 });

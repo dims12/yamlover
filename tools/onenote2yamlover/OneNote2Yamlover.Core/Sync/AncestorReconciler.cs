@@ -25,7 +25,7 @@ public sealed class EmptyDestinationIndex : IDestinationIndex
 public static class AncestorReconciler
 {
     /// <summary>
-    /// Writes <c>body.yamlover</c> for every container on the path to a synced section, listing the
+    /// Writes <c>body.yo</c> for every container on the path to a synced section, listing the
     /// children PRESENT AT THE DESTINATION, in OneNote's order.
     /// <para>
     /// The union matters: a fresh stage holds only THIS run's sections, so listing the stage would
@@ -35,7 +35,7 @@ public static class AncestorReconciler
     /// </para>
     /// <para>
     /// The destination ROOT is deliberately left alone — the user may have pointed at an existing
-    /// yamlover project, and clobbering its <c>.yamlover/body.yamlover</c> would be destructive.
+    /// yamlover project, and clobbering its <c>.yo/body.yo</c> would be destructive.
     /// </para>
     /// </summary>
     public static void WriteAncestorBodies(string stageRoot, NamePlan plan,
@@ -61,8 +61,8 @@ public static class AncestorReconciler
                 .ToList();
 
             string dir = plan.LocalPath(stageRoot, c);
-            Fs.CreateDirectory(Path.Combine(dir, ".yamlover"));
-            Fs.WriteText(Path.Combine(dir, @".yamlover\body.yamlover"),
+            Fs.CreateDirectory(Path.Combine(dir, ".yo"));
+            Fs.WriteText(Path.Combine(dir, @".yo\body.yo"),
                          ChapterSerializer.Chapter(c.DisplayName, null, present));
         }
     }

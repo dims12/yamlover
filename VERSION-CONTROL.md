@@ -72,7 +72,7 @@ On a non-repo tree the path stays plain `fs.renameSync`.
 
 ## Problem 3: sub-file nodes (the granularity boundary)
 
-yamlover addresses parts of files as nodes (`:file.yamlover:key`, chunks,
+yamlover addresses parts of files as nodes (`:file.yo:key`, chunks,
 fragments); git only knows whole-file blobs. This is the natural boundary, not
 a conflict:
 

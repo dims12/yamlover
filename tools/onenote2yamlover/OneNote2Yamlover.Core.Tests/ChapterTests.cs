@@ -17,8 +17,8 @@ public class ChapterSerializerTests
 
     [Fact]
     public void ChildrenOnly() => Assert.Equal(
-        Lines(Tag, "Avtomobil", "- *: Untitled.yamlover", "- *: Nomer.yamlover"),
-        ChapterSerializer.Chapter("Avtomobil", null, ["Untitled.yamlover", "Nomer.yamlover"]));
+        Lines(Tag, "Avtomobil", "- *: Untitled.yo", "- *: Nomer.yo"),
+        ChapterSerializer.Chapter("Avtomobil", null, ["Untitled.yo", "Nomer.yo"]));
 
     private const string TableTag = "!!<*yamlover: $defs: table>";
     private static TableRow Row(params string[] cells) => new([.. cells.Select(c => new TableCell(c))]);
@@ -33,11 +33,11 @@ public class ChapterSerializerTests
               "  - [1, 2]",
               "- *: image-1a2b3c4d.png",
               "- *: Zvukozapis.3gp",
-              "- *: Subpage.yamlover"),
+              "- *: Subpage.yo"),
         ChapterSerializer.Chapter("Parent",
             [Chunk.Prose("intro prose"), Chunk.Grid(new TableModel([Row("a", "b"), Row("1", "2")])),
              Chunk.Pointer("image-1a2b3c4d.png"), Chunk.Pointer("Zvukozapis.3gp")],
-            ["Subpage.yamlover"]));
+            ["Subpage.yo"]));
 
     /// <summary>Flow-cell quoting (MARKLOWER.md): a space / sigil / quote forces single quotes with
     /// <c>''</c> doubling; a marklower-bold cell opens with <c>*</c> (a yamlover sigil) so it quotes.</summary>
@@ -61,7 +61,7 @@ public class ChapterSerializerTests
 
     /// <summary>A nested-table cell: explicitly tagged (an untagged container cell is a
     /// CHAPTER — MARKLOWER.md §Cells), its rows at its child indent — the
-    /// examples/61-table.yamlover shape.</summary>
+    /// examples/61-table.yo shape.</summary>
     [Fact]
     public void NestedTableCellEmitsRecursively() => Assert.Contains(
         Lines("- " + TableTag,
@@ -109,15 +109,15 @@ public class ChapterSerializerTests
     [Fact]
     public void NeverEmitsRetiredKeys()
     {
-        string s = ChapterSerializer.Chapter("X", [Chunk.Prose("p"), Chunk.Pointer("i.png")], ["c.yamlover"]);
+        string s = ChapterSerializer.Chapter("X", [Chunk.Prose("p"), Chunk.Pointer("i.png")], ["c.yo"]);
         Assert.DoesNotContain("\nchunks:", s);
         Assert.DoesNotContain("\nchildren:", s);
     }
 
     [Fact]
     public void PointerWithSpaceIsQuoted() =>
-        Assert.Contains("- *: \"Change license plates.yamlover\"",
-            ChapterSerializer.Chapter("S", null, ["Change license plates.yamlover"]));
+        Assert.Contains("- *: \"Change license plates.yo\"",
+            ChapterSerializer.Chapter("S", null, ["Change license plates.yo"]));
 
     [Fact]
     public void CyrillicTitleStaysBare() =>

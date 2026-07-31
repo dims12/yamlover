@@ -5,7 +5,7 @@ import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
 
-// The WRITE endpoint /api/edit — surgical source-text edits of any `.yamlover` document, against
+// The WRITE endpoint /api/edit — surgical source-text edits of any `.yo` document, against
 // synthetic temp trees (never the repo's own examples/). It splices lines rather than reserializing,
 // so comments, quoting, and block scalars survive.
 //
@@ -30,7 +30,7 @@ const DEFS = {
   "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
 };
 
-const bodyOf = (root: string) => fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8");
+const bodyOf = (root: string) => fs.readFileSync(path.join(root, "doc", ".yo", "body.yo"), "utf8");
 
 /** The positional body values of a chapter's `/api/json` projection (a `$yamloverMixed` marker's
  *  keyless entries, or a plain array for an untitled chapter). */
@@ -42,7 +42,7 @@ const body = (json: { value: unknown }): unknown[] => {
 };
 
 async function chapterHandlers(extra: Record<string, string> = {}) {
-  const root = tmpTree({ "doc/.yamlover/body.yamlover": CHAPTER, ...DEFS, ...extra });
+  const root = tmpTree({ "doc/.yo/body.yo": CHAPTER, ...DEFS, ...extra });
   const h = createHandlers(root, { gitignore: false });
   await h.ready;
   return { root, h };
@@ -59,7 +59,7 @@ describe("/api/edit — scalars", () => {
 
   it("adds a description when the chapter has none", async () => {
     const { root, h } = await chapterHandlers({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: T\n- Hello\n",
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- Hello\n",
     });
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc:description", op: "emplace", yamlover: '"A subtitle"' });
     expect(r.status).toBe(200);
@@ -179,8 +179,8 @@ describe("/api/edit — batch", () => {
 
   it("routes a batch touching two different chapter files, one reindex each", async () => {
     const root = tmpTree({
-      "a/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: A\n- one\n",
-      "b/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: B\n- two\n",
+      "a/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: A\n- one\n",
+      "b/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: B\n- two\n",
       ...DEFS,
     });
     const h = createHandlers(root, { gitignore: false });
@@ -224,7 +224,7 @@ describe("/api/edit — facets", () => {
 
   it("emplace keeps an inline `!!<…>` tag; replace drops it; `meta` sets it; `meta: null` removes it", async () => {
     const { root, h } = await chapterHandlers({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: T\n- !!<format: text/x-latex> |\n  e^{i\\pi}\n",
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- !!<format: text/x-latex> |\n  e^{i\\pi}\n",
     });
     await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "emplace", yamlover: "|-\n  \\sqrt{2}" });
     expect(bodyOf(root)).toContain("!!<format: text/x-latex>");
@@ -245,7 +245,7 @@ describe("/api/edit — facets", () => {
     const { root, h } = await chapterHandlers({
       "doc/pic.png": "PNG",
       "doc/other.png": "PNG2",
-      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: T\n- *: pic.png\n",
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- *: pic.png\n",
     });
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "replace", yamlover: "*: other.png" });
     expect(r.status).toBe(200);
@@ -303,7 +303,7 @@ const OMNI_DEFS = {
 };
 
 async function omniChapterHandlers(extra: Record<string, string> = {}) {
-  const root = tmpTree({ "doc/.yamlover/body.yamlover": OMNI_CHAPTER, ...OMNI_DEFS, ...extra });
+  const root = tmpTree({ "doc/.yo/body.yo": OMNI_CHAPTER, ...OMNI_DEFS, ...extra });
   const h = createHandlers(root, { gitignore: false });
   await h.ready;
   return { root, h };
@@ -362,7 +362,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
 
   it("re-adds a title to an untitled chapter: the self-value lands right after the tag line", async () => {
     const { root, h } = await omniChapterHandlers({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\n- Hello\n",
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\n- Hello\n",
     });
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "emplace", yamlover: '"Fresh"' });
     expect(r.status).toBe(200);
@@ -372,7 +372,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
 
   it("a FRESH self-value with `at` lands at its typed position — order kept (REPRESENTATION RULE)", async () => {
     const { root, h } = await omniChapterHandlers({
-      "doc/.yamlover/body.yamlover": "- solid\n- recommended\nscale: 10\n",
+      "doc/.yo/body.yo": "- solid\n- recommended\nscale: 10\n",
     });
     const r = await callBody(h, "POST", "/api/edit", {
       path: ":doc", op: "emplace", yamlover: "|\n  A block-scalar self-value\n  multi-line text", at: 1,
@@ -385,7 +385,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
 
   it("`at` past the entry count appends the self line after the last entry", async () => {
     const { root, h } = await omniChapterHandlers({
-      "doc/.yamlover/body.yamlover": "- solid\n- recommended\n",
+      "doc/.yo/body.yo": "- solid\n- recommended\n",
     });
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "emplace", yamlover: '"late title"', at: 9 });
     expect(r.status).toBe(200);
@@ -394,7 +394,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
 
   it("an INSERT payload with a mid-position self line keeps the typed order (in its item directory)", async () => {
     const { root, h } = await omniChapterHandlers({
-      "doc/.yamlover/body.yamlover": "- placeholder\n",
+      "doc/.yo/body.yo": "- placeholder\n",
     });
     const r = await callBody(h, "POST", "/api/edit", {
       path: ":doc[1]", op: "insert", yamlover: "- solid\n|\n  block text\n- recommended",
@@ -404,7 +404,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     // dir-seq); the parent body gains the pointer at the insert's position, and the member's own
     // body keeps the typed order verbatim — the self line BETWEEN its entries, as authored
     expect(bodyOf(root)).toBe("- placeholder\n- *: item01\n");
-    expect(fs.readFileSync(path.join(root, "doc", "item01", ".yamlover", "body.yamlover"), "utf8"))
+    expect(fs.readFileSync(path.join(root, "doc", "item01", ".yo", "body.yo"), "utf8"))
       .toBe("- solid\n|\n  block text\n- recommended\n");
   });
 
@@ -444,7 +444,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     // (schema does not cross a document boundary): the self-value survives as data, but the
     // chapter TITLE convenience needs the tag — the chapter flows pass meta/concrete explicitly.
     expect(bodyOf(root)).toContain("- *: item01");
-    expect(fs.readFileSync(path.join(root, "doc", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe('"T2"\n- "c1"\n');
+    expect(fs.readFileSync(path.join(root, "doc", "item01", ".yo", "body.yo"), "utf8")).toBe('"T2"\n- "c1"\n');
     const j = call(h, "/api/json", { path: ":doc:item01", depth: "3" }).json;
     expect((j.value as { $yamloverMixed?: { value?: unknown } }).$yamloverMixed?.value).toBe("T2");
     expect(j.concrete).toBe("dir/yamlover");
@@ -454,7 +454,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     // the untitled subchapter is the compact `- - first` form: its first chunk lives inline on the
     // marker line, and a title emplace must file it as body — not replace it as the "scalar"
     const { root, h } = await omniChapterHandlers({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\nT\n- Hello\n- - first chunk\n  - second chunk\n",
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nT\n- Hello\n- - first chunk\n  - second chunk\n",
     });
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "emplace", yamlover: '"Added title"' });
     expect(r.status).toBe(200);
@@ -483,21 +483,21 @@ describe("/api/edit — creating objects (concrete)", () => {
     expect(body(node.json)).toEqual([""]); // one empty, immediately-editable chunk
   });
 
-  it("child linked file: writes a .yamlover doc beside the parent + a pointer in the body", async () => {
+  it("child linked file: writes a .yo doc beside the parent + a pointer in the body", async () => {
     const { root, h } = await chapterHandlers();
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", concrete: "file/yamlover", name: "Linked", meta: CHAP, yamlover: BODY });
     expect(r.status).toBe(200);
-    expect(fs.existsSync(path.join(root, "doc", "Linked.yamlover"))).toBe(true); // dir-backed doc → inside doc/
-    expect(bodyOf(root)).toContain("- *: Linked.yamlover");
-    expect(r.json.path).toBe(":doc:Linked.yamlover"); // navigates to the linked doc's own node
+    expect(fs.existsSync(path.join(root, "doc", "Linked.yo"))).toBe(true); // dir-backed doc → inside doc/
+    expect(bodyOf(root)).toContain("- *: Linked.yo");
+    expect(r.json.path).toBe(":doc:Linked.yo"); // navigates to the linked doc's own node
     expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
   });
 
-  it("child linked dir: writes an order-numbered <NN-name>/.yamlover/body.yamlover + a pointer", async () => {
+  it("child linked dir: writes an order-numbered <NN-name>/.yo/body.yo + a pointer", async () => {
     const { root, h } = await chapterHandlers();
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", concrete: "dir/yamlover", name: "SubDir", meta: CHAP, yamlover: BODY });
     expect(r.status).toBe(200);
-    expect(fs.existsSync(path.join(root, "doc", "01-SubDir", ".yamlover", "body.yamlover"))).toBe(true);
+    expect(fs.existsSync(path.join(root, "doc", "01-SubDir", ".yo", "body.yo"))).toBe(true);
     expect(bodyOf(root)).toContain("- *: 01-SubDir");
     expect(r.json.path).toBe(":doc:01-SubDir");
     expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
@@ -510,13 +510,13 @@ describe("/api/edit — creating objects (concrete)", () => {
     });
     expect(r.status).toBe(200);
     expect(r.json.path).toBe(":doc:" + encodeURIComponent("01-Заголовок_части"));
-    expect(fs.existsSync(path.join(root, "doc", "01-Заголовок_части", ".yamlover", "body.yamlover"))).toBe(true);
+    expect(fs.existsSync(path.join(root, "doc", "01-Заголовок_части", ".yo", "body.yo"))).toBe(true);
     expect(bodyOf(root)).toContain("- *: 01-Заголовок_части");
     // the member resolves as a chapter and edits address it by its KEYED path
     expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
     const r2 = await callBody(h, "POST", "/api/edit", { path: `${r.json.path}[0]`, op: "emplace", yamlover: "Первый абзац" });
     expect(r2.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, "doc", "01-Заголовок_части", ".yamlover", "body.yamlover"), "utf8")).toContain("Первый абзац");
+    expect(fs.readFileSync(path.join(root, "doc", "01-Заголовок_части", ".yo", "body.yo"), "utf8")).toContain("Первый абзац");
   });
 
   it("a subchapter inserted BETWEEN two siblings slots a sub-number — no renumbering", async () => {
@@ -531,7 +531,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     expect(bodyOf(root)).toContain("- *: 01-A\n- *: 01-1-C\n- *: 02-B");
     // the number is cosmetic; existing member directories are never renamed
     for (const dir of ["01-A", "01-1-C", "02-B"]) {
-      expect(fs.existsSync(path.join(root, "doc", dir, ".yamlover", "body.yamlover"))).toBe(true);
+      expect(fs.existsSync(path.join(root, "doc", dir, ".yo", "body.yo"))).toBe(true);
     }
   });
 
@@ -541,7 +541,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: ":dir", op: "insert", concrete: "file/yamlover", name: "New Note", meta: CHAP, yamlover: BODY });
     expect(r.status).toBe(200);
-    expect(fs.existsSync(path.join(root, "dir", "New Note.yamlover"))).toBe(true);
+    expect(fs.existsSync(path.join(root, "dir", "New Note.yo"))).toBe(true);
     expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
   });
 
@@ -551,7 +551,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: ":dir", op: "insert", concrete: "dir/yamlover", name: "New Dir", meta: CHAP, yamlover: BODY });
     expect(r.status).toBe(200);
-    expect(fs.existsSync(path.join(root, "dir", "New Dir", ".yamlover", "body.yamlover"))).toBe(true);
+    expect(fs.existsSync(path.join(root, "dir", "New Dir", ".yo", "body.yo"))).toBe(true);
     expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
   });
 
@@ -561,7 +561,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: ":dir", op: "insert", concrete: "dir/yamlover", name: "New node" });
     expect(r.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, "dir", "New node", ".yamlover", "body.yamlover"), "utf8")).toBe("\n");
+    expect(fs.readFileSync(path.join(root, "dir", "New node", ".yo", "body.yo"), "utf8")).toBe("\n");
     const node = call(h, "/api/json", { path: r.json.path }).json;
     expect(node.format).toBeNull(); // no schema meta — a plain node, not a chapter
     expect(node.value).toBeNull(); // an empty document, NOT an empty-string scalar
@@ -581,29 +581,29 @@ describe("/api/edit — creating objects (concrete)", () => {
   });
 
   it("keyed INSERT: `key` makes a `key: value` entry AT the position — authored order preserved", async () => {
-    const root = tmpTree({ "days.yamlover": "- mon\n12\n", "list.yamlover": "- a\n- b\n" });
+    const root = tmpTree({ "days.yo": "- mon\n12\n", "list.yo": "- a\n- b\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     // past-end append: lands AFTER the bare self line, exactly where it was typed
-    const r1 = await callBody(h, "POST", "/api/edit", { path: ":days.yamlover[1]", op: "insert", key: "12", yamlover: "tue" });
+    const r1 = await callBody(h, "POST", "/api/edit", { path: ":days.yo[1]", op: "insert", key: "12", yamlover: "tue" });
     expect(r1.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, "days.yamlover"), "utf8")).toBe("- mon\n12\n12: tue\n");
+    expect(fs.readFileSync(path.join(root, "days.yo"), "utf8")).toBe("- mon\n12\n12: tue\n");
     // mid-list: splices BEFORE entry [1], keyed — unlike a fresh keyed emplace (top of block)
-    const r2 = await callBody(h, "POST", "/api/edit", { path: ":list.yamlover[1]", op: "insert", key: "k", yamlover: '"v"' });
+    const r2 = await callBody(h, "POST", "/api/edit", { path: ":list.yo[1]", op: "insert", key: "k", yamlover: '"v"' });
     expect(r2.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, "list.yamlover"), "utf8")).toBe('- a\nk: "v"\n- b\n');
+    expect(fs.readFileSync(path.join(root, "list.yo"), "utf8")).toBe('- a\nk: "v"\n- b\n');
   });
 
   it("omni re-emplace: a scalar entry gains children via a whole-omni emplace (the level rule)", async () => {
-    const root = tmpTree({ "doc.yamlover": "- scalar\n" });
+    const root = tmpTree({ "doc.yo": "- scalar\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     // the editor's `- scalar` ↵ `- element` ↵ — the entry was a plain scalar, so the first child
     // arrives as a re-emplace of the WHOLE omni at the entry's own path
-    const r = await callBody(h, "POST", "/api/edit", { path: ":doc.yamlover[0]", op: "emplace", yamlover: "scalar\n- element" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc.yo[0]", op: "emplace", yamlover: "scalar\n- element" });
     expect(r.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, "doc.yamlover"), "utf8")).toBe("- scalar\n  - element\n");
-    const j = call(h, "/api/json", { path: ":doc.yamlover", depth: ".inf" }).json as { value: { $yamloverMixed: { kind: string; value: unknown; entries: unknown[] } }[] };
+    expect(fs.readFileSync(path.join(root, "doc.yo"), "utf8")).toBe("- scalar\n  - element\n");
+    const j = call(h, "/api/json", { path: ":doc.yo", depth: ".inf" }).json as { value: { $yamloverMixed: { kind: string; value: unknown; entries: unknown[] } }[] };
     const m = j.value[0].$yamloverMixed;
     expect(m.kind).toBe("omni");
     expect(m.value).toBe("scalar");
@@ -611,15 +611,15 @@ describe("/api/edit — creating objects (concrete)", () => {
   });
 
   it("keyed INSERT with a NESTED payload: the editor's `pets:` ↵ `- name: Rex` flow round-trips", async () => {
-    const root = tmpTree({ "pets.yamlover": "\n" });
+    const root = tmpTree({ "pets.yo": "\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const r = await callBody(h, "POST", "/api/edit", { path: ":pets.yamlover[0]", op: "insert", key: "pets", yamlover: "- name: Rex" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":pets.yo[0]", op: "insert", key: "pets", yamlover: "- name: Rex" });
     expect(r.status).toBe(200);
-    const src = fs.readFileSync(path.join(root, "pets.yamlover"), "utf8");
+    const src = fs.readFileSync(path.join(root, "pets.yo"), "utf8");
     expect(src).toContain("pets:");
     expect(src).toContain("- name: Rex"); // the compact dash form, as the client serializes it
-    const j = call(h, "/api/json", { path: ":pets.yamlover", depth: ".inf" }).json as { value: unknown };
+    const j = call(h, "/api/json", { path: ":pets.yo", depth: ".inf" }).json as { value: unknown };
     expect(j.value).toEqual({ pets: [{ name: "Rex" }] });
   });
 
@@ -627,16 +627,16 @@ describe("/api/edit — creating objects (concrete)", () => {
     // exactly the ops pasteRootDocument (client paste.ts) emits for a pasted document with a
     // self line, a nested keyed subtree, and a trailing keyed scalar — a document root takes
     // no whole-payload emplace, so the paste must arrive in this per-entry shape
-    const root = tmpTree({ "n.yamlover": "\n" });
+    const root = tmpTree({ "n.yo": "\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { edits: [
-      { path: ":n.yamlover[0]", op: "insert", key: "pets", yamlover: "- name: Rex\n  species: dog\n- name: Whiskers\n  species: cat" },
-      { path: ":n.yamlover[1]", op: "insert", key: "after", yamlover: "1" },
-      { path: ":n.yamlover", op: "emplace", yamlover: "A Title" },
+      { path: ":n.yo[0]", op: "insert", key: "pets", yamlover: "- name: Rex\n  species: dog\n- name: Whiskers\n  species: cat" },
+      { path: ":n.yo[1]", op: "insert", key: "after", yamlover: "1" },
+      { path: ":n.yo", op: "emplace", yamlover: "A Title" },
     ] });
     expect(r.status).toBe(200);
-    const j = call(h, "/api/json", { path: ":n.yamlover", depth: ".inf" }).json as { value: unknown };
+    const j = call(h, "/api/json", { path: ":n.yo", depth: ".inf" }).json as { value: unknown };
     expect(j.value).toEqual({
       $yamloverMixed: {
         kind: "omni", value: "A Title", // selfAt 0 is elided by the projection
@@ -649,21 +649,21 @@ describe("/api/edit — creating objects (concrete)", () => {
   });
 
   it("the paste batch onto a LEGACY `\"\"` fresh file: the clearing emplace drops the line first", async () => {
-    const root = tmpTree({ "n.yamlover": '""\n' });
+    const root = tmpTree({ "n.yo": '""\n' });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { edits: [
-      { path: ":n.yamlover", op: "emplace", yamlover: '""' },
-      { path: ":n.yamlover[0]", op: "insert", key: "pets", yamlover: "- name: Rex" },
+      { path: ":n.yo", op: "emplace", yamlover: '""' },
+      { path: ":n.yo[0]", op: "insert", key: "pets", yamlover: "- name: Rex" },
     ] });
     expect(r.status).toBe(200);
-    const src = fs.readFileSync(path.join(root, "n.yamlover"), "utf8");
+    const src = fs.readFileSync(path.join(root, "n.yo"), "utf8");
     expect(src).not.toContain('""'); // the placeholder line LEFT
-    const j = call(h, "/api/json", { path: ":n.yamlover", depth: ".inf" }).json as { value: unknown };
+    const j = call(h, "/api/json", { path: ":n.yo", depth: ".inf" }).json as { value: unknown };
     expect(j.value).toEqual({ pets: [{ name: "Rex" }] });
   });
 
-  it("bare folder: `concrete:\"dir\"` makes an EMPTY OS directory member — no body, no .yamlover", async () => {
+  it("bare folder: `concrete:\"dir\"` makes an EMPTY OS directory member — no body, no .yo", async () => {
     const root = dirTree();
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -672,7 +672,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     expect(r.json.path).toBe(":dir:New%20Folder"); // segsToStr percent-encodes the space
     const abs = path.join(root, "dir", "New Folder");
     expect(fs.statSync(abs).isDirectory()).toBe(true);
-    expect(fs.readdirSync(abs)).toEqual([]); // truly empty — no .yamlover marker, no body file
+    expect(fs.readdirSync(abs)).toEqual([]); // truly empty — no .yo marker, no body file
     expect(call(h, "/api/json", { path: r.json.path }).json.concrete).toBe("dir");
   });
 
@@ -708,14 +708,14 @@ describe("/api/edit — creating objects (concrete)", () => {
 });
 
 describe("/api/edit — standalone chapter file", () => {
-  it("edits a chunk of a standalone *.yamlover chapter (Cyrillic)", async () => {
-    const root = tmpTree({ "статья.yamlover": '!!<*::yamlover:$defs:chapter>\ntitle: "Заголовок"\n- Привет\n' });
+  it("edits a chunk of a standalone *.yo chapter (Cyrillic)", async () => {
+    const root = tmpTree({ "статья.yo": '!!<*::yamlover:$defs:chapter>\ntitle: "Заголовок"\n- Привет\n' });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const at = ":" + encodeURIComponent("статья.yamlover") + "[1]"; // title consumes index 0
+    const at = ":" + encodeURIComponent("статья.yo") + "[1]"; // title consumes index 0
     const r = await callBody(h, "POST", "/api/edit", { path: at, op: "emplace", yamlover: "|-\n  Пока" });
     expect(r.status).toBe(200);
-    const src = fs.readFileSync(path.join(root, "статья.yamlover"), "utf8");
+    const src = fs.readFileSync(path.join(root, "статья.yo"), "utf8");
     expect(src).toContain("Пока"); // re-emitted losslessly (block scalar) — verify the parsed value
     expect(call(h, "/api/json", { path: at }).json.value).toBe("Пока");
   });
@@ -757,7 +757,7 @@ describe("/api/edit — general data files (yaml/json)", () => {
   it("descends a keyed `key:` → sequence → item and edits an inline field (regression: no phantom entry)", async () => {
     // `reachChapter` sets the descended region's marker to the `pets:` KEY line; that line must NOT be
     // surfaced as an inline entry (only `- ` items are), else a phantom `pets` entry shifts every index
-    // and `pets[0]` reads as a scalar. Real breakage from examples/06-tour.yamlover.
+    // and `pets[0]` reads as a scalar. Real breakage from examples/06-tour.yo.
     const src = "pets:\n  - name: Rex\n    species: dog\n  - name: Whiskers\n    species: cat\n";
     const { root, h } = await handlersFor({ "z.yaml": src });
     const r = await callBody(h, "POST", "/api/edit", { path: ":z.yaml:pets[0]:name", op: "emplace", yamlover: "Rex1" });
@@ -824,9 +824,9 @@ describe("/api/tree — directory-chapter subchapter order", () => {
     // a directory chapter whose subchapters are their OWN subdirectories, referenced by `*` body
     // pointers in a deliberately NON-alphabetical order: zebra, then apple.
     const root = tmpTree({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Root\n- intro\n- *: zebra\n- *: apple\n",
-      "doc/zebra/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Zebra\n- z body\n",
-      "doc/apple/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Apple\n- a body\n",
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: Root\n- intro\n- *: zebra\n- *: apple\n",
+      "doc/zebra/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: Zebra\n- z body\n",
+      "doc/apple/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: Apple\n- a body\n",
       ...DEFS,
     });
     const h = createHandlers(root, { gitignore: false });
@@ -839,11 +839,11 @@ describe("/api/tree — directory-chapter subchapter order", () => {
   it("trails on-disk subchapters the body never references AFTER the ordered ones, in dir-scan order", async () => {
     // zebra and apple are placed by `*` body pointers; kiwi and mango exist on disk only.
     const root = tmpTree({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Root\n- intro\n- *: zebra\n- *: apple\n",
-      "doc/zebra/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Zebra\n- z body\n",
-      "doc/apple/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Apple\n- a body\n",
-      "doc/mango/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Mango\n- m body\n",
-      "doc/kiwi/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Kiwi\n- k body\n",
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: Root\n- intro\n- *: zebra\n- *: apple\n",
+      "doc/zebra/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: Zebra\n- z body\n",
+      "doc/apple/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: Apple\n- a body\n",
+      "doc/mango/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: Mango\n- m body\n",
+      "doc/kiwi/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: Kiwi\n- k body\n",
       ...DEFS,
     });
     const h = createHandlers(root, { gitignore: false });
@@ -872,7 +872,7 @@ describe("/api/edit — flow-row cells (a table's `- [a, b, c]`, MARKLOWER.md)",
       "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  type: array\n  items:\n    anyOf:\n      - *:: yamlover: $defs: chunk\n      - *:: yamlover: $defs: table\n",
   };
   async function tableHandlers() {
-    const root = tmpTree({ "doc/.yamlover/body.yamlover": TABLE, ...TDEFS });
+    const root = tmpTree({ "doc/.yo/body.yo": TABLE, ...TDEFS });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     return { root, h };
@@ -926,7 +926,7 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     fs.mkdirSync(path.join(root, "d"));
     return root;
   };
-  const dBody = (root: string) => fs.readFileSync(path.join(root, "d", ".yamlover", "body.yamlover"), "utf8");
+  const dBody = (root: string) => fs.readFileSync(path.join(root, "d", ".yo", "body.yo"), "utf8");
 
   it("emplace onto a BODYLESS dir materializes the body with the scalar self-value", async () => {
     const root = emptyDirTree();
@@ -959,9 +959,9 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     const r = await callBody(h, "POST", "/api/edit", { path: ":d[0]", op: "insert", key: "sub", yamlover: "a: 1\ndeep:\n  b: 2" });
     expect(r.status).toBe(200);
     expect(fs.statSync(path.join(root, "d", "sub")).isDirectory()).toBe(true);
-    expect(fs.readFileSync(path.join(root, "d", "sub", ".yamlover", "body.yamlover"), "utf8")).toBe("a: 1\n");
+    expect(fs.readFileSync(path.join(root, "d", "sub", ".yo", "body.yo"), "utf8")).toBe("a: 1\n");
     expect(fs.statSync(path.join(root, "d", "sub", "deep")).isDirectory()).toBe(true);
-    expect(fs.readFileSync(path.join(root, "d", "sub", "deep", ".yamlover", "body.yamlover"), "utf8")).toBe("b: 2\n");
+    expect(fs.readFileSync(path.join(root, "d", "sub", "deep", ".yo", "body.yo"), "utf8")).toBe("b: 2\n");
     const j = call(h, "/api/json", { path: ":d:sub", depth: ".inf" }).json;
     expect(j.value).toEqual({ a: 1, deep: { b: 2 } });
     expect(j.concrete).toBe("dir/yamlover");
@@ -993,7 +993,7 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     const r = await callBody(h, "POST", "/api/edit", { path: ":d[0]", op: "insert", yamlover: "a: 1\n- 2" });
     expect(r.status).toBe(200);
     expect(dBody(root)).toBe("- *: item01\n");
-    expect(fs.readFileSync(path.join(root, "d", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("a: 1\n- 2\n");
+    expect(fs.readFileSync(path.join(root, "d", "item01", ".yo", "body.yo"), "utf8")).toBe("a: 1\n- 2\n");
     expect(call(h, "/api/json", { path: ":d:item01", depth: ".inf" }).json.concrete).toBe("dir/yamlover");
   });
 
@@ -1007,8 +1007,8 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     ] });
     expect(r.status).toBe(200);
     expect(dBody(root)).toBe("- *: item01\n- *: item02\n");
-    expect(fs.readFileSync(path.join(root, "d", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("- 1\n");
-    expect(fs.readFileSync(path.join(root, "d", "item02", ".yamlover", "body.yamlover"), "utf8")).toBe("- 2\n");
+    expect(fs.readFileSync(path.join(root, "d", "item01", ".yo", "body.yo"), "utf8")).toBe("- 1\n");
+    expect(fs.readFileSync(path.join(root, "d", "item02", ".yo", "body.yo"), "utf8")).toBe("- 2\n");
   });
 
   it("an insert BETWEEN two items slots a sub-number (item01-1) — nothing is renumbered", async () => {
@@ -1023,10 +1023,10 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     expect(r.status).toBe(200);
     // order lives in the body pointer-array; the number is cosmetic listing order
     expect(dBody(root)).toBe("- *: item01\n- *: item01-1\n- *: item02\n");
-    expect(fs.readFileSync(path.join(root, "d", "item01-1", ".yamlover", "body.yamlover"), "utf8")).toBe("- between\n");
+    expect(fs.readFileSync(path.join(root, "d", "item01-1", ".yo", "body.yo"), "utf8")).toBe("- between\n");
     // the no-renumber invariant: the existing directories are untouched
-    expect(fs.readFileSync(path.join(root, "d", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("- 1\n");
-    expect(fs.readFileSync(path.join(root, "d", "item02", ".yamlover", "body.yamlover"), "utf8")).toBe("- 2\n");
+    expect(fs.readFileSync(path.join(root, "d", "item01", ".yo", "body.yo"), "utf8")).toBe("- 1\n");
+    expect(fs.readFileSync(path.join(root, "d", "item02", ".yo", "body.yo"), "utf8")).toBe("- 2\n");
   });
 
   it("inline scalars and item pointers interleave in body order", async () => {
@@ -1077,7 +1077,7 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     expect(r.status).toBe(200);
     expect(dBody(root)).toBe("- chunk\n");
     // never destroy user data: the directory is ORPHANED and resurfaces as a keyed-only member
-    expect(fs.readFileSync(path.join(root, "d", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("- kept data\n");
+    expect(fs.readFileSync(path.join(root, "d", "item01", ".yo", "body.yo"), "utf8")).toBe("- kept data\n");
     const m = (call(h, "/api/json", { path: ":d", depth: ".inf" }).json.value as
       { $yamloverMixed?: { entries: { key: string | null; anchor?: boolean }[] } }).$yamloverMixed;
     const item = m?.entries.find((e) => e.key === "item01");
@@ -1087,8 +1087,8 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
 
   it("a Tab-shaped batch (remove + insert concrete dir/yamlover) remaps same-batch follow-ups", async () => {
     const root = emptyDirTree();
-    fs.mkdirSync(path.join(root, "d", ".yamlover"));
-    fs.writeFileSync(path.join(root, "d", ".yamlover", "body.yamlover"), "- one\n- two\n");
+    fs.mkdirSync(path.join(root, "d", ".yo"));
+    fs.writeFileSync(path.join(root, "d", ".yo", "body.yo"), "- one\n- two\n");
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { edits: [
@@ -1098,12 +1098,12 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     ] });
     expect(r.status).toBe(200);
     expect(dBody(root)).toBe("- one\n- *: 01-Sub\n");
-    expect(fs.readFileSync(path.join(root, "d", "01-Sub", ".yamlover", "body.yamlover"), "utf8")).toBe('"Sub"\n- two\n- three\n');
+    expect(fs.readFileSync(path.join(root, "d", "01-Sub", ".yo", "body.yo"), "utf8")).toBe('"Sub"\n- two\n- three\n');
   });
 
-  it("a MARKER-ONLY dir (.yamlover exists, no body) gains its body on emplace", async () => {
+  it("a MARKER-ONLY dir (.yo exists, no body) gains its body on emplace", async () => {
     const root = emptyDirTree();
-    fs.mkdirSync(path.join(root, "d", ".yamlover"));
+    fs.mkdirSync(path.join(root, "d", ".yo"));
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: ":d", op: "emplace", yamlover: "12" });
@@ -1111,22 +1111,22 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     expect(dBody(root)).toBe("12\n");
   });
 
-  it("the served ROOT of an empty project gains .yamlover/body.yamlover on its first keyed insert", async () => {
+  it("the served ROOT of an empty project gains .yo/body.yo on its first keyed insert", async () => {
     const root = tmpTree({}); // an empty project: no body, no files — only what the server adds
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: "[0]", op: "insert", key: "a", yamlover: "12" });
     expect(r.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe("a: 12\n");
+    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe("a: 12\n");
     expect((call(h, "/api/json", { path: "", depth: ".inf" }).json.value as Record<string, unknown>).a).toBe(12);
     // the body now exists — the NEXT edit takes the established route and appends to it
     const r2 = await callBody(h, "POST", "/api/edit", { path: "[1]", op: "insert", key: "b", yamlover: "34" });
     expect(r2.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe("a: 12\nb: 34\n");
+    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe("a: 12\nb: 34\n");
     // a keyed CONTAINER at the root derives to a real subdirectory, same as any dir target
     const r3 = await callBody(h, "POST", "/api/edit", { path: "[2]", op: "insert", key: "sub", yamlover: "c: 1" });
     expect(r3.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, "sub", ".yamlover", "body.yamlover"), "utf8")).toBe("c: 1\n");
+    expect(fs.readFileSync(path.join(root, "sub", ".yo", "body.yo"), "utf8")).toBe("c: 1\n");
   });
 
   it("emplace onto the BODYLESS served root materializes the body with the self-value", async () => {
@@ -1135,7 +1135,7 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: "", op: "emplace", yamlover: '"hello"' });
     expect(r.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe("hello\n");
+    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe("hello\n");
   });
 
   it("DOD: one empty directory takes a self value, a scalar field, and a subdirectory", async () => {
@@ -1149,7 +1149,7 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     ] });
     expect(r.status).toBe(200);
     expect(dBody(root)).toBe("12\nscale: 10\n");
-    expect(fs.readFileSync(path.join(root, "d", "sub", ".yamlover", "body.yamlover"), "utf8")).toBe("a: 1\n");
+    expect(fs.readFileSync(path.join(root, "d", "sub", ".yo", "body.yo"), "utf8")).toBe("a: 1\n");
     const j = call(h, "/api/json", { path: ":d", depth: ".inf" }).json as { value: { $yamloverMixed?: { value?: unknown; entries?: { key: string | null; value: unknown }[] } } };
     const m = j.value.$yamloverMixed!;
     expect(m.value).toBe(12); // the dir's own scalar line
@@ -1163,7 +1163,7 @@ describe("/api/edit — compact `- - x` nesting (a one-line nested item is a con
     fs.mkdirSync(path.join(root, "d"));
     return root;
   };
-  const dBody = (root: string) => fs.readFileSync(path.join(root, "d", ".yamlover", "body.yamlover"), "utf8");
+  const dBody = (root: string) => fs.readFileSync(path.join(root, "d", ".yo", "body.yo"), "utf8");
 
   it("the editor's typing flow: `- 12` then a nested `- - 12` / `- 13`, one request per pause", async () => {
     const root = emptyDirTree();
@@ -1177,7 +1177,7 @@ describe("/api/edit — compact `- - x` nesting (a one-line nested item is a con
     const r = await callBody(h, "POST", "/api/edit", { path: ":d[1][1]", op: "insert", yamlover: "13" });
     expect(r.status).toBe(200);
     expect(dBody(root)).toBe("- 12\n- *: item01\n");
-    expect(fs.readFileSync(path.join(root, "d", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("- 12\n- 13\n");
+    expect(fs.readFileSync(path.join(root, "d", "item01", ".yo", "body.yo"), "utf8")).toBe("- 12\n- 13\n");
     expect(call(h, "/api/json", { path: ":d[1]", depth: ".inf" }).json.value).toEqual([12, 13]);
   });
 
@@ -1192,7 +1192,7 @@ describe("/api/edit — compact `- - x` nesting (a one-line nested item is a con
     ] });
     expect(r.status).toBe(200);
     expect(dBody(root)).toBe("- 12\n- *: item01\n");
-    expect(fs.readFileSync(path.join(root, "d", "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("- 12\n- 13\n");
+    expect(fs.readFileSync(path.join(root, "d", "item01", ".yo", "body.yo"), "utf8")).toBe("- 12\n- 13\n");
   });
 
   it("the same fast batch at the served ROOT of an empty project", async () => {
@@ -1205,14 +1205,14 @@ describe("/api/edit — compact `- - x` nesting (a one-line nested item is a con
       { path: "[1][1]", op: "insert", yamlover: "13" },
     ] });
     expect(r.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe("- 12\n- *: item01\n");
-    expect(fs.readFileSync(path.join(root, "item01", ".yamlover", "body.yamlover"), "utf8")).toBe("- 12\n- 13\n");
+    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe("- 12\n- *: item01\n");
+    expect(fs.readFileSync(path.join(root, "item01", ".yo", "body.yo"), "utf8")).toBe("- 12\n- 13\n");
   });
 
   it("emplace and remove on the INLINE nested item keep the outer `- ` marker", async () => {
     const root = emptyDirTree();
-    fs.mkdirSync(path.join(root, "d", ".yamlover"));
-    fs.writeFileSync(path.join(root, "d", ".yamlover", "body.yamlover"), "- 12\n- - 12\n  - 13\n");
+    fs.mkdirSync(path.join(root, "d", ".yo"));
+    fs.writeFileSync(path.join(root, "d", ".yo", "body.yo"), "- 12\n- - 12\n  - 13\n");
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: ":d[1][0]", op: "emplace", yamlover: "14" });
@@ -1237,7 +1237,7 @@ describe("/api/edit — stamping a schema tag on a bodyless directory", () => {
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: "", op: "emplace", meta: CHAPTER_META });
     expect(r.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe(`!!<${CHAPTER_META}>\n`);
+    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe(`!!<${CHAPTER_META}>\n`);
     expect(call(h, "/api/json", { path: "" }).json.format).toBe("x-yamlover-chapter");
   });
 
@@ -1247,7 +1247,7 @@ describe("/api/edit — stamping a schema tag on a bodyless directory", () => {
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: "", op: "emplace", meta: CHAPTER_META, yamlover: '"My book"' });
     expect(r.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe(`!!<${CHAPTER_META}>\nMy book\n`);
+    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe(`!!<${CHAPTER_META}>\nMy book\n`);
     const j = call(h, "/api/json", { path: "" }).json;
     expect(j.format).toBe("x-yamlover-chapter");
     expect(j.title).toBe("My book");
@@ -1262,7 +1262,7 @@ describe("/api/edit — stamping a schema tag on a bodyless directory", () => {
       { path: "", op: "insert", yamlover: '"first paragraph"' },
     ] });
     expect(r.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8"))
+    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8"))
       .toBe(`!!<${CHAPTER_META}>\nMy book\n- "first paragraph"\n`); // a body insert splices verbatim; only the title emplace unquotes
     expect(call(h, "/api/json", { path: "" }).json.format).toBe("x-yamlover-chapter");
   });
@@ -1285,7 +1285,7 @@ describe("/api/edit — stamping a schema tag on a bodyless directory", () => {
     await callBody(h, "POST", "/api/edit", { path: "", op: "emplace", meta: CHAPTER_META, yamlover: '"T"' });
     const r = await callBody(h, "POST", "/api/edit", { path: "", op: "emplace", yamlover: '"T2"' });
     expect(r.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toBe(`!!<${CHAPTER_META}>\nT2\n`);
+    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe(`!!<${CHAPTER_META}>\nT2\n`);
     expect(call(h, "/api/json", { path: "" }).json.format).toBe("x-yamlover-chapter");
   });
 });
@@ -1297,7 +1297,7 @@ describe("/api/edit — stamping a schema tag on a bodyless directory", () => {
 // typing ended up entirely inside one body file, whatever depth it reached.
 describe("/api/edit — an ordinal element grows into a directory member", () => {
   const body = (root: string, ...segs: string[]): string =>
-    fs.readFileSync(path.join(root, ...segs, ".yamlover", "body.yamlover"), "utf8");
+    fs.readFileSync(path.join(root, ...segs, ".yo", "body.yo"), "utf8");
   const listing = (root: string): string[] => {
     const out: string[] = [];
     const walk = (dir: string, rel: string): void => {
@@ -1322,14 +1322,14 @@ describe("/api/edit — an ordinal element grows into a directory member", () =>
     }
     // each level is its OWN directory — the collection never accumulates in one file
     expect(listing(root)).toEqual([
-      ".yamlover/",
-      ".yamlover/body.yamlover",
+      ".yo/",
+      ".yo/body.yo",
       "item01/",
-      "item01/.yamlover/",
-      "item01/.yamlover/body.yamlover",
+      "item01/.yo/",
+      "item01/.yo/body.yo",
       "item01/item01/",
-      "item01/item01/.yamlover/",
-      "item01/item01/.yamlover/body.yamlover",
+      "item01/item01/.yo/",
+      "item01/item01/.yo/body.yo",
     ]);
     expect(body(root)).toBe("- *: item01\n");
     expect(body(root, "item01")).toBe("World\n- *: item01\n"); // the old scalar is the member's SELF-value
@@ -1373,25 +1373,25 @@ describe("/api/edit — an ordinal element grows into a directory member", () =>
     expect((await callBody(h, "POST", "/api/edit", { path: ":[0]", op: "insert", yamlover: "Row" })).status).toBe(200);
     const r = await callBody(h, "POST", "/api/edit", { path: ":[0]", op: "emplace", yamlover: "Row\n- a\n- b", meta: "format: text/marklower" });
     expect(r.status, JSON.stringify(r.json)).toBe(200);
-    expect(listing(root)).toEqual([".yamlover/", ".yamlover/body.yamlover"]); // no member directory
+    expect(listing(root)).toEqual([".yo/", ".yo/body.yo"]); // no member directory
     expect(body(root)).toContain("- !!<format: text/marklower> Row");
   });
 
   it("a FILE document keeps the grown element INLINE — there is no directory family to inherit", async () => {
     // the same transition, the other storage family: defaultChildConcrete keeps a file document's
     // children inline, so the element grows in place instead of lifting out
-    const root = tmpTree({ "note.yamlover": "- World\n" });
+    const root = tmpTree({ "note.yo": "- World\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yamlover[0]", op: "emplace", yamlover: "World\n- Eurasia" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yo[0]", op: "emplace", yamlover: "World\n- Eurasia" });
     expect(r.status, JSON.stringify(r.json)).toBe(200);
-    expect(fs.readFileSync(path.join(root, "note.yamlover"), "utf8")).toBe("- World\n  - Eurasia\n");
-    expect(listing(root).filter((p) => p.endsWith("/"))).toEqual([".yamlover/"]);
+    expect(fs.readFileSync(path.join(root, "note.yo"), "utf8")).toBe("- World\n  - Eurasia\n");
+    expect(listing(root).filter((p) => p.endsWith("/"))).toEqual([".yo/"]);
   });
 
-  it("the hidden .yamlover overlay never takes a POSITIONAL address", async () => {
+  it("the hidden .yo overlay never takes a POSITIONAL address", async () => {
     // In a fresh project the overlay is the root's only indexed child, so `:[0]` used to alias it —
-    // and the edit then wrote `.yamlover/.yamlover/`, the format violation this guards.
+    // and the edit then wrote `.yo/.yo/`, the format violation this guards.
     const root = tmpTree({});
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -1400,7 +1400,7 @@ describe("/api/edit — an ordinal element grows into a directory member", () =>
       { path: ":[0][0]", op: "insert", yamlover: "Eurasia" },
     ] });
     expect(r.status, JSON.stringify(r.json)).toBe(200);
-    expect(fs.existsSync(path.join(root, ".yamlover", ".yamlover"))).toBe(false);
+    expect(fs.existsSync(path.join(root, ".yo", ".yo"))).toBe(false);
     expect((call(h, "/api/doctor").json as { diagnostics: unknown[] }).diagnostics).toEqual([]);
   });
 });
@@ -1416,10 +1416,10 @@ describe("/api/tree — anchored members read as indices, scalars ride the row",
 
   async function listTree() {
     const root = tmpTree({
-      ".yamlover/body.yamlover": "- *: item01\n- plain\n",
-      "item01/.yamlover/body.yamlover": "World\n- *: item01\n",
-      "item01/item01/.yamlover/body.yamlover": "Eurasia\n- Europe\n- Asia\n",
-      "loose.yamlover": "Unlisted\n", // a child the body never named — keeps its storage name
+      ".yo/body.yo": "- *: item01\n- plain\n",
+      "item01/.yo/body.yo": "World\n- *: item01\n",
+      "item01/item01/.yo/body.yo": "Eurasia\n- Europe\n- Asia\n",
+      "loose.yo": "Unlisted\n", // a child the body never named — keeps its storage name
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -1434,7 +1434,7 @@ describe("/api/tree — anchored members read as indices, scalars ride the row",
       "      [0] = Europe",
       "      [1] = Asia",
       "  [1] = plain",
-      "  loose.yamlover = Unlisted", // never granted a position: still keyed, still named
+      "  loose.yo = Unlisted", // never granted a position: still keyed, still named
     ]);
   });
 
@@ -1448,21 +1448,21 @@ describe("/api/tree — anchored members read as indices, scalars ride the row",
 
   it("truncates a long scalar to one capped line", async () => {
     const long = "x".repeat(200);
-    const root = tmpTree({ ".yamlover/body.yamlover": "- *: item01\n", "item01/.yamlover/body.yamlover": `${long}\nkeyed: v\n` });
+    const root = tmpTree({ ".yo/body.yo": "- *: item01\n", "item01/.yo/body.yo": `${long}\nkeyed: v\n` });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const v = tree(h).children[0].value!;
     expect(v).toHaveLength(80);
     expect(v.endsWith("…")).toBe(true);
     // multi-line takes only the FIRST line
-    const root2 = tmpTree({ "note.yamlover": "|\n  first line\n  second line\n" });
+    const root2 = tmpTree({ "note.yo": "|\n  first line\n  second line\n" });
     const h2 = createHandlers(root2, { gitignore: false });
     await h2.ready;
-    expect(tree(h2).children.find((c) => c.label === "note.yamlover")?.value).toBe("first line");
+    expect(tree(h2).children.find((c) => c.label === "note.yo")?.value).toBe("first line");
   });
 
   it("shows no value for a BINARY member, which still reads as an index", async () => {
-    const root = tmpTree({ "doc/.yamlover/body.yamlover": "- note\n- *: pic.png\n", "doc/pic.png": "PNG" });
+    const root = tmpTree({ "doc/.yo/body.yo": "- note\n- *: pic.png\n", "doc/pic.png": "PNG" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const pic = tree(h, ":doc").children.find((c) => c.path === ":doc:pic.png")!;
@@ -1471,7 +1471,7 @@ describe("/api/tree — anchored members read as indices, scalars ride the row",
   });
 
   it("never repeats the label — a titled chapter's self-value IS its label", async () => {
-    const root = tmpTree({ "doc/.yamlover/body.yamlover": '!!<*yamlover: $defs: chapter>\n"The Title"\n- prose\n', ...DEFS });
+    const root = tmpTree({ "doc/.yo/body.yo": '!!<*yamlover: $defs: chapter>\n"The Title"\n- prose\n', ...DEFS });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const doc = tree(h, ":doc");
@@ -1481,8 +1481,8 @@ describe("/api/tree — anchored members read as indices, scalars ride the row",
 
   it("a TITLED anchored member still goes by its title — the index is only the fallback", async () => {
     const root = tmpTree({
-      "doc/.yamlover/body.yamlover": '!!<*yamlover: $defs: chapter>\n"Book"\n- *: 01-Part\n',
-      "doc/01-Part/.yamlover/body.yamlover": '!!<*yamlover: $defs: chapter>\n"Part One"\n- text\n',
+      "doc/.yo/body.yo": '!!<*yamlover: $defs: chapter>\n"Book"\n- *: 01-Part\n',
+      "doc/01-Part/.yo/body.yo": '!!<*yamlover: $defs: chapter>\n"Part One"\n- text\n',
       ...DEFS,
     });
     const h = createHandlers(root, { gitignore: false });
@@ -1497,7 +1497,7 @@ describe("/api/tree — anchored members read as indices, scalars ride the row",
 // SEQ slipped through only because it carries no colon. One grammatical rule (`isFlowToken`) now
 // covers both, at both targets, to any nesting depth.
 describe("/api/edit — a flow token payload stays one token", () => {
-  const bodyOf = (root: string) => fs.readFileSync(path.join(root, "d", ".yamlover", "body.yamlover"), "utf8");
+  const bodyOf = (root: string) => fs.readFileSync(path.join(root, "d", ".yo", "body.yo"), "utf8");
   const cases: [string, string][] = [
     ["a flow seq", "[12, 13, 14]"],
     ["a flow map", "{a: 1}"],
@@ -1508,7 +1508,7 @@ describe("/api/edit — a flow token payload stays one token", () => {
 
   for (const [name, token] of cases) {
     it(`${name} emplaces verbatim at a KEYED path`, async () => {
-      const root = tmpTree({ "d/.yamlover/body.yamlover": "k: old\n" });
+      const root = tmpTree({ "d/.yo/body.yo": "k: old\n" });
       const h = createHandlers(root, { gitignore: false });
       await h.ready;
       const r = await callBody(h, "POST", "/api/edit", { path: ":d:k", op: "emplace", yamlover: token });
@@ -1517,7 +1517,7 @@ describe("/api/edit — a flow token payload stays one token", () => {
     });
 
     it(`${name} emplaces verbatim at the document ROOT — it IS the document`, async () => {
-      const root = tmpTree({ "d/.yamlover/body.yamlover": "" });
+      const root = tmpTree({ "d/.yo/body.yo": "" });
       const h = createHandlers(root, { gitignore: false });
       await h.ready;
       const r = await callBody(h, "POST", "/api/edit", { path: ":d", op: "emplace", yamlover: token });
@@ -1527,7 +1527,7 @@ describe("/api/edit — a flow token payload stays one token", () => {
   }
 
   it("replacing a document root's body with a flow token keeps the `!!<…>` banner", async () => {
-    const root = tmpTree({ "d/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\nTitle\n- chunk\n", ...DEFS });
+    const root = tmpTree({ "d/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nTitle\n- chunk\n", ...DEFS });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: ":d", op: "emplace", yamlover: "[1, 2]" });
@@ -1538,18 +1538,18 @@ describe("/api/edit — a flow token payload stays one token", () => {
   it("an ordinary keyed payload is still entry lines — the rule is about FLOW, not braces", async () => {
     // a FILE-backed document, so the keyed scalar→container promotion (a dir-backed concern) is
     // not in play and the assertion is purely about how the payload is grammatically classified
-    const root = tmpTree({ "note.yamlover": "k: old\n" });
+    const root = tmpTree({ "note.yo": "k: old\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yamlover:k", op: "emplace", yamlover: "a: 1\nb: 2" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yo:k", op: "emplace", yamlover: "a: 1\nb: 2" });
     expect(r.status, JSON.stringify(r.json)).toBe(200);
     // grouped as ENTRY LINES and written under the key (the old scalar stays as the omni
     // self-value) — never carried across as one opaque token the way a flow payload is
-    expect(fs.readFileSync(path.join(root, "note.yamlover"), "utf8")).toBe("k: old\n  a: 1\n  b: 2\n");
+    expect(fs.readFileSync(path.join(root, "note.yo"), "utf8")).toBe("k: old\n  a: 1\n  b: 2\n");
   });
 
   it("an UNTERMINATED flow token is not one — it stays a plain scalar", async () => {
-    const root = tmpTree({ "d/.yamlover/body.yamlover": "k: old\n" });
+    const root = tmpTree({ "d/.yo/body.yo": "k: old\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: ":d:k", op: "emplace", yamlover: "'[1, 2'" });
@@ -1567,18 +1567,18 @@ describe("/api/edit — a flow token payload stays one token", () => {
 describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
   const KR = "a: {\n  x: 1,\n  y: 2\n}\nb: 9\n";
   async function krHandlers(src = KR) {
-    const root = tmpTree({ "note.yamlover": src });
+    const root = tmpTree({ "note.yo": src });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    return { root, h, disk: () => fs.readFileSync(path.join(root, "note.yamlover"), "utf8") };
+    return { root, h, disk: () => fs.readFileSync(path.join(root, "note.yo"), "utf8") };
   }
   const valueOf = (h: Parameters<typeof call>[0]) =>
-    (call(h, "/api/json", { path: ":note.yamlover", depth: ".inf" }).json as { value: unknown }).value;
+    (call(h, "/api/json", { path: ":note.yo", depth: ".inf" }).json as { value: unknown }).value;
 
   it("projects the value and leaves its siblings alone", async () => {
     const { h, disk } = await krHandlers();
     expect(valueOf(h)).toEqual({ a: { x: 1, y: 2 }, b: 9 });
-    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yamlover:b", op: "emplace", yamlover: "10" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yo:b", op: "emplace", yamlover: "10" });
     expect(r.status).toBe(200);
     expect(disk()).toBe("a: {\n  x: 1,\n  y: 2\n}\nb: 10\n"); // the token is untouched, byte for byte
   });
@@ -1586,7 +1586,7 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
   it("emplaces a MULTI-LINE payload as the whole value", async () => {
     const { h, disk } = await krHandlers();
     const r = await callBody(h, "POST", "/api/edit",
-      { path: ":note.yamlover:a", op: "emplace", yamlover: "{\n  x: 1,\n  y: 9\n}" });
+      { path: ":note.yo:a", op: "emplace", yamlover: "{\n  x: 1,\n  y: 9\n}" });
     expect(r.status).toBe(200);
     expect(disk()).toBe("a: {\n  x: 1,\n  y: 9\n}\nb: 9\n"); // no orphaned interior lines
     expect(valueOf(h)).toEqual({ a: { x: 1, y: 9 }, b: 9 });
@@ -1600,7 +1600,7 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
       ["a: {\n  x: 1\n}\n", "y: 9", "a:\n  y: 9\n"],             // K&R → block
     ] as const) {
       const { h, disk } = await krHandlers(start);
-      const r = await callBody(h, "POST", "/api/edit", { path: ":note.yamlover:a", op: "emplace", yamlover: payload });
+      const r = await callBody(h, "POST", "/api/edit", { path: ":note.yo:a", op: "emplace", yamlover: payload });
       expect(r.status, `${start} + ${payload}`).toBe(200);
       expect(disk(), `${start} + ${payload}`).toBe(want);
     }
@@ -1608,7 +1608,7 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
 
   it("removes the whole token, interior included", async () => {
     const { h, disk } = await krHandlers();
-    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yamlover:a", op: "remove" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yo:a", op: "remove" });
     expect(r.status).toBe(200);
     expect(disk()).toBe("b: 9\n");
   });
@@ -1617,20 +1617,20 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
     const { h: h1, disk: d1 } = await krHandlers("- [\n  1,\n  2\n]\n- 7\n");
     expect(valueOf(h1)).toEqual([[1, 2], 7]);
     expect((await callBody(h1, "POST", "/api/edit",
-      { path: ":note.yamlover[0]", op: "emplace", yamlover: "[\n  1,\n  3\n]" })).status).toBe(200);
+      { path: ":note.yo[0]", op: "emplace", yamlover: "[\n  1,\n  3\n]" })).status).toBe(200);
     expect(d1()).toBe("- [\n  1,\n  3\n]\n- 7\n");
 
     const { h: h2, disk: d2 } = await krHandlers("a:\n  b: {\n    x: 1\n  }\n");
     expect(valueOf(h2)).toEqual({ a: { b: { x: 1 } } });
     expect((await callBody(h2, "POST", "/api/edit",
-      { path: ":note.yamlover:a:b", op: "emplace", yamlover: "{\n  x: 2\n}" })).status).toBe(200);
+      { path: ":note.yo:a:b", op: "emplace", yamlover: "{\n  x: 2\n}" })).status).toBe(200);
     expect(d2()).toBe("a:\n  b: {\n    x: 2\n  }\n"); // the closer keeps its key's column
   });
 
   it("REFUSES a path INTO the token, naming the whole-token edit instead", async () => {
     // a flow value has no interior line to splice (v1) — the diagnostic has to say what to do
     const { h, disk } = await krHandlers();
-    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yamlover:a:x", op: "emplace", yamlover: "5" });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yo:a:x", op: "emplace", yamlover: "5" });
     expect(r.status).toBe(400);
     expect((r.json as { error: string }).error).toMatch(/written in flow form — edit it as a whole token/);
     expect(disk()).toBe(KR); // and nothing was written
@@ -1641,7 +1641,7 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
     // not among them: a K&R document rendered as BLOCK, because the switch never reached the
     // client. Any field is worth sending — the per-child buckets always used that test.
     const { h } = await krHandlers('[\n  {\n    "name": "Eurasia"\n  }\n]\n');
-    const j = call(h, "/api/json", { path: ":note.yamlover", depth: ".inf" }).json as
+    const j = call(h, "/api/json", { path: ":note.yo", depth: ".inf" }).json as
       { comments?: Record<string, { concrete?: string }> };
     expect(j.comments?.[""]).toEqual({ concrete: "json5p" });
   });
@@ -1650,7 +1650,7 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
     // Layout is per container (2026-07-27): a multi-line container carries its own `concrete`,
     // an inner ONE-LINE token keeps `repr: yaml/flow` — and round-trips as one line.
     const { h } = await krHandlers("a: {\n  q: [\n    1\n  ],\n  t: {p: 1}\n}\nb: {x: 1}\n");
-    const j = call(h, "/api/json", { path: ":note.yamlover", depth: ".inf" }).json as
+    const j = call(h, "/api/json", { path: ":note.yo", depth: ".inf" }).json as
       { comments?: Record<string, { concrete?: string; repr?: string }> };
     expect(j.comments?.["/a"]).toEqual({ concrete: "json5p" });
     expect(j.comments?.["/a/q"]).toEqual({ concrete: "json5p" }); // its own span, its own bit

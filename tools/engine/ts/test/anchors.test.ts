@@ -11,7 +11,7 @@ import { resolveDocument } from '../src/resolve.ts';
 import { Store } from '../src/store.ts';
 
 function edges(src: string): string[] {
-  return normalize(buildGraph(parseYamlover(src, 'x.yamlover')))
+  return normalize(buildGraph(parseYamlover(src, 'x.yo')))
     .filter((e) => e.kind !== 'contain')
     .map((e) => `${e.from} --${e.label ?? '[]'}--> ${e.to}`)
     .sort();
@@ -38,7 +38,7 @@ test('equivalence: ~key/~- and &P:key/&P[] normalize to the same edges (Chemical
 
 test('the two-line tagged-scalar file: stays an integer in the store, back edge indexed', () => {
   // the root is one omni node: the `tags` field, the scalar value 30, and the membership
-  const doc = parseYamlover('tags:\n  whole: Whole numbers\n30\n&: tags: whole[]\n', 'thirty.yamlover');
+  const doc = parseYamlover('tags:\n  whole: Whole numbers\n30\n&: tags: whole[]\n', 'thirty.yo');
   const s = new Store(':memory:');
   s.indexDocument(doc);
   const root = s.node(':');
@@ -49,7 +49,7 @@ test('the two-line tagged-scalar file: stays an integer in the store, back edge 
 });
 
 test('a dangling anchor is reported, never dropped', () => {
-  const doc = parseYamlover('x: 1\n  &: nowhere: key\n', 'd.yamlover');
+  const doc = parseYamlover('x: 1\n  &: nowhere: key\n', 'd.yo');
   const dangling = resolveDocument(doc).filter((r) => r.target.kind === 'unresolved');
   assert.equal(dangling.length, 1);
   assert.equal(dangling[0].raw, '&: nowhere: key');

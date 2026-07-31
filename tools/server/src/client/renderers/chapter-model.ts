@@ -301,7 +301,7 @@ export function diffChapter(committed: ChapterModel, current: ChapterModel): Edi
   // A formatless container being written AS a chapter: the first batch stamps the document's root
   // `!!<*::yamlover:$defs:chapter>`. The server takes `meta` at an empty path either alone
   // (setRootTag) or riding the title emplace (setRootTag + setRootSelfValue) — and materializes a
-  // bodyless directory's `.yamlover/body.yamlover` in the same op, so a plain folder becomes a
+  // bodyless directory's `.yo/body.yo` in the same op, so a plain folder becomes a
   // chapter with one edit. Like `legacyTitleKeyed`, this is migrate-on-first-edit.
   const stamp = current.needsMeta ? CHAPTER_META : undefined;
   if (current.title !== committed.title) {

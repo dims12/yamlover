@@ -35,16 +35,16 @@ function typeKeys(script: string): void {
 
 describe("the yed mount — real server, real file", () => {
   async function mount(initial: string): Promise<{ root: string; bodyPath: string; alerts: string[]; done: () => void }> {
-    const root = tmpTree({ "note.yamlover": initial });
+    const root = tmpTree({ "note.yo": initial });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const restoreFetch = installFetch(h);
     const alerts = captureAlerts();
-    const { container, unmount } = render(<YedEditor path=":note.yamlover" onNavigate={() => {}} />);
+    const { container, unmount } = render(<YedEditor path=":note.yo" onNavigate={() => {}} />);
     await waitFor(() => expect(container.querySelector("[data-testid=y2-doc]")).toBeTruthy(), { timeout: 3000 });
     return {
       root,
-      bodyPath: path.join(root, "note.yamlover"),
+      bodyPath: path.join(root, "note.yo"),
       alerts: alerts.messages,
       done: () => { unmount(); restoreFetch(); alerts.restore(); },
     };
@@ -84,7 +84,7 @@ describe("the yed mount on an EMPTY TREE — the document root is the only addre
     const { container, unmount } = render(<YedEditor path=":" onNavigate={() => {}} />);
     await waitFor(() => expect(container.querySelector("[data-testid=y2-doc]")).toBeTruthy(), { timeout: 3000 });
     return {
-      bodyPath: path.join(root, ".yamlover", "body.yamlover"),
+      bodyPath: path.join(root, ".yo", "body.yo"),
       alerts: alerts.messages,
       done: () => { unmount(); restoreFetch(); alerts.restore(); },
     };

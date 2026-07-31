@@ -227,6 +227,72 @@ describe("Tab / Shift-Tab — structural moves", () => {
   });
 });
 
+describe("THE HEAD-OF-ROW EXCEPTION — Enter at the start of a committed value", () => {
+  it("opens the sibling hole BEFORE `- alpha`; the new first element inserts at [0]", async () => {
+    fetchNode.mockResolvedValue(ARR);
+    const { container } = await mount(":d");
+    const alpha = Array.from(container.querySelectorAll<HTMLElement>("[data-yed-cell]")).find((c) => c.textContent === "alpha")!;
+    setCaret(alpha, 0); // Home — the reported caret position
+    fireEvent.keyDown(alpha, { key: "Enter" });
+    // the fresh hole row stands ABOVE `- alpha`, caret in it; nothing committed yet
+    const hole = container.querySelector<HTMLElement>(".yed-hole")!;
+    expect(hole, "the sibling hole must be drawn").toBeTruthy();
+    expect(document.activeElement).toBe(hole);
+    const rowTexts = Array.from(container.querySelectorAll(".yed-row")).map((r) => r.textContent ?? "");
+    expect(rowTexts.indexOf("")).toBeLessThan(rowTexts.findIndex((t) => t.includes("alpha")));
+    expect(editChunks).not.toHaveBeenCalled();
+    // typing the new first element lands it at [0] — `- alpha` became [1]
+    type(hole, "- ");
+    const holes = container.querySelectorAll<HTMLElement>(".yed-hole");
+    const v = holes[holes.length - 1];
+    expect(document.activeElement).toBe(v);
+    type(v, "zero");
+    fireEvent.keyDown(v, { key: "Enter" });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":d[0]", op: "insert", yamlover: "zero" }]), { timeout: 2000 });
+  });
+
+  it("mid-text Enter keeps THE LEVEL RULE's descend — the hole opens INSIDE the entry", async () => {
+    fetchNode.mockResolvedValue(ARR);
+    const { container } = await mount(":d");
+    const alpha = Array.from(container.querySelectorAll<HTMLElement>("[data-yed-cell]")).find((c) => c.textContent === "alpha")!;
+    setCaret(alpha, 2);
+    fireEvent.keyDown(alpha, { key: "Enter" });
+    const inside = container.querySelector<HTMLElement>(".yed-indent .yed-hole")!;
+    expect(inside, "the descend hole must open inside the entry").toBeTruthy();
+    expect(document.activeElement).toBe(inside);
+  });
+});
+
+describe("THE LEVEL RULE descend lands right AFTER the value line", () => {
+  it("Enter on an omni's self-value opens the hole before its first field, not at the end", async () => {
+    fetchNode.mockResolvedValue({
+      path: ":d", type: "object", concrete: "yamlover", title: null, description: null,
+      value: { $yamloverMixed: { kind: "omni", value: "one", selfAt: 0, entries: [{ key: null, value: "two" }, { key: null, value: "three" }] } },
+    });
+    const { container } = await mount(":d");
+    const self = Array.from(container.querySelectorAll<HTMLElement>("[data-yed-cell]")).find((c) => c.textContent === "one")!;
+    fireEvent.keyDown(self, { key: "Enter" });
+    // the fresh hole row sits BETWEEN `one` and `- two` (reported in yed2: it opened after `- three`)
+    const hole = container.querySelector<HTMLElement>(".yed-hole")!;
+    expect(hole, "the descend hole must be drawn").toBeTruthy();
+    expect(document.activeElement).toBe(hole);
+    const rowTexts = Array.from(container.querySelectorAll(".yed-row")).map((r) => r.textContent ?? "");
+    const holeRow = rowTexts.indexOf("");
+    expect(holeRow).toBeGreaterThan(rowTexts.findIndex((t) => t.includes("one")));
+    expect(holeRow).toBeLessThan(rowTexts.findIndex((t) => t.includes("two")));
+    // typing the new first field lands it at [0]
+    type(hole, "- ");
+    const holes = container.querySelectorAll<HTMLElement>(".yed-hole");
+    const v = holes[holes.length - 1];
+    type(v, "x");
+    fireEvent.keyDown(v, { key: "Enter" });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":d", op: "emplace", yamlover: "one" },
+      { path: ":d[0]", op: "insert", yamlover: "x" },
+    ]), { timeout: 2000 });
+  });
+});
+
 describe("the EMPTY document — a root hole with the full grammar", () => {
   const EMPTY = {
     path: ":n", type: "null", format: null, valueType: "null", concrete: "file/yamlover",
@@ -287,7 +353,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", key: "title", yamlover: "T" }]), { timeout: 2000 });
   });
 
-  it("YAMLOVER_EDITOR.yamlover: `pets:` ↵ / `- ` / `name: ` / `Rex` ↵ — the canonical example types through", async () => {
+  it("YAMLOVER_EDITOR.yo: `pets:` ↵ / `- ` / `name: ` / `Rex` ↵ — the canonical example types through", async () => {
     const { container } = await mount(":n");
     const hole = container.querySelector<HTMLElement>(".yed-hole")!;
     type(hole, "pets:");
@@ -630,7 +696,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     expect(document.activeElement).toBe(nested);
   });
 
-  it("YAMLOVER_EDITOR.yamlover: `- mon` / `12` / `12: tue` keep the order they were ENTERED in", async () => {
+  it("YAMLOVER_EDITOR.yo: `- mon` / `12` / `12: tue` keep the order they were ENTERED in", async () => {
     const { container } = await mount(":n");
     const hole = container.querySelector<HTMLElement>(".yed-hole")!;
     type(hole, "- ");
@@ -656,7 +722,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     expect(rows[2]).toContain("tue");
   });
 
-  it("YAMLOVER_EDITOR.yamlover: `12` + Enter commits AND allocates the next row (entry_hole, focused)", async () => {
+  it("YAMLOVER_EDITOR.yo: `12` + Enter commits AND allocates the next row (entry_hole, focused)", async () => {
     const { container } = await mount(":n");
     const hole = container.querySelector<HTMLElement>(".yed-hole")!;
     type(hole, "12");
@@ -687,7 +753,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     expect(rows[0].querySelector(".yed-hole")).toBeTruthy(); // the value cell shares the row
   });
 
-  it("YAMLOVER_EDITOR.yamlover: the CLOSING quote jumps the caret AFTER it (quoted_token_closed)", async () => {
+  it("YAMLOVER_EDITOR.yo: the CLOSING quote jumps the caret AFTER it (quoted_token_closed)", async () => {
     const { container } = await mount(":n");
     const hole = container.querySelector<HTMLElement>(".yed-hole")!;
     type(hole, '"');
@@ -704,7 +770,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n", op: "emplace", yamlover: '"hi"' }]), { timeout: 2000 });
   });
 
-  it("YAMLOVER_EDITOR.yamlover: `\"value\":` makes a QUOTED KEY — `\"value\": 12` lands as typed", async () => {
+  it("YAMLOVER_EDITOR.yo: `\"value\":` makes a QUOTED KEY — `\"value\": 12` lands as typed", async () => {
     const { container } = await mount(":n");
     const hole = container.querySelector<HTMLElement>(".yed-hole")!;
     type(hole, '"');
@@ -721,7 +787,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", key: '"value"', yamlover: "12" }]), { timeout: 2000 });
   });
 
-  it("YAMLOVER_EDITOR.yamlover: `\"value` + Enter keeps the QUOTED concrete (the self line shows its quotes)", async () => {
+  it("YAMLOVER_EDITOR.yo: `\"value` + Enter keeps the QUOTED concrete (the self line shows its quotes)", async () => {
     const { container } = await mount(":n");
     const hole = container.querySelector<HTMLElement>(".yed-hole")!;
     type(hole, '"');
@@ -735,7 +801,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     expect(container.textContent).toContain("value");
   });
 
-  it("YAMLOVER_EDITOR.yamlover: Backspace in a fresh quote/pointer cell dismantles it (empty_cell_of_origin)", async () => {
+  it("YAMLOVER_EDITOR.yo: Backspace in a fresh quote/pointer cell dismantles it (empty_cell_of_origin)", async () => {
     const { container } = await mount(":n");
     let hole = container.querySelector<HTMLElement>(".yed-hole")!;
     type(hole, '"');
@@ -757,7 +823,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     expect(container.querySelector(".yed-hole")).toBeTruthy();
   });
 
-  it("YAMLOVER_EDITOR.yamlover: `- january` Enter `31` — the 31 is the node's own scalar line, as-is", async () => {
+  it("YAMLOVER_EDITOR.yo: `- january` Enter `31` — the 31 is the node's own scalar line, as-is", async () => {
     const { container } = await mount(":n");
     const hole = container.querySelector<HTMLElement>(".yed-hole")!;
     type(hole, "- ");
@@ -1054,8 +1120,8 @@ describe("paste — valid yamlover source materializes structure", () => {
 
 describe("NodeView — the create flow opens the fresh node IN the editor", () => {
   const FRESH = {
-    path: ":New%20node.yamlover", type: "string", format: null, valueType: "string",
-    concrete: "file/yamlover", documentPath: ":New%20node.yamlover",
+    path: ":New%20node.yo", type: "string", format: null, valueType: "string",
+    concrete: "file/yamlover", documentPath: ":New%20node.yo",
     title: null, description: null, value: "", comments: { "": { raw: '""' } },
   };
 
@@ -1070,7 +1136,7 @@ describe("NodeView — the create flow opens the fresh node IN the editor", () =
     await waitFor(() => expect(container.querySelector(".nodehead")).toBeTruthy());
     // the app's create handler: navigate(newPath) + setUnlockSignal(s => s + 1) — one batch
     rerender(
-      <NodeView path=":New%20node.yamlover" format={"yamlover" as never} unlockSignal={1} onFormat={noop} onNavigate={noop} />,
+      <NodeView path=":New%20node.yo" format={"yamlover" as never} unlockSignal={1} onFormat={noop} onNavigate={noop} />,
     );
     await waitFor(() => {
       expect(container.querySelector(".nodehead")).toBeTruthy();            // the toolbar is back
@@ -1414,7 +1480,7 @@ describe("LIVE keyed trigger on committed tokens — `abc` + `: ` restructures l
 // `$yamloverMixed` entries flagged `anchor: true` — drawn `- &key value`, the anchor a DIMMED
 // read-only decoration; the unreferenced remainder is ordinary keyed rows. Value edits address
 // the KEYED store path; structural ops (remove/indent/dedent) emit nothing for derived entries —
-// membership and order belong to body.yamlover, which the yed does not rewrite (v1).
+// membership and order belong to body.yo, which the yed does not rewrite (v1).
 describe("derived anchors — positional members of a dir-backed pointer-array", () => {
   const DIR56 = {
     path: ":d", type: "mixed", concrete: "dir", title: null, description: null,
@@ -1454,7 +1520,7 @@ describe("derived anchors — positional members of a dir-backed pointer-array",
     expect(editChunks).toHaveBeenCalledTimes(1);
   });
 
-  it("Tab on a derived member emits nothing and moves nothing (order is body.yamlover's)", async () => {
+  it("Tab on a derived member emits nothing and moves nothing (order is body.yo's)", async () => {
     fetchNode.mockResolvedValue(DIR56);
     const { container } = await mount(":d");
     const fortyTwo = Array.from(container.querySelectorAll<HTMLElement>("[data-yed-cell]")).find((c) => c.textContent === "42")!;

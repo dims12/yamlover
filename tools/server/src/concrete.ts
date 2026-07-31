@@ -18,7 +18,7 @@
 //
 //   Directories:
 //       dir          — a plain OS directory
-//       dir/yamlover — a directory carrying a `.yamlover/` marker; descendants are yamlover
+//       dir/yamlover — a directory carrying a `.yo/` marker; descendants are yamlover
 //
 //   Multi-document — one file holding several `---`-separated documents, each an
 //   element of the singular concrete (RESERVED — multi-doc parsing is Phase 2c):
@@ -113,7 +113,8 @@ export function interiorOf(c?: string | null): Inlined {
 // listed (a markdown/csv material, an unknown text file) is modeled as a
 // `file/yaml` scalar string — see CONCRETES.md.
 const EXT_FILE_CONCRETE: Record<string, FileConcrete> = {
-  ".yamlover": "file/yamlover",
+  ".yo": "file/yamlover",
+  ".yamlover": "file/yamlover", // legacy spelling — read forever, never written (YOMIGRATION.md §1)
   ".yaml": "file/yaml",
   ".yml": "file/yaml",
   ".json": "file/json",
@@ -122,7 +123,7 @@ const EXT_FILE_CONCRETE: Record<string, FileConcrete> = {
 };
 
 /** The `file/<lang>` concrete of a path whose extension names a yamlover DATA language
- *  (`.yaml`/`.yml`/`.yamlover`/`.json`/`.json5`/`.json5p`), or null for anything else (a
+ *  (`.yaml`/`.yml`/`.yo`/`.json`/`.json5`/`.json5p`), or null for anything else (a
  *  binary, a markdown/csv material, an extensionless file). Pure string work so the client
  *  bundle can share it (no `node:path`). */
 export function dataFileConcrete(filePath: string): FileConcrete | null {

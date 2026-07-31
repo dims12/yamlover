@@ -10,8 +10,8 @@ import { loadSettings, DEFAULT_SETTINGS, writeSettingKey, ensureSettingsFile } f
 function projectWith(settings: string | null): string {
   const root = mkdtempSync(join(tmpdir(), 'yo-settings-'));
   if (settings != null) {
-    mkdirSync(join(root, '.yamlover'), { recursive: true });
-    writeFileSync(join(root, '.yamlover', 'settings.yamlover'), settings);
+    mkdirSync(join(root, '.yo'), { recursive: true });
+    writeFileSync(join(root, '.yo', 'settings.yo'), settings);
   }
   return root;
 }
@@ -87,14 +87,14 @@ test('uri + exports: parsed from the config (IMPORTS.md §1/§2); absent → und
 test('writeSettingKey sets one key surgically, preserving comments + other fields; round-trips', () => {
   const root = projectWith('# my config\nuri: ::: acme.example\ntags: *:: tags\n');
   writeSettingKey(root, 'annotations', '*:: notes');
-  const src = readFileSync(join(root, '.yamlover', 'settings.yamlover'), 'utf8');
+  const src = readFileSync(join(root, '.yo', 'settings.yo'), 'utf8');
   assert.ok(src.includes('# my config')); // comment preserved
   assert.ok(src.includes('tags: *:: tags')); // other field preserved
   assert.ok(src.includes('annotations: *:: notes'));
   assert.equal(loadSettings(root).annotations, ':notes');
   // replacing it in place does not duplicate the key
   writeSettingKey(root, 'annotations', '*:: marks');
-  const src2 = readFileSync(join(root, '.yamlover', 'settings.yamlover'), 'utf8');
+  const src2 = readFileSync(join(root, '.yo', 'settings.yo'), 'utf8');
   assert.equal(src2.match(/^annotations:/gm)?.length, 1);
   assert.equal(loadSettings(root).annotations, ':marks');
   rmSync(root, { recursive: true, force: true });
@@ -103,9 +103,9 @@ test('writeSettingKey sets one key surgically, preserving comments + other field
 test('ensureSettingsFile creates a defaults file when absent (and it loads to the defaults); idempotent, never clobbers', () => {
   // absent → created, tagged as a config node, parsing back to the DEFAULT_SETTINGS values
   const root = projectWith(null);
-  assert.equal(existsSync(join(root, '.yamlover', 'settings.yamlover')), false);
+  assert.equal(existsSync(join(root, '.yo', 'settings.yo')), false);
   ensureSettingsFile(root);
-  const created = readFileSync(join(root, '.yamlover', 'settings.yamlover'), 'utf8');
+  const created = readFileSync(join(root, '.yo', 'settings.yo'), 'utf8');
   assert.ok(created.includes('!!<*yamlover:$defs:config>')); // renders with the settings editor
   const s = loadSettings(root);
   assert.equal(s.annotations, DEFAULT_SETTINGS.annotations);
@@ -114,7 +114,7 @@ test('ensureSettingsFile creates a defaults file when absent (and it loads to th
   // present → left exactly as-is (hand edits survive)
   const hand = projectWith('# mine\ntags: *:: my: tags\n');
   ensureSettingsFile(hand);
-  assert.equal(readFileSync(join(hand, '.yamlover', 'settings.yamlover'), 'utf8'), '# mine\ntags: *:: my: tags\n');
+  assert.equal(readFileSync(join(hand, '.yo', 'settings.yo'), 'utf8'), '# mine\ntags: *:: my: tags\n');
   rmSync(root, { recursive: true, force: true });
   rmSync(hand, { recursive: true, force: true });
 });

@@ -19,7 +19,7 @@ public sealed class Materializer(Func<string, string> getPageXml,
     public void MaterializeSection(OneNoteNode section, string sectionDir, IReadOnlyList<PageNode> pages,
                                    Action<string>? onPage = null, CancellationToken ct = default)
     {
-        Fs.CreateDirectory(Path.Combine(sectionDir, ".yamlover"));
+        Fs.CreateDirectory(Path.Combine(sectionDir, ".yo"));
 
         var used = Names.NewUsedSet();
         var childNames = new List<string>();
@@ -29,7 +29,7 @@ public sealed class Materializer(Func<string, string> getPageXml,
             childNames.Add(MaterializePage(p, sectionDir, used, onPage, ct));
         }
 
-        Fs.WriteText(Path.Combine(sectionDir, @".yamlover\body.yamlover"),
+        Fs.WriteText(Path.Combine(sectionDir, @".yo\body.yo"),
                      ChapterSerializer.Chapter(section.Name, null, childNames));
     }
 
@@ -45,7 +45,7 @@ public sealed class Materializer(Func<string, string> getPageXml,
 
         if (!needsDir)
         {
-            string fileName = Names.Unique(usedInParent, baseName, ".yamlover");
+            string fileName = Names.Unique(usedInParent, baseName, ".yo");
             Fs.WriteText(Path.Combine(parentDir, fileName),
                          ChapterSerializer.Chapter(page.Name, conv.Chunks, null));
             return fileName;
@@ -53,17 +53,17 @@ public sealed class Materializer(Func<string, string> getPageXml,
 
         string dirName = Names.Unique(usedInParent, baseName, "");
         string dir = Path.Combine(parentDir, dirName);
-        Fs.CreateDirectory(Path.Combine(dir, ".yamlover"));
+        Fs.CreateDirectory(Path.Combine(dir, ".yo"));
 
         foreach (var a in conv.Assets) Fs.WriteBytes(Path.Combine(dir, a.Name), a.Bytes);
         if (ChapterSerializer.Meta(conv.Assets) is { } meta)
-            Fs.WriteText(Path.Combine(dir, @".yamlover\meta.yamlover"), meta);
+            Fs.WriteText(Path.Combine(dir, @".yo\meta.yo"), meta);
 
         var used = Names.NewUsedSet();
         var childNames = new List<string>();
         foreach (var sp in page.Sub) childNames.Add(MaterializePage(sp, dir, used, onPage, ct));
 
-        Fs.WriteText(Path.Combine(dir, @".yamlover\body.yamlover"),
+        Fs.WriteText(Path.Combine(dir, @".yo\body.yo"),
                      ChapterSerializer.Chapter(page.Name, conv.Chunks, childNames));
         return dirName;
     }

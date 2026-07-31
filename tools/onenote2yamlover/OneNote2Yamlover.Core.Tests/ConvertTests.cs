@@ -327,7 +327,7 @@ public class NamePlanAndReconcilerTests
             var destHasA = new FakeIndex(("N", "A"));
             AncestorReconciler.WriteAncestorBodies(stage, plan, [nb.Children[1]], destHasA);
 
-            string body = File.ReadAllText(Path.Combine(stage, "N", ".yamlover", "body.yamlover"));
+            string body = File.ReadAllText(Path.Combine(stage, "N", ".yo", "body.yo"));
             Assert.Equal(
                 ChapterSerializer.Tag + "\nN\n- *: A\n- *: B\n",
                 body);
@@ -347,10 +347,10 @@ public class NamePlanAndReconcilerTests
             var synced = nb.DescendantsAndSelf().Where(n => n.IsSection).ToList();
             AncestorReconciler.WriteAncestorBodies(stage, plan, synced, new EmptyDestinationIndex());
 
-            string nbBody = File.ReadAllText(Path.Combine(stage, "N", ".yamlover", "body.yamlover"));
+            string nbBody = File.ReadAllText(Path.Combine(stage, "N", ".yo", "body.yo"));
             Assert.Equal(ChapterSerializer.Tag + "\nN\n- *: A\n- *: G\n- *: B\n", nbBody);
 
-            string grpBody = File.ReadAllText(Path.Combine(stage, "N", "G", ".yamlover", "body.yamlover"));
+            string grpBody = File.ReadAllText(Path.Combine(stage, "N", "G", ".yo", "body.yo"));
             Assert.Equal(ChapterSerializer.Tag + "\nG\n- *: S\n", grpBody);
         }
         finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }
@@ -365,7 +365,7 @@ public class NamePlanAndReconcilerTests
         try
         {
             AncestorReconciler.WriteAncestorBodies(stage, plan, [nb.Children[1]], new EmptyDestinationIndex());
-            string body = File.ReadAllText(Path.Combine(stage, "N", ".yamlover", "body.yamlover"));
+            string body = File.ReadAllText(Path.Combine(stage, "N", ".yo", "body.yo"));
             Assert.Equal(ChapterSerializer.Tag + "\nN\n- *: B\n", body);
         }
         finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }
@@ -382,7 +382,7 @@ public class NamePlanAndReconcilerTests
         try
         {
             AncestorReconciler.WriteAncestorBodies(stage, plan, [nb.Children[0]], new EmptyDestinationIndex());
-            string body = File.ReadAllText(Path.Combine(stage, "Бизнес", ".yamlover", "body.yamlover"));
+            string body = File.ReadAllText(Path.Combine(stage, "Бизнес", ".yo", "body.yo"));
             Assert.Equal(ChapterSerializer.Tag + "\nЯ, Расцвет, Бизнес\n- *: A\n", body);
         }
         finally { if (Directory.Exists(stage)) Directory.Delete(stage, true); }

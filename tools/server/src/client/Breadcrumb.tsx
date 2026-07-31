@@ -5,7 +5,7 @@
 //
 // The machinery is the SHARED query-cell kit (query-cells.tsx) in BROWSE mode — this file
 // is only the breadcrumb chrome: the nav shell, the root label, F4, the ✕ clear button.
-// The state table lives in QUERY_EDITOR.yamlover; the reducer in breadcrumb-machine.ts.
+// The state table lives in QUERY_EDITOR.yo; the reducer in breadcrumb-machine.ts.
 
 import { useEffect, useRef } from "react";
 import { TreeNode } from "./api";

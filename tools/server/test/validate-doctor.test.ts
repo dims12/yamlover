@@ -25,43 +25,43 @@ describe("GET /api/doctor — corruption is found", () => {
   it("passes a well-formed tree", async () => {
     const d = await doctor(
       tmpTree({
-        ".yamlover/settings.yamlover": "sidecars: per-directory\n",
-        "World/.yamlover/body.yamlover": "- *Eurasia\n",
-        "World/Eurasia/.yamlover/body.yamlover": "Europe: 1\n",
-        "note.yamlover": "hi\n",
+        ".yo/settings.yo": "sidecars: per-directory\n",
+        "World/.yo/body.yo": "- *Eurasia\n",
+        "World/Eurasia/.yo/body.yo": "Europe: 1\n",
+        "note.yo": "hi\n",
       }),
     );
     expect(d).toMatchObject({ allowed: true, diagnostics: [] });
   });
 
   it("finds an overlay buried inside another overlay — the shape the index cannot see", async () => {
-    const root = tmpTree({ "World/.yamlover/body.yamlover": "x\n" });
-    fs.mkdirSync(path.join(root, "World", ".yamlover", ".yamlover"));
-    fs.writeFileSync(path.join(root, "World", ".yamlover", ".yamlover", "body.yamlover"), "buried\n");
+    const root = tmpTree({ "World/.yo/body.yo": "x\n" });
+    fs.mkdirSync(path.join(root, "World", ".yo", ".yo"));
+    fs.writeFileSync(path.join(root, "World", ".yo", ".yo", "body.yo"), "buried\n");
     const d = await doctor(root);
     expect(d.allowed).toBe(false);
     expect(codesOf(d)).toContain("layout/nested-overlay");
   });
 
   it("finds a stray name inside an overlay", async () => {
-    const d = await doctor(tmpTree({ "World/.yamlover/body.yamlover": "x\n", "World/.yamlover/notes.txt": "stray\n" }));
+    const d = await doctor(tmpTree({ "World/.yo/body.yo": "x\n", "World/.yo/notes.txt": "stray\n" }));
     expect(codesOf(d)).toContain("layout/reserved-overlay-name");
   });
 
   it("finds an overlay whose only content is sidecar blobs", async () => {
-    const d = await doctor(tmpTree({ "World/.yamlover/thumbnails/ab12.webp": "\u0000" }));
+    const d = await doctor(tmpTree({ "World/.yo/thumbnails/ab12.webp": "\u0000" }));
     expect(codesOf(d)).toContain("layout/orphan-overlay");
   });
 
-  it("allows a MARKER-ONLY overlay — meta.yamlover alone is the scalar-as-binary shape", async () => {
-    const d = await doctor(tmpTree({ "pic.png": "\u0000", ".yamlover/meta.yamlover": "properties:\n  pic.png:\n    type: binary\n" }));
+  it("allows a MARKER-ONLY overlay — meta.yo alone is the scalar-as-binary shape", async () => {
+    const d = await doctor(tmpTree({ "pic.png": "\u0000", ".yo/meta.yo": "properties:\n  pic.png:\n    type: binary\n" }));
     expect(d).toMatchObject({ allowed: true });
   });
 
   it("reports the fsPath of the offending object, so the message is actionable", async () => {
-    const d = await doctor(tmpTree({ "a/.yamlover/body.yamlover": "x\n", "a/.yamlover/junk.yaml": "y\n" }));
+    const d = await doctor(tmpTree({ "a/.yo/body.yo": "x\n", "a/.yo/junk.yaml": "y\n" }));
     const hit = d.diagnostics.find((x) => x.code === "layout/reserved-overlay-name");
-    expect(hit?.fsPath).toBe("a/.yamlover/junk.yaml");
+    expect(hit?.fsPath).toBe("a/.yo/junk.yaml");
   });
 });
 

@@ -1,13 +1,13 @@
 // Golden generator for the test-examples fixture corpus (test-examples/README.md).
 //
-//   npm run gen:fixtures                 regenerate ir.json / out.yamlover for every fixture
+//   npm run gen:fixtures                 regenerate ir.json / out.yo for every fixture
 //   npm run gen:fixtures -- --only 03 09 restrict to fixtures whose id starts with a prefix
 //   npm run gen:fixtures -- --check      diff against committed goldens, write NOTHING,
 //                                        exit 1 on drift (the CI idempotence gate)
 //
 // Error fixtures (an `error` file) are skipped — they have no goldens; the harness asserts
 // the throw. A LossyError from serializeYamlover (blob-carrying doc) removes/omits
-// out.yamlover — the harness pins the refusal instead. An existing out.json5p is
+// out.yo — the harness pins the refusal instead. An existing out.json5p is
 // regenerated; an error.json5p is authored by hand and only verified by the harness.
 
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -43,10 +43,10 @@ function desired(dir: string): Map<string, string | null> | null {
   const want = new Map<string, string | null>();
   want.set('ir.json', canonJson(doc));
   try {
-    want.set('out.yamlover', serializeYamlover(doc));
+    want.set('out.yo', serializeYamlover(doc));
   } catch (e) {
     if (!(e instanceof LossyError)) throw e;
-    want.set('out.yamlover', null); // blob-carrying doc: the refusal is the pinned behavior
+    want.set('out.yo', null); // blob-carrying doc: the refusal is the pinned behavior
   }
   if (existsSync(join(dir, 'out.json5p'))) want.set('out.json5p', serializeJson5p(doc));
   return want;

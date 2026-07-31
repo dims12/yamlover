@@ -7,15 +7,15 @@ import { call, callBody } from "./http";
 // / hasOrdinal. The regression they fix: tagging a node turns it omni, but its value facet (format,
 // valueType) must survive so the client still routes it (e.g. markdown stays markdown).
 
-const TAG_FILE = { "tags.yamlover": 'yellow: !!<*::yamlover:$defs:tag>\n  color: "#f9e2af"\n' };
-const TAG = ":tags.yamlover:yellow";
+const TAG_FILE = { "tags.yo": 'yellow: !!<*::yamlover:$defs:tag>\n  color: "#f9e2af"\n' };
+const TAG = ":tags.yo:yellow";
 
 describe("type facets in /api/json", () => {
   it("a plain markdown string exposes a string value facet, no elements", async () => {
-    const root = tmpTree({ "note.yamlover": "!!<format: text/markdown>\nHello markdown\n" });
+    const root = tmpTree({ "note.yo": "!!<format: text/markdown>\nHello markdown\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const j = call(h, "/api/json", { path: ":note.yamlover" }).json;
+    const j = call(h, "/api/json", { path: ":note.yo" }).json;
     expect(j.valueType).toBe("string");
     expect(j.hasKeyed).toBe(false);
     expect(j.hasOrdinal).toBe(false);
@@ -24,12 +24,12 @@ describe("type facets in /api/json", () => {
 
   it("a TAGGED node stays an omni with its value facet intact (the renderer-breakage fix)", async () => {
     // a markdown doc, then annotate it → it gains a `yamlover-annotations` key (becomes omni)
-    const root = tmpTree({ "note.yamlover": "!!<format: text/markdown>\nHello markdown\n", ...TAG_FILE });
+    const root = tmpTree({ "note.yo": "!!<format: text/markdown>\nHello markdown\n", ...TAG_FILE });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    expect((await callBody(h, "POST", "/api/annotate", { target: ":note.yamlover", tag: TAG })).status).toBe(201);
+    expect((await callBody(h, "POST", "/api/annotate", { target: ":note.yo", tag: TAG })).status).toBe(201);
 
-    const j = call(h, "/api/json", { path: ":note.yamlover" }).json;
+    const j = call(h, "/api/json", { path: ":note.yo" }).json;
     expect(j.type).toBe("variant"); // the KIND flipped to omni…
     expect(j.format).toBe("text/markdown"); // …but the value facet's format SURVIVES
     expect(j.valueType).toBe("string"); // and its value type
@@ -49,10 +49,10 @@ describe("type facets in /api/json", () => {
   });
 
   it("a plain object has no value facet but owns keyed elements", async () => {
-    const root = tmpTree({ "obj.yamlover": "a: 1\nb: 2\n" });
+    const root = tmpTree({ "obj.yo": "a: 1\nb: 2\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const j = call(h, "/api/json", { path: ":obj.yamlover" }).json;
+    const j = call(h, "/api/json", { path: ":obj.yo" }).json;
     expect(j.valueType).toBeNull();
     expect(j.hasKeyed).toBe(true);
     expect(j.hasOrdinal).toBe(false);

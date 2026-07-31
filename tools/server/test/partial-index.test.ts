@@ -12,13 +12,13 @@ import { tmpTree } from "./helpers.ts";
 
 function makeFiles(): Record<string, string> {
   const files: Record<string, string> = {};
-  for (let d = 0; d < 5; d++) for (let f = 0; f < 20; f++) files[`dir${d}/file${f}.yamlover`] = `v: ${d}-${f}\n`;
+  for (let d = 0; d < 5; d++) for (let f = 0; f < 20; f++) files[`dir${d}/file${f}.yo`] = `v: ${d}-${f}\n`;
   return files;
 }
 
 function openStore(root: string): Store {
-  fs.mkdirSync(path.join(root, ".yamlover"), { recursive: true });
-  const s = new Store(path.join(root, ".yamlover", "index.db"));
+  fs.mkdirSync(path.join(root, ".yo"), { recursive: true });
+  const s = new Store(path.join(root, ".yo", "index.db"));
   onTestFinished(() => s.close());
   return s;
 }
@@ -75,8 +75,8 @@ describe("partial index commits during the initial walk", () => {
     expect(again.diff).toEqual({ added: [], changed: [], removed: [], moved: [] });
 
     // the per-file manifest lookup (the watcher's spurious-event filter) matches the walk's view
-    const rec = s.file("dir0/file0.yamlover");
-    const st = fs.statSync(path.join(root, "dir0", "file0.yamlover"));
+    const rec = s.file("dir0/file0.yo");
+    const st = fs.statSync(path.join(root, "dir0", "file0.yo"));
     expect(rec).not.toBeNull();
     expect(rec!.size).toBe(st.size);
     expect(rec!.mtimeMs).toBe(st.mtimeMs);

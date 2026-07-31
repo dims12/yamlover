@@ -36,7 +36,7 @@ export function tmpExample(name: string): string {
 }
 
 /** A synthetic served tree in a temp dir: `files` maps relative paths to contents
- *  (e.g. {"name": "Alice", ".yamlover/settings.yamlover": "…"}). Preferred over copying an
+ *  (e.g. {"name": "Alice", ".yo/settings.yo": "…"}). Preferred over copying an
  *  example when the test only needs a small, explicit shape — it can't break when the
  *  examples evolve. Cleaned up after the test. */
 export function tmpTree(files: Record<string, string>): string {

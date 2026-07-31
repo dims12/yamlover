@@ -19,7 +19,7 @@ self-contained programs that demonstrate it.
   build) and opens a native window.
 - [`demo/`](demo/) — multi-tenant demo host: hands each visitor a private, disposable
   yamlover instance behind one host, reaped after a TTL (powers `yamlover.inthemoon.net`).
-- [`jetbrains-plugin/`](jetbrains-plugin/) — `.yamlover`/`.json5p` file types + highlighting.
+- [`jetbrains-plugin/`](jetbrains-plugin/) — `.yo`/`.json5p` file types + highlighting.
 
 **Importers:**
 - [`onenote2yamlover/`](onenote2yamlover/) — imports Microsoft OneNote notebooks into a

@@ -4,7 +4,7 @@
 // document, plus `from` so the harness knows what the result must reparse to. Goldens are
 // GENERATED, REVIEWED and COMMITTED (the discipline of gen-fixtures.ts); the harness only READS.
 //
-// THE DERIVATION follows THE LEVEL RULE (YAMLOVER_EDITOR.yamlover §"THE LEVEL RULE"): Enter after
+// THE DERIVATION follows THE LEVEL RULE (YAMLOVER_EDITOR.yo §"THE LEVEL RULE"): Enter after
 // committing a value DESCENDS into it, so staying at the same level costs one Shift-Tab and every
 // step outwards costs another. That is the whole model — line text, `{Enter}`, then as many
 // `{ShiftTab}`s as it takes to reach the next line's depth.
@@ -33,9 +33,9 @@ function sources(): string[] {
   for (const name of readdirSync(ex).sort()) {
     const abs = join(ex, name);
     if (statSync(abs).isDirectory()) {
-      const body = join(abs, ".yamlover", "body.yamlover");
+      const body = join(abs, ".yo", "body.yo");
       if (existsSync(body)) out.push(relative(REPO, body));
-    } else if (name.endsWith(".yamlover")) {
+    } else if (name.endsWith(".yo")) {
       out.push(relative(REPO, abs));
     }
   }
@@ -44,7 +44,7 @@ function sources(): string[] {
     const dir = join(te, id);
     if (!statSync(dir).isDirectory()) continue;
     if (existsSync(join(dir, "error"))) continue; // an error fixture is not typeable by definition
-    const inp = join(dir, "in.yamlover");
+    const inp = join(dir, "in.yo");
     if (existsSync(inp)) out.push(relative(REPO, inp));
   }
   return out.map((p) => p.split("\\").join("/"));

@@ -36,5 +36,5 @@ $ npm test          # vitest, from this directory (or npm --prefix tools/yed tes
 ```
 
 This suite is separate from the root `npm test` (parser + engine) and from the server
-suite (`tools/server`). The state diagram `YAMLOVER_EDITOR.yamlover` (repo root) is the
+suite (`tools/server`). The state diagram `YAMLOVER_EDITOR.yo` (repo root) is the
 grammar's human-readable mirror — keep it, `yed-dispatch.test.ts`, and the code in sync.

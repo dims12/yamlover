@@ -82,7 +82,7 @@ export interface MEntry {
   decided: boolean; // false ⇒ a fresh entry hole that has not chosen `- ` vs `key:` yet
   derivedKey?: boolean; // the key is a DERIVED storage anchor (a positional member of a dir-backed
                         // pointer-array body): drawn `- &key value` with the anchor dimmed, key
-                        // read-only; membership/order live in body.yamlover, so structural ops
+                        // read-only; membership/order live in body.yo, so structural ops
                         // (remove/indent/dedent) emit nothing for this entry — value edits pass
   wireKey?: string; // the server-side KEY this entry is ADDRESSED by when it differs from its
                     // drawn form: a freshly MATERIALIZED dir member is still drawn as a body
@@ -819,7 +819,7 @@ export function removeEntry(rootPath: string, root: MNode, entryId: string): Edi
   if (!spine) return [];
   const { container, index } = spine.parents[spine.parents.length - 1];
   const entry = container.entries[index];
-  if (entry.derivedKey) return []; // membership lives in body.yamlover — v1 does not rewrite it
+  if (entry.derivedKey) return []; // membership lives in body.yo — v1 does not rewrite it
   // A removal INSIDE a flow token rewrites the whole token, not a (non-existent) interior address —
   // but only when there IS something on disk to rewrite. Dropping an uncommitted hole is a
   // client-side tidy-up; emplacing for it wrote the token a second time (`em: {}` twice).
@@ -858,7 +858,7 @@ export function indentEntry(rootPath: string, root: MNode, entryId: string): Edi
   if (!spine) return [];
   const { container, index } = spine.parents[spine.parents.length - 1];
   const entry = container.entries[index];
-  if (entry.derivedKey) return []; // a positional member's place is body.yamlover's — not movable here
+  if (entry.derivedKey) return []; // a positional member's place is body.yo's — not movable here
   if (container.flow || index === 0) return [];
   const prev = container.entries[index - 1];
   if (prev.node.kind === "pointer" || prev.node.kind === "link" || prev.node.flow) return [];
@@ -914,7 +914,7 @@ export function dedentEntry(rootPath: string, root: MNode, entryId: string): Edi
   if (!spine || spine.parents.length < 2) return [];
   const { container, index } = spine.parents[spine.parents.length - 1];
   const entry = container.entries[index];
-  if (entry.derivedKey) return []; // a positional member's place is body.yamlover's — not movable here
+  if (entry.derivedKey) return []; // a positional member's place is body.yo's — not movable here
   if (container.flow) return [];
   const { container: grand, index: parentIndex } = spine.parents[spine.parents.length - 2];
   if (grand.flow) return [];

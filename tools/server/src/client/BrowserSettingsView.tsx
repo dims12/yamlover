@@ -34,7 +34,7 @@ export function BrowserSettingsView({ onNavigate }: { onNavigate: (path: string)
   }, [unlocked]);
 
   // The scalar leaves' edit sink: apply the edit to the CURRENT text, persist, re-project. The
-  // leaves address nodes by the FULL virtual path (`:.browser:settings.yamlover:width`); the text
+  // leaves address nodes by the FULL virtual path (`:.browser:settings.yo:width`); the text
   // is its own document, so strip the document prefix before the surgical edit.
   const sink = useCallback(async (edit: Edit): Promise<boolean> => {
     try {

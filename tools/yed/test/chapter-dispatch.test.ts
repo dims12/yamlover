@@ -1,4 +1,4 @@
-// THE CHAPTER GRAMMAR TABLE AS DATA — mirrors YAMLOVER_EDITOR.yamlover §"The CHAPTER
+// THE CHAPTER GRAMMAR TABLE AS DATA — mirrors YAMLOVER_EDITOR.yo §"The CHAPTER
 // projection" the way yed-dispatch.test.ts mirrors the source table. Every row: a key at a
 // site → the intent. Change the machine ⇒ change the diagram ⇒ change this file.
 import { describe, it, expect } from "vitest";
@@ -9,7 +9,8 @@ const site = (over: Partial<ChapterSite>): ChapterSite => ({
   cell: "prose", enclosing: "chapter", oneLine: true,
   caretAtStart: false, caretAtEnd: false, caretFirstLine: false, caretLastLine: false,
   isRootTitle: false, prevSiblingIsChapter: false, hasPrevItem: false, belowRoot: false,
-  materialized: false, tableEdge: null, atFirstCell: false, singleRow: false, inTable: false, currentFormat: "chapter",
+  materialized: false, tableEdge: null, atFirstCell: false, atRowStart: false, rowEmpty: false,
+  singleRow: false, inTable: false, currentFormat: "chapter",
   ...over,
 });
 
@@ -55,10 +56,25 @@ const rows: { name: string; key: ChapterKey; site: Partial<ChapterSite>; intent:
   { name: "Enter in a cell SPLITS it into chunks — a cell hosts the chapter flow", key: { key: "Enter" }, site: { cell: "tableCell", enclosing: "row-cell", currentFormat: "table" }, intent: { kind: "splitProse" } },
   { name: "Ctrl+Enter in a cell appends a ROW", key: { key: "Enter", ctrl: true }, site: { cell: "tableCell", enclosing: "row-cell", currentFormat: "table" }, intent: { kind: "appendRow" } },
   { name: "Ctrl+Enter in a cell's INNER chunk appends a row too (anywhere in the table)", key: { key: "Enter", ctrl: true }, site: { cell: "prose", inTable: true }, intent: { kind: "appendRow" } },
+
+  // --- THE TABLE GESTURE: Ctrl+Enter OUTSIDE a table initiates one (the bar's ▦ as a keystroke) ---
+  { name: "Ctrl+Enter in prose INITIATES a table — the paragraph wraps as its one cell", key: { key: "Enter", ctrl: true }, site: { cell: "prose" }, intent: { kind: "format", chosen: "table" } },
+  { name: "Ctrl+Enter on the BOOT cell materializes the first entry as a table", key: { key: "Enter", ctrl: true }, site: { cell: "boot" }, intent: { kind: "format", chosen: "table" } },
+  { name: "Ctrl+Enter on a title retags the titled block as a table (the button's target)", key: { key: "Enter", ctrl: true }, site: { cell: "title" }, intent: { kind: "format", chosen: "table" } },
+  { name: "Ctrl+Enter in a list item retags the list as a table", key: { key: "Enter", ctrl: true }, site: { cell: "listItem", enclosing: "bullets", currentFormat: "bullets" }, intent: { kind: "format", chosen: "table" } },
+  { name: "Ctrl+Enter on an ATOM rings — the format command's gate", key: { key: "Enter", ctrl: true }, site: { cell: "atom" }, intent: { kind: "refuse" } },
+  { name: "Ctrl+Enter inside a SOURCE chunk stays the source grammar's", key: { key: "Enter", ctrl: true }, site: { cell: "source" }, intent: null },
   { name: "ArrowRight at a cell's END walks to the next cell", key: { key: "ArrowRight" }, site: { cell: "tableCell", enclosing: "row-cell", caretAtEnd: true, currentFormat: "table" }, intent: { kind: "cellWalk", dir: 1 } },
   { name: "ArrowRight mid-cell is native", key: { key: "ArrowRight" }, site: { cell: "tableCell", enclosing: "row-cell", currentFormat: "table" }, intent: null },
   { name: "ArrowLeft at a cell's START walks to the previous cell", key: { key: "ArrowLeft" }, site: { cell: "tableCell", enclosing: "row-cell", caretAtStart: true, currentFormat: "table" }, intent: { kind: "cellWalk", dir: -1 } },
   { name: "ArrowLeft mid-cell is native", key: { key: "ArrowLeft" }, site: { cell: "tableCell", enclosing: "row-cell", currentFormat: "table" }, intent: null },
+
+  // --- THE TABLE UNWIND LADDER (Backspace) ---
+  { name: "Backspace mid-cell-text is native", key: { key: "Backspace" }, site: { cell: "tableCell", enclosing: "row-cell", currentFormat: "table" }, intent: null },
+  { name: "Backspace at a cell's start steps into the previous cell", key: { key: "Backspace" }, site: { cell: "tableCell", enclosing: "row-cell", caretAtStart: true, currentFormat: "table" }, intent: { kind: "cellWalk", dir: -1 } },
+  { name: "Backspace at an ALL-EMPTY row's first position deletes the row", key: { key: "Backspace" }, site: { cell: "tableCell", enclosing: "row-cell", caretAtStart: true, atRowStart: true, rowEmpty: true, currentFormat: "table" }, intent: { kind: "deleteRow" } },
+  { name: "…a NON-empty row's first cell walks instead of deleting", key: { key: "Backspace" }, site: { cell: "tableCell", enclosing: "row-cell", caretAtStart: true, atRowStart: true, currentFormat: "table" }, intent: { kind: "cellWalk", dir: -1 } },
+  { name: "…an empty SCALAR row deletes from its single cell", key: { key: "Backspace" }, site: { cell: "tableCell", enclosing: "row", caretAtStart: true, atRowStart: true, rowEmpty: true, currentFormat: "table" }, intent: { kind: "deleteRow" } },
 
   // --- format_switched ---
   { name: "Ctrl+Alt+3 chooses bullets", key: { key: "3", ctrl: true, alt: true }, site: { cell: "prose" }, intent: { kind: "format", chosen: "bullets" } },
@@ -76,7 +92,7 @@ const rows: { name: string; key: ChapterKey; site: Partial<ChapterSite>; intent:
   { name: "arrows walk off an atom", key: { key: "ArrowUp" }, site: { cell: "atom" }, intent: { kind: "move", dir: -1 } },
 ];
 
-describe("the chapter dispatch table (the YAMLOVER_EDITOR.yamlover mirror)", () => {
+describe("the chapter dispatch table (the YAMLOVER_EDITOR.yo mirror)", () => {
   for (const r of rows) {
     it(r.name, () => {
       expect(chapterInterpret(r.key, site(r.site))).toEqual(r.intent);

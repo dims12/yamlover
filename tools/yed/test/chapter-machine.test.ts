@@ -123,10 +123,35 @@ describe("split / join — THE PROSE EXCEPTION", () => {
     expect(s1.caret).toBe(4); // after "Dogs"
   });
 
-  it("a paragraph never swallows its OWN chapter's heading — the ring", () => {
-    const s1 = joinWalk(st("- Dogs\n  - woof\n", tok(0, 0)), -1);
+  it("Backspace at the first chunk dissolves its OWN chapter's heading — title text leads", () => {
+    // reported: the title could not be deleted with Backspace from the next chunk
+    const s1 = joinWalk(st("- Dogs\n  - woof\n  - more\n", tok(0, 0)), -1);
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("- Dogswoof\n- more\n"); // the chapter flattened around the caret
+    expect(s1.focus).toEqual(tok(0));
+    expect(s1.caret).toBe(4); // the junction — after "Dogs"
+  });
+
+  it("…the ROOT title dissolves into its first chunk the same way", () => {
+    const s1 = joinWalk(st("Handbook\n- intro\n", tok(0)), -1);
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("- Handbookintro\n");
+    expect(s1.focus).toEqual(tok(0));
+    expect(s1.caret).toBe(8);
+  });
+
+  it("…but a MATERIALIZED subchapter's heading never dissolves by keystroke", () => {
+    const s0 = st("- Dogs\n  - woof\n", tok(0, 0));
+    const doc = {
+      ...s0.doc,
+      root: {
+        ...(s0.doc.root as Node),
+        entries: (s0.doc.root as Node).entries!.map((e) => ({ ...e, meta: { ...(e.meta ?? {}), anchorKey: "dogs" } })),
+      } as unknown as Node,
+    };
+    const s1 = joinWalk({ ...s0, doc }, -1);
     expect(s1.refused).toBe(true);
-    expect(sourceOf(s1.doc)).toBe("- Dogs\n  - woof\n");
+    expect(sourceOf(s1.doc)).toContain("Dogs");
   });
 
   it("non-prose partners refuse: a description is not absorbed by join", () => {
@@ -355,6 +380,64 @@ describe("format — the ENCLOSING block, tag spelling, the drop rule", () => {
     expect(s2.focus).toEqual(tok(1, 2));
   });
 
+  it("Enter in a SCALAR row wraps it to ONE cell of chunks — never a phantom column", () => {
+    // reported: Enter in a fresh table's first cell added a column (the row's entries ARE
+    // its cells, so the direct split read as one)
+    const src = "- !!<*yamlover: $defs: table>\n  - alpha beta\n";
+    const s0 = st(src, tok(0, 0));
+    const s1 = applyChapterIntent(s0, { kind: "splitProse" }, { head: "alpha", tail: "beta" });
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("- !!<*yamlover: $defs: table>\n  - - - alpha\n      - beta\n");
+    expect(s1.focus).toEqual(tok(0, 0, 0, 1)); // the tail chunk, inside the row's single cell
+    // still ONE column: the row holds one cell (a container of two chunks)
+    const row = ((s1.doc.root as Node).entries![0].value as Node).entries![0].value as Node;
+    expect((row.entries ?? []).length).toBe(1);
+    // …and the join folds the whole thing back to a one-cell array row (the texts concatenate
+    // exactly as split — the payload here dropped the space between them)
+    const joined = applyChapterIntent(s1, { kind: "joinPrev" });
+    expect(joined.refused).toBe(false);
+    expect(sourceOf(joined.doc)).toBe("- !!<*yamlover: $defs: table>\n  - - alphabeta\n");
+  });
+
+  it("THE TABLE UNWIND LADDER: Backspace deletes cells, then rows, then the table itself", () => {
+    // reported: a table could not be deleted gradually with Backspace like other structures
+    const src = "- intro\n- !!<*yamlover: $defs: table>\n  - - a\n    - ''\n  - - ''\n    - ''\n";
+    // Backspace at the START of a mid-row cell steps back a cell (deletion continues there)
+    const midCell = applyChapterKey(st(src, tok(1, 0, 1)), { key: "Backspace" }, { atStart: true, atEnd: true })!;
+    expect(midCell.refused).toBe(false);
+    expect(midCell.focus).toEqual(tok(1, 0, 0));
+    expect(sourceOf(midCell.doc)).toBe(src); // a walk, not an edit
+    // Backspace at the first position of the ALL-EMPTY second row deletes the row
+    const rowGone = applyChapterKey(st(src, tok(1, 1, 0)), { key: "Backspace" }, { atStart: true, atEnd: true })!;
+    expect(rowGone.refused).toBe(false);
+    expect(sourceOf(rowGone.doc)).toBe("- intro\n- !!<*yamlover: $defs: table>\n  - - a\n    - ''\n");
+    expect(rowGone.focus).toEqual(tok(1, 0, 1)); // the stop before the row — the previous row's last cell
+    // a NON-empty row refuses nothing: its first cell walks out of the row instead
+    const walkOut = applyChapterKey(st(src, tok(1, 0, 0)), { key: "Backspace" }, { atStart: true, atEnd: true })!;
+    expect(walkOut.focus).toEqual(tok(0)); // out of the table, onto the chunk before it
+    // the LAST all-empty row takes the emptied table with it — the husk never lingers
+    const lastRow = "- intro\n- !!<*yamlover: $defs: table>\n  - - ''\n    - ''\n";
+    const tableGone = applyChapterKey(st(lastRow, tok(1, 0, 0)), { key: "Backspace" }, { atStart: true, atEnd: true })!;
+    expect(tableGone.refused).toBe(false);
+    expect(sourceOf(tableGone.doc)).toBe("- intro\n");
+    expect(tableGone.focus).toEqual(tok(0));
+    // an all-empty SCALAR row ('' at the row's own path) deletes the same way
+    const scalarRow = "- intro\n- !!<*yamlover: $defs: table>\n  - ''\n";
+    const gone = applyChapterKey(st(scalarRow, tok(1, 0)), { key: "Backspace" }, { atStart: true, atEnd: true })!;
+    expect(gone.refused).toBe(false);
+    expect(sourceOf(gone.doc)).toBe("- intro\n");
+  });
+
+  it("an emptied TITLE drops its line and the caret lands on the first remaining stop", () => {
+    // reported: focus lost after the title was deleted char by char — dead until a click
+    const titled = st("- intro\n- Dogs\n  - woof\n", tok(1));
+    const s1 = commitChapterText(titled, [1], "");
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("- intro\n- - woof\n");
+    expect(s1.focus).toEqual(tok(1, 0)); // the chapter's first chunk — never nowhere
+    expect(s1.caret).toBe("start");
+  });
+
   it("a split cell joined back to ONE paragraph FOLDS BACK to the scalar cell (Enter's inverse)", () => {
     // the reported bug: the join left a one-item container husk (`- - эелемент 2-2`)
     const src = "- !!<*yamlover: $defs: table>\n  - - a\n    - b\n  - - c\n    - d\n";
@@ -450,6 +533,25 @@ describe("the keystroke surface — applyChapterKey", () => {
     expect(sourceOf(s1.doc)).toContain("$defs: bullets");
   });
 
+  it("Ctrl+Enter — THE TABLE GESTURE: initiates a table from prose, then the SAME key grows it", () => {
+    const s1 = applyChapterKey(st("- data point\n- x\n", tok(0)), { key: "Enter", ctrl: true })!;
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("- !!<*:: yamlover: $defs: table>\n  - data point\n- x\n");
+    expect(s1.focus).toEqual(tok(0, 0)); // the caret followed the prose into the one cell
+    const s2 = applyChapterKey(s1, { key: "Enter", ctrl: true })!;
+    expect(s2.refused).toBe(false); // now IN the table — the gesture appends a row
+    expect(sourceOf(s2.doc)).toContain("- data point\n");
+    expect(((s2.doc.root as Node).entries![0].value as Node).entries!.length).toBe(2);
+  });
+
+  it("Ctrl+Enter on the boot cell materializes the table — the ▦ button's creation flow", () => {
+    const boot: ChapterState = { ...initialChapterState(parseSource("")), focus: { at: "into", path: [] }, caret: null };
+    const s1 = applyChapterKey(boot, { key: "Enter", ctrl: true })!;
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("- !!<*:: yamlover: $defs: table>\n  - ''\n");
+    expect(s1.focus).toEqual(tok(0, 0));
+  });
+
   it("typed text commits per keystroke; an emptied TITLE drops the self line", () => {
     const s0 = st("T\n- p\n", { at: "token", path: [] });
     const s1 = commitChapterText(s0, [], "New");
@@ -523,7 +625,7 @@ describe("the chapter watchdog over the corpora — no dead advertised keys anyw
   for (const root of roots) {
     if (!fs.existsSync(root)) continue;
     for (const dir of fs.readdirSync(root)) {
-      for (const name of ["out.yamlover", "in.yamlover"]) {
+      for (const name of ["out.yo", "in.yo"]) {
         const f = path.join(root, dir, name);
         if (fs.existsSync(f)) { fixtures.push({ id: `${path.basename(root)}/${dir}/${name}`, src: fs.readFileSync(f, "utf8") }); break; }
       }

@@ -36,7 +36,7 @@ describe("marklower editor round-trip (domToMarklower ∘ marklowerToEditableHtm
 const props = (over: Partial<ChunkEditorProps> = {}): ChunkEditorProps => ({
   text: "hello",
   rev: 0,
-  chapterPath: ":chapter.yamlover",
+  chapterPath: ":chapter.yo",
   focusAt: null,
   onFocused: vi.fn(),
   onChangeText: vi.fn(),

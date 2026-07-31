@@ -56,8 +56,8 @@ tags:
 
 /** The graft fixture is a TEMP project tree (built by query.test.ts):
  *    $defs/tag                     — "type: object\nformat: x-yamlover-tag\n"
- *    tags/.yamlover/body.yamlover  — a palette: yellow + green tags with explicit colors
- *    data.yamlover                 — "x: 1\n"
+ *    tags/.yo/body.yo  — a palette: yellow + green tags with explicit colors
+ *    data.yo                 — "x: 1\n"
  *  walkDir grafts the self-import key `yamlover` → {$defs, tags} into the root. */
 
 export const CASES: QueryCase[] = [

@@ -43,9 +43,9 @@ function loadFixture(id: string): Fixture {
   return {
     id,
     keys: read("keys") ?? "",
-    input: read("in.yamlover"),
+    input: read("in.yo"),
     expect: (read("expect") ?? "roundtrip").trim() as "roundtrip" | "bytes",
-    out: read("out.yamlover"),
+    out: read("out.yo"),
     from: read("from")?.trim(),
   };
 }
@@ -161,12 +161,12 @@ describe("yed2 corpus — every sample enterable, then deletable", () => {
 
 describe("yed2 corpus — every LOADED test-example deletable (or its blocker NAMED)", () => {
   const TE = path.join(REPO, "test-examples");
-  const teIds = fs.readdirSync(TE).filter((n) => /^\d{4}(-\d{2})?$/.test(n) && fs.existsSync(path.join(TE, n, "in.yamlover")));
+  const teIds = fs.readdirSync(TE).filter((n) => /^\d{4}(-\d{2})?$/.test(n) && fs.existsSync(path.join(TE, n, "in.yo")));
   const LOAD_DELETE_ALLOW = new Map<string, string>([]);
   const skipped: string[] = [];
 
   for (const id of teIds) {
-    const src = fs.readFileSync(path.join(TE, id, "in.yamlover"), "utf8");
+    const src = fs.readFileSync(path.join(TE, id, "in.yo"), "utf8");
     let doc;
     try { doc = parseSource(src); } catch { continue; } // error fixtures are not documents
     const blocker = unsupportedIn(doc);

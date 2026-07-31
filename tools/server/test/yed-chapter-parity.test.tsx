@@ -147,7 +147,7 @@ const prose = (m: Mounted, i: number): HTMLElement =>
 
 describe("the yed chapter parity gate — deferred materialization", () => {
   it("a wrapped subchapter of a DIR chapter materializes as its own subdirectory on first body commit", async () => {
-    const m = await mount({ "d/.yamlover/body.yamlover": CHAPTER }, ":d");
+    const m = await mount({ "d/.yo/body.yo": CHAPTER }, ":d");
     try {
       // wrap the second paragraph into a subchapter title…
       const p = m.container.querySelectorAll(".chunk-body .chapter-prose")[1] as HTMLElement;
@@ -158,21 +158,21 @@ describe("the yed chapter parity gate — deferred materialization", () => {
       expect(title?.value).toBe("fresh");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.dirs("d"), "a wrap alone materializes NOTHING").toEqual([".yamlover"]);
+      expect(m.dirs("d"), "a wrap alone materializes NOTHING").toEqual([".yo"]);
       // …then Enter walks into the body, creating the first paragraph — THE BIRTH
       fireEvent.keyDown(title, { key: "Enter" });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      const born = m.dirs("d").filter((d) => d !== ".yamlover");
+      const born = m.dirs("d").filter((d) => d !== ".yo");
       expect(born, "the subchapter became its own subdirectory").toEqual(["01-fresh"]);
-      expect(m.read("d/01-fresh/.yamlover/body.yamlover")).toContain("fresh");
-      expect(m.read("d/.yamlover/body.yamlover")).toContain("- opening");
-      expect(m.read("d/.yamlover/body.yamlover")).not.toContain("- fresh\n"); // the inline line left
+      expect(m.read("d/01-fresh/.yo/body.yo")).toContain("fresh");
+      expect(m.read("d/.yo/body.yo")).toContain("- opening");
+      expect(m.read("d/.yo/body.yo")).not.toContain("- fresh\n"); // the inline line left
     } finally { m.done(); }
   });
 
   it("follow-up edits route into the born member BY KEY (shift-immune), not positionally", async () => {
-    const m = await mount({ "d/.yamlover/body.yamlover": CHAPTER }, ":d");
+    const m = await mount({ "d/.yo/body.yo": CHAPTER }, ":d");
     try {
       const p = m.container.querySelectorAll(".chunk-body .chapter-prose")[1] as HTMLElement;
       fireEvent.focus(p);
@@ -188,12 +188,12 @@ describe("the yed chapter parity gate — deferred materialization", () => {
       fireEvent.input(para);
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("d/01-fresh/.yamlover/body.yamlover")).toContain("the sub body");
+      expect(m.read("d/01-fresh/.yo/body.yo")).toContain("the sub body");
     } finally { m.done(); }
   });
 
   it("a CYRILLIC title keeps its letters in the member name", async () => {
-    const m = await mount({ "d/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\nКнига\n- вступление\n- Заголовок_части\n" }, ":d");
+    const m = await mount({ "d/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nКнига\n- вступление\n- Заголовок_части\n" }, ":d");
     try {
       const p = m.container.querySelectorAll(".chunk-body .chapter-prose")[1] as HTMLElement;
       fireEvent.focus(p);
@@ -203,12 +203,12 @@ describe("the yed chapter parity gate — deferred materialization", () => {
       fireEvent.keyDown(title, { key: "Enter" });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.dirs("d").filter((d) => d !== ".yamlover")).toEqual(["01-Заголовок_части"]);
+      expect(m.dirs("d").filter((d) => d !== ".yo")).toEqual(["01-Заголовок_части"]);
     } finally { m.done(); }
   });
 
   it("a FILE-concrete chapter never materializes — the omni stays inline in the file", async () => {
-    const m = await mount({ "doc.yamlover": CHAPTER }, ":doc.yamlover");
+    const m = await mount({ "doc.yo": CHAPTER }, ":doc.yo");
     try {
       const p = m.container.querySelectorAll(".chunk-body .chapter-prose")[1] as HTMLElement;
       fireEvent.focus(p);
@@ -218,7 +218,7 @@ describe("the yed chapter parity gate — deferred materialization", () => {
       fireEvent.keyDown(title, { key: "Enter" });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      const out = m.read("doc.yamlover");
+      const out = m.read("doc.yo");
       expect(out).toContain("- fresh"); // the wrapped title, now an omni entry with a body line
       expect(m.exists("fresh")).toBe(false);
       expect(m.exists("01-fresh")).toBe(false);
@@ -226,7 +226,7 @@ describe("the yed chapter parity gate — deferred materialization", () => {
   });
 
   it("Shift-Tab on a BORN (materialized) subchapter is a nop — no verb inlines a document back", async () => {
-    const m = await mount({ "d/.yamlover/body.yamlover": CHAPTER }, ":d");
+    const m = await mount({ "d/.yo/body.yo": CHAPTER }, ":d");
     try {
       const p = m.container.querySelectorAll(".chunk-body .chapter-prose")[1] as HTMLElement;
       fireEvent.focus(p);
@@ -235,22 +235,22 @@ describe("the yed chapter parity gate — deferred materialization", () => {
       const title = m.container.querySelector("section.chapter-sub .chapter-title input.y2-input") as HTMLElement;
       fireEvent.keyDown(title, { key: "Enter" });
       await settleOps();
-      const before = m.read("d/.yamlover/body.yamlover");
+      const before = m.read("d/.yo/body.yo");
       const t2 = m.container.querySelector("section.chapter-sub .chapter-title input.y2-input, section.chapter-sub .chapter-title .chapter-title-text") as HTMLElement;
       fireEvent.focus(t2);
       fireEvent.keyDown(t2, { key: "Tab", shiftKey: true });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("d/.yamlover/body.yamlover")).toBe(before);
-      expect(m.dirs("d").filter((d) => d !== ".yamlover")).toEqual(["01-fresh"]);
+      expect(m.read("d/.yo/body.yo")).toBe(before);
+      expect(m.dirs("d").filter((d) => d !== ".yo")).toEqual(["01-fresh"]);
     } finally { m.done(); }
   });
 
   it("a wrap BETWEEN two linked members predicts the between-number key (01-1-…)", async () => {
     const m = await mount({
-      "d/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\nBook\n- *: 01-A\n- middle\n- *: 02-B\n",
-      "d/01-A/.yamlover/body.yamlover": "A\n- a body\n",
-      "d/02-B/.yamlover/body.yamlover": "B\n- b body\n",
+      "d/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nBook\n- *: 01-A\n- middle\n- *: 02-B\n",
+      "d/01-A/.yo/body.yo": "A\n- a body\n",
+      "d/02-B/.yo/body.yo": "B\n- b body\n",
     }, ":d");
     try {
       // "middle" is the only EDITABLE prose — the pointer members' previews are read-only
@@ -264,13 +264,13 @@ describe("the yed chapter parity gate — deferred materialization", () => {
       fireEvent.keyDown(title, { key: "Enter" });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.dirs("d").filter((d) => d !== ".yamlover").sort()).toEqual(["01-1-middle", "01-A", "02-B"]);
-      expect(m.read("d/01-1-middle/.yamlover/body.yamlover")).toContain("middle");
+      expect(m.dirs("d").filter((d) => d !== ".yo").sort()).toEqual(["01-1-middle", "01-A", "02-B"]);
+      expect(m.read("d/01-1-middle/.yo/body.yo")).toContain("middle");
     } finally { m.done(); }
   });
 
   it("a NESTED wrap inside a freshly born member materializes too (recursive, same session)", async () => {
-    const m = await mount({ "d/.yamlover/body.yamlover": CHAPTER }, ":d");
+    const m = await mount({ "d/.yo/body.yo": CHAPTER }, ":d");
     try {
       const p = prose(m, 1);
       fireEvent.focus(p);
@@ -279,7 +279,7 @@ describe("the yed chapter parity gate — deferred materialization", () => {
       const title = m.container.querySelector("section.chapter-sub .chapter-title input.y2-input") as HTMLElement;
       fireEvent.keyDown(title, { key: "Enter" });
       await settleOps();
-      expect(m.dirs("d").filter((d) => d !== ".yamlover")).toEqual(["01-fresh"]);
+      expect(m.dirs("d").filter((d) => d !== ".yo")).toEqual(["01-fresh"]);
       // inside the born member: type, nest, title, Enter — the SECOND birth, one level down
       const sub = m.container.querySelector("section.chapter-sub") as HTMLElement;
       const para = sub.querySelector(".chunk-body .chapter-prose") as HTMLElement;
@@ -291,8 +291,8 @@ describe("the yed chapter parity gate — deferred materialization", () => {
       fireEvent.keyDown(inner, { key: "Enter" });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.dirs("d/01-fresh").filter((d) => d !== ".yamlover")).toEqual(["01-deeper"]);
-      expect(m.read("d/01-fresh/01-deeper/.yamlover/body.yamlover")).toContain("deeper");
+      expect(m.dirs("d/01-fresh").filter((d) => d !== ".yo")).toEqual(["01-deeper"]);
+      expect(m.read("d/01-fresh/01-deeper/.yo/body.yo")).toContain("deeper");
     } finally { m.done(); }
   });
 });
@@ -302,20 +302,20 @@ describe("the yed chapter parity gate — deferred materialization", () => {
 // ------------------------------------------------------------------------------------------ //
 
 const MATRIX: { name: string; files: Record<string, string>; mountAt: string; body: string }[] = [
-  { name: "flat file", files: { "doc.yamlover": CHAPTER }, mountAt: ":doc.yamlover", body: "doc.yamlover" },
-  { name: "dir-backed", files: { "d/.yamlover/body.yamlover": CHAPTER }, mountAt: ":d", body: "d/.yamlover/body.yamlover" },
+  { name: "flat file", files: { "doc.yo": CHAPTER }, mountAt: ":doc.yo", body: "doc.yo" },
+  { name: "dir-backed", files: { "d/.yo/body.yo": CHAPTER }, mountAt: ":d", body: "d/.yo/body.yo" },
   {
     name: "member dir",
     files: {
-      "d/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\nBook\n- *: 01-part\n",
-      "d/01-part/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\nPart One\n- member opening\n- member fresh\n",
+      "d/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nBook\n- *: 01-part\n",
+      "d/01-part/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nPart One\n- member opening\n- member fresh\n",
     },
-    mountAt: ":d:01-part", body: "d/01-part/.yamlover/body.yamlover",
+    mountAt: ":d:01-part", body: "d/01-part/.yo/body.yo",
   },
   {
     name: "deep node",
-    files: { "doc.yamlover": "!!<*yamlover: $defs: chapter>\nBook\n- intro\npart: Part One\n  - part body\n  - part more\n" },
-    mountAt: ":doc.yamlover:part", body: "doc.yamlover",
+    files: { "doc.yo": "!!<*yamlover: $defs: chapter>\nBook\n- intro\npart: Part One\n  - part body\n  - part more\n" },
+    mountAt: ":doc.yo:part", body: "doc.yo",
   },
 ];
 
@@ -334,37 +334,37 @@ describe("the yed chapter parity gate — the storage matrix", () => {
   }, 30000);
 
   it("typing lands on the DISK of a flat file, keeping the tag line", async () => {
-    const m = await mount({ "doc.yamlover": CHAPTER }, ":doc.yamlover");
+    const m = await mount({ "doc.yo": CHAPTER }, ":doc.yo");
     try {
       typeProse(prose(m, 0), "opening rewritten");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("doc.yamlover")).toBe("!!<*yamlover: $defs: chapter>\nBook\n- opening rewritten\n- fresh\n");
+      expect(m.read("doc.yo")).toBe("!!<*yamlover: $defs: chapter>\nBook\n- opening rewritten\n- fresh\n");
     } finally { m.done(); }
   });
 
   it("typing lands in a MEMBER dir's own body — the parent stays untouched", async () => {
     const files = {
-      "d/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\nBook\n- *: 01-part\n",
-      "d/01-part/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\nPart One\n- member opening\n- member fresh\n",
+      "d/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nBook\n- *: 01-part\n",
+      "d/01-part/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nPart One\n- member opening\n- member fresh\n",
     };
     const m = await mount(files, ":d:01-part");
     try {
       typeProse(prose(m, 0), "member edited");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("d/01-part/.yamlover/body.yamlover")).toBe("!!<*yamlover: $defs: chapter>\nPart One\n- member edited\n- member fresh\n");
-      expect(m.read("d/.yamlover/body.yamlover")).toBe(files["d/.yamlover/body.yamlover"]);
+      expect(m.read("d/01-part/.yo/body.yo")).toBe("!!<*yamlover: $defs: chapter>\nPart One\n- member edited\n- member fresh\n");
+      expect(m.read("d/.yo/body.yo")).toBe(files["d/.yo/body.yo"]);
     } finally { m.done(); }
   });
 
   it("typing at a DEEP node lands inside the file — the siblings byte-preserved, no spurious tag", async () => {
-    const m = await mount({ "doc.yamlover": "!!<*yamlover: $defs: chapter>\nBook\n- intro\npart: Part One\n  - part body\n  - part more\n" }, ":doc.yamlover:part");
+    const m = await mount({ "doc.yo": "!!<*yamlover: $defs: chapter>\nBook\n- intro\npart: Part One\n  - part body\n  - part more\n" }, ":doc.yo:part");
     try {
       typeProse(prose(m, 0), "part body edited");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("doc.yamlover")).toBe("!!<*yamlover: $defs: chapter>\nBook\n- intro\npart: Part One\n  - part body edited\n  - part more\n");
+      expect(m.read("doc.yo")).toBe("!!<*yamlover: $defs: chapter>\nBook\n- intro\npart: Part One\n  - part body edited\n  - part more\n");
     } finally { m.done(); }
   });
 });
@@ -375,25 +375,25 @@ describe("the yed chapter parity gate — the storage matrix", () => {
 
 describe("the yed chapter parity gate — the stamp on disk", () => {
   it("a PLAIN folder gains the chapter tag with the FIRST written batch — exactly once", async () => {
-    const m = await mount({ "d/.yamlover/body.yamlover": "- hi\n" }, ":d");
+    const m = await mount({ "d/.yo/body.yo": "- hi\n" }, ":d");
     try {
       typeProse(prose(m, 0), "hello");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      const after = m.read("d/.yamlover/body.yamlover");
+      const after = m.read("d/.yo/body.yo");
       expect(after).toMatch(/!!<.*\$defs:\s?chapter>/); // the stamp led the batch
       expect(after).toContain("- hello");
       // …and only ONCE: the next edit never re-stamps
       typeProse(prose(m, 0), "hello there");
       await settleOps();
-      const again = m.read("d/.yamlover/body.yamlover");
+      const again = m.read("d/.yo/body.yo");
       expect(again.match(/!!</g)?.length, "one tag line, not two").toBe(1);
       expect(again).toContain("- hello there");
     } finally { m.done(); }
   });
 
   it("a zero-op action (Tab's nest + Shift-Tab back) does NOT stamp — nothing was written to tag", async () => {
-    const m = await mount({ "d/.yamlover/body.yamlover": "- hi\n- ho\n" }, ":d");
+    const m = await mount({ "d/.yo/body.yo": "- hi\n- ho\n" }, ":d");
     try {
       const p = prose(m, 0);
       fireEvent.focus(p);
@@ -402,7 +402,7 @@ describe("the yed chapter parity gate — the stamp on disk", () => {
       fireEvent.keyDown(nested, { key: "Tab", shiftKey: true });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("d/.yamlover/body.yamlover"), "the disk never saw the round-trip").toBe("- hi\n- ho\n");
+      expect(m.read("d/.yo/body.yo"), "the disk never saw the round-trip").toBe("- hi\n- ho\n");
     } finally { m.done(); }
   });
 });
@@ -413,7 +413,7 @@ describe("the yed chapter parity gate — the stamp on disk", () => {
 
 describe("the yed chapter parity gate — neutrality and fidelity", () => {
   it("Tab's wrap ⇄ Shift-Tab's unwrap is DISK-NEUTRAL on a tagged chapter", async () => {
-    const m = await mount({ "d/.yamlover/body.yamlover": CHAPTER }, ":d");
+    const m = await mount({ "d/.yo/body.yo": CHAPTER }, ":d");
     try {
       const p = prose(m, 1);
       fireEvent.focus(p);
@@ -422,18 +422,18 @@ describe("the yed chapter parity gate — neutrality and fidelity", () => {
       fireEvent.keyDown(nested, { key: "Tab", shiftKey: true });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("d/.yamlover/body.yamlover")).toBe(CHAPTER);
+      expect(m.read("d/.yo/body.yo")).toBe(CHAPTER);
     } finally { m.done(); }
   });
 
   it("COMMENTS and quoted SPELLINGS survive an edit to a sibling paragraph", async () => {
     const src = "!!<*yamlover: $defs: chapter>\n# a note that must survive\nBook\n- 'quoted paragraph'\n- plain one\n";
-    const m = await mount({ "doc.yamlover": src }, ":doc.yamlover");
+    const m = await mount({ "doc.yo": src }, ":doc.yo");
     try {
       typeProse(prose(m, 1), "plain edited");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("doc.yamlover")).toBe("!!<*yamlover: $defs: chapter>\n# a note that must survive\nBook\n- 'quoted paragraph'\n- plain edited\n");
+      expect(m.read("doc.yo")).toBe("!!<*yamlover: $defs: chapter>\n# a note that must survive\nBook\n- 'quoted paragraph'\n- plain edited\n");
     } finally { m.done(); }
   });
 });
@@ -448,7 +448,7 @@ const TABLE_DOC =
 
 describe("the yed chapter parity gate — tables and source chunks on disk", () => {
   it("a cell edit lands at the cell; Tab at the VERY last cell appends a row of the width", async () => {
-    const m = await mount({ "doc.yamlover": TABLE_DOC }, ":doc.yamlover");
+    const m = await mount({ "doc.yo": TABLE_DOC }, ":doc.yo");
     try {
       const faces = m.container.querySelectorAll("td .yl-cell");
       expect(faces.length).toBe(2);
@@ -458,14 +458,14 @@ describe("the yed chapter parity gate — tables and source chunks on disk", () 
       fireEvent.change(input, { target: { value: "cat" } });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("doc.yamlover")).toContain("- - cat\n    - woof\n");
+      expect(m.read("doc.yo")).toContain("- - cat\n    - woof\n");
       // Tab from the LAST cell appends a row
       const last = Array.from(m.container.querySelectorAll("td .yl-cell")).find((f) => f.textContent === "woof") as HTMLElement;
       fireEvent.focus(last);
       fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Tab" });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("doc.yamlover")).toBe(
+      expect(m.read("doc.yo")).toBe(
         "!!<*yamlover: $defs: chapter>\nBook\n" +
         "- !!<*yamlover: $defs: table>\n  header:\n    - Pet\n    - Sound\n  - - cat\n    - woof\n  - - ''\n    - ''\n",
       );
@@ -473,20 +473,53 @@ describe("the yed chapter parity gate — tables and source chunks on disk", () 
   });
 
   it("Ctrl+Enter in a cell appends a row on the DISK", async () => {
-    const m = await mount({ "doc.yamlover": TABLE_DOC }, ":doc.yamlover");
+    const m = await mount({ "doc.yo": TABLE_DOC }, ":doc.yo");
     try {
       const face = m.container.querySelector("td .yl-cell") as HTMLElement;
       fireEvent.focus(face);
       fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Enter", ctrlKey: true });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("doc.yamlover")).toContain("- - dog\n    - woof\n  - - ''\n    - ''\n");
+      expect(m.read("doc.yo")).toContain("- - dog\n    - woof\n  - - ''\n    - ''\n");
+    } finally { m.done(); }
+  });
+
+  it("a table GROWN in a DIR chapter stays one inline content unit — rows never promote to members", async () => {
+    // reported (sporadic): "edit sync failed: cannot descend into a scalar element at [0]" on
+    // table exit. Reproduced deterministically: the row-array replace in a dir-backed body
+    // promoted the row to a `- *: itemNN` member; the next flush's positional cell edit then
+    // hit the pointer line. Content is content ALL THE WAY DOWN (concrete-rules): a node inside
+    // an inline TAGGED container never promotes.
+    const m = await mount({ "d/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nBook\n- first words\n" }, ":d");
+    try {
+      const p = prose(m, 0);
+      fireEvent.focus(p);
+      fireEvent.keyDown(p, { key: "Enter", ctrlKey: true }); // THE TABLE GESTURE
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      // grow a column, then a row, then edit the FIRST row's cell — each in its OWN flush
+      // (the boundary that used to detonate)
+      fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Tab" });
+      await settleOps();
+      fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Enter", ctrlKey: true });
+      await settleOps();
+      const firstCell = Array.from(m.container.querySelectorAll("td .yl-cell")).find((c) => c.textContent === "first words") as HTMLElement;
+      fireEvent.focus(firstCell);
+      fireEvent.change(document.activeElement as HTMLInputElement, { target: { value: "edited later" } });
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      expect(m.read("d/.yo/body.yo")).toBe(
+        "!!<*yamlover: $defs: chapter>\nBook\n" +
+        "- !!<*yamlover: $defs: table>\n  - - edited later\n    - ''\n  - - ''\n    - ''\n",
+      );
+      // no `- *: itemNN` pointer inside the table, no phantom member directory
+      expect(m.dirs("d")).not.toContain("item01");
     } finally { m.done(); }
   });
 
   it("a SOURCE chunk's keyed value edits through the yed source cells onto the disk", async () => {
     const src = "!!<*yamlover: $defs: chapter>\nRecipes\n- The stew needs:\n- !!<*yamlover: $defs: recipe>\n  serves: 4\n  time: 20\n";
-    const m = await mount({ "doc.yamlover": src }, ":doc.yamlover");
+    const m = await mount({ "doc.yo": src }, ":doc.yo");
     try {
       const source = m.container.querySelector(".chunk-source");
       expect(source, "the data chunk renders SOURCE cells").toBeTruthy();
@@ -498,7 +531,7 @@ describe("the yed chapter parity gate — tables and source chunks on disk", () 
       fireEvent.keyDown(input, { key: "Enter" });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("doc.yamlover")).toBe("!!<*yamlover: $defs: chapter>\nRecipes\n- The stew needs:\n- !!<*yamlover: $defs: recipe>\n  serves: 6\n  time: 20\n");
+      expect(m.read("doc.yo")).toBe("!!<*yamlover: $defs: chapter>\nRecipes\n- The stew needs:\n- !!<*yamlover: $defs: recipe>\n  serves: 6\n  time: 20\n");
     } finally { m.done(); }
   });
 });
@@ -509,33 +542,33 @@ describe("the yed chapter parity gate — tables and source chunks on disk", () 
 
 describe("the yed chapter parity gate — roles and formats on disk", () => {
   it("T makes the focused chunk the TITLE, D another the DESCRIPTION — the file shows both", async () => {
-    const m = await mount({ "d/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\n- alpha\n- beta\n" }, ":d");
+    const m = await mount({ "d/.yo/body.yo": "!!<*yamlover: $defs: chapter>\n- alpha\n- beta\n" }, ":d");
     try {
       const p = prose(m, 0);
       fireEvent.focus(p);
       pressRole(m, "T");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("d/.yamlover/body.yamlover")).toBe("!!<*yamlover: $defs: chapter>\nalpha\n- beta\n");
+      expect(m.read("d/.yo/body.yo")).toBe("!!<*yamlover: $defs: chapter>\nalpha\n- beta\n");
       const rest = prose(m, 0); // "beta" is now the first (only) body chunk
       fireEvent.focus(rest);
       pressRole(m, "D");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("d/.yamlover/body.yamlover")).toBe("!!<*yamlover: $defs: chapter>\nalpha\ndescription: beta\n");
+      expect(m.read("d/.yo/body.yo")).toBe("!!<*yamlover: $defs: chapter>\nalpha\ndescription: beta\n");
     } finally { m.done(); }
   });
 
   it("Ctrl+Alt+3 wraps a paragraph into a bullets list; Ctrl+Alt+1 extracts it back — disk round-trip", async () => {
     const src = "!!<*yamlover: $defs: chapter>\nBook\n- listify me\n- after\n";
-    const m = await mount({ "doc.yamlover": src }, ":doc.yamlover");
+    const m = await mount({ "doc.yo": src }, ":doc.yo");
     try {
       const p = prose(m, 0);
       fireEvent.focus(p);
       fireEvent.keyDown(p, { key: "3", ctrlKey: true, altKey: true });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("doc.yamlover")).toBe("!!<*yamlover: $defs: chapter>\nBook\n- !!<*yamlover: $defs: bullets>\n  - listify me\n- after\n");
+      expect(m.read("doc.yo")).toBe("!!<*yamlover: $defs: chapter>\nBook\n- !!<*yamlover: $defs: bullets>\n  - listify me\n- after\n");
       // ¶ is ITEM-LOCAL: the item leaves the (single-item) list, which dissolves — the inverse
       const item = m.container.querySelector("li .chapter-prose, .chunk-body li .chapter-prose, li [contenteditable]") as HTMLElement
         ?? prose(m, 0);
@@ -543,7 +576,7 @@ describe("the yed chapter parity gate — roles and formats on disk", () => {
       fireEvent.keyDown(item, { key: "1", ctrlKey: true, altKey: true });
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("doc.yamlover")).toBe(src);
+      expect(m.read("doc.yo")).toBe(src);
     } finally { m.done(); }
   });
 });

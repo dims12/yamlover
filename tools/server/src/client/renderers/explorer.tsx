@@ -278,7 +278,7 @@ function Item({ it, active, view, setRef, onFocus, onNavigate, onContext, dnd }:
 export function ExplorerView({ node, view, onNavigate }: { node: NodeJson; view: ViewMode; onNavigate: (path: string) => void }) {
   const isTag = node.format === TAG_FORMAT;
   // a tag's materials (annotations resolved to their targets) — fetched per tag page, refetched
-  // when a diff (live.ts) touches a `.yamlover` file (an annotation created/deleted anywhere)
+  // when a diff (live.ts) touches a `.yo` file (an annotation created/deleted anywhere)
   const [tagged, setTagged] = useState<Link[]>([]);
   const diffBump = useDiffBump(touchesYamlover);
   const { openAt, tagMenu } = useExplorerTagMenu(); // right-click → the shared tag picker (all views)

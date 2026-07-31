@@ -192,7 +192,7 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
       break;
     }
     case 'document': {
-      // the nearest enclosing DOCUMENT root (a parsed file / a `.yamlover` dir / the served
+      // the nearest enclosing DOCUMENT root (a parsed file / a `.yo` dir / the served
       // root), so `/file` is relative to the chapter (or other instance) it sits in — not the
       // whole served tree. Falls back to the overall root when nothing in the chain is marked.
       let docRoot = root;

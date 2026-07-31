@@ -293,16 +293,27 @@ describe("yed2 — an EMPTIED key never traps the caret", () => {
 });
 
 describe("yed2 — committed labour is never dropped", () => {
-  it("Enter on an OMNI's value keeps its fields and descends to ADD more", () => {
-    // reported: `Eurasia` / `- Europe` / `- Asia`, ↑↑ to the value, Enter erased the whole
-    // list. The commit merges into the node — fields survive — and the descend opens the hole
-    // AFTER the last field, ready for the next `- `.
+  it("Enter on an OMNI's value keeps its fields and opens the hole RIGHT AFTER the value line", () => {
+    // reported once: `Eurasia` / `- Europe` / `- Asia`, ↑↑ to the value, Enter erased the whole
+    // list. The commit merges into the node — fields survive. Reported again: the descend hole
+    // opened after the LAST field; it must open at the value line's own row (`selfAt`), like Enter
+    // at a line's end in any text editor — the production editor's enterInto agrees.
     const s = type("Eurasia{Enter}- Europe{Enter}{ShiftTab}- Asia{ArrowRight}");
     expect(src(s)).toBe("Eurasia\n- Europe\n- Asia\n");
     const s2 = type("{ArrowUp}{ArrowUp}{Enter}", s);
     expect(src(s2)).toBe("Eurasia\n- Europe\n- Asia\n");   // nothing dropped
-    expect(s2.cursor).toEqual({ at: "hole", path: [], index: 2, text: "", key: null });
-    expect(src(type("- Africa{ArrowRight}", s2))).toBe("Eurasia\n- Europe\n- Asia\n- Africa\n");
+    expect(s2.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: null });
+    expect(src(type("- Africa{ArrowRight}", s2))).toBe("Eurasia\n- Africa\n- Europe\n- Asia\n");
+  });
+
+  it("the reported `1` / `- 2` / `- 3`: Enter after the `1` opens the new row right below it", () => {
+    const s0 = type("1{Enter}- 2{Enter}{ShiftTab}- 3{ArrowRight}");
+    expect(src(s0)).toBe("1\n- 2\n- 3\n");
+    // the caret stands at the end of the committed `1` (a click + End)
+    const s = applyKey({ ...s0, cursor: { at: "token", path: [], text: "1" } }, { key: "Enter" }, { atStart: false, atEnd: true });
+    expect(s.refused).toBe(false);
+    expect(s.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: null }); // after `1`, before `- 2`
+    expect(src(type("- x{ArrowRight}", s))).toBe("1\n- x\n- 2\n- 3\n");
   });
 
   it("Backspace after Enter's descend STEPS BACK onto the value — never deletes it", () => {
@@ -321,6 +332,26 @@ describe("yed2 — committed labour is never dropped", () => {
     const s2 = applyKey(s, { key: "Backspace" });
     expect(s2.cursor).toMatchObject({ at: "hole", key: null, text: "key" });
   });
+  it("Enter at the HEAD of a committed row opens the sibling hole BEFORE it — the row pushes down", () => {
+    // reported: `- 1` / `- 2`, caret before the `1`, Enter — the new space must open BEFORE
+    // `- 1` (the text-editor gesture), not descend after it
+    const s0 = type("- 1{Enter}{ShiftTab}- 2{ArrowRight}");
+    expect(src(s0)).toBe("- 1\n- 2\n");
+    const s = applyKey({ ...s0, cursor: { at: "token", path: [0], text: "1" } }, { key: "Enter" }, { atStart: true, atEnd: false });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("- 1\n- 2\n"); // nothing committed yet — the hole is the cursor's
+    expect(s.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: null });
+    expect(src(type("- 0{ArrowRight}", s))).toBe("- 0\n- 1\n- 2\n");
+    // …while Enter mid-text keeps THE LEVEL RULE's descend
+    const mid = applyKey({ ...s0, cursor: { at: "token", path: [0], text: "1" } }, { key: "Enter" }, { atStart: false, atEnd: false });
+    expect(mid.cursor).toEqual({ at: "hole", path: [0], index: 0, text: "", key: null });
+    // …and the ROOT token has no row above it — the level rule stands there too
+    const r0 = type("12{Enter}");
+    const r = applyKey({ ...r0, cursor: { at: "token", path: [], text: "12" } }, { key: "Enter" }, { atStart: true, atEnd: false });
+    expect(r.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: null });
+    expect(src(r)).toBe("12\n");
+  });
+
   it("deleting a committed VALUE keeps its key — the pair returns to a named hole", () => {
     const s0 = type("{{key: 12}");
     // a click on the token, its text cleared, then Backspace: the value goes, `key:` stays

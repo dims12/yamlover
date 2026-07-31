@@ -31,7 +31,7 @@
             implementationClass="net.inthemoon.yamlover.YamloverFileType"
             fieldName="INSTANCE"
             language="yamlover"
-            extensions="yamlover"/>
+            extensions="yo;yamlover"/>
         <lang.parserDefinition
             language="yamlover"
             implementationClass="net.inthemoon.yamlover.YamloverParserDefinition"/>

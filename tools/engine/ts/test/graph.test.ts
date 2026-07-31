@@ -67,7 +67,7 @@ test('yamlover and json5p agree on the shared normalized edges (06 vs 03)', () =
   const fmt = (src: string, p: (s: string) => any) =>
     new Set(normalize(buildGraph(p(src))).map((e) => `${e.from} -${e.label}-> ${e.to}`));
   const j = fmt(readFileSync(join(examples, '03-tour.json5p'), 'utf8'), parseJson5p);
-  const y = fmt(readFileSync(join(examples, '06-tour.yamlover'), 'utf8'), parseYamlover);
+  const y = fmt(readFileSync(join(examples, '06-tour.yo'), 'utf8'), parseYamlover);
   const shared = [
     ': -feline-> :pets[1]',
     ': -topDog-> :pets[0]',

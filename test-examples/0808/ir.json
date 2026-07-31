@@ -18,7 +18,7 @@
         }
       },
       {
-        "key": ".yamlover",
+        "key": ".yo",
         "edge": "contain",
         "value": {
           "kind": "mapping",
@@ -36,7 +36,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "pic.yamlover",
+                    "key": "pic.yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",

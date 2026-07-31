@@ -1,5 +1,5 @@
 // The test-examples fixture corpus (test-examples/README.md): every fixture pins the
-// canonical IR of its input (`ir.json`), the byte-exact serializer output (`out.yamlover`),
+// canonical IR of its input (`ir.json`), the byte-exact serializer output (`out.yo`),
 // and the losslessness of the round-trip (the golden reparses IR-equal). Error fixtures
 // pin the thrown message instead. Goldens come from `npm run gen:fixtures` (reviewed and
 // committed); this harness only ever READS.
@@ -38,8 +38,8 @@ for (const id of ids) {
     if (existsSync(errPath)) {
       const re = new RegExp(readFileSync(errPath, 'utf8').trim());
       assert.throws(() => input.load(), re, `${id}: expected parse of ${input.name} to throw ${re}`);
-      assert.ok(!existsSync(join(dir, 'ir.json')) && !existsSync(join(dir, 'out.yamlover')),
-        `${id}: an error fixture carries no ir.json/out.yamlover`);
+      assert.ok(!existsSync(join(dir, 'ir.json')) && !existsSync(join(dir, 'out.yo')),
+        `${id}: an error fixture carries no ir.json/out.yo`);
       return;
     }
 
@@ -49,22 +49,22 @@ for (const id of ids) {
     assert.deepEqual(canonDoc(doc), expected, `${id}: canonical IR diverged from ir.json`);
 
     // 2+3. golden serialization, byte-for-byte — and the golden reparses IR-equal
-    const outPath = join(dir, 'out.yamlover');
+    const outPath = join(dir, 'out.yo');
     if (existsSync(outPath)) {
       const golden = readFileSync(outPath, 'utf8');
-      assert.equal(serializeYamlover(doc), golden, `${id}: serializeYamlover diverged from out.yamlover`);
+      assert.equal(serializeYamlover(doc), golden, `${id}: serializeYamlover diverged from out.yo`);
       // a `lossy` marker documents a graph shape a yamlover FILE cannot reproduce (e.g. a
       // walked dir's array-projection over keyed entries) — the byte golden above still pins
       // the serializer; only the reparse-equality below is inapplicable.
       if (!existsSync(join(dir, 'lossy'))) {
-        const re = parseYamlover(golden, `${id}/out.yamlover`);
-        assert.deepEqual(canonDoc(re), canonDoc(doc), `${id}: out.yamlover does not reparse IR-equal`);
+        const re = parseYamlover(golden, `${id}/out.yo`);
+        assert.deepEqual(canonDoc(re), canonDoc(doc), `${id}: out.yo does not reparse IR-equal`);
       }
     } else {
-      // out.yamlover may be omitted ONLY for a blob-carrying doc (a blob has no yamlover
+      // out.yo may be omitted ONLY for a blob-carrying doc (a blob has no yamlover
       // text form) — and then the LossyError refusal is itself the pinned behavior.
       assert.ok(JSON.stringify(expected).includes('"blob"'),
-        `${id}: out.yamlover may be omitted only when ir.json carries a blob node`);
+        `${id}: out.yo may be omitted only when ir.json carries a blob node`);
       assert.throws(() => serializeYamlover(doc), LossyError,
         `${id}: expected serializeYamlover to refuse a blob-carrying doc`);
     }

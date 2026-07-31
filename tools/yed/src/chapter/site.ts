@@ -34,6 +34,12 @@ export interface ChapterSite {
   tableEdge: "midRow" | "rowEnd" | "lastCell" | null;
   /** The very first cell of a table (Shift-Tab never un-appends). */
   atFirstCell: boolean;
+  /** The first cell of THIS row (a scalar row's single cell counts) — the unwind ladder's
+   *  row boundary. */
+  atRowStart: boolean;
+  /** Every cell of THIS row is an empty prose scalar — Backspace at the row's first position
+   *  deletes the whole row. */
+  rowEmpty: boolean;
   /** The table still has only ONE walkable row — Tab at its end adds a COLUMN (the creation
    *  flow); once a second row exists the column count is FIXED. */
   singleRow: boolean;
@@ -73,7 +79,8 @@ export function chapterSiteOf(doc: Document, focus: Position | null, edges: Chap
     caretAtStart: edges.atStart ?? false, caretAtEnd: edges.atEnd ?? false,
     caretFirstLine: edges.firstLine ?? false, caretLastLine: edges.lastLine ?? false,
     isRootTitle: false, prevSiblingIsChapter: false, hasPrevItem: false, belowRoot: false,
-    materialized: false, tableEdge: null, atFirstCell: false, singleRow: false, inTable: false, currentFormat: null,
+    materialized: false, tableEdge: null, atFirstCell: false, atRowStart: false, rowEmpty: false,
+    singleRow: false, inTable: false, currentFormat: null,
   };
   if (!focus) return base;
   const path = focus.path;
@@ -122,6 +129,8 @@ export function chapterSiteOf(doc: Document, focus: Position | null, edges: Chap
   // a SCALAR row edited at the row's own path IS the row's single cell
   if (base.enclosing === "row" && !isPointer(v) && (v as Node).kind === "scalar") {
     base.cell = "tableCell";
+    base.atRowStart = true; // the single cell IS the row's first position
+    base.rowEmpty = cellEmpty(v);
     if (held) {
       const table = held.parent;
       const keylessRows = (table.entries ?? []).map((e, i) => ({ e, i })).filter((x) => x.e.key === null);
@@ -136,6 +145,8 @@ export function chapterSiteOf(doc: Document, focus: Position | null, edges: Chap
   if (base.enclosing === "row-cell") {
     base.cell = "tableCell";
     if (held) {
+      base.atRowStart = held.index === 0;
+      base.rowEmpty = (held.parent.entries ?? []).every((e) => cellEmpty(e.value));
       const row = held.parent;
       const tableHeld = entryHolding(doc, path.slice(0, -1));
       const table = tableHeld?.parent ?? null;
@@ -161,6 +172,11 @@ export function chapterSiteOf(doc: Document, focus: Position | null, edges: Chap
   base.belowRoot = path.length > 1;
   return base;
 }
+
+/** An empty prose cell: a childless scalar with no text (the unwind ladder's "cleared"). */
+const cellEmpty = (v: Value): boolean =>
+  !isPointer(v) && (v as Node).kind === "scalar" && ((v as Node).entries ?? []).length === 0 &&
+  String(((v as Node) as { value?: unknown }).value ?? "") === "";
 
 const oneLineScalar = (v: Value): boolean => {
   if (isPointer(v)) return false;

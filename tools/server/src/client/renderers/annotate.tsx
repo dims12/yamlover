@@ -34,7 +34,7 @@ import { TocFilterHandle, useTocFilter } from "../toc-filter-session";
 
 // The built-in pure color tags (the palette). This constant is the OFFLINE fallback — the picker
 // fetches the real `/yamlover/tags/colors` nodes once per session (useColorTags) so a project
-// that re-themes them wins; the paths and hexes here mirror yamlover/tags/.yamlover/body.yamlover.
+// that re-themes them wins; the paths and hexes here mirror yamlover/tags/.yo/body.yo.
 export const COLOR_TAGS: TagRef[] = [
   { path: "::yamlover:tags:colors:yellow", name: "yellow", color: "#f9e2af" },
   { path: "::yamlover:tags:colors:green", name: "green", color: "#a6e3a1" },
@@ -74,7 +74,7 @@ function sameSelector(a: unknown, b: unknown): boolean {
 }
 
 /** Whether an annotation can be edited/deleted here — any STANDALONE annotation file (its node
- *  path is the `.yamlover` file itself), wherever it lives in the tree: annotations are graph
+ *  path is the `.yo` file itself), wherever it lives in the tree: annotations are graph
  *  nodes, not residents of a fixed folder, so one moved to another directory stays editable.
  *  Every embedded annotation (one with a resolved tag) is editable — re-tag/delete just edits its
  *  host body. Transient markers (a `(preview)`/`(pending)` placeholder) are not. */
@@ -142,7 +142,7 @@ export function indexToRefs(paths: string[]): TagRef[] {
   return [...byKey.values()].map((p) => ({ path: p, name: tagNameOf(p), color: null }));
 }
 
-/** The project's named tags, enumerated once and re-enumerated when a `.yamlover` source changes
+/** The project's named tags, enumerated once and re-enumerated when a `.yo` source changes
  *  (so a freshly created tag appears). Feeds the picker's typeahead suggestions. */
 export function useTagIndex(): TagRef[] {
   const [tags, setTags] = useState<TagRef[]>([]);
@@ -242,7 +242,7 @@ function annotationTarget(materialPath: string, ann: Annotation): string {
 }
 
 /** Read-only fetch of a material's annotations; `bump` (a changing number) forces a refetch.
- *  Also refetches whenever a diff (live.ts — the unified change flow) touches a `.yamlover`
+ *  Also refetches whenever a diff (live.ts — the unified change flow) touches a `.yo`
  *  file: an annotation written/deleted ANYWHERE (this page's own save, another tab, a shell rm
  *  reconciled by the watcher) or an edited taxonomy must redraw the marks without a reload. */
 export function useAnnotations(path: string, bump = 0): Annotation[] {

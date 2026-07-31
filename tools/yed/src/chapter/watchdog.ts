@@ -6,7 +6,7 @@
 // Exemptions, by contract:
 //   - `null`   — not this grammar's key (source chunks, native prose editing);
 //   - `nop`    — claimed-to-swallow (Tab must not walk the browser's focus out);
-//   - `move`   — may decline at the walk's ends (the caret deliberately stays put);
+//   - `move` / `cellWalk` — may decline at the walk's ends (the caret deliberately stays put);
 //   - `joinPrev/joinNext` — may refuse across a non-prose block, which IS the ring (counted).
 
 import { sourceOf } from "../state";
@@ -16,6 +16,7 @@ import { applyChapterIntent, type ChapterState } from "./apply";
 
 export const CHAPTER_WATCHDOG_KEYS: ChapterKey[] = [
   { key: "Enter" },
+  { key: "Enter", ctrl: true },
   { key: "Tab" },
   { key: "Tab", shift: true },
   { key: "Backspace" },
@@ -49,7 +50,7 @@ export function chapterWatchdog(s: ChapterState): void {
   for (const k of CHAPTER_WATCHDOG_KEYS) {
     const site = chapterSiteOf(s.doc, s.focus, edges);
     const intent = chapterInterpret(k, site);
-    if (intent === null || intent.kind === "nop" || intent.kind === "move") continue;
+    if (intent === null || intent.kind === "nop" || intent.kind === "move" || intent.kind === "cellWalk") continue;
     const out = applyChapterIntent(s, intent, { head: "", tail: "" });
     const responded =
       out.refused ||

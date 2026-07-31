@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import { createHandlers } from "./helpers";
 import { tmpExample, tmpTree } from "./helpers";
-import { call } from "./http";
+import { call, callBody } from "./http";
 
 // Read endpoints, against DISPOSABLE COPIES of the example fixtures (indexing writes the
-// .yamlover/index.db cache into the served tree, so even reads must not target the repo).
+// .yo/index.db cache into the served tree, so even reads must not target the repo).
 
 describe("api endpoints (engine-backed)", () => {
   it("/api/info returns the served root's directory name", async () => {
@@ -17,7 +19,7 @@ describe("api endpoints (engine-backed)", () => {
     const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
     await h.ready;
     const { json } = call(h, "/api/tree", { depth: "3" });
-    // filesystem order = sorted names (no body.yamlover to impose another); the `yamlover`
+    // filesystem order = sorted names (no body.yo to impose another); the `yamlover`
     // self-import graft is HIDDEN plumbing and never appears in the listing
     expect(json.children.map((c: any) => c.label)).toEqual(["age", "isAdmin", "name"]);
   });
@@ -37,6 +39,30 @@ describe("api endpoints (engine-backed)", () => {
     expect(Object.keys(y.json.value as object)).toContain("$defs");
   });
 
+  it("a table spelled with inline anchors — duplicates across levels included — serves, never 500s", async () => {
+    // reported: this document rendered as NOTHING (the parser refused `&item01 !!<…>`, and
+    // `&item01 - x` read as the scalar "- x"). Redundant anchors are scope-legit provenance.
+    const doc = [
+      "!!<*:: yamlover: $defs: chapter>",
+      "- &item01 !!<*:: yamlover: $defs: table>",
+      "  - &item01 - one",
+      "    - two",
+      "  - &item02 - three",
+      "    - ''",
+      "",
+    ].join("\n");
+    const h = createHandlers(tmpTree({ "t.yo": doc }), { gitignore: false });
+    await h.ready;
+    const r = call(h, "/api/json", { path: ":t.yo", depth: "9" });
+    expect(r.status).toBe(200);
+    // the table projects with its rows intact; the anchors ALSO mint their alias keys
+    // (anchors create real keys — spec'd), which must not disturb the ordinal rows
+    const root = (r.json.value as any).$yamloverMixed;
+    const table = root.entries[0].value.$yamloverMixed;
+    const rows = table.entries.filter((e: any) => e.key === null).map((e: any) => e.value);
+    expect(rows).toEqual([["one", "two"], ["three", ""]]);
+  });
+
   it("/api/tree: a chunks-only chapter is a LEAF (no expand chevron); one with a subchapter expands", async () => {
     // MINITODO: 68-math-chapter (chunks + a root fragment, no subchapters) must not show a chevron
     // that expands to nothing. A chapter's TOC hint counts SUBCHAPTERS only, not chunks/overlay.
@@ -45,15 +71,15 @@ describe("api endpoints (engine-backed)", () => {
       "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
     };
     const h = createHandlers(tmpTree({
-      "chunks-only.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Only Chunks\n- one\n- two\n",
-      "with-sub.yamlover": "!!<*yamlover: $defs: chapter>\ntitle: Has Sub\n- intro\n- title: A Subchapter\n  - nested\n",
+      "chunks-only.yo": "!!<*yamlover: $defs: chapter>\ntitle: Only Chunks\n- one\n- two\n",
+      "with-sub.yo": "!!<*yamlover: $defs: chapter>\ntitle: Has Sub\n- intro\n- title: A Subchapter\n  - nested\n",
       ...DEFS,
     }), { gitignore: false });
     await h.ready;
-    const co = call(h, "/api/tree", { path: ":chunks-only.yamlover", depth: "2" }).json;
+    const co = call(h, "/api/tree", { path: ":chunks-only.yo", depth: "2" }).json;
     expect(co.format).toBe("x-yamlover-chapter");
     expect(co.hasChildren).toBe(false); // only chunks/overlay → a leaf
-    const ws = call(h, "/api/tree", { path: ":with-sub.yamlover", depth: "2" }).json;
+    const ws = call(h, "/api/tree", { path: ":with-sub.yo", depth: "2" }).json;
     expect(ws.hasChildren).toBe(true); // has a subchapter → expandable
     expect(ws.children.some((c: { format?: string }) => c.format === "x-yamlover-chapter")).toBe(true);
   });
@@ -65,11 +91,11 @@ describe("api endpoints (engine-backed)", () => {
     };
     const h = createHandlers(tmpTree({
       // a titled chapter whose body holds an UNTITLED subchapter (compact `- - ` form)
-      "doc.yamlover": "!!<*yamlover: $defs: chapter>\nTitled\n- intro\n- - the first chunk of an untitled subchapter tells you what it is\n  - more\n",
+      "doc.yo": "!!<*yamlover: $defs: chapter>\nTitled\n- intro\n- - the first chunk of an untitled subchapter tells you what it is\n  - more\n",
       ...DEFS,
     }), { gitignore: false });
     await h.ready;
-    const doc = call(h, "/api/tree", { path: ":doc.yamlover", depth: "2" }).json;
+    const doc = call(h, "/api/tree", { path: ":doc.yo", depth: "2" }).json;
     expect(doc.label).toBe("Titled");
     const sub = doc.children.find((c: { format?: string }) => c.format === "x-yamlover-chapter");
     expect(sub.label).toBe("the first chunk of an untitled subchapt…"); // clipped first-chunk text
@@ -77,7 +103,7 @@ describe("api endpoints (engine-backed)", () => {
 
   it("/api/json is one level deep with link markers", async () => {
     // an object with a nested array child → the child projects as an array link marker
-    const h = createHandlers(tmpTree({ ".yamlover/body.yamlover": "markup:\n- x: 1\n  y: 2\n- x: 3\n  y: 4\n" }), { gitignore: false });
+    const h = createHandlers(tmpTree({ ".yo/body.yo": "markup:\n- x: 1\n  y: 2\n- x: 3\n  y: 4\n" }), { gitignore: false });
     await h.ready;
     const { json } = call(h, "/api/json", { path: ":" });
     expect(json.type).toBe("object");
@@ -88,8 +114,8 @@ describe("api endpoints (engine-backed)", () => {
     // a png typed via meta, carrying embedded fragment overlay entries in body
     const h = createHandlers(tmpTree({
       "pic.png": "pretend-png-bytes",
-      ".yamlover/meta.yamlover": "properties:\n  pic.png:\n    type: binary\n    format: image/png\n    concrete: file/binary\n",
-      ".yamlover/body.yamlover": "\"pic.png\":\n  yamlover-fragments:\n    f1:\n      type: rect\n      x: 1\n      y: 2\n      w: 3\n      h: 4\n",
+      ".yo/meta.yo": "properties:\n  pic.png:\n    type: binary\n    format: image/png\n    concrete: file/binary\n",
+      ".yo/body.yo": "\"pic.png\":\n  yamlover-fragments:\n    f1:\n      type: rect\n      x: 1\n      y: 2\n      w: 3\n      h: 4\n",
     }), { gitignore: false });
     await h.ready;
     const { json } = call(h, "/api/json", { path: ":pic.png", binary: "1" });
@@ -123,7 +149,7 @@ describe("api endpoints (engine-backed)", () => {
 describe("comment projection (/api/json)", () => {
   const tree = () =>
     tmpTree({
-      ".yamlover/body.yamlover":
+      ".yo/body.yo":
         "# banner\n\n# the name\nname: Alice # who\nuser:\n  # nested\n  role: admin\n# bye\n",
     });
 
@@ -149,7 +175,7 @@ describe("comment projection (/api/json)", () => {
   it("projects pointer tokens, anchors and type tags (yamlover syntax fidelity)", async () => {
     const h = createHandlers(
       tmpTree({
-        ".yamlover/body.yamlover": "boss: &: chief\n  name: Rex\nteam:\n  lead: *: chief\ncrew: !!set\n  - *: boss\n",
+        ".yo/body.yo": "boss: &: chief\n  name: Rex\nteam:\n  lead: *: chief\ncrew: !!set\n  - *: boss\n",
       }),
       { gitignore: false },
     );
@@ -163,7 +189,7 @@ describe("comment projection (/api/json)", () => {
   it("carries a block scalar's AUTHORED token in `raw` (header + de-indented lines)", async () => {
     const h = createHandlers(
       tmpTree({
-        ".yamlover/body.yamlover": "clip: |\n  one\n  two\nstrip: |-\n  solo\n  duo\nfold: >\n  a\n  b\noneline: |-\n  alone\n",
+        ".yo/body.yo": "clip: |\n  one\n  two\nstrip: |-\n  solo\n  duo\nfold: >\n  a\n  b\noneline: |-\n  alone\n",
       }),
       { gitignore: false },
     );
@@ -183,7 +209,7 @@ describe("comment projection (/api/json)", () => {
 
   it("flags entries preceded by a blank source line (for empty-line rendering)", async () => {
     const h = createHandlers(
-      tmpTree({ ".yamlover/body.yamlover": "a: 1\nb: 2\n\nc: 3\n" }),
+      tmpTree({ ".yo/body.yo": "a: 1\nb: 2\n\nc: 3\n" }),
       { gitignore: false },
     );
     await h.ready;
@@ -204,7 +230,7 @@ describe("comment projection (/api/json)", () => {
 describe("reverse positional membership (~-) projection", () => {
   const tree = () =>
     tmpTree({
-      ".yamlover/body.yamlover":
+      ".yo/body.yo":
         "items:\n- alpha\nmember:\n  name: m\n  ~- *: items\n  ~- *: unique\n" +
         "dup:\n  ~- *: items\n  ~- *: items\nunique: !!set\n- *: member\n",
     });
@@ -241,7 +267,7 @@ describe("render depth: .inf default + references as references", () => {
   // a directory document with a nested subtree and a forward `*` reference
   const tree = () =>
     tmpTree({
-      ".yamlover/body.yamlover":
+      ".yo/body.yo":
         "eve:\n  name: Eve\n" +
         "adam:\n  mother: *:eve\n  deep:\n    nested:\n      leaf: 1\n",
     });
@@ -282,7 +308,37 @@ describe("render depth: .inf default + references as references", () => {
   it("a DIRECTORY defaults to ONE level (children are link markers, not inlined whole)", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":" }); // the served root = a .yamlover directory
+    const { json } = call(h, "/api/json", { path: ":" }); // the served root = a .yo directory
     expect(json.value.adam.$yamloverLink).toBeTruthy();
+  });
+});
+
+describe("the legacy `.yamlover` extension (YOMIGRATION.md §1 — read forever, never written)", () => {
+  it("a legacy standalone file serves like a native `.yo` one", async () => {
+    const h = createHandlers(tmpTree({ "note.yamlover": "a: 1\nb: two\n" }), { gitignore: false });
+    await h.ready;
+    const r = call(h, "/api/json", { path: ":note.yamlover" });
+    expect(r.status).toBe(200);
+    expect(r.json.value).toEqual({ a: 1, b: "two" });
+  });
+
+  it("a legacy standalone file is edited IN PLACE (no rename, no refusal)", async () => {
+    const root = tmpTree({ "note.yamlover": "a: 1\n" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/edit", { path: ":note.yamlover:a", op: "emplace", yamlover: "2" });
+    expect(r.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, "note.yamlover"), "utf8")).toBe("a: 2\n");
+  });
+
+  it("new content is born with the `.yo` extension", async () => {
+    const root = tmpTree({ "dir/keep.txt": "x" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/paste", { path: ":dir", text: "Pasted words become a chapter" });
+    expect(r.status).toBe(201);
+    const born = fs.readdirSync(path.join(root, "dir")).filter((n) => n !== "keep.txt");
+    expect(born.some((n) => n.endsWith(".yo"))).toBe(true);
+    expect(born.some((n) => n.endsWith(".yamlover"))).toBe(false);
   });
 });

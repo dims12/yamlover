@@ -6,11 +6,11 @@ import { call, callBody } from "./http";
 
 // /api/rekey — rename a key. One verb, two backends routed by the node's STORAGE: an fs-backed
 // member (a real directory named by the key) is renamed on disk via `mv`; an INLINE keyed entry
-// has its key token rewritten in the enclosing body. (YAMLOVER_EDITOR.yamlover: the concrete is
+// has its key token rewritten in the enclosing body. (YAMLOVER_EDITOR.yo: the concrete is
 // not a state — the editor asks to rename, the server routes.)
 
 const bodyAt = (root: string, ...segs: string[]) =>
-  fs.readFileSync(path.join(root, ...segs, ".yamlover", "body.yamlover"), "utf8");
+  fs.readFileSync(path.join(root, ...segs, ".yo", "body.yo"), "utf8");
 const edit = (h: unknown, body: Record<string, unknown>) => callBody(h as never, "POST", "/api/edit", body);
 const rekey = (h: unknown, p: string, key: string) => callBody(h as never, "POST", "/api/rekey", { path: p, key });
 const leaf = (h: unknown, p: string) => {
@@ -21,7 +21,7 @@ const leaf = (h: unknown, p: string) => {
 
 /** The world→eurasia→(europe,asia) tree: world & eurasia are directories, europe/asia inline. */
 async function tree() {
-  const root = tmpTree({ ".yamlover/settings.yamlover": "" });
+  const root = tmpTree({ ".yo/settings.yo": "" });
   const h = createHandlers(root, { gitignore: false });
   await h.ready;
   await edit(h, { path: ":", op: "insert", key: "world", yamlover: "World" });

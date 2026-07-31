@@ -4,7 +4,7 @@ import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/re
 
 // fetchNode backs the tag hover-card's lazy body lookup; reject → the card shows the path only.
 vi.mock("../../src/client/api", () => ({
-  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
+  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yo:settings.yo" }),
   fetchAnnotations: vi.fn().mockResolvedValue([]),
   fetchNode: vi.fn().mockRejectedValue(new Error("no node")),
 }));
@@ -26,7 +26,7 @@ describe("DetailsView", () => {
   it("renders the columnar table: a row per member with Name, Kind and Size", () => {
     render(
       <DetailsView
-        members={[item(":task-a.yamlover", "x-yamlover-task", "Task A", { count: 3 }), item(":notes", null, "Notes", { concrete: "dir", count: 7 })]}
+        members={[item(":task-a.yo", "x-yamlover-task", "Task A", { count: 3 }), item(":notes", null, "Notes", { concrete: "dir", count: 7 })]}
         onNavigate={() => {}}
       />,
     );

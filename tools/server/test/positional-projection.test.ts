@@ -3,13 +3,13 @@ import { createHandlers, tmpTree } from "./helpers";
 import { call } from "./http";
 
 // The POSITIONAL PREFIX projection (walk.ts applyBody + node-kind.ts positionalOf): a dir-backed
-// node whose `body.yamlover` is a pointer-array grants positions ONLY to the members it names.
+// node whose `body.yo` is a pointer-array grants positions ONLY to the members it names.
 // Named members project as `$yamloverMixed` entries flagged `anchor: true` (the client renders
 // `- &key value`, the anchor dimmed); unreferenced children are the KEYED-ONLY remainder — plain
 // keyed entries after the prefix, never invented positions.
 
 const TREE_56 = {
-  "d/.yamlover/body.yamlover": "- *anyfile01\n- *alsoany02\n- *andany03.json\n",
+  "d/.yo/body.yo": "- *anyfile01\n- *alsoany02\n- *andany03.json\n",
   "d/anyfile01": "Alice\n",
   "d/alsoany02": "42\n",
   "d/andany03.json": "true\n",
@@ -58,7 +58,7 @@ describe("/api/json — positional prefix (dir-backed pointer-array body)", () =
 
   it("inline elements and dangling pointers keep their positions without anchors", async () => {
     const h = await handlers({
-      "d/.yamlover/body.yamlover": "- *b\n- 42\n- *missing\n",
+      "d/.yo/body.yo": "- *b\n- 42\n- *missing\n",
       "d/a": "alpha\n",
       "d/b": "beta\n",
     });
@@ -89,9 +89,9 @@ describe("/api/json — positional prefix (dir-backed pointer-array body)", () =
 describe("/api/json — a member ordered from an OMNI or MIXED body is consumed too", () => {
   it("a scalar-self-value body consumes its pointer element at every depth", async () => {
     const h = await handlers({
-      ".yamlover/body.yamlover": "- *: item01\n",
-      "item01/.yamlover/body.yamlover": "World\n- *: item01\n",
-      "item01/item01/.yamlover/body.yamlover": "Eurasia\n- Europe\n- Asia\n",
+      ".yo/body.yo": "- *: item01\n",
+      "item01/.yo/body.yo": "World\n- *: item01\n",
+      "item01/item01/.yo/body.yo": "Eurasia\n- Europe\n- Asia\n",
     });
     const m = mixedOf(call(h, "/api/json", { path: ":", depth: ".inf" }).json);
     expect(m!.entries).toEqual([
@@ -117,9 +117,9 @@ describe("/api/json — a member ordered from an OMNI or MIXED body is consumed 
 
   it("a MIXED body keeps keyed fields, the flow's source order, and the anchors together", async () => {
     const h = await handlers({
-      "doc/.yamlover/body.yamlover": "Title\ndescription: Sub\n- one\n- *: pic.png\n- two\n- *: sub\n",
+      "doc/.yo/body.yo": "Title\ndescription: Sub\n- one\n- *: pic.png\n- two\n- *: sub\n",
       "doc/pic.png": "PNG",
-      "doc/sub/.yamlover/body.yamlover": "Deep\n",
+      "doc/sub/.yo/body.yo": "Deep\n",
       "doc/unlisted.txt": "x", // never named by the body → keyed remainder, no anchor
     });
     const m = mixedOf(call(h, "/api/json", { path: ":doc", depth: "2" }).json);

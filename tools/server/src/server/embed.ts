@@ -1,7 +1,7 @@
 /**
  * embed.ts — surgical, indentation-aware edits that EMBED fragments and annotations into a
- * yamlover host body (a standalone `*.yamlover` document, or a directory's
- * `.yamlover/body.yamlover` overlay). Pure string→string transforms, like the chapter-list
+ * yamlover host body (a standalone `*.yo` document, or a directory's
+ * `.yo/body.yo` overlay). Pure string→string transforms, like the chapter-list
  * insertion in engine-api.ts — the parser tracks no spans, so we edit the source text directly,
  * preserving the rest of the file (comments, formatting). See ANNOTATIONS.md.
  *

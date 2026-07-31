@@ -25,6 +25,7 @@ export function rolesOf(state: ChapterState): { title: RoleState; desc: RoleStat
 
 const CAPS: { label: string; key: ChapterKey }[] = [
   { label: "⏎", key: { key: "Enter" } },
+  { label: "⌃⏎", key: { key: "Enter", ctrl: true } }, // a table: created outside one, a row inside
   { label: "⇥", key: { key: "Tab" } },
   { label: "⇤", key: { key: "Tab", shift: true } },
   { label: "⌫", key: { key: "Backspace" } },

@@ -27,7 +27,7 @@ export function ownedEntries(s: Store, p: string): OwnedEntry[] {
   return own.sort((a, b) => (a.pos ?? 0) - (b.pos ?? 0));
 }
 
-/** The members whose POSITION came from the node's `body.yamlover` (walk.ts applyBody): the body
+/** The members whose POSITION came from the node's `body.yo` (walk.ts applyBody): the body
  *  named each by a `*` pointer, which consumed it, so its key is storage PROVENANCE — shown as a
  *  derived `&` anchor — and it counts as ORDINAL, not keyed. Empty for every other node; a member
  *  the body never named keeps its key and stays part of the keyed remainder. */

@@ -6,7 +6,7 @@ guide see `UI.md`, and for the surgical write endpoint see `tools/server/README.
 (`POST /api/edit`).
 
 Two abstract state machines accompany this doc and must stay in sync with the code (see
-§4): `YAMLOVER_EDITOR.yamlover` and `QUERY_EDITOR.yamlover` at the repo root.
+§4): `YAMLOVER_EDITOR.yo` and `QUERY_EDITOR.yo` at the repo root.
 
 ## 1. What "projectional" means here
 
@@ -71,10 +71,10 @@ flush, §6), `paste.ts` (clipboard yamlover → model entries).
 
 ## 4. Two state machines (and the sync convention)
 
-Each root `.yamlover` diagram has exactly one executable mirror in the code. Keep the
+Each root `.yo` diagram has exactly one executable mirror in the code. Keep the
 diagram, its mirror, and this doc aligned when any of the three changes.
 
-- **`YAMLOVER_EDITOR.yamlover`** — the editor's typing grammar / hole-materialization table
+- **`YAMLOVER_EDITOR.yo`** — the editor's typing grammar / hole-materialization table
   (what a keystroke into an empty "hole" becomes: `- ` sequence, `key:` entry, quote, `{`/`[`
   flow, `*` pointer, `!!<` tag, block scalar…). Mirror: the pure `classifyHoleInput → HoleAction`
   in `yamlover-editor/keys.ts`, applied by `applyHoleAction` in `host.ts:60-145`; the
@@ -85,10 +85,10 @@ diagram, its mirror, and this doc aligned when any of the three changes.
   back. Spreading is skipped, not refused, for a container json5p cannot hold (a keyed+keyless
   mixture). Mirrors: `MNode.jsonp` + `setSpread`/`jsonpFits`/`flowReshape` in `model.ts`, `KrRows`
   in `cells.tsx`, `flowNext(…, spread)`/`flowJoin` in `host.ts`.
-- **`QUERY_EDITOR.yamlover`** — the query/pointer editing machine (`idle` / `editing` /
+- **`QUERY_EDITOR.yo`** — the query/pointer editing machine (`idle` / `editing` /
   `filtered`; events `FOCUS_CELL` / `SPLIT_CELL` / `PICK` / …). Mirror: `client/breadcrumb-machine.ts`,
   a pure reducer `reduce(state, event, currentPath) → [state, effects]`; its header states
-  "the human-readable state DIAGRAM lives at QUERY_EDITOR.yamlover … keep the two in sync,"
+  "the human-readable state DIAGRAM lives at QUERY_EDITOR.yo … keep the two in sync,"
   and `breadcrumb-machine.test.ts` runs the table.
 
 ## 5. The reference / pointer PICK-mode kit
@@ -158,7 +158,7 @@ codec, linked previews, image paste, the CHAPTER stamp, deferred materialization
 `renderers/yed-chapter/materialize.ts`). The superset parity gate is
 `test/yed-chapter-parity.test.tsx` — its header maps every legacy behavior to its yed
 counterpart. The debug page: `npm --prefix tools/yed run debug-chapter` (port 5198).
-`YAMLOVER_EDITOR.yamlover` §CHAPTER is the machine's state diagram, mirrored by
+`YAMLOVER_EDITOR.yo` §CHAPTER is the machine's state diagram, mirrored by
 `tools/yed/test/chapter-dispatch.test.ts`.
 
 The same doctrine holds throughout: the format is **derived** per render (an explicit
@@ -223,7 +223,7 @@ every site of every other), `clipboard` (subtree copy/paste as serialized text, 
 same laws typing obeys), `cells` (the framed, titled, recursive cell projection),
 `dom-typing` (real key events with the caret pinned per keystroke), `dialect` (json/json5
 policy smoke), `yed-dispatch` (the grammar table as data — the file
-`YAMLOVER_EDITOR.yamlover` mirrors).
+`YAMLOVER_EDITOR.yo` mirrors).
 
 ## File index
 
@@ -282,5 +282,5 @@ keyboard), `src/page.tsx` (the debug page), `src/diff.ts` (line diff),
 capabilities through `ChapterCellsAdapter`); debug pages under `tools/yed/debug-editor/`
 (port 5199) and `tools/yed/debug-chapter/` (port 5198), suites under `tools/yed/test/`.
 
-**State machines:** `YAMLOVER_EDITOR.yamlover`, `QUERY_EDITOR.yamlover` (repo root) — keep in
+**State machines:** `YAMLOVER_EDITOR.yo`, `QUERY_EDITOR.yo` (repo root) — keep in
 sync with `keys.ts`/`host.ts` and `breadcrumb-machine.ts` respectively.

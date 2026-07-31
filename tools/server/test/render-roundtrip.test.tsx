@@ -50,7 +50,7 @@ function renderedText(value: unknown, comments: unknown, documentPath: string, n
 
 /** Index `body`, project + render it, reparse the render, and assert the graph survived. */
 async function roundTrip(body: string): Promise<string> {
-  const h = createHandlers(tmpTree({ ".yamlover/body.yamlover": body }), { gitignore: false });
+  const h = createHandlers(tmpTree({ ".yo/body.yo": body }), { gitignore: false });
   await h.ready;
   const { json } = call(h, "/api/json", { path: ":", depth: ".inf" });
   if (json.value && typeof json.value === "object") delete (json.value as Record<string, unknown>).yamlover; // graft
@@ -112,11 +112,11 @@ describe("faithful-render round-trip (render → reparse → same IR)", () => {
     expect(text).not.toMatch(/null/);
   });
 
-  it("a scalar-body directory IS that scalar (54-scalar-file-overlay: `.yamlover/body.yamlover` = 30)", async () => {
+  it("a scalar-body directory IS that scalar (54-scalar-file-overlay: `.yo/body.yo` = 30)", async () => {
     // Regression: the directory rendered EMPTY — the scalar body was dropped, leaving an empty
-    // mapping. A directory whose body.yamlover is a bare scalar must render as that scalar. Use a
+    // mapping. A directory whose body.yo is a bare scalar must render as that scalar. Use a
     // CHILD node (`:sub`), since the served root also carries the built-in `yamlover` taxonomy graft.
-    const text = await renderNode({ "sub/.yamlover/body.yamlover": "30\n" }, ":sub");
+    const text = await renderNode({ "sub/.yo/body.yo": "30\n" }, ":sub");
     expect(text.trim()).toBe("30");
   });
 
@@ -125,7 +125,7 @@ describe("faithful-render round-trip (render → reparse → same IR)", () => {
   });
 
   it("an omni self-value trailing comment rides the value line (no spurious blank)", async () => {
-    const text = await renderNode({ ".yamlover/body.yamlover": "!!var 5 # the value\n- solid\n- recommended\nscale: 10\n" }, ":");
+    const text = await renderNode({ ".yo/body.yo": "!!var 5 # the value\n- solid\n- recommended\nscale: 10\n" }, ":");
     expect(text).toMatch(/(^|\n)5 # the value(\n|$)/); // the comment is ON the `5` line …
     expect(text).not.toMatch(/5[^\n]*\n\s*\n/); // … with no blank line wrapped in after it
   });

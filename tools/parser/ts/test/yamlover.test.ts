@@ -219,8 +219,8 @@ test('inline schema tag !!<format: …> attaches an inline schema Node (not a po
   assert.equal(chunk.value, '@startuml\n@enduml\n'); // the block scalar after the tag
 });
 
-test('parses examples/60-simple-chapter.yamlover (tagged file)', () => {
-  const d = parseYamlover(readFileSync(join(examples, '60-simple-chapter.yamlover'), 'utf8'), '60');
+test('parses examples/60-simple-chapter.yo (tagged file)', () => {
+  const d = parseYamlover(readFileSync(join(examples, '60-simple-chapter.yo'), 'utf8'), '60');
   const root = d.root as Scalar;
   assert.ok(root.meta?.schema, 'root tagged with chapter schema');
   // a FULLY-OMNI chapter (CHAPTER.md): the root's scalar SELF-VALUE is the title (no `title:`
@@ -254,8 +254,8 @@ test('parses examples/05-tour.yaml (YAML anchors/aliases)', () => {
   assert.deepEqual((mgr.value as any).steps, [{ sel: 'key', name: 'whiskers' }]);
 });
 
-test('parses examples/06-tour.yamlover (full pointer layer)', () => {
-  const d = parseYamlover(readFileSync(join(examples, '06-tour.yamlover'), 'utf8'), '06-tour.yamlover');
+test('parses examples/06-tour.yo (full pointer layer)', () => {
+  const d = parseYamlover(readFileSync(join(examples, '06-tour.yo'), 'utf8'), '06-tour.yo');
   const root = asMap(d.root);
   // boss carries the `&: chief` path anchor (a real document-root key, no namespace)
   assert.deepEqual((entry(root, 'boss').value as any).meta?.anchors?.map((a: any) => a.path.raw), [': chief']);
@@ -479,6 +479,48 @@ test('colon anchors: own-line form runs to end of line', () => {
   const thirty = entry(asMap(d.root), 'thirty').value as any;
   assert.equal(thirty.value, 30);
   assert.deepEqual(thirty.meta.anchors[0].path.base, { scope: 'link', authority: 'tags' });
+});
+
+test('inline anchor BEFORE a `!!<…>` tag: the colon-form rule reads only the head token', () => {
+  // the positional projection's spelling — reported unparseable ("a key containing a space
+  // must be quoted"): the tag's colons made the whole line look like a colon-form anchor
+  const d = parseYamlover('- &item01 !!<*:: yamlover: $defs: table>\n  - x\n');
+  const v = asMap(d.root).entries[0].value as Mapping;
+  assert.deepEqual(v.meta?.anchors?.map((a) => a.path.steps.map((s: any) => s.name)), [['item01']]);
+  assert.equal((v.entries![0].value as any).value, 'x');
+  assert.ok((v.meta as any)?.schema, 'the schema tag survives beside the anchor');
+});
+
+test('inline anchor before COMPACT nested content: `- &a - x` is a container, not a scalar', () => {
+  // reported as "malformed": the line read as the plain scalar "- x"
+  const d = parseYamlover('- &a01 - x\n  - y\n');
+  const row = asMap(d.root).entries[0].value as Mapping;
+  assert.equal(row.kind, 'mapping');
+  assert.deepEqual((row.entries ?? []).map((e) => (e.value as any).value), ['x', 'y']);
+  const keyed = parseYamlover('- &a01 k: v\n  k2: v2\n');
+  const m = asMap(keyed.root).entries[0].value as Mapping;
+  assert.deepEqual((m.entries ?? []).map((e) => [e.key, (e.value as any).value]), [['k', 'v'], ['k2', 'v2']]);
+});
+
+test('the reported table: duplicate anchors across nesting levels parse and round-trip', () => {
+  const src = [
+    '!!<*:: yamlover: $defs: chapter>',
+    '- &item01 !!<*:: yamlover: $defs: table>',
+    '  - &item01 - one',
+    '    - two',
+    '  - &item02 - three',
+    "    - ''",
+    '',
+  ].join('\n');
+  const d = parseYamlover(src);
+  const table = asMap(d.root).entries[0].value as Mapping;
+  assert.equal((table.entries ?? []).length, 2);
+  const row0 = table.entries![0].value as Mapping;
+  assert.deepEqual((row0.entries ?? []).map((e) => (e.value as any).value), ['one', 'two']);
+  // duplicate `&item01` at two levels is scope-legit provenance — never a parse error
+  const round = serializeYamlover(d);
+  const again = parseYamlover(round);
+  assert.deepEqual(toPlain(again.root), toPlain(d.root));
 });
 
 test('legacy slash separator is DEAD: `/` is an ordinary key character', () => {

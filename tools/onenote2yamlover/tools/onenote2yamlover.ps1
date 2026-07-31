@@ -27,7 +27,7 @@ $on = New-Object -ComObject OneNote.Application
 # ---------------------------------------------------------------- utilities ---
 function New-Ns([xml]$d) { $n = New-Object System.Xml.XmlNamespaceManager($d.NameTable); $n.AddNamespace('one', $ONE); Write-Output $n -NoEnumerate }
 # Windows MAX_PATH is 260 chars and PS 5.1's .NET does not opt into long paths. A notebook nests
-# notebook/section/page/subpage/.yamlover/body.yamlover, so the `\\?\` prefix is required even
+# notebook/section/page/subpage/.yo/body.yo, so the `\\?\` prefix is required even
 # with capped names. It takes only a normalized absolute path — `..` is NOT resolved for you.
 function Long-Path([string]$p) {
   $full = [System.IO.Path]::GetFullPath($p)
@@ -182,7 +182,7 @@ function Ext-FromFormat([string]$fmt) {
     'image/bmp' { '.bmp' }; 'image/tiff' { '.tiff' }; default { '.png' }
   }
 }
-# Attachment MIME by extension. Declared in .yamlover/meta.yamlover so `/api/blob` streams the
+# Attachment MIME by extension. Declared in .yo/meta.yo so `/api/blob` streams the
 # asset with the right Content-Type; the engine's own EXT_FORMAT knows images but not media.
 function Mime-FromName([string]$name) {
   $mime = @{
@@ -324,7 +324,7 @@ function Serialize-Chapter([string]$title, $chunks, $childNames) {
   }
   ($sb -join "`n") + "`n"
 }
-# `.yamlover/meta.yamlover` declares each asset's (type, format), so the engine serves it with
+# `.yo/meta.yo` declares each asset's (type, format), so the engine serves it with
 # the right Content-Type instead of sniffing it as application/octet-stream (examples/65).
 function Serialize-Meta($assets) {
   if (-not $assets -or $assets.Count -eq 0) { return $null }
@@ -362,17 +362,17 @@ function Materialize-Page($pobj, [string]$parentDir, $usedSet) {
   if ($needsDir) {
     $dirName = Get-UniqueName $usedSet $base ''
     $dir = Join-Path $parentDir $dirName
-    New-Dir (Join-Path $dir '.yamlover')
+    New-Dir (Join-Path $dir '.yo')
     foreach ($a in $conv.assets) { Write-BinFile (Join-Path $dir $a.name) $a.bytes }
     $meta = Serialize-Meta $conv.assets
-    if ($meta) { Write-TextFile (Join-Path $dir '.yamlover\meta.yamlover') $meta }
+    if ($meta) { Write-TextFile (Join-Path $dir '.yo\meta.yo') $meta }
     $childNames = New-Object System.Collections.Generic.List[string]
     $childUsed = New-Object System.Collections.Generic.HashSet[string]
     foreach ($sp in $pobj.Sub) { $childNames.Add((Materialize-Page $sp $dir $childUsed)) }
-    Write-TextFile (Join-Path $dir '.yamlover\body.yamlover') (Serialize-Chapter $title $conv.chunks $childNames)
+    Write-TextFile (Join-Path $dir '.yo\body.yo') (Serialize-Chapter $title $conv.chunks $childNames)
     return $dirName
   } else {
-    $fileName = Get-UniqueName $usedSet $base '.yamlover'
+    $fileName = Get-UniqueName $usedSet $base '.yo'
     Write-TextFile (Join-Path $parentDir $fileName) (Serialize-Chapter $title $conv.chunks $null)
     return $fileName
   }
@@ -381,13 +381,13 @@ function Materialize-Section($sec, [string]$parentDir, $usedSet, $ns) {
   $base = Sanitize-Name $sec.name
   $dirName = Get-UniqueName $usedSet $base ''
   $dir = Join-Path $parentDir $dirName
-  New-Dir (Join-Path $dir '.yamlover')
+  New-Dir (Join-Path $dir '.yo')
   $pages = Reconstruct-Pages $sec $ns
   $used = New-Object System.Collections.Generic.HashSet[string]
   $childNames = New-Object System.Collections.Generic.List[string]
   $n = 0
   foreach ($p in $pages) { $childNames.Add((Materialize-Page $p $dir $used)); $n++; Write-Host ("    page: {0}" -f $p.Node.name) }
-  Write-TextFile (Join-Path $dir '.yamlover\body.yamlover') (Serialize-Chapter $sec.name $null $childNames)
+  Write-TextFile (Join-Path $dir '.yo\body.yo') (Serialize-Chapter $sec.name $null $childNames)
   Write-Host ("  section '{0}' -> {1} top-level pages" -f $sec.name, $n)
   return $dirName
 }
@@ -415,7 +415,7 @@ $nbDir = Join-Path $localRoot $nbBase
 if ($Clean -and [System.IO.Directory]::Exists((Long-Path $nbDir))) {
   [System.IO.Directory]::Delete((Long-Path $nbDir), $true)
 }
-New-Dir (Join-Path $nbDir '.yamlover')
+New-Dir (Join-Path $nbDir '.yo')
 
 $secUsed = New-Object System.Collections.Generic.HashSet[string]
 $secNames = New-Object System.Collections.Generic.List[string]
@@ -424,7 +424,7 @@ foreach ($sec in $nb.SelectNodes('./one:Section', $ns)) {
   if ($Section -ne '' -and $sec.name -ne $Section) { continue }
   $secNames.Add((Materialize-Section $sec $nbDir $secUsed $ns))
 }
-Write-TextFile (Join-Path $nbDir '.yamlover\body.yamlover') (Serialize-Chapter $nb.name $null $secNames)
+Write-TextFile (Join-Path $nbDir '.yo\body.yo') (Serialize-Chapter $nb.name $null $secNames)
 Write-Host ("DONE: notebook '{0}' -> {1} sections at {2}" -f $nb.name, $secNames.Count, $nbDir)
 
 if ($remote) { Push-Remote $localRoot $remote ([bool]$Clean) }

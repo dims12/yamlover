@@ -41,7 +41,7 @@ describe("untagging the last tag deletes the empty fragment", () => {
   it("untag clears a tag that was applied twice (no leftover duplicate)", async () => {
     // a hand-authored / race-duplicated annotation: the same tag listed twice on one node
     const root = tmpTree({
-      ".yamlover/body.yamlover":
+      ".yo/body.yo":
         '"pic.png":\n  yamlover-annotations:\n  - *::yamlover:tags:colors:yellow\n  - *::yamlover:tags:colors:yellow\n',
       "pic.png": "\x89PNG binary",
     });
@@ -57,13 +57,13 @@ describe("untagging the last tag deletes the empty fragment", () => {
     // mirrors /tmp/yamlover-examples: an image fragment tagged with space-named tags, stored as
     // quoted pointers (`*::yamlover:tags:'fifth tag'`).
     const root = tmpTree({
-      "pics/.yamlover/body.yamlover":
+      "pics/.yo/body.yo":
         '"photo.png":\n  yamlover-fragments:\n    abc123: !!<*::yamlover:$defs:fragment>\n' +
         "      type: \"rect\"\n      x: 1\n      y: 2\n      w: 3\n      h: 4\n" +
         "      yamlover-annotations:\n      - *::yamlover:tags:'fifth tag'\n      - *::yamlover:tags:'forth tag'\n",
       "pics/photo.png": "\x89PNG binary",
       // a local taxonomy defining the two space-named tags so they resolve as tag nodes
-      "tags.yamlover": "'fifth tag': !!<*::yamlover:$defs:tag>\n'forth tag': !!<*::yamlover:$defs:tag>\n",
+      "tags.yo": "'fifth tag': !!<*::yamlover:$defs:tag>\n'forth tag': !!<*::yamlover:$defs:tag>\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;

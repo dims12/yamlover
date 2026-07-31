@@ -1,4 +1,4 @@
-# $defs/config — the project configuration schema for `<root>/.yamlover/settings.yamlover`
+# $defs/config — the project configuration schema for `<root>/.yo/settings.yo`
 # (settings.ts, IMPORTS.md). Settings are DEFAULTS, never constraints; reading is location-
 # independent. The format `x-yamlover-config` lets the server render the (hidden but accessible)
 # config file with the SETTINGS EDITOR — opened by the gear button, in the main pane. Locations are

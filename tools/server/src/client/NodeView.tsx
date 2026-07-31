@@ -92,7 +92,7 @@ function effectiveFormat(format: Format, node: NodeJson, tabs: TabEntry[]): Form
  *  (the `yamlover` data view) offers editing — never the `json5p` or `yamlover/schema` views, nor
  *  opaque bytes (nothing backs them). DIRECTORIES edit too — bare (`dir`) and dir-backed
  *  (`dir/yamlover`) alike: the server derives where each new child is STORED (the dir's
- *  `.yamlover/body.yamlover` overlay vs a nested directory — concrete-rules.ts). The yamlover
+ *  `.yo/body.yo` overlay vs a nested directory — concrete-rules.ts). The yamlover
  *  renderer is the UNIVERSAL edit surface: you edit yamlover source there, and the server writes
  *  it in the target's concrete — a yaml/yamlover file gets the source verbatim, a json/json5/json5p
  *  file gets the parsed scalar re-serialized as JSON. */
@@ -252,7 +252,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   // directory (a directory page), appends it as a chapter chunk (a chapter page), or drops it into
   // the nearest enclosing directory (any other page, i.e. a MEMBER of a directory). Plain TEXT is
   // pasted too: a chapter gains it as a new chunk; anywhere else it becomes a new chapter
-  // .yamlover file in the nearest directory. Skipped while the focus is in a text field (so
+  // .yo file in the nearest directory. Skipped while the focus is in a text field (so
   // annotation notes still paste text normally).
   useEffect(() => {
     if (!node) return;

@@ -932,6 +932,18 @@ export function useYedHost(path: string, onNavigate: (p: string) => void): YedHo
         return [];
       });
     },
+    enterBefore(entryId) {
+      // Enter at the HEAD of a committed row: the row is pushed down — the fresh sibling hole
+      // opens at the entry's own position, caret in it (the text-editor gesture)
+      step((r) => {
+        const spine = M.findEntry(r, entryId);
+        if (!spine) return [];
+        const { container, index } = spine.parents[spine.parents.length - 1];
+        const hole = M.insertHoleAt(r, container.id, index);
+        if (hole) focusReq.current = { key: hole.node.id, at: "start" };
+        return [];
+      });
+    },
     enterInto(nodeId) {
       // THE LEVEL RULE: descend into the node — its value becomes the omni self line and the
       // fresh hole opens inside it, one level deeper (Shift-Tab climbs back out)

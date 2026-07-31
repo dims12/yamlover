@@ -252,7 +252,7 @@ is just its mapping-style spelling.) Two access syntaxes keep the axes apart:
 - **`: x`** selects the **string key** `x` (a colon portion).
 
 Ordering is data: in a file it follows text order; for a directory it is imposed by
-the `body.yamlover` overlay (an array of `*`-pointers to the files) on the **subset
+the `body.yo` overlay (an array of `*`-pointers to the files) on the **subset
 it names** — an unlisted child remains keyed-only, after the ordered block — or left
 to the filesystem if there is no overlay. A named member's storage key renders as a
 **derived** value-line anchor (`- &file value`, dimmed): a *view* of the consumed
@@ -552,7 +552,7 @@ a target.
 Keyless reversal differs from keyed reversal in two deliberate ways:
 
 - **No reverse index — `~[n]:` is rejected.** Order is the *container's* data (text
-  order in its source; the `body.yamlover` pointer-array for a directory). A remote
+  order in its source; the `body.yo` pointer-array for a directory). A remote
   node claiming "I am element `[3]`" would be a second writer for single-writer data:
   any insertion in the container silently invalidates the claim, and two members can
   claim the same slot. If an exact position matters, author it forward — the container

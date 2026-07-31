@@ -64,7 +64,7 @@ function MenuProbe({ path }: { path: string }) {
 
 describe("region picker: a NEW selection preselects nothing", () => {
   it("openCreate opens the picker WITHOUT applying any tag or outlining one; a pick then applies", async () => {
-    const root = tmpTree({ "docs/pic.png": "\x89PNG binary", "tags.yamlover": "x: 1" });
+    const root = tmpTree({ "docs/pic.png": "\x89PNG binary", "tags.yo": "x: 1" });
     const h = createHandlers(root, { gitignore: false });
     await (h as any).ready;
     routeFetchTo(h);
@@ -90,7 +90,7 @@ describe("region picker: a NEW selection preselects nothing", () => {
 
 describe("REPRO: untag a fragment region via the client hook", () => {
   it("removing the region's tag persists (does not reappear)", async () => {
-    const root = tmpTree({ "docs/pic.png": "\x89PNG binary", "tags.yamlover": "x: 1" });
+    const root = tmpTree({ "docs/pic.png": "\x89PNG binary", "tags.yo": "x: 1" });
     const h = createHandlers(root, { gitignore: false });
     await (h as any).ready;
     routeFetchTo(h);
@@ -116,7 +116,7 @@ describe("REPRO: untag a fragment region via the client hook", () => {
   });
 
   it("removing a tag whose create is STILL IN FLIGHT also persists (the pick-then-quick-deselect race)", async () => {
-    const root = tmpTree({ "docs/pic.png": "\x89PNG binary", "tags.yamlover": "x: 1" });
+    const root = tmpTree({ "docs/pic.png": "\x89PNG binary", "tags.yo": "x: 1" });
     const h = createHandlers(root, { gitignore: false });
     await (h as any).ready;
     const gate = makeGate();

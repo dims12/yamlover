@@ -34,7 +34,7 @@ const tree: TreeNode = {
   hasChildren: true,
   children: [
     { path: ":docs", label: "docs", type: "object", format: null, concrete: "dir", hasChildren: false, children: [] },
-    leaf(":note.yamlover", "note", "file/yamlover"),
+    leaf(":note.yo", "note", "file/yamlover"),
     leaf(":inline", "inline", "yamlover"),
   ],
 };
@@ -47,7 +47,7 @@ describe("Tree drag-and-drop", () => {
     render(<Tree node={tree} current=":" onSelect={() => {}} onLoadChildren={noop} dnd={{ canDrop: () => true, onDropNode: () => {} }} />);
     expect(row("note").getAttribute("draggable")).toBe("true");
     fireEvent.dragStart(row("note"), { dataTransfer: dt() });
-    expect(currentDrag()).toEqual({ path: ":note.yamlover", concrete: "file/yamlover", label: "note" });
+    expect(currentDrag()).toEqual({ path: ":note.yo", concrete: "file/yamlover", label: "note" });
     fireEvent.dragEnd(row("note"));
     expect(currentDrag()).toBeNull(); // cleared unconditionally, cancelled drags included
   });

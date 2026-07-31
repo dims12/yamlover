@@ -6,7 +6,7 @@ import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/re
 // query, pruneRememberedTags → fetchNode) fall back gracefully, and the right-click menu's writes
 // (annotate / deleteAnnotation / fetchAnnotations) are observed directly.
 vi.mock("../../src/client/api", () => ({
-  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
+  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yo:settings.yo" }),
   fetchAnnotations: vi.fn().mockResolvedValue([]),
   annotate: vi.fn().mockResolvedValue({ ok: true }),
   deleteAnnotation: vi.fn().mockResolvedValue(undefined),

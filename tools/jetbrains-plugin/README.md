@@ -1,12 +1,12 @@
 # yamlover / json5p — JetBrains plugin
 
 File-type support and syntax highlighting for the **yamlover** family in
-IntelliJ-based IDEs: `.yamlover` (YAML + pointers) and `.json5p` (JSON5 + pointers),
+IntelliJ-based IDEs: `.yo` (YAML + pointers) and `.json5p` (JSON5 + pointers),
 plus highlighting of `yamlover`/`json5p` fenced code blocks inside Markdown.
 
 ## Status
 
-- Registers the **`.yamlover`** and **`.json5p`** file types, each with an icon.
+- Registers the **`.yo`** and **`.json5p`** file types, each with an icon.
 - **Syntax highlighting** via lightweight heuristic lexers (`YamloverLexer`,
   `Json5pLexer`): comments (`#` for yamlover — only after whitespace/BOL, so `a#b` is one
   scalar; `//` and `/* */` for json5p), pointer/anchor runs (`* & ~ …`) in the **colon

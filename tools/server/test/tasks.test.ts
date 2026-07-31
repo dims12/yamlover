@@ -88,7 +88,7 @@ describe("background hasher", () => {
     await h.ready;
 
     // poll the SAME on-disk store (WAL allows a second reader) until the hasher lands
-    const probe = new Store(path.join(root, ".yamlover", "index.db"));
+    const probe = new Store(path.join(root, ".yo", "index.db"));
     onTestFinished(() => probe.close());
     await until(() => probe.node(":big.png")?.content_hash != null, "the background hash");
     expect(probe.node(":big.png")!.content_hash).toMatch(/^xxh64:/);
@@ -106,14 +106,14 @@ describe("write serialization", () => {
   it("an annotation fired while a reconcile is queued survives it", async () => {
     // the `!!<…$defs/tag>` attach makes `yellow` an x-yamlover-tag node (same fixture shape
     // as engine-api-write.test.ts)
-    const TAG_FILE = { "tags.yamlover": 'yellow: !!<*yamlover: $defs: tag>\n  color: "#f9e2af"\n' };
+    const TAG_FILE = { "tags.yo": 'yellow: !!<*yamlover: $defs: tag>\n  color: "#f9e2af"\n' };
     const root = tmpTree({ "doc.md": "# doc", ...TAG_FILE });
     const h = handlers(root);
     await h.ready;
 
     // queue a reconcile and, WITHOUT waiting, an annotation right behind it
     const reconcile = callBody(h, "POST", "/api/reindex");
-    const annotate = callBody(h, "POST", "/api/annotate", { target: ":doc.md", tag: ":tags.yamlover:yellow" });
+    const annotate = callBody(h, "POST", "/api/annotate", { target: ":doc.md", tag: ":tags.yo:yellow" });
     const [r1, r2] = await Promise.all([reconcile, annotate]);
     expect(r1.status).toBe(200);
     expect(r2.status).toBe(201);

@@ -1,9 +1,9 @@
-// Project configuration — `<root>/.yamlover/settings.yamlover` (PLAN.md 1d, META.md §Settings).
+// Project configuration — `<root>/.yo/settings.yo` (PLAN.md 1d, META.md §Settings).
 //
 // Settings are DEFAULTS, never constraints: a graph node (an annotation, say) may live in ANY
 // directory and keeps working — that is the point of the graph. Settings only tell the server
 // where to CREATE things when the user does not say. The file lives in the served root's
-// `.yamlover/` overlay dir, so (like body/meta) it is never part of the instance itself.
+// `.yo/` overlay dir, so (like body/meta) it is never part of the instance itself.
 //
 // A location is authored as a PROJECT-SCOPE `*`-pointer naming the object at the project root
 // (`annotations: *:: annotations` — "create annotations in `:annotations`"). The scope ladder
@@ -36,9 +36,9 @@ export interface Settings {
    *  by its schema (`x-yamlover-tag`), wherever it sits. */
   tags: string;
   /** Where DERIVED sidecar blobs (thumbnail + fragment-crop images) are written, under a hidden
-   *  `.yamlover/` overlay dir. An ENUM, not a path: `'per-directory'` → the source file's own
-   *  directory `.yamlover/` (a self-contained doc; document-scope pointer `*:.yamlover:…`);
-   *  `'project'` → the served root's `.yamlover/` (`*::.yamlover:…`). Reading is location-
+   *  `.yo/` overlay dir. An ENUM, not a path: `'per-directory'` → the source file's own
+   *  directory `.yo/` (a self-contained doc; document-scope pointer `*:.yo:…`);
+   *  `'project'` → the served root's `.yo/` (`*::.yo:…`). Reading is location-
    *  independent — a sidecar resolves by its pointer wherever it sits. */
   sidecars: SidecarLocation;
   /** The reading width in `ch` for rendered prose (markdown/asciidoc/chapter views) — a VIEWER
@@ -63,12 +63,12 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: undefined,
 };
 
-/** The source written for a fresh `settings.yamlover` (see `ensureSettingsFile`). Authors the
+/** The source written for a fresh `settings.yo` (see `ensureSettingsFile`). Authors the
  *  DEFAULT_SETTINGS values explicitly and tags the file with `!!<*yamlover:$defs:config>` so it
  *  indexes as an `x-yamlover-config` node — the gear button's settings editor can then open it.
  *  It carries only the universal location defaults; `uri`/`exports` are project-specific and left
  *  out (the yamlover project authors its own, by hand). */
-export const DEFAULT_SETTINGS_SOURCE = `# .yamlover/settings.yamlover — project settings for this root (created with defaults).
+export const DEFAULT_SETTINGS_SOURCE = `# .yo/settings.yo — project settings for this root (created with defaults).
 # Settings are DEFAULTS, never constraints: they only say where the server CREATES things when you
 # do not; reading is location-independent (a node is recognized by its schema, wherever it sits).
 # Locations are PROJECT-SCOPE pointers: \`*::x\` = project root, \`*:x\` = document root, \`*x\` =
@@ -82,12 +82,12 @@ sidecars: per-directory        # where derived thumbnail/crop blobs go (enum, no
 # width: 100                   # reading width (ch) for prose views; browser settings override it
 `;
 
-/** Create `<absRoot>/.yamlover/settings.yamlover` with DEFAULT_SETTINGS_SOURCE when it is absent,
- *  so the config node always exists — navigable at `:.yamlover:settings.yamlover` and openable by
+/** Create `<absRoot>/.yo/settings.yo` with DEFAULT_SETTINGS_SOURCE when it is absent,
+ *  so the config node always exists — navigable at `:.yo:settings.yo` and openable by
  *  the settings editor (otherwise opening the gear on a fresh project 404s the node). A no-op when
  *  the file already exists, so hand edits are never clobbered. Returns the file path. */
 export function ensureSettingsFile(absRoot: string): string {
-  const file = path.join(absRoot, '.yamlover', 'settings.yamlover');
+  const file = path.join(absRoot, '.yo', 'settings.yo');
   if (!fs.existsSync(file)) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, DEFAULT_SETTINGS_SOURCE);
@@ -95,10 +95,10 @@ export function ensureSettingsFile(absRoot: string): string {
   return file;
 }
 
-/** Read `<absRoot>/.yamlover/settings.yamlover`, overlaying DEFAULT_SETTINGS. A missing or
+/** Read `<absRoot>/.yo/settings.yo`, overlaying DEFAULT_SETTINGS. A missing or
  *  unparsable file (or field) silently yields the defaults — settings must never break serving. */
 export function loadSettings(absRoot: string): Settings {
-  const file = path.join(absRoot, '.yamlover', 'settings.yamlover');
+  const file = path.join(absRoot, '.yo', 'settings.yo');
   if (!fs.existsSync(file)) return DEFAULT_SETTINGS;
   let root: Node;
   try {
@@ -156,12 +156,12 @@ function exportsSetting(v: Value | undefined): string[] {
   return out;
 }
 
-/** Set ONE top-level key in `<absRoot>/.yamlover/settings.yamlover` to `valueText`, preserving every
+/** Set ONE top-level key in `<absRoot>/.yo/settings.yo` to `valueText`, preserving every
  *  OTHER line (comments, fields, ordering). Replaces an existing top-level `<key>:` line in place, else
  *  appends. Used to persist the last-used annotation tag (the picker default) without rewriting — and
  *  so clobbering — the hand-authored config. Returns the file path. */
 export function writeSettingKey(absRoot: string, key: string, valueText: string): string {
-  const file = path.join(absRoot, '.yamlover', 'settings.yamlover');
+  const file = path.join(absRoot, '.yo', 'settings.yo');
   const src = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
   const line = `${key}: ${valueText}`;
   const re = new RegExp('^' + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ':.*$', 'm');

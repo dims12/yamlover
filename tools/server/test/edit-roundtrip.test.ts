@@ -25,9 +25,9 @@ title: "The Handbook"
 // bookkeeping against the SERVER's splicer; the unit tests each know only their own half.
 describe("the editor round-trip", () => {
   it("model → diff → /api/edit → reindexed, with comments intact", async () => {
-    const root = tmpTree({ "doc/.yamlover/body.yamlover": SRC, ...DEFS });
+    const root = tmpTree({ "doc/.yo/body.yo": SRC, ...DEFS });
     const h = createHandlers(root, { gitignore: false }); await h.ready;
-    const read = () => fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8");
+    const read = () => fs.readFileSync(path.join(root, "doc", ".yo", "body.yo"), "utf8");
 
     // annotate the first chunk (abs 1) — the overlay must survive the prose edit below
     const tag = await callBody(h, "POST", "/api/tag", { name: "imp" });

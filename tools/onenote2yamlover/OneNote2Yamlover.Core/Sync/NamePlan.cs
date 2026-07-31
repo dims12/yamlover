@@ -14,7 +14,7 @@ public sealed class NamePlan
     private readonly Dictionary<OneNoteNode, string> _relPath = [];
     private readonly Dictionary<OneNoteNode, OneNoteNode?> _parent = [];
 
-    /// <summary>Containers only: notebooks and section groups (things that get a body.yamlover).</summary>
+    /// <summary>Containers only: notebooks and section groups (things that get a body.yo).</summary>
     public List<OneNoteNode> Containers { get; } = [];
 
     public NamePlan(IReadOnlyList<OneNoteNode> notebooks)

@@ -33,7 +33,7 @@ engine/
   (`ts/src/mv.ts`/`rewrite.ts`) moves a file/dir and surgically rewrites inbound refs.
 - **query evaluator** (`ts/src/query.ts`) — done. The 3g colon-grammar match templates
   over the store, gated by the 77-case corpus (`query.cases.ts`).
-- **settings** (`ts/src/settings.ts`) — done. Loads/materializes `.yamlover/settings.yamlover`.
+- **settings** (`ts/src/settings.ts`) — done. Loads/materializes `.yo/settings.yo`.
 - **engine API protocol** (versioned, per `../../ENGINE.md`) — TODO. Today the server
   (`tools/server`) consumes the engine directly: relative-path imports in dev, an esbuild
   bundle (`dist/server.js`) in the published package.

@@ -35,7 +35,7 @@ public readonly record struct Chunk(ChunkKind Kind, string Text = "", string Fil
     public static Chunk Pointer(string file) => new(ChunkKind.Pointer, File: file);
 }
 
-/// <summary>An asset written next to a chapter and declared in its <c>meta.yamlover</c>.</summary>
+/// <summary>An asset written next to a chapter and declared in its <c>meta.yo</c>.</summary>
 public sealed record Asset(string Name, byte[] Bytes);
 
 /// <summary>Ported from <c>Serialize-Chapter</c> / <c>Serialize-Meta</c>.</summary>
@@ -84,7 +84,7 @@ public static class ChapterSerializer
     }
 
     /// <summary>
-    /// <c>.yamlover/meta.yamlover</c> declares each asset's (type, format), so the engine serves it
+    /// <c>.yo/meta.yo</c> declares each asset's (type, format), so the engine serves it
     /// with the right Content-Type instead of sniffing application/octet-stream (examples/65).
     /// Returns null when there is nothing to declare.
     /// </summary>
@@ -106,7 +106,7 @@ public static class ChapterSerializer
 
     /// <summary>
     /// A table's rows at <paramref name="indent"/> (MARKLOWER.md §Tables; the worked shape is
-    /// examples/61-table.yamlover). A row of single-line prose cells is FLOW
+    /// examples/61-table.yo). A row of single-line prose cells is FLOW
     /// (<c>- [a, 'b c']</c>); a row holding a multi-line cell or a nested table is BLOCK —
     /// a lone <c>-</c> with each cell a <c>- </c> item two columns deeper. A nested-table
     /// cell carries the EXPLICIT table tag (an untagged container cell is a chapter — the

@@ -71,7 +71,7 @@ The specs, grouped by concern (everything below lives at the repo root unless no
   [`PLAN.md`](PLAN.md) (build plan, kept current), [`FUTURE.md`](FUTURE.md)
   (platform/format direction), [`IMPORTS.md`](IMPORTS.md) (imports/exports),
   [`VERSION-CONTROL.md`](VERSION-CONTROL.md) (git/versioning notes).
-- **Metadata & schema** — [`META.md`](META.md) (the `meta.yamlover` schema layer).
+- **Metadata & schema** — [`META.md`](META.md) (the `meta.yo` schema layer).
 - **Document model & prose** — [`CHAPTER.md`](CHAPTER.md) (the chapter/partial-flattening
   model), [`MARKLOWER.md`](MARKLOWER.md) (the inline prose markup),
   [`ANNOTATIONS.md`](ANNOTATIONS.md) (fragments + tag applications),
@@ -123,28 +123,28 @@ directory vs multi-document) is specified in **`CONCRETES.md`**.
    `YAMLOVER.md`.)
 6. **dir** — a regular filesystem directory: filenames are keys, files are blobs
    or nested documents.
-7. **dir + `.yamlover/` overlays** — a directory whose hidden `.yamlover/`
+7. **dir + `.yo/` overlays** — a directory whose hidden `.yo/`
    subdirectory overlays it with instance data and/or metadata (next section); a
    full-graph concrete, and the one that makes a directory "speak YAML".
 
 `examples/` walks the lattice over one dataset: `01-tour.json` →
-`02-tour.json5` → `03-tour.json5p` and `05-tour.yaml` → `06-tour.yamlover`.
+`02-tour.json5` → `03-tour.json5p` and `05-tour.yaml` → `06-tour.yo`.
 
-## The `.yamlover/` overlays
+## The `.yo/` overlays
 
-A directory's hidden `.yamlover/` holds up to two complementary overlays, plus
+A directory's hidden `.yo/` holds up to two complementary overlays, plus
 engine state (see `META.md` for the full contract):
 
-- **`body.yamlover`** — the **instance** overlay: data values laid over the
+- **`body.yo`** — the **instance** overlay: data values laid over the
   directory (scalars, mappings, pointers, ordering). A pointer-array body
   (`- *file1 …`) assigns element order to the **subset it names** — disk has
   none; a child the body never names is a **keyed-only member** (present under
   its filename, granted no position). The projection shows a named member's
   filename as a dimmed derived `&` anchor: `- &file1 value`.
-- **`meta.yamlover`** — the **metadata schema**: a JSON-Schema-equivalent
+- **`meta.yo`** — the **metadata schema**: a JSON-Schema-equivalent
   written in yamlover (`properties`, `type`, `format`, `prefixItems`, …) whose
   primary job is typing / decoding / presentation, with validation optional.
-- in the **project root** only, **`settings.yamlover`** — project
+- in the **project root** only, **`settings.yo`** — project
   configuration (defaults such as where new annotations are created).
 
 Either overlay is optional: a plain directory has neither and its files simply
@@ -155,7 +155,7 @@ the meta says how to read its bytes).
 What was **dropped** from earlier designs is *schema-as-storage* — the old
 `.yamlover/schema.yaml` whose `const:`-pinned leaves doubled as the data. The
 schema↔instance correspondence that motivated it still holds conceptually, but
-data now lives only in the instance (files and/or `body.yamlover`); the schema
+data now lives only in the instance (files and/or `body.yo`); the schema
 only describes it (`META.md`).
 
 ## The core idea
@@ -168,7 +168,7 @@ families are the **filesystem** view and the **document** view:
 - **A node (mapping)** → a directory / a yamlover or json5p file.
 - **A child with a structured value** → a subdirectory or file / a nested key.
 - **A child with a scalar value** → a small file, or an entry in
-  `body.yamlover` / a scalar key.
+  `body.yo` / a scalar key.
 - **A shared or cross-referencing child** → a `*` pointer (and optionally its
   `~` reverse), in any full-graph concrete.
 
@@ -179,13 +179,13 @@ directory, without changing what the data means. `examples/51-object-in-dir`,
 ## Equivalence rules
 
 1. **A directory is a mapping.** Its children are the keys; files supply string
-   keys (filenames), the `body.yamlover` pointer-array supplies integer-key
+   keys (filenames), the `body.yo` pointer-array supplies integer-key
    positions when order matters — to the members it names; the rest stay
    keyed-only, after the ordered block.
 2. **A file is equivalent to a subdirectory** — both represent the same node. A
-   structured child may be stored either as `child.yamlover` (collapsed) or as
+   structured child may be stored either as `child.yo` (collapsed) or as
    `child/` (expanded). Tools may convert freely between the two.
-3. **The `.yamlover/` directory is the overlay marker.** Its presence promotes
+3. **The `.yo/` directory is the overlay marker.** Its presence promotes
    a plain *dir* into a node with instance/metadata overlays.
 4. **One ordered container.** There is no separate list/dict: a mapping is
    ordered and its positions are integer keys (`[n]`); `: x` addresses a string
@@ -238,10 +238,10 @@ document's internal cross-references.
 
 ## Metadata, formats, rendering
 
-`meta.yamlover` (or an inline `!!<…>` tag in a yamlover file) gives a node its
+`meta.yo` (or an inline `!!<…>` tag in a yamlover file) gives a node its
 `(type, format)`; the web viewer's renderer registry keys on that tuple. Format
 resolution order: the meta `format:` if present; else a recognized file
-extension (`.png`→`image/png`, `.md`→`text/markdown`, `.yamlover`→`yamlover`,
+extension (`.png`→`image/png`, `.md`→`text/markdown`, `.yo`→`yamlover`,
 …); else sniff — see `META.md`. A chapter's prose chunks carry `text/marklower`
 (`MARKLOWER.md`) by schema propagation; a string with no format at all is data,
 and shows in the data view. `type: binary` plus a codec format
@@ -259,7 +259,7 @@ everywhere.
 
 - **Serializers / write-back** — the text concretes are built (IR → yamlover /
   json5p, reparse-IR-equal; lossy targets refuse rather than drop). Still open:
-  the *directory* concrete (graph → tree + `body.yamlover`), inline-binary
+  the *directory* concrete (graph → tree + `body.yo`), inline-binary
   emission, and per-node concrete tracking for mid-tree style switches
   (`PLAN.md` 2d remaining); they gate `put` / `normalize`.
 - **Meta authoring shape** — the exact keyword set and reuse/cross-ref story of

@@ -44,7 +44,7 @@ describe("/api/tag (create)", () => {
     const r = await callBody(h, "POST", "/api/tag", { name: NAME });
     expect(r.status).toBe(201);
     expect(r.json).toMatchObject({ path: ENC, name: NAME, color: null, created: true });
-    const body = fs.readFileSync(path.join(root, "tags", ".yamlover", "body.yamlover"), "utf8");
+    const body = fs.readFileSync(path.join(root, "tags", ".yo", "body.yo"), "utf8");
     expect(body).toContain(`${NAME}: !!<*::yamlover:$defs:tag>`);
     expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-tag");
 
@@ -63,27 +63,27 @@ describe("/api/tag (create)", () => {
     const r = await callBody(h, "POST", "/api/tag", { name: "twice" });
     expect(r.status).toBe(201);
     expect(r.json).toMatchObject({ path: ":tags:twice", name: "twice", created: false });
-    const body = fs.readFileSync(path.join(root, "tags", ".yamlover", "body.yamlover"), "utf8");
+    const body = fs.readFileSync(path.join(root, "tags", ".yo", "body.yo"), "utf8");
     expect(body.match(/^twice:/gm)).toHaveLength(1);
   });
 
   it("appends to an existing taxonomy body without clobbering it", async () => {
-    const root = tmpTree({ "tags/.yamlover/body.yamlover": "old: !!<*yamlover: $defs: tag>\n" });
+    const root = tmpTree({ "tags/.yo/body.yo": "old: !!<*yamlover: $defs: tag>\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
     const r = await callBody(h, "POST", "/api/tag", { name: "new" });
     expect(r.status).toBe(201);
-    const body = fs.readFileSync(path.join(root, "tags", ".yamlover", "body.yamlover"), "utf8");
+    const body = fs.readFileSync(path.join(root, "tags", ".yo", "body.yo"), "utf8");
     expect(body).toContain("old: !!<*yamlover: $defs: tag>");
     expect(body).toContain("new: !!<*::yamlover:$defs:tag>");
     expect(call(h, "/api/json", { path: ":tags:old" }).json.format).toBe("x-yamlover-tag");
   });
 
-  it("honors a *-pointer tags location from settings.yamlover", async () => {
+  it("honors a *-pointer tags location from settings.yo", async () => {
     const root = tmpTree({
       name: "Alice",
-      ".yamlover/settings.yamlover": "tags: *:: taxonomy: places\n",
+      ".yo/settings.yo": "tags: *:: taxonomy: places\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -91,7 +91,7 @@ describe("/api/tag (create)", () => {
     const r = await callBody(h, "POST", "/api/tag", { name: "спб" });
     expect(r.status).toBe(201);
     expect(r.json.path).toBe(":taxonomy:places:" + encodeURIComponent("спб"));
-    expect(fs.existsSync(path.join(root, "taxonomy", "places", ".yamlover", "body.yamlover"))).toBe(true);
+    expect(fs.existsSync(path.join(root, "taxonomy", "places", ".yo", "body.yo"))).toBe(true);
   });
 
   it("rejects empty and unwritable names", async () => {
@@ -120,7 +120,7 @@ describe("/api/tag (create)", () => {
     expect(a.status).toBe(201);
     // a blob file → its annotation rides the enclosing directory's overlay, keyed by filename,
     // with the tag written as a RAW (un-encoded) project-scoped pointer (spacey key quoted).
-    const overlay = fs.readFileSync(path.join(root, "Санкт-Петербург", ".yamlover", "body.yamlover"), "utf8");
+    const overlay = fs.readFileSync(path.join(root, "Санкт-Петербург", ".yo", "body.yo"), "utf8");
     expect(overlay).toContain('"img.txt":');
     expect(overlay).toContain("*::tags:'исаакиевский собор'");
 
@@ -150,37 +150,37 @@ describe("/api/tag (create)", () => {
 describe("any node as a tag", () => {
   it("annotating with an arbitrary node succeeds; the name is its omni title else its key", async () => {
     const root = tmpTree({
-      "topics.yamlover": 'math: "Mathematics"\n  level: hard\nplain:\n  x: 1\n',
-      "note.yamlover": 'body: "hello"\n',
+      "topics.yo": 'math: "Mathematics"\n  level: hard\nplain:\n  x: 1\n',
+      "note.yo": 'body: "hello"\n',
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
     // an OMNI node: scalar self-value "Mathematics" over a keyed child — the title wins
-    const a = await callBody(h, "POST", "/api/annotate", { target: ":note.yamlover", tag: ":topics.yamlover:math" });
+    const a = await callBody(h, "POST", "/api/annotate", { target: ":note.yo", tag: ":topics.yo:math" });
     expect(a.status).toBe(201);
     // a plain mapping with no title — its key inside the parent identifies it
-    const b = await callBody(h, "POST", "/api/annotate", { target: ":note.yamlover", tag: ":topics.yamlover:plain" });
+    const b = await callBody(h, "POST", "/api/annotate", { target: ":note.yo", tag: ":topics.yo:plain" });
     expect(b.status).toBe(201);
-    const list = call(h, "/api/annotations", { path: ":note.yamlover" }).json;
+    const list = call(h, "/api/annotations", { path: ":note.yo" }).json;
     expect(list).toHaveLength(2);
-    expect(list[0].tag).toMatchObject({ path: ":topics.yamlover:math", name: "Mathematics", color: null });
-    expect(list[1].tag).toMatchObject({ path: ":topics.yamlover:plain", name: "plain" });
+    expect(list[0].tag).toMatchObject({ path: ":topics.yo:math", name: "Mathematics", color: null });
+    expect(list[1].tag).toMatchObject({ path: ":topics.yo:plain", name: "plain" });
 
     // /api/tagged answers for the arbitrary node: the annotator is filed under it
-    const tagged = call(h, "/api/tagged", { path: ":topics.yamlover:math" }).json;
+    const tagged = call(h, "/api/tagged", { path: ":topics.yo:math" }).json;
     expect(tagged).toHaveLength(1);
-    expect(tagged[0].$yamloverLink.path).toBe(":note.yamlover");
+    expect(tagged[0].$yamloverLink.path).toBe(":note.yo");
   });
 
   it("an ordinary pointer INTO a node is not a tagging — only annotation-array edges count", async () => {
     const root = tmpTree({
-      "a.yamlover": "x: 1\n",
-      "b.yamlover": "ref: *:: a.yamlover: x\n",
+      "a.yo": "x: 1\n",
+      "b.yo": "ref: *:: a.yo: x\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const tagged = call(h, "/api/tagged", { path: ":a.yamlover:x" }).json;
+    const tagged = call(h, "/api/tagged", { path: ":a.yo:x" }).json;
     expect(tagged).toEqual([]); // b's plain ref does not file b under x
   });
 
@@ -203,7 +203,7 @@ describe("any node as a tag", () => {
     const r = await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":" });
     expect(r.status).toBe(400);
     expect(r.json.error).toMatch(/root/);
-    expect(fs.existsSync(path.join(root, ".yamlover", "body.yamlover"))).toBe(false);
+    expect(fs.existsSync(path.join(root, ".yo", "body.yo"))).toBe(false);
   });
 });
 
@@ -212,34 +212,34 @@ describe("any node as a tag", () => {
 // gives that child a child of its own; reading the title by "a CHILDLESS scalar" lost it entirely.
 describe("annotating a node never changes how it reads", () => {
   it("an annotated string stays a scalar — it just also has a child (an omni/variant node)", async () => {
-    const root = tmpTree({ "chap.yamlover": 'title: "T"\nother: "x"\n' });
+    const root = tmpTree({ "chap.yo": 'title: "T"\nother: "x"\n' });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const tag = await callBody(h, "POST", "/api/tag", { name: "important" });
-    await callBody(h, "POST", "/api/annotate", { target: ":chap.yamlover:title", tag: tag.json.path });
+    await callBody(h, "POST", "/api/annotate", { target: ":chap.yo:title", tag: tag.json.path });
 
     // both matchers demand a `scalar` ROW (query.ts) — so the row kept its type and gained a child
     const q = (m: string): string[] => call(h, "/api/query", { q: `...:!!<type: ${m}>`, path: ":" }).json.results;
-    expect(q("string")).toContain(":chap.yamlover:title");
-    expect(q("variant")).toContain(":chap.yamlover:title"); // scalar + own child = variant
-    expect(q("variant")).not.toContain(":chap.yamlover:other"); // an unannotated sibling is not
+    expect(q("string")).toContain(":chap.yo:title");
+    expect(q("variant")).toContain(":chap.yo:title"); // scalar + own child = variant
+    expect(q("variant")).not.toContain(":chap.yo:other"); // an unannotated sibling is not
   });
 
   it("a chapter keeps its title after the title itself is annotated", async () => {
     const root = tmpTree({
-      "chap.yamlover": "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n',
+      "chap.yo": "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n',
       "$defs/chapter": "type: variant\nproperties:\n  title:\n    type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n",
       "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    expect(call(h, "/api/json", { path: ":chap.yamlover", depth: "1" }).json.title).toBe("T");
+    expect(call(h, "/api/json", { path: ":chap.yo", depth: "1" }).json.title).toBe("T");
 
     const tag = await callBody(h, "POST", "/api/tag", { name: "important" });
-    await callBody(h, "POST", "/api/annotate", { target: ":chap.yamlover:title", tag: tag.json.path });
+    await callBody(h, "POST", "/api/annotate", { target: ":chap.yo:title", tag: tag.json.path });
 
     // the title node is now omni (a mapping carrying the annotation) — but it still IS "T"
-    expect(call(h, "/api/json", { path: ":chap.yamlover", depth: "1" }).json.title).toBe("T");
+    expect(call(h, "/api/json", { path: ":chap.yo", depth: "1" }).json.title).toBe("T");
   });
 });
 
@@ -258,8 +258,8 @@ describe("unified change flow — every write announces its diff over SSE", () =
     const diffs = sse.frames().filter((f) => f.type === "diff");
     // tag create is incremental (announce); annotate/delete reconcile the edited overlay (reindex).
     expect(diffs.length).toBe(4);
-    expect(diffs[0]).toMatchObject({ added: [":tags:.yamlover:body.yamlover"], changed: [], removed: [] });
-    expect(diffs[1]).toMatchObject({ added: [], changed: [":tags:.yamlover:body.yamlover"], removed: [] });
+    expect(diffs[0]).toMatchObject({ added: [":tags:.yo:body.yo"], changed: [], removed: [] });
+    expect(diffs[1]).toMatchObject({ added: [], changed: [":tags:.yo:body.yo"], removed: [] });
     const nonEmpty = (d: { added: string[]; changed: string[]; removed: string[] }) => d.added.length + d.changed.length + d.removed.length > 0;
     expect(nonEmpty(diffs[2])).toBe(true); // annotate edited the root overlay
     expect(nonEmpty(diffs[3])).toBe(true); // delete edited it again
@@ -304,7 +304,7 @@ describe("/api/paste", () => {
 
   it("onto a chapter: the file lands in its directory AND a pointer chunk is appended", async () => {
     const root = tmpTree({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n',
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n',
       ...CHAPTER_DEFS,
     });
     const h = createHandlers(root, { gitignore: false });
@@ -316,7 +316,7 @@ describe("/api/paste", () => {
     expect(fs.existsSync(path.join(root, "doc", "pic.png"))).toBe(true);
 
     // the pointer chunk is appended to the positional body, after the last item
-    const body = fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8");
+    const body = fs.readFileSync(path.join(root, "doc", ".yo", "body.yo"), "utf8");
     const lines = body.split("\n");
     expect(lines.indexOf("- *: pic.png")).toBe(lines.indexOf('- "Hello"') + 1);
   });
@@ -326,7 +326,7 @@ describe("/api/paste", () => {
   // and an appended chunk would put the picture on the page twice.
   it("onto a chapter with inline: the file lands, the body is untouched, and it does not auto-open", async () => {
     const source = "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n';
-    const root = tmpTree({ "doc/.yamlover/body.yamlover": source, ...CHAPTER_DEFS });
+    const root = tmpTree({ "doc/.yo/body.yo": source, ...CHAPTER_DEFS });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
@@ -335,7 +335,7 @@ describe("/api/paste", () => {
     expect(r.json).toMatchObject({ path: ":doc:pic.png", dir: ":doc", open: false });
     expect(r.json).not.toHaveProperty("pointer");
     expect(fs.readFileSync(path.join(root, "doc", "pic.png"), "utf8")).toBe("PNG");
-    expect(fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8")).toBe(source);
+    expect(fs.readFileSync(path.join(root, "doc", ".yo", "body.yo"), "utf8")).toBe(source);
   });
 
   // A drop that lands on an inlined subchapter section targets THAT subchapter's path (NodeView
@@ -343,8 +343,8 @@ describe("/api/paste", () => {
   // body gains the pointer — the parent body stays untouched (the ex-66 shape).
   it("onto a DIR-BACKED subchapter: the file lands in ITS directory, ITS body gains the pointer", async () => {
     const root = tmpTree({
-      "doc/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\n" + '"Book"\n- intro\n- *: 01-Dogs\n',
-      "doc/01-Dogs/.yamlover/body.yamlover": "!!<*yamlover: $defs: chapter>\n" + '"Dogs"\n- woof\n',
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\n" + '"Book"\n- intro\n- *: 01-Dogs\n',
+      "doc/01-Dogs/.yo/body.yo": "!!<*yamlover: $defs: chapter>\n" + '"Dogs"\n- woof\n',
       ...CHAPTER_DEFS,
     });
     const h = createHandlers(root, { gitignore: false });
@@ -354,15 +354,15 @@ describe("/api/paste", () => {
     expect(r.status).toBe(201);
     expect(r.json).toMatchObject({ path: ":doc:01-Dogs:bone.png", chapter: ":doc:01-Dogs", pointer: "*: bone.png" });
     expect(fs.existsSync(path.join(root, "doc", "01-Dogs", "bone.png"))).toBe(true);
-    const sub = fs.readFileSync(path.join(root, "doc", "01-Dogs", ".yamlover", "body.yamlover"), "utf8");
+    const sub = fs.readFileSync(path.join(root, "doc", "01-Dogs", ".yo", "body.yo"), "utf8");
     expect(sub).toContain("- woof\n- *: bone.png");
     // the PARENT body is untouched
-    expect(fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8")).not.toContain("bone.png");
+    expect(fs.readFileSync(path.join(root, "doc", ".yo", "body.yo"), "utf8")).not.toContain("bone.png");
   });
 
   it("onto an INLINE subchapter path: the pointer lands INSIDE its region, the file in the doc's dir", async () => {
     const root = tmpTree({
-      "doc/.yamlover/body.yamlover":
+      "doc/.yo/body.yo":
         "!!<*yamlover: $defs: chapter>\n" + '"Book"\n- intro\n- Dogs\n  - woof\n- outro\n',
       ...CHAPTER_DEFS,
     });
@@ -373,7 +373,7 @@ describe("/api/paste", () => {
     const r = await callBody(h, "POST", "/api/paste", { path: ":doc[1]", filename: "bone.png", contentBase64: b64("PNG") });
     expect(r.status).toBe(201);
     expect(fs.existsSync(path.join(root, "doc", "bone.png"))).toBe(true); // the doc's own dir
-    const body = fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8");
+    const body = fs.readFileSync(path.join(root, "doc", ".yo", "body.yo"), "utf8");
     const lines = body.split("\n");
     // the pointer sits INSIDE the subchapter (indented under `- Dogs`), before `- outro`
     expect(lines.indexOf("  - *: bone.png")).toBe(lines.indexOf("  - woof") + 1);
@@ -392,36 +392,36 @@ describe("/api/paste (text)", () => {
   // an omni chapter: title (keyed), then a positional body (a chunk + a subchapter)
   const CHAPTER = "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n- title: "Sub"\n  - "First"\n';
 
-  it("text onto a directory: a new chapter .yamlover file, titled from the first line", async () => {
+  it("text onto a directory: a new chapter .yo file, titled from the first line", async () => {
     const root = tmpTree({ "dir/keep.txt": "x", ...CHAPTER_DEFS });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
     const r = await callBody(h, "POST", "/api/paste", { path: ":dir", text: "# Hello World\n\nFirst paragraph.\n" });
     expect(r.status).toBe(201);
-    expect(r.json).toMatchObject({ path: ":dir:Hello%20World.yamlover", dir: ":dir", open: false });
-    const src = fs.readFileSync(path.join(root, "dir", "Hello World.yamlover"), "utf8");
+    expect(r.json).toMatchObject({ path: ":dir:Hello%20World.yo", dir: ":dir", open: false });
+    const src = fs.readFileSync(path.join(root, "dir", "Hello World.yo"), "utf8");
     // the title is the root's scalar SELF-VALUE line — no `title:` key (CHAPTER.md)
     expect(src).toBe('!!<*::yamlover:$defs:chapter>\n"Hello World"\n- |\n  # Hello World\n\n  First paragraph.\n');
 
     // the new file indexed as a chapter holding the text as its one body chunk
-    const node = call(h, "/api/json", { path: ":dir:Hello%20World.yamlover", depth: "3" });
+    const node = call(h, "/api/json", { path: ":dir:Hello%20World.yo", depth: "3" });
     expect(node.json.format).toBe("x-yamlover-chapter");
     expect(bodyVals(node.json.value)).toEqual(["# Hello World\n\nFirst paragraph.\n"]);
   });
 
   it("text onto a chapter: appended as an inline chunk at the end of the body (no file)", async () => {
-    const root = tmpTree({ "doc/.yamlover/body.yamlover": CHAPTER, ...CHAPTER_DEFS });
+    const root = tmpTree({ "doc/.yo/body.yo": CHAPTER, ...CHAPTER_DEFS });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
     const r = await callBody(h, "POST", "/api/paste", { path: ":doc", text: "New paragraph\nwith two lines\n" });
     expect(r.status).toBe(201);
     expect(r.json).toMatchObject({ path: ":doc", chapter: ":doc" });
-    expect(fs.readdirSync(path.join(root, "doc"))).toEqual([".yamlover"]); // no file landed
+    expect(fs.readdirSync(path.join(root, "doc"))).toEqual([".yo"]); // no file landed
 
     // the chunk is appended after the last body item (the subchapter) — one interleaved stream
-    const body = fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8");
+    const body = fs.readFileSync(path.join(root, "doc", ".yo", "body.yo"), "utf8");
     expect(body).toContain('- |\n  New paragraph\n  with two lines');
     const vals = bodyVals(call(h, "/api/json", { path: ":doc", depth: "3" }).json.value);
     expect(vals[vals.length - 1]).toBe("New paragraph\nwith two lines\n");
@@ -430,7 +430,7 @@ describe("/api/paste (text)", () => {
   it("text onto a SUBCHAPTER: appended to that subchapter's body", async () => {
     // subchapters get their chapter format by SCHEMA PROPAGATION (walk.ts applySchemas) via the
     // hosted $defs/chapter's `items: {anyOf:[chapter, chunk]}` union — so the fixture hosts one.
-    const root = tmpTree({ "doc/.yamlover/body.yamlover": CHAPTER, ...CHAPTER_DEFS });
+    const root = tmpTree({ "doc/.yo/body.yo": CHAPTER, ...CHAPTER_DEFS });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
@@ -442,13 +442,13 @@ describe("/api/paste (text)", () => {
   });
 
   it("text whose first line is indented falls back to a quoted scalar (block indent detection)", async () => {
-    const root = tmpTree({ "doc/.yamlover/body.yamlover": CHAPTER, ...CHAPTER_DEFS });
+    const root = tmpTree({ "doc/.yo/body.yo": CHAPTER, ...CHAPTER_DEFS });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
     const text = "    indented first line\nplain second";
     await callBody(h, "POST", "/api/paste", { path: ":doc", text });
-    const body = fs.readFileSync(path.join(root, "doc", ".yamlover", "body.yamlover"), "utf8");
+    const body = fs.readFileSync(path.join(root, "doc", ".yo", "body.yo"), "utf8");
     expect(body).toContain(`- ${JSON.stringify(text)}`);
     const vals = bodyVals(call(h, "/api/json", { path: ":doc", depth: "3" }).json.value);
     expect(vals[vals.length - 1]).toBe(text);
@@ -460,8 +460,8 @@ describe("/api/paste (text)", () => {
     await h.ready;
 
     const r = await callBody(h, "POST", "/api/paste", { path: ":dir", text: "Привет мир\n\nтекст" });
-    expect(r.json.path).toBe(`:dir:${encodeURIComponent("Привет мир")}.yamlover`);
-    expect(fs.existsSync(path.join(root, "dir", "Привет мир.yamlover"))).toBe(true);
+    expect(r.json.path).toBe(`:dir:${encodeURIComponent("Привет мир")}.yo`);
+    expect(fs.existsSync(path.join(root, "dir", "Привет мир.yo"))).toBe(true);
   });
 
   it("rejects an empty text paste", async () => {
@@ -479,7 +479,7 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
   const CHAPTER = "!!<*yamlover: $defs: chapter>\n" + 'title: "T"\n- "Hello"\n- title: "Old"\n  - "First"\n';
 
   it("onto a chapter: chunks (text+image) then subchapters append to the positional body, in order", async () => {
-    const root = tmpTree({ "doc/.yamlover/body.yamlover": CHAPTER, ...CHAPTER_DEFS });
+    const root = tmpTree({ "doc/.yo/body.yo": CHAPTER, ...CHAPTER_DEFS });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
@@ -515,7 +515,7 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
   });
 
   it("appends a body to a minimal (body-less) chapter", async () => {
-    const root = tmpTree({ "doc/.yamlover/body.yamlover": '!!<*yamlover: $defs: chapter>\ntitle: "Bare"\n', ...CHAPTER_DEFS });
+    const root = tmpTree({ "doc/.yo/body.yo": '!!<*yamlover: $defs: chapter>\ntitle: "Bare"\n', ...CHAPTER_DEFS });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
@@ -539,8 +539,8 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
       path: ":dir",
       rich: { chunks: [], children: [{ title: "Cats", chunks: [{ text: "feline facts" }], children: [{ title: "Kittens", chunks: [{ text: "tiny" }], children: [] }] }] },
     });
-    expect(r.json).toMatchObject({ path: ":dir:Cats.yamlover", dir: ":dir", open: false });
-    const node = call(h, "/api/json", { path: ":dir:Cats.yamlover", depth: "4" });
+    expect(r.json).toMatchObject({ path: ":dir:Cats.yo", dir: ":dir", open: false });
+    const node = call(h, "/api/json", { path: ":dir:Cats.yo", depth: "4" });
     expect(node.json.format).toBe("x-yamlover-chapter");
     expect(node.json.title).toBe("Cats"); // the heading became the chapter title, not a child
     const vals = bodyVals(node.json.value);
@@ -564,7 +564,7 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
     // the chapter is a directory: body overlay + both images inside (deduped names)
     expect(fs.readFileSync(path.join(root, "dir", "A cat article", "cat.jpg"), "utf8")).toBe("JPG");
     expect(fs.readFileSync(path.join(root, "dir", "A cat article", "cat-1.jpg"), "utf8")).toBe("JPG2");
-    const body = fs.readFileSync(path.join(root, "dir", "A cat article", ".yamlover", "body.yamlover"), "utf8");
+    const body = fs.readFileSync(path.join(root, "dir", "A cat article", ".yo", "body.yo"), "utf8");
     expect(body).toContain("- *: cat.jpg");
     expect(body).toContain("- *: cat-1.jpg");
 
@@ -604,8 +604,8 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
 describe("agile board — drag = re-tag a task's state", () => {
   it("moves a task between state lanes and rewrites its on-disk annotation", async () => {
     const root = tmpTree({
-      "mytask.yamlover": ["!!<*yamlover:$defs:task>", "title: Wire the widget", "yamlover-annotations:", "- *::tags:state:backlog", ""].join("\n"),
-      "tags/.yamlover/body.yamlover": ["!!<*yamlover:$defs:tag>", "state: Lifecycle states", "  backlog: Captured", "  in-progress: Working", ""].join("\n"),
+      "mytask.yo": ["!!<*yamlover:$defs:task>", "title: Wire the widget", "yamlover-annotations:", "- *::tags:state:backlog", ""].join("\n"),
+      "tags/.yo/body.yo": ["!!<*yamlover:$defs:tag>", "state: Lifecycle states", "  backlog: Captured", "  in-progress: Working", ""].join("\n"),
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -614,20 +614,20 @@ describe("agile board — drag = re-tag a task's state", () => {
       call(h, "/api/tagged", { path: tag }).json.map((m: any) => m?.$yamloverLink?.path).filter(Boolean);
 
     // the task starts in the backlog lane
-    expect(call(h, "/api/json", { path: ":mytask.yamlover" }).json.format).toBe("x-yamlover-task");
-    expect(column(":tags:state:backlog")).toContain(":mytask.yamlover");
-    expect(column(":tags:state:in-progress")).not.toContain(":mytask.yamlover");
+    expect(call(h, "/api/json", { path: ":mytask.yo" }).json.format).toBe("x-yamlover-task");
+    expect(column(":tags:state:backlog")).toContain(":mytask.yo");
+    expect(column(":tags:state:in-progress")).not.toContain(":mytask.yo");
 
     // DRAG → in-progress: drop the old state annotation, add the new
-    const del = await callBody(h, "DELETE", "/api/annotate", undefined, { target: ":mytask.yamlover", tag: ":tags:state:backlog" });
+    const del = await callBody(h, "DELETE", "/api/annotate", undefined, { target: ":mytask.yo", tag: ":tags:state:backlog" });
     expect(del.status).toBe(200);
-    const add = await callBody(h, "POST", "/api/annotate", { target: ":mytask.yamlover", tag: ":tags:state:in-progress" });
+    const add = await callBody(h, "POST", "/api/annotate", { target: ":mytask.yo", tag: ":tags:state:in-progress" });
     expect(add.status).toBe(201);
 
     // the lanes have flipped, and the file now points at the new state
-    expect(column(":tags:state:in-progress")).toContain(":mytask.yamlover");
-    expect(column(":tags:state:backlog")).not.toContain(":mytask.yamlover");
-    const body = fs.readFileSync(path.join(root, "mytask.yamlover"), "utf8");
+    expect(column(":tags:state:in-progress")).toContain(":mytask.yo");
+    expect(column(":tags:state:backlog")).not.toContain(":mytask.yo");
+    const body = fs.readFileSync(path.join(root, "mytask.yo"), "utf8");
     expect(body).toContain("*::tags:state:in-progress");
     expect(body).not.toContain("state:backlog");
   });
@@ -638,8 +638,8 @@ describe("agile board — drag = re-tag a task's state", () => {
 describe("/api/board (lane config)", () => {
   it("persists lanes as project-scope tag pointers and re-reads them", async () => {
     const root = tmpTree({
-      ".yamlover/body.yamlover": "!!<*yamlover:$defs:board>\nworkflow: *::tags:workflow:dev\n",
-      "tags/.yamlover/body.yamlover": "!!<*yamlover:$defs:tag>\nworkflow: Lifecycles\n  dev: Software task lifecycle\n    ready: Ready\n    done: Done\n    cancelled: Dropped\n",
+      ".yo/body.yo": "!!<*yamlover:$defs:board>\nworkflow: *::tags:workflow:dev\n",
+      "tags/.yo/body.yo": "!!<*yamlover:$defs:tag>\nworkflow: Lifecycles\n  dev: Software task lifecycle\n    ready: Ready\n    done: Done\n    cancelled: Dropped\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -649,7 +649,7 @@ describe("/api/board (lane config)", () => {
       lanes: [[":tags:workflow:dev:ready"], [":tags:workflow:dev:done", ":tags:workflow:dev:cancelled"]],
     });
     expect(r.status).toBe(201);
-    const body = fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8");
+    const body = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
     expect(body).toContain("lanes:");
     expect(body).toContain("- [*::tags:workflow:dev:ready]");
     expect(body).toContain("- [*::tags:workflow:dev:done, *::tags:workflow:dev:cancelled]");
@@ -663,7 +663,7 @@ describe("/api/board (lane config)", () => {
     // a later save with no lanes writes an empty flow-sequence (valid YAML, not a null key)
     const empty = await callBody(h, "POST", "/api/board", { path: ":", lanes: [] });
     expect(empty.status).toBe(201);
-    expect(fs.readFileSync(path.join(root, ".yamlover", "body.yamlover"), "utf8")).toContain("lanes: []");
+    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toContain("lanes: []");
   });
 });
 
@@ -693,20 +693,20 @@ function treeSnapshot(root: string): Record<string, string> {
 
 describe("the format guard refuses corrupting edits", () => {
   it("refuses an edit that would write INSIDE the hidden overlay, leaving the tree untouched", async () => {
-    const root = tmpTree({ "World/.yamlover/body.yamlover": "Europe: 1\n" });
+    const root = tmpTree({ "World/.yo/body.yo": "Europe: 1\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const before = treeSnapshot(root);
-    // `:World:.yamlover` resolves to a real directory, so this reaches the directory-target route
-    // and would compute <root>/World/.yamlover/.yamlover/body.yamlover.
-    const r = await callBody(h, "POST", "/api/edit", { path: ":World:.yamlover", op: "insert", key: "Asia", yamlover: "x: 1" });
+    // `:World:.yo` resolves to a real directory, so this reaches the directory-target route
+    // and would compute <root>/World/.yo/.yo/body.yo.
+    const r = await callBody(h, "POST", "/api/edit", { path: ":World:.yo", op: "insert", key: "Asia", yamlover: "x: 1" });
     expect(r.status).toBe(400);
-    expect(String(r.json.error)).toContain(".yamlover");
+    expect(String(r.json.error)).toContain(".yo");
     expect(treeSnapshot(root)).toEqual(before);
   });
 
   it("refuses a member name the filesystem cannot carry, leaving the tree untouched", async () => {
-    const root = tmpTree({ "World/.yamlover/body.yamlover": "Europe: 1\n" });
+    const root = tmpTree({ "World/.yo/body.yo": "Europe: 1\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const before = treeSnapshot(root);
@@ -716,14 +716,14 @@ describe("the format guard refuses corrupting edits", () => {
   });
 
   it("still writes the legitimate twin — a keyed container becomes a real directory", async () => {
-    const root = tmpTree({ "World/.yamlover/body.yamlover": "Europe: 1\n" });
+    const root = tmpTree({ "World/.yo/body.yo": "Europe: 1\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: ":World", op: "insert", key: "Eurasia", yamlover: "Asia: 1" });
     expect(r.status).toBe(200);
     expect(fs.statSync(path.join(root, "World", "Eurasia")).isDirectory()).toBe(true);
-    expect(fs.readFileSync(path.join(root, "World", "Eurasia", ".yamlover", "body.yamlover"), "utf8")).toContain("Asia: 1");
+    expect(fs.readFileSync(path.join(root, "World", "Eurasia", ".yo", "body.yo"), "utf8")).toContain("Asia: 1");
     // and the promotion did NOT bury an overlay inside an overlay
-    expect(fs.existsSync(path.join(root, "World", ".yamlover", ".yamlover"))).toBe(false);
+    expect(fs.existsSync(path.join(root, "World", ".yo", ".yo"))).toBe(false);
   });
 });

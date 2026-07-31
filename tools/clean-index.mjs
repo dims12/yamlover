@@ -43,7 +43,8 @@ const visit = (dir) => {
   } catch {
     return; // unreadable directory — skip, like `find` would after its warning
   }
-  const isYamlover = path.basename(dir) === ".yamlover";
+  // `.yo` is the overlay dir; `.yamlover` is its pre-migration spelling — clean both
+  const isYamlover = path.basename(dir) === ".yo" || path.basename(dir) === ".yamlover";
   for (const e of entries) {
     const abs = path.join(dir, e.name);
     if (e.isDirectory()) {

@@ -65,13 +65,13 @@ async function mount(files: Record<string, string>, mountPath: string) {
 }
 
 describe("the yed parity gate — every storage shape loads, edits, persists", () => {
-  it("1. a flat .yamlover file", async () => {
-    const m = await mount({ "note.yamlover": "" }, ":note.yamlover");
+  it("1. a flat .yo file", async () => {
+    const m = await mount({ "note.yo": "" }, ":note.yo");
     try {
       typeKeys("key1: value1→");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("note.yamlover")).toBe("key1: value1\n");
+      expect(m.read("note.yo")).toBe("key1: value1\n");
     } finally { m.done(); }
   });
 
@@ -85,74 +85,74 @@ describe("the yed parity gate — every storage shape loads, edits, persists", (
     } finally { m.done(); }
   });
 
-  it("3. a dir-backed document (.yamlover/body.yamlover)", async () => {
-    const m = await mount({ "d/.yamlover/body.yamlover": "a: 1\n" }, ":d");
+  it("3. a dir-backed document (.yo/body.yo)", async () => {
+    const m = await mount({ "d/.yo/body.yo": "a: 1\n" }, ":d");
     try {
       typeKeys("z: 9→");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("d/.yamlover/body.yamlover")).toContain("z: 9");
+      expect(m.read("d/.yo/body.yo")).toContain("z: 9");
     } finally { m.done(); }
   });
 
   it("4. a BARE directory — the reported failure: loads, and an edit materializes the body", async () => {
-    const m = await mount({ "d/m.yamlover": "1\n" }, ":d");
+    const m = await mount({ "d/m.yo": "1\n" }, ":d");
     try {
       typeKeys("z: 9→");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.exists("d/.yamlover/body.yamlover"), "the backend derives the overlay").toBe(true);
-      expect(m.read("d/.yamlover/body.yamlover")).toContain("z: 9");
+      expect(m.exists("d/.yo/body.yo"), "the backend derives the overlay").toBe(true);
+      expect(m.read("d/.yo/body.yo")).toContain("z: 9");
     } finally { m.done(); }
   });
 
   it("5. a keyed MEMBER directory — the edit routes to the member's own body", async () => {
-    const m = await mount({ "d/m/.yamlover/body.yamlover": "a: 1\n" }, ":d");
+    const m = await mount({ "d/m/.yo/body.yo": "a: 1\n" }, ":d");
     try {
       retypeToken("1", "2");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("d/m/.yamlover/body.yamlover")).toBe("a: 2\n");
+      expect(m.read("d/m/.yo/body.yo")).toBe("a: 2\n");
     } finally { m.done(); }
   });
 
   it("6. a node DEEP in a document (positional mount path)", async () => {
-    const m = await mount({ "doc.yamlover": "a:\n  b: 1\n" }, ":doc.yamlover:a");
+    const m = await mount({ "doc.yo": "a:\n  b: 1\n" }, ":doc.yo:a");
     try {
       typeKeys("z: 9→");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("doc.yamlover")).toContain("z: 9");
-      expect(m.read("doc.yamlover")).toContain("b: 1");
+      expect(m.read("doc.yo")).toContain("z: 9");
+      expect(m.read("doc.yo")).toContain("b: 1");
     } finally { m.done(); }
   });
 
   it("7. an OMNI document — the self-value edit keeps its row", async () => {
-    const m = await mount({ "o.yamlover": "5\n- one\n" }, ":o.yamlover");
+    const m = await mount({ "o.yo": "5\n- one\n" }, ":o.yo");
     try {
       retypeToken("5", "6");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("o.yamlover")).toBe("6\n- one\n");
+      expect(m.read("o.yo")).toBe("6\n- one\n");
     } finally { m.done(); }
   });
 
   it("8. a K&R document — an interior edit is a whole-token emplace; the layout survives", async () => {
-    const m = await mount({ "k.yamlover": "[\n  1,\n  2\n]\n" }, ":k.yamlover");
+    const m = await mount({ "k.yo": "[\n  1,\n  2\n]\n" }, ":k.yo");
     try {
       retypeToken("1", "9");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("k.yamlover")).toBe("[\n  9,\n  2\n]\n");
+      expect(m.read("k.yo")).toBe("[\n  9,\n  2\n]\n");
     } finally { m.done(); }
   });
 
   it("10. the reported CYCLE: a JSON hierarchy entered, UNWOUND to empty, then YAML entered", async () => {
-    const m = await mount({ "note.yamlover": "" }, ":note.yamlover");
+    const m = await mount({ "note.yo": "" }, ":note.yo");
     try {
       typeKeys("{a: 1}");                         // a JSON-like hierarchy ({ is a literal here)
       await settleOps();
-      expect(m.read("note.yamlover")).toBe("{a: 1}\n");
+      expect(m.read("note.yo")).toBe("{a: 1}\n");
       // the Backspace ladder to the empty document (text clears ride onChange, like a browser)
       for (let i = 0; i < 60; i++) {
         const doc = document.querySelector("[data-testid=y2-doc]")!;
@@ -164,11 +164,11 @@ describe("the yed parity gate — every storage shape loads, edits, persists", (
       }
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("note.yamlover"), "the deletion must PERSIST — the reported gap").toBe("");
+      expect(m.read("note.yo"), "the deletion must PERSIST — the reported gap").toBe("");
       typeKeys("- name: Eurasia→");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]); // 'cannot descend into a scalar element at [0]' — gone
-      expect(m.read("note.yamlover")).toBe("- name: Eurasia\n");
+      expect(m.read("note.yo")).toBe("- name: Eurasia\n");
     } finally { m.done(); }
   });
 
@@ -177,27 +177,27 @@ describe("the yed parity gate — every storage shape loads, edits, persists", (
     // scalar on disk (block YAML has no empty container). The next flush must then emit the
     // grown item as ONE whole-node replace, never a child insert the splicer cannot take
     // ('edit sync failed: cannot descend into a scalar element at [0]', reported 2026-07-29).
-    const m = await mount({ "note.yamlover": "" }, ":note.yamlover");
+    const m = await mount({ "note.yo": "" }, ":note.yo");
     try {
       typeKeys("- name: Eurasia");
       await settleOps(); // flush the PENDING state: disk holds `-`
-      expect(m.read("note.yamlover")).toBe("-\n");
+      expect(m.read("note.yo")).toBe("-\n");
       typeKeys("⏎");
       await settleOps();
       typeKeys("⇤");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("note.yamlover")).toBe("- name: Eurasia\n");
+      expect(m.read("note.yo")).toBe("- name: Eurasia\n");
     } finally { m.done(); }
   });
 
   it("9. COMMENTS SURVIVE an unrelated edit — the per-node-ops architecture's win", async () => {
-    const m = await mount({ "c.yamlover": "# the lead comment\na: 1\nb: 2 # the trailing one\n" }, ":c.yamlover");
+    const m = await mount({ "c.yo": "# the lead comment\na: 1\nb: 2 # the trailing one\n" }, ":c.yo");
     try {
       retypeToken("1", "5");
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
-      expect(m.read("c.yamlover")).toBe("# the lead comment\na: 5\nb: 2 # the trailing one\n");
+      expect(m.read("c.yo")).toBe("# the lead comment\na: 5\nb: 2 # the trailing one\n");
     } finally { m.done(); }
   });
 });

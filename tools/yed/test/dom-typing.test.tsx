@@ -209,4 +209,62 @@ describe("yed2 DOM typing — the reported yaml, through real key events", () =>
     expect(sourceOf(lastState.doc)).toBe("[1, {key: 12}]\n");
     focusedInput();
   });
+
+  it("Enter at the START of `- 1` opens the new row BEFORE it (reported: it opened after)", () => {
+    render(<Harness />);
+    domType("- 1⏎⇤- 2→");
+    expect(sourceOf(lastState.doc)).toBe("- 1\n- 2\n");
+    // click into the committed `1`, Home, Enter — the reported gesture
+    const one = Array.from(document.querySelectorAll(".y2-v")).find((el) => el.textContent === "1") as HTMLElement;
+    fireEvent.focus(one);
+    const input = focusedInput();
+    expect(input.value).toBe("1");
+    input.setSelectionRange(0, 0);
+    fireEvent.keyDown(input, { key: "Enter" });
+    // THE HEAD-OF-ROW EXCEPTION: the sibling hole opens BEFORE the entry, caret in it
+    expect(lastState.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: null });
+    const hole = document.querySelector('.y2-cell[data-kind=hole]')!;
+    const token = Array.from(document.querySelectorAll(".y2-v")).find((el) => el.textContent === "1")!;
+    expect(hole, "the sibling hole must be drawn").toBeTruthy();
+    expect((hole.compareDocumentPosition(token) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      "the hole must render ABOVE the `- 1` row").toBe(true);
+    domType("- 0→");
+    expect(sourceOf(lastState.doc)).toBe("- 0\n- 1\n- 2\n");
+    focusedInput();
+  });
+
+  it("Enter at the END of an omni's value line opens the row BELOW it, not at the document's end", () => {
+    render(<Harness />);
+    domType("1⏎- 2⏎⇤- 3→");
+    expect(sourceOf(lastState.doc)).toBe("1\n- 2\n- 3\n");
+    // click into the committed `1`, End, Enter — the reported gesture
+    const one = Array.from(document.querySelectorAll(".y2-v")).find((el) => el.textContent === "1") as HTMLElement;
+    fireEvent.focus(one);
+    const input = focusedInput();
+    expect(input.value).toBe("1");
+    input.setSelectionRange(1, 1);
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(lastState.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: null });
+    // the hole renders BETWEEN the value line and `- 2` (reported: it appeared after `- 3`)
+    const hole = document.querySelector('.y2-cell[data-kind=hole]')!;
+    const two = Array.from(document.querySelectorAll(".y2-v")).find((el) => el.textContent === "2")!;
+    expect(hole, "the descend hole must be drawn").toBeTruthy();
+    expect((hole.compareDocumentPosition(two) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      "`- 2` must render BELOW the fresh hole").toBe(true);
+    domType("- x→");
+    expect(sourceOf(lastState.doc)).toBe("1\n- x\n- 2\n- 3\n");
+    focusedInput();
+  });
+
+  it("…and mid-text Enter keeps THE LEVEL RULE's descend", () => {
+    render(<Harness />);
+    domType("- 12→"); // → commits; the caret stays in the committed token
+    const input = focusedInput();
+    expect(input.value).toBe("12");
+    input.setSelectionRange(1, 1); // between `1` and `2`
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(lastState.cursor).toEqual({ at: "hole", path: [0], index: 0, text: "", key: null }); // INSIDE the entry
+    expect(sourceOf(lastState.doc)).toBe("- 12\n");
+    focusedInput();
+  });
 });

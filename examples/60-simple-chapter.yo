@@ -1,0 +1,38 @@
+# A whole article in ONE .yo file — no directory or .yo/ overlay needed.
+# The `!!<…>` tag attaches a schema inline; its contents are a normal yamlover pointer
+# path (a leading `*` is implied), so `*yamlover: $defs: chapter` references the chapter
+# schema hosted by the yamlover project. Spec: ../CHAPTER.md, ../YAMLOVER.md, ../META.md.
+#
+# A chapter is a FULLY OMNI node: the node's own scalar SELF-VALUE — the bare line right
+# under the tag — is the TITLE (there is no `title:` key); `description` stays keyed; every
+# dash is a positional body element, read in order. A body element is either a chunk (a
+# renderable block — marklower prose by default) or a nested subchapter, told apart by
+# SHAPE: a container is a subchapter, a leaf is a chunk. A BARE STRING element is therefore
+# at once "a chunk" and "a title-only subchapter" — the same thing, by design. A
+# typographical list — bullets or numbered (../MARKLOWER.md §Lists) — enters the body only
+# by its explicit tag; inside it, an untagged nested container is a sublist of the SAME
+# kind, at any depth (`- - item` is yamlover's compact nesting, same as a lone `-`).
+!!<*yamlover: $defs: chapter>
+Getting Started with yamlover
+description: the shortest tour of the chapter shape
+- yamlover is a YAML layer over the filesystem — data lives in files and directories.
+- An entire article fits in a single .yo file when it is tagged with a schema.
+- The bare line under the tag is the node's SELF-VALUE — this chapter's title.
+- Why one file                       # a TITLE-ONLY subchapter IS a chunk — with no body there
+                                     #   is nothing to descend into, so it reads as prose here
+- Chunks and subchapters             # a TITLED subchapter — its self-value + its own body
+  - Each chunk is a renderable block; by default it is marklower prose.
+  - A chunk can override its (type, format) to be a diagram, image, and so on.
+  - A body element with a self-value AND a body of its own is a subchapter — the recursion.
+- - An UNTITLED subchapter — body entries with no self-value.   # still a container,
+  - It is still a chapter; the page links it as "(untitled chapter)".   # so still a chapter
+- Lists                              # title-only again — a heading-like prose chunk
+- !!<*yamlover: $defs: bullets>
+  - the first point — items are marklower prose
+  - - a nested sub-point            # an untagged container = a sublist of the same kind
+    - - and deeper still            # …at any depth, in compact `- - ` form
+  - the last point
+- !!<*yamlover: $defs: numbered>
+  - step one
+  - step two
+  - - step two point one            # numbered stays numbered when nested untagged

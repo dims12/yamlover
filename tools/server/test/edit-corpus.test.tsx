@@ -42,9 +42,9 @@ interface Fixture {
   id: string;
   title: string;
   keys: string;
-  input?: string;             // in.yamlover — the starting document
+  input?: string;             // in.yo — the starting document
   expect: "roundtrip" | "bytes";
-  out?: string;               // out.yamlover — required for `bytes`
+  out?: string;               // out.yo — required for `bytes`
   from?: string;              // generated fixtures: the sample this came from
 }
 
@@ -58,9 +58,9 @@ function loadFixture(id: string): Fixture {
   if (mode !== "roundtrip" && mode !== "bytes") throw new Error(`${id}: expect must be roundtrip|bytes, got ${mode}`);
   const keys = read("keys");
   if (keys === undefined) throw new Error(`${id}: no keys script`);
-  const out = read("out.yamlover");
-  if (mode === "bytes" && out === undefined) throw new Error(`${id}: expect=bytes needs out.yamlover`);
-  return { id, title: (read("===") ?? "").trim(), keys, input: read("in.yamlover"), expect: mode, out, from: read("from")?.trim() };
+  const out = read("out.yo");
+  if (mode === "bytes" && out === undefined) throw new Error(`${id}: expect=bytes needs out.yo`);
+  return { id, title: (read("===") ?? "").trim(), keys, input: read("in.yo"), expect: mode, out, from: read("from")?.trim() };
 }
 
 const ids = fs.existsSync(CORPUS)
@@ -75,14 +75,14 @@ async function runFixture(f: Fixture): Promise<string | null> {
   // container content is promoted into its own subdirectory (concrete-rules.ts) — so the content
   // would leave this file mid-sequence and a one-file assertion would read empty. Fixtures for that
   // policy belong in the server-side suites, which can assert over the whole tree.
-  const root = tmpTree({ "note.yamlover": f.input ?? "" });
-  const bodyPath = path.join(root, "note.yamlover");
+  const root = tmpTree({ "note.yo": f.input ?? "" });
+  const bodyPath = path.join(root, "note.yo");
   const h = createHandlers(root, { gitignore: false });
   await h.ready;
   const restoreFetch = installFetch(h);
   const alerts = captureAlerts();
   try {
-    const { container } = render(<YamloverEditor path=":note.yamlover" onNavigate={() => {}} />);
+    const { container } = render(<YamloverEditor path=":note.yo" onNavigate={() => {}} />);
     await waitFor(() => expect(container.querySelector(".yed-row")).toBeTruthy(), { timeout: 3000 });
     replay(f.keys);
     await settleOps();
@@ -112,7 +112,7 @@ async function runFixture(f: Fixture): Promise<string | null> {
 
     // 3. and the SERVER agrees about what is there (a splice the walker reads differently is a bug
     //    the bytes alone would hide)
-    const j = call(h, "/api/json", { path: ":note.yamlover", depth: ".inf" }).json as { value: unknown };
+    const j = call(h, "/api/json", { path: ":note.yo", depth: ".inf" }).json as { value: unknown };
     if (j === undefined) return "the document no longer projects";
     return null;
   } catch (e) {

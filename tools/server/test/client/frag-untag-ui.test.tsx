@@ -27,8 +27,8 @@ function Harness({ path }: { path: string }) {
 }
 
 // A named tag (renders as a `.tagtag.on` chip when applied — easy to click).
-const TAG_FILE = { "tags.yamlover": "field:\n  math: !!<*::yamlover:$defs:tag>\n" };
-const TAG = ":tags.yamlover:field:math";
+const TAG_FILE = { "tags.yo": "field:\n  math: !!<*::yamlover:$defs:tag>\n" };
+const TAG = ":tags.yo:field:math";
 const SEL = { type: "rect", x: 10, y: 20, w: 30, h: 40 };
 
 describe("UI: untag a fragment region by clicking its applied tag in the menu", () => {

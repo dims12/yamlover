@@ -1,5 +1,5 @@
 # $defs/board — marks a DIRECTORY of tasks as an agile/kanban board. Attach it to the directory's
-# `.yamlover/body.yamlover` overlay; the `workflow:` ref names which $defs/workflow supplies the
+# `.yo/body.yo` overlay; the `workflow:` ref names which $defs/workflow supplies the
 # lanes (its states, in order). The board renderer then groups the directory's task members into
 # those lanes by each task's current state annotation, and a drag between lanes rewrites that
 # annotation (re-tags the state). format `x-yamlover-board`. Attach with  !!<*yamlover:$defs:board>.

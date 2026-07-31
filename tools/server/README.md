@@ -6,7 +6,7 @@ Browse a yamlover tree in the web browser.
 $ npx yamlover [ROOT] [--port N] [--headless] [--host ADDR] [--base-path PREFIX] [--no-gitignore] [--prod]
 ```
 
-`ROOT` is any yamlover entity — a project directory (one with a `.yamlover/`),
+`ROOT` is any yamlover entity — a project directory (one with a `.yo/`),
 a plain directory, or a single file. It defaults to the current directory. The
 command starts a local web server — **bound to `127.0.0.1` (local only) by
 default**, the safe default for a personal viewer and for the desktop wrapper
@@ -86,7 +86,7 @@ property-graph index) holds nodes and pointer edges. The HTTP layer
 shapes the React client consumes (the `$yamloverLink` / `$yamloverBinary` /
 `$yamloverMixed` markers, the schema view).
 
-The on-disk index lives at `<root>/.yamlover/index.db`. It is a derived cache
+The on-disk index lives at `<root>/.yo/index.db`. It is a derived cache
 with a persistent **file manifest** (path + hash + size + mtime): startup
 re-indexes against it (an offline reconcile — unchanged blobs are never re-read,
 so it is cheap), and the FS watcher re-indexes on edits and broadcasts the diff
@@ -135,7 +135,7 @@ take an optional `depth` (container-nesting limit).
 | `GET /api/annotations?path` | the annotations on a node |
 | `GET /api/query?q&path` | the query evaluator (colon match templates) |
 | `GET /api/dangling` | pointers that did not resolve at index time |
-| `GET /api/config` | the effective `settings.yamlover` — raw source + parsed settings (read-only; written via `/api/edit`, hot-reloaded on change) |
+| `GET /api/config` | the effective `settings.yo` — raw source + parsed settings (read-only; written via `/api/edit`, hot-reloaded on change) |
 | `GET /api/events` | SSE: `{type:"diff",…}` reindex diffs + `{type:"task",…}` progress |
 | `GET /api/tasks` | long-running tasks in flight (a snapshot for a fresh page) |
 | `POST /api/reindex` | manual reconcile (the watcher's fallback) |

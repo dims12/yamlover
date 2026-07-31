@@ -22,14 +22,14 @@ const codes = (v: { diagnostics: Diagnostic[] }): DiagnosticCode[] => v.diagnost
 describe("validatePath — the rules needing only a root-relative path", () => {
   it("allows the whole legitimate overlay vocabulary", () => {
     for (const p of [
-      "a/.yamlover/body.yamlover",
-      "a/b/.yamlover/meta.yamlover",
-      ".yamlover/settings.yamlover",
-      ".yamlover/index.db",
-      "a/.yamlover", // the marker directory itself
-      "a/.yamlover/fragments/crop-1.webp",
-      ".yamlover/thumbnails/ab12cd.webp",
-      "Мир/Евразия/note.yamlover",
+      "a/.yo/body.yo",
+      "a/b/.yo/meta.yo",
+      ".yo/settings.yo",
+      ".yo/index.db",
+      "a/.yo", // the marker directory itself
+      "a/.yo/fragments/crop-1.webp",
+      ".yo/thumbnails/ab12cd.webp",
+      "Мир/Евразия/note.yo",
       "",
     ]) {
       expect(validatePath(p), p).toMatchObject({ allowed: true });
@@ -37,14 +37,14 @@ describe("validatePath — the rules needing only a root-relative path", () => {
   });
 
   it("refuses an overlay nested in another overlay", () => {
-    const v = validatePath("a/.yamlover/.yamlover/body.yamlover");
+    const v = validatePath("a/.yo/.yo/body.yo");
     expect(v.allowed).toBe(false);
     expect(codes(v)).toContain("layout/nested-overlay");
   });
 
   it("refuses a stray name inside the overlay, and a subtree under an overlay FILE", () => {
-    expect(codes(validatePath(".yamlover/notes.txt"))).toContain("layout/reserved-overlay-name");
-    expect(codes(validatePath("a/.yamlover/body.yamlover/x"))).toContain("layout/reserved-overlay-name");
+    expect(codes(validatePath(".yo/notes.txt"))).toContain("layout/reserved-overlay-name");
+    expect(codes(validatePath("a/.yo/body.yo/x"))).toContain("layout/reserved-overlay-name");
   });
 
   it("refuses a path escaping the root", () => {
@@ -52,25 +52,25 @@ describe("validatePath — the rules needing only a root-relative path", () => {
   });
 
   it("refuses padded, hidden and metachar-bearing member names", () => {
-    expect(codes(validatePath("a/ b/x.yamlover"))).toContain("layout/unsafe-member-name");
-    expect(codes(validatePath("a/.hidden/x.yamlover"))).toContain("layout/unsafe-member-name");
-    expect(codes(validatePath('a/we:ird/x.yamlover'))).toContain("layout/unsafe-member-name");
-    expect(codes(validatePath("a/b\u0007c/x.yamlover"))).toContain("layout/unsafe-member-name");
+    expect(codes(validatePath("a/ b/x.yo"))).toContain("layout/unsafe-member-name");
+    expect(codes(validatePath("a/.hidden/x.yo"))).toContain("layout/unsafe-member-name");
+    expect(codes(validatePath('a/we:ird/x.yo'))).toContain("layout/unsafe-member-name");
+    expect(codes(validatePath("a/b\u0007c/x.yo"))).toContain("layout/unsafe-member-name");
   });
 
   it("keeps dashes, dots and digits — the generated name schemes must survive", () => {
-    for (const p of ["a/01-Мир/.yamlover/body.yamlover", "a/item01-1/.yamlover/body.yamlover", "a/my-note.v2.yamlover"]) {
+    for (const p of ["a/01-Мир/.yo/body.yo", "a/item01-1/.yo/body.yo", "a/my-note.v2.yo"]) {
       expect(validatePath(p), p).toMatchObject({ allowed: true });
     }
   });
 });
 
 describe("validateWrite — the encoding rules", () => {
-  const dirTarget = n(":World", "dir/yamlover", { fsPath: "World", names: [".yamlover"] });
+  const dirTarget = n(":World", "dir/yamlover", { fsPath: "World", names: [".yo"] });
 
   it("refuses a keyed container spliced inline instead of promoted to a directory", () => {
     const v = validateWrite(
-      w({ target: dirTarget, child: { keyed: true, container: true }, route: "dir", writes: [{ kind: "splice", fsPath: "World/.yamlover/body.yamlover" }] }),
+      w({ target: dirTarget, child: { keyed: true, container: true }, route: "dir", writes: [{ kind: "splice", fsPath: "World/.yo/body.yo" }] }),
     );
     expect(v.allowed).toBe(false);
     expect(codes(v)).toContain("layout/inline-collection");
@@ -85,7 +85,7 @@ describe("validateWrite — the encoding rules", () => {
         memberName: "Eurasia",
         writes: [
           { kind: "dir", fsPath: "World/Eurasia", concrete: "dir/yamlover" },
-          { kind: "overlay", fsPath: "World/Eurasia/.yamlover/body.yamlover" },
+          { kind: "overlay", fsPath: "World/Eurasia/.yo/body.yo" },
         ],
       }),
     );
@@ -94,7 +94,7 @@ describe("validateWrite — the encoding rules", () => {
 
   it("refuses an ORDINAL container spliced inline, and allows the dir-seq plan", () => {
     const child = { keyed: false, container: true };
-    expect(codes(validateWrite(w({ target: dirTarget, child, route: "dir-seq", writes: [{ kind: "splice", fsPath: "World/.yamlover/body.yamlover" }] })))).toContain(
+    expect(codes(validateWrite(w({ target: dirTarget, child, route: "dir-seq", writes: [{ kind: "splice", fsPath: "World/.yo/body.yo" }] })))).toContain(
       "layout/inline-collection",
     );
     expect(
@@ -106,7 +106,7 @@ describe("validateWrite — the encoding rules", () => {
           memberName: "item01",
           writes: [
             { kind: "dir", fsPath: "World/item01", concrete: "dir/yamlover" },
-            { kind: "splice", fsPath: "World/.yamlover/body.yamlover" },
+            { kind: "splice", fsPath: "World/.yo/body.yo" },
           ],
         }),
       ),
@@ -118,7 +118,7 @@ describe("validateWrite — the encoding rules", () => {
     const tagged = { keyed: false, container: true, tagged: true };
     // scalars, keyed and ordinal alike, are body-encoded.
     for (const child of [tagged, { keyed: true, container: false }, { keyed: false, container: false }]) {
-      const v = validateWrite(w({ target: dirTarget, child, route: "body", writes: [{ kind: "splice", fsPath: "World/.yamlover/body.yamlover" }] }));
+      const v = validateWrite(w({ target: dirTarget, child, route: "body", writes: [{ kind: "splice", fsPath: "World/.yo/body.yo" }] }));
       expect(v, JSON.stringify(child)).toMatchObject({ allowed: true });
     }
   });
@@ -129,19 +129,19 @@ describe("validateWrite — the encoding rules", () => {
         target: dirTarget,
         child: { keyed: true, container: true },
         explicitConcrete: "yamlover",
-        writes: [{ kind: "splice", fsPath: "World/.yamlover/body.yamlover" }],
+        writes: [{ kind: "splice", fsPath: "World/.yo/body.yo" }],
       }),
     );
     expect(v).toMatchObject({ allowed: true });
   });
 
   it("runs the path rules over every planned write", () => {
-    const v = validateWrite(w({ writes: [{ kind: "overlay", fsPath: ".yamlover/.yamlover/body.yamlover" }] }));
+    const v = validateWrite(w({ writes: [{ kind: "overlay", fsPath: ".yo/.yo/body.yo" }] }));
     expect(codes(v)).toContain("layout/nested-overlay");
   });
 
   it("refuses a keyed member whose key already names a child, but not a dir-seq name", () => {
-    const names = ["Eurasia", ".yamlover"];
+    const names = ["Eurasia", ".yo"];
     const target = n(":World", "dir/yamlover", { fsPath: "World", names });
     expect(codes(validateWrite(w({ target, route: "dir", memberName: "Eurasia", writes: [{ kind: "dir", fsPath: "World/Eurasia", concrete: "dir/yamlover" }] })))).toContain(
       "layout/duplicate-member",
@@ -175,39 +175,39 @@ describe("validateTree — the doctor sweep", () => {
   it("passes a well-formed tree", () => {
     const v = validateTree({
       nodes: [
-        n(":", "dir/yamlover", { fsPath: "", names: [".yamlover", "World"] }),
-        n(":.yamlover", "dir", { fsPath: ".yamlover", names: ["settings.yamlover", "index.db"] }),
-        n(":World", "dir/yamlover", { fsPath: "World", names: [".yamlover", "Eurasia"] }),
-        n(":World:.yamlover", "dir", { fsPath: "World/.yamlover", names: ["body.yamlover"] }),
+        n(":", "dir/yamlover", { fsPath: "", names: [".yo", "World"] }),
+        n(":.yo", "dir", { fsPath: ".yo", names: ["settings.yo", "index.db"] }),
+        n(":World", "dir/yamlover", { fsPath: "World", names: [".yo", "Eurasia"] }),
+        n(":World:.yo", "dir", { fsPath: "World/.yo", names: ["body.yo"] }),
         n(":World:Eurasia", "dir", { fsPath: "World/Eurasia", names: [] }),
-        n(":note.yamlover", "file/yamlover", { fsPath: "note.yamlover" }),
+        n(":note.yo", "file/yamlover", { fsPath: "note.yo" }),
       ],
     });
     expect(v).toMatchObject({ allowed: true, diagnostics: [] });
   });
 
   it("finds an overlay whose directory is gone", () => {
-    const v = validateTree({ nodes: [n(":gone:.yamlover", "dir", { fsPath: "gone/.yamlover", names: ["body.yamlover"] })] });
+    const v = validateTree({ nodes: [n(":gone:.yo", "dir", { fsPath: "gone/.yo", names: ["body.yo"] })] });
     expect(codes(v)).toContain("layout/orphan-overlay");
   });
 
   it("finds an overlay holding only sidecar blobs, but allows a meta-only marker", () => {
-    const parent = n(":a", "dir/yamlover", { fsPath: "a", names: [".yamlover"] });
-    const blobs = n(":a:.yamlover", "dir", { fsPath: "a/.yamlover", names: ["thumbnails"] });
+    const parent = n(":a", "dir/yamlover", { fsPath: "a", names: [".yo"] });
+    const blobs = n(":a:.yo", "dir", { fsPath: "a/.yo", names: ["thumbnails"] });
     expect(codes(validateTree({ nodes: [parent, blobs] }))).toContain("layout/orphan-overlay");
-    const metaOnly = n(":a:.yamlover", "dir", { fsPath: "a/.yamlover", names: ["meta.yamlover"] });
+    const metaOnly = n(":a:.yo", "dir", { fsPath: "a/.yo", names: ["meta.yo"] });
     expect(validateTree({ nodes: [parent, metaOnly] })).toMatchObject({ allowed: true });
   });
 
   it("finds a nested overlay in the tree too, not only pre-flight", () => {
-    const v = validateTree({ nodes: [n(":a:.yamlover:.yamlover", "dir", { fsPath: "a/.yamlover/.yamlover" })] });
+    const v = validateTree({ nodes: [n(":a:.yo:.yo", "dir", { fsPath: "a/.yo/.yo" })] });
     expect(codes(v)).toContain("layout/nested-overlay");
   });
 
   it("finds a concrete disagreeing with the shape backing it", () => {
-    const marker = n(":a", "dir/yamlover", { fsPath: "a", names: ["x.yamlover"] });
+    const marker = n(":a", "dir/yamlover", { fsPath: "a", names: ["x.yo"] });
     expect(codes(validateTree({ nodes: [marker] }))).toContain("layout/concrete-mismatch");
-    const plain = n(":b", "dir", { fsPath: "b", names: [".yamlover"] });
+    const plain = n(":b", "dir", { fsPath: "b", names: [".yo"] });
     expect(codes(validateTree({ nodes: [plain] }))).toContain("layout/concrete-mismatch");
     const mistyped = n(":c.json", "file/yaml", { fsPath: "c.json" });
     expect(codes(validateTree({ nodes: [mistyped] }))).toContain("layout/concrete-mismatch");
@@ -221,16 +221,16 @@ describe("validateTree — the doctor sweep", () => {
 });
 
 describe("options", () => {
-  const bad = () => validatePath("a/.yamlover/.yamlover/body.yamlover", { ignore: [] });
+  const bad = () => validatePath("a/.yo/.yo/body.yo", { ignore: [] });
 
   it("ignore suppresses a code entirely", () => {
     expect(bad().allowed).toBe(false);
-    const v = validatePath("a/.yamlover/.yamlover/body.yamlover", { ignore: ["layout/nested-overlay"] });
+    const v = validatePath("a/.yo/.yo/body.yo", { ignore: ["layout/nested-overlay"] });
     expect(v).toMatchObject({ allowed: true, diagnostics: [] });
   });
 
   it("severity demotes an error to a warning and flips the verdict", () => {
-    const v = validatePath("a/.yamlover/.yamlover/body.yamlover", { severity: { "layout/nested-overlay": "warning" } });
+    const v = validatePath("a/.yo/.yo/body.yo", { severity: { "layout/nested-overlay": "warning" } });
     expect(v.allowed).toBe(true);
     expect(v.diagnostics).toMatchObject([{ code: "layout/nested-overlay", severity: "warning" }]);
   });
@@ -244,7 +244,7 @@ describe("options", () => {
 
 describe("enforcement", () => {
   const warned = validateWrite(w({ route: "dir-seq", memberName: "Eurasia", writes: [] }));
-  const refused = validatePath("a/.yamlover/.yamlover/body.yamlover");
+  const refused = validatePath("a/.yo/.yo/body.yo");
 
   it("resolves the mode: an explicit setting wins, else dev throws and prod refuses", () => {
     expect(defaultMode({ dev: true })).toBe("throw");

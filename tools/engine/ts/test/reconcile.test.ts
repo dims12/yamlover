@@ -24,41 +24,41 @@ function tmpRoot(): string {
 test('reindex reports added / changed / removed files across runs', () => {
   const root = tmpRoot();
   writeFileSync(join(root, 'a.md'), '# a');
-  writeFileSync(join(root, 'b.yamlover'), 'x: 1\n');
+  writeFileSync(join(root, 'b.yo'), 'x: 1\n');
   const s = new Store(':memory:');
 
   const first = reindex(s, root);
-  assert.deepEqual(new Set(first.added), new Set(['a.md', 'b.yamlover']));
+  assert.deepEqual(new Set(first.added), new Set(['a.md', 'b.yo']));
   assert.deepEqual(first.changed, []);
   assert.deepEqual(first.removed, []);
 
   // no edits → an empty diff (and the index still answers)
   const second = reindex(s, root);
   assert.deepEqual(second, { added: [], changed: [], removed: [], moved: [] });
-  assert.equal(s.node(':b.yamlover:x')?.value, 1);
+  assert.equal(s.node(':b.yo:x')?.value, 1);
 
   // one modified, one new, one gone
-  writeFileSync(join(root, 'b.yamlover'), 'x: 2\n');
+  writeFileSync(join(root, 'b.yo'), 'x: 2\n');
   writeFileSync(join(root, 'c.md'), '# c');
   rmSync(join(root, 'a.md'));
   const third = reindex(s, root);
-  assert.deepEqual(third, { added: ['c.md'], changed: ['b.yamlover'], removed: ['a.md'], moved: [] });
-  assert.equal(s.node(':b.yamlover:x')?.value, 2);
+  assert.deepEqual(third, { added: ['c.md'], changed: ['b.yo'], removed: ['a.md'], moved: [] });
+  assert.equal(s.node(':b.yo:x')?.value, 2);
   assert.equal(s.node(':a.md'), null);
 });
 
-test('reindex manifests overlay files, so a body.yamlover edit is a change', () => {
+test('reindex manifests overlay files, so a body.yo edit is a change', () => {
   const root = tmpRoot();
-  mkdirSync(join(root, 'd', '.yamlover'), { recursive: true });
+  mkdirSync(join(root, 'd', '.yo'), { recursive: true });
   writeFileSync(join(root, 'd', 'f.md'), 'hello');
-  writeFileSync(join(root, 'd', '.yamlover', 'body.yamlover'), 'title: First\n');
+  writeFileSync(join(root, 'd', '.yo', 'body.yo'), 'title: First\n');
   const s = new Store(':memory:');
   reindex(s, root);
   assert.equal(s.node(':d:title')?.value, 'First');
 
-  writeFileSync(join(root, 'd', '.yamlover', 'body.yamlover'), 'title: Second\n');
+  writeFileSync(join(root, 'd', '.yo', 'body.yo'), 'title: Second\n');
   const diff = reindex(s, root);
-  assert.deepEqual(diff.changed, ['d/.yamlover/body.yamlover']);
+  assert.deepEqual(diff.changed, ['d/.yo/body.yo']);
   assert.equal(s.node(':d:title')?.value, 'Second');
 });
 
@@ -171,16 +171,16 @@ test('a schema-version mismatch drops the on-disk index and marks the store stal
 
 test('an unresolved pointer is persisted as dangling, and clears once it resolves', () => {
   const root = tmpRoot();
-  writeFileSync(join(root, 'doc.yamlover'), 'friend: *missing\n');
+  writeFileSync(join(root, 'doc.yo'), 'friend: *missing\n');
   const s = new Store(':memory:');
   reindex(s, root);
   const d = s.dangling();
   assert.equal(d.length, 1);
-  assert.equal(d[0].from, ':doc.yamlover:friend');
+  assert.equal(d[0].from, ':doc.yo:friend');
   assert.equal(d[0].raw, 'missing'); // Pointer.raw is the path text, sans the `*` sigil
   assert.match(d[0].reason, /missing/);
 
-  writeFileSync(join(root, 'doc.yamlover'), 'missing: 1\nfriend: *missing\n');
+  writeFileSync(join(root, 'doc.yo'), 'missing: 1\nfriend: *missing\n');
   reindex(s, root);
   assert.deepEqual(s.dangling(), []);
 });
@@ -189,13 +189,13 @@ test('unrealizedRefs lists a holder\'s dangling/external pointer ENTRIES, key an
   const root = tmpRoot();
   // an unresolved local pointer, an external-authority link, and a resolved sibling
   writeFileSync(
-    join(root, 'doc.yamlover'),
+    join(root, 'doc.yo'),
     'name: Rex\nfriend: *missing\nhome: *::: pet.store.com: kennels\nself: *name\n',
   );
   const s = new Store(':memory:');
   reindex(s, root);
 
-  const u = s.unrealizedRefs(':doc.yamlover');
+  const u = s.unrealizedRefs(':doc.yo');
   assert.deepEqual(
     u.map(({ label, pos, raw, edge, external }) => ({ label, pos, raw, edge, external })),
     [
@@ -204,7 +204,7 @@ test('unrealizedRefs lists a holder\'s dangling/external pointer ENTRIES, key an
     ],
   );
   // the resolved `self` is an ordinary edge, not an unrealized ref
-  assert.equal(s.entries(':doc.yamlover').filter((e) => e.kind === 'ref').length, 1);
+  assert.equal(s.entries(':doc.yo').filter((e) => e.kind === 'ref').length, 1);
   // an external link is NOT an error: the dangling report carries only the unresolved one
   assert.deepEqual(s.dangling().map((d) => d.raw), ['missing']);
 });
@@ -221,21 +221,21 @@ const until = async (cond: () => boolean, ms = 3000): Promise<void> => {
   }
 };
 
-test('watchTree batches new-file events and ignores .yamlover internals', async () => {
+test('watchTree batches new-file events and ignores .yo internals', async () => {
   const root = tmpRoot();
-  mkdirSync(join(root, '.yamlover'));
+  mkdirSync(join(root, '.yo'));
   const batches: string[][] = [];
   const close = watchTree(root, (b) => batches.push(b), { debounceMs: 50 });
   try {
     writeFileSync(join(root, 'new.md'), '# new');
-    writeFileSync(join(root, '.yamlover', 'index.db'), 'not really'); // must be filtered
+    writeFileSync(join(root, '.yo', 'index.db'), 'not really'); // must be filtered
     await until(() => batches.length > 0);
     assert.deepEqual(batches.flat().includes('new.md'), true);
     assert.equal(batches.flat().some((p) => p.includes('index.db')), false);
 
     // an overlay file IS data — its events must pass the filter
-    writeFileSync(join(root, '.yamlover', 'body.yamlover'), 'title: T\n');
-    await until(() => batches.flat().includes('.yamlover/body.yamlover'));
+    writeFileSync(join(root, '.yo', 'body.yo'), 'title: T\n');
+    await until(() => batches.flat().includes('.yo/body.yo'));
   } finally {
     close();
   }

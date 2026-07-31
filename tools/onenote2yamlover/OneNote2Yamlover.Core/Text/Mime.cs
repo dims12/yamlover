@@ -5,7 +5,7 @@ namespace OneNote2Yamlover.Core.Text;
 /// <summary>Asset naming and typing. Ported from <c>Mime-FromName</c>, <c>Ext-FromFormat</c>, <c>Short-Hash</c>.</summary>
 public static class Mime
 {
-    // Declared in .yamlover/meta.yamlover so /api/blob streams the asset with the right
+    // Declared in .yo/meta.yo so /api/blob streams the asset with the right
     // Content-Type; the engine's own EXT_FORMAT knows images but not media.
     private static readonly Dictionary<string, string> ByExtension = new(StringComparer.OrdinalIgnoreCase)
     {

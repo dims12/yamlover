@@ -18,7 +18,7 @@
 - ~~/examples/50-object-in-overlay/name chooses marklower format by default without any reasons~~ — DONE (marklower is asked for by name; `chunkOf` stamps a chapter's inline chunks)
 - /examples/68-math-chapter displays expand chevron in TOC, although it doesn't have any children +DONE (a chapter's TOC `hasChildren` hint now counts SUBCHAPTERS only — `hasSubchapterChild` in engine-api, mirroring the client's `isSubchapter` — so a chunks-only chapter is a leaf; chunks/overlay fields like `yamlover-fragments` no longer trigger a chevron that expands to nothing)
 - add light color scheme
-- store rendered diagrams in .yamlover
+- store rendered diagrams in .yo
 - impossible to remove fragment tag just after select
 - ~~make multiline text values also collapsible~~ — DONE: big scalars (multiline strings as `|` blocks, `!!binary` bytes) fold like containers in the yamlover view (render.tsx `bigScalar`/`BigScalarYaml`)- KML+KMZ render as XML or plaintext
 - 001 PDFs/MDs are too wide; limit right margin +DONE
@@ -41,7 +41,7 @@
 - 018 Chevrons in TOC are kindof 1-2 pixels lover than the icons
 - 019 Absent format shows strange http://calculon:5173/README.md
 - 020 TXT files shown in markdown format and glitching: http://calculon:5173/53.%20%D0%A4%D0%B8%D0%B7%D0%B8%D0%BA%D0%B0/The%20Theoretical%20Minimum/Torrent%20downloaded%20from%20Darkside%20RG.txt?format=marklower
-- 021 Chunks has slash http://10.9.0.2:5173/73-dev-board/add-board-view.yamlover?format=tag-board#/chunks[1]   but fragments havent' http://10.9.0.2:5173/72-images/eiffel-tower/IMG_20120725_182044.jpg?format=large-icons#yamlover-fragments/mqee46pt-m1wdko +DONE (fragmentAnchorId now keeps the leading `/` → `#/yamlover-fragments/<slug>`, mirroring chunk anchors)
+- 021 Chunks has slash http://10.9.0.2:5173/73-dev-board/add-board-view.yo?format=tag-board#/chunks[1]   but fragments havent' http://10.9.0.2:5173/72-images/eiffel-tower/IMG_20120725_182044.jpg?format=large-icons#yamlover-fragments/mqee46pt-m1wdko +DONE (fragmentAnchorId now keeps the leading `/` → `#/yamlover-fragments/<slug>`, mirroring chunk anchors)
 - 022 Table columns are rendered very narrow in MD even if the page width increased, for example http://10.9.0.2:5173/README.md?format=markdown +DONE (GitHub-style `.markup table` layout — `width: max-content` capped at `max-width: 100%` with overflow-x scroll; cells reset the body's `word-break: break-word`, which was what crushed squeezed columns; borders/zebra mirror `.csv-table`)
 - 023 Fragment deletion buttons in image renderer should be trashcan icons, not crosses
 - 024 Fragment part in URL should update on scroll where possible (in texts)
@@ -58,6 +58,7 @@
   ladder (`*` bare / `*:` / `*::`), live TOC filtering through the shared TocFilterSession, TOC
   click inserts the picked path spelled in the chosen scope, Enter reduces the query to a
   link-arity pointer. The tag picker's search row runs on the same kit (annotate.tsx);
-  yamlover-editor/pointer-hints.tsx deleted. State tables: QUERY_EDITOR.yamlover (pick mode),
-  YAMLOVER_EDITOR.yamlover (pointer_* states).
+  yamlover-editor/pointer-hints.tsx deleted. State tables: QUERY_EDITOR.yo (pick mode),
+  YAMLOVER_EDITOR.yo (pointer_* states).
 - Support copy to clipboard in all json, json5, json5p, yaml and yamlover renderers and copy/paste in yamlover editor
+- Design treetable modelling support

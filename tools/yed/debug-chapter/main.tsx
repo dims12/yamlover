@@ -48,8 +48,8 @@ const FIXTURES: Record<string, string> = {
   "built-in: source chunk":
     "Recipes\n- The stew needs:\n- !!<*yamlover: $defs: recipe>\n  serves: 4\n  time: 20\n- Serve hot.\n",
 };
-for (const [p, src] of Object.entries(import.meta.glob("../../../examples/**/body.yamlover", { eager: true, query: "?raw", import: "default" }))) {
-  const name = p.replace(/^\.\.\/\.\.\/\.\.\//, "").replace(/\/\.yamlover\/body\.yamlover$/, "");
+for (const [p, src] of Object.entries(import.meta.glob("../../../examples/**/body.yo", { eager: true, query: "?raw", import: "default" }))) {
+  const name = p.replace(/^\.\.\/\.\.\/\.\.\//, "").replace(/\/\.yo\/body\.yo$/, "");
   FIXTURES[name] = src as string;
 }
 

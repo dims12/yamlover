@@ -15,7 +15,7 @@
           "anchors": [],
           "entries": [
             {
-              "key": ".yamlover",
+              "key": ".yo",
               "edge": "contain",
               "value": {
                 "kind": "mapping",
@@ -363,7 +363,7 @@
                                     "steps": [
                                       {
                                         "sel": "key",
-                                        "name": ".yamlover"
+                                        "name": ".yo"
                                       },
                                       {
                                         "sel": "key",
@@ -568,7 +568,7 @@
                                     "steps": [
                                       {
                                         "sel": "key",
-                                        "name": ".yamlover"
+                                        "name": ".yo"
                                       },
                                       {
                                         "sel": "key",
@@ -729,7 +729,7 @@
                                     "steps": [
                                       {
                                         "sel": "key",
-                                        "name": ".yamlover"
+                                        "name": ".yo"
                                       },
                                       {
                                         "sel": "key",
@@ -837,7 +837,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -862,7 +862,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -916,7 +916,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -941,7 +941,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -1065,7 +1065,7 @@
                                     "steps": [
                                       {
                                         "sel": "key",
-                                        "name": ".yamlover"
+                                        "name": ".yo"
                                       },
                                       {
                                         "sel": "key",
@@ -1168,7 +1168,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -1193,7 +1193,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -1247,7 +1247,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -1272,7 +1272,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -1305,7 +1305,7 @@
           "anchors": [],
           "entries": [
             {
-              "key": ".yamlover",
+              "key": ".yo",
               "edge": "contain",
               "value": {
                 "kind": "mapping",
@@ -1550,7 +1550,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -1604,7 +1604,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -1658,7 +1658,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -1782,7 +1782,7 @@
                                     "steps": [
                                       {
                                         "sel": "key",
-                                        "name": ".yamlover"
+                                        "name": ".yo"
                                       },
                                       {
                                         "sel": "key",
@@ -1921,7 +1921,7 @@
                                     "steps": [
                                       {
                                         "sel": "key",
-                                        "name": ".yamlover"
+                                        "name": ".yo"
                                       },
                                       {
                                         "sel": "key",
@@ -2060,7 +2060,7 @@
                                     "steps": [
                                       {
                                         "sel": "key",
-                                        "name": ".yamlover"
+                                        "name": ".yo"
                                       },
                                       {
                                         "sel": "key",
@@ -2199,7 +2199,7 @@
                                     "steps": [
                                       {
                                         "sel": "key",
-                                        "name": ".yamlover"
+                                        "name": ".yo"
                                       },
                                       {
                                         "sel": "key",
@@ -2338,7 +2338,7 @@
                                     "steps": [
                                       {
                                         "sel": "key",
-                                        "name": ".yamlover"
+                                        "name": ".yo"
                                       },
                                       {
                                         "sel": "key",
@@ -2477,7 +2477,7 @@
                                     "steps": [
                                       {
                                         "sel": "key",
-                                        "name": ".yamlover"
+                                        "name": ".yo"
                                       },
                                       {
                                         "sel": "key",
@@ -2558,7 +2558,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -2612,7 +2612,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -2645,7 +2645,7 @@
           "anchors": [],
           "entries": [
             {
-              "key": ".yamlover",
+              "key": ".yo",
               "edge": "contain",
               "value": {
                 "kind": "mapping",
@@ -2718,7 +2718,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -2751,7 +2751,7 @@
           "anchors": [],
           "entries": [
             {
-              "key": ".yamlover",
+              "key": ".yo",
               "edge": "contain",
               "value": {
                 "kind": "mapping",
@@ -2888,7 +2888,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -2942,7 +2942,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -2996,7 +2996,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -3050,7 +3050,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",
@@ -3104,7 +3104,7 @@
                               "steps": [
                                 {
                                   "sel": "key",
-                                  "name": ".yamlover"
+                                  "name": ".yo"
                                 },
                                 {
                                   "sel": "key",

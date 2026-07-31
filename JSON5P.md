@@ -180,7 +180,7 @@ in the JSON5 string to deliver one backslash through the *string* layer.
 
 ## 5. Relationship to the rest of the system
 
-**Inline, inside a yamlover document.** A `.yamlover` file can switch to json5p mid-document
+**Inline, inside a yamlover document.** A `.yo` file can switch to json5p mid-document
 without a file boundary: a flow token written across several lines (K&R braces) IS a json5p
 subtree, written by this concrete's own serializer (`CONCRETES.md` §K&R). It is the reason the
 switch is json5p rather than json — comments, pointers and `&` anchors all survive it.
@@ -193,7 +193,7 @@ switch is json5p rather than json — comments, pointers and `&` anchors all sur
   walks pointers lazily over the graph.
 - **Sibling concrete** (`yamlover`): the indentation / filesystem surface over the *same*
   model — `*`, `~`, `[n]`/`/x`, scopes are identical; it additionally has `&` anchors and
-  the directory + `body.yamlover` overlay.
+  the directory + `body.yo` overlay.
 
 ## 6. Worked example
 

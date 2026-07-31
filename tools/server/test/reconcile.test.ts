@@ -38,20 +38,20 @@ describe("reconcile: external edits reach the index", () => {
   });
 
   it("a deleted file disappears, an edited one re-reads", async () => {
-    const root = tmpTree({ "a.md": "# a", "b.yamlover": "x: 1\n" });
+    const root = tmpTree({ "a.md": "# a", "b.yo": "x: 1\n" });
     const h = await handlers(root);
     fs.rmSync(path.join(root, "a.md"));
-    fs.writeFileSync(path.join(root, "b.yamlover"), "x: 2\n");
+    fs.writeFileSync(path.join(root, "b.yo"), "x: 2\n");
 
     const r = await callBody(h, "POST", "/api/reindex");
-    expect(r.json).toEqual({ added: [], changed: ["b.yamlover"], removed: ["a.md"], moved: [] });
-    expect(treeLabels(h)).toEqual(["b.yamlover"]);
-    expect(call(h, "/api/json", { path: ":b.yamlover:x" }).json.value).toBe(2);
+    expect(r.json).toEqual({ added: [], changed: ["b.yo"], removed: ["a.md"], moved: [] });
+    expect(treeLabels(h)).toEqual(["b.yo"]);
+    expect(call(h, "/api/json", { path: ":b.yo:x" }).json.value).toBe(2);
   });
 
   it("the persisted index survives a restart without a re-walk being wrong", async () => {
     const root = tmpTree({ "a.md": "# a" });
-    await handlers(root); // first run writes <root>/.yamlover/index.db + the manifest
+    await handlers(root); // first run writes <root>/.yo/index.db + the manifest
 
     fs.writeFileSync(path.join(root, "b.md"), "# b"); // an edit while "down"
     const h2 = await handlers(root); // startup reconcile picks it up
@@ -59,7 +59,7 @@ describe("reconcile: external edits reach the index", () => {
   });
 
   it("an external rename is inferred as a move and the inbound refs are RELINKED", async () => {
-    const root = tmpTree({ "old.md": "# unique doc", "refs.yamlover": "link: *:: old.md\n" });
+    const root = tmpTree({ "old.md": "# unique doc", "refs.yo": "link: *:: old.md\n" });
     const h = await handlers(root);
 
     // an external actor renames the file — no engine mediation
@@ -69,18 +69,18 @@ describe("reconcile: external edits reach the index", () => {
     expect(r.json.added).toEqual([]);
     expect(r.json.removed).toEqual([]);
     // the mediated-tier rewrite ran on the inferred move (ENGINE.md tier 2: "relinked")
-    expect(fs.readFileSync(path.join(root, "refs.yamlover"), "utf8")).toBe("link: *:: new.md\n");
+    expect(fs.readFileSync(path.join(root, "refs.yo"), "utf8")).toBe("link: *:: new.md\n");
     expect(call(h, "/api/dangling").json).toEqual([]);
   });
 
   it("GET /api/dangling reports a pointer whose target is missing", async () => {
-    const root = tmpTree({ "doc.yamlover": "friend: *missing\n" });
+    const root = tmpTree({ "doc.yo": "friend: *missing\n" });
     const h = await handlers(root);
     expect(call(h, "/api/dangling").json).toEqual([
-      { from: ":doc.yamlover:friend", raw: "missing", reason: expect.stringContaining("missing") },
+      { from: ":doc.yo:friend", raw: "missing", reason: expect.stringContaining("missing") },
     ]);
 
-    fs.writeFileSync(path.join(root, "doc.yamlover"), "missing: 1\nfriend: *missing\n");
+    fs.writeFileSync(path.join(root, "doc.yo"), "missing: 1\nfriend: *missing\n");
     await callBody(h, "POST", "/api/reindex");
     expect(call(h, "/api/dangling").json).toEqual([]);
   });

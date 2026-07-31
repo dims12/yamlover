@@ -308,7 +308,7 @@ Compositions of the primitives above — **not** new syntax:
 Copied from the acceptance corpus (`tools/engine/ts/test/query.cases.ts`); expected
 results are complete lists, in result order.
 
-### `examples/06-tour.yamlover`
+### `examples/06-tour.yo`
 
 ```text
 : pets[?]: name       → :pets[0]:name, :pets[1]:name, :pets[2]:name

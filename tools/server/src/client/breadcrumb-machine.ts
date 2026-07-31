@@ -1,5 +1,5 @@
 // The breadcrumb's EXPLICIT edit-state machine. The human-readable state DIAGRAM lives
-// at the repo root in QUERY_EDITOR.yamlover (the YAMLOVER_EDITOR.yamlover format: states
+// at the repo root in QUERY_EDITOR.yo (the YAMLOVER_EDITOR.yo format: states
 // as omni entries, transitions keyed by key press) — this file is the executable reducer
 // it compiles to, and breadcrumb-machine.test.ts runs the table. Keep the two in sync.
 //

@@ -7,14 +7,14 @@ import { call, callBody } from "./http";
 // on /api/json, link markers, and the TOC — and GET /api/tagged, a tag's materials with
 // annotations resolved to their `target`.
 
-const TAG_FILE = { "tags.yamlover": 'yellow: !!<*yamlover: $defs: tag>\n  color: "#f9e2af"\n' };
-const TAG = ":tags.yamlover:yellow";
+const TAG_FILE = { "tags.yo": 'yellow: !!<*yamlover: $defs: tag>\n  color: "#f9e2af"\n' };
+const TAG = ":tags.yo:yellow";
 
 describe("concrete (stat-derived)", () => {
   it("reports the per-node concrete: dir / dir/yamlover / file-backed / inlined language", async () => {
     const root = tmpTree({
       "sub/name": "Alice",
-      "d/.yamlover/body.yamlover": "m:\n  x: 1\n",
+      "d/.yo/body.yo": "m:\n  x: 1\n",
       top: "42",
     });
     const h = createHandlers(root, { gitignore: false });
@@ -26,14 +26,14 @@ describe("concrete (stat-derived)", () => {
     expect(call(h, "/api/json", { path: ":top" }).json.concrete).toBe("file/yaml");
     // an interior mapping (inside the d document) reports the document's inlined language
     expect(call(h, "/api/json", { path: ":d:m" }).json.concrete).toBe("yamlover");
-    // the served root is a `.yamlover`-backed directory
+    // the served root is a `.yo`-backed directory
     expect(call(h, "/api/json", { path: ":" }).json.concrete).toBe("dir/yamlover");
   });
 
   it("rides the member link markers and the TOC tree", async () => {
     const root = tmpTree({
       "sub/name": "Alice",
-      "d/.yamlover/body.yamlover": "m:\n  x: 1\n",
+      "d/.yo/body.yo": "m:\n  x: 1\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -77,24 +77,24 @@ describe("GET /api/tagged", () => {
   it("a directly-tagged node (authoring `~-` itself) appears as itself — once, even when also annotated", async () => {
     const root = tmpTree({
       ...TAG_FILE,
-      "direct.yamlover": 'title: "D"\n~- *:: tags.yamlover: yellow\n',
+      "direct.yo": 'title: "D"\n~- *:: tags.yo: yellow\n',
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
     expect(call(h, "/api/tagged", { path: TAG }).json.map((m: any) => m.$yamloverLink.path)).toEqual([
-      ":direct.yamlover",
+      ":direct.yo",
     ]);
 
     // an annotation applying the same tag to the same node does not duplicate it
-    await callBody(h, "POST", "/api/annotate", { target: ":direct.yamlover", tag: TAG });
+    await callBody(h, "POST", "/api/annotate", { target: ":direct.yo", tag: TAG });
     expect(call(h, "/api/tagged", { path: TAG }).json).toHaveLength(1);
   });
 
   it("subtags are containment children, not memberships — they never appear", async () => {
     const root = tmpTree({
       name: "Alice",
-      "tags.yamlover":
+      "tags.yo":
         'yellow: !!<*yamlover: $defs: tag>\n  color: "#f9e2af"\n  pale: !!<*yamlover: $defs: tag>\n    color: "#fdf3c4"\n',
     });
     const h = createHandlers(root, { gitignore: false });
@@ -104,13 +104,13 @@ describe("GET /api/tagged", () => {
     expect(call(h, "/api/tagged", { path: TAG }).json.map((m: any) => m.$yamloverLink.path)).toEqual([":name"]);
   });
 
-  it("excludes hidden-overlay owners: a forward pointer inside the hidden .yamlover overlay never appears as a material", async () => {
-    // a file under the hidden `.yamlover` overlay may hold a forward pointer that back-references a
+  it("excludes hidden-overlay owners: a forward pointer inside the hidden .yo overlay never appears as a material", async () => {
+    // a file under the hidden `.yo` overlay may hold a forward pointer that back-references a
     // tag, but a hidden-overlay owner must never be listed among that tag's materials.
     const root = tmpTree({
       name: "Alice",
       ...TAG_FILE,
-      ".yamlover/settings.yamlover": "pin: *:: tags.yamlover: yellow\n",
+      ".yo/settings.yo": "pin: *:: tags.yo: yellow\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -118,7 +118,7 @@ describe("GET /api/tagged", () => {
 
     const paths = call(h, "/api/tagged", { path: TAG }).json.map((m: any) => m.$yamloverLink.path);
     expect(paths).toContain(":name"); // the real material is still listed
-    expect(paths.some((p: string) => p.startsWith(":.yamlover"))).toBe(false); // the overlay owner is excluded
+    expect(paths.some((p: string) => p.startsWith(":.yo"))).toBe(false); // the overlay owner is excluded
   });
 
   it("answers for ANY existing node (any node can be a tag); a missing node stays 404", async () => {

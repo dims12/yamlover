@@ -41,8 +41,8 @@ function Probe({ path }: { path: string }) {
 }
 
 describe("useAnnotations live refresh", () => {
-  it("refetches when a diff touches a .yamlover file (an external delete clears the marks)", async () => {
-    const routes: Record<string, unknown> = { "annotations::img.png": [{ path: ":annotations:a1.yamlover" }] };
+  it("refetches when a diff touches a .yo file (an external delete clears the marks)", async () => {
+    const routes: Record<string, unknown> = { "annotations::img.png": [{ path: ":annotations:a1.yo" }] };
     const fetchFn = mockFetch(routes);
     const { container } = render(<Probe path=":img.png" />);
     await waitFor(() => expect(container.querySelector("output")!.textContent).toBe("1"));
@@ -50,14 +50,14 @@ describe("useAnnotations live refresh", () => {
     routes["annotations::img.png"] = []; // the annotation file vanished server-side
     act(() => {
       window.dispatchEvent(new CustomEvent("yamlover:diff", {
-        detail: { paths: [":annotations:a1.yamlover"], removed: [":annotations:a1.yamlover"] },
+        detail: { paths: [":annotations:a1.yo"], removed: [":annotations:a1.yo"] },
       }));
     });
     await waitFor(() => expect(container.querySelector("output")!.textContent).toBe("0"));
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
-  it("ignores diffs that touch no .yamlover file (a photo import must not refetch)", async () => {
+  it("ignores diffs that touch no .yo file (a photo import must not refetch)", async () => {
     const fetchFn = mockFetch({ "annotations::img.png": [] });
     render(<Probe path=":img.png" />);
     await waitFor(() => expect(fetchFn).toHaveBeenCalledTimes(1));
@@ -74,7 +74,7 @@ describe("useAnnotations live refresh", () => {
 
 describe("AnnotationMenu remembered-tag pruning", () => {
   it("drops recents whose node is gone; live ones stay", async () => {
-    // (The last-used tag is no longer in localStorage — it lives in settings.yamlover, IMPORTS.md —
+    // (The last-used tag is no longer in localStorage — it lives in settings.yo, IMPORTS.md —
     // so only the recents list is pruned here.)
     localStorage.setItem(RECENT_KEY, JSON.stringify([ALIVE, DEAD]));
     mockFetch({ ":tags:alive": { path: ":tags:alive", format: "x-yamlover-tag", value: {} } }); // /tags/dead → 404

@@ -841,6 +841,19 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       return ok({ ...state, cursor: { at: "hole", path: containerPath, index: cursor.path[cursor.path.length - 1] + 1, text: "", key: null } });
     }
 
+    case "siblingBefore": {
+      // Enter at the HEAD of a committed row: the row is pushed DOWN — the fresh sibling hole
+      // opens BEFORE this entry, caret in it (the text-editor gesture). The ROOT token has no
+      // row above it — THE LEVEL RULE's descend applies there instead.
+      if (cursor.at !== "token") return refuse(state);
+      if (cursor.path.length === 0) return applyIntent(state, { kind: "commit", submit: true }, site);
+      const committed = commitPending(state);
+      if (!committed) return refuse(state);
+      const cur = committed.cursor;
+      const entryPath = cur.at === "token" || cur.at === "key" || cur.at === "ptr" ? cur.path : cursor.path;
+      return ok({ ...committed, cursor: { at: "hole", path: entryPath.slice(0, -1), index: entryPath[entryPath.length - 1], text: "", key: null } });
+    }
+
     case "reopenToken": {
       if (cursor.at !== "after") return refuse(state);
       const token = nodeAt(doc, cursor.path);
@@ -997,8 +1010,15 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       // and a same-level sibling costs one Shift-Tab (dedent). This is what every corpus script
       // is written against.
       const value = entryPath.length ? entryAt(committed.doc, entryPath)?.value : committed.doc.root;
-      const depth = value && !isPointer(value) ? ((value as Node).entries ?? []).length : 0;
-      return ok({ ...committed, cursor: { at: "hole", path: entryPath, index: depth, text: "", key: null } });
+      const node = value && !isPointer(value) ? (value as Node) : null;
+      const len = node ? (node.entries ?? []).length : 0;
+      // the hole opens on the row RIGHT AFTER the value line — at the omni's `selfAt` among its
+      // fields (a fresh scalar has none: index 0), never past fields that already sit below the
+      // line (the production editor's enterInto inserts at selfAt too — the reported parity break)
+      const at = node && node.kind === "scalar"
+        ? Math.min(Math.max((node.meta as { selfAt?: number } | undefined)?.selfAt ?? 0, 0), len)
+        : len;
+      return ok({ ...committed, cursor: { at: "hole", path: entryPath, index: at, text: "", key: null } });
     }
 
     // Not implemented yet: tokenKey, quotedKey, reopenQuote, quoteExit*, nestValue. A key the

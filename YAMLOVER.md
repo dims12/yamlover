@@ -10,11 +10,12 @@ It shares YAML's surface syntax and **adds** the pointer layer (the extended `*`
 back-edges, keys-as-pointers; `&` reinterpreted) plus **concretes** — the same logical
 document can live in one file *or* as a directory tree. But its links and anchors **diverge**
 from YAML (§3), so it needs its own parser. Reading is **concrete-aware**: a `.yaml`/`.yml`
-file is parsed with YAML's link semantics, a `.yamlover` file with yamlover's — each read
+file is parsed with YAML's link semantics, a `.yo` file with yamlover's — each read
 faithfully into the one concrete-agnostic IR. (Unlike json5p, which *is* a clean strict
 superset of JSON5.)
 
-File extension **`.yamlover`**; a directory is the other concrete (§5).
+File extension **`.yo`** (the legacy `.yamlover` spelling is read forever, never written —
+YOMIGRATION.md); a directory is the other concrete (§5).
 
 ## 1. Everything from YAML (kept)
 
@@ -89,7 +90,7 @@ The pointer layer, identical in meaning to json5p (grammar in `URIs.md`):
 yamlover is **not a superset of YAML.** It is a distinct, closely-related language: it
 shares YAML's surface syntax but differs in **links and anchors** (and the `~` / `!!set` /
 omni points below). Reading is therefore **concrete-aware** — a `.yaml`/`.yml` file is
-parsed with YAML's link semantics, a `.yamlover` file with yamlover's — so a YAML document
+parsed with YAML's link semantics, a `.yo` file with yamlover's — so a YAML document
 is read *faithfully* (no "porting" step). The table is how the SAME token differs between
 the two surfaces:
 
@@ -106,7 +107,7 @@ the two surfaces:
 The anchor row is the consequential one, and the reason reading is concrete-aware. A
 YAML `&a` … `*a` pair is **document-wide**: the parser reading a `.yaml` file maps it to
 yamlover's document scope — `&: a` … `*: a` (one shared key at the document root) — so the
-alias resolves exactly as YAML intends. A `.yamlover` file's bare `&a`/`*a` instead mean
+alias resolves exactly as YAML intends. A `.yo` file's bare `&a`/`*a` instead mean
 the **current/parent** scope (`*a` = a sibling key, `*[1]` = the parent's ordinal member;
 no `:` ⇒ relative to the parent); document scope is written with the leading `:`. Either
 way the IR is concrete-agnostic and renders back in yamlover syntax. The `yaml-test-suite`
@@ -118,7 +119,7 @@ anchor/alias cases are a *diverges-by-design* group, not failures
 No separate list/dict type. A mapping is **ordered**; positions are integer keys. A keyless
 entry (a `- item` sequence element, or the `:` spelling) takes only its position; a keyed
 entry's position is a `*`-alias to it. Access: **`[n]`** = integer key (position), **`/x`**
-= string key. Order is data — text order in a file; for a directory, the `body.yamlover`
+= string key. Order is data — text order in a file; for a directory, the `body.yo`
 overlay imposes it (§5) on the **subset it names**: a pointer-array element `- *file`
 consumes the pointer and grants the named child its position (the projection shows the
 consumed key as a dimmed derived anchor, `- &file value`); a child the body never names
@@ -193,7 +194,7 @@ plain-scalar limits (no `: ` or ` #` inside it, a leading `- ` is a sequence mar
 consecutive plain lines fold together), so arbitrary/multi-line text goes in a `|`/`>` block.
 
 A lone tag with no preceding key (`!!var 5` / `!!mix` on the first line) marks the **document
-root** (see `examples/07-omni.yamlover`); with omni as the default the root tag, like the tags
+root** (see `examples/07-omni.yo`); with omni as the default the root tag, like the tags
 everywhere else, is optional. The block must be indented under its key; a same-indent `- …`
 sequence stays sequence-only, since a same-indent `key:` there is a sibling.
 
@@ -201,20 +202,20 @@ sequence stays sequence-only, since a same-indent `key:` there is a sibling.
 
 yamlover instances materialize two ways (same logical graph):
 
-- **File concrete** — a single `.yamlover` file holds the whole instance (see
-  `examples/06-tour.yamlover`).
+- **File concrete** — a single `.yo` file holds the whole instance (see
+  `examples/06-tour.yo`).
 - **Directory concrete** — a directory *is* the mapping: each file/subdir is an entry
-  (filename → string key, bytes → a `Blob`/sub-document). Its `.yamlover/` holds up to two
+  (filename → string key, bytes → a `Blob`/sub-document). Its `.yo/` holds up to two
   overlays:
-  - **`.yamlover/body.yamlover`** — the *instance* overlay: adds scalars/pointers over the
+  - **`.yo/body.yo`** — the *instance* overlay: adds scalars/pointers over the
     directory and — as a pointer-array (`- *file1 …`) — imposes child **order** (a bare
     directory takes filesystem order).
-  - **`.yamlover/meta.yamlover`** — the *metadata* schema (types, `format`/decoding,
+  - **`.yo/meta.yo`** — the *metadata* schema (types, `format`/decoding,
     `concrete`, presentation): a **JSON-Schema-equivalent written in yamlover**, used e.g.
     to say an on-disk blob is `type: binary, format: int32/le`. Metadata-first, validation
     optional — see **`META.md`**.
 
-  The precise overlay-merge precedence (directory ∪ `body.yamlover`, plus `meta`) is the
+  The precise overlay-merge precedence (directory ∪ `body.yo`, plus `meta`) is the
   Phase 1c spec (`PLAN.md`); `<<:` (extended to `<<: *pointer`) is the explicit merge tool.
 
 A file and a subdirectory are equivalent ways to represent the same node.
@@ -227,8 +228,8 @@ yamlover (the `yaml/flow` representation); several lines change the language. Se
 
 ### Attaching a schema inline — the `!!<…>` tag
 
-A node can carry a **schema/metadata** reference inline via a tag, so a plain `.yamlover`
-file needs no `.yamlover/` overlay:
+A node can carry a **schema/metadata** reference inline via a tag, so a plain `.yo`
+file needs no `.yo/` overlay:
 
 ```yamlover
 !!<*yamlover/$defs/chapter>      # tag on the document root
@@ -253,7 +254,7 @@ My Article                      # the root's SELF-VALUE — the chapter's title 
   shape/type/format. In the IR it is `NodeMeta.schema`, a `Value` (a `Pointer` *or* an inline
   schema `Node`), stored unresolved.
 
-This is the file-concrete counterpart to a directory's `.yamlover/meta.yamlover`. (json5p
+This is the file-concrete counterpart to a directory's `.yo/meta.yo`. (json5p
 has no tags; inline schema attachment is yamlover-only.)
 
 ## 6. Escaping
@@ -294,7 +295,7 @@ Identical to json5p (full rules in `URIs.md`), only unquoted here:
 
 - **`examples/05-tour.yaml`** — plain YAML (the base): native `&`/`*` anchor sharing, no
   paths/`~`.
-- **`examples/06-tour.yamlover`** — the same data with the full pointer layer.
+- **`examples/06-tour.yo`** — the same data with the full pointer layer.
 
 Because yamlover is a close-but-distinct language (not a YAML superset), the YAML
 conformance corpus (`yaml/yaml-test-suite`) is run as **"accept all positive cases except a

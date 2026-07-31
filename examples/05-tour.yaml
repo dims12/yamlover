@@ -6,7 +6,7 @@
 #
 # YAML already has anchors (&) and aliases (*) for INTRA-document sharing — a real
 # reference, not a copy. But that is YAML's ceiling: no path pointers, no scopes/
-# links, no ~ back-edges. Those are yamlover's additions (see 06-tour.yamlover).
+# links, no ~ back-edges. Those are yamlover's additions (see 06-tour.yo).
 # ============================================================================
 pets:
   - name: Rex
@@ -22,8 +22,8 @@ humans:
     manager: *whiskers # YAML alias: the SAME node as pets[1], shared document-wide by anchor name
                        # NB: this is a .yaml file, so yamlover reads &/* with YAML semantics —
                        # document-wide. It maps to yamlover's document scope: `&whiskers` makes a
-                       # root key `whiskers`, and `*whiskers` ≡ `*: whiskers`. A NATIVE .yamlover
-                       # file writes the path form instead (`*: pets[1]`, see 06-tour.yamlover).
+                       # root key `whiskers`, and `*whiskers` ≡ `*: whiskers`. A NATIVE .yo
+                       # file writes the path form instead (`*: pets[1]`, see 06-tour.yo).
                        # yamlover is close to YAML but NOT a superset — links/anchors differ
                        # (YAMLOVER.md §3); reading is concrete-aware.
 

@@ -6,7 +6,7 @@
     "anchors": [],
     "entries": [
       {
-        "key": ".yamlover",
+        "key": ".yo",
         "edge": "contain",
         "value": {
           "kind": "mapping",

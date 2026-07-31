@@ -26,7 +26,7 @@ COPY tools/server/bin ./bin
 COPY tools/server/dist ./dist
 
 # The content each demo serves. Read-only template; yamlover writes its index under
-# /examples/.yamlover in the container's writable layer, gone when the container stops.
+# /examples/.yo in the container's writable layer, gone when the container stops.
 # Owned by the unprivileged `nonroot` user (uid 65532) so it can write that index.
 COPY --chown=nonroot:nonroot examples /examples
 

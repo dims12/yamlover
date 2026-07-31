@@ -8,16 +8,16 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
 - **Instance-only.** Schema is *validation*, not a stored concrete. The only thing
   stored is the **instance graph**, in some concrete.
 - **Concretes are a supersession lattice, not isomorphic.** `json ⊂ json5 ⊂ json5p`
-  and `yaml ⊂ yamlover`; **json5p / yamlover / directory+`body.yamlover`** are the
+  and `yaml ⊂ yamlover`; **json5p / yamlover / directory+`body.yo`** are the
   full-graph concretes (first-class pointers). Plain **json / yaml are tree-only** —
   a graph serialized to them is **lossy**.
 - **One ordered container** (not two). No separate list/dict: a mapping is ordered and
   its **positions are integer keys** (added as `*`-aliases to keyed entries; a keyless
   `:` entry's value lives at its integer key). `[n]` = integer key, `/x` = string key.
-  Order is data — text order in a file; a `body.yamlover` pointer-array for a directory.
-- **`.yamlover/` holds two overlays** (+ engine cache), both keyed by node path:
-  **`body.yamlover`** = the *instance* (data; replaces the old `schema.yaml`-as-storage),
-  and **`meta.yamlover`** = the *metadata schema*. A bare dir has neither.
+  Order is data — text order in a file; a `body.yo` pointer-array for a directory.
+- **`.yo/` holds two overlays** (+ engine cache), both keyed by node path:
+  **`body.yo`** = the *instance* (data; replaces the old `schema.yaml`-as-storage),
+  and **`meta.yo`** = the *metadata schema*. A bare dir has neither.
 - **Schema kept as METADATA, not storage** (refined 2026-06-07; see `META.md`). A
   **JSON-Schema-equivalent for yamlover** — same/close vocab (`properties`, `type`,
   `format`, `prefixItems`, …), written *in yamlover*, **purpose = metadata** (typing,
@@ -50,7 +50,7 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    IR→engine table mapping and the genealogy worked example. **Review before the
    json5p parser builds against it.**
 1c. **Directory-overlay semantics** *(addition, core)* — exactly how
-   `body.yamlover` overlays a real directory: file → node/blob mapping, scalar/inline
+   `body.yo` overlays a real directory: file → node/blob mapping, scalar/inline
    overrides, precedence when a key and a file collide, how a file's bytes attach to a
    node. **Ordering**: files supply the string keys (filenames → blobs); the overlay
    is a **pointer-array** (`- *file1.ext …`) that assigns the integer-key positions
@@ -58,9 +58,9 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    ordered block; consumed keys render as dimmed derived `&` anchors); a pure
    directory with no overlay takes filesystem order. This is the heart of "YAML
    overlay over the filesystem."
-1d. **`.yamlover/` directory contract** — `body.yamlover` (instance) **and**
-   `meta.yamlover` (metadata schema, `META.md`); plus reserved names for the SQLite cache;
-   plus, in the **project root** only, `settings.yamlover` — the **project configuration**
+1d. **`.yo/` directory contract** — `body.yo` (instance) **and**
+   `meta.yo` (metadata schema, `META.md`); plus reserved names for the SQLite cache;
+   plus, in the **project root** only, `settings.yo` — the **project configuration**
    (added 2026-06-10, see `META.md` §Settings): e.g. the *default* location for new
    annotations. Settings never constrain *where* a node may live (a maintainer may put
    annotations in any directory and they keep working — that's the point of the graph);
@@ -86,7 +86,7 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    block maps/sequences (incl. compact `- key:`, `- - nested`, `- &anchor`), flow `{}`/`[]`, plain &
    quoted scalars, basic block scalars (`|`/`>` with `-`/`+` chomping), `#` comments,
    yamlover tags (`!!mix`/`!!var`/`!!<…>`), plus extended `*`, `&` anchors, `~`
-   back-edges; parses `examples/05-tour.yaml` & `06-tour.yamlover`. **Gate WIRED**
+   back-edges; parses `examples/05-tour.yaml` & `06-tour.yo`. **Gate WIRED**
    (2026-06-08): `yaml-test-suite` conformance at **43/208** must-accept cases, locked
    shrink-only allowlist + roadmap in `tools/parser/YAML-CONFORMANCE.md`. **Remaining**
    (by corpus impact): multi-doc (~71 cases), standard YAML tags, block-scalar
@@ -100,7 +100,7 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    from shape, `!!var` implied (explicit only at the root). **Lossy policy = REFUSE**
    (`LossyError`, never drop): blobs / non-finite numbers (yamlover); `!!mix`/`!!var`/
    `!!set`/`!!<…>` (json5p → route via the meta layer, as 03-tour already documents).
-   **Remaining:** the *directory* concrete (graph → tree + `body.yamlover`);
+   **Remaining:** the *directory* concrete (graph → tree + `body.yo`);
    **inlined binary** — a blob must also be emittable INLINE in a text concrete
    (YAML-`!!binary`-style base64; META.md already has `type: binary` + codec
    `format`, cf. `55-scalar-as-binary`) — the same node in a different concrete,
@@ -122,7 +122,7 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    canonical graph fixture. **Round-trip suite DONE (2026-06-11):**
    `test/serialize.test.ts` (42 tests) — IR-equality (canon ignoring typography) over
    unit cases + EVERY repo fixture (tours 01/02/03/05/06, every
-   `examples/*/.yamlover/body.yamlover`, `yamlover/tags`), plus cross-concrete
+   `examples/*/.yo/body.yo`, `yamlover/tags`), plus cross-concrete
    (03-tour → yamlover, genealogy → json5p) and lossy-refusal cases.
 
 ## Phase A — anchor refactor: path anchors absorb `~`, omni by default
@@ -201,7 +201,7 @@ A6. **Conformance** — yaml-test-suite anchor/alias cases reclassified to a
    record this one-time, design-driven reclassification.
 
 > **Imports/exports** (project-level `uri` + `exports` in settings; import aliases as
-> root `body.yamlover` pointer keys; the bundled `yamlover` self-import) — **specced &
+> root `body.yo` pointer keys; the bundled `yamlover` self-import) — **specced &
 > wired: IMPORTS.md.** Transport for non-yamlover authorities stays deferred.
 
 ## Phase 3 — Engine + SQLite (first version)
@@ -218,15 +218,15 @@ A6. **Conformance** — yaml-test-suite anchor/alias cases reclassified to a
    on Node ≥22. Positions stay a *derived view* (keyed entries store under their string key; keyless
    under `[i]`; `[n]` for keyed is a resolver alias, not double-stored).
 3b. **Walker** — **DONE (2026-06-08)** `tools/engine/ts/src/walk.ts`: `walkDir(dir)`→IR Document,
-   `buildIndex(dir)`→writes `<dir>/.yamlover/index.db`. Mirrors the legacy server's file→value rule
+   `buildIndex(dir)`→writes `<dir>/.yo/index.db`. Mirrors the legacy server's file→value rule
    (text-format ext → string scalar; binary/opaque ext → Blob{format,sha256,size}; no/unknown ext →
-   sniff NUL/size, else parse as yamlover) + `meta.yamlover` `properties.<name>.{type,format}` override
-   + `body.yamlover` overlay (mapping merge: override/add; pointer-array: impose order ⇒ `array`).
+   sniff NUL/size, else parse as yamlover) + `meta.yo` `properties.<name>.{type,format}` override
+   + `body.yo` overlay (mapping merge: override/add; pointer-array: impose order ⇒ `array`).
    Replaces the Python walker. 22 engine tests (incl. 50/51/53/56/65 dir examples).
 3c. **Resolver** — **DONE** (`ts/src/resolve.ts`, in-memory over the IR; SQLite-backed
    variant later). Scopes (current / `..` / `/` document / `//` link), transitive
    `*`-following, cycle-safe, anchor precedence. `resolveDocument()` resolves every `*`/`~`.
-   6 tests green incl. resolving the `03-tour.json5p` & `06-tour.yamlover` pointers.
+   6 tests green incl. resolving the `03-tour.json5p` & `06-tour.yo` pointers.
 3d. **Derive + normalize** — **DONE** (`ts/src/graph.ts`): `buildGraph` (containment +
    resolved ref/back; external/unresolved split), `deriveInverses` (on-demand reverse
    edges for incoming queries), `normalize` → **forwards-only** (folds each `~` back-edge
@@ -240,7 +240,7 @@ A6. **Conformance** — yaml-test-suite anchor/alias cases reclassified to a
    `{added, changed, removed}` diff; a schema-version pragma invalidates old-era DBs.
    The server (`engine-api.ts`) reindexes at startup (offline reconcile — edits made
    while down show up) and on FS-watcher batches (`engine/ts/src/watch.ts`: recursive,
-   debounced, gitignore- and `.yamlover`-internal-filtered), broadcasting diffs over
+   debounced, gitignore- and `.yo`-internal-filtered), broadcasting diffs over
    `GET /api/events` (SSE) — the client refreshes its TOC branches + current node;
    `POST /api/reindex` is the manual fallback. Unresolved pointers persist in a
    `dangling` table (`GET /api/dangling`) — reported, never dropped. **Milestone
@@ -252,7 +252,7 @@ A6. **Conformance** — yaml-test-suite anchor/alias cases reclassified to a
    skipping; unrewritable refs REPORTED, no tombstones); (iii) **move INFERENCE** —
    `IndexDiff.moved` (removed+added with one unambiguous hash), and the server
    **auto-relinks** inferred moves via nominal-path matching (`relinkMoved`), so an
-   external `mv` in a shell heals refs too. **Known deferral:** a `body.yamlover`
+   external `mv` in a shell heals refs too. **Known deferral:** a `body.yo`
    key that augments a moved file BY NAME is not renamed (a key edit needs ENTRY
    spans — `EntryMeta.span` is still unfilled); the leftover key keeps its reverse
    edges on a phantom node. Also deferred: intra-document key moves, `!!<…>` schema-
@@ -329,7 +329,7 @@ protocol (OpenAPI).
 01–06; instance dirs 50–59; chapters 60–69; plain dirs 70–72) and no
 `.yamlover/schema.yaml` remains in `examples/` — schema-as-storage ceremony is gone.
 - **58-genealogy-dag** (was 14) — migrated; the reference graph example, single
-  `body.yamlover` with `*` cross-edges + `~` reverses.
+  `body.yo` with `*` cross-edges + `~` reverses.
 - **67-pdf-tags** (was 18) — migrated (commit `c2d8772`): `rel` tables → a
   `!!<*yamlover/$defs/tag>` taxonomy with `*`-pointer membership authored both ways.
 - Schema-pinning / `rel` / `$ref`-in-schema demos retired (`62-defs-and-refs`
@@ -338,7 +338,7 @@ protocol (OpenAPI).
 ## Phase 6 — Schema: metadata now, validation later
 
 **Reframed 2026-06-07 (see `META.md`):** the schema is **not** deferred — it returns as a
-**metadata layer** (`.yamlover/meta.yamlover`), a JSON-Schema-equivalent for yamlover whose
+**metadata layer** (`.yo/meta.yo`), a JSON-Schema-equivalent for yamlover whose
 job is typing / `format`-decoding / `concrete` / presentation (the engine & server consume
 it). It exists now (`55-scalar-as-binary`). Remaining spec work:
 - **`META.md` vocabulary** — pin `type` (+`binary`), `format`, `concrete` (inferable),
@@ -362,7 +362,7 @@ it). It exists now (`55-scalar-as-binary`). Remaining spec work:
 Independent of the engine (pure editor support), so it runs alongside Phases 1–3.
 Scaffolded under `tools/jetbrains-plugin/` (Kotlin + IntelliJ Platform Gradle Plugin).
 
-- **J1 (done, builds):** `.yamlover` **and `.json5p`** file types + icons;
+- **J1 (done, builds):** `.yo` **and `.json5p`** file types + icons;
   heuristic lexers (`YamloverLexer`, `Json5pLexer`) driving syntax highlighting; plus
   **Markdown code-fence injection** (` ```yamlover `/` ```json5p ` highlighted in
   `.md` via `CodeFenceLanguageProvider`, optional on the Markdown plugin). One plugin
@@ -376,7 +376,7 @@ Scaffolded under `tools/jetbrains-plugin/` (Kotlin + IntelliJ Platform Gradle Pl
   **Heuristic v1 SHIPPED (2026-06-10, plugin 0.2.0):** Ctrl+click / Ctrl+B on a `*pointer`
   navigates via a pure-text path index of the same file (`PointerNavigation.kt` +
   `PointerGotoDeclarationHandler`) — current/`..`/`/` scopes, `[n]` positions, anchors,
-  escapes; `body.yamlover` document-scope segments also reach the overlaid directory's
+  escapes; `body.yo` document-scope segments also reach the overlaid directory's
   files. `//` links and cross-document resolution stay for the engine-protocol J3.
 
 ## What else (gaps I'd add to your list)
@@ -384,7 +384,7 @@ Scaffolded under `tools/jetbrains-plugin/` (Kotlin + IntelliJ Platform Gradle Pl
 - **IR/AST contract** (1b) and **overlay semantics** (1c) — the two specs everything
   else hangs on.
 - **Serializers / write-back** (2d) — graph → concrete; required by `mv`/`normalize`.
-- **File identity** — extensions/MIME for `.yamlover`, json5p; how the engine knows a
+- **File identity** — extensions/MIME for `.yo`, json5p; how the engine knows a
   file's concrete.
 - **Directory child ordering** — disk has none; the overlay must define it.
 - **Lossy-projection policy** — what happens serializing a graph to plain yaml/json.
@@ -429,11 +429,11 @@ EntryMeta.span, YAML conformance. Layout restructure DONE.)*
    catching up to the enlarged metachar set). It unblocks the tag-picker
    autocomplete (TODO.md) and JetBrains find-usages (J3).
 2. **2d remaining** (parallel-friendly) — the **directory serializer**
-   (graph → tree + `body.yamlover`), then inline-binary emission, then per-node
+   (graph → tree + `body.yo`), then inline-binary emission, then per-node
    concrete (`NodeMeta.concrete`); these gate `put`/`normalize`.
 3. **3f write side** — `rm` first (mostly the mv plumbing minus the rename), then
    `put`/`normalize` once 2d's directory concrete exists.
-4. **`EntryMeta.span`** — fills 3e's known deferral (a `body.yamlover` key that
+4. **`EntryMeta.span`** — fills 3e's known deferral (a `body.yo` key that
    augments a moved file by name is currently not renamed).
 5. Background track: the **YAML conformance climb** (multi-document streams,
    ~71 cases, is the biggest single chunk).

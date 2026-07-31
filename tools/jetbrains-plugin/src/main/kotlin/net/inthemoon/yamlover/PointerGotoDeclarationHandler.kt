@@ -19,7 +19,7 @@ import com.intellij.psi.PsiWhiteSpace
  *    Ctrl+B keeps working in contexts that bypass the new pipeline.
  *
  * Resolution: in-file paths, `..` parent, `:` document scope, `[n]` positions (colon grammar,
- * SEPARATOR.md); plus, in a `.yamlover/body.yamlover` overlay, a document-scope segment falls
+ * SEPARATOR.md); plus, in a `.yo/body.yo` overlay, a document-scope segment falls
  * back to the overlaid directory's child file/dir. `::`/`:::` cross-tree links wait for the
  * engine protocol (PLAN.md J3).
  */
@@ -35,11 +35,11 @@ internal fun pointerTargetAt(file: PsiFile, offset: Int): PsiElement? {
         return file.findElementAt(target) ?: file
     }
 
-    // body.yamlover overlay: `:name` may be a child of the OVERLAID directory on disk
+    // body.yo overlay: `:name` may be a child of the OVERLAID directory on disk
     if (yam && expr.scope is Scope.Document && expr.steps.isNotEmpty()) {
         val first = expr.steps[0] as? Step.Key ?: return null
         val vf = file.virtualFile ?: return null
-        if (vf.name == "body.yamlover" && vf.parent?.name == ".yamlover") {
+        if (vf.name == "body.yo" && vf.parent?.name == ".yo") {
             val sibling = vf.parent?.parent?.findChild(first.name) ?: return null
             val mgr = PsiManager.getInstance(file.project)
             return if (sibling.isDirectory) mgr.findDirectory(sibling) else mgr.findFile(sibling)

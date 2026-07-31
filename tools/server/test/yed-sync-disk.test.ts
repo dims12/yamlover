@@ -12,14 +12,14 @@ import { parseSource } from "../../yed/src/state";
 
 /** Diff prev→next as the yed mount would, flush the batch through the real handler, read back. */
 async function applied(prev: string, next: string): Promise<string> {
-  const root = tmpTree({ "doc.yamlover": prev });
+  const root = tmpTree({ "doc.yo": prev });
   const h = createHandlers(root, { gitignore: false });
   await h.ready;
-  const d = diffToOps(":doc.yamlover", parseSource(prev), parseSource(next));
+  const d = diffToOps(":doc.yo", parseSource(prev), parseSource(next));
   expect(d.fallback, "these cases must stay surgical").toBe(false);
   const r = await callBody(h, "POST", "/api/edit", { edits: d.ops });
   expect(r.status, JSON.stringify(r.json)).toBe(200);
-  return fs.readFileSync(path.join(root, "doc.yamlover"), "utf8");
+  return fs.readFileSync(path.join(root, "doc.yo"), "utf8");
 }
 
 // The shapes here are the ones the CHAPTER projection emits: the document ROOT's own-line tag

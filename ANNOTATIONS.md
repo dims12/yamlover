@@ -5,7 +5,7 @@ to a whole node or a fragment). Both live **on the target node** — they travel
 document, not in a side file. Companion specs: `YAMLOVER.md` (§4 omni), `META.md` (`$defs`,
 `variant`), `SEPARATOR.md` / `URIs.md` (the `::` project scope, `*`/`&`), `QUERY.md`.
 
-> Supersedes the old model (a separate `/annotations/*.yamlover` node per tag application,
+> Supersedes the old model (a separate `/annotations/*.yo` node per tag application,
 > reverse-linked by a `target` pointer). The selector role moves into **fragments**; the
 > tag-application becomes a `yamlover-annotations` array element. `$defs/annotation` is
 > redefined and `$defs/fragment` is new.
@@ -110,11 +110,11 @@ block content (and deeper than the `-`):
 ```
 
 **On-disk binary file (a `.pdf`)** — omni over a blob: the parallel keys go in the enclosing
-directory's `.yamlover/body.yamlover` overlay under the `"<filename>":` key (the engine's
+directory's `.yo/body.yo` overlay under the `"<filename>":` key (the engine's
 overlay merge keeps the blob's bytes while attaching fields):
 
 ```yamlover
-# papers/.yamlover/body.yamlover
+# papers/.yo/body.yo
 "S0002-9904-1966-11654-3.pdf":
   yamlover-annotations:
   - *::tags:genre:brevity:shortest-paper          # whole document, parameterless

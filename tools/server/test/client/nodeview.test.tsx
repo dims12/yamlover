@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 
 vi.mock("../../src/client/api", () => ({
-  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
+  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yo:settings.yo" }),
   fetchNode: vi.fn(),
   fetchSchema: vi.fn(),
   fetchSource: vi.fn().mockResolvedValue({ source: "a: 1\n" }), // the yed mount's load
@@ -294,9 +294,9 @@ describe("NodeView", () => {
     expect(done.getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("a .yamlover data page shows the Edit toggle; unlocking mounts YED (the default editor)", async () => {
-    mNode.mockResolvedValue({ path: ":x.yamlover", type: "object", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { a: 1 } });
-    render(<NodeView path=":x.yamlover" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+  it("a .yo data page shows the Edit toggle; unlocking mounts YED (the default editor)", async () => {
+    mNode.mockResolvedValue({ path: ":x.yo", type: "object", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { a: 1 } });
+    render(<NodeView path=":x.yo" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("a");
     const edit = await screen.findByRole("button", { name: /Edit/ });
     expect(edit.classList.contains("lockbtn")).toBe(true);
@@ -313,8 +313,8 @@ describe("NodeView", () => {
   it("…and `?yedEditor=legacy` still unlocks the DEPRECATED inline editor", async () => {
     window.history.replaceState({}, "", "/?yedEditor=legacy");
     try {
-      mNode.mockResolvedValue({ path: ":x.yamlover", type: "object", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { a: 1 } });
-      render(<NodeView path=":x.yamlover" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+      mNode.mockResolvedValue({ path: ":x.yo", type: "object", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { a: 1 } });
+      render(<NodeView path=":x.yo" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
       await screen.findByText("a");
       const edit = await screen.findByRole("button", { name: /Edit/ });
       fireEvent.click(edit);
@@ -328,9 +328,9 @@ describe("NodeView", () => {
   });
 
   it("the derived schema view is read-only — the Edit toggle stays IN PLACE, disabled", async () => {
-    mNode.mockResolvedValue({ path: ":x.yamlover", type: "object", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { a: 1 } });
+    mNode.mockResolvedValue({ path: ":x.yo", type: "object", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { a: 1 } });
     mSchema.mockResolvedValue({ widgetkey: "wv" });
-    render(<NodeView path=":x.yamlover" format="yamlover/schema" onFormat={() => {}} onNavigate={() => {}} />);
+    render(<NodeView path=":x.yo" format="yamlover/schema" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("wv");
     const edit = screen.getByRole("button", { name: /Edit/ }) as HTMLButtonElement;
     expect(edit.disabled).toBe(true); // present (a stable bar) but inert
@@ -360,8 +360,8 @@ describe("NodeView", () => {
 
   it("the settings node (x-yamlover-config) falls back to the editable data view (custom renderer dropped)", async () => {
     // no renderer claims x-yamlover-config anymore → the default yamlover data view, which is editable
-    mNode.mockResolvedValue({ path: ":.yamlover:settings.yamlover", type: "object", format: "x-yamlover-config", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { sidecars: "per-directory" } });
-    render(<NodeView path=":.yamlover:settings.yamlover" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+    mNode.mockResolvedValue({ path: ":.yo:settings.yo", type: "object", format: "x-yamlover-config", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { sidecars: "per-directory" } });
+    render(<NodeView path=":.yo:settings.yo" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("sidecars"); // the raw data view, not the old settings textarea
     expect(await screen.findByRole("button", { name: /Edit/ })).toBeTruthy();
   });

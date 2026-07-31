@@ -95,10 +95,10 @@ public class NamesTests
     public void UniqueDedupesCaseInsensitivelyWithSuffix()
     {
         var used = Names.NewUsedSet();
-        Assert.Equal("Untitled.yamlover", Names.Unique(used, "Untitled", ".yamlover"));
-        Assert.Equal("Untitled (2).yamlover", Names.Unique(used, "Untitled", ".yamlover"));
+        Assert.Equal("Untitled.yo", Names.Unique(used, "Untitled", ".yo"));
+        Assert.Equal("Untitled (2).yo", Names.Unique(used, "Untitled", ".yo"));
         // Collision detection is case-insensitive, but the caller's casing is preserved verbatim.
-        Assert.Equal("untitled (3).yamlover", Names.Unique(used, "untitled", ".yamlover"));
+        Assert.Equal("untitled (3).yo", Names.Unique(used, "untitled", ".yo"));
     }
 
     /// <summary>A page-dir and a leaf page file share the used-set, but not the same key.</summary>
@@ -107,33 +107,33 @@ public class NamesTests
     {
         var used = Names.NewUsedSet();
         Assert.Equal("Untitled", Names.Unique(used, "Untitled", ""));
-        Assert.Equal("Untitled.yamlover", Names.Unique(used, "Untitled", ".yamlover"));
+        Assert.Equal("Untitled.yo", Names.Unique(used, "Untitled", ".yo"));
     }
 }
 
 public class YamlTests
 {
     [Theory]
-    [InlineData("Untitled.yamlover", "Untitled.yamlover")]
+    [InlineData("Untitled.yo", "Untitled.yo")]
     [InlineData("dogs", "dogs")]
     [InlineData("image-1a2b3c4d.png", "image-1a2b3c4d.png")]
-    [InlineData("brace{x}.yamlover", "brace{x}.yamlover")]
-    [InlineData("comma,name.yamlover", "comma,name.yamlover")]
-    [InlineData("dollar$defs.yamlover", "dollar$defs.yamlover")]
+    [InlineData("brace{x}.yo", "brace{x}.yo")]
+    [InlineData("comma,name.yo", "comma,name.yo")]
+    [InlineData("dollar$defs.yo", "dollar$defs.yo")]
     public void BareKeysStayBare(string input, string expected) =>
         Assert.Equal(expected, Yaml.EscapePointer(input));
 
     // Verified against the real parser: all of these round-trip byte-for-byte.
     [Theory]
-    [InlineData("Change license plates Netherlands.yamlover", "\"Change license plates Netherlands.yamlover\"")]
-    [InlineData("Untitled (2).yamlover", "\"Untitled (2).yamlover\"")]
-    [InlineData("Номер машины R960XK.yamlover", "\"Номер машины R960XK.yamlover\"")]
-    [InlineData("a#b.yamlover", "\"a#b.yamlover\"")]
-    [InlineData("weird [1] name.yamlover", "\"weird [1] name.yamlover\"")]
-    [InlineData("colon:name.yamlover", "\"colon:name.yamlover\"")]
-    [InlineData("back\\slash.yamlover", "\"back\\\\slash.yamlover\"")]
-    [InlineData("quote\"dq.yamlover", "\"quote\\\"dq.yamlover\"")]
-    [InlineData("star*name.yamlover", "\"star*name.yamlover\"")]
+    [InlineData("Change license plates Netherlands.yo", "\"Change license plates Netherlands.yo\"")]
+    [InlineData("Untitled (2).yo", "\"Untitled (2).yo\"")]
+    [InlineData("Номер машины R960XK.yo", "\"Номер машины R960XK.yo\"")]
+    [InlineData("a#b.yo", "\"a#b.yo\"")]
+    [InlineData("weird [1] name.yo", "\"weird [1] name.yo\"")]
+    [InlineData("colon:name.yo", "\"colon:name.yo\"")]
+    [InlineData("back\\slash.yo", "\"back\\\\slash.yo\"")]
+    [InlineData("quote\"dq.yo", "\"quote\\\"dq.yo\"")]
+    [InlineData("star*name.yo", "\"star*name.yo\"")]
     public void UnsafeKeysAreQuoted(string input, string expected) =>
         Assert.Equal(expected, Yaml.EscapePointer(input));
 

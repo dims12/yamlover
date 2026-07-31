@@ -21,14 +21,15 @@ export function listFixtures(corpusRoot: string): string[] {
 }
 
 export interface FixtureInput {
-  /** What the input is, for messages: `in.yamlover`, `input/`, or the `from` path. */
+  /** What the input is, for messages: `in.yo`, `input/`, or the `from` path. */
   name: string;
   load: () => Document;
 }
 
 /** in.<ext> → parser. json/json5 are json5p subsets; yaml is the YAML-concrete mode. */
 const FILE_PARSERS: Record<string, (src: string, uri: string) => Document> = {
-  yamlover: (src, uri) => parseYamlover(src, uri),
+  yo: (src, uri) => parseYamlover(src, uri),
+  yamlover: (src, uri) => parseYamlover(src, uri), // legacy spelling (YOMIGRATION.md §1)
   yaml: (src, uri) => parseYamlover(src, uri, { yaml: true }),
   json: (src, uri) => parseJson5p(src, uri),
   json5: (src, uri) => parseJson5p(src, uri),
@@ -43,7 +44,7 @@ function loaderForPath(abs: string, display: string): FixtureInput {
     return { name: display, load: () => walkDir(abs, { noGraft: true }) };
   }
   const ext = abs.slice(abs.lastIndexOf('.') + 1);
-  const parse = FILE_PARSERS[ext] ?? FILE_PARSERS.yamlover; // extensionless file: yamlover text
+  const parse = FILE_PARSERS[ext] ?? FILE_PARSERS.yo; // extensionless file: yamlover text
   return { name: display, load: () => parse(readFileSync(abs, 'utf8'), display) };
 }
 

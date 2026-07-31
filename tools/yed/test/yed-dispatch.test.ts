@@ -1,5 +1,5 @@
 // THE GRAMMAR TABLE, executable — every (site, key) → intent transition of dispatch.ts asserted
-// as data. This is the file YAMLOVER_EDITOR.yamlover mirrors: a grammar change edits BOTH or the
+// as data. This is the file YAMLOVER_EDITOR.yo mirrors: a grammar change edits BOTH or the
 // review catches it. Pure — no DOM, no React; it runs in a plain node environment.
 import { describe, it, expect } from "vitest";
 import { interpret, type Site, type Intent } from "../src/grammar/dispatch";
@@ -81,6 +81,18 @@ describe("the dispatch table — one meaning per (site, key)", () => {
     expect(kind("Tab", site("holeEntry", "block"))).toBe("indent");
     expect(kind("Tab", site("holeEntry", "block"), true)).toBe("dedent");
     expect(kind("Tab", site("holeValue", "flowSeq"))).toBe("move");
+  });
+
+  it("Enter at the HEAD of a committed block row opens the sibling BEFORE it", () => {
+    const t = (over: Partial<Site> = {}) => site("token", "block", { textEmpty: false, entryCommitted: true, ...over });
+    expect(kind("Enter", t({ caretAtStart: true, caretAtEnd: false }))).toBe("siblingBefore");
+    // mid-text and end-of-text keep THE LEVEL RULE's descend (commit)
+    expect(kind("Enter", t({ caretAtStart: false, caretAtEnd: false }))).toBe("commit");
+    expect(kind("Enter", t({ caretAtStart: false, caretAtEnd: true }))).toBe("commit");
+    // inside a flow token Enter keeps its own meaning — the element takes its row
+    expect(kind("Enter", site("token", "flowSeq", { textEmpty: false, caretAtStart: true, caretAtEnd: false }))).toBe("nextElement");
+    // a hole's typed text is not a row yet — its Enter still commits
+    expect(kind("Enter", site("holeEntry", "block", { textEmpty: false, caretAtStart: true, caretAtEnd: false }))).toBe("commit");
   });
 
   it("Backspace on an empty cell — ONE PRESS, ONE LEVEL", () => {

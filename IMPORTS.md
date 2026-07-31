@@ -8,7 +8,7 @@ yamlover itself, which ships bundled with the tool (§4).
 
 ## 1. Project identity — the URI
 
-A project MAY declare a URI in its config, `<root>/.yamlover/settings.yamlover`:
+A project MAY declare a URI in its config, `<root>/.yo/settings.yo`:
 
 ```yamlover
 uri: ::: yamlover.inthemoon.net
@@ -42,10 +42,10 @@ regardless (§4) — the `exports` list documents the contract and drives any fu
 
 ## 3. Imports — naming another project
 
-An import is an ordinary **root-level pointer key in `body.yamlover`** whose value is a world link:
+An import is an ordinary **root-level pointer key in `body.yo`** whose value is a world link:
 
 ```yamlover
-# <root>/.yamlover/body.yamlover  (or the root document itself)
+# <root>/.yo/body.yo  (or the root document itself)
 acme: *::: acme.example
 ```
 

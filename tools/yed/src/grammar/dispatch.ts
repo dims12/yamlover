@@ -5,7 +5,7 @@
 // here and only here — the per-cell handlers hold no grammar of their own, which is what makes
 // the same edit behave identically in every context (THE LAW, yed-*.matrix).
 //
-// YAMLOVER_EDITOR.yamlover mirrors this table state for state; keep the two in sync (the table
+// YAMLOVER_EDITOR.yo mirrors this table state for state; keep the two in sync (the table
 // test iterates the diagram's transitions against `interpret`).
 
 /** WHERE the caret stands. Everything the grammar may branch on — nothing else may. */
@@ -58,6 +58,8 @@ export type Intent =
   | { kind: "quoteExitNext" }               // `,` past a closing quote inside a token
   | { kind: "quoteExitClose"; closer: "]" | "}" } // closer past a closing quote inside a token
   | { kind: "siblingAfter" }                // Enter at a gap: a fresh element after this one
+  | { kind: "siblingBefore" }               // Enter at the HEAD of a committed row: the row is
+                                            //   pushed down, a fresh sibling hole opens BEFORE it
   | { kind: "nop" };                        // consumed, nothing happens (Enter in an empty
                                             //   entry hole must not insert a DOM newline)
 
@@ -122,6 +124,11 @@ export function interpret(k: Key, s: Site): Intent | null {
   if (flowIntent) return flowIntent;
   if (k.key === "Tab") return inFlow(s) ? { kind: "move", dir: k.shift ? -1 : 1 } : k.shift ? { kind: "dedent" } : { kind: "indent" };
   if (k.key === "Enter") {
+    // Enter at the HEAD of a committed row (a token cell, caret before the first character):
+    // the text-editor gesture — the row is pushed DOWN and a fresh sibling hole opens BEFORE
+    // the entry. Only a block TOKEN cell has this edge (flow Enter never reaches here — the
+    // flow grammar consumed it above; a hole's typed text is not a row yet).
+    if (!s.textEmpty && s.cell === "token" && s.caretAtStart && !s.caretAtEnd) return { kind: "siblingBefore" };
     if (!s.textEmpty) return { kind: "commit", submit: true }; // holes classify first (cells.tsx)
     if (s.cell === "holeValue" && !inFlow(s)) return { kind: "nestValue" };
     return { kind: "nop" }; // consumed: Enter must never type a newline into a hole

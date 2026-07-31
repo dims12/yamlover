@@ -21,8 +21,10 @@ export function broadcastDiff(detail: DiffDetail): void {
 }
 
 /** Diffs that can affect graph-derived state (annotations, tags, document bodies) — any touched
- *  `.yamlover` source. A binary-only diff (a photo import, say) passes nothing here. */
-export const touchesYamlover = (d: DiffDetail): boolean => d.paths.some((p) => p.endsWith(".yamlover"));
+ *  `.yo` source (or a legacy `.yamlover` — YOMIGRATION.md §1). A binary-only diff (a photo
+ *  import, say) passes nothing here. */
+export const touchesYamlover = (d: DiffDetail): boolean =>
+  d.paths.some((p) => p.endsWith(".yo") || p.endsWith(".yamlover"));
 
 /** A counter that bumps whenever a diff matches `match` (default: every diff) — put it in a
  *  fetch effect's dependency list and the data refetches on relevant changes. `match` must be

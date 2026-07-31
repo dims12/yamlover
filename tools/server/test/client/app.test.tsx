@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 
 vi.mock("../../src/client/api", () => ({
-  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yamlover:settings.yamlover" }),
+  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yo:settings.yo" }),
   fetchInfo: vi.fn().mockResolvedValue({ root: "myroot" }),
   fetchTree: vi.fn().mockResolvedValue({
     path: ":",
@@ -77,9 +77,9 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     fireEvent.click(screen.getByRole("button", { name: "Local settings" }));
     expect(await screen.findByText("this browser")).toBeTruthy(); // the page's provenance chip
-    // the page has a REAL address — `*:: .browser: settings.yamlover` — that survives a reload
-    expect(window.location.pathname).toBe("/.browser/settings.yamlover");
-    expect(screen.getByText("settings.yamlover")).toBeTruthy(); // and real breadcrumbs
+    // the page has a REAL address — `*:: .browser: settings.yo` — that survives a reload
+    expect(window.location.pathname).toBe("/.browser/settings.yo");
+    expect(screen.getByText("settings.yo")).toBeTruthy(); // and real breadcrumbs
     // any ordinary navigation leaves the page. Crumbs are edit cells now (they no longer
     // navigate on click) — navigate via a TOC row: back to the TOC tab, click the root row.
     fireEvent.click(screen.getByRole("button", { name: "Table of contents" }));

@@ -24,8 +24,15 @@ class YamloverHighlightWiringTest : BasePlatformTestCase() {
     }
 
     fun testFileOpensAsYamlover() {
-        val f = myFixture.configureByText("sample.yamlover", "feline: */pets[1]\n")
+        val f = myFixture.configureByText("sample.yo", "feline: */pets[1]\n")
         assertEquals("file not recognized as yamlover", YamloverLanguage, f.language)
+        assertEquals(YamloverFileType, f.fileType)
+    }
+
+    fun testLegacyExtensionOpensAsYamlover() {
+        // `.yamlover` is the pre-`yo` spelling — read forever (YOMIGRATION.md §1)
+        val f = myFixture.configureByText("sample.yamlover", "feline: */pets[1]\n")
+        assertEquals("legacy extension not recognized", YamloverLanguage, f.language)
         assertEquals(YamloverFileType, f.fileType)
     }
 }

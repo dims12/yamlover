@@ -7,7 +7,7 @@ const configWith = (settings: Record<string, unknown>) =>
   fetchConfig.mockResolvedValue({
     source: "",
     settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory", ...settings },
-    path: ":.yamlover:settings.yamlover",
+    path: ":.yo:settings.yo",
   });
 /** Prime the project layer from the current mock and wait for it to land. */
 const prime = async () => {

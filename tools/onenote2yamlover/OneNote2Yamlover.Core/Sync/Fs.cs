@@ -4,7 +4,7 @@ namespace OneNote2Yamlover.Core.Sync;
 
 /// <summary>
 /// Long-path-safe filesystem helpers. Windows MAX_PATH is 260 and a notebook nests
-/// notebook/group/section/page/subpage/.yamlover/body.yamlover, so the `\\?\` prefix is required
+/// notebook/group/section/page/subpage/.yo/body.yo, so the `\\?\` prefix is required
 /// even with capped names. It takes only a NORMALIZED ABSOLUTE path — `..` is not resolved for you,
 /// and Path.Combine on a `\\?\` path is fine but Path.GetFullPath on one is not idempotent-safe.
 /// </summary>

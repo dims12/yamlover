@@ -66,7 +66,7 @@ async function writePng(root: string, name: string, w: number, h: number): Promi
   fs.writeFileSync(path.join(root, name), png);
 }
 
-const overlayFile = (root: string) => path.join(root, ".yamlover", "body.yamlover");
+const overlayFile = (root: string) => path.join(root, ".yo", "body.yo");
 
 describe("GET /api/thumb", () => {
   it("generates a fitted JPEG, stores a sidecar + overlay, and indexes the thumbnail node", async () => {
@@ -85,20 +85,20 @@ describe("GET /api/thumb", () => {
     expect(decoded.bitmap.width).toBe(320);
     expect(decoded.bitmap.height).toBe(240);
 
-    // a content-addressed sidecar landed under the hidden .yamlover/thumbnails/ (per-directory mode)
-    const sidecars = fs.readdirSync(path.join(root, ".yamlover", "thumbnails"));
+    // a content-addressed sidecar landed under the hidden .yo/thumbnails/ (per-directory mode)
+    const sidecars = fs.readdirSync(path.join(root, ".yo", "thumbnails"));
     expect(sidecars).toHaveLength(1);
     expect(sidecars[0]).toMatch(/^xxh64-[0-9a-f]+-320x240\.jpg$/);
 
     // the overlay grew a yamlover-thumbnails entry keyed by the [w, h] tuple, with a
-    // DOCUMENT-relative pointer into the hidden .yamlover/ subtree
+    // DOCUMENT-relative pointer into the hidden .yo/ subtree
     const body = fs.readFileSync(overlayFile(root), "utf8");
     expect(body).toContain("yamlover-thumbnails:");
-    expect(body).toMatch(/\[320, 240\]: \*:\.yamlover:thumbnails:/);
+    expect(body).toMatch(/\[320, 240\]: \*:\.yo:thumbnails:/);
 
     // and the overlay parsed: the thumbnail is a real node in the graph under the source blob — a
     // `[320, 240]` ref edge (the `*` pointer) resolving to the sidecar's image/jpeg blob.
-    const probe = new Store(path.join(root, ".yamlover", "index.db"));
+    const probe = new Store(path.join(root, ".yo", "index.db"));
     onTestFinished(() => probe.close());
     const edge = probe.relationships(":pic.png:yamlover-thumbnails").out.find((e) => e.label === "[320, 240]");
     expect(edge?.kind).toBe("ref");
@@ -116,7 +116,7 @@ describe("GET /api/thumb", () => {
     expect(a.status).toBe(200);
     expect(b.body.equals(a.body)).toBe(true);
     // exactly one sidecar — the second request hit the fast path, not a fresh encode
-    expect(fs.readdirSync(path.join(root, ".yamlover", "thumbnails"))).toHaveLength(1);
+    expect(fs.readdirSync(path.join(root, ".yo", "thumbnails"))).toHaveLength(1);
   });
 
   it("returns 415 for a format with no decoder (the explorer falls back to the glyph)", async () => {
@@ -128,11 +128,11 @@ describe("GET /api/thumb", () => {
 
     const r = await callStream(h, "/api/thumb", { path: ":doc.pdf", w: "256", h: "256" });
     expect(r.status).toBe(415);
-    expect(fs.existsSync(path.join(root, ".yamlover", "thumbnails"))).toBe(false);
+    expect(fs.existsSync(path.join(root, ".yo", "thumbnails"))).toBe(false);
   });
 
-  it("project mode writes the sidecar to the ROOT .yamlover/ with a project-scoped pointer", async () => {
-    const root = tmpTree({ ".yamlover/settings.yamlover": "sidecars: project\n" });
+  it("project mode writes the sidecar to the ROOT .yo/ with a project-scoped pointer", async () => {
+    const root = tmpTree({ ".yo/settings.yo": "sidecars: project\n" });
     fs.mkdirSync(path.join(root, "sub"));
     await writePng(root, "sub/pic.png", 400, 300); // a NESTED source image
     const h = handlers(root);
@@ -140,30 +140,30 @@ describe("GET /api/thumb", () => {
 
     const r = await callStream(h, "/api/thumb", { path: ":sub:pic.png", w: "128", h: "128" });
     expect(r.status).toBe(200);
-    // the sidecar lands in the ROOT .yamlover/ (centralized), not beside the source
-    expect(fs.readdirSync(path.join(root, ".yamlover", "thumbnails"))).toHaveLength(1);
-    expect(fs.existsSync(path.join(root, "sub", ".yamlover", "thumbnails"))).toBe(false);
+    // the sidecar lands in the ROOT .yo/ (centralized), not beside the source
+    expect(fs.readdirSync(path.join(root, ".yo", "thumbnails"))).toHaveLength(1);
+    expect(fs.existsSync(path.join(root, "sub", ".yo", "thumbnails"))).toBe(false);
     // and the overlay pointer is PROJECT-scoped (double colon)
-    const body = fs.readFileSync(path.join(root, "sub", ".yamlover", "body.yamlover"), "utf8");
-    expect(body).toMatch(/\[128, 128\]: \*::\.yamlover:thumbnails:/);
+    const body = fs.readFileSync(path.join(root, "sub", ".yo", "body.yo"), "utf8");
+    expect(body).toMatch(/\[128, 128\]: \*::\.yo:thumbnails:/);
   });
 
-  it("the .yamlover overlay subtree is resolvable but HIDDEN from /api/json + /api/tree", async () => {
+  it("the .yo overlay subtree is resolvable but HIDDEN from /api/json + /api/tree", async () => {
     const root = tmpTree({});
     await writePng(root, "pic.png", 200, 200);
     const h = handlers(root);
     await h.ready;
-    await callStream(h, "/api/thumb", { path: ":pic.png", w: "64", h: "64" }); // creates .yamlover/thumbnails
+    await callStream(h, "/api/thumb", { path: ":pic.png", w: "64", h: "64" }); // creates .yo/thumbnails
 
-    // the root's member list omits .yamlover…
+    // the root's member list omits .yo…
     const rootJson = call(h, "/api/json", { path: ":" }).json;
-    expect(Object.keys(rootJson.value)).not.toContain(".yamlover");
+    expect(Object.keys(rootJson.value)).not.toContain(".yo");
     // …and so does the TOC
     const tree = call(h, "/api/tree", { path: ":", depth: "2" }).json;
-    expect(tree.children.map((c: { label: string }) => c.label)).not.toContain(".yamlover");
+    expect(tree.children.map((c: { label: string }) => c.label)).not.toContain(".yo");
     // but the sidecar blob inside it is still resolvable by direct path
-    const name = fs.readdirSync(path.join(root, ".yamlover", "thumbnails"))[0];
-    const blob = call(h, "/api/json", { path: `:.yamlover:thumbnails:${name}` }).json;
+    const name = fs.readdirSync(path.join(root, ".yo", "thumbnails"))[0];
+    const blob = call(h, "/api/json", { path: `:.yo:thumbnails:${name}` }).json;
     expect(blob.type).toBe("binary");
   });
 

@@ -10,7 +10,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const examples = join(here, '..', '..', '..', '..', 'examples');
 
 // An in-memory DB (`:memory:`) keeps tests side-effect-free; the file path is the only
-// difference in production (<root>/.yamlover/index.db).
+// difference in production (<root>/.yo/index.db).
 function indexed(src: string): Store {
   const s = new Store(':memory:');
   s.indexDocument(parseYamlover(src));
@@ -74,7 +74,7 @@ test('entries() keeps positional pointers in order alongside inline values', () 
 });
 
 test('indexes the 06-tour example (mix/omni nodes included)', () => {
-  const s = indexed(readFileSync(join(examples, '06-tour.yamlover'), 'utf8'));
+  const s = indexed(readFileSync(join(examples, '06-tour.yo'), 'utf8'));
   // omni node: a scalar self-value AND fields
   assert.equal(s.node(':rating')?.type, 'scalar');
   assert.equal(s.node(':rating')?.value, 5);
@@ -94,7 +94,7 @@ test('indexes the 06-tour example (mix/omni nodes included)', () => {
 // the annotation completely.
 test('addAnnotation : removeAnnotation update the index incrementally', () => {
   const s = indexed('pic: !!<format: image/png> placeholder\nyellow: !!<*yamlover: $defs: tag>\n  color: "#f9e2af"\n');
-  const annPath = ':annotations:x.yamlover';
+  const annPath = ':annotations:x.yo';
   const target = ':pic';
   const tag = ':yellow';
   const doc = parseYamlover(

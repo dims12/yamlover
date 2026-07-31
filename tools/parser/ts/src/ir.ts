@@ -52,16 +52,16 @@ export interface NodeMeta {
    *  (`!!<*yamlover/$defs/chapter>`) OR an inline schema Node (`!!<format: text/x-plantuml>`).
    *  Stored unresolved (see URIs.md / META.md) — ALWAYS the authored tag, never a derived one. */
   schema?: Value;
-  /** The format the ENGINE derived for this node (walk.ts: a file's extension, a `meta.yamlover`
+  /** The format the ENGINE derived for this node (walk.ts: a file's extension, a `meta.yo`
    *  `format:`, or the resolved target of an authored `!!<…>` tag). Kept apart from `schema` so
    *  the authored tag stays faithful in views and serialization; never authored, never emitted.
    *  Where both could speak, this derived value wins (it already folded the authored tag in). */
   derivedFormat?: string;
   /** This node is a DOCUMENT root — a self-contained instance: a parsed file, a directory with
-   *  a `.yamlover/` overlay, or the served root. The `/` pointer scope resolves to the nearest
+   *  a `.yo/` overlay, or the served root. The `/` pointer scope resolves to the nearest
    *  enclosing such node (URIs.md: `/` = document root), so a reference is depth-independent. */
   documentRoot?: boolean;
-  /** POSITIONAL PREFIX length (a dir-backed node whose `body.yamlover` is a pointer-array,
+  /** POSITIONAL PREFIX length (a dir-backed node whose `body.yo` is a pointer-array,
    *  YAMLOVER.md §5): the first N entries are body-ordered (positional) members; keyed entries
    *  past N are the keyed-only remainder the body never granted a position. Derived by the
    *  engine's graft (walk.ts applyBody), never authored. */
@@ -73,8 +73,8 @@ export interface NodeMeta {
   set?: boolean;
   /** This node is RESOLVABLE (indexed, addressable by pointers) but HIDDEN from listings: the
    *  TOC, the directory explorer projection, and visible child counts omit it. Set on the
-   *  `.yamlover` overlay-dir node so its derived sidecars (`thumbnails/`, `fragments/`) resolve
-   *  via `*:.yamlover:…` / `*::.yamlover:…` without cluttering the UI. */
+   *  `.yo` overlay-dir node so its derived sidecars (`thumbnails/`, `fragments/`) resolve
+   *  via `*:.yo:…` / `*::.yo:…` without cluttering the UI. */
   hidden?: boolean;
   /** Comments with no entry to attach to: a comment after the last entry of a block, or
    *  inside an empty container; the document root also collects any otherwise-unplaced ones. */
@@ -97,7 +97,7 @@ export interface NodeMeta {
   style?: 'flow';
   /** An INLINE CONCRETE SWITCH — the one the surface can express on its own: this container and its
    *  subtree are written in **json5p**, which on the yamlover surface looks like a flow token that
-   *  SPANS LINES (K&R braces). CONCRETES.md §Collection style: a one-line `{k: v}` in a `.yamlover`
+   *  SPANS LINES (K&R braces). CONCRETES.md §Collection style: a one-line `{k: v}` in a `.yo`
    *  file is yamlover with the `yaml/flow` representation, while a multi-line one is a concrete
    *  switch — the language changes, so the interior is json5p and re-emits through its serializer.
    *  Set only by the yamlover reader (a `.yaml` file's multi-line flow is plain YAML flow, and there

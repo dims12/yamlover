@@ -31,7 +31,7 @@ subchapter recursion means **subtasks** (a task tree) — **plus** a handful of 
 structured fields for planning and automation. It carries **no `state` field**: state is a tag
 application (§2), so the entire tag / board machinery is reused.
 
-Every planning field is optional — *defaults-never-constraints* (`settings.yamlover` ethos): an
+Every planning field is optional — *defaults-never-constraints* (`settings.yo` ethos): an
 untouched task is just a titled note; it becomes a tracked ticket the moment it is tagged with a
 state, and a study card the moment its body chunks are tagged as a quiz.
 
@@ -62,7 +62,7 @@ properties:
 A minimal task as a standalone file:
 
 ```yamlover
-# write-tickets-spec.yamlover
+# write-tickets-spec.yo
 !!<*yamlover:$defs:task>
 Write the TICKETS spec
 description: Draft `TICKETS.md` reusing chapters + tags.
@@ -84,11 +84,11 @@ self-value — with its own body below); a flat **board** is instead a *director
 
 A task's lifecycle position is **one tag application** on the task root
 (`yamlover-annotations`), pointing into a **workflow**: a tag whose contained sub-tags are its
-**states**. The states ship in the project tag taxonomy (`settings.yamlover` → `tags.location`),
+**states**. The states ship in the project tag taxonomy (`settings.yo` → `tags.location`),
 reached in project scope as `*::tags:workflow:<name>:<state>`.
 
 ```yamlover
-# tags/.yamlover/body.yamlover  (excerpt)
+# tags/.yo/body.yo  (excerpt)
 workflow: Lifecycles
   dev: !!<*yamlover:$defs:workflow> Software task lifecycle
     initial: *::tags:workflow:dev:backlog          # ref → the start state
@@ -164,7 +164,7 @@ directory views (explorer grid, thumbnails gallery — `explorer-renderer`, `ext
 
 - **Lanes** = the workflow's states, in spine order, refined by `next` topology. The board's
   workflow is taken from a `workflow: *::tags:workflow:<name>` key on the directory overlay
-  (`.yamlover/body.yamlover`); absent, it is **inferred** from the state tags the tasks actually
+  (`.yo/body.yo`); absent, it is **inferred** from the state tags the tasks actually
   carry. A saved `lanes:` block overrides the seed — each lane is a single tag, or a list of
   tags giving per-tag **sublanes** stacked vertically inside the lane.
 - **Cards** = the tasks: title, priority chip, assignee, due, and (when present) the first chunk
@@ -192,7 +192,7 @@ Chunks already carry their own `yamlover-annotations` (the omni block-scalar for
 §3). Tag them with the `card` taxonomy:
 
 ```yamlover
-# tags/.yamlover/body.yamlover  (excerpt)
+# tags/.yo/body.yo  (excerpt)
 card: Study-card roles
   question:       The prompt side
   answer:         The single correct answer (Q/A card)
