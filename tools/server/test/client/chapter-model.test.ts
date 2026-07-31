@@ -118,6 +118,26 @@ describe("chapterFlow", () => {
     expect(chapterFlow(value).map((f) => f.kind)).toEqual(["title", "chunk", "subchapter"]);
   });
 
+  it("flows a BODY-ANCHORED member (`anchor: true`) as a positional body element — the key is storage provenance", () => {
+    // the dir-chapter shape (examples/66): the body's `- *: dogs` / `- *: cover-paw.png` pointers are
+    // consumed, and the projection surfaces the members as keyed entries carrying `anchor: true`
+    const anchored = (key: string, value: unknown) => ({ key, value, anchor: true });
+    const value = omni(
+      "T",
+      0,
+      keyed("description", "A subtitle"),
+      anchored("cover-paw.png", { $yamloverLink: { kind: "scalar", type: "binary", path: ":cover-paw.png", format: "image/png" } }),
+      anchored("dogs", subchapter(":dogs", 2, "Dogs")),
+      keyed("unconsumed", "a keyed-only member — still skipped"),
+    );
+    expect(chapterFlow(value).map((f) => f.kind)).toEqual(["title", "description", "chunk", "subchapter"]);
+  });
+
+  it("keeps an anchored member named `title`/`description` a BODY element — storage names never steal the heading", () => {
+    const value = omni("Real Title", 0, { key: "title", value: subchapter(":title", 0, "A dir named title"), anchor: true });
+    expect(chapterFlow(value).map((f) => f.kind)).toEqual(["title", "subchapter"]);
+  });
+
   it("still flows a LEGACY keyed `title` entry as the title (an unmigrated file)", () => {
     const value = mixed(keyed("title", "T"), keyless(inlined(":doc", 1, "body")));
     const flow = chapterFlow(value);

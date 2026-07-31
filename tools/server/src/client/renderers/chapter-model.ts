@@ -118,10 +118,10 @@ export function anchorOf(base: string, nodePath: string | null | undefined, slot
 export function chapterBodyEntries(value: unknown): { value: unknown; absIndex: number }[] {
   if (Array.isArray(value)) return value.map((v, i) => ({ value: v, absIndex: i }));
   const mixed = (value as Record<string, unknown> | null | undefined)?.[MIXED_KEY] as
-    | { entries?: { key: string | null; value: unknown }[] }
+    | { entries?: { key: string | null; anchor?: boolean; value: unknown }[] }
     | undefined;
   if (!mixed?.entries) return [];
-  return mixed.entries.map((e, i) => ({ e, i })).filter(({ e }) => e.key == null).map(({ e, i }) => ({ value: e.value, absIndex: i }));
+  return mixed.entries.map((e, i) => ({ e, i })).filter(({ e }) => isBodyEntry(e)).map(({ e, i }) => ({ value: e.value, absIndex: i }));
 }
 
 /** How many entries the chapter has in all — the absolute index an APPENDED entry will take.
@@ -152,6 +152,13 @@ export interface FlowItem {
 /** An ANNOTATION OVERLAY key — a tag application / fragment set laid OVER a value (ANNOTATIONS.md).
  *  Per CHAPTER.md these "are not body, so a scalar carrying only those stays a chunk". */
 const isOverlayKey = (k: string | null): boolean => k === "yamlover-annotations" || k === "yamlover-fragments";
+
+/** A POSITIONAL body element. `key == null` is an inline `- item`; `anchor: true` is a member the
+ *  BODY positioned by pointer (`- *file` consumed — a dir subchapter, a pointer chunk): its key is
+ *  derived storage provenance, not an authored keyed field (META.md §body.yo), so it is body too —
+ *  the same rule the projectional editor applies (yed-load.ts). Checked BEFORE the title/description
+ *  keys so a member whose storage name happens to be `title` stays a body element. */
+const isBodyEntry = (e: { key: string | null; anchor?: boolean }): boolean => e.key == null || e.anchor === true;
 
 /** A body element's kind. A subchapter that ran out of depth budget arrives as a `$yamloverLink`
  *  carrying its own `format`; an INLINED one (any deeper fetch) arrives as a `$yamloverMixed`
@@ -189,7 +196,7 @@ export function bodyKindOf(v: unknown): FlowKind {
 export function chapterFlow(value: unknown): FlowItem[] {
   if (Array.isArray(value)) return value.map((v, i) => ({ kind: bodyKindOf(v), value: v, absIndex: i }));
   const mixed = (value as Record<string, unknown> | null | undefined)?.[MIXED_KEY] as
-    | { kind?: string; value?: unknown; selfAt?: number; entries?: { key: string | null; value: unknown }[] }
+    | { kind?: string; value?: unknown; selfAt?: number; entries?: { key: string | null; anchor?: boolean; value: unknown }[] }
     | undefined;
   if (!mixed?.entries) return [];
   const self = mixed.kind === "omni" && typeof mixed.value === "string" && mixed.value !== "" ? mixed.value : null;
@@ -199,10 +206,10 @@ export function chapterFlow(value: unknown): FlowItem[] {
   for (let i = 0; i < mixed.entries.length; i++) {
     if (!placed && i >= selfAt) { out.push({ kind: "title", value: self, absIndex: -1 }); placed = true; }
     const e = mixed.entries[i];
-    if (e.key === "title") out.push({ kind: "title", value: e.value, absIndex: i }); // legacy keyed title
+    if (isBodyEntry(e)) out.push({ kind: bodyKindOf(e.value), value: e.value, absIndex: i });
+    else if (e.key === "title") out.push({ kind: "title", value: e.value, absIndex: i }); // legacy keyed title
     else if (e.key === "description") out.push({ kind: "description", value: e.value, absIndex: i });
-    else if (e.key == null) out.push({ kind: bodyKindOf(e.value), value: e.value, absIndex: i });
-    // else: another keyed entry (directory member / task field) — not chapter body content
+    // else: another keyed entry (task planning field, an unconsumed directory member) — not body
   }
   if (!placed) out.push({ kind: "title", value: self, absIndex: -1 });
   return out;
