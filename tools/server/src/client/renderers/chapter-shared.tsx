@@ -15,12 +15,16 @@ import { asLink, scalarValue } from "../render";
 import { anchorOf, chapterFlow, childSlot, flowText } from "./chapter-model";
 import { InlineSubchapter } from "./subchapter";
 
-/** The `§N` gutter — an in-page anchor link to the chunk's own location, or a plain marker. */
+/** The `[n]` gutter — an in-page anchor link to the chunk's own location, or a plain marker.
+ *  `n` is the chunk's ABSOLUTE entry index (CHAPTER.md §Addressing): the same number a marklower
+ *  link (`:[i]`), an edit path, and the tree label spell — the gutter shows the address, not a
+ *  render-order count (the legacy `§N` chunk counter skipped keyed entries and disagreed with all
+ *  three). */
 export function ChunkGutter({ index, anchor }: { index: number; anchor: string | null }) {
   return anchor ? (
-    <a className="chunk-index" href={`#${anchor}`}>§{index}</a>
+    <a className="chunk-index" href={`#${anchor}`}>[{index}]</a>
   ) : (
-    <span className="chunk-index">§{index}</span>
+    <span className="chunk-index">[{index}]</span>
   );
 }
 
@@ -182,8 +186,9 @@ export function EditableLine({
 /** One chapter's own stream — title, description, chunks, and subchapters, in SOURCE order — and,
  *  for each subchapter, the same thing again one level deeper (subchapter.tsx). `level` 0 is the
  *  page root; deeper levels wrap in a `<section>` that carries the indent, and their headings step
- *  down h1→h2→…→h6. `§N` restarts per chapter, so a chunk shows the same number here as it does on
- *  that subchapter's own page — the number stays a stable citation either way. */
+ *  down h1→h2→…→h6. `[n]` is each chunk's absolute entry index IN ITS OWN chapter, so a chunk
+ *  shows the same number here as it does on that subchapter's own page — the number stays a
+ *  stable citation either way. */
 export function ChapterBody({
   value, nodePath, documentPath, anchorBase, slot, level, budget, ancestors, onLoaded, onNavigate,
 }: {
@@ -200,7 +205,6 @@ export function ChapterBody({
 }) {
   const flow = chapterFlow(value);
   const Heading = `h${Math.min(level + 1, 6)}` as "h1";
-  let chunkNo = 0;
 
   const body = flow.map((f, i) => {
     if (f.kind === "title") {
@@ -245,7 +249,7 @@ export function ChapterBody({
     return (
       <ReadChunk
         key={i}
-        index={chunkNo++}
+        index={f.absIndex}
         item={f.value}
         anchorBase={anchorBase}
         slot={childSlotId}

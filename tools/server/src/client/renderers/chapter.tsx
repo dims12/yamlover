@@ -92,7 +92,7 @@ export function chapterEditorFlavor(): "yed" | "flat" {
 
 /** The read-only chapter page (locked). Title, description, chunks, and subchapters all render in
  *  SOURCE order — the heading is not hoisted, subchapters are not forced to the end (CHAPTER.md).
- *  §N numbers the chunks only; subchapters render as heading links. */
+ *  `[n]` labels each chunk with its absolute entry index; subchapters render as heading links. */
 function ChapterRead({ node, onNavigate }: { node: NodeJson; onNavigate: (path: string) => void }) {
   // How many levels of SUBCHAPTER nesting are laid out in place before the rest stay links —
   // the shared `?depth=` URL parameter (depth.tsx), infinity by default, so a chapter reads as one

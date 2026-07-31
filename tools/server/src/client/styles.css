@@ -1038,10 +1038,18 @@ a.chunk-index {
 }
 .chunk-index {
   flex: 0 0 auto;
-  min-width: 2.2em; /* fits the § prefix + a digit, keeps the gutter right-aligned */
+  min-width: 2.6em; /* fits a bracketed two-digit index ([12]), keeps the gutter right-aligned */
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-size: 12px;
+  /* the body line box (14px base × 1.65 .chapter leading) expressed over this 12px font, so the
+     [n] baseline sits on the chunk's FIRST-LINE baseline while the row keeps the media-safe
+     flex-start alignment (an image's baseline is its bottom edge — .chunk). Equal line boxes
+     still leave the smaller font's baseline riding high by the ascent gap — measured 1px at
+     12px-in-a-14px-box; the nudge closes it. */
+  line-height: calc(1.65 * 14 / 12);
+  position: relative;
+  top: 1px;
   color: var(--dim);
   user-select: none;
   border-bottom-width: 0;
