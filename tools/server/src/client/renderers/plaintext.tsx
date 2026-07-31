@@ -93,10 +93,17 @@ export function PlaintextView({ node }: { node: NodeJson }) {
 }
 
 /** A plain-text chunk embedded inline in a chapter: just the verbatim text, decoded
- *  as UTF-8 (no per-chunk URL controls, like the CSV chunk). */
+ *  as UTF-8 (no per-chunk URL controls, like the CSV chunk). An INLINE chunk (a
+ *  format-tagged block scalar in the body — the code-chunk shape, DOCSMIGRATION.md)
+ *  already carries its text as the value and fetches nothing; only a file-backed
+ *  pointer chunk reads bytes. */
 export function PlaintextChunk({ chunk }: { chunk: Chunk }) {
-  const { bytes, error } = useBytes(chunk.path);
-  const text = useMemo(() => (bytes ? decode(bytes, DEFAULT_ENCODING) : null), [bytes]);
+  const inline = typeof chunk.value === "string" ? chunk.value : null;
+  const { bytes, error } = useBytes(inline == null ? chunk.path : null);
+  const text = useMemo(
+    () => (inline != null ? inline : bytes ? decode(bytes, DEFAULT_ENCODING) : null),
+    [inline, bytes],
+  );
   if (error) return <div className="error">text: {error}</div>;
   if (text == null) return <div className="loading">reading…</div>;
   return <pre className="plaintext">{text}</pre>;

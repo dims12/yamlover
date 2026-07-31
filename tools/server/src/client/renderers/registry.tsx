@@ -400,6 +400,17 @@ const REGISTRY: Renderer[] = [
     render: (node) => <PlantumlView node={node} />,
     renderChunk: (chunk) => <PlantumlChunk chunk={chunk} />,
   },
+  {
+    // SOURCE-CODE chunks — the yamlover family shown verbatim (the docs book's fenced-code
+    // migration shape, DOCSMIGRATION.md §Conventions). Verbatim <pre> today; syntax
+    // highlighting is the planned upgrade, and lands here when it does.
+    name: "code",
+    icon: "⌨",
+    accepts: byFormat("text/x-yamlover", "text/x-json5p", "text/x-yaml"),
+    specificity: 2,
+    render: (node) => <PlaintextView node={node} />,
+    renderChunk: (chunk) => <PlaintextChunk chunk={chunk} />,
+  },
   EXPLORER,
   {
     // File-backed binaries the server tags with an inferred image format.
