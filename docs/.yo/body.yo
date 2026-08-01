@@ -12,10 +12,9 @@ description: YAML with pointers — the language, its storage model, and its doc
 - |
   This book is the reference. It is itself a yamlover document tree — every page here is a
   chapter, every paragraph a marklower chunk, and the table of contents is the positional
-  body you are reading now.
+  body you are reading now. The [language chapter](::language) is the self-contained spec —
+  principles, the abstract model, every concrete representation, pointers and queries; the
+  [documents chapter](::documents) covers the document layer built on top of it — chapters,
+  marklower prose, tables, lists.
 - *: language
-- *: pointers
-- *: types
-- *: concretes
-- *: query
 - *: documents

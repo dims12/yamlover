@@ -1,5 +1,0 @@
-# Pointers, anchors, and paths — from URIs.md, SEPARATOR.md, and the ANCHOR_REFACTOR.md
-# decisions. See ../../DOCSMIGRATION.md.
-!!<*yamlover: $defs: chapter>
-Pointers, anchors, and paths
-description: The colon grammar, the scope ladder, dereference, path anchors, and escaping

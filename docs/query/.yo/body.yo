@@ -1,4 +1,0 @@
-# Queries — from QUERY.md. See ../../DOCSMIGRATION.md.
-!!<*yamlover: $defs: chapter>
-Queries
-description: Selectors over the instance graph — wildcards, descent, uplinks, and matchers

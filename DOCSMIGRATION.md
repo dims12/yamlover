@@ -10,19 +10,26 @@ constructs the MD sources use that marklower does not carry yet).
 
 ## Target structure
 
+Decided 2026-08-01: **`docs/language/` is the self-contained spec** — it absorbs the pointer,
+type, concrete, and query material (the planned `pointers/`, `types/`, `concretes/`, `query/`
+toplevel chapters were dropped). Storage follows the **default model, recursively**: every
+chapter's own content lives in its directory's `.yo/body.yo`, and ALL subchapters are
+subdirectories, the same way at every depth.
+
 ```
 docs/
   .yo/body.yo        — the book root: title, intro prose, the ordered chapter pointers
   .yo/settings.yo    — project settings (already present; docs/ is a served root)
-  language/          — The yamlover language
-  pointers/          — Pointers, anchors, and paths
-  types/             — Types and metadata
-  concretes/         — Storage (concretes)
-  query/             — Queries
+  language/          — The yamlover language: the full spec, five parts:
+    principles/        one subdirectory per principle (order-is-data, one-node, …)
+    vs-yaml/           the kept surface + every deliberate break, one each
+    model/             terminology, facets, values, order, graph, metadata, matching
+    concretes/         storage axis + the full representation catalog, one form each
+    pointers/          paths, scopes, deref, anchors, escaping + queries/ nested
   documents/         — Documents (chapters, marklower, tables, lists)
 ```
 
-Order is the root body's pointer-array data; directory names carry no order prefixes (the
+Order is each body's pointer-array data; directory names carry no order prefixes (the
 chapters are hand-authored, not editor-materialized, so the `01-…` cosmetic numbering of
 CONCRETES.md §Member-encoding does not apply).
 
@@ -30,14 +37,14 @@ CONCRETES.md §Member-encoding does not apply).
 
 | source | target chapter | notes |
 | --- | --- | --- |
-| `YAMLOVER.md` | `language/` | the surface: kept YAML, additions, deliberate breaks |
-| `ANCHOR_REFACTOR.md` | `pointers/` | historical design round — fold the *decisions* in, drop the sketch |
-| `SEPARATOR.md` | `pointers/` | the colon grammar and its rulings |
-| `URIs.md` | `pointers/` | the pointer model: scopes, `&` anchors, escaping, relative indexes |
-| `TYPES.md` | `types/` | the facet lattice |
-| `META.md` | `types/` | the metadata schema, `.yo/` contract, hosted `$defs` |
-| `CONCRETES.md` | `concretes/` | storage taxonomy, representation, inheritance rules, layout invariants |
-| `QUERY.md` | `query/` | the query language |
+| `YAMLOVER.md` | `language/` root + `principles/` + `vs-yaml/` | kept YAML, additions, deliberate breaks |
+| `ANCHOR_REFACTOR.md` | `language/pointers/` | historical design round — fold the *decisions* in, drop the sketch |
+| `SEPARATOR.md` | `language/pointers/` | the colon grammar; its M/O rulings become normative rules |
+| `URIs.md` | `language/pointers/` + `language/model/graph/` | scopes, `&` anchors, escaping, relative indexes; the graph model |
+| `TYPES.md` | `language/model/` | the facet lattice |
+| `META.md` | `language/model/metadata/` + `language/concretes/` | the metadata schema; the `.yo/` contract |
+| `CONCRETES.md` | `language/concretes/` | storage taxonomy, representation, inheritance rules, layout invariants |
+| `QUERY.md` | `language/pointers/queries/` | the query language |
 | `CHAPTER.md` | `documents/` | the chapter/chunk document model |
 | `MARKLOWER.md` | `documents/` | the inline markup, tables, lists |
 
@@ -73,16 +80,16 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
 ## Progress
 
 - [x] `docs/` book root: intro prose + ordered chapter pointers (`docs/.yo/body.yo`)
-- [x] Empty toplevel chapters: `language/`, `pointers/`, `types/`, `concretes/`, `query/`,
-      `documents/` (each a directory chapter with title + description, no body yet)
 - [x] `YAMLOVER.md` → `language/` (2026-08-01 — modernized to the colon grammar: the MD's stale
-      slash-path examples and closed-window statuses were rewritten, not carried; two MD tables,
-      eight code chunks, one bullets list, cross-chapter links)
-- [ ] `SEPARATOR.md` + `URIs.md` + `ANCHOR_REFACTOR.md` decisions → `pointers/`
-- [ ] `TYPES.md` → `types/`
-- [ ] `META.md` → `types/`
-- [ ] `CONCRETES.md` → `concretes/`
-- [ ] `QUERY.md` → `query/`
+      slash-path examples and closed-window statuses were rewritten, not carried)
+- [x] `language/` restructured as the self-contained spec (2026-08-01): the four absorbed
+      toplevel chapters dropped, the five-part tree scaffolded, the name note
+      (README.md — "YAML Overlay, not Yam lover") restored to the chapter root
+- [ ] `language/principles/` + `language/vs-yaml/` (redistribute the flat chapter)
+- [ ] `language/model/` ← `TYPES.md` + `META.md` vocabulary + `URIs.md` graph model
+- [ ] `language/concretes/` ← `CONCRETES.md` + `META.md` `.yo/` contract
+- [ ] `language/pointers/` (incl. `queries/`) ← `URIs.md` + `SEPARATOR.md` rulings +
+      `QUERY.md` + `ANCHOR_REFACTOR.md` decisions
 - [ ] `CHAPTER.md` → `documents/`
 - [ ] `MARKLOWER.md` → `documents/`
 - [ ] Rule on the candidate files (§above)

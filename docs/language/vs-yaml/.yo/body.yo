@@ -1,0 +1,11 @@
+# Relationship to YAML — the kept surface, then every deliberate break, each its own
+# subdirectory chapter.
+!!<*yamlover: $defs: chapter>
+Similarities and differences with YAML
+description: the kept surface, and every place the same token means something else
+- |
+  yamlover is **not a superset of YAML** — it is a distinct, closely-related language. It
+  shares YAML's surface syntax nearly whole, and differs in **links and anchors** (plus the
+  `~` sigil, `!!set`, and the omni points below). Reading is therefore concrete-aware: a
+  `.yaml`/`.yml` file is parsed with YAML's own link semantics and read *faithfully*, with
+  no "porting" step; a `.yo` file is parsed with yamlover's.
