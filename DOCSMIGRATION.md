@@ -85,11 +85,16 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
 - [x] `language/` restructured as the self-contained spec (2026-08-01): the four absorbed
       toplevel chapters dropped, the five-part tree scaffolded, the name note
       (README.md — "YAML Overlay, not Yam lover") restored to the chapter root
-- [ ] `language/principles/` + `language/vs-yaml/` (redistribute the flat chapter)
-- [ ] `language/model/` ← `TYPES.md` + `META.md` vocabulary + `URIs.md` graph model
-- [ ] `language/concretes/` ← `CONCRETES.md` + `META.md` `.yo/` contract
-- [ ] `language/pointers/` (incl. `queries/`) ← `URIs.md` + `SEPARATOR.md` rulings +
-      `QUERY.md` + `ANCHOR_REFACTOR.md` decisions
+- [x] `language/principles/` + `language/vs-yaml/` (2026-08-01 — nine principles, the kept
+      table + five breaks + conformance)
+- [x] `language/model/` ← `TYPES.md` + `META.md` vocabulary + `URIs.md` graph model
+      (2026-08-01 — the variant-⊤/matcher-region tension stated explicitly; the stale
+      "YAML ⊂ yamlover" and "`&` is an ordinary YAML anchor" wordings not carried)
+- [x] `language/concretes/` ← `CONCRETES.md` + `META.md` `.yo/` contract (2026-08-01 —
+      schema-pinned values not carried: META.md dropped schema-as-storage)
+- [x] `language/pointers/` (incl. `queries/`) ← `URIs.md` + `SEPARATOR.md` rulings +
+      `QUERY.md` + `ANCHOR_REFACTOR.md` decisions (2026-08-01 — the M/O rulings folded in
+      as normative rules; the retired `~` query axis described only as deprecation)
 - [ ] `CHAPTER.md` → `documents/`
 - [ ] `MARKLOWER.md` → `documents/`
 - [ ] Rule on the candidate files (§above)
@@ -100,4 +105,9 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
         `PlaintextChunk` reads an inline chunk's own text instead of fetching bytes
   - Authoring gotcha worth knowing: marklower emphasis never spans a code token, so the MD
     habit `` **`code`** `` renders literally — write the code span unbolded
+  - Authoring gotcha (2026-08-01): a `$defs/table` FLOW row's plain cell must not contain
+    spaces (yamlover flow quotes spacey scalars) — quote it. One unquoted cell fails the
+    whole tree's reconcile with a parse error while the served index silently keeps the
+    last good state; check the server log's `[reconciling]` lines when a body edit seems
+    to have no effect
 - [ ] Stub / retire the migrated MD files
