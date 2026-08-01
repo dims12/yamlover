@@ -5,8 +5,8 @@ describe("path encoding (segsToStr / strToSegs)", () => {
   it("renders keys and array indices", () => {
     expect(segsToStr([])).toBe(":");
     expect(segsToStr(["a", "b"])).toBe(":a:b");
-    expect(segsToStr([0])).toBe("[0]");
-    expect(segsToStr(["x", 0, "y"])).toBe(":x[0]:y");
+    expect(segsToStr([0])).toBe(":0"); // a position is a bare-digit segment (YAML-keys round)
+    expect(segsToStr(["x", 0, "y"])).toBe(":x:0:y");
   });
 
   it("percent-encodes structural chars inside a key", () => {

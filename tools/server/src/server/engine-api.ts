@@ -46,6 +46,7 @@ import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { parseJson5p } from "../../../parser/ts/src/json5p.ts";
 import { pointerToken, schemaTagToken, serializeYamlover } from "../../../parser/ts/src/serialize-yamlover.ts";
 import { renderPointer, parsePointer } from "../../../parser/ts/src/pointer.ts";
+import { pathOfSegs, segsOfPath, segToken } from "../../../parser/ts/src/pathseg.ts";
 import { anchorBody } from "../../../parser/ts/src/serialize-common.ts";
 import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken, appendAnnotationAt, upsertMapEntryAt, removeAnnotationAt, removeMapEntryAt, annotationsRemainAt, pruneEmptyAnnotations, pruneEmptyAnnotationsAt, reachBodyAt, type Region as EmbedRegion } from "./embed.js";
 import { dataFileConcrete, interiorOf, isDirConcrete, pointerSafeName } from "../concrete.js";
@@ -100,7 +101,7 @@ const REF_KEY = "$yamloverRef";
 const NUM_KEY = "$yamloverNum";
 const wireScalar = (v: unknown): unknown =>
   typeof v === "number" && !Number.isFinite(v) ? { [NUM_KEY]: String(v) } : v;
-type Seg = string | number;
+type Seg = string | number | null; // string key | integer position | the NULL key (pathseg.ts)
 // Node-KIND classification (object|array|scalar|binary|omni|mix → the client `type:`) lives in
 // ./node-kind.ts so it can be unit-tested against a Store without the HTTP layer.
 
@@ -547,8 +548,9 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               const label = segs.length === 0 ? rootName : labelFor(s, p, segs[segs.length - 1]);
               const node: TreeNode & { match?: boolean } = buildTree(dataRoot, s, segs, label, 0);
               if (matchSet.has(p)) node.match = true;
+              const nullKeyed = nullKeyTargets(s, p);
               for (const c of chapterOrderedChildren(s, p, s.node(p)?.format ?? null)) {
-                const seg = c.label ?? c.pos ?? 0;
+                const seg = childSegOf(c, nullKeyed);
                 // the KEEP chain always renders — a match INSIDE the (hidden) graft needs its
                 // ancestor rows down to it; other hidden children stay off the pruned tree
                 if (keep.has(c.to)) {
@@ -1223,6 +1225,23 @@ const hasSubchapterChild = (s: Store, p: string): boolean =>
     return f === "x-yamlover-chapter" || f === "x-yamlover-task";
   });
 
+/** The entry targets under `p` whose edge carries the NULL KEY (label IS NULL but
+ *  `label_null = 1` — a KEYED entry whose key is the null value, `:~`). The Store helpers do
+ *  not surface the `label_null` column yet, so the projection reads it here (engine-api only). */
+const EMPTY_SET: ReadonlySet<string> = new Set<string>();
+function nullKeyTargets(s: Store, p: string): ReadonlySet<string> {
+  const rows = s.db
+    .prepare("SELECT to_path FROM edge WHERE from_path = ? AND kind IN ('contain','ref') AND label IS NULL AND label_null = 1")
+    .all(p) as { to_path: string }[];
+  return rows.length ? new Set(rows.map((r) => r.to_path)) : EMPTY_SET;
+}
+
+/** The child SEGMENT an entry row answers to: its key, the NULL key (when `nullKeyed` says the
+ *  label-less edge is the null-keyed one), or its position. */
+function childSegOf(c: { to: string; label: string | null; pos: number | null }, nullKeyed: ReadonlySet<string>): Seg {
+  return c.label ?? (nullKeyed.has(c.to) ? null : c.pos ?? 0);
+}
+
 function downstreamEntries(s: Store, p: string): { to: string; label: string | null; pos: number | null; kind: EdgeRow["kind"]; raw?: string }[] {
   const isSet = !!s.node(p)?.meta?.set;
   // contain + forward ref (including UNREALIZED refs — dangling/external pointers, `to` empty,
@@ -1263,9 +1282,10 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
   // back-edge shown as a link marker to the downstream node (so a `chunks` array mixing inline
   // blocks and `*sample.png` pointers is whole, and a child reached only by `~` still appears).
   const kids = downstreamEntries(s, p);
+  const nullKeyed = nullKeyTargets(s, p); // the NULL-keyed entries — keyed, addressed by `~`
   const currentDoc = documentRootSegs(s, segs); // frame for a reference's scope-correct pointer text
   const project = (c: { to: string; label: string | null; pos: number | null; kind: string; raw?: string }) => {
-    if (c.kind === "contain") return projectValue(dataRoot, s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false);
+    if (c.kind === "contain") return projectValue(dataRoot, s, [...segs, childSegOf(c, nullKeyed)], depth - 1, false);
     // an UNREALIZED ref (dangling / external — no local target): the authored pointer text,
     // not hyperlinked (`path: null`), at any depth — there is nothing to link or summarize.
     if (!c.to) return refMarker(c.raw ?? "", null);
@@ -1296,6 +1316,9 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
       key: c.label,
       value: project(c),
       ...(c.label !== null && anchored.has(c.label) ? { anchor: true } : {}),
+      // the NULL KEY (YAML's rule): a KEYED entry whose key is the null value — the client
+      // renders it `~: value` and addresses it by the `~` segment
+      ...(c.label === null && nullKeyed.has(c.to) ? { keyNull: true } : {}),
     }));
     const marker: Record<string, unknown> = { kind: k, entries };
     // the node's stamped/derived format — an inlined container otherwise carries none, and the
@@ -1331,8 +1354,11 @@ function irNodeAt(doc: Document, segs: Seg[]): IrNode | undefined {
     let val;
     if (typeof seg === "number") {
       const e = entries[seg];
-      if (!e || e.key !== null || e.edge !== "contain") return undefined;
+      // a position addresses only a KEYLESS entry — the null-keyed one (`nullKey`) is keyed
+      if (!e || e.key !== null || e.nullKey === true || e.edge !== "contain") return undefined;
       val = e.value;
+    } else if (seg === null) {
+      val = entries.find((en) => en.nullKey === true && en.edge === "contain")?.value;
     } else {
       val = entries.find((en) => en.key === seg && en.edge === "contain")?.value;
     }
@@ -1484,7 +1510,9 @@ function collectComments(doc: Document, segs: Seg[], depth: number): Record<stri
     for (const e of node.entries ?? []) {
       if (e.edge === "back") continue;
       if (e.edge === "contain" && !isPointer(e.value) && e.value.meta?.hidden) continue;
-      const cont = e.key != null ? `/${e.key}` : `[${i}]`;
+      // the slash continuation mirrors the client's childFrag/fragmentOf spelling: `/` + the
+      // segment's canonical token (`/key`, `/0`, `/~` for the null key)
+      const cont = "/" + segToken(e.key != null ? e.key : e.nullKey === true ? null : i);
       i++;
       const bucket: CommentBucket = {};
       const lead = placed(e.meta?.comments, "leading");
@@ -1518,15 +1546,17 @@ function projectSchema(dataRoot: string, s: Store, segs: Seg[], depth: number, t
   const schema: Record<string, unknown> = { type: typeName(s, p, row) }; // object|array|binary|mixed|variant|<scalar>
   if (row.format) schema.format = row.format;
   const kids = downstreamEntries(s, p);
+  const nullKeyed = nullKeyTargets(s, p);
   const sub = (c: { to: string; label: string | null; pos: number | null; kind: string; raw?: string }) =>
-    c.kind === "contain" ? projectSchema(dataRoot, s, [...segs, c.label ?? c.pos ?? 0], depth - 1, false)
+    c.kind === "contain" ? projectSchema(dataRoot, s, [...segs, childSegOf(c, nullKeyed)], depth - 1, false)
     : c.to ? linkMarker(dataRoot, s, storePathToSegs(c.to))
     : refMarker(c.raw ?? "", null); // an unrealized ref: pointer text, no link
   if (k === "object" || k === "mix" || k === "omni") {
-    // mixed/variant fields: keyless entries keep their `[pos]` key, keyed ones their name; a
+    // mixed/variant fields: keyless entries keep their bare-digit position key, keyed ones their
+    // name, the null key `~`; a
     // variant (omni) also pins its self-value. (Order is the property insertion order.)
     const props: Record<string, unknown> = {};
-    for (const c of kids) props[c.label ?? `[${c.pos}]`] = sub(c);
+    for (const c of kids) props[c.label ?? segToken(childSegOf(c, nullKeyed))] = sub(c);
     schema.properties = props;
     if (k === "omni") schema.value = row.value;
   } else if (k === "array") {
@@ -1590,11 +1620,12 @@ function scopedPath(s: Store, src: Seg[], currentDoc: Seg[]): string {
 }
 
 /** A reference's value rendered as a VALID yamlover deref token — `*` + the canonical
- *  spaced colon path (`*: pets[0]`, `*:: a: b`). Used for refs the projection surfaces from the
+ *  spaced colon path (`*: pets: 0`, `*:: a: b` — a position is its own bare-digit portion, the
+ *  null key `~`). Used for refs the projection surfaces from the
  *  store (realized anchor edges, incoming `~`): an authored pointer carries its own text via the
  *  comment/deco sidecar; this is the faithful fallback so a ref never renders as a bare `:path`. */
 function refPointerText(s: Store, src: Seg[], currentDoc: Seg[]): string {
-  const seg = (x: Seg): string => (typeof x === "number" ? `[${x}]` : `: ${x}`);
+  const seg = (x: Seg): string => `: ${segToken(x)}`;
   if (segsEqual(documentRootSegs(s, src), currentDoc)) {
     const tail = src.slice(currentDoc.length);
     return "*" + (tail.length > 0 ? tail.map(seg).join("") : ":"); // document scope; `*:` = the doc root
@@ -1697,9 +1728,10 @@ function buildTree(dataRoot: string, s: Store, segs: Seg[], label: string, depth
     // consumed a pointer to, not an authored key, so the TOC names it by POSITION like any other
     // array element. The PATH stays keyed — that is the canonical, stable address.
     const anchored = anchoredOf(row);
+    const nullKeyed = nullKeyTargets(s, p);
     for (const c of chapterOrderedChildren(s, p, row.format ?? null)) {
       if (isHidden(s, c.to)) continue; // omit the hidden `.yo` overlay subtree from the TOC
-      const seg = c.label ?? c.pos ?? 0;
+      const seg = childSegOf(c, nullKeyed);
       const shown = c.label !== null && anchored.has(c.label) ? (c.pos ?? 0) : seg;
       node.children.push(buildTree(dataRoot, s, [...segs, seg], labelFor(s, c.to, shown), depth - 1));
     }
@@ -1733,7 +1765,7 @@ function chapterOrderedChildren(s: Store, p: string, format: string | null): Ret
 
 /** A node's tree label: its title (a chapter/task's scalar self-value — {@link titleOf}), else —
  *  for an UNTITLED chapter/task — the opening text of its first prose chunk (clipped), else the
- *  key / `[index]`. */
+ *  segment's canonical token (address-truth: a bare-digit position, `~` for the null key). */
 function labelFor(s: Store, p: string, keyOrIdx: Seg): string {
   const t = titleOf(s, p);
   if (t) return t;
@@ -1742,7 +1774,7 @@ function labelFor(s: Store, p: string, keyOrIdx: Seg): string {
     const first = firstChunkText(s, p);
     if (first) return first;
   }
-  return typeof keyOrIdx === "number" ? `[${keyOrIdx}]` : keyOrIdx;
+  return segToken(keyOrIdx);
 }
 
 /** The opening line of a chapter's first prose chunk (its first keyless scalar child), clipped to
@@ -1901,7 +1933,9 @@ function taggedMaterials(dataRoot: string, s: Store, tagStorePath: string): unkn
     .filter((e) => (e.kind === "ref" || e.kind === "back") && e.from)
     .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
   for (const e of ins) {
-    const arrOwner = e.from.replace(/\[\d+\]$/, "").match(/^(.*):yamlover-annotations$/);
+    // strip the annotation ELEMENT's trailing positional segment (`:0`; the retired `[0]` too,
+    // for a pre-migration index) to reach the `yamlover-annotations` array itself
+    const arrOwner = e.from.replace(/(?::\d+|\[\d+\])$/, "").match(/^(.*):yamlover-annotations$/);
     if (!arrOwner && !legacyDirect) continue; // an ordinary inbound ref is not a tag application
     const owner = arrOwner ? arrOwner[1] || ":" : e.from; // an annotation array → its host; else a direct member
     // skip the tag itself, dups, missing nodes, and any owner in the hidden `.yo` overlay
@@ -1913,9 +1947,10 @@ function taggedMaterials(dataRoot: string, s: Store, tagStorePath: string): unkn
   return out;
 }
 
-/** A client JSON path (`:key[0]:x`, keys PERCENT-ENCODED) as project-scoped COLON pointer
- *  raw text (`::key[0]:x`, keys RAW — quoted when spacey): pointer steps are matched against
- *  store keys verbatim — an encoded key would go dangling on the next re-walk. */
+/** A client JSON path (`:key:0:x`, keys PERCENT-ENCODED) as project-scoped COLON pointer
+ *  raw text (`::key:0:x`, keys RAW — quoted when spacey): pointer steps are matched against
+ *  store keys verbatim — an encoded key would go dangling on the next re-walk. A position is
+ *  its own bare-digit colon portion (the YAML-keys round), the null key `~`. */
 function pointerRaw(clientPath: string): string {
   const segs = strToSegs(clientPath);
   // The ROOT has no project-scope spelling — `::` with no first portion is not a pointer, and
@@ -1924,7 +1959,7 @@ function pointerRaw(clientPath: string): string {
   if (segs.length === 0) throw new Error("the root has no project-scope pointer spelling");
   let out = "";
   for (const seg of segs) {
-    out += typeof seg === "number" ? `[${seg}]` : (out === "" ? "" : ":") + colonSegment(seg);
+    out += (out === "" ? "" : ":") + segToken(seg);
   }
   return "::" + out;
 }
@@ -2371,7 +2406,9 @@ function memberPointer(name: string): string {
 
 /** A project-rooted pointer `*:: dir: file` — the first segment is the `::` authority portion. */
 function projectPointer(segs: Seg[]): string {
-  const steps = segs.map((s): IrStep => (typeof s === "number" ? { sel: "index", n: s } : { sel: "key", name: s }));
+  const steps = segs.map((s): IrStep =>
+    s === null ? { sel: "nullkey" } : typeof s === "number" ? { sel: "index", n: s } : { sel: "key", name: s },
+  );
   const head = steps[0];
   if (head === undefined || head.sel !== "key") throw new Error("a project pointer needs a leading key");
   return "*" + renderPointer({ kind: "pointer", base: { scope: "link", authority: head.name }, steps: steps.slice(1), raw: "" });
@@ -3002,10 +3039,16 @@ function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
   }));
 }
 
-/** The entry `seg` names within `r`: a keyed field by name, or any entry by ABSOLUTE index. */
+/** The entry `seg` names within `r`: a keyed field by name, or any entry by ABSOLUTE index.
+ *  The NULL key addresses the `~:` line — in this TEXT layer the null key's canonical spelling
+ *  `~` IS the key token `entryKeyOf` records.
+ *  TODO(yaml-keys): a quoted `'~':` (the literal-tilde STRING key) collides with the null key
+ *  here — the line scanner records both as the key "~"; disambiguating needs the splicer to
+ *  keep the quoting of the key token. */
 function findEntry(lines: string[], r: Region, seg: Seg): ChapterEntry | undefined {
   const entries = chapterEntries(lines, r);
-  return typeof seg === "number" ? entries[seg] : entries.find((e) => e.key === seg);
+  if (typeof seg === "number") return entries[seg];
+  return entries.find((e) => e.key === (seg === null ? "~" : seg));
 }
 
 /** An entry's own VALUE source on its opening line — past the `- ` marker, its inline `!!<…>` tag,
@@ -3054,9 +3097,9 @@ function reachChapter(lines: string[], within: Seg[]): Region {
   let r: Region = { lo: 0, hi: lines.length, indent: firstContentIndent(lines), marker: -1 };
   for (const seg of within) {
     const entry = findEntry(lines, r, seg);
-    if (!entry) throw new Error(`no entry at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+    if (!entry) throw new Error(`no entry at ${segToken(seg)}`);
     if (!isContainerEntry(lines, entry, r.indent + 2)) {
-      const at = typeof seg === "number" ? `[${seg}]` : seg;
+      const at = segToken(seg);
       // A FLOW value is one source token with no interior line to splice — a K&R one included. Say
       // so, rather than reporting it as a scalar: the caller's move is to emplace the whole token.
       if (isFlowToken(entryHead(lines, entry)) || flowSpanEnd(lines, entry.start) > entry.start) {
@@ -3354,10 +3397,12 @@ function keySepColon(s: string): number {
 }
 
 function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, valueSrc: string, meta: string | null | undefined, key?: string, at?: number): void {
-  const marker = (s: Seg | undefined): string => (typeof s === "string" ? `${s}: ` : "- ");
+  // the entry-opening marker a fresh emplace writes: `key: ` for a keyed target, `~: ` for the
+  // NULL key (its canonical emission), `- ` for a positional one
+  const marker = (s: Seg | undefined): string => (typeof s === "string" ? `${s}: ` : s === null ? "~: " : "- ");
 
   if (op === "insert") {
-    if (typeof seg === "string") throw new Error("`insert` needs a positional target (a path ending `[i]`, or the node itself)");
+    if (typeof seg !== "number" && seg !== undefined) throw new Error("`insert` needs a positional target (a path ending in a bare index, or the node itself)");
     const entries = chapterEntries(lines, r);
     const entry = seg === undefined ? undefined : entries[seg];
     // An index PAST THE END means the end of the ENTRY list. `bodyAppendPoint` instead keeps the
@@ -3375,7 +3420,7 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
   const entry = findEntry(lines, r, seg);
 
   if (op === "rekey") {
-    if (!entry) throw new Error(`no entry at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+    if (!entry) throw new Error(`no entry at ${segToken(seg)}`);
     if (entry.key === null) throw new Error("a positional entry has no key to rename");
     if (key === undefined || key === "") throw new Error("rekey needs a new key");
     // rewrite ONLY the key token on the entry's opening line, keeping its value + all descendant
@@ -3395,7 +3440,7 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
   }
 
   if (op === "remove") {
-    if (!entry) throw new Error(`no entry at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+    if (!entry) throw new Error(`no entry at ${segToken(seg)}`);
     if (entry.inline) {
       // the entry lives on its parent's `- ` marker line — drop only the inline part, keeping
       // the marker (splicing the whole line would take the parent and orphan its other children)
@@ -3409,9 +3454,11 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
 
   if (!entry) {
     // emplace at a FRESH path: a new keyed field, or an appended positional item
-    if (op === "replace") throw new Error(`no entry at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+    if (op === "replace") throw new Error(`no entry at ${segToken(seg)}`);
     const rendered = renderNode(payloadFacets(valueSrc), r.indent, marker(seg), metaTag(meta, undefined, false));
-    const at = typeof seg === "string" ? (r.marker >= 0 ? r.marker + 1 : trimBack(lines, r.lo - 1, r.hi)) : bodyAppendPoint(lines, r);
+    // a KEYED target (a string key or the null key) splices at the top of the block; a positional
+    // one appends to the body
+    const at = typeof seg !== "number" ? (r.marker >= 0 ? r.marker + 1 : trimBack(lines, r.lo - 1, r.hi)) : bodyAppendPoint(lines, r);
     lines.splice(at, 0, ...rendered);
     return;
   }
@@ -3480,7 +3527,7 @@ function reachChapterItem(lines: string[], indices: number[]): { parent: Region;
   const parent = reachChapter(lines, indices.slice(0, -1));
   const idx = indices[indices.length - 1];
   const item = chapterEntries(lines, parent)[idx];
-  if (!item || item.key !== null) throw new Error(`no chapter body item at [${idx}]`);
+  if (!item || item.key !== null) throw new Error(`no chapter body item at ${idx}`);
   return { parent, item, itemIndent: parent.indent };
 }
 
@@ -3560,7 +3607,11 @@ function isChunkTarget(s: Store, segs: Seg[]): boolean {
 function splitChunkWithin(within: Seg[]): { indices: number[]; keys: string[] } {
   let i = 0;
   while (i < within.length && typeof within[i] === "number") i++;
-  return { indices: within.slice(0, i).map(Number), keys: within.slice(i).map(String) };
+  const keys = within.slice(i).map((k) => {
+    if (typeof k !== "string") throw new Error("the null key cannot host fragments/annotations yet");
+    return k;
+  });
+  return { indices: within.slice(0, i).map(Number), keys };
 }
 
 /** Set, replace, or (an empty payload) DROP a document root's scalar SELF-VALUE line — a fully-omni
@@ -3816,7 +3867,7 @@ function editFlowRowCell(lines: string[], row: ChapterEntry, cellIdx: number, op
   const text = String(parsed.value ?? "");
   if (text.includes("\n")) throw new Error("a flow-row cell cannot hold multi-line text — rewrite the row in block form (MARKLOWER.md)");
   const cell = scan.cells[cellIdx];
-  if (!cell) throw new Error(`no cell [${cellIdx}] in the flow row (${scan.cells.length} cells)`);
+  if (!cell) throw new Error(`no cell ${cellIdx} in the flow row (${scan.cells.length} cells)`);
   const lead = cellIdx === 0 ? "" : " "; // the row's own style: none after `[`, one after `,`
   lines[row.start] = raw.slice(0, cell.start) + lead + flowCellToken(text) + raw.slice(cell.end);
   return true;
@@ -3959,9 +4010,11 @@ function editJsonScalar(src: string, within: Seg[], token: string): string {
     const entries = node.entries ?? [];
     const entry: IrEntry | undefined =
       typeof seg === "number"
-        ? entries.filter((e) => e.edge === "contain" && e.key === null)[seg] // positional element
-        : entries.find((e) => e.edge === "contain" && e.key === seg); // keyed field
-    if (!entry) throw new Error(`no entry at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+        ? entries.filter((e) => e.edge === "contain" && e.key === null && e.nullKey !== true)[seg] // positional element
+        : seg === null
+          ? entries.find((e) => e.edge === "contain" && e.nullKey === true) // the NULL-keyed field
+          : entries.find((e) => e.edge === "contain" && e.key === seg); // keyed field
+    if (!entry) throw new Error(`no entry at ${segToken(seg)}`);
     const value = entry.value;
     if (k === within.length - 1) {
       if (isPointer(value) || value.kind !== "scalar") throw new Error("only a scalar value is editable in a JSON file");
@@ -3970,7 +4023,7 @@ function editJsonScalar(src: string, within: Seg[], token: string): string {
       const [vs, ve] = jsonValueSpan(src, span.start, span.end);
       return src.slice(0, vs) + token + src.slice(ve);
     }
-    if (isPointer(value) || value.kind !== "mapping") throw new Error(`cannot descend into a non-container at ${typeof seg === "number" ? `[${seg}]` : seg}`);
+    if (isPointer(value) || value.kind !== "mapping") throw new Error(`cannot descend into a non-container at ${segToken(seg)}`);
     node = value;
   }
   throw new Error("empty JSON edit path"); // unreachable (within.length checked)
@@ -4639,29 +4692,37 @@ function scalarKeyOf(s: Store, p: string, key: string): string | null {
 
 const PATH_TOKEN = /\[\d+\]|[^:\[\]]+/g;
 
-/** Render segments as a client-facing JSON path (`:key[0]:x`, colon-form — SEPARATOR.md M4),
- *  percent-encoding keys. */
+/** Render segments as a client-facing JSON path (`:pets:1:name`, colon-form — the YAML-keys
+ *  round: a position is a bare integer segment, a numeric STRING key rides quoted, the null
+ *  key is `~`). Each segment's canonical token is percent-encoded whole. */
 function segsToStr(segs: Seg[]): string {
-  return segs.map((seg) => (typeof seg === "number" ? `[${seg}]` : `:${encodeURIComponent(seg)}`)).join("") || ":";
+  return segs.map((seg) => ":" + encodeURIComponent(segToken(seg))).join("") || ":";
 }
 
-/** Parse a client JSON path into segments (`[n]` → number, else a decoded key). */
+/** Parse a client JSON path into segments — the decoded token classifies by the bare-token
+ *  typing rule; the retired `[n]` spelling reads forever as an alias. A bare token unescapes
+ *  `\x` → `x` (segToken's metachar escaping — the pathseg.ts read rule). */
 function strToSegs(str: string): Seg[] {
   const out: Seg[] = [];
-  for (const tok of str.match(PATH_TOKEN) || []) out.push(/^\[\d+\]$/.test(tok) ? Number(tok.slice(1, -1)) : safeDecode(tok));
+  for (const tok of str.match(PATH_TOKEN) || []) {
+    if (/^\[\d+\]$/.test(tok)) { out.push(Number(tok.slice(1, -1))); continue; }
+    const t = safeDecode(tok);
+    if (t === "~") out.push(null);
+    else if (/^\d+$/.test(t)) out.push(Number(t));
+    else if (t.length >= 2 && t[0] === "'" && t[t.length - 1] === "'") out.push(t.slice(1, -1).replace(/''/g, "'"));
+    else out.push(t.replace(/\\(.)/g, "$1"));
+  }
   return out;
 }
 
-/** Build the raw Store path (un-encoded keys) the index uses, from decoded segments. */
+/** Build the raw Store path the index uses (pathseg.ts — the ONE spelling). */
 function storePath(segs: Seg[]): string {
-  return segs.map((seg) => (typeof seg === "number" ? `[${seg}]` : `:${seg}`)).join("") || ":";
+  return pathOfSegs(segs);
 }
 
-/** Parse a raw Store path back into segments (keys are raw — no decode). */
+/** Parse a raw Store path back into segments (quote-aware; `[n]` reads as the alias). */
 function storePathToSegs(p: string): Seg[] {
-  const out: Seg[] = [];
-  for (const tok of p.match(PATH_TOKEN) || []) out.push(/^\[\d+\]$/.test(tok) ? Number(tok.slice(1, -1)) : tok);
-  return out;
+  return segsOfPath(p);
 }
 
 function safeDecode(s: string): string {

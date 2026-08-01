@@ -67,7 +67,7 @@ describe("yed chapter — structure", () => {
     expect(descriptionText(container)).toBe("a guide");
     expect(container.querySelector(".chunk-body .chapter-prose")?.textContent).toBe("opening");
     // the gutter shows the entry's yamlover ADDRESS — the absolute index (description sits at [0])
-    expect(container.querySelector(".chunk-index")?.textContent).toBe("[1]");
+    expect(container.querySelector(".chunk-index")?.textContent).toBe("1");
   });
 
   it("a subchapter is an inline <section> with the SAME editor one level down; it takes no §", async () => {
@@ -81,7 +81,7 @@ describe("yed chapter — structure", () => {
     expect(section.querySelector(".chapter-prose")?.textContent).toBe("woof");
     const gutters = Array.from(container.querySelectorAll(".chunk-index")).map((g) => g.textContent);
     // absolute yamlover addresses: "opening"=[0], the subchapter's "woof"=[0] (inside), "closing"=[2]
-    expect(gutters).toEqual(["[0]", "[0]", "[2]"]);
+    expect(gutters).toEqual(["0", "0", "2"]);
   });
 
   it("an EMPTY chapter shows one bootstrap paragraph with the placeholder", async () => {
@@ -118,7 +118,7 @@ describe("yed chapter — editing (ops via the diff channel)", () => {
     fireEvent.input(p);
     p.textContent = "hello there!";
     fireEvent.input(p);
-    expect(await flush()).toEqual([{ path: ":doc[0]", op: "emplace", yamlover: "hello there!" }]);
+    expect(await flush()).toEqual([{ path: ":doc:0", op: "emplace", yamlover: "hello there!" }]);
     expect(editChunks).toHaveBeenCalledTimes(1);
   });
 
@@ -142,8 +142,8 @@ describe("yed chapter — editing (ops via the diff channel)", () => {
     expect(paras[1].textContent).toBe("world");
     expect(document.activeElement).toBe(paras[1]);
     expect(await flush()).toEqual([
-      { path: ":doc[0]", op: "emplace", yamlover: "hello" },
-      { path: ":doc[1]", op: "insert", yamlover: "world" },
+      { path: ":doc:0", op: "emplace", yamlover: "hello" },
+      { path: ":doc:1", op: "insert", yamlover: "world" },
     ]);
   });
 
@@ -184,8 +184,8 @@ describe("yed chapter — editing (ops via the diff channel)", () => {
     expect(after[0].textContent).toBe("helloworld");
     expect(document.activeElement).toBe(after[0]);
     expect(await flush()).toEqual([
-      { path: ":doc[0]", op: "emplace", yamlover: "helloworld" },
-      { path: ":doc[1]", op: "remove" },
+      { path: ":doc:0", op: "emplace", yamlover: "helloworld" },
+      { path: ":doc:1", op: "remove" },
     ]);
   });
 
@@ -198,12 +198,12 @@ describe("yed chapter — editing (ops via the diff channel)", () => {
     // the nest keeps a PARAGRAPH focused — one level deeper, in a badged group
     expect((document.activeElement as HTMLElement).classList.contains("chapter-prose")).toBe(true);
     expect(container.querySelector(".y2-cell[data-kind=chapter] .y2-badge")?.textContent).toContain("wrapped");
-    expect(await flush()).toEqual([{ path: ":doc[1]", op: "replace", yamlover: "- fresh" }]);
+    expect(await flush()).toEqual([{ path: ":doc:1", op: "replace", yamlover: "- fresh" }]);
     await act(async () => { fireEvent.keyDown(document.activeElement!, { key: "Tab", shiftKey: true }); });
     const back = container.querySelectorAll(".chunk-body .chapter-prose");
     expect(back.length).toBe(2);
     expect(document.activeElement).toBe(back[1]);
-    expect(await flush()).toEqual([{ path: ":doc[1]", op: "replace", yamlover: "fresh" }]); // the inverse
+    expect(await flush()).toEqual([{ path: ":doc:1", op: "replace", yamlover: "fresh" }]); // the inverse
   });
 
   it("a plain untagged folder gains the chapter stamp as the LEADING op, exactly once", async () => {
@@ -214,11 +214,11 @@ describe("yed chapter — editing (ops via the diff channel)", () => {
     fireEvent.input(p);
     expect(await flush()).toEqual([
       { path: ":doc", op: "emplace", meta: "*::yamlover:$defs:chapter" },
-      { path: ":doc[0]", op: "emplace", yamlover: "hello" },
+      { path: ":doc:0", op: "emplace", yamlover: "hello" },
     ]);
     p.textContent = "hello again";
     fireEvent.input(p);
-    expect(await flush()).toEqual([{ path: ":doc[0]", op: "emplace", yamlover: "hello again" }]); // no re-stamp
+    expect(await flush()).toEqual([{ path: ":doc:0", op: "emplace", yamlover: "hello again" }]); // no re-stamp
   });
 
   it("Enter on the title walks: description, then the first paragraph — the caret follows", async () => {
@@ -264,7 +264,7 @@ describe("yed chapter — tables and source chunks (Stage 7)", () => {
   };
 
   it("a tagged table draws an editable grid; a cell edit is one emplace at the cell", async () => {
-    const { container } = renderSync(withTag(tableNode(), "[0]", "!!<*yamlover: $defs: table>"));
+    const { container } = renderSync(withTag(tableNode(), "/0", "!!<*yamlover: $defs: table>"));
     await settle();
     const faces = container.querySelectorAll("td .yl-cell");
     expect(faces.length).toBe(2);
@@ -274,11 +274,11 @@ describe("yed chapter — tables and source chunks (Stage 7)", () => {
     fireEvent.change(input, { target: { value: "9" } });
     // the cell's committed value was the STRING "1" — typed text stays a string, and the
     // serializer quotes what would otherwise re-read as a number (value fidelity)
-    expect(await flush()).toEqual([{ path: ":doc[0][1][0]", op: "emplace", yamlover: "'9'" }]);
+    expect(await flush()).toEqual([{ path: ":doc:0:1:0", op: "emplace", yamlover: "'9'" }]);
   });
 
   it("Tab walks header → rows; at the VERY last cell it appends a row of the table's width", async () => {
-    const { container } = renderSync(withTag(tableNode(), "[0]", "!!<*yamlover: $defs: table>"));
+    const { container } = renderSync(withTag(tableNode(), "/0", "!!<*yamlover: $defs: table>"));
     await settle();
     const headerFaces = container.querySelectorAll("th .yl-cell");
     await act(async () => { fireEvent.focus(headerFaces[1]); });
@@ -291,11 +291,11 @@ describe("yed chapter — tables and source chunks (Stage 7)", () => {
     const rows = container.querySelectorAll("tbody tr");
     expect(rows.length).toBe(2); // a fresh row appeared
     expect(activeInput().value).toBe("");
-    expect(await flush()).toEqual([{ path: ":doc[0][2]", op: "insert", yamlover: "- ''\n- ''" }]);
+    expect(await flush()).toEqual([{ path: ":doc:0:2", op: "insert", yamlover: "- ''\n- ''" }]);
   });
 
   it("Shift-Tab at the header's first cell never un-appends", async () => {
-    const { container } = renderSync(withTag(tableNode(), "[0]", "!!<*yamlover: $defs: table>"));
+    const { container } = renderSync(withTag(tableNode(), "/0", "!!<*yamlover: $defs: table>"));
     await settle();
     const first = container.querySelector("th .yl-cell") as HTMLElement;
     await act(async () => { fireEvent.focus(first); });
@@ -313,7 +313,7 @@ describe("yed chapter — tables and source chunks (Stage 7)", () => {
         "The stew needs:",
         { $yamloverMixed: { kind: "mix", entries: [{ key: "serves", value: 4 }, { key: "time", value: 20 }] } },
       ],
-    }), "[1]", "!!<*yamlover: $defs: recipe>");
+    }), "/1", "!!<*yamlover: $defs: recipe>");
     const { container } = renderSync(node);
     await settle();
     const source = container.querySelector(".chunk-source");
@@ -331,7 +331,7 @@ describe("yed chapter — tables and source chunks (Stage 7)", () => {
     fireEvent.change(input, { target: { value: "6" } });
     input.setSelectionRange(1, 1);
     await act(async () => { fireEvent.keyDown(input, { key: "Enter" }); });
-    expect(await flush()).toEqual([{ path: ":doc[1]:serves", op: "emplace", yamlover: "6" }]);
+    expect(await flush()).toEqual([{ path: ":doc:1:serves", op: "emplace", yamlover: "6" }]);
   });
 });
 
@@ -384,7 +384,7 @@ describe("yed chapter — the format bar rides the SHARED bus", () => {
     expect((bullets as HTMLButtonElement).disabled).toBe(false);
     await act(async () => { fireEvent.mouseDown(bullets); });
     expect(await flush()).toEqual([
-      { path: ":doc[0]", op: "replace", yamlover: "- item", meta: "*yamlover: $defs: bullets" },
+      { path: ":doc:0", op: "replace", yamlover: "- item", meta: "*yamlover: $defs: bullets" },
     ]);
     unmount();
     cleanup();
@@ -404,7 +404,7 @@ describe("yed chapter — the format bar rides the SHARED bus", () => {
     expect(document.activeElement).toBe(h1Input);
     expect(await flush()).toEqual([
       { path: ":doc", op: "emplace", yamlover: "My title" },
-      { path: ":doc[0]", op: "remove" },
+      { path: ":doc:0", op: "remove" },
     ]);
   });
 
@@ -421,7 +421,7 @@ describe("yed chapter — the format bar rides the SHARED bus", () => {
     expect(paras[0].textContent).toBe("Book"); // demoted after the description
     expect(await flush()).toEqual([
       { path: ":doc", op: "emplace", yamlover: '""' },
-      { path: ":doc[1]", op: "insert", yamlover: "Book" },
+      { path: ":doc:1", op: "insert", yamlover: "Book" },
     ]);
   });
 
@@ -450,8 +450,8 @@ describe("yed chapter — the format bar rides the SHARED bus", () => {
     // the diff channel's canonical order (removals last-first, then inserts forward) — the
     // server applies progressively, so this lands the same bytes as the legacy insert-then-remove
     expect(await flush()).toEqual([
-      { path: ":doc[1]", op: "remove" },
-      { path: ":doc[0]", op: "insert", yamlover: "about it", key: "description" },
+      { path: ":doc:1", op: "remove" },
+      { path: ":doc:0", op: "insert", yamlover: "about it", key: "description" },
     ]);
   });
 });

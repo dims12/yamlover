@@ -15,6 +15,7 @@
 import type { NodeJson, CommentBucket, CommentMap } from "../api";
 import type { Document, Entry, Node, Value } from "../../../../yed/src/state";
 import { parsePointer } from "../../../../parser/ts/src/pointer.ts";
+import { segToken } from "../../../../parser/ts/src/pathseg.ts";
 import { parseSchemaRef } from "../../../../parser/ts/src/yamlover.ts";
 import type { Pointer } from "../../../../parser/ts/src/ir.ts";
 import { formatFromMetaTag, proseFormatOfTag } from "../../../../yed/src/chapter/format";
@@ -168,7 +169,7 @@ function entriesFrom(
     // an ANCHORED positional member is drawn keyless but ADDRESSED by its derived key — the
     // wire key rides the entry meta for the diff layer, the projection stays positional
     const keyless = e.key === null || e.anchor === true;
-    const childFrag = e.key != null ? `${frag}/${e.key}` : `${frag}[${i}]`;
+    const childFrag = `${frag}/${segToken(e.key != null ? e.key : i)}`;
     const value = valueFrom(e.value, childFrag, comments);
     return {
       key: keyless ? null : e.key,

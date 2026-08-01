@@ -39,9 +39,9 @@ const taggedTable = (entries: { key: string | null; value: unknown }[]) => ({
 // the examples/61 shape: title + header (colspan) + a rowspan + a TAGGED nested-table cell
 const fixture = mixed([
   { key: "title", value: "Who does what" },
-  { key: "header", value: ["Name", "Class", ref(":t:header[1]")] },
+  { key: "header", value: ["Name", "Class", ref(":t:header:1")] },
   { key: null, value: ["Whiskers", "mammal", "**manager**"] },
-  { key: null, value: ["Rex", ref(":t[2][1]"), "security"] },
+  { key: null, value: ["Rex", ref(":t:2:1"), "security"] },
   { key: null, value: ["Bubbles", "fish", taggedTable([
     { key: "header", value: ["duty", "shift"] },
     { key: null, value: ["decoration", "always"] },
@@ -162,7 +162,7 @@ describe("table renderer", () => {
 
   it("a 3-wide colspan chain merges into one origin", () => {
     const grid = buildTableGrid(
-      mixed([{ key: null, value: ["Origin", ref(":t[0][0]"), ref(":t[0][0]")] }]),
+      mixed([{ key: null, value: ["Origin", ref(":t:0:0"), ref(":t:0:0")] }]),
       ":t",
     );
     const spans = computeSpans(grid);
@@ -175,7 +175,7 @@ describe("table renderer", () => {
     // origin at [0][0], pointer at [1][1]: origin+member bbox is 2x2 but only 2 cells → unmerged
     const value = mixed([
       { key: null, value: ["shared", "b"] },
-      { key: null, value: ["c", ref(":t[0][0]", "shared")] },
+      { key: null, value: ["c", ref(":t:0:0", "shared")] },
     ]);
     const { container } = render(<TableView node={tableNode(value)} onNavigate={() => {}} />);
     const tds = [...container.querySelectorAll("tbody td")];
@@ -186,7 +186,7 @@ describe("table renderer", () => {
   it("a merge crossing the header/body boundary renders unmerged", () => {
     const value = mixed([
       { key: "header", value: ["a", "b"] },
-      { key: null, value: [ref(":t:header[0]"), "y"] }, // rowspan up INTO the header
+      { key: null, value: [ref(":t:header:0"), "y"] }, // rowspan up INTO the header
     ]);
     const { container } = render(<TableView node={tableNode(value)} onNavigate={() => {}} />);
     expect(container.querySelectorAll("thead th").length).toBe(2);
@@ -226,7 +226,7 @@ describe("table renderer", () => {
     cell.textContent = "Tom";
     fireEvent.input(cell);
     vi.advanceTimersByTime(600);
-    expect(edit).toHaveBeenCalledWith([{ path: ":t[2][0]", op: "emplace", yamlover: "|-\n  Tom" }]);
+    expect(edit).toHaveBeenCalledWith([{ path: ":t:2:0", op: "emplace", yamlover: "|-\n  Tom" }]);
     vi.useRealTimers();
   });
 

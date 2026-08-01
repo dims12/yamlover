@@ -75,18 +75,18 @@ function typeInto(el: HTMLElement, text: string) {
 describe("Breadcrumb", () => {
   beforeEach(() => selectSpy.mockReset());
 
-  it("idle renders the current path as cells (numeric folding), root label first", () => {
-    render(<Host initial=":pets[0]:name" />);
+  it("idle renders the current path as cells (a position is its own bare-digit cell), root label first", () => {
+    render(<Host initial=":pets:0:name" />);
     expect(screen.getByText("root")).toBeTruthy();
-    expect(cells().map((c) => c.textContent)).toEqual(["pets[0]", "name"]);
+    expect(cells().map((c) => c.textContent)).toEqual(["pets", "0", "name"]);
     expect(mode()).toBe("idle");
   });
 
-  it("an index-headed FIRST cell reads as an index on the root — its ':' separator is not drawn", async () => {
-    // idle: the path of the root's entry 0 spells `root[0]`, not `root : [0]`
-    render(<Host initial="[0]:name" />);
-    expect(cells().map((c) => c.textContent)).toEqual(["[0]", "name"]);
-    expect(document.querySelectorAll(".crumb-sep").length).toBe(1); // only before "name"
+  it("an index-headed FIRST cell is a bare-digit cell — its ':' separator IS drawn (`root: 0`)", async () => {
+    // idle: the path of the root's entry 0 spells `root: 0` (address-truth — the bare index)
+    render(<Host initial=":0:name" />);
+    expect(cells().map((c) => c.textContent)).toEqual(["0", "name"]);
+    expect(document.querySelectorAll(".crumb-sep").length).toBe(2); // before "0" and "name"
     cleanup();
     // editing: typing `[0]` into the first cell hides its separator LIVE
     vi.useFakeTimers();

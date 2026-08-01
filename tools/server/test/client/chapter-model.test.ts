@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { buildChapterModel, snapshotChapter, diffChapter, chapterFlow, flowText, bodyKindOf, anchorOf, childSlot, type ChapterModel, type ChunkPart } from "../../src/client/renderers/chapter-model";
 
 /** An inlined `$yamloverLink` scalar chunk marker at body slot `i` of chapter `base` (its marker
- *  points at its OWN slot `<base>[i]`, so the model classifies it as an editable inline chunk). */
+ *  points at its OWN slot `<base>:i`, so the model classifies it as an editable inline chunk). */
 const inlined = (base: string, i: number, value: string, format: string | null = "text/marklower") => ({
-  $yamloverLink: { kind: "scalar", type: "string", path: `${base}[${i}]`, format, concrete: "yamlover", value },
+  $yamloverLink: { kind: "scalar", type: "string", path: `${base}:${i}`, format, concrete: "yamlover", value },
 });
 /** A linked (pointer) chunk marker — its path points OUT of its own slot (a separate file). */
 const linkedImage = (targetPath: string) => ({
@@ -12,7 +12,7 @@ const linkedImage = (targetPath: string) => ({
 });
 /** A subchapter body element — a nested chapter, surfaced as a read-only navigable link. */
 const subchapter = (base: string, i: number, title: string) => ({
-  $yamloverLink: { kind: "mix", type: "variant", path: `${base}[${i}]`, format: "x-yamlover-chapter", title },
+  $yamloverLink: { kind: "mix", type: "variant", path: `${base}:${i}`, format: "x-yamlover-chapter", title },
 });
 
 /** A titled chapter is FULLY OMNI (CHAPTER.md): the title is the marker's `value` (the node's
@@ -53,7 +53,7 @@ describe("buildChapterModel", () => {
     const m = buildChapterModel(node([inlined(":doc", 1, "prose"), subchapter(":doc", 2, "Sub")]));
     expect(m.chunks.map((c) => c.subchapter)).toEqual([false, true]);
     expect(m.chunks[1].editable).toBe(false);
-    expect(m.chunks[1].navPath).toBe(":doc[2]");
+    expect(m.chunks[1].navPath).toBe(":doc:2");
     expect(m.chunks[1].title).toBe("Sub");
   });
 
@@ -179,7 +179,7 @@ describe("diffChapter", () => {
     current.chunks[1].text = "TWO";
     expect(diffChapter(committed, current)).toEqual([
       { path: ":doc", op: "emplace", yamlover: '""' },
-      { path: ":doc[2]", op: "emplace", yamlover: "|-\n  TWO" }, // stays [2]: the title consumed no index
+      { path: ":doc:2", op: "emplace", yamlover: "|-\n  TWO" }, // stays [2]: the title consumed no index
     ]);
   });
 
@@ -190,7 +190,7 @@ describe("diffChapter", () => {
     current.chunks[1].text = "TWO";
     expect(diffChapter(committed, current)).toEqual([
       { path: ":doc:description", op: "remove" },
-      { path: ":doc[1]", op: "emplace", yamlover: "|-\n  TWO" }, // was [2] before the description went
+      { path: ":doc:1", op: "emplace", yamlover: "|-\n  TWO" }, // was [2] before the description went
     ]);
   });
 
@@ -209,7 +209,7 @@ describe("diffChapter", () => {
     expect(diffChapter(legacy, current)).toEqual([
       { path: ":doc", op: "emplace", yamlover: '"New"' }, // the self-value (index-neutral)
       { path: ":doc:title", op: "remove" }, // the keyed title migrates out…
-      { path: ":doc[0]", op: "emplace", yamlover: "|-\n  ONE" }, // …so `one` slid from [1] to [0]
+      { path: ":doc:0", op: "emplace", yamlover: "|-\n  ONE" }, // …so `one` slid from [1] to [0]
     ]);
   });
 
@@ -219,7 +219,7 @@ describe("diffChapter", () => {
     const committed = base();
     const current = clone(committed);
     current.chunks[1].text = "TWO";
-    expect(diffChapter(committed, current)).toEqual([{ path: ":doc[2]", op: "emplace", yamlover: "|-\n  TWO" }]);
+    expect(diffChapter(committed, current)).toEqual([{ path: ":doc:2", op: "emplace", yamlover: "|-\n  TWO" }]);
   });
 
   it("SPLIT: chunk 0 'onetwo' → head 'one' + new tail 'two' (the reported bug)", () => {
@@ -227,8 +227,8 @@ describe("diffChapter", () => {
     const committed = model([part("a", "onetwo", 0), part("b", "x", 1)]);
     const current = model([part("a", "one", 0), part("tail", "two"), part("b", "x", 1)]);
     expect(diffChapter(committed, current)).toEqual([
-      { path: ":doc[1]", op: "insert", yamlover: "|-\n  two" }, // before x, which slides to 2
-      { path: ":doc[0]", op: "emplace", yamlover: "|-\n  one" },
+      { path: ":doc:1", op: "insert", yamlover: "|-\n  two" }, // before x, which slides to 2
+      { path: ":doc:0", op: "emplace", yamlover: "|-\n  one" },
     ]);
   });
 
@@ -236,7 +236,7 @@ describe("diffChapter", () => {
     const committed = base();
     const current = clone(committed);
     current.chunks.unshift(part("new", "top"));
-    expect(diffChapter(committed, current)).toEqual([{ path: ":doc[1]", op: "insert", yamlover: "|-\n  top" }]);
+    expect(diffChapter(committed, current)).toEqual([{ path: ":doc:1", op: "insert", yamlover: "|-\n  top" }]);
   });
 
   it("append a chunk → the path names the chapter, which the server reads as APPEND", () => {
@@ -250,15 +250,15 @@ describe("diffChapter", () => {
     const committed = base();
     const current = clone(committed);
     current.chunks.splice(0, 1); // drop 'one' (abs 1)
-    expect(diffChapter(committed, current)).toEqual([{ path: ":doc[1]", op: "remove" }]);
+    expect(diffChapter(committed, current)).toEqual([{ path: ":doc:1", op: "remove" }]);
   });
 
   it("remove chunk 0 AND edit chunk 1 → remove then emplace at the SHIFTED index", () => {
     const committed = model([part("a", "one", 0), part("b", "two", 1)]);
     const current = model([part("b", "TWO", 1)]);
     expect(diffChapter(committed, current)).toEqual([
-      { path: ":doc[0]", op: "remove" },
-      { path: ":doc[0]", op: "emplace", yamlover: "|-\n  TWO" }, // b slid down to 0
+      { path: ":doc:0", op: "remove" },
+      { path: ":doc:0", op: "emplace", yamlover: "|-\n  TWO" }, // b slid down to 0
     ]);
   });
 
@@ -266,7 +266,7 @@ describe("diffChapter", () => {
     const m = buildChapterModel(node([inlined(":doc", 1, "a"), subchapter(":doc", 2, "Mid"), inlined(":doc", 3, "c")]));
     const current = clone(m);
     current.chunks[2].text = "C"; // edit the prose AFTER the subchapter
-    expect(diffChapter(m, current)).toEqual([{ path: ":doc[3]", op: "emplace", yamlover: "|-\n  C" }]);
+    expect(diffChapter(m, current)).toEqual([{ path: ":doc:3", op: "emplace", yamlover: "|-\n  C" }]);
   });
 
   it("assigns a freshly inserted part its absolute index, so the NEXT diff addresses it", () => {
@@ -282,10 +282,10 @@ describe("diffChapter", () => {
     const committed = base();
     const a = clone(committed);
     a.chunks[0].text = "one\ntwo";
-    expect(diffChapter(committed, a)).toEqual([{ path: ":doc[1]", op: "emplace", yamlover: "|-\n  one\n  two" }]);
+    expect(diffChapter(committed, a)).toEqual([{ path: ":doc:1", op: "emplace", yamlover: "|-\n  one\n  two" }]);
     const b = clone(committed);
     b.chunks[0].text = "  indented";
-    expect(diffChapter(committed, b)).toEqual([{ path: ":doc[1]", op: "emplace", yamlover: '"  indented"' }]);
+    expect(diffChapter(committed, b)).toEqual([{ path: ":doc:1", op: "emplace", yamlover: '"  indented"' }]);
   });
 
   // An ANNOTATED title projects as an omni marker — the tag applications laid over the scalar
@@ -385,25 +385,25 @@ describe("chapterFlow — absIndex", () => {
 });
 
 describe("anchorOf / childSlot", () => {
-  it("a page root anchors everything by PATH — today's `#[1]` deep links are unchanged", () => {
-    expect(anchorOf(":", ":[1]", "[1]")).toBe("[1]");
-    expect(anchorOf(":", ":[3][1]", "[3][1]")).toBe("[3][1]");
-    expect(anchorOf(":", ":dogs", "[6]")).toBe("/dogs"); // a pointer subchapter under the root
+  it("a page root anchors everything by PATH — `#/1`-style slash continuations", () => {
+    expect(anchorOf(":", ":1", "/1")).toBe("/1");
+    expect(anchorOf(":", ":3:1", "/3/1")).toBe("/3/1");
+    expect(anchorOf(":", ":dogs", "/6")).toBe("/dogs"); // a pointer subchapter under the root
   });
 
   it("a descendant of a non-root page still anchors by path", () => {
-    expect(anchorOf(":doc", ":doc[2]", "[2]")).toBe("[2]");
+    expect(anchorOf(":doc", ":doc:2", "/2")).toBe("/2");
   });
 
   it("a node OUTSIDE the page's subtree falls back to the render slot", () => {
     // `fragmentOf` is a blind prefix-length slice — it would return "" here and collide
-    expect(anchorOf(":a:b", ":dogs", "[2]")).toBe("[2]");
-    expect(anchorOf(":a:b", ":z:deep:er", "[0][1]")).toBe("[0][1]");
+    expect(anchorOf(":a:b", ":dogs", "/2")).toBe("/2");
+    expect(anchorOf(":a:b", ":z:deep:er", "/0/1")).toBe("/0/1");
   });
 
   it("childSlot chains render positions", () => {
-    expect(childSlot("", 3)).toBe("[3]");
-    expect(childSlot("[3]", 1)).toBe("[3][1]");
+    expect(childSlot("", 3)).toBe("/3");
+    expect(childSlot("/3", 1)).toBe("/3/1");
   });
 });
 

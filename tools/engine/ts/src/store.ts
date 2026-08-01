@@ -377,7 +377,7 @@ export class Store {
         insNode.run(p, 'mapping', null, null, null, null, 0, null);
         insEdge.run(i === 1 ? ':' : ':' + segs.slice(0, i - 1).join(':'), p, segs[i - 1], 0, 'contain', null);
       }
-      const tagPath = (taxonomyStorePath === ':' ? '' : taxonomyStorePath) + ':' + name;
+      const tagPath = childSeg(taxonomyStorePath, name); // canonical token — a spacey name rides quoted
       walkNodes(node, tagPath, (p, n, parent, label, ps, labelNull) => {
         const meta = n.meta ? JSON.stringify(n.meta) : null;
         const isArray = n.array || (n.kind === 'mapping' && (n.entries?.every((e) => e.key === null && e.nullKey !== true) ?? false));

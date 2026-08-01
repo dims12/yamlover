@@ -249,7 +249,7 @@ describe("NodeView", () => {
     mNode.mockResolvedValue({ path: ":chapters[2]", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
     render(<NodeView path=":chapters[2]" format="yaml" rootLabel="examples" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("empty");
-    expect(document.title).toBe("[2] - examples: chapters");
+    expect(document.title).toBe("2 - examples: chapters");
   });
 
   it("the ancestor path drops its separator while the root label hasn't loaded yet", async () => {
@@ -422,7 +422,7 @@ describe("chapter media drop — targets the ENCLOSING chapter section", () => {
     dropOn(document.querySelector("section.chapter-sub .chapter-prose")!);
     // the unified confirm popup names the drop; confirm uploads to the SUBCHAPTER's path
     fireEvent.click(await screen.findByRole("button", { name: "Upload" }));
-    await waitFor(() => expect(mPasteFile).toHaveBeenCalledWith(":doc[1]", "bone.png", expect.any(String)));
+    await waitFor(() => expect(mPasteFile).toHaveBeenCalledWith(":doc:1", "bone.png", expect.any(String)));
   });
 
   it("a drop OUTSIDE any section targets the page root", async () => {

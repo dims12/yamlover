@@ -29,7 +29,7 @@ function omniNode(): NodeJson {
     comments: {
       "": { tag: "!!<*yamlover: $defs: chapter>" },
       "/description": { raw: '"the blurb"' },
-      "[2]": { pointer: ":pets[1]" },
+      "/2": { pointer: ":pets[1]" },
     },
   };
 }
@@ -78,10 +78,11 @@ describe("buildModel — projection + sidecar → cell model", () => {
 
 describe("parseTag", () => {
   it("splits `!!<…>` content and the `!!set` marker", () => {
-    expect(parseTag("!!<*yamlover: $defs: chapter>")).toEqual({ metaTag: "*yamlover: $defs: chapter", setTag: false });
-    expect(parseTag("!!<format: text/x-latex> !!set")).toEqual({ metaTag: "format: text/x-latex", setTag: true });
-    expect(parseTag("!!set")).toEqual({ metaTag: null, setTag: true });
-    expect(parseTag(undefined)).toEqual({ metaTag: null, setTag: false });
+    expect(parseTag("!!<*yamlover: $defs: chapter>")).toEqual({ metaTag: "*yamlover: $defs: chapter", setTag: false, yoTag: false });
+    expect(parseTag("!!<format: text/x-latex> !!set")).toEqual({ metaTag: "format: text/x-latex", setTag: true, yoTag: false });
+    expect(parseTag("!!set")).toEqual({ metaTag: null, setTag: true, yoTag: false });
+    expect(parseTag("!!yo")).toEqual({ metaTag: null, setTag: false, yoTag: true });
+    expect(parseTag(undefined)).toEqual({ metaTag: null, setTag: false, yoTag: false });
   });
 });
 
@@ -100,7 +101,7 @@ describe("op emission — the absolute-index discipline", () => {
     const root = buildModel(omniNode());
     const chunkId = root.entries[1].node.id; // first ordinal chunk sits at absolute index 1 (after `description`)
     expect(setNodeToken(":doc", root, chunkId, { src: '"edited"', value: "edited" }))
-      .toEqual([{ path: ":doc[1]", op: "emplace", yamlover: '"edited"' }]);
+      .toEqual([{ path: ":doc:1", op: "emplace", yamlover: '"edited"' }]);
   });
 
   it("a client-side hole never shifts server addresses; its commit inserts at its server index", () => {
@@ -109,16 +110,16 @@ describe("op emission — the absolute-index discipline", () => {
     expect(root.entries[1].id).toBe(hole.id);
     // an edit BELOW the hole still addresses the pre-hole index space
     const chunkId = root.entries[2].node.id;
-    expect(setNodeToken(":doc", root, chunkId, { src: "x", value: "x" })[0].path).toBe(":doc[1]");
+    expect(setNodeToken(":doc", root, chunkId, { src: "x", value: "x" })[0].path).toBe(":doc:1");
     // the hole materializes: an ordinal scalar → insert at ITS server index (1)
     hole.decided = true;
     hole.node.kind = "scalar";
     hole.node.scalar = { src: '"fresh"', value: "fresh" };
     const edits = commitSpine(":doc", root, hole.id);
-    expect(edits).toEqual([{ path: ":doc[1]", op: "insert", yamlover: '"fresh"' }]);
+    expect(edits).toEqual([{ path: ":doc:1", op: "insert", yamlover: '"fresh"' }]);
     expect(root.entries[1].committed).toBe(true);
     // AFTER the commit the later chunk's address counts it
-    expect(setNodeToken(":doc", root, chunkId, { src: "y", value: "y" })[0].path).toBe(":doc[2]");
+    expect(setNodeToken(":doc", root, chunkId, { src: "y", value: "y" })[0].path).toBe(":doc:2");
   });
 
   it("a keyed hole commits as a keyed INSERT at its position — authored order is kept", () => {
@@ -129,7 +130,7 @@ describe("op emission — the absolute-index discipline", () => {
     hole.node.kind = "scalar";
     hole.node.scalar = { src: "Bob", value: "Bob" };
     const edits = commitSpine(":doc", root, hole.id);
-    expect(edits).toEqual([{ path: ":doc[3]", op: "insert", key: "author", yamlover: "Bob" }]);
+    expect(edits).toEqual([{ path: ":doc:3", op: "insert", key: "author", yamlover: "Bob" }]);
     expect(root.entries[3].key).toBe("author"); // stays exactly where it was typed
     expect(root.entries[3].committed).toBe(true);
   });
@@ -145,14 +146,14 @@ describe("op emission — the absolute-index discipline", () => {
     inner.node.kind = "scalar";
     inner.node.scalar = { src: "Rex", value: "Rex" };
     const edits = commitSpine(":doc", root, inner.id);
-    expect(edits).toEqual([{ path: ":doc[3]", op: "insert", yamlover: "name: Rex" }]); // [3] past-end appends
+    expect(edits).toEqual([{ path: ":doc:3", op: "insert", yamlover: "name: Rex" }]); // [3] past-end appends
     expect(hole.committed && inner.committed).toBe(true);
     // a second inner leaf now addresses THROUGH the committed subtree
     const inner2 = insertHoleAfter(root, hole.node.id, inner.id)!;
     inner2.decided = true;
     inner2.node.kind = "scalar";
     inner2.node.scalar = { src: "42", value: 42 };
-    expect(commitSpine(":doc", root, inner2.id)).toEqual([{ path: ":doc[3][1]", op: "insert", yamlover: "42" }]);
+    expect(commitSpine(":doc", root, inner2.id)).toEqual([{ path: ":doc:3:1", op: "insert", yamlover: "42" }]);
   });
 
   it("a BARE token in an undecided hole becomes the container's SELF-VALUE (index-neutral)", () => {
@@ -172,7 +173,7 @@ describe("op emission — the absolute-index discipline", () => {
 
   it("remove: committed entries emit `remove` (key or index); holes vanish silently", () => {
     const root = buildModel(omniNode());
-    expect(removeEntry(":doc", root, root.entries[2].id)).toEqual([{ path: ":doc[2]", op: "remove" }]);
+    expect(removeEntry(":doc", root, root.entries[2].id)).toEqual([{ path: ":doc:2", op: "remove" }]);
     expect(root.entries).toHaveLength(2);
     const hole = insertHoleAfter(root, root.id, null)!;
     expect(removeEntry(":doc", root, hole.id)).toEqual([]);
@@ -182,16 +183,16 @@ describe("op emission — the absolute-index discipline", () => {
   it("meta tag: a meta-only emplace sets, null clears", () => {
     const root = buildModel(omniNode());
     expect(setMetaTag(":doc", root, root.entries[1].node.id, "format: text/x-latex"))
-      .toEqual([{ path: ":doc[1]", op: "emplace", meta: "format: text/x-latex" }]);
+      .toEqual([{ path: ":doc:1", op: "emplace", meta: "format: text/x-latex" }]);
     expect(root.entries[1].node.metaTag).toBe("format: text/x-latex");
     expect(setMetaTag(":doc", root, root.entries[1].node.id, null))
-      .toEqual([{ path: ":doc[1]", op: "emplace", meta: null }]);
+      .toEqual([{ path: ":doc:1", op: "emplace", meta: null }]);
   });
 
   it("pointer: emplaces the bare `*` token", () => {
     const root = buildModel(omniNode());
     expect(setNodeToken(":doc", root, root.entries[2].node.id, { pointer: ":pets[0]" }))
-      .toEqual([{ path: ":doc[2]", op: "emplace", yamlover: "*:pets[0]" }]);
+      .toEqual([{ path: ":doc:2", op: "emplace", yamlover: "*:pets:0" }]);
   });
 
   it("pointer: a SPACED raw keeps its display but the op goes BARE; a changed raw resets refPath and bumps rev", () => {
@@ -200,7 +201,7 @@ describe("op emission — the absolute-index discipline", () => {
     node.pointer!.refPath = ":pets[1]"; // pretend the old raw resolved
     const rev = node.rev;
     expect(setNodeToken(":doc", root, node.id, { pointer: ": pets[0]" }))
-      .toEqual([{ path: ":doc[2]", op: "emplace", yamlover: "*:pets[0]" }]);
+      .toEqual([{ path: ":doc:2", op: "emplace", yamlover: "*:pets:0" }]);
     expect(node.pointer!.raw).toBe(": pets[0]"); // the DISPLAY form survives
     expect(node.pointer!.refPath).toBeNull(); // the old ↗ would lie
     expect(node.rev).toBeGreaterThan(rev); // a popup-accepted raw must reach the DOM
@@ -212,23 +213,24 @@ describe("op emission — the absolute-index discipline", () => {
 
   it("serializeMNode emits a sidecar-SPACED pointer bare (indent/replace payloads stay op-safe)", () => {
     const n = omniNode();
-    n.comments!["[2]"] = { pointer: ": pets[1]" }; // the canonical spaced sidecar form
+    n.comments!["/2"] = { pointer: ": pets[1]" }; // the canonical spaced sidecar form
     const root = buildModel(n);
     expect(root.entries[2].node.pointer!.raw).toBe(": pets[1]");
-    expect(serializeMNode(root)).toBe('A Title\ndescription: "the blurb"\n- chunk one\n- *:pets[1]');
+    expect(serializeMNode(root)).toBe('A Title\ndescription: "the blurb"\n- chunk one\n- *:pets:1');
   });
 });
 
 describe("barePointer — commit-time pointer normalization", () => {
   it("spaced canonical → bare; every parseable spelling accepted", () => {
-    expect(barePointer(": pets[1]")).toBe(":pets[1]");
-    expect(barePointer(":pets[1]")).toBe(":pets[1]");
-    expect(barePointer("pets[1]")).toBe("pets[1]");
+    expect(barePointer(": pets[1]")).toBe(":pets:1"); // `[n]` reads as the alias, emits bare-digit
+    expect(barePointer(":pets[1]")).toBe(":pets:1");
+    expect(barePointer(": pets: 1")).toBe(":pets:1");
+    expect(barePointer("pets[1]")).toBe("pets:1");
     expect(barePointer("..: x")).toBe("..:x");
     expect(barePointer(":: proj: x")).toBe("::proj:x");
   });
   it("quoted keys keep their inner space (the commit layer then refuses the wire)", () => {
-    expect(barePointer(": 'a b'[1]")).toBe(":'a b'[1]");
+    expect(barePointer(": 'a b'[1]")).toBe(":'a b':1");
   });
   it("a slash never separates — `a/b` is the single literal key (migration window closed)", () => {
     expect(barePointer("a/b")).toBe("a/b");
@@ -250,7 +252,7 @@ describe("holderPathOfNode — a reference cell's current-scope base", () => {
     const name = rex.entries[0].node;
     expect(holderPathOfNode(":d", root, pets.id)).toBe(":d");
     expect(holderPathOfNode(":d", root, rex.id)).toBe(":d:pets");
-    expect(holderPathOfNode(":d", root, name.id)).toBe(":d:pets[0]");
+    expect(holderPathOfNode(":d", root, name.id)).toBe(":d:pets:0");
     expect(holderPathOfNode(":d", root, root.id)).toBe(":"); // the document root itself
   });
 });
@@ -267,8 +269,8 @@ describe("indent / dedent (Tab / Shift-Tab)", () => {
     const root = twoChunks();
     const edits = indentEntry(":d", root, root.entries[1].id);
     expect(edits).toEqual([
-      { path: ":d[1]", op: "remove" },
-      { path: ":d[0]", op: "emplace", yamlover: "alpha\n- beta" },
+      { path: ":d:1", op: "remove" },
+      { path: ":d:0", op: "emplace", yamlover: "alpha\n- beta" },
     ]);
     expect(root.entries).toHaveLength(1);
     expect(root.entries[0].node.selfValue?.src).toBe("alpha");
@@ -282,8 +284,8 @@ describe("indent / dedent (Tab / Shift-Tab)", () => {
     });
     const edits = indentEntry(":d", root, root.entries[1].id);
     expect(edits).toEqual([
-      { path: ":d[1]", op: "remove" },
-      { path: ":d[0]", op: "insert", yamlover: "beta" },
+      { path: ":d:1", op: "remove" },
+      { path: ":d:0", op: "insert", yamlover: "beta" },
     ]);
     expect(root.entries[0].node.entries.map((e) => e.node.scalar?.src)).toEqual(["kid", "beta"]);
   });
@@ -296,8 +298,8 @@ describe("indent / dedent (Tab / Shift-Tab)", () => {
     const yId = root.entries[0].node.entries[1].id;
     const edits = dedentEntry(":d", root, yId);
     expect(edits).toEqual([
-      { path: ":d[0][1]", op: "remove" },
-      { path: ":d[1]", op: "insert", yamlover: "y" },
+      { path: ":d:0:1", op: "remove" },
+      { path: ":d:1", op: "insert", yamlover: "y" },
     ]);
     expect(root.entries.map((e) => e.node.scalar?.src ?? "…")).toEqual(["…", "y", "tail"]);
   });
@@ -329,7 +331,7 @@ describe("indent / dedent (Tab / Shift-Tab)", () => {
     });
     const edits = indentEntry(":d", root, root.entries[1].id);
     expect(edits).toEqual([
-      { path: ":d[1]", op: "remove" },
+      { path: ":d:1", op: "remove" },
       { path: ":d:a", op: "emplace", yamlover: "1\n- beta" },
     ]);
     expect(root.entries).toHaveLength(1);
@@ -347,13 +349,13 @@ describe("indent / dedent (Tab / Shift-Tab)", () => {
     });
     expect(indentEntry(":d", root, root.entries[1].id)).toEqual([
       { path: ":d:b", op: "remove" },
-      { path: ":d[0]", op: "insert", key: "b", yamlover: "2" },
+      { path: ":d:0", op: "insert", key: "b", yamlover: "2" },
     ]);
     expect(root.entries[0].node.entries.map((e) => e.key)).toEqual([null, "b"]);
     // and back out — the exact inverse
     expect(dedentEntry(":d", root, root.entries[0].node.entries[1].id)).toEqual([
-      { path: ":d[0]:b", op: "remove" },
-      { path: ":d[1]", op: "insert", key: "b", yamlover: "2" },
+      { path: ":d:0:b", op: "remove" },
+      { path: ":d:1", op: "insert", key: "b", yamlover: "2" },
     ]);
     expect(root.entries.map((e) => e.key)).toEqual([null, "b"]);
   });
@@ -383,8 +385,8 @@ describe("indent / dedent (Tab / Shift-Tab)", () => {
     const hole = insertHoleAfter(root, root.id, root.entries[0].id)!; // between alpha and beta
     const edits = indentEntry(":d", root, root.entries[2].id); // beta under the hole
     expect(edits).toEqual([
-      { path: ":d[1]", op: "remove" },
-      { path: ":d[1]", op: "insert", yamlover: "- beta" },
+      { path: ":d:1", op: "remove" },
+      { path: ":d:1", op: "insert", yamlover: "- beta" },
     ]);
     expect(hole.decided && hole.committed).toBe(true);
     expect(hole.node.entries[0].node.scalar?.src).toBe("beta");
@@ -394,21 +396,21 @@ describe("indent / dedent (Tab / Shift-Tab)", () => {
 describe("serializeMNode", () => {
   it("emits self-value at selfAt, keyed/ordinal markers, tags, and nested indent", () => {
     const root = buildModel(omniNode());
-    expect(serializeMNode(root)).toBe('A Title\ndescription: "the blurb"\n- chunk one\n- *:pets[1]');
+    expect(serializeMNode(root)).toBe('A Title\ndescription: "the blurb"\n- chunk one\n- *:pets:1');
   });
 });
 
 describe("op queue coalescing", () => {
   it("adjacent same-path value emplaces keep the last; structural ops break the chain", () => {
     const q: OpQueue = { pending: [] };
-    enqueue(q, [{ path: ":d[1]", op: "emplace", yamlover: "a" }]);
-    enqueue(q, [{ path: ":d[1]", op: "emplace", yamlover: "ab" }]);
-    expect(q.pending).toEqual([{ path: ":d[1]", op: "emplace", yamlover: "ab" }]);
+    enqueue(q, [{ path: ":d:1", op: "emplace", yamlover: "a" }]);
+    enqueue(q, [{ path: ":d:1", op: "emplace", yamlover: "ab" }]);
+    expect(q.pending).toEqual([{ path: ":d:1", op: "emplace", yamlover: "ab" }]);
     enqueue(q, [{ path: ":d[2]", op: "remove" }]);
-    enqueue(q, [{ path: ":d[1]", op: "emplace", yamlover: "abc" }]);
+    enqueue(q, [{ path: ":d:1", op: "emplace", yamlover: "abc" }]);
     expect(q.pending).toHaveLength(3);
     // meta emplaces never fold into value emplaces
-    enqueue(q, [{ path: ":d[1]", op: "emplace", meta: "t" }]);
+    enqueue(q, [{ path: ":d:1", op: "emplace", meta: "t" }]);
     expect(q.pending).toHaveLength(4);
   });
 });

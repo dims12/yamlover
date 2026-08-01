@@ -48,11 +48,11 @@ describe("entering the editor", () => {
     expect((fx[1] as any).query).toBe(": team: alice");
   });
 
-  it("FOCUS_CELL with an index edits that cell; numeric segments fold (`pets[0]`)", () => {
-    const [s] = run([{ type: "FOCUS_CELL", index: 0 }], ":pets[0]:name");
+  it("FOCUS_CELL with an index edits that cell; a position is its own bare-digit cell", () => {
+    const [s] = run([{ type: "FOCUS_CELL", index: 0 }], ":pets:0:name");
     if (s.mode !== "editing") throw new Error("not editing");
-    expect(s.portions).toEqual(["pets[0]", "name"]);
-    expect(s.activeText).toBe("pets[0]");
+    expect(s.portions).toEqual(["pets", "0", "name"]);
+    expect(s.activeText).toBe("pets");
   });
 
   it("programmatic FOCUS_CELL (caret given) also emits focusCell", () => {

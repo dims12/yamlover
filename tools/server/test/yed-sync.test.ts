@@ -21,19 +21,19 @@ describe("diffToOps — targeted, order-safe, concrete-blind", () => {
 
   it("a new KEYED entry is one insert with `key` at its absolute row", () => {
     const d = diff("a: 1\n", "a: 1\nz: 9\n");
-    expect(d.ops).toEqual([{ path: ":doc[1]", op: "insert", yamlover: "9", key: "z" }]);
+    expect(d.ops).toEqual([{ path: ":doc:1", op: "insert", yamlover: "9", key: "z" }]);
   });
 
   it("a keyless MIDDLE insert is ONE insert (head/tail trim), not a rewrite", () => {
     const d = diff("- one\n- three\n", "- one\n- two\n- three\n");
-    expect(d.ops).toEqual([{ path: ":doc[1]", op: "insert", yamlover: "two" }]);
+    expect(d.ops).toEqual([{ path: ":doc:1", op: "insert", yamlover: "two" }]);
   });
 
   it("multiple removals go LAST-FIRST so earlier addresses stay valid", () => {
     const d = diff("- a\n- b\n- c\n- d\n", "- a\n- d\n");
     expect(d.ops).toEqual([
-      { path: ":doc[2]", op: "remove" },
-      { path: ":doc[1]", op: "remove" },
+      { path: ":doc:2", op: "remove" },
+      { path: ":doc:1", op: "remove" },
     ]);
   });
 
@@ -45,7 +45,7 @@ describe("diffToOps — targeted, order-safe, concrete-blind", () => {
 
   it("an INSERTED SUBTREE rides one insert with its serialized body", () => {
     const d = diff("a: 1\n", "a: 1\nkids:\n  - x\n  - y\n");
-    expect(d.ops).toEqual([{ path: ":doc[1]", op: "insert", yamlover: "- x\n- y", key: "kids" }]);
+    expect(d.ops).toEqual([{ path: ":doc:1", op: "insert", yamlover: "- x\n- y", key: "kids" }]);
   });
 
   it("a change INSIDE a flow token is ONE whole-token emplace at the token", () => {
@@ -113,7 +113,7 @@ describe("diffToOps — tags and kind conversions (the chapter projection's verb
     const d = diff("a: !!<*yamlover: $defs: bullets>\n  - x\n", "a: !!<*yamlover: $defs: numbered>\n  - y\n");
     expect(d.ops).toEqual([
       { path: ":doc:a", op: "emplace", meta: "*yamlover: $defs: numbered" },
-      { path: ":doc:a[0]", op: "emplace", yamlover: "y" },
+      { path: ":doc:a:0", op: "emplace", yamlover: "y" },
     ]);
   });
 
@@ -135,14 +135,14 @@ describe("diffToOps — tags and kind conversions (the chapter projection's verb
 
   it("an INSERTED subtree carries its inner tags inline in the payload", () => {
     const d = diff("a: 1\n", "a: 1\nkids: !!<*yamlover: $defs: bullets>\n  - x\n");
-    expect(d.ops).toEqual([{ path: ":doc[1]", op: "insert", yamlover: "!!<*yamlover: $defs: bullets>\n- x", key: "kids" }]);
+    expect(d.ops).toEqual([{ path: ":doc:1", op: "insert", yamlover: "!!<*yamlover: $defs: bullets>\n- x", key: "kids" }]);
   });
 
   it("a LEAF growing entries (scalar → omni) re-emplaces the WHOLE omni — never a descent into a scalar", () => {
     // the freshly wrapped title's first body commit in a FILE-concrete chapter (the legacy
     // commitSpine omniPending rule): the server holds a scalar entry at [1]
     const d = diff("- a\n- fresh\n", "- a\n- fresh\n  - ''\n");
-    expect(d.ops).toEqual([{ path: ":doc[1]", op: "emplace", yamlover: "fresh\n- ''" }]);
+    expect(d.ops).toEqual([{ path: ":doc:1", op: "emplace", yamlover: "fresh\n- ''" }]);
   });
 
   it("a STAMPED (tagless) format's drop still emits the meta-null emplace", () => {

@@ -1,5 +1,6 @@
 import { ReactNode, useState, Fragment } from "react";
 import { fragmentOf, isAncestorPath } from "./paths";
+import { segToken } from "../../../parser/ts/src/pathseg.ts";
 import type { CommentBucket, CommentMap } from "./api";
 import { isJsonFamily } from "../concrete";
 import { ScalarLeaf } from "./renderers/value-editors";
@@ -57,10 +58,12 @@ export interface Mixed {
   selfAt?: number; // omni: the self-value's authored display position among `entries` (0/absent → first)
   format?: string | null; // the node's stamped/derived format — a renderer's branch point (a chapter CELL vs a nested table)
   yo?: boolean; // `!!yo` — plain yamlover, exempt from the enclosing schema (chapter routing)
-  // key=null ⇒ positional item, else keyed field. `anchor` ⇒ a POSITIONAL member whose key is a
+  // key=null ⇒ positional item, else keyed field. `keyNull` ⇒ the NULL KEY (YAML's rule): key is
+  // null but the entry is KEYED — rendered `~: value`, addressed by the `~` path segment.
+  // `anchor` ⇒ a POSITIONAL member whose key is a
   // DERIVED storage anchor (a dir-backed pointer-array body consumed the `*key` pointer): rendered
   // `- &key value`, the anchor dimmed (`.anchor.derived`) — a view spelling, not authored source.
-  entries: { key: string | null; value: unknown; anchor?: boolean }[];
+  entries: { key: string | null; keyNull?: boolean; value: unknown; anchor?: boolean }[];
 }
 
 interface BinaryPayload {
@@ -128,15 +131,28 @@ interface Ctx {
 }
 
 /** The absolute (canonical colon-form) path of a child node — its parent `path` plus one segment,
- *  spelled exactly as {@link segsToStr} would (`:`+`encodeURIComponent(key)` for a key, `[i]` for an
- *  index). Threaded PARALLEL to `frag` (rather than derived from it) because `frag` is slash-joined
+ *  spelled exactly as {@link segsToStr} would (`:` + the segment's percent-encoded canonical token —
+ *  bare digits for a position, `~` for the null key). Threaded PARALLEL to `frag` (rather than
+ *  derived from it) because `frag` is slash-joined
  *  DECODED keys — a key containing `/` is ambiguous there, fine for a scroll anchor but unsafe for a
  *  write. `null` propagates: a leaf with no addressable path (a JSON-flattened omni/mix entry) stays
  *  read-only. */
-function childPath(path: string | null, seg: string | number): string | null {
+function childPath(path: string | null, seg: string | number | null): string | null {
   if (path === null) return null;
   const base = path === ":" ? "" : path;
-  return base + (typeof seg === "number" ? `[${seg}]` : `:${encodeURIComponent(seg)}`);
+  return base + ":" + encodeURIComponent(segToken(seg));
+}
+
+/** A child's fragment continuation: `frag` + `/` + the segment's canonical token — mirroring
+ *  paths.ts `fragmentOf`, so an in-page anchor id and a computed continuation always agree
+ *  (`/0` for a position, `/~` for the null key). */
+function childFrag(frag: string, seg: string | number | null): string {
+  return `${frag}/${segToken(seg)}`;
+}
+
+/** The path/frag segment an omni-mix entry answers to: its key, the NULL key, or its position. */
+function entrySeg(e: { key: string | null; keyNull?: boolean }, i: number): string | number | null {
+  return e.keyNull === true ? null : e.key !== null ? e.key : i;
 }
 
 /** The leading/trailing comment bucket for the node at `frag` (its key relative to the rendered
@@ -579,17 +595,17 @@ function flowOrKr(v: unknown, ctx: Ctx, frag: string, path: string | null, inden
 function krBlock(value: unknown, ctx: Ctx, frag: string, path: string | null, indent: number): ReactNode | null {
   const mixed = asMixed(value);
   if (mixed?.kind === "omni") return null; // a self-value needs its own line — json5p has no `!!var`
-  const entries: { key: string | null; value: unknown }[] = mixed
-    ? mixed.entries.map((e) => ({ key: e.key, value: e.value }))
+  const entries: { key: string | null; keyNull?: boolean; value: unknown }[] = mixed
+    ? mixed.entries.map((e) => ({ key: e.key, keyNull: e.keyNull, value: e.value }))
     : isObj(value)
       ? Object.entries(value).map(([k, v]) => ({ key: k, value: v }))
       : Array.isArray(value)
         ? value.map((v) => ({ key: null, value: v }))
         : [];
-  const seq = entries.length > 0 && entries.every((e) => e.key === null);
+  const seq = entries.length > 0 && entries.every((e) => e.key === null && e.keyNull !== true);
   const cells = entries.map((e, i): ReactNode | null => {
-    const cf = e.key !== null ? `${frag}/${e.key}` : `${frag}[${i}]`;
-    const cp = childPath(path, e.key !== null ? e.key : i);
+    const cf = childFrag(frag, entrySeg(e, i));
+    const cp = childPath(path, entrySeg(e, i));
     const link = asLink(e.value);
     if (link) return linkNode(link, "yaml", ctx);
     const ref = asRef(e.value);
@@ -608,7 +624,7 @@ function krBlock(value: unknown, ctx: Ctx, frag: string, path: string | null, in
       {entries.map((e, i) => (
         <Fragment key={i}>
           {inner}
-          {e.key !== null && <><span className="k">{e.key}</span><span className="punct">{": "}</span></>}
+          {(e.key !== null || e.keyNull === true) && <><span className="k">{e.keyNull === true ? "~" : e.key}</span><span className="punct">{": "}</span></>}
           {cells[i]}
           {i < entries.length - 1 && <span className="punct">{","}</span>}
           {"\n"}
@@ -626,18 +642,18 @@ function krBlock(value: unknown, ctx: Ctx, frag: string, path: string | null, in
  *  serializer applies, so the screen never claims a shape the file cannot carry. */
 function flowLine(value: unknown, ctx: Ctx, frag: string, path: string | null): ReactNode | null {
   const mixed = asMixed(value);
-  const entries: { key: string | null; value: unknown }[] = mixed
-    ? (mixed.kind === "omni" ? [] : mixed.entries.map((e) => ({ key: e.key, value: e.value })))
+  const entries: { key: string | null; keyNull?: boolean; value: unknown }[] = mixed
+    ? (mixed.kind === "omni" ? [] : mixed.entries.map((e) => ({ key: e.key, keyNull: e.keyNull, value: e.value })))
     : isObj(value)
       ? Object.entries(value).map(([k, v]) => ({ key: k, value: v }))
       : Array.isArray(value)
         ? value.map((v) => ({ key: null, value: v }))
         : [];
   if (mixed?.kind === "omni") return null; // a self-value needs its own line
-  const seq = entries.length > 0 && entries.every((e) => e.key === null);
-  const cell = (e: { key: string | null; value: unknown }, i: number): ReactNode | null => {
-    const cf = e.key !== null ? `${frag}/${e.key}` : `${frag}[${i}]`;
-    const cp = childPath(path, e.key !== null ? e.key : i);
+  const seq = entries.length > 0 && entries.every((e) => e.key === null && e.keyNull !== true);
+  const cell = (e: { key: string | null; keyNull?: boolean; value: unknown }, i: number): ReactNode | null => {
+    const cf = childFrag(frag, entrySeg(e, i));
+    const cp = childPath(path, entrySeg(e, i));
     const link = asLink(e.value);
     if (link) return linkNode(link, "yaml", ctx);
     const ref = asRef(e.value);
@@ -657,7 +673,7 @@ function flowLine(value: unknown, ctx: Ctx, frag: string, path: string | null): 
       {entries.map((e, i) => (
         <Fragment key={i}>
           {i > 0 && <span className="punct">{", "}</span>}
-          {e.key !== null && <><span className="k">{e.key}</span><span className="punct">{": "}</span></>}
+          {(e.key !== null || e.keyNull === true) && <><span className="k">{e.keyNull === true ? "~" : e.key}</span><span className="punct">{": "}</span></>}
           {cells[i]}
         </Fragment>
       ))}
@@ -679,12 +695,12 @@ function YamlBody({ value, indent, ctx, frag, path, inlineHead = false }: { valu
 
 function YamlObject({ entries, indent, ctx, frag, path, inlineHead = false }: { entries: [string, unknown][]; indent: number; ctx: Ctx; frag: string; path: string | null; inlineHead?: boolean }): ReactNode {
   const pad = " ".repeat(indent);
-  return <>{entries.map(([k, v], i) => <YamlEntry key={i} k={k} v={v} pad={pad} indent={indent} ctx={ctx} frag={`${frag}/${k}`} path={childPath(path, k)} noPad={inlineHead && i === 0} />)}</>;
+  return <>{entries.map(([k, v], i) => <YamlEntry key={i} k={k} v={v} pad={pad} indent={indent} ctx={ctx} frag={childFrag(frag, k)} path={childPath(path, k)} noPad={inlineHead && i === 0} />)}</>;
 }
 
 function YamlArray({ items, indent, ctx, frag, path, inlineHead = false }: { items: unknown[]; indent: number; ctx: Ctx; frag: string; path: string | null; inlineHead?: boolean }): ReactNode {
   const pad = " ".repeat(indent);
-  return <>{items.map((item, i) => <YamlItem key={i} v={item} pad={pad} indent={indent} ctx={ctx} frag={`${frag}[${i}]`} path={childPath(path, i)} noPad={inlineHead && i === 0} />)}</>;
+  return <>{items.map((item, i) => <YamlItem key={i} v={item} pad={pad} indent={indent} ctx={ctx} frag={childFrag(frag, i)} path={childPath(path, i)} noPad={inlineHead && i === 0} />)}</>;
 }
 
 /** Whether an array item's container value can render in COMPACT YAML block style — its first
@@ -746,14 +762,18 @@ function YamlMixed({ mixed, indent, ctx, frag, path, inlineHead = false }: { mix
         return (
           <Fragment key={i}>
             {i === selfAt && selfValue}
-            {e.key === null ? (
-              <YamlItem v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}[${i}]`} path={childPath(path, i)} noPad={noPad} />
+            {e.keyNull === true ? (
+              // the NULL KEY (YAML's rule): a KEYED entry whose key is the null value — rendered
+              // `~: value`, addressed by the `~` path segment
+              <YamlEntry k="~" v={e.value} pad={pad} indent={indent} ctx={ctx} frag={childFrag(frag, null)} path={childPath(path, null)} noPad={noPad} />
+            ) : e.key === null ? (
+              <YamlItem v={e.value} pad={pad} indent={indent} ctx={ctx} frag={childFrag(frag, i)} path={childPath(path, i)} noPad={noPad} />
             ) : e.anchor ? (
               // a positional member with a derived storage anchor: a `- &key value` row — but the
-              // frag/path stay KEYED (fragments, comment buckets and edits address `:key`, not [i])
-              <YamlItem v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}/${e.key}`} path={childPath(path, e.key)} noPad={noPad} anchorName={e.key} />
+              // frag/path stay KEYED (fragments, comment buckets and edits address `:key`, not the position)
+              <YamlItem v={e.value} pad={pad} indent={indent} ctx={ctx} frag={childFrag(frag, e.key)} path={childPath(path, e.key)} noPad={noPad} anchorName={e.key} />
             ) : (
-              <YamlEntry k={e.key} v={e.value} pad={pad} indent={indent} ctx={ctx} frag={`${frag}/${e.key}`} path={childPath(path, e.key)} noPad={noPad} />
+              <YamlEntry k={e.key} v={e.value} pad={pad} indent={indent} ctx={ctx} frag={childFrag(frag, e.key)} path={childPath(path, e.key)} noPad={noPad} />
             )}
           </Fragment>
         );
@@ -929,7 +949,7 @@ function jsonObjEntries(value: unknown): [string, unknown][] | null {
   if (mixed)
     return [
       ...(mixed.kind === "omni" ? ([["$value", mixed.value]] as [string, unknown][]) : []),
-      ...mixed.entries.map((e, i): [string, unknown] => [e.key ?? String(i), e.value]),
+      ...mixed.entries.map((e, i): [string, unknown] => [e.keyNull === true ? "~" : e.key ?? String(i), e.value]),
     ];
   return isObj(value) ? Object.entries(value) : null;
 }
@@ -954,7 +974,7 @@ function JsonObject({ entries, indent, ctx, frag, path }: { entries: [string, un
       <span className="punct">{"{"}</span>
       {"\n"}
       {entries.map(([k, v], i) => (
-        <JsonEntry key={i} k={k} v={v} pad={pad} indent={indent + 2} ctx={ctx} frag={`${frag}/${k}`} path={childPath(path, k)} last={i === entries.length - 1} />
+        <JsonEntry key={i} k={k} v={v} pad={pad} indent={indent + 2} ctx={ctx} frag={childFrag(frag, k)} path={childPath(path, k)} last={i === entries.length - 1} />
       ))}
       {" ".repeat(indent)}
       <span className="punct">{"}"}</span>
@@ -969,7 +989,7 @@ function JsonArray({ items, indent, ctx, frag, path }: { items: unknown[]; inden
       <span className="punct">{"["}</span>
       {"\n"}
       {items.map((item, i) => (
-        <JsonItem key={i} v={item} pad={pad} indent={indent + 2} ctx={ctx} frag={`${frag}[${i}]`} path={childPath(path, i)} last={i === items.length - 1} />
+        <JsonItem key={i} v={item} pad={pad} indent={indent + 2} ctx={ctx} frag={childFrag(frag, i)} path={childPath(path, i)} last={i === items.length - 1} />
       ))}
       {" ".repeat(indent)}
       <span className="punct">{"]"}</span>

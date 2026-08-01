@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { segsToStr, strToSegs } from "./paths";
+import { Seg, segsToStr, strToSegs } from "./paths";
 
 /**
  * The shared **link** concept: one place that decides what a link *target* means
@@ -44,11 +44,17 @@ function joinDoc(documentPath: string, rel: string): string {
   return segsToStr([...strToSegs(documentPath), ...strToSegs(rel)]);
 }
 
-/** Tokenize a LEGACY slash-spelled link target (`/a/b[0]`) into segments. */
-function slashSegs(str: string): (string | number)[] {
-  const out: (string | number)[] = [];
+/** Tokenize a slash-spelled link target (`/a/b/0`, legacy `/a/b[0]`) into segments — the
+ *  bare-token typing rule (bare digits = position, `~` = the null key, quotes = string key),
+ *  with the retired `[n]` read forever as an alias. */
+function slashSegs(str: string): Seg[] {
+  const out: Seg[] = [];
   for (const tok of str.match(/\[\d+\]|[^/\[\]]+/g) || []) {
-    out.push(/^\[\d+\]$/.test(tok) ? Number(tok.slice(1, -1)) : tok);
+    if (/^\[\d+\]$/.test(tok)) { out.push(Number(tok.slice(1, -1))); continue; }
+    if (tok === "~") { out.push(null); continue; }
+    if (/^\d+$/.test(tok)) { out.push(Number(tok)); continue; }
+    if (tok.length >= 2 && tok[0] === "'" && tok[tok.length - 1] === "'") { out.push(tok.slice(1, -1).replace(/''/g, "'")); continue; }
+    out.push(tok);
   }
   return out;
 }

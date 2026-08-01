@@ -65,13 +65,13 @@ export function uplinkItems(relations?: Record<string, unknown>): ExplorerItem[]
  *  a non-link value is kept defensively as an inert label. */
 export function memberItems(node: NodeJson): ExplorerItem[] {
   const v = node.value;
-  if (Array.isArray(v)) return v.map((item, i) => ({ key: `[${i}]`, link: asLink(item), raw: item }));
+  if (Array.isArray(v)) return v.map((item, i) => ({ key: String(i), link: asLink(item), raw: item }));
   if (!v || typeof v !== "object") return [];
   const mixed = (v as Record<string, unknown>)[MIXED_KEY] as
-    | { entries?: { key: string | null; value: unknown }[] }
+    | { entries?: { key: string | null; keyNull?: boolean; value: unknown }[] }
     | undefined;
   if (Object.keys(v).length === 1 && mixed?.entries) {
-    return mixed.entries.map((e, i) => ({ key: e.key ?? `[${i}]`, link: asLink(e.value), raw: e.value }));
+    return mixed.entries.map((e, i) => ({ key: e.keyNull === true ? "~" : e.key ?? String(i), link: asLink(e.value), raw: e.value }));
   }
   return Object.entries(v as Record<string, unknown>).map(([key, val]) => ({ key, link: asLink(val), raw: val }));
 }

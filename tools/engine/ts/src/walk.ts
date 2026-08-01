@@ -23,6 +23,7 @@ import { parseYamlover } from '../../../parser/ts/src/yamlover.ts';
 import { parseJson5p } from '../../../parser/ts/src/json5p.ts';
 import { Store } from './store.ts';
 import type { FileRecord } from './store.ts';
+import { pathOfSegs } from '../../../parser/ts/src/pathseg.ts';
 import { graftTaxonomy, YAMLOVER_AUTHORITY } from './mounts.ts';
 
 // xxh64 (xxhash-wasm) is the content/manifest hash: identity, not security — chosen for SPEED
@@ -494,7 +495,7 @@ export async function reindexPathAsync(
   applySchemas(cachedDoc.root, findDefsRoot(absDir), graftDefs(cachedDoc.root)); // re-derive formats top-down
 
   const relPrefix = dirSegs.join('/') + '/';
-  const P = ':' + dirSegs.join(':');
+  const P = pathOfSegs(dirSegs); // canonical store-path tokens (a spacey dir name rides quoted)
   const prevSub = new Map([...prev].filter(([k]) => k.startsWith(relPrefix)));
   const files = [...ctx.files.values()];
   const diff = diffManifest(prevSub, files);

@@ -116,8 +116,8 @@ describe("pasteEntriesAt — sibling splice with per-entry inserts", () => {
     const model = buildModel(omniNode());
     const edits = pasteEntriesAt(":doc", model, model.id, 1, root("- pasted one\nowner: alice"));
     expect(edits).toEqual([
-      { path: ":doc[1]", op: "insert", yamlover: "pasted one" },
-      { path: ":doc[2]", op: "insert", key: "owner", yamlover: "alice" },
+      { path: ":doc:1", op: "insert", yamlover: "pasted one" },
+      { path: ":doc:2", op: "insert", key: "owner", yamlover: "alice" },
     ]);
     expect(model.entries.map((e) => e.key)).toEqual(["description", null, "owner", null]);
     expect(model.entries[1].committed && model.entries[2].committed).toBe(true);
@@ -129,7 +129,7 @@ describe("pasteEntriesAt — sibling splice with per-entry inserts", () => {
     holder.decided = true;
     holder.node.kind = "container";
     const edits = pasteEntriesAt(":doc", model, holder.node.id, 0, root("a: 1\nb: 2"));
-    expect(edits).toEqual([{ path: ":doc[2]", op: "insert", yamlover: "a: 1\nb: 2" }]);
+    expect(edits).toEqual([{ path: ":doc:2", op: "insert", yamlover: "a: 1\nb: 2" }]);
     expect(holder.committed).toBe(true); // the subtree went out whole; the second commit was a no-op
   });
 
@@ -137,7 +137,7 @@ describe("pasteEntriesAt — sibling splice with per-entry inserts", () => {
     const plain = buildModel({ path: ":d", type: "array", concrete: null, title: null, description: null, value: ["x"] });
     const edits = pasteEntriesAt(":d", plain, plain.id, 1, root("Pasted Self\n- tail"));
     expect(edits).toEqual([
-      { path: ":d[1]", op: "insert", yamlover: "tail" },
+      { path: ":d:1", op: "insert", yamlover: "tail" },
       { path: ":d", op: "emplace", yamlover: "Pasted Self", at: 1 },
     ]);
     expect(plain.selfValue?.src).toBe("Pasted Self");
@@ -167,7 +167,7 @@ describe("pasteValueAt — a decided value hole takes the parsed root", () => {
   it("uncommitted entry → the standard keyed subtree insert", () => {
     const { model, hole } = keyedHole(false);
     const edits = pasteValueAt(":doc", model, hole.id, root("- name: Rex\n- name: Tom"));
-    expect(edits).toEqual([{ path: ":doc[2]", op: "insert", key: "pets", yamlover: "- name: Rex\n- name: Tom" }]);
+    expect(edits).toEqual([{ path: ":doc:2", op: "insert", key: "pets", yamlover: "- name: Rex\n- name: Tom" }]);
     expect(hole.node.kind).toBe("container");
   });
 
@@ -188,8 +188,8 @@ describe("pasteRootDocument — the EMPTY document takes the ops typing would pr
     const model = emptyDoc();
     const edits = pasteRootDocument(":n", model, parseYamlover(text, "<paste>"));
     expect(edits).toEqual([
-      { path: ":n[0]", op: "insert", key: "boss", yamlover: "name: Rex" }, // no `&`, no comment
-      { path: ":n[1]", op: "insert", key: "team", yamlover: "*:boss" },
+      { path: ":n:0", op: "insert", key: "boss", yamlover: "name: Rex" }, // no `&`, no comment
+      { path: ":n:1", op: "insert", key: "team", yamlover: "*:boss" },
     ]);
     expect(model.entries.map((e) => e.key)).toEqual(["boss", "team"]);
     expect(model.entries.every((e) => e.committed)).toBe(true);
@@ -199,7 +199,7 @@ describe("pasteRootDocument — the EMPTY document takes the ops typing would pr
     const text = "pets:\n  - name: Rex\n    species: dog\n  - name: Whiskers\n    species: cat";
     const edits = pasteRootDocument(":n", emptyDoc(), parseYamlover(text, "<paste>"));
     expect(edits).toEqual([
-      { path: ":n[0]", op: "insert", key: "pets", yamlover: "- name: Rex\n  species: dog\n- name: Whiskers\n  species: cat" },
+      { path: ":n:0", op: "insert", key: "pets", yamlover: "- name: Rex\n  species: dog\n- name: Whiskers\n  species: cat" },
     ]);
   });
 
@@ -208,7 +208,7 @@ describe("pasteRootDocument — the EMPTY document takes the ops typing would pr
     const model = emptyDoc();
     const edits = pasteRootDocument(":n", model, parseYamlover(text, "<paste>"));
     expect(edits).toEqual([
-      { path: ":n[0]", op: "insert", key: "k", yamlover: "v" },
+      { path: ":n:0", op: "insert", key: "k", yamlover: "v" },
       { path: ":n", op: "emplace", yamlover: "A Title" },
     ]);
     expect(model.selfValue?.src).toBe("A Title");
@@ -220,7 +220,7 @@ describe("pasteRootDocument — the EMPTY document takes the ops typing would pr
     const edits = pasteRootDocument(":n", legacy, parseYamlover("k: v", "<paste>"));
     expect(edits).toEqual([
       { path: ":n", op: "emplace", yamlover: '""' }, // the `""` line LEAVES before entries land
-      { path: ":n[0]", op: "insert", key: "k", yamlover: "v" },
+      { path: ":n:0", op: "insert", key: "k", yamlover: "v" },
     ]);
     expect(legacy.kind).toBe("container");
     const real = buildModel({ path: ":n", type: "string", concrete: "file/yamlover", title: null, description: null, value: "content" });

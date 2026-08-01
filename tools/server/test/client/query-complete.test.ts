@@ -15,8 +15,8 @@ describe("quoteKey", () => {
     expect(quoteKey("31")).toBe("'31'");
     expect(quoteKey("?")).toBe("'?'"); // bare matcher
     expect(quoteKey("with space")).toBe("'with space'");
-    expect(quoteKey("a:b")).toBe("'a:b'");
-    expect(quoteKey("it's")).toBe("'it''s'");
+    expect(quoteKey("a:b")).toBe("a\\:b"); // keyPortion escapes metachars in place
+    expect(quoteKey("it's")).toBe("it's"); // a mid-key apostrophe rides bare
     expect(quoteKey("me..")).toBe("'me..'"); // would read as an up-key
   });
 });
@@ -41,15 +41,16 @@ describe("splitQueryPortions / portionsFromPath / joinPortions", () => {
     expect(splitQueryPortions("a: 'unclosed: x")).toEqual(["a", "'unclosed: x"]);
   });
 
-  it("portionsFromPath folds numeric segments into the preceding cell", () => {
-    expect(portionsFromPath(":pets[0]:name")).toEqual(["pets[0]", "name"]);
+  it("portionsFromPath gives a position its own bare-digit cell", () => {
+    expect(portionsFromPath(":pets:0:name")).toEqual(["pets", "0", "name"]);
+    expect(portionsFromPath(":pets[0]:name")).toEqual(["pets", "0", "name"]); // `[n]` reads as the alias
     expect(portionsFromPath(":")).toEqual([]);
     expect(portionsFromPath(":a:b")).toEqual(["a", "b"]);
-    expect(portionsFromPath("[0]:x")).toEqual(["[0]", "x"]); // leading ordinal: its own cell
+    expect(portionsFromPath(":0:x")).toEqual(["0", "x"]); // leading ordinal: its own cell
   });
 
   it("portionsFromPath quotes keys that would misparse; joinPortions round-trips", () => {
-    expect(portionsFromPath(":true:31")).toEqual(["'true'", "'31'"]);
+    expect(portionsFromPath(":true:'31'")).toEqual(["'true'", "'31'"]); // a numeric STRING key rides quoted
     expect(joinPortions(["pets[0]", "name"])).toBe(": pets[0]: name");
     expect(joinPortions([])).toBe(":");
     expect(joinPortions(["a", "", "b"])).toBe(": a: b"); // empty append cell skipped
@@ -94,7 +95,7 @@ describe("treeCandidateProvider", () => {
     const cands = await p(": team", "");
     expect(queryTree).toHaveBeenCalledWith(": team: ?", ":");
     const keys = cands.filter((c) => c.kind === "key");
-    expect(keys.map((k) => k.insert)).toEqual(["alice", "[0]", "'has space'"]);
+    expect(keys.map((k) => k.insert)).toEqual(["alice", "0", "'has space'"]); // `0`, not `[0]`
     expect(keys[0].kind === "key" && keys[0].node.label).toBe("alice"); // whole TreeNode kept (icons)
   });
 

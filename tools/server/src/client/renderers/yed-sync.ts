@@ -22,6 +22,7 @@
 import type { Edit } from "../api";
 import { isFlow, isSpread, sourceOf, type Document, type Entry, type Node, type Value } from "../../../../yed/src/state";
 import { isPointer } from "../../../../parser/ts/src/ir.ts";
+import { segToken } from "../../../../parser/ts/src/pathseg.ts";
 import { schemaText } from "../../../../parser/ts/src/serialize-yamlover.ts";
 
 export interface DiffResult {
@@ -36,7 +37,7 @@ export interface DiffResult {
 
 const appendSeg = (path: string, seg: string | number): string => {
   const base = path === ":" ? "" : path;
-  return typeof seg === "number" ? `${base}[${seg}]` : `${base}:${encodeURIComponent(seg)}`;
+  return `${base}:${encodeURIComponent(segToken(seg))}`; // bare-digit positions (YAML-keys round)
 };
 
 const isNode = (v: Value): v is Node => !isPointer(v);

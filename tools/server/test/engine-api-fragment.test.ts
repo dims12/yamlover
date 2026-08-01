@@ -59,7 +59,7 @@ describe("chunk text fragments (ANNOTATIONS.md §3)", () => {
     const list = call(h, "/api/annotations", { path: ":doc.yo" }).json as any[];
     const cf = list.find((a) => a.fragmentSlug === slug);
     expect(cf).toBeTruthy();
-    expect(cf.node).toBe(":doc.yo[1]");
+    expect(cf.node).toBe(":doc.yo:1");
     expect(cf.selector).toMatchObject({ type: "text", exact: "word" });
     expect(cf.tag.name).toBe("yellow");
     h.close();

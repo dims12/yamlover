@@ -95,14 +95,15 @@ export function childPath(path: string, seg: string | number): string {
 }
 
 /** A body element's RENDER SLOT — where it sits on the PAGE, as an index chain from the page root
- *  (`""` at the root, `"[3]"` for its 4th entry, `"[3][1]"` for that subchapter's 2nd entry). A page
+ *  (`""` at the root, `"/3"` for its 4th entry, `"/3/1"` for that subchapter's 2nd entry — the same
+ *  slash-continuation shape `fragmentOf` emits, so both anchor namespaces read alike). A page
  *  that inlines subchapters needs this because an inlined element's identity on the page is its
  *  render position, which is not always a path continuation of the page root (a `*`-pointer
  *  subchapter's node lives elsewhere in the tree). */
-export const childSlot = (slot: string, absIndex: number): string => `${slot}[${absIndex}]`;
+export const childSlot = (slot: string, absIndex: number): string => `${slot}/${absIndex}`;
 
 /** The in-page anchor id for a chapter element: its PATH continuation from the page root — matching
- *  today's `fragmentOf(basePath, chunk.path)` exactly, so existing `#[1]` deep links keep working —
+ *  `fragmentOf(basePath, chunk.path)` exactly, so a `#/1` deep link lands on the element —
  *  falling back to its RENDER SLOT when the element's node lives OUTSIDE the page's own subtree.
  *  That fallback is load-bearing once subchapters inline: `fragmentOf` is a blind prefix-length
  *  slice, so `fragmentOf(":a:b", ":dogs")` silently returns `""` (every such element would collide
@@ -118,7 +119,7 @@ export function anchorOf(base: string, nodePath: string | null | undefined, slot
 export function chapterBodyEntries(value: unknown): { value: unknown; absIndex: number }[] {
   if (Array.isArray(value)) return value.map((v, i) => ({ value: v, absIndex: i }));
   const mixed = (value as Record<string, unknown> | null | undefined)?.[MIXED_KEY] as
-    | { entries?: { key: string | null; anchor?: boolean; value: unknown }[] }
+    | { entries?: { key: string | null; keyNull?: boolean; anchor?: boolean; value: unknown }[] }
     | undefined;
   if (!mixed?.entries) return [];
   return mixed.entries.map((e, i) => ({ e, i })).filter(({ e }) => isBodyEntry(e)).map(({ e, i }) => ({ value: e.value, absIndex: i }));
@@ -153,12 +154,15 @@ export interface FlowItem {
  *  Per CHAPTER.md these "are not body, so a scalar carrying only those stays a chunk". */
 const isOverlayKey = (k: string | null): boolean => k === "yamlover-annotations" || k === "yamlover-fragments";
 
-/** A POSITIONAL body element. `key == null` is an inline `- item`; `anchor: true` is a member the
+/** A POSITIONAL body element. `key == null` is an inline `- item` — unless `keyNull` says it is
+ *  the NULL-KEYED entry (a keyed field like any other, skipped from the body); `anchor: true` is a
+ *  member the
  *  BODY positioned by pointer (`- *file` consumed — a dir subchapter, a pointer chunk): its key is
  *  derived storage provenance, not an authored keyed field (META.md §body.yo), so it is body too —
  *  the same rule the projectional editor applies (yed-load.ts). Checked BEFORE the title/description
  *  keys so a member whose storage name happens to be `title` stays a body element. */
-const isBodyEntry = (e: { key: string | null; anchor?: boolean }): boolean => e.key == null || e.anchor === true;
+const isBodyEntry = (e: { key: string | null; keyNull?: boolean; anchor?: boolean }): boolean =>
+  (e.key == null && e.keyNull !== true) || e.anchor === true;
 
 /** A body element's kind. A subchapter that ran out of depth budget arrives as a `$yamloverLink`
  *  carrying its own `format`; an INLINED one (any deeper fetch) arrives as a `$yamloverMixed`
@@ -200,7 +204,7 @@ export function bodyKindOf(v: unknown): FlowKind {
 export function chapterFlow(value: unknown): FlowItem[] {
   if (Array.isArray(value)) return value.map((v, i) => ({ kind: bodyKindOf(v), value: v, absIndex: i }));
   const mixed = (value as Record<string, unknown> | null | undefined)?.[MIXED_KEY] as
-    | { kind?: string; value?: unknown; selfAt?: number; entries?: { key: string | null; anchor?: boolean; value: unknown }[] }
+    | { kind?: string; value?: unknown; selfAt?: number; entries?: { key: string | null; keyNull?: boolean; anchor?: boolean; value: unknown }[] }
     | undefined;
   if (!mixed?.entries) return [];
   const self = mixed.kind === "omni" && typeof mixed.value === "string" && mixed.value !== "" ? mixed.value : null;
@@ -238,19 +242,27 @@ export function newProsePart(text: string, format: string | null = "text/marklow
 
 /** Build the editing model from a chapter node's `/api/json` value (depth 1): its title/description
  *  and its body elements as `$yamloverLink` markers. A body element is EDITABLE when it is an inlined
- *  prose scalar (its marker points at its OWN slot `<chapter>[i]`); a subchapter or a marker pointing
+ *  prose scalar (its marker points at its OWN slot `<chapter>:i`); a subchapter or a marker pointing
  *  elsewhere (a `*…` file/pointer chunk) is a read-only part this iteration. */
 export function buildChapterModel(node: { path: string; title: string | null; description: string | null; value: unknown; format?: string | null }): ChapterModel {
   const body = chapterBodyEntries(node.value);
+  // an inlined scalar chunk's marker points at its own containment slot (`<chapter>:i` — one
+  // POSITIONAL segment past the chapter); a pointer chunk's marker points elsewhere (the target
+  // file) → linked, and read-only this iteration.
+  const baseSegs = strToSegs(node.path);
+  const ownSlot = (p: string): boolean => {
+    const segs = strToSegs(p);
+    return segs.length === baseSegs.length + 1
+      && typeof segs[segs.length - 1] === "number"
+      && baseSegs.every((s, i) => s === segs[i]);
+  };
   const chunks: ChunkPart[] = body.map(({ value: item, absIndex }) => {
     const link = asLink(item);
     const format = link?.format ?? null;
     if (isSubchapter(format)) {
       return { id: freshId(), rev: 0, editable: false, text: "", format, concrete: link?.concrete ?? "yamlover", subchapter: true, navPath: link?.path, title: link?.title, marker: item, absIndex };
     }
-    // an inlined scalar chunk's marker points at its own containment slot (`<chapter>[i]`); a pointer
-    // chunk's marker points elsewhere (the target file) → linked, and read-only this iteration.
-    const inlined = !link || (typeof link.path === "string" && link.path.startsWith(node.path + "["));
+    const inlined = !link || (typeof link.path === "string" && ownSlot(link.path));
     const type = link?.type;
     const editable = inlined && isEditableMarker(type, format);
     return {

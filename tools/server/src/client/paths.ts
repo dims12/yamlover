@@ -8,12 +8,25 @@
 // unambiguously tokenize, and the URL spelling is address-bar-safe as is.
 
 import { BASE } from "./base"; // the served URL prefix (--base-path); "" at the root
+import { segToken } from "../../../parser/ts/src/pathseg.ts";
 
-export type Seg = string | number;
+export type Seg = string | number | null; // string key | integer position | the NULL key
 
-/** Canonical client path: `:key[0]:sub` (keys percent-encoded), root `:`. */
+/** Canonical client path: `:pets:1:name` (each segment's canonical token percent-encoded;
+ *  the YAML-keys round — bare integers are positions, numeric string keys ride quoted,
+ *  the null key is `~`), root `:`. */
 export function segsToStr(segs: Seg[]): string {
-  return segs.map((s) => (typeof s === "number" ? `[${s}]` : `:${encodeURIComponent(s)}`)).join("") || ":";
+  return segs.map((s) => ":" + encodeURIComponent(segToken(s))).join("") || ":";
+}
+
+/** One decoded token → a segment, by the bare-token typing rule; `[n]` is the alias.
+ *  A bare token unescapes `\x` → `x` (segToken escapes its metachars that way — pathseg.ts
+ *  reads the same rule), so `a\:b` round-trips back to the key `a:b`. */
+function classify(t: string): Seg {
+  if (t === "~") return null;
+  if (/^\d+$/.test(t)) return Number(t);
+  if (t.length >= 2 && t[0] === "'" && t[t.length - 1] === "'") return t.slice(1, -1).replace(/''/g, "'");
+  return t.replace(/\\(.)/g, "$1");
 }
 
 const PATH_TOKEN = /\[\d+\]|[^:\[\]]+/g; // canonical (colon) form
@@ -22,7 +35,7 @@ const URL_TOKEN = /\[\d+\]|[^/\[\]]+/g; // URL (slash) transport form
 export function strToSegs(str: string): Seg[] {
   const out: Seg[] = [];
   for (const tok of str.match(PATH_TOKEN) || []) {
-    out.push(/^\[\d+\]$/.test(tok) ? Number(tok.slice(1, -1)) : safeDecode(tok));
+    out.push(/^\[\d+\]$/.test(tok) ? Number(tok.slice(1, -1)) : classify(safeDecode(tok)));
   }
   return out;
 }
@@ -52,15 +65,15 @@ export function pathFromUrl(): string {
   if (BASE && (pathname === BASE || pathname.startsWith(BASE + "/"))) pathname = pathname.slice(BASE.length) || "/";
   const segs: Seg[] = [];
   for (const tok of pathname.match(URL_TOKEN) || []) {
-    segs.push(/^\[\d+\]$/.test(tok) ? Number(tok.slice(1, -1)) : safeDecode(tok));
+    segs.push(/^\[\d+\]$/.test(tok) ? Number(tok.slice(1, -1)) : classify(safeDecode(tok)));
   }
   return segsToStr(segs);
 }
 
-/** The slash-transport URL spelling of a canonical path (`:a[0]:b` → `/a[0]/b`). */
+/** The slash-transport URL spelling of a canonical path (`:a:0:b` → `/a/0/b`). */
 export function urlOfPath(path: string): string {
   const segs = strToSegs(path);
-  const tail = segs.map((s) => (typeof s === "number" ? `[${s}]` : `/${encodeURIComponent(s)}`)).join("") || "/";
+  const tail = segs.map((s) => "/" + encodeURIComponent(segToken(s))).join("") || "/";
   return BASE + tail; // keep navigation under the served base prefix (--base-path)
 }
 
@@ -72,7 +85,7 @@ export function urlOfPath(path: string): string {
  *  "/chunks[0]"; ("" when `full === base`, i.e. the rendered root itself). */
 export function fragmentOf(base: string, full: string): string {
   const tail = strToSegs(full).slice(strToSegs(base).length);
-  return tail.map((s) => (typeof s === "number" ? `[${s}]` : `/${s}`)).join("");
+  return tail.map((s) => "/" + segToken(s)).join("");
 }
 
 /** The in-page anchor id / URL hash for a fragment of `materialPath`: its slash continuation from
@@ -93,7 +106,7 @@ export function fragmentAnchorId(materialPath: string, fragmentSlug: string): st
 export function displayPath(path: string): string {
   const segs = strToSegs(path);
   if (!segs.length) return ":";
-  return segs.map((s) => (typeof s === "number" ? `[${s}]` : `: ${s}`)).join("");
+  return segs.map((s) => `: ${segToken(s)}`).join("");
 }
 
 /** A tag's path spelled canonically for HOVER display: the scope ladder collapsed (canonPath), the
@@ -107,7 +120,7 @@ export function tagDisplayPath(path: string): string {
   const ti = all.indexOf("tags");
   const segs = ti >= 0 ? all.slice(ti + 1) : all;
   if (!segs.length) return all.length ? String(all[all.length - 1]) : ":";
-  return segs.map((s) => (typeof s === "number" ? `[${s}]` : s)).join(": ");
+  return segs.map((s) => (s === null ? "~" : String(s))).join(": ");
 }
 
 /** A human-readable form of a path-LIKE key whose structure must survive verbatim —
@@ -122,7 +135,7 @@ export function displayKey(key: string): string {
 export function isAncestorPath(a: string, p: string): boolean {
   if (a === p) return false;
   if (a === ":") return true;
-  return p.startsWith(a + ":") || p.startsWith(a + "[");
+  return p.startsWith(a + ":"); // every segment is colon-joined now (bare-integer positions)
 }
 
 /** The current representation taken from the URL's `?format=` (or `fallback`). */
@@ -174,7 +187,7 @@ export function crumbs(p: string, rootLabel: string): { label: string; path: str
   if (rootLabel) out.push({ label: rootLabel, path: ":" });
   segs.forEach((s, i) => {
     out.push({
-      label: typeof s === "number" ? `[${s}]` : s,
+      label: segToken(s), // the canonical token — bare digits for a position, `~` for the null key
       path: segsToStr(segs.slice(0, i + 1)),
     });
   });

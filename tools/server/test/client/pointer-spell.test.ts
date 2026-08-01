@@ -19,9 +19,9 @@ describe("spellPointer — ladder 0 (current scope, relative to the holder)", ()
     expect(spellPointer(":team:bob:age", ":team:alice", 0)).toBe("..: bob: age");
   });
 
-  it("indices fold onto their portion; an ordinal sibling rides the climb", () => {
-    expect(spellPointer(":a:b[0]", ":a", 0)).toBe("b[0]");
-    expect(spellPointer(":a[3]", ":a:b", 0)).toBe("..: [3]");
+  it("a position is its own bare-digit portion; an ordinal sibling rides the climb", () => {
+    expect(spellPointer(":a:b:0", ":a", 0)).toBe("b: 0");
+    expect(spellPointer(":a:3", ":a:b", 0)).toBe("..: 3");
   });
 
   it("the holder itself spells via its parent; the root falls back to the document root", () => {
@@ -38,13 +38,13 @@ describe("spellPointer — ladder 0 (current scope, relative to the holder)", ()
 
 describe("spellPointer — rooted ladders", () => {
   it("ladder 1 spells the document-rooted path", () => {
-    expect(spellPointer(":a:b[0]", ":whatever", 1)).toBe(": a: b[0]");
+    expect(spellPointer(":a:b:0", ":whatever", 1)).toBe(": a: b: 0");
     expect(spellPointer(":", ":a", 1)).toBe(":");
   });
 
   it("ladder 1 is relative to the DOCUMENT root, not the served root", () => {
-    // the pointer lives in the :doc document — `*: pets[1]` must reach :doc:pets[1]
-    expect(spellPointer(":doc:pets[1]", ":doc", 1, ":doc")).toBe(": pets[1]");
+    // the pointer lives in the :doc document — `*: pets: 1` must reach :doc:pets:1
+    expect(spellPointer(":doc:pets:1", ":doc", 1, ":doc")).toBe(": pets: 1");
     // a pick OUTSIDE the document cannot be `:`-spelled — escalates to the project scope
     expect(spellPointer(":other:x", ":doc", 1, ":doc")).toBe(":: other: x");
   });
@@ -62,7 +62,7 @@ describe("pointerCells — a committed raw back into cells", () => {
   it("reads every rung of the ladder", () => {
     expect(pointerCells("c")).toEqual({ ladder: 0, portions: ["c"] });
     expect(pointerCells("..: x")).toEqual({ ladder: 0, portions: ["..", "x"] });
-    expect(pointerCells(": a: b[0]")).toEqual({ ladder: 1, portions: ["a", "b[0]"] });
+    expect(pointerCells(": a: b: 0")).toEqual({ ladder: 1, portions: ["a", "b", "0"] });
     expect(pointerCells(":: tags: colors")).toEqual({ ladder: 2, portions: ["tags", "colors"] });
     expect(pointerCells("::: yamlover.inthemoon.net: $defs: tag")).toEqual({
       ladder: 3,
@@ -70,9 +70,10 @@ describe("pointerCells — a committed raw back into cells", () => {
     });
   });
 
-  it("indices fold onto the preceding cell, but never onto a ..", () => {
-    expect(pointerCells(": pets[1]: name")).toEqual({ ladder: 1, portions: ["pets[1]", "name"] });
-    expect(pointerCells("..: [3]")).toEqual({ ladder: 0, portions: ["..", "[3]"] });
+  it("a position is its own bare-digit cell — the `[n]` raw reads as the alias", () => {
+    expect(pointerCells(": pets[1]: name")).toEqual({ ladder: 1, portions: ["pets", "1", "name"] });
+    expect(pointerCells(": pets: 1: name")).toEqual({ ladder: 1, portions: ["pets", "1", "name"] });
+    expect(pointerCells("..: 3")).toEqual({ ladder: 0, portions: ["..", "3"] });
   });
 
   it("an empty raw is an empty cell row; an unparsable raw degrades tolerantly", () => {

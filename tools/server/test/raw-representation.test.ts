@@ -21,12 +21,12 @@ describe("scalar raw representation (comment sidecar)", () => {
     expect(j.value.humans[0].id).toBe(255);
     expect(j.value.humans[0].nul).toBeNull();
 
-    expect(c["/humans[0]/name"]?.raw).toBe('"~"'); // quoted → distinguishable from null
-    expect(c["/humans[0]/id"]?.raw).toBe("0xff"); // hex spelling kept
-    expect(c["/humans[0]/b"]?.raw).toBe("True"); // casing kept
-    expect(c["/humans[0]/nul"]?.raw).toBe("~"); // tilde null kept
-    expect(c["/humans[0]/plain"]?.raw).toBeUndefined(); // plain string → nothing
-    expect(c["/humans[0]/n"]?.raw).toBeUndefined(); // plain decimal → nothing
+    expect(c["/humans/0/name"]?.raw).toBe('"~"'); // quoted → distinguishable from null
+    expect(c["/humans/0/id"]?.raw).toBe("0xff"); // hex spelling kept
+    expect(c["/humans/0/b"]?.raw).toBe("True"); // casing kept
+    expect(c["/humans/0/nul"]?.raw).toBe("~"); // tilde null kept
+    expect(c["/humans/0/plain"]?.raw).toBeUndefined(); // plain string → nothing
+    expect(c["/humans/0/n"]?.raw).toBeUndefined(); // plain decimal → nothing
   });
 });
 

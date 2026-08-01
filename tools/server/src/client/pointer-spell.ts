@@ -16,7 +16,9 @@ import { Seg, strToSegs } from "./paths";
 /** Client-path segments → pointer steps. `strToSegs` has already percent-DECODED the
  *  keys (the pitfall pointerRaw guards against server-side) — the renderer re-escapes. */
 function stepsOf(segs: Seg[]): Step[] {
-  return segs.map<Step>((s) => (typeof s === "number" ? { sel: "index", n: s } : { sel: "key", name: s }));
+  return segs.map<Step>((s) =>
+    s === null ? { sel: "nullkey" } : typeof s === "number" ? { sel: "index", n: s } : { sel: "key", name: s },
+  );
 }
 
 /**
@@ -41,11 +43,13 @@ export function spellPointer(target: string, holder: string, ladder: Ladder, doc
     ladder = 2; // outside the document — the `:` scope cannot reach it
   }
   if (ladder >= 2) {
-    // the root itself (or a root ordinal) has no `::`-portion spelling — document scope
-    if (t.length === 0 || typeof t[0] === "number") {
+    // the root itself (or a root ordinal / null-key child) has no `::`-portion spelling — document
+    // scope (the authority portion is a plain string name)
+    const head = t[0];
+    if (head === undefined || typeof head !== "string") {
       return renderPointer({ kind: "pointer", base: { scope: "document" }, steps: stepsOf(t), raw: "" });
     }
-    return renderPointer({ kind: "pointer", base: { scope: "link", authority: t[0] }, steps: stepsOf(t.slice(1)), raw: "" });
+    return renderPointer({ kind: "pointer", base: { scope: "link", authority: head }, steps: stepsOf(t.slice(1)), raw: "" });
   }
   // ladder 0 — relative to the holder container
   const h = strToSegs(holder);
@@ -92,10 +96,10 @@ export function pointerCells(raw: string): { ladder: Ladder; portions: string[] 
     for (const st of p.steps) {
       if (st.sel === "parent") portions.push("..");
       else if (st.sel === "key") portions.push(quoteKey(st.name));
+      else if (st.sel === "nullkey") portions.push("~"); // the NULL key — its own bare-tilde portion
       else if (st.sel === "index") {
-        // an index folds onto the preceding portion (`pets[1]`) — but never onto a `..`
-        if (portions.length && !portions[portions.length - 1].endsWith("..")) portions[portions.length - 1] += `[${st.n}]`;
-        else portions.push(`[${st.n}]`);
+        // a position is its own bare-digit portion now (`pets: 1`); `[n]` is read-only legacy
+        portions.push(String(st.n));
       } else {
         // relindex attaches even to `..` (`..[.-1][.]` — the table rowspan idiom)
         const tok = `[.${st.k === 0 ? "" : (st.k > 0 ? "+" : "") + st.k}]`;

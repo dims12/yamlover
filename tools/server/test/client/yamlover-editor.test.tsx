@@ -27,11 +27,11 @@ const OMNI = {
       entries: [
         { key: "description", value: "the blurb" },
         { key: null, value: "chunk one" },
-        { key: null, value: { $yamloverRef: { text: ":pets[1]", path: ":pets[1]" } } },
+        { key: null, value: { $yamloverRef: { text: ":pets:1", path: ":pets:1" } } },
       ],
     },
   },
-  comments: { "": { tag: "!!<*yamlover: $defs: chapter>" }, "[2]": { pointer: ":pets[1]" } },
+  comments: { "": { tag: "!!<*yamlover: $defs: chapter>" }, "/2": { pointer: ":pets[1]" } },
 };
 
 const ARR = {
@@ -139,7 +139,7 @@ describe("hole typing — structure materializes as you type", () => {
     const valueHole = container.querySelector<HTMLElement>(".yed-hole:not(.yed-tail)")!;
     type(valueHole, "Bob");
     fireEvent.keyDown(valueHole, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":doc[3]", op: "insert", key: "author", yamlover: "Bob" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":doc:3", op: "insert", key: "author", yamlover: "Bob" }]), { timeout: 2000 });
     // authored order kept: `description` stays first, `author` stays where it was typed
     const after = Array.from(container.querySelectorAll(".k")).map((k) => k.textContent);
     expect(after[0]).toBe("description");
@@ -175,7 +175,7 @@ describe("hole typing — structure materializes as you type", () => {
     type(valueHole, "fresh chunk");
     fireEvent.keyDown(valueHole, { key: "Enter" });
     expect(container.querySelectorAll(".yed-hole:not(.yed-tail)").length).toBeGreaterThan(0); // the follow-up hole
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":doc[3]", op: "insert", yamlover: "fresh chunk" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":doc:3", op: "insert", yamlover: "fresh chunk" }]), { timeout: 2000 });
   });
 
   it("a BARE token is REJECTED when the node already has its scalar line (one per block)", async () => {
@@ -207,8 +207,8 @@ describe("Tab / Shift-Tab — structural moves", () => {
     fireEvent.keyDown(beta, { key: "Tab" });
     expect(container.querySelector(".yed-indent")).toBeTruthy(); // beta now nested
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":d[1]", op: "remove" },
-      { path: ":d[0]", op: "emplace", yamlover: "alpha\n- beta" },
+      { path: ":d:1", op: "remove" },
+      { path: ":d:0", op: "emplace", yamlover: "alpha\n- beta" },
     ]), { timeout: 2000 });
   });
 
@@ -221,8 +221,8 @@ describe("Tab / Shift-Tab — structural moves", () => {
     const y = Array.from(container.querySelectorAll<HTMLElement>("[data-yed-cell]")).find((c) => c.textContent === "y")!;
     fireEvent.keyDown(y, { key: "Tab", shiftKey: true });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":d[0][1]", op: "remove" },
-      { path: ":d[1]", op: "insert", yamlover: "y" },
+      { path: ":d:0:1", op: "remove" },
+      { path: ":d:1", op: "insert", yamlover: "y" },
     ]), { timeout: 2000 });
   });
 });
@@ -248,7 +248,7 @@ describe("THE HEAD-OF-ROW EXCEPTION — Enter at the start of a committed value"
     expect(document.activeElement).toBe(v);
     type(v, "zero");
     fireEvent.keyDown(v, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":d[0]", op: "insert", yamlover: "zero" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":d:0", op: "insert", yamlover: "zero" }]), { timeout: 2000 });
   });
 
   it("mid-text Enter keeps THE LEVEL RULE's descend — the hole opens INSIDE the entry", async () => {
@@ -288,7 +288,7 @@ describe("THE LEVEL RULE descend lands right AFTER the value line", () => {
     fireEvent.keyDown(v, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
       { path: ":d", op: "emplace", yamlover: "one" },
-      { path: ":d[0]", op: "insert", yamlover: "x" },
+      { path: ":d:0", op: "insert", yamlover: "x" },
     ]), { timeout: 2000 });
   });
 });
@@ -339,7 +339,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     const valueHole = lastHole(container);
     type(valueHole, "hello");
     fireEvent.keyDown(valueHole, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", yamlover: "hello" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:0", op: "insert", yamlover: "hello" }]), { timeout: 2000 });
   });
 
   it("`k: ` opens the document's first keyed entry", async () => {
@@ -350,7 +350,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     const valueHole = lastHole(container);
     type(valueHole, "T");
     fireEvent.keyDown(valueHole, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", key: "title", yamlover: "T" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:0", op: "insert", key: "title", yamlover: "T" }]), { timeout: 2000 });
   });
 
   it("YAMLOVER_EDITOR.yo: `pets:` ↵ / `- ` / `name: ` / `Rex` ↵ — the canonical example types through", async () => {
@@ -373,7 +373,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     type(nameHole, "Rex");
     fireEvent.keyDown(nameHole, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":n[0]", op: "insert", key: "pets", yamlover: "- name: Rex" },
+      { path: ":n:0", op: "insert", key: "pets", yamlover: "- name: Rex" },
     ]), { timeout: 2000 });
   });
 
@@ -438,7 +438,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     const v = lastHole(container);
     type(v, "solid");
     fireEvent.keyDown(v, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", yamlover: "solid" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:0", op: "insert", yamlover: "solid" }]), { timeout: 2000 });
     fireEvent.keyDown(lastHole(container), { key: "Tab", shiftKey: true }); // out to the document level
     const next = lastHole(container);
     type(next, "|");
@@ -512,7 +512,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     const area = container.querySelector<HTMLTextAreaElement>("textarea.yed-blocktext")!;
     fireEvent.input(area, { target: { value: "" } });
     fireEvent.keyDown(area, { key: "Backspace" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":d[0]", op: "remove" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":d:0", op: "remove" }]), { timeout: 2000 });
     expect(container.querySelector("textarea.yed-blocktext")).toBeNull();
   });
 
@@ -538,7 +538,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     const v = lastHole(container);
     type(v, "scalar");
     fireEvent.keyDown(v, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", yamlover: "scalar" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:0", op: "insert", yamlover: "scalar" }]), { timeout: 2000 });
     // the dash row KEEPS its shape: `- scalar` on one row, the fresh hole indented below
     const dashRow = container.querySelector(".yaml-dash")!.closest(".yed-row")!;
     expect(dashRow.textContent).toContain("scalar");
@@ -550,7 +550,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     fireEvent.keyDown(inner, { key: "Enter" });
     // the entry was a plain scalar server-side — the first child re-emplaces the WHOLE omni
     await waitFor(() => expect(editChunks).toHaveBeenLastCalledWith([
-      { path: ":n[0]", op: "emplace", yamlover: "scalar\n- element" },
+      { path: ":n:0", op: "emplace", yamlover: "scalar\n- element" },
     ]), { timeout: 2000 });
   });
 
@@ -561,7 +561,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     const v = lastHole(container);
     type(v, "one");
     fireEvent.keyDown(v, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", yamlover: "one" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:0", op: "insert", yamlover: "one" }]), { timeout: 2000 });
     const inside = lastHole(container); // descended into `- one`
     fireEvent.keyDown(inside, { key: "Tab", shiftKey: true }); // climb out
     const outer = lastHole(container);
@@ -570,7 +570,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     const v2 = lastHole(container);
     type(v2, "two");
     fireEvent.keyDown(v2, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenLastCalledWith([{ path: ":n[1]", op: "insert", yamlover: "two" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenLastCalledWith([{ path: ":n:1", op: "insert", yamlover: "two" }]), { timeout: 2000 });
   });
 
   it("BUG 5: after `- name: Rex` ↵, `species: ` continues INSIDE the mapping, focus intact", async () => {
@@ -586,7 +586,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     type(nameHole, "Rex");
     fireEvent.keyDown(nameHole, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":n[0]", op: "insert", key: "pets", yamlover: "- name: Rex" },
+      { path: ":n:0", op: "insert", key: "pets", yamlover: "- name: Rex" },
     ]), { timeout: 2000 });
     // NO parasitic wrap after the descend: `- name: Rex` still reads on ONE row
     const dashRow = container.querySelector(".yaml-dash")!.closest(".yed-row")!;
@@ -602,7 +602,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     type(dogHole, "dog");
     fireEvent.keyDown(dogHole, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenLastCalledWith([
-      { path: ":n:pets[0][1]", op: "insert", key: "species", yamlover: "dog" },
+      { path: ":n:pets:0:1", op: "insert", key: "species", yamlover: "dog" },
     ]), { timeout: 2000 });
   });
 
@@ -675,7 +675,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     const v1 = lastHole(container);
     type(v1, "12");
     fireEvent.keyDown(v1, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", key: "val", yamlover: "12" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:0", op: "insert", key: "val", yamlover: "12" }]), { timeout: 2000 });
     fireEvent.keyDown(lastHole(container), { key: "Tab", shiftKey: true }); // back to the key's level
     // the second `val: ` is refused — the text stays in the hole, red-ringed; no second key row
     const hole2 = lastHole(container);
@@ -703,7 +703,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     const monHole = lastHole(container);
     type(monHole, "mon");
     fireEvent.keyDown(monHole, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", yamlover: "mon" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:0", op: "insert", yamlover: "mon" }]), { timeout: 2000 });
     fireEvent.keyDown(lastHole(container), { key: "Tab", shiftKey: true }); // climb out of `- mon`
     const selfHole = lastHole(container);
     type(selfHole, "12");
@@ -714,7 +714,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     const valueHole = lastHole(container);
     type(valueHole, "tue");
     fireEvent.keyDown(valueHole, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenLastCalledWith([{ path: ":n[1]", op: "insert", key: "12", yamlover: "tue" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenLastCalledWith([{ path: ":n:1", op: "insert", key: "12", yamlover: "tue" }]), { timeout: 2000 });
     // on screen: `- mon`, the bare `12`, then `12: tue` — exactly the entered order
     const rows = Array.from(container.querySelectorAll(".yed-row")).map((r) => r.textContent ?? "");
     expect(rows[0]).toContain("mon");
@@ -784,7 +784,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     expect(document.activeElement).toBe(valueHole);
     type(valueHole, "12");
     fireEvent.keyDown(valueHole, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", key: '"value"', yamlover: "12" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:0", op: "insert", key: '"value"', yamlover: "12" }]), { timeout: 2000 });
   });
 
   it("YAMLOVER_EDITOR.yo: `\"value` + Enter keeps the QUOTED concrete (the self line shows its quotes)", async () => {
@@ -830,7 +830,7 @@ describe("the EMPTY document — a root hole with the full grammar", () => {
     const valueHole = lastHole(container);
     type(valueHole, "january");
     fireEvent.keyDown(valueHole, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", yamlover: "january" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:0", op: "insert", yamlover: "january" }]), { timeout: 2000 });
     // the level rule descended into `- january` — Shift-Tab climbs out to the DOCUMENT level,
     // where a BARE 31 is the document's own scalar line (not another array element)
     fireEvent.keyDown(lastHole(container), { key: "Tab", shiftKey: true });
@@ -894,7 +894,7 @@ describe("pointer cell — the SHARED query cells (pick mode): scope ladder, dro
   });
 
   it("Enter REDUCES the typed query to the first match, spelled in the chosen scope: bare op + advance", async () => {
-    queryFilter.mockResolvedValue(FILTER([":doc:pets[1]"]));
+    queryFilter.mockResolvedValue(FILTER([":doc:pets:1"]));
     const { container } = await mount(":doc");
     type(openHole(container), "*");
     await waitFor(() => expect(pointerCell(container)).toBeTruthy());
@@ -902,7 +902,7 @@ describe("pointer cell — the SHARED query cells (pick mode): scope ladder, dro
     type(cell, "pets[1]"); // bare scope — relative to the holder :doc
     fireEvent.keyDown(cell, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":doc[1]", op: "insert", yamlover: "*pets[1]" },
+      { path: ":doc:1", op: "insert", yamlover: "*pets:1" },
     ]), { timeout: 2000 });
     expect(container.querySelectorAll(".yed-hole:not(.yed-tail)").length).toBeGreaterThan(0); // advanced
   });
@@ -917,7 +917,7 @@ describe("pointer cell — the SHARED query cells (pick mode): scope ladder, dro
     type(cell, "nowhere[7]");
     fireEvent.keyDown(cell, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":doc[1]", op: "insert", yamlover: "*:nowhere[7]" },
+      { path: ":doc:1", op: "insert", yamlover: "*:nowhere:7" },
     ]), { timeout: 2000 });
   });
 
@@ -935,7 +935,7 @@ describe("pointer cell — the SHARED query cells (pick mode): scope ladder, dro
   });
 
   it("a TOC pick (the session's onPick) lands the picked path IN THE CELLS, spelled in the current scope", async () => {
-    queryFilter.mockResolvedValue(FILTER([":doc:pets[0]:name"]));
+    queryFilter.mockResolvedValue(FILTER([":doc:pets:0:name"]));
     let session!: import("../../src/client/toc-filter-session").TocFilterSession;
     function Host() {
       session = useTocFilterSession();
@@ -950,13 +950,13 @@ describe("pointer cell — the SHARED query cells (pick mode): scope ladder, dro
     type(openHole(container), "*");
     await waitFor(() => expect(pointerCell(container)).toBeTruthy());
     await waitFor(() => expect(session.active).toBe(true)); // editing a reference claims the TOC filter
-    act(() => session.pick(":doc:pets[0]:name")); // a TOC row click routes here
+    act(() => session.pick(":doc:pets:0:name")); // a TOC row click routes here
     const cells = () => Array.from(container.querySelectorAll<HTMLElement>(".yed-ptrwrap .crumb-cell")).map((c) => c.textContent);
-    await waitFor(() => expect(cells()).toEqual(["pets[0]", "name"])); // spelled relative (bare scope)
+    await waitFor(() => expect(cells()).toEqual(["pets", "0", "name"])); // spelled relative (bare scope; a position is its own cell)
     // the pick INSERTED, not committed — Enter commits the reduced pointer
     fireEvent.keyDown(pointerCell(container), { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":doc[1]", op: "insert", yamlover: "*pets[0]:name" },
+      { path: ":doc:1", op: "insert", yamlover: "*pets:0:name" },
     ]), { timeout: 2000 });
     await waitFor(() => expect(session.active).toBe(false)); // the commit released the TOC filter
   });
@@ -975,7 +975,7 @@ describe("pointer cell — the SHARED query cells (pick mode): scope ladder, dro
     type(cell, "pets[1]");
     fireEvent.keyDown(cell, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":n", op: "emplace", yamlover: "*:pets[1]" },
+      { path: ":n", op: "emplace", yamlover: "*:pets:1" },
     ]), { timeout: 2000 });
     expect(container.querySelector(".yed-hole")).toBeNull(); // stays on the pointer row
   });
@@ -983,12 +983,12 @@ describe("pointer cell — the SHARED query cells (pick mode): scope ladder, dro
   it("re-editing a committed SPACED-canonical pointer: unchanged Enter advances without an op", async () => {
     fetchNode.mockResolvedValue({
       path: ":d", type: "array", concrete: "yamlover", title: null, description: null,
-      value: [{ $yamloverRef: { text: ": pets[1]", path: null } }],
-      comments: { "[0]": { pointer: ": pets[1]" } },
+      value: [{ $yamloverRef: { text: ": pets:1", path: null } }],
+      comments: { "/0": { pointer: ": pets[1]" } },
     });
     const { container } = await mount(":d");
     const cell = pointerCell(container);
-    expect(cell.textContent).toBe("pets[1]"); // the cells spell the body; the chip carries the `:`
+    expect(cell.textContent).toBe("pets"); // the cells spell the body (the index is its own cell); the chip carries the `:`
     expect(container.querySelector(".yed-scope")?.textContent).toBe(":");
     fireEvent.focus(cell);
     fireEvent.keyDown(cell, { key: "Enter" }); // the dangling filter (rejected mock) hands the query back
@@ -1012,8 +1012,8 @@ describe("paste — valid yamlover source materializes structure", () => {
     const hole = openHole(container);
     fireEvent.paste(hole, clip("- name: Rex\n  species: dog\n- name: Tom"));
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":doc[3]", op: "insert", yamlover: "name: Rex\nspecies: dog" },
-      { path: ":doc[4]", op: "insert", yamlover: "name: Tom" },
+      { path: ":doc:3", op: "insert", yamlover: "name: Rex\nspecies: dog" },
+      { path: ":doc:4", op: "insert", yamlover: "name: Tom" },
     ]), { timeout: 2000 });
     expect(container.querySelectorAll(".yaml-dash").length).toBe(dashes + 2);
     expect(document.activeElement?.className ?? "").toContain("yed-hole"); // continue typing below
@@ -1027,7 +1027,7 @@ describe("paste — valid yamlover source materializes structure", () => {
     const valueHole = container.querySelector<HTMLElement>(".yed-hole:not(.yed-tail)")!;
     fireEvent.paste(valueHole, clip("- Rex\n- Tom"));
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":n[0]", op: "insert", key: "pets", yamlover: "- Rex\n- Tom" },
+      { path: ":n:0", op: "insert", key: "pets", yamlover: "- Rex\n- Tom" },
     ]), { timeout: 2000 });
   });
 
@@ -1044,7 +1044,7 @@ describe("paste — valid yamlover source materializes structure", () => {
     const hole = openHole(container);
     fireEvent.paste(hole, clip("boss: &: chief\n  name: Rex"));
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":doc[3]", op: "insert", key: "boss", yamlover: "name: Rex" }, // no `&` anywhere
+      { path: ":doc:3", op: "insert", key: "boss", yamlover: "name: Rex" }, // no `&` anywhere
     ]), { timeout: 2000 });
   });
 
@@ -1064,8 +1064,8 @@ describe("paste — valid yamlover source materializes structure", () => {
     const text = "pets:\n  - name: Rex\n    species: dog\n  - name: Whiskers\n    species: cat\nafter: 1";
     fireEvent.paste(hole, clip(text));
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":n[0]", op: "insert", key: "pets", yamlover: "- name: Rex\n  species: dog\n- name: Whiskers\n  species: cat" },
-      { path: ":n[1]", op: "insert", key: "after", yamlover: "1" },
+      { path: ":n:0", op: "insert", key: "pets", yamlover: "- name: Rex\n  species: dog\n- name: Whiskers\n  species: cat" },
+      { path: ":n:1", op: "insert", key: "after", yamlover: "1" },
     ]), { timeout: 2000 });
     expect(Array.from(container.querySelectorAll(".k")).map((k) => k.textContent))
       .toEqual(["pets", "name", "species", "name", "species", "after"]);
@@ -1081,7 +1081,7 @@ describe("paste — valid yamlover source materializes structure", () => {
     fireEvent.paste(cell, clip("pets:\n- name: Rex"));
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
       { path: ":n", op: "emplace", yamlover: '""' },
-      { path: ":n[0]", op: "insert", key: "pets", yamlover: "- name: Rex" },
+      { path: ":n:0", op: "insert", key: "pets", yamlover: "- name: Rex" },
     ]), { timeout: 2000 });
     expect(Array.from(container.querySelectorAll(".k")).map((k) => k.textContent)).toEqual(["pets", "name"]);
   });
@@ -1169,7 +1169,7 @@ describe("sync", () => {
     const alpha2 = Array.from(container.querySelectorAll<HTMLElement>("[data-yed-cell]")).find((c) => c.textContent === "alp")!;
     type(alpha2, "alphax");
     fireEvent.blur(alpha2);
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":d[0]", op: "emplace", yamlover: "alphax" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":d:0", op: "emplace", yamlover: "alphax" }]), { timeout: 2000 });
     expect(editChunks).toHaveBeenCalledTimes(1); // one coalesced batch, one flush
   });
 
@@ -1180,7 +1180,7 @@ describe("sync", () => {
     type(alpha, "changed");
     fireEvent.blur(alpha);
     unmount(); // before the 500ms debounce elapses
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":d[0]", op: "emplace", yamlover: "changed" }]));
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":d:0", op: "emplace", yamlover: "changed" }]));
   });
 
   it("a failed flush keeps the queue and retries on the next flush", async () => {
@@ -1195,7 +1195,7 @@ describe("sync", () => {
     expect(alert).toHaveBeenCalled();
     unmount(); // the unmount flush retries the SAME batch
     await waitFor(() => expect(editChunks).toHaveBeenCalledTimes(2));
-    expect(editChunks).toHaveBeenLastCalledWith([{ path: ":d[0]", op: "emplace", yamlover: "kept" }]);
+    expect(editChunks).toHaveBeenLastCalledWith([{ path: ":d:0", op: "emplace", yamlover: "kept" }]);
     alert.mockRestore();
   });
 });
@@ -1242,7 +1242,7 @@ describe("THE REPRESENTATION RULE — block scalars reproduce the authored concr
     const v = lastHole();
     type(v, "solid");
     fireEvent.keyDown(v, { key: "Enter" });
-    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n[0]", op: "insert", yamlover: "solid" }]), { timeout: 2000 });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([{ path: ":n:0", op: "insert", yamlover: "solid" }]), { timeout: 2000 });
     fireEvent.keyDown(lastHole(), { key: "Tab", shiftKey: true });
     // `|` ↵ + block text — the self line, typed AFTER entry [0]: the emplace carries `at: 1`
     const bh = lastHole();
@@ -1260,7 +1260,7 @@ describe("THE REPRESENTATION RULE — block scalars reproduce the authored concr
     type(v2, "recommended");
     fireEvent.keyDown(v2, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenLastCalledWith([
-      { path: ":n[1]", op: "insert", yamlover: "recommended" },
+      { path: ":n:1", op: "insert", yamlover: "recommended" },
     ]), { timeout: 2000 });
   });
 
@@ -1303,7 +1303,7 @@ describe("scalar_committed recovery — a mistyped committed token restructures 
     // the restructure: the scalar line leaves, a keyed entry takes its place
     await waitFor(() => expect(editChunks).toHaveBeenLastCalledWith([
       { path: ":n", op: "emplace", yamlover: '""' },
-      { path: ":n[0]", op: "insert", key: "species", yamlover: "12" },
+      { path: ":n:0", op: "insert", key: "species", yamlover: "12" },
     ]), { timeout: 2000 });
     expect(container.querySelector(".k")?.textContent).toBe("species");
     expect(container.textContent).not.toContain("species>");
@@ -1325,7 +1325,7 @@ describe("scalar_committed recovery — a mistyped committed token restructures 
     type(value, "12");
     fireEvent.keyDown(value, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenLastCalledWith(expect.arrayContaining([
-      { path: ":n[0]", op: "insert", key: "species", yamlover: "12" },
+      { path: ":n:0", op: "insert", key: "species", yamlover: "12" },
     ])), { timeout: 2000 });
   });
 
@@ -1336,7 +1336,7 @@ describe("scalar_committed recovery — a mistyped committed token restructures 
     type(alpha, "k: 1");
     fireEvent.keyDown(alpha, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":d[0]", op: "replace", yamlover: "k: 1" },
+      { path: ":d:0", op: "replace", yamlover: "k: 1" },
     ]), { timeout: 2000 });
     expect(container.querySelector(".k")?.textContent).toBe("k");
   });
@@ -1386,7 +1386,7 @@ describe("loaded representation + recovery — the `species>` FILE case", () => 
     fireEvent.keyDown(cell, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
       { path: ":n", op: "emplace", yamlover: '""' },
-      { path: ":n[0]", op: "insert", key: "species>", yamlover: "12" },
+      { path: ":n:0", op: "insert", key: "species>", yamlover: "12" },
     ]), { timeout: 2000 });
     expect(container.querySelector(".k")?.textContent).toBe("species>");
   });
@@ -1399,7 +1399,7 @@ describe("loaded representation + recovery — the `species>` FILE case", () => 
     fireEvent.keyDown(cell, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
       { path: ":n", op: "emplace", yamlover: '""' },
-      { path: ":n[0]", op: "insert", key: '"species>"', yamlover: "12" },
+      { path: ":n:0", op: "insert", key: '"species>"', yamlover: "12" },
     ]), { timeout: 2000 });
   });
 
@@ -1411,7 +1411,7 @@ describe("loaded representation + recovery — the `species>` FILE case", () => 
     fireEvent.keyDown(cell, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
       { path: ":n", op: "emplace", yamlover: '""' },
-      { path: ":n[0]", op: "insert", key: "species>", yamlover: "12" },
+      { path: ":n:0", op: "insert", key: "species>", yamlover: "12" },
     ]), { timeout: 2000 });
   });
 
@@ -1444,7 +1444,7 @@ describe("LIVE keyed trigger on committed tokens — `abc` + `: ` restructures l
     fireEvent.keyDown(hole, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
       { path: ":n", op: "emplace", yamlover: '""' },
-      { path: ":n[0]", op: "insert", key: "abc", yamlover: "12" },
+      { path: ":n:0", op: "insert", key: "abc", yamlover: "12" },
     ]), { timeout: 2000 });
   });
 
@@ -1459,8 +1459,8 @@ describe("LIVE keyed trigger on committed tokens — `abc` + `: ` restructures l
     type(hole, "1");
     fireEvent.keyDown(hole, { key: "Enter" });
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
-      { path: ":d[0]", op: "replace", yamlover: 'alpha: ""' },
-      { path: ":d[0]:alpha", op: "emplace", yamlover: "1" },
+      { path: ":d:0", op: "replace", yamlover: 'alpha: ""' },
+      { path: ":d:0:alpha", op: "emplace", yamlover: "1" },
     ]), { timeout: 2000 });
   });
 
@@ -1595,7 +1595,7 @@ describe("flow tokens — JSON typed into the editor", () => {
     expect(rows(container)).toContain("- [1]"); // inside a sequence it IS an element
     fireEvent.blur(document.activeElement as HTMLElement);
     await waitFor(() => expect(editChunks).toHaveBeenCalled());
-    expect(editChunks.mock.calls.flat(2)).toEqual([{ path: ":d[1]", op: "insert", yamlover: "[1]" }]);
+    expect(editChunks.mock.calls.flat(2)).toEqual([{ path: ":d:1", op: "insert", yamlover: "[1]" }]);
   });
 
   it("NO TRAPS: Backspace walks all the way back out of `[`, focus intact at every step", async () => {
@@ -1926,7 +1926,7 @@ describe("flow tokens — caret, keys, and brackets", () => {
     // first (the coalesced emplace) and the keyed entry inserted — never an insert into a stale doc
     expect(editChunks.mock.calls.flat(2)).toEqual([
       { path: ":d", op: "emplace", yamlover: '""' },
-      { path: ":d[0]", op: "insert", yamlover: "14", key: "[12, 13]" },
+      { path: ":d:0", op: "insert", yamlover: "14", key: "[12, 13]" },
     ]);
   });
 
@@ -2414,7 +2414,7 @@ describe("a K&R DOCUMENT opens as rows", () => {
     fetchNode.mockResolvedValue({
       path: ":n", type: "array", concrete: "file/yamlover", title: null, description: null,
       value: [{ name: "Eurasia", children: [{ name: "Europe" }] }],
-      comments: { "": { concrete: "json5p" }, "[0]/name": { raw: '"Eurasia"' }, "[0]/children[0]/name": { raw: '"Europe"' } },
+      comments: { "": { concrete: "json5p" }, "/0/name": { raw: '"Eurasia"' }, "/0/children/0/name": { raw: '"Europe"' } },
     });
     const { container } = await mount(":n");
     const rows = Array.from(container.querySelectorAll(".yed-row")).map((r) => r.textContent);

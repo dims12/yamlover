@@ -21,6 +21,7 @@ import { escapeYamloverScalar } from "../chapter-model";
 import { unquoteSource } from "../../../../../yed/src/grammar/keys";
 import { parseYamlover } from "../../../../../parser/ts/src/yamlover.ts";
 import { parsePointer, renderPointer } from "../../../../../parser/ts/src/pointer.ts";
+import { segToken } from "../../../../../parser/ts/src/pathseg.ts";
 import { segsToStr, strToSegs } from "../../paths";
 import { isJsonFamily } from "../../../concrete";
 
@@ -204,7 +205,9 @@ function buildNode(v: unknown, frag: string, comments: CommentMap | undefined, i
   const mixed = asMixed(v);
   if (mixed) {
     const node: MNode = { ...base, kind: "container", format: mixed.format ?? null, ...(flowStyle ? { flow: (mixed.entries.every((e) => e.key === null) ? "seq" : "map") as "seq" | "map" } : {}), ...(jsonp ? { jsonp: true } : {}) };
-    node.entries = mixed.entries.map((e, i) => buildEntry(e.key, e.value, frag + (e.key != null ? `/${e.key}` : `[${i}]`), comments, e.anchor, jsonp));
+    // TODO(yaml-keys): a `keyNull` entry (the NULL key) is still modeled as a positional entry
+    // here — the projectional editor has no null-key cell yet; its comment bucket rides `/~`.
+    node.entries = mixed.entries.map((e, i) => buildEntry(e.key, e.value, `${frag}/${segToken(e.keyNull === true ? null : e.key != null ? e.key : i)}`, comments, e.anchor, jsonp));
     ensureFlowHole(node);
     if (mixed.kind === "omni") {
       // a link self-value (blob-backed omni) stays un-modeled — read-only territory
@@ -215,13 +218,13 @@ function buildNode(v: unknown, frag: string, comments: CommentMap | undefined, i
   }
   if (isObj(v)) {
     const node: MNode = { ...base, kind: "container", ...(flowStyle ? { flow: "map" as const } : {}), ...(jsonp ? { jsonp: true } : {}) }; // an object: keyed by construction
-    node.entries = Object.entries(v).map(([k, cv]) => buildEntry(k, cv, `${frag}/${k}`, comments, undefined, jsonp));
+    node.entries = Object.entries(v).map(([k, cv]) => buildEntry(k, cv, `${frag}/${segToken(k)}`, comments, undefined, jsonp));
     ensureFlowHole(node);
     return node;
   }
   if (Array.isArray(v)) {
     const node: MNode = { ...base, kind: "container", ...(flowStyle ? { flow: "seq" as const } : {}), ...(jsonp ? { jsonp: true } : {}) };
-    node.entries = v.map((cv, i) => buildEntry(null, cv, `${frag}[${i}]`, comments, undefined, jsonp));
+    node.entries = v.map((cv, i) => buildEntry(null, cv, `${frag}/${i}`, comments, undefined, jsonp));
     ensureFlowHole(node);
     return node;
   }
@@ -297,10 +300,11 @@ export function findNode(root: MNode, id: string): { node: MNode; spine: Spine |
   return walk(root, []);
 }
 
-/** One path segment appended to a canonical colon-form path (mirrors render.tsx childPath). */
+/** One path segment appended to a canonical colon-form path (mirrors render.tsx childPath):
+ *  `:` + the segment's percent-encoded canonical token — bare digits for a position. */
 function appendSeg(path: string, seg: string | number): string {
   const base = path === ":" ? "" : path;
-  return typeof seg === "number" ? `${base}[${seg}]` : `${base}:${encodeURIComponent(seg)}`;
+  return `${base}:${encodeURIComponent(segToken(seg))}`;
 }
 
 /** An entry's SERVER index inside `container`: its position counting committed entries only —

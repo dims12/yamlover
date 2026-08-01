@@ -7,8 +7,9 @@ afterEach(cleanup);
 
 describe("resolveLink (the shared link interpreter)", () => {
   it("resolves `/path` relative to the document it appears in", () => {
-    expect(resolveLink(":chunks[2]", ":examples:19-math").path).toBe(":examples:19-math:chunks[2]");
-    expect(resolveLink(":children[0]:chunks[1]", ":doc").path).toBe(":doc:children[0]:chunks[1]");
+    // `[n]` in a target reads as the alias; the canonical path spells the position bare-digit
+    expect(resolveLink(":chunks[2]", ":examples:19-math").path).toBe(":examples:19-math:chunks:2");
+    expect(resolveLink(":children:0:chunks:1", ":doc").path).toBe(":doc:children:0:chunks:1");
   });
 
   it("resolves `//path` relative to the project (served) root", () => {
@@ -38,9 +39,9 @@ describe("NavLink", () => {
       <NavLink target=":chunks[1]" documentPath=":doc" onNavigate={onNavigate}>go</NavLink>,
     );
     const a = container.querySelector("a.descend") as HTMLAnchorElement;
-    expect(a.getAttribute("href")).toBe(":doc:chunks[1]");
+    expect(a.getAttribute("href")).toBe(":doc:chunks:1");
     fireEvent.click(a);
-    expect(onNavigate).toHaveBeenCalledWith(":doc:chunks[1]");
+    expect(onNavigate).toHaveBeenCalledWith(":doc:chunks:1");
   });
 
   it("renders an external `.extlink` that does not call onNavigate", () => {

@@ -16,16 +16,17 @@ import { anchorOf, chapterFlow, childSlot, flowText } from "./chapter-model";
 import { InlineSubchapter } from "./subchapter";
 import { DataChunk } from "./data-chunk";
 
-/** The `[n]` gutter — an in-page anchor link to the chunk's own location, or a plain marker.
- *  `n` is the chunk's ABSOLUTE entry index (CHAPTER.md §Addressing): the same number a marklower
- *  link (`:[i]`), an edit path, and the tree label spell — the gutter shows the address, not a
- *  render-order count (the legacy `§N` chunk counter skipped keyed entries and disagreed with all
- *  three). */
+/** The index gutter — an in-page anchor link to the chunk's own location, or a plain marker.
+ *  `n` is the chunk's ABSOLUTE entry index (CHAPTER.md §Addressing), shown as the canonical
+ *  bare-digit ADDRESS token (the YAML-keys round retired the `[n]` display): the same number a
+ *  marklower link (`:i`), an edit path, and the tree label spell — the gutter shows the address,
+ *  not a render-order count (the legacy `§N` chunk counter skipped keyed entries and disagreed
+ *  with all three). */
 export function ChunkGutter({ index, anchor }: { index: number; anchor: string | null }) {
   return anchor ? (
-    <a className="chunk-index" href={`#${anchor}`}>[{index}]</a>
+    <a className="chunk-index" href={`#${anchor}`}>{index}</a>
   ) : (
-    <span className="chunk-index">[{index}]</span>
+    <span className="chunk-index">{index}</span>
   );
 }
 

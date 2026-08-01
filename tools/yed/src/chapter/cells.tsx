@@ -128,7 +128,7 @@ export function subchapterServerPath(doc: { root: Value }, basePath: string, pat
     const anchorKey = ((e.meta ?? {}) as { anchorKey?: string }).anchorKey;
     sp = anchorKey !== undefined
       ? `${sp === ":" ? "" : sp}:${encodeURIComponent(anchorKey)}`
-      : `${sp === ":" ? "" : sp}[${i}]`;
+      : `${sp === ":" ? "" : sp}:${i}`; // a position is a bare-digit segment (YAML-keys round)
     v = e.value;
   }
   return sp;
@@ -225,12 +225,12 @@ export function ChapterNode({ path, spath, level, budget }: { path: Path; spath:
       return;
     }
     const mode = chunkModeOf(e.value);
-    // the gutter label is the entry's yamlover ADDRESS: its key, or its absolute index `[i]`
-    const label = e.key !== null && anchorKey === undefined ? e.key : `[${i}]`;
+    // the gutter label is the entry's yamlover ADDRESS: its key, or its absolute bare-digit index
+    const label = e.key !== null && anchorKey === undefined ? e.key : String(i);
     if (mode === "chapter") {
       const sp = anchorKey !== undefined
         ? `${spath === ":" ? "" : spath}:${encodeURIComponent(anchorKey)}`
-        : `${spath === ":" ? "" : spath}[${i}]`;
+        : `${spath === ":" ? "" : spath}:${i}`; // a position is a bare-digit segment (YAML-keys round)
       const wrapped = metaOf(e.value).chapterWrapped === true;
       body.push(
         <Cell key={i} kind="chapter" active={false} refused={false} block

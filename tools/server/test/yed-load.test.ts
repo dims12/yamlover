@@ -15,9 +15,9 @@ describe("irFromNodeJson", () => {
       { $yamloverMixed: { kind: "omni", value: "A Title", selfAt: 0, entries: [
         { key: "description", value: "the blurb" },
         { key: null, value: "chunk one" },
-        { key: null, value: { $yamloverRef: { text: "*:pets[1]", path: ":pets[1]" } } },
+        { key: null, value: { $yamloverRef: { text: "*:pets:1", path: ":pets:1" } } },
       ] } },
-      { "": { tag: "!!<*yamlover: $defs: chapter>" }, "[2]": { pointer: ":pets[1]" } },
+      { "": { tag: "!!<*yamlover: $defs: chapter>" }, "/2": { pointer: ":pets:1" } },
     ));
     const root = doc.root as Node & { value?: unknown };
     expect(root.kind).toBe("scalar");
@@ -27,10 +27,10 @@ describe("irFromNodeJson", () => {
     expect(root.entries![1].key).toBeNull();
     const ptr = root.entries![2].value;
     expect(isPointer(ptr)).toBe(true);
-    expect((ptr as { raw?: string }).raw).toBe(":pets[1]"); // the sidecar's canonical spelling wins
+    expect((ptr as { raw?: string }).raw).toBe(":pets:1"); // the sidecar's canonical spelling wins
     // the serializer spells pointers in the CANONICAL spaced colon form — and the authored
     // `!!<…>` tag (bucket.tag → meta.schema) is re-emitted, no longer dropped on re-serialize
-    expect(sourceOf(doc)).toBe("!!<*yamlover: $defs: chapter>\nA Title\ndescription: the blurb\n- chunk one\n- *: pets[1]\n");
+    expect(sourceOf(doc)).toBe("!!<*yamlover: $defs: chapter>\nA Title\ndescription: the blurb\n- chunk one\n- *: pets: 1\n");
   });
 
   it("authored raw SPELLINGS survive; absent raw spells the default", () => {
@@ -102,7 +102,7 @@ describe("irFromNodeJson — format facts (the chapter projection's inputs)", ()
   it("an inline `format:` tag stamps the PROSE format (the latex chunk)", () => {
     const doc = irFromNodeJson(nj({ $yamloverMixed: { kind: "mix", entries: [
       { key: null, value: "E = mc^2" },
-    ] } }, { "[0]": { tag: "!!<format: text/x-latex>" } }));
+    ] } }, { "/0": { tag: "!!<format: text/x-latex>" } }));
     const chunk = (doc.root as Node).entries![0].value;
     expect(metaOf(chunk).derivedFormat).toBe("text/x-latex");
     expect((metaOf(chunk).schema as Node).kind).toBe("mapping"); // the inline schema literal
@@ -130,7 +130,7 @@ describe("irFromNodeJson — format facts (the chapter projection's inputs)", ()
         { key: "description", value: "d" },
         { key: null, value: "p1" },
       ] } },
-      { "": { tag: "!!<*yamlover: $defs: chapter>" }, "[1]": { tag: "!!<format: text/x-latex>" } },
+      { "": { tag: "!!<*yamlover: $defs: chapter>" }, "/1": { tag: "!!<format: text/x-latex>" } },
     );
     const a = irFromNodeJson(wire);
     const b = irFromNodeJson(wire);
@@ -149,6 +149,6 @@ describe("irFromNodeJson — format facts (the chapter projection's inputs)", ()
     const b = irFromNodeJson(wire);
     ((doc => (doc.root as Node).entries![0].value as Node & { value?: unknown })(b)).value = "p2";
     const r = diffToOps(":doc", a, b);
-    expect(r.ops).toEqual([{ path: ":doc[0]", op: "emplace", yamlover: "p2" }]);
+    expect(r.ops).toEqual([{ path: ":doc:0", op: "emplace", yamlover: "p2" }]);
   });
 });

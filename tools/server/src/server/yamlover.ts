@@ -17,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import yaml from "js-yaml";
 import { fileConcreteForExt, interiorOf } from "../concrete";
+import { segToken } from "../../../parser/ts/src/pathseg.ts";
 
 const YAMLOVER_DIR = ".yamlover";
 const SCHEMA_FILE = "schema.yaml";
@@ -652,24 +653,27 @@ export function displayTypeLabel(node: YNode): string {
 
 export type Seg = string | number;
 
-/** Render path segments JSON-path style: `:key[0]:other` (root → `:`, colon-form —
- *  SEPARATOR.md M4). Each key is percent-encoded so a `:`, `[`, or `]` *inside* a
- *  key (e.g. `@vitejs/plugin-react`) does not read as a separator. */
+/** Render path segments JSON-path style: `:key:0:other` (root → `:`, colon-form —
+ *  SEPARATOR.md M4; the YAML-keys round: a position is a bare-digit segment, a numeric
+ *  STRING key rides quoted). Each segment's canonical token is percent-encoded whole so a
+ *  `:`, `[`, or `]` *inside* a key (e.g. `@vitejs/plugin-react`) does not read as a separator. */
 export function segsToStr(segs: Seg[]): string {
-  return (
-    segs
-      .map((s) => (typeof s === "number" ? `[${s}]` : `:${encodeURIComponent(s)}`))
-      .join("") || ":"
-  );
+  return segs.map((s) => `:${encodeURIComponent(segToken(s))}`).join("") || ":";
 }
 
 const PATH_TOKEN = /\[\d+\]|[^:\[\]]+/g;
 
-/** Parse a JSON-path string into segments (`[n]` → number, else decoded key). */
+/** Parse a JSON-path string into segments — the bare-token typing rule (bare digits = a
+ *  position, quotes = a string key); the retired `[n]` spelling reads forever as an alias.
+ *  (This legacy JSON-space walker has no null-key nodes, so `~` stays a literal key here.) */
 export function strToSegs(str: string): Seg[] {
   const out: Seg[] = [];
   for (const tok of str.match(PATH_TOKEN) || []) {
-    out.push(/^\[\d+\]$/.test(tok) ? Number(tok.slice(1, -1)) : safeDecode(tok));
+    if (/^\[\d+\]$/.test(tok)) { out.push(Number(tok.slice(1, -1))); continue; }
+    const t = safeDecode(tok);
+    if (/^\d+$/.test(t)) out.push(Number(t));
+    else if (t.length >= 2 && t[0] === "'" && t[t.length - 1] === "'") out.push(t.slice(1, -1).replace(/''/g, "'"));
+    else out.push(t.replace(/\\(.)/g, "$1"));
   }
   return out;
 }
@@ -689,7 +693,7 @@ export function getNode(root: YNode, segs: Seg[]): YNode {
     const v = node.value;
     if (typeof seg === "number") {
       if (!Array.isArray(v) || seg < 0 || seg >= v.length)
-        throw new Error(`index out of range: [${seg}]`);
+        throw new Error(`index out of range: ${seg}`);
       node = v[seg];
     } else {
       if (!isPlainObject(v) || !(seg in v)) throw new Error(`no such child: ${seg}`);
@@ -1058,7 +1062,7 @@ export interface TreeNode {
 
 /**
  * A node's tree label: its schema `title`, else an instance `title` child, else
- * the key (objects) or `[index]` (arrays).
+ * the segment's canonical token (the key, or the bare-digit index).
  */
 export function labelForSeg(node: YNode, keyOrIdx: Seg): string {
   if (node.title) return node.title;
@@ -1067,7 +1071,7 @@ export function labelForSeg(node: YNode, keyOrIdx: Seg): string {
     const t = (v as Record<string, YNode>)["title"];
     if (t && !isContainer(t) && !isBinary(t.value)) return String(t.value);
   }
-  return typeof keyOrIdx === "number" ? `[${keyOrIdx}]` : keyOrIdx;
+  return segToken(keyOrIdx);
 }
 
 /** The TOC type for a node, derived without forcing a file read: the schema

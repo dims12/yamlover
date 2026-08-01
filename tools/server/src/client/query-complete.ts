@@ -12,6 +12,8 @@
 
 import { queryTree, TreeNode } from "./api";
 import { Seg, strToSegs } from "./paths";
+import { keyPortion } from "../../../parser/ts/src/pointer.ts";
+import { segToken } from "../../../parser/ts/src/pathseg.ts";
 
 export interface Completion {
   insert: string; // replaces the typed tail on pick
@@ -37,14 +39,15 @@ export const OPERATOR_HINTS: Completion[] = [
   { insert: "!!<format: >", kind: "operator", detail: "format test" },
 ];
 
-/** Spell a key as a query/pointer portion: quoted when bare spelling would read as a
- *  matcher or break tokenization (spaces, separators, comparison heads, literals). */
+/** Spell a key as a query/pointer portion — THE canonical key spelling (the parser's
+ *  keyPortion), plus quoting for the query grammar's own matcher/comparison heads, which
+ *  a bare key must not read as. */
 export function quoteKey(k: string): string {
-  const literalLike = /^(true|false|null|[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?)$/.test(k);
   const matcherLike = /^(\?|\.\.\.?|\?\.\.)$/.test(k) || k.endsWith("..");
-  const breaksTokens = /[\s:\[\]'"\\=!<>]/.test(k);
-  if (!literalLike && !matcherLike && !breaksTokens && k !== "") return k;
-  return `'${k.replace(/'/g, "''")}'`;
+  const comparisonHead = /^[=!<>]/.test(k);
+  const literalLike = /^(true|false|null|[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?)$/.test(k);
+  if (matcherLike || comparisonHead || literalLike) return `'${k.replace(/'/g, "''")}'`;
+  return keyPortion(k);
 }
 
 /** Rank candidates against the typed prefix: prefix matches first, then substrings;
@@ -90,16 +93,11 @@ export function splitQueryPortions(text: string): string[] {
   return out.filter((p) => p !== "");
 }
 
-/** A canonical client path as breadcrumb cells: one portion per string key, with numeric
- *  segments FOLDED into the preceding portion (`:pets[0]:name` → ["pets[0]", "name"]) —
- *  matching the pointer spelling. A leading ordinal (no preceding key) is its own cell. */
+/** A canonical client path as breadcrumb cells: one portion per segment — a string key
+ *  spelled by {@link quoteKey}, a position as its own bare-digit cell (`:pets:0:name` →
+ *  ["pets", "0", "name"]), the null key as `~` — matching the pointer spelling. */
 export function portionsFromPath(path: string): string[] {
-  const out: string[] = [];
-  for (const seg of strToSegs(path)) {
-    if (typeof seg === "number" && out.length > 0) out[out.length - 1] += `[${seg}]`;
-    else out.push(typeof seg === "number" ? `[${seg}]` : quoteKey(seg));
-  }
-  return out;
+  return strToSegs(path).map((seg) => (typeof seg === "string" ? quoteKey(seg) : segToken(seg)));
 }
 
 /** The SCOPE LADDER a query/pointer opens with (SEPARATOR.md §2 — more colons, wider
@@ -166,7 +164,7 @@ export function treeCandidateProvider(at = ":"): CandidateProvider {
           const segs = strToSegs(n.path);
           const seg: Seg | undefined = segs[segs.length - 1];
           if (seg === undefined) continue;
-          const insert = typeof seg === "number" ? `[${seg}]` : quoteKey(seg);
+          const insert = typeof seg === "string" ? quoteKey(seg) : segToken(seg); // `1`, not `[1]`; `~` = the null key
           if (seen.has(insert)) continue;
           seen.add(insert);
           keys.push({ kind: "key", node: n, insert });

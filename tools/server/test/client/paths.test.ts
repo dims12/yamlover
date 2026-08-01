@@ -22,12 +22,12 @@ describe("client paths", () => {
     expect(strToSegs(segsToStr(["a/b", 2]))).toEqual(["a/b", 2]);
   });
 
-  it("displayPath decodes keys for human display (tooltips), space after each colon, keeping [i] indices", () => {
-    // a Cyrillic key arrives percent-encoded in the canonical path; the display
-    // form shows the real characters, colon-separated with a space after each colon
+  it("displayPath decodes keys for human display (tooltips), space after each colon, bare-digit indices", () => {
+    // a Cyrillic key arrives percent-encoded in the canonical path; a spacey key rides QUOTED
+    // (keyPortion); the display form shows the canonical tokens, a space after each colon
     const enc = segsToStr(["00. Периодика", 3, "a/b"]);
-    expect(enc).toBe(":00.%20%D0%9F%D0%B5%D1%80%D0%B8%D0%BE%D0%B4%D0%B8%D0%BA%D0%B0[3]:a%2Fb");
-    expect(displayPath(enc)).toBe(": 00. Периодика[3]: a/b");
+    expect(enc).toBe(":'00.%20%D0%9F%D0%B5%D1%80%D0%B8%D0%BE%D0%B4%D0%B8%D0%BA%D0%B0':3:a%2Fb");
+    expect(displayPath(enc)).toBe(": '00. Периодика': 3: a/b");
     expect(displayPath(":")).toBe(":");
   });
 
@@ -40,13 +40,13 @@ describe("client paths", () => {
   it("isAncestorPath", () => {
     expect(isAncestorPath(":", ":a")).toBe(true);
     expect(isAncestorPath(":a", ":a:b")).toBe(true);
-    expect(isAncestorPath(":a", ":a[0]")).toBe(true);
+    expect(isAncestorPath(":a", ":a:0")).toBe(true); // a position is a colon segment now
     expect(isAncestorPath(":a", ":a")).toBe(false); // self is not a strict ancestor
     expect(isAncestorPath(":a", ":ab")).toBe(false); // not a segment boundary
   });
 
   it("builds crumbs with and without a head", () => {
-    expect(crumbs(":x[0]", "root").map((c) => c.label)).toEqual(["root", "x", "[0]"]);
+    expect(crumbs(":x:0", "root").map((c) => c.label)).toEqual(["root", "x", "0"]);
     expect(crumbs(":x", "").map((c) => c.label)).toEqual(["x"]); // head omitted when blank
   });
 

@@ -415,7 +415,7 @@ describe("Render — the yaml/flow collection style", () => {
   });
 
   it("a flow ELEMENT rides its dash", () => {
-    expect(show([[12, 13], 9], { "[0]": { repr: "yaml/flow" } })).toBe("- [12, 13]\n- 9\n");
+    expect(show([[12, 13], 9], { "/0": { repr: "yaml/flow" } })).toBe("- [12, 13]\n- 9\n");
   });
 
   it("a flow MAP keeps its braces and keys", () => {
@@ -423,7 +423,7 @@ describe("Render — the yaml/flow collection style", () => {
   });
 
   it("nested flow nests — each level carries its own bit", () => {
-    const c = { "/k": { repr: "yaml/flow" }, "/k[0]": { repr: "yaml/flow" }, "/k[1]": { repr: "yaml/flow" } };
+    const c = { "/k": { repr: "yaml/flow" }, "/k/0": { repr: "yaml/flow" }, "/k/1": { repr: "yaml/flow" } };
     expect(show({ k: [[1, 2], [3]] }, c)).toBe("k: [[1, 2], [3]]\n");
   });
 
@@ -433,7 +433,7 @@ describe("Render — the yaml/flow collection style", () => {
   });
 
   it("scalar tokens inside a flow token keep their authored spelling", () => {
-    const out = show({ k: [255, "~"] }, { "/k": { repr: "yaml/flow" }, "/k[0]": { raw: "0xff" }, "/k[1]": { raw: '"~"' } });
+    const out = show({ k: [255, "~"] }, { "/k": { repr: "yaml/flow" }, "/k/0": { raw: "0xff" }, "/k/1": { raw: '"~"' } });
     expect(out).toBe('k: [0xff, "~"]\n'); // hex stays hex; the STRING "~" keeps its quotes
   });
 
@@ -471,7 +471,7 @@ describe("Render — a K&R (multi-line flow) value", () => {
   });
 
   it("rides a dash, closing at the dash column", () => {
-    expect(show([[1, 2], 9], { "[0]": KR })).toBe("- [\n  1,\n  2\n]\n- 9\n");
+    expect(show([[1, 2], 9], { "/0": KR })).toBe("- [\n  1,\n  2\n]\n- 9\n");
   });
 
   it("EXPANDS every nested container — inside the switch the language is json5p", () => {
@@ -503,8 +503,8 @@ describe("Render — a K&R (multi-line flow) value", () => {
 describe("Render — a K&R DOCUMENT", () => {
   it("draws the whole document as written, at every level", () => {
     const value = [{ name: "Eurasia", children: [{ name: "Europe" }, { name: "Asia" }] }];
-    const comments = { "": { concrete: "json5p" }, "[0]/name": { raw: '"Eurasia"' },
-      "[0]/children[0]/name": { raw: '"Europe"' }, "[0]/children[1]/name": { raw: '"Asia"' } };
+    const comments = { "": { concrete: "json5p" }, "/0/name": { raw: '"Eurasia"' },
+      "/0/children/0/name": { raw: '"Europe"' }, "/0/children/1/name": { raw: '"Asia"' } };
     const { container } = render(<Render value={value} syntax="yaml" onNavigate={() => {}} comments={comments as never} />);
     expect(container.textContent).toBe(
       '[\n  {\n    name: "Eurasia",\n    children: [\n      {\n        name: "Europe"\n      },\n      {\n        name: "Asia"\n      }\n    ]\n  }\n]\n',

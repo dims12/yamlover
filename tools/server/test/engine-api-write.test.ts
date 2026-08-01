@@ -40,7 +40,7 @@ describe("/api/tag (create)", () => {
     await h.ready;
 
     const NAME = "исаакиевский собор";
-    const ENC = ":tags:" + encodeURIComponent(NAME); // client JSON paths percent-encode keys
+    const ENC = ":tags:'" + encodeURIComponent(NAME) + "'"; // percent-encoded canonical token (a spacey key rides quoted)
     const r = await callBody(h, "POST", "/api/tag", { name: NAME });
     expect(r.status).toBe(201);
     expect(r.json).toMatchObject({ path: ENC, name: NAME, color: null, created: true });
@@ -399,13 +399,13 @@ describe("/api/paste (text)", () => {
 
     const r = await callBody(h, "POST", "/api/paste", { path: ":dir", text: "# Hello World\n\nFirst paragraph.\n" });
     expect(r.status).toBe(201);
-    expect(r.json).toMatchObject({ path: ":dir:Hello%20World.yo", dir: ":dir", open: false });
+    expect(r.json).toMatchObject({ path: ":dir:'Hello%20World.yo'", dir: ":dir", open: false });
     const src = fs.readFileSync(path.join(root, "dir", "Hello World.yo"), "utf8");
     // the title is the root's scalar SELF-VALUE line — no `title:` key (CHAPTER.md)
     expect(src).toBe('!!<*::yamlover:$defs:chapter>\n"Hello World"\n- |\n  # Hello World\n\n  First paragraph.\n');
 
     // the new file indexed as a chapter holding the text as its one body chunk
-    const node = call(h, "/api/json", { path: ":dir:Hello%20World.yo", depth: "3" });
+    const node = call(h, "/api/json", { path: ":dir:'Hello%20World.yo'", depth: "3" });
     expect(node.json.format).toBe("x-yamlover-chapter");
     expect(bodyVals(node.json.value)).toEqual(["# Hello World\n\nFirst paragraph.\n"]);
   });
@@ -436,7 +436,7 @@ describe("/api/paste (text)", () => {
 
     // the subchapter "Sub" is body element [2] (title is store index 0, "Hello" is [1])
     const r = await callBody(h, "POST", "/api/paste", { path: ":doc[2]", text: "deep note" });
-    expect(r.json).toMatchObject({ path: ":doc[2]", chapter: ":doc[2]" });
+    expect(r.json).toMatchObject({ path: ":doc:2", chapter: ":doc:2" });
     const node = call(h, "/api/json", { path: ":doc[2]", depth: "3" });
     expect(bodyVals(node.json.value)).toEqual(["First", "deep note"]);
   });
@@ -460,7 +460,7 @@ describe("/api/paste (text)", () => {
     await h.ready;
 
     const r = await callBody(h, "POST", "/api/paste", { path: ":dir", text: "Привет мир\n\nтекст" });
-    expect(r.json.path).toBe(`:dir:${encodeURIComponent("Привет мир")}.yo`);
+    expect(r.json.path).toBe(`:dir:'${encodeURIComponent("Привет мир")}.yo'`); // a spacey key rides quoted
     expect(fs.existsSync(path.join(root, "dir", "Привет мир.yo"))).toBe(true);
   });
 
@@ -560,7 +560,7 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
         children: [{ title: "Gallery", chunks: [{ file: { name: "cat.jpg", contentBase64: b64("JPG2") } }], children: [] }],
       },
     });
-    expect(r.json).toMatchObject({ path: ":dir:A%20cat%20article", dir: ":dir", open: false });
+    expect(r.json).toMatchObject({ path: ":dir:'A%20cat%20article'", dir: ":dir", open: false });
     // the chapter is a directory: body overlay + both images inside (deduped names)
     expect(fs.readFileSync(path.join(root, "dir", "A cat article", "cat.jpg"), "utf8")).toBe("JPG");
     expect(fs.readFileSync(path.join(root, "dir", "A cat article", "cat-1.jpg"), "utf8")).toBe("JPG2");
@@ -571,7 +571,7 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
     const node = call(h, "/api/json", { path: encodeURI(":dir:A cat article"), depth: "4" });
     expect(node.json.format).toBe("x-yamlover-chapter");
     const img = bodyVals(node.json.value).find((x) => (x as { $yamloverLink?: unknown })?.$yamloverLink) as { $yamloverLink: { path: string } };
-    expect(img.$yamloverLink.path).toBe(encodeURI(":dir:A cat article:cat.jpg"));
+    expect(img.$yamloverLink.path).toBe(encodeURI(":dir:'A cat article':cat.jpg")); // spacey key quoted
     // `cat.jpg` is ordered by the body's own top-level flow, so its pointer is CONSUMED and the
     // member rides that position as an anchor. `cat-1.jpg` is referenced from INSIDE the inline
     // "Gallery" subchapter — a cross-reference, not a body position — so it stays an ordinary keyed

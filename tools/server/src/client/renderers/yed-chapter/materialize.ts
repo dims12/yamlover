@@ -22,6 +22,7 @@ import { isPointer } from "../../../../../parser/ts/src/ir.ts";
 import { withNode } from "../../../../../yed/src/apply";
 import { hasSelfValue, metaOf, tagContentOf } from "../../../../../yed/src/chapter/format";
 import { parsePointer } from "../../../../../parser/ts/src/pointer.ts";
+import { segToken } from "../../../../../parser/ts/src/pathseg.ts";
 import { pointerSafeName } from "../../../concrete";
 import { defaultChildConcrete, nextMemberName, subchapterMaterializes } from "../../../concrete-rules";
 
@@ -54,8 +55,8 @@ function memberNameOfSibling(e: Entry): string | null {
   return null;
 }
 
-const appendIndex = (path: string, i: number): string => `${path === ":" ? "" : path}[${i}]`;
-const appendKey = (path: string, key: string): string => `${path === ":" ? "" : path}:${encodeURIComponent(key)}`;
+const appendIndex = (path: string, i: number): string => `${path === ":" ? "" : path}:${i}`;
+const appendKey = (path: string, key: string): string => `${path === ":" ? "" : path}:${encodeURIComponent(segToken(key))}`;
 
 /** A birth candidate: a session-born group (`meta.chapterWrapped`), untagged, that is now a
  *  TITLED chapter with body — the title names the member directory (a nameless group stays

@@ -18,7 +18,7 @@ beforeEach(() => {
 
 // A chapter (CHAPTER.md): title/description are keyed; the body is the mixed marker's KEYLESS
 // entries — scalar chunk link markers (text in `value`) and object subchapter markers (with a
-// `title`). Title is entry 0, so the body elements sit at store slots [1], [2], [3].
+// `title`). Title/description are entries 0/1, so the body elements sit at store slots 2, 3, 4.
 const chapter: NodeJson = {
   path: ":",
   type: "variant",
@@ -32,9 +32,9 @@ const chapter: NodeJson = {
       entries: [
         { key: "title", value: "The Handbook" },
         { key: "description", value: "A friendly guide" },
-        { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":[1]", value: "Welcome to the handbook." } } },
-        { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":[2]", value: "Read on." } } },
-        { key: null, value: { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: ":[3]", title: "Installation", count: 2 } } },
+        { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":2", value: "Welcome to the handbook." } } },
+        { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":3", value: "Read on." } } },
+        { key: null, value: { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: ":4", title: "Installation", count: 2 } } },
       ],
     },
   },
@@ -51,21 +51,23 @@ describe("ChapterView", () => {
     expect(subtitle.className).toContain("chapter-subtitle");
   });
 
-  it("flattens each chunk into the page with a §N fragment-anchor link to its in-page location", () => {
+  it("flattens each chunk into the page with a bare-address gutter anchor to its in-page location", () => {
     const onNav = vi.fn();
     render(<ChapterView node={chapter} onNavigate={onNav} />);
 
     const prose = screen.getByText("Welcome to the handbook.");
     expect(prose.tagName).toBe("P"); // a chunk is delegated to the text renderer → paragraph
 
-    // §N is an in-page fragment anchor mirroring the chunk's positional store path (`#[1]`)
-    const idx0 = screen.getByText("§0") as HTMLAnchorElement;
-    expect(idx0.getAttribute("href")).toBe("#[1]");
-    expect((screen.getByText("§1") as HTMLAnchorElement).getAttribute("href")).toBe("#[2]");
-    // the chunk element carries the matching id, so `<chapter>#[2]` scrolls to it
-    expect(document.getElementById("[2]")).not.toBeNull();
+    // the gutter shows the chunk's ABSOLUTE entry index as the bare address, and is an in-page
+    // fragment anchor mirroring the chunk's positional store path (`#/2`)
+    const gutters = Array.from(document.querySelectorAll("a.chunk-index")) as HTMLAnchorElement[];
+    expect(gutters.map((a) => a.textContent)).toEqual(["2", "3"]);
+    expect(gutters[0].getAttribute("href")).toBe("#/2");
+    expect(gutters[1].getAttribute("href")).toBe("#/3");
+    // the chunk element carries the matching id, so `<chapter>#/3` scrolls to it
+    expect(document.getElementById("/3")).not.toBeNull();
     // clicking the in-page anchor does not trigger app navigation
-    fireEvent.click(idx0);
+    fireEvent.click(gutters[0]);
     expect(onNav).not.toHaveBeenCalled();
   });
 
@@ -139,9 +141,9 @@ describe("ChapterView", () => {
     render(<ChapterView node={chapter} onNavigate={onNav} />);
 
     const link = screen.getByText("Installation"); // subchapter by its title
-    expect((link as HTMLAnchorElement).getAttribute("href")).toBe(":[3]");
+    expect((link as HTMLAnchorElement).getAttribute("href")).toBe(":4");
     fireEvent.click(link);
-    expect(onNav).toHaveBeenCalledWith(":[3]");
+    expect(onNav).toHaveBeenCalledWith(":4");
   });
 
   it("renders title, description, subchapters and chunks in SOURCE order — heading not hoisted, text after a subchapter", () => {
@@ -230,7 +232,7 @@ describe("ChapterView — inline subchapters", () => {
       $yamloverMixed: {
         kind: "omni", value: "Book", selfAt: 0,
         entries: [
-          { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/marklower", path: ":[0]", value: "Opening." } } },
+          { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/marklower", path: ":0", value: "Opening." } } },
           { key: null, value: { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: subPath, title: "Dogs" } } },
         ],
       },
@@ -245,7 +247,7 @@ describe("ChapterView — inline subchapters", () => {
       $yamloverMixed: {
         kind: "omni", value: title, selfAt: 0,
         entries: [
-          { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/marklower", path: `${path}[0]`, value: chunk } } },
+          { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/marklower", path: `${path}:0`, value: chunk } } },
           ...(deeper ? [{ key: null, value: deeper }] : []),
         ],
       },
@@ -269,14 +271,14 @@ describe("ChapterView — inline subchapters", () => {
     fetchNode.mockResolvedValue(subNode(":dogs", "Dogs", "Dogs are good."));
     const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
     await waitFor(() => expect(container.querySelector("section.chapter-sub")).toBeTruthy());
-    // the subchapter sits at body index 1 of the page → its heading anchors at `[1]`
-    expect(container.querySelector("h2.chapter-title")?.id).toBe("[1]");
-    // its chunk is `[1][0]` — a slot chain, because `:dogs` is not under the page root `:`… but
-    // the page root IS `:`, an ancestor of everything, so the path branch wins and gives `/dogs[0]`
-    expect(document.getElementById("/dogs[0]")).not.toBeNull();
-    // §N restarts inside the subchapter: the page's own chunk is §0 and so is the subchapter's
+    // the subchapter sits at body index 1 of the page → its heading anchors at `/1`
+    expect(container.querySelector("h2.chapter-title")?.id).toBe("/1");
+    // its chunk is `/1/0` — a slot chain, because `:dogs` is not under the page root `:`… but
+    // the page root IS `:`, an ancestor of everything, so the path branch wins and gives `/dogs/0`
+    expect(document.getElementById("/dogs/0")).not.toBeNull();
+    // the gutter shows each chunk's own ABSOLUTE address: 0 on the page and 0 in the subchapter
     const indices = Array.from(container.querySelectorAll(".chunk-index")).map((a) => a.textContent);
-    expect(indices).toEqual(["§0", "§0"]);
+    expect(indices).toEqual(["0", "0"]);
   });
 
   it("?depth=1 keeps today's link — no fetch at all, SAME heading face (the depth-styling rule)", () => {
@@ -285,7 +287,7 @@ describe("ChapterView — inline subchapters", () => {
     expect(fetchNode).not.toHaveBeenCalled();
     const link = container.querySelector("h2.chapter-title a.descend")!;
     expect(link.textContent).toBe("Dogs");
-    expect(container.querySelector("h2.chapter-title")?.id).toBe("[1]"); // the anchor still resolves
+    expect(container.querySelector("h2.chapter-title")?.id).toBe("/1"); // the anchor still resolves
   });
 
   it("?depth=2 inlines one level and leaves the next as a link", async () => {
@@ -305,7 +307,7 @@ describe("ChapterView — inline subchapters", () => {
     const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
     const head = container.querySelector("h2.chapter-title")!;
     expect(head.querySelector("a.descend")?.textContent).toBe("Dogs");
-    expect(head.id).toBe("[1]"); // the anchor exists before the body lands
+    expect(head.id).toBe("/1"); // the anchor exists before the body lands
     expect(head.querySelector(".chapter-link-note")?.textContent?.trim()).toBe("…");
   });
 

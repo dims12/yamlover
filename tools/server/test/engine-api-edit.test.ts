@@ -476,7 +476,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     const { root, h } = await chapterHandlers();
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", concrete: "yamlover", meta: CHAP, yamlover: BODY });
     expect(r.status).toBe(200);
-    expect(r.json.path).toBe(":doc[5]"); // after title(0)/description(1)/Hello(2)/block(3)/Sub(4)
+    expect(r.json.path).toBe(":doc:5"); // after title(0)/description(1)/Hello(2)/block(3)/Sub(4)
     expect(bodyOf(root)).toContain('title: "Fresh"');
     const node = call(h, "/api/json", { path: ":doc[5]", depth: "3" });
     expect(node.json.format).toBe("x-yamlover-chapter");
@@ -669,7 +669,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: ":dir", op: "insert", concrete: "dir", name: "New Folder" });
     expect(r.status).toBe(200);
-    expect(r.json.path).toBe(":dir:New%20Folder"); // segsToStr percent-encodes the space
+    expect(r.json.path).toBe(":dir:'New%20Folder'"); // segsToStr percent-encodes the space
     const abs = path.join(root, "dir", "New Folder");
     expect(fs.statSync(abs).isDirectory()).toBe(true);
     expect(fs.readdirSync(abs)).toEqual([]); // truly empty — no .yo marker, no body file
@@ -692,8 +692,8 @@ describe("/api/edit — creating objects (concrete)", () => {
     await h.ready;
     const first = await callBody(h, "POST", "/api/edit", { path: ":dir", op: "insert", concrete: "dir", name: "New Folder", meta: CHAP, yamlover: BODY });
     const second = await callBody(h, "POST", "/api/edit", { path: ":dir", op: "insert", concrete: "dir", name: "New Folder" });
-    expect(first.json.path).toBe(":dir:New%20Folder");
-    expect(second.json.path).toBe(":dir:New%20Folder-1");
+    expect(first.json.path).toBe(":dir:'New%20Folder'");
+    expect(second.json.path).toBe(":dir:'New%20Folder-1'");
     expect(fs.readdirSync(path.join(root, "dir", "New Folder"))).toEqual([]); // meta/yamlover wrote nothing
     expect(fs.statSync(path.join(root, "dir", "New Folder-1")).isDirectory()).toBe(true);
   });
@@ -1429,11 +1429,11 @@ describe("/api/tree — anchored members read as indices, scalars ride the row",
   it("names a consumed member by position, and trails an unlisted child by its own name", async () => {
     const h = await listTree();
     expect(flat(tree(h)).slice(1)).toEqual([
-      "  [0] = World",
-      "    [0] = Eurasia",
-      "      [0] = Europe",
-      "      [1] = Asia",
-      "  [1] = plain",
+      "  0 = World",
+      "    0 = Eurasia",
+      "      0 = Europe",
+      "      1 = Asia",
+      "  1 = plain",
       "  loose.yo = Unlisted", // never granted a position: still keyed, still named
     ]);
   });
@@ -1441,7 +1441,7 @@ describe("/api/tree — anchored members read as indices, scalars ride the row",
   it("keeps the PATH keyed — the label is display, the address is storage", async () => {
     const h = await listTree();
     const member = tree(h).children[0];
-    expect(member.label).toBe("[0]");
+    expect(member.label).toBe("0");
     expect(member.path).toBe(":item01");
     expect(member.children[0].path).toBe(":item01:item01");
   });
@@ -1466,7 +1466,7 @@ describe("/api/tree — anchored members read as indices, scalars ride the row",
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const pic = tree(h, ":doc").children.find((c) => c.path === ":doc:pic.png")!;
-    expect(pic.label).toBe("[1]"); // anchored: ordinal, not "pic.png"
+    expect(pic.label).toBe("1"); // anchored: ordinal, not "pic.png"
     expect(pic.value).toBeUndefined(); // blob bytes have no readable value
   });
 

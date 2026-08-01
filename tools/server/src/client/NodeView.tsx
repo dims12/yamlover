@@ -24,6 +24,7 @@ const EDITABLE_RENDERERS = new Set(["chapter", "task", "table"]);
 import { TagBadges, splitTagRefs } from "./renderers/tag";
 import { Render } from "./render";
 import { strToSegs } from "./paths";
+import { segToken } from "../../../parser/ts/src/pathseg.ts";
 
 // The data representations, in order: `yamlover` (the default, YAML-family syntax), `json5p`
 // (JSON-family syntax), then `yamlover/schema` (the instance schema, YAML-family). Each is one
@@ -102,13 +103,14 @@ function isEditableData(effective: Format, node: NodeJson): boolean {
   return !isBinaryConcrete(node.concrete);
 }
 
-/** A node's bare name: its last path segment (a decoded key or `[index]`), or ""
- *  for the root. Used as the document title when the node has no schema title. */
+/** A node's bare name: its last path segment's canonical token (a decoded key, a bare
+ *  index, `~` for the null key), or "" for the root. Used as the document title when the
+ *  node has no schema title. */
 function nodeName(path: string): string {
   const segs = strToSegs(path);
   const last = segs[segs.length - 1];
   if (last === undefined) return "";
-  return typeof last === "number" ? `[${last}]` : last;
+  return segToken(last);
 }
 
 interface Props {
@@ -446,7 +448,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     if (!node) return;
     const title = node.title?.trim() || nodeName(path) || rootLabel || "yamlover";
     const parents = strToSegs(path).slice(0, -1)
-      .map((s) => (typeof s === "number" ? `[${s}]` : `: ${s}`)).join("");
+      .map((s) => `: ${segToken(s)}`).join("");
     const where = ((rootLabel ?? "") + parents).replace(/^: /, ""); // no label yet — drop its separator
     // the root IS the label — a `- <label>` suffix would just repeat the name
     document.title = where && path !== ":" ? `${title} - ${where}` : title;
