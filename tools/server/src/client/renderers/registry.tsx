@@ -401,9 +401,10 @@ const REGISTRY: Renderer[] = [
     renderChunk: (chunk) => <PlantumlChunk chunk={chunk} />,
   },
   {
-    // SOURCE-CODE chunks — the yamlover family shown verbatim (the docs book's fenced-code
-    // migration shape, DOCSMIGRATION.md §Conventions). Verbatim <pre> today; syntax
-    // highlighting is the planned upgrade, and lands here when it does.
+    // SOURCE-CODE chunks — the yamlover family (the docs book's fenced-code migration shape,
+    // DOCSMIGRATION.md §Conventions), SYNTAX-HIGHLIGHTED by the shared lexer: PlaintextView /
+    // PlaintextChunk tokenize when the format names a known language (highlight.tsx over
+    // tools/parser/ts/src/highlight.ts) and stay verbatim otherwise (the plaintext entry).
     name: "code",
     icon: "⌨",
     accepts: byFormat("text/x-yamlover", "text/x-json5p", "text/x-yaml"),

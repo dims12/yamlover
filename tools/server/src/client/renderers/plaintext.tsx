@@ -3,6 +3,7 @@ import { NodeJson, blobUrl } from "../api";
 import { Chunk } from "./registry";
 import { isFileConcrete } from "../../concrete";
 import { scalarValue } from "../render";
+import { highlightLang, highlightSpans } from "../highlight";
 
 /**
  * The renderer for a `binary`/`text/plain` (`.txt`/`.text`/`.log`) node: the file's
@@ -83,20 +84,22 @@ export function PlaintextView({ node }: { node: NodeJson }) {
   );
   if (error) return <div className="error">text: {error}</div>;
   if (text == null) return <div className="loading">reading…</div>;
+  const lang = highlightLang(node.format);
   return (
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}
       {node.description && <p className="chapter-subtitle">{node.description}</p>}
-      <pre className="plaintext">{text}</pre>
+      <pre className="plaintext">{lang ? highlightSpans(text, lang) : text}</pre>
     </div>
   );
 }
 
-/** A plain-text chunk embedded inline in a chapter: just the verbatim text, decoded
- *  as UTF-8 (no per-chunk URL controls, like the CSV chunk). An INLINE chunk (a
- *  format-tagged block scalar in the body — the code-chunk shape, DOCSMIGRATION.md)
- *  already carries its text as the value and fetches nothing; only a file-backed
- *  pointer chunk reads bytes. */
+/** A plain-text chunk embedded inline in a chapter: the verbatim text, decoded as UTF-8
+ *  (no per-chunk URL controls, like the CSV chunk). An INLINE chunk (a format-tagged block
+ *  scalar in the body — the code-chunk shape, DOCSMIGRATION.md) already carries its text as
+ *  the value and fetches nothing; only a file-backed pointer chunk reads bytes. A format
+ *  naming a yamlover-family language gets SYNTAX HIGHLIGHTING via the shared lexer
+ *  (highlight.tsx); `text/plain` maps to no language and stays verbatim. */
 export function PlaintextChunk({ chunk }: { chunk: Chunk }) {
   const inline = typeof chunk.value === "string" ? chunk.value : null;
   const { bytes, error } = useBytes(inline == null ? chunk.path : null);
@@ -106,7 +109,8 @@ export function PlaintextChunk({ chunk }: { chunk: Chunk }) {
   );
   if (error) return <div className="error">text: {error}</div>;
   if (text == null) return <div className="loading">reading…</div>;
-  return <pre className="plaintext">{text}</pre>;
+  const lang = highlightLang(chunk.format);
+  return <pre className="plaintext">{lang ? highlightSpans(text, lang) : text}</pre>;
 }
 
 /**
