@@ -1,0 +1,24 @@
+!!<*yamlover: $defs: chapter>
+The graph
+description: an acyclic spine, one relation kind, and a normal form
+- |
+  Two edge classes build every yamlover graph. **Containment** — a key holding its value
+  — is the acyclic spine: every node has exactly one containing parent, and the spine is
+  the node's identity path. **References** — `*` pointers and the entries `&` anchors
+  create — are non-owning edges laid on top; they may point anywhere, an ancestor
+  included, so the whole is a general directed graph, cycles allowed
+  ([a graph, kept as written](::language:principles:graph-not-tree)).
+- |
+  Containment and references are **one relation kind, keyed by the child's name**: a
+  `cain:` key holding a node and a `cain: *…` reference landing on the same node are the
+  same relation, authored from two ends — "two parents" is two same-named child-edges
+  into one node. A query walking up meets both and cannot tell which is which.
+- |
+  A relation may be authored **forward, reverse, or both** — the reverse spelling is the
+  `&` anchor (formerly the `~` sigil) — and both authorings produce identical normalized
+  edges; a both-ways pair folds to one. The engine keeps the graph exactly as written,
+  and `normalize` reduces a document to the canonical forwards-only form; queries always
+  see the normalized view, so they cannot tell which way an edge was written.
+- |
+  Reference edges are never expanded inline — a cycle renders as a link, not an infinite
+  tree — and on a filesystem a reverse-authored membership materializes as a symlink.

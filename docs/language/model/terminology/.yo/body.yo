@@ -1,0 +1,22 @@
+!!<*yamlover: $defs: chapter>
+Terminology
+description: the words the rest of the spec uses precisely
+- 'The model is described with a small vocabulary, used precisely throughout the book:'
+- !!<*yamlover: $defs: table>
+  header:
+    - Term
+    - Meaning
+      width: 3
+  - ['**node**', 'one value in the graph — it may carry a self-value, keyed entries, and keyless entries at once']
+  - ['**entry**', 'one element of a node''s single ordered stream — **keyed** (`key: value`) or **keyless** (`- value`); every entry holds a position']
+  - ['**self-value**', 'the scalar a node carries as its own value, beside any entries']
+  - ['**member**', 'an entry seen from the container side; **anchor-created** members arrive through `&` paths, after the owned entries']
+  - ['**facet**', 'one of the three capabilities a node may exercise: value, keyed, ordinal']
+  - ['**kind**', 'a familiar shorthand — scalar, object, array, mixed, variant — a corner of the facet cube, not a box']
+  - ['**type**', 'a predicate over a node''s shape; a node may satisfy several at once']
+  - ['**format**', 'a refinement of a facet, usually value: `text/markdown`, `image/png`, `x-yamlover-chapter` — not a type']
+  - ['**omni**', 'the unconstrained shape — a node free to exercise every facet; the default']
+  - ['**concrete**', 'how and where a node''s value is physically stored — orthogonal to type and format']
+  - ['**projection**', 'the read-side view the engine serves — labels, order, derived anchors — computed from storage']
+  - ['**containment spine**', 'the acyclic tree of key-holds-value edges; a node''s identity path']
+  - ['**ref edge**', 'a non-owning edge a `*` pointer or an `&` anchor creates, laid over the spine']

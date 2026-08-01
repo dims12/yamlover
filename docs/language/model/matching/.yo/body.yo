@@ -1,0 +1,34 @@
+!!<*yamlover: $defs: chapter>
+Matching and the algebra
+description: types compose as predicates; consumers carry their own acceptance formula
+- |
+  Types are predicates, so JSON Schema's boolean combinators are the whole algebra:
+  `allOf` is conjunction, `anyOf` disjunction, `not` negation, and `oneOf` is one-hot —
+  exactly one, which is *not* XOR (parity would also fire on the all-set corner).
+  Relations between types are **judgments computed from the formulas**, never authored:
+  subtype is implication (`integer` below `number`, everything below `true`),
+  equivalence is mutual implication (empty object ≡ empty array), disjointness an
+  unsatisfiable meet, overlap a satisfiable meet between incomparable types — omni nodes
+  are where a value-test and an element-test meet.
+- |
+  On this algebra sits the matching stance
+  ([what it doesn't test, it tolerates](::language:principles:tolerance)): the spec
+  mandates neither open nor closed matching; each consumer carries its own formula. A
+  matcher inspects a node's **type facets** — four observations:
+- !!<format: text/plain> |
+  value:    the self-value's scalar type — or none
+  format:   the value-format (text/markdown, application/pdf)
+            or the shape-format (x-yamlover-chapter)
+  keyed:    at least one named element exists
+  ordinal:  at least one positional element exists
+- |
+  A tolerant matcher tests only what it needs — a markdown renderer tests
+  `format = text/markdown` and nothing else, so a chunk that gained annotation keys
+  still matches; a strict consumer opts into a closed shape ("a bare string, no fields")
+  by testing every facet. Among the consumers a node satisfies, **specificity** picks
+  the winner: a stricter formula outranks a looser one.
+- |
+  A worked failure this design removes: a markdown chunk gains `yamlover-annotations`.
+  Facet-wise it is now a string-valued node with keyed elements. A registry keyed on the
+  exact kind-and-format pair misses it; the tolerant formula — format only — still
+  claims it, and the annotation layer reads the keyed facet separately.

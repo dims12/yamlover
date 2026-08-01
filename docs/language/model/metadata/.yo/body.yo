@@ -1,0 +1,55 @@
+!!<*yamlover: $defs: chapter>
+Metadata
+description: a JSON-Schema-equivalent written in yamlover — typing, decoding, presentation
+- |
+  yamlover keeps a schema, repurposed: a **JSON-Schema-equivalent written in yamlover** —
+  the same or close vocabulary (`properties`, `type`, `format`, `prefixItems`, `items`) —
+  whose primary purpose is **metadata**: typing, decoding, and presentation, with
+  validation a secondary, optional use
+  ([metadata first](::language:principles:metadata-first)). Data lives in the instance;
+  the schema only describes it. Schema-as-storage — pinning data with `const` so the
+  schema *is* the instance — is the one old model that was dropped.
+- |
+  **Two ways to attach.** A directory's `.yo/meta.yo` overlay nests under the JSON-Schema
+  keywords, so the engine maps a meta-path to an instance-path (`properties: age`
+  annotates the instance node `age`). In a file, the `!!<…>` tag attaches a schema to the
+  value that follows it — or, alone at the top, to the document root. The tag's contents
+  are themselves yamlover: a pointer to a hosted schema, or an inline schema literal —
+  a one-off format needs no named definition. json5p has no tags: overlay only.
+- !!<format: text/x-yamlover> |
+  !!<*yamlover: $defs: chapter>     # a pointer to a hosted schema
+  My Article
+  - !!<format: text/x-plantuml> |   # an inline schema literal — itself
+    @startuml                       #   a one-line yamlover/meta document
+    …
+- |
+  **What the metadata drives.** *Decoding*: a leaf's type and format say how to turn
+  bytes into a value — `type: binary` with `format: int32/le` decodes a four-byte file —
+  and `format` also names a sub-document encoding (`yamlover`, `json5p`, or a `…/meta`
+  variant for a schema document). *Rendering*: the viewer picks a renderer from the
+  facets and the format. *Presentation*: `title` and `description` annotate a node
+  without living in its data. Format resolution order: the meta `format:` if present;
+  else a recognized file extension; else — no meta and no extension — `binary`.
+- |
+  **The yamlover specifics** over JSON Schema: `type` adds `binary`, `mixed` (the schema
+  name of the `!!mix` shape), and `variant` (of `!!var`, the self-value given as
+  `value:`); `format` is open — a MIME type, a codec, or a yamlover-defined view;
+  `uniqueItems: true` marks a set (the overlay-and-json5p route to `!!set`); `concrete`
+  may be stated but is normally inferable from the filesystem — keep meta minimal.
+  References use `*` pointers, not `$ref`: reusable fragments live under `$defs` and are
+  referenced with a normal pointer — one reference mechanism for the whole language. The
+  combinators (`anyOf`, `oneOf`, `allOf`, `not`, type unions) are kept: a heterogeneous
+  positional body is an `items` union, and `allOf` over a schema pointer is the
+  provisional "extends".
+- |
+  **Hosted schemas.** The yamlover project hosts reusable definitions under `$defs` at
+  its project root, and the engine grafts the self-import key `yamlover` into every
+  served root — so `!!<*yamlover: $defs: chapter>` resolves from any project, a detached
+  tree included (the taxonomy ships as package data). The document-model schemas hosted
+  there — `chunk`, `chapter`, `table` — are specified in the
+  [documents chapter](::documents).
+- |
+  A served root's `.yo/settings.yo` carries project configuration. The governing rule:
+  **settings are defaults, never constraints** — a node is identified by what it *is*,
+  not by where it sits; a setting only says where to create things when the user
+  doesn't.

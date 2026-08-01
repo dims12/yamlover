@@ -10,3 +10,11 @@ description: omnivorous nodes with ordered relations — the terminology and the
   nodes keep their order as data. This part defines the model precisely: the terms, the
   three facets a node exercises, the value types, where order lives, the graph shape, the
   metadata layer, and how consumers match against it all.
+- *: terminology
+- *: facets
+- *: values
+- *: order
+- *: graph
+- *: metadata
+- *: matching
+- *: constructs
