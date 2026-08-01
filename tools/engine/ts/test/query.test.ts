@@ -73,7 +73,7 @@ for (const c of CASES) {
 // singleton fragment of the corpus).
 test('pointer-shaped queries are singletons', () => {
   const s = fixture('inline');
-  for (const q of ['team: alice: age', ': pets[1]', 'team: zoe', '[1]', '..: tags', 'team: alice: pet: name']) {
+  for (const q of ['team: alice: age', ': pets: 1', 'team: zoe', '1', '..: tags', 'team: alice: pet: name']) {
     assert.ok(evalQuery(s, q, ':team:alice').length <= 1, q);
   }
 });

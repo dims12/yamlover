@@ -1,4 +1,4 @@
 a: *tiny: object
-b: *: pets[1]: name
+b: *: pets: 1: name
 c: *:: $defs: tag
 d: *::: yamlover.inthemoon.net: $defs: tag

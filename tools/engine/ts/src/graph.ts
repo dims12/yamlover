@@ -6,6 +6,7 @@
 import type { Document } from '../../../parser/ts/src/ir.ts';
 import type { Node } from '../../../parser/ts/src/ir.ts';
 import { isPointer } from '../../../parser/ts/src/ir.ts';
+import { childSeg } from '../../../parser/ts/src/pathseg.ts';
 import { resolveDocument } from './resolve.ts';
 
 export type EdgeKind = 'contain' | 'ref' | 'back' | 'derived';
@@ -33,7 +34,7 @@ export function buildGraph(doc: Document): Graph {
     if (!node.entries) return; // any node may carry fields (scalar/blob too)
     node.entries.forEach((e, i) => {
       if (isPointer(e.value)) return; // pointers handled below, via the resolver
-      const childPath = (path === ':' ? '' : path) + (e.key != null ? ':' + e.key : '[' + i + ']');
+      const childPath = childSeg(path, e.nullKey === true ? null : e.key ?? i);
       edges.push({ from: path, to: childPath, label: e.key, kind: 'contain' });
       walk(e.value, childPath);
     });

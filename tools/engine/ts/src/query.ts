@@ -1,14 +1,15 @@
 // The QUERY evaluator (PLAN.md 3g) — colon-grammar match templates over the Store
 // (SEPARATOR.md; the acceptance corpus lives in ../test/query.cases.ts).
 //
-// A query is a bare colon path whose portions may be MATCHERS:
-//   keys/indices        team, [1], 'quoted key', cat\:dog   (the pointer fragment — ≤1 each)
-//   wildcards           ?  (any key)   [?]  (any position, incl. anchor-created entries)
+// A query is a bare colon path whose portions may be MATCHERS (the YAML-keys round:
+// a bare token is always a STEP — a bare integer is the position, `~` the null key,
+// a bare word a string key; every value test carries an operator):
+//   keys/positions      team, 1, ~, 'quoted key', cat\:dog  (the pointer fragment — ≤1 each)
+//   wildcards           ?  (any string key)  [?]  (any position, incl. anchor-created)
 //   descent             ...            (contain-only, descendant-or-self, pre-order)
 //   uplinks             ..  (spine)    ?..  (all parents)   key..   []..   (M2)
-//   value tests         31  true  null  >10  >=10  <10  <=10  !=x  =text  ='spacey text'
-//   metadata tests      !!<type: integer>  !!<format: x-yamlover-tag>  !!<*…$defs:tag>
-//   combo               `TEST key` — value-test the current node, then step
+//   value tests         =31  =true  =null  >10  >=10  <10  <=10  !=x  ='spacey text'
+//                       — a test portion is NON-NAVIGATING (`arr: 5: >10`)
 //
 // Results are COMPACT COLON store paths, in WALK ORDER, deduplicated keep-first (the
 // O1/O2 rulings). Evaluation never errors on a missing target — it yields ∅.
@@ -25,6 +26,7 @@ import { isPointer } from '../../../parser/ts/src/ir.ts';
 export type Portion =
   | { kind: 'key'; name: string }
   | { kind: 'index'; n: number }
+  | { kind: 'nullkey' }
   | { kind: 'anykey' }
   | { kind: 'anypos' }
   | { kind: 'descend' }
@@ -32,7 +34,7 @@ export type Portion =
   | { kind: 'up'; sel: 'any' | 'keyless' | string }
   | { kind: 'valtest'; op: '=' | '!=' | '>' | '>=' | '<' | '<='; value: string | number | boolean | null }
   | { kind: 'meta'; type?: string; format?: string; schema?: string }
-  | { kind: 'combo'; test: Portion & { kind: 'valtest' }; then: Portion[] };
+;
 
 export interface Query {
   base:
@@ -108,15 +110,7 @@ function parsePortion(r: string): Portion[] {
   if (r === '?..') return [{ kind: 'up', sel: 'any' }];
   if (r === '[]..') return [{ kind: 'up', sel: 'keyless' }];
   if (r.startsWith('!!<') && r.endsWith('>')) return [parseMeta(r.slice(3, -1))];
-  {
-    // combo first, so `30 ..` reads as value-test + step (not as the up-key "30 ")
-    const sp = unquotedSpace(r);
-    if (sp > 0) {
-      const head = parseValTest(r.slice(0, sp));
-      if (head !== null) return [{ kind: 'combo', test: head, then: parsePortion(r.slice(sp + 1).trim()) }];
-      throw new SyntaxError(`query: a key containing a space must be quoted ("${r}")`);
-    }
-  }
+  if (unquotedSpace(r) > 0) throw new SyntaxError(`query: a key containing a space must be quoted ("${r}")`);
   if (r.endsWith('..') && !r.endsWith('\\..') && r.length > 2) {
     return [{ kind: 'up', sel: keyName(r.slice(0, -2)) }];
   }
@@ -133,23 +127,21 @@ function parsePortion(r: string): Portion[] {
   return steps.map((st) => {
     if (st.sel === 'key') return { kind: 'key', name: st.name } as Portion;
     if (st.sel === 'index') return { kind: 'index', n: st.n } as Portion;
+    if (st.sel === 'nullkey') return { kind: 'nullkey' } as Portion;
     if (st.sel === 'relindex') throw new SyntaxError('query: a relative index "[.±k]" is a link step, not a query portion (URIs.md §Relative indexes)');
     return { kind: 'spine' } as Portion;
   });
 }
 
+/** An operator-prefixed TEST portion (`=31`, `>10`, `='a b'`, `=true`, `=null`). Bare
+ *  literals are STEPS under the bare-token typing rule — a bare integer is the position,
+ *  a bare word (true/null included) is a string key; equality always carries `=`. */
 function parseValTest(r: string): (Portion & { kind: 'valtest' }) | null {
   const m = CMP.exec(r);
   if (m) {
     const lit = literal(r.slice(m[0].length).trim(), /*bareWordsOk*/ true);
     return { kind: 'valtest', op: m[0] as never, value: lit };
   }
-  // bare literals: numbers / true / false / null test the value; bare WORDS are keys
-  const t = r.trim();
-  if (/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(t)) return { kind: 'valtest', op: '=', value: Number(t) };
-  if (t === 'true') return { kind: 'valtest', op: '=', value: true };
-  if (t === 'false') return { kind: 'valtest', op: '=', value: false };
-  if (t === 'null') return { kind: 'valtest', op: '=', value: null };
   return null;
 }
 
@@ -262,6 +254,13 @@ function step(s: Store, binds: string[], p: Portion): string[] {
         if (row) out.push(row.t);
         break;
       }
+      case 'nullkey': {
+        const row = s.db.prepare(
+          "SELECT to_path AS t FROM edge WHERE from_path = ? AND kind IN ('contain','ref') AND label IS NULL AND label_null = 1 LIMIT 1",
+        ).get(b) as { t: string } | undefined;
+        if (row) out.push(row.t);
+        break;
+      }
       case 'anykey': {
         for (const r of ownEntries(s, b)) if (r.label !== null) out.push(r.to);
         for (const r of anchorEntries(s, b)) if (r.label !== null) out.push(r.member);
@@ -281,13 +280,6 @@ function step(s: Store, binds: string[], p: Portion): string[] {
       case 'up': out.push(...uplinks(s, b, p.sel)); break;
       case 'valtest': if (valOk(s.node(b), p)) out.push(b); break;
       case 'meta': if (metaOk(s, b, p)) out.push(b); break;
-      case 'combo': {
-        if (!valOk(s.node(b), p.test)) break;
-        let inner = [b];
-        for (const t of p.then) inner = step(s, inner, t);
-        out.push(...inner);
-        break;
-      }
     }
   }
   return out;
@@ -333,17 +325,17 @@ function uplinks(s: Store, p: string, sel: 'any' | 'keyless' | string): string[]
   const contains = s.db.prepare(
     sel === 'any'
       ? "SELECT from_path AS x FROM edge WHERE to_path = ? AND kind = 'contain'"
-      : "SELECT from_path AS x FROM edge WHERE to_path = ? AND kind = 'contain' AND label " + (sel === 'keyless' ? 'IS NULL' : '= ?'),
+      : "SELECT from_path AS x FROM edge WHERE to_path = ? AND kind = 'contain' AND label " + (sel === 'keyless' ? 'IS NULL AND label_null = 0' : '= ?'),
   );
   const backs = s.db.prepare(
     sel === 'any'
       ? "SELECT to_path AS x FROM edge WHERE from_path = ? AND kind = 'back'"
-      : "SELECT to_path AS x FROM edge WHERE from_path = ? AND kind = 'back' AND label " + (sel === 'keyless' ? 'IS NULL' : '= ?'),
+      : "SELECT to_path AS x FROM edge WHERE from_path = ? AND kind = 'back' AND label " + (sel === 'keyless' ? 'IS NULL AND label_null = 0' : '= ?'),
   );
   const refs = s.db.prepare(
     sel === 'any'
       ? "SELECT from_path AS x FROM edge WHERE to_path = ? AND kind = 'ref'"
-      : "SELECT from_path AS x FROM edge WHERE to_path = ? AND kind = 'ref' AND label " + (sel === 'keyless' ? 'IS NULL' : '= ?'),
+      : "SELECT from_path AS x FROM edge WHERE to_path = ? AND kind = 'ref' AND label " + (sel === 'keyless' ? 'IS NULL AND label_null = 0' : '= ?'),
   );
   const args = (q: ReturnType<Store['db']['prepare']>): { x: string }[] =>
     (label === null ? q.all(p) : q.all(p, label)) as { x: string }[];

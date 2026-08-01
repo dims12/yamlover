@@ -8,6 +8,7 @@
 import * as path from 'node:path';
 import type { Document, Pointer, PointerBase, Step } from '../../../parser/ts/src/ir.ts';
 import { renderPointer } from '../../../parser/ts/src/pointer.ts';
+import { pathOfSegs, segsOfPath, segToken } from '../../../parser/ts/src/pathseg.ts';
 import { pointerToken, anchorToken } from '../../../parser/ts/src/serialize-yamlover.ts';
 import type { ResolvedEdge } from './resolve.ts';
 
@@ -25,7 +26,7 @@ export interface RewritePlan {
 /** Boundary-aware "p is at or under x" over store paths (colon-form, root ':'). */
 export function under(p: string, x: string): boolean {
   if (x === ':') return true; // every store path is under the root
-  return p === x || p.startsWith(x + ':') || p.startsWith(x + '[');
+  return p === x || p.startsWith(x + ':');
 }
 
 /** Plan the edits that retarget every pointer whose target sits at or under `oldStore`.
@@ -177,8 +178,9 @@ export function nominalPath(doc: Document, e: ResolvedEdge): string | null {
       const up = parentOf(p === '' ? ':' : p);
       if (up === null) return null;
       p = up === ':' ? '' : up;
-    } else if (st.sel === 'key') p += ':' + st.name;
-    else if (st.sel === 'index') p += '[' + st.n + ']';
+    } else if (st.sel === 'key') p += ':' + segToken(st.name);
+    else if (st.sel === 'index') p += ':' + st.n;
+    else if (st.sel === 'nullkey') p += ':~';
     else return null; // a relative index has no canonical store path (host-frame; MARKLOWER.md)
   }
   return p === '' ? ':' : p;
@@ -186,35 +188,17 @@ export function nominalPath(doc: Document, e: ResolvedEdge): string | null {
 
 // ---- helpers ---------------------------------------------------------------------
 
-/** Tokens of a store path: keys and [n] indexes. (Keys containing `:`/`[`/`]` would be
- *  ambiguous in store paths themselves — a known limitation, inherited from the `/` era.) */
-function tokensOf(p: string): { key?: string; n?: number }[] {
-  const out: { key?: string; n?: number }[] = [];
-  const re = /\[(\d+)\]|:([^:[]*)/g;
-  for (let m = re.exec(p); m !== null; m = re.exec(p)) {
-    if (m[1] !== undefined) out.push({ n: Number(m[1]) });
-    else if (m[2] !== '') out.push({ key: m[2] });
-  }
-  return out;
-}
-
 function parentOf(p: string): string | null {
   if (p === ':' || p === '') return null;
-  const toks = tokensOf(p).slice(0, -1);
-  if (toks.length === 0) return ':';
-  return renderPath(toks);
+  const segs = segsOfPath(p).slice(0, -1);
+  return pathOfSegs(segs);
 }
 
-function renderPath(toks: { key?: string; n?: number }[]): string {
-  let s = '';
-  for (const t of toks) s += t.key !== undefined ? ':' + t.key : '[' + t.n + ']';
-  return s === '' ? ':' : s;
-}
-
-/** The remainder of `p` below `base` as pointer steps (store tokens → key/index steps). */
+/** The remainder of `p` below `base` as pointer steps (store segments → steps). */
 function stepsBelow(base: string, p: string): Step[] {
-  const toks = tokensOf(p).slice(base === ':' ? 0 : tokensOf(base).length);
-  return toks.map((t): Step => (t.key !== undefined ? { sel: 'key', name: t.key } : { sel: 'index', n: t.n! }));
+  const segs = segsOfPath(p).slice(base === ':' ? 0 : segsOfPath(base).length);
+  return segs.map((t): Step =>
+    t === null ? { sel: 'nullkey' } : typeof t === 'number' ? { sel: 'index', n: t } : { sel: 'key', name: t });
 }
 
 /** A Pointer value for renderPointer (the raw is re-rendered, never read). */

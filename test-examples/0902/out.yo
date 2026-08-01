@@ -7,24 +7,24 @@ pets:
     species: fish
 humans:
   - name: Alice
-    manager: *: pets[1]
-feline: *pets[1]
-topDog: *: pets[0]
+    manager: *: pets: 1
+feline: *pets: 1
+topDog: *: pets: 0
 boss:
   &: chief
   name: Rex
   species: dog
 team:
   lead: *: chief
-secondPet: *pets[1]
-secondName: *pets[1]: name
+secondPet: *pets: 1
+secondName: *pets: 1: name
 eve:
   cain: *: adam: cain
 adam:
   cain: {}
     &: eve: cain
 favorites:
-  - *: pets[0]
+  - *: pets: 0
 fan:
   &: favorites[]
   &: crew[]

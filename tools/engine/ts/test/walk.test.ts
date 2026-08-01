@@ -203,11 +203,11 @@ test('the attached chapter schema propagates down: subchapters & chunks get thei
   // so the positional body starts at [1].
   assert.equal(s.node(ch)?.format, 'x-yamlover-chapter'); // root (tagged)
   assert.equal(s.node(ch)?.value, 'Getting Started with yamlover'); // the self-value title
-  assert.equal(s.node(ch + '[1]')?.format, 'text/marklower'); // first chunk — from the chunk branch
-  assert.equal(s.node(ch + '[4]')?.format, 'text/marklower'); // "Why one file" — title-only ≡ a chunk
-  assert.equal(s.node(ch + '[5]')?.format, 'x-yamlover-chapter'); // titled subchapter (omni) — inherited via items anyOf
-  assert.equal(s.node(ch + '[5][1]')?.format, 'text/marklower'); // a chunk inside the subchapter (recursive)
-  assert.equal(s.node(ch + '[6]')?.format, 'x-yamlover-chapter'); // untitled subchapter (a container, no self-value)
+  assert.equal(s.node(ch + ':1')?.format, 'text/marklower'); // first chunk — from the chunk branch
+  assert.equal(s.node(ch + ':4')?.format, 'text/marklower'); // "Why one file" — title-only ≡ a chunk
+  assert.equal(s.node(ch + ':5')?.format, 'x-yamlover-chapter'); // titled subchapter (omni) — inherited via items anyOf
+  assert.equal(s.node(ch + ':5:1')?.format, 'text/marklower'); // a chunk inside the subchapter (recursive)
+  assert.equal(s.node(ch + ':6')?.format, 'x-yamlover-chapter'); // untitled subchapter (a container, no self-value)
   s.close();
 });
 
@@ -243,8 +243,8 @@ test('a directory chapter tree: each subchapter is its OWN directory, referenced
   // The title is the body root's SELF-VALUE and consumes no index.
   assert.equal(s.node(ch)?.format, 'x-yamlover-chapter'); // schema carried from body.yo root
   assert.equal(s.node(ch)?.value, "The Pet Keeper's Handbook"); // the self-value title
-  assert.equal(s.node(ch + '[1]')?.format, 'text/marklower'); // first prose chunk
-  assert.equal(s.node(ch + '[5]')?.format, 'text/x-plantuml'); // the mindmap diagram chunk
+  assert.equal(s.node(ch + ':1')?.format, 'text/marklower'); // first prose chunk
+  assert.equal(s.node(ch + ':5')?.format, 'text/x-plantuml'); // the mindmap diagram chunk
   // each subchapter is a real directory chapter (its own body.yo root tag), sitting at the
   // position its body pointer granted it — once, as a member, not beside a surviving ref
   assert.deepEqual(s.entries(ch).slice(6, 9).map((e) => e.to), [ch + ':dogs', ch + ':cats', ch + ':fish']);
@@ -283,12 +283,12 @@ test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→c
   const d = ':doc.yo';
   assert.equal(s.node(d)?.format, 'x-yamlover-chapter'); // the root, its self-value the title
   assert.equal(s.node(d)?.value, 'T');
-  assert.equal(s.node(d + '[0]')?.format, 'text/marklower'); // leaf → chunk branch
-  assert.equal(s.node(d + '[1]')?.format, 'x-yamlover-chapter'); // titled subchapter (omni) → chapter branch
-  assert.equal(s.node(d + '[1]')?.value, 'Sub'); // its self-value is its title
-  assert.equal(s.node(d + '[1][0]')?.format, 'text/marklower'); // recursion into the subchapter's chunk
-  assert.equal(s.node(d + '[2]')?.format, 'x-yamlover-chapter'); // untitled subchapter (mapping) → chapter branch
-  assert.equal(s.node(d + '[3]')?.format, 'text/marklower'); // annotated chunk: overlay keys are not body
+  assert.equal(s.node(d + ':0')?.format, 'text/marklower'); // leaf → chunk branch
+  assert.equal(s.node(d + ':1')?.format, 'x-yamlover-chapter'); // titled subchapter (omni) → chapter branch
+  assert.equal(s.node(d + ':1')?.value, 'Sub'); // its self-value is its title
+  assert.equal(s.node(d + ':1:0')?.format, 'text/marklower'); // recursion into the subchapter's chunk
+  assert.equal(s.node(d + ':2')?.format, 'x-yamlover-chapter'); // untitled subchapter (mapping) → chapter branch
+  assert.equal(s.node(d + ':3')?.format, 'text/marklower'); // annotated chunk: overlay keys are not body
   s.close();
   rmSync(root, { recursive: true, force: true });
 });
@@ -318,11 +318,11 @@ test('table cells: leaf→chunk, untagged container→CHAPTER, a TAGGED table ce
   s.indexDocument(walkDir(root));
   const d = ':doc.yo';
   assert.equal(s.node(d)?.format, 'x-yamlover-table');
-  assert.equal(s.node(d + '[0][0]')?.format, 'text/marklower'); // leaf cell → chunk branch
-  assert.equal(s.node(d + '[1][1]')?.format, 'x-yamlover-chapter'); // untagged container cell → CHAPTER
-  assert.equal(s.node(d + '[1][1][0]')?.format, 'text/marklower'); // its prose body item (chapter rules resume)
-  assert.equal(s.node(d + '[2][1]')?.format, 'x-yamlover-table'); // a nested table — by its explicit tag
-  assert.equal(s.node(d + '[2][1][0][0]')?.format, 'text/marklower'); // the inner table's cell
+  assert.equal(s.node(d + ':0:0')?.format, 'text/marklower'); // leaf cell → chunk branch
+  assert.equal(s.node(d + ':1:1')?.format, 'x-yamlover-chapter'); // untagged container cell → CHAPTER
+  assert.equal(s.node(d + ':1:1:0')?.format, 'text/marklower'); // its prose body item (chapter rules resume)
+  assert.equal(s.node(d + ':2:1')?.format, 'x-yamlover-table'); // a nested table — by its explicit tag
+  assert.equal(s.node(d + ':2:1:0:0')?.format, 'text/marklower'); // the inner table's cell
   s.close();
   rmSync(root, { recursive: true, force: true });
 });
@@ -351,12 +351,12 @@ test('list schemas: bullets/numbered apply at ANY depth until an explicit tag sw
   s.indexDocument(walkDir(root));
   const d = ':doc.yo';
   assert.equal(s.node(d)?.format, 'x-yamlover-bullets');
-  assert.equal(s.node(d + '[0]')?.format, 'text/marklower'); // a leaf item → chunk
-  assert.equal(s.node(d + '[1]')?.format, 'x-yamlover-bullets'); // untagged container → SAME kind
-  assert.equal(s.node(d + '[1][1]')?.format, 'x-yamlover-bullets'); // … at any depth
-  assert.equal(s.node(d + '[1][1][0]')?.format, 'text/marklower'); // the deep leaf
-  assert.equal(s.node(d + '[2]')?.format, 'x-yamlover-numbered'); // the explicit tag switches
-  assert.equal(s.node(d + '[2][0]')?.format, 'text/marklower');
+  assert.equal(s.node(d + ':0')?.format, 'text/marklower'); // a leaf item → chunk
+  assert.equal(s.node(d + ':1')?.format, 'x-yamlover-bullets'); // untagged container → SAME kind
+  assert.equal(s.node(d + ':1:1')?.format, 'x-yamlover-bullets'); // … at any depth
+  assert.equal(s.node(d + ':1:1:0')?.format, 'text/marklower'); // the deep leaf
+  assert.equal(s.node(d + ':2')?.format, 'x-yamlover-numbered'); // the explicit tag switches
+  assert.equal(s.node(d + ':2:0')?.format, 'text/marklower');
   s.close();
   rmSync(root, { recursive: true, force: true });
 });
@@ -377,8 +377,8 @@ test('schema propagation: `allOf:[chapter]` (task extends chapter) inherits body
   const d = ':doc.yo';
   assert.equal(s.node(d)?.format, 'x-yamlover-task'); // the task format from its $defs pointer
   assert.equal(s.node(d + ':title')?.format, 'text/marklower'); // inherited chapter title propagation
-  assert.equal(s.node(d + '[1]')?.format, 'text/marklower'); // a chunk (leaf branch)
-  assert.equal(s.node(d + '[2]')?.format, 'x-yamlover-task'); // a SUBTASK — task's own items wins over chapter's
+  assert.equal(s.node(d + ':1')?.format, 'text/marklower'); // a chunk (leaf branch)
+  assert.equal(s.node(d + ':2')?.format, 'x-yamlover-task'); // a SUBTASK — task's own items wins over chapter's
   s.close();
   rmSync(root, { recursive: true, force: true });
 });

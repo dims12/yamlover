@@ -1,5 +1,5 @@
 items:
   - first
   - name: Named
-x: *items[0]
-y: *items[1]: name
+x: *items: 0
+y: *items: 1: name

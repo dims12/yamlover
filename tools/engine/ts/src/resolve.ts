@@ -13,6 +13,7 @@
 
 import type { Document, Node, Pointer, Step, Anchor } from '../../../parser/ts/src/ir.ts';
 import { isPointer } from '../../../parser/ts/src/ir.ts';
+import { segToken } from '../../../parser/ts/src/pathseg.ts';
 
 export type Located =
   | { kind: 'node'; node: Node; path: string }
@@ -27,7 +28,8 @@ const YAMLOVER_AUTHORITY = 'yamlover.inthemoon.net';
 export interface ResolvedEdge {
   from: string;            // path of the entry holding the pointer
   holder: string;          // path of the mapping that holds it
-  label: string | null;    // the entry's key (the relation name); null if keyless
+  label: string | null;    // the entry's key (the relation name); null if keyless OR the null key
+  labelNull?: boolean;     // true = the NULL-keyed entry (':~') — keyed, but the label column is null
   pos: number;             // the entry's index in the holder (so positional pointers keep order)
   raw: string;             // the pointer text (for an anchor edge: the whole `&…` token text)
   edge: 'ref' | 'back';
@@ -58,11 +60,11 @@ export function resolveDocument(doc: Document): ResolvedEdge[] {
     const dr = node.meta?.documentRoot ? base : docRoot;
     const prefix = base === ':' ? '' : base; // root is ':', so a top-level entry is ":key" not "::key"
     node.entries?.forEach((e, i) => {
-      const seg = e.key != null ? ':' + e.key : '[' + i + ']';
+      const seg = ':' + segToken(e.nullKey === true ? null : e.key ?? i);
       if (isPointer(e.value)) {
         const host = hasRelindex(e.value) ? hostPositions(chain, i) : undefined;
         const target = resolve(doc, chains, chain, e.value, new Set([e.value]), keys, host);
-        out.push({ from: prefix + seg, holder: base, label: e.key, pos: i, raw: e.value.raw, edge: e.edge as 'ref' | 'back', target, ptr: e.value, docRoot: dr });
+        out.push({ from: prefix + seg, holder: base, label: e.key, ...(e.nullKey === true ? { labelNull: true } : {}), pos: i, raw: e.value.raw, edge: e.edge as 'ref' | 'back', target, ptr: e.value, docRoot: dr });
       } else {
         walk(e.value, dr);
       }
@@ -223,6 +225,7 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
     // position too, so the transitive-deref tail below can hand the inner pointer its frame
     let idx: number;
     if (st.sel === 'key') idx = node.entries?.findIndex((e) => e.key === st.name) ?? -1;
+    else if (st.sel === 'nullkey') idx = node.entries?.findIndex((e) => e.nullKey === true) ?? -1;
     else if (st.sel === 'index') idx = st.n;
     else {
       const at = host?.[chain.length];
@@ -238,7 +241,7 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
         if (via) { chain = chains.get(via) ?? [via]; continue; }
       }
       if (!node.entries) return isWorld ? external() : { kind: 'unresolved', reason: 'step into a node with no fields' };
-      return isWorld ? external() : { kind: 'unresolved', reason: `no ${st.sel === 'key' ? `key "${st.name}"` : st.sel === 'index' ? `index [${st.n}]` : `entry at relative index ${relRaw(st.k)} (position ${idx})`}` };
+      return isWorld ? external() : { kind: 'unresolved', reason: `no ${st.sel === 'key' ? `key "${st.name}"` : st.sel === 'nullkey' ? 'null key ("~")' : st.sel === 'index' ? `position ${st.n}` : `entry at relative index ${relRaw(st.k)} (position ${idx})`}` };
     }
 
     if (isPointer(entry.value)) {
@@ -274,7 +277,9 @@ function buildChains(root: Node): Map<Node, Node[]> {
   return m;
 }
 
-/** A readable path for a chain, e.g. ":pets[1]:name" ([n] for keyless/positional). */
+/** A readable path for a chain, e.g. ":pets:1:name" — the canonical segment spelling
+ *  (pathseg.ts): bare integers for positions, quoted numeric/spacey string keys, ':~' for
+ *  the null key. */
 export function pathOf(chain: Node[]): string {
   let s = '';
   for (let i = 1; i < chain.length; i++) {
@@ -282,7 +287,7 @@ export function pathOf(chain: Node[]): string {
     if (!parent.entries) { s += ':?'; continue; }
     const idx = parent.entries.findIndex((e) => e.value === chain[i]);
     const e = parent.entries[idx];
-    s += e && e.key != null ? ':' + e.key : '[' + idx + ']';
+    s += ':' + segToken(e ? (e.nullKey === true ? null : e.key ?? idx) : idx);
   }
   return s === '' ? ':' : s;
 }

@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { parseYamlover } from '../../../parser/ts/src/yamlover.ts';
+import { keyPortion } from '../../../parser/ts/src/pointer.ts';
 import { walkDir } from '../src/walk.ts';
 import { Store } from '../src/store.ts';
 import { displayKind, typeName } from '../../../server/src/server/node-kind.ts';
@@ -33,7 +34,7 @@ test('67-pdf-tags: an embedded-tagged PDF is an omni-blob (binary value + owned 
   const s = new Store(':memory:');
   s.indexDocument(walkDir(join(examples, '67-pdf-tags')));
   for (const file of PAPERS) {
-    const p = ':' + file;
+    const p = ':' + keyPortion(file); // canonical store-path segment (quotes a key with spaces)
     const row = s.node(p);
     assert.ok(row, `indexed ${file}`);
     assert.equal(row!.type, 'blob', `${file} stored type`); // the bytes are still a blob

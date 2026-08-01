@@ -40,11 +40,11 @@ test('toc is the containment subtree, ordered, depth-limited', () => {
   s.close();
 });
 
-test('keyless (positional) entries index under [i] and carry is_array', () => {
+test('keyless (positional) entries index under a bare-integer segment and carry is_array', () => {
   const s = indexed('list:\n  - x\n  - y\n');
   assert.equal(s.node(':list')?.is_array, true);
-  assert.equal(s.node(':list[0]')?.value, 'x');
-  assert.equal(s.node(':list[1]')?.value, 'y');
+  assert.equal(s.node(':list:0')?.value, 'x');
+  assert.equal(s.node(':list:1')?.value, 'y');
   s.close();
 });
 
@@ -78,12 +78,12 @@ test('indexes the 06-tour example (mix/omni nodes included)', () => {
   // omni node: a scalar self-value AND fields
   assert.equal(s.node(':rating')?.type, 'scalar');
   assert.equal(s.node(':rating')?.value, 5);
-  assert.equal(s.node(':rating[0]')?.value, 'solid'); // positional field
+  assert.equal(s.node(':rating:0')?.value, 'solid'); // positional field
   assert.equal(s.node(':rating:scale')?.value, 10); // keyed field
-  // mix node: keyless entries store under [i]; the keyed `title` stores under its string
-  // key (position 2 is the resolver-derived ALIAS of /playlist/title — positions aren't
-  // double-stored, IR.md). Both forms of access are exercised here.
-  assert.equal(s.node(':playlist[0]')?.value, 'Intro'); // keyless → positional path
+  // mix node: keyless entries store under a bare-integer segment; the keyed `title` stores
+  // under its string key (position 2 is the resolver-derived ALIAS of /playlist/title —
+  // positions aren't double-stored, IR.md). Both forms of access are exercised here.
+  assert.equal(s.node(':playlist:0')?.value, 'Intro'); // keyless → positional path
   assert.equal(s.node(':playlist:title')?.value, 'Greatest Hits'); // keyed → string-key path
   s.close();
 });

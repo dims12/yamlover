@@ -25,10 +25,11 @@ import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import type { Document, Node } from '../../../parser/ts/src/ir.ts';
 import { isPointer } from '../../../parser/ts/src/ir.ts';
 import { resolveDocument, type ResolvedEdge } from './resolve.ts';
+import { childSeg, segsOfPath, segToken } from '../../../parser/ts/src/pathseg.ts';
 
 // Bump when the table shapes change: a mismatched on-disk index is dropped and rebuilt from
 // the filesystem (the DB is a derived cache, so this is always safe).
-const SCHEMA_VERSION = 6; // 6: dangling carries holder/label/pos/edge/external; 5: non-finite scalar tags; 4: colon-form paths
+const SCHEMA_VERSION = 7; // 7: bare-integer path segments + null keys (label_null) — the YAML-keys round; 6: dangling holder/label/pos/edge/external; 5: non-finite scalar tags; 4: colon-form paths
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS node (
@@ -44,7 +45,8 @@ CREATE TABLE IF NOT EXISTS node (
 CREATE TABLE IF NOT EXISTS edge (
   from_path TEXT NOT NULL,
   to_path   TEXT NOT NULL,
-  label     TEXT,                        -- relation name (entry key); null for keyless
+  label     TEXT,                        -- relation name (entry key); null for keyless AND for the null key
+  label_null INTEGER NOT NULL DEFAULT 0, -- 1 = the NULL KEY (label is null but the entry is KEYED — ':~')
   kind      TEXT NOT NULL,               -- contain | ref | back | derived
   pos       INTEGER                      -- order within parent (contain) for stable TOC order
 );
@@ -167,26 +169,26 @@ export class Store {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insEdge = this.db.prepare(
-      `INSERT INTO edge (from_path, to_path, label, kind, pos) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO edge (from_path, to_path, label, label_null, kind, pos) VALUES (?, ?, ?, ?, ?, ?)`,
     );
     this.db.exec('BEGIN');
     try {
       this.db.exec('DELETE FROM node; DELETE FROM edge; DELETE FROM dangling;');
       if (files) this.db.exec('DELETE FROM file;');
       // nodes + containment edges (one walk; the path scheme matches resolve.ts / buildGraph)
-      walkNodes(doc.root, ':', (path, node, parent, label, pos) => {
+      walkNodes(doc.root, ':', (path, node, parent, label, pos, labelNull) => {
         const meta = node.meta ? JSON.stringify(node.meta) : null;
         // the array hint is judged over OWNED entries only — a `~-` back-edge (reverse
         // membership) is not a member of this node and must not make it look like an array
         const owned = node.entries?.filter((e) => e.edge !== 'back') ?? [];
-        const isArray = node.array || (node.kind === 'mapping' && owned.length > 0 && owned.every((e) => e.key === null));
+        const isArray = node.array || (node.kind === 'mapping' && owned.length > 0 && owned.every((e) => e.key === null && e.nullKey !== true));
         const value =
           node.kind === 'scalar' ? encodeScalarValue(node.value) : null;
         const format = node.kind === 'blob' ? node.format : formatFromMeta(node);
         const hash = node.kind === 'blob' ? node.contentHash : null;
         const size = node.kind === 'blob' ? node.size : null;
         insNode.run(path, node.kind, format, value, hash, size, isArray ? 1 : 0, meta);
-        if (parent !== null) insEdge.run(parent, path, label, 'contain', pos);
+        if (parent !== null) insEdge.run(parent, path, label, labelNull ? 1 : 0, 'contain', pos);
       });
       // resolved `*` / `~` reference edges (containment already emitted above). `pos` is the
       // entry's index in its holder, so a positional pointer (`- *file`) keeps its place in an
@@ -194,7 +196,7 @@ export class Store {
       // with the same holder/label/pos, so the entry stays projectable in place.
       const insDangling = this.db.prepare(INSERT_DANGLING);
       for (const r of resolveDocument(doc)) {
-        if (r.target.kind === 'node') insEdge.run(r.holder, r.target.path, r.label, r.edge, r.pos);
+        if (r.target.kind === 'node') insEdge.run(r.holder, r.target.path, r.label, r.labelNull ? 1 : 0, r.edge, r.pos);
         else insDanglingRef(insDangling, r);
       }
       if (files) {
@@ -222,26 +224,27 @@ export class Store {
    *  re-resolved), the caller must fall back to a full reindex. The boundary `contain` edge into P
    *  (from P's parent, outside the subtree) is stable and intentionally left in place. */
   patchSubtree(doc: Document, prefix: string, files: FileRecord[], relPrefix: string): boolean {
+    // bare-integer segments are colon-separated like every other segment (the YAML-keys
+    // round), so the subtree boundary is the colon alone
     const colon = prefix + ':';
-    const brack = prefix + '[';
-    const underP = (p: string): boolean => p === prefix || p.startsWith(colon) || p.startsWith(brack);
+    const underP = (p: string): boolean => p === prefix || p.startsWith(colon);
 
     // Resolve the whole (cached + spliced) tree once: the in-memory resolution is global, so cross-
     // file and inbound pointers are correct; we only choose which rows to write from the result.
     const edges = resolveDocument(doc);
 
     // GUARD: external ref/back edges INTO the subtree must be identical, else a full rebuild is owed.
-    const edgeKey = (from: string, to: string, label: string | null, kind: string, pos: number | null): string =>
-      JSON.stringify([from, to, label, kind, pos]);
+    const edgeKey = (from: string, to: string, label: string | null, kind: string, pos: number | null, labelNull = false): string =>
+      JSON.stringify([from, to, label, kind, pos, labelNull]);
     const extInNew = edges
       .filter((r) => r.target.kind === 'node' && underP((r.target as { path: string }).path) && !underP(r.holder))
-      .map((r) => edgeKey(r.holder, (r.target as { path: string }).path, r.label, r.edge, r.pos))
+      .map((r) => edgeKey(r.holder, (r.target as { path: string }).path, r.label, r.edge, r.pos, r.labelNull === true))
       .sort();
     const extInOld = (
-      this.db.prepare("SELECT from_path, to_path, label, kind, pos FROM edge WHERE kind IN ('ref','back')").all() as Record<string, unknown>[]
+      this.db.prepare("SELECT from_path, to_path, label, label_null, kind, pos FROM edge WHERE kind IN ('ref','back')").all() as Record<string, unknown>[]
     )
       .filter((r) => underP(r.to_path as string) && !underP(r.from_path as string))
-      .map((r) => edgeKey(r.from_path as string, r.to_path as string, (r.label as string) ?? null, r.kind as string, (r.pos as number) ?? null))
+      .map((r) => edgeKey(r.from_path as string, r.to_path as string, (r.label as string) ?? null, r.kind as string, (r.pos as number) ?? null, !!r.label_null))
       .sort();
     if (extInOld.length !== extInNew.length || extInOld.some((k, i) => k !== extInNew[i])) return false;
 
@@ -250,7 +253,7 @@ export class Store {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insEdge = this.db.prepare(
-      `INSERT INTO edge (from_path, to_path, label, kind, pos) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO edge (from_path, to_path, label, label_null, kind, pos) VALUES (?, ?, ?, ?, ?, ?)`,
     );
     const insDangling = this.db.prepare(INSERT_DANGLING);
     const insFile = this.db.prepare('INSERT OR REPLACE INTO file (path, hash, size, mtime_ms) VALUES (?, ?, ?, ?)');
@@ -259,8 +262,8 @@ export class Store {
       // delete every row owned by the subtree (node identity / edge source / dangling source under P)
       const delUnder = (col: string, table: string): void => {
         this.db
-          .prepare(`DELETE FROM ${table} WHERE ${col} = ? OR substr(${col},1,?) = ? OR substr(${col},1,?) = ?`)
-          .run(prefix, colon.length, colon, brack.length, brack);
+          .prepare(`DELETE FROM ${table} WHERE ${col} = ? OR substr(${col},1,?) = ?`)
+          .run(prefix, colon.length, colon);
       };
       delUnder('path', 'node');
       delUnder('from_path', 'edge'); // outgoing + interior contain edges; the inbound boundary edge survives
@@ -268,22 +271,22 @@ export class Store {
       if (relPrefix) this.db.prepare('DELETE FROM file WHERE substr(path,1,?) = ?').run(relPrefix.length, relPrefix);
 
       // reinsert the subtree's nodes + INTERIOR containment edges (skip the boundary edge into P)
-      walkNodes(doc.root, ':', (p, node, parent, label, pos) => {
+      walkNodes(doc.root, ':', (p, node, parent, label, pos, labelNull) => {
         if (!underP(p)) return;
         const meta = node.meta ? JSON.stringify(node.meta) : null;
         const owned = node.entries?.filter((e) => e.edge !== 'back') ?? [];
-        const isArray = node.array || (node.kind === 'mapping' && owned.length > 0 && owned.every((e) => e.key === null));
+        const isArray = node.array || (node.kind === 'mapping' && owned.length > 0 && owned.every((e) => e.key === null && e.nullKey !== true));
         const value = node.kind === 'scalar' ? encodeScalarValue(node.value) : null;
         const format = node.kind === 'blob' ? node.format : formatFromMeta(node);
         const hash = node.kind === 'blob' ? node.contentHash : null;
         const size = node.kind === 'blob' ? node.size : null;
         insNode.run(p, node.kind, format, value, hash, size, isArray ? 1 : 0, meta);
-        if (parent !== null && underP(parent)) insEdge.run(parent, p, label, 'contain', pos);
+        if (parent !== null && underP(parent)) insEdge.run(parent, p, label, labelNull ? 1 : 0, 'contain', pos);
       });
       // reinsert resolved ref/back edges and dangling whose HOLDER is under P
       for (const r of edges) {
         if (!underP(r.holder)) continue;
-        if (r.target.kind === 'node') insEdge.run(r.holder, r.target.path, r.label, r.edge, r.pos);
+        if (r.target.kind === 'node') insEdge.run(r.holder, r.target.path, r.label, r.labelNull ? 1 : 0, r.edge, r.pos);
         else insDanglingRef(insDangling, r);
       }
       for (const f of files) insFile.run(f.path, f.hash, f.size, f.mtimeMs);
@@ -309,24 +312,24 @@ export class Store {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insEdge = this.db.prepare(
-      `INSERT INTO edge (from_path, to_path, label, kind, pos) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO edge (from_path, to_path, label, label_null, kind, pos) VALUES (?, ?, ?, ?, ?, ?)`,
     );
     this.db.exec('BEGIN');
     try {
-      walkNodes(doc.root, annStorePath, (p, node, parent, label, pos) => {
+      walkNodes(doc.root, annStorePath, (p, node, parent, label, pos, labelNull) => {
         const meta = node.meta ? JSON.stringify(node.meta) : null;
-        const isArray = node.array || (node.kind === 'mapping' && (node.entries?.every((e) => e.key === null) ?? false));
+        const isArray = node.array || (node.kind === 'mapping' && (node.entries?.every((e) => e.key === null && e.nullKey !== true) ?? false));
         const value = node.kind === 'scalar' ? encodeScalarValue(node.value) : null;
         const format = p === annStorePath ? 'x-yamlover-annotation' : node.kind === 'blob' ? node.format : formatFromMeta(node);
         const hash = node.kind === 'blob' ? node.contentHash : null;
         const size = node.kind === 'blob' ? node.size : null;
         insNode.run(p, node.kind, format, value, hash, size, isArray ? 1 : 0, meta);
-        if (parent !== null) insEdge.run(parent, p, label, 'contain', pos);
+        if (parent !== null) insEdge.run(parent, p, label, labelNull ? 1 : 0, 'contain', pos);
       });
-      insEdge.run(annStorePath, targetStorePath, 'target', 'ref', 0);
+      insEdge.run(annStorePath, targetStorePath, 'target', 0, 'ref', 0);
       if (tagStorePath) {
         const pos = (doc.root.entries ?? []).findIndex((e) => e.edge === 'back' && e.key === null);
-        insEdge.run(annStorePath, tagStorePath, null, 'back', pos >= 0 ? pos : 0);
+        insEdge.run(annStorePath, tagStorePath, null, 0, 'back', pos >= 0 ? pos : 0);
       }
       this.db.exec('COMMIT');
     } catch (e) {
@@ -362,28 +365,28 @@ export class Store {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insEdge = this.db.prepare(
-      `INSERT INTO edge (from_path, to_path, label, kind, pos) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO edge (from_path, to_path, label, label_null, kind, pos) VALUES (?, ?, ?, ?, ?, ?)`,
     );
     const hasNode = this.db.prepare('SELECT 1 FROM node WHERE path = ?');
     this.db.exec('BEGIN');
     try {
-      const segs = taxonomyStorePath === ':' ? [] : taxonomyStorePath.slice(1).split(':');
+      const segs = segsOfPath(taxonomyStorePath).map(segToken); // quote-aware (a ':' inside a quoted key never splits)
       for (let i = 1; i <= segs.length; i++) {
         const p = ':' + segs.slice(0, i).join(':');
         if (hasNode.get(p)) continue;
         insNode.run(p, 'mapping', null, null, null, null, 0, null);
-        insEdge.run(i === 1 ? ':' : ':' + segs.slice(0, i - 1).join(':'), p, segs[i - 1], 'contain', null);
+        insEdge.run(i === 1 ? ':' : ':' + segs.slice(0, i - 1).join(':'), p, segs[i - 1], 0, 'contain', null);
       }
       const tagPath = (taxonomyStorePath === ':' ? '' : taxonomyStorePath) + ':' + name;
-      walkNodes(node, tagPath, (p, n, parent, label, ps) => {
+      walkNodes(node, tagPath, (p, n, parent, label, ps, labelNull) => {
         const meta = n.meta ? JSON.stringify(n.meta) : null;
-        const isArray = n.array || (n.kind === 'mapping' && (n.entries?.every((e) => e.key === null) ?? false));
+        const isArray = n.array || (n.kind === 'mapping' && (n.entries?.every((e) => e.key === null && e.nullKey !== true) ?? false));
         const value = n.kind === 'scalar' ? JSON.stringify(n.value) : null;
         const format = n.kind === 'blob' ? n.format : formatFromMeta(n);
         insNode.run(p, n.kind, format, value, n.kind === 'blob' ? n.contentHash : null, n.kind === 'blob' ? n.size : null, isArray ? 1 : 0, meta);
-        if (parent !== null) insEdge.run(parent, p, label, 'contain', ps);
+        if (parent !== null) insEdge.run(parent, p, label, labelNull ? 1 : 0, 'contain', ps);
       });
-      insEdge.run(taxonomyStorePath, tagPath, name, 'contain', pos);
+      insEdge.run(taxonomyStorePath, tagPath, name, 0, 'contain', pos);
       this.db.exec('COMMIT');
     } catch (e) {
       this.db.exec('ROLLBACK');
@@ -576,22 +579,25 @@ function insDanglingRef(stmt: StatementSync, r: ResolvedEdge): void {
   stmt.run(r.from, r.raw, reason, r.anchor ? '' : r.holder, r.label, r.pos, r.edge, ext ? 1 : 0);
 }
 
-/** Walk every Node depth-first, emitting (path, node, parentPath|null, label|null, pos). The
- *  path scheme matches resolve.ts/buildGraph: root ':', keyed child ':key', keyless '[i]'. */
+/** Walk every Node depth-first, emitting (path, node, parentPath|null, label|null, pos,
+ *  labelNull). The path scheme matches resolve.ts/buildGraph and pathseg.ts: root ':',
+ *  keyed child ':' + keyPortion(key), keyless ':' + i (bare-integer segments — the
+ *  YAML-keys round), the null key ':~'. */
 function walkNodes(
   node: Node,
   path: string,
-  visit: (path: string, node: Node, parent: string | null, label: string | null, pos: number | null) => void,
+  visit: (path: string, node: Node, parent: string | null, label: string | null, pos: number | null, labelNull: boolean) => void,
   parent: string | null = null,
   label: string | null = null,
   pos: number | null = null,
+  labelNull = false,
 ): void {
-  visit(path, node, parent, label, pos);
+  visit(path, node, parent, label, pos, labelNull);
   if (!node.entries) return;
   node.entries.forEach((e, i) => {
     if (isPointer(e.value)) return; // pointers are edges, not owned child nodes
-    const childPath = (path === ':' ? '' : path) + (e.key != null ? ':' + e.key : '[' + i + ']');
-    walkNodes(e.value, childPath, visit, path, e.key, i);
+    const childPath = childSeg(path, e.nullKey === true ? null : e.key ?? i);
+    walkNodes(e.value, childPath, visit, path, e.key, i, e.nullKey === true);
   });
 }
 

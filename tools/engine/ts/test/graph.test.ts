@@ -19,9 +19,9 @@ test('buildGraph: containment + resolved ref/back edges', () => {
   const g = buildGraph(parseJson5p(readFileSync(join(examples, '03-tour.json5p'), 'utf8')));
   // containment
   assert.ok(has(g.edges, { from: ':', to: ':pets', label: 'pets', kind: 'contain' }));
-  assert.ok(has(g.edges, { from: ':pets', to: ':pets[1]', kind: 'contain' }));
-  // a forward ref: feline -> /pets[1]
-  assert.ok(has(g.edges, { from: ':', to: ':pets[1]', label: 'feline', kind: 'ref' }));
+  assert.ok(has(g.edges, { from: ':pets', to: ':pets:1', kind: 'contain' }));
+  // a forward ref: feline -> :pets:1
+  assert.ok(has(g.edges, { from: ':', to: ':pets:1', label: 'feline', kind: 'ref' }));
   // the back-edge sits on /adam/cain, pointing to /eve, label cain
   assert.ok(has(g.edges, { from: ':adam:cain', to: ':eve', label: 'cain', kind: 'back' }));
 });
@@ -36,10 +36,10 @@ test('external links and unresolved are separated out', () => {
 test('incoming refs are queryable; deriveInverses exposes them from the target', () => {
   const g = buildGraph(parseJson5p(readFileSync(join(examples, '03-tour.json5p'), 'utf8')));
   // forward refs already arrive at the node:
-  const incoming = edgesInto(g.edges, ':pets[1]').filter((e) => e.kind === 'ref').map((e) => e.label).sort();
+  const incoming = edgesInto(g.edges, ':pets:1').filter((e) => e.kind === 'ref').map((e) => e.label).sort();
   assert.deepEqual(incoming, ['feline', 'manager', 'secondPet']);
   // ...and deriveInverses re-expresses them as edges FROM the node (kind 'derived'):
-  const derived = edgesFrom(deriveInverses(g), ':pets[1]').filter((e) => e.kind === 'derived').map((e) => e.label).sort();
+  const derived = edgesFrom(deriveInverses(g), ':pets:1').filter((e) => e.kind === 'derived').map((e) => e.label).sort();
   assert.deepEqual(derived, ['feline', 'manager', 'secondPet']);
 });
 
@@ -69,12 +69,12 @@ test('yamlover and json5p agree on the shared normalized edges (06 vs 03)', () =
   const j = fmt(readFileSync(join(examples, '03-tour.json5p'), 'utf8'), parseJson5p);
   const y = fmt(readFileSync(join(examples, '06-tour.yo'), 'utf8'), parseYamlover);
   const shared = [
-    ': -feline-> :pets[1]',
-    ': -topDog-> :pets[0]',
-    ':humans[0] -manager-> :pets[1]',
+    ': -feline-> :pets:1',
+    ': -topDog-> :pets:0',
+    ':humans:0 -manager-> :pets:1',
     ':team -lead-> :boss',
     ':eve -cain-> :adam:cain',
-    ':favorites -null-> :pets[0]', // forward keyless element
+    ':favorites -null-> :pets:0', // forward keyless element
     ':favorites -null-> :fan',     // fan's ~- membership, folded forward
     ':crew -null-> :fan',          // both-ways keyless membership
   ];
