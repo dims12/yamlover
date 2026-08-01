@@ -1,0 +1,25 @@
+!!<*yamlover: $defs: chapter>
+Directories
+description: the filesystem as a mapping — dir, dir/yamlover, and the .yo/ contract
+- |
+  A directory *is* a mapping: filenames are keys, entries are blobs or nested documents.
+  A plain OS directory is the concrete `dir`; a directory carrying a `.yo/` marker is
+  `dir/yamlover` — the directory itself is a yamlover node, and its described children
+  resolve from the overlays:
+- !!<format: text/plain> |
+  .yo/
+    body.yo     — the INSTANCE overlay: data values over the directory
+    meta.yo     — the METADATA schema: types, formats, presentation
+    settings.yo — PROJECT CONFIGURATION (the served root only)
+    index.db    — engine cache (derived)
+- |
+  `body.yo` mirrors the instance directly (`name: Alice`); its positional flow
+  (`- *file …`) is the ORDER overlay — it grants positions to the children it names,
+  consuming each pointer, the key kept only as the provenance a projection shows as a
+  derived anchor ([order in the model](::language:model:order)). `meta.yo` nests under
+  the JSON-Schema keywords, mapping a meta-path to an instance-path. Either overlay is
+  optional: a plain directory has neither; a directory may carry only a body, or only a
+  meta — the data being the on-disk files, the meta saying how to read them.
+- |
+  A file and a subdirectory are equivalent representations of one node
+  ([one document, many materializations](::language:principles:many-concretes)).

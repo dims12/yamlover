@@ -1,0 +1,11 @@
+!!<*yamlover: $defs: chapter>
+As a directory
+description: keyed children as named members, ordinal children as numbered ones
+- |
+  A container may be a directory ([directories](::language:concretes:storage:directories)):
+  a keyed child becomes a subdirectory or file named by its key, recursively; an
+  untagged ordinal child becomes a member under an order-numbered generated name
+  (`item01`) plus a `- *: itemNN` pointer element in the parent's `body.yo` granting its
+  position. A *tagged* ordinal container — a table, a typographical list — is content
+  and stays inline in the body. The choosing rules are the
+  [inheritance subchapter](::language:concretes:inheritance).

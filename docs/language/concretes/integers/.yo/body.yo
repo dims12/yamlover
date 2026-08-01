@@ -1,0 +1,10 @@
+!!<*yamlover: $defs: chapter>
+Integers
+description: one value, four bases — the notation is preserved
+- |
+  All four notations decode to the same value; the base is representation, kept through
+  round-trips and worth pinning in a schema ("this id is hex").
+- *: decimal
+- *: hex
+- *: octal
+- *: binary

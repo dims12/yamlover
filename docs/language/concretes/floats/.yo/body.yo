@@ -1,0 +1,10 @@
+!!<*yamlover: $defs: chapter>
+Floats
+description: fixed, exponential, and the YAML specials
+- |
+  Four notations. yamlover keeps YAML's specials — not json5's `Infinity` / `NaN`
+  words, which remain ordinary strings on this surface.
+- *: fixed
+- *: exponential
+- *: infinity
+- *: nan

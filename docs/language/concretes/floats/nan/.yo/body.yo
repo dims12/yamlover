@@ -1,0 +1,5 @@
+!!<*yamlover: $defs: chapter>
+Not-a-number
+description: 'yaml/nan — .nan'
+- |
+  `.nan` — the YAML not-a-number special, case-tolerant (`.NaN` reads too).

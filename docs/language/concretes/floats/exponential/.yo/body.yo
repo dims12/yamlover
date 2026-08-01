@@ -1,0 +1,5 @@
+!!<*yamlover: $defs: chapter>
+Exponential
+description: 'yaml/exp — scientific notation'
+- |
+  `6.022e23` — the exponential (scientific) notation, preserved as authored.

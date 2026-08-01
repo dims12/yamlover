@@ -1,0 +1,6 @@
+!!<*yamlover: $defs: chapter>
+Core
+description: 'yaml/bool — true and false'
+- |
+  `true` / `false` — the core-schema notation and the default, with the `True` / `TRUE`
+  casings accepted.

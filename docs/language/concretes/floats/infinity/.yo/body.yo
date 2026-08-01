@@ -1,0 +1,5 @@
+!!<*yamlover: $defs: chapter>
+Infinity
+description: 'yaml/inf — .inf and -.inf'
+- |
+  `.inf` / `-.inf` — the YAML infinity specials, case-tolerant (`.Inf` reads too).

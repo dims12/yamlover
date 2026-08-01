@@ -1,0 +1,7 @@
+!!<*yamlover: $defs: chapter>
+Double-quoted
+description: the escape-processing style — yaml/double
+- |
+  `name: "a\tb"` — the double-quoted style processes escape sequences (`\t`, `\n`,
+  `\u0041`, …). It is the one style that can spell every string on a single line,
+  control characters included.

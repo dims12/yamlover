@@ -1,0 +1,5 @@
+!!<*yamlover: $defs: chapter>
+Fixed
+description: 'yaml/float — 3.14, the default'
+- |
+  `3.14` — plain decimal notation, the default for a non-integer number.

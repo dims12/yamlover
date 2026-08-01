@@ -1,0 +1,7 @@
+!!<*yamlover: $defs: chapter>
+Block
+description: 'yaml/block — the default collection style'
+- |
+  Entries over many lines — `b:` then `- 12` beneath — the block style, the default,
+  carrying no marker. Block is also the form everything falls back to: whatever flow or
+  json5p cannot hold arrives here, silently and losslessly.

@@ -1,0 +1,13 @@
+!!<*yamlover: $defs: chapter>
+Literal block
+description: the pipe block scalar — yaml/literal preserves newlines
+- |
+  The `|` block scalar preserves newlines exactly. Block scalars carry two further
+  modifiers, kept as sub-qualifiers of the concrete — they change trailing whitespace
+  and layout, never the meaning of the style: **chomping** — clip (the default), strip
+  (`|-`), keep (`|+`) — and the **indentation indicator**, an explicit block indent
+  (`|2`) that pins the content indent where the first line leaves it ambiguous.
+- |
+  A block scalar is bounded by its own content indent, so it is self-delimiting — which
+  is what lets a tagless block scalar serve as a node's multi-line self-value anywhere
+  among its entries ([mixtures](::language:vs-yaml:mixtures)).

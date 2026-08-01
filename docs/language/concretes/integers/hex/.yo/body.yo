@@ -1,0 +1,5 @@
+!!<*yamlover: $defs: chapter>
+Hexadecimal
+description: 'yaml/hex — 0xff'
+- |
+  `0xff` — the hexadecimal notation, core-schema, decoded and classified today.

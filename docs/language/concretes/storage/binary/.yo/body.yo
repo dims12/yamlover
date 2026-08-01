@@ -1,0 +1,9 @@
+!!<*yamlover: $defs: chapter>
+Binary files
+description: opaque bytes, read lazily, decoded by format
+- |
+  `file/binary` is opaque bytes — an image, a pdf, a djvu, an unknown or large blob:
+  read lazily, never parsed as yamlover data. What the bytes *mean* is the format's job:
+  `image/png` marks an image, `application/pdf` a document, `int32/le` a four-byte
+  integer ([a scalar as bytes](::language:concretes:strings:as-binary)). A file with no
+  metadata and no recognized extension defaults to binary.

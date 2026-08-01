@@ -1,0 +1,8 @@
+!!<*yamlover: $defs: chapter>
+The empty node
+description: 'yaml/empty — a bare key IS null'
+- |
+  `key:` with no value — the empty notation. The bare key *is* null, which is also why
+  the type lattice's bottom collapses onto null: there is no syntax for an "empty
+  container that is neither null nor a committed `{}` / `[]`"
+  ([the three facets](::language:model:facets)).

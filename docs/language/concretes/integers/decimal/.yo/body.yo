@@ -1,0 +1,7 @@
+!!<*yamlover: $defs: chapter>
+Decimal
+description: 'yaml/dec — the default base'
+- |
+  `255` — the decimal notation, the default. Sign, leading zeros, and YAML 1.1's digit
+  separator `_` are finer distinctions still — preserved in the raw token, not yet given
+  their own concrete.

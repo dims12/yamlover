@@ -1,0 +1,33 @@
+!!<*yamlover: $defs: chapter>
+Choosing a concrete
+description: defaults, the language lock, and member encodings — birth-order independent
+- |
+  Three rules choose a concrete when nothing names one. **Default (inheritance)**: an
+  unspecified concrete inherits the storage family — a directory-concrete parent keeps
+  its children directory-concrete (a subchapter of a directory chapter becomes a
+  subdirectory member, the shape this book itself uses); everything else stays inline in
+  the parent's source. An explicit concrete always wins. **Obligatory (the language
+  lock)**: content inside a file document speaks that file's language — the interior of
+  a `.json5p` cannot switch to yaml — and an existing node never changes concrete
+  through an edit: a conversion is a move. **Member encoding** — the same inheritance
+  seen from the write side, for edits that name no concrete:
+- !!<*yamlover: $defs: bullets>
+  - 'a **keyed container** child — a nested real directory named by the key, recursively;'
+  - 'an **untagged ordinal container** child — a real directory under an order-numbered generated name (`item01`, `item02`, …) plus a `- *: itemNN` pointer element in the parent''s `body.yo` granting its position. A *tagged* ordinal container (a table, a typographical list) is content and stays inline;'
+  - 'everything else — scalars, flow one-liners — the parent''s `body.yo` overlay.'
+- |
+  **Birth order does not matter.** The derivation re-runs on the scalar-to-container
+  transition, not only at a child's birth: a node typed as a bare title first and grown
+  after lifts out of the enclosing body into its own real member the moment it gains
+  container content, its old inline line spliced away — landing in the same directory
+  shape as a node born already populated. A pure scalar edit is not a transition and
+  stays inline; an inline-tagged member stays inline — content is content, at growth as
+  at birth, all the way down.
+- |
+  **Generated member names carry order numbers** (`item01`, `02-Обзор`) so a plain
+  directory listing sorts roughly in body order. The numbers are cosmetic — order is the
+  body pointer-array's data, never the filesystem's — and an existing member is never
+  renamed: an insert between neighbors slots a sub-number (`item01-1`), an insert before
+  the first degrades to `00`. Removing a positional element splices only the pointer
+  line; the member directory is orphaned, never destroyed, and resurfaces as a
+  keyed-only member.
