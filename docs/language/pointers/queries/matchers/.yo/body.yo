@@ -1,0 +1,31 @@
+!!<*yamlover: $defs: chapter>
+Matchers
+description: tests between the colons — values, comparisons, and the metadata form
+- |
+  A query portion is a scalar matcher, a key matcher, or both space-separated — which
+  is why a key containing a space must be quoted. A matcher standing alone is a
+  **non-navigating test**: bindings that fail drop out, those that pass continue
+  unchanged; a test-then-step combo tests the current node, *then* steps. String
+  value tests are always spelled with `=` (`=female`) — a bare word, quoted or not,
+  is a KEY step.
+- !!<*yamlover: $defs: table>
+  header:
+    - form
+    - 'keeps a match when …'
+      width: 3
+  - ['`12`, `true`, `null`', 'the value equals the bare literal']
+  - ['`=female`, `=''Анна Каренина''`', 'value equals — the forced spelling for strings']
+  - ['`>30`  `>=18`  `<30`  `<=18`  `!=x`', 'the comparison holds (the ordering family needs both sides numeric)']
+- |
+  **Metadata matchers** reuse the `!!<…>` tag with the META vocabulary — one test
+  language for documents and queries: `!!<type: T>` tests the type shape (`variant`
+  here tests the omni *region* — a scalar with own fields); `!!<format: F>` the
+  authored or schema-derived format; `!!<*:: yamlover: $defs: tag>` schema
+  conformance. There is no edge-kind test in v1: a fan-out cannot distinguish members
+  from children, and node-shape matchers cover the need.
+- !!<format: text/plain> |
+  team: ?: age: >10           → :team:alice:age
+  pets[?]: species: =cat      → :pets[1]:species
+  : rating: !!<type: variant> → :rating
+  : rating: 5 scale           → :rating:scale  (value 5 ✓, then step)
+  : thirty: 30 ..             → :              (test, then step UP)

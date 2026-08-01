@@ -1,5 +1,5 @@
-# Pointers, anchors, paths, and queries — the pointer layer and the query language it is
-# the singleton fragment of; each construct a subdirectory chapter.
+# Pointers, anchors, paths, and queries — the pointer layer, and the query language it
+# is the singleton fragment of; each construct a subdirectory chapter.
 !!<*yamlover: $defs: chapter>
 Pointers, paths, and queries
 description: the colon grammar, dereference and anchors, and the query language over them
@@ -10,3 +10,10 @@ description: the colon grammar, dereference and anchors, and the query language 
   **singleton fragment of the query language**: every pointer is a query with at most one
   result, and the query grammar extends the same lexical space with wildcards, descent,
   uplinks, and matchers.
+- *: paths
+- *: scopes
+- *: dereference
+- *: anchors
+- *: relative-indexes
+- *: escaping
+- *: queries

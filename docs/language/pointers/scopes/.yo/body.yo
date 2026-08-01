@@ -1,0 +1,26 @@
+!!<*yamlover: $defs: chapter>
+Scopes
+description: the ladder — more colons, wider scope; no implicit search
+- |
+  A pointer with no leading scope sigil resolves **against the current mapping** — the
+  node that contains it: `*cat` is the sibling key `cat`; `*..: x` walks to the parent
+  node, then descends. There is **no implicit search up the ancestors** — a bare name
+  is current-mapping only, which avoids fragile dynamic-scope capture; reach outward
+  explicitly with `..` or a wider rung of the ladder.
+- !!<*yamlover: $defs: table>
+  header:
+    - Form
+    - Base
+      width: 2
+    - Example
+  - ['`*name`, `*..: …`', 'current mapping / its parents', '`*cat`, `*..: ..: pets[1]`']
+  - ['`*: …`', 'current **document** root', '`*: pets[1]`']
+  - ['`*:: …`', 'current **project** root', '`*:: $defs: tag`']
+  - ['`*::: auth: …`', 'the **world** — an identity, never fetched', '`*::: pet.store.com: pets`']
+- |
+  A **world** base names a project by its authority — a DNS-style
+  `{project}.{company}` name — and resolution goes through the local mount table
+  ([names, not fetches](::language:principles:names-not-fetches)). **Imports** are
+  root-level keys whose value is a world-scoped link
+  (`yamlover: *::: yamlover.inthemoon.net`); inside a project the self-import is
+  absorbed, so `:: $defs: tag` and `:: yamlover: $defs: tag` are the same path.
