@@ -1,0 +1,12 @@
+!!<*yamlover: $defs: chapter>
+Conformance
+description: the yaml-test-suite stance — accept everything except the documented divergences
+- |
+  Because yamlover is a close-but-distinct language, the YAML conformance corpus
+  (yaml-test-suite) is run as "accept all positive cases except a documented divergence
+  allowlist" — the anchor/alias cases are diverges-by-design, not failures. The walk
+  parses `.yaml`/`.yml` files with YAML link semantics, concrete-aware as everywhere.
+- |
+  For a side-by-side feel of the divergence, the repository keeps a worked pair:
+  `examples/05-tour.yaml` is plain YAML — native anchor sharing, no paths — and
+  `examples/06-tour.yo` is the same data with the full pointer layer.

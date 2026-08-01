@@ -1,0 +1,22 @@
+!!<*yamlover: $defs: chapter>
+One omnivorous node
+description: scalar, list, and dict are not boxes — one node may be all three at once
+- |
+  yamlover has one node model, not three. A node may carry a scalar **self-value**, named
+  (keyed) entries, and positional (keyless) entries — in any combination, at once. There
+  is no scalar/list/dict kind to choose first and be locked into: the familiar kinds are
+  just the corners a node happens to occupy while it exercises one capability.
+- !!<format: text/x-yamlover> |
+  rating: 5      # the node's own scalar value …
+    - solid      # [0] … and a positional entry …
+    scale: 10    # … and a keyed field — ONE node
+- |
+  **Mixtures are the default.** An untagged node may mix keyed and keyless entries and may
+  carry a self-value alongside fields — at the document root included. The former opt-in
+  markers `!!mix` and `!!var` remain parseable as optional no-op documentation
+  ([mixtures](::language:vs-yaml:mixtures)).
+- |
+  The payoff is stability under growth: adding a field to a node — an annotation onto a
+  markdown string, a subchapter under a title — never flips its type out from under a
+  consumer. A type is a predicate over a node's shape, and a node may satisfy several at
+  once (the [logical model](::language:model)).

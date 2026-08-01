@@ -1,0 +1,40 @@
+!!<*yamlover: $defs: chapter>
+'Mixtures: one node, every capability'
+description: scalar-plus-fields and keyed-plus-keyless — invalid in YAML, the default here
+- |
+  Plain YAML forbids mixing `- item` entries with `key: value` entries in one collection,
+  and has no way for a scalar to carry fields. In yamlover both are **one node and the
+  default**: an untagged node may mix keyed and keyless entries and may carry a scalar
+  self-value alongside them ([one omnivorous node](::language:principles:one-node)). The
+  former opt-in tags remain parseable as optional no-op markers — existing files
+  round-trip, and they stay useful as documentation: `!!mix` marks a keyed+keyless
+  container, `!!var` (formerly `!!omni`, still accepted as a deprecated alias) a
+  value-plus-fields node.
+- !!<format: text/x-yamlover> |
+  playlist: !!mix
+    - Intro                 # [0]            keyless / positional
+    - Verse                 # [1]            keyless
+    title: Greatest Hits    # [2], key=title keyed — AND still positioned
+    - Chorus                # [3]            keyless
+  # *playlist[2] and *playlist: title resolve to the SAME node.
+
+  rating: !!var 5           # the node's own scalar value …
+    - solid                 # [0] … and positional + keyed fields together
+    scale: 10
+- |
+  The self-value line may sit at any position among the entries — first, last, or
+  between; at most one scalar line per block, and line order does not change the data.
+  This holds at the document root too: a bare root scalar may be followed by entries and
+  anchors, no tag needed. A **multi-line** self-value must be a block scalar (`|` / `>`)
+  — tagless, self-delimiting by its own content indent, legal anywhere among the entries:
+- !!<format: text/x-yamlover> |
+  # tagless — the self-value block scalar between the entries
+  - solid
+  |
+    multi-line text is
+    the node's value
+  scale: 10
+- |
+  An inline *plain* scalar keeps YAML's plain-scalar limits — no `: ` or ` #` inside it,
+  a leading `- ` reads as a sequence marker, consecutive plain lines fold — so arbitrary
+  text goes in a block scalar.

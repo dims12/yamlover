@@ -9,3 +9,40 @@ description: the kept surface, and every place the same token means something el
   `~` sigil, `!!set`, and the omni points below). Reading is therefore concrete-aware: a
   `.yaml`/`.yml` file is parsed with YAML's own link semantics and read *faithfully*, with
   no "porting" step; a `.yo` file is parsed with yamlover's.
+- |
+  The table is how the SAME token differs between the two surfaces — each break has its
+  own subchapter below, the kept surface first:
+- !!<*yamlover: $defs: table>
+  header:
+    - Construct
+    - 'YAML means'
+    - 'yamlover means'
+      width: 2
+  - - '`&anchor`'
+    - a reusable intra-document name for the node
+    - '**path anchor** — "this node also lives at that path"; the path''s parent gains a real key'
+  - - '`*alias`'
+    - 'alias to anchor `alias` (name only)'
+    - '**pointer** — a pure path/scope expression (`*a` = the sibling key `a`; no anchor namespace, no precedence rule)'
+  - - '`~key:` (key position)'
+    - 'the plain-scalar key `"~key"`'
+    - '**back-edge** sigil on key `key` (deprecated → `&: P: key`)'
+  - - '`~-` (entry position)'
+    - 'the plain scalar `~-` (rare)'
+    - '**keyless back-edge** (deprecated → `&: P[]`)'
+  - - '`~` (value position)'
+    - null spelled as a sigil
+    - '**unchanged — still null**'
+  - - '`!!set`'
+    - a mapping of null-valued keys
+    - 'a **set-semantics container** — memberships dedup by identity'
+  - - scalar + fields / mixed keyed+keyless
+    - invalid / two node kinds
+    - '**one node** — omni by default'
+- *: kept
+- *: anchors
+- *: aliases
+- *: tilde
+- *: set
+- *: mixtures
+- *: conformance

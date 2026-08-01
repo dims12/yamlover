@@ -8,3 +8,12 @@ description: the small set of rules everything else in the language follows from
   consequence. Every later part of this spec — the model, the concretes, the pointer and
   query grammar — is an elaboration of the rules on this page; when two readings of a
   construct compete, the one that keeps these principles wins.
+- *: order-is-data
+- *: one-node
+- *: keys-are-pointers
+- *: graph-not-tree
+- *: names-not-fetches
+- *: many-concretes
+- *: metadata-first
+- *: tolerance
+- *: losslessness
