@@ -160,10 +160,21 @@ export interface Blob extends NodeBase {
 export type EdgeKind = 'contain' | 'ref' | 'back';
 
 export interface Entry {
-  key: string | null; // string key, or null for a keyless ( ":" / "- " ) entry
+  key: string | null; // string key, or null for a keyless (`- `) entry — see also nullKey
+  /** The NULL KEY (YAML's rule, adopted 2026-08-01): `: v` ≡ `~: v` is a KEYED entry whose
+   *  key is the null value — distinct from the keyless `- v` (positional only) and from the
+   *  empty-string key `"": v`. When true, `key` is null but the entry is NOT keyless; the
+   *  pointer spelling of the null key is the bare `~` portion. Canonical emission: `~: v`. */
+  nullKey?: true;
   edge: EdgeKind;
   value: Value;
   meta?: EntryMeta;
+}
+
+/** Keyless = positional-only: no string key AND not the null key. The one test every
+ *  "is this a `- ` entry" site must use — `key === null` alone conflates the null key. */
+export function isKeyless(e: { key: string | null; nullKey?: true }): boolean {
+  return e.key === null && e.nullKey !== true;
 }
 export interface EntryMeta {
   /** Source range of the WHOLE entry — from the key / `-` / `~` marker through the end of
@@ -203,8 +214,10 @@ export type PointerBase =
   | { scope: 'link'; authority: string; world?: boolean };
 
 export type Step =
-  | { sel: 'key'; name: string }                // /x  — string key
-  | { sel: 'index'; n: number }                 // [n] — integer key (position)
+  | { sel: 'key'; name: string }                // name / 'quoted' — string key
+  | { sel: 'index'; n: number }                 // a bare integer portion — the integer key
+                                                //   (position); `[n]` reads as an alias
+  | { sel: 'nullkey' }                          // ~  — the NULL key (YAML's rule)
   | { sel: 'relindex'; k: number }              // [.±k] — RELATIVE position: the host's own position
                                                 //   at this depth ± k (URIs.md §Relative indexes)
   | { sel: 'parent' };                          // ..  — up one node
@@ -224,13 +237,14 @@ export function toPlain(node: Node): unknown {
     return node.array ? [] : {}; // empty array vs empty mapping (keep the projection hint)
   }
   // pure sequence (a mapping projected as an array): all-keyless and no scalar self-value
-  if (node.kind === 'mapping' && (node.array ?? ents.every((e) => e.key === null))) {
+  if (node.kind === 'mapping' && (node.array ?? ents.every(isKeyless))) {
     return ents.map(entryPlain);
   }
-  // object: keyed entries by key, keyless by position; a scalar self-value under $value
+  // object: keyed entries by key, keyless by position; a scalar self-value under $value;
+  // the NULL key under "~" (JSON has no null key — the pointer spelling stands in)
   const o: Record<string, unknown> = {};
   if (node.kind === 'scalar') o.$value = node.value;
-  ents.forEach((e, i) => { o[e.key ?? String(i)] = entryPlain(e); });
+  ents.forEach((e, i) => { o[e.nullKey === true ? '~' : e.key ?? String(i)] = entryPlain(e); });
   return o;
 }
 

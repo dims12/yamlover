@@ -354,11 +354,25 @@ class Block {
           continue;
         }
         this.i++;
-        let key = kv.key;
+        let rawKey = kv.key;
         let back = false;
-        if (key.startsWith('~')) { back = true; key = key.slice(1); }
+        // the NULL KEY (YAML's rule, adopted 2026-08-01): `: v` and `~: v` are a keyed entry
+        // whose key is the null value — NOT keyless, NOT the empty string, NOT a back-edge
+        // (a back-edge sigil needs a nonempty relation name: `~cain:`)
+        const nullKey = rawKey === '' || rawKey === '~';
+        if (!nullKey && rawKey.startsWith('~')) { back = true; rawKey = rawKey.slice(1); }
         value = this.valueAfter(kv.rest, indent, l.n, l.indent + kv.restCol);
-        entry = { key: unquoteKey(key), edge: back ? 'back' : isPointer(value) ? 'ref' : 'contain', value };
+        if (nullKey) {
+          entry = { key: null, nullKey: true, edge: isPointer(value) ? 'ref' : 'contain', value };
+        } else {
+          const key = unquoteKey(rawKey);
+          // a PLAIN numeric key is a position, and order is the container's own data — refuse
+          // loudly (yamlover surface only; a .yaml file reads it faithfully as the string key)
+          if (!this.yaml && !/^['"]/.test(rawKey) && /^\d+$/.test(key)) {
+            this.fail(`a plain numeric key is a position — author it by order ("- value"), or quote a numeric STRING key ("'${key}':")`);
+          }
+          entry = { key, edge: back ? 'back' : isPointer(value) ? 'ref' : 'contain', value };
+        }
       }
       // … and ends at the last source line the value consumed — a contiguous run, so
       // `this.lines[this.i - 1]` is that line. Post-strip (`indent + text.length`) so a
@@ -372,9 +386,10 @@ class Block {
       entries.push(entry);
     }
     // projection hint: a pure sequence — judged over OWNED entries only (a `~-` back-edge
-    // is not a member of THIS node and must not make it look like an array).
+    // is not a member of THIS node and must not make it look like an array; a NULL-KEYED
+    // entry is keyed, so it breaks pure-sequence-ness like any key).
     const owned = entries.filter((e) => e.edge !== 'back');
-    const array = owned.length > 0 && owned.every((e) => e.key === null);
+    const array = owned.length > 0 && owned.every((e) => e.key === null && e.nullKey !== true);
     const node: Node = self !== undefined
       ? { ...self, entries, array }                 // value + fields: one omni node
       : entries.length === 0
@@ -670,15 +685,26 @@ class Flow {
       if (this.s[this.i] === '}') { this.i++; break; }
       if (this.i >= this.s.length) this.fail('unterminated flow map');
       let back = false;
-      if (this.s[this.i] === '~') { back = true; this.i++; }
+      let nullKey = false;
+      if (this.s[this.i] === '~') {
+        // `~:` (spaces allowed) is the NULL KEY (YAML); `~name:` is the back-edge sigil
+        let j = this.i + 1;
+        while (this.s[j] === ' ' || this.s[j] === '\t') j++;
+        if (this.s[j] === ':') { nullKey = true; this.i = j; }
+        else { back = true; this.i++; }
+      }
       // A FLOW TOKEN may be the KEY — `{[1, 2]: 3}`, `{{}: 12}` — the flow-context twin of the
       // block surface's `[256, 256]: *…` (splitKV scans a leading token whole for exactly this).
       // The key is the token's VERBATIM TEXT, as it is there: a container key is a string key
       // spelled that way, not a second kind of key. Without this the plain reader stopped at the
       // nested closer and the pair failed with `expected ":" in flow map`.
       const kc = this.s[this.i];
-      let key: string;
-      if (kc === "'" || kc === '"') {
+      let key = '';
+      let quoted = false;
+      if (nullKey) {
+        // the key is the null value — nothing to read; `this.i` already sits at the `:`
+      } else if (kc === "'" || kc === '"') {
+        quoted = true;
         key = this.quoted().value as string;
       } else if (kc === '[' || kc === '{') {
         const end = flowTokenEnd(this.s.slice(this.i));
@@ -687,13 +713,18 @@ class Flow {
         this.i += end;
       } else {
         key = unquoteKey(this.readPlain(':,}\r\n'));
+        if (key === '') nullKey = true; // `{: v}` — the empty spelling of the null key
+      }
+      if (!nullKey && !quoted && !this.yaml && /^\d+$/.test(key)) {
+        this.fail(`a plain numeric key is a position — author it by order ("- value"), or quote a numeric STRING key ("'${key}':")`);
       }
       this.ws();
       if (this.s[this.i] !== ':') this.fail('expected ":" in flow map');
       this.i++;
       this.ws();
       const v = this.value();
-      entries.push({ key, edge: back ? 'back' : isPointer(v) ? 'ref' : 'contain', value: v });
+      const edge = back ? 'back' as const : isPointer(v) ? 'ref' as const : 'contain' as const;
+      entries.push(nullKey ? { key: null, nullKey: true, edge, value: v } : { key, edge, value: v });
       this.ws();
       if (this.s[this.i] === ',') { this.i++; continue; }
       if (this.s[this.i] === '}') { this.i++; break; }

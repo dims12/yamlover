@@ -86,8 +86,16 @@ function portionsToSteps(portions: string[]): Step[] {
   return out;
 }
 
-/** One colon portion → steps: `..`, a (possibly quoted) name, optional `[n]` / `[.±k]`
- *  groups. A bare name containing a SPACE must be quoted (SEPARATOR.md §3). */
+/** One colon portion → steps: `..`, a (possibly quoted) name, optional `[.±k]` groups
+ *  (`[n]` reads as a legacy alias of the bare-integer portion). A bare name containing a
+ *  SPACE must be quoted (SEPARATOR.md §3).
+ *
+ *  THE BARE-TOKEN TYPING RULE (the YAML-keys round, 2026-08-01): an UNQUOTED, UNESCAPED
+ *  portion of pure digits is the INTEGER KEY — a position (`: pets: 1`); a bare `~` is the
+ *  NULL KEY (YAML: `: v` ≡ `~: v`). Everything quoted or escaped is a string key, so `'1'`
+ *  is the numeric STRING key and `'~'` / `\~` the literal tilde — quotes carry the
+ *  distinction, exactly as in YAML. All other bare tokens (`-1`, `1.5`, `01`, `true`)
+ *  remain ordinary string keys; `-1` stays reserved for a future from-the-end index. */
 function portionToSteps(p: string): Step[] {
   if (p === '..') return [{ sel: 'parent' }];
   // `..` with attached index groups (`..[.-1][.]` — the table rowspan idiom): the uplink,
@@ -95,7 +103,9 @@ function portionToSteps(p: string): Step[] {
   if (p.startsWith('..') && p[2] === '[') return [{ sel: 'parent' }, ...indexGroups(p.slice(2), p)];
   let name = '';
   let i = 0;
+  let plain = true; // false once quoted or backslash-escaped — a literal string key either way
   if (p[0] === "'" || p[0] === '"') {
+    plain = false;
     const q = p[0];
     i = 1;
     for (; i < p.length; i++) {
@@ -110,14 +120,18 @@ function portionToSteps(p: string): Step[] {
   } else {
     for (; i < p.length; i++) {
       const c = p[i];
-      if (c === '\\' && i + 1 < p.length) { name += p[i + 1]; i++; continue; }
+      if (c === '\\' && i + 1 < p.length) { name += p[i + 1]; i++; plain = false; continue; }
       if (c === '[') break;
       if (c === ' ' || c === '\t') throw new SyntaxError(`pointer: a key containing a space must be quoted ("${p}")`);
       name += c;
     }
   }
   const steps: Step[] = [];
-  if (name !== '') steps.push({ sel: 'key', name });
+  if (name !== '') {
+    if (plain && name === '~') steps.push({ sel: 'nullkey' });
+    else if (plain && /^\d+$/.test(name)) steps.push({ sel: 'index', n: Number.parseInt(name, 10) });
+    else steps.push({ sel: 'key', name });
+  }
   if (i < p.length) steps.push(...indexGroups(p.slice(i), p));
   return steps;
 }
@@ -175,10 +189,12 @@ export function renderPointer(p: Pointer, opts: { spaced?: boolean } = {}): stri
   for (const st of p.steps) {
     if (st.sel === 'parent') { toks.push('..'); continue; }
     if (st.sel === 'key') { toks.push(colonSegment(st.name)); continue; }
-    // an index group: absolute `[n]`, or relative `[.]` / `[.±k]` — a relative group may
-    // attach to a `..` token (`..[.-1][.]` parses back as the uplink + the indexes)
-    const t = st.sel === 'index' ? `[${st.n}]` : `[.${st.k === 0 ? '' : (st.k > 0 ? '+' : '') + st.k}]`;
-    if (toks.length > 0 && (st.sel === 'relindex' || !toks[toks.length - 1].endsWith('..'))) toks[toks.length - 1] += t;
+    if (st.sel === 'nullkey') { toks.push('~'); continue; }
+    if (st.sel === 'index') { toks.push(String(st.n)); continue; } // the bare integer portion; `[n]` is read-only
+    // a relative group `[.]` / `[.±k]` attaches to the preceding token (`..[.-1][.]`,
+    // `pets[.-1]` — it is a frame operator, not a portion of its own)
+    const t = `[.${st.k === 0 ? '' : (st.k > 0 ? '+' : '') + st.k}]`;
+    if (toks.length > 0) toks[toks.length - 1] += t;
     else toks.push(t);
   }
   const body = toks.join(sep);
@@ -194,13 +210,28 @@ export function renderPointer(p: Pointer, opts: { spaced?: boolean } = {}): stri
   }
 }
 
-/** One colon-form key portion: quoted when it holds a space (or opens with a quote),
- *  else metachar-escaped — `:` joins the set, `/` has LEFT it (SEPARATOR.md §3). */
-export function colonSegment(name: string): string {
+/** THE canonical key spelling — one policy, every emitter (the YAML-keys round retired
+ *  five disagreeing copies). A string key is QUOTED whenever its bare form would read as
+ *  something else: empty, pure digits (a position), `~` (the null key), a leading `-` with
+ *  digits (reserved), a space, or a leading quote; otherwise it rides bare with metachars
+ *  backslash-escaped — `:` in the set, `/` out of it (SEPARATOR.md §3). */
+export function keyPortion(name: string): string {
   if (name === '..') return '\\.\\.';
-  if (/[ \t]/.test(name) || /^['"]/.test(name)) return `'${name.replace(/'/g, "''")}'`;
+  if (
+    name === '' ||
+    /^\d+$/.test(name) ||
+    name === '~' ||
+    /^-\d/.test(name) ||
+    /[ \t]/.test(name) ||
+    /^['"]/.test(name)
+  ) {
+    return `'${name.replace(/'/g, "''")}'`;
+  }
   return name.replace(/[\\:[\]*&#~?!()<>=|]/g, (c) => '\\' + c);
 }
+
+/** Back-compat alias — the historical name for {@link keyPortion}. */
+export const colonSegment = keyPortion;
 
 /** Build an Anchor (URIs.md §`&`) from the authored path text (after `&`, quotes already
  *  stripped): strip a trailing `[]` (ordinal membership), parse the rest as a pointer, and
@@ -216,6 +247,7 @@ export function makeAnchor(body: string, fail: (msg: string) => never, yaml = fa
   if (!ordinal) {
     const last = path.steps[path.steps.length - 1];
     if (last === undefined) fail('an anchor path needs a key segment (or a trailing "[]" for ordinal membership)');
+    if (last.sel === 'nullkey') fail('an anchor cannot create the null key');
     if (last.sel !== 'key') fail('an anchor may not claim a position — use a trailing "[]" for ordinal membership');
   }
   return { path, ...(ordinal ? { ordinal: true } : {}) };

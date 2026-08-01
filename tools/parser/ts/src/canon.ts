@@ -63,7 +63,9 @@ export function canonNode(n: Node): unknown {
   out.yo = n.meta?.yo === true;
   if (n.meta?.schema !== undefined) out.schema = canonValue(n.meta.schema);
   out.anchors = anchors;
-  out.entries = ents.filter((e) => !convBack(e)).map((e) => ({ key: e.key, edge: e.edge, value: canonValue(e.value) }));
+  out.entries = ents
+    .filter((e) => !convBack(e))
+    .map((e) => ({ key: e.key, ...(e.nullKey === true ? { nullKey: true } : {}), edge: e.edge, value: canonValue(e.value) }));
   return out;
 }
 

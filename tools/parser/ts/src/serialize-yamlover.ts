@@ -122,10 +122,13 @@ class Emitter {
       const before = this.out.length;
       if (isAnchorizableBack(e)) {
         continue; // re-emitted as an `&` anchor in decorations()/rootAnchors(), not as `~`
-      } else if (e.key === null && e.edge === 'back') {
+      } else if (e.key === null && e.nullKey !== true && e.edge === 'back') {
         // a RELATIVE-scoped keyless back-edge keeps the `~-` spelling (see isAnchorizableBack)
         if (!isPointer(e.value)) throw new LossyError('a keyless back-edge ("~-") must hold a pointer');
         this.out.push(`${pad}~- *${this.ptrText(e.value)}`);
+      } else if (e.nullKey === true) {
+        // the NULL KEY: canonical emission `~:` (the empty `: v` spelling reads as an alias)
+        this.keyed('~:', e.value, indent);
       } else if (e.key === null) {
         this.seqItem(e.value, indent);
       } else {
@@ -246,7 +249,7 @@ class Emitter {
       }
       if (this.flowLine(pad + '-', value, parts, indent)) return; // `- [1, 2]`, or a K&R block
       const anchored = this.anchorTokens(value).length > 0;
-      if (parts.length === 0 && !anchored && (kept[0].key !== null || kept[0].edge === 'contain')) {
+      if (parts.length === 0 && !anchored && (kept[0].key !== null || kept[0].nullKey === true || kept[0].edge === 'contain')) {
         // compact `- key: …` / `- - item`: render the entries, then fold the first line onto
         // the dash (STEP === the `- ` marker width, so the columns line up exactly). A keyless
         // first entry folds only when it is containment — a leading `~-` back-edge stays block.
@@ -423,13 +426,16 @@ function blockLines(v: string): { header: string; lines: string[] } | null {
 }
 
 /** Plain keys carry the pointer-metachar escaping (URIs.md §escaping); keys the line
- *  grammar itself would misread are double-quoted instead. */
+ *  grammar itself would misread are double-quoted instead. A NUMERIC key is always
+ *  quoted (the YAML-keys round): bare `1:` is a position claim - a parse error - so the
+ *  string key "1" round-trips as `"1":`. */
 function keyText(key: string): string {
   const needsQuote =
     key === '' || key !== key.trim() ||
     /[\u0000-\u001f\u007f]/.test(key) ||
     key.includes(': ') || // splitKV would split at the inner colon
     key === '-' || key.startsWith('- ') ||
+    /^\d+$/.test(key) || // a bare numeric key reads as a position - quote the string key
     /^['"]/.test(key) ||
     key.includes('\\'); // plain keys are backslash-UNescaped on parse
   if (needsQuote) return dq(key);
@@ -485,14 +491,14 @@ function flowTextOrNull(n: Node): string | null {
     return flowTok(n);
   }
   if (ents.length === 0) return n.array ? '[]' : '{}';
-  const keyed = ents.filter((e) => e.key !== null);
+  const keyed = ents.filter((e) => e.key !== null || e.nullKey === true); // the null key is KEYED
   if (keyed.length > 0 && keyed.length < ents.length) return null; // a mixed container has no flow form
   if (ents.some((e) => e.edge === 'back')) return null; // a `~` back-edge is authored on its own line
   const items: string[] = [];
   for (const e of ents) {
     const v = isPointer(e.value) ? flowPtr(e.value) : flowTextOrNull(e.value);
     if (v === null) return null; // one unrepresentable member demotes the whole token
-    items.push(e.key === null ? v : `${flowKey(e.key)}: ${v}`);
+    items.push(e.key === null && e.nullKey !== true ? v : `${e.nullKey === true ? '~' : flowKey(e.key!)}: ${v}`);
   }
   return keyed.length === 0 ? `[${items.join(', ')}]` : `{${items.join(', ')}}`;
 }

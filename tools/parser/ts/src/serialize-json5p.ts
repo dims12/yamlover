@@ -90,6 +90,7 @@ class Emitter {
   }
 
   entry(e: Entry, inArray: boolean, indent: number): string {
+    if (e.nullKey === true) throw new LossyError('json5p has no null key — YAML\'s "~: v" has no brace spelling');
     if (e.key === null && e.edge === 'back') {
       // a RELATIVE-scoped keyless back member keeps `~*'…'` (see isAnchorizableBack)
       if (!isPointer(e.value)) throw new LossyError('a keyless back-edge ("~") must hold a pointer');

@@ -13,6 +13,7 @@ import { isPointer } from '../src/ir.ts';
 import { canonDoc } from '../src/canon.ts';
 import { parseYamlover } from '../src/yamlover.ts';
 import { parseJson5p } from '../src/json5p.ts';
+import { parsePointer, renderPointer } from '../src/pointer.ts';
 import { serializeYamlover } from '../src/serialize-yamlover.ts';
 import { serializeJson5p } from '../src/serialize-json5p.ts';
 import { LossyError } from '../src/serialize-common.ts';
@@ -59,10 +60,82 @@ test('yamlover rt: a leading ~- back-edge in a seq item stays block (no fold)', 
   rtYamlover('crew:\n  -\n    ~- *: teams\n    name: Al\nteams:\n  - x\n');
 });
 
-test('yamlover rt: pointers re-render in canonical colon form', () => {
-  const out = rtYamlover('pets:\n  - name: Rex\nfeline: *pets[0]\ntop: *:pets[0]:name\nrx: *pets[0]\n');
-  assert.match(out, /\*pets\[0\]/);
-  assert.match(out, /\*: pets\[0\]: name/); // compact input re-emits with the `: ` styling
+test('yamlover rt: pointers re-render in canonical colon form — bare integer positions', () => {
+  // `[n]` is the read-forever ALIAS (the YAML-keys round); canonical emission is the bare
+  // integer portion — a position IS the integer key
+  const out = rtYamlover('pets:\n  - name: Rex\nfeline: *pets[0]\ntop: *:pets[0]:name\nrx: *pets: 0\n');
+  assert.doesNotMatch(out, /\[0\]/); // the bracket spelling is never written
+  assert.match(out, /\*pets: 0/);
+  assert.match(out, /\*: pets: 0: name/); // compact input re-emits with the `: ` styling
+});
+
+test('yamlover rt: the NULL KEY — `: v` ≡ `~: v`, distinct from `"": v`, canonical `~:`', () => {
+  // both spellings parse to the null-keyed entry and re-emit canonically as `~:`
+  for (const src of [': late\n', '~: late\n', '~ : late\n'.replace(' :', ':')]) {
+    const out = rtYamlover(src);
+    assert.match(out, /^~: late$/m);
+  }
+  // the empty-STRING key stays its own thing
+  const empty = rtYamlover('"": late\n');
+  assert.match(empty, /^"": late$/m);
+  assert.doesNotMatch(empty, /^~:/m);
+  // flow spellings: `{~: v}` and `{: v}` — the null key rides flow as `~:`
+  assert.match(rtYamlover('m: {~: 1}\n'), /m: \{~: 1\}/);
+  assert.match(rtYamlover('m: {: 1}\n'), /m: \{~: 1\}/);
+  // a literal tilde key is escaped/quoted, never the null key
+  const lit = rtYamlover('\\~: x\n');
+  assert.match(lit, /^\\~: x$/m);
+});
+
+test('yamlover: a null-keyed entry is KEYED — it breaks pure-sequence-ness', () => {
+  const doc = parseYamlover('- a\n~: b\n', 't');
+  assert.equal(doc.root.kind, 'mapping');
+  assert.equal((doc.root as { array?: boolean }).array, false);
+  const entries = (doc.root as { entries: { key: string | null; nullKey?: true }[] }).entries;
+  assert.deepEqual(entries.map((e) => [e.key, e.nullKey === true]), [[null, false], [null, true]]);
+});
+
+test('yamlover: a plain numeric key is a parse ERROR (a position claim); quoted is the string', () => {
+  assert.throws(() => parseYamlover('1: x\n', 't'), /plain numeric key is a position/);
+  assert.throws(() => parseYamlover('m: {1: x}\n', 't'), /plain numeric key is a position/);
+  // quoted: the numeric STRING key — round-trips QUOTED (never bare, which would error)
+  const out = rtYamlover("'1': x\n");
+  assert.match(out, /^"1": x$/m);
+  // YAML mode reads a plain numeric key faithfully as the string key
+  const y = parseYamlover('1: x\n', 't', { yaml: true });
+  assert.equal((y.root as { entries: { key: string | null }[] }).entries[0].key, '1');
+});
+
+test('pointer: the bare-token typing rule — integers, ~, quotes, aliases', () => {
+  // bare integer portion = position; quoted = string key; ~ = null key; \~ = literal
+  const steps = (raw: string) => parsePointer(raw).steps;
+  assert.deepEqual(steps(': pets: 1'), [{ sel: 'key', name: 'pets' }, { sel: 'index', n: 1 }]);
+  assert.deepEqual(steps("x: '1'"), [{ sel: 'key', name: 'x' }, { sel: 'key', name: '1' }]);
+  assert.deepEqual(steps('x: ~'), [{ sel: 'key', name: 'x' }, { sel: 'nullkey' }]);
+  assert.deepEqual(steps('x: \\~'), [{ sel: 'key', name: 'x' }, { sel: 'key', name: '~' }]);
+  assert.deepEqual(steps('pets[1]'), [{ sel: 'key', name: 'pets' }, { sel: 'index', n: 1 }]); // read-forever alias
+  // reserved / non-integers stay string keys
+  assert.deepEqual(steps('x: -1'), [{ sel: 'key', name: 'x' }, { sel: 'key', name: '-1' }]);
+  assert.deepEqual(steps('x: 1.5'), [{ sel: 'key', name: 'x' }, { sel: 'key', name: '1.5' }]);
+  // canonical emission: bare position, quoted numeric string, ~ null key
+  assert.equal(renderPointer(parsePointer(': pets[1]: name')), ': pets: 1: name');
+  assert.equal(renderPointer(parsePointer("x: '1'")), "x: '1'");
+  assert.equal(renderPointer(parsePointer('x: ~')), 'x: ~');
+});
+
+test('pointer: a null-keyed entry resolves via the bare ~ portion in a document', () => {
+  const doc = parseYamlover('~: late\nafter: *~\n', 't');
+  const ents = (doc.root as { entries: { key: string | null; nullKey?: true; value: unknown }[] }).entries;
+  assert.equal(ents[0].nullKey, true);
+  const ptr = ents[1].value as { kind: string; steps: { sel: string }[] };
+  assert.equal(ptr.kind, 'pointer');
+  assert.deepEqual(ptr.steps, [{ sel: 'nullkey' }]);
+});
+
+test('anchor: no position claims in the new spelling; no null-key anchors', () => {
+  // a bare-integer tail is a position claim, same rule as the dead `&path[3]`
+  assert.throws(() => parseYamlover('x: 1\n  &: p: 3\n', 't'), /anchor may not claim a position/);
+  assert.throws(() => parseYamlover('x: 1\n  &: p: ~\n', 't'), /anchor cannot create the null key/);
 });
 
 test('yamlover rt: anchors and anchor references', () => {
@@ -341,7 +414,7 @@ test('yamlover rt: flow keeps quoting, pointers and number spellings', () => {
   const out = serializeYamlover(parseYamlover(src, 't'));
   assert.match(out, /c: \[x, 'a b', q\]/); // a double-quoted cell with no metachar reads plain
   assert.match(out, /h: \[0xff, 1\.0, -0\]/); // authored spellings survive (repr.ts yaml/hex …)
-  assert.match(out, /p: \[\*a\[0\], plain\]/);
+  assert.match(out, /p: \[\*a:0, plain\]/); // the `[0]` alias re-emits as the bare position (compact in flow)
 });
 
 test('yamlover: block form is untouched — only an AUTHORED flow bit turns flow on', () => {
