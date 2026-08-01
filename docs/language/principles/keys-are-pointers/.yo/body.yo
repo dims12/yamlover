@@ -1,6 +1,6 @@
 !!<*yamlover: $defs: chapter>
 Keys are pointers
-description: every key is a path portion — [n] selects a position, ': x' a name
+description: every key is a path portion — a bare integer selects a position, ': x' a name
 - |
   Every key is a pointer: the same text that names an entry (`key: value`) is a path
   portion a pointer can travel (`*key`). The `*` sigil dereferences — beyond YAML's bare
@@ -8,10 +8,14 @@ description: every key is a path portion — [n] selects a position, ': x' a nam
   `*a` is the sibling key `a`, and scopes reach wider
   (the [pointers part](::language:pointers)).
 - !!yo
-  feline: *pets[1]                   # a sibling's second element
-  manager: *: pets[1]                # : = current document root
+  feline: *pets: 1                   # a sibling's second element
+  manager: *: pets: 1                # : = current document root
   remote: *::: pet.store.com: pets   # ::: = the world — never fetched
 - |
-  Positions are integer keys and names are string keys, with one access form each: `[n]`
-  selects the integer key n, `: x` the string key x. The old worry of an integer key `1:`
-  versus a string key `'1':` dissolves — it is simply `[1]` versus `: 1`.
+  Positions are integer keys and names are string keys, told apart by the **bare-token
+  typing rule**: a bare integer portion selects the integer key n (`: pets: 1`), a name —
+  or any quoted portion — selects the string key (`: '1'` is the numeric string). The old
+  worry of an integer key `1:` versus a string key `'1':` dissolves — it is simply `: 1`
+  versus `: '1'`. The retired bracket index `[n]` reads forever as an alias, written
+  never; the surviving brackets are the non-literal position operators (`&path[]`, `[?]`,
+  `[.±k]`).

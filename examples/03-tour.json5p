@@ -16,13 +16,13 @@
     {
       name: 'Alice',
       // Instead of 02's COPY, * makes manager a SHARED edge to pets position 1.
-      manager: *": pets[1]",    // :  = current document root  ->  the Whiskers node itself
+      manager: *": pets: 1",    // :  = current document root  ->  the Whiskers node itself
     },
   ],
 
   // ---- pointer scopes (a key is itself a pointer; * follows it) -----------
-  feline: *"pets[1]",          // bare -> base is the current mapping (a sibling)
-  topDog: *": pets[0]",        // :  -> current document root (the colon ladder)
+  feline: *"pets: 1",          // bare -> base is the current mapping (a sibling)
+  topDog: *": pets: 0",        // :  -> current document root (the colon ladder)
   // proj: *":: my.project: config: db",      // ::  -> this PROJECT's root / an import key
   // wild: *"::: pet.store.com: pets",         // ::: -> the WORLD (an AWS-like project URI)
 
@@ -30,9 +30,9 @@
   boss: &": chief" { name: 'Rex', species: 'dog' },
   team: { lead: *": chief" },   // same node as `boss` — a shared edge, not a copy
 
-  // ---- one ordered container: [n] = integer key, `: x` = string key ------
-  secondPet:  *"pets[1]",       // [1] selects position 1 (an integer key)
-  secondName: *"pets[1]: name",  // then /name selects the string key "name"
+  // ---- one ordered container: a BARE INTEGER = integer key, `: x` = string key ------
+  secondPet:  *"pets: 1",       // the bare 1 selects position 1 (an integer key)
+  secondName: *"pets: 1: name",  // then `: name` selects the string key "name"
 
   // ---- reverse edges, anchor-spelled: &': P: key' = "P holds me as key" (was ~key:) ----
   // eve has a forward "cain" edge; the shared cain node carries its reverse.
@@ -43,7 +43,7 @@
   // The member declares "that container holds me" — unpositioned (no reverse index) and
   // ADDITIVE (lists may repeat); see ../URIs.md §&. json5p has no tags, so SET semantics
   // (dedup by target) come from the metadata layer (uniqueItems: true), not a !!set tag.
-  favorites: [ *": pets[0]" ],          // forward: favorites holds Rex …
+  favorites: [ *": pets: 0" ],          // forward: favorites holds Rex …
   fan: &": favorites[]" &": crew[]" {    // … and ALSO Bob — both memberships, anchor-spelled
     name: 'Bob',
   },
@@ -51,6 +51,6 @@
 
   // ---- escaping: \\ in the JSON5 string delivers one \ to the pointer ----
   'odd/key': { n: 1 },
-  oddRef:  *"odd/key: n",      // pointer text  odd\/key/n  -> literal key "odd/key", then /n
+  oddRef:  *"odd/key: n",      // "/" is ordinary -> literal key "odd/key", then `: n`
   dotsRef: *"\\.\\.",           // pointer text  \.\.        -> the literal key ".." (not parent)
 }

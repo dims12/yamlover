@@ -31,7 +31,7 @@ numbered lists delegate the same way (§Lists).
 Embedding things                         # the SELF-VALUE title (CHAPTER.md) — marklower too
 - |
   Prose with **bold**, *italic*, `code`, inline math $$e^{i\pi}+1=0$$, and a
-  [link to the next section](:[2]) — all inline, all in one chunk.
+  [link to the next section](:2) — all inline, all in one chunk.
 - |
   An embed alone on its line becomes a figure:
 
@@ -80,14 +80,16 @@ breadcrumbs, and the URL navigate — with the colon grammar of `SEPARATOR.md`:
 
 | Target | Anchored at |
 | --- | --- |
-| `:a:b`, `:[2]` | the **document** the link appears in (the nearest yamlover entity) |
+| `:a:b`, `:2` | the **document** the link appears in (the nearest yamlover entity) |
 | `::a:b` | the **project root** (the directory yamlover was served) |
 | `scheme://…`, `mailto:…` | an ordinary **external** link, opened in a new tab |
 
-Anything else does not resolve, and the label renders as plain text. The legacy slash spellings
-(`/a/b` document-relative, `//a/b` project-rooted) still parse; `examples/69-marklower-links.yo`
-is a tour of all three flavours. One function, `resolveLink`, decides what a target means, for every
-renderer that emits links.
+A position in a target is the **bare integer** segment (`:2`, `::a:0` — the YAML-keys round);
+the retired bracket index (`:[2]`) reads forever as an alias, written never. Anything else does
+not resolve, and the label renders as plain text. The legacy slash spellings (`/a/b`
+document-relative, `//a/b` project-rooted, with `/1` bare-integer segments) still parse;
+`examples/69-marklower-links.yo` is a tour of all three flavours. One function, `resolveLink`,
+decides what a target means, for every renderer that emits links.
 
 ## Embeds
 
@@ -181,8 +183,8 @@ marklower `*`/`&` (a yamlover sigil), is quoted.
   addressable by name.
 - **`title`** is the caption, `text/marklower` like a chapter's title (which, unlike this one,
   is the chapter node's *self-value*). Being keyed, `title` and `header` **consume positions**
-  in the omni stream (CHAPTER.md §Addressing) — a captioned table's header is `[1]` and its
-  first body row `[2]`.
+  in the omni stream (CHAPTER.md §Addressing) — a captioned table's header is position `1`
+  and its first body row `2` (bare-integer addressing, the YAML-keys round).
 
 ### Cells
 
@@ -217,7 +219,10 @@ The table schema spends its **two levels** on rows and cells; a cell is
 
 A merged (spanned) region is not new vocabulary: it is a cell declaring **"I *am* the
 previous cell"** with a `*` pointer, using the **relative indexes** of `URIs.md`
-§Relative indexes (`[.]` = my own position at this depth, `[.-1]` = one before it):
+§Relative indexes (`[.]` = my own position at this depth, `[.-1]` = one before it).
+The YAML-keys round (2026-08-01) leaves this idiom **unchanged**: `[.±k]` is one of the
+surviving non-literal position operators — `*[.-1]` and `*..[.-1][.]` keep their bracket
+spelling (only *literal* absolute indexes went bare):
 
 | Cell | Meaning |
 | --- | --- |
@@ -307,11 +312,11 @@ untagged containers keep routing to subchapters (CHAPTER.md §The schema).
 
 ### Addressing cells
 
-A table node at path `P` addresses a cell as `P[r][c]` — row by its omni position, cell by
-its position in the row — so a document-relative marklower link points at `:[i][r][c]`
-(the table at body index `i`). The `header` row is also addressable by name (`P: header`),
-and `title`/`header` consume indices per the omni model, as noted above. Nested tables just
-go deeper: `:[i][r][c][r'][c']`.
+A table node at path `P` addresses a cell as `: P: r: c` (compact `:P:r:c`) — row by its
+omni position, cell by its position in the row, both bare integers — so a document-relative
+marklower link points at `:i:r:c` (the table at body index `i`). The `header` row is also
+addressable by name (`P: header`), and `title`/`header` consume indices per the omni model,
+as noted above. Nested tables just go deeper: `:i:r:c:r':c'`.
 
 ## Lists
 
@@ -322,7 +327,7 @@ marklower has no `- ` or `1. ` syntax; a list is a **body element** tagged
 
 ```yamlover
 - !!<*yamlover: $defs: bullets>
-  - the first point, with **bold** and [links](:[2]) — items are marklower
+  - the first point, with **bold** and [links](:2) — items are marklower
   - - a nested sub-point               # an untagged container = a sublist of the SAME kind
     - - and deeper still               # …at ANY depth (compact `- - ` or block form alike)
 - !!<*yamlover: $defs: numbered>
@@ -388,7 +393,7 @@ The delegated structures — spec'd 2026-07-16, cell routing flipped and lists a
   marklower cells; and `list.tsx` (`byFormat("x-yamlover-bullets"/"x-yamlover-numbered")`):
   `<ul>`/`<ol>`, same-kind nesting at any depth, tagged tables inline.
 - **Cell editing** — under the chapter lock, a prose cell edits in place and emplaces at its
-  `<table>[r][c]` path; the server splices flow-row cells token-wise (a multi-line cell needs
+  `<table>:r:c` path; the server splices flow-row cells token-wise (a multi-line cell needs
   the block row form and is rejected in flow). Structure editing (add/remove rows and
   columns, making merges) is **pending**.
 - **onenote2yamlover** emits tables in this format (was: CSV) — nested tables carry the

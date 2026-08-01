@@ -21,8 +21,9 @@ decisions.
   and partially keyed. A pure list/dict/scalar is just the degenerate case. (The *surface*
   gates these: yamlover requires an explicit `!!mix` / `!!var` tag to write a mixture — see
   `YAMLOVER.md` — but the IR itself just represents the result.)
-- **Positions are derived, not stored.** The integer-key aliases (`[n]`, the `0: *key0`
-  expansion in `URIs.md`) are a *view* the engine materializes from entry order. The IR
+- **Positions are derived, not stored.** The integer-key aliases (the bare-integer
+  portions; the `0: *key0` expansion in `URIs.md`) are a *view* the engine materializes
+  from entry order. The IR
   stores order (the array) once; it does **not** double-store integer keys.
 - **`*` is the only edge-creator** beyond containment; `~` marks a back/non-owning edge;
   `&` is a plain intra-document anchor. Containment is the acyclic spine; `*`/`~` lay a
@@ -131,7 +132,7 @@ export type PointerBase =
 
 export type Step =
   | { sel: "key"; name: string }                  // :x  — string key
-  | { sel: "index"; n: number }                   // [n] — integer key (position)
+  | { sel: "index"; n: number }                   // a bare integer — integer key (position; the retired [n] reads as an alias)
   | { sel: "relindex"; k: number }                // [.±k] — the host's own position ± k
                                                   //   (URIs.md §Relative indexes)
   | { sel: "parent" };                            // ..  — up one node
@@ -173,10 +174,13 @@ export interface Span { uri: string; start: number; end: number; }
 
 ### Entries, keys, positions
 An `Entry` stores at most a **string** key; the **integer** position is its index in
-`entries`. A keyless entry (`: value` in yamlover, `- value` in a YAML sequence, a bare
-element in a json5p array) has `key: null`. The `URIs.md` expansion — `0: *key0`,
+`entries`. A keyless entry (`- value` in yamlover and a YAML sequence, a bare element
+in a json5p array) has `key: null`; a NULL-KEYED entry (`~: value` ≡ `: value` — the
+null key, `URIs.md` §The null key) is keyed, carrying the `nullKey` flag — distinct
+from keyless. The `URIs.md` expansion — `0: *key0`,
 `1: value1` — is the engine's *derived* positional view; the IR never writes those alias
-entries. So `[1]` resolves to `entries[1]`; `/x` resolves to the entry whose `key === "x"`.
+entries. So the position step `1` resolves to `entries[1]`; the key step `x` resolves to
+the entry whose `key === "x"`.
 
 ### Pointers are edges, never nodes
 `feline: *cat` is an `Entry { key:"feline", edge:"ref", value: Pointer }`. The pointer is
@@ -260,8 +264,9 @@ reduces the pair to a single forwards-only edge.
 
 ## Open items (resolve before/with the json5p parser)
 
-- **Integer-looking string keys** — `/1` is the string key `"1"`; ensure the parser keeps
-  `key:"1"` distinct from position `1`. (Covered by `[n]` vs `/x`; flag in tests.)
+- **Integer-looking string keys** — `: '1'` is the string key `"1"`; ensure the parser keeps
+  `key:"1"` distinct from position `1`. (Covered by the bare-token typing rule — bare
+  digits are the position, quotes make the numeric string; flag in tests.)
 - **Blob inlining threshold** — when (if ever) a small blob's bytes are carried inline vs
   always externalized by hash. Default: always externalize.
 - **Comment/whitespace retention** — `raw`/`span` cover round-trip of values; decide whether

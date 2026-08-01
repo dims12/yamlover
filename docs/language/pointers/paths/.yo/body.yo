@@ -9,13 +9,16 @@ description: the colon grammar — one meaning for the colon everywhere
   and absent in flow; machine surfaces — store keys, API paths — use the compact form
   (`:team:alice:age`).
 - |
-  A path is a sequence of **portions**. A portion selects a string key by name, and a
-  `[n]` suffix selects the integer key n — a position: `: some: path[12]: with:
-  ordinal`. A key containing a space must be quoted (the host surface's string
-  quoting); a literal metacharacter is backslash-escaped
-  ([escaping](::language:pointers:escaping)). The slash is an ordinary key character:
-  `text/html` rides bare, and `*/pets` is a (dangling) reference to the literal key
-  "/pets", never a rooted path.
+  A path is a sequence of **portions**, typed by the **bare-token rule**: a portion of
+  pure digits IS the integer key — a position (`: some: path: 12: with: ordinal`); a
+  bare `~` is the null key; anything else bare, and any *quoted* portion, is a string
+  key — `: '1'` is the numeric string, `: '~'` the literal tilde. The retired bracket
+  index `[n]` reads forever as an alias, written never. A key containing a space must
+  be quoted (the host surface's string quoting), as must a key whose bare form would
+  read as something else — empty, pure digits, `~`, `-`+digits; a literal
+  metacharacter is backslash-escaped ([escaping](::language:pointers:escaping)). The
+  slash is an ordinary key character: `text/html` rides bare, and `*/pets` is a
+  (dangling) reference to the literal key "/pets", never a rooted path.
 - !!<format: text/plain> |
   deref    = "*" pointer          ; dereference — a graph edge (pull)
   define   = "&" pointer [ "[]" ] ; PATH anchor — also at that path
@@ -24,10 +27,13 @@ description: the colon grammar — one meaning for the colon everywhere
            / "::"                 ; current project root
            / ":"                  ; current document root
            / ".."                 ; parent node
-           / portion              ; a key in the current mapping
-  portion  = ( name / ".." ) *( index / relindex )
-           / 1*( index / relindex )  ; a bare position: *[1], *[.-1]
-  index    = "[" 1*DIGIT "]"      ; the integer key n (a position)
+           / portion              ; a key / position in the current mapping
+  portion  = position             ; bare digits — the integer key n
+           / nullkey              ; the null key
+           / ( name / ".." ) *( relindex )
+           / 1*( relindex )       ; a bare relative position: *[.-1]
+  position = 1*DIGIT              ; : pets: 1  ([n] reads as an alias)
+  nullkey  = "~"                  ; : doc: ~   ('~' is the literal key)
   relindex = "[" "." [("+"/"-") 1*DIGIT] "]"  ; host-relative
   name     = 1*( nchar / "\" CHAR ) / quoted
   nchar    = <any char except unescaped

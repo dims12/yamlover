@@ -2,19 +2,19 @@
 Matchers
 description: tests between the colons — values, comparisons, and the metadata form
 - |
-  A query portion is a scalar matcher, a key matcher, or both space-separated — which
-  is why a key containing a space must be quoted. A matcher standing alone is a
-  **non-navigating test**: bindings that fail drop out, those that pass continue
-  unchanged; a test-then-step combo tests the current node, *then* steps. String
-  value tests are always spelled with `=` (`=female`) — a bare word, quoted or not,
-  is a KEY step.
+  A matcher is a portion of its own — a **non-navigating test**: bindings that fail
+  drop out, those that pass continue unchanged, and the walk goes on with the next
+  portion (`: rating: =5: scale` — test the current node, *then* step). A value test
+  **always carries an operator**: a bare integer is a position step and a bare word,
+  quoted or not, is a KEY step (the bare-token typing rule), so equality is spelled
+  `=31`, `=true`, `=null`, `=female`.
 - !!<*yamlover: $defs: table>
   header:
     - form
     - 'keeps a match when …'
       width: 3
-  - ['`12`, `true`, `null`', 'the value equals the bare literal']
-  - ['`=female`, `=''Анна Каренина''`', 'value equals — the forced spelling for strings']
+  - ['`=12`, `=true`, `=null`', 'the value equals the literal']
+  - ['`=female`, `=''Анна Каренина''`', 'value equals, for strings — the same one spelling']
   - ['`>30`  `>=18`  `<30`  `<=18`  `!=x`', 'the comparison holds (the ordering family needs both sides numeric)']
 - |
   **Metadata matchers** reuse the `!!<…>` tag with the META vocabulary — one test
@@ -25,7 +25,8 @@ description: tests between the colons — values, comparisons, and the metadata 
   from children, and node-shape matchers cover the need.
 - !!<format: text/plain> |
   team: ?: age: >10           → :team:alice:age
-  pets[?]: species: =cat      → :pets[1]:species
+  team: ?: age: =31           → :team:alice:age
+  pets[?]: species: =cat      → :pets:1:species
   : rating: !!<type: variant> → :rating
-  : rating: 5 scale           → :rating:scale  (value 5 ✓, then step)
-  : thirty: 30 ..             → :              (test, then step UP)
+  : rating: =5: scale         → :rating:scale  (test =5 ✓, then step)
+  : thirty: =30: ..           → :              (test, then step UP)

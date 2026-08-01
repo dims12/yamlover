@@ -1,0 +1,28 @@
+!!<*yamlover: $defs: chapter>
+The null key
+description: "'~: v' and ': v' — a keyed entry whose key is the null value"
+- |
+  Adopted from YAML (the YAML-keys round, 2026-08-01): a mapping key may be the **null
+  value**. `: v` ≡ `~: v` is a **keyed** entry whose key is null — distinct from the
+  keyless `- v`, which holds only a position, and from `'': v`, the empty-*string* key.
+  Canonical emission is `~: v`; in a path the null key is addressed by the bare `~`
+  portion (`: doc: ~`). A literal tilde key is written quoted or escaped — `'~': v` in
+  data, `\~` inside a longer path portion.
+- !!yo
+  doc:
+    ~: the null-keyed entry      # the same entry as ": the null-keyed entry"
+    '~': a literal-tilde key     # the STRING key "~"
+    - a keyless entry            # position only — no key at all
+- |
+  The adoption has deliberate boundaries. `null: v` stays the **string key** `null` —
+  the keys-are-strings doctrine: a *word* in key position is a string, the way a plain
+  numeric key `1: v` is a position claim and a parse error
+  ([keys are pointers](::language:principles:keys-are-pointers)). Both are documented
+  YAML divergences, ruled together.
+- |
+  json5p has **no null-key spelling** — JSON5 object keys are strings, so serializing a
+  null-keyed entry raises a LossyError. Anchors may not create the null key — `&: p: ~`
+  is rejected; the null key is authored in place
+  ([anchors](::language:pointers:anchors)). And the sigil reading lost this collision:
+  a back-edge needs a nonempty name, so a bare `~: v` line is always the null-keyed
+  entry, never an empty-named back-edge ([the tilde sigil](::language:vs-yaml:tilde)).

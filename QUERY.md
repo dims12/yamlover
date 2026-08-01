@@ -58,7 +58,7 @@ A literal occurrence in a key is backslash-escaped (`\:`, `\?`, `\=`, …) or th
 is quoted: `: weird: cat\:dog: n`, `: tags: 'дорожный знак'`. A segment of exactly
 three unescaped dots is the descent operator; the literal keys `..` and `...` are
 written `\.\.` and `\.\.\.`. **A key containing a space must be quoted** — that is
-what makes the matcher split inside a portion (§4.4) unambiguous.
+what keeps portion tokenization unambiguous.
 
 `/` is **no longer a metacharacter** (the migration window is closed): MIME-type
 keys (`text/html`), date keys (`01/02/2026`) and URL-ish keys ride bare in
@@ -87,9 +87,9 @@ base     = ":::" portion          ; the world: portion names the project URI/aut
          / portion                ; current scope: binds at the asking node
 portion  = step                   ; move the walk
          / test                   ; (q) test the current node without moving
-         / test SP step           ; (q) combo: test, THEN step (one portion)
-step     = name [ index ]         ; exact key, with [n] suffixes folding in
-         / index                  ; exact position
+step     = name                   ; exact key
+         / position               ; exact position — the bare integer key
+         / nullkey                ; the null key `~`
          / "?"                    ; (q) any string key            (§4.1)
          / "[?]"                  ; (q) any position              (§4.1)
          / name "[?]"             ; (q) key, then any position
@@ -100,21 +100,27 @@ uplink   = ".."                   ; spine parent (unambiguous — link-legal)
          / "[].."                 ; (q) keyless holders
          / name ".."              ; (q) the parent who knows me as <name>
 test     = valtest / meta
-valtest  = number / "true" / "false" / "null"     ; (q) value equals the literal
-         / ("=" / "!=" / ">" / ">=" / "<" / "<=") literal   ; (q) comparison
+valtest  = ("=" / "!=" / ">" / ">=" / "<" / "<=") literal   ; (q) ALWAYS operator-carrying
 meta     = "!!<" metabody ">"     ; (q) metadata matcher          (§4.4)
 metabody = "*" pointer            ; schema conformance
          / 1*( "type:" SP name / "format:" SP name )   ; META vocabulary
-index    = "[" 1*DIGIT "]"        ; selects the integer key n
+position = 1*DIGIT                ; bare digits — the integer key n
+                                  ;   (the retired `[n]` reads forever as an alias)
+nullkey  = "~"                    ; the null key; the literal key is `'~'` / `\~`
 name     = 1*( nchar / "\" CHAR ) / squoted / dquoted
 nchar    = <any char except unescaped  : [ ] * & # ~ ? ! ( ) < > = |  or whitespace>
 ```
 
 Canonical styling writes `: ` (colon + space) between portions; the space is
-optional on input. Bracket contents are disjoint by form — digits-only is the
-pointer index, `?` is the position wildcard, `.±k` is the (link-only) relative
-index — so no lookahead is needed. String value tests are always spelled with `=`
-(`=female`): a bare word — quoted or not — is a KEY step.
+optional on input. The bare-token typing rule (`URIs.md`) decides what a portion
+is with no lookahead: bare digits are a POSITION, a bare `~` is the NULL key, a
+bare word — and any *quoted* portion — is a KEY step, so a value test ALWAYS
+carries an operator (`=31`, `=true`, `=null`, `=female`). The surviving bracket
+contents are disjoint by form — `?` is the position wildcard, `.±k` is the
+(link-only) relative index. *(Retired 2026-08-01, the YAML-keys round: the
+`index = "[" 1*DIGIT "]"` production — `[n]` reads as an alias for the bare
+position, written never — the bare-literal value test, and the `test SP step`
+combo portion; a test is a portion of its own: `: rating: =5: scale`.)*
 
 ## 4. Steps and matchers
 
@@ -128,15 +134,15 @@ subset. A query may open with a wildcard.
 ```text
 team: ?              → :team:alice, :team:bob
 pets: ?              → ∅                        (pets has only keyless entries)
-pets[?]              → :pets[0], :pets[1]
-pets[?]: name        → :pets[0]:name, :pets[1]:name
+pets[?]              → :pets:0, :pets:1
+pets[?]: name        → :pets:0:name, :pets:1:name
 : tags: whole[?]     → :thirty                  (the &…[] membership, O2)
-team: alice[?]       → :team:alice:age, :pets[0]   (all entries in order:
+team: alice[?]       → :team:alice:age, :pets:0    (all entries in order:
                                                     contain, then the deref'd ref)
 ```
 
-`[n]` stays a pointer step: it addresses the container's own entry n and **never**
-an anchor-created member (no position claims) — `: tags: whole[0]` → ∅.
+A bare position stays a pointer step: it addresses the container's own entry n and
+**never** an anchor-created member (no position claims) — `: tags: whole: 0` → ∅.
 
 ### 4.2 `...` — recursive descent
 
@@ -171,26 +177,27 @@ A **leading** `..` is the parent *scope opener* (§3); later `..` portions are s
 steps. Containment and `*` refs are **one relation kind**: both arrive.
 
 ```text
-: pets[0]: ..                    → :pets                    (spine only)
-: pets[0]: ?..                   → :pets, :team:alice       (spine first, then ref holders)
-: pets[0]: pet..                 → :team:alice              (the parent who knows me as pet)
+: pets: 0: ..                    → :pets                    (spine only)
+: pets: 0: ?..                   → :pets, :team:alice       (spine first, then ref holders)
+: pets: 0: pet..                 → :team:alice              (the parent who knows me as pet)
 : thirty: []..                   → :tags:whole              (the ordinal anchor, walked backwards)
 : adam: cain: enoch: enoch..     → :adam:cain, :adam:azura  (both parents — the directed graph)
 ```
 
 ### 4.4 Matchers — tests between the colons
 
-A query portion is `[scalar_matcher] [key_matcher]`, space-separated, both parts
-optional but not both absent. A matcher standing alone is a **non-navigating test**:
-bindings that fail drop out, those that pass continue unchanged. A `TEST key` combo
-tests the current node, *then* steps.
+A matcher is a portion of its own — a **non-navigating test**: bindings that fail
+drop out, those that pass continue unchanged, and the walk goes on with the next
+portion (`: rating: =5: scale` — test the current node, then step). *(Retired
+2026-08-01, the YAML-keys round: the space-separated `TEST key` combo portion.)*
 
-**Scalar matchers** test the node's own value (scalars only):
+**Scalar matchers** test the node's own value (scalars only) and ALWAYS carry an
+operator — a bare integer is a position step, a bare word (quoted or not) a key
+step (the bare-token typing rule):
 
 | form | keeps a match when … |
 |---|---|
-| `12`, `true`, `null` | the value equals the bare literal |
-| `=female`, `='Анна Каренина'` | value equals — the forced spelling for strings |
+| `=12`, `=true`, `=null`, `=female`, `='Анна Каренина'` | the value equals the literal |
 | `>30  >=18  <30  <=18  !=x` | the comparison holds (`>` family: both sides numeric) |
 
 **Metadata matchers** reuse yamlover's own `!!<…>` tag with the META vocabulary —
@@ -208,11 +215,11 @@ corpus (`?: !!<type: binary>` vs `?: !!<*:: $defs: tag>`).
 
 ```text
 team: ?: age: >10                → :team:alice:age          (standalone test)
-team: ?: age: 31                 → :team:alice:age          (bare number = equality)
-pets[?]: species: =cat           → :pets[1]:species         (string equality needs =)
+team: ?: age: =31                → :team:alice:age          (equality always carries =)
+pets[?]: species: =cat           → :pets:1:species          (string equality too)
 : rating: !!<type: variant>      → :rating                  (the omni node)
-: rating: 5 scale                → :rating:scale            (combo: value 5 ✓, then step)
-: thirty: 30 ..                  → :                        (combo: test, then step UP)
+: rating: =5: scale              → :rating:scale            (test portion, then step)
+: thirty: =30: ..                → :                        (test, then step UP)
 ```
 
 ## 5. Semantics — the template walk
@@ -225,7 +232,8 @@ A query denotes a **template**; evaluation transforms a set of **bindings**, eac
    The base moves it first: `:` to the document root, a leading `..` up, `::`/`:::`
    to the named authority's root.
 2. **Steps.** Each template step maps every current binding to zero or more
-   successors: a name or `[n]` *navigates or fails* (≤1 successor); `?`, `[?]`,
+   successors: a name, a bare position, or the null key `~` *navigates or fails*
+   (≤1 successor); `?`, `[?]`,
    `...`, the uplinks *fan out*; a matcher *tests without moving*. A binding with
    zero successors leaves the walk; it does not fail the query.
 3. **Success.** A binding that survives the whole template is a successful walk; its
@@ -241,14 +249,14 @@ Concrete rules (the O/M rulings of `SEPARATOR.md` §8 folded in):
   slash-transported.
 - **Order = entry order** (O1): members of a container arrive in the container's
   document order, and a deref'd member keeps its position — `: playlist[?]` yields
-  Intro, Verse, its title, Chorus, then the deref'd `:pets[0]`, in that order.
+  Intro, Verse, its title, Chorus, then the deref'd `:pets:0`, in that order.
   There is no global re-sort by path.
 - **Wildcards see anchor-created entries** (O2): `?`/`[?]` enumerate keys grafted by
   keyed anchors and members appended by ordinal anchors alike, after the container's
-  own entries; `[n]` never addresses them (no position claims).
+  own entries; a position step never addresses them (no position claims).
 - **Implicit dereference.** Stepping into an entry whose value is a pointer yields
   the *target* node, transitively and cycle-safely — exactly pointer resolution.
-  `team: alice: pet` therefore yields `:pets[0]`, not a pointer.
+  `team: alice: pet` therefore yields `:pets:0`, not a pointer.
 - **Termination.** Every v1 query terminates: the template is finite, each fan-out
   is finite (`...` ranges over the acyclic spine; uplinks over stored edges), and
   pointer-following is cycle-safe. Stated once so every extension must re-earn it.
@@ -272,8 +280,9 @@ Every `URIs.md` production maps to itself:
 |---|---|---|
 | `cat` | same text | the sibling entry's node, or ∅ |
 | `..: x` | same | parent, then key `x`, or ∅ |
-| `: pets[1]` | same | document-root walk — `{ :pets[1] }` |
-| `[2]` | same | position 2 of the current mapping |
+| `: pets: 1` | same | document-root walk — `{ :pets:1 }` |
+| `2` | same | position 2 of the current mapping (`[2]` reads as its alias) |
+| `: doc: ~` | same | the null-keyed entry of `doc`, or ∅ |
 | `:: yamlover: tags: colors` | same | the grafted node, or ∅ + external |
 | `chief` (a declared anchor) | same | the anchored node — the anchor grafts a real root key |
 | `: weird: cat\:dog: n` | same | escaping unchanged — `{ :weird:cat:dog:n }` |
@@ -311,24 +320,25 @@ results are complete lists, in result order.
 ### `examples/06-tour.yo`
 
 ```text
-: pets[?]: name       → :pets[0]:name, :pets[1]:name, :pets[2]:name
-: playlist[?]         → :playlist[0], :playlist[1], :playlist:title,
-                        :playlist[3], :pets[0]        (O1: encore, a deref'd member,
+: pets[?]: name       → :pets:0:name, :pets:1:name, :pets:2:name
+: playlist[?]         → :playlist:0, :playlist:1, :playlist:title,
+                        :playlist:3, :pets:0          (O1: encore, a deref'd member,
                                                        keeps its 5th position)
-: playlist: ?         → :playlist:title, :pets[0]
-: rating[?]           → :rating[0], :rating[1], :rating:scale, :humans[0]
+: playlist: ?         → :playlist:title, :pets:0
+: rating[?]           → :rating:0, :rating:1, :rating:scale, :humans:0
                                                       (omni fields in entry order)
-: rating: 5 scale     → :rating:scale                 (combo: value 5 ✓, then step)
+: rating: =5: scale   → :rating:scale                 (value test =5 ✓, then step)
 : rating: !!<type: variant> → :rating
 chief                 → :boss                         (&: chief grafts a root key)
 : boss: lead..        → :team
 : boss: chief..       → :                             (the anchor edge, walked backwards)
 : boss: ?..           → :, :team                      (spine + graft dedup to :, then team.lead)
-: pets[1]: ?..        → :pets, :humans[0], :          (spine first, then ref holders in edge order)
+: pets: 1: ?..        → :pets, :humans:0, :           (spine first, then ref holders in edge order)
 : fan: []..           → :favorites, :crew             (both &…[] memberships)
-: favorites[?]        → :pets[0], :fan                (own entry first, then the member — O2)
-: weird: cat\:dog: n  → :weird:cat:dog:n              (the query escapes the literal colon;
-                                                       the store path is raw)
+: favorites[?]        → :pets:0, :fan                 (own entry first, then the member — O2)
+: weird: cat\:dog: n  → :weird:cat\:dog:n             (the query escapes the literal colon;
+                                                       the store path spells it the same way —
+                                                       canonical key portions)
 ```
 
 ### `examples/58-genealogy-dag`
@@ -374,6 +384,11 @@ Tags here use the **embedded model**: a paper's tags live in its own
 :: tags: colors: yellow                             → the same node (self-import synonymy:
                                                       ::X ≡ ::yamlover:X)
 :: nowhere: x                                       → ∅ + an external diagnostic
+::                                                  → :  (bare `::` binds the served project root)
+:: ...: colors                                      → :tags:colors  (a matcher after `::`
+                                                      needs no authority — descend the PROJECT)
+:: ?                                                → project-root fan-out, same children
+                                                      as `?` asked at the root
 ```
 
 ## 9. Future directions
@@ -393,7 +408,8 @@ The engine's evaluator (`tools/engine/ts/src/query.ts`) runs over the Store
 
 - `parseQuery` strips the scope opener, `splitPortions` splits on unescaped/unquoted
   `:` (with `!!<…>` atomic), `parsePortion` classifies each portion in the §3 order
-  (descent, spine, uplinks, meta, combo, value test, pointer fragment).
+  (descent, spine, uplinks, meta, value test, pointer fragment — bare integers and
+  `~` typed by the bare-token rule; the combo portion is gone).
 - The uplink family (`uplinks`) is a set of indexed lookups over incoming edges —
   contain parents, `back`-edge containers, ref-source holders — filtered by label
   (`key..`), label-less (`[]..`), or unfiltered (`?..`); `deriveInverses` exists

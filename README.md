@@ -118,7 +118,8 @@ directory vs multi-document) is specified in **`CONCRETES.md`**.
    scopes. A full-graph concrete. (See `JSON5P.md`.)
 4. **yaml** — plain YAML; native `&`/`*` anchors are its sharing ceiling.
 5. **yamlover** — a distinct, YAML-like language (not a superset of yaml) carrying
-   the pointer layer: extended `*` paths, `&`, `~`, `[n]`/`/x` addressing, links.
+   the pointer layer: extended `*` paths, `&`, `~`, bare-integer position / string-key
+   addressing, links.
    A full-graph concrete; it can switch to json5p, never to pure yaml. (See
    `YAMLOVER.md`.)
 6. **dir** — a regular filesystem directory: filenames are keys, files are blobs
@@ -188,12 +189,13 @@ directory, without changing what the data means. `examples/51-object-in-dir`,
 3. **The `.yo/` directory is the overlay marker.** Its presence promotes
    a plain *dir* into a node with instance/metadata overlays.
 4. **One ordered container.** There is no separate list/dict: a mapping is
-   ordered and its positions are integer keys (`[n]`); `: x` addresses a string
-   key. Order is data — text order in a file, the pointer-array for a directory
+   ordered and its positions are integer keys, addressed by the bare integer
+   portion (`: 1`; the retired `[n]` reads as an alias); `: x` addresses a string
+   key, `: '1'` the numeric string. Order is data — text order in a file, the pointer-array for a directory
    (a positional prefix over the named subset; unnamed children have no
    position to lose).
 5. **Pointers are edges, not copies.** `*` dereferences a path
-   (`*..: ..: pets[1]`, `*: people: alice`), `&` declares an anchor, `~key:` authors
+   (`*..: ..: pets: 1`, `*: people: alice`), `&` declares an anchor, `~key:` authors
    a back-edge. One reference mechanism across every concrete (`URIs.md`).
 
 ## Partial flattening
@@ -221,12 +223,12 @@ Flattening must not cost a node its address. The rule:
 > working as ordinary navigation.
 
 So a chapter at `:book` whose first body chunk lives at the still-navigable path
-`:book[1]` exposes that chunk, on the flattened page, as the anchor `#[1]`: opening
-`:book#[1]` scrolls straight to it. The fragment is spelled exactly like the path
-suffix (`[1]`), so the two notations agree — `:book[1]` navigates *to* the chunk's
-own node; `:book#[1]` locates the *same* chunk where it was flattened in. Deeper
-flattening simply yields longer continuations (e.g. `#[3][2]` for a chunk inside a
-subchapter).
+`:book:1` exposes that chunk, on the flattened page, as the anchor `#/1`: opening
+`:book#/1` scrolls straight to it. The fragment is the **slash continuation** of the
+path suffix (the same shape `childSlot`/`fragmentOf` produce), so the two notations
+agree — `:book:1` navigates *to* the chunk's own node; `:book#/1` locates the *same*
+chunk where it was flattened in. Deeper flattening simply yields longer continuations
+(e.g. `#/3/2` for a chunk inside a subchapter).
 
 A rendered prose document has the same need at a finer grain. A `.md`/`.adoc` file
 is one HTML blob, so its **headings** would otherwise have no address. The `markdown`

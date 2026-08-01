@@ -150,6 +150,51 @@ parentheses nest. Capture (`§9.2`, the `!` suffix) selects which binding return
 group sits mid-template. **Negation stays open** — `!` is spent on capture; candidates
 (`not(...)`, a distinct sigil) are recorded, decision deferred (as in QUERY.md `§9.3`).
 
+### 4a. The `&&` predicate — conjunction without parentheses (ruled 2026-08-01, deferred)
+
+The YAML-keys round settled the TEST spelling: a portion starting with an operator is a
+non-navigating test of the current node (`arr: 5: >10`), and bare literals are steps. The
+round's dialogue also ruled the *shape* of same-node conjunction — filtering one node by
+several facets **without leaving it** (the omni `John / age: 20` case):
+
+```text
+humans: ?: =John && age: >18        the PERSON — self John AND age over 18
+arr: 5: >10 && label: =good         one element, two facets
+```
+
+A predicate is `&&`-chained conjuncts inside ONE test portion; each conjunct is `op literal`
+(the node's own self-value) or `relative-path: op literal` (an exists-test through a
+mini-path — the walk does not move). This is branching's conjunctive fragment: it needs no
+parentheses, lands before `||`/grouping, and composes with them later (`&&` inside `( … )`
+means the same thing). Until it ships, the composition idiom is descend-test-climb
+(`?: age: >18: ..`).
+
+---
+
+## 4b. Position ranges — `[m..n]` (ruled 2026-08-01, deferred)
+
+The surviving brackets are the NON-LITERAL position operators (`[]` append, `[?]` any
+position, `[.±k]` relative); a bounded fan-out joins them:
+
+```text
+arr: [10..20]: >10        positions 10–20, values over 10
+arr: [10..]               from 10 on;  [..20] up to 20;  [..] ≡ [?]
+```
+
+Bracket bodies stay disjoint by form (digits+`..` = range, `.±k` = relative, `?` =
+wildcard — no lookahead); the inner `..` is lexically contained, never the uplink. A range
+fans out, so it is ambiguous → query-only (the arity rule), and the evaluator's position
+match just gains bounds. Prior art: JSONPath's slice `[10:20]` — ours spells the range
+with `..` since `:` is the separator.
+
+## 4c. Aggregation functions (sketch, undesigned)
+
+Recorded intent from the same dialogue: the language will grow aggregation
+(`count`/`sum`/`min`/`max`/`avg` over a fan-out's results). No syntax is proposed yet —
+candidates must not collide with key steps (a bare `count` is a key), so the spelling
+likely rides the reserved characters (e.g. a function form behind `( )`). Design later,
+together with projection (QUERY.md §9).
+
 ---
 
 ## 5. SQLite indexing & performance
@@ -191,6 +236,9 @@ unbounded descent profiles hot.
 | regex literal `/…/` | `/` (freed by the `/`-window close) | pending window |
 | value regex `=~ !~` | — (`! = ~` already reserved/used) | new operator |
 | branching `( … && … )` | — (`( ) ! < > = \|` reserved, QUERY.md `§2`) | sketch → proposal |
+| `&&` predicates (§4a) | — (`&` reserved as a metachar already) | ruled, deferred |
+| position range `[m..n]` (§4b) | — (bracket body form, lexically contained) | ruled, deferred |
+| aggregation (§4c) | TBD (likely behind `( )`) | intent recorded |
 
 Precedence/order to pin down: quantifier vs. trailing filter on the same step; whether
 a quantifier may suffix `( … )` branch groups (it should — `(a|b){2,3}`); how capture

@@ -13,8 +13,8 @@ description: the ladder — more colons, wider scope; no implicit search
     - Base
       width: 2
     - Example
-  - ['`*name`, `*..: …`', 'current mapping / its parents', '`*cat`, `*..: ..: pets[1]`']
-  - ['`*: …`', 'current **document** root', '`*: pets[1]`']
+  - ['`*name`, `*..: …`', 'current mapping / its parents', '`*cat`, `*..: ..: pets: 1`']
+  - ['`*: …`', 'current **document** root', '`*: pets: 1`']
   - ['`*:: …`', 'current **project** root', '`*:: $defs: tag`']
   - ['`*::: auth: …`', 'the **world** — an identity, never fetched', '`*::: pet.store.com: pets`']
 - |

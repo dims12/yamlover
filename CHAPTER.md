@@ -151,16 +151,18 @@ chapter projection is retired.
 ## Addressing body elements
 
 A chapter node at path `P` addresses its **body elements by their store index** on the node itself:
-`P[i]` (the omni model indexes entries by their absolute position — a keyed entry like
-`description` consumes an index too, so a described chapter's first body element is `P[1]`). The
-**title consumes NO index**: it is the node's self-value, not an entry. A document-relative
-marklower link therefore points at `:[i]` (`MARKLOWER.md`; the legacy slash spelling `/[i]` still
-parses — see `69-marklower-links.yo`), and a subchapter's chunk at `:[i][j]`.
+`: P: i` — compact `:P:i` — with the bare integer as the position (the YAML-keys round; the omni
+model indexes entries by their absolute position — a keyed entry like `description` consumes an
+index too, so a described chapter's first body element is `:P:1`). The **title consumes NO
+index**: it is the node's self-value, not an entry. A document-relative marklower link therefore
+points at `:1` (`MARKLOWER.md`; the retired bracket spelling `:[1]` and the legacy slash `/[1]`
+still parse as aliases — see `69-marklower-links.yo`), a subchapter's chunk at `:1:2`, and the
+in-page anchor of a flattened chunk is the slash continuation `#/1`.
 
 The web editor's surgical edits (`/api/edit`, README §editor) use **the same absolute index** — an
 edit path is a plain yamlover path, nothing else. (It once addressed a body element by its *rank*
 among the positional items, a second index space in which keyed entries counted for nothing; the
-two disagreed about which `[i]` a subchapter was.) A **title edit is an `emplace` on the chapter
+two disagreed about which index a subchapter was.) A **title edit is an `emplace` on the chapter
 node itself** — the payload's scalar facet replaces the self-value, the entries stand; an empty
 payload drops the title line. See `tools/server` `engine-api.ts`.
 

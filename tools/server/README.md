@@ -62,7 +62,7 @@ Surfaced *stray* files (those not described by the tree) honor `.gitignore` by
 default — `node_modules/`, build output, etc. are hidden. Pass `--no-gitignore`
 to show everything.
 
-The browser URL is the node's path in **JSON space** — `/examples[0]/markup` —
+The browser URL is the node's path in **JSON space** — `/examples/0/markup` —
 plus `?format=` for the representation. Each key is percent-encoded, so a key
 that itself contains a `/` (e.g. `@vitejs/plugin-react`) stays a single segment.
 It updates as you navigate and is shareable / back-button friendly — opening a
@@ -157,8 +157,8 @@ order and grouped by backing file. It **splices source lines** rather than reser
 comments, quoting, and block scalars elsewhere in the document survive an edit untouched.
 
 `path` is a plain yamlover path naming the node being edited; each segment is a key
-(`:doc:description`) or an **absolute entry index** (`:doc[3]` — keyed entries consume indices
-too). A node has four **facets**: its scalar value, its keyed entries, its ordinal entries, and
+(`:doc:description`) or an **absolute entry index** (`:doc:3`, the bare-integer segment —
+keyed entries consume indices too; the retired `:doc[3]` reads as an alias). A node has four **facets**: its scalar value, its keyed entries, its ordinal entries, and
 its `!!<…>` meta tag.
 
 | op | facets | `meta` |

@@ -10,4 +10,6 @@ description: a deprecated back-edge marker on keys and entries; in value positio
 - |
   In YAML, `~key:` is simply the plain-scalar key "~key" and `~-` a rare plain scalar —
   another place the same token reads differently, and the reason a literal `~` in a
-  yamlover key is escaped: `\~key`.
+  yamlover key is escaped: `\~key`. The sigil needs a **nonempty** name: a bare
+  `~: value` line is not a back-edge but the **null-keyed entry** — the null key,
+  adopted from YAML ([null keys](::language:vs-yaml:null-keys)).

@@ -5,14 +5,15 @@ description: the binding walk, and the rules every extension must keep
   A query denotes a template; evaluation transforms a set of **bindings** — path,
   node, and the edge arrived by. The context node is the single initial binding, and
   the base moves it first. Each step maps every binding to zero or more successors: a
-  name or `[n]` navigates or fails; wildcards, descent, and uplinks fan out; a
+  name, a bare position, or the null key `~` navigates or fails; wildcards, descent,
+  and uplinks fan out; a
   matcher tests without moving. A binding with zero successors leaves the walk — it
   does not fail the query — and a binding that survives the whole template
   contributes its final node to the result.
 - !!<*yamlover: $defs: bullets>
   - '**Result** — an ordered sequence of path-node pairs, deduplicated by canonical path, keep-first: path is identity in the store. Canonical paths are compact colon on every machine surface.'
   - '**Order is entry order** — members arrive in the container''s document order, and a deref''d member keeps its position; there is no global re-sort by path.'
-  - '**Wildcards see anchor-created entries** — after the container''s own entries; a plain `[n]` never addresses them.'
+  - '**Wildcards see anchor-created entries** — after the container''s own entries; a position step never addresses them.'
   - '**Implicit dereference** — stepping into a pointer-valued entry yields the target node, transitively and cycle-safely.'
   - '**Termination** — the template is finite, every fan-out is finite, pointer-following is cycle-safe; stated once so every extension must re-earn it.'
   - '**Link scope** — the ladder is honored: document descent does not see the project graft, a bare project rung binds the project root graft included, and the self-import is absorbed. An unmounted authority yields the empty result plus an "external" diagnostic — a link is an identifier, not a fetch.'

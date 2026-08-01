@@ -26,7 +26,7 @@ them in order shows exactly what each format adds over the one below it:
 | 02 | [`02-tour.json5`](02-tour.json5)   | **JSON5** — comments, unquoted keys, trailing commas, hex / `Infinity` / `NaN` (still no pointers, so a shared node is a *copy*) |
 | 03 | [`03-tour.json5p`](03-tour.json5p) | **json5p** — JSON5 **+ pointers**: `*` deref (a copy becomes a shared edge), `~` back-edges, `&` anchors, scopes, escaping |
 | 05 | [`05-tour.yaml`](05-tour.yaml)     | plain **YAML** — native `&` / `*` anchor sharing (YAML's ceiling) |
-| 06 | [`06-tour.yo`](06-tour.yo) | **yamlover** — YAML **+ pointers**: the extended `*`, `~`, `&`, `[n]` / `/x`, and links |
+| 06 | [`06-tour.yo`](06-tour.yo) | **yamlover** — YAML **+ pointers**: the extended `*`, `~`, `&`, bare-integer positions, and links |
 
 The containment is strict: `JSON ⊂ JSON5 ⊂ json5p` and `YAML ⊂ yamlover`. (`04` is
 intentionally skipped so the JSON and YAML branches keep matching last digits.)

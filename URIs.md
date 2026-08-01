@@ -108,7 +108,7 @@ graph axes — is `QUERY.md`, which extends this same grammar.)
           "height_cm": 168,
           "occupation": "Software Engineer",
           "married": true,
-          "manager": *"..:..:pets[1]"
+          "manager": *"..:..:pets:1"
       },
       {
           "name": "Marcus Lee",
@@ -118,7 +118,7 @@ graph axes — is `QUERY.md`, which extends this same grammar.)
           "height_cm": 181,
           "occupation": "Graphic Designer",
           "married": false,
-          "manager": *"..:..:pets[0]"
+          "manager": *"..:..:pets:0"
       },
       {
           "name": "Priya Patel",
@@ -128,7 +128,7 @@ graph axes — is `QUERY.md`, which extends this same grammar.)
           "height_cm": 159,
           "occupation": "Pediatrician",
           "married": true,
-          "manager": *"..:..:pets[2]"
+          "manager": *"..:..:pets:2"
       }
   ]
 }
@@ -155,15 +155,15 @@ humans:
 - name: Alice Johnson
   age: 34
   gender: female
-  manager: *..: ..: pets[1]
+  manager: *..: ..: pets: 1
 - name: Marcus Lee
   age: 28
   gender: male
-  manager: *..: ..: pets[0]
+  manager: *..: ..: pets: 0
 - name: Priya Patel
   age: 45
   gender: female
-  manager: *..: ..: pets[2]
+  manager: *..: ..: pets: 2
 ```
 
 The URIs are global and virtual — **identities, not fetch instructions** — like an
@@ -188,15 +188,15 @@ humans:
 - name: Alice Johnson
   age: 34
   gender: female
-  manager: *..: ..: pets[1]
+  manager: *..: ..: pets: 1
 - name: Marcus Lee
   age: 28
   gender: male
-  manager: *..: ..: pets[0]
+  manager: *..: ..: pets: 0
 - name: Priya Patel
   age: 45
   gender: female
-  manager: *..: ..: pets[2]
+  manager: *..: ..: pets: 2
 ```
 
 A **leading `:`** starts from the current document root (one rung down the ladder;
@@ -208,15 +208,15 @@ humans:
 - name: Alice Johnson
   age: 34
   gender: female
-  manager: *: pets[1]
+  manager: *: pets: 1
 - name: Marcus Lee
   age: 28
   gender: male
-  manager: *: pets[0]
+  manager: *: pets: 0
 - name: Priya Patel
   age: 45
   gender: female
-  manager: *: pets[2]
+  manager: *: pets: 2
 ```
 
 
@@ -226,8 +226,8 @@ There is no separate list type. A mapping is **ordered**, and its **positions ar
 integer keys** added as pointers — so a "list" is just a mapping whose keys are
 `0, 1, 2, …`. A keyless entry — a `- value` sequence item — takes only its position.
 (The former "leading `:`" spelling for a keyless entry is retired, 2026-08-01: a
-`: value` line reads as an entry with an EMPTY key, the way `~: value` is a null key —
-not a keyless one. `- value` is the one keyless spelling.) This dict:
+`: value` line reads as an entry with the NULL key — see §The null key — not a
+keyless one. `- value` is the one keyless spelling.) This dict:
 
 ```yamlover
 key0: value0
@@ -235,9 +235,10 @@ key0: value0
 key2: value2
 ```
 
-*means*:
+*means* (model notation — the `0:`/`1:` lines below show the derived integer keys;
+they are not authorable surface, see the numeric-key rule):
 
-```yamlover
+```text
 key0: value0
 0: *key0        # position 0 aliases the keyed entry
 1: value1       # keyless entry — its value lives at its integer key
@@ -246,11 +247,24 @@ key2: value2
 ```
 
 A **keyed** entry's position is a `*`-alias to it; a **keyless** entry's value lives
-directly at its integer key. It is all one mapping with integer ∪ string keys —
-"YAML with pointers." Two access syntaxes keep the axes apart:
+directly at its integer key. It is all one mapping with integer ∪ string ∪ null keys —
+"YAML with pointers." **A position is the integer key, addressed bare; quotes make
+the numeric string** (the YAML-keys round, 2026-08-01):
 
-- **`[n]`** selects the **integer key** `n` (position).
-- **`: x`** selects the **string key** `x` (a colon portion).
+- A **bare integer portion IS the integer key** — a position: `*pets: 1`,
+  `: pets: 1: name`.
+- A **quoted numeric portion** is the **string key**: `: '1'` selects the key `"1"`.
+- In DATA, the same rule: a numeric **string** key is authored quoted (`'1': value`);
+  a PLAIN numeric key (`1: value`) is a **parse error** on the yamlover surface —
+  *a position is authored by order; quote a numeric string key*. (`.yaml` mode keeps
+  reading `1: value` as the string key — YAML's keys-are-strings doctrine.)
+
+> **Retired 2026-08-01 (the YAML-keys round):** the bracket index `[n]`
+> (`*pets[1]`, `:pets[1]:name`) is no longer the position spelling — YAML
+> conventions outrank the self-made index syntax. `[n]` reads forever as an
+> alias, written never. The brackets that remain are the **non-literal position
+> operators** only: `&path[]` (append), `[?]` (any position), `[.±k]` (the
+> relative frame).
 
 Ordering is data: in a file it follows text order; for a directory it is imposed by
 the `body.yo` overlay (an array of `*`-pointers to the files) on the **subset
@@ -258,6 +272,35 @@ it names** — an unlisted child remains keyed-only, after the ordered block —
 to the filesystem if there is no overlay. A named member's storage key renders as a
 **derived** value-line anchor (`- &file value`, dimmed): a *view* of the consumed
 body pointer, not an authored `&` anchor — no ref edge is created (§`&`).
+
+## The null key
+
+Adopted from YAML (the YAML-keys round, 2026-08-01): a mapping key may be the
+**null value**. `: v` ≡ `~: v` is a **keyed** entry whose key is null — distinct
+from the keyless `- v` (which holds only a position) and from `"": v` (the
+empty-*string* key). Canonical emission is `~: v`; in a path the null key is
+addressed by the bare `~` portion (`: doc: ~`). A literal tilde **key** is written
+quoted or escaped — `'~': v` / `\~` in a path portion.
+
+```yamlover
+doc:
+  ~: the null-keyed entry      # ≡ ": the null-keyed entry"
+  '~': a literal-tilde key     # the STRING key "~"
+  - a keyless entry            # position only — no key at all
+```
+
+Boundaries of the adoption:
+
+- **`null: v` stays the string key `"null"`** — the keys-are-strings doctrine
+  (like `1:` being a position claim, hence an error): a *word* in key position is
+  a string. This is a deliberate, documented YAML divergence, listed alongside
+  the numeric-key rule.
+- **json5p has no null-key spelling** — serializing a null-keyed entry to json5p
+  is a `LossyError` (JSON5 object keys are strings).
+- **Anchors may not create the null key** (§`&`): `&: p: ~` is rejected.
+- The old misreading of `~: v` as an empty-named back-edge is fixed: a back-edge
+  needs a nonempty name, so `~:` in key position is the null key, never a `~`
+  sigil.
 
 ## Pointer grammar & resolution
 
@@ -289,8 +332,8 @@ dynamic-scope capture.)
 
 | Form               | Base                                                     | Example                        |
 |--------------------|----------------------------------------------------------|--------------------------------|
-| `*name`, `*..: …`  | current mapping / its parents                            | `*cat`, `*..: ..: pets[1]`     |
-| `*: …`             | current **document** root                                | `*: pets[1]`                   |
+| `*name`, `*..: …`  | current mapping / its parents                            | `*cat`, `*..: ..: pets: 1`     |
+| `*: …`             | current **document** root                                | `*: pets: 1`                   |
 | `*:: …`            | current **project** root                                 | `*:: $defs: tag`               |
 | `*::: auth: …`     | the **world** — an ARN-like identity, never fetched      | `*::: pet.store.com: pets`     |
 
@@ -315,22 +358,32 @@ scope    = ":::" ws authority     ; the world — an ARN-like project identity
          / "::"                   ; current project root
          / ":"                    ; current document root
          / ".."                   ; parent node
-         / portion                ; STRING key / position in the current mapping
-portion  = ( name / ".." ) *( index / relindex )
-         / 1*( index / relindex ) ; a bare position, e.g. *[1], *[.-1]
-index    = "[" 1*DIGIT "]"        ; selects the integer key n
+         / portion                ; key / position in the current mapping
+portion  = position               ; a BARE INTEGER portion — the integer key n
+         / nullkey                ;   (the bare-token typing rule below)
+         / ( name / ".." ) *( relindex )
+         / 1*( relindex )         ; a bare relative position, e.g. *[.-1], *..[.-1][.]
+position = 1*DIGIT                ; bare digits — a position (: pets: 1)
+nullkey  = "~"                    ; the NULL key (: doc: ~); '~' is the literal key
 relindex = "[" "." [ ("+" / "-") 1*DIGIT ] "]" ; the host's own position at this depth, ± k
 name     = 1*( nchar / "\" CHAR ) ; selects a string key; "\" escapes a metachar
-         / quoted                 ; a key containing a SPACE must be quoted ('…' / "…")
+         / quoted                 ; a key that is SPACEY, EMPTY, all digits, "~",
+                                  ;   or "-"+digits must be quoted ('…' / "…")
 nchar    = <any char except unescaped  : [ ] * & # ~ ? ! ( ) < > = |  or whitespace>
 ws       = *( SP )                ; canonical styling: ": " after each separator;
                                   ;   the space is optional on input, absent in flow
 ```
 
-`[n]` selects the **integer key** `n` (a position); `: x` selects the **string
-key** `x`. With one ordered container (see *Lists and dicts are one ordered
-mapping*), this is the only distinction needed — the old worry of an integer key
-`1:` versus a string key `"1":` is simply `[1]` versus `: 1`.
+**The bare-token typing rule:** an unquoted portion of pure digits IS the integer
+key — a position (`: pets: 1: name`); a bare `~` is the **null key**; anything
+else bare (and any *quoted* portion, whatever it holds) is a **string key** —
+`: '1'` selects the key `"1"`, `: '~'` the key `"~"`. With one ordered container
+(see *Lists and dicts are one ordered mapping*), this is the only distinction
+needed — the old worry of an integer key `1:` versus a string key `"1":` is simply
+`: 1` versus `: '1'`. (The retired index production `[n]` reads forever as an alias
+for the bare-integer portion, written never. A bare `-1` is reserved for a possible
+future from-the-end index and must not be a key spelling — hence the quote rule for
+`-`+digit keys.)
 
 The empty brackets `[]` are legal only as the **last** token of an anchor (`&…[]`,
 ordinal membership — see §`&`); they never appear in a `*` pointer. The query
@@ -340,9 +393,12 @@ wildcard `[?]` belongs to `QUERY.md` only.
 
 A dot in the brackets makes the index **relative to the pointer's own position**: `.` is
 "my position at this depth", and an offset is arithmetic on it — `[.-1]` one before me,
-`[.+2]` two after me, bare `[.]` exactly my position. (Bracket bodies stay disjoint by
-form: digits = absolute, `.` = relative, `?` = query wildcard. A plain `[-1]` is
-deliberately *not* taken — it stays free for a possible future from-the-end index.)
+`[.+2]` two after me, bare `[.]` exactly my position. (Since the YAML-keys round an
+*absolute* position is a bare-integer portion, not a bracket; the bracket bodies that
+remain stay disjoint by form: `.` = relative, `?` = query wildcard, empty = anchor
+append. The semantics here are unchanged — only the note about the reserved spelling
+moves with it: a bare `-1` portion is deliberately *not* taken as a key; it stays free
+for a possible future from-the-end index.)
 
 Resolution is the **frame rule (depth alignment)**: the frame is the **host entry's own
 path** — the entry holding the pointer. After the base and any `..` ascents, each step of
@@ -361,7 +417,7 @@ its adjacent previous cells (the base of a bare pointer is the current mapping �
 A relative index yields **at most one successor**, so it is a *link*, authorable after `*`
 (SEPARATOR.md §5 classifies it unambiguous). Out of range (`[.-1]` in the first position)
 is the ordinary dangling-pointer diagnostic. In `&` **anchors it is rejected**: an anchor
-claiming a position is already outlawed (`&path[3]`, §`&`), and a relative claim is still
+claiming a position is already outlawed (`&: p: 3`, §`&`), and a relative claim is still
 a claim.
 
 ### Literal characters (escaping)
@@ -369,22 +425,28 @@ a claim.
 A key may itself contain a metacharacter — `: [ ] * & # ~ \`, the query characters
 `? ! ( ) < > = |` (reserved for `QUERY.md`; pointers and queries share one lexical
 space), or an all-dots segment `..` / `...` (parent / query descent). Escape it with
-a **backslash**, which suppresses the pointer meaning of the next character; a key
-containing a **space** must instead be quoted (`'…'` / `"…"` — the host surface's
-string quoting). Backslash escaping carries the literal-vs-interpreted distinction
-that quotes cannot: in JSON5 and YAML `'` and `"` are interchangeable string
-delimiters — `*".."` and `*'..'` are the same string, both meaning *parent*.
+a **backslash**, which suppresses the pointer meaning of the next character. A key
+whose *whole bare form would read as something else* must instead be **quoted**
+(`'…'` / `"…"` — the host surface's string quoting): a key containing a **space**,
+an **empty** key, a key of **pure digits** (bare digits are a position — the
+YAML-keys round), a key that IS **`~`** (bare `~` is the null key; inside a longer
+key `\~` still escapes), and a key of `-`+digits (bare `-1` is reserved). Backslash
+escaping carries the literal-vs-interpreted distinction that quotes cannot: in
+JSON5 and YAML `'` and `"` are interchangeable string delimiters — `*".."` and
+`*'..'` are the same string, both meaning *parent*.
 
 What `/` gained by leaving the metachar set: MIME-type keys (`text/html`), date
 keys (`01/02/2026`) and URL-ish keys now ride **bare** in paths. (A legacy `\/`
 escape still reads as the literal `/` — `\X` makes any X literal.)
 
 ```yamlover
-mime:  *..: text/html: x     # "/" is no metacharacter — the key "text/html" rides bare
-colon: *schedule: 09\:30     # a literal ":" inside the key "09:30"
-space: *: tags: 'дорожный знак'  # a key with a space — quoted
-dots:  *\.\.                 # the literal key ".." (not "parent")
-star:  *\*boss               # the literal key "*boss"
+mime:   *..: text/html: x     # "/" is no metacharacter — the key "text/html" rides bare
+colon:  *schedule: 09\:30     # a literal ":" inside the key "09:30"
+space:  *: tags: 'дорожный знак'  # a key with a space — quoted
+digits: *: pets: '1'          # the numeric STRING key "1" — quoted (bare 1 is position 1)
+tilde:  *: doc: '~'           # the literal key "~" — quoted (bare ~ is the null key)
+dots:   *\.\.                 # the literal key ".." (not "parent")
+star:   *\*boss               # the literal key "*boss"
 ```
 
 (For JSON-Schema `$ref` interop a resolver may additionally accept JSON-Pointer
@@ -442,12 +504,18 @@ tagged in two bare lines:
 
 **Ordinal anchors — `&path[]`.** A trailing `[]` makes the membership **keyless**:
 the container at `path` gains this node as a positional member. The rules carry
-over from `~-` verbatim: **no position may be claimed** (`&path[3]` is rejected —
-order is the container's own data; an anchor declares *that* it holds me, never
-*where*); membership is **additive** (each `[]` appends one element; lists may
-repeat) **except into a `!!set`**, where duplicates — forward, anchored, or both —
-collapse by target. Anchor-created members project after the container's own
-entries, lexicographically by member path.
+over from `~-` verbatim: **no position may be claimed** (`&: p: 3` is rejected —
+a bare-integer tail is a position, and order is the container's own data; an
+anchor declares *that* it holds me, never *where*; the retired spelling `&path[3]`
+is rejected identically); membership is **additive** (each `[]` appends one
+element; lists may repeat) **except into a `!!set`**, where duplicates — forward,
+anchored, or both — collapse by target. Anchor-created members project after the
+container's own entries, lexicographically by member path.
+
+**No null-key anchors.** A keyed anchor must end in a nonempty *string* key: an
+anchor may not claim a position (`&: p: 3`), and it may not create the **null
+key** either (`&: p: ~` is rejected — the null key is authored in place, §The
+null key). A literal-tilde key is fine, quoted: `&: p: '~'`.
 
 **Collisions.** An anchor-created entry may meet an authored one at the same path.
 That is *valid* iff they denote the same thing — the same target node, or
@@ -473,7 +541,7 @@ index time.
 place at the existing node with `*`:
 
 ```yamlover
-acting_boss: *: pets[0]
+acting_boss: *: pets: 0
 ```
 
 ### `~` — reverse edges (DEPRECATED → path anchors)
@@ -554,7 +622,7 @@ Keyless reversal differs from keyed reversal in two deliberate ways:
 
 - **No reverse index — `~[n]:` is rejected.** Order is the *container's* data (text
   order in its source; the `body.yo` pointer-array for a directory). A remote
-  node claiming "I am element `[3]`" would be a second writer for single-writer data:
+  node claiming "I am element `3`" would be a second writer for single-writer data:
   any insertion in the container silently invalidates the claim, and two members can
   claim the same slot. If an exact position matters, author it forward — the container
   lists `- *member` where it wants it. A `~-` membership is **unpositioned**: it

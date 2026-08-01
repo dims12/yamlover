@@ -168,7 +168,7 @@ inverse(b, a, label) :- ref(a, b, label).      # the ~edge / "my name" relation
 
 There are **no durable node ids**. A node's identity is its location in the graph —
 its path. This is consistent with the `URIs.md` pointer model, which is itself
-path/location-based (`*../../pets[1]`, `*#/…`, `*/…`): references address *where a
+path/location-based (`*..: ..: pets: 1`, `*: …`, `*:: …`): references address *where a
 node sits*, so a move legitimately *is* a graph change rather than something to
 track and repair.
 

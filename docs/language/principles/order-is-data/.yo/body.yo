@@ -5,8 +5,11 @@ description: one ordered container — positions are integer keys, and only the 
   There is no separate list type. A mapping is **ordered**, and its positions are integer
   keys: a keyless entry (a `- item` sequence element) takes only its position; a keyed
   entry holds a position *too* — its position is a `*`-alias to it. A "list" is just a
-  mapping whose keys are 0, 1, 2, …, and access keeps the two axes apart: `[n]` selects
-  the integer key (position), `: x` selects the string key.
+  mapping whose keys are 0, 1, 2, …, and access keeps the two axes apart: a bare integer
+  portion selects the integer key (position), `: x` selects the string key — and quotes
+  make the numeric string (`: '1'`). In data the same rule holds: a plain numeric key
+  (`1: value`) is a parse error — a position is authored by order; quote a numeric
+  string key.
 - !!yo
   key0: value0     #  ≡   key0: value0
   - value1         #      0: *key0      position 0 aliases the keyed entry
@@ -21,7 +24,7 @@ description: one ordered container — positions are integer keys, and only the 
   an invented position.
 - |
   Only the container writes its own order. A remote node may declare *that* a container
-  holds it (an ordinal anchor `&: path[]`), never *where*: `&: path[3]` is rejected,
+  holds it (an ordinal anchor `&: path[]`), never *where*: `&: path: 3` is rejected,
   because a position claim would be a second writer for single-writer data — any
   insertion in the container silently invalidates the claim, and two members can claim
   one slot. If an exact position matters, author it forward, in the container itself.

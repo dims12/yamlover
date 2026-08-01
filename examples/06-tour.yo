@@ -6,7 +6,7 @@
 #
 # This is a single .yo FILE — the "file" instance concrete. A directory whose
 # layout IS the data, overlaid by .yo/body.yo, is the other concrete.
-# (NB: yamlover deliberately breaks YAML — `*: pets[1]` is a path pointer, not a YAML
+# (NB: yamlover deliberately breaks YAML — `*: pets: 1` is a path pointer, not a YAML
 #  alias — so it needs the yamlover parser, not a stock YAML one.)
 # Spec: ../SEPARATOR.md + ../URIs.md   ·   json5p twin: ../JSON5P.md   ·   Model: ../IR.md
 # ============================================================================
@@ -20,11 +20,11 @@ pets:
 
 humans:
   - name: Alice
-    manager: *: pets[1]      # EXTENDED *: a document-rooted path -> the Whiskers node
+    manager: *: pets: 1      # EXTENDED *: a document-rooted path -> the Whiskers node
 
 # ---- pointer scopes (a key is itself a pointer; * follows it) ----------------
-feline: *pets[1]            # bare  -> the current mapping (a sibling)
-topDog: *: pets[0]          # :     -> current document root (the ladder: more colons, wider)
+feline: *pets: 1            # bare  -> the current mapping (a sibling)
+topDog: *: pets: 0          # :     -> current document root (the ladder: more colons, wider)
 # proj: *:: my.project: config: db            # ::  -> this PROJECT's root / an import key
 # wild: *::: pet.store.com: pets              # ::: -> the WORLD (an AWS-like project URI)
 
@@ -37,25 +37,26 @@ boss: &: chief
 team:
   lead: *: chief             # same node as `boss` — a shared edge, not a copy
 
-# ---- one ordered container: [n] = integer key (position), `: x` = string key ----
-secondPet: *pets[1]
-secondName: *pets[1]: name
+# ---- one ordered container: a BARE INTEGER = integer key (position), `: x` = string key,
+#      `: '1'` = the numeric STRING key (a plain `1:` in data is a parse error) ----
+secondPet: *pets: 1
+secondName: *pets: 1: name
 
 # ---- partially ordered, partially keyed: keyless and keyed entries in ONE node ----
 # Plain YAML forces a node to be EITHER a sequence (all `- `) OR a mapping (all `key:`).
-# yamlover has ONE ordered container: every entry has an integer position [0],[1],… and MAY
+# yamlover has ONE ordered container: every entry has an integer position 0,1,… and MAY
 # also carry a string key. So keyless (positional) and keyed entries coexist in one node.
 # Mixing is the DEFAULT (omni); the `!!mix` tag below is an optional, no-op MARKER kept
 # for readability (ANCHOR_REFACTOR 2026-06-12 — see YAMLOVER.md §4).
 playlist: !!mix
-  - Intro                  # [0]            keyless / positional
-  - Verse                  # [1]            keyless
-  title: Greatest Hits     # [2], key=title keyed — AND still positioned
-  - Chorus                 # [3]            keyless
-  encore: *: pets[0]       # [4], key=encore a keyed pointer, still in order
-firstTrack: *playlist[0]       # [n]  -> by POSITION        -> "Intro"
-mixTitle:   *playlist: title   # : x  -> by STRING KEY       -> "Greatest Hits"
-samePos:    *playlist[2]       # position 2 IS the keyed entry -> "Greatest Hits" (== mixTitle)
+  - Intro                  # position 0     keyless / positional
+  - Verse                  # position 1     keyless
+  title: Greatest Hits     # position 2, key=title — keyed AND still positioned
+  - Chorus                 # position 3     keyless
+  encore: *: pets: 0       # position 4, key=encore — a keyed pointer, still in order
+firstTrack: *playlist: 0       # bare int -> by POSITION      -> "Intro"
+mixTitle:   *playlist: title   # : x      -> by STRING KEY    -> "Greatest Hits"
+samePos:    *playlist: 2       # position 2 IS the keyed entry -> "Greatest Hits" (== mixTitle)
 
 # ---- a node can be EVERYTHING at once: a scalar value AND positional AND keyed fields ----
 # Plain YAML makes a node a scalar XOR a sequence XOR a mapping. yamlover unifies all three:
@@ -63,12 +64,12 @@ samePos:    *playlist[2]       # position 2 IS the keyed entry -> "Greatest Hits
 # value and its fields together. Like `!!mix`, the `!!var` tag is an optional marker.
 
 rating: !!var 5                  # the node's own scalar value …
-  - solid                  # [0]  a positional field
-  - recommended            # [1]  positional
-  scale: 10                # [2]  keyed field
-  author: *: humans[0]     # [3]  keyed field (a pointer edge)
-ratingValue: *rating       # *rating       -> the node (its scalar value is 5)
-ratingTag:   *rating[0]    # *rating[0]    -> a positional field -> "solid"
+  - solid                  # position 0  a positional field
+  - recommended            # position 1  positional
+  scale: 10                # position 2  keyed field
+  author: *: humans: 0     # position 3  keyed field (a pointer edge)
+ratingValue: *rating       # *rating      -> the node (its scalar value is 5)
+ratingTag:   *rating: 0    # *rating: 0   -> a positional field -> "solid"
 ratingScale: *rating: scale # *rating: scale -> a keyed field     -> 10
 
 # ---- reverse edges, anchor-spelled: &P: key = "P holds me as key" (was ~key: *P) ----
@@ -84,7 +85,7 @@ adam:
 # entries (lists may repeat) — except into a !!set, where duplicate memberships
 # (authored forward and/or reverse) collapse by target. Spec: ../URIs.md §&.
 favorites:
-  - *: pets[0]               # forward: favorites holds Rex …
+  - *: pets: 0               # forward: favorites holds Rex …
 fan:
   name: Bob
   &: favorites[]             # … and ALSO Bob — appended by Bob himself (the reverse side)

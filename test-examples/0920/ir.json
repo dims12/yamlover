@@ -46,7 +46,7 @@
         "edge": "contain",
         "value": {
           "kind": "scalar",
-          "value": "When a formula deserves a line of its own, give it a whole chunk — see the Gaussian\nintegral at [/[2]](/[2]), a standalone LaTeX block (that link is relative to\nthis document; the title, being the node's self-value, consumes no index).\n",
+          "value": "When a formula deserves a line of its own, give it a whole chunk — see the Gaussian\nintegral at [:2](:2), a standalone LaTeX block (that link is relative to\nthis document; the title, being the node's self-value, consumes no index).\n",
           "array": false,
           "set": false,
           "yo": false,

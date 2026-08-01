@@ -43,34 +43,41 @@ The pointer layer, identical in meaning to json5p (grammar in `URIs.md`):
   expression**: a path with scopes, resolved purely structurally (a bare `*a` is the
   sibling key `a`). Unquoted on this surface.
   ```yamlover
-  feline: *pets[1]        # current mapping (a sibling) — a shared edge, not a copy
-  manager: */pets[1]      # / = current document root
-  remote:  *//pet.store.com/pets   # // = a link (any other start); scheme optional, never fetched
+  feline: *pets: 1        # current mapping (a sibling) — a shared edge, not a copy
+  manager: *: pets: 1     # : = current document root
+  remote:  *::: pet.store.com: pets   # ::: = the world — an identity, never fetched
   ```
-- **Keys are pointers; `[n]` vs `/x`.** Positions are integer keys (`*pets[1]`), names are
-  string keys (`*pets[1]/name`). Arrays and mappings are the **one ordered container** (§4).
+- **Keys are pointers; a bare integer vs a name.** Positions are integer keys, addressed
+  by the **bare integer portion** (`*pets: 1`); names are string keys (`*pets: 1: name`);
+  a numeric **string** key rides quoted (`: '1'`); a bare `~` portion is the **null key**
+  (§3). The retired bracket index (`*pets[1]`) reads forever as an alias, written never
+  (the YAML-keys round, 2026-08-01). Arrays and mappings are the **one ordered
+  container** (§4).
 - **`&` — path anchors (the push side of `*`).** *Spec'd 2026-06-12
-  (`ANCHOR_REFACTOR.md`); parsers still implement the old name-only anchor until
-  PLAN.md Phase A lands.* An anchor's name is a full pointer path: `&P/k` on a node
+  (`ANCHOR_REFACTOR.md`); implemented with PLAN.md Phase A.* An anchor's name is a full
+  pointer path: `&: P: k` on a node
   means the container at `P` gains the key `k` → a ref edge to **this node** ("I also
   live there"). A trailing `[]` makes it a keyless, appended membership (`&P[]`). A
   node may carry **multiple** anchors — on the value's line, or on their own lines
   inside the node's block (before or after the value line; order irrelevant). Anchors
   are **not entries**: they never change a node's kind (a scalar with anchors stays a
   scalar). There is **no anchor namespace** — anchors create real keys, and `*name` is
-  pure path lookup. Full semantics (ordinal rules, collisions): `URIs.md` §`&`.
+  pure path lookup. An anchor may not claim a position (`&: p: 3` is rejected) and may
+  not create the null key (`&: p: ~`). Full semantics (ordinal rules, collisions):
+  `URIs.md` §`&`.
   ```yamlover
-  pet: &/supercat       # this node is ALSO the document-root key "supercat"
+  pet: &: supercat      # this node is ALSO the document-root key "supercat"
     species: cat
-  friend: */supercat    # plain path reaches it
+  friend: *: supercat   # plain path reaches it
   ```
-- **`~` — back-edges (key sigil). DEPRECATED → path anchors** (`~key: *P` ≡ `&P/key`).
+- **`~` — back-edges (key sigil). DEPRECATED → path anchors** (`~key: *P` ≡ `&: P: key`).
   Still parsed through the migration window. A key prefixed with `~` is the reverse of
-  the forward relation it names; the `~` is a **sigil outside the key**:
+  the forward relation it names; the `~` is a **sigil outside the key** — and it needs a
+  **nonempty** name: a bare `~: value` line is the null-keyed entry (§3), never a back-edge:
   ```yamlover
   adam:
     cain:
-      ~cain: */eve        # ≡ &/eve/cain — reverse of eve's "cain" edge → eve
+      ~cain: *: eve       # ≡ &: eve: cain — reverse of eve's "cain" edge → eve
   ```
 - **`~-` — reverse *positional* membership (keyless back-edge). DEPRECATED →
   `&path[]`.** The sigil sits tight against what the forward entry starts with — a key
@@ -98,9 +105,12 @@ the two surfaces:
 |---------------------------------------|---------------------------------------------|------------------------------------------------------------------------------------------------------------------|
 | `&anchor`                             | a reusable intra-document name for the node | **path anchor** — "this node also lives at that path"; the path's parent gains a real key (§2, `URIs.md` §`&`)   |
 | `*alias`                              | alias to anchor `alias` (name only)         | **pointer** — a pure path/scope expression (`*a` = the sibling key `a`; no anchor namespace, no precedence rule) |
-| `~key:` (key position)                | the plain-scalar key `"~key"`               | **back-edge** sigil on key `key` (deprecated → `&P/key`, §2)                                                     |
+| `~key:` (key position)                | the plain-scalar key `"~key"`               | **back-edge** sigil on key `key` (deprecated → `&: P: key`, §2)                                                  |
 | `~-` (entry position)                 | the plain scalar `~-` (rare)                | **keyless back-edge** (deprecated → `&P[]`, §2)                                                                  |
 | `~` (value position)                  | null                                        | **unchanged — still null**                                                                                       |
+| `~: v` / `: v` (key position)         | a null-keyed entry                          | **kept — the null key** (adopted 2026-08-01): a KEYED entry whose key is null; canonical emission `~: v`; `'~':` is the literal-tilde key |
+| `null: v` (key position)              | a null-keyed entry                          | the **string key `"null"`** — keys-are-strings doctrine (a deliberate divergence, like the numeric-key row)      |
+| `1: v` (key position)                 | the integer key `1`                         | a **parse error** — "a position is authored by order; quote a numeric string key" (`'1': v`); `.yaml` mode reads it as the string key |
 | `!!set`                               | a mapping of null-valued keys               | a **set-semantics container** — memberships dedup by identity (§4)                                               |
 | scalar + fields / mixed keyed+keyless | invalid / two node kinds                    | **one node** — omni by default (§4)                                                                              |
 
@@ -108,7 +118,7 @@ The anchor row is the consequential one, and the reason reading is concrete-awar
 YAML `&a` … `*a` pair is **document-wide**: the parser reading a `.yaml` file maps it to
 yamlover's document scope — `&: a` … `*: a` (one shared key at the document root) — so the
 alias resolves exactly as YAML intends. A `.yo` file's bare `&a`/`*a` instead mean
-the **current/parent** scope (`*a` = a sibling key, `*[1]` = the parent's ordinal member;
+the **current/parent** scope (`*a` = a sibling key, `*1` = the parent's ordinal member;
 no `:` ⇒ relative to the parent); document scope is written with the leading `:`. Either
 way the IR is concrete-agnostic and renders back in yamlover syntax. The `yaml-test-suite`
 anchor/alias cases are a *diverges-by-design* group, not failures
@@ -118,8 +128,9 @@ anchor/alias cases are a *diverges-by-design* group, not failures
 
 No separate list/dict type. A mapping is **ordered**; positions are integer keys. A keyless
 entry (a `- item` sequence element) takes only its position; a keyed
-entry's position is a `*`-alias to it. Access: **`[n]`** = integer key (position), **`/x`**
-= string key. Order is data — text order in a file; for a directory, the `body.yo`
+entry's position is a `*`-alias to it. Access: a **bare integer** portion = the integer
+key (position), `: x` = the string key — quotes make the numeric string (`: '1'`); the
+retired `[n]` reads as an alias. Order is data — text order in a file; for a directory, the `body.yo`
 overlay imposes it (§5) on the **subset it names**: a pointer-array element `- *file`
 consumes the pointer and grants the named child its position (the projection shows the
 consumed key as a dimmed derived anchor, `- &file value`); a child the body never names
@@ -162,14 +173,14 @@ node's own scalar value, with the fields in the block below:
 
 ```yamlover
 playlist: !!mix
-  - Intro                 # [0]            keyless / positional
-  - Verse                 # [1]            keyless
-  title: Greatest Hits    # [2], key=title keyed — AND still positioned
-  - Chorus                # [3]            keyless
-# *playlist[2] (by position) and *playlist/title (by key) resolve to the SAME node.
+  - Intro                 # position 0     keyless / positional
+  - Verse                 # position 1     keyless
+  title: Greatest Hits    # position 2, key=title — keyed AND still positioned
+  - Chorus                # position 3     keyless
+# *playlist: 2 (by position) and *playlist: title (by key) resolve to the SAME node.
 
 rating: !!var 5          # the node's own scalar value …
-  - solid                 # [0] … and positional + keyed fields together
+  - solid                 # position 0 … and positional + keyed fields together
   scale: 10
 ```
 
@@ -260,14 +271,18 @@ has no tags; inline schema attachment is yamlover-only.)
 ## 6. Escaping
 
 Backslash-based, **not** quote-based (in YAML `'` and `"` are interchangeable, so they
-cannot carry a literal-vs-interpreted distinction). A literal metachar (`/ [ ] * & # ~ \`,
+cannot carry a literal-vs-interpreted distinction). A literal metachar (`: [ ] * & # ~ \`,
 the query characters `? ! ( ) < > = |` — see `QUERY.md` — or an all-dots segment
-`..` / `...`) in a key is escaped with `\`:
+`..` / `...`) in a key is escaped with `\`. A key whose whole bare form would read as
+something else is instead **quoted**: spacey, empty, pure digits (`: '1'` — bare `1` is
+a position), exactly `~` (`: '~'` — bare `~` is the null key), `-`+digits:
 
 ```yamlover
-weird: *../cat\/dog/x    # second step is the literal key "cat/dog"
-dots:  *\.\.             # the literal key ".." (not the parent scope)
-star:  *\*boss           # the literal key "*boss"
+weird:  *..: cat/dog: x   # "/" is no metachar — the literal key "cat/dog" rides bare
+colon:  *schedule: 09\:30 # a literal ":" inside the key "09:30"
+digits: *: pets: '1'      # the numeric STRING key "1" (bare 1 is position 1)
+dots:   *\.\.             # the literal key ".." (not the parent scope)
+star:   *\*boss           # the literal key "*boss"
 ```
 
 ## 7. Scopes (summary)
@@ -287,9 +302,10 @@ Identical to json5p (full rules in `URIs.md`), only unquoted here:
   `Entry` with `edge:"ref"` and an unresolved `Pointer`; a `~`-key → `edge:"back"`; a `&`
   anchor is recorded for the resolver. Bytes in the directory concrete → `Blob` by hash.
 - **Engine** (`ENGINE.md`): a parsed yamlover document/dir populates `node`/`edge`.
-- **json5p** (`JSON5P.md`): the brace twin — same `*`/`~`/`&`, `[n]`/`/x`, scopes; differs
-  only in surface (`*` is quoted there: `*'…'`) and in that json5p is a *clean* superset of
-  JSON5, while yamlover breaks YAML per §3.
+- **json5p** (`JSON5P.md`): the brace twin — same `*`/`~`/`&`, the same bare-integer
+  positions and quoted numeric string keys, same scopes; differs in surface (`*` is quoted
+  there: `*'…'`), has **no null-key spelling** (serializing one is a `LossyError`), and is
+  a *clean* superset of JSON5, while yamlover breaks YAML per §3.
 
 ## 9. Worked examples & conformance
 

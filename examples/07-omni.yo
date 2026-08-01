@@ -3,10 +3,10 @@
 # (the former `!!var`/`!!mix`/`!!omni` markers still parse, as no-ops). The self-value here is a
 # tagless multi-line BLOCK SCALAR: because a block scalar is bounded by its own content indent it
 # is self-delimiting, so it may sit ANYWHERE among the entries and the fields resume after it.
-- solid                    # [0]  a positional field
+- solid                    # position 0  a positional field
 |
   A block-scalar self-value —
   arbitrary, multi-line text
   that needs no !!var tag.
-- recommended              # [1]  positional
+- recommended              # position 1  positional
 scale: 10                  # a keyed field

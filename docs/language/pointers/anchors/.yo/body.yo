@@ -31,14 +31,17 @@ description: the push — & gives this node another real path
   &:: tags: field: mathematics: numbers: whole[]
 - |
   **Ordinal anchors.** A trailing `[]` makes the membership keyless: the container
-  gains this node as a positional member. No position may be claimed — `&: path[3]`
-  is rejected; order is the container's own data
+  gains this node as a positional member. No position may be claimed — `&: path: 3`
+  is rejected (a bare-integer tail is a position); order is the container's own data
   ([order is data](::language:principles:order-is-data)) — and membership is
   **additive**: each `[]` appends one element, lists may repeat — except into a
   `!!set`, where duplicates collapse by target. Anchor-created members project after
   the container's own entries, lexicographically by member path. Anchor paths must be
   **unambiguous**: wildcards and matchers are rejected by the arity rule, position
-  claims by this one.
+  claims by this one. A keyed anchor must end in a nonempty *string* key — it may not
+  create the null key either (`&: p: ~` is rejected; the null key is authored in
+  place, [null keys](::language:vs-yaml:null-keys)); the literal-tilde key is fine,
+  quoted (`&: p: '~'`).
 - |
   **Collisions.** An anchor-created entry may meet an authored one at the same path —
   valid exactly when the two denote the same thing: the same target node, or
@@ -48,6 +51,6 @@ description: the push — & gives this node another real path
   realized and checked at index time.
 - |
   Relocation needs no special form — point a new place at the existing node with `*`
-  (`acting_boss: *: pets[0]`). And the deprecated tilde spellings read as anchors
+  (`acting_boss: *: pets: 0`). And the deprecated tilde spellings read as anchors
   through the migration window — `~key: *P` ≡ `&: P: key`, `~- *P` ≡ `&: P[]`
   ([the tilde sigil](::language:vs-yaml:tilde)).

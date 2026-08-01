@@ -42,7 +42,7 @@ whose contents are a pointer expression.
 ```json5p
 {
   pets: [ { name: 'Rex' }, { name: 'Whiskers' } ],
-  feline: *'pets[1]',          // a shared edge to pets position 1 — NOT a copy
+  feline: *'pets:1',           // a shared edge to pets position 1 — NOT a copy
 }
 ```
 
@@ -50,17 +50,22 @@ whose contents are a pointer expression.
 not a copy: the target node is *shared*. It is lazy and cycle-safe — a `*` is never
 expanded inline.
 
-### Keys are pointers; `[n]` vs `/x`
+### Keys are pointers; a bare integer vs a name
 
 Every key is addressable, so it can be a `*` target. Arrays and objects are the **one
 ordered container** (see `URIs.md`): a position is an **integer key**, a name is a
-**string key**, and the two access forms are kept apart:
+**string key**, and the bare-token typing rule keeps the access forms apart (the
+YAML-keys round, 2026-08-01):
 
-- **`[n]`** selects the **integer key** `n` (a position) — `*'pets[1]'`.
-- **`/x`** selects the **string key** `x` — `*'pets[1]/name'`.
+- A **bare integer portion** selects the **integer key** `n` (a position) — `*'pets:1'`.
+  (The retired bracket index `*'pets[1]'` reads forever as an alias, written never.)
+- A **name portion** selects the **string key** `x` — `*'pets:1:name'`; a numeric
+  string key rides quoted inside the pointer text.
 
 The brace/bracket surface is still ordinary JSON5 (`{…}` objects, `[…]` arrays); the
-*semantics* is the single ordered mapping.
+*semantics* is the single ordered mapping. **json5p has no null-key spelling**: JSON5
+object keys are strings, so a null-keyed entry (yamlover `~: v`, `URIs.md` §The null
+key) cannot be serialized to json5p — the serializer raises a `LossyError`.
 
 ### Scopes (where a pointer starts)
 
@@ -69,14 +74,15 @@ in `URIs.md` — summarized:
 
 | Form | Base |
 |---|---|
-| `*'name'`, `*'../x'` | current mapping / its parents (`..`) |
-| `*'/…'` | current **document** root |
-| `*'//auth/…'`, `*'scheme://auth/…'` | a **link** — any *other* start (project, sibling doc, external); a **virtual identifier**, scheme ignored, never fetched |
+| `*'name'`, `*'..:x'` | current mapping / its parents (`..`) |
+| `*':…'` | current **document** root |
+| `*'::…'` | current **project** root |
+| `*':::auth:…'` | the **world** — an ARN-like virtual identifier, never fetched |
 
 ### `~` — back-edges (in key position; DEPRECATED → path anchors)
 
 > **Deprecated 2026-06-12** in favor of path anchors (§`&` below; `URIs.md` §`&`):
-> `~key: *'P'` ≡ `&'P/key'`, and the keyless `~*'P'` ≡ `&'P[]'`. Both forms produce
+> `~key: *'P'` ≡ `&'P:key'`, and the keyless `~*'P'` ≡ `&'P[]'`. Both forms produce
 > identical normalized edges; parsers keep accepting `~` through the migration
 > window (PLAN.md Phase A), serializers will emit anchors only.
 
@@ -87,13 +93,14 @@ quotes wrap the key, **not** the sigil.
 
 ```json5p
 {
-  eve:  { cain: *'/adam/cain' },   // forward:  eve --cain--> the shared node
-  adam: { cain: { ~cain: *'/eve' } },  // reverse of eve's cain-edge -> eve  (~ outside the key)
+  eve:  { cain: *':adam:cain' },   // forward:  eve --cain--> the shared node
+  adam: { cain: { ~cain: *':eve' } },  // reverse of eve's cain-edge -> eve  (~ outside the key)
 }
 ```
 
 (`~name` is a json5p extension — JSON5 keys are identifiers or strings; the `~`/`&`/`*`
-sigils are exactly what json5p adds on top.)
+sigils are exactly what json5p adds on top. The sigil needs a nonempty key name — there
+is no null-key form here; see the null-key note in §2.)
 
 A `~` edge is up / non-owning (not part of the containment spine), never expanded inline,
 and materializes on a filesystem as a symlink. The graph is **kept exactly as written** —
@@ -111,7 +118,7 @@ has no `-` marker, so the sigil prefixes the pointer directly):
 {
   my_node: {
     name: 'x',
-    ~*'/some/other/location',   // ⇒ that container has an element pointing at my_node
+    ~*':some:other:location',   // ⇒ that container has an element pointing at my_node
   },
 }
 ```
@@ -139,17 +146,18 @@ and a keyless membership is a trailing `[]` inside the path string:
 ```json5p
 {
   humans: [
-    { age: 30, pet: &'/supercat' { species: 'cat', color: 'pink' } },
-    { age: 10, pet: *'/supercat' },          // plain path — no anchor namespace
+    { age: 30, pet: &':supercat' { species: 'cat', color: 'pink' } },
+    { age: 10, pet: *':supercat' },          // plain path — no anchor namespace
   ],
-  thirty: &'/tags/whole[]' 30,               // keyless: the tag container holds this node
+  thirty: &':tags:whole[]' 30,               // keyless: the tag container holds this node
 }
 ```
 
 Anchors create **real keys** — `*'name'` is pure path lookup; the old
-anchor-wins-over-sibling precedence rule is gone. Both surfaces share `&`; the
-operand is unquoted in yamlover (`&/supercat`), a quoted string in json5p
-(`&'/supercat'`).
+anchor-wins-over-sibling precedence rule is gone. An anchor may not claim a position
+(`&':p:3'` is rejected — a bare-integer tail is a position) and may not create the
+null key. Both surfaces share `&`; the operand is unquoted in yamlover
+(`&: supercat`), a quoted string in json5p (`&':supercat'`).
 
 ## 3. One container, no schema
 
@@ -160,7 +168,7 @@ operand is unquoted in yamlover (`&/supercat`), a quoted string in json5p
 
 ## 4. Escaping: two layers
 
-A literal key may contain a metacharacter (`/ [ ] * & # ~ \`, the query characters
+A literal key may contain a metacharacter (`: [ ] * & # ~ \`, the query characters
 `? ! ( ) < > = |` — see `QUERY.md` — or an all-dots segment `..` / `...`). It is
 escaped with a **backslash inside the pointer expression**. But the pointer lives inside a
 **JSON5 string**, which has its *own* backslash escaping — so a literal backslash reaching
@@ -168,9 +176,9 @@ the pointer layer must be written `\\` in the source string:
 
 ```json5p
 {
-  'odd/key': { n: 1 },
-  oddRef:  *'odd\\/key/n',   // JSON5 'odd\\/key/n' -> pointer text  odd\/key/n
-                             // -> first segment is the literal key "odd/key", then /n
+  'odd:key': { n: 1 },
+  oddRef:  *'odd\\:key:n',   // JSON5 'odd\\:key:n' -> pointer text  odd\:key:n
+                             // -> first portion is the literal key "odd:key", then :n
   dotsRef: *'\\.\\.',        // -> pointer text  \.\.  -> the literal key ".." (not parent)
 }
 ```
@@ -192,8 +200,9 @@ switch is json5p rather than json — comments, pointers and `&` anchors all sur
 - **Engine** (`ENGINE.md`): a parsed json5p document populates `node`/`edge`; the resolver
   walks pointers lazily over the graph.
 - **Sibling concrete** (`yamlover`): the indentation / filesystem surface over the *same*
-  model — `*`, `~`, `[n]`/`/x`, scopes are identical; it additionally has `&` anchors and
-  the directory + `body.yo` overlay.
+  model — `*`, `~`, bare-integer positions / string-key portions, scopes are identical; it
+  additionally has the null key (`~: v`), `&` unquoted anchors, and the directory +
+  `body.yo` overlay.
 
 ## 6. Worked example
 

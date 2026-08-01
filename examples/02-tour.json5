@@ -22,7 +22,7 @@
   ],
   humans: [
     // JSON5 has no pointers: Alice's manager is a verbatim COPY of Whiskers,
-    // not a reference to pets[1]. (03-tour.json5p fixes this.)
+    // not a reference to pets position 1. (03-tour.json5p fixes this.)
     {
       name: 'Alice',
       manager: {

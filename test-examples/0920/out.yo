@@ -7,7 +7,7 @@ A Pinch of Math
   __bold__, and ~~struck-out~~ text.
 - |
   When a formula deserves a line of its own, give it a whole chunk — see the Gaussian
-  integral at [/[2]](/[2]), a standalone LaTeX block (that link is relative to
+  integral at [:2](:2), a standalone LaTeX block (that link is relative to
   this document; the title, being the node's self-value, consumes no index).
 - !!<format: text/x-latex> |
   \int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}

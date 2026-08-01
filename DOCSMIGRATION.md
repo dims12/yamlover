@@ -116,6 +116,17 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
         `!!yo`-marked body element renders via the generic data view (read-only) and edits as
         an inline source cell (yed); first live use in `language/principles/one-node`
         (CHAPTER.md §Data island)
+  - [x] The YAML-keys round, phase D — the docs respell (2026-08-02): the book, the root
+        specs, and `examples/` moved to the new spelling — bare-integer positions
+        (`: pets: 1`, store `:pets:1`; the retired `[n]` reads forever as an alias),
+        quoted numeric string keys (`'1':` — a plain `1:` is a parse error), operator-only
+        value tests (`: rating: =5: scale`; the bare-literal test and the `TEST step`
+        combo are dead), and the adopted NULL KEY (`: v` ≡ `~: v`; `null:` stays the
+        string key). New book subchapter `language/vs-yaml/null-keys/` (registered in
+        vs-yaml's body after `set`); marklower link targets respelled (`:2`, `#/1`
+        anchors); the `[.±k]` merge idiom and `[?]`/`&…[]` operators unchanged;
+        `05-tour.yaml` stays the plain-YAML baseline. Every edited `.yo` vet-parsed
+        before commit (the reconcile-poisoning gotcha honored).
   - Authoring gotcha worth knowing: marklower emphasis never spans a code token, so the MD
     habit `` **`code`** `` renders literally — write the code span unbolded
   - Authoring gotcha (2026-08-01): a `$defs/table` FLOW row's plain cell must not contain

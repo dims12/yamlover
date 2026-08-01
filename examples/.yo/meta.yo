@@ -11,7 +11,7 @@ properties:
   05-tour.yaml:
     description: plain YAML — native `&`/`*` anchor sharing, its ceiling
   06-tour.yo:
-    description: yamlover — YAML plus the full pointer layer (`*`, `~`, `&`, `[n]`/`/x`, links)
+    description: yamlover — YAML plus the full pointer layer (`*`, `~`, `&`, bare-integer positions, links)
   07-omni.yo:
     description: the unified node (omni), tagless — a multi-line block-scalar self-value plus positional and keyed fields at once
   50-object-in-overlay:

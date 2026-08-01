@@ -33,6 +33,12 @@ description: the kept surface, and every place the same token means something el
   - - '`~` (value position)'
     - null spelled as a sigil
     - '**unchanged — still null**'
+  - - '`~: v` / `: v` (key position)'
+    - a null-keyed entry
+    - '**adopted — the null key**: a keyed entry whose key is null; canonical emission `~: v`, addressed by the bare `~` portion'
+  - - '`null: v` / `1: v` (key position)'
+    - 'the null key / the integer key `1`'
+    - 'the string key `"null"` / a parse error — keys are strings, a position is authored by order (quote the numeric string: `''1'': v`)'
   - - '`!!set`'
     - a mapping of null-valued keys
     - 'a **set-semantics container** — memberships dedup by identity'
@@ -44,5 +50,6 @@ description: the kept surface, and every place the same token means something el
 - *: aliases
 - *: tilde
 - *: set
+- *: null-keys
 - *: mixtures
 - *: conformance

@@ -4,14 +4,14 @@ description: YAML's alias-to-anchor turns into a structural pointer expression
 - |
   In YAML, `*alias` refers to the node anchored `&alias` — a name-only lookup. In
   yamlover, `*` takes a **pointer expression**: a path with scopes, resolved purely
-  structurally. A bare `*a` is the sibling key `a`; `*[1]` is the parent's second ordinal
-  member; `*: a` starts at the document root. There is no anchor namespace and no
+  structurally. A bare `*a` is the sibling key `a`; `*1` is the parent's second ordinal
+  member (a bare integer is the position); `*: a` starts at the document root. There is no anchor namespace and no
   precedence rule — dereference is path lookup, nothing else.
 - !!yo
   pets:
     - species: cat
     - species: dog
-  feline: *pets[0]     # a sibling path — a shared edge, not a copy
+  feline: *pets: 0     # a sibling path — a shared edge, not a copy
 - |
   The result is always a **shared edge, never a copy** — YAML implementations that expand
   aliases into duplicated values have no counterpart here

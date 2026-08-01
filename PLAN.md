@@ -13,7 +13,9 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
   a graph serialized to them is **lossy**.
 - **One ordered container** (not two). No separate list/dict: a mapping is ordered and
   its **positions are integer keys** (added as `*`-aliases to keyed entries; a keyless
-  `- ` entry's value lives at its integer key). `[n]` = integer key, `/x` = string key.
+  `- ` entry's value lives at its integer key). A bare integer portion = the integer key,
+  `: x` = the string key, `: '1'` the numeric string (the YAML-keys round; `[n]` reads as
+  an alias).
   Order is data — text order in a file; a `body.yo` pointer-array for a directory.
 - **`.yo/` holds two overlays** (+ engine cache), both keyed by node path:
   **`body.yo`** = the *instance* (data; replaces the old `schema.yaml`-as-storage),
@@ -39,7 +41,8 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
 ## Phase 1 — Foundations & specs (design before code)
 
 1a. **Finalize the pointer/path grammar** in `URIs.md` — scopes (`# / ..` + URI
-   authority), `* ~ &`, `[n]` indexing, backslash escaping, name rules. One ABNF,
+   authority), `* ~ &`, position indexing (since 2026-08-01: bare-integer portions;
+   the drafted `[n]` reads as an alias), backslash escaping, name rules. One ABNF,
    shared by both surface languages.
 1b. **AST / IR contract** — **DRAFTED in `IR.md`** (2026-06-07). The in-memory
    instance-graph model the parsers emit and the engine consumes: `Node` =
@@ -216,7 +219,7 @@ A6. **Conformance** — yaml-test-suite anchor/alias cases reclassified to a
    CTE over `contain`), `relationships(path)` (in/out + on-demand `derived` inverses). Uses Node's
    built-in **`node:sqlite` (DatabaseSync)** — zero dependency, supersedes the planned better-sqlite3
    on Node ≥22. Positions stay a *derived view* (keyed entries store under their string key; keyless
-   under `[i]`; `[n]` for keyed is a resolver alias, not double-stored).
+   under their integer key; the keyed entry's position is a resolver alias, not double-stored).
 3b. **Walker** — **DONE (2026-06-08)** `tools/engine/ts/src/walk.ts`: `walkDir(dir)`→IR Document,
    `buildIndex(dir)`→writes `<dir>/.yo/index.db`. Mirrors the legacy server's file→value rule
    (text-format ext → string scalar; binary/opaque ext → Blob{format,sha256,size}; no/unknown ext →
@@ -375,7 +378,7 @@ Scaffolded under `tools/jetbrains-plugin/` (Kotlin + IntelliJ Platform Gradle Pl
   the **engine protocol** (thin client), per FUTURE.md.
   **Heuristic v1 SHIPPED (2026-06-10, plugin 0.2.0):** Ctrl+click / Ctrl+B on a `*pointer`
   navigates via a pure-text path index of the same file (`PointerNavigation.kt` +
-  `PointerGotoDeclarationHandler`) — current/`..`/`/` scopes, `[n]` positions, anchors,
+  `PointerGotoDeclarationHandler`) — current/`..`/`/` scopes, index positions, anchors,
   escapes; `body.yo` document-scope segments also reach the overlaid directory's
   files. `//` links and cross-document resolution stay for the engine-protocol J3.
 

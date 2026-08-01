@@ -22,7 +22,7 @@ From `YAMLOVER.md` §4, an untagged yamlover node may carry, at once:
 - **keyless entries** — positional, the `- item` spelling,
 - **keyed entries** — `key: value`,
 
-and a keyed entry **also occupies a position**: `*playlist[2]` and `*playlist/title` resolve
+and a keyed entry **also occupies a position**: `*playlist: 2` and `*playlist: title` resolve
 to the *same* node. There is no separate list type and no separate dict type.
 
 That bundles two independent properties, and they must be tested separately, because the
@@ -41,7 +41,7 @@ prior art differs sharply between them:
 | (O) + (U) with children and keys in **separate compartments** | XML (attributes vs child elements), SDLang ~2005, KDL 2021, JCR 1.0 | **No** — SDLang and KDL are direct hits |
 | (O) on the **YAML** surface specifically | YAML 1.1 `!!value` / the `=` default key | **No** — YAML's own type repository |
 | (U) with keys **disjoint** from positions | Lua tables 1993, PHP arrays, BSON, libucl, Windows registry keys | **No** — widespread |
-| (U) where a keyed entry **also** occupies a position | XML child elements (reachable by name *and* by `[n]`) — but names are **non-unique**, and the unique-keyed compartment (attributes) is scalar-only and unordered | **Partly** — no exact match found |
+| (U) where a keyed entry **also** occupies a position | XML child elements (reachable by name *and* by index) — but names are **non-unique**, and the unique-keyed compartment (attributes) is scalar-only and unordered | **Partly** — no exact match found |
 | (O) + (U) together, **unique keys**, on YAML's indentation surface | *nothing found* | **Yes** — but this is a much narrower claim than "omnivorous elements" |
 
 ## 3. The prior art, by family

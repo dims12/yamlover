@@ -15,8 +15,8 @@ description: the same model, spelled in a .yo file, in json5p, and as a director
     - 'In a directory'
       width: 2
   - - keyed entry
-    - '`key: value`'
-    - '`key: value`'
+    - '`key: value`; the null key `~: value`; the numeric string key `''1'': value` (a plain `1:` is a parse error — a position is authored by order)'
+    - '`key: value` (no null key — a LossyError)'
     - 'a file or subdirectory named `key`'
   - - keyless entry
     - '`- value`'
@@ -31,8 +31,8 @@ description: the same model, spelled in a .yo file, in json5p, and as a director
     - '— (falls back)'
     - 'ordered members, then the keyed-only remainder'
   - - pointer
-    - '`*: pets[1]` (unquoted)'
-    - '`*'': pets[1]''` (quoted)'
+    - '`*: pets: 1` (unquoted)'
+    - '`*'': pets: 1''` (quoted)'
     - 'a `key: *path` line in `body.yo`'
   - - anchor
     - '`&: P: k` — on the value''s line or its own'

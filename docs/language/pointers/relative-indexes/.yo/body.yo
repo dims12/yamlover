@@ -4,9 +4,11 @@ description: the dot in the brackets — the host frame, aligned by depth
 - |
   A dot in the brackets makes the index **relative to the pointer's own position**:
   `[.]` is "my position at this depth", `[.-1]` one before me, `[.+2]` two after.
-  Bracket bodies stay disjoint by form — digits absolute, dot relative, `?` the query
-  wildcard — and a plain `[-1]` is deliberately not taken, kept free for a possible
-  future from-the-end index.
+  The `[.±k]` bracket survived the YAML-keys round unchanged — it is a non-literal
+  position operator, not an index literal (an absolute position is a bare-integer
+  portion); the surviving bracket bodies stay disjoint by form — dot relative, `?` the
+  query wildcard, empty the anchor append. A bare `-1` portion is deliberately not
+  taken as a key, kept free for a possible future from-the-end index.
 - |
   Resolution is the **frame rule**: the frame is the host entry's own path — the
   entry holding the pointer. After the base and any `..` ascents, each step consumes

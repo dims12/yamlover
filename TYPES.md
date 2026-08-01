@@ -38,7 +38,8 @@ pointer, `meta.anchored`) reports those members as **ordinal** — their keys ar
 The rule is per-member, not a prefix: a body that mixes keyed fields with its positional flow (a
 chapter) scatters its anchors through source order.
 
-Because such a member is ordinal, the **TOC names it by position** (`[0]`, `[1]`) rather than by
+Because such a member is ordinal, the **TOC names it by position** (`0`, `1` — the bare
+index, the YAML-keys round) rather than by
 the directory that stores it — the storage name is provenance, not a name. A title still wins
 where there is one (a subchapter goes by its title). Its *path* stays keyed: the label is display,
 the address is storage. Each row also carries its scalar self-value as a short one-line tail, the

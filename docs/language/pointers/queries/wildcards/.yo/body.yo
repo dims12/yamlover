@@ -8,9 +8,10 @@ description: any string key, any position — and what a plain index never sees
 - !!<format: text/plain> |
   team: ?              → :team:alice, :team:bob
   pets: ?              → ∅            (pets has only keyless entries)
-  pets[?]              → :pets[0], :pets[1]
-  pets[?]: name        → :pets[0]:name, :pets[1]:name
+  pets[?]              → :pets:0, :pets:1
+  pets[?]: name        → :pets:0:name, :pets:1:name
   : tags: whole[?]     → :thirty      (an &…[] membership)
 - |
-  `[n]` stays a pointer step: it addresses the container's own entry n and **never**
-  an anchor-created member — no position claims — so `: tags: whole[0]` is empty.
+  A bare position stays a pointer step: it addresses the container's own entry n and
+  **never** an anchor-created member — no position claims — so `: tags: whole: 0` is
+  empty.

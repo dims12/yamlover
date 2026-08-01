@@ -19,9 +19,9 @@ description: the two-dot family — reverse navigation mirroring the downward fo
   A **leading** `..` is the parent scope opener; later `..` portions are spine steps.
   Containment and refs are one relation kind — both arrive:
 - !!<format: text/plain> |
-  : pets[0]: ..                → :pets           (spine only)
-  : pets[0]: ?..               → :pets, :team:alice
-  : pets[0]: pet..             → :team:alice
+  : pets: 0: ..                → :pets           (spine only)
+  : pets: 0: ?..               → :pets, :team:alice
+  : pets: 0: pet..             → :team:alice
   : thirty: []..               → :tags:whole
   : adam: cain: enoch: enoch.. → :adam:cain, :adam:azura
                                  (both parents — the directed graph)
