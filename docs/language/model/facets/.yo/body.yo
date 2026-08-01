@@ -28,16 +28,18 @@ description: value, keyed, ordinal — the capability cube and its corners
   - ['`object`', '`{value: false, ordinal: false}`', '`010`']
   - ['`array`', '`{value: false, keyed: false}`', '`001`']
   - ['`mixed` (`!!mix`)', '`{value: false, keyed: {min: 1}, ordinal: {min: 1}}`', '`011`']
-  - ['`variant` (`!!var`) ≡ `true`', '`{}`', '`111`']
+  - ['`variant` (`!!yo`) ≡ `true`', '`{}`', '`111`']
   - ['value+keyed', '`{ordinal: false}`', '`110`']
   - ['value+ordinal', '`{keyed: false}`', '`101`']
 - |
   **variant ≡ omni ≡ true — the top.** The "permits any shape" formula is a tautology:
-  every node is a variant. As a *schema*, `type: variant` constrains nothing; the `!!var`
-  surface tag merely documents that the value-plus-fields region is in use. (The query
-  matcher `!!<type: variant>` deliberately tests the *region* — a scalar that has own
-  fields — a tautological test would select everything; the schema reading and the
-  matcher reading are both correct, each on its own side.)
+  every node is a variant. As a *schema*, `type: variant` constrains nothing — and the
+  `!!yo` surface tag (formerly `!!var`) is no shape assertion either: as a type it is the
+  top, and its real payload is the schema *exemption* — plain yamlover, not bound by the
+  enclosing document's meta ([mixtures](::language:vs-yaml:mixtures)). (The query matcher
+  `!!<type: variant>` deliberately tests the *region* — a scalar that has own fields — a
+  tautological test would select everything; the schema reading and the matcher reading
+  are both correct, each on its own side.)
 - |
   **Presence is not permission.** The facet bit says what *may* exist; element counts say
   what *does*. The quantifiers keep the two apart:

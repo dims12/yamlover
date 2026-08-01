@@ -32,8 +32,9 @@ description: a JSON-Schema-equivalent written in yamlover — typing, decoding, 
   else a recognized file extension; else — no meta and no extension — `binary`.
 - |
   **The yamlover specifics** over JSON Schema: `type` adds `binary`, `mixed` (the schema
-  name of the `!!mix` shape), and `variant` (of `!!var`, the self-value given as
-  `value:`); `format` is open — a MIME type, a codec, or a yamlover-defined view;
+  name of the `!!mix` shape), and `variant` (the omni value-plus-fields shape, the
+  self-value given as `value:`); `format` is open — a MIME type, a codec, or a
+  yamlover-defined view;
   `uniqueItems: true` marks a set (the overlay-and-json5p route to `!!set`); `concrete`
   may be stated but is normally inferable from the filesystem — keep meta minimal.
   References use `*` pointers, not `$ref`: reusable fragments live under `$defs` and are

@@ -7,7 +7,7 @@ description: every key is a path portion — [n] selects a position, ': x' a nam
   alias word it takes a full **pointer expression**, resolved purely structurally: a bare
   `*a` is the sibling key `a`, and scopes reach wider
   (the [pointers part](::language:pointers)).
-- !!<format: text/x-yamlover> |
+- !!yo
   feline: *pets[1]                   # a sibling's second element
   manager: *: pets[1]                # : = current document root
   remote: *::: pet.store.com: pets   # ::: = the world — never fetched

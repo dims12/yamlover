@@ -19,7 +19,7 @@ claimed), `TYPES.md` (`variant` / the `omni` top type), and
 From `YAMLOVER.md` §4, an untagged yamlover node may carry, at once:
 
 - **at most one own scalar value** (its self-value, at any line position in the block),
-- **keyless entries** — positional, the `- item` / bare `:` spelling,
+- **keyless entries** — positional, the `- item` spelling,
 - **keyed entries** — `key: value`,
 
 and a keyed entry **also occupies a position**: `*playlist[2]` and `*playlist/title` resolve

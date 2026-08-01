@@ -11,7 +11,7 @@ description: 'yaml/flow — one line, recorded and re-emitted'
   language and needs no per-node marker.
 - |
   Flow cannot hold everything. A container carrying a path anchor, a `!!<…>` tag, a
-  `!!set`, a leading comment, a multi-line scalar, a blob, or a keyed+keyless mixture
+  `!!yo` or `!!set`, a leading comment, a multi-line scalar, a blob, or a keyed+keyless mixture
   **falls back to block form** — silently and losslessly, never a throw and never a
   drop. The refusal list lives once, in the serializer, and the editor mirrors it, so
   the screen and the file agree.

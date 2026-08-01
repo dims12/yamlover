@@ -13,7 +13,7 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
   a graph serialized to them is **lossy**.
 - **One ordered container** (not two). No separate list/dict: a mapping is ordered and
   its **positions are integer keys** (added as `*`-aliases to keyed entries; a keyless
-  `:` entry's value lives at its integer key). `[n]` = integer key, `/x` = string key.
+  `- ` entry's value lives at its integer key). `[n]` = integer key, `/x` = string key.
   Order is data — text order in a file; a `body.yo` pointer-array for a directory.
 - **`.yo/` holds two overlays** (+ engine cache), both keyed by node path:
   **`body.yo`** = the *instance* (data; replaces the old `schema.yaml`-as-storage),

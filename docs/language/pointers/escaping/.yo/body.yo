@@ -9,7 +9,7 @@ description: backslash carries the literal reading; quotes carry only spaces
   literal-versus-interpreted distinction that quotes cannot: in JSON5 and YAML `'`
   and `"` are interchangeable delimiters — `*".."` and `*'..'` are the same string,
   both meaning parent.
-- !!<format: text/x-yamlover> |
+- !!yo
   mime:  *..: text/html: x          # "/" is no metachar — rides bare
   colon: *schedule: 09\:30          # a literal ":" inside the key
   space: *: tags: 'дорожный знак'   # a key with a space — quoted

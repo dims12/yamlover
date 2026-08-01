@@ -5,19 +5,19 @@ description: a multi-line flow token is json5p, not a third collection style
   A flow token written **across several lines** — K&R braces — is not a third collection
   style. It is the one **concrete switch the surface can express on its own**: that node
   and its subtree are written in json5p, inside an otherwise yamlover document.
-- !!<format: text/x-yamlover> |
-  a: {                 # spans lines → concrete json5p, K&R layout
+- !!yo
+  a: {
     x: 1,
     y: 2
-  }
-  b: {x: 1, y: 2}      # one line    → yamlover, repr yaml/flow
+  }                  # spans lines → concrete json5p, K&R layout
+  b: {x: 1, y: 2}    # one line    → yamlover, repr yaml/flow
 - |
   The layout is not a preference recorded beside the value — it is the consequence of
   which language the subtree speaks; changing concrete mid-document is what yamlover is
   for. json5p and not JSON, because JSON5 has comments and json5p adds pointers and
   anchors: the switch loses nothing plain JSON would drop. Everything json5p cannot hold
-  — a `!!<…>` tag, a `!!set`, an omni value-plus-fields, a keyed+keyless mixture, a blob
-  — falls back to block form, exactly as flow's own refusals do.
+  — a `!!<…>` tag, a `!!yo` or `!!set`, an omni value-plus-fields, a keyed+keyless
+  mixture, a blob — falls back to block form, exactly as flow's own refusals do.
 - |
   The switch is authored provenance, never identity: a reflow leaves the document equal
   ([one document, many materializations](::language:principles:many-concretes)). In a

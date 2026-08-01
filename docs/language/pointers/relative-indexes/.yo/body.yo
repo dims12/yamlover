@@ -12,7 +12,7 @@ description: the dot in the brackets — the host frame, aligned by depth
   entry holding the pointer. After the base and any `..` ascents, each step consumes
   one depth, and a `[.±k]` at depth d selects the host's position at that depth,
   offset by k. Keyed entries hold positions too, so the frame always exists.
-- !!<format: text/x-yamlover> |
+- !!yo
   - *[.-1]        # the cell to my LEFT — a colspan
   - *..[.-1][.]   # the cell ABOVE: up to the table, previous
                   #   row, my column — a rowspan

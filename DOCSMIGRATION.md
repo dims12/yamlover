@@ -61,10 +61,13 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
   section grows media of its own). The MD file's `#` title becomes the chapter's self-value.
 - **Prose paragraphs → marklower chunks.** Inline constructs map 1:1 (bold, italic, `code`,
   links); a single MD paragraph is one chunk; hard-wrapped lines rejoin (soft breaks).
-- **Fenced code blocks → format-tagged chunks**: `` !!<format: …> | `` blocks
-  (`text/x-yamlover`, `text/x-json5p`, `text/plain` for ABNF/ASCII layouts…) — the
-  PlantUML precedent in `examples/66`. *Marklower improvement likely wanted: a code-block
-  renderer with syntax highlighting for the yamlover family.*
+- **Fenced code blocks**: a runnable yamlover example becomes a **`!!yo` data island** —
+  live, parsed data drawn by the generic renderer (decided 2026-08-01; the island must
+  PARSE, so vet it first — the reconcile-poisoning gotcha below). A `` !!<format: …> | ``
+  string chunk (`text/x-yamlover`, `text/x-json5p`, `text/plain` for ABNF/ASCII layouts…)
+  remains the form for text that must stay QUOTED: examples of tags the projection drops
+  (`!!mix`), live anchors that would graft real keys (`&: supercat`), root-tag syntax
+  (`!!<…>` at file top), and non-yamlover text. Both forms are syntax-highlighted.
 - **MD tables → `$defs/table` nodes** (explicitly tagged body elements).
 - **MD bullet/numbered lists → `$defs/bullets` / `$defs/numbered`** when they are content;
   restructure into body elements when they were structure in disguise.
@@ -101,8 +104,18 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
 - [ ] Marklower improvements met along the way (asides, syntax highlighting, …) — spec'd in
       `MARKLOWER.md` as they land
   - [x] Code chunks render (2026-08-01): the `code` registry entry accepts `text/x-yamlover`,
-        `text/x-json5p`, `text/x-yaml` — verbatim `<pre>` for now, highlighting later;
-        `PlaintextChunk` reads an inline chunk's own text instead of fetching bytes
+        `text/x-json5p`, `text/x-yaml`; `PlaintextChunk` reads an inline chunk's own text
+        instead of fetching bytes
+  - [x] Code chunks HIGHLIGHT (2026-08-01): the shared heuristic lexer
+        (`tools/parser/ts/src/highlight.ts` — the module the JetBrains lexer comment
+        anticipated) + the client mapping onto the existing `.k .s .n …` classes
+        (`client/highlight.tsx`); wired into the code chunks and the read-only source view's
+        format-tagged block-scalar bodies. Editor cells deferred (contentEditable + spans).
+  - [x] `!!yo` DATA ISLANDS (2026-08-01): the shape tag formerly `!!var`/`!!omni` renamed
+        `!!yo` and made SEMANTIC — plain yamlover, exempt from the enclosing schema; a
+        `!!yo`-marked body element renders via the generic data view (read-only) and edits as
+        an inline source cell (yed); first live use in `language/principles/one-node`
+        (CHAPTER.md §Data island)
   - Authoring gotcha worth knowing: marklower emphasis never spans a code token, so the MD
     habit `` **`code`** `` renders literally — write the code span unbolded
   - Authoring gotcha (2026-08-01): a `$defs/table` FLOW row's plain cell must not contain

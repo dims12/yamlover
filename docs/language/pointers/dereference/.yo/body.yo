@@ -7,7 +7,7 @@ description: the pull — * takes a path and yields a shared edge
   scopes, positions, escapes. Resolution is lazy and yields a **graph edge, never a
   copy**: the target node is shared, and a ref edge is never expanded inline to
   infinity, so cycles are safe.
-- !!<format: text/x-yamlover> |
+- !!yo
   cat: furry manager supervising humans life
   feline: *cat        # the sibling key — one node, two paths
 - |

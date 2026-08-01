@@ -7,9 +7,9 @@ description: one ordered container — positions are integer keys, and only the 
   entry holds a position *too* — its position is a `*`-alias to it. A "list" is just a
   mapping whose keys are 0, 1, 2, …, and access keeps the two axes apart: `[n]` selects
   the integer key (position), `: x` selects the string key.
-- !!<format: text/x-yamlover> |
+- !!yo
   key0: value0     #  ≡   key0: value0
-  : value1         #      0: *key0      position 0 aliases the keyed entry
+  - value1         #      0: *key0      position 0 aliases the keyed entry
   key2: value2     #      1: value1     the keyless entry lives at its key
                    #      key2: value2
                    #      2: *key2

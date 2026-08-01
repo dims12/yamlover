@@ -66,6 +66,14 @@ description: the shortest tour            # optional, keyed
   scalar carrying only those stays a chunk.)
 - **A table** (`MARKLOWER.md`) is a body element explicitly tagged `!!<*yamlover: $defs: table>` — a
   container, so the tag (not shape) is what keeps it from being a subchapter.
+- **A data island** (added 2026-08-01) is a body element tagged **`!!yo`** — plain yamlover,
+  exempt from the chapter schema (the tag is SEMANTIC; formerly `!!var`/`!!omni`, read forever
+  as aliases). The chapter renderer must NOT interpret it: it is handed to the **generic**
+  yamlover renderer (the read-only data view, framed as an island) and, in the projectional
+  editor, opens as an inline yamlover SOURCE cell. The mark trumps both the structural rule and
+  any format — whatever the node's shape, it is data, never a subchapter and never a chunk. The
+  member-encoding rules treat it like a tagged container: CONTENT, kept inline in the body,
+  never materialized as an `itemNN` member.
 
 ## The schema
 

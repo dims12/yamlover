@@ -32,7 +32,7 @@ yamlover keeps the YAML surface you know:
 | Float specials (YAML, **not** json5's `Infinity`/`NaN`) | `.inf`, `-.inf`, `.nan` (case-tolerant: `.Inf`/`.NaN`) |
 | `&` anchors and `*` aliases | `&a {…}` … `*a` — syntax kept, **meaning extended** (§2, §3) |
 
-A YAML `- item` sequence entry is the same thing as a keyless `:` entry in the one-ordered
+A YAML `- item` sequence entry is the same thing as a keyless entry in the one-ordered
 container (§4) — both are an entry with no string key.
 
 ## 2. What yamlover adds
@@ -117,7 +117,7 @@ anchor/alias cases are a *diverges-by-design* group, not failures
 ## 4. One ordered container
 
 No separate list/dict type. A mapping is **ordered**; positions are integer keys. A keyless
-entry (a `- item` sequence element, or the `:` spelling) takes only its position; a keyed
+entry (a `- item` sequence element) takes only its position; a keyed
 entry's position is a `*`-alias to it. Access: **`[n]`** = integer key (position), **`/x`**
 = string key. Order is data — text order in a file; for a directory, the `body.yo`
 overlay imposes it (§5) on the **subset it names**: a pointer-array element `- *file`

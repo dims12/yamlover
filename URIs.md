@@ -224,12 +224,14 @@ humans:
 
 There is no separate list type. A mapping is **ordered**, and its **positions are
 integer keys** added as pointers — so a "list" is just a mapping whose keys are
-`0, 1, 2, …`. A keyless entry, written with a leading `:`, takes only its position.
-This dict:
+`0, 1, 2, …`. A keyless entry — a `- value` sequence item — takes only its position.
+(The former "leading `:`" spelling for a keyless entry is retired, 2026-08-01: a
+`: value` line reads as an entry with an EMPTY key, the way `~: value` is a null key —
+not a keyless one. `- value` is the one keyless spelling.) This dict:
 
 ```yamlover
 key0: value0
-: value1
+- value1
 key2: value2
 ```
 
@@ -245,8 +247,7 @@ key2: value2
 
 A **keyed** entry's position is a `*`-alias to it; a **keyless** entry's value lives
 directly at its integer key. It is all one mapping with integer ∪ string keys —
-"YAML with pointers." (A YAML `- value` sequence item is the same keyless entry; `:`
-is just its mapping-style spelling.) Two access syntaxes keep the axes apart:
+"YAML with pointers." Two access syntaxes keep the axes apart:
 
 - **`[n]`** selects the **integer key** `n` (position).
 - **`: x`** selects the **string key** `x` (a colon portion).
