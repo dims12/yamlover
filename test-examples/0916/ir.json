@@ -4,6 +4,7 @@
     "value": "Household staff",
     "array": true,
     "set": false,
+    "yo": false,
     "schema": {
       "ptr": {
         "base": {
@@ -35,6 +36,7 @@
           "value": "The roster below is a **table** — a body element, not marklower syntax; cells are marklower.",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -46,6 +48,7 @@
           "kind": "mapping",
           "array": false,
           "set": false,
+          "yo": false,
           "schema": {
             "ptr": {
               "base": {
@@ -77,6 +80,7 @@
                 "value": "Who does what",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -88,6 +92,7 @@
                 "kind": "mapping",
                 "array": true,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -98,6 +103,7 @@
                       "value": "Name",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -108,6 +114,7 @@
                             "value": 2,
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -123,6 +130,7 @@
                       "value": "Class",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -154,6 +162,7 @@
                 "kind": "mapping",
                 "array": true,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -164,6 +173,7 @@
                       "value": "Whiskers",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -176,6 +186,7 @@
                       "value": "mammal",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -188,6 +199,7 @@
                       "value": "**manager**",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -202,6 +214,7 @@
                 "kind": "mapping",
                 "array": true,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -212,6 +225,7 @@
                       "value": "Rex",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -248,6 +262,7 @@
                       "value": "security",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -262,6 +277,7 @@
                 "kind": "mapping",
                 "array": true,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -272,6 +288,7 @@
                       "value": "Bubbles",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -284,6 +301,7 @@
                       "value": "fish",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -295,6 +313,7 @@
                       "kind": "mapping",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "schema": {
                         "ptr": {
                           "base": {
@@ -325,6 +344,7 @@
                             "kind": "mapping",
                             "array": true,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": [
                               {
@@ -335,6 +355,7 @@
                                   "value": "duty",
                                   "array": false,
                                   "set": false,
+                                  "yo": false,
                                   "anchors": [],
                                   "entries": []
                                 }
@@ -347,6 +368,7 @@
                                   "value": "shift",
                                   "array": false,
                                   "set": false,
+                                  "yo": false,
                                   "anchors": [],
                                   "entries": []
                                 }
@@ -361,6 +383,7 @@
                             "kind": "mapping",
                             "array": true,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": [
                               {
@@ -371,6 +394,7 @@
                                   "value": "decoration",
                                   "array": false,
                                   "set": false,
+                                  "yo": false,
                                   "anchors": [],
                                   "entries": []
                                 }
@@ -383,6 +407,7 @@
                                   "value": "always",
                                   "array": false,
                                   "set": false,
+                                  "yo": false,
                                   "anchors": [],
                                   "entries": []
                                 }
@@ -403,6 +428,7 @@
                 "kind": "mapping",
                 "array": true,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -413,6 +439,7 @@
                       "value": "Rocky",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -425,6 +452,7 @@
                       "value": "raccoon",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -436,6 +464,7 @@
                       "kind": "mapping",
                       "array": true,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -446,6 +475,7 @@
                             "value": "night shift **only**",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -457,6 +487,7 @@
                             "kind": "mapping",
                             "array": true,
                             "set": false,
+                            "yo": false,
                             "schema": {
                               "ptr": {
                                 "base": {
@@ -487,6 +518,7 @@
                                   "kind": "mapping",
                                   "array": true,
                                   "set": false,
+                                  "yo": false,
                                   "anchors": [],
                                   "entries": [
                                     {
@@ -497,6 +529,7 @@
                                         "value": "bins",
                                         "array": false,
                                         "set": false,
+                                        "yo": false,
                                         "anchors": [],
                                         "entries": []
                                       }
@@ -509,6 +542,7 @@
                                         "value": "tipped",
                                         "array": false,
                                         "set": false,
+                                        "yo": false,
                                         "anchors": [],
                                         "entries": []
                                       }

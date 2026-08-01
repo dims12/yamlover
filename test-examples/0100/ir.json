@@ -3,6 +3,7 @@
     "kind": "mapping",
     "array": false,
     "set": false,
+    "yo": false,
     "anchors": [],
     "entries": [
       {
@@ -12,6 +13,7 @@
           "kind": "mapping",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -22,6 +24,7 @@
                 "value": "Alice",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -33,6 +36,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -43,6 +47,7 @@
                       "value": "Springfield",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -55,6 +60,7 @@
                       "value": "49007",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -70,6 +76,7 @@
                 "value": 30,
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }

@@ -27,7 +27,7 @@ playlist:
 firstTrack: *playlist[0]
 mixTitle: *playlist: title
 samePos: *playlist[2]
-rating: 5
+rating: !!yo 5
   - solid
   - recommended
   scale: 10

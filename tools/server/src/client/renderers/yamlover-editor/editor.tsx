@@ -19,7 +19,7 @@ export function YamloverEditor({ path, onNavigate }: { path: string; onNavigate:
   return (
     <YedCtx.Provider value={ctx}>
       <div className="code yed" ref={rootEl} data-version={version}>
-        {(root.metaTag !== null || root.setTag) && (
+        {(root.metaTag !== null || root.setTag || root.yoTag) && (
           <div className="yed-row"><MetaTagCell node={root} /></div>
         )}
         {root.kind === "scalar" ? (

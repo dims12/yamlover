@@ -1301,6 +1301,9 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
     // the node's stamped/derived format — an inlined container otherwise carries none, and the
     // table renderer needs it to tell a CHAPTER cell from a nested table (MARKLOWER.md §Cells)
     if (row.format) marker.format = row.format;
+    // the `!!yo` plain-yamlover mark: the node is exempt from the enclosing document's schema,
+    // so a structured consumer (the chapter view) hands it to the generic renderer
+    if (row.meta?.yo === true) marker.yo = true;
     if (k === "omni") {
       // the node's own scalar self-value (the `!!var 5`); a FILE-backed omni (an image carrying
       // `yamlover-thumbnails`/annotations) shows its bytes as a navigable `< binary >`, not `null`
@@ -1394,10 +1397,10 @@ function scalarRawToken(node: IrNode): string | undefined {
 
 /** The yamlover type tags a node carries in canonical serialization, or undefined. Mirrors
  *  serialize-yamlover's `decorations`: the `!!<…>` schema tag (a tag APPLICATION — it must not
- *  vanish from the view just because the store routes it as `format`), then `!!set` (set
- *  semantics). The shape tags `!!mix` (a mixed keyed+keyless container) and `!!var` (a scalar-
- *  plus-fields) are the DEFAULT — omni-by-default (YAMLOVER.md §4) — so they are never shown;
- *  an untagged mixture reads back the same. */
+ *  vanish from the view just because the store routes it as `format`), then `!!yo` (the
+ *  plain-yamlover mark) and `!!set` (set semantics). The shape tag `!!mix` (a mixed
+ *  keyed+keyless container) is the DEFAULT — omni-by-default (YAMLOVER.md §4) — so it is never
+ *  shown; an untagged mixture reads back the same. */
 function tagOf(n: IrNode): string | undefined {
   const parts: string[] = [];
   if (n.meta?.schema !== undefined) {
@@ -1408,6 +1411,7 @@ function tagOf(n: IrNode): string | undefined {
       // programmatic IR can get here — better an untagged view than a failed page
     }
   }
+  if (n.meta?.yo) parts.push("!!yo");
   if (n.meta?.set) parts.push("!!set");
   return parts.length ? parts.join(" ") : undefined;
 }
@@ -1545,6 +1549,7 @@ function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unk
   const k = displayKind(s, p, row);
   const info: Record<string, unknown> = { kind: k, type: tocType(s, p, row), ...facetsOf(s, p, row), path: segsToStr(segs) };
   if (row.format) info.format = row.format;
+  if (row.meta?.yo === true) info.yo = true; // `!!yo` — exempt from the enclosing schema (chapter routing)
   info.concrete = concreteOf(s, dataRoot, segs, row); // a folder child renders with a folder icon; every node carries one
   const title = titleOf(s, p);
   if (title) info.title = title;
@@ -3139,6 +3144,19 @@ function groupEntries(lines: string[], at: number): { keyed: string[][]; ordinal
   return { keyed, ordinal, order, self };
 }
 
+/** The `!!yo` plain-yamlover mark on a source snippet's ROOT: a data ISLAND. The
+ *  member-encoding derivation treats it exactly like an explicit `!!<…>` tag — content, not
+ *  structure, so it stays inline in the body and never materializes as an `itemNN` member
+ *  (a promotion would rip the island out of the document it annotates). */
+function rootIsYo(src: string | null | undefined): boolean {
+  if (!src || isPointerValue(src)) return false;
+  try {
+    return parseYamlover(src, "<edit>").root.meta?.yo === true;
+  } catch {
+    return false;
+  }
+}
+
 /** The facets a column-0 `yamlover` payload carries. A payload whose first content line opens no
  *  entry is (or starts with) a SCALAR — a block header, a quoted/plain scalar, or a `*…` pointer.
  *  A one-line scalar head followed by column-0 entry lines is an OMNI payload (a self-value plus
@@ -4158,7 +4176,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
           const p = payloadFacets(valueSrc);
           const container = p.keyed.length > 0 || p.ordinal.length > 0;
           const key = e.key === undefined ? undefined : String(e.key);
-          let route = deriveDirEditRoute(target, { keyed: key !== undefined, container, tagged: typeof meta === "string" });
+          let route = deriveDirEditRoute(target, { keyed: key !== undefined, container, tagged: typeof meta === "string" || rootIsYo(valueSrc) });
           // an explicit `concrete: "yamlover"` pins the INLINE encoding — derivation to a
           // sequential item directory applies only to UNDERIVED (concrete-less) inserts
           if (route === "dir-seq" && e.concrete) route = deriveDirEditRoute(target);
@@ -4181,7 +4199,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
               fsPath: relPosix(dataRoot, absDir),
               names: dirNames,
             },
-            child: { keyed: key !== undefined, container, tagged: typeof meta === "string" },
+            child: { keyed: key !== undefined, container, tagged: typeof meta === "string" || rootIsYo(valueSrc) },
             route,
             explicitConcrete: e.concrete ?? null,
             memberName,
@@ -4327,7 +4345,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
           } catch { return false; }
           return false;
         })();
-        const enc = memberSrc === null ? "body" : deriveMemberEncoding({ keyed: inlineKeyed, container: true, tagged: typeof memberMeta === "string", insideContent });
+        const enc = memberSrc === null ? "body" : deriveMemberEncoding({ keyed: inlineKeyed, container: true, tagged: typeof memberMeta === "string" || rootIsYo(memberSrc), insideContent });
         if (enc !== "body") {
           if (memberSrc && !isPointerValue(memberSrc!)) parseYamlover(memberSrc!, "<edit>");
           const docAbs = path.resolve(dataRoot, ...nBack.docSegs.map(String));
@@ -4344,7 +4362,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
             enforce(
               validateWrite({
                 target: { path: segsToStr(nBack.docSegs), concrete: encConcrete, fsPath: relPosix(dataRoot, docAbs), names },
-                child: { keyed: inlineKeyed, container: true, tagged: typeof memberMeta === "string" },
+                child: { keyed: inlineKeyed, container: true, tagged: typeof memberMeta === "string" || rootIsYo(memberSrc) },
                 route: enc,
                 memberName,
                 writes: [

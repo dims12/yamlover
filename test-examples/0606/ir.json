@@ -3,6 +3,7 @@
     "kind": "mapping",
     "array": false,
     "set": false,
+    "yo": false,
     "anchors": [],
     "entries": [
       {
@@ -13,6 +14,7 @@
           "value": "a b\n",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -25,6 +27,7 @@
           "value": "c d",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -37,6 +40,7 @@
           "value": "e\n\n",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -49,6 +53,7 @@
           "value": 1,
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }

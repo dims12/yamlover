@@ -3,6 +3,7 @@
     "kind": "mapping",
     "array": false,
     "set": false,
+    "yo": false,
     "anchors": [],
     "entries": [
       {
@@ -17,6 +18,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -26,6 +28,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -35,6 +38,7 @@
                       "kind": "mapping",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "schema": {
                         "ptr": {
                           "base": {
@@ -63,6 +67,7 @@
                             "value": "map",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -75,6 +80,7 @@
                             "value": 52.51767025395278,
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -87,6 +93,7 @@
                             "value": 52.51558102789858,
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -99,6 +106,7 @@
                             "value": 13.366348743438722,
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -111,6 +119,7 @@
                             "value": 13.362057209014893,
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -123,6 +132,7 @@
                             "value": "2026-06-14T23:02:38.975Z",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -134,6 +144,7 @@
                             "kind": "mapping",
                             "array": true,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": [
                               {
@@ -182,6 +193,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }

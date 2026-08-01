@@ -3,6 +3,7 @@ import { fragmentOf, isAncestorPath } from "./paths";
 import type { CommentBucket, CommentMap } from "./api";
 import { isJsonFamily } from "../concrete";
 import { ScalarLeaf } from "./renderers/value-editors";
+import { highlightLang, highlightSpans } from "./highlight";
 
 // Keep in sync with LINK_KEY / BINARY_KEY in src/server/yamlover.ts.
 //
@@ -38,6 +39,7 @@ export interface Link {
   valueType?: string | null; // renderer dispatch facets (TYPES.md §9) — carried so a chunk routes correctly
   hasKeyed?: boolean;
   hasOrdinal?: boolean;
+  yo?: boolean; // `!!yo` — plain yamlover, exempt from the enclosing schema (chapter routing)
   value?: unknown; // for a link to a scalar: its value, shown as the label
   color?: string | null; // for a link to a pure color tag: its explicit color (badges)
   concrete?: string | null; // how the target is stored; `dir`/`yamlover` → a folder icon
@@ -54,6 +56,7 @@ export interface Mixed {
   value?: unknown; // omni: the node's own scalar self-value
   selfAt?: number; // omni: the self-value's authored display position among `entries` (0/absent → first)
   format?: string | null; // the node's stamped/derived format — a renderer's branch point (a chapter CELL vs a nested table)
+  yo?: boolean; // `!!yo` — plain yamlover, exempt from the enclosing schema (chapter routing)
   // key=null ⇒ positional item, else keyed field. `anchor` ⇒ a POSITIONAL member whose key is a
   // DERIVED storage anchor (a dir-backed pointer-array body consumed the `*key` pointer): rendered
   // `- &key value`, the anchor dimmed (`.anchor.derived`) — a view spelling, not authored source.
@@ -323,7 +326,7 @@ function RootBigString({ value, ctx, frag }: { value: string; ctx: Ctx; frag: st
   return (
     <>
       <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
-      <BigScalarYaml v={value} indent={2} open={open} raw={commentsAt(ctx, frag)?.raw} />
+      <BigScalarYaml v={value} indent={2} open={open} raw={commentsAt(ctx, frag)?.raw} format={tagFormat(commentsAt(ctx, frag)?.tag)} />
     </>
   );
 }
@@ -339,18 +342,29 @@ function wrap76(b64: string): string[] {
   return out;
 }
 
+/** The format of a one-line `!!<format: …>` tag (the code-chunk shape), for highlighting the
+ *  block body it decorates; null for any other (or absent) tag. */
+function tagFormat(tag: string | undefined): string | null {
+  const m = tag ? /^!!<\s*format:\s*([^\s>]+)\s*>/.exec(tag) : null;
+  return m ? m[1] : null;
+}
+
 /** A BIG scalar's YAML rendering after its row head (`key:` / `- ` / an omni's own line): the
  *  block header (with the `!!binary # format, size` note for bytes) stays on the row; the body sits
  *  indented below when open, or a `{ N lines }` summary takes its place when folded. The FOLD TOGGLE
  *  is the caller's (it must anchor at the row START for the gutter alignment). `raw` is the scalar's
  *  AUTHORED block token from the comment sidecar (`|`/`|-`/`>`… header + content lines) — when
- *  present it is reproduced verbatim; only without it is a `|`/`|-` block derived from the value. */
-function BigScalarYaml({ v, indent, open, trail = null, raw }: { v: string | BinaryPayload; indent: number; open: boolean; trail?: ReactNode; raw?: string }): ReactNode {
+ *  present it is reproduced verbatim; only without it is a `|`/`|-` block derived from the value.
+ *  `format` (the node's `!!<format: …>` tag) turns a yamlover-family body into HIGHLIGHTED
+ *  source via the shared lexer — the code chunks of the docs, seen from the source view. */
+function BigScalarYaml({ v, indent, open, trail = null, raw, format = null }: { v: string | BinaryPayload; indent: number; open: boolean; trail?: ReactNode; raw?: string; format?: string | null }): ReactNode {
   const bin = typeof v === "string" ? null : v;
   const blockRaw = !bin && raw && /^[|>]/.test(raw) && raw.includes("\n") ? raw : null;
   const header = bin ? "|" : blockRaw ? blockRaw.slice(0, blockRaw.indexOf("\n")) : (v as string).endsWith("\n") ? "|" : "|-";
   const lines = bin ? wrap76(bin.base64) : blockRaw ? blockRaw.split("\n").slice(1) : (v as string).replace(/\n$/, "").split("\n");
   const pad = " ".repeat(indent);
+  const body = lines.map((l) => (l ? pad + l : l)).join("\n");
+  const lang = bin ? null : highlightLang(format);
   return (
     <>
       {bin ? (
@@ -362,7 +376,7 @@ function BigScalarYaml({ v, indent, open, trail = null, raw }: { v: string | Bin
         <span className="punct">{header}</span>
       )}
       {open ? (
-        <>{trail}{"\n"}<span className="s">{lines.map((l) => (l ? pad + l : l)).join("\n")}</span>{"\n"}</>
+        <>{trail}{"\n"}{lang ? highlightSpans(body, lang) : <span className="s">{body}</span>}{"\n"}</>
       ) : (
         <>{" "}<span className="fold-summary">{`{ ${lines.length} lines }`}</span>{trail}{"\n"}</>
       )}
@@ -708,7 +722,7 @@ function YamlSelfValue({ value, pad, indent, ctx, frag, path, noPad = false }: {
     <>
       <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
       {noPad ? null : pad}
-      <BigScalarYaml v={asBinary(value) ?? (value as string)} indent={indent + 2} open={open} trail={trail} raw={commentsAt(ctx, frag)?.raw} />
+      <BigScalarYaml v={asBinary(value) ?? (value as string)} indent={indent + 2} open={open} trail={trail} raw={commentsAt(ctx, frag)?.raw} format={tagFormat(commentsAt(ctx, frag)?.tag)} />
     </>
   );
 }
@@ -778,7 +792,7 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, path, noPad = false }: { k: s
         {head}
         {deco}
         {" "}
-        <BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} raw={commentsAt(ctx, frag)?.raw} />
+        <BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} raw={commentsAt(ctx, frag)?.raw} format={tagFormat(commentsAt(ctx, frag)?.tag)} />
       </>
     );
   }
@@ -842,7 +856,7 @@ function YamlItem({ v, pad, indent, ctx, frag, path, noPad = false, anchorName }
         {dash}
         {deco}
         {" "}
-        <BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} raw={commentsAt(ctx, frag)?.raw} />
+        <BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} raw={commentsAt(ctx, frag)?.raw} format={tagFormat(commentsAt(ctx, frag)?.tag)} />
       </>
     );
   }

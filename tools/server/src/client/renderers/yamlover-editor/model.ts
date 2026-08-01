@@ -72,6 +72,7 @@ export interface MNode {
   metaOnServer?: boolean; // a tag exists server-side — clearing one that never did emits nothing
   prefill?: string; // a hole's restored text (an undone `key:` decision puts the key back to edit)
   setTag: boolean; // `!!set` (read-only display)
+  yoTag: boolean; // `!!yo` — plain yamlover, exempt from the enclosing schema (read-only display)
   bucket?: CommentBucket; // captured at build — comments/anchors travel with the node
 }
 
@@ -116,12 +117,16 @@ const asNumMarker = (v: unknown): string | null => {
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
-/** Split a bucket's `tag` — `!!<content>` and/or `!!set` — into the tag content and the set flag. */
-export function parseTag(tag: string | undefined): { metaTag: string | null; setTag: boolean } {
-  if (!tag) return { metaTag: null, setTag: false };
+/** Split a bucket's `tag` — `!!<content>`, `!!yo` and/or `!!set`, in the serializer's fixed
+ *  order — into the tag content and the two semantic flags. */
+export function parseTag(tag: string | undefined): { metaTag: string | null; setTag: boolean; yoTag: boolean } {
+  if (!tag) return { metaTag: null, setTag: false, yoTag: false };
   const setTag = /(^|\s)!!set$/.test(tag);
-  const m = /^!!<([\s\S]*)>\s*(?:!!set)?$/.exec(tag);
-  return { metaTag: m ? m[1] : null, setTag };
+  let rest = setTag ? tag.replace(/\s*!!set$/, "") : tag;
+  const yoTag = /(^|\s)!!yo$/.test(rest);
+  if (yoTag) rest = rest.replace(/\s*!!yo$/, "");
+  const m = /^!!<([\s\S]*)>$/.exec(rest);
+  return { metaTag: m ? m[1] : null, setTag, yoTag };
 }
 
 /** An MScalar from a decoded value + its AUTHORED raw token — the paste converter's entry point
@@ -180,8 +185,8 @@ function bucketAt(comments: CommentMap | undefined, frag: string): CommentBucket
 
 function buildNode(v: unknown, frag: string, comments: CommentMap | undefined, inJson5p = false): MNode {
   const bucket = bucketAt(comments, frag);
-  const { metaTag, setTag } = parseTag(bucket?.tag);
-  const base = { id: nid(), rev: 0, entries: [] as MEntry[], selfAt: 0, metaTag, metaOnServer: metaTag !== null, setTag, bucket };
+  const { metaTag, setTag, yoTag } = parseTag(bucket?.tag);
+  const base = { id: nid(), rev: 0, entries: [] as MEntry[], selfAt: 0, metaTag, metaOnServer: metaTag !== null, setTag, yoTag, bucket };
   // the AUTHORED collection style (repr.ts `yaml/flow`, carried per node in the sidecar): a
   // container written on one line on disk is drawn as flow cells and re-serialized as flow,
   // instead of being canonicalized to block rows the moment the page reloads
@@ -381,7 +386,7 @@ export function flowComplete(node: MNode): boolean {
  *  opaque link, or a nested BLOCK container forces block form. If the two lists disagree, the
  *  editor draws flow cells for something the file cannot hold. */
 export function flowFits(node: MNode): boolean {
-  if (node.metaTag !== null || node.setTag || node.selfValue) return false;
+  if (node.metaTag !== null || node.setTag || node.yoTag || node.selfValue) return false;
   return node.entries.every((e) => {
     const n = e.node;
     if (n.kind === "link") return false;
@@ -780,7 +785,7 @@ export function blockSrcWith(header: string, text: string): string | null {
 export function mkHoleEntry(): MEntry {
   return {
     id: nid(), key: null, decided: false, committed: false,
-    node: { id: nid(), rev: 0, kind: "hole", entries: [], selfAt: 0, metaTag: null, setTag: false },
+    node: { id: nid(), rev: 0, kind: "hole", entries: [], selfAt: 0, metaTag: null, setTag: false, yoTag: false },
   };
 }
 

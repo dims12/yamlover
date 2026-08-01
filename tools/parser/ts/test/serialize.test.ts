@@ -75,10 +75,11 @@ test('yamlover rt: keyed back-edges and ~- membership', () => {
   rtYamlover('eve:\n  cain: *: adam: cain\nadam:\n  cain:\n    ~cain: *: eve\nfavorites:\n  - *: adam\nfan:\n  name: Bob\n  ~- *: favorites\n');
 });
 
-test('yamlover rt: !!mix / !!var are NOT emitted — omni is the default (no-op tags dropped)', () => {
+test('yamlover rt: !!mix is dropped (omni default); !!var re-emits as its new name !!yo', () => {
   const out = rtYamlover('playlist: !!mix\n  - Intro\n  title: Greatest Hits\n  - Chorus\nrating: !!var 5\n  - solid\n  scale: 10\n');
-  assert.doesNotMatch(out, /!!mix|!!var|!!omni/); // the shape tags are re-derived, never written
-  // …and the untagged output reparses to the SAME graph (a mixed container + a scalar-plus-fields)
+  assert.doesNotMatch(out, /!!mix|!!var|!!omni/); // the no-op marker dropped; the aliases renamed
+  assert.match(out, /^rating: !!yo 5$/m); // `!!var` is a read-forever ALIAS of the semantic `!!yo`
+  // …and the mixture stays untagged (a mixed container is the default shape)
   assert.match(out, /^ {2}- Intro$/m);
   assert.match(out, /^ {2}title: Greatest Hits$/m);
 });
@@ -88,13 +89,24 @@ test('yamlover rt: !!set survives via meta', () => {
   assert.match(out, /crew: !!set/);
 });
 
-test('yamlover rt: a root omni self-value re-emits TAGLESS (omni is the default; the no-op tag is dropped)', () => {
+test('yamlover rt: a root !!var re-emits as a lone !!yo line (the semantic rename)', () => {
   const out = rtYamlover('!!var Built-in tags\ncolors: palette\n');
-  assert.doesNotMatch(out, /!!var|!!omni/); // the no-op marker is dropped
-  assert.match(out, /^Built-in tags$/m); // the self-value line, tagless
+  assert.doesNotMatch(out, /!!var|!!omni/); // the deprecated spellings are never written
+  assert.match(out, /^!!yo$/m); // the semantic mark survives — the lone-tag document-root form
+  assert.match(out, /^Built-in tags$/m); // the self-value line
   assert.match(out, /^colors: palette$/m); // its field
-  // the deprecated `!!omni` alias parses to the same shape and also re-emits tagless
-  assert.doesNotMatch(rtYamlover('!!omni Built-in tags\ncolors: palette\n'), /!!var|!!omni/);
+  // the deprecated `!!omni` alias parses to the same shape and also re-emits as !!yo
+  assert.match(rtYamlover('!!omni Built-in tags\ncolors: palette\n'), /^!!yo$/m);
+});
+
+test('yamlover rt: !!yo is semantic — kept on keyed nodes, containers, and the root', () => {
+  // keyed omni: the tag rides the value line, exactly where it was authored
+  assert.match(rtYamlover('rating: !!yo 5\n  - solid\n  scale: 10\n'), /^rating: !!yo 5$/m);
+  // a container (no self-value) — the escape-hatch shape a chapter body uses
+  const c = rtYamlover('island: !!yo\n  species: cat\n  - keyless\n');
+  assert.match(c, /^island: !!yo$/m);
+  // an UNTAGGED omni stays untagged: !!yo is authored semantics, never re-derived from shape
+  assert.doesNotMatch(rtYamlover('rating: 5\n  - solid\n  scale: 10\n'), /!!yo/);
 });
 
 test('yamlover rt: a MULTILINE root omni self-value re-emits as a tagless block scalar, fields follow', () => {

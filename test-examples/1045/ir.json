@@ -3,6 +3,7 @@
     "kind": "mapping",
     "array": true,
     "set": false,
+    "yo": false,
     "anchors": [],
     "entries": [
       {
@@ -12,6 +13,7 @@
           "kind": "mapping",
           "array": true,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -22,6 +24,7 @@
                 "value": "one",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -34,6 +37,7 @@
                 "value": "two",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -48,6 +52,7 @@
           "kind": "mapping",
           "array": true,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -58,6 +63,7 @@
                 "value": "three",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -70,6 +76,7 @@
                 "value": "four",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }

@@ -11,9 +11,10 @@
 import { useEffect, useRef } from "react";
 import { rendererFor, type Chunk } from "./registry";
 import { focusEnd } from "./caret";
-import { asLink, scalarValue } from "../render";
+import { asLink, asMixed, scalarValue } from "../render";
 import { anchorOf, chapterFlow, childSlot, flowText } from "./chapter-model";
 import { InlineSubchapter } from "./subchapter";
+import { DataChunk } from "./data-chunk";
 
 /** The `[n]` gutter — an in-page anchor link to the chunk's own location, or a plain marker.
  *  `n` is the chunk's ABSOLUTE entry index (CHAPTER.md §Addressing): the same number a marklower
@@ -216,6 +217,17 @@ export function ChapterBody({
     }
     if (f.kind === "description") return <p key={i} className="chapter-subtitle">{flowText(f.value)}</p>;
     const childSlotId = childSlot(slot, f.absIndex);
+    if (f.kind === "data") {
+      // a `!!yo` island: exempt from the chapter schema, drawn by the generic renderer —
+      // still a numbered body element, so it keeps the [n] gutter and its anchor slot
+      const link = asLink(f.value);
+      const anchor = anchorOf(anchorBase, link?.path ?? "", childSlotId);
+      return (
+        <ChunkShell key={i} anchor={anchor} nodePath={link?.path} gutter={<ChunkGutter index={f.absIndex} anchor={anchor} />}>
+          <DataChunk item={f.value} documentPath={documentPath} onNavigate={onNavigate} />
+        </ChunkShell>
+      );
+    }
     if (f.kind === "subchapter") {
       return (
         <InlineSubchapter
@@ -308,11 +320,14 @@ export function chunkOf(item: unknown, documentPath?: string): Chunk {
   const link = asLink(item);
   const value = link ? link.value : scalarValue(item); // peel an annotation overlay to the prose under it
   const inlineProse = !link && typeof value === "string";
+  // an INLINED tagged container (a deeper fetch's $yamloverMixed marker) carries its format on
+  // the marker — without it the registry cannot dispatch and the chunk prints "[object Object]"
+  const mixedFormat = asMixed(item)?.format ?? null;
   return {
     value,
     path: link?.path ?? "",
     type: link?.type ?? "string",
-    format: link?.format ?? (inlineProse ? "text/marklower" : null),
+    format: link?.format ?? mixedFormat ?? (inlineProse ? "text/marklower" : null),
     valueType: link?.valueType ?? "string",
     hasKeyed: link?.hasKeyed ?? false,
     hasOrdinal: link?.hasOrdinal ?? false,

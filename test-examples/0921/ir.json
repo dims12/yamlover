@@ -4,6 +4,7 @@
     "value": "A Tour of marklower Links",
     "array": true,
     "set": false,
+    "yo": false,
     "schema": {
       "ptr": {
         "base": {
@@ -35,6 +36,7 @@
           "value": "marklower links live in **JSON instance space**, in three flavours. Jump to the\ndocument-relative links subchapter at [/[2]](/[2]), the project-root one\nat [/[3]](/[3]), or external links at [/[4]](/[4]) — each\nits own subchapter below.\n",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -47,6 +49,7 @@
           "value": "Wherever you are in this guide, the top of it at [/[0]](/[0]) is one\ndocument-relative link away. You can also leave for the wider world, like the KaTeX\nproject at [https://katex.org](https://katex.org).\n",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -59,6 +62,7 @@
           "value": "Document-relative links",
           "array": true,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -69,6 +73,7 @@
                 "value": "A `/path` link is relative to **this document** — the whole guide — however deep you\nare reading. So [/[0]](/[0]) always lands on the opening line.\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -81,6 +86,7 @@
                 "value": "From here, reach a sibling section at [/[3]](/[3]), or descend deeper\nto [/[2][2]](/[2][2]).\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -93,6 +99,7 @@
                 "value": "Going deeper",
                 "array": true,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -103,6 +110,7 @@
                       "value": "Even two levels down, a `/…` link still counts from the document root: the intro at\n[/[0]](/[0]), and the external-links section at [/[4]](/[4]).\n",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -121,6 +129,7 @@
           "value": "Project-root links",
           "array": true,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -131,6 +140,7 @@
                 "value": "A `//path` link is relative to the **project root** — the directory you served. Served\nfrom the repo, a sibling example is at [//examples/68-math-chapter](//examples/68-math-chapter),\nor one formula in it at [//examples/68-math-chapter/[2]](//examples/68-math-chapter/[2]).\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -143,6 +153,7 @@
                 "value": "The pet handbook is at [//examples/66-pet-keeper-handbook](//examples/66-pet-keeper-handbook). To return home,\nregardless of mount point, use a document-relative link to this guide's intro at\n[/[0]](/[0]).\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -158,6 +169,7 @@
           "value": "External links",
           "array": true,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -168,6 +180,7 @@
                 "value": "Any target with a scheme is an external link, opened in a new tab: Wikipedia on\nhyperlinks at [https://en.wikipedia.org/wiki/Hyperlink](https://en.wikipedia.org/wiki/Hyperlink),\nor email the maintainer at [mailto:dimskraft@gmail.com](mailto:dimskraft@gmail.com).\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }

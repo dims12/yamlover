@@ -353,6 +353,18 @@ describe("bodyKindOf — inlined containers", () => {
     expect(bodyKindOf("prose")).toBe("chunk");
     expect(bodyKindOf(42)).toBe("chunk");
   });
+
+  it("a `!!yo` mark trumps everything — a DATA island at both depths, whatever the shape", () => {
+    // the depth-boundary link marker (the normal chapter fetch)
+    const yoLink = { $yamloverLink: { kind: "omni", type: "variant", hasKeyed: true, hasOrdinal: true, path: "[3]", concrete: "yamlover", yo: true, value: 5 } };
+    expect(bodyKindOf(yoLink)).toBe("data");
+    // an inlined marker (a deeper fetch) — yo wins over format AND over the structural rule
+    const yoMixed = { $yamloverMixed: { kind: "omni", value: 5, format: "x-yamlover-chapter", yo: true, entries: [{ key: null, value: "solid" }] } };
+    expect(bodyKindOf(yoMixed)).toBe("data");
+    // a yo-marked pure container (no self-value) is data too, never a subchapter
+    const yoContainer = { $yamloverMixed: { kind: "mix", format: null, yo: true, entries: [{ key: "species", value: "cat" }] } };
+    expect(bodyKindOf(yoContainer)).toBe("data");
+  });
 });
 
 describe("chapterFlow — absIndex", () => {

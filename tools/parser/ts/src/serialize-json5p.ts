@@ -56,9 +56,10 @@ class Emitter {
     if (n.kind === 'blob') throw new LossyError('a blob has no json5p text form (its bytes live in a file)');
     if (n.meta?.schema !== undefined) throw new LossyError('json5p has no !!<…> schema tag — attach the schema via the meta layer (META.md)');
     if (n.meta?.set === true) throw new LossyError('json5p has no !!set — set semantics come from the meta layer (uniqueItems: true)');
+    if (n.meta?.yo === true) throw new LossyError('json5p has no !!yo — the plain-yamlover mark has no brace-surface spelling');
     if (n.kind === 'scalar') {
       if ((n.entries ?? []).filter((e) => !isAnchorizableBack(e)).length > 0) {
-        throw new LossyError('a value-plus-fields node (!!var) is not expressible in json5p');
+        throw new LossyError('a value-plus-fields node (the omni shape) is not expressible in json5p');
       }
       return scalarTok(n);
     }

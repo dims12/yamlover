@@ -68,9 +68,15 @@ export interface NodeMeta {
   positional?: number;
   /** SET semantics (`!!set` tag / `uniqueItems: true` in meta): an element appears at most
    *  once, so duplicate memberships — forward+forward, forward+`~-` reverse, reverse+reverse —
-   *  collapse to one (URIs.md §`~-`). Unlike `!!mix`/`!!var` (parse permissions visible in the
+   *  collapse to one (URIs.md §`~-`). Unlike `!!mix` (a parse permission visible in the
    *  node's shape), this must survive into the graph. */
   set?: boolean;
+  /** The `!!yo` tag (formerly `!!var`/`!!omni` — read forever as aliases, emitted as `!!yo`):
+   *  this node is PLAIN YAMLOVER, exempt from the enclosing document's schema. A structured
+   *  consumer (the chapter renderer/editor) must not interpret it by that schema — it is
+   *  delegated to the generic yamlover renderer/editor. Semantic, so it survives into the
+   *  graph and is part of IR identity (canon.ts), exactly like {@link set}. */
+  yo?: boolean;
   /** This node is RESOLVABLE (indexed, addressable by pointers) but HIDDEN from listings: the
    *  TOC, the directory explorer projection, and visible child counts omit it. Set on the
    *  `.yo` overlay-dir node so its derived sidecars (`thumbnails/`, `fragments/`) resolve

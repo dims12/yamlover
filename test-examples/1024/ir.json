@@ -3,6 +3,7 @@
     "kind": "mapping",
     "array": false,
     "set": false,
+    "yo": false,
     "anchors": [],
     "entries": [
       {
@@ -13,6 +14,7 @@
           "value": "bar",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }

@@ -4,6 +4,7 @@
     "value": "hello world",
     "array": false,
     "set": false,
+    "yo": false,
     "anchors": [],
     "entries": []
   }

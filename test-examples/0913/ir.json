@@ -3,6 +3,7 @@
     "kind": "mapping",
     "array": false,
     "set": false,
+    "yo": false,
     "anchors": [],
     "entries": [
       {
@@ -12,6 +13,7 @@
           "kind": "mapping",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -21,6 +23,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [
                   {
                     "base": {
@@ -48,6 +51,7 @@
                       "value": null,
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [
                         {
                           "base": {
@@ -84,6 +88,7 @@
                 "value": null,
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [
                   {
                     "base": {
@@ -112,6 +117,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [
                   {
                     "base": {
@@ -169,6 +175,7 @@
           "kind": "mapping",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {

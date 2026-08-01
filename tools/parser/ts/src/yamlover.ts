@@ -7,7 +7,8 @@
 // (URIs.md §`&` — same line as the value or on their own lines; multiple per node), the
 // deprecated `~key:` back-edges and `~-` keyless back-edges (≡ `&P/key` / `&P[]`), and
 // omni-by-default: an untagged node may mix keyed+keyless entries and carry a scalar
-// value line anywhere in its block (`!!mix`/`!!omni` parse as no-op markers).
+// value line anywhere in its block (`!!mix` parses as a no-op marker; `!!yo` — aliases
+// `!!var`/`!!omni` — and `!!set` are semantic and survive into the graph).
 //
 // NOT yet handled (Phase 2c TODO): multi-document (`---`), merge keys (`<<`), and flow
 // that spans multiple lines.
@@ -225,10 +226,11 @@ class Block {
   node(minIndent: number): Node | Pointer | null {
     const l = this.peek();
     if (!l || l.indent < minIndent) return null;
-    // a lone type tag (no preceding key): `!!var` (≡ deprecated `!!omni`) / `!!mix` / `!!set` at
-    // the document root or as a block value. Hand to valueAfter with the block one column shallower
-    // so the tag's own line (its inline value, plus the fields/entries below it) parses as that value.
-    if (/^!!(mix|var|omni|set)(?=\s|$)/.test(l.text)) {
+    // a lone type tag (no preceding key): `!!yo` (≡ deprecated `!!var`/`!!omni`) / `!!mix` /
+    // `!!set` at the document root or as a block value. Hand to valueAfter with the block one
+    // column shallower so the tag's own line (its inline value, plus the fields/entries below
+    // it) parses as that value.
+    if (/^!!(mix|var|omni|yo|set)(?=\s|$)/.test(l.text)) {
       this.i++;
       return this.valueAfter(l.text, l.indent - 1, l.n, l.indent);
     }
@@ -389,12 +391,13 @@ class Block {
    *  `col` = the column of `rest` in raw line `srcLineN` (span tracking). */
   valueAfter(rest: string, parentIndent: number, srcLineN: number, col: number): Value {
     ({ rest, col } = adv(rest, 0, col));
-    // the DECORATION PREFIX, in any authored order: a `!!<…>` schema tag, an opt-in type tag
-    // (`!!mix` mixed container / `!!var <v>` scalar-plus-fields, `!!omni` its deprecated alias /
-    // `!!set` set semantics — NodeMeta.set), and inline `&` anchors — `&item01 !!<…>` is as
-    // legal as `!!<…> &item01` (the anchor-first spelling is what positional projections show)
+    // the DECORATION PREFIX, in any authored order: a `!!<…>` schema tag, type tags
+    // (`!!mix` mixed container — a no-op marker / `!!yo` plain-yamlover, `!!var <v>` and
+    // `!!omni` its deprecated aliases / `!!set` set semantics — NodeMeta.yo / NodeMeta.set),
+    // and inline `&` anchors — `&item01 !!<…>` is as legal as `!!<…> &item01` (the
+    // anchor-first spelling is what positional projections show)
     let schema: Value | undefined;
-    let typeTag: 'mix' | 'omni' | 'set' | undefined;
+    const typeTags = new Set<'mix' | 'yo' | 'set'>();
     const anchors: Anchor[] = [];
     for (;;) {
       if (schema === undefined && rest.startsWith('!!<')) {
@@ -404,9 +407,11 @@ class Block {
         ({ rest, col } = adv(rest, close + 1, col));
         continue;
       }
-      const tag = typeTag === undefined ? /^!!(mix|var|omni|set)(?=\s|$)/.exec(rest) : null;
+      const tag = /^!!(mix|var|omni|yo|set)(?=\s|$)/.exec(rest);
       if (tag) {
-        typeTag = (tag[1] === 'var' ? 'omni' : tag[1]) as 'mix' | 'omni' | 'set';
+        const t = (tag[1] === 'var' || tag[1] === 'omni' ? 'yo' : tag[1]) as 'mix' | 'yo' | 'set';
+        if (typeTags.has(t)) break;
+        typeTags.add(t);
         ({ rest, col } = adv(rest, tag[0].length, col));
         continue;
       }
@@ -451,8 +456,10 @@ class Block {
       value = this.attachFields(value, parentIndent);
     }
     this.attachAnchors(value, anchors);
-    // `!!mix`/`!!var` are no-op markers (the omni shape is the default); `!!set` carries real semantics
-    if (typeTag === 'set' && !isPointer(value)) value.meta = { ...value.meta, set: true }; // survives into the graph
+    // `!!mix` is a no-op marker (the omni shape is the default); `!!set` and `!!yo` carry
+    // real semantics and survive into the graph
+    if (typeTags.has('set') && !isPointer(value)) value.meta = { ...value.meta, set: true };
+    if (typeTags.has('yo') && !isPointer(value)) value.meta = { ...value.meta, yo: true };
     if (schema !== undefined && !isPointer(value)) value.meta = { ...value.meta, schema };
     return value;
   }

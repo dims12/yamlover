@@ -3,6 +3,7 @@
     "kind": "mapping",
     "array": false,
     "set": false,
+    "yo": false,
     "anchors": [],
     "entries": [
       {
@@ -13,6 +14,7 @@
           "value": "A small taxonomy for short / deadpan papers — two axes, field and genre",
           "array": false,
           "set": false,
+          "yo": false,
           "schema": {
             "ptr": {
               "base": {
@@ -44,6 +46,7 @@
                 "value": "What the paper is about",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -54,6 +57,7 @@
                       "value": "Mathematics",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -64,6 +68,7 @@
                             "value": "Number theory — Diophantine equations, sums of powers",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -79,6 +84,7 @@
                       "value": "Physics",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -89,6 +95,7 @@
                             "value": "Quantum mechanics and measurement",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -101,6 +108,7 @@
                             "value": "Particle physics — neutrinos and the like",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -116,6 +124,7 @@
                       "value": "Earth science",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -126,6 +135,7 @@
                             "value": "Seismology — earthquakes and their statistics",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -141,6 +151,7 @@
                       "value": "Chemistry",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -153,6 +164,7 @@
                       "value": "Psychology",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -163,6 +175,7 @@
                             "value": "Applied behavior analysis",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -181,6 +194,7 @@
                 "value": "How the paper is short",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -191,6 +205,7 @@
                       "value": "The paper is famously short",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -201,6 +216,7 @@
                             "value": "Famously the shortest paper in its journal",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -213,6 +229,7 @@
                             "value": "The title is a question; the abstract answers it in a word",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -225,6 +242,7 @@
                             "value": "The body of the paper is (almost) entirely blank",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -240,6 +258,7 @@
                       "value": "The paper is a joke",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -250,6 +269,7 @@
                             "value": "Plays it completely straight",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -262,6 +282,7 @@
                             "value": "Mocks its target",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -277,6 +298,7 @@
                       "value": "A secondary / derivative edition of another paper",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -299,6 +321,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -308,6 +331,7 @@
                 "kind": "mapping",
                 "array": true,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -415,6 +439,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -424,6 +449,7 @@
                 "kind": "mapping",
                 "array": true,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -630,6 +656,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -639,6 +666,7 @@
                 "kind": "mapping",
                 "array": true,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -790,6 +818,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -799,6 +828,7 @@
                 "kind": "mapping",
                 "array": true,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -899,6 +929,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -908,6 +939,7 @@
                 "kind": "mapping",
                 "array": true,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {

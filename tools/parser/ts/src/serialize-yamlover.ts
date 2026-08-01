@@ -67,9 +67,11 @@ class Emitter {
     const kept = ents.filter((e) => !isAnchorizableBack(e)); // conv backs re-emit as anchors
     if (root.kind === 'scalar') {
       // A root omni self-value is written among its entries at its AUTHORED position (`meta.selfAt`,
-      // 0 = first) — order-preserving, though the value stays positionless DATA. It is written with
-      // NO tag (omni is the default; `!!var` is only a no-op marker); a multi-line value becomes a
+      // 0 = first) — order-preserving, though the value stays positionless DATA. The omni SHAPE
+      // needs no tag (omni is the default), but the SEMANTIC tags (`!!yo`, `!!set`) ride their own
+      // lone line first — the "lone tag marks the document root" form; a multi-line value becomes a
       // block scalar (see `selfLine`), a single-line one stays inline.
+      for (const tag of this.containerTags(root)) this.out.push(tag);
       const at = Math.min(root.meta?.selfAt ?? 0, ents.length);
       this.entries(ents.slice(0, at), 0);
       this.selfLine(root, 0);
@@ -87,8 +89,7 @@ class Emitter {
       this.out.push(flowTextOrNull(root)!);
       this.rootAnchors(root);
     } else {
-      const tag = this.containerTag(root);
-      if (tag !== null) this.out.push(tag);
+      for (const tag of this.containerTags(root)) this.out.push(tag);
       this.rootAnchors(root);
       this.entries(ents, 0);
     }
@@ -262,14 +263,14 @@ class Emitter {
     this.keyed('-', value, indent);
   }
 
-  /** Value-position prefixes, in the parser's reading order: the `!!<…>` schema and `!!set`
-   *  (the only shape tag with semantics — omni/`!!mix` is the default and is never emitted).
+  /** Value-position prefixes, in the parser's reading order: the `!!<…>` schema, `!!yo`
+   *  (plain-yamlover, exempt from the enclosing schema) and `!!set` — the shape tags with
+   *  semantics (omni/`!!mix` is the default and is never emitted).
    *  Anchors are NOT here — canonical style (SEPARATOR.md M3) puts them on own lines. */
   decorations(node: Node): string[] {
     const parts: string[] = [];
     if (node.meta?.schema !== undefined) parts.push(schemaTagToken(node.meta.schema));
-    const tag = this.containerTag(node);
-    if (tag !== null) parts.push(tag);
+    parts.push(...this.containerTags(node));
     return parts;
   }
 
@@ -280,12 +281,15 @@ class Emitter {
     for (const t of this.anchorTokens(node, /*ownLine*/ true)) this.out.push(pad + t);
   }
 
-  containerTag(node: Node): string | null {
-    // Only `!!set` carries semantics worth emitting; `!!mix` (a mixed keyed+keyless container) and
-    // `!!var` (a scalar-plus-fields) are the DEFAULT shape (omni-by-default, YAMLOVER.md §4), so a
-    // node emits NEITHER — an untagged mixture parses back to the same IR. Tags remain accepted on
-    // input as no-op markers.
-    return node.meta?.set === true ? '!!set' : null;
+  containerTags(node: Node): string[] {
+    // `!!yo` and `!!set` carry semantics and are emitted; `!!mix` (a mixed keyed+keyless
+    // container) is the DEFAULT shape (omni-by-default, YAMLOVER.md §4), so it is never
+    // emitted — an untagged mixture parses back to the same IR. `!!var`/`!!omni` are read as
+    // deprecated aliases of `!!yo` and re-emit as `!!yo`.
+    const tags: string[] = [];
+    if (node.meta?.yo === true) tags.push('!!yo');
+    if (node.meta?.set === true) tags.push('!!set');
+    return tags;
   }
 
   /** A single-line scalar token (never contains a newline — multiline strings go through
@@ -468,7 +472,7 @@ function flowText(n: Node): string {
  *  here without adding it there makes the screen and the file disagree. */
 function flowTextOrNull(n: Node): string | null {
   if (n.kind === 'blob') return null; // a blob's bytes live in a file, not in a token
-  if (n.meta?.schema !== undefined || n.meta?.set === true) return null; // a tag needs its own line
+  if (n.meta?.schema !== undefined || n.meta?.set === true || n.meta?.yo === true) return null; // a tag needs its own line
   // a path anchor has NO flow spelling — emitting the node inline would silently drop it (which
   // is what the tag-interior path did); block form carries it on its own line
   if ((n.meta?.anchors ?? []).length > 0) return null;

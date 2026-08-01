@@ -120,7 +120,7 @@ export function entryFromIR(e: IREntry): M.MEntry {
 function pointerNodeFromIR(raw: string): M.MNode {
   return {
     id: M.nid(), rev: 0, kind: "pointer", pointer: { raw, refPath: null },
-    entries: [], selfAt: 0, metaTag: null, setTag: false,
+    entries: [], selfAt: 0, metaTag: null, setTag: false, yoTag: false,
   };
 }
 
@@ -128,7 +128,8 @@ export function nodeFromIR(n: IRNode): M.MNode {
   const base: M.MNode = {
     id: M.nid(), rev: 0, kind: "container", entries: [], selfAt: 0,
     metaTag: n.meta?.schema !== undefined ? metaTagFromIR(n.meta.schema) : null,
-    setTag: false,
+    setTag: n.meta?.set === true,
+    yoTag: n.meta?.yo === true,
   };
   if (n.kind === "scalar" && !(n.entries?.length)) {
     return { ...base, kind: "scalar", scalar: scalarFromIR(n) };

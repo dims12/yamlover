@@ -142,7 +142,7 @@ export function hasKeyedTitle(value: unknown): boolean {
 }
 
 /** One element of a chapter's rendered FLOW — everything the page shows, in source order. */
-export type FlowKind = "title" | "description" | "subchapter" | "chunk";
+export type FlowKind = "title" | "description" | "subchapter" | "chunk" | "data";
 export interface FlowItem {
   kind: FlowKind;
   value: unknown; // the entry value (a `$yamloverLink` marker or an inline scalar)
@@ -165,10 +165,13 @@ const isBodyEntry = (e: { key: string | null; anchor?: boolean }): boolean => e.
  *  marker carrying `format` but NO `path`, and an untagged all-keyless one as a bare array. So the
  *  rule is CHAPTER.md's own: a CONTAINER body element is a subchapter — unless an explicit tag (a
  *  table, a typographical list) says it is content, or its only entries are annotation overlays,
- *  which leave a scalar a scalar. A leaf is always a chunk. */
+ *  which leave a scalar a scalar. A leaf is always a chunk. The `!!yo` mark trumps everything:
+ *  the node opted out of the chapter schema, so it is a DATA island drawn by the generic
+ *  renderer — never interpreted as a subchapter or a chunk, whatever its shape or format. */
 export function bodyKindOf(v: unknown): FlowKind {
   const link = asLink(v);
   if (link) {
+    if (link.yo === true) return "data";
     if (link.format != null) return isSubchapter(link.format) ? "subchapter" : "chunk";
     // UNTAGGED at the depth boundary (a not-yet-stamped chapter, mid-write): the same structural
     // rule as the mixed branch below — a container body element IS a subchapter. Ordinal entries
@@ -177,6 +180,7 @@ export function bodyKindOf(v: unknown): FlowKind {
   }
   const mixed = asMixed(v);
   if (mixed) {
+    if (mixed.yo === true) return "data";
     if (mixed.format != null) return isSubchapter(mixed.format) ? "subchapter" : "chunk"; // tagged: the tag decides
     // untagged: a CONTAINER is a subchapter — but overlay keys are not body, so a scalar wearing
     // only an annotation/fragment overlay is still the chunk it was

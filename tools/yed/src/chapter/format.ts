@@ -167,6 +167,9 @@ export function chunkModeOf(v: Value): ChunkMode {
   if (isPointer(v)) return "atom";
   const n = v as Node;
   if (n.kind === "blob") return "atom";
+  // the `!!yo` PLAIN-YAMLOVER mark: the node opted out of the enclosing (chapter) schema —
+  // never a subchapter, never prose; edited as inline yamlover source, whatever its shape
+  if (n.meta?.yo === true) return "source";
   const explicit = explicitFormatOf(n);
   if (isChapterContainer(n)) {
     const declared = declaredFormat(n);

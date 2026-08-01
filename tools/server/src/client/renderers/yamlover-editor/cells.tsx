@@ -946,9 +946,10 @@ function TrailingComment({ bucket }: { bucket?: CommentBucket }) {
 
 function Anchors({ node }: { node: MNode }) {
   const anchors = node.bucket?.anchors ?? [];
-  if (!anchors.length && !node.setTag) return null;
+  if (!anchors.length && !node.setTag && !node.yoTag) return null;
   return (
     <>
+      {node.yoTag && <span className="b">!!yo </span>}
       {node.setTag && <span className="b">!!set </span>}
       {anchors.map((a, i) => <span key={i} className="anchor">{"&" + a + " "}</span>)}
     </>

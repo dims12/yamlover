@@ -3,6 +3,7 @@
     "kind": "mapping",
     "array": false,
     "set": false,
+    "yo": false,
     "anchors": [],
     "entries": [
       {
@@ -12,6 +13,7 @@
           "kind": "mapping",
           "array": true,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -21,6 +23,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -31,6 +34,7 @@
                       "value": "Rex",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -43,6 +47,7 @@
                       "value": "dog",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -57,6 +62,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -67,6 +73,7 @@
                       "value": "Whiskers",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -79,6 +86,7 @@
                       "value": "cat",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -93,6 +101,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -103,6 +112,7 @@
                       "value": "Bubbles",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -115,6 +125,7 @@
                       "value": "fish",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -132,6 +143,7 @@
           "kind": "mapping",
           "array": true,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -141,6 +153,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -151,6 +164,7 @@
                       "value": "Alice",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -231,6 +245,7 @@
           "kind": "mapping",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [
             {
               "base": {
@@ -254,6 +269,7 @@
                 "value": "Rex",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -266,6 +282,7 @@
                 "value": "dog",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -280,6 +297,7 @@
           "kind": "mapping",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -355,6 +373,7 @@
           "kind": "mapping",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -388,6 +407,7 @@
           "kind": "mapping",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -397,6 +417,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [
                   {
                     "base": {
@@ -428,6 +449,7 @@
           "kind": "mapping",
           "array": true,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -461,6 +483,7 @@
           "kind": "mapping",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [
             {
               "base": {
@@ -496,6 +519,7 @@
                 "value": "Bob",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -510,6 +534,7 @@
           "kind": "mapping",
           "array": true,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -539,6 +564,7 @@
           "kind": "mapping",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -549,6 +575,7 @@
                 "value": 1,
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }

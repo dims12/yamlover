@@ -3,6 +3,7 @@
     "kind": "mapping",
     "array": false,
     "set": false,
+    "yo": false,
     "anchors": [],
     "entries": [
       {
@@ -13,6 +14,7 @@
           "value": "The picture",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -24,6 +26,7 @@
           "kind": "mapping",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -33,6 +36,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -42,6 +46,7 @@
                       "kind": "mapping",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -52,6 +57,7 @@
                             "value": "full",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -77,6 +83,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }

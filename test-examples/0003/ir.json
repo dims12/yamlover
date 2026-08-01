@@ -3,6 +3,7 @@
     "kind": "mapping",
     "array": false,
     "set": false,
+    "yo": false,
     "anchors": [],
     "entries": [
       {
@@ -13,6 +14,7 @@
           "value": "just text",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -25,6 +27,7 @@
           "value": "a # b",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -37,6 +40,7 @@
           "value": "x # y",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -49,6 +53,7 @@
           "value": "she said \"hi\"",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }

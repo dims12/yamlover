@@ -4,6 +4,7 @@
     "value": "The Pet Keeper's Handbook",
     "array": false,
     "set": false,
+    "yo": false,
     "schema": {
       "ptr": {
         "base": {
@@ -35,6 +36,7 @@
           "value": "A friendly guide to living with animals",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -47,6 +49,7 @@
           "value": "**Pets share our homes, our routines, and a surprising amount of our furniture.** This\nhandbook collects what every keeper learns sooner or later, one species at a time.\n",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -59,6 +62,7 @@
           "value": "Read the chapter for your companion, but the first rule is universal: *watch, listen, and\nbe patient.*\n",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -75,6 +79,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -84,6 +89,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -125,6 +131,7 @@
           "value": "Three needs run through every chapter — **company, exercise, and a clean environment** —\nweighted differently for each animal:\n",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -137,10 +144,12 @@
           "value": "@startmindmap\n* Pet keeping\n** Dogs\n*** Daily walks\n*** Consistent training\n** Cats\n*** Vertical space\n*** A clean litter box\n** Fish\n*** Water quality\n*** Sparing feeding\n@endmindmap\n",
           "array": false,
           "set": false,
+          "yo": false,
           "schema": {
             "kind": "mapping",
             "array": false,
             "set": false,
+            "yo": false,
             "anchors": [],
             "entries": [
               {
@@ -151,6 +160,7 @@
                   "value": "text/x-plantuml",
                   "array": false,
                   "set": false,
+                  "yo": false,
                   "anchors": [],
                   "entries": []
                 }
@@ -169,6 +179,7 @@
           "value": "Dogs",
           "array": false,
           "set": false,
+          "yo": false,
           "schema": {
             "ptr": {
               "base": {
@@ -200,6 +211,7 @@
                 "value": "Loyal, loud, and endlessly hopeful",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -212,6 +224,7 @@
                 "value": "A dog is a **social animal** that adopts your family as its pack.\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -228,6 +241,7 @@
                 },
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -237,6 +251,7 @@
                       "kind": "mapping",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -278,6 +293,7 @@
                 "value": "Daily walks are not optional; they are how a dog reads the news of the neighbourhood.\nConsistency matters more than severity — the same word should always mean the same thing.\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -290,6 +306,7 @@
                 "value": "A walk is a small ritual you both know by heart:\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -302,10 +319,12 @@
                 "value": "@startuml\nactor Keeper\nparticipant Dog\nKeeper -> Dog : pick up the lead\nDog --> Keeper : spins with delight\nKeeper -> Dog : walk the usual route\nDog -> Dog : reads the news (sniffs)\nDog --> Keeper : returns home calm\n@enduml\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "schema": {
                   "kind": "mapping",
                   "array": false,
                   "set": false,
+                  "yo": false,
                   "anchors": [],
                   "entries": [
                     {
@@ -316,6 +335,7 @@
                         "value": "text/x-plantuml",
                         "array": false,
                         "set": false,
+                        "yo": false,
                         "anchors": [],
                         "entries": []
                       }
@@ -334,6 +354,7 @@
                 "value": "Puppies",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "schema": {
                   "ptr": {
                     "base": {
@@ -365,6 +386,7 @@
                       "value": "The first few months",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -377,6 +399,7 @@
                       "value": "Puppies sleep most of the day and chew most of the rest.\n",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -393,6 +416,7 @@
                       },
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -402,6 +426,7 @@
                             "kind": "mapping",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": [
                               {
@@ -443,6 +468,7 @@
                       "value": "Begin house training the day they arrive, reward every success generously, and give\nearly, gentle exposure to people and places — it shapes a calm adult dog.\n",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -455,6 +481,7 @@
                       "value": "The first months follow a rough schedule:\n",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -467,10 +494,12 @@
                       "value": "@startgantt\nProject starts 2026-01-01\n[Settle in] lasts 3 days\n[House training] lasts 28 days\n[House training] starts at [Settle in]'s end\n[Socialisation] lasts 60 days\n[Socialisation] starts at [Settle in]'s end\n@endgantt\n",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "schema": {
                         "kind": "mapping",
                         "array": false,
                         "set": false,
+                        "yo": false,
                         "anchors": [],
                         "entries": [
                           {
@@ -481,6 +510,7 @@
                               "value": "text/x-plantuml",
                               "array": false,
                               "set": false,
+                              "yo": false,
                               "anchors": [],
                               "entries": []
                             }
@@ -498,6 +528,7 @@
                       "kind": "mapping",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -507,6 +538,7 @@
                             "kind": "mapping",
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": [
                               {
@@ -521,6 +553,7 @@
                                   },
                                   "array": false,
                                   "set": false,
+                                  "yo": false,
                                   "anchors": [],
                                   "entries": []
                                 }
@@ -541,6 +574,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -550,6 +584,7 @@
                       "kind": "mapping",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -564,6 +599,7 @@
                             },
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -585,6 +621,7 @@
           "value": "Cats",
           "array": false,
           "set": false,
+          "yo": false,
           "schema": {
             "ptr": {
               "base": {
@@ -616,6 +653,7 @@
                 "value": "Independent roommates with opinions",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -628,6 +666,7 @@
                 "value": "A cat tolerates your presence on terms it renews daily.\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -644,6 +683,7 @@
                 },
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -653,6 +693,7 @@
                       "kind": "mapping",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -694,6 +735,7 @@
                 "value": "Vertical space — shelves, perches, a tall scratching post — keeps a cat content. And a\nclean litter box is the single most important thing you can offer a cat.\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -706,6 +748,7 @@
                 "value": "A cat's day cycles through a few well-known states:\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -718,10 +761,12 @@
                 "value": "@startuml\n[*] --> Aloof\nAloof --> Hungry : dinnertime\nHungry --> Affectionate : fed\nAffectionate --> Aloof : had enough\nAloof --> Zoomies : 3 a.m.\nZoomies --> Aloof : worn out\n@enduml\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "schema": {
                   "kind": "mapping",
                   "array": false,
                   "set": false,
+                  "yo": false,
                   "anchors": [],
                   "entries": [
                     {
@@ -732,6 +777,7 @@
                         "value": "text/x-plantuml",
                         "array": false,
                         "set": false,
+                        "yo": false,
                         "anchors": [],
                         "entries": []
                       }
@@ -749,6 +795,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -758,6 +805,7 @@
                       "kind": "mapping",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -772,6 +820,7 @@
                             },
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -793,6 +842,7 @@
           "value": "Fish",
           "array": false,
           "set": false,
+          "yo": false,
           "schema": {
             "ptr": {
               "base": {
@@ -824,6 +874,7 @@
                 "value": "A quiet window into another world",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -836,6 +887,7 @@
                 "value": "An aquarium is a small ecosystem, and **water quality is everything.**\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -852,6 +904,7 @@
                 },
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -861,6 +914,7 @@
                       "kind": "mapping",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -902,6 +956,7 @@
                 "value": "Cycle a new tank for weeks before adding fish, so helpful bacteria can establish. Feed\nsparingly: uneaten food fouls the water faster than anything else.\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -914,6 +969,7 @@
                 "value": "The bacteria you are waiting for run the **nitrogen cycle**, turning toxic waste into\nsomething far milder:\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": []
               }
@@ -926,10 +982,12 @@
                 "value": "@startuml\n[*] --> Ammonia : fish waste\nAmmonia --> Nitrite : Nitrosomonas\nNitrite --> Nitrate : Nitrobacter\nNitrate --> [*] : water change\n@enduml\n",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "schema": {
                   "kind": "mapping",
                   "array": false,
                   "set": false,
+                  "yo": false,
                   "anchors": [],
                   "entries": [
                     {
@@ -940,6 +998,7 @@
                         "value": "text/x-plantuml",
                         "array": false,
                         "set": false,
+                        "yo": false,
                         "anchors": [],
                         "entries": []
                       }
@@ -957,6 +1016,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -966,6 +1026,7 @@
                       "kind": "mapping",
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": [
                         {
@@ -980,6 +1041,7 @@
                             },
                             "array": false,
                             "set": false,
+                            "yo": false,
                             "anchors": [],
                             "entries": []
                           }
@@ -1001,6 +1063,7 @@
           "value": "**Whatever shares your home**, the craft is the same: notice what it needs before it has to\nask. Return to the chapter above whenever a new question arrives — the animals are patient\nteachers.\n",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -1012,6 +1075,7 @@
           "kind": "mapping",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -1021,6 +1085,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -1035,6 +1100,7 @@
                       },
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }

@@ -4,6 +4,7 @@
     "value": "All Supported Formats — as a chapter",
     "array": false,
     "set": false,
+    "yo": false,
     "schema": {
       "ptr": {
         "base": {
@@ -35,6 +36,7 @@
           "value": "A **marklower** chunk — the *default* for a chunk with no format. marklower is\ninline-only (no headings): **bold**, *italic*, ~~strikethrough~~, `inline code`,\ninline math $$e^{i\\pi}+1=0$$, and a [link back to this chapter](/).\n",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -47,10 +49,12 @@
           "value": "# Markdown chunk\nRendered with **marked** — *emphasis*, lists, and `code`. Headings too, unlike marklower.\n",
           "array": false,
           "set": false,
+          "yo": false,
           "schema": {
             "kind": "mapping",
             "array": false,
             "set": false,
+            "yo": false,
             "anchors": [],
             "entries": [
               {
@@ -61,6 +65,7 @@
                   "value": "text/markdown",
                   "array": false,
                   "set": false,
+                  "yo": false,
                   "anchors": [],
                   "entries": []
                 }
@@ -79,10 +84,12 @@
           "value": "== AsciiDoc chunk\n\nRendered with Asciidoctor.\n\n* one\n* two\n",
           "array": false,
           "set": false,
+          "yo": false,
           "schema": {
             "kind": "mapping",
             "array": false,
             "set": false,
+            "yo": false,
             "anchors": [],
             "entries": [
               {
@@ -93,6 +100,7 @@
                   "value": "text/asciidoc",
                   "array": false,
                   "set": false,
+                  "yo": false,
                   "anchors": [],
                   "entries": []
                 }
@@ -111,10 +119,12 @@
           "value": "@startuml\nAlice -> Bob : hello\n@enduml\n",
           "array": false,
           "set": false,
+          "yo": false,
           "schema": {
             "kind": "mapping",
             "array": false,
             "set": false,
+            "yo": false,
             "anchors": [],
             "entries": [
               {
@@ -125,6 +135,7 @@
                   "value": "text/x-plantuml",
                   "array": false,
                   "set": false,
+                  "yo": false,
                   "anchors": [],
                   "entries": []
                 }
@@ -143,10 +154,12 @@
           "value": "name,role,city\nAlice,Engineer,Berlin\nBob,\"Designer, UX\",Lisbon\n",
           "array": false,
           "set": false,
+          "yo": false,
           "schema": {
             "kind": "mapping",
             "array": false,
             "set": false,
+            "yo": false,
             "anchors": [],
             "entries": [
               {
@@ -157,6 +170,7 @@
                   "value": "text/csv",
                   "array": false,
                   "set": false,
+                  "yo": false,
                   "anchors": [],
                   "entries": []
                 }
@@ -179,6 +193,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -188,6 +203,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -233,6 +249,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -249,6 +266,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -258,6 +276,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -303,6 +322,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -312,6 +332,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -357,6 +378,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -373,6 +395,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -382,6 +405,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -427,6 +451,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -443,6 +468,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -459,6 +485,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -475,6 +502,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -491,6 +519,7 @@
           },
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": []
         }
@@ -502,6 +531,7 @@
           "kind": "mapping",
           "array": false,
           "set": false,
+          "yo": false,
           "anchors": [],
           "entries": [
             {
@@ -511,6 +541,7 @@
                 "kind": "mapping",
                 "array": false,
                 "set": false,
+                "yo": false,
                 "anchors": [],
                 "entries": [
                   {
@@ -525,6 +556,7 @@
                       },
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -541,6 +573,7 @@
                       },
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -557,6 +590,7 @@
                       },
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }
@@ -573,6 +607,7 @@
                       },
                       "array": false,
                       "set": false,
+                      "yo": false,
                       "anchors": [],
                       "entries": []
                     }

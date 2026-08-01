@@ -63,7 +63,7 @@ function scalarNode(value: unknown, bucket: CommentBucket): Node {
 /** The inner text of a sidecar `!!<…>` tag (`bucket.tag` carries the full token, with an
  *  optional trailing `!!set`), or null when there is no schema tag. */
 function tagInner(tag: string | undefined): string | null {
-  const m = tag ? /^!!<([\s\S]*)>\s*(?:!!set)?$/.exec(tag) : null;
+  const m = tag ? /^!!<([\s\S]*)>\s*(?:!!yo)?\s*(?:!!set)?$/.exec(tag) : null;
   return m ? m[1] : null;
 }
 
@@ -80,6 +80,9 @@ function metaFrom(bucket: CommentBucket, extra?: Record<string, unknown>, wireFo
   const meta: Record<string, unknown> = { ...(extra ?? {}) };
   if (bucket.repr === "yaml/flow") meta.style = "flow";
   if (bucket.concrete !== undefined && bucket.concrete !== null && bucket.concrete !== "yamlover") meta.concrete = bucket.concrete;
+  // the `!!yo` plain-yamlover mark (sidecar `tag`): carried into the IR so chunkModeOf routes
+  // the node to an inline SOURCE cell — a data island, never a folded subchapter
+  if (bucket.tag && /(^|\s)!!yo(\s|$)/.test(bucket.tag)) meta.yo = true;
   const inner = tagInner(bucket.tag);
   if (inner !== null) {
     try { meta.schema = parseSchemaRef(inner); } catch { /* a malformed authored tag stays sidecar-only, as before */ }

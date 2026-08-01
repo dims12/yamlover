@@ -78,7 +78,8 @@ export type MemberEncoding = "body" | "dir" | "dir-seq";
  *     generated name ({@link nextItemName}), referenced from the parent's body by a
  *     pointer-array element (`- *item01`) granting its position — the
  *     examples/56-array-of-files shape. A TAGGED ordinal container (a table, a typographical
- *     list — the edit carries `meta`) is CONTENT, not structure: it stays inline — and content
+ *     list — the edit carries `meta`; a `!!yo` DATA ISLAND counts as tagged too, the callers
+ *     fold `rootIsYo` in) is CONTENT, not structure: it stays inline — and content
  *     is content ALL THE WAY DOWN (`insideContent`): a node INSIDE an inline tagged container
  *     (a table's row, a list's sublist) never promotes out of it, whatever its own shape —
  *     promoting one would leave a `- *: itemNN` pointer inside the content unit, which the

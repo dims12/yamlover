@@ -833,6 +833,16 @@ body {
   padding-left: 22px;
   margin-left: -14px;
 }
+/* a `!!yo` DATA ISLAND in a chapter body: the generic data view framed as deliberate raw
+   yamlover — a bordered panel so the mode switch reads as intended, not as a rendering bug */
+pre.code.chapter-data {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.35));
+  border-radius: 6px;
+  background: var(--bg-alt);
+  font-size: 13px;
+}
 .code.raw {
   color: var(--fg);
 }
@@ -862,6 +872,11 @@ body {
    provenance shown by the projection, not authored source */
 .anchor.derived {
   opacity: 0.55;
+}
+/* a pointer path's NAME portions in HIGHLIGHTED SOURCE (highlight.tsx): the reference color
+   without .descend's link affordance — highlighted text is not a hyperlink */
+.ref {
+  color: var(--accent);
 }
 .c {
   color: var(--jb-comment);

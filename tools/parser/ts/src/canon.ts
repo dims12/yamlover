@@ -60,6 +60,7 @@ export function canonNode(n: Node): unknown {
   if (n.kind === 'blob') out.blob = { format: n.format, hash: n.contentHash, size: n.size };
   out.array = n.array === true;
   out.set = n.meta?.set === true;
+  out.yo = n.meta?.yo === true;
   if (n.meta?.schema !== undefined) out.schema = canonValue(n.meta.schema);
   out.anchors = anchors;
   out.entries = ents.filter((e) => !convBack(e)).map((e) => ({ key: e.key, edge: e.edge, value: canonValue(e.value) }));
