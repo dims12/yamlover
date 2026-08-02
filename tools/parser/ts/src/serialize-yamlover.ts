@@ -12,7 +12,7 @@
 
 import type { Document, Node, Entry, Value, Scalar, Pointer, Comment } from './ir.ts';
 import { isPointer } from './ir.ts';
-import { plainScalar, splitKV } from './yamlover.ts';
+import { foldLines, plainScalar, splitKV } from './yamlover.ts';
 import { renderPointer } from './pointer.ts';
 import { LossyError, anchorBody, isAnchorizableBack, backAnchorBody } from './serialize-common.ts';
 import { json5pSubtree } from './serialize-json5p.ts';
@@ -78,9 +78,12 @@ class Emitter {
       this.rootAnchors(root);
       this.entries(ents.slice(at), 0);
     } else if (kept.length === 0) {
+      // the semantic container tags (`!!yo`, `!!set`) ride their own lines here too — an
+      // emptied tagged root (a cleared data island) must not shed its identity
+      for (const tag of this.containerTags(root)) this.out.push(tag);
       this.out.push(root.array ? '[]' : '{}');
       this.rootAnchors(root);
-    } else if (root.meta?.schema === undefined && json5pLines(root, 0) !== null) {
+    } else if (root.meta?.schema === undefined && root.meta?.yo !== true && root.meta?.set !== true && json5pLines(root, 0) !== null) {
       // a whole DOCUMENT written as a K&R token — an inline concrete switch at the root
       for (const l of json5pLines(root, 0)!) this.out.push(l);
       this.rootAnchors(root);
@@ -157,7 +160,7 @@ class Emitter {
    *  deeper, so a dedent back to `indent` ends it and the following entries resume). */
   selfLine(v: Scalar, indent: number): void {
     const pad = ' '.repeat(indent);
-    const block = typeof v.value === 'string' && v.value.includes('\n') ? blockLines(v.value) : null;
+    const block = typeof v.value === 'string' ? blockOf(v) : null;
     if (block !== null) {
       this.out.push(pad + block.header);
       for (const l of block.lines) this.out.push(l === '' ? '' : ' '.repeat(indent + STEP) + l);
@@ -166,9 +169,25 @@ class Emitter {
     }
   }
 
+  /** A container's LEFTOVER comments — own-line remarks after its last entry, attached to
+   *  the node meta (comments.ts tail rule) — re-emitted inside the block, at the block's own
+   *  indent, so the round-trip re-attaches them identically. */
+  tailComments(value: Value, indent: number): void {
+    if (!this.comments || isPointer(value)) return;
+    const pad = ' '.repeat(indent);
+    for (const c of (value.meta?.comments ?? []).filter((x) => x.placement === 'leading')) {
+      this.out.push(pad + '#' + c.text);
+    }
+  }
+
   /** Emit `head <value>` at `indent` — `head` is `key:`, `~key:`, or the `-` seq marker
    *  (their value/indent grammar is identical: a deeper block belongs to the entry). */
   keyed(head: string, value: Value, indent: number): void {
+    this.keyedInner(head, value, indent);
+    this.tailComments(value, indent + STEP);
+  }
+
+  keyedInner(head: string, value: Value, indent: number): void {
     const pad = ' '.repeat(indent);
     if (isPointer(value)) {
       this.out.push(`${pad}${head} *${this.ptrText(value)}`);
@@ -189,8 +208,7 @@ class Emitter {
       this.anchorLines(value, inner);
       this.entries(ents.slice(at), inner);
     } else if (value.kind === 'scalar') {
-      const block = typeof value.value === 'string' && value.value.includes('\n')
-        ? blockLines(value.value) : null;
+      const block = typeof value.value === 'string' ? blockOf(value as Scalar) : null;
       if (block !== null) {
         // block-scalar content sits DEEPER than any fields, so the fields'
         // dedent ends the block (the parser's rule) while staying deeper than the key
@@ -237,6 +255,11 @@ class Emitter {
   }
 
   seqItem(value: Value, indent: number): void {
+    this.seqItemInner(value, indent);
+    this.tailComments(value, indent + STEP);
+  }
+
+  seqItemInner(value: Value, indent: number): void {
     const pad = ' '.repeat(indent);
     if (!isPointer(value) && value.kind === 'mapping') {
       const parts = this.decorations(value);
@@ -407,6 +430,101 @@ function dq(s: string): string {
   return JSON.stringify(s);
 }
 
+/** Prose folds at this column when the serializer WRAPS a minted string (see foldedLines) —
+ *  the source-file measure, independent of any reader's display width. */
+const FOLD_WIDTH = 100;
+
+/** The block spelling of a string scalar, by the raw-first law:
+ *    1. the AUTHORED block raw (`|`/`>` + content, as blockScalar normalizes it), when it
+ *       still reparses to the very value — the string twin of the number-raw rule in inline();
+ *    2. a MINTED long one-paragraph string (no raw — the editor drops it on commit) folds
+ *       (`>-`/`>`, wrapped at FOLD_WIDTH): the value stays breakless, the file stays readable;
+ *    3. a multiline value renders literal (blockLines);
+ *    4. null — the caller emits the inline token.
+ *  A PARSED scalar always carries its raw, so authored plain/quoted spellings never reflow. */
+function blockOf(s: Scalar): { header: string; lines: string[] } | null {
+  const v = s.value as string;
+  const authored = rawBlock(s);
+  if (authored !== null) return authored;
+  if ((s.raw ?? '') === '') {
+    const folded = foldedLines(v);
+    if (folded !== null) return folded;
+  }
+  return v.includes('\n') ? blockLines(v) : null;
+}
+
+/** The authored block raw re-emitted verbatim — iff it reparses to the same value (the
+ *  chomping/folding math mirrors the parser's blockScalar, whose raw this is). */
+function rawBlock(s: Scalar): { header: string; lines: string[] } | null {
+  const raw = s.raw ?? '';
+  const nl = raw.indexOf('\n');
+  const header = nl < 0 ? raw : raw.slice(0, nl);
+  if (!/^[|>][+-]?$/.test(header)) return null;
+  const lines = nl < 0 ? [] : raw.slice(nl + 1).split('\n');
+  if (lines.length > 0 && /^[ \t]/.test(lines[0])) return null; // the indent base cannot re-anchor
+  if (lines.some((l) => l !== '' && /^ +$/.test(l))) return null; // all-space lines reparse as empty
+  const folded = header[0] === '>';
+  const chomp = header.includes('-') ? 'strip' : header.includes('+') ? 'keep' : 'clip';
+  let last = -1;
+  for (let i = 0; i < lines.length; i++) if (lines[i] !== '') last = i;
+  const core = lines.slice(0, last + 1);
+  let body = folded ? foldLines(core) : core.join('\n');
+  if (chomp === 'keep') body += '\n'.repeat(lines.length - (last + 1) + (last >= 0 ? 1 : 0));
+  else if (chomp === 'clip' && last >= 0) body += '\n';
+  return body === s.value ? { header, lines } : null;
+}
+
+/** A minted long string as a FOLDED block, wrapped at {@link FOLD_WIDTH}. Paragraph gaps
+ *  (`\n\n`+) spell as blank lines; a LONE `\n` has no folded spelling — those stay literal.
+ *  Null when folding cannot hold the value losslessly: a lone `\n`, a leading blank line or
+ *  space/tab (the indent base), 2+ trailing newlines (the literal `|+` territory), or any
+ *  wrap the fold would not rejoin to the very body. */
+function foldedLines(v: string): { header: string; lines: string[] } | null {
+  if (/\r/.test(v)) return null;
+  let trailing = 0;
+  let end = v.length;
+  while (end > 0 && v[end - 1] === '\n') { trailing++; end--; }
+  if (trailing > 1) return null;
+  const body = v.slice(0, end);
+  if (body === '' || body.length <= FOLD_WIDTH) return null;
+  if (/(?<!\n)\n(?!\n)/.test(body)) return null; // a lone \n is unspellable folded
+  if (body.startsWith('\n')) return null; // a leading blank line — literal territory
+  const lines: string[] = [];
+  for (const part of body.split(/(\n+)/)) {
+    if (part === '') continue;
+    if (part[0] === '\n') { for (let i = 1; i < part.length; i++) lines.push(''); continue; }
+    if (/^[ \t]/.test(part)) return null; // a paragraph must anchor the indent base
+    lines.push(...wrapPara(part));
+  }
+  if (lines.length < 2) return null; // nothing folded — the inline token is simpler
+  // the round-trip guard, absolute: the parser's own fold must give the very body back
+  return foldLines(lines) === body ? { header: trailing === 0 ? '>-' : '>', lines } : null;
+}
+
+/** Greedy wrap of one paragraph: break at a SINGLE space between non-spaces (folding rejoins
+ *  with exactly one space) — the last such point within the width, else the first beyond it;
+ *  an unbreakable run simply stays long. */
+function wrapPara(para: string): string[] {
+  const lines: string[] = [];
+  let rest = para;
+  while (rest.length > FOLD_WIDTH) {
+    let cut = -1;
+    for (let i = FOLD_WIDTH; i > 0; i--) {
+      if (rest[i] === ' ' && rest[i - 1] !== ' ' && rest[i + 1] !== ' ' && rest[i + 1] !== undefined) { cut = i; break; }
+    }
+    if (cut < 0) {
+      for (let i = FOLD_WIDTH + 1; i < rest.length - 1; i++) {
+        if (rest[i] === ' ' && rest[i - 1] !== ' ' && rest[i + 1] !== ' ') { cut = i; break; }
+      }
+    }
+    if (cut < 0) break;
+    lines.push(rest.slice(0, cut));
+    rest = rest.slice(cut + 1);
+  }
+  if (rest !== '') lines.push(rest);
+  return lines;
+}
+
 /** Render a multiline string as a literal block scalar, or null if the block form cannot
  *  hold it losslessly (the parser de-indents by the FIRST content line and reads all-space
  *  lines as empty): then the caller falls back to a double-quoted scalar. */
@@ -485,6 +603,7 @@ function flowTextOrNull(n: Node): string | null {
   // a LEADING comment has nowhere to live on a one-liner. A trailing one still rides: `emitTrailing`
   // appends it to the single line this returns.
   if ((n.entries ?? []).some((e) => (e.meta?.comments ?? []).some((c) => c.placement !== 'trailing'))) return null;
+  if ((n.meta?.comments ?? []).some((c) => c.placement === 'leading')) return null; // a tail comment needs its block
   const ents = n.entries ?? [];
   if (n.kind === 'scalar') {
     if (ents.length > 0) return null; // a value-plus-fields (omni) node needs two lines

@@ -866,7 +866,9 @@ export function parseSchemaRef(src: string, at?: { block: Block; lineN: number; 
 
 /** Fold `>` block lines: a single line break between non-empty lines becomes a space; a
  *  blank line becomes a newline. (Simplified — enough for prose/doc chunks.) */
-function foldLines(lines: string[]): string {
+/** YAML folding: adjacent content lines join with a space, blank lines stay breaks.
+ *  Exported for the serializer — the authored-`>` round-trip check reuses the one law. */
+export function foldLines(lines: string[]): string {
   let out = '';
   for (let i = 0; i < lines.length; i++) {
     if (i > 0) out += lines[i] === '' || lines[i - 1] === '' ? '\n' : ' ';

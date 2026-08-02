@@ -507,3 +507,77 @@ test('yamlover: the same stamp DOES turn on flow when flow can hold it (the cont
   k.meta = { ...k.meta, style: 'flow' };
   assert.equal(serializeYamlover(doc), 'k: [1, 2]\n');
 });
+
+// ---- block scalars: the raw-first law and the minted fold (the `>` round) ----------------
+
+test('yamlover rt: an authored folded scalar keeps its `>` spelling and wrap', () => {
+  const src = 'p: >\n  one two\n  three\n';
+  const doc = parseYamlover(src, 't');
+  assert.equal((doc.root.entries![0].value as Node & { value?: unknown }).value, 'one two three\n');
+  assert.equal(serializeYamlover(doc), src);
+});
+
+test('yamlover rt: authored chomping spellings survive — |-, >-, >+', () => {
+  for (const src of ['p: |-\n  x\n', 'p: >-\n  a\n  b\n', 'p: >+\n  e\n\nq: 1\n', 'p: |+\n  z\n\nq: 1\n']) {
+    assert.equal(serializeYamlover(parseYamlover(src, 't')), src, JSON.stringify(src));
+  }
+});
+
+test('yamlover: a MINTED long paragraph folds (`>-`), wrapped, value breakless', () => {
+  const words: string[] = [];
+  for (let i = 0; i < 40; i++) words.push('word' + i);
+  const text = words.join(' ');
+  const doc = parseYamlover('p: short\n', 't');
+  const p = doc.root.entries![0].value as Node & { value?: unknown; raw?: string };
+  p.value = text;
+  delete p.raw; // the editor drops raw on commit — a minted scalar
+  const out = serializeYamlover(doc);
+  assert.match(out, /^p: >-\n/, 'a long minted paragraph folds');
+  for (const line of out.split('\n').slice(1)) assert.ok(line.length <= 120, `wrapped: ${line}`);
+  const back = parseYamlover(out, 't') .root.entries![0].value as Node & { value?: unknown };
+  assert.equal(back.value, text, 'the fold reparses to the very value');
+});
+
+test('yamlover: a minted MULTI-PARAGRAPH string folds with blank-line gaps', () => {
+  const para = Array.from({ length: 20 }, (_, i) => 'w' + i).join(' ');
+  const text = para + '\n\n' + para;
+  const doc = parseYamlover('p: short\n', 't');
+  const p = doc.root.entries![0].value as Node & { value?: unknown; raw?: string };
+  p.value = text;
+  delete p.raw;
+  const out = serializeYamlover(doc);
+  assert.match(out, /^p: >-\n/);
+  const back = parseYamlover(out, 't').root.entries![0].value as Node & { value?: unknown };
+  assert.equal(back.value, text);
+});
+
+test('yamlover: a minted string with a LONE newline stays literal (folding cannot spell it)', () => {
+  const long = Array.from({ length: 20 }, (_, i) => 'w' + i).join(' ');
+  const doc = parseYamlover('p: short\n', 't');
+  const p = doc.root.entries![0].value as Node & { value?: unknown; raw?: string };
+  p.value = long + '\n' + long;
+  delete p.raw;
+  assert.match(serializeYamlover(doc), /^p: \|-\n/);
+});
+
+test('yamlover: a SHORT minted string stays a plain inline token', () => {
+  const doc = parseYamlover('p: short\n', 't');
+  const p = doc.root.entries![0].value as Node & { value?: unknown; raw?: string };
+  p.value = 'a short edited paragraph';
+  delete p.raw;
+  assert.equal(serializeYamlover(doc), 'p: a short edited paragraph\n');
+});
+
+test('yamlover: an authored long PLAIN line keeps its bytes (raw wins over the fold)', () => {
+  const long = 'p: ' + Array.from({ length: 40 }, (_, i) => 'word' + i).join(' ') + '\n';
+  assert.equal(serializeYamlover(parseYamlover(long, 't')), long);
+});
+
+// ---- identity tags on an EMPTIED container root (the cleared data island) ----------------
+
+test('yamlover rt: a tagged EMPTY container root keeps its !!yo / !!set / !!<…> lines', () => {
+  for (const src of ['!!yo\n[]\n', '!!set\n{}\n', '!!<*a: b>\n!!yo\n{}\n', '!!<*a: b>\n[]\n']) {
+    const doc = parseYamlover(src, 't');
+    assert.equal(serializeYamlover(doc), src, JSON.stringify(src));
+  }
+});
