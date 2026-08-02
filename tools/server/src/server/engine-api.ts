@@ -3157,8 +3157,10 @@ interface Facets {
 }
 
 /** True for a line that opens an entry — a `- ` item or a `key:` field. A block scalar's content is
- *  NOT an entry, which is why prose that looks like `note: hi` must reach us escaped. */
-const opensEntry = (t: string): boolean => t === "-" || t.startsWith("- ") || /^[^\s"'*|>#-][^:]*:(\s|$)/.test(t);
+ *  NOT an entry, which is why prose that looks like `note: hi` must reach us escaped. A `&`-led
+ *  line is an ANCHOR (its colon form `&: tags: x` runs to EOL) — never an entry, never an index
+ *  (an authored key starting with `&` is spelled escaped, `\&key:`). */
+const opensEntry = (t: string): boolean => t === "-" || t.startsWith("- ") || /^[^\s"'*|>#&-][^:]*:(\s|$)/.test(t);
 
 const isBlockHeader = (head: string): boolean => /^[|>][+-]?\d*$/.test(head.trim());
 
@@ -3230,8 +3232,10 @@ function payloadFacets(src: string): Facets {
   // applies. Without it such a payload was classified as a scalar and written INLINE after the
   // key — `world: "a b":` — after which the next op could not descend into what had become a
   // scalar ("cannot descend into a scalar element at world").
-  if (!opensEntry(first) && !opensQuotedKey(first)) {
-    // the scalar head: one line, or a block header with its DEEPER content lines
+  if (!opensEntry(first) && !opensQuotedKey(first) && !first.startsWith("&")) {
+    // the scalar head: one line, or a block header with its DEEPER content lines. A payload
+    // LEADING with a `&` anchor line is decoration + entries, not a scalar — grouped below,
+    // where groupEntries re-emits the anchor lines verbatim at the canonical column.
     let bend = fi + 1;
     if (isBlockHeader(first)) while (bend < lines.length && (!isContentLine(lines[bend]) || indentOf(lines[bend]) > 0)) bend++;
     const after = lines.slice(bend);
@@ -3682,7 +3686,9 @@ function setRootSelfValue(lines: string[], scalarSrc: string, selfAt?: number): 
   for (let i = 0; i < lines.length; i++) {
     if (!isContentLine(lines[i]) || indentOf(lines[i]) !== indent) continue;
     const t = lines[i].trim();
-    if (t.startsWith("!!<") || opensEntry(t) || opensQuotedKey(t)) continue;
+    // decorations are never the self-value line: the `!!<…>` tag, the lone `!!yo`/`!!set`
+    // marks, and the node's own-line `&` anchors all stand
+    if (t.startsWith("!!") || t.startsWith("&") || opensEntry(t) || opensQuotedKey(t)) continue;
     at = i;
     end = i + 1;
     if (isBlockHeader(t)) while (end < lines.length && (!isContentLine(lines[end]) || indentOf(lines[end]) > indent)) end++;

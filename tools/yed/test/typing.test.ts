@@ -2,7 +2,7 @@
 // the SERIALIZED document (the file that would be written) and that the editor never claimed an
 // edit it refused.
 import { describe, it, expect } from "vitest";
-import { applyKey, copySubtree, watchdog } from "../src/apply";
+import { applyKey, copySubtree, pasteSubtree, watchdog } from "../src/apply";
 import { initialState, parseSource, sourceOf, type EditorState } from "../src/state";
 import { parseScript } from "./keys-util";
 
@@ -385,4 +385,145 @@ describe("yed2 unwinding — one press, one level, to the empty document", () =>
       unwind(type(script));
     });
   }
+});
+
+describe("yed2 typing — the identity-meta law (tags survive structural edits)", () => {
+  const meta = (s: EditorState) => ((s.doc.root as { meta?: Record<string, unknown> }).meta ?? {});
+
+  it("Backspace clearing a TAGGED root keeps its identity meta — and the caret lands in the hole", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("!!<*yamlover: $defs: recipe>\n!!yo\nserves: 4\n") };
+    // walk onto the token and unwind: value, key, then the last level clears the root
+    let s = { ...s0, cursor: { at: "token" as const, path: [0], text: "" } };
+    s = applyKey(s, { key: "Backspace" }); // token → the key survives as a named hole? (ladder)
+    for (let i = 0; i < 10 && sourceOf(s.doc) !== ""; i++) s = applyKey(s, { key: "Backspace" });
+    expect(sourceOf(s.doc)).toBe(""); // the editor's empty document
+    expect(meta(s).yo).toBe(true);
+    expect(meta(s).schema).toBeDefined();
+    // the caret sits in the root hole (the KEY may survive one more press — one press, one level)
+    expect(s.cursor).toMatchObject({ at: "hole", path: [], index: 0, text: "" });
+  });
+
+  it("typing [ into an EMPTY tagged root keeps the tag on the flow root", () => {
+    const s0: EditorState = {
+      ...initialState(),
+      doc: { root: { kind: "mapping", entries: [], meta: { yo: true } }, source: { concrete: "yamlover", uri: "<t>" } } as unknown as EditorState["doc"],
+    };
+    const s = applyKey(s0, { key: "[" });
+    const m = meta(s);
+    expect(m.yo).toBe(true);
+    expect(m.style).toBe("flow"); // the bracket's own representation meta rides along
+  });
+
+  it("paste over a tagged EMPTY container: an untagged clipboard keeps the target tag", () => {
+    const empty: EditorState = {
+      ...initialState(),
+      doc: { root: { kind: "mapping", entries: [], meta: { yo: true } }, source: { concrete: "yamlover", uri: "<t>" } } as unknown as EditorState["doc"],
+    };
+    const s = pasteSubtree(empty, "a: 1\nb: 2");
+    expect(s.refused).toBe(false);
+    expect(meta(s).yo).toBe(true); // the island's identity survived the paste
+    expect(sourceOf(s.doc)).toBe("!!yo\na: 1\nb: 2\n");
+  });
+
+  it("paste over a tagged EMPTY container: a TAGGED clipboard wins", () => {
+    const empty: EditorState = {
+      ...initialState(),
+      doc: { root: { kind: "mapping", entries: [], meta: { yo: true } }, source: { concrete: "yamlover", uri: "<t>" } } as unknown as EditorState["doc"],
+    };
+    const s = pasteSubtree(empty, "!!<*a: b>\nx: 1");
+    expect(s.refused).toBe(false);
+    expect(meta(s).schema).toBeDefined(); // the clipboard's own tag
+    expect(meta(s).yo).toBe(true);        // …and the target's mark it did not contradict
+  });
+});
+
+describe("yed2 typing — the editable !!<…> TAG cell", () => {
+  const tagCursorOn = (s: EditorState, path: number[]): EditorState =>
+    ({ ...s, cursor: { at: "tag", path, text: "" } }) as EditorState;
+
+  it("typing !!< in an entry hole materializes the tag cell; the committed tag stamps the entry", () => {
+    let s = type("!!<");
+    expect(s.cursor).toMatchObject({ at: "tag", path: [0], text: "" });
+    expect(src(s)).toBe("- ''\n"); // the eager empty entry, the same law as `{` / `[`
+    for (const ch of "*a: b") s = applyKey(s, { key: ch });
+    s = applyKey(s, { key: "Enter" }); // commit — the caret steps onto the value
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("- !!<*a: b> ''\n");
+    expect(s.cursor.at).toBe("token");
+  });
+
+  it("editing an EXISTING tag re-spells it; a parse failure refuses and loses nothing", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("- !!<*a: b> 5\n") };
+    let s = { ...s0, cursor: { at: "tag" as const, path: [0], text: "*x: y" } };
+    const ok1 = applyKey(s, { key: "Enter" });
+    expect(ok1.refused).toBe(false);
+    expect(src(ok1)).toBe("- !!<*x: y> 5\n");
+    // an unparseable tag refuses — the text stays in the cell to fix
+    s = { ...s0, cursor: { at: "tag" as const, path: [0], text: ">>>bad" } };
+    const bad = applyKey(s, { key: "Enter" });
+    expect(bad.refused).toBe(true);
+    expect(bad.cursor).toMatchObject({ at: "tag", text: ">>>bad" });
+    expect(src(bad)).toBe("- !!<*a: b> 5\n"); // untouched
+  });
+
+  it("Backspace on the emptied tag cell DROPS the tag; the node and its value stay", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("- !!<*a: b> 5\n") };
+    const s = applyKey(tagCursorOn(s0, [0]), { key: "Backspace" });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("- 5\n");
+    expect(s.cursor).toMatchObject({ at: "token", path: [0], text: "5" });
+  });
+
+  it("the tag cell is IN the walk: ← from the value lands on the tag, ← again walks out", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("- one\n- !!<*a: b> 5\n") };
+    let s = { ...s0, cursor: { at: "token" as const, path: [1], text: "5", caret: "start" as const } };
+    s = applyKey(s, { key: "ArrowLeft" });
+    expect(s.cursor).toMatchObject({ at: "tag", path: [1], text: "*a: b" });
+    s = applyKey(s, { key: "ArrowLeft" });
+    expect(s.cursor).toMatchObject({ at: "token", path: [0] });
+  });
+
+  it("a ROOT tag edits too (the data island's own tag)", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("!!<*a: b>\nx: 1\n") };
+    const s = applyKey({ ...s0, cursor: { at: "tag", path: [], text: "*yamlover: $defs: recipe" } }, { key: "Enter" });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("!!<*yamlover: $defs: recipe>\nx: 1\n");
+  });
+});
+
+describe("yed2 typing — the editable & ANCHOR rows", () => {
+  it("editing an anchor row re-spells it; the walk reaches the stop after the value", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("a: 1\n  &: p: q\n") };
+    // → from the value walks onto the anchors stop
+    let s = applyKey({ ...s0, cursor: { at: "token", path: [0], text: "1", caret: "end" } }, { key: "ArrowRight" });
+    expect(s.cursor).toMatchObject({ at: "anchors", path: [0], index: 0, text: ": p: q" });
+    // retype the body and commit
+    s = { ...s, cursor: { ...s.cursor, text: ": p: r" } as EditorState["cursor"] };
+    s = applyKey(s, { key: "Enter" });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("a: 1\n  &: p: r\n");
+  });
+
+  it("an unparseable anchor body refuses and loses nothing", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("a: 1\n  &: p: q\n") };
+    const s = applyKey({ ...s0, cursor: { at: "anchors", path: [0], index: 0, text: ": p: 3" } }, { key: "Enter" });
+    expect(s.refused).toBe(true); // a position claim — makeAnchor rejects it
+    expect(src(s)).toBe("a: 1\n  &: p: q\n");
+    expect(s.cursor).toMatchObject({ at: "anchors", text: ": p: 3" }); // still there to fix
+  });
+
+  it("Backspace on the emptied row REMOVES that anchor; the last one removes the stop", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("a: 1\n  &: p: q\n") };
+    const s = applyKey({ ...s0, cursor: { at: "anchors", path: [0], index: 0, text: "" } }, { key: "Backspace" });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("a: 1\n");
+    expect(s.cursor).toMatchObject({ at: "token", path: [0] }); // landed on the node
+  });
+
+  it("the ADD slot appends a fresh anchor", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("a: 1\n  &: p: q\n") };
+    const s = applyKey({ ...s0, cursor: { at: "anchors", path: [0], index: 1, text: ": x: y" } }, { key: "Enter" });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("a: 1\n  &: p: q\n  &: x: y\n");
+  });
 });

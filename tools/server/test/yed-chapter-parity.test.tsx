@@ -534,6 +534,80 @@ describe("the yed chapter parity gate — tables and source chunks on disk", () 
       expect(m.read("doc.yo")).toBe("!!<*yamlover: $defs: chapter>\nRecipes\n- The stew needs:\n- !!<*yamlover: $defs: recipe>\n  serves: 6\n  time: 20\n");
     } finally { m.done(); }
   });
+
+  it("a SOURCE island SHOWS its !!<…> tag in edit mode — the identity chrome", async () => {
+    const src = "!!<*yamlover: $defs: chapter>\nRecipes\n- The stew needs:\n- !!<*yamlover: $defs: recipe>\n  serves: 4\n";
+    const m = await mount({ "doc.yo": src }, ":doc.yo");
+    try {
+      const source = m.container.querySelector(".chunk-source")!;
+      // the tag renders as its EDITABLE cell: wrapper chrome + the inner text face
+      const tags = Array.from(source.querySelectorAll(".y2-tagtext")).map((el) => el.textContent);
+      expect(tags).toContain("*yamlover: $defs: recipe");
+    } finally { m.done(); }
+  });
+
+  it("RETAGGING an island member through its tag cell lands on disk as the new spelling", async () => {
+    const src = "!!<*yamlover: $defs: chapter>\nRecipes\n- intro\n- !!<*yamlover: $defs: recipe>\n  serves: 4\n";
+    const m = await mount({ "doc.yo": src }, ":doc.yo");
+    try {
+      const source = m.container.querySelector(".chunk-source")!;
+      const face = source.querySelector(".y2-tagtext") as HTMLElement;
+      expect(face?.textContent).toBe("*yamlover: $defs: recipe");
+      fireEvent.focus(face);
+      const input = document.activeElement as HTMLInputElement;
+      expect(input.tagName).toBe("INPUT");
+      fireEvent.change(input, { target: { value: "*yamlover: $defs: dish" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      expect(m.read("doc.yo")).toContain("!!<*yamlover: $defs: dish>");
+      expect(m.read("doc.yo")).not.toContain("$defs: recipe>");
+    } finally { m.done(); }
+  });
+
+  it("EDITING an anchor through the island's anchor row lands on disk (whole-node emplace)", async () => {
+    const src = "!!<*yamlover: $defs: chapter>\nRecipes\n- intro\n- !!yo\n  serves: 4\n    &: index: servings\n";
+    const m = await mount({ "doc.yo": src }, ":doc.yo");
+    try {
+      const source = m.container.querySelector(".chunk-source")!;
+      const face = source.querySelector('[data-kind="anchors"] .y2-v') as HTMLElement;
+      expect(face?.textContent).toBe(": index: servings");
+      fireEvent.focus(face);
+      const input = document.activeElement as HTMLInputElement;
+      expect(input.tagName).toBe("INPUT");
+      fireEvent.change(input, { target: { value: ": index: portions" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      const out = m.read("doc.yo");
+      expect(out).toContain("&: index: portions");
+      expect(out).not.toContain("servings");
+      expect(out).toContain("serves: 4"); // the island's content untouched
+    } finally { m.done(); }
+  });
+
+  it("Backspace-to-empty inside a SOURCE island keeps the tag ON DISK — never a meta delete", async () => {
+    const src = "!!<*yamlover: $defs: chapter>\nRecipes\n- intro\n- !!<*yamlover: $defs: recipe>\n  serves: 4\n";
+    const m = await mount({ "doc.yo": src }, ":doc.yo");
+    try {
+      const source = m.container.querySelector(".chunk-source")!;
+      const token = Array.from(source.querySelectorAll(".y2-v")).find((el) => el.textContent === "4") as HTMLElement;
+      fireEvent.focus(token);
+      // unwind the island: clear the value, then Backspace through key and container
+      for (let i = 0; i < 8; i++) {
+        const el = document.activeElement as HTMLInputElement;
+        if (!el || !source.contains(el)) break;
+        if (el.value) fireEvent.change(el, { target: { value: "" } });
+        fireEvent.keyDown(el, { key: "Backspace" });
+      }
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      const out = m.read("doc.yo");
+      // the island's tag line SURVIVES the emptying — the content is gone, the identity is not
+      expect(out).toContain("!!<*yamlover: $defs: recipe>");
+      expect(out).not.toContain("serves");
+    } finally { m.done(); }
+  });
 });
 
 // ------------------------------------------------------------------------------------------ //

@@ -13,10 +13,15 @@ import { interpret, type Intent, type Site } from "./grammar/dispatch";
 import { classifyHoleInput, keyedEditParts } from "./grammar/keys";
 import {
   bracketOf, dialectOf, entryAt, isContainer, isFlow, isSpread, nodeAt, sourceOf,
-  type Cursor, type Document, type EditorState, type Entry, type Node, type Path,
+  type Cursor, type Document, type EditorState, type Entry, type Node, type Path, type Value,
 } from "./state";
-import { parseYamlover } from "../../parser/ts/src/yamlover.ts";
-import { isPointer } from "../../parser/ts/src/ir.ts";
+import { parseSchemaRef, parseYamlover } from "../../parser/ts/src/yamlover.ts";
+import { schemaTagToken } from "../../parser/ts/src/serialize-yamlover.ts";
+import { anchorBody } from "../../parser/ts/src/serialize-common.ts";
+import { makeAnchor } from "../../parser/ts/src/pointer.ts";
+import { isPointer, type Anchor } from "../../parser/ts/src/ir.ts";
+import { formatFromMetaTag, proseFormatOfTag } from "./chapter/format";
+import { schemaTextOf } from "./state";
 
 // ---------------------------------------------------------------------------- //
 // Immutable IR surgery
@@ -86,6 +91,22 @@ function emptyFlow(bracket: "{" | "["): Node {
   return { kind: "mapping", entries: [], ...(bracket === "[" ? { array: true } : {}), meta: { style: "flow" } } as unknown as Node;
 }
 
+/** IDENTITY meta — `!!<…>` schema, `!!yo`, `!!set`, `&` anchors — is committed labour: a
+ *  structural edit that replaces a node WHOLESALE (clearing to empty, pasting over, typing a
+ *  fresh flow bracket) carries it onto the replacement. The replacement's OWN fields win (a
+ *  pasted tagged clipboard keeps its tag); representation meta (`style`, …) does not carry. */
+function keepIdentityMeta(prev: Value | null | undefined, next: Node): Node {
+  if (!prev || isPointer(prev)) return next;
+  const pm = ((prev as Node).meta ?? {}) as Record<string, unknown>;
+  const nm = (next.meta ?? {}) as Record<string, unknown>;
+  const keep: Record<string, unknown> = {};
+  for (const k of ["schema", "yo", "set", "anchors", "derivedFormat"]) {
+    if (pm[k] !== undefined && nm[k] === undefined) keep[k] = pm[k];
+  }
+  if (Object.keys(keep).length === 0) return next;
+  return { ...next, meta: { ...keep, ...nm } } as Node;
+}
+
 // ---------------------------------------------------------------------------- //
 // Site derivation — what the legend shows IS what applyKey consults
 // ---------------------------------------------------------------------------- //
@@ -115,6 +136,14 @@ export function siteOf(state: EditorState): Site {
     const parent = nodeAt(doc, cursor.path.slice(0, -1));
     return { ...base, cell: "key", container: containerKind(parent), textEmpty: cursor.text.trim() === "", entryCommitted: true };
   }
+  if (cursor.at === "tag") {
+    const parent = cursor.path.length ? nodeAt(doc, cursor.path.slice(0, -1)) : null;
+    return { ...base, cell: "tag", container: containerKind(parent), textEmpty: cursor.text.trim() === "", entryCommitted: true };
+  }
+  if (cursor.at === "anchors") {
+    const parent = cursor.path.length ? nodeAt(doc, cursor.path.slice(0, -1)) : null;
+    return { ...base, cell: "anchors", container: containerKind(parent), textEmpty: cursor.text.trim() === "", entryCommitted: true };
+  }
   if (cursor.at === "ptr") {
     const parent = nodeAt(doc, cursor.path.slice(0, -1));
     return { ...base, cell: "atom", container: containerKind(parent), entryCommitted: true };
@@ -139,7 +168,9 @@ export function siteOf(state: EditorState): Site {
 
 export type Position =
   | { at: "key"; path: Path }
+  | { at: "tag"; path: Path }   // the node's editable `!!<…>` tag cell — before its value
   | { at: "token"; path: Path }
+  | { at: "anchors"; path: Path; index?: number } // the node's `&` anchor rows — ONE stop, after its value (a click names the row)
   | { at: "after"; path: Path }
   | { at: "into"; path: Path }  // the inside of an EMPTY block container — its placeholder slot
   | { at: "ptr"; path: Path };  // a pointer ATOM — walkable, focusable, not text-editable
@@ -154,6 +185,8 @@ export function positionsOf(doc: Document): Position[] {
       const p = [...path, i];
       if (e.key != null) out.push({ at: "key", path: p });
       if (isPointer(e.value)) { out.push({ at: "ptr", path: p }); continue; } // the atom IS the position
+      // the node's `!!<…>` TAG is a position of its own, before the value — the authored order
+      if (((e.value as Node).meta ?? ({} as { schema?: unknown })).schema !== undefined) out.push({ at: "tag", path: p });
       const v = e.value as Node;
       if (v.kind === "scalar") omni(v, p);
       // only a FLOW container has a gap — a closer bracket to stand after. A block container has
@@ -168,6 +201,8 @@ export function positionsOf(doc: Document): Position[] {
       // anything else (a blob, an unknown kind) is an opaque ATOM — walkable and deletable
       // like a pointer, never editable; a value with no position would be an invisible wall
       else out.push({ at: "ptr", path: p });
+      // the node's `&` ANCHORS are one stop after its value — the canonical M3 side
+      if ((((e.value as Node).meta ?? {}) as { anchors?: unknown[] }).anchors?.length) out.push({ at: "anchors", path: p });
     }
   };
   /** the scalar's TOKEN at its authored row among its fields — the walk agrees with the eyes */
@@ -179,11 +214,13 @@ export function positionsOf(doc: Document): Position[] {
     rec(v, p, at, len);
   };
   const root = doc.root as Node;
+  if ((root.meta ?? ({} as { schema?: unknown })).schema !== undefined) out.push({ at: "tag", path: [] });
   if (root.kind === "scalar") omni(root, []);
   else {
     rec(root, []);
     if (isFlow(root)) out.push({ at: "after", path: [] });
   }
+  if (((root.meta ?? {}) as { anchors?: unknown[] }).anchors?.length) out.push({ at: "anchors", path: [] });
   return out;
 }
 
@@ -264,6 +301,7 @@ function applyUnmark(state: EditorState): EditorState {
  *  one-liner's gap represents it). The anchors, in order, ARE the document's rows. */
 function isRowAnchor(doc: Document, p: Position): boolean {
   if (p.at === "key") return false;
+  if (p.at === "tag") return false; // a tag shares its node's visual row (the inline spelling)
   // a ONE-LINE empty container's row is represented by its `into` slot — the gap past its closer
   // would double the row up. A SPREAD empty container's closer takes its OWN row, so its gap
   // stays an anchor (↓ from inside lands on the `}` row, where `,` opens the next sibling).
@@ -303,7 +341,7 @@ function applyVertical(state: EditorState, dir: -1 | 1): EditorState {
   }
   if (target === undefined) return refuse(state);
   const c = toCursor(s.doc, list[target]);
-  return ok({ ...s, cursor: c.at === "token" || c.at === "key" ? { ...c, caret: "end" } : c });
+  return ok({ ...s, cursor: c.at === "token" || c.at === "key" || c.at === "tag" || c.at === "anchors" ? { ...c, caret: "end" } : c });
 }
 
 function toCursor(doc: Document, p: Position): Cursor {
@@ -313,6 +351,15 @@ function toCursor(doc: Document, p: Position): Cursor {
     return { at: "token", path: p.path, text: String(v?.raw ?? v?.value ?? "") };
   }
   if (p.at === "key") return { at: "key", path: p.path, text: String(entryAt(doc, p.path)?.key ?? "") };
+  if (p.at === "tag") {
+    const v = p.path.length === 0 ? (doc.root as Node) : (entryAt(doc, p.path)?.value ?? null);
+    return { at: "tag", path: p.path, text: (v !== null ? schemaTextOf(v) : null) ?? "" };
+  }
+  if (p.at === "anchors") {
+    const v = p.path.length === 0 ? (doc.root as Node) : (entryAt(doc, p.path)?.value ?? null);
+    const first = v !== null && !isPointer(v) ? (((v as Node).meta ?? {}) as { anchors?: Anchor[] }).anchors?.[0] : undefined;
+    return { at: "anchors", path: p.path, index: 0, text: first !== undefined ? anchorBody(first) : "" };
+  }
   if (p.at === "into") return { at: "hole", path: p.path, index: 0, text: "", key: null };
   if (p.at === "ptr") return { at: "ptr", path: p.path };
   return { at: "after", path: p.path };
@@ -418,7 +465,89 @@ export function commitPending(state: EditorState): EditorState | null {
           : { at: "hole", path: cursor.path, index: 0, text: "", key: null };
     return { ...next, cursor: cursorAfter };
   }
+  if (cursor.at === "tag") {
+    const text = cursor.text.replace(/ /g, " ").trim();
+    const node = cursor.path.length === 0 ? (doc.root as Node) : (entryAt(doc, cursor.path)?.value as Node | undefined);
+    if (!node || isPointer(node as unknown as Parameters<typeof isPointer>[0])) return null;
+    // an EMPTIED tag commits as the DROP (the `!!<…>` line goes, the node stays) — refusing
+    // would trap the caret in a cell it can only Backspace out of, the key cell's own rule
+    if (text === "") return dropTag(state, cursor.path);
+    let schema: ReturnType<typeof parseSchemaRef>;
+    try { schema = parseSchemaRef(text); } catch { return null; } // not a tag SPELLING — the caller refuses
+    try { schemaTagToken(schema); } catch { return null; }        // unrepresentable content refuses too
+    // the folded format rides along, the way the wire stamps it (chapter/format's fold)
+    const df = formatFromMetaTag(text) ?? proseFormatOfTag(text);
+    const stamp = (n: Node): Node => {
+      const meta = { ...(n.meta ?? {}), schema } as Record<string, unknown>;
+      if (df != null) meta.derivedFormat = df; else delete meta.derivedFormat;
+      return { ...n, meta } as unknown as Node;
+    };
+    return {
+      ...state,
+      doc: cursor.path.length === 0 ? { ...doc, root: stamp(doc.root as Node) } : withNode(doc, cursor.path, stamp),
+    };
+  }
+  if (cursor.at === "anchors") {
+    const node = cursor.path.length === 0 ? (doc.root as Node) : (entryAt(doc, cursor.path)?.value as Node | undefined);
+    if (!node || isPointer(node as unknown as Parameters<typeof isPointer>[0])) return null;
+    const anchors = [...((((node as Node).meta ?? {}) as { anchors?: Anchor[] }).anchors ?? [])];
+    const text = cursor.text.trim();
+    const isAdd = cursor.index >= anchors.length;
+    if (text === "") {
+      if (isAdd) return state; // the untouched ADD slot — nothing pending
+      // an emptied row commits as that anchor's REMOVAL (one row, one anchor)
+      anchors.splice(cursor.index, 1);
+      const next = setAnchors(state, cursor.path, anchors);
+      return anchors.length === 0
+        ? { ...next, cursor: landOnNode(next.doc, cursor.path) } // the stop is gone — land on the node
+        : { ...next, cursor: { at: "anchors", path: cursor.path, index: Math.min(cursor.index, anchors.length - 1), text: anchorBody(anchors[Math.min(cursor.index, anchors.length - 1)]) } };
+    }
+    let a: Anchor;
+    try { a = makeAnchor(text, (m: string): never => { throw new Error(m); }); } catch { return null; } // not an anchor SPELLING — refuses
+    if (isAdd) anchors.push(a); else anchors[cursor.index] = a;
+    return { ...setAnchors(state, cursor.path, anchors), cursor: { ...cursor, text: anchorBody(a) } };
+  }
   return state;
+}
+
+/** Rewrite the node's anchor list (empty ⇒ the meta key leaves). */
+function setAnchors(state: EditorState, path: Path, anchors: Anchor[]): EditorState {
+  const { doc } = state;
+  const put = (n: Node): Node => {
+    const meta = { ...(n.meta ?? {}) } as Record<string, unknown>;
+    if (anchors.length > 0) meta.anchors = anchors; else delete meta.anchors;
+    const out = { ...n } as Record<string, unknown>;
+    if (Object.keys(meta).length > 0) out.meta = meta; else delete out.meta;
+    return out as unknown as Node;
+  };
+  return { ...state, doc: path.length === 0 ? { ...doc, root: put(doc.root as Node) } : withNode(doc, path, put) };
+}
+
+/** The caret's landing on a node's OWN first cell — used when a decoration cell (tag, the last
+ *  anchor row) disappears from under it: a cell that exists, the key cell's rule. */
+function landOnNode(doc: Document, path: Path): Cursor {
+  const val = path.length === 0 ? (doc.root as Node) : (entryAt(doc, path)?.value ?? null);
+  return val === null || isPointer(val)
+    ? { at: "ptr", path }
+    : (val as Node).kind === "scalar" && ((val as Node).entries ?? []).length === 0
+      ? { at: "token", path, text: String((val as { raw?: string }).raw ?? (val as { value?: unknown }).value ?? ""), caret: "start" }
+      : isFlow(val as Node)
+        ? { at: "after", path }
+        : { at: "hole", path, index: 0, text: "", key: null };
+}
+
+/** Drop the node's `!!<…>` tag (+ the stamped derivedFormat). The tag cell disappears with it,
+ *  so the caret lands on the node's own first cell — a cell that exists (the key cell's rule). */
+function dropTag(state: EditorState, path: Path): EditorState {
+  const { doc } = state;
+  const strip = (n: Node): Node => {
+    const { schema: _s, derivedFormat: _d, ...meta } = (n.meta ?? {}) as Record<string, unknown>;
+    const out = { ...n } as Record<string, unknown>;
+    if (Object.keys(meta).length > 0) out.meta = meta; else delete out.meta;
+    return out as unknown as Node;
+  };
+  const nextDoc = path.length === 0 ? { ...doc, root: strip(doc.root as Node) } : withNode(doc, path, strip);
+  return { ...state, doc: nextDoc, cursor: landOnNode(nextDoc, path) };
 }
 
 /** A token row retyped as `k: v` or `- v` — the node's VALUE becomes an ENTRY at its own row
@@ -594,7 +723,9 @@ export function pasteSubtree(state: EditorState, text: string): EditorState {
     // the EMPTY container takes the paste as its whole value; among entries, a scalar paste is
     // the omni value and a container paste refuses (it could not have been typed there either)
     if ((container.entries ?? []).length === 0) {
-      return ok({ ...state, doc: withNode(doc, cursor.path, () => node), cursor: restCursor(node, cursor.path) });
+      // the paste replaces the container's CONTENT; its identity meta (tag/yo/set/anchors)
+      // survives — unless the clipboard brings its own, which wins
+      return ok({ ...state, doc: withNode(doc, cursor.path, (n) => keepIdentityMeta(n, node)), cursor: restCursor(node, cursor.path) });
     }
     if (!dialectOf(state).omniValue) return refuse(state); // no value-plus-fields form here — the same law typing obeys
     if (node.kind !== "scalar" || (node.entries ?? []).length > 0) return refuse(state);
@@ -634,7 +765,7 @@ export interface Edges { atStart: boolean; atEnd: boolean }
  *  mid-text edits and text-level paste all included), then the hole classifier runs. */
 export function applyText(state: EditorState, text: string): EditorState {
   const { cursor } = state;
-  if (cursor.at === "token" || cursor.at === "key") return ok({ ...state, cursor: { ...cursor, text } });
+  if (cursor.at === "token" || cursor.at === "key" || cursor.at === "tag" || cursor.at === "anchors") return ok({ ...state, cursor: { ...cursor, text } });
   if (cursor.at !== "hole") return state;
   return classifyHole(ok({ ...state, cursor: { ...cursor, text } }));
 }
@@ -670,7 +801,7 @@ export function applyKey(state: EditorState, k: KeyInput, edges?: Edges): Editor
 function applyPrintable(state: EditorState, ch: string): EditorState {
   if (ch.length !== 1) return state;
   const { cursor } = state;
-  if (cursor.at === "token" || cursor.at === "key") {
+  if (cursor.at === "token" || cursor.at === "key" || cursor.at === "tag" || cursor.at === "anchors") {
     return ok({ ...state, cursor: { ...cursor, text: cursor.text + ch } });
   }
   if (cursor.at !== "hole") return refuse(state); // a gap takes no text — visibly
@@ -701,7 +832,7 @@ function classifyHole(state: EditorState): EditorState {
     // at the EMPTY document root the token IS the document — `[1, 2]` typed into a fresh file is
     // the root value, not a block entry holding one (the same law production learned)
     if (cursor.path.length === 0 && cursor.key === null && cursor.ordinal !== true && (container?.entries ?? []).length === 0 && container && !isFlow(container)) {
-      return { ...state, doc: { ...doc, root: node }, cursor: { at: "hole", path: [], index: 0, text: "", key: null } };
+      return { ...state, doc: { ...doc, root: keepIdentityMeta(doc.root, node) }, cursor: { at: "hole", path: [], index: 0, text: "", key: null } };
     }
     const entry = { key: cursor.key, edge: "contain", value: node } as unknown as Entry;
     // inside a spread token the new container spreads too — json5p expands everything under the
@@ -735,7 +866,19 @@ function classifyHole(state: EditorState): EditorState {
     if (!d.ordinals) return state; // the dash stays TEXT — in json it is a number's sign
     return { ...state, cursor: { ...cursor, key: null, ordinal: true, text: "" } }; // `- ` — DECIDED keyless
   }
-  return state; // quote/pointer/tag/block: D3
+  if (action.kind === "metaTag") {
+    // `!!<` typed in an entry hole: the TAG CELL materializes eagerly on a fresh empty scalar
+    // entry (the same eager-structure law as `{` / `[`), caret in the tag's inner text; the
+    // committed tag then stamps the entry, and Enter walks on to type its value
+    const value = scalarFromText('""')!;
+    const entry = { key: cursor.key, edge: "contain", value } as unknown as Entry;
+    return {
+      ...state,
+      doc: insertEntry(doc, cursor.path, cursor.index, entry),
+      cursor: { at: "tag", path: [...cursor.path, cursor.index], text: "" },
+    };
+  }
+  return state; // quote/pointer/block: D3
 }
 
 function applyIntent(state: EditorState, intent: Intent, site: Site): EditorState {
@@ -788,7 +931,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       }
       // the caret lands on the side it ARRIVED from: entering from the right ends at the end
       const c = toCursor(s.doc, list[idx]);
-      return ok({ ...s, cursor: c.at === "token" || c.at === "key" ? { ...c, caret: intent.dir < 0 ? "end" : "start" } : c });
+      return ok({ ...s, cursor: c.at === "token" || c.at === "key" || c.at === "tag" || c.at === "anchors" ? { ...c, caret: intent.dir < 0 ? "end" : "start" } : c });
     }
 
     case "nextElement": {
@@ -884,14 +1027,14 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
           const idx = Math.max(0, slot - 1);
           if (list.length === 0) return ok({ ...state, cursor: { at: "hole", path: [], index: 0, text: "", key: null } });
           const c = toCursor(doc, list[idx]);
-          return ok({ ...state, cursor: c.at === "token" || c.at === "key" ? { ...c, caret: "end" } : c });
+          return ok({ ...state, cursor: c.at === "token" || c.at === "key" || c.at === "tag" || c.at === "anchors" ? { ...c, caret: "end" } : c });
         }
         // an EMPTY container: one level goes — remove it from its parent. At the ROOT that means
         // undoing the bracket: the document returns to the empty block mapping. (A scalar root
         // took the step-back branch above.)
         if (cursor.path.length === 0) {
           if (!isFlow(container)) return refuse(state); // already the empty document — the bottom, visibly
-          return ok({ ...state, doc: { ...doc, root: { kind: "mapping", entries: [] } as unknown as Node }, cursor: { at: "hole", path: [], index: 0, text: "", key: null } });
+          return ok({ ...state, doc: { ...doc, root: keepIdentityMeta(doc.root, { kind: "mapping", entries: [] } as unknown as Node) }, cursor: { at: "hole", path: [], index: 0, text: "", key: null } });
         }
         const parentPath = cursor.path.slice(0, -1);
         const idx = cursor.path[cursor.path.length - 1];
@@ -905,9 +1048,19 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
           cursor: { at: "hole", path: parentPath, index: idx, text: "", key: named },
         });
       }
+      if (cursor.at === "tag") {
+        // Backspace on the (emptied) tag cell: the TAG goes — one press, one level; the node stays
+        return ok(dropTag(state, cursor.path));
+      }
+      if (cursor.at === "anchors") {
+        // Backspace on the (emptied) anchor row: THAT anchor goes — one press, one row
+        const committed = commitPending({ ...state, cursor: { ...cursor, text: "" } });
+        return committed === null ? refuse(state) : ok(committed);
+      }
       if (cursor.at === "token" || cursor.at === "key" || cursor.at === "ptr") {
         if (cursor.path.length === 0) {
-          return ok({ ...state, doc: { ...doc, root: { kind: "mapping", entries: [] } as unknown as Node }, cursor: { at: "hole", path: [], index: 0, text: "", key: null } });
+          // the ROOT clears to the empty document — its identity meta (a data island's tag) stays
+          return ok({ ...state, doc: { ...doc, root: keepIdentityMeta(doc.root, { kind: "mapping", entries: [] } as unknown as Node) }, cursor: { at: "hole", path: [], index: 0, text: "", key: null } });
         }
         const parentPath = cursor.path.slice(0, -1);
         const idx = cursor.path[cursor.path.length - 1];
@@ -986,6 +1139,12 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
     }
 
     case "commit": {
+      // an ANCHOR row commits in place — the caret stays on the row (or lands on the node when
+      // the emptied row was the last one); descending into the node would make no sense here
+      if (cursor.at === "anchors") {
+        const committed = commitPending(state);
+        return committed === null ? refuse(state) : ok(committed);
+      }
       // `k:` + Enter — the LEVEL RULE's descend spelled without the trailing space: the bare-colon
       // text is a key decision the plain classifier only makes when Enter confirms it
       if (cursor.at === "hole" && cursor.key === null) {

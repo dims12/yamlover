@@ -22,7 +22,7 @@ const RICH =
   "- !!<*yamlover: $defs: recipe>\n  serves: 4\n" +
   "- closing words\n";
 
-const SOURCE_KINDS = new Set(["hole", "gap", "token", "key", "block", "seq", "map", "omni", "pointer", "blob"]);
+const SOURCE_KINDS = new Set(["hole", "gap", "token", "key", "tag", "block", "seq", "map", "omni", "pointer", "blob"]);
 
 describe("the chapter cell laws", () => {
   it("ONE closed set: every framed cell is a chapter kind (or a source kind inside a source chunk), every cell CAPTIONED", () => {

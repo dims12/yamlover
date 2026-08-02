@@ -12,7 +12,7 @@ import { interpret } from "./grammar/dispatch";
 import { defaultRegistry, DocCells, type CellCtx, type CellRegistry } from "./cells";
 import { lineDiff } from "./diff";
 import { Legend } from "./legend";
-import { initialState, parseSource, sourceOf, type Cursor, type EditorState } from "./state";
+import { anchorDecorations, initialState, parseSource, schemaTextOf, sourceOf, type Cursor, type EditorState } from "./state";
 
 export function EditorView({ state, setState, debug = true, cells = defaultRegistry, plantCaret = true }: { state: EditorState; setState: (s: EditorState) => void; debug?: boolean; cells?: CellRegistry; plantCaret?: boolean }) {
   const site = siteOf(state);
@@ -65,11 +65,13 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
         : pos.at === "into" ? { at: "hole", path: pos.path, index: 0, text: "", key: null }
         : pos.at === "ptr" ? { at: "ptr", path: pos.path }
         : pos.at === "key" ? { at: "key", path: pos.path, text: "" }
+        : pos.at === "tag" ? { at: "tag", path: pos.path, text: "" }
+        : pos.at === "anchors" ? { at: "anchors", path: pos.path, index: pos.index ?? 0, text: "" }
         : { at: "token", path: pos.path, text: "" };
-      // entering a token/key cell loads its current text (the same rule movement uses)
+      // entering a token/key/tag cell loads its current text (the same rule movement uses)
       const list = positionsOf(state.doc);
       void list;
-      apply({ ...state, cursor: cursor.at === "token" || cursor.at === "key" ? loadText(state, cursor) : cursor, refused: false });
+      apply({ ...state, cursor: cursor.at === "token" || cursor.at === "key" || cursor.at === "tag" || cursor.at === "anchors" ? loadText(state, cursor) : cursor, refused: false });
     },
   };
   return (
@@ -132,6 +134,17 @@ function loadText(state: EditorState, cursor: Cursor): Cursor {
     for (const i of cursor.path.slice(0, -1)) n = (n as { entries: { value: unknown }[] }).entries[i].value;
     const e = (n as { entries: { key: string | null }[] }).entries[cursor.path[cursor.path.length - 1]];
     return { ...cursor, text: String(e?.key ?? "") };
+  }
+  if (cursor.at === "tag") {
+    let n: unknown = state.doc.root;
+    for (const i of cursor.path) n = (n as { entries: { value: unknown }[] }).entries[i].value;
+    return { ...cursor, text: schemaTextOf(n as never) ?? "" };
+  }
+  if (cursor.at === "anchors") {
+    let n: unknown = state.doc.root;
+    for (const i of cursor.path) n = (n as { entries: { value: unknown }[] }).entries[i].value;
+    const body = anchorDecorations(n as never)[cursor.index]?.slice(1) ?? ""; // "" — the ADD slot
+    return { ...cursor, text: body };
   }
   return cursor;
 }

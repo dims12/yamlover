@@ -152,3 +152,34 @@ describe("irFromNodeJson — format facts (the chapter projection's inputs)", ()
     expect(r.ops).toEqual([{ path: ":doc:0", op: "emplace", yamlover: "p2" }]);
   });
 });
+
+describe("irFromNodeJson — identity marks (!!set, & anchors) ride the IR", () => {
+  const metaOf = (v: unknown): Record<string, unknown> => ((v as Node).meta ?? {}) as Record<string, unknown>;
+
+  it("a `!!set` beside the tag loads meta.set", () => {
+    const doc = irFromNodeJson(nj({ $yamloverMixed: { kind: "mix", entries: [{ key: null, value: "x" }] } },
+      { "": { tag: "!!<*yamlover: $defs: chapter> !!set" } }));
+    expect(metaOf(doc.root).set).toBe(true);
+    expect(metaOf(doc.root).schema).toBeDefined();
+  });
+
+  it("a standalone `!!set` loads too", () => {
+    const doc = irFromNodeJson(nj({ $yamloverMixed: { kind: "mix", entries: [{ key: null, value: "x" }] } },
+      { "": { tag: "!!set" } }));
+    expect(metaOf(doc.root).set).toBe(true);
+  });
+
+  it("sidecar anchor BODIES load as parsed meta.anchors, round-tripping through the serializer", () => {
+    const doc = irFromNodeJson(nj({ a: 1 }, { "/a": { anchors: [": p: q"] } }));
+    const a = metaOf((doc.root as Node).entries![0].value).anchors as unknown[];
+    expect(a).toHaveLength(1);
+    // the serializer re-emits the anchor line from the parsed form
+    const src = sourceOf(doc);
+    expect(src).toContain("&: p: q");
+  });
+
+  it("an unparseable anchor body loads as NOTHING — never a throw", () => {
+    const doc = irFromNodeJson(nj({ a: 1 }, { "/a": { anchors: ["§not a pointer§"] } }));
+    expect(metaOf((doc.root as Node).entries![0].value).anchors).toBeUndefined();
+  });
+});

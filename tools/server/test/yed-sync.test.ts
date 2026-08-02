@@ -156,3 +156,34 @@ describe("diffToOps — tags and kind conversions (the chapter projection's verb
     expect(d.ops).toEqual([{ path: ":doc:a", op: "emplace", meta: null }]);
   });
 });
+
+describe("diffToOps — identity marks (!!set / & anchors) and the emptied island", () => {
+  it("an ANCHOR change re-emplaces the whole node — the payload carries the anchor line", () => {
+    const d = diff("a: 1\n", "a: 1\n  &: p: q\n");
+    expect(d.ops).toEqual([{ path: ":doc:a", op: "emplace", yamlover: "1\n&: p: q" }]);
+  });
+
+  it("an anchor REMOVAL is visible too — the payload without the line", () => {
+    const d = diff("a: 1\n  &: p: q\n", "a: 1\n");
+    expect(d.ops).toEqual([{ path: ":doc:a", op: "emplace", yamlover: "1" }]);
+  });
+
+  it("a whole-subtree rewrite of a node CONTAINING !!set keeps !!set in the payload", () => {
+    // the inner set node rides the inserted subtree's payload text
+    const d = diff("a: 1\n", "a: 1\nkids:\n  s: !!set\n    - x\n");
+    expect(d.ops).toEqual([{ path: ":doc:1", op: "insert", yamlover: "s: !!set\n  - x", key: "kids" }]);
+  });
+
+  it("EMPTYING a tagged island emits entry removals only — never a meta:null tag delete", () => {
+    // the editor's Backspace-to-empty keeps identity meta (keepIdentityMeta); the diff must
+    // see an unchanged tag and remove only the entries
+    const prev = parseSource("!!yo\na: 1\nb: 2\n");
+    const emptied = parseSource("!!yo\na: 1\nb: 2\n");
+    (emptied.root as { entries?: unknown[] }).entries = [];
+    const d = diffToOps(":doc", prev, emptied);
+    expect(d.ops).toEqual([
+      { path: ":doc:b", op: "remove" },
+      { path: ":doc:a", op: "remove" },
+    ]);
+  });
+});

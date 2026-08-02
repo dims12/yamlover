@@ -1658,3 +1658,44 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
     expect(j.comments?.["/b"]).toEqual({ repr: "yaml/flow" });
   });
 });
+
+describe("/api/edit — own-line & anchors are decorations, never entries (the index-skew fix)", () => {
+  it("an INDEXED emplace past a colon-form anchor line hits the right sibling", async () => {
+    const { root, h } = await chapterHandlers({
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- one\n&: tags: whole\n- two\n- three\n",
+    });
+    // entries: title=0, "one"=1, "two"=2, "three"=3 — the anchor line consumes NO index
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc:2", op: "emplace", yamlover: "TWO" });
+    expect(r.status).toBe(200);
+    const out = bodyOf(root);
+    expect(out).toContain("- TWO");
+    expect(out).toContain("- three");     // the NEXT sibling untouched (was clobbered by the skew)
+    expect(out).toContain("&: tags: whole"); // the anchor line stands
+    expect(out).not.toContain("- two");
+  });
+
+  it("an INDEXED remove past the anchor line removes the named sibling, and the anchor stays", async () => {
+    const { root, h } = await chapterHandlers({
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- one\n&: tags: whole\n- two\n- three\n",
+    });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc:3", op: "remove" });
+    expect(r.status).toBe(200);
+    const out = bodyOf(root);
+    expect(out).toContain("- two");
+    expect(out).not.toContain("- three");
+    expect(out).toContain("&: tags: whole");
+  });
+
+  it("a scalar self-value emplace never mistakes an anchor or a lone !!yo line for the title", async () => {
+    const { root, h } = await chapterHandlers({
+      "doc/.yo/body.yo": "!!yo\nOld title\n&: tags: whole\n- x\n",
+    });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "emplace", yamlover: '"New"' });
+    expect(r.status).toBe(200);
+    const out = bodyOf(root);
+    expect(out).toContain("New");
+    expect(out).not.toContain("Old title");
+    expect(out).toContain("!!yo");          // the island mark stands
+    expect(out).toContain("&: tags: whole"); // the anchor stands
+  });
+});

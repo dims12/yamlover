@@ -109,3 +109,46 @@ describe("yed2 cells — the projection is visible", () => {
     expect(container.querySelector("[data-testid=y2-cursor]")?.textContent).toContain("REFUSED");
   });
 });
+
+describe("yed2 cells — identity decorations are VISIBLE chrome", () => {
+  const decorTexts = (c: HTMLElement): string[] =>
+    Array.from(c.querySelectorAll(".y2-decor")).map((el) => el.textContent!.trim());
+
+  it("a tagged node shows its decorations in every shape — the TAG as its editable cell", () => {
+    const state = stateFor("- !!<*yamlover: $defs: recipe> !!yo 5\n- !!<format: text/x-latex> 'e = mc^2'\n");
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    const tags = Array.from(container.querySelectorAll(".y2-tagtext")).map((el) => el.textContent);
+    expect(tags).toContain("*yamlover: $defs: recipe");
+    expect(tags).toContain("format: text/x-latex");
+    expect(decorTexts(container)).toContain("!!yo"); // the semantic mark stays chrome
+  });
+
+  it("a !!yo container root and its & anchors render as chrome", () => {
+    const state = stateFor("!!yo\nserves: 4\n  &: recipes: main\n");
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    const decors = decorTexts(container);
+    expect(decors).toContain("!!yo");
+    expect(decors.some((d) => d.includes("&"))).toBe(true);
+  });
+
+  it("untagged cells render NO decor, and decor is content chrome — not the debug caption", () => {
+    const state = stateFor("a: 1\n");
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    expect(container.querySelectorAll(".y2-decor")).toHaveLength(0);
+    // the tagged twin: the decor span must not live inside a .y2-tag caption (debug-only)
+    const tagged = stateFor("!!yo\na: 1\n");
+    const { container: c2 } = render(<EditorView state={tagged} setState={() => {}} />);
+    const decor = c2.querySelector(".y2-decor")!;
+    expect(decor).toBeTruthy();
+    expect(decor.closest(".y2-tag")).toBeNull();
+  });
+
+  it("an EMPTIED tagged root keeps its decor face over the hole", () => {
+    const state: EditorState = {
+      doc: { root: { kind: "mapping", entries: [], meta: { yo: true } }, source: { concrete: "yamlover", uri: "<t>" } } as unknown as EditorState["doc"],
+      cursor: { at: "hole", path: [], index: 0, text: "", key: null }, refused: false, log: [],
+    };
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    expect(container.querySelector(".y2-decor")?.textContent?.trim()).toBe("!!yo");
+  });
+});

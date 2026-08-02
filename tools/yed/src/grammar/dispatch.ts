@@ -12,8 +12,9 @@
 export interface Site {
   /** The kind of cell under the caret. `gapClose` is the position past a flow token's closer,
    *  `gapQuote` past a closing quote; `key` is a key cell inside a flow token; `atom` is a
-   *  non-text cell the caret stands ON (a pointer) — deletable, walkable, not editable. */
-  cell: "holeEntry" | "holeValue" | "token" | "quotedInner" | "key" | "gapClose" | "gapQuote" | "atom";
+   *  non-text cell the caret stands ON (a pointer) — deletable, walkable, not editable;
+   *  `tag` is a node's editable `!!<…>` tag cell (its INNER text). */
+  cell: "holeEntry" | "holeValue" | "token" | "quotedInner" | "key" | "gapClose" | "gapQuote" | "atom" | "tag" | "anchors";
   /** The container the caret's entry lives in. */
   container: "block" | "flowMap" | "flowSeq";
   /** For gaps: the kind of the token AROUND this one (undefined ⇒ not nested in a flow token). */
@@ -105,6 +106,35 @@ export function interpret(k: Key, s: Site): Intent | null {
     if (k.key === "Enter") return { kind: "nop" };              // PICK later — claimed-to-swallow, greyed
     if (k.key.length === 1) return { kind: "refuse" };          // typing into an atom RINGS
     return universalNav(k);
+  }
+  // ---- the node's `!!<…>` TAG cell — its inner text is native; the grammar owns the edges --- //
+  if (s.cell === "tag") {
+    // Enter: the tag is DONE — commit and step onto the value; on an EMPTIED cell it is the
+    // drop (the same landing removeLevel gives, caret on the node's own cell)
+    if (k.key === "Enter") return s.textEmpty ? { kind: "removeLevel" } : { kind: "keyCommit" };
+    // Backspace on the emptied cell DROPS the tag (one press, one level: the tag line goes,
+    // the node stays); at the head of a non-empty one it walks out, like every text cell
+    if (k.key === "Backspace" && s.textEmpty) return { kind: "removeLevel" };
+    if (k.key === "Backspace" && !s.textEmpty && s.caretAtStart) return { kind: "move", dir: -1 };
+    if (k.key === "Tab") return { kind: "move", dir: k.shift ? -1 : 1 };
+    if (k.key === "ArrowLeft" && s.caretAtStart) return { kind: "move", dir: -1 };
+    if (k.key === "ArrowRight" && s.caretAtEnd) return { kind: "move", dir: 1 };
+    if (k.key === "ArrowUp") return { kind: "move", dir: -1 };
+    if (k.key === "ArrowDown") return { kind: "move", dir: 1 };
+    return null; // printables and everything else: native text editing in the cell
+  }
+  // ---- a `&` ANCHOR row — one row, one anchor; text is native, the grammar owns the edges -- //
+  if (s.cell === "anchors") {
+    // Enter commits the row (an emptied one commits as the removal — same landing either way)
+    if (k.key === "Enter") return { kind: "commit", submit: true };
+    if (k.key === "Backspace" && s.textEmpty) return { kind: "removeLevel" }; // the row goes
+    if (k.key === "Backspace" && !s.textEmpty && s.caretAtStart) return { kind: "move", dir: -1 };
+    if (k.key === "Tab") return { kind: "move", dir: k.shift ? -1 : 1 };
+    if (k.key === "ArrowLeft" && s.caretAtStart) return { kind: "move", dir: -1 };
+    if (k.key === "ArrowRight" && s.caretAtEnd) return { kind: "move", dir: 1 };
+    if (k.key === "ArrowUp") return { kind: "move", dir: -1 };
+    if (k.key === "ArrowDown") return { kind: "move", dir: 1 };
+    return null; // printables: native text editing
   }
   // ---- a KEY cell inside a flow token ------------------------------------------------------ //
   if (s.cell === "key") {

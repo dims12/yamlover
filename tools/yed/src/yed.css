@@ -33,6 +33,12 @@
    last line (first-baseline drew `{ ,`, flex-end sank it below the glyph). */
 .y2-indent { margin-left: 2ch; }
 .y2-empty { color: #8c959f; font-style: italic; }
+/* the node's IDENTITY chrome — `!!<…>` / `!!yo` / `!!set` tags and `&` anchors — visible in
+   BOTH plain and debug modes (unlike the .y2-tag captions): the tags are part of the source,
+   and hiding them is what let them "disappear" in edit mode. Read-only, never selectable. */
+.y2-decor { color: #8250df; opacity: 0.65; user-select: none; white-space: pre; }
+.y2-anchor-row { white-space: pre; }
+.y2-anchor-add { cursor: text; }
 
 /* the keyboard legend */
 .y2-legend { display: flex; flex-wrap: wrap; gap: 4px; }

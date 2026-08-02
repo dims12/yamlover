@@ -21,7 +21,8 @@
 
 import type { Edit } from "../api";
 import { isFlow, isSpread, sourceOf, type Document, type Entry, type Node, type Value } from "../../../../yed/src/state";
-import { isPointer } from "../../../../parser/ts/src/ir.ts";
+import { isPointer, type Anchor } from "../../../../parser/ts/src/ir.ts";
+import { anchorBody } from "../../../../parser/ts/src/serialize-common.ts";
 import { segToken } from "../../../../parser/ts/src/pathseg.ts";
 import { schemaText } from "../../../../parser/ts/src/serialize-yamlover.ts";
 
@@ -53,7 +54,7 @@ const hasBlob = (v: Value): boolean => {
 const canon = (v: Value): unknown => {
   if (isPointer(v)) return { ptr: (v as { raw?: string }).raw ?? "" };
   const n = v as Node & { value?: unknown; raw?: string; array?: boolean };
-  const meta = (n.meta ?? {}) as { style?: string; concrete?: string; selfAt?: number; schema?: Value };
+  const meta = (n.meta ?? {}) as { style?: string; concrete?: string; selfAt?: number; schema?: Value; yo?: boolean; set?: boolean; anchors?: Anchor[] };
   return {
     k: n.kind,
     v: n.kind === "scalar" ? (Number.isNaN(n.value as number) ? "NaN" : n.value) : undefined,
@@ -62,8 +63,21 @@ const canon = (v: Value): unknown => {
     st: meta.style, c: meta.concrete, sa: meta.selfAt,
     sch: meta.schema !== undefined ? canon(meta.schema) : undefined,
     df: (meta as { derivedFormat?: string }).derivedFormat,
+    // the identity marks beyond the tag: !!set and the node's & anchors (by canonical body) —
+    // a change in either must be a visible difference (it persists as a whole-node emplace)
+    set: meta.set === true || undefined,
+    an: (meta.anchors ?? []).length > 0 ? meta.anchors!.map(anchorBody) : undefined,
     e: (n.entries ?? []).map((e) => ({ key: e.key, v: canon(e.value) })),
   };
+};
+
+/** The set/anchor identity marks alone — when ONLY these differ, the surgical facets below
+ *  cannot express the change and the node re-emplaces wholesale (its payload carries the
+ *  own-line `&` anchors and `!!set` inline). */
+const identityMarks = (v: Value): string => {
+  if (isPointer(v)) return "";
+  const meta = ((v as Node).meta ?? {}) as { set?: boolean; anchors?: Anchor[] };
+  return JSON.stringify([meta.set === true, (meta.anchors ?? []).map(anchorBody)]);
 };
 
 /** The node's authored tag as op-`meta` content (`schemaText` — no `!!<…>` wrapper), or null.
@@ -167,6 +181,16 @@ function diffValue(prev: Value, next: Value, path: string, isRoot: boolean, ops:
     // parsed a schema from; only the DROP is expressible (a set always writes a tag above)
     const df = (v: Node): string | undefined => ((v.meta ?? {}) as { derivedFormat?: string }).derivedFormat;
     if (df(p) !== undefined && df(n) === undefined) ops.push({ path, op: "emplace", meta: null });
+  }
+
+  // `!!set` / `&` anchors changed — no surgical facet spells them, so the NODE re-emplaces
+  // wholesale: the payload carries the marks inline (own-line anchors, the `!!set` line).
+  // The node's own `!!<…>` tag rides the op's `meta` facet, never the payload (the replace
+  // op's no-double-stamp rule).
+  if (identityMarks(p) !== identityMarks(n)) {
+    const bare: Node = nTag === null ? n : ({ ...n, meta: (({ schema: _, ...rest }) => rest)((n.meta ?? {}) as { schema?: unknown }) } as unknown as Node);
+    ops.push({ path, op: "emplace", yamlover: payloadOf(bare as Value), ...(nTag !== null ? { meta: nTag } : {}) });
+    return;
   }
 
   // a LEAF growing entries (scalar → omni: the freshly wrapped title's first body commit in a

@@ -8,13 +8,15 @@
 // (+ the sidecar's canonical `pointer` text), and the COMMENT SIDECAR carries all
 // representation — authored scalar spellings (`raw`, sparse: absent means the default),
 // one-line flow (`repr: "yaml/flow"`), the K&R switch (`concrete: "json5p"`, at the switch
-// only), tags/anchors/set (READ-ONLY here: yed does not edit them; ops that omit `meta`
-// preserve the tag server-side), and the comments themselves (carried into meta for fidelity;
-// the diff layer never rewrites untouched regions, so they survive on disk).
+// only), tags (`meta.schema`), `!!yo`/`!!set`, and the node's `&` anchors — ALL carried into
+// the IR (the identity-meta round), so the serializer re-emits them and a whole-subtree
+// payload never strips them; ops that omit `meta` still preserve the tag server-side — and
+// the comments themselves (carried into meta for fidelity; the diff layer never rewrites
+// untouched regions, so they survive on disk).
 
 import type { NodeJson, CommentBucket, CommentMap } from "../api";
 import type { Document, Entry, Node, Value } from "../../../../yed/src/state";
-import { parsePointer } from "../../../../parser/ts/src/pointer.ts";
+import { makeAnchor, parsePointer } from "../../../../parser/ts/src/pointer.ts";
 import { segToken } from "../../../../parser/ts/src/pathseg.ts";
 import { parseSchemaRef } from "../../../../parser/ts/src/yamlover.ts";
 import type { Pointer } from "../../../../parser/ts/src/ir.ts";
@@ -76,7 +78,9 @@ function tagInner(tag: string | undefined): string | null {
  *    (`$yamloverMixed.format`, the mount root's `NodeJson.format`), else folded from the tag
  *    the way walk.ts folds it (`$defs: X` → `x-yamlover-X`, inline `format:` verbatim).
  *    This is the key `cellFor` dispatches `byFormat` on.
- *  A trailing `!!set` stays sidecar-only for now (yed reads sets, it does not edit them). */
+ *  `!!set` and the `&` path anchors ride the IR too (the identity-meta round): the serializer
+ *  re-emits them, so a whole-subtree payload no longer silently strips them, and the editor
+ *  shows them as chrome. */
 function metaFrom(bucket: CommentBucket, extra?: Record<string, unknown>, wireFormat?: string | null): Record<string, unknown> | undefined {
   const meta: Record<string, unknown> = { ...(extra ?? {}) };
   if (bucket.repr === "yaml/flow") meta.style = "flow";
@@ -84,9 +88,19 @@ function metaFrom(bucket: CommentBucket, extra?: Record<string, unknown>, wireFo
   // the `!!yo` plain-yamlover mark (sidecar `tag`): carried into the IR so chunkModeOf routes
   // the node to an inline SOURCE cell — a data island, never a folded subchapter
   if (bucket.tag && /(^|\s)!!yo(\s|$)/.test(bucket.tag)) meta.yo = true;
+  if (bucket.tag && /(^|\s)!!set(\s|$)/.test(bucket.tag)) meta.set = true;
   const inner = tagInner(bucket.tag);
   if (inner !== null) {
     try { meta.schema = parseSchemaRef(inner); } catch { /* a malformed authored tag stays sidecar-only, as before */ }
+  }
+  // the node's own `&` anchors, parsed back from their sidecar BODIES (renderPointer-canonical,
+  // so the round-trip is exact); a body makeAnchor refuses loads as nothing, never a throw
+  if (bucket.anchors && bucket.anchors.length > 0) {
+    const anchors = [];
+    for (const b of bucket.anchors) {
+      try { anchors.push(makeAnchor(b, (m: string) => { throw new Error(m); })); } catch { /* unparseable body stays sidecar-only */ }
+    }
+    if (anchors.length > 0) meta.anchors = anchors;
   }
   const fmt = wireFormat ?? formatFromMetaTag(inner) ?? proseFormatOfTag(inner);
   if (fmt != null) meta.derivedFormat = fmt;

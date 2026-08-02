@@ -11,7 +11,7 @@
 
 import { Fragment, type ReactNode } from "react";
 import type { Cursor, Document, Entry, Node, Path, Value } from "./state";
-import { bracketOf, isFlow, isSpread } from "./state";
+import { anchorDecorations, bracketOf, isFlow, isSpread, schemaTextOf } from "./state";
 import { isPointer, type Pointer } from "../../parser/ts/src/ir.ts";
 import type { Position } from "./apply";
 
@@ -372,10 +372,78 @@ export const defaultRegistry: CellRegistry = {
   fallback: OpaqueAtomCell,
 };
 
-/** THE closed set's root: dispatch through the REGISTRY (ctx.cells), recurse. */
+/** The node's editable `!!<…>` TAG cell — the KeyCell pattern over the tag's INNER text: the
+ *  wrapper punctuation is chrome, the content is a controlled input while active, a focusable
+ *  face otherwise. Rendered whenever the node HAS a tag — or while the cursor's PENDING tag
+ *  (a typed `!!<`) stands on this node, the hole doctrine's "incompleteness lives in the cursor". */
+function TagCell({ node, path, ctx }: { node: Value; path: Path; ctx: CellCtx }) {
+  const active = ctx.cursor.at === "tag" && pathEq(ctx.cursor.path, path);
+  const inner = schemaTextOf(node);
+  if (inner === null && !active) return null;
+  return (
+    <Cell kind="tag" active={active} refused={ctx.refused} pos={{ at: "tag", path }}>
+      <span className="y2-decor" data-yo-chrome>{"!!<"}</span>
+      {active
+        ? <CellInput value={(ctx.cursor as { text: string }).text} ctx={ctx} autoFocus caret={(ctx.cursor as { caret?: "start" | "end" }).caret} />
+        : <span className="y2-v y2-tagtext" tabIndex={0} onFocus={() => ctx.onFocus({ at: "tag", path })}>{inner}</span>}
+      <span className="y2-decor" data-yo-chrome>{"> "}</span>
+    </Cell>
+  );
+}
+
+/** The node's `!!yo` / `!!set` marks — read-only chrome (semantic, not text-editable here). */
+function MarkChrome({ node }: { node: Value }) {
+  if (isPointer(node)) return null;
+  const m = ((node as Node).meta ?? {}) as { yo?: boolean; set?: boolean };
+  const marks = [m.yo === true ? "!!yo" : null, m.set === true ? "!!set" : null].filter((x): x is string => x !== null);
+  if (marks.length === 0) return null;
+  return <span className="y2-decor" data-yo-chrome>{marks.join(" ")} </span>;
+}
+
+/** The node's `&` ANCHOR rows — ONE walk stop after the value (the canonical M3 side), each
+ *  row an editable body (the `&` is chrome), plus a trailing dim ADD slot. The cursor's
+ *  `index` names the active row; clicking any row moves it there. */
+function AnchorsCell({ node, path, ctx }: { node: Value; path: Path; ctx: CellCtx }) {
+  const bodies = anchorDecorations(node).map((t) => t.slice(1)); // tokens carry the `&`; rows edit the BODY
+  const activeHere = ctx.cursor.at === "anchors" && pathEq(ctx.cursor.path, path);
+  const activeIndex = activeHere ? (ctx.cursor as { index: number }).index : -1;
+  if (bodies.length === 0 && !activeHere) return null;
+  const row = (i: number, body: string | null): ReactNode => (
+    <span key={i} className="y2-anchor-row">
+      <span className="y2-decor" data-yo-chrome>{" &"}</span>
+      {activeIndex === i
+        ? <CellInput value={(ctx.cursor as { text: string }).text} ctx={ctx} autoFocus caret={(ctx.cursor as { caret?: "start" | "end" }).caret} />
+        : <span className={body === null ? "y2-decor y2-anchor-add" : "y2-v"} tabIndex={0}
+            onFocus={() => ctx.onFocus({ at: "anchors", path, index: i })}>{body ?? "+"}</span>}
+    </span>
+  );
+  return (
+    <Cell kind="anchors" active={activeHere} refused={ctx.refused} pos={{ at: "anchors", path }}>
+      {bodies.map((b, i) => row(i, b))}
+      {row(bodies.length, null) /* the ADD slot — commit a body here to append an anchor */}
+    </Cell>
+  );
+}
+
+/** THE closed set's root: dispatch through the REGISTRY (ctx.cells), recurse. Every node wears
+ *  its identity cells/chrome here — ONE site, uniform across kinds and custom registry cells. */
 export function NodeCell({ node, path, ctx, trailingComma = false, lead }: ValueCellProps) {
   const C = cellFor(node, ctx.cells);
-  return <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} lead={lead} />;
+  const cell = <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} lead={lead} />;
+  if (isPointer(node)) return cell;
+  const n = node as Node;
+  const meta = (n.meta ?? {}) as { schema?: unknown; yo?: boolean; set?: boolean; anchors?: unknown[] };
+  const tagActiveHere = ctx.cursor.at === "tag" && pathEq(ctx.cursor.path, path);
+  const decorated = meta.schema !== undefined || tagActiveHere || meta.yo === true || meta.set === true || (meta.anchors ?? []).length > 0;
+  if (!decorated) return cell;
+  return (
+    <>
+      <TagCell node={node} path={path} ctx={ctx} />
+      <MarkChrome node={node} />
+      {cell}
+      <AnchorsCell node={node} path={path} ctx={ctx} />
+    </>
+  );
 }
 
 /** The document surface. */
@@ -386,7 +454,13 @@ export function DocCells({ doc, ctx }: { doc: Document; ctx: CellCtx }) {
   return (
     <div className="y2-doc" data-testid="y2-doc">
       {emptyBlock
-        ? (holeAtRoot ? <HoleCell ctx={ctx} /> : <span className="y2-empty">(empty document)</span>)
+        ? <>
+            {/* an emptied data island keeps its FACE — the identity cells stand over the hole */}
+            <TagCell node={root} path={[]} ctx={ctx} />
+            <MarkChrome node={root} />
+            {holeAtRoot ? <HoleCell ctx={ctx} /> : <span className="y2-empty">(empty document)</span>}
+            <AnchorsCell node={root} path={[]} ctx={ctx} />
+          </>
         : <NodeCell node={root} path={[]} ctx={ctx} />}
     </div>
   );

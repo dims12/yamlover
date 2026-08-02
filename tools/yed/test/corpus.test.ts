@@ -94,30 +94,38 @@ function enter(f: Fixture): { state: EditorState; failure: string | null } {
   return { state, failure: null };
 }
 
-/** The Backspace ladder to the empty document — the jam detector fails at the exact repeat. */
-function unwind(s: EditorState, maxSteps = 400): string | null {
+/** The Backspace ladder to the empty document — the jam detector fails at the exact repeat.
+ *  Returns the FINAL state alongside the failure, so callers can assert what survived the
+ *  unwind (the identity-meta law: emptying a document never deletes its root's tags). */
+function unwind(s: EditorState, maxSteps = 400): { jam: string | null; state: EditorState } {
   const seen = new Set<string>();
   for (let i = 0; i < maxSteps; i++) {
-    if (sourceOf(s.doc) === "" && s.cursor.at === "hole" && s.cursor.path.length === 0 && s.cursor.text === "") return null;
+    if (sourceOf(s.doc) === "" && s.cursor.at === "hole" && s.cursor.path.length === 0 && s.cursor.text === "") return { jam: null, state: s };
     const key = JSON.stringify([sourceOf(s.doc), s.cursor]);
-    if (seen.has(key)) return `JAMMED after ${i} steps at ${key.slice(0, 160)}`;
+    if (seen.has(key)) return { jam: `JAMMED after ${i} steps at ${key.slice(0, 160)}`, state: s };
     seen.add(key);
     if ("text" in s.cursor && s.cursor.text !== "") { s = { ...s, cursor: { ...s.cursor, text: "" } } as EditorState; continue; }
     s = applyKey(s, { key: "Backspace" });
   }
-  return `did not reach the empty document in ${maxSteps} steps — at ${JSON.stringify(sourceOf(s.doc)).slice(0, 160)}`;
+  return { jam: `did not reach the empty document in ${maxSteps} steps — at ${JSON.stringify(sourceOf(s.doc)).slice(0, 160)}`, state: s };
+}
+
+/** The ROOT's identity meta (schema tag / !!yo / !!set / anchors), canonicalized for the
+ *  survival assertion — the delete ladder may empty the document but never strip these. */
+function rootIdentity(doc: { root: Value }): string {
+  if (isPointer(doc.root)) return "";
+  const m = ((doc.root as Node).meta ?? {}) as { schema?: unknown; yo?: boolean; set?: boolean; anchors?: unknown[] };
+  return JSON.stringify([m.schema !== undefined, m.yo === true, m.set === true, (m.anchors ?? []).length]);
 }
 
 /** Constructs yed2's pure layer does not model yet — a LOADED document containing one is skipped
- *  from the delete ladder EXPLICITLY, with the construct named (never silently). */
+ *  from the delete ladder EXPLICITLY, with the construct named (never silently). Tags, `!!set`
+ *  and `&` anchors are MODELED now (the identity-meta round) and run the ladder. */
 function unsupportedIn(doc: { root: Value }): string | null {
   const walk = (v: Value): string | null => {
     if (isPointer(v)) return null; // pointer ATOMS are modeled: walkable, deletable
     const n = v as Node;
     if (n.kind === "blob") return "a blob";
-    if (n.meta?.schema !== undefined) return "a `!!<…>` schema tag";
-    if ((n.meta as { set?: boolean } | undefined)?.set) return "`!!set`";
-    if ((n.meta?.anchors ?? []).length > 0) return "a `&` path anchor";
     for (const e of n.entries ?? []) {
       if (e.edge === "back") return "a `~` back-edge";
       const r = walk(e.value);
@@ -145,9 +153,13 @@ describe("yed2 corpus — every sample enterable, then deletable", () => {
       it(`${id} deletes to empty${delKnown ? " [known-failing]" : ""}`, () => {
         const { state, failure } = enter(f);
         expect(failure).toBeNull();
-        const jam = unwind(state);
+        const { jam, state: end } = unwind(state);
         if (delKnown) expect(jam, `${id} now DELETES — remove it from DELETE_ALLOW (was: ${delKnown})`).not.toBeNull();
-        else expect(jam, `${id}\n${jam}`).toBeNull();
+        else {
+          expect(jam, `${id}\n${jam}`).toBeNull();
+          // the identity-meta law: the emptied root keeps its tags/anchors, never a silent strip
+          expect(rootIdentity(end.doc), `${id}: the delete ladder stripped the root's identity meta`).toBe(rootIdentity(state.doc));
+        }
       });
     }
   }
@@ -174,9 +186,12 @@ describe("yed2 corpus — every LOADED test-example deletable (or its blocker NA
     const known = LOAD_DELETE_ALLOW.get(id);
     it(`test-examples/${id} loads and deletes to empty${known ? " [known-failing]" : ""}`, () => {
       const state: EditorState = { doc: parseSource(src), cursor: { at: "hole", path: [], index: 0, text: "", key: null }, refused: false, log: [] };
-      const jam = unwind(state);
+      const { jam, state: end } = unwind(state);
       if (known) expect(jam, `${id} now deletes — delist`).not.toBeNull();
-      else expect(jam, `${id}\n${jam}`).toBeNull();
+      else {
+        expect(jam, `${id}\n${jam}`).toBeNull();
+        expect(rootIdentity(end.doc), `${id}: the delete ladder stripped the root's identity meta`).toBe(rootIdentity(state.doc));
+      }
     });
   }
 

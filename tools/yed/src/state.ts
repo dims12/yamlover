@@ -4,10 +4,11 @@
 // key not yet named). There is no flag web to desynchronize: what is not committed is not in the
 // document, and everything in the document serializes.
 
-import type { Document, Node, Entry, Value } from "../../parser/ts/src/ir.ts";
+import type { Anchor, Document, Node, Entry, Value } from "../../parser/ts/src/ir.ts";
 import { isPointer } from "../../parser/ts/src/ir.ts";
 import { parseYamlover } from "../../parser/ts/src/yamlover.ts";
-import { serializeYamlover } from "../../parser/ts/src/serialize-yamlover.ts";
+import { schemaTagToken, serializeYamlover } from "../../parser/ts/src/serialize-yamlover.ts";
+import { anchorBody } from "../../parser/ts/src/serialize-common.ts";
 import { DIALECTS, type Dialect, type DialectId } from "./dialect";
 
 export type { Document, Node, Entry, Value };
@@ -23,11 +24,18 @@ export type Path = number[];
  *  - `key`:   editing the KEY of the entry at `path`.
  *  - `after`: the caret stands in the GAP past the container value at `path` ([] = the root).
  *  - `ptr`:   the caret stands ON the pointer ATOM at `path` — no text; the atom is not
- *             text-editable (PICK mode is a later feature; typing into it refuses). */
+ *             text-editable (PICK mode is a later feature; typing into it refuses).
+ *  - `tag`:   editing the `!!<…>` TAG of the node at `path`; `text` is the tag's INNER content
+ *             (no wrapper — the same spelling the edit API's `meta` facet carries).
+ *  - `anchors`: editing ONE `&` anchor of the node at `path` — `index` names the row (the
+ *             node's anchors are a list; `index === length` is the ADD slot), `text` is that
+ *             anchor's BODY (no `&`, the sidecar's spelling). */
 export type Cursor =
   | { at: "hole"; path: Path; index: number; text: string; key: string | null; ordinal?: boolean }
   | { at: "token"; path: Path; text: string; caret?: "start" | "end" }
   | { at: "key"; path: Path; text: string; caret?: "start" | "end" }
+  | { at: "tag"; path: Path; text: string; caret?: "start" | "end" }
+  | { at: "anchors"; path: Path; index: number; text: string; caret?: "start" | "end" }
   | { at: "after"; path: Path }
   | { at: "ptr"; path: Path };
 
@@ -85,6 +93,38 @@ export function sourceOf(doc: Document): string {
 
 export function parseSource(src: string): Document {
   return parseYamlover(src, "<yed2>");
+}
+
+/** The node's read-only TAG decorations, in the serializer's reading order: the `!!<…>` schema
+ *  tag, `!!yo`, `!!set` — the same ordered prefix the serializer's `decorations()` writes.
+ *  Exception-safe like the chapter layer's tagContentOf: an untaggable schema renders nothing. */
+export function metaDecorations(v: Value): string[] {
+  if (isPointer(v)) return [];
+  const m = ((v as Node).meta ?? {}) as { schema?: Value; yo?: boolean; set?: boolean };
+  const out: string[] = [];
+  if (m.schema !== undefined) {
+    try { out.push(schemaTagToken(m.schema)); } catch { /* untaggable content stays invisible */ }
+  }
+  if (m.yo === true) out.push("!!yo");
+  if (m.set === true) out.push("!!set");
+  return out;
+}
+
+/** The node's tag INNER text (`meta.schema` through the serializer's spelling, no `!!<…>`
+ *  wrapper) — the tag cell's edit text and the edit API's `meta` facet. Null: no tag, or
+ *  untaggable content. */
+export function schemaTextOf(v: Value): string | null {
+  if (isPointer(v)) return null;
+  const sch = ((v as Node).meta ?? {}) as { schema?: Value };
+  if (sch.schema === undefined) return null;
+  try { return schemaTagToken(sch.schema).slice(3, -1); } catch { return null; }
+}
+
+/** The node's `&` anchor tokens for display — the canonical own-line spelling (`&` + body). */
+export function anchorDecorations(v: Value): string[] {
+  if (isPointer(v)) return [];
+  const anchors = (((v as Node).meta ?? {}) as { anchors?: Anchor[] }).anchors ?? [];
+  return anchors.map((a) => "&" + anchorBody(a));
 }
 
 // ---------------------------------------------------------------------------- //
