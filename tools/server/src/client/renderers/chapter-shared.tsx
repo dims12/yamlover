@@ -12,8 +12,8 @@ import { useEffect, useRef } from "react";
 import { rendererFor, type Chunk } from "./registry";
 import { focusEnd } from "./caret";
 import { asLink, asMixed, scalarValue } from "../render";
-import { anchorOf, chapterFlow, childSlot, flowText } from "./chapter-model";
-import { InlineSubchapter } from "./subchapter";
+import { anchorOf, chapterFlow, childPath, childSlot, flowText } from "./chapter-model";
+import { InlineSubchapter, subchapterTarget } from "./subchapter";
 import { DataChunk } from "./data-chunk";
 
 /** The index gutter — an in-page anchor link to the chunk's own location, or a plain marker.
@@ -22,12 +22,20 @@ import { DataChunk } from "./data-chunk";
  *  marklower link (`:i`), an edit path, and the tree label spell — the gutter shows the address,
  *  not a render-order count (the legacy `§N` chunk counter skipped keyed entries and disagreed
  *  with all three). */
-export function ChunkGutter({ index, anchor }: { index: number; anchor: string | null }) {
+export function ChunkGutter({ index, anchor }: { index: number | string; anchor: string | null }) {
   return anchor ? (
     <a className="chunk-index" href={`#${anchor}`}>{index}</a>
   ) : (
     <span className="chunk-index">{index}</span>
   );
+}
+
+/** The gutter label of a chunk at `absIndex` under `crumbs` — its POSITIONAL address chain from
+ *  the PAGE root, spelled as a colon path (`1: 1: 4`). A top-level chunk is the bare digit; a
+ *  chunk laid out inside any inlined subchapter or nested group composes the whole chain, so the
+ *  label cites the chunk's place in the page's nested array, not just its local index. */
+export function chunkLabel(crumbs: readonly number[], absIndex: number): string {
+  return [...crumbs, absIndex].join(": ");
 }
 
 /** The chunk skeleton — `div.chunk` + gutter + `div.chunk-body` (+ optional trailing tools).
@@ -58,6 +66,14 @@ export function renderChunkBody(chunk: Chunk, onNavigate: (path: string) => void
   return renderer?.renderChunk ? renderer.renderChunk(chunk, onNavigate) : <p className="chapter-prose">{String(chunk.value ?? "")}</p>;
 }
 
+/** The `§` in a subchapter heading's left gutter — the section's own anchor link, the heading
+ *  twin of the chunk gutter's address digit (and of the markup renderer's `header-anchor`). */
+export function SectionAnchor({ id }: { id: string }) {
+  return (
+    <a className="section-anchor" href={`#${id}`} aria-label="Link to this section" data-yo-chrome>§</a>
+  );
+}
+
 /** A subchapter's heading, at the rank its nesting gives it — the SAME `chapter-title` face
  *  whether the body is laid out in place or not (the depth-styling rule above). It wraps in its
  *  own `chapter-sub` SECTION so a collapsed subchapter keeps the exact indent + left rule its
@@ -81,6 +97,7 @@ export function SubchapterHeading({
   return (
     <section className="chapter-sub" data-chapter-path={path || undefined}>
       <Heading className="chapter-title" id={id || undefined}>
+        {id && <SectionAnchor id={id} />}
         {linked && <span className="chapter-link-more" data-yo-chrome aria-hidden="true">»</span>}
         {linked ? (
           <a
@@ -192,7 +209,7 @@ export function EditableLine({
  *  shows the same number here as it does on that subchapter's own page — the number stays a
  *  stable citation either way. */
 export function ChapterBody({
-  value, nodePath, documentPath, anchorBase, slot, level, budget, ancestors, onLoaded, onNavigate,
+  value, nodePath, documentPath, anchorBase, slot, level, budget, ancestors, crumbs = [], onLoaded, onNavigate,
 }: {
   value: unknown;
   nodePath: string;
@@ -202,16 +219,22 @@ export function ChapterBody({
   level: number;
   budget: number;
   ancestors: readonly string[];
+  /** The index chain from the PAGE root down to this body — the composed positional address
+   *  every chunk gutter cites (see {@link chunkLabel}); empty at the page root. */
+  crumbs?: readonly number[];
   onLoaded: () => void;
   onNavigate: (path: string) => void;
 }) {
   const flow = chapterFlow(value);
   const Heading = `h${Math.min(level + 1, 6)}` as "h1";
+  // the heading's anchor is the PATH fragment, exactly like a chunk's — `#/principles` resolves
+  const sectionId = level > 0 ? anchorOf(anchorBase, nodePath, slot) : undefined;
 
   const body = flow.map((f, i) => {
     if (f.kind === "title") {
       return (
-        <Heading key={i} className="chapter-title" id={level > 0 ? slot : undefined}>
+        <Heading key={i} className="chapter-title" id={sectionId}>
+          {sectionId && <SectionAnchor id={sectionId} />}
           {flowText(f.value)}
         </Heading>
       );
@@ -224,7 +247,7 @@ export function ChapterBody({
       const link = asLink(f.value);
       const anchor = anchorOf(anchorBase, link?.path ?? "", childSlotId);
       return (
-        <ChunkShell key={i} anchor={anchor} nodePath={link?.path} gutter={<ChunkGutter index={f.absIndex} anchor={anchor} />}>
+        <ChunkShell key={i} anchor={anchor} nodePath={link?.path} gutter={<ChunkGutter index={chunkLabel(crumbs, f.absIndex)} anchor={anchor} />}>
           <DataChunk item={f.value} documentPath={documentPath} onNavigate={onNavigate} />
         </ChunkShell>
       );
@@ -251,18 +274,27 @@ export function ChapterBody({
               level={p.level}
               budget={budget - 1}
               ancestors={p.ancestors}
+              // every inlined body composes its address from here — a chunk's gutter cites its
+              // place in the PAGE's nested array (on its own page the same chunk starts fresh)
+              crumbs={[...crumbs, f.absIndex]}
               onLoaded={onLoaded}
               onNavigate={onNavigate}
             />
           )}
-          renderLink={(p) => <SubchapterHeading {...p} onNavigate={onNavigate} />}
+          renderLink={(p) => (
+            <SubchapterHeading
+              {...p}
+              id={anchorOf(anchorBase, subchapterTarget(f.value).path ?? childPath(nodePath, f.absIndex), p.id)}
+              onNavigate={onNavigate}
+            />
+          )}
         />
       );
     }
     return (
       <ReadChunk
         key={i}
-        index={f.absIndex}
+        index={chunkLabel(crumbs, f.absIndex)}
         item={f.value}
         anchorBase={anchorBase}
         slot={childSlotId}
@@ -288,7 +320,7 @@ export function ReadChunk({
   documentPath,
   onNavigate,
 }: {
-  index: number;
+  index: number | string;
   item: unknown;
   anchorBase: string;
   slot: string;

@@ -997,6 +997,29 @@ pre.code.chapter-data {
 .chapter-sub > .chapter-title {
   scroll-margin-top: 12px;
 }
+/* the § in a subchapter heading's left gutter — the heading twin of the chunk gutter's address
+   digit (and of the markup renderer's .header-anchor): a fixed 12px in a fixed-width slot, so
+   every heading level lines up in the same gutter instead of scaling with its font size */
+.chapter .chapter-title {
+  position: relative;
+}
+.chapter .section-anchor {
+  position: absolute;
+  left: -2.15rem; /* clears the .chapter-sub padding + left rule into the parent's gutter */
+  width: 1.6rem;
+  box-sizing: border-box;
+  text-align: right;
+  font-size: 12px;
+  font-weight: normal;
+  line-height: inherit;
+  color: var(--dim);
+  text-decoration: none;
+  user-select: none;
+}
+.chapter .chapter-title:hover .section-anchor,
+.chapter .section-anchor:hover {
+  color: var(--accent);
+}
 /* why a subchapter is a LINK rather than laid out here: loading, failed, or a pointer cycle */
 .chapter-link-note {
   font-size: 12px;

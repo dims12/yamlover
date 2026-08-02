@@ -262,23 +262,46 @@ describe("ChapterView — inline subchapters", () => {
     await waitFor(() => expect(container.querySelector("section.chapter-sub")).toBeTruthy());
     expect(fetchNode).toHaveBeenCalledWith(":dogs", 1);
     const sub = container.querySelector("section.chapter-sub")!;
-    expect(sub.querySelector("h2.chapter-title")?.textContent).toBe("Dogs");
+    expect(sub.querySelector("h2.chapter-title")?.textContent).toContain("Dogs");
     expect(sub.textContent).toContain("Dogs are good.");
     expect(container.querySelector("a.descend")).toBeNull(); // laid out, not linked
   });
 
-  it("anchors an inlined subchapter and its chunks by RENDER SLOT, and restarts §N", async () => {
+  it("anchors an inlined subchapter and its chunks by PATH fragment, and restarts §N", async () => {
     fetchNode.mockResolvedValue(subNode(":dogs", "Dogs", "Dogs are good."));
     const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
     await waitFor(() => expect(container.querySelector("section.chapter-sub")).toBeTruthy());
-    // the subchapter sits at body index 1 of the page → its heading anchors at `/1`
-    expect(container.querySelector("h2.chapter-title")?.id).toBe("/1");
-    // its chunk is `/1/0` — a slot chain, because `:dogs` is not under the page root `:`… but
-    // the page root IS `:`, an ancestor of everything, so the path branch wins and gives `/dogs/0`
+    // the heading anchors by the SAME path-fragment namespace its chunks use — `#/dogs` resolves
+    const heading = container.querySelector("h2.chapter-title")!;
+    expect(heading.id).toBe("/dogs");
+    // …and wears the § gutter anchor to its own location (the heading twin of the chunk digit)
+    expect(heading.querySelector("a.section-anchor")?.getAttribute("href")).toBe("#/dogs");
+    // its chunk is `/dogs/0` — the page root `:` is an ancestor of everything, the path branch wins
     expect(document.getElementById("/dogs/0")).not.toBeNull();
-    // the gutter shows each chunk's own ABSOLUTE address: 0 on the page and 0 in the subchapter
+    // the gutter cites each chunk's place in the PAGE's nested array: the subchapter sits at
+    // entry 1, so its chunk composes `1: 0` here (on its own page the same chunk reads `0`)
     const indices = Array.from(container.querySelectorAll(".chunk-index")).map((a) => a.textContent);
-    expect(indices).toEqual(["0", "0"]);
+    expect(indices).toEqual(["0", "1: 0"]);
+  });
+
+  it("chunks in an untitled INLINE group compose their nested address (`1: 0`)", () => {
+    // a nested plain container (the Tab-nest product) — not a chapter of its own: no title, no key
+    const group = { $yamloverMixed: { kind: "mix", entries: [
+      { key: null, value: "Grouped one." },
+      { key: null, value: "Grouped two." },
+    ] } };
+    const node = {
+      path: ":", type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover", documentPath: ":",
+      title: "Book", description: null,
+      value: { $yamloverMixed: { kind: "omni", value: "Book", selfAt: 0, entries: [
+        { key: null, value: "Opening." },
+        { key: null, value: group },
+      ] } },
+    } as unknown as NodeJson;
+    const { container } = render(<ChapterView node={node} onNavigate={vi.fn()} />);
+    const indices = Array.from(container.querySelectorAll(".chunk-index")).map((a) => a.textContent);
+    // the top-level chunk keeps its bare digit; the group's chunks compose from the page root
+    expect(indices).toEqual(["0", "1: 0", "1: 1"]);
   });
 
   it("?depth=1 keeps today's link — no fetch at all, SAME heading face (the depth-styling rule)", () => {
@@ -287,7 +310,7 @@ describe("ChapterView — inline subchapters", () => {
     expect(fetchNode).not.toHaveBeenCalled();
     const link = container.querySelector("h2.chapter-title a.descend")!;
     expect(link.textContent).toBe("Dogs");
-    expect(container.querySelector("h2.chapter-title")?.id).toBe("/1"); // the anchor still resolves
+    expect(container.querySelector("h2.chapter-title")?.id).toBe("/dogs"); // the anchor still resolves
   });
 
   it("?depth=2 inlines one level and leaves the next as a link", async () => {
@@ -296,7 +319,7 @@ describe("ChapterView — inline subchapters", () => {
     fetchNode.mockResolvedValue(subNode(":dogs", "Dogs", "Dogs are good.", deeper));
     const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
     await waitFor(() => expect(container.querySelector("section.chapter-sub")).toBeTruthy());
-    expect(container.querySelector("h2.chapter-title")?.textContent).toBe("Dogs"); // level 1 inlined
+    expect(container.querySelector("h2.chapter-title")?.textContent).toContain("Dogs"); // level 1 inlined
     const deep = container.querySelector("h3.chapter-title a.descend")!; // level 2 is a link, one rank down
     expect(deep.textContent).toBe("Puppies");
     expect(fetchNode).toHaveBeenCalledTimes(1); // and never fetched
@@ -307,7 +330,7 @@ describe("ChapterView — inline subchapters", () => {
     const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
     const head = container.querySelector("h2.chapter-title")!;
     expect(head.querySelector("a.descend")?.textContent).toBe("Dogs");
-    expect(head.id).toBe("/1"); // the anchor exists before the body lands
+    expect(head.id).toBe("/dogs"); // the anchor exists before the body lands
     expect(head.querySelector(".chapter-link-note")?.textContent?.trim()).toBe("…");
   });
 
@@ -342,7 +365,7 @@ describe("ChapterView — inline subchapters", () => {
     const { container } = render(<ChapterView node={node} onNavigate={vi.fn()} />);
     expect(fetchNode).not.toHaveBeenCalled();
     const sub = container.querySelector("section.chapter-sub")!;
-    expect(sub.querySelector("h2.chapter-title")?.textContent).toBe("Cats");
+    expect(sub.querySelector("h2.chapter-title")?.textContent).toContain("Cats");
     expect(sub.textContent).toContain("Cats are fine.");
   });
 });

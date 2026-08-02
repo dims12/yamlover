@@ -44,7 +44,8 @@ import { clipboardFiles, fileToBase64, pastedName } from "../clipboard";
 import { ChapterBody, renderChunkBody } from "./chapter-shared";
 import type { Chunk } from "./registry";
 import { viewDepth } from "./depth";
-import { useHashScroll } from "./headings";
+import { markupWidthCh } from "./markup";
+import { useFragmentScrollSpy, useHashScroll } from "./headings";
 
 export { rolesOf }; // the debug page imported it from here historically; the source is yed's legend
 
@@ -172,7 +173,12 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
   });
   useEffect(() => () => clearFormatBus(), []);
 
-  useHashScroll(state?.doc);
+  // The reading position carries across the view/edit switch: the mount restores the URL
+  // fragment ONCE (`once` — the doc dep changes on every keystroke, and re-centering while
+  // typing would yank the page), and scrolling in edit mode keeps the fragment following.
+  useHashScroll(state !== null, { once: true });
+  const rootRef = useRef<HTMLDivElement>(null);
+  useFragmentScrollSpy(rootRef, path);
 
   const dispatch = (intent: ChapterIntent, split?: SplitPayload): void => {
     const st = stateRef.current;
@@ -186,6 +192,12 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
       const doc = stateRef.current?.doc;
       if (!doc) return null;
       return anchorOf(path, subchapterServerPath(doc, path, p), childSlot("", index));
+    },
+    anchorForSection: (p: Path): string | null => {
+      const doc = stateRef.current?.doc;
+      if (!doc) return null;
+      // the read view's heading fragment, so `#/concretes` resolves in edit mode too
+      return anchorOf(path, subchapterServerPath(doc, path, p), "/" + p.join("/"));
     },
     renderReadonly: (node: Value, p: Path) => {
       const doc = stateRef.current?.doc;
@@ -239,9 +251,12 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
   if (error) return <div className="muted">the chapter could not load: {error}</div>;
   if (!ctx) return <div className="muted">…</div>;
   return (
-    <ChapterCtx.Provider value={ctx}>
-      <ChapterDoc budget={viewDepth() ?? Infinity} />
-    </ChapterCtx.Provider>
+    <div ref={rootRef}>
+      <ChapterCtx.Provider value={ctx}>
+        {/* the reading width carries into the editor — the same measure the read view takes */}
+        <ChapterDoc budget={viewDepth() ?? Infinity} style={{ maxWidth: `${markupWidthCh()}ch` }} />
+      </ChapterCtx.Provider>
+    </div>
   );
 }
 

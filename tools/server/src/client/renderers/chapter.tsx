@@ -3,7 +3,7 @@ import { NodeJson, editChunks, createNode, createObject } from "../api";
 import { NODE_SCHEMA } from "./create";
 import { canonPath } from "../paths";
 import { ChapterBody, ChunkGutter, ChunkShell, chunkOf, EditableLine, renderChunkBody, SubchapterHeading } from "./chapter-shared";
-import { useHashScroll } from "./headings";
+import { useFragmentScrollSpy, useHashScroll } from "./headings";
 import { useEditing } from "./editing";
 import { useExplorerTagMenu } from "./tagmenu";
 import { chunkEditorFor, isJoinableFormat, renderedTextLength, type FocusAt } from "./chunk-editors";
@@ -102,9 +102,12 @@ function ChapterRead({ node, onNavigate }: { node: NodeJson; onNavigate: (path: 
   // chunk inside a subchapter that was not in the DOM when the hash was first read.
   const [loads, noteLoad] = useReducer((n: number) => n + 1, 0);
   useHashScroll(loads);
+  // …and the reverse: scrolling updates the fragment to the anchor under the reading line
+  const rootRef = useRef<HTMLDivElement>(null);
+  useFragmentScrollSpy(rootRef, node.path);
 
   return (
-    <div className="chapter" style={{ maxWidth: `${markupWidthCh()}ch` }}>
+    <div className="chapter" ref={rootRef} style={{ maxWidth: `${markupWidthCh()}ch` }}>
       <ChapterBody
         value={node.value}
         nodePath={node.path}

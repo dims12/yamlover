@@ -80,8 +80,9 @@ describe("yed chapter — structure", () => {
     expect(titleText(section)).toBe("Dogs");
     expect(section.querySelector(".chapter-prose")?.textContent).toBe("woof");
     const gutters = Array.from(container.querySelectorAll(".chunk-index")).map((g) => g.textContent);
-    // absolute yamlover addresses: "opening"=[0], the subchapter's "woof"=[0] (inside), "closing"=[2]
-    expect(gutters).toEqual(["0", "0", "2"]);
+    // the composed positional address from the page root: "opening"=0, the subchapter's
+    // "woof" cites its place in the page's nested array (`1: 0`), "closing"=2
+    expect(gutters).toEqual(["0", "1: 0", "2"]);
   });
 
   it("an EMPTY chapter shows one bootstrap paragraph with the placeholder", async () => {
@@ -332,6 +333,27 @@ describe("yed chapter — tables and source chunks (Stage 7)", () => {
     input.setSelectionRange(1, 1);
     await act(async () => { fireEvent.keyDown(input, { key: "Enter" }); });
     expect(await flush()).toEqual([{ path: ":doc:1:serves", op: "emplace", yamlover: "6" }]);
+  });
+
+  it("TWO source chunks never fight for the caret — opening pins it in the title", async () => {
+    // Regression: each embedded source EditorView used to plant its own caret unconditionally;
+    // with two data islands they stole focus from each other every commit — an unbounded render
+    // cascade that froze the whole page (the docs/language mount). An embedded editor plants
+    // only while the CHAPTER machine focuses its chunk (plantCaret={focused}).
+    const node = withTag(withTag(chapterNode({
+      title: "Data",
+      body: [
+        { $yamloverMixed: { kind: "mix", entries: [{ key: "a", value: 1 }] } },
+        { $yamloverMixed: { kind: "mix", entries: [{ key: "b", value: 2 }] } },
+      ],
+    }), "/0", "!!<*yamlover: $defs: island>"), "/1", "!!<*yamlover: $defs: island>");
+    const { container } = renderSync(node);
+    await settle();
+    expect(container.querySelectorAll(".chunk-source").length).toBe(2);
+    // the caret law holds: the title input owns the caret, no source editor stole it
+    expect(document.activeElement).toBe(container.querySelector("h1.chapter-title input.y2-input"));
+    await settle();
+    expect(document.activeElement).toBe(container.querySelector("h1.chapter-title input.y2-input"));
   });
 });
 

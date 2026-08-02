@@ -20,6 +20,7 @@ export type ChapterIntent =
   | { kind: "appendColumn" }                     // table: the + column button (every row gains a cell)
   | { kind: "deleteRow" }                        // table: Backspace at an ALL-EMPTY row's first position
   | { kind: "enterWalk" }                        // Enter on title/description: to the next cell
+  | { kind: "insertBefore" }                     // Enter at a subchapter title's START: an empty ¶ opens before it
   | { kind: "move"; dir: 1 | -1 }                // the flat document-order caret walk
   | { kind: "role"; role: "title" | "desc" }     // the bar's T / D (never a key)
   | { kind: "format"; chosen: ChosenFormat }     // Ctrl+Alt+1..4 / the bar
@@ -60,7 +61,14 @@ export function chapterInterpret(k: ChapterKey, s: ChapterSite): ChapterIntent |
 
   switch (k.key) {
     case "Enter": {
-      if (s.cell === "title" || s.cell === "description") return { kind: "enterWalk" };
+      if (s.cell === "title") {
+        // Enter at the START of a non-empty subchapter title: the word-processor push-down —
+        // an empty paragraph opens BEFORE the whole subchapter, and the caret enters it.
+        // (An EMPTY title is atStart AND atEnd — that stays the enter-walk.)
+        if (s.caretAtStart && !s.caretAtEnd && !s.isRootTitle) return { kind: "insertBefore" };
+        return { kind: "enterWalk" };
+      }
+      if (s.cell === "description") return { kind: "enterWalk" };
       if (s.cell === "prose" || s.cell === "listItem" || s.cell === "boot") return { kind: "splitProse" };
       if (s.cell === "tableCell") {
         // Ctrl+Enter appends a ROW; plain Enter splits the cell into CHUNKS — a cell hosts

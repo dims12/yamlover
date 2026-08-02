@@ -65,6 +65,9 @@ export interface ChapterCellsAdapter {
   pasteFiles?(el: HTMLElement, range: Range, files: File[], commit: (text: string) => void): void;
   /** §N anchor ids (+ data-node-path); default: none. */
   anchorFor?(path: Path, index: number): string | null;
+  /** A SUBCHAPTER section's anchor id — the same fragment the read view stamps on its heading,
+   *  so a `#/concretes` hash resolves (and the reading position restores) in edit mode too. */
+  anchorForSection?(path: Path): string | null;
   navigate(path: string): void;
   columnMemory: ColumnMemory;
 }
@@ -198,11 +201,12 @@ function LineCell({ kind, path, className, placeholder, block }: {
 // The document
 // ---------------------------------------------------------------------------- //
 
-/** The whole chapter page. `debug` is ONE class on this root — same DOM either way. */
-export function ChapterDoc({ budget = Infinity }: { budget?: number }): ReactNode {
+/** The whole chapter page. `debug` is ONE class on this root — same DOM either way.
+ *  `style` is the host's page measure (the server mount passes the reading width). */
+export function ChapterDoc({ budget = Infinity, style }: { budget?: number; style?: React.CSSProperties }): ReactNode {
   const ctx = useChapter();
   return (
-    <div className={(ctx.debug ? "y2-debug" : "y2-plain") + " chapter chapter-wysiwyg y2-chapter"} data-testid="yc-doc">
+    <div className={(ctx.debug ? "y2-debug" : "y2-plain") + " chapter chapter-wysiwyg y2-chapter"} data-testid="yc-doc" style={style}>
       <ChapterNode path={[]} spath={ctx.chapterPath} level={0} budget={budget} />
     </div>
   );
@@ -210,8 +214,10 @@ export function ChapterDoc({ budget = Infinity }: { budget?: number }): ReactNod
 
 /** One chapter level: title, then entries in source order (description as the subtitle, other
  *  keyed fields skipped), the bootstrap slot when there is no body. Subchapters recurse in a
- *  framed `chapter` cell (the wrap badge is the LOCALIZED wrap state). */
-export function ChapterNode({ path, spath, level, budget }: { path: Path; spath: string; level: number; budget: number }): ReactNode {
+ *  framed `chapter` cell (the wrap badge is the LOCALIZED wrap state). `crumbs` is the index
+ *  chain from the PAGE root: a nested chunk's gutter shows its composed positional address
+ *  (`1: 1: 4`) — the read view's chunkLabel rule, mirrored. */
+export function ChapterNode({ path, spath, level, budget, crumbs = [] }: { path: Path; spath: string; level: number; budget: number; crumbs?: readonly number[] }): ReactNode {
   const ctx = useChapter();
   const node = nodeAtPath(ctx.state.doc.root, path);
   if (!node) return null;
@@ -225,8 +231,9 @@ export function ChapterNode({ path, spath, level, budget }: { path: Path; spath:
       return;
     }
     const mode = chunkModeOf(e.value);
-    // the gutter label is the entry's yamlover ADDRESS: its key, or its absolute bare-digit index
-    const label = e.key !== null && anchorKey === undefined ? e.key : String(i);
+    // the gutter label is the entry's yamlover ADDRESS: its key, or the composed positional
+    // chain from the page root (`1: 1: 4`; a top-level chunk is the bare digit)
+    const label = e.key !== null && anchorKey === undefined ? e.key : [...crumbs, i].join(": ");
     if (mode === "chapter") {
       const sp = anchorKey !== undefined
         ? `${spath === ":" ? "" : spath}:${encodeURIComponent(anchorKey)}`
@@ -236,8 +243,9 @@ export function ChapterNode({ path, spath, level, budget }: { path: Path; spath:
         <Cell key={i} kind="chapter" active={false} refused={false} block
           badge={wrapped ? "wrapped" : anchorKey !== undefined ? "linked" : undefined}>
           {budget > 1 || wrapped ? (
-            <section className="chapter-sub" data-chapter-path={sp}>
-              <ChapterNode path={p} spath={sp} level={level + 1} budget={budget - 1} />
+            <section className="chapter-sub" data-chapter-path={sp} id={ctx.adapter.anchorForSection?.(p) ?? undefined}>
+              {/* every inlined body composes its address — the gutter cites the page's nested array */}
+              <ChapterNode path={p} spath={sp} level={level + 1} budget={budget - 1} crumbs={[...crumbs, i]} />
             </section>
           ) : (
             <DescendHeading path={sp} title={scalarText(e.value)} level={level + 1} />
@@ -253,7 +261,7 @@ export function ChapterNode({ path, spath, level, budget }: { path: Path; spath:
     <>
       {hasSelfValue(node) && <TitleCell path={path} level={level} />}
       {body}
-      {!hasBody && <BootCell path={path} />}
+      {!hasBody && <BootCell path={path} crumbs={crumbs} />}
     </>
   );
 }
@@ -328,6 +336,13 @@ function splitAtCaret(el: HTMLElement, codec: ProseCodec): { head: string; tail:
   return { head: cut("head"), tail: cut("tail") };
 }
 
+/** The text a prose cell's element last AGREED with the model on (a write, or a verified
+ *  match) — an INACTIVE cell whose entry is current cannot have diverged (nothing types into
+ *  it), so its reconcile skips the DOM read entirely. Without this every state change
+ *  re-serializes EVERY cell's DOM (codec.fromDom × hundreds), which is what lagged the first
+ *  keystrokes after a structural edit on a large page. */
+const reconciled = new WeakMap<HTMLElement, string>();
+
 /** The marklower prose cell: contentEditable, STATE-authoritative via the identity-guarded
  *  reconcile — a rewrite happens exactly when the model diverged from the DOM. */
 export function ProseCell({ path, itemCell = false, placeholder }: { path: Path; itemCell?: boolean; placeholder?: string }): ReactNode {
@@ -342,10 +357,13 @@ export function ProseCell({ path, itemCell = false, placeholder }: { path: Path;
   const reconcile = (el: HTMLElement | null): void => {
     if (!el) return;
     if (composing.current) { pending.current = true; return; }
-    if (codec.fromDom(el) !== text) {
-      const hadCaret = document.activeElement === el ? caretVisibleOffset(el) : null;
-      el.innerHTML = codec.toHtml(text);
-      if (hadCaret !== null && (!active || ctx.state.caret === null)) placeCaretVisible(el, hadCaret);
+    if (active || reconciled.get(el) !== text) {
+      if (codec.fromDom(el) !== text) {
+        const hadCaret = document.activeElement === el ? caretVisibleOffset(el) : null;
+        el.innerHTML = codec.toHtml(text);
+        if (hadCaret !== null && (!active || ctx.state.caret === null)) placeCaretVisible(el, hadCaret);
+      }
+      reconciled.set(el, text);
     }
     // THE FOCUS LAW: the active cell plants the caret, then CONSUMES the request — a plant
     // that lingered in state would re-fire on the next render and hijack mid-typing carets
@@ -411,15 +429,16 @@ export function ProseCell({ path, itemCell = false, placeholder }: { path: Path;
 }
 
 /** The bootstrap paragraph — no entry exists until the first typed text, but it LOOKS like
- *  the prose chunk it is about to become (the same skeleton, the `[i]` it will take). */
-function BootCell({ path }: { path: Path }): ReactNode {
+ *  the prose chunk it is about to become: the same skeleton, and the same ADDRESS spelling
+ *  its gutter will take (the bare digit / the composed `1: 1: 0` chain — never `[n]`). */
+function BootCell({ path, crumbs = [] }: { path: Path; crumbs?: readonly number[] }): ReactNode {
   const ctx = useChapter();
   const active = ctx.state.focus?.at === "into" && pathEq(path, ctx.state.focus.path);
   const at = (nodeAtPath(ctx.state.doc.root, path)?.entries ?? []).length;
   return (
     <Cell kind="boot" active={active} refused={ctx.state.refused} pos={{ at: "into", path }} block>
       <div className="chunk">
-        <span className="chunk-index">[{at}]</span>
+        <span className="chunk-index">{[...crumbs, at].join(": ")}</span>
         <div className="chunk-body">
           <p
             className="chapter-prose editable"
@@ -610,6 +629,7 @@ function SourceCell({ path }: { path: Path }): ReactNode {
           }}
           debug={false}
           cells={ctx.adapter.sourceCells ?? defaultRegistry}
+          plantCaret={focused}
         />
       </div>
     </Cell>

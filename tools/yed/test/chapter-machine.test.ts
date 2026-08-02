@@ -215,8 +215,38 @@ describe("roles — T / D", () => {
     expect(s1.focus).toEqual(tok(0));
   });
 
-  it("T refuses when a title already exists", () => {
-    expect(makeTitle(st("Book\n- p\n", tok(0)), [0]).refused).toBe(true);
+  it("T under an existing title makes the paragraph a NEW subchapter's title — Tab+T in one gesture", () => {
+    const s1 = makeTitle(st("Book\n- p\n", tok(0)), [0]);
+    expect(s1.refused).toBe(false);
+    // the wrap is model-only until the subchapter gains body — the source is IDENTICAL (zero ops)
+    expect(sourceOf(s1.doc)).toBe("Book\n- p\n");
+    expect(s1.focus).toEqual(tok(0)); // the caret sits on the fresh subchapter's title
+    expect(chapterSiteOf(s1.doc, s1.focus).cell).toBe("title");
+    // …and T again demotes it right back (the toggle holds for the fresh wrap too)
+    const back = applyChapterIntent(s1, { kind: "role", role: "title" });
+    expect(back.refused).toBe(false);
+    expect(chapterSiteOf(back.doc, back.focus).cell).toBe("prose");
+  });
+
+  it("the Enter-before flow: an EMPTY fresh paragraph takes T too (type the new section's title)", () => {
+    const s0 = st("Book\n- ''\n- Dogs\n  - woof\n", tok(0)); // the empty ¶ Enter-before made
+    const s1 = makeTitle(s0, [0]);
+    expect(s1.refused).toBe(false);
+    expect(chapterSiteOf(s1.doc, s1.focus).cell).toBe("title");
+  });
+
+  it("T on the BOOT cell of a TITLED chapter opens a fresh SUBCHAPTER title — never clobbers", () => {
+    // the reported flow: empty → T → type "Title" → ↓ (the boot cell below) → T again
+    const empty: ChapterState = { ...initialChapterState(parseSource("")), focus: { at: "into", path: [] }, caret: null };
+    const titled = applyChapterIntent(empty, { kind: "role", role: "title" });
+    const named = commitChapterText(titled, [], "Title");
+    const below = applyChapterKey(named, { key: "ArrowDown" })!;
+    expect(below.focus?.at).toBe("into"); // the boot cell under the title
+    const s = applyChapterIntent(below, { kind: "role", role: "title" });
+    expect(s.refused).toBe(false);
+    expect(sourceOf(s.doc)).toBe("Title\n- ''\n"); // the committed title SURVIVES
+    expect(chapterSiteOf(s.doc, s.focus).cell).toBe("title"); // a fresh subchapter title took the caret
+    expect(s.focus).toEqual(tok(0));
   });
 
   it("T TOGGLES on a body-less title — promote then demote round-trips", () => {
@@ -515,6 +545,23 @@ describe("the keystroke surface — applyChapterKey", () => {
     expect(sourceOf(entered.doc)).toBe("- p1\n- My chapter\n  - ''\n");
     expect(entered.focus).toEqual(tok(1, 0)); // the fresh first paragraph
     expect(entered.caret).toBe("start");
+  });
+
+  it("Enter at a SUBCHAPTER title's start opens an empty paragraph BEFORE it — and enters it", () => {
+    const s0 = st("- p1\n- Dogs\n  - woof\n", tok(1)); // [1] is the subchapter, caret before the D
+    const s1 = applyChapterKey(s0, { key: "Enter" }, { atStart: true, atEnd: false, firstLine: true, lastLine: true })!;
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("- p1\n- ''\n- Dogs\n  - woof\n");
+    expect(s1.focus).toEqual(tok(1)); // the caret ENTERS the fresh paragraph, ready to type
+    expect(s1.caret).toBe("start");
+  });
+
+  it("Enter at the ROOT title's start still walks (the page has no before)", () => {
+    const s0 = st("T\ndescription: d\n", { at: "token", path: [] });
+    const s1 = applyChapterKey(s0, { key: "Enter" }, { atStart: true, atEnd: false, firstLine: true, lastLine: true })!;
+    expect(s1.refused).toBe(false);
+    expect(s1.focus).toEqual(tok(0)); // the enter-walk to the description
+    expect(sourceOf(s1.doc)).toBe(sourceOf(s0.doc)); // nothing inserted
   });
 
   it("Enter on a title with an EMPTY body creates the first paragraph", () => {

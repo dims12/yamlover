@@ -559,8 +559,16 @@ export function makeTitle(s: ChapterState, path: Path): ChapterState {
   if (!container || !entry || entry.key !== null) return refuse(s, "role:title");
   // roles are CHAPTER moves: a list item / table cell never becomes its container's title
   if (enclosingFormat(s.doc, path) !== "chapter") return refuse(s, "role:title");
-  // "a title exists" is a VALUE test — the empty document's scalar-null root has none
-  if (hasSelfValue(container) || metaOf(container).style === "flow") return refuse(s, "role:title");
+  if (metaOf(container).style === "flow") return refuse(s, "role:title");
+  // "a title exists" is a VALUE test — the empty document's scalar-null root has none.
+  // When the enclosing chapter ALREADY has its title, T on a paragraph makes it a NEW
+  // subchapter's title instead: nest into a fresh group, then title that group — Tab+T
+  // in one gesture (the Enter-before-a-heading flow: empty ¶, T, type the new section).
+  if (hasSelfValue(container)) {
+    const nested = nestParagraph(s, path);
+    if (nested.refused) return refuse(s, "role:title");
+    return makeTitle(nested, [...path, 0]);
+  }
   const v = entry.value;
   if (isPointer(v) || (v as Node).kind !== "scalar" || (v.entries ?? []).length > 0 || scalarText(v).includes("\n")) return refuse(s, "role:title");
   const text = scalarText(v);
@@ -733,6 +741,15 @@ export function applyChapterIntent(s: ChapterState, intent: ChapterIntent, split
     case "cellWalk": return moveFocus(s, intent.dir, "cellWalk");
     case "appendColumn": return appendColumn(s, path);
     case "enterWalk": return enterWalk(s);
+    case "insertBefore": {
+      // Enter at a subchapter title's start: an empty paragraph opens BEFORE the whole
+      // subchapter in its parent (the word-processor push-down), and the caret enters it
+      if (path.length === 0) return refuse(s, "insertBefore"); // the root has no before
+      const parent = path.slice(0, -1);
+      const index = path[path.length - 1];
+      const doc = insertEntry(s.doc, parent, index, proseEntry(""));
+      return ok(s, { doc, focus: { at: "token", path: [...parent, index] }, caret: "start" }, "insertBefore");
+    }
     case "splitProse": {
       if (s.focus?.at === "into") {
         const born = createFirstChunk(s, s.focus.path, split?.head ?? "");
@@ -781,6 +798,15 @@ export function applyChapterIntent(s: ChapterState, intent: ChapterIntent, split
       // on the BOOT cell the role MATERIALIZES: an empty title to type into / a description
       if (s.focus?.at === "into") {
         if (intent.role === "title") {
+          const host = nodeAt(s.doc, path);
+          if (host && hasSelfValue(host)) {
+            // the chapter already HAS its title — clobbering it would drop committed labour.
+            // T materializes an empty paragraph and titles THAT (the same law as T on an
+            // existing paragraph): a fresh subchapter to type into, the title above intact.
+            const born = createFirstChunk(s, path, "");
+            if (born.refused || !born.focus) return refuse(s, "role:title");
+            return makeTitle(born, born.focus.path);
+          }
           const doc = withNode(s.doc, path, (n) => ({ ...n, kind: "scalar", value: "" } as unknown as Node));
           return ok(s, { doc, focus: { at: "token", path }, caret: "start" }, "role:title");
         }
