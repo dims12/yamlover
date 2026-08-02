@@ -710,6 +710,22 @@ body {
   margin-top: -14px;
 }
 /* separates the type/format chips from the representation tabs in the node bar */
+/* the SHARED width/depth controls after the tabs, behind their own | separator: always
+   present, dimmed when the active view ignores them — the toolbar keeps its shape across
+   tab switches */
+.bar-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.bar-controls .markup-width:disabled,
+.depth-control.disabled {
+  opacity: 0.35;
+}
+.depth-control.disabled input {
+  cursor: default;
+}
+
 .bar-sep {
   color: var(--dim);
   opacity: 0.5;
@@ -823,6 +839,9 @@ body {
   margin: 0;
   /* YAML-like: a `- value` stays on its own line (no mid-value wrap); a long line scrolls sideways */
   white-space: pre;
+  /* the COMMENT TAB STOP: trailing/tail comments are emitted behind a TAB (render.tsx), so
+     they all align at one column ≈ 1/3 of the pane; a longer line jumps to the next stop */
+  tab-size: 36;
   overflow-x: auto;
   line-height: 1.55;
   font-family: var(--font);
@@ -837,11 +856,14 @@ body {
    yamlover — a bordered panel so the mode switch reads as intended, not as a rendering bug */
 pre.code.chapter-data {
   margin: 0;
-  padding: 8px 12px;
+  /* left padding must clear the 20px fold gutter (`.fold-gutter` pulls the toggle fully
+     left of the text column) — 12px clipped the chevron under the frame */
+  padding: 8px 12px 8px 26px;
   border: 1px solid var(--border, rgba(127, 127, 127, 0.35));
   border-radius: 6px;
   background: var(--bg-alt);
   font-size: 13px;
+  overflow-x: auto; /* wide comment columns scroll inside the frame instead of clipping */
 }
 .code.raw {
   color: var(--fg);

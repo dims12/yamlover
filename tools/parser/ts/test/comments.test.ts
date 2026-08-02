@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import type { Comment, Document, Entry, Node } from '../src/ir.ts';
 import { isPointer } from '../src/ir.ts';
 import { parseYamlover } from '../src/yamlover.ts';
+import { serializeYamlover } from '../src/serialize-yamlover.ts';
 import { parseJson5p } from '../src/json5p.ts';
 
 /** Find the first entry whose key matches, anywhere in the tree. */
@@ -138,4 +139,22 @@ test('comment: json5p // inside a string is not a comment', () => {
   const doc = parseJson5p(`{ url: "http://x" }`, '<t>');
   assert.equal(entry(doc, 'url').meta?.comments, undefined);
   assert.equal((entry(doc, 'url').value as { value: string }).value, 'http://x');
+});
+
+test('own-line comments deeper than the NEXT entry stay in their CLOSED block (the tail rule)', () => {
+  // the order-is-data island shape: a column of comments continues past the last entry of a
+  // deeper block — they belong to that block's node, not above whatever entry follows
+  const src = '- !!yo\n  key0: value0   # a\n  key2: value2   # b\n                 #      key2: value2\n                 #      2: *key2\n- prose follows\n';
+  const doc = parseYamlover(src, 't');
+  const island = doc.root.entries[0].value;
+  const tail = (island.meta?.comments ?? []).map((c) => [c.placement, c.text.trim().slice(0, 12)]);
+  assert.deepEqual(tail, [['leading', 'key2: value2'], ['leading', '2: *key2']]);
+  // the following entry carries NO stray leading comments
+  assert.equal(doc.root.entries[1].meta?.comments ?? undefined, undefined);
+  // round-trip WITH comments: the tail re-emits inside the island's block and re-attaches there
+  const out = serializeYamlover(doc, { comments: true });
+  assert.match(out, /key2: value2 #.*\n  #\s+key2: value2\n  #\s+2: \*key2\n- prose follows/);
+  const again = parseYamlover(out, 't2');
+  const tail2 = (again.root.entries[0].value.meta?.comments ?? []).filter((c) => c.placement === 'leading').length;
+  assert.equal(tail2, 2);
 });

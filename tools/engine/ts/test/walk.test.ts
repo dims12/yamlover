@@ -276,6 +276,9 @@ test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→c
     '- an annotated chunk stays a chunk',
     '  yamlover-annotations:',
     '  - a tag application',
+    '- !!yo',
+    '  species: cat',
+    '  - keyless',
     '',
   ].join('\n'));
   const s = new Store(':memory:');
@@ -289,6 +292,9 @@ test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→c
   assert.equal(s.node(d + ':1:0')?.format, 'text/marklower'); // recursion into the subchapter's chunk
   assert.equal(s.node(d + ':2')?.format, 'x-yamlover-chapter'); // untitled subchapter (mapping) → chapter branch
   assert.equal(s.node(d + ':3')?.format, 'text/marklower'); // annotated chunk: overlay keys are not body
+  // a `!!yo` DATA ISLAND is exempt from the enclosing schema: no branch routing, no format —
+  // it never becomes an x-yamlover-chapter (and so never appears in the chapter TOC)
+  assert.equal(s.node(d + ':4')?.format, null);
   s.close();
   rmSync(root, { recursive: true, force: true });
 });

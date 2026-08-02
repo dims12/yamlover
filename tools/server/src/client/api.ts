@@ -47,6 +47,9 @@ export type CommentBucket = {
   tag?: string;       // the node's yamlover type tag (`!!set` / `!!mix` / `!!var`)
   blankBefore?: boolean; // a blank source line precedes this entry — render an empty line
   valueTrailing?: string[]; // a comment trailing the node's own self-value line (omni `5 # …`)
+  tail?: string[]; // a container's LEFTOVER comments — own-line remarks after its last entry
+                   // (the tail rule, parser comments.ts): rendered inside the block, after the
+                   // entries, at the comment tab stop
   raw?: string;       // a scalar's authored SOURCE token — rendered faithfully so `"~"` reads as a
                       // string not null, `0xff`/`True` keep their spelling
   repr?: string;      // the node's REPRESENTATION concrete (../repr): `yaml/flow` for a container

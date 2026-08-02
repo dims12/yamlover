@@ -21,8 +21,6 @@ import { isBoardNode } from "./board";
 import { Fb2View } from "./fb2";
 import { EpubView } from "./epub";
 import { HtmlView } from "./media";
-import { MarkupWidthControl } from "./markup";
-import { DepthControl } from "./depth";
 import { ChapterFormatControl } from "./chapter-editor/format-control";
 
 // pdf.js and DjVu.js are heavy and browser-only (they reach for canvas globals at
@@ -165,6 +163,13 @@ export interface Renderer {
    *  `rerender` refreshes the node view after the control changes a URL parameter; `node` is
    *  the node being shown. */
   config?: (rerender: () => void, node: NodeJson) => JSX.Element;
+  /** This view consumes the shared `?width=` reading width (markup.tsx). The control itself
+   *  lives at the bar's RIGHT edge, always rendered, disabled when the active view lacks the
+   *  flag — the bar keeps its shape across tab switches. */
+  wantsWidth?: boolean;
+  /** This view consumes the shared `?depth=` render depth (depth.tsx) — same right-edge
+   *  contract as {@link wantsWidth}. The data views (yamlover/json5p/schema) always do. */
+  wantsDepth?: boolean;
 }
 
 /**
@@ -215,16 +220,12 @@ const REGISTRY: Renderer[] = [
     depth: 1, // the body elements are the chapter's own children now → one level reaches them as link markers
     tocView: chapterTocView,
     render: (node, onNavigate) => <ChapterView node={node} onNavigate={onNavigate} />,
-    // reading width (shared with markdown/asciidoc) + how many SUBCHAPTER levels lay out in place
-    // before the rest stay links. Depth is a pure re-render here: the page fetches each inlined
-    // level itself, so the node's own fetch depth never changes.
-    config: (rerender) => (
-      <>
-        <ChapterFormatControl />
-        <MarkupWidthControl rerender={rerender} />
-        <DepthControl onChange={rerender} />
-      </>
-    ),
+    // reading width (shared with markdown/asciidoc) + how many SUBCHAPTER levels lay out in
+    // place before the rest stay links — both via the RIGHT-edge shared controls. Depth is a
+    // pure re-render here: the page fetches each inlined level itself.
+    wantsWidth: true,
+    wantsDepth: true,
+    config: () => <ChapterFormatControl />,
   },
   {
     // A task / ticket (TICKETS.md): a chapter body (title + interleaved chunks/subtasks) plus a
@@ -237,13 +238,9 @@ const REGISTRY: Renderer[] = [
     depth: 1,
     tocView: chapterTocView,
     render: (node, onNavigate) => <TaskView node={node} onNavigate={onNavigate} />,
-    config: (rerender) => (
-      <>
-        <ChapterFormatControl />
-        <MarkupWidthControl rerender={rerender} />
-        <DepthControl onChange={rerender} />
-      </>
-    ),
+    wantsWidth: true,
+    wantsDepth: true,
+    config: () => <ChapterFormatControl />,
   },
   {
     // Prose: marklower, a markup language a notch below Markdown (MARKLOWER.md). It is the format a
@@ -256,6 +253,7 @@ const REGISTRY: Renderer[] = [
     specificity: 2,
     render: (node, onNavigate) => <MarklowerView node={node} onNavigate={onNavigate} />,
     renderChunk: (chunk, onNavigate) => <MarklowerChunk chunk={chunk} onNavigate={onNavigate} />,
+    wantsWidth: true,
   },
   {
     // Markdown (the component file is text.tsx for historical reasons; the renderer —
@@ -266,7 +264,7 @@ const REGISTRY: Renderer[] = [
     specificity: 2,
     render: (node, onNavigate) => <TextView node={node} onNavigate={onNavigate} />,
     renderChunk: (chunk, onNavigate) => <TextChunk chunk={chunk} onNavigate={onNavigate} />,
-    config: (rerender) => <MarkupWidthControl rerender={rerender} />,
+    wantsWidth: true,
   },
   {
     name: "asciidoc",
@@ -275,7 +273,7 @@ const REGISTRY: Renderer[] = [
     specificity: 2,
     render: (node, onNavigate) => <AsciidocView node={node} onNavigate={onNavigate} />,
     renderChunk: (chunk, onNavigate) => <AsciidocChunk chunk={chunk} onNavigate={onNavigate} />,
-    config: (rerender) => <MarkupWidthControl rerender={rerender} />,
+    wantsWidth: true,
   },
   {
     // Delimited text (CSV/TSV, a string) shown as a table; its parsing options
@@ -573,20 +571,24 @@ function explorerEligible(node: NodeJson): boolean {
 export const PLAINTEXT = REGISTRY.find((r) => r.name === "plaintext")!;
 
 /** The trailing `plaintext` (raw-source) tab. It is part of the FIXED tab set — rendered on every
- *  node, `enabled` only where a raw-text view exists: a TEXTUAL node (a data language —
- *  json/json5/json5p/yaml/yamlover — or markdown/asciidoc) that is renderable as text (file-backed
- *  raw bytes via /api/blob, or an inline string value). A directory or a non-string inline
- *  container shows the tab DISABLED, so the bar keeps its shape. Null only for a node already LED
- *  by plaintext (a `.txt`) — its leading renderer tab is this very view, a trailing duplicate
- *  would be a second identical button. */
+ *  node, `enabled` wherever RAW CONTENT exists to show:
+ *  - a FILE-backed textual node — the raw bytes via /api/blob (markdown, a whole `.yo`, …);
+ *  - an INLINE string value — shown verbatim;
+ *  - any other node of a DATA language, a `dir/yamlover` document included — its yamlover
+ *    SOURCE via /api/source (the body.yo of a directory chapter, a re-serialized subtree
+ *    deeper), so a chapter page's raw content is one tab away.
+ *  Only a bare `dir` (no overlay — nothing textual behind it) and a binary stay DISABLED; the
+ *  tab is always rendered, so the bar keeps its shape. Null only for a node already LED by
+ *  plaintext (a `.txt`) — a trailing duplicate would be a second identical button. */
 export function plaintextTab(node: NodeJson): { renderer: Renderer; enabled: boolean } | null {
   if (rendererFor(node) === PLAINTEXT) return null; // a text/plain node already leads with it
-  const textual =
-    !isDirConcrete(node.concrete) &&
-    (isJsonFamily(node.concrete) || isYamlFamily(node.concrete) ||
-      node.format === "text/markdown" || node.format === "text/asciidoc");
-  const renderable = isFileConcrete(node.concrete) || typeof scalarValue(node.value) === "string";
-  return { renderer: PLAINTEXT, enabled: textual && renderable };
+  const sourced =
+    isJsonFamily(node.concrete) || isYamlFamily(node.concrete) || node.concrete === "dir/yamlover";
+  const textualFile =
+    isFileConcrete(node.concrete) &&
+    (node.format === "text/markdown" || node.format === "text/asciidoc");
+  const enabled = sourced || textualFile || typeof scalarValue(node.value) === "string";
+  return { renderer: PLAINTEXT, enabled };
 }
 
 /** The name (= representation key / `?format=` value) of the renderer that claims `src` — with the

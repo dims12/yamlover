@@ -926,8 +926,13 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     // An element that declares its OWN inline `!!<*…/$defs/X>` schema wins over the inherited
     // `items` — its tag decides, not shape routing (a tagged table in a chapter body stays a
     // table; CHAPTER.md §The schema). `walk()` applies the element's pointer separately.
+    // a `!!yo` element is PLAIN YAMLOVER — exempt from the enclosing schema by definition
+    // (the data-island semantics): never routed to a branch, never stamped with a format,
+    // so a chapter body's island does not become an x-yamlover-chapter in the TOC
     const elems = (inst.entries ?? []).filter((e) =>
-      e.key == null && !isPointer(e.value) && !(e.value.meta?.schema && isPointer(e.value.meta.schema)));
+      e.key == null && !isPointer(e.value) &&
+      e.value.meta?.yo !== true &&
+      !(e.value.meta?.schema && isPointer(e.value.meta.schema)));
     if (anyOf && !isPointer(anyOf) && anyOf.entries) {
       const branches = anyOf.entries
         .map((e) => e.value)
@@ -971,6 +976,8 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
         // in a tag taxonomy back down to `x-yamlover-tag`. `hasFormat` can't guard it — a pointer
         // schema carries no `format` field yet.)
         if (e.value.meta?.schema && isPointer(e.value.meta.schema)) continue;
+        // a `!!yo` child is plain yamlover — exempt from the enclosing schema (the data island)
+        if (e.value.meta?.yo === true) continue;
         const declared = props && !isPointer(props) ? field(props, e.key) : null;
         const sub = declared ?? addl; // a declared property wins, else additionalProperties
         if (sub) apply(e.value, sub, depth + 1);

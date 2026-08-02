@@ -135,7 +135,7 @@ export function Markup({ html, onNavigate }: { html: string; onNavigate?: (path:
  * body; an impossible/half-typed value is simply left unapplied and the field turns red (no
  * editing is blocked). No visible label: the hover title reads "width, ch".
  */
-export function MarkupWidthControl({ rerender }: { rerender: () => void }) {
+export function MarkupWidthControl({ rerender, disabled = false }: { rerender: () => void; disabled?: boolean }) {
   const urlWidth = markupWidthCh();
   const [text, setText] = useState(String(urlWidth));
   useEffect(() => setText(String(urlWidth)), [urlWidth]); // resync when the URL changes (nav / apply)
@@ -146,7 +146,8 @@ export function MarkupWidthControl({ rerender }: { rerender: () => void }) {
       className={"markup-width" + (valid ? "" : " invalid")}
       type="text"
       inputMode="numeric"
-      title="width, ch"
+      title={disabled ? "width — not used by this view" : "width, ch"}
+      disabled={disabled}
       value={text}
       onChange={(e) => {
         const v = e.target.value;

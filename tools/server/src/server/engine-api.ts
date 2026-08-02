@@ -1382,6 +1382,8 @@ type CommentBucket = {
   tag?: string;          // the value node's yamlover tags: `!!<…>` schema and/or `!!set` (shape tags are default)
   blankBefore?: boolean;  // a blank source line precedes this entry (or its leading comments)
   valueTrailing?: string[]; // a comment trailing the node's own SELF-VALUE line (an omni `5 # …`)
+  tail?: string[];        // a container's LEFTOVER comments — own-line remarks after its last
+                          // entry (the parser's tail rule), rendered inside the block
   raw?: string;           // a scalar's authored SOURCE token, carried only when it differs from the
                           // plain decoded form — so `"~"` reads as a string not null, `0xff`/`True`
                           // keep their spelling (CONCRETES.md §Scalar representation). A BLOCK
@@ -1527,6 +1529,10 @@ function collectComments(doc: Document, segs: Seg[], depth: number): Record<stri
         nodeDeco(bucket, e.value); // the value node's anchors + type tag
         const raw = scalarRawToken(e.value); // a scalar's faithful source token (when it differs)
         if (raw) bucket.raw = raw;
+        // the container's LEFTOVER comments (the tail rule, comments.ts): own-line remarks
+        // after its last entry, kept on the node meta — rendered inside the block
+        const tailC = placed(e.value.meta?.comments, "leading");
+        if (tailC.length > 0) bucket.tail = tailC;
       }
       if (Object.keys(bucket).length > 0) out[rel + cont] = bucket;
       if (e.edge === "contain" && !isPointer(e.value)) walk(e.value, rel + cont, d - 1, false);

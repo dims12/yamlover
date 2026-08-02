@@ -54,17 +54,18 @@ function writeDepth(d: number | null): void {
  * URL depth past 6 clamps the KNOB only — {@link viewDepth} still reports the true value. No
  * visible label: the hover title reads "depth".
  */
-export function DepthControl({ onChange }: { onChange: () => void }) {
+export function DepthControl({ onChange, disabled = false }: { onChange: () => void; disabled?: boolean }) {
   const urlDepth = viewDepth();
   const knob = urlDepth == null ? INF_STOP : Math.min(Math.max(urlDepth, MIN_DEPTH), MAX_STOP);
   return (
-    <span className="depth-control">
+    <span className={"depth-control" + (disabled ? " disabled" : "")}>
       <input
         type="range"
         min={MIN_DEPTH}
         max={INF_STOP}
         step={1}
-        title="depth"
+        title={disabled ? "depth — not used by this view" : "depth"}
+        disabled={disabled}
         value={knob}
         onChange={(e) => {
           const v = Number(e.target.value);

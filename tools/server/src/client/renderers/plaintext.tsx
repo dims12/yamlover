@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { NodeJson, blobUrl } from "../api";
+import { NodeJson, blobUrl, fetchSource } from "../api";
 import { Chunk } from "./registry";
 import { isFileConcrete } from "../../concrete";
 import { scalarValue } from "../render";
@@ -73,18 +73,41 @@ export function PlaintextView({ node }: { node: NodeJson }) {
   // A file-backed node loads its raw bytes via /api/blob (with the encoding selector — legacy
   // Cyrillic files). An INLINE textual node (no source file: markdown/asciidoc/string authored in
   // place) has its already-decoded string value, shown verbatim — no fetch, no encoding choice.
+  // Everything ELSE that the tab enables (plaintextTab: a dir/yamlover document, an inline
+  // container of a data language) shows its yamlover SOURCE via /api/source — the body.yo of a
+  // directory chapter, a re-serialized subtree deeper: raw content wherever raw content exists.
   const fileBacked = isFileConcrete(node.concrete);
   const inline = fileBacked ? null : scalarValue(node.value);
-  const inlineText = typeof inline === "string" ? inline : fileBacked ? null : "";
+  // an OMNI node's scalarValue is just its self-value (a chapter's title!) — the raw content
+  // is its SOURCE; only an entries-free string is its own raw content
+  const hasEntries = node.hasKeyed === true || node.hasOrdinal === true;
+  const inlineText = typeof inline === "string" && !hasEntries ? inline : null;
+  const wantsSource = !fileBacked && inlineText == null;
   const { bytes, error } = useBytes(fileBacked ? node.path : null);
+  const [source, setSource] = useState<string | null>(null);
+  const [srcError, setSrcError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!wantsSource) return;
+    let cancelled = false;
+    setSource(null);
+    setSrcError(null);
+    fetchSource(node.path)
+      .then((r) => !cancelled && setSource(r.source))
+      .catch((e) => !cancelled && setSrcError(String((e as Error).message || e)));
+    return () => {
+      cancelled = true;
+    };
+  }, [wantsSource, node.path]);
   const encoding = textEncoding();
   const text = useMemo(
-    () => (inlineText != null ? inlineText : bytes ? decode(bytes, encoding) : null),
-    [inlineText, bytes, encoding],
+    () => (inlineText != null ? inlineText : wantsSource ? source : bytes ? decode(bytes, encoding) : null),
+    [inlineText, wantsSource, source, bytes, encoding],
   );
-  if (error) return <div className="error">text: {error}</div>;
+  if (error || srcError) return <div className="error">text: {error ?? srcError}</div>;
   if (text == null) return <div className="loading">reading…</div>;
-  const lang = highlightLang(node.format);
+  // a fetched SOURCE is yamlover by definition (that is what /api/source serializes);
+  // bytes/inline text highlight by the node's own format (a .yo file, a code string)
+  const lang = wantsSource ? highlightLang("yamlover") : highlightLang(node.format);
   return (
     <div className="text">
       {node.title && <h1 className="chapter-title">{node.title}</h1>}

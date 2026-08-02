@@ -101,9 +101,30 @@ export function attachComments(doc: Document, raws: RawComment[], src: string, u
       used.add(r);
       continue;
     }
-    // leading (own-line): the next entry to begin after the comment
+    // leading (own-line): the next entry to begin after the comment — UNLESS the comment is
+    // indented DEEPER than that entry and the block it was written in has CLOSED (the nearest
+    // preceding entry lives in a deeper container): then it is that container's leftover TAIL,
+    // kept on the container's node meta — the comment belongs INSIDE the block it was authored
+    // in, not above whatever follows it (the order-is-data island's floating column comments).
     const target = nextEntryAfter(entries, r.start);
-    if (target) { push(target.meta!, make(r, 'leading')); used.add(r); continue; }
+    if (target) {
+      const prev = prevEntryBefore(entries, r.start);
+      const indentAt = (off: number): number => off - (src.lastIndexOf('\n', off - 1) + 1);
+      if (
+        prev &&
+        parentOf.get(prev) !== parentOf.get(target) &&
+        indentAt(r.start) > indentAt(target.meta!.span!.start)
+      ) {
+        const host = parentOf.get(prev)!;
+        host.meta = host.meta ?? {};
+        push(host.meta, make(r, 'leading'));
+        used.add(r);
+        continue;
+      }
+      push(target.meta!, make(r, 'leading'));
+      used.add(r);
+      continue;
+    }
     // leftover (e.g. a trailing remark after the final entry) → the root node, never dropped
     doc.root.meta = doc.root.meta ?? {};
     push(doc.root.meta, make(r, r.ownLine ? 'leading' : 'trailing'));
@@ -117,6 +138,20 @@ function nextEntryAfter(entries: Entry[], off: number): Entry | undefined {
   for (const e of entries) {
     const st = e.meta!.span!.start;
     if (st > off && (!best || st < best.meta!.span!.start)) best = e;
+  }
+  return best;
+}
+
+/** The entry whose span ends latest before `off` — on an end TIE (an ancestor and its last
+ *  descendant end together) the INNERMOST (greater start), the same tie-break the trailing
+ *  branch uses: the innermost is the block the comment was written in. */
+function prevEntryBefore(entries: Entry[], off: number): Entry | undefined {
+  let best: Entry | undefined;
+  for (const e of entries) {
+    const s = e.meta!.span!;
+    if (s.end > off) continue;
+    const b = best ? best.meta!.span! : undefined;
+    if (!b || s.end > b.end || (s.end === b.end && s.start > b.start)) best = e;
   }
   return best;
 }

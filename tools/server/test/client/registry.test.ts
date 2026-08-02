@@ -40,9 +40,15 @@ describe("renderer registry (facet predicates)", () => {
     expect(getRenderer(node({ valueType: "string", format: "text/markdown", value: "hi" }))?.name).toBe("markdown");
   });
 
-  it("chapter, task, markdown, and asciidoc all expose a reading-width config control", () => {
-    for (const f of ["x-yamlover-chapter", "x-yamlover-task", "text/markdown", "text/asciidoc"])
-      expect(getRenderer(node({ format: f }))?.config, `${f} needs a width config`).toBeTypeOf("function");
+  it("the prose/chapter family declares the shared reading-width (the right-edge bar control)", () => {
+    // the width control itself moved to the bar's RIGHT edge (always rendered, disabled when
+    // unused — visual stability); renderers now DECLARE consumption via wantsWidth/wantsDepth
+    for (const f of ["x-yamlover-chapter", "x-yamlover-task", "text/markdown", "text/asciidoc", "text/marklower"])
+      expect(getRenderer(node({ format: f }))?.wantsWidth, `${f} consumes the reading width`).toBe(true);
+    for (const f of ["x-yamlover-chapter", "x-yamlover-task"])
+      expect(getRenderer(node({ format: f }))?.wantsDepth, `${f} consumes the render depth`).toBe(true);
+    // the chapter family keeps its OWN docked config (the format picker)
+    expect(getRenderer(node({ format: "x-yamlover-chapter" }))?.config).toBeTypeOf("function");
   });
 
   it("claims PlantUML / LaTeX source (a string) and offers an inline (chunk) form", () => {
@@ -170,16 +176,20 @@ describe("renderer registry (facet predicates)", () => {
     expect(offered(node({ concrete: "file/binary", format: "application/pdf" }))).toBe(false);
   });
 
-  it("plaintextTab: ENABLED for a textual node; DISABLED (but present) for dirs and non-string inline nodes", () => {
+  it("plaintextTab: ENABLED wherever raw content exists; DISABLED only for bare dirs/binaries", () => {
     // file-backed data + markdown/asciidoc files → plaintext enabled (raw bytes via /api/blob)
     expect(plaintextTab(node({ concrete: "file/yaml", hasKeyed: true }))).toMatchObject({ enabled: true });
     expect(plaintextTab(node({ concrete: "file/binary", format: "text/markdown" }))).toMatchObject({ enabled: true });
     expect(plaintextTab(node({ concrete: "file/yaml", hasKeyed: true }))?.renderer.name).toBe("plaintext");
     // inline string content (no source file) → plaintext renders the value
     expect(plaintextTab(node({ concrete: "yamlover", valueType: "string", format: "text/markdown", value: "# hi" }))).toMatchObject({ enabled: true });
-    // a directory and a non-string inline container keep the tab IN PLACE, disabled (a stable bar)
+    // a data-language container — inline or a dir/yamlover DOCUMENT — shows its SOURCE
+    // (/api/source: a directory chapter's body.yo, a re-serialized subtree deeper)
+    expect(plaintextTab(node({ concrete: "json", hasKeyed: true, value: {} }))).toMatchObject({ enabled: true });
+    expect(plaintextTab(node({ concrete: "dir/yamlover", format: "x-yamlover-chapter", hasKeyed: true }))).toMatchObject({ enabled: true });
+    // a bare directory (no overlay — nothing textual behind it) keeps the tab IN PLACE, disabled
     expect(plaintextTab(node({ concrete: "dir" }))).toMatchObject({ enabled: false });
-    expect(plaintextTab(node({ concrete: "json", hasKeyed: true, value: {} }))).toMatchObject({ enabled: false });
+    expect(plaintextTab(node({ concrete: "file/binary", format: "application/pdf" }))).toMatchObject({ enabled: false });
     // a .txt already LEADS with plaintext → no duplicate trailing tab (the one true null)
     expect(plaintextTab(node({ concrete: "file/binary", format: "text/plain" }))).toBeNull();
   });

@@ -126,7 +126,7 @@ describe("faithful-render round-trip (render → reparse → same IR)", () => {
 
   it("an omni self-value trailing comment rides the value line (no spurious blank)", async () => {
     const text = await renderNode({ ".yo/body.yo": "!!var 5 # the value\n- solid\n- recommended\nscale: 10\n" }, ":");
-    expect(text).toMatch(/(^|\n)5 # the value(\n|$)/); // the comment is ON the `5` line …
+    expect(text).toMatch(/(^|\n)5\t# the value(\n|$)/); // ON the `5` line, at the comment tab stop …
     expect(text).not.toMatch(/5[^\n]*\n\s*\n/); // … with no blank line wrapped in after it
   });
 

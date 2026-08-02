@@ -213,18 +213,28 @@ function LeadingComments({ ctx, frag, pad, syntax }: { ctx: Ctx; frag: string; p
   return <>{lead.map((t, i) => <Fragment key={`lc${i}`}>{pad}<span className="c">{fmtComment(t, syntax)}</span>{"\n"}</Fragment>)}</>;
 }
 
-/** The `trailing` comment that rides an entry's line (after its value), joined if several. */
+/** The `trailing` comment that rides an entry's line (after its value), joined if several.
+ *  A TAB precedes it: with the pre's `tab-size` (styles.css) every comment aligns at one
+ *  column (~1/3 of the pane) instead of hugging its value — a comment gutter. */
 function trailingComment(ctx: Ctx, frag: string, syntax: Syntax): ReactNode {
   const trail = commentsAt(ctx, frag)?.trailing;
   if (!trail?.length) return null;
-  return <>{" "}<span className="c">{trail.map((t) => fmtComment(t, syntax)).join(" ")}</span></>;
+  return <>{"	"}<span className="c">{trail.map((t) => fmtComment(t, syntax)).join(" ")}</span></>;
 }
 
 /** A comment that rides a node's own SELF-VALUE line (an omni `5 # …`), keyed at the node's frag. */
 function valueTrailingComment(ctx: Ctx, frag: string, syntax: Syntax): ReactNode {
   const vt = commentsAt(ctx, frag)?.valueTrailing;
   if (!vt?.length) return null;
-  return <>{" "}<span className="c">{vt.map((t) => fmtComment(t, syntax)).join(" ")}</span></>;
+  return <>{"	"}<span className="c">{vt.map((t) => fmtComment(t, syntax)).join(" ")}</span></>;
+}
+
+/** A container's LEFTOVER comments (bucket.tail — own-line remarks after its last entry, the
+ *  parser's tail rule), rendered inside the block at the comment tab stop, one per line. */
+function TailComments({ ctx, frag, syntax }: { ctx: Ctx; frag: string; syntax: Syntax }): ReactNode {
+  const tail = commentsAt(ctx, frag)?.tail;
+  if (!tail?.length) return null;
+  return <>{tail.map((t, i) => <Fragment key={`tc${i}`}>{"\t"}<span className="c">{fmtComment(t, syntax)}</span>{"\n"}</Fragment>)}</>;
 }
 
 /** The viewed node's OWN decorations as standalone lines above its value (yamlover syntax):
@@ -242,9 +252,10 @@ function RootDeco({ ctx, frag }: { ctx: Ctx; frag: string }): ReactNode {
   );
 }
 
-/** A file-level comment block ($head banner / $tail leftovers) at the rendered root, no indent. */
-function CommentBlock({ texts, syntax }: { texts: string[]; syntax: Syntax }): ReactNode {
-  return <>{texts.map((t, i) => <Fragment key={`fc${i}`}><span className="c">{fmtComment(t, syntax)}</span>{"\n"}</Fragment>)}</>;
+/** A file-level comment block: the $head banner stays at the left margin (a document header);
+ *  $tail leftovers ride the comment TAB STOP like every other comment (`tab`). */
+function CommentBlock({ texts, syntax, tab = false }: { texts: string[]; syntax: Syntax; tab?: boolean }): ReactNode {
+  return <>{texts.map((t, i) => <Fragment key={`fc${i}`}>{tab ? "\t" : null}<span className="c">{fmtComment(t, syntax)}</span>{"\n"}</Fragment>)}</>;
 }
 
 function fileComments(comments: CommentMap | undefined, key: "$head" | "$tail"): string[] | undefined {
@@ -317,7 +328,7 @@ export function Render({
       ) : (
         <JsonValue value={v} indent={0} ctx={ctx} frag={base} path={nodePath} root />
       )}
-      {tail && <CommentBlock texts={tail} syntax={syntax} />}
+      {tail && <CommentBlock texts={tail} syntax={syntax} tab />}
     </>
   );
 }
@@ -779,6 +790,7 @@ function YamlMixed({ mixed, indent, ctx, frag, path, inlineHead = false }: { mix
         );
       })}
       {isOmni && selfAt >= mixed.entries.length && selfValue}
+      <TailComments ctx={ctx} frag={frag} syntax="yaml" />
     </>
   );
 }

@@ -62,3 +62,5 @@
   YAMLOVER_EDITOR.yo (pointer_* states).
 - Support copy to clipboard in all json, json5, json5p, yaml and yamlover renderers and copy/paste in yamlover editor
 - Design treetable modelling support
+- Switching several chunks to titles and pressing done doesn't commit the state
+- Section sign (§) that is marked title #fragments in yed should be aligned with the title baseline

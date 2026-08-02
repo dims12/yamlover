@@ -29,7 +29,7 @@ import { childSeg, segsOfPath, segToken } from '../../../parser/ts/src/pathseg.t
 
 // Bump when the table shapes change: a mismatched on-disk index is dropped and rebuilt from
 // the filesystem (the DB is a derived cache, so this is always safe).
-const SCHEMA_VERSION = 7; // 7: bare-integer path segments + null keys (label_null) — the YAML-keys round; 6: dangling holder/label/pos/edge/external; 5: non-finite scalar tags; 4: colon-form paths
+const SCHEMA_VERSION = 8; // 8: !!yo schema-propagation exemption + the comment tail rule (derived rows change with no file change); 7: bare-integer segments + null keys (label_null); 6: dangling holder/label/pos/edge/external; 5: non-finite scalar tags; 4: colon-form paths
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS node (

@@ -11,6 +11,7 @@ import { EditingContext } from "./renderers/editing";
 import { YamloverEditor } from "./renderers/yamlover-editor/editor";
 import { YedEditor, yedSourceEditor } from "./renderers/yed-editor";
 import { DepthControl, viewDepth } from "./renderers/depth";
+import { MarkupWidthControl } from "./renderers/markup";
 import { useHashScroll } from "./renderers/headings";
 
 // Renderers whose output is prose — they get the TEXT annotation layer (drag-select → palette →
@@ -579,12 +580,22 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
                 {iconOf(f)}
               </button>
               {showRendered && renderer && f === renderer.name && renderer.config?.(rerender, node)}
-              {/* the data views (yamlover / json5p / schema) share a render-depth control — how many
-                  levels of nested containers are inlined (and collapsible) before a continuation
-                  link. Like a renderer's config, it docks right after the ACTIVE view's button. */}
-              {!showRendered && f === effective && <DepthControl onChange={() => setReloadKey((k) => k + 1)} />}
             </Fragment>
           ))}
+        </div>
+        {/* the SHARED width/depth controls follow the tabs behind their own separator —
+            ALWAYS rendered, merely disabled when the active view ignores them (like the
+            Edit button), so the toolbar keeps its shape across tab switches. Width: the
+            reading column of the prose/chapter views. Depth: the data views always consume
+            it (levels inlined before a continuation link); chapter/task for subchapter
+            lay-out. */}
+        <span className="bar-sep" aria-hidden="true">|</span>
+        <div className="bar-controls">
+          <MarkupWidthControl rerender={rerender} disabled={!(showRendered && renderer?.wantsWidth)} />
+          <DepthControl
+            onChange={() => (showRendered ? rerender() : setReloadKey((k) => k + 1))}
+            disabled={!(!showRendered || renderer?.wantsDepth)}
+          />
         </div>
       </div>
 
