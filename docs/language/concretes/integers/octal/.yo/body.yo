@@ -1,7 +1,7 @@
 !!<*yamlover: $defs: chapter>
 Octal
 description: 'yaml/oct — 0o377'
-- |
-  `0o377` (YAML 1.1 wrote `0377`) — the octal notation. Reserved vocabulary: the core
-  reader follows the YAML 1.2 core schema, where `0o377` is an ordinary string; the
-  classification applies the moment a reader decodes it.
+- >
+  `0o377` (YAML 1.1 wrote `0377`) — the octal notation. Reserved vocabulary: the core reader follows
+  the YAML 1.2 core schema, where `0o377` is an ordinary string; the classification applies the moment
+  a reader decodes it.

@@ -1,15 +1,14 @@
 !!<*yamlover: $defs: chapter>
 The tilde sigil
 description: a deprecated back-edge marker on keys and entries; in value position, null as always
-- |
-  In value position `~` is unchanged — still null (`key: ~`). In **key position** yamlover
-  once read a leading `~` as a back-edge sigil: `~key: *P` declared the reverse of the
-  forward relation `key`, and `~- *P` a keyless reverse membership. Both are **deprecated
-  in favor of path anchors** — `~key: *P` ≡ `&: P: key`, and `~- *P` ≡ `&: P[]` — still
-  parsed through the migration window, serialized as anchors only.
-- |
-  In YAML, `~key:` is simply the plain-scalar key "~key" and `~-` a rare plain scalar —
-  another place the same token reads differently, and the reason a literal `~` in a
-  yamlover key is escaped: `\~key`. The sigil needs a **nonempty** name: a bare
-  `~: value` line is not a back-edge but the **null-keyed entry** — the null key,
-  adopted from YAML ([null keys](::language:vs-yaml:null-keys)).
+- >
+  In value position `~` is unchanged — still null (`key: ~`). In **key position** yamlover once read a
+  leading `~` as a back-edge sigil: `~key: *P` declared the reverse of the forward relation `key`, and
+  `~- *P` a keyless reverse membership. Both are **deprecated in favor of path anchors** — `~key: *P`
+  ≡ `&: P: key`, and `~- *P` ≡ `&: P[]` — still parsed through the migration window, serialized as
+  anchors only.
+- >
+  In YAML, `~key:` is simply the plain-scalar key "~key" and `~-` a rare plain scalar — another place
+  the same token reads differently, and the reason a literal `~` in a yamlover key is escaped:
+  `\~key`. The sigil needs a **nonempty** name: a bare `~: value` line is not a back-edge but the
+  **null-keyed entry** — the null key, adopted from YAML ([null keys](::language:vs-yaml:null-keys)).

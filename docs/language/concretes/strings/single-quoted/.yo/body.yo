@@ -1,8 +1,8 @@
 !!<*yamlover: $defs: chapter>
 Single-quoted
 description: the literal style — yaml/single, with quote doubling
-- |
-  `name: 'Rex'` — the single-quoted style. Everything between the quotes is literal; the
-  only escape is the doubled quote (`'it''s'`). In YAML `'` and `"` are interchangeable
-  delimiters — which is exactly why yamlover's literal-versus-interpreted distinction
-  rides on backslash escaping, not on the quote choice.
+- >
+  `name: 'Rex'` — the single-quoted style. Everything between the quotes is literal; the only escape
+  is the doubled quote (`'it''s'`). In YAML `'` and `"` are interchangeable delimiters — which is
+  exactly why yamlover's literal-versus-interpreted distinction rides on backslash escaping, not on
+  the quote choice.

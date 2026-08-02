@@ -3,11 +3,11 @@
 !!<*yamlover: $defs: chapter>
 General principles
 description: the small set of rules everything else in the language follows from
-- |
-  yamlover is built on a handful of principles, each simple to state and far-reaching in
-  consequence. Every later part of this spec — the model, the concretes, the pointer and
-  query grammar — is an elaboration of the rules on this page; when two readings of a
-  construct compete, the one that keeps these principles wins.
+- >
+  yamlover is built on a handful of principles, each simple to state and far-reaching in consequence.
+  Every later part of this spec — the model, the concretes, the pointer and query grammar — is an
+  elaboration of the rules on this page; when two readings of a construct compete, the one that keeps
+  these principles wins.
 - *: order-is-data
 - *: one-node
 - *: keys-are-pointers

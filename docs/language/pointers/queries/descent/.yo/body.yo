@@ -1,11 +1,11 @@
 !!<*yamlover: $defs: chapter>
 Descent
 description: three dots — descendant-or-self along the containment spine
-- |
-  `...` fans out to the current node **and every contain-descendant** —
-  descendant-or-self, pre-order. It walks the containment spine only: a ref edge is
-  never crossed nor yielded by descent — reaching through refs is what explicit steps
-  are for. The spine is acyclic and finite, so descent always terminates.
+- >
+  `...` fans out to the current node **and every contain-descendant** — descendant-or-self, pre-order.
+  It walks the containment spine only: a ref edge is never crossed nor yielded by descent — reaching
+  through refs is what explicit steps are for. The spine is acyclic and finite, so descent always
+  terminates.
 - !!<format: text/plain> |
   ...: !!<type: binary>          → every blob under here
   team: ...: !!<type: integer>   → :team:alice:age, :team:bob:age

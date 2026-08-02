@@ -3,24 +3,23 @@
 !!<*yamlover: $defs: chapter>
 Concretes
 description: every way a node is physically stored and written
-- |
-  A **concrete** records *how and where* a node's value is physically stored. Every
-  materialized node carries exactly one, and it is orthogonal to the node's *type* and its
-  *format*: a string may live inline in a document, in its own file, or as bytes a format
-  decodes — same value, different concrete.
-- |
-  There are two independent axes. The **storage** axis answers *where, in what language*: a
-  portion of a text file, a whole file, opaque bytes, a directory. The **representation**
-  axis answers *how it is written*: a string picks a style, a number picks a notation, a
-  container picks flow or block. This part catalogs both axes form by form, then the rules
-  that choose a concrete when nothing is specified, and the layout invariants that keep a
-  tree well-formed.
-- |
-  Representations are **not different values** — the spellings decode identically — but
-  the representation is worth keeping: it is what makes a string `"~"` distinguishable
-  from a null `~` on screen, and what a schema may want to pin ("this id is hex", "this
-  note is a literal block"). A non-default spelling is classified from the authored
-  token and preserved end to end; the default costs nothing.
+- >
+  A **concrete** records *how and where* a node's value is physically stored. Every materialized node
+  carries exactly one, and it is orthogonal to the node's *type* and its *format*: a string may live
+  inline in a document, in its own file, or as bytes a format decodes — same value, different
+  concrete.
+- >
+  There are two independent axes. The **storage** axis answers *where, in what language*: a portion of
+  a text file, a whole file, opaque bytes, a directory. The **representation** axis answers *how it is
+  written*: a string picks a style, a number picks a notation, a container picks flow or block. This
+  part catalogs both axes form by form, then the rules that choose a concrete when nothing is
+  specified, and the layout invariants that keep a tree well-formed.
+- >
+  Representations are **not different values** — the spellings decode identically — but the
+  representation is worth keeping: it is what makes a string `"~"` distinguishable from a null `~` on
+  screen, and what a schema may want to pin ("this id is hex", "this note is a literal block"). A
+  non-default spelling is classified from the authored token and preserved end to end; the default
+  costs nothing.
 - *: storage
 - *: strings
 - *: nulls

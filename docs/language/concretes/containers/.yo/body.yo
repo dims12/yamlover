@@ -1,10 +1,10 @@
 !!<*yamlover: $defs: chapter>
 Containers
 description: block or flow in text, K&R for the switch, a directory or a file of their own
-- |
-  A container picks a **collection style** — block over many lines, flow on one — and,
-  on the storage axis, may leave the text entirely: a whole file, or a directory. A flow
-  token that *spans* lines is neither style: it is the inline language switch.
+- >
+  A container picks a **collection style** — block over many lines, flow on one — and, on the storage
+  axis, may leave the text entirely: a whole file, or a directory. A flow token that *spans* lines is
+  neither style: it is the inline language switch.
 - *: block
 - *: flow
 - *: knr

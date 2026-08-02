@@ -1,14 +1,13 @@
 !!<*yamlover: $defs: chapter>
 Names, not fetches
 description: a URI is an identity — how it is reached is configuration, never part of the name
-- |
-  yamlover URIs are global and virtual — **identities, not fetch instructions** — like an
-  AWS ARN: a pure colon-chained name. A `*` never performs a network request; the
-  world-scope authority (`*::: pet.store.com: pets`) is a namespace tag resolved against
-  the local mount table, and an unmounted authority simply yields nothing, with an
-  "external" diagnostic.
-- |
-  Schemes, ports, and slash-paths are gone from the identifier: *how* an engine reaches a
-  project is engine configuration, never part of the name. What remains is the scope
-  ladder — more colons, wider scope — with a DNS-style authority naming an external
-  project (the [scopes subchapter](::language:pointers:scopes)).
+- >
+  yamlover URIs are global and virtual — **identities, not fetch instructions** — like an AWS ARN: a
+  pure colon-chained name. A `*` never performs a network request; the world-scope authority (`*:::
+  pet.store.com: pets`) is a namespace tag resolved against the local mount table, and an unmounted
+  authority simply yields nothing, with an "external" diagnostic.
+- >
+  Schemes, ports, and slash-paths are gone from the identifier: *how* an engine reaches a project is
+  engine configuration, never part of the name. What remains is the scope ladder — more colons, wider
+  scope — with a DNS-style authority naming an external project (the [scopes
+  subchapter](::language:pointers:scopes)).

@@ -1,10 +1,10 @@
 !!<*yamlover: $defs: chapter>
 Nulls
 description: one null value, three notations
-- |
-  One null, three spellings — different representations, identical value, the authored
-  notation preserved. Keeping the notation is what makes a string `"~"` visibly
-  different from a null `~` on screen.
+- >
+  One null, three spellings — different representations, identical value, the authored notation
+  preserved. Keeping the notation is what makes a string `"~"` visibly different from a null `~` on
+  screen.
 - *: tilde
 - *: word
 - *: empty

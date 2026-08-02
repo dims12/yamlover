@@ -1,7 +1,7 @@
 !!<*yamlover: $defs: chapter>
 Folded block
 description: the angle block scalar — yaml/folded joins lines with spaces
-- |
-  The `>` block scalar folds single newlines into spaces; a blank line keeps a paragraph
-  break. It carries the same two sub-qualifiers as the literal style: chomping (`>-`,
-  `>+`) and the indentation indicator (`>2`).
+- >
+  The `>` block scalar folds single newlines into spaces; a blank line keeps a paragraph break. It
+  carries the same two sub-qualifiers as the literal style: chomping (`>-`, `>+`) and the indentation
+  indicator (`>2`).

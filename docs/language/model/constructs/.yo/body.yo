@@ -1,11 +1,11 @@
 !!<*yamlover: $defs: chapter>
 The constructs in the concretes
 description: the same model, spelled in a .yo file, in json5p, and as a directory
-- |
-  The abstract model has a handful of constructs, and each main concrete spells all of
-  them (or falls back where it cannot). The yamlover file surface is the reference; the
-  json5p brace surface quotes its pointer expressions and has no tags; the directory
-  concrete spreads the node over the filesystem with the `.yo` overlays:
+- >
+  The abstract model has a handful of constructs, and each main concrete spells all of them (or falls
+  back where it cannot). The yamlover file surface is the reference; the json5p brace surface quotes
+  its pointer expressions and has no tags; the directory concrete spreads the node over the filesystem
+  with the `.yo` overlays:
 - !!<*yamlover: $defs: table>
   header:
     - Construct
@@ -42,9 +42,8 @@ description: the same model, spelled in a .yo file, in json5p, and as a director
     - 'the `!!<…>` tag'
     - '— (no tags: overlay only)'
     - '`.yo/meta.yo`'
-- |
-  The two text surfaces meet mid-file: a flow token written across several lines is the
-  inline switch to json5p ([K&R](::language:concretes:containers:knr)), and everything
-  json5p cannot hold falls back to block yamlover, silently and losslessly. A file and a
-  subdirectory are equivalent representations of one node; the full storage rules are
-  the [concretes part](::language:concretes).
+- >
+  The two text surfaces meet mid-file: a flow token written across several lines is the inline switch
+  to json5p ([K&R](::language:concretes:containers:knr)), and everything json5p cannot hold falls back
+  to block yamlover, silently and losslessly. A file and a subdirectory are equivalent representations
+  of one node; the full storage rules are the [concretes part](::language:concretes).

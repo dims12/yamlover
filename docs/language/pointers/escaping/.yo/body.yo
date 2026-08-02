@@ -1,17 +1,15 @@
 !!<*yamlover: $defs: chapter>
 Escaping
 description: backslash carries the literal reading; quotes carry the whole-token cases
-- |
-  A key may itself contain a metacharacter — `: [ ] * & # ~ \`, the query characters
-  `? ! ( ) < > = |`, or an all-dots segment `..` / `...`. Escape it with a
-  **backslash**, which suppresses the pointer meaning of the next character. A key
-  whose **whole bare form would read as something else** is quoted instead: a key
-  containing a space, an empty key, a key of pure digits (`: '1'` — bare digits are
-  a position), a key that IS `~` (`: '~'` — bare `~` is the null key; inside a longer
-  key `\~` still escapes), and `-`+digits (bare `-1` is reserved). Backslash escaping
-  carries the literal-versus-interpreted distinction that quotes cannot: in JSON5 and
-  YAML `'` and `"` are interchangeable delimiters — `*".."` and `*'..'` are the same
-  string, both meaning parent.
+- >
+  A key may itself contain a metacharacter — `: [ ] * & # ~ \`, the query characters `? ! ( ) < > =
+  |`, or an all-dots segment `..` / `...`. Escape it with a **backslash**, which suppresses the
+  pointer meaning of the next character. A key whose **whole bare form would read as something else**
+  is quoted instead: a key containing a space, an empty key, a key of pure digits (`: '1'` — bare
+  digits are a position), a key that IS `~` (`: '~'` — bare `~` is the null key; inside a longer key
+  `\~` still escapes), and `-`+digits (bare `-1` is reserved). Backslash escaping carries the
+  literal-versus-interpreted distinction that quotes cannot: in JSON5 and YAML `'` and `"` are
+  interchangeable delimiters — `*".."` and `*'..'` are the same string, both meaning parent.
 - !!yo
   mime:   *..: text/html: x          # "/" is no metachar — rides bare
   colon:  *schedule: 09\:30          # a literal ":" inside the key
@@ -20,8 +18,8 @@ description: backslash carries the literal reading; quotes carry the whole-token
   tilde:  *: doc: '~'                # the literal key "~" — quoted
   dots:   *\.\.                      # the literal key ".."
   star:   *\*boss                    # the literal key "*boss"
-- |
-  What the slash gained by leaving the metacharacter set: MIME-type keys, date keys
-  (`01/02/2026`), and URL-ish keys ride bare; a legacy `\/` still reads as the
-  literal slash — `\X` makes any X literal. Pointers and queries share this one
-  lexical space: a key escaped for one is escaped identically for the other.
+- >
+  What the slash gained by leaving the metacharacter set: MIME-type keys, date keys (`01/02/2026`),
+  and URL-ish keys ride bare; a legacy `\/` still reads as the literal slash — `\X` makes any X
+  literal. Pointers and queries share this one lexical space: a key escaped for one is escaped
+  identically for the other.

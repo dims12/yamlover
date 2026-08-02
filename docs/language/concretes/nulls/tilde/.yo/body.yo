@@ -1,7 +1,7 @@
 !!<*yamlover: $defs: chapter>
 The tilde
 description: 'yaml/tilde — null as a sigil'
-- |
-  `key: ~` — the sigil form. In value position the tilde means null in yamlover exactly
-  as in YAML; only in key and entry positions did yamlover ever read it specially
-  ([the tilde sigil](::language:vs-yaml:tilde)).
+- >
+  `key: ~` — the sigil form. In value position the tilde means null in yamlover exactly as in YAML;
+  only in key and entry positions did yamlover ever read it specially ([the tilde
+  sigil](::language:vs-yaml:tilde)).

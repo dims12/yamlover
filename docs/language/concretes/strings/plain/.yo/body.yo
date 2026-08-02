@@ -1,9 +1,8 @@
 !!<*yamlover: $defs: chapter>
 Plain
 description: the unquoted default — yaml/plain
-- |
-  `name: Rex` — the plain style, the default. It keeps YAML's plain-scalar limits: no
-  `: ` or ` #` inside, a leading `- ` reads as a sequence marker, consecutive plain
-  lines fold together — and in yamlover the pointer metacharacters join the list, each
-  escaped with `\` where a literal one is meant
-  ([escaping](::language:pointers:escaping)).
+- >
+  `name: Rex` — the plain style, the default. It keeps YAML's plain-scalar limits: no `: ` or ` #`
+  inside, a leading `- ` reads as a sequence marker, consecutive plain lines fold together — and in
+  yamlover the pointer metacharacters join the list, each escaped with `\` where a literal one is
+  meant ([escaping](::language:pointers:escaping)).

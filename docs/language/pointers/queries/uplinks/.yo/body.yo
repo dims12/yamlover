@@ -1,10 +1,9 @@
 !!<*yamlover: $defs: chapter>
 Uplinks
 description: the two-dot family — reverse navigation mirroring the downward forms
-- |
-  Reverse navigation is the `..` family, fully mirroring the downward forms — `name`
-  and `?` step down, `name..` and `?..` step up; `?` is the ambiguity marker in both
-  directions:
+- >
+  Reverse navigation is the `..` family, fully mirroring the downward forms — `name` and `?` step
+  down, `name..` and `?..` step up; `?` is the ambiguity marker in both directions:
 - !!<*yamlover: $defs: table>
   header:
     - form
@@ -15,9 +14,9 @@ description: the two-dot family — reverse navigation mirroring the downward fo
   - ['`?..`', 'up to ALL parents: the spine holder plus every ref or anchor holder', fan-out]
   - ['`key..`', 'up to the parent who knows me as `key`', fan-out]
   - ['`[]..`', 'up to the containers that hold me keyless', fan-out]
-- |
-  A **leading** `..` is the parent scope opener; later `..` portions are spine steps.
-  Containment and refs are one relation kind — both arrive:
+- >
+  A **leading** `..` is the parent scope opener; later `..` portions are spine steps. Containment and
+  refs are one relation kind — both arrive:
 - !!<format: text/plain> |
   : pets: 0: ..                → :pets           (spine only)
   : pets: 0: ?..               → :pets, :team:alice

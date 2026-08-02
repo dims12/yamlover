@@ -1,27 +1,25 @@
 !!<*yamlover: $defs: chapter>
 Order in the model
 description: one entry stream, every entry positioned; provenance stays out of the address
-- |
-  The one ordered container is a model-level fact: a node has ONE entry stream, and every
-  entry in it — keyed or keyless — holds a position. The stream is what the facets
-  describe (keyed and ordinal are views of the same entries), what queries enumerate, and
-  what a bare-integer portion addresses. [Order is data](::language:principles:order-is-data) states the
-  principle; this page gives the projection rules built on it.
-- |
-  **Body-anchored members are ordinal.** A directory-backed body whose positional flow
-  names members by pointer (`- *file`) reports those members as ordinal: their keys are
-  storage provenance — shown as derived, dimmed `&` anchors — not authored keys; only the
-  remainder the body never named reports as keyed. Fully referenced means pure ordinal —
-  an array; with a remainder, both facets — a mix. The rule is per-member, not a prefix:
-  a body that mixes keyed fields with its positional flow scatters its anchors through
-  source order.
-- |
-  Display follows: a table of contents names an ordinal member by position (`0`, `1` —
-  the bare index, exactly as addressed) rather than by the directory that stores it — a
-  title wins where one exists. The label is display; the address is storage.
-- |
-  **Anchor-created members come last.** Members that arrive through ordinal anchors
-  (`&: path[]`) project after all of the container's own in-place entries, ordered
-  lexicographically by member path — deterministic and reconstructible from the graph
-  alone. They never affect the container's kind: a container's type comes from its owned
-  entries only.
+- >
+  The one ordered container is a model-level fact: a node has ONE entry stream, and every entry in it
+  — keyed or keyless — holds a position. The stream is what the facets describe (keyed and ordinal are
+  views of the same entries), what queries enumerate, and what a bare-integer portion addresses.
+  [Order is data](::language:principles:order-is-data) states the principle; this page gives the
+  projection rules built on it.
+- >
+  **Body-anchored members are ordinal.** A directory-backed body whose positional flow names members
+  by pointer (`- *file`) reports those members as ordinal: their keys are storage provenance — shown
+  as derived, dimmed `&` anchors — not authored keys; only the remainder the body never named reports
+  as keyed. Fully referenced means pure ordinal — an array; with a remainder, both facets — a mix. The
+  rule is per-member, not a prefix: a body that mixes keyed fields with its positional flow scatters
+  its anchors through source order.
+- >
+  Display follows: a table of contents names an ordinal member by position (`0`, `1` — the bare index,
+  exactly as addressed) rather than by the directory that stores it — a title wins where one exists.
+  The label is display; the address is storage.
+- >
+  **Anchor-created members come last.** Members that arrive through ordinal anchors (`&: path[]`)
+  project after all of the container's own in-place entries, ordered lexicographically by member path
+  — deterministic and reconstructible from the graph alone. They never affect the container's kind: a
+  container's type comes from its owned entries only.

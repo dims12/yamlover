@@ -1,18 +1,17 @@
 !!<*yamlover: $defs: chapter>
 'Mixtures: one node, every capability'
 description: scalar-plus-fields and keyed-plus-keyless — invalid in YAML, the default here
-- |
-  Plain YAML forbids mixing `- item` entries with `key: value` entries in one collection,
-  and has no way for a scalar to carry fields. In yamlover both are **one node and the
-  default**: an untagged node may mix keyed and keyless entries and may carry a scalar
-  self-value alongside them ([one omnivorous node](::language:principles:one-node)). Two
-  tags accompany the shapes. `!!mix` marks a keyed+keyless container — a no-op
-  documentation marker, parsed and never re-emitted. `!!yo` — it means simply "yamlover"
-  — is **semantic**: it marks the node as *plain yamlover, exempt from the enclosing
-  document's schema*, so a structured consumer (the chapter renderer, its editor) must
-  not interpret it — the node is handed to the generic yamlover renderer instead, a raw
-  data island in an otherwise structured document. The former spellings `!!var` and
-  `!!omni` are read forever as deprecated aliases of `!!yo` and re-emit as `!!yo`.
+- >
+  Plain YAML forbids mixing `- item` entries with `key: value` entries in one collection, and has no
+  way for a scalar to carry fields. In yamlover both are **one node and the default**: an untagged
+  node may mix keyed and keyless entries and may carry a scalar self-value alongside them ([one
+  omnivorous node](::language:principles:one-node)). Two tags accompany the shapes. `!!mix` marks a
+  keyed+keyless container — a no-op documentation marker, parsed and never re-emitted. `!!yo` — it
+  means simply "yamlover" — is **semantic**: it marks the node as *plain yamlover, exempt from the
+  enclosing document's schema*, so a structured consumer (the chapter renderer, its editor) must not
+  interpret it — the node is handed to the generic yamlover renderer instead, a raw data island in an
+  otherwise structured document. The former spellings `!!var` and `!!omni` are read forever as
+  deprecated aliases of `!!yo` and re-emit as `!!yo`.
 - !!<format: text/x-yamlover> |
   playlist: !!mix
     - Intro                 # position 0     keyless / positional
@@ -25,12 +24,12 @@ description: scalar-plus-fields and keyed-plus-keyless — invalid in YAML, the 
     - solid                 # position 0 … and positional + keyed fields together
     scale: 10               # !!yo: drawn by the generic renderer, not
                             #   by whatever schema encloses the node
-- |
-  The self-value line may sit at any position among the entries — first, last, or
-  between; at most one scalar line per block, and line order does not change the data.
-  This holds at the document root too: a bare root scalar may be followed by entries and
-  anchors, no tag needed. A **multi-line** self-value must be a block scalar (`|` / `>`)
-  — tagless, self-delimiting by its own content indent, legal anywhere among the entries:
+- >
+  The self-value line may sit at any position among the entries — first, last, or between; at most one
+  scalar line per block, and line order does not change the data. This holds at the document root too:
+  a bare root scalar may be followed by entries and anchors, no tag needed. A **multi-line**
+  self-value must be a block scalar (`|` / `>`) — tagless, self-delimiting by its own content indent,
+  legal anywhere among the entries:
 - !!<format: text/x-yamlover> |
   # tagless — the self-value block scalar between the entries
   - solid
@@ -38,7 +37,7 @@ description: scalar-plus-fields and keyed-plus-keyless — invalid in YAML, the 
     multi-line text is
     the node's value
   scale: 10
-- |
-  An inline *plain* scalar keeps YAML's plain-scalar limits — no `: ` or ` #` inside it,
-  a leading `- ` reads as a sequence marker, consecutive plain lines fold — so arbitrary
-  text goes in a block scalar.
+- >
+  An inline *plain* scalar keeps YAML's plain-scalar limits — no `: ` or ` #` inside it, a leading `-
+  ` reads as a sequence marker, consecutive plain lines fold — so arbitrary text goes in a block
+  scalar.

@@ -4,17 +4,16 @@
 !!<*yamlover: $defs: chapter>
 yamlover
 description: YAML with pointers — the language, its storage model, and its documents
-- |
-  **yamlover** is a language close to YAML that adds a *pointer layer* — `*` dereferences,
-  `&` path anchors, keys that are pointers — and *concretes*: the same logical document can
-  live in one file, in a directory tree, or switch language mid-stream. What YAML gives one
-  file, yamlover gives a whole filesystem.
-- |
-  This book is the reference. It is itself a yamlover document tree — every page here is a
-  chapter, every paragraph a marklower chunk, and the table of contents is the positional
-  body you are reading now. The [language chapter](::language) is the self-contained spec —
-  principles, the abstract model, every concrete representation, pointers and queries; the
-  [documents chapter](::documents) covers the document layer built on top of it — chapters,
-  marklower prose, tables, lists.
+- >
+  **yamlover** is a language close to YAML that adds a *pointer layer* — `*` dereferences, `&` path
+  anchors, keys that are pointers — and *concretes*: the same logical document can live in one file,
+  in a directory tree, or switch language mid-stream. What YAML gives one file, yamlover gives a whole
+  filesystem.
+- >
+  This book is the reference. It is itself a yamlover document tree — every page here is a chapter,
+  every paragraph a marklower chunk, and the table of contents is the positional body you are reading
+  now. The [language chapter](::language) is the self-contained spec — principles, the abstract model,
+  every concrete representation, pointers and queries; the [documents chapter](::documents) covers the
+  document layer built on top of it — chapters, marklower prose, tables, lists.
 - *: language
 - *: documents

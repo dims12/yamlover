@@ -1,7 +1,7 @@
 !!<*yamlover: $defs: chapter>
 YAML 1.1 words
 description: 'yaml/bool11 — yes, no, on, off (opt-in vocabulary)'
-- |
-  `yes` / `no` / `on` / `off` — YAML 1.1 only, not core. The reader follows the YAML 1.2
-  core schema, where these are ordinary strings; the notation is reserved vocabulary,
-  classified the moment a reader opts in.
+- >
+  `yes` / `no` / `on` / `off` — YAML 1.1 only, not core. The reader follows the YAML 1.2 core schema,
+  where these are ordinary strings; the notation is reserved vocabulary, classified the moment a
+  reader opts in.

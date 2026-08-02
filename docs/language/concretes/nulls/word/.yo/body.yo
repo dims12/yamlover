@@ -1,6 +1,5 @@
 !!<*yamlover: $defs: chapter>
 The word
 description: 'yaml/null — null spelled out'
-- |
-  `key: null` — the word form, with the `Null` and `NULL` casings accepted as in YAML's
-  core schema.
+- >
+  `key: null` — the word form, with the `Null` and `NULL` casings accepted as in YAML's core schema.

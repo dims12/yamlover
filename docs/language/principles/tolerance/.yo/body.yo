@@ -1,15 +1,14 @@
 !!<*yamlover: $defs: chapter>
 What it doesn't test, it tolerates
 description: consumers match by their own formula; unknown structure passes through
-- |
-  The spec mandates neither open nor closed matching. Every consumer — a renderer, a
-  query, a validator — carries its **own acceptance formula** and claims a node exactly
-  when the node satisfies it: *what it doesn't test, it tolerates*. A markdown renderer
-  that only tests `format` keeps accepting a string that has grown annotation fields; a
-  strict consumer may demand a closed shape; both are correct, each by its own formula
-  (the [matching subchapter](::language:model:matching)).
-- |
-  The same tolerance holds across the language: mixtures of keyed and keyless entries,
-  scalars with fields, unknown keys, unknown formats — all are ordinary data, never
-  errors. Behavior is uniform over array, omni, mix, and scalar shapes; a consumer that
-  cannot handle a shape is fixed, not the document.
+- >
+  The spec mandates neither open nor closed matching. Every consumer — a renderer, a query, a
+  validator — carries its **own acceptance formula** and claims a node exactly when the node satisfies
+  it: *what it doesn't test, it tolerates*. A markdown renderer that only tests `format` keeps
+  accepting a string that has grown annotation fields; a strict consumer may demand a closed shape;
+  both are correct, each by its own formula (the [matching subchapter](::language:model:matching)).
+- >
+  The same tolerance holds across the language: mixtures of keyed and keyless entries, scalars with
+  fields, unknown keys, unknown formats — all are ordinary data, never errors. Behavior is uniform
+  over array, omni, mix, and scalar shapes; a consumer that cannot handle a shape is fixed, not the
+  document.

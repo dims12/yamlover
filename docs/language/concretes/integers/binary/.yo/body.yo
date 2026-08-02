@@ -1,7 +1,6 @@
 !!<*yamlover: $defs: chapter>
 Binary
 description: 'yaml/bin — 0b11111111'
-- |
-  `0b11111111` — the binary notation, from YAML 1.1. Reserved vocabulary like the octal
-  form: an ordinary string to the core reader, classified the moment a reader decodes
-  it.
+- >
+  `0b11111111` — the binary notation, from YAML 1.1. Reserved vocabulary like the octal form: an
+  ordinary string to the core reader, classified the moment a reader decodes it.

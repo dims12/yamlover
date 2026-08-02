@@ -1,10 +1,9 @@
 !!<*yamlover: $defs: chapter>
 In its own file
 description: a text file holding one scalar — the format carries the material type
-- |
-  A string may be a whole file: the text-material modeling. Markdown, asciidoc, csv,
-  plantuml — any non-data text — is a `file/yaml` scalar whose single value is the raw
-  text, kept verbatim; the `format` (`text/markdown`, `text/x-plantuml`) carries the
-  real material type and selects the renderer. The concrete only records "a text file
-  holding one scalar", so the same modeling covers every material the system will ever
-  meet.
+- >
+  A string may be a whole file: the text-material modeling. Markdown, asciidoc, csv, plantuml — any
+  non-data text — is a `file/yaml` scalar whose single value is the raw text, kept verbatim; the
+  `format` (`text/markdown`, `text/x-plantuml`) carries the real material type and selects the
+  renderer. The concrete only records "a text file holding one scalar", so the same modeling covers
+  every material the system will ever meet.

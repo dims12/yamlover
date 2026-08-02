@@ -1,24 +1,22 @@
 !!<*yamlover: $defs: chapter>
 Paths
 description: the colon grammar — one meaning for the colon everywhere
-- |
-  Colon is THE key marker of the JSON/YAML family: `key: value` means "this key leads
-  to that value". A path is the same statement, chained — so the path separator is the
-  same character, and `a: b: c` reads "key, leads to key, leads to key". Canonical
-  block styling writes the colon with a space (`: `); the space is optional on input
-  and absent in flow; machine surfaces — store keys, API paths — use the compact form
-  (`:team:alice:age`).
-- |
-  A path is a sequence of **portions**, typed by the **bare-token rule**: a portion of
-  pure digits IS the integer key — a position (`: some: path: 12: with: ordinal`); a
-  bare `~` is the null key; anything else bare, and any *quoted* portion, is a string
-  key — `: '1'` is the numeric string, `: '~'` the literal tilde. The retired bracket
-  index `[n]` reads forever as an alias, written never. A key containing a space must
-  be quoted (the host surface's string quoting), as must a key whose bare form would
-  read as something else — empty, pure digits, `~`, `-`+digits; a literal
-  metacharacter is backslash-escaped ([escaping](::language:pointers:escaping)). The
-  slash is an ordinary key character: `text/html` rides bare, and `*/pets` is a
-  (dangling) reference to the literal key "/pets", never a rooted path.
+- >
+  Colon is THE key marker of the JSON/YAML family: `key: value` means "this key leads to that value".
+  A path is the same statement, chained — so the path separator is the same character, and `a: b: c`
+  reads "key, leads to key, leads to key". Canonical block styling writes the colon with a space (`:
+  `); the space is optional on input and absent in flow; machine surfaces — store keys, API paths —
+  use the compact form (`:team:alice:age`).
+- >
+  A path is a sequence of **portions**, typed by the **bare-token rule**: a portion of pure digits IS
+  the integer key — a position (`: some: path: 12: with: ordinal`); a bare `~` is the null key;
+  anything else bare, and any *quoted* portion, is a string key — `: '1'` is the numeric string, `:
+  '~'` the literal tilde. The retired bracket index `[n]` reads forever as an alias, written never. A
+  key containing a space must be quoted (the host surface's string quoting), as must a key whose bare
+  form would read as something else — empty, pure digits, `~`, `-`+digits; a literal metacharacter is
+  backslash-escaped ([escaping](::language:pointers:escaping)). The slash is an ordinary key
+  character: `text/html` rides bare, and `*/pets` is a (dangling) reference to the literal key
+  "/pets", never a rooted path.
 - !!<format: text/plain> |
   deref    = "*" pointer          ; dereference — a graph edge (pull)
   define   = "&" pointer [ "[]" ] ; PATH anchor — also at that path
@@ -38,12 +36,11 @@ description: the colon grammar — one meaning for the colon everywhere
   name     = 1*( nchar / "\" CHAR ) / quoted
   nchar    = <any char except unescaped
               : [ ] * & # ~ ? ! ( ) < > = |  or whitespace>
-- |
-  The static **arity rule** classifies every expression by its form alone. If every
-  portion guarantees at most one successor, the expression is a **link** — legal after
-  `*` (an edge) and after `&` (an anchor). If any portion may fan out — a wildcard, a
-  matcher, a descent, a fan-out uplink — it is a **query**: askable through the
-  engine, never authorable as an edge; `something: *: team: ?` is a parse-time error.
-  The classification is syntax-only today and designed to grow schema-aware — a schema
-  proving "exactly one parent holds this relation" could admit an uplink into links —
-  without moving the decision point.
+- >
+  The static **arity rule** classifies every expression by its form alone. If every portion guarantees
+  at most one successor, the expression is a **link** — legal after `*` (an edge) and after `&` (an
+  anchor). If any portion may fan out — a wildcard, a matcher, a descent, a fan-out uplink — it is a
+  **query**: askable through the engine, never authorable as an edge; `something: *: team: ?` is a
+  parse-time error. The classification is syntax-only today and designed to grow schema-aware — a
+  schema proving "exactly one parent holds this relation" could admit an uplink into links — without
+  moving the decision point.

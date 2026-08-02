@@ -1,20 +1,18 @@
 !!<*yamlover: $defs: chapter>
 Flow
 description: 'yaml/flow — one line, recorded and re-emitted'
-- |
-  `b: [12, 13, 14]` or `{x: 1, y: 2}` — the flow style: a JSON-looking value on one line
-  inside a `.yo` file is simply a flow container; the language is still yamlover. Flow
-  is recorded by the parser and re-emitted by the serializer, so an authored one-liner
-  comes back a one-liner. Formatting is normalized, not preserved byte for byte:
-  `[1,2]` and `[ 1, 2 ]` are both flow, and both re-emit as `[1, 2]` — the concrete is
-  the classification, not the bytes. A json-family document is flow end to end by
-  language and needs no per-node marker.
-- |
-  Flow cannot hold everything. A container carrying a path anchor, a `!!<…>` tag, a
-  `!!yo` or `!!set`, a leading comment, a multi-line scalar, a blob, or a keyed+keyless mixture
-  **falls back to block form** — silently and losslessly, never a throw and never a
-  drop. The refusal list lives once, in the serializer, and the editor mirrors it, so
-  the screen and the file agree.
-- |
-  A flow value is ONE source token, however long: an edit cannot address a path *into*
-  one — the whole token is replaced instead.
+- >
+  `b: [12, 13, 14]` or `{x: 1, y: 2}` — the flow style: a JSON-looking value on one line inside a
+  `.yo` file is simply a flow container; the language is still yamlover. Flow is recorded by the
+  parser and re-emitted by the serializer, so an authored one-liner comes back a one-liner. Formatting
+  is normalized, not preserved byte for byte: `[1,2]` and `[ 1, 2 ]` are both flow, and both re-emit
+  as `[1, 2]` — the concrete is the classification, not the bytes. A json-family document is flow end
+  to end by language and needs no per-node marker.
+- >
+  Flow cannot hold everything. A container carrying a path anchor, a `!!<…>` tag, a `!!yo` or `!!set`,
+  a leading comment, a multi-line scalar, a blob, or a keyed+keyless mixture **falls back to block
+  form** — silently and losslessly, never a throw and never a drop. The refusal list lives once, in
+  the serializer, and the editor mirrors it, so the screen and the file agree.
+- >
+  A flow value is ONE source token, however long: an edit cannot address a path *into* one — the whole
+  token is replaced instead.

@@ -1,14 +1,13 @@
 !!<*yamlover: $defs: chapter>
 Files
 description: a whole text file of a given language
-- |
-  The node *is* a file: `file/json` (`.json`), `file/json5` (`.json5`), `file/json5p`
-  (`.json5p`), `file/yaml` (`.yaml` / `.yml`), `file/yamlover` (`.yo`, plus the legacy
-  `.yamlover` spelling — read forever, never written). Interior nodes take the same
-  language without the `file/` prefix — the inlined forms.
-- |
-  A non-data **text material** — markdown, asciidoc, csv, plantuml — is modeled as a
-  `file/yaml` scalar: its single value is the raw text, kept verbatim and rendered by
-  its `format`. The format carries the real material type (`text/markdown`); the
-  concrete only records "a text file holding one scalar"
-  ([strings in their own file](::language:concretes:strings:own-file)).
+- >
+  The node *is* a file: `file/json` (`.json`), `file/json5` (`.json5`), `file/json5p` (`.json5p`),
+  `file/yaml` (`.yaml` / `.yml`), `file/yamlover` (`.yo`, plus the legacy `.yamlover` spelling — read
+  forever, never written). Interior nodes take the same language without the `file/` prefix — the
+  inlined forms.
+- >
+  A non-data **text material** — markdown, asciidoc, csv, plantuml — is modeled as a `file/yaml`
+  scalar: its single value is the raw text, kept verbatim and rendered by its `format`. The format
+  carries the real material type (`text/markdown`); the concrete only records "a text file holding one
+  scalar" ([strings in their own file](::language:concretes:strings:own-file)).

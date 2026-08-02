@@ -1,9 +1,8 @@
 !!<*yamlover: $defs: chapter>
 In its own file
 description: a container as a whole document of its language
-- |
-  A container may be a whole file — `file/yamlover`, `file/json5p`, `file/yaml`, … — and
-  its interior nodes then speak that file's language without the `file/` prefix, locked
-  by the [language rule](::language:concretes:inheritance): the interior of a `.json5p`
-  cannot switch to yaml. A file and a subdirectory are equivalent representations of the
-  same node.
+- >
+  A container may be a whole file — `file/yamlover`, `file/json5p`, `file/yaml`, … — and its interior
+  nodes then speak that file's language without the `file/` prefix, locked by the [language
+  rule](::language:concretes:inheritance): the interior of a `.json5p` cannot switch to yaml. A file
+  and a subdirectory are equivalent representations of the same node.

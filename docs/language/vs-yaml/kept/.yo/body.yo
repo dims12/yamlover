@@ -15,7 +15,6 @@ description: the surface you know — block and flow, scalars, comments, the odd
   - ['`null` spellings, incl. `~` in value position', '`key: ~` → null']
   - ['Float specials (YAML, **not** json5''s `Infinity`/`NaN`)', '`.inf`, `-.inf`, `.nan` (case-tolerant: `.Inf`/`.NaN`)']
   - ['`&` anchors and `*` aliases', '`&a {…}` … `*a` — syntax kept, **meaning extended**']
-- |
-  A YAML `- item` sequence entry is the same thing as a keyless entry in the one ordered
-  container — an entry with no string key
-  ([order is data](::language:principles:order-is-data)).
+- >
+  A YAML `- item` sequence entry is the same thing as a keyless entry in the one ordered container —
+  an entry with no string key ([order is data](::language:principles:order-is-data)).

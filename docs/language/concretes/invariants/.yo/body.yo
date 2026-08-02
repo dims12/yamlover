@@ -1,12 +1,11 @@
 !!<*yamlover: $defs: chapter>
 Layout invariants
 description: the write-side checks that keep a tree well-formed, schema or no schema
-- |
-  The [choosing rules](::language:concretes:inheritance) say where a value SHOULD live;
-  the layout invariants assert a write actually PUT it there. They restate no policy —
-  each re-asks the deriving rule and only checks that the plan obeyed the answer — and
-  they hold with no schema at all, so they protect a directory from the first
-  keystroke:
+- >
+  The [choosing rules](::language:concretes:inheritance) say where a value SHOULD live; the layout
+  invariants assert a write actually PUT it there. They restate no policy — each re-asks the deriving
+  rule and only checks that the plan obeyed the answer — and they hold with no schema at all, so they
+  protect a directory from the first keystroke:
 - !!<*yamlover: $defs: table>
   header:
     - invariant
@@ -22,8 +21,8 @@ description: the write-side checks that keep a tree well-formed, schema or no sc
   - ['`off-scheme-name`', '(warning) a generated member carries its family''s order key']
   - ['`orphan-overlay`', 'every `.yo/` has a directory to mark and holds at least one format file']
   - ['`concrete-mismatch`', 'the concrete agrees with the shape backing it — a `dir/yamlover` owns its marker, a plain `dir` does not, a file concrete matches its extension']
-- |
-  Enforcement sits at the write chokepoints, before any bytes land: development and test
-  builds throw, production refuses the write and logs. After the fact, the doctor
-  endpoint sweeps a served tree with a **filesystem** walk — a filesystem walk because
-  an index walk skips what it does not understand and so cannot see a buried overlay.
+- >
+  Enforcement sits at the write chokepoints, before any bytes land: development and test builds throw,
+  production refuses the write and logs. After the fact, the doctor endpoint sweeps a served tree with
+  a **filesystem** walk — a filesystem walk because an index walk skips what it does not understand
+  and so cannot see a buried overlay.

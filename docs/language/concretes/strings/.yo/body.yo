@@ -1,12 +1,11 @@
 !!<*yamlover: $defs: chapter>
 Strings
 description: five styles, two block qualifiers, and the file-backed forms
-- |
-  A string picks a **style** — how it is delimited and laid out. The five styles are
-  YAML's, shared by the whole family, so the representation lives in the common `yaml/…`
-  namespace; plain is the default and carries no marker, and a non-default spelling is
-  preserved through every round-trip. Beyond the inline styles, a string may occupy a
-  whole file of its own, or be bytes a format decodes.
+- >
+  A string picks a **style** — how it is delimited and laid out. The five styles are YAML's, shared by
+  the whole family, so the representation lives in the common `yaml/…` namespace; plain is the default
+  and carries no marker, and a non-default spelling is preserved through every round-trip. Beyond the
+  inline styles, a string may occupy a whole file of its own, or be bytes a format decodes.
 - *: plain
 - *: single-quoted
 - *: double-quoted
