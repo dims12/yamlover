@@ -21,7 +21,8 @@
 
 import type { Edit } from "../api";
 import { isFlow, isSpread, sourceOf, type Document, type Entry, type Node, type Value } from "../../../../yed/src/state";
-import { isPointer, type Anchor } from "../../../../parser/ts/src/ir.ts";
+import { isPointer, type Anchor, type Pointer } from "../../../../parser/ts/src/ir.ts";
+import { parsePointer, renderPointer } from "../../../../parser/ts/src/pointer.ts";
 import { anchorBody } from "../../../../parser/ts/src/serialize-common.ts";
 import { segToken } from "../../../../parser/ts/src/pathseg.ts";
 import { schemaText } from "../../../../parser/ts/src/serialize-yamlover.ts";
@@ -122,10 +123,24 @@ function stripComments(v: Value): Value {
   return out;
 }
 
+/** A pointer's WIRE spelling: compact (no unquoted spaces) — the server routes single-line
+ *  `*\S*` payloads around the document parser (engine-api isPointerValue), so the SPACED
+ *  display raw the sidecar loads (`: pets: 1`) must respell. Parsed base+steps win; a raw-only
+ *  dangling pointer re-parses, and one that cannot parse passes verbatim (same failure surface
+ *  as the legacy barePointer). */
+function bareOf(v: Pointer & { raw?: string }): string {
+  try {
+    const parsed = v.base !== undefined && v.steps !== undefined ? v : parsePointer((v.raw ?? "").trim());
+    return renderPointer(parsed, { spaced: false });
+  } catch {
+    return v.raw ?? "";
+  }
+}
+
 /** A value as an op payload: one line for pointers/scalars, the serialized subtree for nodes
  *  (its text carries flow/K&R layout). Throws on a blob — the caller falls back or refuses. */
 function payloadOf(v: Value): string {
-  if (isPointer(v)) return "*" + ((v as { raw?: string }).raw ?? "");
+  if (isPointer(v)) return "*" + bareOf(v as Pointer & { raw?: string });
   if ((v as Node).kind === "blob" || hasBlob(v)) throw new Error("a blob has no op payload");
   return sourceOf({ root: stripComments(v) } as Document).replace(/\n$/, "");
 }
@@ -134,6 +149,22 @@ function payloadOf(v: Value): string {
  *  an anchored positional member, else its ABSOLUTE index. */
 const segOf = (e: Entry, absIndex: number): string | number =>
   e.key ?? ((e.meta as { anchorKey?: string } | undefined)?.anchorKey ?? absIndex);
+
+/** The SERVER path of the node at an IR entry-index path — the same addressing law the diff
+ *  emits ops with (segOf + appendSeg), so a cell asking "where am I on the wire" and the ops
+ *  that later land there can never disagree. Throws on a path outside the document (a caller
+ *  bug — IR paths come from positionsOf over this very doc). */
+export function serverPathOf(basePath: string, doc: Document, irPath: readonly number[]): string {
+  let path = basePath;
+  let v: Value = doc.root;
+  for (const idx of irPath) {
+    const e = (isPointer(v) ? undefined : (v as Node).entries)?.[idx];
+    if (!e) throw new Error(`serverPathOf: no entry at index ${idx} under ${path}`);
+    path = appendSeg(path, segOf(e, idx));
+    v = e.value;
+  }
+  return path;
+}
 
 class Bail extends Error {}
 

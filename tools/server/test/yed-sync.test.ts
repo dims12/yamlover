@@ -1,7 +1,7 @@
 // yed-sync — the IR tree diff → per-node /api/edit ops. Pure; documents come from parseSource,
 // so each case is two readable yamlover texts and the ops between them.
 import { describe, it, expect } from "vitest";
-import { diffToOps } from "../src/client/renderers/yed-sync";
+import { diffToOps, serverPathOf } from "../src/client/renderers/yed-sync";
 import { emptyDoc, parseSource } from "../../yed/src/state";
 
 const diff = (prev: string, next: string) =>
@@ -224,5 +224,54 @@ describe("diffToOps — comment carriage is INVISIBLE to the sync", () => {
     expect(d.ops).toEqual([{ path: ":doc:k", op: "emplace", yamlover: "|\n  line one\n  line 2!" }]);
     const folded = diff("k: >\n  fold\n  these\n", "k: >\n  fold\n  those\n");
     expect(folded.ops).toEqual([{ path: ":doc:k", op: "emplace", yamlover: ">\n  fold\n  those" }]);
+  });
+});
+
+describe("diffToOps — pointer payloads respell COMPACT (the isPointerValue wire gate)", () => {
+  // the server routes single-line `*\S*` payloads around the document parser; a SPACED raw
+  // (the sidecar's canonical `: pets: 1`) would fail that gate and 400 as a document parse
+  it("a SPACED authored pointer emplaces compact", () => {
+    const d = diff("a: 1\n", "a: *: pets: 1\n");
+    expect(d.ops).toEqual([{ path: ":doc:a", op: "emplace", yamlover: "*:pets:1" }]);
+  });
+
+  it("a pointer INSERT rides compact too", () => {
+    const d = diff("a: 1\n", "a: 1\nb: *pets: 1\n");
+    expect(d.ops).toEqual([{ path: ":doc:1", op: "insert", yamlover: "*pets:1", key: "b" }]);
+  });
+
+  it("a ladder-0 relative pointer keeps its `..` steps, compact", () => {
+    const d = diff("a: *x\n", "a: *..: x\n");
+    expect(d.ops).toEqual([{ path: ":doc:a", op: "emplace", yamlover: "*..:x" }]);
+  });
+
+  it("a raw-only DANGLING pointer that cannot parse passes verbatim", () => {
+    // the yed-load catch branch keeps an unparsable spelling as {kind:"pointer", raw} —
+    // the wire gets it verbatim (the same failure surface the legacy barePointer had)
+    const prev = parseSource("a: *x\n");
+    const next = parseSource("a: *x\n");
+    (next.root as { entries: { value: unknown }[] }).entries[0].value = { kind: "pointer", raw: "::" } as never;
+    const d = diffToOps(":doc", prev, next);
+    expect(d.ops).toEqual([{ path: ":doc:a", op: "emplace", yamlover: "*::" }]);
+  });
+});
+
+describe("serverPathOf — the cell's wire address matches the ops' addressing law", () => {
+  it("keyed entries address by key, keyless by absolute index", () => {
+    const doc = parseSource("a:\n  b: 1\nlist:\n  - x\n  - y\n");
+    expect(serverPathOf(":doc", doc, [])).toBe(":doc");
+    expect(serverPathOf(":doc", doc, [0, 0])).toBe(":doc:a:b");
+    expect(serverPathOf(":doc", doc, [1, 1])).toBe(":doc:list:1");
+  });
+
+  it("an anchored positional member addresses by its derived anchor key", () => {
+    const doc = parseSource("- x\n- y\n");
+    (doc.root as { entries: { meta?: object }[] }).entries[1].meta = { anchorKey: "why" };
+    expect(serverPathOf(":doc", doc, [1])).toBe(":doc:why");
+  });
+
+  it("throws outside the document — a caller bug, never a silent mis-address", () => {
+    const doc = parseSource("a: 1\n");
+    expect(() => serverPathOf(":doc", doc, [5])).toThrow();
   });
 });
