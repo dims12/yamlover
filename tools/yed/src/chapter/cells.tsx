@@ -27,7 +27,7 @@ import { Cell, type CellRegistry } from "../cells";
 import { defaultRegistry } from "../cells";
 import { EditorView } from "../page";
 import type { Position } from "../apply";
-import type { ChapterState, SplitPayload } from "./apply";
+import { proseNode, type ChapterState, type SplitPayload } from "./apply";
 import type { ChapterIntent, ChapterKey } from "./dispatch";
 import type { ChapterEdges } from "./site";
 import { chunkModeOf, explicitFormatOf, hasSelfValue, metaOf, type ChunkMode } from "./format";
@@ -85,7 +85,10 @@ export interface ChapterCtxValue {
   commitText: (path: Path, text: string) => void;
   boot: (path: Path, text: string) => void;
   focusTo: (pos: Position, caret?: ChapterState["caret"]) => void;
-  graft: (path: Path, value: Value) => void;
+  /** Replace the node at `path` wholesale (a nested editor syncing back). `focus` rides the
+   *  SAME state push — a separate focusTo would clobber the graft (both build on the same
+   *  pre-push state). */
+  graft: (path: Path, value: Value, focus?: Position) => void;
   chapterPath: string;
 }
 
@@ -652,22 +655,76 @@ function SourceCell({ path }: { path: Path }): ReactNode {
   );
 }
 
-/** One focusable stop for non-editable content — links, binaries, read-only formats. */
+/** A RAW pointer chunk — one reference as a chunk, EDITABLE through the same machinery as a
+ *  source chunk: a nested yed editor mounted over a synthetic one-entry wrapper (a pointer
+ *  cannot root a document), so the atom walk, Enter's PICK retarget (the server registry's
+ *  query kit when mounted; the plain raw cell server-free), and the Backspace deletion
+ *  ladder are the source editor's, verbatim. Grafting back: a retargeted pointer replaces
+ *  the chunk in place; a deleted one leaves an empty paragraph (the chapter's own rules
+ *  take it from there); anything richer (entries added inside) grafts wholesale as a group. */
+function PointerChunkCell({ path }: { path: Path }): ReactNode {
+  const ctx = useChapter();
+  const v = valueAtPath(ctx.state.doc.root, path)!;
+  const subRef = useRef<EditorState | null>(null);
+  const [, force] = useReducer((x: number) => x + 1, 0);
+  if (!subRef.current || ((subRef.current.doc.root as Node).entries ?? [])[0]?.value !== v) {
+    subRef.current = {
+      doc: {
+        root: { kind: "mapping", entries: [{ key: null, edge: "ref", value: v }] },
+        source: { concrete: "yamlover", uri: ctx.chapterPath },
+      } as unknown as EditorState["doc"],
+      cursor: { at: "ptr", path: [0] } as EditorState["cursor"],
+      refused: false,
+      log: [],
+    };
+  }
+  const sub = subRef.current;
+  const focused = activeAt(ctx, "ptr", path);
+  return (
+    <Cell kind="atom" active={focused} refused={ctx.state.refused} pos={{ at: "ptr", path }} block>
+      <div
+        className="chunk-ref"
+        onFocusCapture={() => { if (!focused) ctx.focusTo({ at: "ptr", path }, null); }}
+      >
+        <EditorView
+          state={sub}
+          setState={(next) => {
+            const changed = next.doc.root !== subRef.current!.doc.root;
+            subRef.current = next;
+            force();
+            if (!changed) return;
+            const root = next.doc.root as Node;
+            const entries = root.entries ?? [];
+            const grafted: Value =
+              root.kind !== "mapping" || hasSelfValue(root) ? (root as Value) :
+              entries.length === 1 ? entries[0].value :
+              entries.length === 0 ? (proseNode("") as Value) :
+              (root as Value);
+            // the pointer DELETED inside dissolves the wrapper — the chunk is a plain (empty)
+            // paragraph now, and the chapter's focus follows it (the focus law: never nowhere)
+            ctx.graft(path, grafted, isPointer(grafted) ? undefined : { at: "token", path });
+          }}
+          debug={false}
+          cells={ctx.adapter.sourceCells ?? defaultRegistry}
+          host={ctx.adapter.sourceHost?.(path.slice(0, -1))}
+          plantCaret={focused}
+        />
+      </div>
+    </Cell>
+  );
+}
+
+/** One focusable stop for non-editable content — links, binaries, read-only formats.
+ *  A RAW pointer delegates to {@link PointerChunkCell} — a reference chunk is editable. */
 function AtomCell({ path, level, budget }: { path: Path; level: number; budget: number }): ReactNode {
   const ctx = useChapter();
   const v = valueAtPath(ctx.state.doc.root, path);
   const active = activeAt(ctx, "ptr", path);
   const link = v !== null && !isPointer(v) ? metaOf(v).link : undefined;
-  const pointerTarget = v !== null && isPointer(v) ? String((v as { raw?: string }).raw ?? "") : null;
+  if (v !== null && isPointer(v)) return <PointerChunkCell path={path} />;
   const face = ((): ReactNode => {
     if (link !== undefined && ctx.adapter.renderLinked) return ctx.adapter.renderLinked(link, level, budget);
     if (link !== undefined) return <DescendHeading path={link.path} title={link.title ?? link.path} level={level + 1} />;
-    // a RAW pointer is locally UNRESOLVED content — the read view may resolve it into a
-    // titled subchapter heading, but here nothing says the target is one: it faces as a
-    // reference LINE wearing the source editor's pointer identity (`*` + authored spelling)
-    if (pointerTarget !== null) {
-      return <p className="chapter-prose chapter-ref" data-yo-chrome><span className="y2-p">*{pointerTarget}</span></p>;
-    }
     if (v !== null && ctx.adapter.renderReadonly) return ctx.adapter.renderReadonly(v, path);
     const label = v !== null ? explicitFormatOf(v) ?? "linked content" : "linked content";
     return <p className="chapter-prose chapter-readonly-block" data-yo-chrome>[{label}]</p>;

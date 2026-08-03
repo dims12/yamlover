@@ -109,7 +109,7 @@ function DebugChapterPage() {
     commitText: (p: Path, text: string) => update(commitChapterText(stateRef.current, p, text)),
     boot: (p: Path, text: string) => update(createFirstChunk(stateRef.current, p, text)),
     focusTo: (pos, caret = null) => update({ ...stateRef.current, focus: pos, caret }),
-    graft: (p: Path, value: Value) => update({ ...stateRef.current, doc: withNode(stateRef.current.doc, p, () => value as never) }),
+    graft: (p: Path, value: Value, focus?) => update({ ...stateRef.current, doc: withNode(stateRef.current.doc, p, () => value as never), ...(focus ? { focus, caret: "start" as const } : {}) }),
     chapterPath: ":doc",
   };
 

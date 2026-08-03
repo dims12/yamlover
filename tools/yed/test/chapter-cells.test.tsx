@@ -32,7 +32,7 @@ describe("the chapter cell laws", () => {
     for (const cell of cells) {
       const kind = cell.getAttribute("data-kind")!;
       const chapterKind = (CHAPTER_CELL_KINDS as readonly string[]).includes(kind);
-      const sourceKind = SOURCE_KINDS.has(kind) && cell.closest(".chunk-source") !== null;
+      const sourceKind = SOURCE_KINDS.has(kind) && cell.closest(".chunk-source, .chunk-ref") !== null;
       expect(chapterKind || sourceKind, `unexpected cell kind ${kind}`).toBe(true);
       expect(cell.querySelector(".y2-tag")?.textContent, `uncaptioned ${kind}`).toBeTruthy();
     }
@@ -62,10 +62,32 @@ describe("the chapter cell laws", () => {
     const atom = h.container.querySelector('.y2-cell[data-kind=atom]')!;
     expect(atom).toBeTruthy();
     // the pointer identity from the source editor (`*` + authored spelling), not a heading
-    const ref = atom.querySelector(".chapter-ref .y2-p")!;
-    expect(ref.textContent).toBe("*..:..:..");
+    const ref = atom.querySelector(".chunk-ref .y2-p")!;
+    expect(ref.textContent).toContain("..:..:..");
     expect(atom.querySelector(".chapter-title")).toBeNull();
     expect(atom.querySelector(".descend")).toBeNull(); // no fake hyperlink to an unresolved raw
+    h.unmount();
+  });
+
+  it("…and the reference is EDITABLE: Enter on the atom opens the PICK face, Escape-less abandon keeps it", () => {
+    const h = mountChapter("Structured\n- some prose\n- *..:..:..\n");
+    const ptr = h.container.querySelector('.y2-cell[data-kind=atom] .y2-p') as HTMLElement;
+    fireEvent.keyDown(ptr, { key: "Enter" });
+    // the nested yed editor's pick cursor: the raw opens in an input (the retarget face)
+    const input = h.container.querySelector('.y2-cell[data-kind=atom] .y2-pick input') as HTMLInputElement;
+    expect(input).toBeTruthy();
+    expect(input.value).toBe("..:..:..");
+    h.unmount();
+  });
+
+  it("…and Backspace on the emptied reference DISSOLVES the chunk into an empty paragraph", () => {
+    const h = mountChapter("Structured\n- some prose\n- *..:..:..\n");
+    const ptr = h.container.querySelector('.y2-cell[data-kind=atom] .y2-p') as HTMLElement;
+    fireEvent.keyDown(ptr, { key: "Backspace" }); // removeLevel: the pointer leaves the wrapper
+    // the chunk grafted back as an empty paragraph — a prose cell stands where the atom was
+    expect(h.container.querySelector('.y2-cell[data-kind=atom]')).toBeNull();
+    const prose = h.state().doc;
+    expect(JSON.stringify(prose.root)).not.toContain("pointer");
     h.unmount();
   });
 

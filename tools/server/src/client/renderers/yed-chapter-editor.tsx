@@ -266,9 +266,9 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
       const st = stateRef.current;
       if (st) update({ ...st, focus: pos, caret });
     },
-    graft: (p, value) => {
+    graft: (p, value, focus) => {
       const st = stateRef.current;
-      if (st) update({ ...st, doc: withNode(st.doc, p, () => value as Node) });
+      if (st) update({ ...st, doc: withNode(st.doc, p, () => value as Node), ...(focus ? { focus, caret: "start" as const } : {}) });
     },
     chapterPath: path,
   };

@@ -55,7 +55,7 @@ export function mountChapter(src: string, opts: { debug?: boolean; codec?: Prose
       commitText: (p: Path, text: string) => push(commitChapterText(stateRef.current, p, text)),
       boot: (p: Path, text: string) => push(createFirstChunk(stateRef.current, p, text)),
       focusTo: (pos, caret = null) => push({ ...stateRef.current, focus: pos, caret }),
-      graft: (p: Path, value: Value) => push({ ...stateRef.current, doc: withNode(stateRef.current.doc, p, () => value as never) }),
+      graft: (p: Path, value: Value, focus?) => push({ ...stateRef.current, doc: withNode(stateRef.current.doc, p, () => value as never), ...(focus ? { focus, caret: "start" as const } : {}) }),
       chapterPath: ":doc",
     };
     return <ChapterCtx.Provider value={ctx}><ChapterDoc /></ChapterCtx.Provider>;

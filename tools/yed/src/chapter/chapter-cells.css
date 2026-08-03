@@ -47,6 +47,11 @@
 /* an embedded source chunk keeps a quiet border even in plain mode — it IS a different grammar */
 .y2-chapter .chunk-source { border-left: 2px solid #d0d7de55; padding-left: 6px; }
 
+/* a POINTER chunk hosts a nested yed editor over a synthetic one-entry wrapper — hide the
+   wrapper's chrome (the ordinal dash, the append tail): the chunk reads as just the reference */
+.y2-chapter .chunk-ref .y2-dash { display: none; }
+.y2-chapter .chunk-ref .y2-tail { display: none; }
+
 /* the table's + affordances — visible while the caret is in the grid */
 .y2-chapter .yl-table-tools { display: inline-flex; gap: 4px; margin-top: 2px; }
 .y2-chapter .yl-table-add {
