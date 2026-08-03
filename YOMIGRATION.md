@@ -236,8 +236,8 @@ The project's own name as a *namespace*.
 
 - `tools/server/src/server/engine-api.ts:4476-4480` — an edit op is
   `{ path, op, yamlover?, meta?, concrete?, name? }`; the *value payload field* is literally
-  named `yamlover`. Client side: `renderers/yamlover-editor/ops.ts:26`, host.ts, cells.tsx;
-  yed sync `yed-sync.ts`; many tests pin the shape.
+  named `yamlover`. Client side: yed sync `yed-sync.ts` (the legacy `yamlover-editor/` stack
+  that also spelled it is deleted); many tests pin the shape.
 - Internal protocol — renamable to `yo:` (or `value:`) in one sweep.
 
 ## 11. Package, binary, product, and repo names
@@ -262,9 +262,9 @@ The project's own name as a *namespace*.
 - `tools/server/src/client/browser-settings.ts:25` — `BROWSER_SETTINGS_PATH =
   ":.browser:settings.yamlover"` (a *virtual* file name chosen to look native).
 - `App.tsx:122` — the gear button opens `:.yamlover:settings.yamlover`.
-- Renderer/module names: `renderers/yamlover-editor/` (registry key), `server/yamlover.ts`
+- Renderer/module names: `server/yamlover.ts`
   (legacy), parser file names `yamlover.ts` / `serialize-yamlover.ts`, `onenote2yamlover/`
-  tool dir — cosmetic, internal.
+  tool dir — cosmetic, internal (`renderers/yamlover-editor/` is deleted).
 
 ## 13. Docs, state diagrams, and this repo's own data
 

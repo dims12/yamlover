@@ -10,12 +10,13 @@
 
 /** WHERE the caret stands. Everything the grammar may branch on — nothing else may. */
 export interface Site {
-  /** The kind of cell under the caret. `gapClose` is the position past a flow token's closer,
-   *  `gapQuote` past a closing quote; `key` is a key cell inside a flow token; `atom` is a
+  /** The kind of cell under the caret. `gapClose` is the position past a flow token's closer;
+   *  `key` is a key cell inside a flow token; `atom` is a
    *  non-text cell the caret stands ON (a pointer) — deletable, walkable, not editable in
    *  place (Enter opens `pick`); `pick` is a pointer's RAW being edited (the reference cell);
-   *  `tag` is a node's editable `!!<…>` tag cell (its INNER text). */
-  cell: "holeEntry" | "holeValue" | "token" | "quotedInner" | "key" | "gapClose" | "gapQuote" | "atom" | "pick" | "tag" | "anchors";
+   *  `tag` is a node's editable `!!<…>` tag cell (its INNER text). Quotes are ORDINARY
+   *  CHARACTERS of a token — there is no quote mode and no quote gap. */
+  cell: "holeEntry" | "holeValue" | "token" | "key" | "gapClose" | "atom" | "pick" | "tag" | "anchors";
   /** The container the caret's entry lives in. */
   container: "block" | "flowMap" | "flowSeq";
   /** For gaps: the kind of the token AROUND this one (undefined ⇒ not nested in a flow token). */
@@ -50,7 +51,6 @@ export type Intent =
                                             //   an unspreadable token closes instead (its one exit)
   | { kind: "closeToken"; closer: "]" | "}" } // the closer finishes the token
   | { kind: "tokenKey" }                    // `:` past a closer — the token becomes the entry's KEY
-  | { kind: "quotedKey" }                   // `:` past a closing quote — the string becomes the KEY
   | { kind: "refuse" }                      // consumed with the error ring (a visible refusal)
   | { kind: "commit"; submit: boolean }     // Enter / blur lands the cell's content
   | { kind: "keyCommit" }                   // Enter in a flow KEY cell: commit the key, spread
@@ -58,10 +58,7 @@ export type Intent =
   | { kind: "undoMarker" }                  // Backspace, empty, uncommitted decided entry
   | { kind: "removeLevel" }                 // Backspace, empty: one structure level goes
   | { kind: "reopenToken" }                 // Backspace past the closer of an EMPTY token
-  | { kind: "reopenQuote" }                 // Backspace/← past a closing quote: back inside
   | { kind: "join" }                        // Backspace at the head of a token's first line
-  | { kind: "quoteExitNext" }               // `,` past a closing quote inside a token
-  | { kind: "quoteExitClose"; closer: "]" | "}" } // closer past a closing quote inside a token
   | { kind: "siblingAfter" }                // Enter at a gap: a fresh element after this one
   | { kind: "siblingBefore" }               // Enter at the HEAD of a committed row: the row is
                                             //   pushed down, a fresh sibling hole opens BEFORE it
@@ -90,15 +87,6 @@ export function interpret(k: Key, s: Site): Intent | null {
     // too (`m: {}` + Enter opens the next row), not only inside another token. The applier
     // no-ops for the one token that has no owning entry (the document root).
     if (k.key === "Enter") return { kind: "siblingAfter" };
-    return universalNav(k);
-  }
-  // ---- the gap past a closing quote -------------------------------------------------------- //
-  if (s.cell === "gapQuote") {
-    if (s.outer && k.key === ",") return { kind: "quoteExitNext" };
-    if (s.outer && (k.key === "]" || k.key === "}")) return { kind: "quoteExitClose", closer: k.key };
-    if (k.key === ":") return { kind: "quotedKey" };
-    if (k.key === "Enter") return { kind: "commit", submit: true };
-    if (k.key === "Backspace" || k.key === "ArrowLeft") return { kind: "reopenQuote" };
     return universalNav(k);
   }
   // ---- an ATOM the caret stands ON (a pointer) — deletable, walkable, NOT editable in place - //
@@ -168,10 +156,6 @@ export function interpret(k: Key, s: Site): Intent | null {
     // continues instead of jamming on a key nothing could remove
     if (k.key === "Backspace" && s.textEmpty) return { kind: "undoMarker" };
     return flowCommon(k, s, /*textual*/ true);
-  }
-  // ---- the inner text of a quoted cell — `,` and closers are CHARACTERS here --------------- //
-  if (s.cell === "quotedInner") {
-    return inFlow(s) ? flowCommon(k, s, /*textual*/ true) : null;
   }
   // ---- token cells and holes --------------------------------------------------------------- //
   const flowIntent = inFlow(s) ? flowCommon(k, s, /*textual*/ false) : null;

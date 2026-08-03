@@ -24,7 +24,7 @@ const KEYS: { label: string; key: string; shift?: boolean }[] = [
 
 export function Legend({ state }: { state: EditorState }) {
   const site = siteOf(state);
-  const textCell = site.cell === "holeEntry" || site.cell === "holeValue" || site.cell === "token" || site.cell === "key" || site.cell === "quotedInner" || site.cell === "tag" || site.cell === "anchors";
+  const textCell = site.cell === "holeEntry" || site.cell === "holeValue" || site.cell === "token" || site.cell === "key" || site.cell === "tag" || site.cell === "anchors";
   return (
     <div className="y2-legend" data-testid="y2-legend">
       {KEYS.map((k) => {

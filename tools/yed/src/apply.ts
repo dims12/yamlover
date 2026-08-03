@@ -1421,7 +1421,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       return ok({ ...committed, cursor: { at: "hole", path: entryPath, index: at, text: "", key: null } });
     }
 
-    // Not implemented yet: quotedKey, reopenQuote, quoteExit*, nestValue. A key the grammar
+    // Not implemented yet: nestValue. A key the grammar
     // CLAIMS must never fall through to the browser (a silent Tab would walk the focus out
     // of the editor) — an unimplemented intent REFUSES, visibly.
     default:

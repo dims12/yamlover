@@ -5,13 +5,16 @@ description: |
     says what is drawn on screen and where the focus/caret sits. Every other keyed
     entry is a TRANSITION - the key names the key press (or event), the value points
     at the next state. A CONDITIONAL transition nests condition-keyed pointers instead
-    of a single pointer. The code these states project onto — the host/model/cells split
-    and the typing grammar in keys.ts — is documented in EDITOR.md.
+    of a single pointer. The code these states project onto — the yed machine
+    (tools/yed/src: the dispatch grammar, the pure apply layer, the cell registry) —
+    is documented in EDITOR.md.
 
     Conventions.
     `alphanumeric` covers letters, digits and any ordinary character that starts or
-    extends a plain token. The single-quote states mirror the double-quote ones
-    verbatim (only the projected quote glyph differs). The keyed trigger mirrors how
+    extends a plain token — QUOTES INCLUDED: yed projects no quote glyphs and has no
+    quote mode; a `"` is a character of the token, an authored-quoted token commits
+    with its spelling kept (raw-first) and re-opens as its authored text. The keyed
+    trigger mirrors how
     one types yamlover SOURCE - `key_colon_space` (a word, the colon, a space) puts
     the value INLINE on the same row, while `key_colon_enter` (the colon confirmed by
     Enter) puts the value on the NEXT rows - the entry's value becomes a nested block
@@ -31,15 +34,15 @@ description: |
     names the cell the caret lands in; behavior is guided by the state, never by
     leftovers of the previous one.
 
-    THE PROJECTION RULE. One model, several PROJECTIONS. The host
-    (yamlover-editor/host.ts) owns the fetch, the cell model, the op queue, the
-    action surface and the focus machinery; a projection only DRAWS. The source
-    projection (editor.tsx + cells.tsx) draws rows of yamlover tokens and applies
-    the typing grammar below. The chapter projection draws the same model as
-    prose, headings, sections, lists and grids, and does NOT use the typing
-    grammar at all - no holes, no `- `/`key:` decisions, no quote modes. The
-    states in this table are the MODEL's; a `chapter_*` state names the same model
-    state seen under the chapter projection.
+    THE PROJECTION RULE. One machine, several PROJECTIONS. The pure yed state
+    (tools/yed/src/state.ts: the parser IR document + the cursor) is what edits;
+    a projection only DRAWS. The source projection (tools/yed/src/cells.tsx,
+    mounted by the server's yed-editor.tsx) draws rows of yamlover token cells
+    and applies the typing grammar below. The chapter projection
+    (tools/yed/src/chapter/) draws its own cell zoo over the same IR and does NOT
+    use the typing grammar at all - no holes, no `- `/`key:` decisions. The
+    states in this table are the MACHINE's; a `chapter_*` state names the same
+    machine state seen under the chapter projection.
 
     THE FORMAT RULE. A block's format is its `!!<…$defs:X>` tag - table, bullets,
     numbered - and NORMAL CHAPTER is the untagged case, so choosing it DROPS the
@@ -131,8 +134,6 @@ locked: Editor locked
 empty: Empty document
     description: The one root hole drawn with the cursor inside; no content exists yet
     alphanumeric: *: unquoted_scalar_appending
-    double_quote: *: double_quoted_scalar_started
-    single_quote: *: double_quoted_scalar_started
     asterisk: *: pointer_entry
     pipe: *: block_scalar_editing
     dash_space: *: value_hole
@@ -196,7 +197,7 @@ unquoted_scalar_inserting: Plain token editing, caret inside
         "valid": *: entry_hole
 
 scalar_committed: Committed scalar cell, focused
-    description: The value is persisted (the surgical op is queued/flushed in the background) and the cell keeps focus, caret after the last character. Reached by clicking a committed cell. The cell shows the AUTHORED representation - a bare `species>` in the file stays BARE, never re-derived into `"species>"`; an authored-quoted token opens as a quote-mode cell (paired projected quotes, the inner text edits). A committed token is NOT a dead end - re-editing its text into `key: value` (a QUOTED `"key": value` included) RESTRUCTURES it: the mistyped `species>` recovers into `species>: 12`; the same applies to the omni SELF-VALUE cell and the document root. Typed spaces are spaces - the browser's non-breaking substitutes are normalized before the grammar reads them
+    description: The value is persisted (the surgical op is queued/flushed in the background) and the cell keeps focus, caret after the last character. Reached by clicking a committed cell. The cell shows the AUTHORED representation - a bare `species>` in the file stays BARE, never re-derived into `"species>"`; an authored-quoted token opens as its authored text, quotes as characters (no quote mode). A committed token is NOT a dead end - re-editing its text into `key: value` (a QUOTED `"key": value` included) RESTRUCTURES it: the mistyped `species>` recovers into `species>: 12`; the same applies to the omni SELF-VALUE cell and the document root. Typed spaces are spaces - the browser's non-breaking substitutes are normalized before the grammar reads them
     alphanumeric: *: unquoted_scalar_appending
     enter:
         "the text was edited into `key: value` (quoted key allowed) and the key is free in the node": *: scalar_committed
@@ -230,39 +231,6 @@ key_cell_editing: A committed key cell, focused
     backspace:
         "caret at the start": *: focus_prev
         "otherwise": *: key_cell_editing
-    up_arrow: *: focus_prev
-    down_arrow: *: focus_next
-
-double_quoted_scalar_started: Quoted scalar started
-    description: Opening and closing quotes are projected with an empty editing cell in between, cursor inside. In an entry hole a committed quoted token is the node's scalar LINE (kept quoted, as entered); after `- ` or a key it is the entry's value
-    alphanumeric: *: double_quoted_scalar_appending
-    double_quote: *: quoted_token_closed
-    enter: *: entry_hole
-    backspace: *: empty_cell_of_origin
-    up_arrow: *: focus_prev
-    down_arrow: *: focus_next
-
-double_quoted_scalar_appending: Quoted scalar editing
-    description: The projected quotes with the partially entered string between them, cursor at the end. Any character is legal inside - the commit escapes and KEEPS the quoted concrete
-    alphanumeric: *: double_quoted_scalar_appending
-    double_quote: *: quoted_token_closed
-    enter: *: entry_hole
-    backspace:
-        "the string became empty": *: double_quoted_scalar_started
-        "otherwise": *: double_quoted_scalar_appending
-    up_arrow: *: focus_prev
-    down_arrow: *: focus_next
-
-quoted_token_closed: Quoted token closed
-    description: The quoted string is complete and the cursor sits right AFTER the projected closing quote. Nothing is committed yet - the next key decides what the quoted token IS. A colon makes it a KEY (`"value": ` with the value cell opening beside it; in value position a fresh nested mapping opens); Enter commits it as the scalar it reads as, quotes kept. Backspace steps back INSIDE the quotes - still without committing
-    colon:
-        "the key already exists in the node": *: error_flash
-        "otherwise": *: value_hole
-    enter:
-        "an entry-hole token, but the node already has its scalar line": *: error_flash
-        "otherwise": *: entry_hole
-    backspace: *: double_quoted_scalar_appending
-    alphanumeric: *: nop
     up_arrow: *: focus_prev
     down_arrow: *: focus_next
 
@@ -346,7 +314,7 @@ flow_map_editing: Flow mapping editing
         "otherwise": *: flow_map_editing
 
 flow_seq_editing: Flow sequence editing
-    description: The `[` and `]` are projected with value cells between them, comma-separated; the cursor sits in the current inner cell. A sequence has NO keys, so a `:` past a closer inside one is refused (in a flow MAP it makes the token that entry's key). EVERY CELL IS WALKABLE - a token is one line of several cells, so the left/right arrows CROSS them at a cell edge, including into and out of a quoted cell (there only the arrows are grammar; `,` and the closers are characters of the string) and into the KEY cells, which are editable like any other. A token opened INSIDE a spread one is spread too, since json5p expands everything under the switch
+    description: The `[` and `]` are projected with value cells between them, comma-separated; the cursor sits in the current inner cell. A sequence has NO keys, so a `:` past a closer inside one is refused (in a flow MAP it makes the token that entry's key). EVERY CELL IS WALKABLE - a token is one line of several cells, so the left/right arrows CROSS them at a cell edge, including into the KEY cells, which are editable like any other. A token opened INSIDE a spread one is spread too, since json5p expands everything under the switch
     alphanumeric: *: unquoted_scalar_appending
     close_bracket: *: scalar_committed
     comma: *: flow_seq_editing
@@ -392,8 +360,6 @@ entry_hole: Fresh entry hole
         "the key already exists in the node": *: error_flash
         "otherwise": *: entry_hole
     bang_bang_lt: *: meta_tag_editing
-    double_quote: *: double_quoted_scalar_started
-    single_quote: *: double_quoted_scalar_started
     asterisk: *: pointer_entry
     pipe: *: block_scalar_editing
     open_brace: *: flow_map_editing
@@ -412,8 +378,6 @@ entry_hole: Fresh entry hole
 value_hole: Entry value hole
     description: The entry's marker is drawn (`- `, or the key with its colon) and the empty value cell after it holds the cursor. `dash_space` / `key_colon_space` here open the nested structure COMPACTLY - the fresh marker and its value cell stay on THIS row
     alphanumeric: *: unquoted_scalar_appending
-    double_quote: *: double_quoted_scalar_started
-    single_quote: *: double_quoted_scalar_started
     asterisk: *: pointer_entry
     pipe: *: block_scalar_editing
     open_brace: *: flow_map_editing
@@ -425,8 +389,7 @@ value_hole: Entry value hole
     key_colon_enter: *: entry_hole
     enter: *: entry_hole
     backspace:
-        "an uncommitted QUOTED key - the colon is undone, the quoted token returns": *: quoted_token_closed
-        "an uncommitted plain key - the colon is undone, its text returns to the hole": *: unquoted_scalar_appending
+        "an uncommitted key - the colon is undone, its text (quoted spelling kept) returns to the hole": *: unquoted_scalar_appending
         "an uncommitted dash - the marker is undone": *: entry_hole
         "otherwise": *: focus_prev
     tab:
@@ -448,7 +411,7 @@ meta_tag_editing: Meta tag editing
         "otherwise": *: meta_tag_editing
 
 empty_cell_of_origin: Back to the hole this cell grew from
-    description: A pseudo-state - the projected structure (quotes, sigil, braces, marker) is dismantled and the cell returns to the hole it was born from; the document root returns to the `empty` state, an entry returns to `entry_hole`
+    description: A pseudo-state - the projected structure (sigil, braces, marker) is dismantled and the cell returns to the hole it was born from; the document root returns to the `empty` state, an entry returns to `entry_hole`
 
 atom_focused: The caret stands ON an atom (a `*` pointer)
     description: |

@@ -52,14 +52,15 @@
   (chapter-model.ts) requires `type === "string"`, and an annotated chunk's link marker is
   `type: "variant", valueType: "string"` (tagging turns it omni). Route on the VALUE facet like the
   renderer registry does. **Unblocked by 025** — an edit can no longer delete the annotations.
-- ~~027 POSTPONED: unified REFERENCE-entry UX in the projectional editor~~ — DONE (2026-07-21):
-  the `*` pointer cell now hosts the SHARED query-cell kit (query-cells.tsx — the breadcrumb
-  machinery in PICK mode): server-backed candidates (`GET /api/query` at the holder), the scope
+- ~~027 POSTPONED: unified REFERENCE-entry UX in the projectional editor~~ — DONE (2026-07-21;
+  re-anchored 2026-08-03 with the legacy editor's deletion): the `*` pointer cell hosts the
+  SHARED query-cell kit (query-cells.tsx — the breadcrumb machinery in PICK mode), today via
+  yed's server cell registry (renderers/yed-cells.tsx: ServerPointerHole/ServerPointerCell):
+  server-backed candidates (`GET /api/query` at the holder), the scope
   ladder (`*` bare / `*:` / `*::`), live TOC filtering through the shared TocFilterSession, TOC
   click inserts the picked path spelled in the chosen scope, Enter reduces the query to a
-  link-arity pointer. The tag picker's search row runs on the same kit (annotate.tsx);
-  yamlover-editor/pointer-hints.tsx deleted. State tables: QUERY_EDITOR.yo (pick mode),
-  YAMLOVER_EDITOR.yo (pointer_* states).
+  link-arity pointer. The tag picker's search row runs on the same kit (annotate.tsx).
+  State tables: QUERY_EDITOR.yo (pick mode), YAMLOVER_EDITOR.yo (pointer_* states).
 - Support copy to clipboard in all json, json5, json5p, yaml and yamlover renderers and copy/paste in yamlover editor
   +DONE for the EDITOR half (yed: subtree Ctrl+C, selection copy as source, Ctrl+V with the
   sibling splice, JSON/JSON5 sniff, back-edge/size guards — tools/yed/src/paste.ts); the

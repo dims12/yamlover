@@ -6,18 +6,18 @@ guide see `UI.md`, and for the surgical write endpoint see `tools/server/README.
 (`POST /api/edit`).
 
 Two abstract state machines accompany this doc and must stay in sync with the code (see
-§4): `YAMLOVER_EDITOR.yo` and `QUERY_EDITOR.yo` at the repo root.
+§3): `YAMLOVER_EDITOR.yo` and `QUERY_EDITOR.yo` at the repo root.
 
 ## 1. What "projectional" means here
 
 The rendered surface **is** the editable surface. There is no source textarea beside the
-view — the DOM is a tree of `contentEditable` cells that mirror the instance-graph AST, and
-you type into the projection. This is the MPS/JetBrains-MPS sense of *projectional*: one
-model, drawn by cells; editing mutates the model and the cells re-project it.
+view — the DOM is a tree of editable cells that mirror the parser IR, and you type into the
+projection. This is the MPS/JetBrains-MPS sense of *projectional*: one model, drawn by
+cells; editing mutates the model and the cells re-project it.
 
-The load-bearing consequence, stated at the top of the host
-(`renderers/yamlover-editor/host.ts:9-12`): **two projections draw the same model, and only
-the cells differ** — which is why the host file contains no JSX at all.
+The load-bearing consequence: **two projections (source and chapter) drive the same pure
+machine, and only the cell zoo differs** — the machine (`tools/yed/src/`) contains no JSX
+at all.
 
 ## 2. Two projections + the legacy flat editor
 
@@ -31,12 +31,15 @@ machine (`tools/yed/src/` grammar for source, `tools/yed/src/chapter/` for chapt
 via the `yed-sync.ts` tree diff. They share the cell contract (`tools/yed/src/cells.tsx`) and
 the never-locked laws (watchdog, positions law, dry-run legend).
 
-**Legacy editors.** The pre-yed `<ChapterProjection>` is **RETIRED** (Stage 9 of the port
-plan — `chapter-editor/{view,blocks,format,tab}` deleted; only `format-bus.ts` +
-`format-control.tsx` survive, since the yed mount publishes to the same bus). The
-pre-projectional flat `ChapterEditor` (in-memory `renderers/chapter-model.ts` +
-`useChapterSync`) remains the old escape hatch at `?chapterEditor=flat`, slated for deletion
-(`TODO.md`). The switch is `chapterEditorFlavor()` (`renderers/chapter.tsx`).
+**The legacy editors are gone.** The pre-yed `<ChapterProjection>` retired with Stage 9
+(`chapter-editor/{view,blocks,format,tab}` deleted; only `format-bus.ts` +
+`format-control.tsx` survive, since the yed mount publishes to the same bus), and the
+legacy SOURCE projection (`renderers/yamlover-editor/` — its own host/model/cells stack,
+behind `?yedEditor=legacy`) was deleted after the A1-A8 parity port: yed mounts
+unconditionally. The pre-projectional flat `ChapterEditor` (in-memory
+`renderers/chapter-model.ts` + `useChapterSync`) remains the one escape hatch at
+`?chapterEditor=flat`, slated for deletion (`TODO.md`). The switch is
+`chapterEditorFlavor()` (`renderers/chapter.tsx`).
 
 ```
 NodeView (unlocked data view) ──► yed-editor.tsx (source)          ┐  tools/yed machine + cells
@@ -46,52 +49,30 @@ ChapterView (unlocked, DEFAULT) ─► yed-chapter-editor.tsx (chapter) ┘  (th
 ChapterView (?chapterEditor=flat) ─► ChapterEditor ─► chapter-model.ts + useChapterSync   (LEGACY, to be deleted)
 ```
 
-## 3. The LEGACY base machinery — `yamlover-editor/`
-
-This whole layer now serves ONLY the deprecated legacy source projection (`?yedEditor=legacy`
-— the yed mounts, §2, do not touch it); it retires with that editor. The split is strict:
-
-- **`host.ts`** (~839 LOC) — the non-drawing host. It fetches the node at unlimited depth,
-  builds the model once, owns the op queue + debounced flush, exposes the action surface
-  (`YedActions`), and runs the caret/focus machinery. The atomic unit is **`step(fn)`**
-  (`host.ts:215-221`): apply `fn` to the model, enqueue the ops it returns, bump the version
-  to re-render, and record a focus request. No JSX.
-- **`model.ts`** (~703 LOC) — the **mutable projected tree**: `MNode` / `MEntry` / `MScalar`,
-  built from the server's `/api/json` (unlimited-depth) projection plus a comments sidecar.
-  Every structural mutation is a function that mutates the tree in place **and returns the
-  mirroring surgical `/api/edit` ops**. It holds the "committed index" addressing discipline
-  (ops are emitted against the committed index picture; see §6).
-- **`cells.tsx`** (~1009 LOC) — the `contentEditable` React cell components that project the
-  AST to the DOM: `NodeCells`, `ScalarCell`, `PointerCell`, `MetaTagCell`, `FlowCells`,
-  `RootHole`, and the `EditableCell` primitive — plus the `YedActions` / `YedCtx` context
-  types every cell consumes.
-
-Supporting files in the same directory: `keys.ts` (typing grammar, §4), `ops.ts` (op-log +
-flush, §6), `paste.ts` (clipboard yamlover → model entries).
-
-## 4. Two state machines (and the sync convention)
+## 3. Two state machines (and the sync convention)
 
 Each root `.yo` diagram has exactly one executable mirror in the code. Keep the
 diagram, its mirror, and this doc aligned when any of the three changes.
 
 - **`YAMLOVER_EDITOR.yo`** — the editor's typing grammar / hole-materialization table
-  (what a keystroke into an empty "hole" becomes: `- ` sequence, `key:` entry, quote, `{`/`[`
-  flow, `*` pointer, `!!<` tag, block scalar…). Mirror: the pure `classifyHoleInput → HoleAction`
-  in `yamlover-editor/keys.ts`, applied by `applyHoleAction` in `host.ts:60-145`; the
-  `MScalar` fields even name the machine's states verbatim (e.g. `quoted_token_closed`).
-  Inside a flow token the grammar adds one pair of verbs: a **comma** keeps the next element on
-  this line, **Enter** puts it on the next one — which SPREADS the token to K&R and is, on disk, an
-  inline concrete switch to json5p (`CONCRETES.md` §K&R). **Backspace** just past the closer joins it
-  back. Spreading is skipped, not refused, for a container json5p cannot hold (a keyed+keyless
-  mixture). Mirrors: `MNode.jsonp` + `setSpread`/`jsonpFits`/`flowReshape` in `model.ts`, `KrRows`
-  in `cells.tsx`, `flowNext(…, spread)`/`flowJoin` in `host.ts`.
+  (what a keystroke into an empty "hole" becomes: `- ` sequence, `key:` entry, `{`/`[`
+  flow, `*` pointer, `!!<` tag, block scalar…; quotes are ordinary characters — no quote
+  mode). Mirror: `interpret(key, site)` in `tools/yed/src/grammar/dispatch.ts` (the whole
+  key grammar as ONE pure table) plus the hole classifier in `tools/yed/src/grammar/keys.ts`,
+  applied by the pure `apply.ts`; `tools/yed/test/yed-dispatch.test.ts` runs the table as
+  data. Inside a flow token the grammar adds one pair of verbs: a **comma** keeps the next
+  element on this line, **Enter** puts it on the next one — which SPREADS the token to K&R
+  (per-container: a container spreads by ITS OWN bit; spreading propagates upward only) and
+  is, on disk, an inline concrete switch to json5p (`CONCRETES.md` §K&R). **Backspace** at
+  the head of the token's first line joins it back. Spreading is skipped, not refused, for a
+  container json5p cannot hold (a keyed+keyless mixture).
 - **`QUERY_EDITOR.yo`** — the query/pointer editing machine (`idle` / `editing` /
   `filtered`; events `FOCUS_CELL` / `SPLIT_CELL` / `PICK` / …). Mirror: `client/breadcrumb-machine.ts`,
   a pure reducer `reduce(state, event, currentPath) → [state, effects]`; its header states
   "the human-readable state DIAGRAM lives at QUERY_EDITOR.yo … keep the two in sync,"
   and `breadcrumb-machine.test.ts` runs the table.
 
-## 5. The reference / pointer PICK-mode kit
+## 4. The reference / pointer PICK-mode kit
 
 A `*` pointer or reference cell is edited with a shared **query-cell kit**, not bespoke code.
 The yed host is `renderers/yed-cells.tsx`: `makeSourceCells()` grows the yed cell registry with
@@ -112,24 +93,23 @@ single-line `*\S*` payload gate). The cell's wire address comes from `serverPath
 (`yed-sync.ts`) — the same addressing law the ops use. Outer states:
 `YAMLOVER_EDITOR.yo` `pointer_entry` / `pointer_pick_editing` / `atom_focused`.
 
-## 6. The write path
+## 5. The write path
 
-A cell edit becomes a batch of surgical server ops:
+An edit becomes a batch of surgical server ops through the yed mount's tree diff — the
+machine never emits ops itself:
 
-1. A cell's `onInput` / `onCommit` (`cells.tsx` `EditableCell`) calls a `YedActions` method
-   (`commitToken`, `commitText`, `holeText`, `rekey`, `holeAction`, …) from `YedCtx`.
-2. The action (implemented in `host.ts`) calls **`step(fn)`** (`host.ts:215-221`): `fn` mutates
-   the `model.ts` tree in place and **returns `Edit[]`** (the surgical ops); the host enqueues
-   them and bumps the render version.
-3. **`ops.ts` `enqueue`** appends to the op-log and **coalesces the typing case** — an adjacent
-   value `emplace` at the same path replaces the previous one (keep-last), but never across a
-   structural op and never for meta-carrying ops.
-4. **`ops.ts` `useOpSync`** flushes the batch to the server via `editChunks(batch)` → **`POST
-   /api/edit`**, **debounced 500 ms** after the last version bump, serialized (one batch in
-   flight; edits arriving mid-flight ride the next batch; the queue is kept on failure).
-5. `flush()` is forced on **lock, unmount, and navigation** (`host.ts:210-213`). (The yed
-   chapter mount keeps the same discipline and additionally forces a flush before an
-   auto-descend into a subchapter — `yed-chapter-editor.tsx:112-118`.)
+1. A keystroke runs `applyKey(state, key)` in yed's pure `apply.ts`; the mount
+   (`yed-editor.tsx`) keeps the resulting `EditorState`.
+2. **`yed-sync.ts` `diffToOps`** diffs the last COMMITTED document against the current one
+   into per-node `/api/edit` ops (whole-token emplaces at flow boundaries, self-value
+   emplaces with `at`, removals last-first / insertions forward); pure key renames become
+   `POST /api/rekey` after the flush. What the diff cannot express falls back to ONE
+   whole-node emplace (warned; a shrink-only ledger).
+3. The flush is **debounced 500 ms**, one batch in flight; a failed flush alerts, keeps the
+   change, and the NEXT flush re-diffs from the same committed snapshot against the newest
+   document — never a queued-op double-apply. `flush()` is forced on lock and unmount. (The
+   yed chapter mount keeps the same discipline and additionally forces a flush before an
+   auto-descend into a subchapter.)
 
 The op shape is `{ path, op: "emplace" | "replace" | "insert" | "remove", yamlover?, meta? }`
 (`meta` carries the `!!<…>` facet). Ops address body elements by **absolute entry index**
@@ -138,28 +118,17 @@ strictly in order, re-scanning after each op. The yed chapter mount likewise aut
 document's `!!<…$defs: chapter>` meta with its first flush — the exactly-once CHAPTER stamp
 (`yed-chapter-editor.tsx` `stampedRef`, `yed-chapter/materialize.ts` `stampBorn`).
 
-## 7. Caret / focus preservation
+## 6. Caret / focus preservation
 
-The editor must keep the caret exactly where the user is typing across a re-projection. The
-mechanism is a **focus-request + cell registry**, applied in a `useLayoutEffect` after render:
+THE FOCUS LAW: `document.activeElement` is always a cell of the editor — a keystroke never
+lands nowhere. The cursor lives in the pure state (`state.ts` `Cursor`), the cells project
+it, and the active cell claims focus on render (an input's ref plants the caret at the
+cursor's `caret` edge); a focus request is consumed only by a render that can fulfill it.
+The tests pin the invariant: `document.activeElement` is asserted after every editor
+interaction (`dom-typing.test.tsx`, the matrix suites, `yed-chapter-projection.test.tsx`),
+so a change that breaks caret placement fails CI rather than shipping.
 
-- Each editable cell registers its DOM element by key via `YedCtx.registerCell(key, el)` into
-  the host's `cellMap`.
-- A mutation sets `focusReq.current = { key, at }` — the cell key is a node id (or a facet like
-  `<id>:meta` / `<id>:self` / `<id>:key` / `<id>:after`); `at` is `"start" | "end" | number`
-  (a visible-character offset).
-- After render, `useLayoutEffect` (`host.ts:828-836`) looks up `cellMap.get(req.key)` and calls
-  `focusCell(el, at)` (`host.ts:36-45`), which special-cases `<textarea>` (block scalars) vs a
-  `contentEditable` range, delegating to `placeCaret` / `focusStart` / `focusEnd` in `caret.ts`.
-- **DOM-reset gating:** `EditableCell` is *uncontrolled* — it rewrites its own DOM text only
-  when the model's `MNode.rev` bumps (`cells.tsx:187-192`), which the model does **only** when
-  it rewrites that cell's text, never mid-type. So typing never clobbers the caret.
-
-This is the invariant the tests pin: `document.activeElement` is asserted after editor
-interactions (`yamlover-editor.test.tsx`, `yed-chapter-projection.test.tsx`), so a change that
-breaks caret placement fails CI rather than shipping.
-
-## 8. Chapter / subchapter / prose projection
+## 7. Chapter / subchapter / prose projection
 
 **The chapter editor is a yed projection now.** The pure machine lives in
 `tools/yed/src/chapter/` (`site.ts` → `dispatch.ts` → `apply.ts`, plus `format.ts`,
@@ -192,7 +161,7 @@ never stored. The derivation lives in `tools/yed/src/chapter/format.ts`
   never rewrites them (`MARKLOWER.md`). The IR serializer owns bare vs quoted vs `|` block
   spelling, so an edit doesn't rewrite a bare chunk into a block on the first keystroke.
 
-## 9. yed — the editor package, and the REFERENCE implementation
+## 8. yed — the editor package, and the REFERENCE implementation
 
 `tools/yed/` (`@yamlover/yed`, an npm-workspace member like the parser: raw TS, no build) is a
 clean-room, IR-backed editor whose semantics are the reference for this whole document: where
@@ -238,15 +207,7 @@ policy smoke), `yed-dispatch` (the grammar table as data — the file
 
 ## File index
 
-**`renderers/yamlover-editor/` (shared base):** `host.ts` (host, ops, focus), `model.ts`
-(mutable tree + mutation→ops), `cells.tsx` (contentEditable cells + `YedCtx`), `editor.tsx`
-(**DEPRECATED** — the legacy source projection, no longer the default; `?yedEditor=legacy`
-brings it back during the rollout), `ops.ts` (op-log + debounced flush), `paste.ts`
-(clipboard yamlover → entries). The GRAMMAR (`dispatch.ts`, `keys.ts`) moved to
-`tools/yed/src/grammar/` — this layer imports it from there. With the chapter projection
-retired (Stage 9), this whole layer serves only the legacy source projection and dies with it.
-
-**`renderers/yed-editor.tsx` + `yed-load.ts` + `yed-sync.ts` (the yed mount):** the default
+**`renderers/yed-editor.tsx` + `yed-load.ts` + `yed-sync.ts` (the yed mount):** the
 unlocked-data-view editor, CONCRETE-AGNOSTIC by construction. LOAD is the `/api/json`
 projection (depth `.inf`) converted to parser IR (`yed-load.ts` — omni/`selfAt`, pointers via
 the sidecar's canonical text, authored raw spellings, flow/K&R meta at the switch, blobs as
@@ -255,12 +216,13 @@ opaque atoms). PERSIST is an IR tree diff emitted as PER-NODE `/api/edit` ops (`
 / insertions forward, pure key renames via `POST /api/rekey` after the flush); the backend's
 concrete-inheritance rules (concrete-rules.ts) route every write, and untouched regions —
 comments included — survive on disk. What the diff cannot express falls back to ONE whole-node
-emplace (warned; a shrink-only ledger). Flush discipline mirrors ops.ts: 500 ms debounce, one
+emplace (warned; a shrink-only ledger). Flush discipline: 500 ms debounce, one
 in flight, re-diffed (never re-queued) after a failure, flushed on unmount. `?yed=debug` turns
 the debug panels on in place. THE PARITY GATE (`test/yed-parity.test.tsx`) holds the mount to
-the legacy editor's storage matrix — flat files, `.yaml`, dir-backed docs, bare directories,
-member dirs, deep mounts, omni, K&R, comment survival — against a real server; a mount swap
-must be gated by the superset of what it replaces. `GET /api/source` remains as a diagnostic.
+the retired legacy editor's storage matrix — flat files, `.yaml`, dir-backed docs, bare
+directories, member dirs, deep mounts, omni, K&R, comment survival — against a real server; a
+mount swap must be gated by the superset of what it replaces. `GET /api/source` remains as a
+diagnostic.
 
 **`renderers/yed-chapter-editor.tsx` + `renderers/yed-chapter/materialize.ts` (the DEFAULT
 chapter editor):** the yed chapter mount — load `/api/json` → IR, the pure machine in
@@ -283,7 +245,7 @@ seam), `renderers/marklower.tsx` + `renderers/marklower-serialize.ts` (the round
 `client/{query-cells,breadcrumb-machine,query-complete,toc-filter-session}.ts(x)` (the PICK/
 browse query-cell kit), `client/NodeView.tsx` (mounts the source projection).
 
-**`tools/yed/` (the editor package, §9):** `src/state.ts` (IR state + cursor + dialectOf),
+**`tools/yed/` (the editor package, §8):** `src/state.ts` (IR state + cursor + dialectOf),
 `src/apply.ts` (pure intents + copy/paste + the watchdog), `src/dialect.ts` (language policy),
 `src/cells.tsx` (framed recursive cells + `CellRegistry`), `src/legend.tsx` (the dry-run
 keyboard), `src/page.tsx` (the debug page), `src/diff.ts` (line diff),
@@ -294,4 +256,4 @@ capabilities through `ChapterCellsAdapter`); debug pages under `tools/yed/debug-
 (port 5199) and `tools/yed/debug-chapter/` (port 5198), suites under `tools/yed/test/`.
 
 **State machines:** `YAMLOVER_EDITOR.yo`, `QUERY_EDITOR.yo` (repo root) — keep in
-sync with `keys.ts`/`host.ts` and `breadcrumb-machine.ts` respectively.
+sync with `tools/yed/src/grammar/dispatch.ts` and `breadcrumb-machine.ts` respectively.

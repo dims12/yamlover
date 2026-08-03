@@ -72,16 +72,6 @@ describe("the dispatch table — one meaning per (site, key)", () => {
     expect(kind("x", p("block"))).toBeNull();                                  // printables: native raw editing
   });
 
-  it("a QUOTED cell's text owns the punctuation — only navigation is grammar", () => {
-    const q = site("quotedInner", "flowSeq", { textEmpty: false });
-    expect(kind(",", q)).toBeNull();   // a comma is a CHARACTER of the string
-    expect(kind("]", q)).toBeNull();
-    expect(kind("Enter", q)).toBeNull();
-    expect(kind("ArrowLeft", q)).toBe("move");
-    expect(kind("ArrowRight", q)).toBe("move");
-    expect(kind("Backspace", q)).toBe("join"); // at the very start — the join spot again
-  });
-
   it("a KEY cell inside a token", () => {
     const k = site("key", "flowMap", { textEmpty: false });
     expect(kind("Enter", k)).toBe("keyCommit"); // commit the key; the pair takes its own row
@@ -135,17 +125,6 @@ describe("the dispatch table — one meaning per (site, key)", () => {
     expect(kind("ArrowRight", g())).toBe("move"); // universal navigation: gaps never swallow arrows
     expect(kind("ArrowLeft", g())).toBe("move");
     expect(kind("x", g())).toBeNull(); // an unknown key passes through — never silently eaten
-  });
-
-  it("the gap past a closing quote", () => {
-    const g = (over: Partial<Site> = {}) => site("gapQuote", "block", over);
-    expect(kind(":", g())).toBe("quotedKey");
-    expect(kind("Enter", g())).toBe("commit");
-    expect(kind("Backspace", g())).toBe("reopenQuote");
-    expect(kind("ArrowLeft", g())).toBe("reopenQuote"); // stepping left re-enters the string
-    expect(kind(",", g({ outer: "seq" }))).toBe("quoteExitNext");
-    expect(kind("]", g({ outer: "seq" }))).toBe("quoteExitClose");
-    expect(kind("ArrowRight", g())).toBe("move");
   });
 
   it("vertical arrows cross only from an edge line", () => {
