@@ -829,8 +829,7 @@ export function copySubtree(state: EditorState): string | null {
  *  root takes it as the document, a bare scalar in a block container is the OMNI value, an
  *  unnamed element cannot land in `{`. A parse failure REFUSES — nothing lost, nothing dropped. */
 export function pasteSubtree(state: EditorState, text: string): EditorState {
-  const { doc, cursor } = state;
-  if (cursor.at !== "hole" || cursor.text.trim() !== "" || text.trim() === "") return refuse(state);
+  if (state.cursor.at !== "hole" || state.cursor.text.trim() !== "" || text.trim() === "") return refuse(state);
   let node: Node;
   try {
     const root = parseYamlover(text, "<paste>").root;
@@ -839,9 +838,20 @@ export function pasteSubtree(state: EditorState, text: string): EditorState {
   } catch {
     return refuse(state);
   }
+  return pasteParsed(state, node);
+}
+
+/** The one-value paste laws over an ALREADY-PARSED root (paste.ts hands sniffed JSON5 docs in
+ *  here too — they never had a yamlover text form to re-parse). */
+export function pasteParsed(state: EditorState, node: Node): EditorState {
+  const { doc, cursor } = state;
+  if (cursor.at !== "hole" || cursor.text.trim() !== "") return refuse(state);
   const container = nodeAt(doc, cursor.path);
   if (!container) return refuse(state);
   if (cursor.key === null && isFlow(container) && bracketOf(container) === "{") return refuse(state);
+  // BLOCK structure has no one-line spelling — into a flow token it refuses rather than being
+  // silently reshaped (a flow-styled paste nests fine)
+  if (isFlow(container) && node.kind !== "scalar" && (node.entries ?? []).length > 0 && !isFlow(node)) return refuse(state);
   if (cursor.key === null && cursor.ordinal !== true && !isFlow(container)) {
     if (container.kind !== "mapping") return refuse(state); // the container already HAS a value
     // the EMPTY container takes the paste as its whole value; among entries, a scalar paste is

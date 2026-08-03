@@ -7,7 +7,8 @@
 // state, the corpus picker and document-level copy/paste.
 
 import { useMemo, useState } from "react";
-import { applyKey, applyText, blockEditText, commitPending, copySubtree, pasteSubtree, positionsOf, siteOf, watchdog, type Position } from "./apply";
+import { applyKey, applyText, blockEditText, commitPending, copySubtree, positionsOf, siteOf, watchdog, type Position } from "./apply";
+import { pasteText } from "./paste";
 import { interpret } from "./grammar/dispatch";
 import { defaultRegistry, DocCells, type CellCtx, type CellRegistry } from "./cells";
 import { lineDiff } from "./diff";
@@ -70,7 +71,8 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
       }
       if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "v" && state.cursor.at === "hole" && state.cursor.text.trim() === "") {
         e.preventDefault();
-        void navigator.clipboard.readText().then((t) => apply(pasteSubtree(state, t)));
+        // pasteText: the one-value laws PLUS the sibling splice and the JSON5 sniff (paste.ts)
+        void navigator.clipboard.readText().then((t) => apply(pasteText(state, t)));
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return; // other chords stay native
