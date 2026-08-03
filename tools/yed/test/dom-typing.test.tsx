@@ -9,7 +9,7 @@ import { render, cleanup, fireEvent } from "@testing-library/react";
 import { useState } from "react";
 import { DebugEditorPage, EditorView } from "../src/page";
 import { watchdog } from "../src/apply";
-import { initialState, sourceOf, type EditorState } from "../src/state";
+import { initialState, parseSource, sourceOf, type EditorState } from "../src/state";
 
 afterEach(cleanup);
 
@@ -21,11 +21,14 @@ function Harness() {
   return <EditorView state={state} setState={setState} />;
 }
 
-/** The focused editor cell — after EVERY keystroke the caret must live in a cell input or on a
- *  gap slot (the two focusable cell homes). BODY means the caret fell off the projection. */
+/** The focused editor cell — after EVERY keystroke the caret must live in a cell input, on a
+ *  gap slot, or in a block scalar's textarea (the three focusable cell homes). BODY means the
+ *  caret fell off the projection. */
 function focusedInput(): HTMLInputElement {
   const el = document.activeElement;
-  const ok = el !== null && ((el.tagName === "INPUT" && el.classList.contains("y2-input")) || el.classList.contains("y2-gapslot"));
+  const ok = el !== null && ((el.tagName === "INPUT" && el.classList.contains("y2-input"))
+    || el.classList.contains("y2-gapslot")
+    || (el.tagName === "TEXTAREA" && el.classList.contains("y2-blocktext")));
   expect(ok, `the caret must be in a cell, but activeElement is ${el ? el.tagName + "." + el.className : "null"}`).toBe(true);
   return el as HTMLInputElement;
 }
@@ -266,5 +269,44 @@ describe("yed2 DOM typing — the reported yaml, through real key events", () =>
     expect(lastState.cursor).toEqual({ at: "hole", path: [0], index: 0, text: "", key: null }); // INSIDE the entry
     expect(sourceOf(lastState.doc)).toBe("- 12\n");
     focusedInput();
+  });
+});
+
+describe("yed2 DOM typing — the BLOCK scalar textarea", () => {
+  function HarnessFrom({ src }: { src: string }) {
+    const [state, setState] = useState<EditorState>(() => ({
+      ...initialState(), doc: parseSource(src),
+    }));
+    lastState = state;
+    return <EditorView state={state} setState={setState} />;
+  }
+
+  it("clicking the header focuses the textarea; a body edit + ↓ commits with the authored header", () => {
+    render(<HarnessFrom src={"k: |\n  line one\n  line two\nm: 1\n"} />);
+    // enter through the header token (the cell's one focusable)
+    const header = Array.from(document.querySelectorAll(".y2-cell.y2-token .y2-punct"))
+      .find((el) => el.textContent === "|")!;
+    fireEvent.focus(header);
+    const ta = document.activeElement as HTMLTextAreaElement;
+    expect(ta.tagName).toBe("TEXTAREA");
+    expect(ta.classList.contains("y2-blocktext")).toBe(true);
+    expect(ta.value).toBe("line one\nline two");
+    // edit the second line, then ↓ from the LAST line leaves and commits
+    fireEvent.change(ta, { target: { value: "line one\nline 2!" } });
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+    fireEvent.keyDown(ta, { key: "ArrowDown" });
+    expect(sourceOf(lastState.doc)).toBe("k: |\n  line one\n  line 2!\nm: 1\n");
+    focusedInput(); // the caret landed on the next cell — never the floor
+  });
+
+  it("Enter INSIDE the textarea stays native (a newline, not a commit)", () => {
+    render(<HarnessFrom src={"k: |\n  line one\n  line two\n"} />);
+    const header = Array.from(document.querySelectorAll(".y2-cell.y2-token .y2-punct"))
+      .find((el) => el.textContent === "|")!;
+    fireEvent.focus(header);
+    const ta = document.activeElement as HTMLTextAreaElement;
+    const defaulted = fireEvent.keyDown(ta, { key: "Enter" });
+    expect(defaulted).toBe(true); // not preventDefault-ed — the browser types the newline
+    expect(sourceOf(lastState.doc)).toBe("k: |\n  line one\n  line two\n"); // nothing committed
   });
 });

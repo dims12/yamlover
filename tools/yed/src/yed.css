@@ -1,30 +1,49 @@
 /* yed — the EDITOR's cell styling (the closed set + legend + alarm). App-safe: only .y2-*
    selectors, no body/page rules — the server client imports this file as-is; the debug page
    layers its chrome (debug-editor/yed2.css) on top. */
+/* THE PALETTE IS THE RENDERER'S: every token color is the server's --jb-* variable — the
+   read-only yamlover view (render.tsx / styles.css) is the standard, and the editor must
+   read identically. The fallbacks are the IntelliJ-Light values for the standalone debug
+   pages, which define no variables and render on white. */
 /* cells: ONE closed set, TWO renderings. Prod (`y2-plain`) is clean source text; debug
    (`y2-debug`) frames and titles every cell. Same DOM either way — a MODE, not a fork. */
+.y2-editor {
+  font-family: var(--font, ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace);
+  line-height: 1.55;
+  tab-size: 36; /* the renderer's trailing-comment tab stop */
+}
 .y2-cell { position: relative; display: inline-block; vertical-align: top; }
 .y2-cell > .y2-tag { display: none; }
 .y2-debug .y2-cell { border: 1px solid #d0d7de; border-radius: 3px; padding: 6px 4px 2px; margin: 2px; background: #ffffff; }
 .y2-debug .y2-cell > .y2-tag { display: block; position: absolute; top: -1px; left: 2px; font-size: 8px; line-height: 1; color: #8250df99; user-select: none; }
-.y2-active { box-shadow: 0 0 0 1px #0969da44; }
+.y2-active { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #0969da) 30%, transparent); }
 .y2-debug .y2-active { border-color: #0969da; }
-.y2-refused { box-shadow: 0 0 0 1px #cf222e66; animation: y2ring .3s; }
+.y2-refused { box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger, #cf222e) 45%, transparent); animation: y2ring .3s; }
 .y2-debug .y2-refused { border-color: #cf222e; }
 .y2-plain .y2-panels { display: none; }
 .y2-plain .y2-layout, .y2-layout.y2-plain { grid-template-columns: 1fr; }
-.y2-plain .y2-gapslot { color: #d0d7de; }
 .y2-mode { margin-left: auto; display: flex; gap: 4px; align-items: center; }
-@keyframes y2ring { 50% { box-shadow: 0 0 0 3px #cf222e; } }
-.y2-input { font: inherit; color: #1f2328; background: transparent; border: none; outline: none; min-width: 1ch; }
-.y2-k { color: #0550ae; white-space: pre; }
-.y2-v { color: #1f2328; outline: none; }
-.y2-p { color: #8250df; }
+@keyframes y2ring { 50% { box-shadow: 0 0 0 3px var(--danger, #cf222e); } }
+.y2-input { font: inherit; color: inherit; background: transparent; border: none; outline: none; min-width: 1ch; }
+.y2-k { color: var(--jb-key, #660e7a); white-space: pre; }
+/* the SCALAR TONES — the renderer's .s/.n/.b/.null vocabulary, carried on the CELL wrapper so
+   the active input inherits the token's color while editing */
+.y2-v { color: inherit; outline: none; white-space: pre; }
+.y2-cell.y2-s { color: var(--jb-string, #067d17); }
+.y2-cell.y2-n { color: var(--jb-number, #1750eb); }
+.y2-cell.y2-b, .y2-cell.y2-null { color: var(--jb-keyword, #0033b3); }
+.y2-cell.y2-key { color: var(--jb-key, #660e7a); }
+/* the pointer atom wears the renderer's link face (.descend): accent + dashed underline */
+.y2-p { color: var(--accent, #1e66f5); border-bottom: 1px dashed currentColor; }
+.y2-p:focus { background: var(--sel, #ccd0da); outline: none; }
 /* pre keeps the authored spaces (`: `, `, `) — a flex row trims a trailing space at the
    end of an inline box, which ate the colon's gap in plain mode */
-.y2-punct { color: #656d76; white-space: pre; }
-.y2-gapslot { font: inherit; color: #8c959f; background: transparent; border: none; padding: 0 1px; cursor: text; user-select: none; }
-.y2-cell.y2-gap.y2-active .y2-gapslot { color: #0969da; animation: y2blink 1s step-end infinite; }
+.y2-punct { color: var(--jb-punct, #24292f); white-space: pre; }
+/* the dash — the renderer's .yaml-dash: scaled in place (transform, not font-size) so the
+   glyph grows but keeps its one-cell column */
+.y2-dash { display: inline-block; transform: scale(1.55); transform-origin: left center; font-weight: 700; color: var(--jb-dash, #8c8c8c); }
+.y2-gapslot { font: inherit; color: var(--dim, #8c959f); background: transparent; border: none; padding: 0 1px; cursor: text; user-select: none; }
+.y2-cell.y2-gap.y2-active .y2-gapslot { color: var(--accent, #0969da); animation: y2blink 1s step-end infinite; }
 @keyframes y2blink { 50% { opacity: .2; } }
 .y2-rows { display: flex; flex-direction: column; align-items: flex-start; }
 .y2-row { display: flex; align-items: baseline; }
@@ -32,13 +51,41 @@
    cells themselves — no flex alignment can put a parent-row span onto a nested block's
    last line (first-baseline drew `{ ,`, flex-end sank it below the glyph). */
 .y2-indent { margin-left: 2ch; }
-.y2-empty { color: #8c959f; font-style: italic; }
+.y2-empty { color: var(--dim, #8c959f); font-style: italic; }
 /* the node's IDENTITY chrome — `!!<…>` / `!!yo` / `!!set` tags and `&` anchors — visible in
    BOTH plain and debug modes (unlike the .y2-tag captions): the tags are part of the source,
-   and hiding them is what let them "disappear" in edit mode. Read-only, never selectable. */
-.y2-decor { color: #8250df; opacity: 0.65; user-select: none; white-space: pre; }
+   and hiding them is what let them "disappear" in edit mode. Read-only, never selectable.
+   Colored as the renderer paints tags and anchors: the keyword tone. */
+.y2-decor { color: var(--jb-keyword, #0033b3); user-select: none; white-space: pre; }
+.y2-cell.y2-tag { color: var(--jb-keyword, #0033b3); }
 .y2-anchor-row { white-space: pre; }
-.y2-anchor-add { cursor: text; }
+.y2-anchor-add { cursor: text; opacity: 0.65; }
+
+/* COMMENTS and blank lines — read-only chrome, the renderer's .c face */
+.y2-comment { color: var(--jb-comment, #8c8c8c); font-style: italic; white-space: pre; user-select: none; }
+.y2-trail { margin-left: 2ch; }
+.y2-rowmain { min-width: 36ch; } /* approximates the renderer's tab-size:36 comment column */
+.y2-blankline { min-height: 1.55em; }
+
+/* BLOCK SCALARS — the body rows under the `|` / `>` header; the textarea is the active face */
+.y2-blocktext {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  resize: none;
+  overflow: hidden;
+  white-space: pre;
+  display: block;
+  min-width: 8ch;
+  border-left: 1px solid var(--line, #d0d7de);
+  padding-left: 6px;
+  margin-left: -7px;
+}
+.y2-row.y2-blockrow { align-items: flex-start; }
 
 /* the keyboard legend */
 .y2-legend { display: flex; flex-wrap: wrap; gap: 4px; }

@@ -187,3 +187,42 @@ describe("diffToOps — identity marks (!!set / & anchors) and the emptied islan
     ]);
   });
 });
+
+describe("diffToOps — comment carriage is INVISIBLE to the sync", () => {
+  it("a comment-only difference emits NOTHING", () => {
+    // the same doc, one side carrying loaded comment meta (parseSource retains comments)
+    const bare = parseSource("a: 1\nb: 2\n");
+    const commented = parseSource("# banner\n\na: 1\t# note\n\n# about b\nb: 2\n");
+    const d = diffToOps(":doc", bare, commented);
+    expect(d.ops).toEqual([]);
+    expect(d.renames).toEqual([]);
+  });
+
+  it("a payload crossing a commented region is byte-equal to the comment-free twin", () => {
+    // a real edit next to comments: the subtree payload must not carry `#` lines (display-only)
+    const prev = parseSource("kids:\n  # about x\n  x: 1\n  y: 2\n");
+    const next = parseSource("kids:\n  # about x\n  x: 1\n  y: 2\n");
+    // retype y's value through the commented tree
+    ((next.root as { entries: { value: { entries: { value: { value: unknown; raw?: string } }[] } }[] }).entries[0].value.entries[1].value) = { kind: "scalar", value: 9, raw: "9" } as never;
+    const d = diffToOps(":doc", prev, next);
+    expect(d.ops).toEqual([{ path: ":doc:kids:y", op: "emplace", yamlover: "9" }]);
+  });
+
+  it("a FLOW container whose entries carry comment meta still emits the flow payload", () => {
+    const prev = parseSource("a: [1, 2]\n");
+    const next = parseSource("a: [1, 9]\n");
+    // simulate loaded comment meta INSIDE the flow token (the flowTextOrNull refusal trap)
+    const flowNode = (next.root as { entries: { value: { entries: { meta?: unknown }[]; meta?: Record<string, unknown> } }[] }).entries[0].value;
+    flowNode.entries[0].meta = { comments: [{ text: "x", span: { uri: "<t>", start: 0, end: 0 }, placement: "leading", style: "line" }] };
+    flowNode.meta = { ...(flowNode.meta ?? {}), comments: [{ text: "tail", span: { uri: "<t>", start: 0, end: 0 }, placement: "leading", style: "line" }] };
+    const d = diffToOps(":doc", prev, next);
+    expect(d.ops).toEqual([{ path: ":doc:a", op: "emplace", yamlover: "[1, 9]" }]);
+  });
+
+  it("a BLOCK scalar body edit is one emplace whose payload keeps the authored header", () => {
+    const d = diff("k: |\n  line one\n  line two\nm: 1\n", "k: |\n  line one\n  line 2!\nm: 1\n");
+    expect(d.ops).toEqual([{ path: ":doc:k", op: "emplace", yamlover: "|\n  line one\n  line 2!" }]);
+    const folded = diff("k: >\n  fold\n  these\n", "k: >\n  fold\n  those\n");
+    expect(folded.ops).toEqual([{ path: ":doc:k", op: "emplace", yamlover: ">\n  fold\n  those" }]);
+  });
+});

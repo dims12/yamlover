@@ -62,5 +62,9 @@
   YAMLOVER_EDITOR.yo (pointer_* states).
 - Support copy to clipboard in all json, json5, json5p, yaml and yamlover renderers and copy/paste in yamlover editor
 - Design treetable modelling support
-- Switching several chunks to titles and pressing done doesn't commit the state
-- Section sign (§) that is marked title #fragments in yed should be aligned with the title baseline
+- Switching several chunks to titles and pressing done doesn't commit the state +DONE (titled
+  childless wraps birth on the FINAL flush — several at once included; and the materialization
+  now descends into members LOADED with the page, so a T inside a subchapter persists too)
+- Section sign (§) that is marked title #fragments in yed should be aligned with the title baseline +DONE
+  (the § is IN FLOW on the heading's baseline now — absolute positioning floated the 12px glyph
+  to the line top; self-cancelling margins keep it in the gutter without shifting the title)

@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 The empty node
 description: 'yaml/empty — a bare key IS null'
 - >

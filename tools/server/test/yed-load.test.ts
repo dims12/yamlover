@@ -183,3 +183,40 @@ describe("irFromNodeJson — identity marks (!!set, & anchors) ride the IR", () 
     expect(metaOf((doc.root as Node).entries![0].value).anchors).toBeUndefined();
   });
 });
+
+describe("irFromNodeJson — COMMENTS and blank lines carried for display", () => {
+  it("buckets land in the parser-IR shapes: entry leading/trailing, blankBefore, tail, $head/$tail", () => {
+    const doc = irFromNodeJson(nj(
+      { a: 1, b: 2 },
+      {
+        $head: ["banner"],
+        $tail: ["leftover"],
+        "": { tail: ["the end"] },
+        "/a": { trailing: ["note"], blankBefore: true },
+        "/b": { leading: ["about b"] },
+      },
+    ));
+    const root = doc.root as Node;
+    const e0 = root.entries![0].meta as { comments?: { text: string; placement: string }[]; blankBefore?: boolean };
+    expect(e0.blankBefore).toBe(true);
+    expect(e0.comments).toEqual([expect.objectContaining({ text: "note", placement: "trailing" })]);
+    const e1 = root.entries![1].meta as { comments?: { text: string; placement: string }[] };
+    expect(e1.comments).toEqual([expect.objectContaining({ text: "about b", placement: "leading" })]);
+    const rm = root.meta as { comments?: { text: string; placement: string }[] };
+    expect(rm.comments).toEqual([
+      expect.objectContaining({ text: "the end", placement: "leading" }),
+      expect.objectContaining({ text: "leftover", placement: "leading" }),
+    ]);
+    expect((doc as { head?: { text: string }[] }).head).toEqual([expect.objectContaining({ text: "banner" })]);
+  });
+
+  it("comment carriage NEVER changes the serialized source (payload parity at the loader)", () => {
+    const bare = irFromNodeJson(nj({ a: 1, f: [1, 2] }, { "/f": { repr: "yaml/flow" } }));
+    const commented = irFromNodeJson(nj(
+      { a: 1, f: [1, 2] },
+      { $head: ["banner"], "": { tail: ["the end"] }, "/a": { trailing: ["note"], blankBefore: true }, "/f": { repr: "yaml/flow", leading: ["about f"] } },
+    ));
+    expect(sourceOf(commented)).toBe(sourceOf(bare));
+    expect(sourceOf(commented)).toContain("f: [1, 2]"); // the flow layout survives the comments
+  });
+});

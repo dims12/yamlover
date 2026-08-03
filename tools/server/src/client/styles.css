@@ -984,6 +984,12 @@ pre.code.chapter-data {
   color: var(--dim);
   font-style: italic;
 }
+/* the description EDITS in its rendered face — the editor's input keeps the italic + dim
+   (y2-input's `font: inherit` cannot supply them: the input is not inside the subtitle) */
+.y2-input.chapter-subtitle-input {
+  font-style: italic;
+  color: var(--dim);
+}
 /* A subchapter laid out IN PLACE (subchapter.tsx): the indent + rule is the only thing marking the
    nesting, and it compounds naturally because the sections really are nested in the DOM. The
    reading width belongs to the outer `.chapter` alone, so a deep subchapter's column narrows only
@@ -1004,14 +1010,19 @@ pre.code.chapter-data {
   position: relative;
 }
 .chapter .section-anchor {
-  position: absolute;
-  left: -2.15rem; /* clears the .chapter-sub padding + left rule into the parent's gutter */
+  /* IN FLOW on the heading's own baseline (absolute positioning floated the 12px glyph to
+     the line's top — a unitless inherited line-height re-resolves against the small font).
+     The margins cancel the box's inline advance exactly (1.6 − 2.15 + 0.55 = 0), so the
+     title text starts where it would without the anchor while the § sits in the gutter. */
+  display: inline-block;
   width: 1.6rem;
+  margin-left: -2.15rem; /* clears the .chapter-sub padding + left rule into the parent's gutter */
+  margin-right: 0.55rem;
   box-sizing: border-box;
   text-align: right;
+  padding-right: 0.35rem;
   font-size: 12px;
   font-weight: normal;
-  line-height: inherit;
   color: var(--dim);
   text-decoration: none;
   user-select: none;

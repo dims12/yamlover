@@ -1,6 +1,5 @@
 # The abstract model — terminology, facets, the value axis, order, the graph, metadata,
 # matching, and the constructs-in-concretes matrix; each a subdirectory chapter.
-!!<*yamlover: $defs: chapter>
 The logical model
 description: omnivorous nodes with ordered relations — the terminology and the type system
 - >

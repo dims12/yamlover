@@ -58,18 +58,19 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
   const concreteRef = useRef<string | null>(null);
   const timerRef = useRef<number | null>(null);
   const inflightRef = useRef(false);
+  const failedRef = useRef(false); // a failed sync STOPS auto-retry — the next user edit re-arms
   const columnMemory = useMemo(createColumnMemory, []);
 
   /** Flush the pending diff (+ any DEFERRED MATERIALIZATION, whose ops lead the batch).
-   *  Returns the born members synchronously so auto-descend can address them by key. */
-  const flush = (): MaterializeResult["born"] => {
+   *  Returns the born members synchronously so auto-descend can address them by key.
+   *  `final` — the LAST flush (Done / navigating away): a titled childless wrap births now
+   *  (its titleness has no inline spelling and would otherwise be silently dropped). */
+  const flush = (final = false): MaterializeResult["born"] => {
     const st = stateRef.current;
     const committed = committedRef.current;
     if (!st || !committed || inflightRef.current) return [];
     const snapshot = st.doc;
-    const rootTag = tagContentOf(snapshot.root)
-      ?? (explicitFormatOf(snapshot.root) === "x-yamlover-task" ? null : CHAPTER_META);
-    const mat = materializeSubchapters(path, committed, snapshot, concreteRef.current, rootTag);
+    const mat = materializeSubchapters(path, committed, snapshot, concreteRef.current, final);
     const { ops, renames, unserializable } = diffToOps(path, mat.committed, mat.next);
     if (unserializable) { window.alert("this edit cannot be persisted (a binary is inside the rewritten region)"); return mat.born; }
     const all = [...mat.ops, ...ops];
@@ -95,10 +96,24 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
         committedRef.current = mat.next;
         if (batch !== all) stampedRef.current = true; // stamped exactly once
       })
-      .catch((e) => window.alert(`edit sync failed: ${String((e as Error)?.message || e)}`))
+      .catch((e) => {
+        // a failed batch alerts ONCE and stands down — an unbounded retry loop against a
+        // persistent failure re-applies the diff forever (the reported duplicate cascade);
+        // the next USER edit re-arms the sync
+        failedRef.current = true;
+        // the DIAGNOSTIC the alert cannot carry: the exact batch that failed, verbatim —
+        // enough to find and replay the problem from the browser console alone
+        console.error(
+          `[yed-chapter] edit sync FAILED at ${path}: ${String((e as Error)?.message || e)}\n` +
+          `  ops: ${JSON.stringify(batch)}\n` +
+          (renames.length ? `  renames: ${JSON.stringify(renames)}\n` : "") +
+          (mat.born.length ? `  born: ${JSON.stringify(mat.born.map((b) => b.anchorKey))}\n` : ""),
+        );
+        window.alert(`edit sync failed: ${String((e as Error)?.message || e)}`);
+      })
       .finally(() => {
         inflightRef.current = false;
-        if (stateRef.current && committedRef.current && stateRef.current.doc !== committedRef.current) schedule();
+        if (!failedRef.current && stateRef.current && committedRef.current && stateRef.current.doc !== committedRef.current) schedule();
       });
     return mat.born;
   };
@@ -111,6 +126,7 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
     stateRef.current = next;
     setState(next);
     if (!docChanged) return; // caret walks never rearm (or delay) the flush
+    failedRef.current = false; // a fresh USER edit re-arms a sync that stood down on failure
     // AUTO-DESCEND: an edit whose caret sits beyond the `?depth=` window flushes NOW (the born
     // member's insert must land before the child page fetches); the flush itself navigates
     // once the member is born. `countPending` treats a wrapped subchapter that already gained
@@ -152,7 +168,7 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
     return () => {
       alive = false;
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-      flush(); // pending work leaves with the mount, never dropped
+      flush(true); // the FINAL flush: pending work leaves with the mount — titled wraps birth
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path]);

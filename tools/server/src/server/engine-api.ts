@@ -766,9 +766,20 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             enqueue(async () => {
               const d = data as EditInput & { edits?: EditInput[] };
               const edits = Array.isArray(d.edits) ? d.edits : [d];
-              const { touched, created, appended } = applyEdits(dataRoot, s, edits);
-              // a born document is a new FILE: the whole graph rewalks. Otherwise only the edited files.
-              if (created.length) broadcast(await doReindex());
+              let applied;
+              try {
+                applied = applyEdits(dataRoot, s, edits);
+              } catch (e) {
+                // the DIAGNOSTIC the alert cannot carry: the failing batch, verbatim, beside the
+                // error — enough to find and replay the problem without guessing
+                console.error(`[/api/edit] FAILED: ${String((e as Error).message || e)}
+  batch: ${JSON.stringify(edits)}`);
+                throw e;
+              }
+              const { touched, created, appended, movedStorage } = applied;
+              // a born document is a new FILE (and an archived one a moved dir): the whole graph
+              // rewalks. Otherwise only the edited files.
+              if (created.length || movedStorage) broadcast(await doReindex());
               else for (const f of touched) broadcast(await doReindexFile(f));
               scheduleHasher();
               // `path` is where a caller that CREATED something should navigate: the born document,
@@ -3036,11 +3047,15 @@ function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
     const span = flowSpanEnd(lines, i);
     if (span > i) i = span;
   }
+  // THE SPAN LAW: an entry ends after its own LAST CONTENT line. The blank/`#` block that
+  // separates it from the next entry is NOT its tail — those lines are the next entry's
+  // leading comments (the parser's attachment rule), and a splice or removal of THIS entry
+  // must leave them standing. `trimBack` walks the end over exactly that block.
   return starts.map((s, k) => ({
     absIndex: k,
     key: s.key,
     start: s.start,
-    end: k + 1 < starts.length ? starts[k + 1].start : trimBack(lines, s.start, r.hi),
+    end: trimBack(lines, s.start, k + 1 < starts.length ? starts[k + 1].start : r.hi),
     inline: s.inline,
   }));
 }
@@ -3054,7 +3069,26 @@ function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
 function findEntry(lines: string[], r: Region, seg: Seg): ChapterEntry | undefined {
   const entries = chapterEntries(lines, r);
   if (typeof seg === "number") return entries[seg];
-  return entries.find((e) => e.key === (seg === null ? "~" : seg));
+  const keyed = entries.find((e) => e.key === (seg === null ? "~" : seg));
+  if (keyed) return keyed;
+  // a MEMBER'S NAME also addresses the keyless pointer entry granting its position
+  // (`- *: name`) — the same key the wire's anchorKey carries, so a member-rooted op
+  // re-routed to the parent (the root-remove detach) lands on its line
+  if (typeof seg === "string") {
+    return entries.find((e) => e.key === null && memberPointerNameOf(entryHead(lines, e)) === seg);
+  }
+  return undefined;
+}
+
+/** The member NAME a keyless entry's head grants a position to (`- *: name` — a document-scope
+ *  single-key pointer), or null for anything else. */
+function memberPointerNameOf(head: string): string | null {
+  if (!head.startsWith("*")) return null;
+  try {
+    const p = parsePointer(head.slice(1).trim()) as { base: { scope: string }; steps: { sel: string; name?: string }[] };
+    if (p.base.scope === "document" && p.steps.length === 1 && p.steps[0].sel === "key") return p.steps[0].name ?? null;
+  } catch { /* not a member pointer */ }
+  return null;
 }
 
 /** An entry's own VALUE source on its opening line — past the `- ` marker, its inline `!!<…>` tag,
@@ -3076,7 +3110,7 @@ function isContainerEntry(lines: string[], e: ChapterEntry, childIndent: number)
   // compact `- - x` nesting: the head itself opens a nested item — it IS the first child, even
   // when the entry is a single line (a scalar head can never start `- `; it would be quoted)
   if (head === "-" || head.startsWith("- ")) return true;
-  if (/^[|>][+-]?\d*$/.test(head.trim())) return itemHasFields(lines, e, childIndent); // omni block, or plain
+  if (isBlockHeader(head)) return itemHasFields(lines, e, childIndent); // omni block, or plain
   // The inline `key:` test must not read past a trailing comment: a scalar's comment may itself
   // contain a colon (`theme: dark   # ui palette: dark | light`), which is prose, not a mapping.
   // A plain scalar cannot contain ` #` (yamlover comments need the leading whitespace), and a
@@ -3162,7 +3196,9 @@ interface Facets {
  *  (an authored key starting with `&` is spelled escaped, `\&key:`). */
 const opensEntry = (t: string): boolean => t === "-" || t.startsWith("- ") || /^[^\s"'*|>#&-][^:]*:(\s|$)/.test(t);
 
-const isBlockHeader = (head: string): boolean => /^[|>][+-]?\d*$/.test(head.trim());
+/** A `|` / `>` block header, a trailing ` # comment` tolerated (YAML allows one on the header
+ *  line; a bare header can never itself contain ` #`). */
+const isBlockHeader = (head: string): boolean => /^[|>][+-]?\d*(\s+#.*)?$/.test(head.trim());
 
 /** True for a line opening a QUOTED-key entry (`"pic.png": …`) — `opensEntry`'s regex excludes
  *  quote-led lines so a quoted scalar reads as a value, but a quoted key IS an entry opener. */
@@ -3406,6 +3442,22 @@ function keySepColon(s: string): number {
   return s.indexOf(":"); // a plain key holds no colon — the first one separates
 }
 
+/** The ` # …` comment trailing an entry's opening line, WITH its authored separator —
+ *  quote-aware (a `#` inside a quoted token is content). Null: no trailing comment. */
+function trailingCommentOf(line: string): string | null {
+  let inS = false, inD = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === "'" && !inD) inS = !inS;
+    else if (ch === '"' && !inS) inD = !inD;
+    else if (ch === "#" && !inS && !inD && i > 0 && (line[i - 1] === " " || line[i - 1] === "\t")) {
+      const ws = /[ \t]+$/.exec(line.slice(0, i));
+      return (ws ? ws[0] : " ") + line.slice(i);
+    }
+  }
+  return null;
+}
+
 function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, valueSrc: string, meta: string | null | undefined, key?: string, at?: number): void {
   // the entry-opening marker a fresh emplace writes: `key: ` for a keyed target, `~: ` for the
   // NULL key (its canonical emission), `- ` for a positional one
@@ -3512,16 +3564,23 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
   }
   const tag = metaTag(meta, had.tag, op === "emplace");
 
+  // THE TRAILING-COMMENT LAW: a remark riding the entry's opening line (`a: 1 # note`) is the
+  // user's labour, not the value's — an emplace that re-renders the line carries it over
+  // (renderNode emits no comments of its own; a payload spelling a `#` never collides because
+  // the capture is quote-aware on the ORIGINAL line).
+  const headTrail = trailingCommentOf(lines[entry.start]);
   if (entry.inline) {
     // an entry living on its parent's `- ` marker line (`- title: X`, or a compact `- - x`
     // nested item) — rewrite the marker line in place, keeping the outer `- `
     const pad = " ".repeat(indentOf(lines[entry.start]));
-    lines[entry.start] = inlineKey
+    lines[entry.start] = (inlineKey
       ? `${pad}- ${tag ? tag + " " : ""}${inlineKey}: ${next.scalar ?? '""'}`
-      : `${pad}- - ${tag ? tag + " " : ""}${next.scalar ?? '""'}`;
+      : `${pad}- - ${tag ? tag + " " : ""}${next.scalar ?? '""'}`) + (headTrail ?? "");
     return;
   }
-  lines.splice(entry.start, entry.end - entry.start, ...renderNode(next, r.indent, marker(seg), tag));
+  const rendered = renderNode(next, r.indent, marker(seg), tag);
+  if (headTrail !== null && rendered.length > 0 && trailingCommentOf(rendered[0]) === null) rendered[0] += headTrail;
+  lines.splice(entry.start, entry.end - entry.start, ...rendered);
 }
 
 // --- chunk fragments (ANNOTATIONS.md §3): a text fragment lives ON the chunk it was drawn in ----- //
@@ -3953,6 +4012,18 @@ function editChapterSource(src: string, within: Seg[], op: string, valueSrc: str
       // then Backspace, which flushes the now-empty root) — a keyless path with nothing to say.
       return lines.join("\n");
     }
+    if (op === "replace") {
+      // a KIND CONVERSION reaching the DOCUMENT ROOT — the yed diff's leaf↔container replace
+      // (T titling a member's only chunk turns the member document into its scalar self):
+      // `replace` drops every CONTENT facet wholesale, so the payload IS the new body. The
+      // `!!<…>` banner is the DOCUMENT'S IDENTITY, not a content facet: an op that omits
+      // `meta` PRESERVES it (the same law emplace follows — dropping it untyped a chapter
+      // member into a bare data row); `meta: string` restamps, `meta: null` drops.
+      if (valueSrc) parseYamlover(valueSrc, "<edit>"); // validate before touching the file
+      if (meta !== undefined) setRootTag(lines, meta);
+      setRootBody(lines, valueSrc || "");
+      return lines.join("\n");
+    }
     throw new Error(`\`${op}\` at a document root needs a key or index target`);
   }
   // a numeric segment into a FLOW row (a table's `- [a, b, c]` / `header: […]`): the block
@@ -4137,7 +4208,8 @@ function bornAsDocument(dataRoot: string, e: ResolvedEdit, tag: string | undefin
  *  routes to its own via {@link chapterSource}). Ops for one file fold in order, each re-scanning
  *  the buffer the previous one left, so absolute indices stay consistent; each touched file is
  *  written once. Returns the touched files (to reindex) and any document born along the way. */
-function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: string[]; created: string[]; appended: Seg[][] } {
+function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: string[]; created: string[]; appended: Seg[][]; movedStorage: boolean } {
+  let movedStorage = false;
   const byFile = new Map<string, ResolvedEdit[]>();
   const jsonByFile = new Map<string, { within: Seg[]; valueSrc: string }[]>(); // JSON-family scalar edits
   const appended: Seg[][] = []; // parents an INLINE entry was appended to — their new last child is the created node
@@ -4482,6 +4554,49 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       fsDoc && fsDoc.docSegs.length > documentRootSegs(s, editSegs).length
         ? { ...fsDoc, dirBacked: true }
         : chapterSource(dataRoot, s, editSegs, BLOCK_YAML);
+    if (op === "remove" && editSegs.length > 0 && docSegs.length === editSegs.length) {
+      // REMOVING A MEMBER DOCUMENT: a root remove routed into the member has no meaning (a
+      // document cannot remove itself) — the op DETACHES it from the PARENT instead: the
+      // pointer entry granting its position goes; the member's storage stays on disk
+      // (orphaning is deliberate — never destroy user data). Addressed BY NAME, resolved at
+      // splice time (findEntry's member-pointer match), so pending parent ops keep working.
+      const memberName = String(editSegs[editSegs.length - 1]);
+      const parentSegs = editSegs.slice(0, -1);
+      let detach: ResolvedEdit | null = null;
+      let detachFile: string | null = null;
+      try {
+        const pDoc = chapterSource(dataRoot, s, parentSegs, BLOCK_YAML);
+        const parentLines = fs.readFileSync(pDoc.bodyFile, "utf8").split("\n");
+        const r = reachChapter(parentLines, parentSegs.slice(pDoc.docSegs.length));
+        if (findEntry(parentLines, r, memberName) !== undefined) {
+          detachFile = pDoc.bodyFile;
+          detach = {
+            within: [...parentSegs.slice(pDoc.docSegs.length), memberName],
+            op: "remove", valueSrc: "", meta: undefined,
+            docSegs: pDoc.docSegs, dirBacked: pDoc.dirBacked,
+          };
+        }
+      } catch { /* no parent document at all — the member is unreferenced */ }
+      if (detach === null) {
+        // an ALREADY-ORPHANED member (no granting line — it surfaced keyed-only): there is
+        // nothing to detach, but the row must still be deletable (never a wall). Its storage
+        // ARCHIVES into the parent's `.yo/.trash/` — a dot-name the walk skips entirely, so
+        // the member leaves the projection while the data survives on disk, recoverable.
+        const memberAbs = path.resolve(dataRoot, ...editSegs.map(String));
+        const trashDir = path.join(path.dirname(memberAbs), ".yo", ".trash");
+        fs.mkdirSync(trashDir, { recursive: true });
+        let dest = path.join(trashDir, memberName);
+        for (let n = 2; fs.existsSync(dest); n++) dest = path.join(trashDir, `${memberName}-${n}`);
+        console.warn(`[/api/edit] remove of ORPHANED member ${segsToStr(editSegs)}: archived ${memberAbs} -> ${dest}`);
+        fs.renameSync(memberAbs, dest);
+        movedStorage = true; // the graph changed shape — the caller rewalks fully
+        continue;
+      }
+      const list = byFile.get(detachFile!) ?? [];
+      list.push(detach);
+      byFile.set(detachFile!, list);
+      continue;
+    }
     if (op === "insert" && !e.concrete?.includes("/")) {
       // an APPEND (no trailing index, or one past the end) creates the parent's new last child
       const last = editSegs[editSegs.length - 1];
@@ -4527,7 +4642,12 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
     list.push(resolved);
     byFile.set(bodyFile, list);
   }
+  // TWO PHASES — splice every file IN MEMORY first, write only when the WHOLE batch spliced
+  // clean. A mid-batch throw must leave every file untouched: the reported runaway wrote the
+  // first file, threw on the second, and the client's retry loop (committed never advancing)
+  // appended a duplicate on every attempt.
   const touched: string[] = [];
+  const pendingWrites: [string, string][] = [];
   for (const [bodyFile, ops] of byFile) {
     let src = fs.readFileSync(bodyFile, "utf8");
     for (const o of ops) {
@@ -4541,18 +4661,20 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       if (valueSrc && !isPointerValue(valueSrc)) parseYamlover(valueSrc, "<edit>");
       src = editChapterSource(src, o.within, o.op, valueSrc, meta, o.key, o.at);
     }
-    fs.writeFileSync(bodyFile, src);
-    touched.push(bodyFile);
+    pendingWrites.push([bodyFile, src]);
   }
   for (const [file, jedits] of jsonByFile) {
     let src = fs.readFileSync(file, "utf8");
     for (const j of jedits) {
       src = editJsonScalar(src, j.within, yamloverScalarToJsonToken(j.valueSrc)); // yamlover payload → JSON token
     }
+    pendingWrites.push([file, src]);
+  }
+  for (const [file, src] of pendingWrites) {
     fs.writeFileSync(file, src);
     touched.push(file);
   }
-  return { touched, created, appended };
+  return { touched, created, appended, movedStorage };
 }
 
 interface EditInput {

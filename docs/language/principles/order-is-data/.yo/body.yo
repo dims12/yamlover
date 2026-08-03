@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 Order is data
 description: one ordered container — positions are integer keys, and only the container writes them
 - >

@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 Metadata first, validation optional
 description: a schema gives a node its shape, type, and format — it is not a gate
 - >

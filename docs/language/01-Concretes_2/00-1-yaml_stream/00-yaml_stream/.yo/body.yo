@@ -1,0 +1,2 @@
+yaml/stream
+description: Sequence of yaml/code blocks, separated with ---

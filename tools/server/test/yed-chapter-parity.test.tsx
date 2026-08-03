@@ -93,6 +93,7 @@ import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import fs from "node:fs";
 import path from "node:path";
 import { createHandlers, tmpTree } from "./helpers";
+import { call } from "./http";
 import { captureAlerts, installFetch, settleOps } from "./edit-corpus-harness";
 import { YedChapterEditor } from "../src/client/renderers/yed-chapter-editor";
 import { ChapterFormatControl } from "../src/client/renderers/chapter-editor/format-control";
@@ -630,6 +631,146 @@ describe("the yed chapter parity gate — roles and formats on disk", () => {
       await settleOps();
       expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
       expect(m.read("d/.yo/body.yo")).toBe("!!<*yamlover: $defs: chapter>\nalpha\ndescription: beta\n");
+    } finally { m.done(); }
+  });
+
+  it("T under an EXISTING title persists — the titled childless wrap births on the FINAL flush", async () => {
+    // the reported loss: T turned a chunk into a subchapter title, Done dropped it — a
+    // childless titled wrap has no inline spelling (`- Title` reads as a plain chunk), and
+    // the deferred materialization waited for body. The title is committed labour: the
+    // FINAL flush (Done / navigating away) births it; mid-session the deferral stands.
+    const m = await mount({ "d/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nBook\n- alpha\n- beta\n" }, ":d");
+    let closed = false;
+    try {
+      const p = prose(m, 0); // "alpha"
+      fireEvent.focus(p);
+      pressT(m);
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      expect(m.dirs("d"), "mid-session the wrap stays deferred").toEqual([".yo"]);
+      m.done(); // Done / navigate away — the FINAL flush
+      closed = true;
+      await settleOps();
+      const born = m.dirs("d").filter((d) => d !== ".yo");
+      expect(born, "the titled wrap became its member directory").toHaveLength(1);
+      expect(born[0]).toContain("alpha"); // named after the title
+      // the born member is BANNERLESS: the chapter schema is recursive — the enclosing
+      // document's `items` routes the untagged member back to `$defs/chapter` (walk.ts),
+      // so only a document root wears the tag
+      expect(m.read(`d/${born[0]}/.yo/body.yo`)).toBe("alpha\n");
+      expect(m.read("d/.yo/body.yo")).toBe(`!!<*yamlover: $defs: chapter>\nBook\n- *: ${born[0]}\n- beta\n`);
+      // AND THE TITLE SURVIVES THE ROUND-TRIP: a fresh index over the same tree reads the
+      // childless bannerless member as a SUBCHAPTER (storage is shape: a directory member is
+      // a container even while its body is a bare title) — T's work does not revert to a
+      // chunk after Done (the reported loss)
+      const h2 = createHandlers(m.root, { gitignore: false });
+      await h2.ready;
+      try {
+        const j = call(h2, "/api/json", { path: ":d" }).json as {
+          value: { $yamloverMixed: { entries: { key: string | null; value: { $yamloverLink?: { format: string | null; title: string | null } } }[] } };
+        };
+        const member = j.value.$yamloverMixed.entries.find((e) => e.key === born[0]);
+        expect(member?.value.$yamloverLink?.format).toBe("x-yamlover-chapter");
+        expect(member?.value.$yamloverLink?.title).toBe("alpha");
+      } finally { h2.close(); }
+    } finally { if (!closed) m.done(); }
+  });
+
+  it("T on the ONLY chunk of an untitled DIR member — the root kind-conversion lands (no replace refusal)", async () => {
+    // the reported error: `replace` at a document root needs a key or index target — T on a
+    // member's only chunk converts the member document mapping → scalar (its title)
+    const m = await mount({
+      "d/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nBook\n- *: m\n",
+      "d/m/.yo/body.yo": "- Can ne\n",
+    }, ":d");
+    try {
+      const p = Array.from(m.container.querySelectorAll(".chapter-prose")).find((el) => el.textContent === "Can ne") as HTMLElement;
+      expect(p).toBeTruthy();
+      fireEvent.focus(p);
+      pressT(m);
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      expect(m.read("d/m/.yo/body.yo")).toBe("Can ne\n"); // the chunk became the member's TITLE
+    } finally { m.done(); }
+  });
+
+  it("T on a chunk INSIDE a LOADED member births that member's subdirectory on Done", async () => {
+    // the reported json/list loss: the materialization scan only descended into the mount
+    // root and session-born members — a titled wrap inside a member LOADED with the page
+    // had no birth path and Done dropped it
+    const m = await mount({
+      "d/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nConcretes 2\n- *: code\n",
+      "d/code/.yo/body.yo": "!!<*yamlover: $defs: chapter>\njson/code\n- Can by any of\n- json/list\n",
+    }, ":d");
+    let closed = false;
+    try {
+      const p = Array.from(m.container.querySelectorAll(".chunk-body .chapter-prose")).find((el) => el.textContent === "json/list") as HTMLElement;
+      fireEvent.focus(p);
+      pressT(m);
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      m.done(); // Done — the FINAL flush births the titled wrap inside the member
+      closed = true;
+      await settleOps();
+      const born = m.dirs("d/code").filter((x) => x !== ".yo");
+      expect(born, "the titled wrap became the member's subdirectory").toHaveLength(1);
+      expect(born[0]).toContain("json"); // named after the title (pointer-safe spelling)
+      expect(m.read(`d/code/${born[0]}/.yo/body.yo`)).toContain("json/list");
+      expect(m.read("d/code/.yo/body.yo")).toContain(`- *: ${born[0]}`);
+      expect(m.read("d/code/.yo/body.yo")).not.toContain("- json/list");
+    } finally { if (!closed) m.done(); }
+  });
+
+  it("SEVERAL chunks turned to titles all persist on Done (MINITODO 65)", async () => {
+    const m = await mount({ "d/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nBook\n- alpha\n- beta\n- gamma\n" }, ":d");
+    let closed = false;
+    try {
+      for (const text of ["alpha", "gamma"]) {
+        const p = Array.from(m.container.querySelectorAll(".chunk-body .chapter-prose")).find((el) => el.textContent === text) as HTMLElement;
+        fireEvent.focus(p);
+        pressT(m);
+        await settleOps();
+        expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      }
+      m.done();
+      closed = true;
+      await settleOps();
+      const born = m.dirs("d").filter((x) => x !== ".yo").sort();
+      expect(born, "both titles became member directories").toHaveLength(2);
+      expect(born.some((n) => n.includes("alpha"))).toBe(true);
+      expect(born.some((n) => n.includes("gamma"))).toBe(true);
+      const body = m.read("d/.yo/body.yo");
+      expect(body).toContain("- beta"); // the untouched chunk stands between them
+      for (const n of born) expect(body).toContain(`- *: ${n}`);
+    } finally { if (!closed) m.done(); }
+  });
+
+  it("T then Tab on a scalar MEMBER moves it INTO the previous chapter — the member detaches, no alert", async () => {
+    // the reported flow: the last chunk on the page is a whole MEMBER document (one scalar);
+    // T wraps+titles it, Tab indents it under the previous sibling chapter. The diff emits a
+    // `remove` at the member's document root — which now DETACHES it from the parent (the
+    // pointer entry goes, the storage stays orphaned) instead of erroring.
+    const m = await mount({
+      "d/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nConcretes 2\n- *: code\n- *: item01\n",
+      "d/code/.yo/body.yo": "!!<*yamlover: $defs: chapter>\njson/code\n- Can by any of\n",
+      "d/item01/.yo/body.yo": "son/object\n",
+    }, ":d");
+    try {
+      const p = Array.from(m.container.querySelectorAll(".chunk-body .chapter-prose")).find((el) => el.textContent === "son/object") as HTMLElement;
+      expect(p, "the member's scalar renders as a prose chunk").toBeTruthy();
+      fireEvent.focus(p);
+      pressT(m);
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      const title = document.activeElement as HTMLInputElement;
+      expect(title.value).toBe("son/object");
+      fireEvent.keyDown(title, { key: "Tab" });
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      // the parent lost the member's pointer entry; the content moved INTO the code chapter
+      expect(m.read("d/.yo/body.yo")).not.toContain("- *: item01");
+      expect(m.read("d/code/.yo/body.yo")).toContain("son/object");
+      expect(m.exists("d/item01/.yo/body.yo"), "the member's storage stays — orphaned, never deleted").toBe(true);
     } finally { m.done(); }
   });
 

@@ -60,20 +60,27 @@ const appendKey = (path: string, key: string): string => `${path === ":" ? "" : 
 
 /** A birth candidate: a session-born group (`meta.chapterWrapped`), untagged, that is now a
  *  TITLED chapter with body — the title names the member directory (a nameless group stays
- *  inline as `- - x`). Born when the committed counterpart wasn't titled-with-body yet. */
-function isBirth(nextNode: Value, committedNode: Value | null): boolean {
+ *  inline as `- - x`). On the FINAL flush (Done / navigating away) a NON-EMPTY TITLE ALONE
+ *  births too: the title is committed labour, and a childless titled wrap has no inline
+ *  spelling (`- Title` reads as a plain chunk — Done would silently drop the titleness).
+ *  Mid-session the deferral stands (a flush mid-typing must not name the member `item01`).
+ *  Born when the committed counterpart wasn't titled-with-body yet. */
+function isBirth(nextNode: Value, committedNode: Value | null, final: boolean): boolean {
   if (isPointer(nextNode)) return false;
   const n = nextNode as Node;
   if (metaOf(n).chapterWrapped !== true || tagContentOf(n) !== null) return false;
   if (!hasSelfValue(n)) return false;
-  if ((n.entries ?? []).length === 0) return false;
+  const body = (n.entries ?? []).length > 0;
+  const titled = scalarText(n).trim() !== "";
+  if (!body && !(final && titled)) return false;
   if (committedNode === null || isPointer(committedNode)) return true;
   const c = committedNode as Node;
   return !(hasSelfValue(c) && (c.entries ?? []).length > 0);
 }
 
 export function materializeSubchapters(
-  basePath: string, committed: Document, next: Document, docConcrete: string | null, rootTag: string | null,
+  basePath: string, committed: Document, next: Document, docConcrete: string | null,
+  final = false,
 ): MaterializeResult {
   const ops: Edit[] = [];
   const born: MaterializeResult["born"] = [];
@@ -87,14 +94,18 @@ export function materializeSubchapters(
     const committedContainer = nodeAt(outCommitted.root, docPath);
     (container.entries ?? []).forEach((e, i) => {
       const m = entryMeta(e);
-      if (m.anchorKey !== undefined && m.bornConcrete !== undefined) {
-        // a member born THIS session — its own document grows recursively
-        scanDocument([...docPath, i], appendKey(docServerPath, m.anchorKey), m.bornConcrete);
+      if (m.anchorKey !== undefined) {
+        // a MEMBER document — born this session (bornConcrete) or LOADED with the page (the
+        // wire's anchor flag): either way its own document grows recursively, so a titled
+        // wrap INSIDE a loaded member births as that member's subdirectory (the reported
+        // "T inside a subchapter is dropped on Done"). A loaded member's concrete is not on
+        // the wire — the parent's child-inheritance rule stands in for it.
+        scanDocument([...docPath, i], appendKey(docServerPath, m.anchorKey), m.bornConcrete ?? defaultChildConcrete(concrete));
         return;
       }
       if (e.key !== null) return;
       const committedEntry = committedContainer?.entries?.[i] ?? null;
-      if (!isBirth(e.value, committedEntry ? committedEntry.value : null)) return;
+      if (!isBirth(e.value, committedEntry ? committedEntry.value : null, final)) return;
 
       const node = e.value as Node;
       const title = scalarText(node);
@@ -114,10 +125,12 @@ export function materializeSubchapters(
       const predicted = nextMemberName(sibNames, "title", { prevName, nextName, title: title || "subchapter" });
 
       if (committedEntry !== null) ops.push({ path: appendIndex(docServerPath, i), op: "remove" });
+      // NO `meta` on the born member: the chapter schema is RECURSIVE — the enclosing document's
+      // `items` routes an untagged container member back to `$defs/chapter` (walk.ts applyItems),
+      // so a banner here is pollution, not information. Only a DOCUMENT ROOT wears the tag.
       ops.push({
         path: appendIndex(docServerPath, i), op: "insert", concrete: memberConcrete, name,
         yamlover: sourceOf({ root: stripWrap(node) } as Document).replace(/\n$/, ""),
-        ...(rootTag !== null ? { meta: rootTag } : {}),
       });
 
       // stamp the born entry in BOTH snapshots: the diff pairs it by key and skips the subtree

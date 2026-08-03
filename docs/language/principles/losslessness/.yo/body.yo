@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 Lossless, forever readable
 description: representation and comments survive round-trips; fallbacks never drop data
 - >

@@ -62,9 +62,11 @@ describe("applyTextEdits (/api/edit-text)", () => {
   it("a COLON inside a trailing comment does not read as an inline mapping (regression)", () => {
     // `# ui palette: dark | light` made isContainerEntry classify the scalar entry as a container,
     // re-rendering the old value as a bogus child line — the corrupted result then failed to parse.
+    // (The trailing-comment law now CARRIES the remark onto the re-rendered line — the user's
+    // labour survives the value edit.)
     const src = "width: 124\ntheme: dark   # ui palette: dark | light\n";
     const out = applyTextEdits(src, [{ path: ":theme", op: "emplace", yamlover: "light" }]);
-    expect(out).toBe("width: 124\ntheme: light\n");
+    expect(out).toBe("width: 124\ntheme: light   # ui palette: dark | light\n");
     // a GENUINE inline mapping under a `- ` item still classifies as one (comment and all)
     const doc = "- title: Sub   # note: keep\n  body: x\n";
     const out2 = applyTextEdits(doc, [{ path: "[0]:body", op: "emplace", yamlover: "y" }]);

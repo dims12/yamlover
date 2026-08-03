@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 'K&R: the inline switch'
 description: a multi-line flow token is json5p, not a third collection style
 - >

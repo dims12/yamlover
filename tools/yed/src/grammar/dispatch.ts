@@ -32,6 +32,9 @@ export interface Site {
    *  cross cells only from an edge line; inside, they stay the browser's). Default true. */
   caretFirstLine?: boolean;
   caretLastLine?: boolean;
+  /** Token cells only: the cursor holds a `|`/`>` BLOCK spelling (a newline in the text — an
+   *  input can never hold one). Enter is the textarea's newline, not a commit. */
+  blockToken?: boolean;
 }
 
 export type Dir = -1 | 1;
@@ -153,6 +156,9 @@ export function interpret(k: Key, s: Site): Intent | null {
   const flowIntent = inFlow(s) ? flowCommon(k, s, /*textual*/ false) : null;
   if (flowIntent) return flowIntent;
   if (k.key === "Tab") return inFlow(s) ? { kind: "move", dir: k.shift ? -1 : 1 } : k.shift ? { kind: "dedent" } : { kind: "indent" };
+  // a BLOCK token's Enter is a newline IN THE BODY — native in the textarea, never a commit or
+  // a sibling gesture (leaving the cell commits; that is the block's boundary)
+  if (k.key === "Enter" && s.cell === "token" && s.blockToken === true) return null;
   if (k.key === "Enter") {
     // Enter at the HEAD of a committed row (a token cell, caret before the first character):
     // the text-editor gesture — the row is pushed DOWN and a fresh sibling hole opens BEFORE

@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 'Mixtures: one node, every capability'
 description: scalar-plus-fields and keyed-plus-keyless — invalid in YAML, the default here
 - >

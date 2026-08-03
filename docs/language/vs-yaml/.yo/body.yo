@@ -1,6 +1,5 @@
 # Relationship to YAML — the kept surface, then every deliberate break, each its own
 # subdirectory chapter.
-!!<*yamlover: $defs: chapter>
 Similarities and differences with YAML
 description: the kept surface, and every place the same token means something else
 - >

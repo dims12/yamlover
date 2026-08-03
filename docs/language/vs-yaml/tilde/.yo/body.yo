@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 The tilde sigil
 description: a deprecated back-edge marker on keys and entries; in value position, null as always
 - >

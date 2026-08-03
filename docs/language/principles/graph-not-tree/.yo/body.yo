@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 A graph, kept as written
 description: an acyclic containment spine, ref edges on top — cycles allowed, nothing rewritten
 - >

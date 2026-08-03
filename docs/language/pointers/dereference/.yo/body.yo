@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 Dereference
 description: the pull — * takes a path and yields a shared edge
 - >

@@ -7,7 +7,7 @@
 // state, the corpus picker and document-level copy/paste.
 
 import { useMemo, useState } from "react";
-import { applyKey, applyText, commitPending, copySubtree, pasteSubtree, positionsOf, siteOf, watchdog, type Position } from "./apply";
+import { applyKey, applyText, blockEditText, commitPending, copySubtree, pasteSubtree, positionsOf, siteOf, watchdog, type Position } from "./apply";
 import { interpret } from "./grammar/dispatch";
 import { defaultRegistry, DocCells, type CellCtx, type CellRegistry } from "./cells";
 import { lineDiff } from "./diff";
@@ -83,7 +83,7 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
           // indentation) — a selection copy across cells gets the SERIALIZED source instead.
           // Copying inside one cell input stays native. Pending input COMMITS first; input that
           // cannot land rings and nothing is copied.
-          if (e.target instanceof HTMLInputElement) return;
+          if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
           e.preventDefault();
           const committed = commitPending(state);
           if (committed === null) { apply({ ...state, refused: true }); return; }
@@ -123,11 +123,13 @@ function loadText(state: EditorState, cursor: Cursor): Cursor {
   if (cursor.at === "token") {
     const list = positionsOf(state.doc);
     void list;
-    // read the node's current raw/value as the edit text
+    // read the node's current raw/value as the edit text — a `|`/`>` scalar loads its
+    // REPARSEABLE block spelling (header + re-indented body), never the flattened raw
     let n: unknown = state.doc.root;
     for (const i of cursor.path) n = (n as { entries: { value: unknown }[] }).entries[i].value;
     const v = n as { raw?: string; value?: unknown };
-    return { ...cursor, text: String(v?.raw ?? v?.value ?? "") };
+    const block = blockEditText(n as never);
+    return { ...cursor, text: block ?? String(v?.raw ?? v?.value ?? "") };
   }
   if (cursor.at === "key") {
     let n: unknown = state.doc.root;

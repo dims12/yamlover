@@ -12,7 +12,7 @@
 import { interpret, type Intent, type Site } from "./grammar/dispatch";
 import { classifyHoleInput, keyedEditParts } from "./grammar/keys";
 import {
-  bracketOf, dialectOf, entryAt, isContainer, isFlow, isSpread, nodeAt, sourceOf,
+  blockRawOf, bracketOf, dialectOf, entryAt, isContainer, isFlow, isSpread, nodeAt, sourceOf,
   type Cursor, type Document, type EditorState, type Entry, type Node, type Path, type Value,
 } from "./state";
 import { parseSchemaRef, parseYamlover } from "../../parser/ts/src/yamlover.ts";
@@ -130,7 +130,10 @@ export function siteOf(state: EditorState): Site {
   }
   if (cursor.at === "token") {
     const parent = cursor.path.length ? nodeAt(doc, cursor.path.slice(0, -1)) : null;
-    return { ...base, cell: "token", container: containerKind(parent), textEmpty: cursor.text.trim() === "", entryCommitted: true };
+    // a cursor text WITH a newline is a `|`/`>` BLOCK spelling being edited in the textarea —
+    // an <input> can never hold one, so the bit is unambiguous
+    const blockToken = cursor.text.includes("\n") ? { blockToken: true } : {};
+    return { ...base, cell: "token", container: containerKind(parent), textEmpty: cursor.text.trim() === "", entryCommitted: true, ...blockToken };
   }
   if (cursor.at === "key") {
     const parent = nodeAt(doc, cursor.path.slice(0, -1));
@@ -344,11 +347,38 @@ function applyVertical(state: EditorState, dir: -1 | 1): EditorState {
   return ok({ ...s, cursor: c.at === "token" || c.at === "key" || c.at === "tag" || c.at === "anchors" ? { ...c, caret: "end" } : c });
 }
 
+/** A block scalar's EDIT TEXT — the reparseable spelling: the authored header, then the body
+ *  re-indented by the parser's step. This is what the cursor holds while a `|`/`>` scalar is
+ *  edited (the de-indented raw is NOT reparseable and, flattened into an input, stripped the
+ *  newlines — the corruption this closes). Null: not a block scalar. */
+export function blockEditText(v: Value): string | null {
+  const b = blockRawOf(v);
+  if (b === null) return null;
+  return b.header + "\n" + b.lines.map((l) => (l === "" ? "" : "  " + l)).join("\n");
+}
+
+/** The edit text split back: the header line and the DE-INDENTED body (the textarea's value).
+ *  Null: not a block spelling. */
+export function blockBodyOf(text: string): { header: string; body: string } | null {
+  const nl = text.indexOf("\n");
+  const header = nl === -1 ? text : text.slice(0, nl);
+  if (!/^[|>][+-]?$/.test(header)) return null;
+  const body = nl === -1 ? "" : text.slice(nl + 1);
+  return { header, body: body.split("\n").map((l) => (l.startsWith("  ") ? l.slice(2) : l)).join("\n") };
+}
+
+/** The inverse — the textarea's body re-composed under the header as the cursor's edit text. */
+export function blockTextFrom(header: string, body: string): string {
+  if (body === "") return header;
+  return header + "\n" + body.split("\n").map((l) => (l === "" ? "" : "  " + l)).join("\n");
+}
+
 function toCursor(doc: Document, p: Position): Cursor {
   if (p.at === "token") {
     const e = entryAt(doc, p.path);
     const v = (p.path.length === 0 ? (doc.root as Node) : (e?.value as Node)) as { raw?: string; value?: unknown };
-    return { at: "token", path: p.path, text: String(v?.raw ?? v?.value ?? "") };
+    const block = v ? blockEditText(v as Value) : null;
+    return { at: "token", path: p.path, text: block ?? String(v?.raw ?? v?.value ?? "") };
   }
   if (p.at === "key") return { at: "key", path: p.path, text: String(entryAt(doc, p.path)?.key ?? "") };
   if (p.at === "tag") {
@@ -759,7 +789,7 @@ function restCursor(node: Node, path: Path): Cursor {
 // ---------------------------------------------------------------------------- //
 
 export interface KeyInput { key: string; shift?: boolean }
-export interface Edges { atStart: boolean; atEnd: boolean }
+export interface Edges { atStart: boolean; atEnd: boolean; firstLine?: boolean; lastLine?: boolean }
 
 /** The cursor's text replaced wholesale (a controlled input's onChange — native caret, selection,
  *  mid-text edits and text-level paste all included), then the hole classifier runs. */
@@ -775,7 +805,12 @@ const refuse = (s: EditorState): EditorState => ({ ...s, refused: true });
 
 export function applyKey(state: EditorState, k: KeyInput, edges?: Edges): EditorState {
   const before = sourceOf(state.doc);
-  const site = { ...siteOf(state), ...(edges ? { caretAtStart: edges.atStart, caretAtEnd: edges.atEnd } : {}) };
+  const site = {
+    ...siteOf(state),
+    ...(edges ? { caretAtStart: edges.atStart, caretAtEnd: edges.atEnd } : {}),
+    ...(edges?.firstLine !== undefined ? { caretFirstLine: edges.firstLine } : {}),
+    ...(edges?.lastLine !== undefined ? { caretLastLine: edges.lastLine } : {}),
+  };
   const intent = interpret({ key: k.key, shift: k.shift }, site);
   // the table calls both arrow axes "move"; the vertical pair walks ROWS, not positions — and
   // BACKSPACE at a block value's start is the CONVERSION LADDER, not a walk

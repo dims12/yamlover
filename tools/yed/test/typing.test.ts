@@ -2,7 +2,7 @@
 // the SERIALIZED document (the file that would be written) and that the editor never claimed an
 // edit it refused.
 import { describe, it, expect } from "vitest";
-import { applyKey, copySubtree, pasteSubtree, watchdog } from "../src/apply";
+import { applyKey, blockBodyOf, blockEditText, blockTextFrom, copySubtree, pasteSubtree, positionsOf, watchdog } from "../src/apply";
 import { initialState, parseSource, sourceOf, type EditorState } from "../src/state";
 import { parseScript } from "./keys-util";
 
@@ -525,5 +525,78 @@ describe("yed2 typing — the editable & ANCHOR rows", () => {
     const s = applyKey({ ...s0, cursor: { at: "anchors", path: [0], index: 1, text: ": x: y" } }, { key: "Enter" });
     expect(s.refused).toBe(false);
     expect(src(s)).toBe("a: 1\n  &: p: q\n  &: x: y\n");
+  });
+});
+
+describe("yed2 typing — BLOCK scalars (| and >): multi-line editing, style stable", () => {
+
+  it("entering a block token loads the REPARSEABLE spelling (header + re-indented body)", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("k: |\n  line one\n  line two\n") };
+    const s = applyKey({ ...s0, cursor: { at: "key", path: [0], text: "k", caret: "end" } }, { key: "ArrowRight" });
+    expect(s.cursor).toMatchObject({ at: "token", path: [0], text: "|\n  line one\n  line two" });
+  });
+
+  it("Enter INSIDE a block token is the textarea's newline — the grammar stands aside", () => {
+    const s0: EditorState = {
+      ...initialState(),
+      doc: parseSource("k: |\n  line one\n  line two\n"),
+      cursor: { at: "token", path: [0], text: "|\n  line one\n  line two" },
+    };
+    const s = applyKey(s0, { key: "Enter" });
+    expect(s).toBe(s0); // unhandled — native newline in the textarea
+    watchdog(s0);       // and the state stays lawful
+  });
+
+  it("an UNTOUCHED enter-then-leave keeps raw byte-identical (zero diff on disk)", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("k: |\n  line one\n  line two\nm: 1\n") };
+    const before = src(s0);
+    const entered = applyKey({ ...s0, cursor: { at: "key", path: [0], text: "k", caret: "end" } }, { key: "ArrowRight" });
+    const left = applyKey(entered, { key: "ArrowDown" }, { atStart: false, atEnd: true, firstLine: false, lastLine: true });
+    expect(left.refused).toBe(false);
+    expect(src(left)).toBe(before);
+  });
+
+  it("a BODY edit commits with the authored header preserved — `|` stays `|`, `>` stays `>`", () => {
+    const s0: EditorState = {
+      ...initialState(),
+      doc: parseSource("k: |\n  line one\n  line two\nm: 1\n"),
+      cursor: { at: "token", path: [0], text: blockTextFrom("|", "line one\nline 2!") },
+    };
+    const s = applyKey(s0, { key: "ArrowDown" }, { atStart: false, atEnd: true, firstLine: false, lastLine: true });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("k: |\n  line one\n  line 2!\nm: 1\n");
+    const folded: EditorState = {
+      ...initialState(),
+      doc: parseSource("k: >\n  these three lines\n  fold into\n  one\nm: 1\n"),
+      cursor: { at: "token", path: [0], text: blockTextFrom(">", "these three lines\nfold into\ntwo") },
+    };
+    const s2 = applyKey(folded, { key: "ArrowDown" }, { atStart: false, atEnd: true, firstLine: false, lastLine: true });
+    expect(s2.refused).toBe(false);
+    expect(src(s2)).toBe("k: >\n  these three lines\n  fold into\n  two\nm: 1\n");
+  });
+
+  it("vertical arrows leave only from EDGE lines; inside they stay native", () => {
+    const s0: EditorState = {
+      ...initialState(),
+      doc: parseSource("k: |\n  line one\n  line two\n"),
+      cursor: { at: "token", path: [0], text: "|\n  line one\n  line two" },
+    };
+    const mid = applyKey(s0, { key: "ArrowDown" }, { atStart: false, atEnd: false, firstLine: true, lastLine: false });
+    expect(mid).toBe(s0); // not an edge line — the browser moves the caret
+  });
+
+  it("the helpers round-trip: blockEditText ⇄ blockBodyOf ⇄ blockTextFrom", () => {
+    const doc = parseSource("k: |-\n  a\n\n  b\n");
+    const node = (doc.root as import("../src/state").Node).entries![0].value;
+    const text = blockEditText(node)!;
+    expect(text).toBe("|-\n  a\n\n  b");
+    const parts = blockBodyOf(text)!;
+    expect(parts).toEqual({ header: "|-", body: "a\n\nb" });
+    expect(blockTextFrom(parts.header, parts.body)).toBe(text);
+  });
+
+  it("positionsOf sees a block scalar as ONE token position — nothing extra to draw", () => {
+    const doc = parseSource("k: |\n  line one\n  line two\n");
+    expect(positionsOf(doc)).toEqual([{ at: "key", path: [0] }, { at: "token", path: [0] }]);
   });
 });

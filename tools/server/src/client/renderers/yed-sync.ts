@@ -90,12 +90,44 @@ const tagContentOf = (v: Node): string | null => {
 const eq = (a: Value, b: Value): boolean => JSON.stringify(canon(a)) === JSON.stringify(canon(b));
 const entryEq = (a: Entry, b: Entry): boolean => a.key === b.key && eq(a.value, b.value);
 
+/** A copy with the display-only COMMENT carriage stripped (entry leading/trailing, blankBefore,
+ *  node tail/valueTrailing). The serializer defaults comments off, but `flowTextOrNull`'s flow
+ *  refusal is unconditional — a flow container whose interior carries loaded comments would
+ *  silently demote to block form in a payload. Stripping keeps every payload byte-identical to
+ *  the comment-free twin. */
+function stripComments(v: Value): Value {
+  if (isPointer(v)) return v;
+  const n = v as Node;
+  let meta = n.meta as Record<string, unknown> | undefined;
+  if (meta && (meta.comments !== undefined || meta.head !== undefined)) {
+    const { comments: _c, head: _h, ...rest } = meta;
+    meta = Object.keys(rest).length > 0 ? rest : undefined;
+  }
+  const entries = (n.entries ?? []).map((e) => {
+    const em = e.meta as Record<string, unknown> | undefined;
+    let outMeta = em;
+    if (em && (em.comments !== undefined || em.blankBefore !== undefined)) {
+      const { comments: _c, blankBefore: _b, ...rest } = em;
+      outMeta = Object.keys(rest).length > 0 ? rest : undefined;
+    }
+    const value = stripComments(e.value);
+    if (outMeta === em && value === e.value) return e;
+    const { meta: _m, ...rest } = e as Entry & { meta?: unknown };
+    return { ...rest, value, ...(outMeta !== undefined ? { meta: outMeta } : {}) } as Entry;
+  });
+  const changed = meta !== n.meta || entries.some((e, i) => e !== (n.entries ?? [])[i]);
+  if (!changed) return v;
+  const out = { ...n, entries } as Node & { meta?: unknown };
+  if (meta !== undefined) out.meta = meta; else delete out.meta;
+  return out;
+}
+
 /** A value as an op payload: one line for pointers/scalars, the serialized subtree for nodes
  *  (its text carries flow/K&R layout). Throws on a blob — the caller falls back or refuses. */
 function payloadOf(v: Value): string {
   if (isPointer(v)) return "*" + ((v as { raw?: string }).raw ?? "");
   if ((v as Node).kind === "blob" || hasBlob(v)) throw new Error("a blob has no op payload");
-  return sourceOf({ root: v } as Document).replace(/\n$/, "");
+  return sourceOf({ root: stripComments(v) } as Document).replace(/\n$/, "");
 }
 
 /** The entry's address segment: its key (stable under sibling churn), the derived anchor key of

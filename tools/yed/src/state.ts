@@ -120,6 +120,17 @@ export function schemaTextOf(v: Value): string | null {
   try { return schemaTagToken(sch.schema).slice(3, -1); } catch { return null; }
 }
 
+/** The BLOCK SCALAR face of a node's raw: the authored `|` / `|-` / `>` … header and the
+ *  de-indented body lines (the parser's normalized raw). Null: not a block scalar. */
+export function blockRawOf(v: Value): { header: string; lines: string[] } | null {
+  if (isPointer(v)) return null;
+  const raw = (v as { raw?: string }).raw;
+  if (typeof raw !== "string" || !raw.includes("\n")) return null;
+  const [header, ...lines] = raw.split("\n");
+  if (!/^[|>][+-]?$/.test(header)) return null;
+  return { header, lines };
+}
+
 /** The node's `&` anchor tokens for display — the canonical own-line spelling (`&` + body). */
 export function anchorDecorations(v: Value): string[] {
   if (isPointer(v)) return [];

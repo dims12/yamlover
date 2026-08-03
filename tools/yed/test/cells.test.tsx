@@ -152,3 +152,97 @@ describe("yed2 cells — identity decorations are VISIBLE chrome", () => {
     expect(container.querySelector(".y2-decor")?.textContent?.trim()).toBe("!!yo");
   });
 });
+
+describe("yed2 cells — the renderer-parity round (the read view is the standard)", () => {
+  it("scalar TONES: every value type carries its renderer color class on the cell", () => {
+    const state = stateFor("s: hi\nn: 5\nb: true\nx: null\n");
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    for (const tone of ["y2-s", "y2-n", "y2-b", "y2-null"]) {
+      expect(container.querySelector(`.y2-cell.y2-token.${tone}`), tone).toBeTruthy();
+    }
+  });
+
+  it("the DASH is the renderer's scaled mark — inside a span still reading `- `", () => {
+    const state = stateFor("- 1\n- 2\n");
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    const dashes = Array.from(container.querySelectorAll(".y2-punct")).filter((p) => p.textContent === "- ");
+    expect(dashes.length).toBe(2);
+    for (const d of dashes) expect(d.querySelector(".y2-dash")?.textContent).toBe("-");
+  });
+
+  it("a `|` BLOCK scalar renders the renderer's shape: header on the key row, body rows one step in", () => {
+    const state = stateFor("k: |\n  line one\n  line two\n");
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    // no single-line collapse: the body is two indented rows, the header rides the key's row
+    const tokenCell = container.querySelector(".y2-cell.y2-token")!;
+    const rows = Array.from(tokenCell.querySelectorAll(".y2-row"));
+    expect(rows[0].textContent).toContain("k: ");
+    expect(rows[0].textContent).toContain("|");
+    const bodyRows = rows.filter((r) => r.classList.contains("y2-indent"));
+    expect(bodyRows.map((r) => r.textContent)).toEqual(["line one", "line two"]);
+    expect(tokenCell.querySelector("input")).toBeNull(); // read face — no input
+  });
+
+  it("a keyed OMNI's field rows sit one step in below `key: value`; a ROOT omni stays flat", () => {
+    const keyed = stateFor("k: v\n  - sub\n");
+    const { container } = render(<EditorView state={keyed} setState={() => {}} />);
+    const omni = container.querySelector(".y2-cell.y2-omni")!;
+    const rows = Array.from(omni.querySelectorAll(":scope > .y2-cell > .y2-rows > .y2-row"));
+    expect(rows[0].textContent).toContain("k: ");
+    expect(rows[0].textContent).toContain("v");
+    expect(rows[1].classList.contains("y2-indent")).toBe(true);
+    cleanup();
+    const root = stateFor("v\n- sub\n");
+    const { container: c2 } = render(<EditorView state={root} setState={() => {}} />);
+    const omni2 = c2.querySelector(".y2-cell.y2-omni")!;
+    const rows2 = Array.from(omni2.querySelectorAll(":scope > .y2-cell > .y2-rows > .y2-row"));
+    expect(rows2.some((r) => r.classList.contains("y2-indent"))).toBe(false);
+  });
+
+  it("COMMENTS and blank lines are read-only chrome rows — drawn, never focusable, never a position", () => {
+    const src = "# banner\n\na: 1\t# note\n\n# about b\nb: 2\n";
+    const state = stateFor(src);
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    const comments = Array.from(container.querySelectorAll(".y2-comment")).map((el) => el.textContent);
+    expect(comments).toContain("# banner");
+    expect(comments).toContain("# note");
+    expect(comments).toContain("# about b");
+    expect(container.querySelectorAll(".y2-blankline").length).toBeGreaterThanOrEqual(2);
+    // no comment element is focusable or stamped as a position
+    for (const el of Array.from(container.querySelectorAll(".y2-comment, .y2-comment-row, .y2-blankline"))) {
+      expect(el.getAttribute("tabindex")).toBeNull();
+      expect(el.getAttribute("data-at")).toBeNull();
+      expect(el.getAttribute("data-path")).toBeNull();
+    }
+  });
+
+  it("the caret walk is COMMENT-BLIND: positions equal with and without comments", async () => {
+    const { positionsOf } = await import("../src/apply");
+    const commented = parseSource("# banner\n\na: 1\t# note\n\n# about b\nb: 2\n");
+    const bare = parseSource("a: 1\nb: 2\n");
+    expect(positionsOf(commented)).toEqual(positionsOf(bare));
+  });
+
+  it("a TAGGED ROOT's chrome stands on its own line — the body returns to column 0 (the RootDeco law)", () => {
+    // reported: the whole document body hung at the tag's right edge (a giant left margin) —
+    // inline chrome before the root omni's inline-block anchored every row at the tag column
+    const state = stateFor("!!<*yamlover: $defs: chapter>\nThe Title\ndescription: blurb\n- chunk one\n");
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    const tagCell = container.querySelector(".y2-cell.y2-tag")!;
+    expect(tagCell).toBeTruthy();
+    // the tag's row holds ONLY chrome — never the title or any body row
+    const tagRow = tagCell.closest(".y2-row")!;
+    expect(tagRow.textContent).not.toContain("The Title");
+    expect(tagRow.textContent).not.toContain("description");
+    // and the title's row does not carry the tag
+    const title = Array.from(container.querySelectorAll(".y2-v")).find((el) => el.textContent === "The Title")!;
+    expect(title.closest(".y2-row")?.textContent).not.toContain("$defs");
+  });
+
+  it("a container's TAIL comment renders after its last entry", () => {
+    const state = stateFor("a: 1\n# the end\n");
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    const doc = container.querySelector("[data-testid=y2-doc]")!;
+    expect(Array.from(doc.querySelectorAll(".y2-comment")).map((el) => el.textContent)).toContain("# the end");
+  });
+});

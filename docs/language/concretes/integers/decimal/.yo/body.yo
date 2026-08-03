@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 Decimal
 description: 'yaml/dec — the default base'
 - >

@@ -82,6 +82,12 @@ export interface NodeMeta {
    *  `.yo` overlay-dir node so its derived sidecars (`thumbnails/`, `fragments/`) resolve
    *  via `*:.yo:…` / `*::.yo:…` without cluttering the UI. */
   hidden?: boolean;
+  /** DIRECTORY-backed document (a dir with a `.yo/body.yo` overlay): the node's STORAGE is a
+   *  directory, which is container shape — schema shape-routing (walk.ts `elemIsContainer`)
+   *  reads a dir-backed member as a container even when its body is momentarily a bare title
+   *  (a titled CHILDLESS subchapter, the T→Done shape, is otherwise indistinguishable from a
+   *  chunk). Derived by the walk, never authored, never serialized. */
+  dirBacked?: boolean;
   /** Comments with no entry to attach to: a comment after the last entry of a block, or
    *  inside an empty container; the document root also collects any otherwise-unplaced ones. */
   comments?: Comment[];

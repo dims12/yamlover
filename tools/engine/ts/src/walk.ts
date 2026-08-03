@@ -909,12 +909,17 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     !!field(n, 'properties') || !!field(n, 'items') || !!field(n, 'allOf') ||
     ['object', 'variant', 'mixed', 'array'].includes(str(n, 'type') ?? '');
   // A mapping is a container; so is an omni scalar that carries BODY entries (a titled
-  // subchapter: its self-value is the title, its entries the body). A bare scalar stays a
-  // leaf — a chunk, which IS a title-only subchapter (CHAPTER.md). The overlay keys an
-  // annotated chunk gains (ANNOTATIONS.md) are not body — a scalar with only those stays a chunk.
+  // subchapter: its self-value is the title, its entries the body) — and so is a DIRECTORY-
+  // backed document whatever its body momentarily holds: storage is shape, and a directory
+  // is a container (a titled CHILDLESS subchapter's body is a bare title, indistinguishable
+  // from a chunk by value shape alone — its directory says what it is). An inline bare
+  // scalar and a FILE-backed scalar stay leaves — chunks, which ARE title-only content
+  // (CHAPTER.md). The overlay keys an annotated chunk gains (ANNOTATIONS.md) are not body —
+  // a scalar with only those stays a chunk.
   const OVERLAY_KEYS = new Set(['yamlover-annotations', 'yamlover-fragments']);
   const elemIsContainer = (el: Node): boolean =>
     el.kind === 'mapping' ||
+    (el.meta as { dirBacked?: boolean } | undefined)?.dirBacked === true ||
     (el.entries ?? []).some((e) => e.key == null || !OVERLAY_KEYS.has(e.key));
 
   // propagate an `items` schema to the POSITIONAL (keyless) elements of `inst`. `items` may be
@@ -928,9 +933,14 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     // table; CHAPTER.md §The schema). `walk()` applies the element's pointer separately.
     // a `!!yo` element is PLAIN YAMLOVER — exempt from the enclosing schema by definition
     // (the data-island semantics): never routed to a branch, never stamped with a format,
-    // so a chapter body's island does not become an x-yamlover-chapter in the TOC
+    // so a chapter body's island does not become an x-yamlover-chapter in the TOC.
+    // ANCHORED members — position-granted by the body's pointer array (`meta.anchored`) —
+    // are the chapter's BODY exactly like inline keyless elements ("they count as ORDINAL,
+    // not keyed"): the items schema routes them too, so a bannerless member folds the same
+    // way in every projection instead of falling format-less between the faces.
+    const anchoredKeys = new Set(((inst.meta as { anchored?: string[] } | undefined)?.anchored) ?? []);
     const elems = (inst.entries ?? []).filter((e) =>
-      e.key == null && !isPointer(e.value) &&
+      (e.key == null || anchoredKeys.has(e.key)) && !isPointer(e.value) &&
       e.value.meta?.yo !== true &&
       !(e.value.meta?.schema && isPointer(e.value.meta.schema)));
     if (anyOf && !isPointer(anyOf) && anyOf.entries) {
@@ -1023,7 +1033,9 @@ function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
   // a directory with a body.yo overlay is a self-contained instance = a DOCUMENT root
   // (so `*: file` inside it resolves to this directory, at any nesting depth). The body's
   // head-of-file banner rides onto the node so it survives past the parse.
-  const meta0 = { ...node.meta, ...body.meta, documentRoot: true, ...(bodyDoc.head?.length ? { head: bodyDoc.head } : {}) };
+  // `dirBacked` records the STORAGE shape: this document is a directory, which is container
+  // shape wherever a schema routes by shape — a bare-title body does not demote it to a chunk
+  const meta0 = { ...node.meta, ...body.meta, documentRoot: true, dirBacked: true, ...(bodyDoc.head?.length ? { head: bodyDoc.head } : {}) };
 
   // THE POSITIONAL FACET of a directory body is its KEYLESS entries — the same thing whatever else
   // the body carries: a pure pointer/inline sequence, a SCALAR self-value with a body under it (the

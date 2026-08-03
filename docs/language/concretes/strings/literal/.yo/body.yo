@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 Literal block
 description: the pipe block scalar — yaml/literal preserves newlines
 - >

@@ -11,9 +11,9 @@
 
 import { Fragment, type ReactNode } from "react";
 import type { Cursor, Document, Entry, Node, Path, Value } from "./state";
-import { anchorDecorations, bracketOf, isFlow, isSpread, schemaTextOf } from "./state";
-import { isPointer, type Pointer } from "../../parser/ts/src/ir.ts";
-import type { Position } from "./apply";
+import { anchorDecorations, blockRawOf, bracketOf, isFlow, isSpread, schemaTextOf } from "./state";
+import { isPointer, type Comment, type Pointer } from "../../parser/ts/src/ir.ts";
+import { blockBodyOf, blockTextFrom, type Position } from "./apply";
 
 export interface CellCtx {
   cursor: Cursor;
@@ -23,7 +23,7 @@ export interface CellCtx {
   /** False for an EMBEDDED editor that does not hold focus (a chapter source chunk): the
    *  active cell renders but must not STEAL the caret. Absent ⇒ true. */
   plantCaret?: boolean;
-  onKey: (e: React.KeyboardEvent, edges?: { atStart: boolean; atEnd: boolean }) => void;
+  onKey: (e: React.KeyboardEvent, edges?: { atStart: boolean; atEnd: boolean; firstLine?: boolean; lastLine?: boolean }) => void;
   onText: (text: string) => void;
   onFocus: (pos: Position) => void;
 }
@@ -61,21 +61,29 @@ export function cellFor(v: Value, reg: CellRegistry): ValueCellComponent {
 
 const pathEq = (a: Path, b: Path): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 
+/** The scalar's TONE — the renderer's .s/.n/.b/.null color vocabulary, decided by the VALUE
+ *  (the same classification render.tsx's scalarNode makes). Carried on the Cell wrapper so the
+ *  active input inherits the token's color while editing. */
+const toneOf = (v: unknown): "s" | "n" | "b" | "null" =>
+  v === null ? "null" : typeof v === "boolean" ? "b" : typeof v === "number" ? "n" : "s";
+
 /** The uniform cell wrapper: frame + kind caption; accent when active; ring when refused.
  *  EXPORTED — the CHAPTER projection's cells wrap through this same component, so the whole
  *  y2-debug/y2-plain CSS contract (frames, captions, accents, the ring) is one and shared.
  *  `pos` stamps data-at/data-path (the positions-law-in-DOM tests); `badge` rides inside the
- *  caption ("chapter · wrapped"); `block` marks display:block cells (titles, chunks, sections). */
-export function Cell({ kind, active, refused, pos, badge, block, children }: {
+ *  caption ("chapter · wrapped"); `block` marks display:block cells (titles, chunks, sections);
+ *  `tone` is the scalar color class (`y2-s` …) the renderer's palette keys on. */
+export function Cell({ kind, active, refused, pos, badge, block, tone, children }: {
   kind: string; active: boolean; refused: boolean;
   pos?: { at: string; path: Path };
   badge?: ReactNode;
   block?: boolean;
+  tone?: string;
   children: ReactNode;
 }) {
   return (
     <span
-      className={"y2-cell y2-" + kind + (block ? " y2-block" : "") + (active ? " y2-active" : "") + (active && refused ? " y2-refused" : "")}
+      className={"y2-cell y2-" + kind + (tone ? " y2-" + tone : "") + (block ? " y2-block" : "") + (active ? " y2-active" : "") + (active && refused ? " y2-refused" : "")}
       data-kind={kind}
       data-at={pos?.at}
       data-path={pos ? pos.path.join(".") : undefined}
@@ -109,6 +117,33 @@ function CellInput({ value, ctx, autoFocus, caret }: { value: string; ctx: CellC
   );
 }
 
+/** The list DASH — the renderer's `.yaml-dash`: scaled in place, one-cell column kept. The
+ *  outer span still reads `"- "` (tests and copy see the source text). */
+const DashMark = () => <span className="y2-punct"><span className="y2-dash">-</span> </span>;
+
+// ---- COMMENT CHROME — read-only rows/spans, the renderer's `.c` face. Plain DOM: no Cell
+// wrapper, no pos stamps, no tabIndex — the caret walk cannot land here by construction. ---- //
+
+const fmtComment = (t: string): string => "# " + t.trim(); // the renderer's spelling (render.tsx fmtComment)
+
+/** Own-line `# …` rows (an entry's leading comments, a container's tail block). */
+const CommentRows = ({ texts, rowClass, keyPrefix }: { texts: string[]; rowClass: string; keyPrefix: string }): ReactNode =>
+  texts.map((t, i) => (
+    <div key={`${keyPrefix}${i}`} className={rowClass + " y2-comment-row"}>
+      <span className="y2-comment">{fmtComment(t)}</span>
+    </div>
+  ));
+
+/** The blank source line kept as vertical rhythm. */
+const BlankRow = ({ k }: { k: string }): ReactNode => <div key={k} className="y2-row y2-blankline" />;
+
+const commentsOf = (meta: unknown, placement: "leading" | "trailing"): string[] =>
+  (((meta ?? {}) as { comments?: Comment[] }).comments ?? []).filter((c) => c.placement === placement).map((c) => c.text);
+
+/** A row's trailing `# …` remark — rides the row's end, offset toward the comment column. */
+const TrailSpan = ({ texts }: { texts: string[] }): ReactNode =>
+  texts.length === 0 ? null : <span className="y2-comment y2-trail">{texts.map(fmtComment).join(" ")}</span>;
+
 /** The HOLE — the entry being typed (it exists only in the cursor). Shows the named key when
  *  `k: ` already fixed it. */
 function HoleCell({ ctx }: { ctx: CellCtx }) {
@@ -116,7 +151,7 @@ function HoleCell({ ctx }: { ctx: CellCtx }) {
   if (c.at !== "hole") return null;
   return (
     <Cell kind="hole" active refused={ctx.refused}>
-      {c.ordinal === true && <span className="y2-punct">- </span>}
+      {c.ordinal === true && <DashMark />}
       {c.key !== null && <span className="y2-k">{c.key}: </span>}
       <CellInput value={c.text} ctx={ctx} autoFocus />
     </Cell>
@@ -140,11 +175,87 @@ function GapCell({ path, ctx }: { path: Path; ctx: CellCtx }) {
   );
 }
 
-function TokenCell({ node, path, ctx }: { node: Node; path: Path; ctx: CellCtx }) {
-  const active = ctx.cursor.at === "token" && pathEq(ctx.cursor.path, path);
-  const display = String((node as { raw?: string }).raw ?? (node as { value?: unknown }).value ?? "");
+/** The BLOCK body's textarea — native newlines, selection, paste; every keystroke still goes up
+ *  through `ctx.onKey` with FULL edges (line edges included — vertical arrows leave the cell
+ *  only from an edge line). The value is the DE-INDENTED body; the header is chrome. */
+function BlockInput({ header, body, ctx, autoFocus, caret }: { header: string; body: string; ctx: CellCtx; autoFocus: boolean; caret?: "start" | "end" }) {
+  const lines = body.split("\n");
+  const cols = Math.max(8, ...lines.map((l) => l.length)) + 1;
   return (
-    <Cell kind="token" active={active} refused={ctx.refused}>
+    <textarea
+      className="y2-blocktext"
+      value={body}
+      rows={Math.max(1, lines.length)}
+      cols={cols}
+      ref={(el) => {
+        if (el && autoFocus && ctx.plantCaret !== false && document.activeElement !== el) {
+          el.focus();
+          if (caret) { const n = caret === "end" ? el.value.length : 0; el.setSelectionRange(n, n); }
+        }
+      }}
+      onChange={(e) => ctx.onText(blockTextFrom(header, e.target.value))}
+      onKeyDown={(e) => {
+        const el = e.currentTarget;
+        const s = el.selectionStart ?? 0;
+        const en = el.selectionEnd ?? el.value.length;
+        ctx.onKey(e, {
+          atStart: s === 0,
+          atEnd: en === el.value.length,
+          firstLine: !el.value.slice(0, s).includes("\n"),
+          lastLine: !el.value.slice(en).includes("\n"),
+        });
+      }}
+    />
+  );
+}
+
+function TokenCell({ node, path, ctx, lead }: { node: Node; path: Path; ctx: CellCtx; lead?: ReactNode }) {
+  const active = ctx.cursor.at === "token" && pathEq(ctx.cursor.path, path);
+  const block = blockRawOf(node);
+  // the ACTIVE block face keys on the CURSOR's spelling (an emptied body is a bare `|-` with no
+  // newline; a plain scalar being retyped never flips — the node itself must be a block)
+  const cursorText = active ? (ctx.cursor as { text: string }).text : null;
+  const activeBlock = cursorText !== null && (cursorText.includes("\n") || block !== null) ? blockBodyOf(cursorText) : null;
+  if (activeBlock !== null) {
+    return (
+      <Cell kind="token" active refused={ctx.refused} tone={toneOf((node as { value?: unknown }).value)}>
+        <div className="y2-rows">
+          <div className="y2-row">{lead}<span className="y2-punct">{activeBlock.header}</span></div>
+          <div className="y2-row y2-indent y2-blockrow">
+            <BlockInput header={activeBlock.header} body={activeBlock.body} ctx={ctx} autoFocus caret={(ctx.cursor as { caret?: "start" | "end" }).caret} />
+          </div>
+        </div>
+      </Cell>
+    );
+  }
+  if (!active && block !== null) {
+    // the READ face of a `|` / `>` scalar — the renderer's shape: the authored header on the
+    // owner's row, the body lines one step in (the ONE focusable is the header — the cell's
+    // single position; a body click walks in through it)
+    return (
+      <Cell kind="token" active={false} refused={ctx.refused} tone={toneOf((node as { value?: unknown }).value)}>
+        <div className="y2-rows">
+          <div className="y2-row">
+            {lead}
+            <span className="y2-punct" tabIndex={0} onFocus={() => ctx.onFocus({ at: "token", path })}>{block.header}</span>
+          </div>
+          {block.lines.map((l, i) => (
+            <div key={i} className="y2-row y2-indent" onMouseDown={() => ctx.onFocus({ at: "token", path })}>
+              <span className="y2-v">{l === "" ? " " : l}</span>
+            </div>
+          ))}
+        </div>
+      </Cell>
+    );
+  }
+  // a NULL value with no authored raw still shows its face — the renderer spells it `null`
+  // (an invisible value would be a wall to the eye, if not to the caret)
+  const raw = (node as { raw?: string }).raw;
+  const value = (node as { value?: unknown }).value;
+  const display = String(raw ?? (value === null ? "null" : value ?? ""));
+  return (
+    <Cell kind="token" active={active} refused={ctx.refused} tone={toneOf(value)}>
+      {lead}
       {active
         ? <CellInput value={(ctx.cursor as { text: string }).text} ctx={ctx} autoFocus caret={(ctx.cursor as { caret?: "start" | "end" }).caret} />
         : <span className="y2-v" tabIndex={0} onFocus={() => ctx.onFocus({ at: "token", path })}>{display}</span>}
@@ -185,7 +296,7 @@ function PointerCell({ node, path, ctx }: ValueCellProps) {
 /** The container: brackets, entries, the hole (when the cursor's hole lives here), the gap after.
  *  A SPREAD container (or one inside a spread — json5p expands everything) lays out one entry per
  *  row; a flow one stays inline; a BLOCK one is rows with `- ` / `k: ` markers. */
-function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow }: { node: Node; path: Path; ctx: CellCtx; trailingComma?: boolean; lead?: ReactNode; valueRow?: { at: number; el: ReactNode } }) {
+function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow, indentEntries = false }: { node: Node; path: Path; ctx: CellCtx; trailingComma?: boolean; lead?: ReactNode; valueRow?: { at: number; el: ReactNode }; indentEntries?: boolean }) {
   const flow = isFlow(node);
   // PER-CONTAINER LAYOUT: a container spreads only by ITS OWN bit. A new token inside a spread
   // one defaults to ONE LINE; its own Enter spreads it (and spreading propagates UPWARD — apply
@@ -198,12 +309,12 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow 
   // Each item knows whether its separating comma must live INSIDE it: a MULTI-ROW child draws
   // the comma on its own closer row (`},` — K&R), because no parent-row alignment can put a
   // sibling span onto a nested block's last line. Single-line items take the parent's comma.
-  const mkItems = (withCommas: boolean): { el: ReactNode; commaInside: boolean; entry?: number }[] => {
-    const out: { el: ReactNode; commaInside: boolean; entry?: number }[] = [];
+  const mkItems = (withCommas: boolean): { el: ReactNode; commaInside: boolean; entry?: number; hole?: boolean }[] => {
+    const out: { el: ReactNode; commaInside: boolean; entry?: number; hole?: boolean }[] = [];
     const total = entries.length + (holeHere ? 1 : 0);
     let slot = 0;
     for (let i = 0; i <= entries.length; i++) {
-      if (holeHere && i === holeIndex) { out.push({ el: <HoleCell key="hole" ctx={ctx} />, commaInside: false, entry: holeIndex }); slot++; }
+      if (holeHere && i === holeIndex) { out.push({ el: <HoleCell key="hole" ctx={ctx} />, commaInside: false, entry: holeIndex, hole: true }); slot++; }
       if (i === entries.length) break;
       const e = entries[i];
       const p = [...path, i];
@@ -213,17 +324,25 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow 
       // (flow keyless entries take no marker — the commas separate them)
       const keyFrag = e.key != null
         ? <><KeyCell entry={e} path={p} ctx={ctx} /><span className="y2-punct">: </span></>
-        : !flow ? <span className="y2-punct">- </span> : null;
+        : !flow ? <DashMark /> : null;
       // a KEYED entry holding a BLOCK container WRAPS: the key alone on its row, the child's
       // rows BELOW it, indented one step — `children:` / `  - name: Europe`. (A keyless `- `
       // entry keeps the compact form: the child's first row rides the dash.)
       const childBlock = !isPointer(e.value) && (e.value as Node).kind === "mapping" && !isFlow(e.value as Node);
+      // an OMNI child (scalar with fields, or the hole descended into one) — and a BLOCK-SCALAR
+      // child (`|` / `>`) — take the marker INTO their first row so their body rows sit one
+      // step in: `key1: value1` / `  - sub`, `text: |` / `  line one` — the serializer's
+      // columns, not a hang at the key's text column
+      const childOmni = !flow && !isPointer(e.value) && (e.value as Node).kind === "scalar"
+        && (((e.value as Node).entries ?? []).length > 0
+          || (ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, p))
+          || blockRawOf(e.value) !== null);
       out.push({
         el: (
           <Fragment key={i}>
             {/* a SPREAD child takes the key INTO its first row (`children: [`) so its body rows
                 come back to the container's own indent — K&R, not a hang at the key's column */}
-            {childSpread
+            {childSpread || childOmni
               ? <NodeCell node={e.value as Node} path={p} ctx={ctx} trailingComma={wantComma} lead={keyFrag} />
               : childBlock && e.key != null && !flow
                 ? <div className="y2-rows">
@@ -252,31 +371,60 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow 
     const itemRows = mkItems(false);
     const rows: ReactNode[] = [];
     let placedValue = false;
+    // the LEAD (a key/dash marker routed into this container) rides the FIRST content row — for
+    // an omni that is its self row, so field rows can indent one step below it. Comment/blank
+    // chrome rows never take it.
+    let leadPlaced = lead == null;
+    const takeLead = (): ReactNode => { if (leadPlaced) return null; leadPlaced = true; return lead; };
+    const entryRowClass = "y2-row" + (indentEntries ? " y2-indent" : "");
+    const selfTrail = <TrailSpan texts={commentsOf(node.meta, "trailing")} />;
     for (let i = 0; i < itemRows.length; i++) {
       const it = itemRows[i];
       // an OMNI's value line sits at its AUTHORED position among the rows (`meta.selfAt`)
       if (valueRow && !placedValue && it.entry !== undefined && it.entry >= valueRow.at) {
-        rows.push(<div key="self" className="y2-row">{valueRow.el}</div>);
+        rows.push(<div key="self" className="y2-row">{takeLead()}{valueRow.el}{selfTrail}</div>);
         placedValue = true;
       }
-      rows.push(<div key={i} className="y2-row">{it.el}</div>);
+      // the entry's DECORATIONS — its blank separator, its own-line leading comments, its
+      // trailing remark — read-only chrome around the entry's row
+      const e = it.hole !== true && it.entry !== undefined ? entries[it.entry] : undefined;
+      const em = e?.meta as { blankBefore?: boolean } | undefined;
+      if (em?.blankBefore === true) rows.push(<BlankRow key={`blank${i}`} k={`blank${i}`} />);
+      const leading = e !== undefined ? commentsOf(e.meta, "leading") : [];
+      if (leading.length > 0) rows.push(<CommentRows key={`lc${i}`} texts={leading} rowClass={entryRowClass} keyPrefix={`lc${i}-`} />);
+      const trailing = e !== undefined ? commentsOf(e.meta, "trailing") : [];
+      const isLeadRow = !leadPlaced;
+      rows.push(
+        <div key={i} className={isLeadRow ? "y2-row" : entryRowClass}>
+          {takeLead()}
+          {trailing.length > 0 ? <span className="y2-rowmain">{it.el}</span> : it.el}
+          <TrailSpan texts={trailing} />
+        </div>,
+      );
     }
-    if (valueRow && !placedValue) rows.push(<div key="self" className="y2-row">{valueRow.el}</div>);
+    if (valueRow && !placedValue) rows.push(<div key="self" className="y2-row">{takeLead()}{valueRow.el}{selfTrail}</div>);
+    // an EMPTY container keeps its PLACEHOLDER slot even when comment chrome exists — the way
+    // back into the value must never be a wall
+    const hasContent = itemRows.length > 0 || valueRow !== undefined;
+    if (!hasContent) {
+      rows.push(
+        <div key="into" className="y2-row">
+          <button
+            className="y2-gapslot"
+            onFocus={() => ctx.onFocus({ at: "into", path })}
+            onKeyDown={(e) => ctx.onKey(e)}
+          >
+            ▏
+          </button>
+        </div>,
+      );
+    }
+    // the container's TAIL block — comments after the last entry, the serializer's tail rule
+    const tail = commentsOf(node.meta, "leading");
+    if (tail.length > 0) rows.push(<CommentRows key="tail" texts={tail} rowClass={entryRowClass} keyPrefix="tail-" />);
     return (
       <Cell kind="block" active={false} refused={false}>
-        <div className="y2-rows">
-          {rows.length === 0
-            ? <div className="y2-row">
-                <button
-                  className="y2-gapslot"
-                  onFocus={() => ctx.onFocus({ at: "into", path })}
-                  onKeyDown={(e) => ctx.onKey(e)}
-                >
-                  ▏
-                </button>
-              </div>
-            : rows}
-        </div>
+        <div className="y2-rows">{rows}</div>
       </Cell>
     );
   }
@@ -323,16 +471,18 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow 
 /** The SCALAR cell: a plain token, or — with fields or the descended-into hole — the OMNI form:
  *  the value line AT ITS AUTHORED POSITION (`meta.selfAt`) among the field rows; the hole among
  *  them stays VISIBLE, so the caret can never stand in a cell the projection does not draw. */
-function ScalarCell({ node: v, path, ctx }: ValueCellProps) {
+function ScalarCell({ node: v, path, ctx, lead }: ValueCellProps) {
   const node = v as Node;
   const holeHere = ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, path);
-  if ((node.entries ?? []).length === 0 && !holeHere) return <TokenCell node={node} path={path} ctx={ctx} />;
+  if ((node.entries ?? []).length === 0 && !holeHere) return <TokenCell node={node} path={path} ctx={ctx} lead={lead} />;
   return (
     <Cell kind="omni" active={false} refused={false}>
       <ContainerCell
         node={node}
         path={path}
         ctx={ctx}
+        lead={lead}
+        indentEntries={path.length > 0}
         valueRow={{ at: (node.meta as { selfAt?: number } | undefined)?.selfAt ?? 0, el: <TokenCell node={node} path={path} ctx={ctx} /> }}
       />
     </Cell>
@@ -429,18 +579,51 @@ function AnchorsCell({ node, path, ctx }: { node: Value; path: Path; ctx: CellCt
  *  its identity cells/chrome here — ONE site, uniform across kinds and custom registry cells. */
 export function NodeCell({ node, path, ctx, trailingComma = false, lead }: ValueCellProps) {
   const C = cellFor(node, ctx.cells);
-  const cell = <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} lead={lead} />;
-  if (isPointer(node)) return cell;
-  const n = node as Node;
-  const meta = (n.meta ?? {}) as { schema?: unknown; yo?: boolean; set?: boolean; anchors?: unknown[] };
-  const tagActiveHere = ctx.cursor.at === "tag" && pathEq(ctx.cursor.path, path);
-  const decorated = meta.schema !== undefined || tagActiveHere || meta.yo === true || meta.set === true || (meta.anchors ?? []).length > 0;
-  if (!decorated) return cell;
-  return (
+  const decorated = (() => {
+    if (isPointer(node)) return false;
+    const meta = ((node as Node).meta ?? {}) as { schema?: unknown; yo?: boolean; set?: boolean; anchors?: unknown[] };
+    const tagActiveHere = ctx.cursor.at === "tag" && pathEq(ctx.cursor.path, path);
+    return meta.schema !== undefined || tagActiveHere || meta.yo === true || meta.set === true || (meta.anchors ?? []).length > 0;
+  })();
+  if (!decorated) return <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} lead={lead} />;
+  const chrome = (
     <>
       <TagCell node={node} path={path} ctx={ctx} />
       <MarkChrome node={node} />
-      {cell}
+    </>
+  );
+  // a ROUTED marker (`k: ` / `- ` in `lead`) keeps the source order — the identity chrome rides
+  // AFTER it, inside the child's first row (`key: !!<tag> value`), exactly where the read
+  // renderer's decoSpan puts it
+  if (lead !== undefined) {
+    return (
+      <>
+        <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} lead={<>{lead}{chrome}</>} />
+        <AnchorsCell node={node} path={path} ctx={ctx} />
+      </>
+    );
+  }
+  // THE ROOT DECO LAW (the renderer's RootDeco): at the VIEWED ROOT — and before any multi-row
+  // cell — the chrome stands on ITS OWN LINE, and the value's rows return to the parent column.
+  // Inline chrome before an inline-block of rows anchors EVERY row at the chrome's right edge:
+  // the whole document body hung at the tag's column (the reported giant left margin).
+  const n = node as Node;
+  const blockShaped = n.kind === "mapping" ? !isFlow(n)
+    : n.kind === "scalar" ? ((n.entries ?? []).length > 0 || blockRawOf(n) !== null || (ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, path)))
+    : false;
+  if (path.length === 0 || blockShaped) {
+    return (
+      <>
+        <div className="y2-row">{chrome}</div>
+        <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} />
+        <AnchorsCell node={node} path={path} ctx={ctx} />
+      </>
+    );
+  }
+  return (
+    <>
+      {chrome}
+      <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} />
       <AnchorsCell node={node} path={path} ctx={ctx} />
     </>
   );
@@ -451,8 +634,17 @@ export function DocCells({ doc, ctx }: { doc: Document; ctx: CellCtx }) {
   const root = doc.root as Node;
   const emptyBlock = root.kind === "mapping" && (root.entries ?? []).length === 0 && !isFlow(root);
   const holeAtRoot = ctx.cursor.at === "hole" && ctx.cursor.path.length === 0;
+  // the FILE BANNER — head-of-file comments, set off from the body by the blank line they were
+  // authored with (read-only chrome, like every comment row)
+  const head = ((doc as { head?: Comment[] }).head ?? []).map((c) => c.text);
   return (
     <div className="y2-doc" data-testid="y2-doc">
+      {head.length > 0 && (
+        <div className="y2-rows">
+          <CommentRows texts={head} rowClass="y2-row" keyPrefix="head-" />
+          <BlankRow k="head-blank" />
+        </div>
+      )}
       {emptyBlock
         ? <>
             {/* an emptied data island keeps its FACE — the identity cells stand over the hole */}

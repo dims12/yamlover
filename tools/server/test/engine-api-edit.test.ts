@@ -271,12 +271,13 @@ describe("/api/edit — rejections", () => {
     expect(bodyOf(root)).toBe(before);
   });
 
-  it("rejects an unknown op, and an op with no target", async () => {
-    const { h } = await chapterHandlers();
+  it("rejects an unknown op; root `remove` of an unreferenced document ARCHIVES it", async () => {
+    const { root, h } = await chapterHandlers();
     expect((await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "frobnicate", yamlover: '"x"' })).status).toBe(400);
-    // root `emplace` with a SCALAR payload is legal (it sets the self-value — the title);
-    // `replace` at the root would drop the whole document and stays refused
-    expect((await callBody(h, "POST", "/api/edit", { path: ":doc", op: "replace", yamlover: '"x"' })).status).toBe(400);
+    // root `emplace` sets the self-value; root `replace` rewrites the document wholesale;
+    // root `remove` DETACHES from the parent — unreferenced, the storage archives to .yo/.trash
+    expect((await callBody(h, "POST", "/api/edit", { path: ":doc", op: "remove" })).status).toBe(200);
+    expect(fs.existsSync(path.join(root, ".yo", ".trash", "doc", ".yo", "body.yo"))).toBe(true);
   });
 
   it("rejects `concrete` on an existing node — converting one is a move, not an edit", async () => {
@@ -353,11 +354,13 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
 
   it("the ops that genuinely need a target still say so at the root", async () => {
     const { h } = await omniChapterHandlers();
-    for (const op of ["remove", "rekey"]) {
-      const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op, yamlover: "" });
-      expect(r.status, `\`${op}\` at the root should be rejected`).toBe(400);
-      expect(String(r.json?.error ?? "")).toContain("needs a key or index target");
-    }
+    const rk = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "rekey", yamlover: "" });
+    expect(rk.status, "`rekey` at the root should be rejected").toBe(400);
+    expect(String(rk.json?.error ?? "")).toContain("needs a key or index target");
+    // `remove` at a document root means DETACH FROM THE PARENT; with no granting entry the
+    // member is ORPHANED and its storage ARCHIVES into .yo/.trash — a 200, data preserved
+    const rm = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "remove" });
+    expect(rm.status, "`remove` of an unreferenced document archives it").toBe(200);
   });
 
   it("re-adds a title to an untitled chapter: the self-value lands right after the tag line", async () => {
@@ -1697,5 +1700,88 @@ describe("/api/edit — own-line & anchors are decorations, never entries (the i
     expect(out).not.toContain("Old title");
     expect(out).toContain("!!yo");          // the island mark stands
     expect(out).toContain("&: tags: whole"); // the anchor stands
+  });
+});
+
+describe("/api/edit — `replace` at a document root (the kind-conversion landing)", () => {
+  it("replaces a MEMBER document wholesale: the payload becomes the body, facets drop", async () => {
+    const { root, h } = await chapterHandlers({
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- *: m\n",
+      "doc/m/.yo/body.yo": "- Can ne\n",
+    });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc:m", op: "replace", yamlover: "Can ne" });
+    expect(r.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, "doc", "m", ".yo", "body.yo"), "utf8")).toBe("Can ne\n");
+  });
+
+  it("root replace: `meta` restamps the banner; OMITTED meta preserves it (the identity law)", async () => {
+    const { root, h } = await chapterHandlers({
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- *: m\n- *: n\n",
+      "doc/m/.yo/body.yo": "!!<*yamlover: $defs: recipe>\n- x\n",
+      "doc/n/.yo/body.yo": "!!<*yamlover: $defs: chapter>\n- a chunk\n",
+    });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc:m", op: "replace", yamlover: "just text", meta: "*yamlover: $defs: chapter" });
+    expect(r.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, "doc", "m", ".yo", "body.yo"), "utf8")).toBe("!!<*yamlover: $defs: chapter>\njust text\n");
+    // the T kind-conversion sends NO meta — the member must stay a CHAPTER, never untyped
+    const r2 = await callBody(h, "POST", "/api/edit", { path: ":doc:n", op: "replace", yamlover: "a title" });
+    expect(r2.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, "doc", "n", ".yo", "body.yo"), "utf8")).toBe("!!<*yamlover: $defs: chapter>\na title\n");
+    // …and an explicit meta: null DOES drop it
+    const r3 = await callBody(h, "POST", "/api/edit", { path: ":doc:n", op: "replace", yamlover: "plain", meta: null });
+    expect(r3.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, "doc", "n", ".yo", "body.yo"), "utf8")).toBe("plain\n");
+  });
+});
+
+describe("/api/edit — `remove` at a MEMBER document root detaches it from the parent", () => {
+  it("the pointer entry goes; the member's storage stays (orphaning, never deletion)", async () => {
+    const { root, h } = await chapterHandlers({
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- keep\n- *: m\n- after\n",
+      "doc/m/.yo/body.yo": "member text\n",
+    });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc:m", op: "remove" });
+    expect(r.status).toBe(200);
+    const body = bodyOf(root);
+    expect(body).not.toContain("- *: m");
+    expect(body).toContain("- keep");
+    expect(body).toContain("- after");
+    // the member directory is ORPHANED, not destroyed
+    expect(fs.existsSync(path.join(root, "doc", "m", ".yo", "body.yo"))).toBe(true);
+  });
+});
+
+describe("/api/edit — a batch is ATOMIC across files", () => {
+  it("a mid-batch failure leaves EVERY file untouched — never a half-applied batch", async () => {
+    // the reported runaway: the first file's insert was written, the second file's op threw,
+    // and the client's retry appended a duplicate on every attempt
+    const { root, h } = await chapterHandlers({
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- *: m\n",
+      "doc/m/.yo/body.yo": "- first\n",
+    });
+    const before = fs.readFileSync(path.join(root, "doc", "m", ".yo", "body.yo"), "utf8");
+    const r = await callBody(h, "POST", "/api/edit", { edits: [
+      { path: ":doc:m:1", op: "insert", yamlover: "sneaky" },       // valid — splices file 1
+      { path: ":doc:no_such_key", op: "remove" },                    // throws at splice time in file 2
+    ] });
+    expect(r.status).toBe(400);
+    expect(fs.readFileSync(path.join(root, "doc", "m", ".yo", "body.yo"), "utf8"), "file 1 must be untouched").toBe(before);
+    expect(bodyOf(root)).toContain("- *: m");
+  });
+});
+
+describe("/api/edit — removing an ORPHANED member archives its storage (never a wall, never destroyed)", () => {
+  it("an unreferenced dir member moves into the parent's .yo/.trash and leaves the projection", async () => {
+    const { root, h } = await chapterHandlers({
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- keep\n",
+      "doc/m/.yo/body.yo": "orphan text\n", // present on disk, never referenced by the body
+    });
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc:m", op: "remove" });
+    expect(r.status).toBe(200);
+    expect(fs.existsSync(path.join(root, "doc", "m")), "the member left its place").toBe(false);
+    expect(fs.readFileSync(path.join(root, "doc", ".yo", ".trash", "m", ".yo", "body.yo"), "utf8"), "…into the trash, intact").toBe("orphan text\n");
+    // the projection no longer surfaces it
+    const j = call(h, "/api/json", { path: ":doc", depth: "1" }).json as { value: Record<string, unknown> };
+    expect(JSON.stringify(j.value)).not.toContain("orphan text");
   });
 });

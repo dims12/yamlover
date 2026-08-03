@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 Directories
 description: the filesystem as a mapping — dir, dir/yamlover, and the .yo/ contract
 - >

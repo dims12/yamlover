@@ -1,0 +1,5 @@
+yaml
+description: Code in YAML language, Yet another markup lanugate, Yaml Ain't markup languge
+- Can be any of
+- *: 00-yaml_stream
+- *: 01-yaml_code

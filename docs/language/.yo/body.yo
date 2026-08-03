@@ -2,7 +2,6 @@
 # and the five parts (each a subdirectory chapter, ordered by the pointer array below).
 # Sources: YAMLOVER.md, URIs.md, SEPARATOR.md, TYPES.md, META.md, CONCRETES.md, QUERY.md —
 # progress in ../../DOCSMIGRATION.md.
-!!<*yamlover: $defs: chapter>
 The yamlover language
 description: the full spec — principles, the abstract model, concretes, pointers, queries
 - >

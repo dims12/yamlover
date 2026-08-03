@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 What it doesn't test, it tolerates
 description: consumers match by their own formula; unknown structure passes through
 - >

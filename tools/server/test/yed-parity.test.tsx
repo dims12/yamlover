@@ -200,4 +200,74 @@ describe("the yed parity gate — every storage shape loads, edits, persists", (
       expect(m.read("c.yo")).toBe("# the lead comment\na: 5\nb: 2 # the trailing one\n");
     } finally { m.done(); }
   });
+
+  it("12. COMMENTS ARE VISIBLE in the editor, and an edit keeps them on screen AND on disk", async () => {
+    const m = await mount({ "c.yo": "# banner\n\na: 1 # note\n\n# about b\nb: 2\n" }, ":c.yo");
+    try {
+      const comments = () => Array.from(document.querySelectorAll(".y2-comment")).map((el) => el.textContent);
+      expect(comments()).toEqual(expect.arrayContaining(["# banner", "# note", "# about b"]));
+      expect(document.querySelectorAll(".y2-blankline").length).toBeGreaterThanOrEqual(1);
+      retypeToken("1", "5");
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      expect(m.read("c.yo")).toBe("# banner\n\na: 5 # note\n\n# about b\nb: 2\n");
+      expect(comments()).toEqual(expect.arrayContaining(["# banner", "# note", "# about b"])); // still drawn
+    } finally { m.done(); }
+  });
+
+  it("13. a BLOCK scalar edits through the textarea — newlines survive, the header stays authored", async () => {
+    const m = await mount({ "b.yo": "k: |\n  line one\n  line two\nm: 1\n" }, ":b.yo");
+    try {
+      // the read face shows the block multi-line, not flattened
+      const header = Array.from(document.querySelectorAll(".y2-cell.y2-token .y2-punct"))
+        .find((el) => el.textContent === "|") as HTMLElement;
+      expect(header, "no block header cell").toBeTruthy();
+      fireEvent.focus(header);
+      const ta = document.activeElement as HTMLTextAreaElement;
+      expect(ta.tagName).toBe("TEXTAREA");
+      expect(ta.value).toBe("line one\nline two");
+      fireEvent.change(ta, { target: { value: "line one\nline 2!" } });
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+      fireEvent.keyDown(ta, { key: "ArrowDown" }); // leaves the last line — commits
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      expect(m.read("b.yo")).toBe("k: |\n  line one\n  line 2!\nm: 1\n");
+    } finally { m.done(); }
+  });
+
+  it("13b. a block header WITH a trailing comment: the body edit keeps the comment, the indent, the neighbours", async () => {
+    // the reported corruption: `| # comment` was not read as a block header, so the body lines
+    // were re-grouped as child entries — deeper indent, stale leftovers
+    const m = await mount({ "bc.yo": "types:\n  literal: |                      # newlines KEPT\n    line one\n    line two\n  folded: >\n    fold these\n    lines\n" }, ":bc.yo");
+    try {
+      const header = Array.from(document.querySelectorAll(".y2-cell.y2-token .y2-punct"))
+        .find((el) => el.textContent === "|") as HTMLElement;
+      expect(header, "no block header cell").toBeTruthy();
+      fireEvent.focus(header);
+      const ta = document.activeElement as HTMLTextAreaElement;
+      fireEvent.change(ta, { target: { value: "line one\nline two\nline three" } });
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+      fireEvent.keyDown(ta, { key: "ArrowDown" });
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      expect(m.read("bc.yo")).toBe("types:\n  literal: |                      # newlines KEPT\n    line one\n    line two\n    line three\n  folded: >\n    fold these\n    lines\n");
+    } finally { m.done(); }
+  });
+
+  it("14. a `>` FOLDED scalar keeps its `>` through an edit — never restyled to `|`", async () => {
+    const m = await mount({ "f.yo": "k: >\n  fold\n  these\nm: 1\n" }, ":f.yo");
+    try {
+      const header = Array.from(document.querySelectorAll(".y2-cell.y2-token .y2-punct"))
+        .find((el) => el.textContent === ">") as HTMLElement;
+      expect(header, "no folded header cell").toBeTruthy();
+      fireEvent.focus(header);
+      const ta = document.activeElement as HTMLTextAreaElement;
+      fireEvent.change(ta, { target: { value: "fold\nthose" } });
+      ta.setSelectionRange(ta.value.length, ta.value.length);
+      fireEvent.keyDown(ta, { key: "ArrowDown" });
+      await settleOps();
+      expect(m.alerts, m.alerts.join(" | ")).toEqual([]);
+      expect(m.read("f.yo")).toBe("k: >\n  fold\n  those\nm: 1\n");
+    } finally { m.done(); }
+  });
 });

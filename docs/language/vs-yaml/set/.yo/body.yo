@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 'Sets: the tag carries real semantics'
 description: from a null-valued mapping to a dedup-by-identity container
 - >

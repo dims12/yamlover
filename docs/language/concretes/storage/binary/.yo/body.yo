@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 Binary files
 description: opaque bytes, read lazily, decoded by format
 - >

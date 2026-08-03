@@ -1,0 +1,4 @@
+json/object
+description: Comma-separated list of key-value pairs, enclosed into curly braces
+- Contains
+- *: item01

@@ -10,11 +10,16 @@
 // one-line flow (`repr: "yaml/flow"`), the K&R switch (`concrete: "json5p"`, at the switch
 // only), tags (`meta.schema`), `!!yo`/`!!set`, and the node's `&` anchors — ALL carried into
 // the IR (the identity-meta round), so the serializer re-emits them and a whole-subtree
-// payload never strips them; ops that omit `meta` still preserve the tag server-side — and
-// the comments themselves (carried into meta for fidelity; the diff layer never rewrites
-// untouched regions, so they survive on disk).
+// payload never strips them; ops that omit `meta` still preserve the tag server-side.
+//
+// COMMENTS and blank lines are carried too (this round): `leading`/`trailing` land on the
+// entry's meta, `tail`/`valueTrailing` on the node's meta, `$head` on `Document.head` — in the
+// parser-IR shapes, so the cells can DISPLAY them and they move with their nodes through every
+// edit. They are display-only carriage: the diff layer never reads them (canon is comment-
+// blind) and payloads strip them before serializing, so no op is ever emitted for a comment.
 
 import type { NodeJson, CommentBucket, CommentMap } from "../api";
+import type { Comment } from "../../../../parser/ts/src/ir.ts";
 import type { Document, Entry, Node, Value } from "../../../../yed/src/state";
 import { makeAnchor, parsePointer } from "../../../../parser/ts/src/pointer.ts";
 import { segToken } from "../../../../parser/ts/src/pathseg.ts";
@@ -48,6 +53,11 @@ function bucketAt(comments: CommentMap | undefined, frag: string): CommentBucket
   const b = comments?.[frag];
   return b && !Array.isArray(b) ? b : {};
 }
+
+/** A wire comment text as a parser-IR Comment. The span is FABRICATED (the wire carries none;
+ *  nothing on the yed path reads spans) — text and placement are the faithful parts. */
+const wireComment = (text: string, placement: "leading" | "trailing"): Comment =>
+  ({ text, span: { uri: "<wire>", start: 0, end: 0 }, placement, style: "line" });
 
 /** The spelling of a scalar VALUE when the sidecar carries no authored raw — the serializer's
  *  default is fine, so raw is simply omitted (the parser IR tolerates it; serializers spell
@@ -104,6 +114,13 @@ function metaFrom(bucket: CommentBucket, extra?: Record<string, unknown>, wireFo
   }
   const fmt = wireFormat ?? formatFromMetaTag(inner) ?? proseFormatOfTag(inner);
   if (fmt != null) meta.derivedFormat = fmt;
+  // the node's OWN comments — the container's tail block (comments after the last entry) and
+  // an omni's value-trailing remark — in the parser's shapes, display-only carriage
+  const own: Comment[] = [
+    ...(bucket.tail ?? []).map((t) => wireComment(t, "leading")),
+    ...(bucket.valueTrailing ?? []).map((t) => wireComment(t, "trailing")),
+  ];
+  if (own.length > 0) meta.comments = own;
   return Object.keys(meta).length > 0 ? meta : undefined;
 }
 
@@ -185,11 +202,23 @@ function entriesFrom(
     const keyless = e.key === null || e.anchor === true;
     const childFrag = `${frag}/${segToken(e.key != null ? e.key : i)}`;
     const value = valueFrom(e.value, childFrag, comments);
+    // the entry's DECORATIONS from its bucket: leading/trailing comments + the blank line —
+    // display-only carriage (the diff layer never reads entry meta)
+    const bucket = bucketAt(comments, childFrag);
+    const entryComments: Comment[] = [
+      ...(bucket.leading ?? []).map((t) => wireComment(t, "leading")),
+      ...(bucket.trailing ?? []).map((t) => wireComment(t, "trailing")),
+    ];
+    const entryMeta = {
+      ...(e.anchor === true && e.key != null ? { anchorKey: e.key } : {}),
+      ...(entryComments.length > 0 ? { comments: entryComments } : {}),
+      ...(bucket.blankBefore === true ? { blankBefore: true } : {}),
+    };
     return {
       key: keyless ? null : e.key,
       edge: "contain",
       value,
-      ...(e.anchor === true && e.key != null ? { meta: { anchorKey: e.key } } : {}),
+      ...(Object.keys(entryMeta).length > 0 ? { meta: entryMeta } : {}),
     } as unknown as Entry;
   });
 }
@@ -217,5 +246,16 @@ export function irFromNodeJson(node: NodeJson): Document {
     const n = root as Node & { meta?: Record<string, unknown> };
     n.meta = { ...(n.meta ?? {}), derivedFormat: node.format };
   }
-  return { root, source: { concrete: node.concrete ?? "yamlover", uri: node.path } } as unknown as Document;
+  // the FILE BANNER (`$head`) and the unplaced leftovers (`$tail`) — Document.head and the
+  // root's own comment meta, mirroring collectComments' inverse
+  const doc = { root, source: { concrete: node.concrete ?? "yamlover", uri: node.path } } as unknown as Document;
+  const head = node.comments?.$head;
+  if (Array.isArray(head) && head.length > 0) (doc as { head?: Comment[] }).head = head.map((t) => wireComment(t, "leading"));
+  const tail = node.comments?.$tail;
+  if (Array.isArray(tail) && tail.length > 0 && (root as { kind?: string }).kind !== "pointer") {
+    const n = root as Node & { meta?: Record<string, unknown> };
+    const prior = ((n.meta?.comments as Comment[] | undefined) ?? []);
+    n.meta = { ...(n.meta ?? {}), comments: [...prior, ...tail.map((t) => wireComment(t, "leading"))] };
+  }
+  return doc;
 }

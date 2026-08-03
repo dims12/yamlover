@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 One omnivorous node
 description: scalar, list, and dict are not boxes — one node may be all three at once
 - >

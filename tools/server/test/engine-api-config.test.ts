@@ -111,7 +111,8 @@ describe("/api/config (project configuration)", () => {
     await h.ready;
     const w = await callBody(h, "POST", "/api/edit", { path: ":.yo:settings.yo:theme", op: "emplace", yamlover: "light" });
     expect(w.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, ".yo", "settings.yo"), "utf8")).toBe("theme: light\n");
+    // the trailing-comment law carries the remark onto the re-rendered line (user labour survives)
+    expect(fs.readFileSync(path.join(root, ".yo", "settings.yo"), "utf8")).toBe("theme: light   # ui palette: dark | light\n");
     expect(call(h, "/api/config").json.settings.theme).toBe("light");
     h.close();
   });

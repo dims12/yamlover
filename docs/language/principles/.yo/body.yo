@@ -1,6 +1,5 @@
 # General principles — one subdirectory chapter per principle (pointer array below,
 # populated as the subchapters land).
-!!<*yamlover: $defs: chapter>
 General principles
 description: the small set of rules everything else in the language follows from
 - >

@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 Wildcards
 description: any string key, any position — and what a plain index never sees
 - >

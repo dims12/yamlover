@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 The value axis
 description: the self-value's types — JSON Schema's set, binary added, its own subtyping
 - 'The self-value''s type keeps JSON Schema''s set. It is not flat — it subtypes:'

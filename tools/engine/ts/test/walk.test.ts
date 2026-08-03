@@ -651,3 +651,40 @@ test('a .yo holding only the overlay + index db adds NO node (plain dirs keep th
   s.close();
   rmSync(root, { recursive: true, force: true });
 });
+
+test('ANCHORED members route through the items schema — a bannerless member folds the same in every face', () => {
+  // the reported face split: a member born WITHOUT its own `!!<…>` banner got no format at
+  // all (items propagation skipped keyed entries; anchored members are keyed) — the read
+  // view called it a chunk while the editor's shape fold called it a chapter. Anchored
+  // members ARE the chapter's body ("ordinal, not keyed"): the items schema routes them.
+  //
+  // STORAGE IS SHAPE: a DIRECTORY-backed member is a container whatever its body momentarily
+  // holds — a bare-title body is a titled CHILDLESS subchapter (the T→Done shape), which no
+  // value shape could otherwise distinguish from a chunk. A FILE-backed scalar member stays
+  // a chunk: files are leaves.
+  const dir = mkdtempSync(join(tmpdir(), 'yamlover-anchored-schema-'));
+  try {
+    mkdirSync(join(dir, '.yo'));
+    writeFileSync(
+      join(dir, '.yo', 'body.yo'),
+      '!!<*::yamlover:$defs:chapter>\nBook\n- intro prose\n- *: omni_member\n- *: title_member\n- *: note.yo\n',
+    );
+    // a BANNERLESS omni member (title + description) — container-shaped → the chapter branch
+    mkdirSync(join(dir, 'omni_member', '.yo'), { recursive: true });
+    writeFileSync(join(dir, 'omni_member', '.yo', 'body.yo'), 'json/key\ndescription: Double quoted string\n');
+    // a BANNERLESS bare-title DIR member — childless, but its directory is container shape
+    mkdirSync(join(dir, 'title_member', '.yo'), { recursive: true });
+    writeFileSync(join(dir, 'title_member', '.yo', 'body.yo'), 'link to json/code\n');
+    // a FILE member holding a bare scalar — a leaf → the chunk branch
+    writeFileSync(join(dir, 'note.yo'), 'just a line\n');
+    const s = new Store(':memory:');
+    s.indexDocument(walkDir(dir));
+    assert.equal(s.node(':omni_member')?.format, 'x-yamlover-chapter'); // folds as a SUBCHAPTER everywhere
+    assert.equal(s.node(':title_member')?.format, 'x-yamlover-chapter'); // titled childless — STILL a subchapter
+    assert.equal(s.node(':title_member')?.value, 'link to json/code');   // its title survives T→Done
+    assert.equal(s.node(':note.yo')?.format, 'text/marklower');          // a file scalar folds as a CHUNK
+    s.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

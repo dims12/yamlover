@@ -1,6 +1,5 @@
 # Concretes — the storage axis (where / what language) and the representation axis
 # (how it is written), every form a subdirectory chapter.
-!!<*yamlover: $defs: chapter>
 Concretes
 description: every way a node is physically stored and written
 - >

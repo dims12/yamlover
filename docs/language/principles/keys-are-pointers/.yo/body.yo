@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 Keys are pointers
 description: every key is a path portion — a bare integer selects a position, ': x' a name
 - >

@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 'Aliases: a word becomes an expression'
 description: YAML's alias-to-anchor turns into a structural pointer expression
 - >

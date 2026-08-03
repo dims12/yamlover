@@ -1,4 +1,3 @@
-!!<*yamlover: $defs: chapter>
 The null key
 description: "'~: v' and ': v' — a keyed entry whose key is the null value"
 - >

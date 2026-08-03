@@ -1,0 +1,6 @@
+json/key-value-pair
+description: Colon-separated pair
+- Contains
+- *: item01
+- *: 00-link_to_json_code
+- ds
