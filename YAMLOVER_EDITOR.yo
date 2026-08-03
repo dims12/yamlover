@@ -531,3 +531,16 @@ table_cell_editing: A table cell, focused (the spreadsheet flow)
 
 source_chunk_editing: Inside a SOURCE chunk (an explicitly non-chapter-typed structure)
     description: The chunk renders and edits as inline yamlover SOURCE - the standard cells and the typing grammar ABOVE own every key (holes, `- `/`key:`, flow); the chapter grammar declines. Arrows walk across the chunk's boundary into the neighbouring chapter cells. The mode is DERIVED per render - dropping the type reverts the chunk to prose/chapter editing
+
+chapter_atom_focused: A reference / link / binary chunk, focused (one walkable stop)
+    description: A RAW pointer chunk hosts the source editor's own reference cells (a nested editor over a one-entry wrapper - the pick machinery, verbatim); links and binaries are read-only stops. THE BOUNDARY HAND-OFF - the wrapper holds exactly ONE atom, so on the IDLE atom every walking key leaves the chunk through the CHAPTER machine instead of ringing at the sub-editor's edge; while PICKING the kit owns every key (dropdown arrows, the cell walk)
+    enter:
+        "a pointer atom": *: pointer_pick_editing   # the reference opens for retargeting (the source grammar's pick)
+        "a link / binary": *: chapter_atom_focused  # nothing to edit - swallowed
+    backspace:
+        "a pointer atom - the emptied reference DISSOLVES the chunk into an empty paragraph, caret in it": *: chapter_prose_editing
+        "a link / binary": *: chapter_atom_focused  # the chapter grammar leaves it standing
+    up_down_arrow: *: chapter_prose_editing         # the walk continues past the atom (whatever cell is adjacent)
+    left_right_arrow: *: chapter_prose_editing      # an atom is ONE stop - any arrow leaves it
+    tab: *: nop                                     # swallowed, never a browser focus walk
+    alphanumeric: *: chapter_atom_focused           # typing into an atom does nothing here

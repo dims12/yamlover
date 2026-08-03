@@ -134,8 +134,10 @@ export function chapterInterpret(k: ChapterKey, s: ChapterSite): ChapterIntent |
       if (s.cell === "title" || s.cell === "description" || s.cell === "atom" || s.cell === "boot") return { kind: "move", dir: 1 };
       return s.caretLastLine ? { kind: "move", dir: 1 } : null;
     case "ArrowRight":
+      if (s.cell === "atom") return { kind: "move", dir: 1 }; // one stop — any arrow leaves it
       return s.cell === "tableCell" && s.caretAtEnd ? { kind: "cellWalk", dir: 1 } : null;
     case "ArrowLeft":
+      if (s.cell === "atom") return { kind: "move", dir: -1 };
       return s.cell === "tableCell" && s.caretAtStart ? { kind: "cellWalk", dir: -1 } : null;
     default:
       return null; // printables and everything else: native (contentEditable) editing

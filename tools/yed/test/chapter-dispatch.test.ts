@@ -94,6 +94,8 @@ const rows: { name: string; key: ChapterKey; site: Partial<ChapterSite>; intent:
   { name: "Enter on the bootstrap paragraph makes the first chunk", key: { key: "Enter" }, site: { cell: "boot" }, intent: { kind: "splitProse" } },
   { name: "Tab on an atom is swallowed, never a browser focus walk", key: { key: "Tab" }, site: { cell: "atom" }, intent: { kind: "nop" } },
   { name: "arrows walk off an atom", key: { key: "ArrowUp" }, site: { cell: "atom" }, intent: { kind: "move", dir: -1 } },
+  { name: "…horizontal arrows too — an atom is ONE stop, any arrow leaves it", key: { key: "ArrowRight" }, site: { cell: "atom" }, intent: { kind: "move", dir: 1 } },
+  { name: "…ArrowLeft walks back off the atom", key: { key: "ArrowLeft" }, site: { cell: "atom" }, intent: { kind: "move", dir: -1 } },
 ];
 
 describe("the chapter dispatch table (the YAMLOVER_EDITOR.yo mirror)", () => {

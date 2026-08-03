@@ -80,6 +80,20 @@ describe("the chapter cell laws", () => {
     h.unmount();
   });
 
+  it("…and the WALK passes the reference: arrows hand off to the chapter at the wrapper's edge, no ring", () => {
+    const h = mountChapter("Structured\n- above\n- *..:..:..\n- below\n");
+    h.update({ ...h.state(), focus: { at: "ptr", path: [1] }, caret: null });
+    const ptr = h.container.querySelector('.y2-cell[data-kind=atom] .y2-p') as HTMLElement;
+    fireEvent.keyDown(ptr, { key: "ArrowDown" });
+    expect(h.state().focus).toEqual({ at: "token", path: [2] }); // …onto "below"
+    expect(h.state().refused).toBe(false);
+    h.update({ ...h.state(), focus: { at: "ptr", path: [1] }, caret: null });
+    fireEvent.keyDown(ptr, { key: "ArrowUp" });
+    expect(h.state().focus).toEqual({ at: "token", path: [0] }); // …onto "above"
+    expect(h.state().refused).toBe(false);
+    h.unmount();
+  });
+
   it("…and Backspace on the emptied reference DISSOLVES the chunk into an empty paragraph", () => {
     const h = mountChapter("Structured\n- some prose\n- *..:..:..\n");
     const ptr = h.container.querySelector('.y2-cell[data-kind=atom] .y2-p') as HTMLElement;

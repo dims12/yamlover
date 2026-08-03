@@ -685,6 +685,22 @@ function PointerChunkCell({ path }: { path: Path }): ReactNode {
       <div
         className="chunk-ref"
         onFocusCapture={() => { if (!focused) ctx.focusTo({ at: "ptr", path }, null); }}
+        onKeyDownCapture={(e) => {
+          // THE BOUNDARY HAND-OFF: the wrapper holds exactly ONE atom, so a vertical arrow
+          // (or Tab) on the IDLE atom has nowhere to go inside — the sub-editor would refuse
+          // at its own edge and RING, blocking the walk. The CHAPTER machine takes the key
+          // instead and the walk continues. While PICKING the kit owns every key (dropdown
+          // arrows, Tab across cells) — never intercepted.
+          if (subRef.current!.cursor.at !== "ptr") return;
+          if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Tab") {
+            e.preventDefault();
+            e.stopPropagation();
+            ctx.dispatchKey(
+              { key: e.key, shift: e.shiftKey, ctrl: e.ctrlKey, alt: e.altKey },
+              { atStart: true, atEnd: true, firstLine: true, lastLine: true },
+            );
+          }
+        }}
       >
         <EditorView
           state={sub}
