@@ -12,9 +12,10 @@
  * renderer's config slot (registry.tsx).
  */
 const MIN_DEPTH = 1;
-/** The discrete slider's finite stops (1..MAX_STOP); one past it is the ∞ position. */
-const MAX_STOP = 6;
-const INF_STOP = MAX_STOP + 1;
+/** The discrete slider's finite stops — doubling, because depth is exponential in what it
+ *  reveals; one past the last is the ∞ position. */
+const STOPS = [1, 2, 4, 8, 16];
+const INF_STOP = STOPS.length;
 const params = () => new URLSearchParams(window.location.search);
 
 /** Whether `text` denotes infinity (`.inf` / `inf`, case-insensitive). */
@@ -47,21 +48,29 @@ function writeDepth(d: number | null): void {
   window.history.replaceState({}, "", window.location.pathname + (qs ? "?" + qs : ""));
 }
 
+/** The STOPS index whose depth is nearest to `d` (ties toward the shallower stop) — the knob
+ *  position for a hand-typed URL depth that sits between stops. */
+function nearestStop(d: number): number {
+  let best = 0;
+  for (let i = 1; i < STOPS.length; i++) if (Math.abs(STOPS[i] - d) < Math.abs(STOPS[best] - d)) best = i;
+  return best;
+}
+
 /**
  * The depth control beside the data-view tabs (in the node bar): a DISCRETE slider with stops
- * `1 2 3 4 5 6 ∞` — the LAST stop is infinity, the default (a released `?depth=` param). Moving
+ * `1 2 4 8 16 ∞` — the LAST stop is infinity, the default (a released `?depth=` param). Moving
  * the knob writes the URL and `onChange()` re-renders/refetches at the new depth. A hand-typed
- * URL depth past 6 clamps the KNOB only — {@link viewDepth} still reports the true value. No
- * visible label: the hover title reads "depth".
+ * URL depth off the stops snaps the KNOB only — {@link viewDepth} still reports the true value.
+ * No visible label: the hover title reads "depth".
  */
 export function DepthControl({ onChange, disabled = false }: { onChange: () => void; disabled?: boolean }) {
   const urlDepth = viewDepth();
-  const knob = urlDepth == null ? INF_STOP : Math.min(Math.max(urlDepth, MIN_DEPTH), MAX_STOP);
+  const knob = urlDepth == null ? INF_STOP : nearestStop(urlDepth);
   return (
     <span className={"depth-control" + (disabled ? " disabled" : "")}>
       <input
         type="range"
-        min={MIN_DEPTH}
+        min={0}
         max={INF_STOP}
         step={1}
         title={disabled ? "depth — not used by this view" : "depth"}
@@ -69,12 +78,12 @@ export function DepthControl({ onChange, disabled = false }: { onChange: () => v
         value={knob}
         onChange={(e) => {
           const v = Number(e.target.value);
-          writeDepth(v >= INF_STOP ? null : v);
+          writeDepth(v >= INF_STOP ? null : STOPS[v]);
           onChange();
         }}
       />
       <span className="depth-ticks" aria-hidden="true">
-        {[...Array.from({ length: MAX_STOP }, (_, i) => String(i + 1)), "∞"].map((label) => (
+        {[...STOPS.map(String), "∞"].map((label) => (
           <span key={label}>{label}</span>
         ))}
       </span>
