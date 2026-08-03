@@ -108,12 +108,15 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
         onCopy={(e) => {
           // the projection's DOM text is NOT the document (captions, gap glyphs, CSS-only
           // indentation) — a selection copy across cells gets the SERIALIZED source instead.
-          // Copying inside one cell input stays native. Pending input COMMITS first; input that
-          // cannot land rings and nothing is copied.
-          if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-          e.preventDefault();
+          // Copying inside one cell input — or any embedded contentEditable (the PICK kit's
+          // query cells) — stays native. Pending input COMMITS first; input that cannot land
+          // rings and the BROWSER copy proceeds (the visible selection) — never an EMPTY
+          // clipboard (the reported "copy didn't work").
+          const t = e.target as HTMLElement;
+          if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || (t instanceof HTMLElement && t.isContentEditable)) return;
           const committed = commitPending(state);
           if (committed === null) { apply({ ...state, refused: true }); return; }
+          e.preventDefault();
           if (committed !== state) apply({ ...committed, refused: false });
           e.clipboardData.setData("text/plain", sourceOf(committed.doc));
         }}

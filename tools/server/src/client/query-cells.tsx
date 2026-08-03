@@ -258,9 +258,14 @@ export function QueryCells({ host, idlePortions, leadingSep, idleLadder = 1, tai
   useLayoutEffect(() => {
     const req = host._focusReq.current;
     if (!req) return;
-    host._focusReq.current = null;
+    // NEVER consume a request this render cannot fulfill: a stale pass (the host's parent
+    // re-rendering with the machine still idle — the reported `*`-hole race: focus fell to
+    // <body> because the request died here) must leave it PENDING for the editing render,
+    // whose cells exist. A session that ends clears it below.
+    if (state.mode !== "editing") return;
     const el = cellMap.current.get(req.index);
     if (!el) return;
+    host._focusReq.current = null;
     const want = portions[req.index] ?? "";
     if (el.textContent !== want) el.textContent = want;
     if (req.caret === "start") focusStart(el);
@@ -273,6 +278,7 @@ export function QueryCells({ host, idlePortions, leadingSep, idleLadder = 1, tai
   const prevMode = useRef(state.mode);
   useLayoutEffect(() => {
     if (prevMode.current === "editing" && state.mode !== "editing") {
+      host._focusReq.current = null; // a pending request dies with its session, never later
       for (const el of cellMap.current.values()) if (el === document.activeElement) el.blur();
       cellMap.current.forEach((el, i) => {
         const want = portions[i] ?? "";

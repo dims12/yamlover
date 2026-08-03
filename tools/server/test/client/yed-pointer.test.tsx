@@ -64,10 +64,13 @@ function setCaret(el: HTMLElement, offset: number) {
   sel.addRange(r);
 }
 
-/** Start a reference: `*` typed into the fresh hole mounts the kit. */
+/** Start a reference: `*` typed into the fresh hole mounts the kit — and the kit CLAIMS the
+ *  caret (the hole input just unmounted; focus falling to <body> was the reported defect). */
 async function star(container: HTMLElement): Promise<HTMLElement> {
   fireEvent.change(holeInput(container), { target: { value: "*" } });
   await waitFor(() => expect(pointerCell(container)).toBeTruthy());
+  await waitFor(() => expect(document.activeElement?.classList.contains("crumb-cell"),
+    `the kit did not take the caret — activeElement is ${document.activeElement?.tagName}.${document.activeElement?.className}`).toBe(true));
   return pointerCell(container);
 }
 
