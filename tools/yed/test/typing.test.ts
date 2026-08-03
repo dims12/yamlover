@@ -2,7 +2,7 @@
 // the SERIALIZED document (the file that would be written) and that the editor never claimed an
 // edit it refused.
 import { describe, it, expect } from "vitest";
-import { applyKey, blockBodyOf, blockEditText, blockTextFrom, copySubtree, pasteSubtree, positionsOf, watchdog } from "../src/apply";
+import { applyKey, applyText, blockBodyOf, blockEditText, blockTextFrom, commitPending, copySubtree, pasteSubtree, positionsOf, watchdog } from "../src/apply";
 import { initialState, parseSource, sourceOf, type EditorState } from "../src/state";
 import { parseScript } from "./keys-util";
 
@@ -366,6 +366,62 @@ describe("yed2 — REFERENCE ENTRY: `*` in a hole commits a pointer", () => {
     const s = type("{{k: *x{Enter}", { ...initialState(), dialect: "json" } as EditorState);
     expect(s.refused).toBe(true);
     expect(src(s)).toBe("{}\n");
+  });
+});
+
+describe("yed2 — BLOCK-SCALAR BIRTH: a `|`/`>` header + Enter allocates the block cell", () => {
+  const load = (text: string, index = 0): EditorState =>
+    ({ doc: parseSource(text), cursor: { at: "hole", path: [], index, text: "", key: null }, refused: false, log: [] });
+  const land = (s: EditorState): EditorState => {
+    const c = commitPending(s);
+    expect(c, "the block body did not land").not.toBeNull();
+    return c!;
+  };
+  it("a NAMED hole: `k: |` ⏎ opens the textarea; the body commits under the authored header", () => {
+    let s = type("k: |{Enter}");
+    expect(s.cursor).toEqual({ at: "token", path: [0], text: "|\n" });
+    expect(src(s)).toBe("k: ''\n"); // the document stays valid while the body is pending
+    watchdog(s);
+    s = applyText(s, blockTextFrom("|", "line one\nline two"));
+    s = land(s);
+    expect(src(s)).toBe("k: |\n  line one\n  line two\n");
+  });
+  it("an ORDINAL hole: `- |-` ⏎ births the keyless block", () => {
+    let s = type("- |-{Enter}");
+    expect(s.cursor).toEqual({ at: "token", path: [0], text: "|-\n" });
+    s = applyText(s, blockTextFrom("|-", "chunk"));
+    s = land(s);
+    expect(src(s)).toBe("- |-\n  chunk\n");
+  });
+  it("the EMPTY container takes the block as its WHOLE value (`k:` ⏎ `>` ⏎)", () => {
+    let s = type("k:{Enter}>{Enter}");
+    expect(s.cursor).toEqual({ at: "token", path: [0], text: ">\n" });
+    s = applyText(s, blockTextFrom(">", "folded prose"));
+    s = land(s);
+    expect(src(s)).toBe("k: >\n  folded prose\n");
+  });
+  it("among ENTRIES the block is the OMNI self line at its authored row", () => {
+    let s = load("a: 1\n", 1);
+    s = type("|-{Enter}", s);
+    expect(s.cursor).toEqual({ at: "token", path: [], text: "|-\n" });
+    s = applyText(s, blockTextFrom("|-", "the value"));
+    s = land(s);
+    expect(src(s)).toBe("a: 1\n|-\n  the value\n"); // selfAt 1 — the value line at its typed row
+  });
+  it("an EMPTY body exits as the bare header — `k: |-` round-trips", () => {
+    const s = land(type("k: |-{Enter}"));
+    expect(src(s)).toBe("k: |-\n");
+  });
+  it("in FLOW the header is plain text (the flow grammar owns Enter — no block cell by construction)", () => {
+    const flow = type("[|{Enter}");
+    expect(flow.refused).toBe(false);
+    expect(src(flow)).toBe('[\n  ""\n]\n'); // `|` reparses as the "" it spells; Enter is the flow row
+    expect(flow.cursor).toMatchObject({ at: "hole", index: 1 });
+  });
+  it("a digit-indicator header refuses, visibly (no edit-text form yet)", () => {
+    const digit = type("k: |2{Enter}");
+    expect(digit.refused).toBe(true);
+    expect(src(digit)).toBe("");
   });
 });
 

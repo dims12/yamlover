@@ -316,7 +316,7 @@ pointer_pick_editing: Reference retarget (the `pick` cursor)
     down_arrow: *: focus_next
 
 block_scalar_editing: Block scalar editing
-    description: The AUTHORED header (`|`, `|-`, `|+`, `>`, ...) is PROJECTED verbatim from the concrete and KEPT - commits re-emit the same header over the edited lines (a fresh block typed via `|` is authored `|`). The text lines edit below it exactly as they sit in the source, indented, in the ordinary editor styling - not a foreign-looking box. The cell takes focus the moment the `|` is typed. A block SELF-VALUE line edits the same way. Enter is a NEWLINE here, never a commit; Ctrl+Enter, Tab and Shift-Tab all FINISH the block (the text is prose - the structural keys leave)
+    description: The AUTHORED header (`|`, `|-`, `|+`, `>`, ...) is PROJECTED verbatim from the concrete and KEPT - commits re-emit the same header over the edited lines (a fresh block typed via `|` is authored `|`). The text lines edit below it exactly as they sit in the source, indented, in the ordinary editor styling - not a foreign-looking box. BIRTH is the header + ENTER (the whole header can be typed first - `|-`, `>-`; a digit indicator refuses, visibly): a valid "" scalar materializes per the hole's shape (named / ordinal / the empty container's whole value / the omni self line at its row; FLOW refuses - the flow grammar owns Enter) and the textarea opens with the body pending in the cursor. A block SELF-VALUE line edits the same way. Enter is a NEWLINE here, never a commit; leaving from an edge line (arrows) commits the body
     alphanumeric: *: block_scalar_editing
     enter: *: block_scalar_editing
     ctrl_enter: *: entry_hole

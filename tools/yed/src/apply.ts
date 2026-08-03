@@ -1298,6 +1298,45 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
           });
         }
       }
+      // `|`/`>` + Enter — BLOCK-SCALAR BIRTH: the header allocates the block cell. A valid ""
+      // scalar materializes per the hole's shape and the cursor takes the header-with-newline
+      // spelling (siteOf's blockToken bit → the textarea face) — the document stays valid, the
+      // incomplete body lives in the cursor, exactly the hole doctrine.
+      if (cursor.at === "hole") {
+        const act = classifyHoleInput(cursor.text, true, /*enterPressed*/ true);
+        if (act && act.kind === "block") {
+          const container = nodeAt(doc, cursor.path);
+          if (!container) return refuse(state);
+          if (isFlow(container)) return refuse(state); // a block scalar has no flow spelling
+          if (!/^[|>][+-]?$/.test(act.header)) return refuse(state); // digit indicators: no edit-text form (blockBodyOf)
+          const blockCursor = (path: Path): Cursor => ({ at: "token", path, text: act.header + "\n" });
+          if (cursor.key === null && cursor.ordinal !== true) {
+            // the OMNI landing, the same diversion a bare scalar takes: the EMPTY container's
+            // whole value; among entries the self line at its authored row; a taken slot refuses
+            if (container.kind !== "mapping") return refuse(state);
+            if ((container.entries ?? []).length === 0) {
+              return ok({
+                ...state,
+                doc: withNode(doc, cursor.path, (n) => keepIdentityMeta(n, { kind: "scalar", value: "", entries: [] } as unknown as Node)),
+                cursor: blockCursor(cursor.path),
+              });
+            }
+            if (!dialectOf(state).omniValue) return refuse(state);
+            const selfAt = cursor.index > 0 ? { selfAt: cursor.index } : {};
+            return ok({
+              ...state,
+              doc: withNode(doc, cursor.path, (n) => ({ ...n, kind: "scalar", value: "", meta: { ...(n.meta ?? {}), ...selfAt } }) as unknown as Node),
+              cursor: blockCursor(cursor.path),
+            });
+          }
+          const entry = { ...keyFields(cursor), edge: "contain", value: { kind: "scalar", value: "", entries: [] } } as unknown as Entry;
+          return ok({
+            ...state,
+            doc: insertEntry(doc, cursor.path, cursor.index, entry),
+            cursor: blockCursor([...cursor.path, cursor.index]),
+          });
+        }
+      }
       const committed = commitPending(state);
       if (!committed) return refuse(state);
       const cur = committed.cursor;

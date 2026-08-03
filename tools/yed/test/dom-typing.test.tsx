@@ -138,6 +138,17 @@ describe("yed2 DOM typing — the reported yaml, through real key events", () =>
     focusedInput();
   });
 
+  it("BLOCK BIRTH through the DOM: `k: |` ⏎ opens the textarea, the body types natively, ↑ commits", () => {
+    render(<Harness />);
+    domType("a: 1⏎⇤k: |⏎");
+    const ta = document.activeElement as HTMLTextAreaElement;
+    expect(ta.tagName, "the block textarea did not take the caret").toBe("TEXTAREA");
+    domType("body");
+    domType("↑"); // the first line's top edge — the body commits, the caret walks up
+    expect(sourceOf(lastState.doc)).toBe("a: 1\nk: |\n  body\n");
+    focusedInput();
+  });
+
   it("↑↑ walks ROWS through the DOM: from under `key2: 13` up to `key1: 12`, caret at its end", () => {
     render(<Harness />);
     domType("key1: 12⏎⇤key2: 13⏎↑↑");
