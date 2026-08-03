@@ -1,0 +1,1796 @@
+{
+  ":": {
+    "path": ":",
+    "type": "variant",
+    "format": "x-yamlover-chapter",
+    "valueType": "string",
+    "hasKeyed": true,
+    "hasOrdinal": true,
+    "concrete": "dir/yamlover",
+    "documentPath": ":",
+    "title": "The Deep Book",
+    "description": "A fixture book exercising every wire trait",
+    "value": {
+      "$yamloverMixed": {
+        "kind": "omni",
+        "entries": [
+          {
+            "key": "description",
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":description",
+                "format": "text/marklower",
+                "concrete": "yamlover",
+                "value": "A fixture book exercising every wire trait"
+              }
+            }
+          },
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":1",
+                "format": "text/marklower",
+                "concrete": "yamlover",
+                "value": "**The opening chunk.** It keeps *marklower* emphasis and a `code` span.\n"
+              }
+            }
+          },
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":2",
+                "format": "text/marklower",
+                "concrete": "yamlover",
+                "value": ""
+              }
+            }
+          },
+          {
+            "key": "cover.png",
+            "value": {
+              "$yamloverLink": {
+                "kind": "binary",
+                "type": "binary",
+                "valueType": "binary",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":cover.png",
+                "format": "image/png",
+                "concrete": "file/binary",
+                "size": 70
+              }
+            },
+            "anchor": true
+          },
+          {
+            "key": "part-one",
+            "value": {
+              "$yamloverLink": {
+                "kind": "omni",
+                "type": "variant",
+                "valueType": "string",
+                "hasKeyed": true,
+                "hasOrdinal": true,
+                "path": ":part-one",
+                "format": "x-yamlover-chapter",
+                "concrete": "dir/yamlover",
+                "title": "Part One",
+                "count": 6,
+                "value": "Part One"
+              }
+            },
+            "anchor": true
+          },
+          {
+            "key": "part-two",
+            "value": {
+              "$yamloverLink": {
+                "kind": "omni",
+                "type": "variant",
+                "valueType": "string",
+                "hasKeyed": true,
+                "hasOrdinal": true,
+                "path": ":part-two",
+                "format": "x-yamlover-chapter",
+                "concrete": "dir/yamlover",
+                "title": "Part Two",
+                "count": 6,
+                "value": "Part Two"
+              }
+            },
+            "anchor": true
+          },
+          {
+            "key": "appendix",
+            "value": {
+              "$yamloverLink": {
+                "kind": "mix",
+                "type": "mixed",
+                "valueType": null,
+                "hasKeyed": true,
+                "hasOrdinal": true,
+                "path": ":appendix",
+                "format": "x-yamlover-chapter",
+                "concrete": "dir/yamlover",
+                "title": "The Appendix",
+                "count": 3
+              }
+            },
+            "anchor": true
+          },
+          {
+            "key": "tags",
+            "value": {
+              "$yamloverLink": {
+                "kind": "object",
+                "type": "object",
+                "valueType": null,
+                "hasKeyed": true,
+                "hasOrdinal": false,
+                "path": ":tags",
+                "format": "x-yamlover-chapter",
+                "concrete": "dir/yamlover",
+                "count": 1
+              }
+            },
+            "anchor": true
+          }
+        ],
+        "format": "x-yamlover-chapter",
+        "value": "The Deep Book"
+      }
+    },
+    "comments": {
+      "": {
+        "tag": "!!<*yamlover: $defs: chapter>"
+      },
+      "/description": {
+        "leading": [
+          " examples/74-deep-book — THE FROZEN DEEP FIXTURE for the one-wire migration: the wire goldens,",
+          " the /api/content round-trips, and the chapter face-parity gate all walk this tree. Every",
+          " storage trait the projection must carry appears at least once (member dirs with pointer",
+          " arrays, a keyed-remainder member, a blob member, a relative back-edge, a null key, !!yo,",
+          " !!set, planning fields, an annotated chunk, empty chunks, tables/lists/latex/csv, comments,",
+          " raw spellings, flow and K&R spans, a legacy keyed title, a selfAt≠0 chapter, a colored tag)."
+        ]
+      },
+      "/1": {
+        "leading": [
+          " a leading comment on the first prose chunk"
+        ],
+        "repr": "yaml/literal",
+        "raw": "|\n**The opening chunk.** It keeps *marklower* emphasis and a `code` span."
+      },
+      "/2": {
+        "blankBefore": true,
+        "repr": "yaml/single",
+        "raw": "''"
+      }
+    },
+    "relations": {
+      "::part-one:item01": {
+        "$yamloverRef": {
+          "text": "::part-one:item01",
+          "path": ":part-one:item01"
+        }
+      }
+    }
+  },
+  ":1": {
+    "path": ":1",
+    "type": "string",
+    "format": "text/marklower",
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":",
+    "title": null,
+    "description": null,
+    "value": "**The opening chunk.** It keeps *marklower* emphasis and a `code` span.\n",
+    "comments": {
+      "": {
+        "repr": "yaml/literal",
+        "raw": "|\n**The opening chunk.** It keeps *marklower* emphasis and a `code` span."
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":"
+        }
+      }
+    }
+  },
+  ":2": {
+    "path": ":2",
+    "type": "string",
+    "format": "text/marklower",
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":",
+    "title": null,
+    "description": null,
+    "value": "",
+    "comments": {
+      "": {
+        "repr": "yaml/single",
+        "raw": "''"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":"
+        }
+      }
+    }
+  },
+  ":appendix": {
+    "path": ":appendix",
+    "type": "mixed",
+    "format": "x-yamlover-chapter",
+    "valueType": null,
+    "hasKeyed": true,
+    "hasOrdinal": true,
+    "concrete": "dir/yamlover",
+    "documentPath": ":appendix",
+    "title": "The Appendix",
+    "description": null,
+    "value": {
+      "$yamloverMixed": {
+        "kind": "mix",
+        "entries": [
+          {
+            "key": "title",
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":appendix:title",
+                "concrete": "yamlover",
+                "value": "The Appendix"
+              }
+            }
+          },
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":appendix:1",
+                "format": "text/marklower",
+                "concrete": "yamlover",
+                "value": ""
+              }
+            }
+          },
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":appendix:2",
+                "format": "text/marklower",
+                "concrete": "yamlover",
+                "value": "The closing chunk."
+              }
+            }
+          }
+        ],
+        "format": "x-yamlover-chapter"
+      }
+    },
+    "comments": {
+      "/1": {
+        "repr": "yaml/single",
+        "raw": "''"
+      },
+      "/2": {
+        "trailing": [
+          " with a tail comment"
+        ]
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":"
+        }
+      }
+    }
+  },
+  ":cover.png": {
+    "path": ":cover.png",
+    "type": "binary",
+    "format": "image/png",
+    "valueType": "binary",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "file/binary",
+    "documentPath": ":",
+    "title": null,
+    "description": null,
+    "value": {
+      "size": 70,
+      "format": "image/png"
+    },
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":"
+        }
+      }
+    }
+  },
+  ":description": {
+    "path": ":description",
+    "type": "string",
+    "format": "text/marklower",
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":",
+    "title": null,
+    "description": null,
+    "value": "A fixture book exercising every wire trait",
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":"
+        }
+      }
+    }
+  },
+  ":part-one": {
+    "path": ":part-one",
+    "type": "variant",
+    "format": "x-yamlover-chapter",
+    "valueType": "string",
+    "hasKeyed": true,
+    "hasOrdinal": true,
+    "concrete": "dir/yamlover",
+    "documentPath": ":part-one",
+    "title": "Part One",
+    "description": "Members and provenance",
+    "value": {
+      "$yamloverMixed": {
+        "kind": "omni",
+        "entries": [
+          {
+            "key": "description",
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":part-one:description",
+                "format": "text/marklower",
+                "concrete": "yamlover",
+                "value": "Members and provenance"
+              }
+            }
+          },
+          {
+            "key": "status",
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":part-one:status",
+                "concrete": "yamlover",
+                "value": "draft"
+              }
+            }
+          },
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":part-one:2",
+                "format": "text/marklower",
+                "concrete": "yamlover",
+                "value": "The chunk before the deep members."
+              }
+            }
+          },
+          {
+            "key": "item01",
+            "value": {
+              "$yamloverLink": {
+                "kind": "omni",
+                "type": "variant",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": true,
+                "path": ":part-one:item01",
+                "format": "x-yamlover-chapter",
+                "concrete": "dir/yamlover",
+                "title": "Lists And Tables",
+                "count": 4,
+                "value": "Lists And Tables"
+              }
+            },
+            "anchor": true
+          },
+          {
+            "key": "01-deep",
+            "value": {
+              "$yamloverLink": {
+                "kind": "omni",
+                "type": "variant",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": true,
+                "path": ":part-one:01-deep",
+                "format": "x-yamlover-chapter",
+                "concrete": "dir/yamlover",
+                "title": "Deep Chapter",
+                "count": 3,
+                "value": "Deep Chapter"
+              }
+            },
+            "anchor": true
+          },
+          {
+            "key": "stray",
+            "value": {
+              "$yamloverLink": {
+                "kind": "omni",
+                "type": "variant",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": true,
+                "path": ":part-one:stray",
+                "concrete": "dir/yamlover",
+                "count": 1,
+                "value": "Stray Member"
+              }
+            }
+          }
+        ],
+        "format": "x-yamlover-chapter",
+        "value": "Part One"
+      }
+    },
+    "comments": {
+      "/description": {
+        "leading": [
+          " part one — members two levels deep, a planning field, and a STRAY keyed-remainder member",
+          " on disk (stray/ is walked keyed-only: no granting line below)."
+        ]
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":"
+        }
+      }
+    }
+  },
+  ":part-one:01-deep": {
+    "path": ":part-one:01-deep",
+    "type": "variant",
+    "format": "x-yamlover-chapter",
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": true,
+    "concrete": "dir/yamlover",
+    "documentPath": ":part-one:01-deep",
+    "title": "Deep Chapter",
+    "description": null,
+    "value": {
+      "$yamloverMixed": {
+        "kind": "omni",
+        "entries": [
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":part-one:01-deep:0",
+                "format": "text/marklower",
+                "concrete": "yamlover",
+                "value": "The quote ABOVE the title (selfAt = 1)."
+              }
+            }
+          },
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":part-one:01-deep:1",
+                "format": "text/x-latex",
+                "concrete": "yamlover",
+                "value": "e = mc^2"
+              }
+            }
+          },
+          {
+            "key": "item01",
+            "value": {
+              "$yamloverLink": {
+                "kind": "omni",
+                "type": "variant",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": true,
+                "path": ":part-one:01-deep:item01",
+                "format": "x-yamlover-chapter",
+                "concrete": "dir/yamlover",
+                "title": "Deepest",
+                "count": 1,
+                "value": "Deepest"
+              }
+            },
+            "anchor": true
+          }
+        ],
+        "format": "x-yamlover-chapter",
+        "value": "Deep Chapter",
+        "selfAt": 1
+      }
+    },
+    "comments": {
+      "/1": {
+        "tag": "!!<format: text/x-latex>",
+        "repr": "yaml/single",
+        "raw": "'e = mc^2'"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-one"
+        }
+      }
+    }
+  },
+  ":part-one:01-deep:0": {
+    "path": ":part-one:01-deep:0",
+    "type": "string",
+    "format": "text/marklower",
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-one:01-deep",
+    "title": null,
+    "description": null,
+    "value": "The quote ABOVE the title (selfAt = 1).",
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-one:01-deep"
+        }
+      }
+    }
+  },
+  ":part-one:01-deep:1": {
+    "path": ":part-one:01-deep:1",
+    "type": "string",
+    "format": "text/x-latex",
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-one:01-deep",
+    "title": null,
+    "description": null,
+    "value": "e = mc^2",
+    "comments": {
+      "": {
+        "tag": "!!<format: text/x-latex>",
+        "repr": "yaml/single",
+        "raw": "'e = mc^2'"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-one:01-deep"
+        }
+      }
+    }
+  },
+  ":part-one:01-deep:item01": {
+    "path": ":part-one:01-deep:item01",
+    "type": "variant",
+    "format": "x-yamlover-chapter",
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": true,
+    "concrete": "dir/yamlover",
+    "documentPath": ":part-one:01-deep:item01",
+    "title": "Deepest",
+    "description": null,
+    "value": {
+      "$yamloverMixed": {
+        "kind": "omni",
+        "entries": [
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":part-one:01-deep:item01:0",
+                "format": "text/marklower",
+                "concrete": "yamlover",
+                "value": "The third level's prose."
+              }
+            }
+          }
+        ],
+        "format": "x-yamlover-chapter",
+        "value": "Deepest"
+      }
+    },
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-one:01-deep"
+        }
+      }
+    }
+  },
+  ":part-one:2": {
+    "path": ":part-one:2",
+    "type": "string",
+    "format": "text/marklower",
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-one",
+    "title": null,
+    "description": null,
+    "value": "The chunk before the deep members.",
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-one"
+        }
+      }
+    }
+  },
+  ":part-one:description": {
+    "path": ":part-one:description",
+    "type": "string",
+    "format": "text/marklower",
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-one",
+    "title": null,
+    "description": null,
+    "value": "Members and provenance",
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-one"
+        }
+      }
+    }
+  },
+  ":part-one:item01": {
+    "path": ":part-one:item01",
+    "type": "variant",
+    "format": "x-yamlover-chapter",
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": true,
+    "concrete": "dir/yamlover",
+    "documentPath": ":part-one:item01",
+    "title": "Lists And Tables",
+    "description": null,
+    "value": {
+      "$yamloverMixed": {
+        "kind": "omni",
+        "entries": [
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "array",
+                "type": "array",
+                "valueType": null,
+                "hasKeyed": false,
+                "hasOrdinal": true,
+                "path": ":part-one:item01:0",
+                "format": "x-yamlover-bullets",
+                "concrete": "yamlover",
+                "count": 2
+              }
+            }
+          },
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "array",
+                "type": "array",
+                "valueType": null,
+                "hasKeyed": false,
+                "hasOrdinal": true,
+                "path": ":part-one:item01:1",
+                "format": "x-yamlover-numbered",
+                "concrete": "yamlover",
+                "count": 2
+              }
+            }
+          },
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "mix",
+                "type": "mixed",
+                "valueType": null,
+                "hasKeyed": true,
+                "hasOrdinal": true,
+                "path": ":part-one:item01:2",
+                "format": "x-yamlover-table",
+                "concrete": "yamlover",
+                "count": 2
+              }
+            }
+          },
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "omni",
+                "type": "variant",
+                "valueType": "string",
+                "hasKeyed": true,
+                "hasOrdinal": true,
+                "path": ":",
+                "format": "x-yamlover-chapter",
+                "concrete": "dir/yamlover",
+                "title": "The Deep Book",
+                "count": 9,
+                "value": "The Deep Book"
+              }
+            }
+          }
+        ],
+        "format": "x-yamlover-chapter",
+        "value": "Lists And Tables"
+      }
+    },
+    "comments": {
+      "/0": {
+        "tag": "!!<*yamlover: $defs: bullets>"
+      },
+      "/1": {
+        "tag": "!!<*yamlover: $defs: numbered>"
+      },
+      "/2": {
+        "tag": "!!<*yamlover: $defs: table>"
+      },
+      "/3": {
+        "pointer": "..: .."
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-one"
+        }
+      }
+    }
+  },
+  ":part-one:status": {
+    "path": ":part-one:status",
+    "type": "string",
+    "format": null,
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-one",
+    "title": null,
+    "description": null,
+    "value": "draft",
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-one"
+        }
+      }
+    }
+  },
+  ":part-one:stray": {
+    "path": ":part-one:stray",
+    "type": "variant",
+    "format": null,
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": true,
+    "concrete": "dir/yamlover",
+    "documentPath": ":part-one:stray",
+    "title": null,
+    "description": null,
+    "value": {
+      "$yamloverMixed": {
+        "kind": "omni",
+        "entries": [
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":part-one:stray:0",
+                "concrete": "yamlover",
+                "value": "Walked keyed-only — no granting line in part-one's body."
+              }
+            }
+          }
+        ],
+        "value": "Stray Member"
+      }
+    },
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-one"
+        }
+      }
+    }
+  },
+  ":part-one:stray:0": {
+    "path": ":part-one:stray:0",
+    "type": "string",
+    "format": null,
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-one:stray",
+    "title": null,
+    "description": null,
+    "value": "Walked keyed-only — no granting line in part-one's body.",
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-one:stray"
+        }
+      }
+    }
+  },
+  ":part-two": {
+    "path": ":part-two",
+    "type": "variant",
+    "format": "x-yamlover-chapter",
+    "valueType": "string",
+    "hasKeyed": true,
+    "hasOrdinal": true,
+    "concrete": "dir/yamlover",
+    "documentPath": ":part-two",
+    "title": "Part Two",
+    "description": "Data islands and spellings",
+    "value": {
+      "$yamloverMixed": {
+        "kind": "omni",
+        "entries": [
+          {
+            "key": "description",
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":part-two:description",
+                "format": "text/marklower",
+                "concrete": "yamlover",
+                "value": "Data islands and spellings"
+              }
+            }
+          },
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "mix",
+                "type": "mixed",
+                "valueType": null,
+                "hasKeyed": true,
+                "hasOrdinal": true,
+                "path": ":part-two:1",
+                "yo": true,
+                "concrete": "yamlover",
+                "count": 7
+              }
+            }
+          },
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "array",
+                "type": "array",
+                "valueType": null,
+                "hasKeyed": false,
+                "hasOrdinal": true,
+                "path": ":part-two:2",
+                "format": "x-yamlover-chapter",
+                "concrete": "yamlover",
+                "count": 2
+              }
+            }
+          },
+          {
+            "key": null,
+            "value": {
+              "$yamloverLink": {
+                "kind": "omni",
+                "type": "variant",
+                "valueType": "string",
+                "hasKeyed": true,
+                "hasOrdinal": false,
+                "path": ":part-two:3",
+                "format": "text/marklower",
+                "concrete": "yamlover",
+                "count": 1,
+                "value": "Annotated prose carries an overlay."
+              }
+            }
+          },
+          {
+            "key": "data.csv",
+            "value": {
+              "$yamloverLink": {
+                "kind": "scalar",
+                "type": "string",
+                "valueType": "string",
+                "hasKeyed": false,
+                "hasOrdinal": false,
+                "path": ":part-two:data.csv",
+                "format": "text/csv",
+                "concrete": "file/yaml",
+                "value": "a,b\n1,2\n"
+              }
+            },
+            "anchor": true
+          },
+          {
+            "key": "misc.yo",
+            "value": {
+              "$yamloverLink": {
+                "kind": "object",
+                "type": "object",
+                "valueType": null,
+                "hasKeyed": true,
+                "hasOrdinal": false,
+                "path": ":part-two:misc.yo",
+                "concrete": "file/yamlover",
+                "count": 2
+              }
+            }
+          }
+        ],
+        "format": "x-yamlover-chapter",
+        "value": "Part Two"
+      }
+    },
+    "comments": {
+      "/1": {
+        "tag": "!!yo"
+      },
+      "/2": {
+        "tag": "!!set"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":"
+        }
+      }
+    }
+  },
+  ":part-two:1": {
+    "path": ":part-two:1",
+    "type": "mixed",
+    "format": null,
+    "valueType": null,
+    "hasKeyed": true,
+    "hasOrdinal": true,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": {
+      "$yamloverMixed": {
+        "kind": "mix",
+        "entries": [
+          {
+            "key": "count",
+            "value": 255
+          },
+          {
+            "key": "huge",
+            "value": 1000
+          },
+          {
+            "key": "always",
+            "value": {
+              "$yamloverNum": "Infinity"
+            }
+          },
+          {
+            "key": "flag",
+            "value": true
+          },
+          {
+            "key": null,
+            "value": "the null-keyed value",
+            "keyNull": true
+          },
+          {
+            "key": "flow",
+            "value": [
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "key": "knr",
+            "value": {
+              "a": 1,
+              "b": 2
+            }
+          }
+        ],
+        "yo": true
+      }
+    },
+    "comments": {
+      "": {
+        "tag": "!!yo"
+      },
+      "/count": {
+        "trailing": [
+          " a hex raw"
+        ],
+        "repr": "yaml/hex",
+        "raw": "0xff"
+      },
+      "/huge": {
+        "repr": "yaml/exp",
+        "raw": "1e3"
+      },
+      "/always": {
+        "raw": ".inf"
+      },
+      "/flag": {
+        "raw": "True"
+      },
+      "/flow": {
+        "repr": "yaml/flow"
+      },
+      "/knr": {
+        "concrete": "json5p"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two"
+        }
+      }
+    }
+  },
+  ":part-two:1:always": {
+    "path": ":part-two:1:always",
+    "type": "number",
+    "format": null,
+    "valueType": "number",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": {
+      "$yamloverNum": "Infinity"
+    },
+    "comments": {
+      "": {
+        "raw": ".inf"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:1"
+        }
+      }
+    }
+  },
+  ":part-two:1:count": {
+    "path": ":part-two:1:count",
+    "type": "integer",
+    "format": null,
+    "valueType": "integer",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": 255,
+    "comments": {
+      "": {
+        "repr": "yaml/hex",
+        "raw": "0xff"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:1"
+        }
+      }
+    }
+  },
+  ":part-two:1:flag": {
+    "path": ":part-two:1:flag",
+    "type": "boolean",
+    "format": null,
+    "valueType": "boolean",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": true,
+    "comments": {
+      "": {
+        "raw": "True"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:1"
+        }
+      }
+    }
+  },
+  ":part-two:1:flow": {
+    "path": ":part-two:1:flow",
+    "type": "array",
+    "format": null,
+    "valueType": null,
+    "hasKeyed": false,
+    "hasOrdinal": true,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": [
+      1,
+      2,
+      3
+    ],
+    "comments": {
+      "": {
+        "repr": "yaml/flow"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:1"
+        }
+      }
+    }
+  },
+  ":part-two:1:flow:0": {
+    "path": ":part-two:1:flow:0",
+    "type": "integer",
+    "format": null,
+    "valueType": "integer",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": 1,
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:1:flow"
+        }
+      }
+    }
+  },
+  ":part-two:1:flow:1": {
+    "path": ":part-two:1:flow:1",
+    "type": "integer",
+    "format": null,
+    "valueType": "integer",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": 2,
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:1:flow"
+        }
+      }
+    }
+  },
+  ":part-two:1:flow:2": {
+    "path": ":part-two:1:flow:2",
+    "type": "integer",
+    "format": null,
+    "valueType": "integer",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": 3,
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:1:flow"
+        }
+      }
+    }
+  },
+  ":part-two:1:huge": {
+    "path": ":part-two:1:huge",
+    "type": "integer",
+    "format": null,
+    "valueType": "integer",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": 1000,
+    "comments": {
+      "": {
+        "repr": "yaml/exp",
+        "raw": "1e3"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:1"
+        }
+      }
+    }
+  },
+  ":part-two:1:knr": {
+    "path": ":part-two:1:knr",
+    "type": "object",
+    "format": null,
+    "valueType": null,
+    "hasKeyed": true,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": {
+      "a": 1,
+      "b": 2
+    },
+    "comments": {
+      "": {
+        "concrete": "json5p"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:1"
+        }
+      }
+    }
+  },
+  ":part-two:1:knr:a": {
+    "path": ":part-two:1:knr:a",
+    "type": "integer",
+    "format": null,
+    "valueType": "integer",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": 1,
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:1:knr"
+        }
+      }
+    }
+  },
+  ":part-two:1:knr:b": {
+    "path": ":part-two:1:knr:b",
+    "type": "integer",
+    "format": null,
+    "valueType": "integer",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": 2,
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:1:knr"
+        }
+      }
+    }
+  },
+  ":part-two:1:~": {
+    "path": ":part-two:1:~",
+    "type": "string",
+    "format": null,
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": "the null-keyed value",
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:1"
+        }
+      }
+    }
+  },
+  ":part-two:2": {
+    "path": ":part-two:2",
+    "type": "array",
+    "format": "x-yamlover-chapter",
+    "valueType": null,
+    "hasKeyed": false,
+    "hasOrdinal": true,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": {
+      "$yamloverMixed": {
+        "kind": "array",
+        "entries": [
+          {
+            "key": null,
+            "value": "one"
+          },
+          {
+            "key": null,
+            "value": "two"
+          }
+        ],
+        "format": "x-yamlover-chapter"
+      }
+    },
+    "comments": {
+      "": {
+        "tag": "!!set"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two"
+        }
+      }
+    }
+  },
+  ":part-two:3": {
+    "path": ":part-two:3",
+    "type": "variant",
+    "format": "text/marklower",
+    "valueType": "string",
+    "hasKeyed": true,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": {
+      "$yamloverMixed": {
+        "kind": "omni",
+        "entries": [
+          {
+            "key": "yamlover-annotations",
+            "value": [
+              {
+                "$yamloverRef": {
+                  "text": "*:: tags: important",
+                  "path": ":tags:important"
+                }
+              }
+            ]
+          }
+        ],
+        "format": "text/marklower",
+        "value": "Annotated prose carries an overlay."
+      }
+    },
+    "comments": {
+      "/yamlover-annotations/0": {
+        "pointer": ":: tags: important"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two"
+        }
+      }
+    }
+  },
+  ":part-two:3:yamlover-annotations": {
+    "path": ":part-two:3:yamlover-annotations",
+    "type": "array",
+    "format": null,
+    "valueType": null,
+    "hasKeyed": false,
+    "hasOrdinal": true,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": [
+      {
+        "$yamloverRef": {
+          "text": "*:: tags: important",
+          "path": ":tags:important"
+        }
+      }
+    ],
+    "comments": {
+      "/0": {
+        "pointer": ":: tags: important"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:3"
+        }
+      }
+    }
+  },
+  ":part-two:data.csv": {
+    "path": ":part-two:data.csv",
+    "type": "string",
+    "format": "text/csv",
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "file/yaml",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": "a,b\n1,2\n",
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two"
+        }
+      }
+    }
+  },
+  ":part-two:description": {
+    "path": ":part-two:description",
+    "type": "string",
+    "format": "text/marklower",
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two",
+    "title": null,
+    "description": null,
+    "value": "Data islands and spellings",
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two"
+        }
+      }
+    }
+  },
+  ":part-two:misc.yo": {
+    "path": ":part-two:misc.yo",
+    "type": "object",
+    "format": null,
+    "valueType": null,
+    "hasKeyed": true,
+    "hasOrdinal": false,
+    "concrete": "file/yamlover",
+    "documentPath": ":part-two:misc.yo",
+    "title": null,
+    "description": null,
+    "value": {
+      "just": "data",
+      "list": [
+        1,
+        2
+      ]
+    },
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two"
+        }
+      }
+    }
+  },
+  ":part-two:misc.yo:just": {
+    "path": ":part-two:misc.yo:just",
+    "type": "string",
+    "format": null,
+    "valueType": "string",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two:misc.yo",
+    "title": null,
+    "description": null,
+    "value": "data",
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:misc.yo"
+        }
+      }
+    }
+  },
+  ":part-two:misc.yo:list": {
+    "path": ":part-two:misc.yo:list",
+    "type": "array",
+    "format": null,
+    "valueType": null,
+    "hasKeyed": false,
+    "hasOrdinal": true,
+    "concrete": "yamlover",
+    "documentPath": ":part-two:misc.yo",
+    "title": null,
+    "description": null,
+    "value": [
+      1,
+      2
+    ],
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:misc.yo"
+        }
+      }
+    }
+  },
+  ":part-two:misc.yo:list:0": {
+    "path": ":part-two:misc.yo:list:0",
+    "type": "integer",
+    "format": null,
+    "valueType": "integer",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two:misc.yo",
+    "title": null,
+    "description": null,
+    "value": 1,
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:misc.yo:list"
+        }
+      }
+    }
+  },
+  ":part-two:misc.yo:list:1": {
+    "path": ":part-two:misc.yo:list:1",
+    "type": "integer",
+    "format": null,
+    "valueType": "integer",
+    "hasKeyed": false,
+    "hasOrdinal": false,
+    "concrete": "yamlover",
+    "documentPath": ":part-two:misc.yo",
+    "title": null,
+    "description": null,
+    "value": 2,
+    "comments": {},
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":part-two:misc.yo:list"
+        }
+      }
+    }
+  },
+  ":tags": {
+    "path": ":tags",
+    "type": "object",
+    "format": "x-yamlover-chapter",
+    "valueType": null,
+    "hasKeyed": true,
+    "hasOrdinal": false,
+    "concrete": "dir/yamlover",
+    "documentPath": ":tags",
+    "title": null,
+    "description": null,
+    "value": {
+      "important": {
+        "$yamloverLink": {
+          "kind": "object",
+          "type": "object",
+          "valueType": null,
+          "hasKeyed": true,
+          "hasOrdinal": false,
+          "path": ":tags:important",
+          "format": "x-yamlover-tag",
+          "concrete": "yamlover",
+          "count": 1,
+          "color": "#d29922"
+        }
+      }
+    },
+    "comments": {
+      "/important": {
+        "tag": "!!<*yamlover: $defs: tag>"
+      }
+    },
+    "relations": {
+      "..": {
+        "$yamloverRef": {
+          "text": "..",
+          "path": ":"
+        }
+      }
+    }
+  }
+}

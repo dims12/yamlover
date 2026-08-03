@@ -1,0 +1,4 @@
+# The fixture's BYTES are load-bearing: the /api/content envelope round-trips serialize the
+# authored text, and a CRLF conversion would flip every golden. Same law as test-examples/.
+* -text
+*.png binary

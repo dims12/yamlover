@@ -1,0 +1,8 @@
+# part one — members two levels deep, a planning field, and a STRAY keyed-remainder member
+# on disk (stray/ is walked keyed-only: no granting line below).
+Part One
+description: Members and provenance
+status: draft
+- The chunk before the deep members.
+- *: item01
+- *: 01-deep

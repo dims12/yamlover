@@ -1,0 +1,14 @@
+Lists And Tables
+- !!<*yamlover: $defs: bullets>
+  - feed daily
+  - fresh water
+- !!<*yamlover: $defs: numbered>
+  - first
+  - second
+- !!<*yamlover: $defs: table>
+  header:
+    - A
+    - B
+  - - '1'
+    - '2'
+- *..:..

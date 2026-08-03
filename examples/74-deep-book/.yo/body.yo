@@ -1,0 +1,19 @@
+# examples/74-deep-book — THE FROZEN DEEP FIXTURE for the one-wire migration: the wire goldens,
+# the /api/content round-trips, and the chapter face-parity gate all walk this tree. Every
+# storage trait the projection must carry appears at least once (member dirs with pointer
+# arrays, a keyed-remainder member, a blob member, a relative back-edge, a null key, !!yo,
+# !!set, planning fields, an annotated chunk, empty chunks, tables/lists/latex/csv, comments,
+# raw spellings, flow and K&R spans, a legacy keyed title, a selfAt≠0 chapter, a colored tag).
+!!<*yamlover: $defs: chapter>
+The Deep Book
+description: A fixture book exercising every wire trait
+# a leading comment on the first prose chunk
+- |
+  **The opening chunk.** It keeps *marklower* emphasis and a `code` span.
+
+- ''
+- *: cover.png
+- *: part-one
+- *: part-two
+- *: appendix
+- *: tags

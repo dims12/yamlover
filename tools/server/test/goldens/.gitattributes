@@ -1,0 +1,2 @@
+# Goldens are BYTES — CRLF conversion would flip every comparison (the byte-golden law).
+* -text
