@@ -13,7 +13,7 @@ import type { Document, Entry, Node, Path, Value } from "../state";
 import { nodeAt } from "../state";
 import { insertEntry, removeEntryAt, withNode, type Position } from "../apply";
 import { chapterPositionsOf, positionIndex } from "./positions";
-import { chapterSiteOf, type ChapterEdges } from "./site";
+import { chapterSiteOf, moveSafeValue, type ChapterEdges } from "./site";
 import { chapterInterpret, type ChapterIntent, type ChapterKey } from "./dispatch";
 import { chunkModeOf, enclosingFormat, formatTargetPath, hasSelfValue, isChapterContainer, metaOf, tagContentOf, tagFor, type ChosenFormat } from "./format";
 
@@ -274,6 +274,9 @@ function flattenChapter(doc: Document, path: Path): { doc: Document; moved: numb
   const v = nodeAt(doc, path);
   if (!v || (v as Node).kind !== "scalar" || !hasSelfValue(v)) return null;
   if (metaOf(v).style === "flow") return null;
+  // THE MOVE LAW: every body entry splices OUT to the parent — a subtree the diff cannot
+  // re-root honestly (member storage / blobs / holder-relative pointers) refuses the flatten
+  if (((v as Node).entries ?? []).some((e) => !moveSafeValue(e.value))) return null;
   let out = doc;
   const node0 = nodeAt(out, path)!;
   const descIdx = (node0.entries ?? []).findIndex((e) => e.key === "description");
@@ -345,6 +348,10 @@ export function indentEntry(s: ChapterState, path: Path): ChapterState {
   const entry = container?.entries?.[index];
   const prev = container?.entries?.[index - 1];
   if (!entry || !prev || isPointer(prev.value) || (prev.value as Node).kind === "blob") return refuse(s, "indent");
+  // THE MOVE LAW: only a subtree the persistence diff can re-root honestly may move — nested
+  // member storage / blobs / holder-relative pointers refuse (the reported json/object
+  // flatten: the projection copied inline, the directories orphaned, the back-edge rebound)
+  if (!moveSafeValue(entry.value)) return refuse(s, "indent");
   let doc = removeEntryAt(s.doc, parent, index);
   const prevPath = [...parent, index - 1];
   const at = (nodeAt(doc, prevPath)?.entries ?? []).length;
@@ -363,6 +370,7 @@ export function dedentEntry(s: ChapterState, path: Path): ChapterState {
   const parentIdx = parent[parent.length - 1];
   const entry = nodeAt(s.doc, parent)?.entries?.[index];
   if (!entry) return refuse(s, "dedent");
+  if (!moveSafeValue(entry.value)) return refuse(s, "dedent"); // the move law (see indentEntry)
   let doc = removeEntryAt(s.doc, parent, index);
   doc = insertEntry(doc, gpPath, parentIdx + 1, entry);
   let newPath = [...gpPath, parentIdx + 1];
@@ -749,6 +757,19 @@ export function applyChapterIntent(s: ChapterState, intent: ChapterIntent, split
       const index = path[path.length - 1];
       const doc = insertEntry(s.doc, parent, index, proseEntry(""));
       return ok(s, { doc, focus: { at: "token", path: [...parent, index] }, caret: "start" }, "insertBefore");
+    }
+    case "insertHead": {
+      // Enter on a title whose first chunk cannot take the caret (a subchapter / an atom):
+      // an empty paragraph opens as the FIRST chunk of THIS node's body — the row right
+      // after the self line (a leading description keeps its place above it)
+      const node = nodeAt(s.doc, path);
+      if (!node) return refuse(s, "insertHead");
+      const entries = node.entries ?? [];
+      const selfAt = ((node.meta ?? {}) as { selfAt?: number }).selfAt ?? 0;
+      let at = Math.min(Math.max(selfAt, 0), entries.length);
+      while (at < entries.length && entries[at].key === "description") at++;
+      const doc = insertEntry(s.doc, path, at, proseEntry(""));
+      return ok(s, { doc, focus: { at: "token", path: [...path, at] }, caret: "start" }, "insertHead");
     }
     case "splitProse": {
       if (s.focus?.at === "into") {

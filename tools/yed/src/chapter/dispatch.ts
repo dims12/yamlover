@@ -21,6 +21,8 @@ export type ChapterIntent =
   | { kind: "deleteRow" }                        // table: Backspace at an ALL-EMPTY row's first position
   | { kind: "enterWalk" }                        // Enter on title/description: to the next cell
   | { kind: "insertBefore" }                     // Enter at a subchapter title's START: an empty ¶ opens before it
+  | { kind: "insertHead" }                       // Enter on a title whose first chunk cannot take the caret
+                                                 //   (a subchapter / an atom): an empty ¶ opens as the FIRST chunk
   | { kind: "move"; dir: 1 | -1 }                // the flat document-order caret walk
   | { kind: "role"; role: "title" | "desc" }     // the bar's T / D (never a key)
   | { kind: "format"; chosen: ChosenFormat }     // Ctrl+Alt+1..4 / the bar
@@ -66,6 +68,10 @@ export function chapterInterpret(k: ChapterKey, s: ChapterSite): ChapterIntent |
         // an empty paragraph opens BEFORE the whole subchapter, and the caret enters it.
         // (An EMPTY title is atStart AND atEnd — that stays the enter-walk.)
         if (s.caretAtStart && !s.caretAtEnd && !s.isRootTitle) return { kind: "insertBefore" };
+        // Enter on a title whose first chunk is a SUBCHAPTER heading or an ATOM: walking
+        // there would land the caret on something it cannot type into (the reported "Enter
+        // just jumps to the subchapter" trap) — a fresh paragraph opens as the first chunk
+        if (!s.firstChunkWalkable) return { kind: "insertHead" };
         return { kind: "enterWalk" };
       }
       if (s.cell === "description") return { kind: "enterWalk" };
@@ -89,7 +95,13 @@ export function chapterInterpret(k: ChapterKey, s: ChapterSite): ChapterIntent |
       // Tab on a paragraph NESTS it — a plain paragraph one level deeper (an untitled group);
       // the title role is EXPLICIT (T). Any paragraph nests, one-line or block.
       if (s.cell === "prose") return { kind: "nest" };
-      if (s.cell === "title") return s.prevSiblingIsChapter && !s.isRootTitle ? { kind: "indent" } : { kind: "nop" };
+      // Tab on a subchapter title moves the WHOLE subchapter under its previous sibling — but
+      // only a subtree the diff can re-root honestly (site.movable): member-backed storage,
+      // blobs, and holder-relative pointers REFUSE instead of silently copying/rebinding
+      if (s.cell === "title") {
+        if (!s.prevSiblingIsChapter || s.isRootTitle) return { kind: "nop" };
+        return s.movable ? { kind: "indent" } : { kind: "refuse" };
+      }
       if (s.cell === "tableCell") {
         // the CREATION flow: while the table has one row, Tab at its end grows a COLUMN;
         // with more rows the width is FIXED and Tab at the very last cell appends a row

@@ -41,7 +41,7 @@ export function YedEditor({ path, onNavigate, cells }: { path: string; onNavigat
     if (!st || !committed || inflightRef.current) return;
     const snapshot = st.doc;
     const { ops, renames, unserializable } = diffToOps(path, committed, snapshot);
-    if (unserializable) { window.alert("this edit cannot be persisted (a binary is inside the rewritten region)"); return; }
+    if (unserializable) { window.alert("this edit cannot be persisted (a binary or a member-backed subtree is inside the rewritten region)"); return; }
     if (ops.length === 0 && renames.length === 0) return;
     inflightRef.current = true;
     (ops.length > 0 ? editChunks(ops) : Promise.resolve({ ok: true as const }))

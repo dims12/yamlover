@@ -451,10 +451,14 @@ atom_focused: The caret stands ON an atom (a `*` pointer)
 
 chapter_title_editing: A chapter title / subtitle, focused
     description: The document's (or a subchapter's) self-value as an editable heading, or the keyed `description` as the subtitle - the SAME editor at every level, indented. Title and description are OPTIONAL and have NO placeholder cells - a cell exists only when its model does; any one-line chunk takes (or gives back) the role via the bar's T / D buttons. Opening the editor lands in the first cell that EXISTS - title, description, first paragraph, or an empty chapter's bootstrap paragraph. A title EMPTIED character by character drops its self line and the caret lands on the chapter's first remaining stop (never nowhere - the reported lost focus)
-    enter: *: chapter_title_editing               # title → description → the body (a first paragraph is made if none)
+    enter:
+        "at the START of a non-empty subchapter title - the word-processor push-down: an empty paragraph opens BEFORE the whole subchapter": *: chapter_prose_editing
+        "the first body chunk is a SUBCHAPTER heading or an ATOM - the walk would land on something untypeable, so an empty paragraph opens as the FIRST chunk instead (insertHead)": *: chapter_prose_editing
+        "otherwise - the walk: title → description → the body (a first paragraph is made if none)": *: chapter_title_editing
     ctrl_enter: *: format_switched                # THE TABLE GESTURE - the titled block becomes a table (the bar's ▦)
     tab:
-        "a title whose PREVIOUS sibling is a chapter - the whole subchapter nests under it, one level deeper": *: chapter_title_editing
+        "a title whose PREVIOUS sibling is a chapter AND the subtree can be re-rooted honestly - the whole subchapter nests under it, one level deeper": *: chapter_title_editing
+        "the subtree carries NESTED member storage, a blob, or a holder-relative pointer - THE MOVE LAW: the move would copy the projection inline, orphan the directories and rebind the pointers, so it RINGS (a flat member with a clean subtree still moves - the detach)": *: error_flash
         "otherwise (the root title, or a plain-paragraph neighbour) - Tab never conscripts the previous chunk": *: nop
     shift_tab:
         "a SUBCHAPTER title - the title dissolves back into a plain paragraph (the wrap's inverse, zero ops when childless): its body splices out after it in order, a keyed description dissolving into an ordinal chunk to move": *: chapter_prose_editing

@@ -137,11 +137,25 @@ function bareOf(v: Pointer & { raw?: string }): string {
   }
 }
 
+/** An entry INSIDE the subtree is member-backed storage (its `anchorKey` names a directory
+ *  on disk). Serializing such a subtree into a payload would write the PROJECTION as inline
+ *  content — a COPY, with the directories orphaned and their pointer members dereferenced
+ *  (the reported json/object flatten). The node's own provenance is its ENTRY's meta, so a
+ *  node value passed here is checked for members WITHIN it only. */
+const hasMemberStorage = (v: Value): boolean => {
+  if (isPointer(v)) return false;
+  return ((v as Node).entries ?? []).some((e) =>
+    ((e.meta as { anchorKey?: string } | undefined)?.anchorKey !== undefined) || hasMemberStorage(e.value));
+};
+
 /** A value as an op payload: one line for pointers/scalars, the serialized subtree for nodes
- *  (its text carries flow/K&R layout). Throws on a blob — the caller falls back or refuses. */
+ *  (its text carries flow/K&R layout). Throws (Bail) on a blob and on member-backed storage
+ *  inside — the caller falls back, and the fallback reports UNSERIALIZABLE (a loud refusal,
+ *  never a silent flatten). */
 function payloadOf(v: Value): string {
   if (isPointer(v)) return "*" + bareOf(v as Pointer & { raw?: string });
-  if ((v as Node).kind === "blob" || hasBlob(v)) throw new Error("a blob has no op payload");
+  if ((v as Node).kind === "blob" || hasBlob(v)) throw new Bail("a blob has no op payload");
+  if (hasMemberStorage(v)) throw new Bail("a member-backed subtree has no inline payload");
   return sourceOf({ root: stripComments(v) } as Document).replace(/\n$/, "");
 }
 

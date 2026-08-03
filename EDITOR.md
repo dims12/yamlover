@@ -147,6 +147,15 @@ chapter is a subchapter; inside a list, a sublist; inside a table, a row/cell), 
 never stored. The derivation lives in `tools/yed/src/chapter/format.ts`
 (`declaredFormat`/`enclosingFormat`/`chunkModeOf`).
 
+**THE MOVE LAW.** A structural verb that RE-ROOTS a subtree (Tab's indent, Shift-Tab's
+dedent, the unwrap/join flatten) runs only on a subtree the persistence diff can express
+honestly — `moveSafeValue` (`site.ts`): no NESTED member storage (`meta.anchorKey` names a
+directory; re-rooting would write the projection inline — a copy — and orphan the storage),
+no blobs, no holder-relative pointers (a move silently retargets them). Anything else RINGS.
+A flat member with a clean subtree still moves — the pinned detach semantics. The sync layer
+holds the same line: a payload carrying member storage refuses as unserializable
+(`yed-sync.ts payloadOf`) instead of flattening.
+
 - **Subchapters** lay out inline as the SAME editor one level down; beyond the `?depth=`
   window they collapse to descend headings, and a session-born wrap stays editable in place.
   `isSubchapter` / `anchorOf` / `CHAPTER_META` come from `chapter-model.ts`.

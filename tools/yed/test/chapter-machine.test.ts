@@ -200,6 +200,63 @@ describe("Tab nesting — titles and lists", () => {
     const s1 = applyChapterIntent({ ...s0, focus: tok(0, 0) }, { kind: "dedent" });
     expect(sourceOf(s1.doc)).toBe("- one\n- two\n");
   });
+
+  // THE MOVE LAW — the reported json/object flatten: a subtree the persistence diff cannot
+  // re-root honestly (nested MEMBER storage, holder-relative pointers) must REFUSE the move,
+  // never silently serialize the projection into the new parent (a copy + orphaned dirs +
+  // rebound back-edges).
+  it("a subchapter with a NESTED member (anchorKey inside) refuses Tab's indent — the ring, doc untouched", () => {
+    const src = "- Structured\n  - intro\n- Object\n  - Contains\n  - Pair\n    - deep\n";
+    const doc = parseSource(src);
+    // Object's inner "Pair" entry is a materialized member directory (projection provenance)
+    ((doc.root as Node).entries![1].value as Node).entries![1].meta = { anchorKey: "item01" } as never;
+    const s0 = { ...initialChapterState(doc), focus: tok(1), caret: null };
+    const s1 = applyChapterKey(s0, { key: "Tab" }, {})!;
+    expect(s1.refused).toBe(true);
+    expect(sourceOf(s1.doc)).toBe(src);
+  });
+
+  it("a subchapter carrying a RELATIVE pointer (`*..: ..` back edge) refuses the move too", () => {
+    const src = "- Structured\n  - intro\n- Object\n  - Contains\n  - *..: ..\n";
+    const s0 = st(src, tok(1));
+    const s1 = applyChapterKey(s0, { key: "Tab" }, {})!;
+    expect(s1.refused).toBe(true);
+    expect(sourceOf(s1.doc)).toBe(src);
+  });
+
+  it("the pinned detach stays: a FLAT member (own anchorKey, clean subtree) still moves", () => {
+    const doc = parseSource("- Dogs\n  - woof\n- Cats\n  - meow\n");
+    (doc.root as Node).entries![1].meta = { anchorKey: "01-Cats" } as never; // Cats is a member
+    const s0 = { ...initialChapterState(doc), focus: tok(2), caret: null };
+    const s1 = indentEntry({ ...s0, focus: tok(1) }, [1]);
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("- Dogs\n  - woof\n  - Cats\n    - meow\n");
+  });
+});
+
+describe("insertHead — Enter on a title whose first chunk cannot take the caret", () => {
+  it("Enter at a title whose body LEADS with a subchapter opens a fresh ¶ between them", () => {
+    const s0 = st("Structured\n- Object\n  - deep\n", { at: "token", path: [] });
+    const s1 = applyChapterKey(s0, { key: "Enter" }, { atStart: false, atEnd: true })!;
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("Structured\n- ''\n- Object\n  - deep\n");
+    expect(s1.focus).toEqual(tok(0)); // the caret sits in the fresh paragraph
+  });
+
+  it("a leading description keeps its row — the ¶ opens right after it", () => {
+    const s0 = st("Structured\ndescription: d\n- Object\n  - deep\n", { at: "token", path: [] });
+    const s1 = applyChapterKey(s0, { key: "Enter" }, { atEnd: true })!;
+    // the walk still lands on the DESCRIPTION cell first — a typeable stop exists
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("Structured\ndescription: d\n- Object\n  - deep\n");
+  });
+
+  it("prose-first bodies keep the plain enter-walk (no phantom paragraphs)", () => {
+    const s0 = st("Structured\n- intro\n- Object\n  - deep\n", { at: "token", path: [] });
+    const s1 = applyChapterKey(s0, { key: "Enter" }, { atEnd: true })!;
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("Structured\n- intro\n- Object\n  - deep\n"); // walk, not insert
+  });
 });
 
 describe("roles — T / D", () => {

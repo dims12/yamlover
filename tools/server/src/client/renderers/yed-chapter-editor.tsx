@@ -73,7 +73,7 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
     const snapshot = st.doc;
     const mat = materializeSubchapters(path, committed, snapshot, concreteRef.current, final);
     const { ops, renames, unserializable } = diffToOps(path, mat.committed, mat.next);
-    if (unserializable) { window.alert("this edit cannot be persisted (a binary is inside the rewritten region)"); return mat.born; }
+    if (unserializable) { window.alert("this edit cannot be persisted (a binary or a member-backed subtree is inside the rewritten region)"); return mat.born; }
     const all = [...mat.ops, ...ops];
     if (all.length === 0 && renames.length === 0) return mat.born;
     // THE STAMP: a non-empty batch on an untagged plain container leads with the chapter meta

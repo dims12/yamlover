@@ -2,7 +2,7 @@
 // (The chapter mirror of grammar/dispatch.ts `Site`.) Model-derived fields come from the doc +
 // the focused position; caret-edge fields come from the DOM (the cell passes them with the key).
 
-import { isPointer } from "../../../parser/ts/src/ir.ts";
+import { isPointer, type Pointer } from "../../../parser/ts/src/ir.ts";
 import type { Document, Node, Path, Value } from "../state";
 import { nodeAt } from "../state";
 import type { Position } from "../apply";
@@ -30,6 +30,13 @@ export interface ChapterSite {
   belowRoot: boolean;
   /** A materialized (linked / anchored) subchapter — Shift-Tab nops (no inlining verb in v1). */
   materialized: boolean;
+  /** The focused TITLE's subtree may be RE-ROOTED as inline content (Tab's indent) —
+   *  see {@link moveSafeValue}. False refuses the move instead of silently corrupting. */
+  movable: boolean;
+  /** The title's enter-walk lands in a TYPEABLE cell (description / prose / list / table /
+   *  boot); false when the first body chunk is a subchapter heading or an atom — Enter must
+   *  INSERT a fresh paragraph there instead of walking into something it cannot type into. */
+  firstChunkWalkable: boolean;
   /** Where a table-cell caret stands for the Tab walk. */
   tableEdge: "midRow" | "rowEnd" | "lastCell" | null;
   /** The very first cell of a table (Shift-Tab never un-appends). */
@@ -79,7 +86,8 @@ export function chapterSiteOf(doc: Document, focus: Position | null, edges: Chap
     caretAtStart: edges.atStart ?? false, caretAtEnd: edges.atEnd ?? false,
     caretFirstLine: edges.firstLine ?? false, caretLastLine: edges.lastLine ?? false,
     isRootTitle: false, prevSiblingIsChapter: false, hasPrevItem: false, belowRoot: false,
-    materialized: false, tableEdge: null, atFirstCell: false, atRowStart: false, rowEmpty: false,
+    materialized: false, movable: true, firstChunkWalkable: true,
+    tableEdge: null, atFirstCell: false, atRowStart: false, rowEmpty: false,
     singleRow: false, inTable: false, currentFormat: null,
   };
   if (!focus) return base;
@@ -110,6 +118,16 @@ export function chapterSiteOf(doc: Document, focus: Position | null, edges: Chap
       base.prevSiblingIsChapter = !!prev && isChapterContainer(prev.value) &&
         !((((prev.value as Node).meta ?? {}) as { style?: string }).style === "flow") &&
         formatOfNode(prev.value) === "chapter";
+      base.movable = moveSafeValue(held.entry.value);
+    }
+    // where the enter-walk would land: the body row right after the self line (a leading
+    // `description` is a typeable cell of its own, so its presence keeps the walk)
+    const entries = (v as Node).entries ?? [];
+    const selfAt = (((v as Node).meta ?? {}) as { selfAt?: number }).selfAt ?? 0;
+    const first = entries[Math.min(Math.max(selfAt, 0), entries.length)];
+    if (first !== undefined && first.key !== "description") {
+      const mode = chunkModeOf(first.value);
+      base.firstChunkWalkable = mode !== "chapter" && mode !== "atom";
     }
     return base;
   }
@@ -171,6 +189,26 @@ export function chapterSiteOf(doc: Document, focus: Position | null, edges: Chap
   base.oneLine = oneLineScalar(v);
   base.belowRoot = path.length > 1;
   return base;
+}
+
+/** A subtree the chapter verbs may RE-ROOT honestly (indent / dedent / flatten). Refused:
+ *  - a NESTED entry with `meta.anchorKey` — it names a member DIRECTORY on disk; re-rooting
+ *    would serialize the PROJECTION into the new parent (a copy) and orphan the storage
+ *    (the reported json/object flatten: duplicated content, dereferenced links);
+ *  - a BLOB — no inline payload exists at all;
+ *  - a pointer that resolves RELATIVE to its holder (bare / `:` / `..` bases, `[.±k]` steps)
+ *    — moving the holder silently retargets it (`*..:..` stopped meaning json/code).
+ *  The entry's OWN anchorKey is deliberately not checked: moving a member DETACHES it (the
+ *  pinned scalar-member semantics — content moves inline, the directory orphans). */
+export function moveSafeValue(v: Value): boolean {
+  if (isPointer(v)) {
+    const p = v as Pointer;
+    return p.base.scope === "link" && p.steps.every((st) => st.sel !== "relindex");
+  }
+  const n = v as Node;
+  if (n.kind === "blob") return false;
+  return (n.entries ?? []).every((e) =>
+    ((e.meta ?? {}) as { anchorKey?: string }).anchorKey === undefined && moveSafeValue(e.value));
 }
 
 /** An empty prose cell: a childless scalar with no text (the unwind ladder's "cleared"). */

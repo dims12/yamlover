@@ -9,7 +9,8 @@ const site = (over: Partial<ChapterSite>): ChapterSite => ({
   cell: "prose", enclosing: "chapter", oneLine: true,
   caretAtStart: false, caretAtEnd: false, caretFirstLine: false, caretLastLine: false,
   isRootTitle: false, prevSiblingIsChapter: false, hasPrevItem: false, belowRoot: false,
-  materialized: false, tableEdge: null, atFirstCell: false, atRowStart: false, rowEmpty: false,
+  materialized: false, movable: true, firstChunkWalkable: true,
+  tableEdge: null, atFirstCell: false, atRowStart: false, rowEmpty: false,
   singleRow: false, inTable: false, currentFormat: "chapter",
   ...over,
 });
@@ -17,7 +18,10 @@ const site = (over: Partial<ChapterSite>): ChapterSite => ({
 const rows: { name: string; key: ChapterKey; site: Partial<ChapterSite>; intent: ChapterIntent | null }[] = [
   // --- chapter_title_editing ---
   { name: "Enter on the title walks in (title → description → body)", key: { key: "Enter" }, site: { cell: "title" }, intent: { kind: "enterWalk" } },
+  { name: "Enter on a title whose first chunk is a SUBCHAPTER/atom INSERTS a fresh ¶ — never a dead jump", key: { key: "Enter" }, site: { cell: "title", firstChunkWalkable: false }, intent: { kind: "insertHead" } },
+  { name: "Enter at a non-empty title's START pushes the subchapter down (insertBefore wins over insertHead)", key: { key: "Enter" }, site: { cell: "title", caretAtStart: true, firstChunkWalkable: false }, intent: { kind: "insertBefore" } },
   { name: "Tab on a title whose previous sibling is a chapter: the subchapter nests", key: { key: "Tab" }, site: { cell: "title", prevSiblingIsChapter: true }, intent: { kind: "indent" } },
+  { name: "Tab on a title whose subtree the diff cannot re-root RINGS — never a silent copy", key: { key: "Tab" }, site: { cell: "title", prevSiblingIsChapter: true, movable: false }, intent: { kind: "refuse" } },
   { name: "Tab on the ROOT title never indents", key: { key: "Tab" }, site: { cell: "title", isRootTitle: true, prevSiblingIsChapter: true }, intent: { kind: "nop" } },
   { name: "Tab on a title after a plain paragraph: never conscripts it", key: { key: "Tab" }, site: { cell: "title" }, intent: { kind: "nop" } },
   { name: "Shift-Tab on a subchapter title dissolves it (unwrap)", key: { key: "Tab", shift: true }, site: { cell: "title" }, intent: { kind: "unwrap" } },
