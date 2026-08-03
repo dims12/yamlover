@@ -57,6 +57,18 @@ describe("the chapter cell laws", () => {
     h.unmount();
   });
 
+  it("a RAW pointer chunk faces as a reference LINE — never a title (nothing local says the target is one)", () => {
+    const h = mountChapter("Structured\n- some prose\n- *..:..:..\n");
+    const atom = h.container.querySelector('.y2-cell[data-kind=atom]')!;
+    expect(atom).toBeTruthy();
+    // the pointer identity from the source editor (`*` + authored spelling), not a heading
+    const ref = atom.querySelector(".chapter-ref .y2-p")!;
+    expect(ref.textContent).toBe("*..:..:..");
+    expect(atom.querySelector(".chapter-title")).toBeNull();
+    expect(atom.querySelector(".descend")).toBeNull(); // no fake hyperlink to an unresolved raw
+    h.unmount();
+  });
+
   it("the NEST is a LOCALIZED state: the group's caption carries the badge", () => {
     const h = mountChapter("- p1\n- fresh\n");
     h.update({ ...h.state(), focus: { at: "token", path: [1] }, caret: null });

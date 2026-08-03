@@ -659,10 +659,15 @@ function AtomCell({ path, level, budget }: { path: Path; level: number; budget: 
   const active = activeAt(ctx, "ptr", path);
   const link = v !== null && !isPointer(v) ? metaOf(v).link : undefined;
   const pointerTarget = v !== null && isPointer(v) ? String((v as { raw?: string }).raw ?? "") : null;
-  const target = link?.path ?? pointerTarget;
   const face = ((): ReactNode => {
     if (link !== undefined && ctx.adapter.renderLinked) return ctx.adapter.renderLinked(link, level, budget);
-    if (target !== null) return <DescendHeading path={target} title={link?.title ?? target} level={level + 1} />;
+    if (link !== undefined) return <DescendHeading path={link.path} title={link.title ?? link.path} level={level + 1} />;
+    // a RAW pointer is locally UNRESOLVED content — the read view may resolve it into a
+    // titled subchapter heading, but here nothing says the target is one: it faces as a
+    // reference LINE wearing the source editor's pointer identity (`*` + authored spelling)
+    if (pointerTarget !== null) {
+      return <p className="chapter-prose chapter-ref" data-yo-chrome><span className="y2-p">*{pointerTarget}</span></p>;
+    }
     if (v !== null && ctx.adapter.renderReadonly) return ctx.adapter.renderReadonly(v, path);
     const label = v !== null ? explicitFormatOf(v) ?? "linked content" : "linked content";
     return <p className="chapter-prose chapter-readonly-block" data-yo-chrome>[{label}]</p>;
