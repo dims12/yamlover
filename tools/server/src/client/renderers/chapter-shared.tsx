@@ -17,25 +17,29 @@ import { InlineSubchapter, subchapterTarget } from "./subchapter";
 import { DataChunk } from "./data-chunk";
 
 /** The index gutter — an in-page anchor link to the chunk's own location, or a plain marker.
- *  `n` is the chunk's ABSOLUTE entry index (CHAPTER.md §Addressing), shown as the canonical
- *  bare-digit ADDRESS token (the YAML-keys round retired the `[n]` display): the same number a
- *  marklower link (`:i`), an edit path, and the tree label spell — the gutter shows the address,
- *  not a render-order count (the legacy `§N` chunk counter skipped keyed entries and disagreed
- *  with all three). */
-export function ChunkGutter({ index, anchor }: { index: number | string; anchor: string | null }) {
+ *  Each entry of `index` is one level's ADDRESS token (CHAPTER.md §Addressing): the chunk's
+ *  ABSOLUTE entry index, shown as the canonical bare digit — the same number a marklower link
+ *  (`:i`), an edit path, and the tree label spell. The chain renders WITHOUT colons: every
+ *  crumb hangs beside the vertical rule of its own nesting level (`--lvl` 0 = the chunk's own
+ *  rule, counting outward), and the whole chain stays one anchor. */
+export function ChunkGutter({ index, anchor }: { index: number | string | readonly (number | string)[]; anchor: string | null }) {
+  const chain = Array.isArray(index) ? (index as readonly (number | string)[]) : [index as number | string];
+  const crumbs = chain.map((n, i) => (
+    <span key={i} className="chunk-crumb" style={{ "--lvl": chain.length - 1 - i } as React.CSSProperties}>{n}</span>
+  ));
   return anchor ? (
-    <a className="chunk-index" href={`#${anchor}`}>{index}</a>
+    <a className="chunk-index" href={`#${anchor}`}>{crumbs}</a>
   ) : (
-    <span className="chunk-index">{index}</span>
+    <span className="chunk-index">{crumbs}</span>
   );
 }
 
-/** The gutter label of a chunk at `absIndex` under `crumbs` — its POSITIONAL address chain from
- *  the PAGE root, spelled as a colon path (`1: 1: 4`). A top-level chunk is the bare digit; a
- *  chunk laid out inside any inlined subchapter or nested group composes the whole chain, so the
- *  label cites the chunk's place in the page's nested array, not just its local index. */
-export function chunkLabel(crumbs: readonly number[], absIndex: number): string {
-  return [...crumbs, absIndex].join(": ");
+/** The gutter chain of a chunk at `absIndex` under `crumbs` — its POSITIONAL address chain from
+ *  the PAGE root (`[1, 1, 4]`). A top-level chunk is the bare digit; a chunk laid out inside any
+ *  inlined subchapter or nested group composes the whole chain, so the gutter cites the chunk's
+ *  place in the page's nested array, not just its local index. */
+export function chunkLabel(crumbs: readonly number[], absIndex: number): readonly number[] {
+  return [...crumbs, absIndex];
 }
 
 /** The chunk skeleton — `div.chunk` + gutter + `div.chunk-body` (+ optional trailing tools).
@@ -320,7 +324,7 @@ export function ReadChunk({
   documentPath,
   onNavigate,
 }: {
-  index: number | string;
+  index: number | string | readonly (number | string)[];
   item: unknown;
   anchorBase: string;
   slot: string;

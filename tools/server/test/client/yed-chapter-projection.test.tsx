@@ -81,10 +81,11 @@ describe("yed chapter — structure", () => {
     expect(section.querySelector("h2.chapter-title")).toBeTruthy();
     expect(titleText(section)).toBe("Dogs");
     expect(section.querySelector(".chapter-prose")?.textContent).toBe("woof");
-    const gutters = Array.from(container.querySelectorAll(".chunk-index")).map((g) => g.textContent);
+    const gutters = Array.from(container.querySelectorAll(".chunk-index")).map((g) =>
+      Array.from(g.querySelectorAll(".chunk-crumb")).map((c) => c.textContent));
     // the composed positional address from the page root: "opening"=0, the subchapter's
-    // "woof" cites its place in the page's nested array (`1: 0`), "closing"=2
-    expect(gutters).toEqual(["0", "1: 0", "2"]);
+    // "woof" cites its place in the page's nested array ([1, 0] crumbs), "closing"=2
+    expect(gutters).toEqual([["0"], ["1", "0"], ["2"]]);
   });
 
   it("an EMPTY chapter shows one bootstrap paragraph with the placeholder", async () => {

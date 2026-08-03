@@ -279,12 +279,14 @@ describe("ChapterView — inline subchapters", () => {
     // its chunk is `/dogs/0` — the page root `:` is an ancestor of everything, the path branch wins
     expect(document.getElementById("/dogs/0")).not.toBeNull();
     // the gutter cites each chunk's place in the PAGE's nested array: the subchapter sits at
-    // entry 1, so its chunk composes `1: 0` here (on its own page the same chunk reads `0`)
-    const indices = Array.from(container.querySelectorAll(".chunk-index")).map((a) => a.textContent);
-    expect(indices).toEqual(["0", "1: 0"]);
+    // entry 1, so its chunk composes the [1, 0] chain here — one colon-free crumb per level,
+    // each stamped with the nesting distance (`--lvl`) that hangs it beside its own rule
+    const indices = Array.from(container.querySelectorAll(".chunk-index")).map((a) =>
+      Array.from(a.querySelectorAll(".chunk-crumb")).map((c) => c.textContent));
+    expect(indices).toEqual([["0"], ["1", "0"]]);
   });
 
-  it("chunks in an untitled INLINE group compose their nested address (`1: 0`)", () => {
+  it("chunks in an untitled INLINE group compose their nested address ([1, 0] crumbs)", () => {
     // a nested plain container (the Tab-nest product) — not a chapter of its own: no title, no key
     const group = { $yamloverMixed: { kind: "mix", entries: [
       { key: null, value: "Grouped one." },
@@ -299,9 +301,10 @@ describe("ChapterView — inline subchapters", () => {
       ] } },
     } as unknown as NodeJson;
     const { container } = render(<ChapterView node={node} onNavigate={vi.fn()} />);
-    const indices = Array.from(container.querySelectorAll(".chunk-index")).map((a) => a.textContent);
+    const indices = Array.from(container.querySelectorAll(".chunk-index")).map((a) =>
+      Array.from(a.querySelectorAll(".chunk-crumb")).map((c) => c.textContent));
     // the top-level chunk keeps its bare digit; the group's chunks compose from the page root
-    expect(indices).toEqual(["0", "1: 0", "1: 1"]);
+    expect(indices).toEqual([["0"], ["1", "0"], ["1", "1"]]);
   });
 
   it("?depth=1 keeps today's link — no fetch at all, SAME heading face (the depth-styling rule)", () => {

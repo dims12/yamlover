@@ -748,7 +748,7 @@ body {
   border-color: var(--danger);
   color: var(--danger);
 }
-/* the render-depth control — a DISCRETE slider (stops 1..6 then ∞, the default) with its
+/* the render-depth control — a DISCRETE slider (stops 1 2 4 8 16 then ∞, the default) with its
    tick labels justified under the track */
 .depth-control {
   display: inline-flex;
@@ -972,6 +972,12 @@ pre.code.chapter-data {
 .chapter {
   line-height: 1.65;
   max-width: 72ch; /* fallback; the reading-width control sets it inline (markupWidthCh, see chapter.tsx) */
+  /* ONE nesting step of the chapter tree — a section's (and a chunk's) margin plus the gutter
+     before its vertical rule. In px (17.5/10.5 = the old 1.25em/0.75em at the 14px base) so the
+     chunk gutter's 12px address digits can compute ancestor rule positions without em drift. */
+  --sub-margin: 17.5px;
+  --sub-pad: 10.5px;
+  --sub-step: calc(var(--sub-margin) + var(--sub-pad));
 }
 .chapter-title {
   font-size: 22px;
@@ -995,8 +1001,8 @@ pre.code.chapter-data {
    reading width belongs to the outer `.chapter` alone, so a deep subchapter's column narrows only
    by its indent rather than being re-capped at every level. */
 .chapter-sub {
-  margin-left: 1.25em;
-  padding-left: 0.75em;
+  margin-left: var(--sub-margin);
+  padding-left: var(--sub-pad);
   border-left: 1px solid var(--line);
 }
 /* a heading is a `#fragment` target like a chunk — keep it off the viewport's top edge */
@@ -1093,37 +1099,47 @@ pre.code.chapter-data {
   user-select: none;
 }
 
-/* a numbered chunk: an index gutter (linking to the chunk's own node) + body.
-   Align the index to the top, not the baseline: a replaced element (image /
-   diagram) has its baseline at its *bottom* edge, which would drop the index
-   below the object — flex-start keeps it at the body's top-left for prose and
-   media alike. */
+/* a numbered chunk: it sits at the SAME nesting rank as a subchapter section (in the yamlover
+   view both are entries of the same array), so it wears the same margin + gutter + vertical
+   rule, and its address digits hang OUT OF FLOW in the gutters — each digit beside the rule
+   of ITS level. Align the body to the top, not the baseline: a replaced element (image /
+   diagram) has its baseline at its *bottom* edge, which would drop below — flex-start keeps
+   prose and media alike at the top-left. */
 .chunk {
+  position: relative;
   display: flex;
   gap: 12px;
   align-items: flex-start;
+  margin-left: var(--sub-margin);
+  padding-left: var(--sub-pad);
+  border-left: 1px solid var(--line);
   scroll-margin-top: 12px; /* a chunk targeted via #/chunks[n] isn't flush to the top */
 }
 a.chunk-index {
   text-decoration: none;
 }
+/* the address chain — a zero-size marker pinned to the chunk's own rule, one crumb span per
+   level; the whole chain stays ONE anchor to the chunk's own location */
 .chunk-index {
-  flex: 0 0 auto;
-  min-width: 2.6em; /* fits a bracketed two-digit index ([12]), keeps the gutter right-aligned */
-  text-align: right;
+  position: absolute;
+  top: 1px; /* the 12px-in-a-14px-box ascent-gap nudge (baselines align, measured) */
+  left: 0;
   font-variant-numeric: tabular-nums;
   font-size: 12px;
-  /* the body line box (14px base × 1.65 .chapter leading) expressed over this 12px font, so the
-     [n] baseline sits on the chunk's FIRST-LINE baseline while the row keeps the media-safe
-     flex-start alignment (an image's baseline is its bottom edge — .chunk). Equal line boxes
-     still leave the smaller font's baseline riding high by the ascent gap — measured 1px at
-     12px-in-a-14px-box; the nudge closes it. */
+  /* the body line box (14px base × 1.65 .chapter leading) expressed over this 12px font, so a
+     digit's baseline sits on the chunk's FIRST-LINE baseline */
   line-height: calc(1.65 * 14 / 12);
-  position: relative;
-  top: 1px;
   color: var(--dim);
   user-select: none;
   border-bottom-width: 0;
+}
+/* one crumb of the chain: `--lvl` 0 is the chunk's own digit, each ancestor one nesting step
+   further out — every digit's right edge lands just left of the vertical rule of ITS level */
+.chunk-crumb {
+  position: absolute;
+  top: 0;
+  width: max-content;
+  right: calc(4px + var(--lvl, 0) * var(--sub-step));
 }
 a.chunk-index:hover {
   color: var(--accent);

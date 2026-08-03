@@ -219,8 +219,8 @@ export function ChapterDoc({ budget = Infinity, style }: { budget?: number; styl
 /** One chapter level: title, then entries in source order (description as the subtitle, other
  *  keyed fields skipped), the bootstrap slot when there is no body. Subchapters recurse in a
  *  framed `chapter` cell (the wrap badge is the LOCALIZED wrap state). `crumbs` is the index
- *  chain from the PAGE root: a nested chunk's gutter shows its composed positional address
- *  (`1: 1: 4`) — the read view's chunkLabel rule, mirrored. */
+ *  chain from the PAGE root: a nested chunk's gutter shows its composed positional address,
+ *  one digit beside each level's rule — the read view's chunkLabel rule, mirrored. */
 export function ChapterNode({ path, spath, level, budget, crumbs = [] }: { path: Path; spath: string; level: number; budget: number; crumbs?: readonly number[] }): ReactNode {
   const ctx = useChapter();
   const node = nodeAtPath(ctx.state.doc.root, path);
@@ -236,8 +236,9 @@ export function ChapterNode({ path, spath, level, budget, crumbs = [] }: { path:
     }
     const mode = chunkModeOf(e.value);
     // the gutter label is the entry's yamlover ADDRESS: its key, or the composed positional
-    // chain from the page root (`1: 1: 4`; a top-level chunk is the bare digit)
-    const label = e.key !== null && anchorKey === undefined ? e.key : [...crumbs, i].join(": ");
+    // chain from the page root (each level's digit beside its own rule; a top-level chunk is
+    // the bare digit)
+    const labels: readonly (number | string)[] = e.key !== null && anchorKey === undefined ? [e.key] : [...crumbs, i];
     if (mode === "chapter") {
       const sp = anchorKey !== undefined
         ? `${spath === ":" ? "" : spath}:${encodeURIComponent(anchorKey)}`
@@ -258,7 +259,7 @@ export function ChapterNode({ path, spath, level, budget, crumbs = [] }: { path:
       );
       return;
     }
-    body.push(<ChunkCell key={i} path={p} index={i} label={label} mode={mode} level={level} budget={budget} />);
+    body.push(<ChunkCell key={i} path={p} index={i} labels={labels} mode={mode} level={level} budget={budget} />);
   });
   const hasBody = entries.some((e) => e.key !== "description" || ((e.meta ?? {}) as { anchorKey?: string }).anchorKey !== undefined);
   return (
@@ -300,19 +301,29 @@ function DescendHeading({ path, title, level }: { path: string; title: string; l
 // Chunks
 // ---------------------------------------------------------------------------- //
 
-/** The chunk skeleton — the gutter shows the entry's yamlover ADDRESS (`[i]`, or its key). */
-function ChunkShell({ path, index, label, children }: { path: Path; index: number; label: string; children: ReactNode }): ReactNode {
+/** The gutter chain — one crumb span per nesting level, colon-free: each crumb hangs beside
+ *  the vertical rule of its own level (`--lvl` 0 = the chunk's own rule, counting outward).
+ *  The read view's ChunkGutter rule, mirrored. */
+function chunkCrumbs(labels: readonly (number | string)[]): ReactNode {
+  return labels.map((n, i) => (
+    <span key={i} className="chunk-crumb" style={{ "--lvl": labels.length - 1 - i } as React.CSSProperties}>{n}</span>
+  ));
+}
+
+/** The chunk skeleton — the gutter shows the entry's yamlover ADDRESS chain (`[…crumbs, i]`,
+ *  or its key). */
+function ChunkShell({ path, index, labels, children }: { path: Path; index: number; labels: readonly (number | string)[]; children: ReactNode }): ReactNode {
   const ctx = useChapter();
   const anchor = ctx.adapter.anchorFor?.(path, index) ?? null;
   return (
     <div className="chunk" id={anchor ?? undefined}>
-      {anchor ? <a className="chunk-index" href={`#${anchor}`}>{label}</a> : <span className="chunk-index">{label}</span>}
+      {anchor ? <a className="chunk-index" href={`#${anchor}`}>{chunkCrumbs(labels)}</a> : <span className="chunk-index">{chunkCrumbs(labels)}</span>}
       <div className="chunk-body">{children}</div>
     </div>
   );
 }
 
-function ChunkCell({ path, index, label, mode, level, budget }: { path: Path; index: number; label: string; mode: ChunkMode; level: number; budget: number }): ReactNode {
+function ChunkCell({ path, index, labels, mode, level, budget }: { path: Path; index: number; labels: readonly (number | string)[]; mode: ChunkMode; level: number; budget: number }): ReactNode {
   const inner =
     mode === "prose" ? <ProseCell path={path} /> :
     mode === "latex" ? <LatexCell path={path} /> :
@@ -320,7 +331,7 @@ function ChunkCell({ path, index, label, mode, level, budget }: { path: Path; in
     mode === "table" ? <TableCell path={path} /> :
     mode === "source" ? <SourceCell path={path} /> :
     <AtomCell path={path} level={level} budget={budget} />;
-  return <ChunkShell path={path} index={index} label={label}>{inner}</ChunkShell>;
+  return <ChunkShell path={path} index={index} labels={labels}>{inner}</ChunkShell>;
 }
 
 /** Split a contentEditable at the caret into (head, tail) SOURCE texts via the codec. */
@@ -434,7 +445,7 @@ export function ProseCell({ path, itemCell = false, placeholder }: { path: Path;
 
 /** The bootstrap paragraph — no entry exists until the first typed text, but it LOOKS like
  *  the prose chunk it is about to become: the same skeleton, and the same ADDRESS spelling
- *  its gutter will take (the bare digit / the composed `1: 1: 0` chain — never `[n]`). */
+ *  its gutter will take (the bare digit / the composed per-level chain — never `[n]`). */
 function BootCell({ path, crumbs = [] }: { path: Path; crumbs?: readonly number[] }): ReactNode {
   const ctx = useChapter();
   const active = ctx.state.focus?.at === "into" && pathEq(path, ctx.state.focus.path);
@@ -442,7 +453,7 @@ function BootCell({ path, crumbs = [] }: { path: Path; crumbs?: readonly number[
   return (
     <Cell kind="boot" active={active} refused={ctx.state.refused} pos={{ at: "into", path }} block>
       <div className="chunk">
-        <span className="chunk-index">{[...crumbs, at].join(": ")}</span>
+        <span className="chunk-index">{chunkCrumbs([...crumbs, at])}</span>
         <div className="chunk-body">
           <p
             className="chapter-prose editable"
