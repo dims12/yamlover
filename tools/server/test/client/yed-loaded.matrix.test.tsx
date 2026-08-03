@@ -13,15 +13,18 @@ const { editChunks, fetchNode, fetchAnnotations, queryTree, queryFilter } = vi.h
 vi.mock("../../src/client/api", async (orig) => ({
   ...(await orig<Record<string, unknown>>()), editChunks, fetchNode, fetchAnnotations, queryTree, queryFilter,
 }));
-import { mountKit, unwindToEmpty, caretTo, type Kit } from "./yed-kit";
+import { cellText, mountKit, unwindToEmpty, caretTo, type Kit } from "./yed-kit";
 
-/** Put the caret at the document's natural APPEND point: the open hole if one exists (an empty
- *  token mounts with one), else the end of the last content cell. */
+/** Put the caret at the document's natural APPEND point: the INNER slot of an empty token when
+ *  one exists (the way back between the brackets), else the end of the last content cell (its
+ *  `,`/`:` grammar appends from there). The yed mount's initial hole sits at INDEX 0 — the
+ *  document's head, not its tail — so the hole is never the append point here. */
 function caretToTail(kit: Kit): void {
-  const holes = kit.container.querySelectorAll<HTMLElement>(".yed-hole");
-  if (holes.length > 0) { caretTo(holes[holes.length - 1], "end"); return; }
-  const cells = kit.cells().filter((c) => (c.textContent ?? "") !== "");
-  caretTo(cells[cells.length - 1], "end");
+  const inner = kit.container.querySelectorAll<HTMLElement>(".y2-gapslot.y2-inner");
+  if (inner.length > 0) { caretTo(inner[inner.length - 1], "end"); return; }
+  const cells = kit.cells().filter((c) => { const t = cellText(c); return t !== "" && t !== "▏"; });
+  if (cells.length > 0) { caretTo(cells[cells.length - 1], "end"); return; }
+  // an EMPTY document: the mount's own hole is the append point — the caret is already there
 }
 
 beforeEach(() => {

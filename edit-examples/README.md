@@ -39,8 +39,10 @@ world:{Enter}"australia and oceania":{Enter}australia: ~{Enter}{ShiftTab}oceania
 `{Down}` `{Blur}`, and `{{` for a literal `{`. A raw newline is an error — line breaks are
 `{Enter}`, so a script cannot silently mean two things.
 
-`{Blur}` is not a key: it blurs the focused cell, which is how a person leaves the editor and what
-triggers a commit-on-blur. Most scripts end with it.
+`{Blur}` is not a key: it marks the COMMIT BOUNDARY — how a person leaves the editor. Most
+scripts end with it. The yed runners (the pure corpus in `tools/yed/test/corpus.test.ts` and the
+server replay) map it to `{ArrowRight}`, yed's move-free commit: yed has no commit-on-blur, and
+moving away commits (or refuses — nothing is ever lost).
 
 ## THE LEVEL RULE
 

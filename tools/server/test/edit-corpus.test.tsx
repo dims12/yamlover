@@ -16,7 +16,7 @@ import path from "node:path";
 import { createHandlers, tmpTree, REPO } from "./helpers";
 import { call } from "./http";
 import { captureAlerts, installFetch, replay, settleOps } from "./edit-corpus-harness";
-import { YamloverEditor } from "../src/client/renderers/yamlover-editor/editor";
+import { YedEditor } from "../src/client/renderers/yed-editor";
 import { parseYamlover } from "../../parser/ts/src/yamlover.ts";
 import { canonDoc } from "../../parser/ts/src/canon.ts";
 
@@ -31,11 +31,13 @@ const FIXTURE_ID = /^\d{4}(-\d{2})?$/;
 // KEYED BY SOURCE (`from`), not by fixture id: generated ids are a sequence, so adding or skipping
 // one source renumbers everything after it and id-keyed entries would silently come to describe a
 // different document. A hand-written fixture (no `from`) is keyed by its id, which is stable.
+// One DELIBERATE entry since the yed retarget (0016 — the legacy `key1: key2: value` nesting —
+// was the LEGACY component's defect; yed agrees with the parser and it passes now).
 const ALLOWLIST = new Map<string, string>([
-  // The production editor NESTS the second `k: ` on a line (`key1:` + an indented `key2: value`);
-  // the parser reads the one-line form as the VALUE-POSITION SCALAR (YAML conformance ZCZ6 calls
-  // the nested reading an error), and yed2 — the reference — agrees with the parser.
-  ["0016", "production nests `key1: key2: value`; the parser (and yed2) read a value-position scalar"],
+  // The golden pins the OLD whole-token spread; yed's PER-CONTAINER layout law keeps a token
+  // typed inside a spread one tight until its own Enter. IR-equal — the pure corpus
+  // (tools/yed corpus.test.ts SPELLING_DRIFT) pins that half of the contract.
+  ["0014", "DELIBERATE: per-container layout replaced legacy whole-token spread"],
 ]);
 
 interface Fixture {
@@ -82,9 +84,11 @@ async function runFixture(f: Fixture): Promise<string | null> {
   const restoreFetch = installFetch(h);
   const alerts = captureAlerts();
   try {
-    const { container } = render(<YamloverEditor path=":note.yo" onNavigate={() => {}} />);
-    await waitFor(() => expect(container.querySelector(".yed-row")).toBeTruthy(), { timeout: 3000 });
-    replay(f.keys);
+    const { container } = render(<YedEditor path=":note.yo" onNavigate={() => {}} />);
+    await waitFor(() => expect(container.querySelector("[data-testid=y2-doc]")).toBeTruthy(), { timeout: 3000 });
+    // `{Blur}` is the LEGACY commit boundary (commit-on-blur); yed's move-free commit is the
+    // right-move — the same substitution the pure corpus runner makes (tools/yed corpus.test.ts)
+    replay(f.keys.replace(/\{Blur\}/g, "{ArrowRight}"));
     await settleOps();
 
     // 1. the sync itself — the seam a mocked editChunks can never show

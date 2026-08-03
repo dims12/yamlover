@@ -15,14 +15,13 @@ export interface EditContext {
   prefix: string;
   /** A document override for contexts that are a MOUNT fact, not a typed prefix (the dir root). */
   doc?: Record<string, unknown>;
-  /** Rows when the script's result is one INLINE token `s` (a scalar, a one-line flow token). */
+  /** Rows when the script's result is one INLINE token `s` (a scalar, a one-line flow token).
+   *  PER-CONTAINER LAYOUT (the yed law that replaced legacy whole-token spread): a token typed
+   *  inside a SPREAD context defaults to ONE LINE — its own Enter spreads it — so the spread
+   *  context frames the inline form on its own row, never the token's expanded rows. */
   wrapInline(s: string): string[];
   /** Rows when the script's result is K&R ROWS (a spread token's own rows, closers included). */
   wrapRows(r: string[]): string[];
-  /** Rows when the script's result is a TOKEN and this context is SPREAD: the token spreads too
-   *  (THE WHOLE-TOKEN LAW — json5p expands everything under the switch), so the context embeds the
-   *  token's own K&R rows rather than its inline form. Absent ⇒ wrapInline applies. */
-  wrapToken?(tokenRows: string[]): string[];
 }
 
 export const CONTEXTS: EditContext[] = [
@@ -67,7 +66,6 @@ export const CONTEXTS: EditContext[] = [
     prefix: "[{Enter}",
     wrapInline: (s) => ["[", s, "]"],
     wrapRows: (r) => ["[", ...r, "]"],
-    wrapToken: (r) => ["[", ...r, "]"],
   },
   {
     name: "nested two deep ({p: [)",

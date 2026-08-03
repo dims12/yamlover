@@ -108,21 +108,37 @@ function focused(what: string): HTMLElement {
 }
 
 /** ONE keystroke through the real cell path: fire `keydown` first, and only if the cell did not
- *  `preventDefault` does the character land (then `input`). That ordering is what makes the
- *  editor's key grammar — `,` in a flow token, `:` after a closed quote — actually run. */
+ *  `preventDefault` does the character land. That ordering is what makes the editor's key
+ *  grammar — `,` in a flow token, the block header's Enter — actually run. The YED cells are
+ *  CONTROLLED inputs/textareas (the character lands via onChange); a contentEditable cell (the
+ *  PICK kit's query cells) takes text the browser's way (textContent + input). */
 export function press(stroke: Stroke): void {
   if ("key" in stroke && stroke.key === "Blur") { fireEvent.blur(focused("{Blur}")); return; }
   const el = focused("key" in stroke ? `{${stroke.key}}` : JSON.stringify(stroke.ch));
   const key = "key" in stroke ? (stroke.key === "ShiftTab" ? "Tab" : stroke.key) : stroke.ch;
   const ev = createEvent.keyDown(el, { key, ...("key" in stroke && stroke.key === "ShiftTab" ? { shiftKey: true } : {}) });
   fireEvent(el, ev);
-  if (ev.defaultPrevented || "key" in stroke) return;
-  // the character lands in whatever cell has focus NOW — a keydown may have moved it. Only a
-  // contentEditable cell takes text (the browser's rule): a GAP is a caret position, and a
-  // character pressed there that no grammar consumed does not land anywhere.
+  if ("key" in stroke) {
+    // an unconsumed Backspace on a text cell is the browser's char delete — simulate it
+    // (jsdom fires the event but never edits); the grammar consumed it when it preventDefaulted
+    if (stroke.key === "Backspace" && !ev.defaultPrevented) {
+      const cur = document.activeElement as HTMLElement | null;
+      if ((cur instanceof HTMLInputElement || cur instanceof HTMLTextAreaElement) && cur.value !== "") {
+        fireEvent.change(cur, { target: { value: cur.value.slice(0, -1) } });
+      }
+    }
+    return;
+  }
+  if (ev.defaultPrevented) return;
+  // the character lands in whatever cell has focus NOW — a keydown may have moved it. A GAP is
+  // a caret position; a character pressed there that no grammar consumed does not land anywhere.
   const cur = focused("the typed character");
-  // attribute, not isContentEditable — jsdom never implemented the property, and the corpus runs there
-  if (!cur.hasAttribute("contenteditable") && !(cur instanceof HTMLTextAreaElement)) return;
+  if (cur instanceof HTMLInputElement || cur instanceof HTMLTextAreaElement) {
+    fireEvent.change(cur, { target: { value: cur.value + stroke.ch } });
+    return;
+  }
+  // attribute, not isContentEditable — jsdom never implemented the property
+  if (!cur.hasAttribute("contenteditable")) return;
   cur.textContent = (cur.textContent ?? "") + stroke.ch;
   fireEvent.input(cur);
 }
@@ -139,6 +155,32 @@ export async function settleOps(): Promise<void> {
   await waitFor(() => expect(true).toBe(true));
 }
 
-/** The editor's rows as text — the projection a reader sees. */
-export const rowsOf = (container: HTMLElement): string[] =>
-  Array.from(container.querySelectorAll(".yed-row")).map((r) => r.textContent ?? "");
+/** A cell's CONTENT text: a controlled input's value, else the visible text. */
+export const cellText = (el: HTMLElement): string =>
+  el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ? el.value : (el.textContent ?? "");
+
+/** The Y2 projection's text, chrome stripped: debug captions (`.y2-tag`), gap glyphs, the
+ *  ＋ tail and the empty-document label are not content; a controlled input contributes its
+ *  VALUE (its textContent is empty by construction). */
+function y2Text(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
+  const el = node as HTMLElement;
+  const cls = el.classList;
+  if (cls && (cls.contains("y2-tag") || cls.contains("y2-gapslot") || cls.contains("y2-tail") || cls.contains("y2-empty"))) return "";
+  if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return el.value;
+  let out = "";
+  for (const c of Array.from(node.childNodes)) out += y2Text(c);
+  return out;
+}
+
+/** The editor's rows as text — the projection a reader sees. LEAF `.y2-row`s only (rows nest:
+ *  a wrapping key row holds its child rows); a document that draws no rows (a one-line flow
+ *  root, the empty document) is ONE row: the doc surface's own text. */
+export const rowsOf = (container: HTMLElement): string[] => {
+  const doc = container.querySelector<HTMLElement>("[data-testid=y2-doc]");
+  if (!doc) return [];
+  const rows = Array.from(doc.querySelectorAll<HTMLElement>(".y2-row"))
+    .filter((r) => !r.querySelector(".y2-row") && !r.querySelector(".y2-tail") && !r.classList.contains("y2-blankline"));
+  if (rows.length === 0) return [y2Text(doc)];
+  return rows.map(y2Text);
+};

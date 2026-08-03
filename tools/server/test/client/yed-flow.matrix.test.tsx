@@ -25,14 +25,14 @@ afterEach(cleanup);
 
 describe("flow × contexts", () => {
   // LAW: every legal construct is enterable — `{key: 12}` closes cleanly, no error ring.
-  // Inside a SPREAD context the token spreads too (the whole-token law), so the frame embeds its
-  // K&R rows rather than the inline form.
+  // PER-CONTAINER LAYOUT (the yed law that replaced legacy whole-token spread): a token typed
+  // inside a SPREAD context defaults to ONE LINE — the spread frame embeds the inline form.
   for (const ctx of CONTEXTS) {
     it(`a keyed pair closes cleanly ${ctx.name}`, async () => {
       const kit = await mountKit(fetchNode, ctx.doc);
       kit.run(ctx.prefix + "{{key: 12}");
-      expect(kit.rows()).toEqual(ctx.wrapToken ? ctx.wrapToken(["{", "key: 12", "}"]) : ctx.wrapInline("{key: 12}"));
-      expect(kit.container.querySelector(".edit-error"), "a legal construct must not ring").toBeNull();
+      expect(kit.rows()).toEqual(ctx.wrapInline("{key: 12}"));
+      expect(kit.container.querySelector(".y2-refused"), "a legal construct must not ring").toBeNull();
       kit.caret();
     });
   }
@@ -42,8 +42,8 @@ describe("flow × contexts", () => {
     it(`a comma chain stays inline ${ctx.name}`, async () => {
       const kit = await mountKit(fetchNode, ctx.doc);
       kit.run(ctx.prefix + "[1, 2]");
-      expect(kit.rows()).toEqual(ctx.wrapToken ? ctx.wrapToken(["[", "1,", "2", "]"]) : ctx.wrapInline("[1, 2]"));
-      expect(kit.container.querySelector(".edit-error")).toBeNull();
+      expect(kit.rows()).toEqual(ctx.wrapInline("[1, 2]"));
+      expect(kit.container.querySelector(".y2-refused")).toBeNull();
       kit.caret();
     });
   }

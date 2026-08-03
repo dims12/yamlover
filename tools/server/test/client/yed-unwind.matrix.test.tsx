@@ -47,12 +47,11 @@ describe("unwind × contexts", () => {
   }
 
   // THE REPORTED SCENARIO: a finished two-element document, deletion started from a GAP near the
-  // end. BROKEN TODAY — the ladder reached `[{key: 12}]` and jammed. Stage C/D delist.
+  // end (the user clicked into the PRE-LAST gap — after `13`'s `}`).
   it("the reported ladder: [{key: 12}, {key: 13}] deleted from the pre-last gap", async () => {
     const kit = await mountKit(fetchNode);
     kit.run("[{{key: 12}, {{key: 13}]");
-    // the caret sits past the outer `]`; the user clicked into the PRE-LAST gap (after `13`'s `}`)
-    const gaps = kit.cells().filter((c) => (c.textContent ?? "") === "");
+    const gaps = kit.cells().filter((c) => c.classList.contains("y2-gapslot"));
     caretTo(gaps[gaps.length - 2] ?? gaps[gaps.length - 1], "start");
     unwindToEmpty(kit);
   });

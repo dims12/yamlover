@@ -1205,8 +1205,19 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
         const idx = cursor.path[cursor.path.length - 1];
         const e = entryAt(doc, cursor.path);
         if (cursor.at === "key") {
-          // un-name: the key goes, the value stays (one press, one level) — a POINTER value's
-          // caret lands on the atom itself (the cell that exists)
+          // un-name: the key goes, the value stays (one press, one level). The caret lands on
+          // a cell that EXISTS for the value's kind — a token cursor on a container would be a
+          // position no cell draws (the ladder's caret fell to <body> — the reported trap).
+          const val = e?.value;
+          const landing: Cursor = !val
+            ? { at: "hole", path: parentPath, index: idx, text: "", key: null }
+            : isPointer(val)
+            ? { at: "ptr", path: cursor.path }
+            : (val as Node).kind === "scalar" && ((val as Node).entries ?? []).length === 0
+              ? { at: "token", path: cursor.path, text: String((val as { raw?: string }).raw ?? (val as { value?: unknown }).value ?? "") }
+              : isFlow(val as Node)
+                ? { at: "after", path: cursor.path }
+                : { at: "hole", path: cursor.path, index: 0, text: "", key: null };
           return ok({
             ...state,
             doc: withNode(doc, parentPath, (n) => {
@@ -1214,9 +1225,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
               entries[idx] = { ...entries[idx], key: null } as Entry;
               return { ...n, entries } as Node;
             }),
-            cursor: e && isPointer(e.value)
-              ? { at: "ptr", path: cursor.path }
-              : { at: "token", path: cursor.path, text: String((e?.value as { raw?: string; value?: unknown })?.raw ?? (e?.value as { value?: unknown })?.value ?? "") },
+            cursor: landing,
           });
         }
         return ok({
