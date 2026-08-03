@@ -98,12 +98,32 @@ test('yamlover: a null-keyed entry is KEYED — it breaks pure-sequence-ness', (
 test('yamlover: a plain numeric key is a parse ERROR (a position claim); quoted is the string', () => {
   assert.throws(() => parseYamlover('1: x\n', 't'), /plain numeric key is a position/);
   assert.throws(() => parseYamlover('m: {1: x}\n', 't'), /plain numeric key is a position/);
-  // quoted: the numeric STRING key — round-trips QUOTED (never bare, which would error)
+  // quoted: the numeric STRING key — round-trips QUOTED, in the AUTHORED spelling
+  // (EntryMeta.keyRaw, the raw-first law); a minted key (no raw) emits canonical dq
   const out = rtYamlover("'1': x\n");
-  assert.match(out, /^"1": x$/m);
+  assert.match(out, /^'1': x$/m);
+  assert.match(rtYamlover('"1": x\n'), /^"1": x$/m);
   // YAML mode reads a plain numeric key faithfully as the string key
   const y = parseYamlover('1: x\n', 't', { yaml: true });
   assert.equal((y.root as { entries: { key: string | null }[] }).entries[0].key, '1');
+});
+
+test('yamlover: authored key and null SPELLINGS survive (EntryMeta.keyRaw; raw-first null)', () => {
+  // quoted-by-choice keys keep their quotes and their style
+  assert.equal(rtYamlover('"a": 1\n'), '"a": 1\n');
+  assert.equal(rtYamlover("'a b': 1\n"), "'a b': 1\n");
+  // a flow-token key round-trips bare — `{}` never gains quotes (the 0012 shape)
+  assert.equal(rtYamlover('{}: 12\n'), '{}: 12\n');
+  // authored nulls re-emit verbatim; the bare `key:` spelling stays bare
+  assert.equal(rtYamlover('a: ~\n'), 'a: ~\n');
+  assert.equal(rtYamlover('a: null\n'), 'a: null\n');
+  assert.equal(rtYamlover('a:\n'), 'a:\n');
+  // flow map: the authored quoted key survives inside the token
+  assert.equal(rtYamlover("m: {'a b': 1}\n"), "m: {'a b': 1}\n");
+  // a STALE keyRaw never changes the key — the reparse guard falls back to canonical
+  const doc = parseYamlover('a: 1\n', 't');
+  (doc.root as { entries: { meta?: object }[] }).entries[0].meta = { keyRaw: 'b' };
+  assert.match(serializeYamlover(doc), /^a: 1$/m);
 });
 
 test('pointer: the bare-token typing rule — integers, ~, quotes, aliases', () => {

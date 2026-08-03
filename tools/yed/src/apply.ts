@@ -17,7 +17,7 @@ import {
 } from "./state";
 import { parseSchemaRef, parseYamlover } from "../../parser/ts/src/yamlover.ts";
 import { schemaTagToken } from "../../parser/ts/src/serialize-yamlover.ts";
-import { anchorBody } from "../../parser/ts/src/serialize-common.ts";
+import { anchorBody, keyText } from "../../parser/ts/src/serialize-common.ts";
 import { makeAnchor } from "../../parser/ts/src/pointer.ts";
 import { isPointer, type Anchor } from "../../parser/ts/src/ir.ts";
 import { formatFromMetaTag, proseFormatOfTag } from "./chapter/format";
@@ -402,6 +402,18 @@ function toCursor(doc: Document, p: Position): Cursor {
 /** Land the cursor's pending content into the document. Returns null when the pending content
  *  cannot land (an unnamed element in a `{`, a token that is not a scalar) — the caller refuses.
  *  Exported for the page's whole-document actions (copy commits first; a failure is the ring). */
+/** The hole's key plus its AUTHORED spelling (EntryMeta.keyRaw) as entry fields — the keyRaw
+ *  rides only when it differs from the canonical emission (the parser's one representation
+ *  law), so a plainly-typed key stays meta-free. Every entry a hole materializes goes
+ *  through here — quoted keys survive whichever boundary lands them. */
+function keyFields(cursor: { key: string | null; keyRaw?: string }): Pick<Entry, "key" | "meta"> {
+  return {
+    key: cursor.key,
+    ...(cursor.key !== null && cursor.keyRaw !== undefined && cursor.keyRaw !== keyText(cursor.key)
+      ? { meta: { keyRaw: cursor.keyRaw } } : {}),
+  };
+}
+
 export function commitPending(state: EditorState): EditorState | null {
   const { doc, cursor } = state;
   const d = dialectOf(state);
@@ -435,7 +447,7 @@ export function commitPending(state: EditorState): EditorState | null {
         cursor: { at: "token", path: cursor.path, text: cursor.text },
       };
     }
-    const entry = { key: cursor.key, edge: "contain", value } as unknown as Entry;
+    const entry = { ...keyFields(cursor), edge: "contain", value } as unknown as Entry;
     return {
       ...state,
       doc: insertEntry(doc, cursor.path, cursor.index, entry),
@@ -477,7 +489,16 @@ export function commitPending(state: EditorState): EditorState | null {
       ...state,
       doc: withNode(doc, parentPath, (n) => {
         const entries = [...(n.entries ?? [])];
-        entries[idx] = { ...entries[idx], key: k === "" ? null : k } as Entry;
+        const e0 = entries[idx] as Entry;
+        // a RENAME invalidates the authored key spelling — strip keyRaw so the serializer
+        // never has to fall back on its reparse guard (an unchanged key keeps it)
+        let meta = e0.meta as Record<string, unknown> | undefined;
+        if (k !== e0.key && meta?.keyRaw !== undefined) {
+          const { keyRaw: _kr, ...rest } = meta;
+          meta = Object.keys(rest).length > 0 ? rest : undefined;
+        }
+        entries[idx] = { ...e0, key: k === "" ? null : k, ...(meta !== undefined ? { meta } : {}) } as Entry;
+        if (meta === undefined) delete (entries[idx] as { meta?: unknown }).meta;
         return { ...n, entries } as Node;
       }),
     };
@@ -767,7 +788,7 @@ export function pasteSubtree(state: EditorState, text: string): EditorState {
       cursor: { at: "token", path: cursor.path, text: String(v.raw ?? v.value ?? "") },
     });
   }
-  const entry = { key: cursor.key, edge: "contain", value: node } as unknown as Entry;
+  const entry = { ...keyFields(cursor), edge: "contain", value: node } as unknown as Entry;
   return ok({
     ...state,
     doc: insertEntry(doc, cursor.path, cursor.index, entry),
@@ -858,7 +879,7 @@ function classifyHole(state: EditorState): EditorState {
   if ((!action || action.kind === "quote") && cursor.key === null && cursor.text.trimStart().startsWith('"')) {
     const kv = keyedEditParts(cursor.text.trimStart());
     if (kv?.quoted && (container === null || !isFlow(container) || bracketOf(container) === "{")) {
-      return { ...state, cursor: { ...cursor, key: kv.key, text: kv.rest } };
+      return { ...state, cursor: { ...cursor, key: kv.key, keyRaw: kv.keyRaw, text: kv.rest } };
     }
   }
   if (!action || action.kind === "text") return state;
@@ -869,7 +890,7 @@ function classifyHole(state: EditorState): EditorState {
     if (cursor.path.length === 0 && cursor.key === null && cursor.ordinal !== true && (container?.entries ?? []).length === 0 && container && !isFlow(container)) {
       return { ...state, doc: { ...doc, root: keepIdentityMeta(doc.root, node) }, cursor: { at: "hole", path: [], index: 0, text: "", key: null } };
     }
-    const entry = { key: cursor.key, edge: "contain", value: node } as unknown as Entry;
+    const entry = { ...keyFields(cursor), edge: "contain", value: node } as unknown as Entry;
     // inside a spread token the new container spreads too — json5p expands everything under the
     // switch; rendering derives it from the ancestors, nothing to store on the child
     return {
@@ -895,7 +916,7 @@ function classifyHole(state: EditorState): EditorState {
         cursor: { at: "hole", path: [...cursor.path, cursor.index], index: 0, text: "", key: action.key },
       };
     }
-    return { ...state, cursor: { ...cursor, key: action.key, text: "" } };
+    return { ...state, cursor: { ...cursor, key: action.key, keyRaw: undefined, text: "" } };
   }
   if (action.kind === "ordinal") {
     if (!d.ordinals) return state; // the dash stays TEXT — in json it is a number's sign
@@ -906,7 +927,7 @@ function classifyHole(state: EditorState): EditorState {
     // entry (the same eager-structure law as `{` / `[`), caret in the tag's inner text; the
     // committed tag then stamps the entry, and Enter walks on to type its value
     const value = scalarFromText('""')!;
-    const entry = { key: cursor.key, edge: "contain", value } as unknown as Entry;
+    const entry = { ...keyFields(cursor), edge: "contain", value } as unknown as Entry;
     return {
       ...state,
       doc: insertEntry(doc, cursor.path, cursor.index, entry),
@@ -930,7 +951,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
         const child: Node = dialectOf(state).blockContext
           ? ({ kind: "mapping", entries: [] } as unknown as Node)
           : emptyFlow("{");
-        const entry = { key: cursor.key, edge: "contain", value: child } as unknown as Entry;
+        const entry = { ...keyFields(cursor), edge: "contain", value: child } as unknown as Entry;
         return ok({
           ...state,
           doc: insertEntry(doc, cursor.path, cursor.index, entry),

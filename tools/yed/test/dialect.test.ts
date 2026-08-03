@@ -22,7 +22,7 @@ describe("json — strict: quoted keys, JSON scalars, flow only", () => {
   it('`{"a": 1}` enters', () => {
     const s = type('{{"a": 1}', "json");
     expect(s.refused).toBe(false);
-    expect(src(s)).toBe("{a: 1}\n"); // spelling normalization is the serializer's (yamlover surface)
+    expect(src(s)).toBe('{"a": 1}\n'); // the authored quoted key survives (EntryMeta.keyRaw)
   });
   it("a BARE key refuses visibly", () => {
     const s = type("{{a: ", "json");
@@ -46,7 +46,7 @@ describe("json — strict: quoted keys, JSON scalars, flow only", () => {
   it('`"k":` + Enter allocates the K&R row (flow context — spreadOrClose), and the pair lands', () => {
     const s = type('{{"k": {Enter}1}', "json");
     expect(s.refused).toBe(false);
-    expect(src(s)).toBe("{\n  k: 1\n}\n");
+    expect(src(s)).toBe('{\n  "k": 1\n}\n'); // the authored quoted key survives (EntryMeta.keyRaw)
   });
 });
 

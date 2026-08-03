@@ -12,9 +12,9 @@
 
 import type { Document, Node, Entry, Value, Scalar, Pointer, Comment } from './ir.ts';
 import { isPointer } from './ir.ts';
-import { foldLines, plainScalar, splitKV } from './yamlover.ts';
+import { foldLines, plainScalar, splitKV, unquoteKey } from './yamlover.ts';
 import { renderPointer } from './pointer.ts';
-import { LossyError, anchorBody, isAnchorizableBack, backAnchorBody } from './serialize-common.ts';
+import { LossyError, anchorBody, dq, isAnchorizableBack, backAnchorBody, keyText } from './serialize-common.ts';
 import { json5pSubtree } from './serialize-json5p.ts';
 
 const STEP = 2;
@@ -135,7 +135,7 @@ class Emitter {
       } else if (e.key === null) {
         this.seqItem(e.value, indent);
       } else {
-        const head = (e.edge === 'back' ? '~' : '') + keyText(e.key) + ':';
+        const head = (e.edge === 'back' ? '~' : '') + (authoredKey(e) ?? keyText(e.key)) + ':';
         this.keyed(head, e.value, indent);
       }
       if (this.comments) this.emitTrailing(e, indent, before);
@@ -323,7 +323,13 @@ class Emitter {
    *  is not available — e.g. omni fields follow, which would otherwise become the value. */
   inline(s: Scalar, needToken: boolean): string {
     const v = s.value;
-    if (v === null) return needToken ? 'null' : '';
+    if (v === null) {
+      // the null twin of the number-raw rule: an authored null SPELLING (`~`, `null`, …)
+      // re-emits verbatim — `a: ~` stays `a: ~`, never silently thins to `a:`
+      const raw = s.raw.trim();
+      if (/^(~|null|Null|NULL)$/.test(raw)) return raw;
+      return needToken ? 'null' : '';
+    }
     if (typeof v === 'boolean') return v ? 'true' : 'false';
     if (typeof v === 'number') {
       if (!Number.isFinite(v)) return nonFinite(v); // YAML float specials: .inf / -.inf / .nan
@@ -423,11 +429,6 @@ function plainToken(text: string): boolean {
  *  returns the identical string. */
 function plainSafe(text: string): boolean {
   return plainToken(text) && plainScalar(text).value === text;
-}
-
-/** Double-quoted, JSON-escape style — the parser's dq escapes are a JSON superset. */
-function dq(s: string): string {
-  return JSON.stringify(s);
 }
 
 /** Prose folds at this column when the serializer WRAPS a minted string (see foldedLines) —
@@ -543,22 +544,16 @@ function blockLines(v: string): { header: string; lines: string[] } | null {
   return { header, lines };
 }
 
-/** Plain keys carry the pointer-metachar escaping (URIs.md §escaping); keys the line
- *  grammar itself would misread are double-quoted instead. A NUMERIC key is always
- *  quoted (the YAML-keys round): bare `1:` is a position claim - a parse error - so the
- *  string key "1" round-trips as `"1":`. */
-function keyText(key: string): string {
-  const needsQuote =
-    key === '' || key !== key.trim() ||
-    /[\u0000-\u001f\u007f]/.test(key) ||
-    key.includes(': ') || // splitKV would split at the inner colon
-    key === '-' || key.startsWith('- ') ||
-    /^\d+$/.test(key) || // a bare numeric key reads as a position - quote the string key
-    /^['"]/.test(key) ||
-    key.includes('\\'); // plain keys are backslash-UNescaped on parse
-  if (needsQuote) return dq(key);
-  // escape the pointer metachars (incl. the QUERY.md reservations) — parse strips them back
-  return key.replace(/[/[\]*&#~?!()<>=|]/g, (c) => '\\' + c);
+/** The AUTHORED key token (EntryMeta.keyRaw), if it survives the reparse guard: the token
+ *  must still read as this very key (unquoteKey) and still split as a key at all (splitKV)
+ *  — a stale or hand-forged raw must never change what the document says. Null: emit
+ *  canonically (keyText). */
+function authoredKey(e: Entry): string | null {
+  const raw = e.meta?.keyRaw;
+  if (raw === undefined || e.key === null) return null;
+  try { if (unquoteKey(raw) !== e.key) return null; } catch { return null; }
+  const sp = splitKV(raw + ': v');
+  return sp !== null && sp.key === raw ? raw : null;
 }
 
 /** The one-line rendering of an inline `!!<…>` schema node. Top level: a scalar, a
@@ -617,7 +612,7 @@ function flowTextOrNull(n: Node): string | null {
   for (const e of ents) {
     const v = isPointer(e.value) ? flowPtr(e.value) : flowTextOrNull(e.value);
     if (v === null) return null; // one unrepresentable member demotes the whole token
-    items.push(e.key === null && e.nullKey !== true ? v : `${e.nullKey === true ? '~' : flowKey(e.key!)}: ${v}`);
+    items.push(e.key === null && e.nullKey !== true ? v : `${e.nullKey === true ? '~' : (authoredKey(e) ?? flowKey(e.key!))}: ${v}`);
   }
   return keyed.length === 0 ? `[${items.join(', ')}]` : `{${items.join(', ')}}`;
 }

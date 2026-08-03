@@ -29,10 +29,9 @@ const DELETE_ALLOW = new Map<string, string>([]);
 // where the pure serializer normalizes (quoting and null spellings are REPRESENTATION). The list
 // shrinks as serializer fidelity lands; a fixture that becomes byte-exact must be delisted.
 const SPELLING_DRIFT = new Map<string, string>([
-  ["0001", "null spells `~` in the golden, bare after the key here"],
-  ["0002", "authored quoted keys; nulls as above"],
-  ["0010", 'the authored quoted key `"a"` normalizes to bare'],
-  ["0014", "the golden pins the OLD whole-token spread; per-container layout keeps the inner tight"],
+  // 0001/0002/0010 delisted 2026-08-03: EntryMeta.keyRaw + the raw-first null rule landed —
+  // authored quoted keys and `~` spellings now survive the serializer
+  ["0014", "DELIBERATE: the per-container spread layout law replaced legacy whole-token spread — the golden pins the old form"],
 ]);
 
 interface Fixture { id: string; keys: string; input?: string; expect: "roundtrip" | "bytes"; out?: string; from?: string }

@@ -58,12 +58,12 @@ describe("yed2 quoted tokens", () => {
   it("a QUOTED KEY names the pair — the reported `{\"name\": \"Eurasia\"}`", () => {
     const s = type('{{"name": "Eurasia"}');
     expect(s.refused).toBe(false);
-    // both normalize to bare — the serializer's documented rule: quoting is REPRESENTATION, and
-    // a simple string reads the same without it (either spelling round-trips)
-    expect(src(s)).toBe("{name: Eurasia}\n");
+    // the KEY keeps its authored quotes (EntryMeta.keyRaw — representation is committed
+    // labour); the simple string VALUE still normalizes to bare (either spelling reads back)
+    expect(src(s)).toBe('{"name": Eurasia}\n');
   });
-  it("a quoted key that NEEDS its quotes keeps them", () => {
-    expect(src(type('{{"two words": 1}'))).toBe("{'two words': 1}\n");
+  it("a quoted key that NEEDS its quotes keeps them — in the AUTHORED style", () => {
+    expect(src(type('{{"two words": 1}'))).toBe('{"two words": 1}\n');
   });
   it("quoted VALUES in a seq (simple strings normalize to bare)", () => {
     expect(src(type('["a", "b"]'))).toBe("[a, b]\n");

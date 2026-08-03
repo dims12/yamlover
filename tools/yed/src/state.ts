@@ -31,7 +31,9 @@ export type Path = number[];
  *             node's anchors are a list; `index === length` is the ADD slot), `text` is that
  *             anchor's BODY (no `&`, the sidecar's spelling). */
 export type Cursor =
-  | { at: "hole"; path: Path; index: number; text: string; key: string | null; ordinal?: boolean }
+  | { at: "hole"; path: Path; index: number; text: string; key: string | null; ordinal?: boolean;
+      /** the AUTHORED key token (`"a"` typed with its quotes) — commits as EntryMeta.keyRaw */
+      keyRaw?: string }
   | { at: "token"; path: Path; text: string; caret?: "start" | "end" }
   | { at: "key"; path: Path; text: string; caret?: "start" | "end" }
   | { at: "tag"; path: Path; text: string; caret?: "start" | "end" }

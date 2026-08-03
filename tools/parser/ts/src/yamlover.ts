@@ -16,6 +16,7 @@
 import type { Document, Node, Mapping, Scalar, Entry, Value, Pointer, Span, Anchor } from './ir.ts';
 import { isPointer } from './ir.ts';
 import { parsePointer, makeAnchor } from './pointer.ts';
+import { keyText } from './serialize-common.ts';
 import { attachComments, type RawComment } from './comments.ts';
 
 interface Line { indent: number; text: string; n: number; blankBefore?: boolean }
@@ -372,6 +373,9 @@ class Block {
             this.fail(`a plain numeric key is a position — author it by order ("- value"), or quote a numeric STRING key ("'${key}':")`);
           }
           entry = { key, edge: back ? 'back' : isPointer(value) ? 'ref' : 'contain', value };
+          // representation worth keeping: the authored key token differs from the canonical
+          // emission (`"a":` quoted-by-choice, `{}:` a token key) — the serializer prefers it
+          if (rawKey !== keyText(key)) entry.meta = { keyRaw: rawKey };
         }
       }
       // … and ends at the last source line the value consumed — a contiguous run, so
@@ -701,18 +705,24 @@ class Flow {
       const kc = this.s[this.i];
       let key = '';
       let quoted = false;
+      let rawTok: string | undefined;
       if (nullKey) {
         // the key is the null value — nothing to read; `this.i` already sits at the `:`
       } else if (kc === "'" || kc === '"') {
         quoted = true;
-        key = this.quoted().value as string;
+        const qs = this.quoted();
+        key = qs.value as string;
+        rawTok = qs.raw;
       } else if (kc === '[' || kc === '{') {
         const end = flowTokenEnd(this.s.slice(this.i));
         if (end < 0) this.fail('unterminated flow token in a key');
         key = this.s.slice(this.i, this.i + end);
+        rawTok = key;
         this.i += end;
       } else {
-        key = unquoteKey(this.readPlain(':,}\r\n'));
+        const plain = this.readPlain(':,}\r\n');
+        key = unquoteKey(plain);
+        rawTok = plain.trim();
         if (key === '') nullKey = true; // `{: v}` — the empty spelling of the null key
       }
       if (!nullKey && !quoted && !this.yaml && /^\d+$/.test(key)) {
@@ -724,7 +734,11 @@ class Flow {
       this.ws();
       const v = this.value();
       const edge = back ? 'back' as const : isPointer(v) ? 'ref' as const : 'contain' as const;
-      entries.push(nullKey ? { key: null, nullKey: true, edge, value: v } : { key, edge, value: v });
+      entries.push(nullKey
+        ? { key: null, nullKey: true, edge, value: v }
+        // the same representation rule as block entries: an authored token that differs
+        // from the canonical emission rides EntryMeta.keyRaw
+        : { key, edge, value: v, ...(rawTok !== undefined && rawTok !== keyText(key) ? { meta: { keyRaw: rawTok } } : {}) });
       this.ws();
       if (this.s[this.i] === ',') { this.i++; continue; }
       if (this.s[this.i] === '}') { this.i++; break; }
@@ -891,7 +905,9 @@ function hasSeparatorColon(s: string): boolean {
   return false;
 }
 
-function unquoteKey(key: string): string {
+/** Exported for the serializer: the keyRaw reparse guard must read an authored key token
+ *  the ONE way the parser does. */
+export function unquoteKey(key: string): string {
   key = key.trim();
   if ((key[0] === "'" || key[0] === '"') && key[key.length - 1] === key[0]) return quotedScalar(key).value as string;
   return backslashUnescape(key);

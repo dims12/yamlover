@@ -9,6 +9,31 @@ import { renderPointer } from './pointer.ts';
  *  metadata through the meta layer (META.md) or pick a fuller concrete instead. */
 export class LossyError extends Error {}
 
+/** Double-quoted, JSON-escape style — the parser's dq escapes are a JSON superset. */
+export function dq(s: string): string {
+  return JSON.stringify(s);
+}
+
+/** The CANONICAL key emission. Plain keys carry the pointer-metachar escaping (URIs.md
+ *  §escaping); keys the line grammar itself would misread are double-quoted instead. A
+ *  NUMERIC key is always quoted (the YAML-keys round): bare `1:` is a position claim — a
+ *  parse error — so the string key "1" round-trips as `"1":`. Shared with the PARSER: an
+ *  authored key token that differs from this emission is representation worth keeping
+ *  (EntryMeta.keyRaw), and "differs" must be judged by the one law. */
+export function keyText(key: string): string {
+  const needsQuote =
+    key === '' || key !== key.trim() ||
+    /[\u0000-\u001f\u007f]/.test(key) ||
+    key.includes(': ') || // splitKV would split at the inner colon
+    key === '-' || key.startsWith('- ') ||
+    /^\d+$/.test(key) || // a bare numeric key reads as a position - quote the string key
+    /^['"]/.test(key) ||
+    key.includes('\\'); // plain keys are backslash-UNescaped on parse
+  if (needsQuote) return dq(key);
+  // escape the pointer metachars (incl. the QUERY.md reservations) — parse strips them back
+  return key.replace(/[/[\]*&#~?!()<>=|]/g, (c) => '\\' + c);
+}
+
 /** The CANONICAL (colon-form, spaced) path text of an anchor token (after `&`):
  *  re-rendered from base+steps — the dual window emits `:` regardless of how the
  *  anchor was authored — plus the ordinal `[]`. */

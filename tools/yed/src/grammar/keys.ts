@@ -67,12 +67,13 @@ const QUOTED_KEYED = /^("(?:[^"\\]|\\.)*")\s*:(?:\s+(.*))?$/;
  *  `"key": value` restructures too (`quoted` reports it). Returns the key and the remaining
  *  value token ("" when none was typed yet), or null when the text is not a keyed line at all.
  *  Non-breaking spaces (a contentEditable's rendering of typed spaces) are normalized first. */
-export function keyedEditParts(raw: string): { key: string; rest: string; quoted?: boolean } | null {
+export function keyedEditParts(raw: string): { key: string; rest: string; quoted?: boolean; keyRaw?: string } | null {
   const text = raw.replace(/\u00a0/g, " ");
   const q = QUOTED_KEYED.exec(text);
   if (q) {
     try {
-      return { key: JSON.parse(q[1]) as string, rest: (q[2] ?? "").trim(), quoted: true };
+      // keyRaw: the AUTHORED key token, quotes included — commits as EntryMeta.keyRaw
+      return { key: JSON.parse(q[1]) as string, rest: (q[2] ?? "").trim(), quoted: true, keyRaw: q[1] };
     } catch {
       return null;
     }

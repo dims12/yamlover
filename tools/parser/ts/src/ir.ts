@@ -193,6 +193,10 @@ export interface EntryMeta {
   /** A blank source line immediately precedes this entry (vertical separation worth keeping
    *  when re-rendering). */
   blankBefore?: boolean;
+  /** The AUTHORED key token, recorded only when it differs from the canonical emission
+   *  (`"a": 1` quoted-by-choice, `{}: 12` a token key). The serializer prefers it — guarded
+   *  by a reparse (a stale keyRaw must never change the key it spells). */
+  keyRaw?: string;
 }
 
 export type Value = Node | Pointer; // Node iff edge==='contain'; Pointer iff ref/back

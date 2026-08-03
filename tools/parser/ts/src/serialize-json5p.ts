@@ -9,11 +9,24 @@ import type { Document, Node, Entry, Value, Scalar, Pointer, Comment } from './i
 import { isPointer } from './ir.ts';
 import { LossyError, anchorBody, isAnchorizableBack, backAnchorBody } from './serialize-common.ts';
 import { renderPointer } from './pointer.ts';
+import { unquoteKey } from './yamlover.ts';
 
 const STEP = 2;
 
 /** A key token on one line: bare when a clean identifier, JSON-quoted otherwise. */
 const keyTok = (k: string): string => (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k) ? k : JSON.stringify(k));
+
+/** The AUTHORED key token (EntryMeta.keyRaw) when json5p can re-read it as this very key:
+ *  a bare identifier or a quoted string only (yamlover's flow-token keys have no json5p
+ *  spelling), reparse-guarded like the yamlover serializer's authoredKey. */
+function authoredKeyTok(e: Entry): string | null {
+  const raw = e.meta?.keyRaw;
+  if (raw === undefined || e.key === null) return null;
+  const bare = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(raw);
+  const quoted = /^(['"]).*\1$/.test(raw) && raw.length >= 2;
+  if (!bare && !quoted) return null;
+  try { return unquoteKey(raw) === e.key ? raw : null; } catch { return null; }
+}
 
 /** Emit options. `comments` re-emits retained comments; off by default (byte-identical output). */
 export interface SerializeOpts { comments?: boolean }
@@ -74,7 +87,7 @@ class Emitter {
     // PER-CONTAINER LAYOUT: a container that carries `style: 'flow'` was authored ON ONE LINE and
     // stays there — an inner `{p: 1}` inside a K&R token round-trips as `{p: 1}`, not expanded.
     if (n.meta?.style === 'flow') {
-      const inline = ents.map((e) => (e.key !== null ? `${keyTok(e.key)}: ` : '') + this.value(e.value, 0));
+      const inline = ents.map((e) => (e.key !== null ? `${authoredKeyTok(e) ?? keyTok(e.key)}: ` : '') + this.value(e.value, 0));
       return (asArray ? '[' : '{') + inline.join(', ') + (asArray ? ']' : '}');
     }
     const pad = ' '.repeat(indent);
@@ -98,7 +111,7 @@ class Emitter {
     }
     if (e.key === null) return this.value(e.value, indent);
     if (inArray) throw new LossyError(`a keyed entry ("${e.key}") cannot live in a json5p array`);
-    return (e.edge === 'back' ? '~' : '') + keyText(e.key) + ': ' + this.value(e.value, indent);
+    return (e.edge === 'back' ? '~' : '') + (authoredKeyTok(e) ?? keyText(e.key)) + ': ' + this.value(e.value, indent);
   }
 }
 
