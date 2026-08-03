@@ -181,7 +181,9 @@ describe("NodeView", () => {
     expect(links).toHaveLength(2);
     expect((links[0] as HTMLAnchorElement).getAttribute("href")).toBe(":adam");
     fireEvent.click(links[1]);
-    expect(onNav).toHaveBeenCalledWith(":eve");
+    // a data-view in-content link PINS the current format across the hop (App keeps it
+    // over the target's renderer) — the second arg is the pinFormat flag
+    expect(onNav).toHaveBeenCalledWith(":eve", true);
 
     expect(screen.getByText("mother")).toBeTruthy();
     expect(document.querySelector("hr.reldiv")).toBeTruthy(); // divider above the value

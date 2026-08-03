@@ -564,7 +564,7 @@ describe("yed2 typing — the identity-meta law (tags survive structural edits)"
   it("Backspace clearing a TAGGED root keeps its identity meta — and the caret lands in the hole", () => {
     const s0: EditorState = { ...initialState(), doc: parseSource("!!<*yamlover: $defs: recipe>\n!!yo\nserves: 4\n") };
     // walk onto the token and unwind: value, key, then the last level clears the root
-    let s = { ...s0, cursor: { at: "token" as const, path: [0], text: "" } };
+    let s: EditorState = { ...s0, cursor: { at: "token", path: [0], text: "" } };
     s = applyKey(s, { key: "Backspace" }); // token → the key survives as a named hole? (ladder)
     for (let i = 0; i < 10 && sourceOf(s.doc) !== ""; i++) s = applyKey(s, { key: "Backspace" });
     expect(sourceOf(s.doc)).toBe(""); // the editor's empty document
@@ -647,7 +647,7 @@ describe("yed2 typing — the editable !!<…> TAG cell", () => {
 
   it("the tag cell is IN the walk: ← from the value lands on the tag, ← again walks out", () => {
     const s0: EditorState = { ...initialState(), doc: parseSource("- one\n- !!<*a: b> 5\n") };
-    let s = { ...s0, cursor: { at: "token" as const, path: [1], text: "5", caret: "start" as const } };
+    let s: EditorState = { ...s0, cursor: { at: "token", path: [1], text: "5", caret: "start" } };
     s = applyKey(s, { key: "ArrowLeft" });
     expect(s.cursor).toMatchObject({ at: "tag", path: [1], text: "*a: b" });
     s = applyKey(s, { key: "ArrowLeft" });

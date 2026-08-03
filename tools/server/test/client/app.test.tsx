@@ -41,6 +41,7 @@ vi.mock("../../src/client/api", () => ({
   editText: vi.fn(),
 }));
 import { App } from "../../src/client/App";
+import { fetchNode, fetchTree } from "../../src/client/api";
 
 afterEach(cleanup);
 
@@ -86,5 +87,37 @@ describe("App", () => {
     fireEvent.click(within(document.querySelector(".left") as HTMLElement).getByText("root"));
     await waitFor(() => expect(document.body.textContent).not.toContain("this browser"));
     expect(window.location.pathname).toBe("/");
+  });
+
+  it("a data view's continuation link PINS the format — the target's renderer does not steal the hop; a TOC click still opens the renderer", async () => {
+    // a child that HAS a renderer (chapter) …
+    vi.mocked(fetchTree).mockResolvedValue({
+      path: ":",
+      label: "root",
+      type: "object",
+      format: null,
+      concrete: null,
+      hasChildren: true,
+      children: [{ path: ":ch", label: "ch", type: "object", format: "x-yamlover-chapter", concrete: "dir/yamlover", hasChildren: false, children: [] }],
+    });
+    // … reached from the ROOT's yamlover data view as a depth continuation link
+    vi.mocked(fetchNode).mockResolvedValue({
+      path: ":",
+      type: "object",
+      concrete: "dir/yamlover",
+      title: null,
+      description: null,
+      value: { ch: { $yamloverLink: { kind: "object", count: 2, path: ":ch" } } },
+    });
+    window.history.replaceState({}, "", "/?format=yamlover");
+    render(<App />);
+
+    fireEvent.click(await screen.findByText("{ object with 2 properties }"));
+    await waitFor(() => expect(window.location.pathname).toBe("/ch"));
+    expect(new URLSearchParams(window.location.search).get("format")).toBe("yamlover"); // NOT chapter
+
+    // the TOC row is a "go to the node" navigation — the renderer wins there as before
+    fireEvent.click(within(document.querySelector(".left") as HTMLElement).getByText("ch"));
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get("format")).toBe("chapter"));
   });
 });

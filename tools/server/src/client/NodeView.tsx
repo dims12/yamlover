@@ -120,7 +120,9 @@ interface Props {
   /** Bumped by App when a server-pushed change touches this node — re-fetch it. */
   refreshSignal?: number;
   onFormat: (f: Format) => void;
-  onNavigate: (path: string) => void;
+  /** `pinFormat` marks a DATA-VIEW in-content link (continuation / resolved ref): the current
+   *  format should follow the reader instead of switching to the target's renderer. */
+  onNavigate: (path: string, pinFormat?: boolean) => void;
   /** Called after a paste/upload changed the tree at `path`, so the TOC branch can refresh. */
   onContentChanged?: (path: string) => void;
   /** Called after a file was uploaded onto a directory MEMBER, to open the new file. */
@@ -184,6 +186,10 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     if (unlockSignal) setUnlocked(true);
   }, [unlockSignal]);
   const unlock = useCallback(() => setUnlocked(true), []);
+  // The DATA views' in-content links (depth continuations, resolved refs, the editor's ↗)
+  // continue reading in the SAME representation — the format is pinned across the hop, so a
+  // `{ … }` continuation on a chapter-formatted node stays yamlover, not the chapter page.
+  const navigateData = useCallback((p: string) => onNavigate(p, true), [onNavigate]);
 
   useEffect(() => {
     const navigated = prevPath.current !== path;
@@ -621,9 +627,9 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
            DEPRECATED source projection back during the rollout. JSON-family files stay on the
            per-scalar editor below — their backing supports only scalar emplaces. */
         yedSourceEditor() ? (
-          <YedEditor path={path} onNavigate={onNavigate} />
+          <YedEditor path={path} onNavigate={navigateData} />
         ) : (
-          <YamloverEditor path={path} onNavigate={onNavigate} />
+          <YamloverEditor path={path} onNavigate={navigateData} />
         )
       ) : (
         <EditingContext.Provider value={{ unlocked, unlock }}>
@@ -635,7 +641,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
                 {/* the relations panel: refs may link in-page, but it gets NO fragment ids
                     (anchors=false) so its keys don't collide with the value's node ids — and it is
                     never editable (reverse members are owned elsewhere), so no `editable` here */}
-                <Render value={rest} syntax={syntaxOf(effective)} onNavigate={onNavigate} documentPath={docPath} nodePath={path} anchors={false} />
+                <Render value={rest} syntax={syntaxOf(effective)} onNavigate={navigateData} documentPath={docPath} nodePath={path} anchors={false} />
                 <hr className="reldiv" />
               </>
             )}
@@ -644,7 +650,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
               <Render
                 value={content}
                 syntax={syntaxOf(effective)}
-                onNavigate={onNavigate}
+                onNavigate={navigateData}
                 documentPath={docPath}
                 nodePath={path}
                 comments={node.comments}

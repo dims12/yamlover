@@ -158,7 +158,7 @@ export function serverPathOf(basePath: string, doc: Document, irPath: readonly n
   let path = basePath;
   let v: Value = doc.root;
   for (const idx of irPath) {
-    const e = (isPointer(v) ? undefined : (v as Node).entries)?.[idx];
+    const e: Entry | undefined = isPointer(v) ? undefined : (v as Node).entries?.[idx];
     if (!e) throw new Error(`serverPathOf: no entry at index ${idx} under ${path}`);
     path = appendSeg(path, segOf(e, idx));
     v = e.value;

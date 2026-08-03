@@ -356,11 +356,14 @@ export function App() {
   // format back to the default. A target absent from the TOC keeps the current
   // format — reading deeper into a rendered tree stays rendered. NodeView makes
   // the final call from the fetched node's (type, format).
+  // `pinFormat` — an in-content link of a DATA view (a depth continuation, a resolved
+  // reference): the reader is following the data representation, so the current format
+  // WINS over the target's renderer (as long as it can travel there).
   const navigate = useCallback(
-    (p: string) => {
+    (p: string, pinFormat = false) => {
       const target = tree ? findNode(tree, p) : null;
       let f: Format = format;
-      if (target) {
+      if (target && !(pinFormat && formatTravelsTo(format, target.concrete))) {
         const rn = rendererName(target, target.concrete);
         f = rn ?? (formatTravelsTo(format, target.concrete) ? format : DEFAULT_FORMAT);
       }
