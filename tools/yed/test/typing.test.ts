@@ -280,6 +280,88 @@ describe("yed2 — pointer ATOMS: walkable, deletable, never editable", () => {
   });
 });
 
+describe("yed2 — REFERENCE ENTRY: `*` in a hole commits a pointer", () => {
+  const load = (text: string): EditorState =>
+    ({ doc: parseSource(text), cursor: { at: "hole", path: [], index: 0, text: "", key: null }, refused: false, log: [] });
+  it("a keyed pointer — `k: *pets: 1` ⏎ — lands as a ref entry, SPACED canonical, caret on the atom then the sibling hole", () => {
+    const s = type("k: *pets: 1{Enter}");
+    expect(src(s)).toBe("k: *pets: 1\n");
+    // THE SIBLING RULE: a reference holds no children — Enter opened the hole AFTER it
+    expect(s.cursor).toEqual({ at: "hole", path: [], index: 1, text: "", key: null });
+    expect(s.refused).toBe(false);
+  });
+  it("an ordinal pointer — `- *x` — and a flow element pointer both land", () => {
+    expect(src(type("- *x{Enter}"))).toBe("- *x\n");
+    expect(src(type("[*x, 2]"))).toBe("[*x, 2]\n");
+  });
+  it("the typed spelling normalizes to the spaced canonical raw", () => {
+    expect(src(type("k: *:pets:1{Enter}"))).toBe("k: *: pets: 1\n");
+  });
+  it("`k:` ⏎ then `*x` — the descend's empty container takes the pointer as the WHOLE value", () => {
+    const s = type("k:{Enter}*x{Enter}");
+    expect(src(s)).toBe("k: *x\n");
+  });
+  it("`*` alone and garbage refuse — the ring, the text stands, nothing lands", () => {
+    const alone = type("k: *{Enter}");
+    expect(alone.refused).toBe(true);
+    expect(src(alone)).toBe(""); // the empty document — nothing landed
+    expect(alone.cursor).toMatchObject({ at: "hole", text: "*", key: "k" });
+    const garbage = type("k: *::{Enter}");
+    expect(garbage.refused).toBe(true);
+    expect(src(garbage)).toBe("");
+  });
+  it("a pointer cannot BE the document — the root-value position refuses it", () => {
+    const s = type("*x{Enter}");
+    expect(s.refused).toBe(true);
+    expect(src(s)).toBe("");
+    expect(s.cursor).toMatchObject({ at: "hole", path: [], text: "*x" });
+  });
+  it("RETARGET: Enter on the atom opens PICK with the raw; edit; Enter commits the new target", () => {
+    let s = load("a: *x\nb: 1\n");
+    s = { ...s, cursor: { at: "ptr", path: [0] } };
+    s = applyKey(s, { key: "Enter" });
+    expect(s.cursor).toEqual({ at: "pick", path: [0], text: "x", caret: "end" });
+    watchdog(s);
+    // retype the raw wholesale (the controlled input's onChange path)
+    s = applyKey({ ...s, cursor: { ...s.cursor, text: "pets: 1" } as never }, { key: "Enter" });
+    expect(src(s)).toBe("a: *pets: 1\nb: 1\n");
+    // the retarget committed back onto... Enter walks the sibling rule to the hole after `a`
+    expect(s.cursor).toEqual({ at: "hole", path: [], index: 1, text: "", key: null });
+  });
+  it("PICK with an UNCHANGED raw commits as a no-op — no document change, no refusal", () => {
+    let s = load("a: *x\n");
+    s = { ...s, cursor: { at: "pick", path: [0], text: "x" } };
+    const before = src(s);
+    s = applyKey(s, { key: "Enter" });
+    expect(src(s)).toBe(before);
+    expect(s.refused).toBe(false);
+  });
+  it("PICK garbage refuses the commit AND the move — nothing is ever lost", () => {
+    let s = load("a: *x\n");
+    s = { ...s, cursor: { at: "pick", path: [0], text: "::" } };
+    const committed = applyKey(s, { key: "Enter" });
+    expect(committed.refused).toBe(true);
+    expect(src(committed)).toBe("a: *x\n");
+    expect(committed.cursor).toMatchObject({ at: "pick", text: "::" });
+    const moved = applyKey(s, { key: "ArrowRight" }, { atStart: false, atEnd: true });
+    expect(moved.refused).toBe(true);
+    expect(moved.cursor).toMatchObject({ at: "pick", text: "::" });
+  });
+  it("PICK emptied + Backspace removes the reference — the name survives", () => {
+    let s = load("a: *x\n");
+    s = { ...s, cursor: { at: "pick", path: [0], text: "" } };
+    s = applyKey(s, { key: "Backspace" });
+    expect(src(s)).toBe("");
+    expect(s.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: "a" });
+    watchdog(s);
+  });
+  it("json dialects have no `*` sigil — the star is a plain illegal token and rings at commit", () => {
+    const s = type("{{k: *x{Enter}", { ...initialState(), dialect: "json" } as EditorState);
+    expect(s.refused).toBe(true);
+    expect(src(s)).toBe("{}\n");
+  });
+});
+
 describe("yed2 — an EMPTIED key never traps the caret", () => {
   it("committing `: value1` un-names the pair; the caret lands on the value and arrows walk on", () => {
     const s = type("key1: value1{ArrowRight}");

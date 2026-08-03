@@ -22,12 +22,13 @@ function Harness() {
 }
 
 /** The focused editor cell — after EVERY keystroke the caret must live in a cell input, on a
- *  gap slot, or in a block scalar's textarea (the three focusable cell homes). BODY means the
- *  caret fell off the projection. */
+ *  gap slot, on a pointer atom, or in a block scalar's textarea (the focusable cell homes).
+ *  BODY means the caret fell off the projection. */
 function focusedInput(): HTMLInputElement {
   const el = document.activeElement;
   const ok = el !== null && ((el.tagName === "INPUT" && el.classList.contains("y2-input"))
     || el.classList.contains("y2-gapslot")
+    || el.classList.contains("y2-p")
     || (el.tagName === "TEXTAREA" && el.classList.contains("y2-blocktext")));
   expect(ok, `the caret must be in a cell, but activeElement is ${el ? el.tagName + "." + el.className : "null"}`).toBe(true);
   return el as HTMLInputElement;
@@ -118,6 +119,23 @@ describe("yed2 DOM typing — the reported yaml, through real key events", () =>
     expect(lastState.cursor).toEqual({ at: "hole", path: [0, 1], index: 0, text: "", key: null });
     domType("- name: Europe→");
     expect(sourceOf(lastState.doc)).toBe("- name: Eurasia\n  children:\n    - name: Europe\n");
+  });
+
+  it("REFERENCE entry + retarget: `k: *pets: 1` ⏎, ← onto the atom, ⏎ opens PICK, edit, ⏎ — focus pinned throughout", () => {
+    render(<Harness />);
+    domType("k: *pets: 1⏎");
+    expect(sourceOf(lastState.doc)).toBe("k: *pets: 1\n");
+    // THE SIBLING RULE: the reference holds no children — Enter opened the hole after it
+    expect(lastState.cursor).toMatchObject({ at: "hole", index: 1 });
+    domType("←"); // back onto the atom — the focus home is the .y2-p span
+    expect(lastState.cursor).toEqual({ at: "ptr", path: [0] });
+    expect(document.activeElement?.classList.contains("y2-p")).toBe(true);
+    domType("⏎"); // Enter opens PICK with the raw loaded
+    expect(lastState.cursor).toMatchObject({ at: "pick", path: [0], text: "pets: 1" });
+    expect(focusedInput().value).toBe("pets: 1");
+    domType("0⏎"); // append to the raw, commit the retarget
+    expect(sourceOf(lastState.doc)).toBe("k: *pets: 10\n");
+    focusedInput();
   });
 
   it("↑↑ walks ROWS through the DOM: from under `key2: 13` up to `key1: 12`, caret at its end", () => {

@@ -18,8 +18,8 @@ import {
 import { parseSchemaRef, parseYamlover } from "../../parser/ts/src/yamlover.ts";
 import { schemaTagToken } from "../../parser/ts/src/serialize-yamlover.ts";
 import { anchorBody, keyText } from "../../parser/ts/src/serialize-common.ts";
-import { makeAnchor } from "../../parser/ts/src/pointer.ts";
-import { isPointer, type Anchor } from "../../parser/ts/src/ir.ts";
+import { makeAnchor, parsePointer, renderPointer } from "../../parser/ts/src/pointer.ts";
+import { isPointer, type Anchor, type Pointer } from "../../parser/ts/src/ir.ts";
 import { formatFromMetaTag, proseFormatOfTag } from "./chapter/format";
 import { schemaTextOf } from "./state";
 
@@ -55,6 +55,19 @@ export function removeEntryAt(doc: Document, containerPath: Path, index: number)
   });
 }
 
+/** Replace the VALUE of the entry at `path` — withNode's twin for values a Node walk cannot
+ *  reach (a pointer leaf, or a container BECOMING a pointer). The entry's edge follows the
+ *  value's kind (`ref` for a pointer), the IR invariant. Never the root — the parser refuses
+ *  a top-level pointer, and the callers gate that before coming here. */
+function withValue(doc: Document, path: Path, value: Value): Document {
+  return withNode(doc, path.slice(0, -1), (n) => {
+    const entries = [...(n.entries ?? [])];
+    const idx = path[path.length - 1];
+    entries[idx] = { ...entries[idx], value, edge: isPointer(value) ? "ref" : "contain" } as Entry;
+    return { ...n, entries } as Node;
+  });
+}
+
 /** A scalar IR node from a typed source token; null when the token is not one scalar. */
 function scalarFromText(text: string): Node | null {
   const t = text.trim();
@@ -81,6 +94,22 @@ function valueScalarFromText(text: string): Node | null {
     if (!v || isPointer(v) || (v as Node).kind !== "scalar" || ((v as Node).entries ?? []).length > 0) return null;
     const s = v as { value?: unknown; raw?: string; meta?: unknown };
     return { kind: "scalar", value: s.value, ...(s.raw !== undefined ? { raw: s.raw } : {}) } as unknown as Node;
+  } catch {
+    return null;
+  }
+}
+
+/** A Pointer from a typed RAW (the text after `*`): parsed base+steps plus the SPACED display
+ *  raw, so both the serializer and the sync's compact respell are total over it. Null when the
+ *  text is not a pointer the wire can carry — empty, unparsable, or the bare current-scope
+ *  nothing (`*` alone names nothing). */
+export function pointerFromText(text: string): Pointer | null {
+  const t = text.trim();
+  if (t === "") return null;
+  try {
+    const p = parsePointer(t);
+    if (p.steps.length === 0 && p.base.scope === "current") return null; // `*` alone — no target
+    return { ...p, raw: renderPointer(p) };
   } catch {
     return null;
   }
@@ -150,6 +179,10 @@ export function siteOf(state: EditorState): Site {
   if (cursor.at === "ptr") {
     const parent = nodeAt(doc, cursor.path.slice(0, -1));
     return { ...base, cell: "atom", container: containerKind(parent), entryCommitted: true };
+  }
+  if (cursor.at === "pick") {
+    const parent = nodeAt(doc, cursor.path.slice(0, -1));
+    return { ...base, cell: "pick", container: containerKind(parent), textEmpty: cursor.text.trim() === "", entryCommitted: true };
   }
   // after — the gap past the container at cursor.path
   const token = nodeAt(doc, cursor.path);
@@ -253,7 +286,9 @@ function cursorSlot(doc: Document, cursor: Cursor): number {
     }
     return list.length;
   }
-  const i = list.findIndex((p) => samePos(cursor, p));
+  // the pick cursor stands ON the same position its atom occupies — normalize before matching
+  const cur: Cursor = cursor.at === "pick" ? { at: "ptr", path: cursor.path } : cursor;
+  const i = list.findIndex((p) => samePos(cur, p));
   return i < 0 ? list.length : i;
 }
 
@@ -422,6 +457,25 @@ export function commitPending(state: EditorState): EditorState | null {
     const container = nodeAt(doc, cursor.path);
     if (!container) return null;
     if (cursor.key === null && bracketOf(container) === "{" && isFlow(container)) return null; // an unnamed pair cannot land in `{`
+    // A REFERENCE: `*`-led text commits as a POINTER value, never a scalar. The parser refuses
+    // a top-level pointer, so the OMNI positions refuse it too — a pointer is an entry's value
+    // or a flow element; it cannot BE the document or a container's self line. The one
+    // exception mirrors the scalar law: the EMPTY container a `k:` ⏎ descend opened takes the
+    // pointer as the whole value of its entry (`k: *x` in two gestures).
+    if (cursor.text.trim().startsWith("*") && d.pointers) {
+      const ptr = pointerFromText(cursor.text.trim().slice(1));
+      if (!ptr) return null; // not a pointer the wire can carry — the ring, the text stands
+      if (cursor.key === null && cursor.ordinal !== true && !isFlow(container)) {
+        if (cursor.path.length === 0 || container.kind !== "mapping" || (container.entries ?? []).length > 0) return null;
+        return { ...state, doc: withValue(doc, cursor.path, ptr), cursor: { at: "ptr", path: cursor.path } };
+      }
+      const entry = { ...keyFields(cursor), edge: "ref", value: ptr } as unknown as Entry;
+      return {
+        ...state,
+        doc: insertEntry(doc, cursor.path, cursor.index, entry),
+        cursor: { at: "ptr", path: [...cursor.path, cursor.index] },
+      };
+    }
     if (cursor.text.trim() !== "" && !d.scalarToken(cursor.text.trim())) return null; // not a scalar SPELLING here — visibly
     const value = cursor.text.trim() === "" ? scalarFromText('""')!
       : scalarFromText(cursor.text) ?? (cursor.key !== null ? valueScalarFromText(cursor.text) : null);
@@ -453,6 +507,17 @@ export function commitPending(state: EditorState): EditorState | null {
       doc: insertEntry(doc, cursor.path, cursor.index, entry),
       cursor: { at: "token", path: [...cursor.path, cursor.index], text: cursor.text },
     };
+  }
+  if (cursor.at === "pick") {
+    const e = entryAt(doc, cursor.path);
+    if (!e || !isPointer(e.value)) return null;
+    const prev = e.value as Pointer;
+    // a typed/pasted leading sigil is tolerated — the cell edits the RAW, the `*` is chrome
+    const t = cursor.text.trim().replace(/^\*/, "");
+    if (t === prev.raw) return state; // unchanged — leaving is not an edit
+    const ptr = pointerFromText(t);
+    if (!ptr) return null; // not a pointer — the ring, the text stands
+    return { ...state, doc: withValue(doc, cursor.path, ptr), cursor: { at: "ptr", path: cursor.path } };
   }
   if (cursor.at === "token") {
     const value = scalarFromText(cursor.text);
@@ -816,7 +881,7 @@ export interface Edges { atStart: boolean; atEnd: boolean; firstLine?: boolean; 
  *  mid-text edits and text-level paste all included), then the hole classifier runs. */
 export function applyText(state: EditorState, text: string): EditorState {
   const { cursor } = state;
-  if (cursor.at === "token" || cursor.at === "key" || cursor.at === "tag" || cursor.at === "anchors") return ok({ ...state, cursor: { ...cursor, text } });
+  if (cursor.at === "token" || cursor.at === "key" || cursor.at === "tag" || cursor.at === "anchors" || cursor.at === "pick") return ok({ ...state, cursor: { ...cursor, text } });
   if (cursor.at !== "hole") return state;
   return classifyHole(ok({ ...state, cursor: { ...cursor, text } }));
 }
@@ -857,7 +922,7 @@ export function applyKey(state: EditorState, k: KeyInput, edges?: Edges): Editor
 function applyPrintable(state: EditorState, ch: string): EditorState {
   if (ch.length !== 1) return state;
   const { cursor } = state;
-  if (cursor.at === "token" || cursor.at === "key" || cursor.at === "tag" || cursor.at === "anchors") {
+  if (cursor.at === "token" || cursor.at === "key" || cursor.at === "tag" || cursor.at === "anchors" || cursor.at === "pick") {
     return ok({ ...state, cursor: { ...cursor, text: cursor.text + ch } });
   }
   if (cursor.at !== "hole") return refuse(state); // a gap takes no text — visibly
@@ -1113,7 +1178,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
         const committed = commitPending({ ...state, cursor: { ...cursor, text: "" } });
         return committed === null ? refuse(state) : ok(committed);
       }
-      if (cursor.at === "token" || cursor.at === "key" || cursor.at === "ptr") {
+      if (cursor.at === "token" || cursor.at === "key" || cursor.at === "ptr" || cursor.at === "pick") {
         if (cursor.path.length === 0) {
           // the ROOT clears to the empty document — its identity meta (a data island's tag) stays
           return ok({ ...state, doc: { ...doc, root: keepIdentityMeta(doc.root, { kind: "mapping", entries: [] } as unknown as Node) }, cursor: { at: "hole", path: [], index: 0, text: "", key: null } });
@@ -1194,6 +1259,16 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       return ok({ ...state, cursor: { at: "hole", path: [...cursor.path, cursor.index - 1], index: (v.entries ?? []).length, text: "", key: null } });
     }
 
+    case "pick": {
+      // Enter on a pointer atom OPENS the reference for editing: the pick cursor holds the
+      // spaced display raw, the pointer stays in the document (no remove+insert churn against
+      // the sync flush). An opaque atom (a blob) has no raw to edit — refuse, visibly.
+      if (cursor.at !== "ptr") return refuse(state);
+      const v = entryAt(doc, cursor.path)?.value;
+      if (!v || !isPointer(v)) return refuse(state);
+      return ok({ ...state, cursor: { at: "pick", path: cursor.path, text: (v as Pointer).raw ?? "", caret: "end" } });
+    }
+
     case "commit": {
       // an ANCHOR row commits in place — the caret stays on the row (or lands on the node when
       // the emptied row was the last one); descending into the node would make no sense here
@@ -1218,13 +1293,18 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       const committed = commitPending(state);
       if (!committed) return refuse(state);
       const cur = committed.cursor;
-      const entryPath = cur.at === "token" || cur.at === "key" ? cur.path
+      const entryPath = cur.at === "token" || cur.at === "key" || cur.at === "ptr" ? cur.path
         : cursor.at === "hole" ? [...cursor.path, cursor.index] : cursor.path;
       // THE LEVEL RULE: Enter DESCENDS into what was just committed — the next hole opens INSIDE
       // the entry's value (an omni-in-waiting for a scalar; the IR holds scalar+entries natively),
       // and a same-level sibling costs one Shift-Tab (dedent). This is what every corpus script
       // is written against.
       const value = entryPath.length ? entryAt(committed.doc, entryPath)?.value : committed.doc.root;
+      // THE SIBLING RULE (YAMLOVER_EDITOR.yo pointer_committed): a reference holds no children,
+      // so its Enter opens the hole AFTER it — the one exception to the level rule's descend
+      if (value && isPointer(value) && entryPath.length > 0) {
+        return ok({ ...committed, cursor: { at: "hole", path: entryPath.slice(0, -1), index: entryPath[entryPath.length - 1] + 1, text: "", key: null } });
+      }
       const node = value && !isPointer(value) ? (value as Node) : null;
       const len = node ? (node.entries ?? []).length : 0;
       // the hole opens on the row RIGHT AFTER the value line — at the omni's `selfAt` among its

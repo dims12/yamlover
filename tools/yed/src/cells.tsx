@@ -18,8 +18,28 @@ import { blockBodyOf, blockTextFrom, type Position } from "./apply";
 export interface CellCtx {
   cursor: Cursor;
   refused: boolean;
+  /** The DOCUMENT — a registered cell needing ancestor context (a server pointer cell
+   *  computing its wire address) reads it here; "what you see is state, all of it". */
+  doc: Document;
   /** The cell REGISTRY the projection dispatches through — recursion re-enters it. */
   cells: CellRegistry;
+  /** The mounted root's SERVER addresses, set by a server host (yed-editor; a chapter source
+   *  chunk sets its own): `base` = this EditorView's doc root on the wire, `doc` = the
+   *  enclosing DOCUMENT root (the `*:` spelling base). Absent in the pure/debug editor. */
+  host?: { base: string; doc: string };
+  /** PICK actions for a server pointer cell — dropdown/TOC commits that bypass the key
+   *  routing. Thin wrappers over the pure apply layer, funneled through the same setState
+   *  (page.tsx builds them); a false return is the refusal ring, the cell keeps its text. */
+  pick?: {
+    /** commit the HOLE's text as a pointer (`raw` carries no `*`); false = refused */
+    commitHole(raw: string): boolean;
+    /** commit a RETARGET at the pick cursor's path; false = refused */
+    commitAt(path: Path, raw: string): boolean;
+    /** abandon the pick edit — back onto the atom, the document untouched */
+    cancel(path: Path): void;
+    /** the hole's `*` decision undone — back to the plain empty hole */
+    dismantle(): void;
+  };
   /** False for an EMBEDDED editor that does not hold focus (a chapter source chunk): the
    *  active cell renders but must not STEAL the caret. Absent ⇒ true. */
   plantCaret?: boolean;
@@ -51,6 +71,11 @@ export interface CellRegistry {
   readonly byFormat: Readonly<Record<string, ValueCellComponent>>;
   readonly byKind: Partial<Readonly<Record<"scalar" | "mapping" | "blob" | "pointer", ValueCellComponent>>>;
   readonly fallback: ValueCellComponent;
+  /** The HOLE's `*`-led face — a server registry mounts the PICK query kit here (candidates,
+   *  the scope ladder, TOC insertion); absent ⇒ the plain input keeps accumulating the raw
+   *  and commit parses-or-refuses (the pure face). Never consulted at the root-VALUE hole —
+   *  a pointer cannot BE the document. */
+  readonly holePick?: (props: { ctx: CellCtx }) => ReactNode;
 }
 
 export function cellFor(v: Value, reg: CellRegistry): ValueCellComponent {
@@ -149,6 +174,13 @@ const TrailSpan = ({ texts }: { texts: string[] }): ReactNode =>
 function HoleCell({ ctx }: { ctx: CellCtx }) {
   const c = ctx.cursor;
   if (c.at !== "hole") return null;
+  // a `*`-led hole is a REFERENCE being entered — a server registry projects the PICK kit
+  // over it (the same cursor state; QUERY_EDITOR.yo owns the inner grammar). The root-VALUE
+  // hole never delegates: a pointer cannot BE the document, the pure face rings there.
+  const rootValueHole = c.path.length === 0 && c.key === null && c.ordinal !== true;
+  if (ctx.cells.holePick && !rootValueHole && c.text.trimStart().startsWith("*")) {
+    return <>{ctx.cells.holePick({ ctx })}</>;
+  }
   return (
     <Cell kind="hole" active refused={ctx.refused}>
       {c.ordinal === true && <DashMark />}
@@ -274,21 +306,28 @@ function KeyCell({ entry, path, ctx }: { entry: Entry; path: Path; ctx: CellCtx 
   );
 }
 
-/** A pointer ATOM: walkable, focusable, deletable — NOT text-editable (PICK mode comes later;
- *  typing rings). The caret stands ON it, never in it. */
+/** A pointer ATOM: walkable, focusable, deletable — typing into it rings; Enter opens the
+ *  PICK face (the `pick` cursor), a plain input over the pointer's RAW that commits
+ *  parses-or-refuses. The caret stands ON the atom, IN the pick input. */
 function PointerCell({ node, path, ctx }: ValueCellProps) {
-  const active = ctx.cursor.at === "ptr" && pathEq(ctx.cursor.path, path);
+  const picking = ctx.cursor.at === "pick" && pathEq(ctx.cursor.path, path);
+  const active = picking || (ctx.cursor.at === "ptr" && pathEq(ctx.cursor.path, path));
   return (
-    <Cell kind="pointer" active={active} refused={ctx.refused}>
-      <span
-        className="y2-p"
-        tabIndex={0}
-        ref={(el) => { if (el && active && ctx.plantCaret !== false && document.activeElement !== el) el.focus(); }}
-        onFocus={() => { if (!active) ctx.onFocus({ at: "ptr", path }); }}
-        onKeyDown={(e) => ctx.onKey(e)}
-      >
-        *{(node as Pointer as { raw?: string }).raw ?? ""}
-      </span>
+    <Cell kind="pointer" active={active} refused={ctx.refused} pos={{ at: "ptr", path }}>
+      {picking
+        ? <span className="y2-p y2-pick">
+            <span className="y2-punct">*</span>
+            <CellInput value={(ctx.cursor as { text: string }).text} ctx={ctx} autoFocus caret={(ctx.cursor as { caret?: "start" | "end" }).caret} />
+          </span>
+        : <span
+            className="y2-p"
+            tabIndex={0}
+            ref={(el) => { if (el && active && ctx.plantCaret !== false && document.activeElement !== el) el.focus(); }}
+            onFocus={() => { if (!active) ctx.onFocus({ at: "ptr", path }); }}
+            onKeyDown={(e) => ctx.onKey(e)}
+          >
+            *{(node as Pointer as { raw?: string }).raw ?? ""}
+          </span>}
     </Cell>
   );
 }

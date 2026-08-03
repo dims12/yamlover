@@ -23,8 +23,11 @@ export type Path = number[];
  *             the in-progress source token (committed on leave).
  *  - `key`:   editing the KEY of the entry at `path`.
  *  - `after`: the caret stands in the GAP past the container value at `path` ([] = the root).
- *  - `ptr`:   the caret stands ON the pointer ATOM at `path` — no text; the atom is not
- *             text-editable (PICK mode is a later feature; typing into it refuses).
+ *  - `ptr`:   the caret stands ON the pointer ATOM at `path` — no text; typing into it
+ *             refuses, Enter opens the `pick` cursor to retarget it.
+ *  - `pick`:  editing the RAW of the pointer at `path` (the spaced display spelling, no `*`).
+ *             The pointer STAYS in the document while edited; commit parses-or-refuses, so
+ *             the document never holds a half-typed reference.
  *  - `tag`:   editing the `!!<…>` TAG of the node at `path`; `text` is the tag's INNER content
  *             (no wrapper — the same spelling the edit API's `meta` facet carries).
  *  - `anchors`: editing ONE `&` anchor of the node at `path` — `index` names the row (the
@@ -39,7 +42,8 @@ export type Cursor =
   | { at: "tag"; path: Path; text: string; caret?: "start" | "end" }
   | { at: "anchors"; path: Path; index: number; text: string; caret?: "start" | "end" }
   | { at: "after"; path: Path }
-  | { at: "ptr"; path: Path };
+  | { at: "ptr"; path: Path }
+  | { at: "pick"; path: Path; text: string; caret?: "start" | "end" };
 
 /** One applied edit, for the visible history pane. */
 export interface LogEntry {

@@ -12,9 +12,10 @@
 export interface Site {
   /** The kind of cell under the caret. `gapClose` is the position past a flow token's closer,
    *  `gapQuote` past a closing quote; `key` is a key cell inside a flow token; `atom` is a
-   *  non-text cell the caret stands ON (a pointer) — deletable, walkable, not editable;
+   *  non-text cell the caret stands ON (a pointer) — deletable, walkable, not editable in
+   *  place (Enter opens `pick`); `pick` is a pointer's RAW being edited (the reference cell);
    *  `tag` is a node's editable `!!<…>` tag cell (its INNER text). */
-  cell: "holeEntry" | "holeValue" | "token" | "quotedInner" | "key" | "gapClose" | "gapQuote" | "atom" | "tag" | "anchors";
+  cell: "holeEntry" | "holeValue" | "token" | "quotedInner" | "key" | "gapClose" | "gapQuote" | "atom" | "pick" | "tag" | "anchors";
   /** The container the caret's entry lives in. */
   container: "block" | "flowMap" | "flowSeq";
   /** For gaps: the kind of the token AROUND this one (undefined ⇒ not nested in a flow token). */
@@ -64,6 +65,7 @@ export type Intent =
   | { kind: "siblingAfter" }                // Enter at a gap: a fresh element after this one
   | { kind: "siblingBefore" }               // Enter at the HEAD of a committed row: the row is
                                             //   pushed down, a fresh sibling hole opens BEFORE it
+  | { kind: "pick" }                        // Enter on a pointer atom: open its raw for editing
   | { kind: "nop" };                        // consumed, nothing happens (Enter in an empty
                                             //   entry hole must not insert a DOM newline)
 
@@ -99,16 +101,35 @@ export function interpret(k: Key, s: Site): Intent | null {
     if (k.key === "Backspace" || k.key === "ArrowLeft") return { kind: "reopenQuote" };
     return universalNav(k);
   }
-  // ---- an ATOM the caret stands ON (a pointer) — deletable, walkable, NOT editable --------- //
+  // ---- an ATOM the caret stands ON (a pointer) — deletable, walkable, NOT editable in place - //
   if (s.cell === "atom") {
     if (k.key === "Backspace") return { kind: "removeLevel" };  // the ladder: the value goes, a name survives
     if (k.key === "," && inFlow(s)) return { kind: "nextElement", spread: false };
     if ((k.key === "]" || k.key === "}") && inFlow(s)) {
       return k.key === closerOf(s) ? { kind: "closeToken", closer: k.key } : { kind: "refuse" };
     }
-    if (k.key === "Enter") return { kind: "nop" };              // PICK later — claimed-to-swallow, greyed
+    if (k.key === "Enter") return { kind: "pick" };             // open the reference for editing
     if (k.key.length === 1) return { kind: "refuse" };          // typing into an atom RINGS
     return universalNav(k);
+  }
+  // ---- the PICK cell — a pointer's RAW being edited (atom Enter opened it) ------------------ //
+  // The pure face is a plain text cell over the raw; a server host overlays the query kit on
+  // the SAME cursor state (QUERY_EDITOR.yo owns that inner grammar). Commit parses-or-refuses;
+  // leaving with arrows commits too — nothing is ever lost, garbage refuses the move.
+  if (s.cell === "pick") {
+    if (k.key === "Enter") return { kind: "commit", submit: true };
+    if (k.key === "Backspace" && s.textEmpty) return { kind: "removeLevel" }; // the emptied reference goes
+    if (k.key === "Backspace" && !s.textEmpty && s.caretAtStart) return { kind: "move", dir: -1 };
+    if (k.key === "," && inFlow(s)) return { kind: "nextElement", spread: false };
+    if ((k.key === "]" || k.key === "}") && inFlow(s)) {
+      return k.key === closerOf(s) ? { kind: "closeToken", closer: k.key } : { kind: "refuse" };
+    }
+    if (k.key === "Tab") return inFlow(s) ? { kind: "move", dir: k.shift ? -1 : 1 } : k.shift ? { kind: "dedent" } : { kind: "indent" };
+    if (k.key === "ArrowLeft" && s.caretAtStart) return { kind: "move", dir: -1 };
+    if (k.key === "ArrowRight" && s.caretAtEnd) return { kind: "move", dir: 1 };
+    if (k.key === "ArrowUp") return { kind: "move", dir: -1 };
+    if (k.key === "ArrowDown") return { kind: "move", dir: 1 };
+    return null; // printables: native text editing of the raw
   }
   // ---- the node's `!!<…>` TAG cell — its inner text is native; the grammar owns the edges --- //
   if (s.cell === "tag") {

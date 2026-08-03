@@ -48,9 +48,10 @@ description: |
     cell, never doubles it.
 
     THE THREE HOSTS. (1) The BREADCRUMB — browse mode, this document's main table.
-    (2) The yamlover editor's REFERENCE CELL (`*` in a hole) — pick mode; its outer
-    states live in YAMLOVER_EDITOR.yo (pointer_started / pointer_query_editing /
-    pointer_committed), which delegate the inner grammar here. (3) The TAG PICKER
+    (2) The yed editor's REFERENCE CELL (`*` in a hole, and the atom's pick retarget)
+    — pick mode; its outer states live in YAMLOVER_EDITOR.yo (pointer_entry /
+    pointer_pick_editing / atom_focused), which delegate the inner grammar here
+    through the cell registry's holePick/pointer seam. (3) The TAG PICKER
     (the annotation popup's search row) — pick mode, opening at the PROJECT scope
     (`::` — tags are project furniture, and the grafted yamlover taxonomy/palette
     lives only on that rung of the ladder) with the CARET ALREADY IN the trailing

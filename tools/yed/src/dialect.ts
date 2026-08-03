@@ -22,6 +22,9 @@ export interface Dialect {
    *  surface's inline concrete switch (`meta.concrete = "json5p"`); what a NATIVE json5
    *  document should store for layout is an open serializer question, out of scope here. */
   readonly spread: boolean;
+  /** `*`-led hole text commits as a REFERENCE (a pointer value). false ⇒ `*…` is plain text
+   *  and refuses at the scalar gate like any other non-token. */
+  readonly pointers: boolean;
   /** May this key be typed BARE (`k:` without quotes)? A refused key rings; `"k":` (the quoted
    *  form) is accepted by every dialect. */
   bareKey(key: string): boolean;
@@ -35,6 +38,7 @@ export const YAMLOVER: Dialect = {
   ordinals: true,
   omniValue: true,
   spread: true,
+  pointers: true,
   bareKey: () => true,
   scalarToken: () => true,
 };
@@ -65,6 +69,7 @@ export const JSON5_D: Dialect = {
   ordinals: false,
   omniValue: false,
   spread: true,
+  pointers: false, // json5 has no `*` sigil — a star is just an illegal token
   bareKey: (k) => IDENT.test(k),
   scalarToken: json5Token,
 };
@@ -75,6 +80,7 @@ export const JSON_D: Dialect = {
   ordinals: false,
   omniValue: false,
   spread: true,
+  pointers: false,
   bareKey: () => false,
   scalarToken: jsonToken,
 };

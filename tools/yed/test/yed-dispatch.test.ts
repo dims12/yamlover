@@ -38,7 +38,7 @@ describe("the dispatch table — one meaning per (site, key)", () => {
     expect(kind("Tab", t("flowSeq"))).toBe("move"); // no indent levels inside a token
   });
 
-  it("an ATOM the caret stands ON (a pointer) — deletable, walkable, never editable", () => {
+  it("an ATOM the caret stands ON (a pointer) — deletable, walkable, not editable in place", () => {
     const a = (c: Site["container"]) => site("atom", c, { entryCommitted: true });
     expect(kind("Backspace", a("block"))).toBe("removeLevel");    // the ladder: the value goes
     expect(kind("Backspace", a("flowSeq"))).toBe("removeLevel");
@@ -46,11 +46,30 @@ describe("the dispatch table — one meaning per (site, key)", () => {
     expect(kind(",", a("block"))).toBe("refuse");                 // in block rows a comma is just typing — it rings
     expect(kind("]", a("flowSeq"))).toBe("closeToken");
     expect(kind("}", a("flowSeq"))).toBe("refuse");               // the wrong closer rings
-    expect(kind("Enter", a("block"))).toBe("nop");                // PICK later — claimed-to-swallow
+    expect(kind("Enter", a("block"))).toBe("pick");               // open the reference for editing
+    expect(kind("Enter", a("flowSeq"))).toBe("pick");
     expect(kind("x", a("block"))).toBe("refuse");                 // typing into an atom RINGS
     expect(kind("ArrowLeft", a("block"))).toBe("move");
     expect(kind("ArrowRight", a("block"))).toBe("move");
     expect(kind("Tab", a("block"))).toBe("move");
+  });
+
+  it("the PICK cell — a pointer's raw being edited (atom Enter opened it)", () => {
+    const p = (c: Site["container"], over: Partial<Site> = {}) => site("pick", c, { entryCommitted: true, ...over });
+    expect(kind("Enter", p("block", { textEmpty: false }))).toBe("commit");   // parses-or-refuses
+    expect(kind("Enter", p("block"))).toBe("commit");                          // empty commits → refuses (no target)
+    expect(kind("Backspace", p("block"))).toBe("removeLevel");                 // the emptied reference goes
+    expect(kind("Backspace", p("block", { textEmpty: false, caretAtStart: true }))).toBe("move");
+    expect(kind(",", p("flowSeq", { textEmpty: false }))).toBe("nextElement"); // commit, next element
+    expect(kind(",", p("block", { textEmpty: false }))).toBeNull();            // block rows: a comma is text (a quoted key portion)
+    expect(kind("]", p("flowSeq", { textEmpty: false }))).toBe("closeToken");
+    expect(kind("}", p("flowSeq", { textEmpty: false }))).toBe("refuse");      // the wrong closer rings
+    expect(kind("Tab", p("flowSeq"))).toBe("move");
+    expect(kind("Tab", p("block"))).toBe("indent");
+    expect(kind("Tab", p("block"), true)).toBe("dedent");
+    expect(kind("ArrowLeft", p("block", { textEmpty: false, caretAtStart: true }))).toBe("move");
+    expect(kind("ArrowRight", p("block", { textEmpty: false, caretAtEnd: true }))).toBe("move");
+    expect(kind("x", p("block"))).toBeNull();                                  // printables: native raw editing
   });
 
   it("a QUOTED cell's text owns the punctuation — only navigation is grammar", () => {

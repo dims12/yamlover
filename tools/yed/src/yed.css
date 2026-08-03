@@ -36,6 +36,10 @@
 /* the pointer atom wears the renderer's link face (.descend): accent + dashed underline */
 .y2-p { color: var(--accent, #1e66f5); border-bottom: 1px dashed currentColor; }
 .y2-p:focus { background: var(--sel, #ccd0da); outline: none; }
+/* the PICK face — the pointer's raw open for editing: the `*` stays chrome, the input
+   inherits the link accent (no dashed underline while editing; the frame carries focus) */
+.y2-p.y2-pick { border-bottom: none; }
+.y2-p.y2-pick .y2-input { color: var(--accent, #1e66f5); }
 /* pre keeps the authored spaces (`: `, `, `) — a flex row trims a trailing space at the
    end of an inline box, which ate the colon's gap in plain mode */
 .y2-punct { color: var(--jb-punct, #24292f); white-space: pre; }

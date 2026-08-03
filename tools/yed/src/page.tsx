@@ -14,7 +14,7 @@ import { lineDiff } from "./diff";
 import { Legend } from "./legend";
 import { anchorDecorations, initialState, parseSource, schemaTextOf, sourceOf, type Cursor, type EditorState } from "./state";
 
-export function EditorView({ state, setState, debug = true, cells = defaultRegistry, plantCaret = true }: { state: EditorState; setState: (s: EditorState) => void; debug?: boolean; cells?: CellRegistry; plantCaret?: boolean }) {
+export function EditorView({ state, setState, debug = true, cells = defaultRegistry, plantCaret = true, host }: { state: EditorState; setState: (s: EditorState) => void; debug?: boolean; cells?: CellRegistry; plantCaret?: boolean; host?: { base: string; doc: string } }) {
   const site = siteOf(state);
   const source = sourceOf(state.doc);
   const last = state.log[state.log.length - 1];
@@ -32,7 +32,34 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
   const ctx: CellCtx = {
     cursor: state.cursor,
     refused: state.refused,
+    doc: state.doc,
     cells,
+    host,
+    // PICK actions — the query kit's dropdown/TOC commits bypass the key routing but funnel
+    // through the SAME pure commit points and the same apply() (watchdog and log ride along)
+    pick: {
+      commitHole: (raw) => {
+        if (state.cursor.at !== "hole") return false;
+        const staged: EditorState = { ...state, cursor: { ...state.cursor, text: "*" + raw } };
+        const committed = commitPending(staged);
+        if (committed === null) { apply({ ...staged, refused: true }); return false; }
+        apply({ ...committed, refused: false });
+        return true;
+      },
+      commitAt: (path, raw) => {
+        const staged: EditorState = { ...state, cursor: { at: "pick", path, text: raw } };
+        const committed = commitPending(staged);
+        if (committed === null) { apply({ ...staged, refused: true }); return false; }
+        // an unchanged raw commits as the no-op landing — back onto the atom
+        apply(committed === staged ? { ...state, cursor: { at: "ptr", path }, refused: false } : { ...committed, refused: false });
+        return true;
+      },
+      cancel: (path) => apply({ ...state, cursor: { at: "ptr", path }, refused: false }),
+      dismantle: () => {
+        if (state.cursor.at === "hole") apply({ ...state, cursor: { ...state.cursor, text: "" }, refused: false });
+        else if (state.cursor.at === "pick") apply({ ...state, cursor: { at: "ptr", path: state.cursor.path }, refused: false });
+      },
+    },
     plantCaret, // an EMBEDDED editor (a chapter source chunk) plants only while it holds focus
     onKey: (e, edges) => {
       // SUBTREE copy/paste (requirement 10): Ctrl+C on a GAP copies the container it closes (the
