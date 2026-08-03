@@ -1,5 +1,5 @@
 // The EDITABLE BREADCRUMB — the topbar's locator AND query editor in one: a permanent row
-// of smart cells (yamlover-editor style), one per query portion. Clicking any cell (or the
+// of smart cells (projectional-editor style), one per query portion. Clicking any cell (or the
 // empty tail) places the caret and starts editing; the TOC filters live; the dropdown
 // offers the context's REAL children as true TOC rows (TreeRow) plus query operators.
 //

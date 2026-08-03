@@ -254,7 +254,7 @@ export function QueryCells({ host, idlePortions, leadingSep, idleLadder = 1, tai
   const hideSep = (i: number) => (i === 0 ? !leadingSep || opener === null || liveText(0).startsWith("[") : false);
 
   // Apply a machine-driven focus request: rewrite the cell's text (machine rewrites always
-  // ride a focus request — the editor.tsx pattern) and place the caret.
+  // ride a focus request) and place the caret.
   useLayoutEffect(() => {
     const req = host._focusReq.current;
     if (!req) return;

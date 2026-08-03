@@ -296,7 +296,7 @@ describe("NodeView", () => {
     expect(done.getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("a .yo data page shows the Edit toggle; unlocking mounts YED (the default editor)", async () => {
+  it("a .yo data page shows the Edit toggle; unlocking mounts YED (the one editor)", async () => {
     mNode.mockResolvedValue({ path: ":x.yo", type: "object", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { a: 1 } });
     render(<NodeView path=":x.yo" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("a");
@@ -304,29 +304,12 @@ describe("NodeView", () => {
     expect(edit.classList.contains("lockbtn")).toBe(true);
     // LOCKED: the scalar is read-only (a plain highlighted span, not contentEditable).
     // Scope to the code pane — the depth slider's tick labels also spell digits.
-    const scalar = () => within(document.querySelector("pre.code, .yed") as HTMLElement).getByText("1");
+    const scalar = () => within(document.querySelector("pre.code") as HTMLElement).getByText("1");
     expect(scalar().getAttribute("contenteditable")).toBeNull();
     // UNLOCK: the yed cell projection takes the pane (loaded via the mocked /api/source)
     fireEvent.click(edit);
     await screen.findByRole("button", { name: /Done/ });
     await waitFor(() => expect(document.querySelector("[data-testid=y2-doc]")).toBeTruthy());
-  });
-
-  it("…and `?yedEditor=legacy` still unlocks the DEPRECATED inline editor", async () => {
-    window.history.replaceState({}, "", "/?yedEditor=legacy");
-    try {
-      mNode.mockResolvedValue({ path: ":x.yo", type: "object", concrete: "file/yamlover", hasKeyed: true, title: null, description: null, value: { a: 1 } });
-      render(<NodeView path=":x.yo" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
-      await screen.findByText("a");
-      const edit = await screen.findByRole("button", { name: /Edit/ });
-      fireEvent.click(edit);
-      await screen.findByRole("button", { name: /Done/ });
-      const field = within(document.querySelector("pre.code, .yed") as HTMLElement).getByText("1");
-      expect(field.getAttribute("contenteditable")).toBe("true");
-      expect(field.classList.contains("editable")).toBe(true);
-    } finally {
-      window.history.replaceState({}, "", "/");
-    }
   });
 
   it("the derived schema view is read-only — the Edit toggle stays IN PLACE, disabled", async () => {

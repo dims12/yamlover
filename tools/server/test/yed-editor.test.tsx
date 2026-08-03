@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHandlers, tmpTree } from "./helpers";
 import { captureAlerts, installFetch, settleOps } from "./edit-corpus-harness";
-import { YedEditor, yedSourceEditor } from "../src/client/renderers/yed-editor";
+import { YedEditor } from "../src/client/renderers/yed-editor";
 
 afterEach(cleanup);
 
@@ -124,21 +124,5 @@ describe("the yed mount on an EMPTY TREE — the document root is the only addre
       // kept the old tree and every later op mis-addressed the stale document)
       expect(fs.readFileSync(m.bodyPath, "utf8")).toBe("");
     } finally { m.done(); }
-  });
-});
-
-describe("the rollout flag — yed by DEFAULT, legacy one query-param away", () => {
-  it("defaults to yed; localStorage and the query param flip it (param wins)", () => {
-    window.history.replaceState({}, "", "/");
-    window.localStorage.removeItem("yedEditor");
-    expect(yedSourceEditor()).toBe(true);
-    window.localStorage.setItem("yedEditor", "legacy");
-    expect(yedSourceEditor()).toBe(false);
-    window.history.replaceState({}, "", "/?yedEditor=yed");
-    expect(yedSourceEditor()).toBe(true);          // the param overrides the stored escape
-    window.history.replaceState({}, "", "/?yedEditor=legacy");
-    window.localStorage.removeItem("yedEditor");
-    expect(yedSourceEditor()).toBe(false);
-    window.history.replaceState({}, "", "/");
   });
 });

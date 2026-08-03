@@ -3,7 +3,7 @@
 // as omni entries, transitions keyed by key press) — this file is the executable reducer
 // it compiles to, and breadcrumb-machine.test.ts runs the table. Keep the two in sync.
 //
-// The breadcrumb is a permanent row of SMART CELLS (yamlover-editor style): one cell per
+// The breadcrumb is a permanent row of SMART CELLS (projectional-editor style): one cell per
 // query portion, always click-to-edit, `:` a real editable boundary (typing `:` splits the
 // cell at the caret, Backspace at a cell's start / Delete at its end merges neighbours).
 // The machine is PURE: `reduce(state, event, currentPath) -> [state, effects]`. The React

@@ -8,8 +8,7 @@ import { useDropConfirm } from "./DropConfirm";
 import { rendererTabs, rendererName, plaintextTab, Renderer } from "./renderers/registry";
 import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
 import { EditingContext } from "./renderers/editing";
-import { YamloverEditor } from "./renderers/yamlover-editor/editor";
-import { YedEditor, yedSourceEditor } from "./renderers/yed-editor";
+import { YedEditor } from "./renderers/yed-editor";
 import { DepthControl, viewDepth } from "./renderers/depth";
 import { MarkupWidthControl } from "./renderers/markup";
 import { useHashScroll } from "./renderers/headings";
@@ -621,16 +620,10 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
           )}
         </EditingContext.Provider>
       ) : unlocked && isEditableView && !isJsonFamily(node.concrete) ? (
-        /* the UNLOCKED yamlover data view is the projectional STRUCTURE editor: the whole node
-           becomes an editable cell tree. THE DEFAULT is yed — the @yamlover/yed reference
-           implementation (EDITOR.md §9); `?yedEditor=legacy` (or localStorage) brings the
-           DEPRECATED source projection back during the rollout. JSON-family files stay on the
+        /* the UNLOCKED yamlover data view is the projectional STRUCTURE editor: yed — the
+           @yamlover/yed reference implementation (EDITOR.md). JSON-family files stay on the
            per-scalar editor below — their backing supports only scalar emplaces. */
-        yedSourceEditor() ? (
-          <YedEditor path={path} onNavigate={navigateData} />
-        ) : (
-          <YamloverEditor path={path} onNavigate={navigateData} />
-        )
+        <YedEditor path={path} onNavigate={navigateData} />
       ) : (
         <EditingContext.Provider value={{ unlocked, unlock }}>
           <pre className="code">

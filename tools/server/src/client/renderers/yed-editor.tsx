@@ -1,5 +1,5 @@
-// THE YED MOUNT — the @yamlover/yed reference editor behind the unlocked data view (EDITOR.md §9),
-// replacing the legacy source projection (editor.tsx). CONCRETE-AGNOSTIC by construction:
+// THE YED MOUNT — the @yamlover/yed reference editor behind the unlocked data view (EDITOR.md).
+// CONCRETE-AGNOSTIC by construction:
 // LOAD is the /api/json PROJECTION (depth `.inf`) converted to parser IR (yed-load.ts) — it
 // exists for every storage shape (flat files, dir-backed documents, bare directories, .yaml
 // bodies, deep nodes); PERSIST is an IR tree diff emitted as PER-NODE /api/edit ops
@@ -7,7 +7,7 @@
 // regions (comments, spellings) survive because nothing rewrites them. Key renames follow the
 // legacy sequencing: flush the ops, then POST /api/rekey.
 //
-// The flush discipline mirrors ops.ts useOpSync: 500 ms debounce, one batch in flight, kept-
+// The flush discipline (inherited from the retired legacy editor's op queue): 500 ms debounce, one batch in flight, kept-
 // and-alerted on failure (the NEXT flush re-diffs from the same committed snapshot against the
 // newest document — never a queued-op double-apply), flushed on unmount.
 
@@ -20,18 +20,6 @@ import { makeSourceCells } from "./yed-cells";
 import { irFromNodeJson } from "./yed-load";
 import { diffToOps } from "./yed-sync";
 import "../../../../yed/src/yed.css";
-
-/** The rollout flag (the chapter editor's exact escape-hatch shape): yed is the DEFAULT;
- *  `?yedEditor=legacy` (or `localStorage.yedEditor = "legacy"`) brings the old editor back. */
-export function yedSourceEditor(): boolean {
-  try {
-    const q = new URLSearchParams(window.location.search).get("yedEditor");
-    if (q) return q !== "legacy";
-    return window.localStorage?.getItem("yedEditor") !== "legacy";
-  } catch {
-    return true;
-  }
-}
 
 const freshCursor = (): EditorState["cursor"] => ({ at: "hole", path: [], index: 0, text: "", key: null });
 

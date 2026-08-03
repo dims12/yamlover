@@ -1289,71 +1289,16 @@ a.chunk-index:hover {
 .annotate-create.split:hover .annotate-concrete { border-color: var(--accent); }
 .annotate-action:hover { color: var(--accent); border-color: var(--accent); }
 
-/* ---- the projectional yamlover editor (the UNLOCKED data view) ------------------------------- */
-/* Rows are block elements, one per source line; a node's block children live inside `.yed-indent`
-   — the DOM nesting mirrors the AST, and the 2ch padding IS the YAML indent step. Token colours
-   reuse the read-only view's classes (.k .s .n .b .null .punct .anchor .c). */
-.code.yed { white-space: pre-wrap; padding-left: 8px; margin-left: 0; }
-.yed .yed-row { display: block; min-height: 1.4em; }
-.yed .yed-indent { padding-left: 2ch; }
-.yed [contenteditable] { outline: none; min-width: 4px; display: inline-block; }
-.yed .yed-hole:empty::before { content: attr(data-placeholder); }
-.yed .yed-hole:empty::before, .yed .editable:empty::before { content: "…"; color: var(--dim, #777); opacity: 0.6; }
-.yed .c { opacity: 0.7; }
-.yed .yaml-dash { margin-right: 0; }
-.yed .yed-refnav { margin-left: 4px; text-decoration: none; }
-/* a GAP — a caret position between tokens (past a closer / closing quote): focusable, zero-width,
-   NOT editable, so the …-placeholder rule above can never touch it */
-.yed .yed-gap { min-width: 2px; outline: none; }
-.yed .yed-gap:focus { box-shadow: -1px 0 0 currentColor; }
-/* the block-scalar text: ordinary editor styling under its projected `|` header — indented
-   lines with a subtle guide, NOT a foreign-looking box */
-.yed textarea.yed-blocktext {
-  display: block;
-  width: calc(100% - 2ch);
-  margin-left: 2ch;
-  background: none;
-  border: none;
-  border-left: 2px solid var(--line);
-  border-radius: 0;
-  color: inherit;
-  font: inherit;
-  padding: 0 0 0 6px;
-  resize: none;
-  overflow: hidden;
-  white-space: pre-wrap;
-  outline: none;
-}
-/* the pointer cell's COMPLETION HINTS: the wrap anchors the popup right under the editable;
-   candidates are canonical paths, one per row, the highlighted one inverted (arrow keys / hover) */
-/* the in-place reference editor: the pointer cell hosts the SHARED query cells (query-cells.tsx)
-   — same slots/dropdown as the breadcrumb, laid inline in the code row. The `.crumb-slot`
-   position:relative anchors the dropdown under its cell as in the breadcrumb. */
-.yed .yed-ptrwrap { position: relative; display: inline-flex; align-items: center; outline: none; }
-.yed .yed-ptrwrap .qcells { display: inline-flex; align-items: center; }
-.yed .yed-ptrwrap .crumbs-tail { flex: 0 0 auto; min-width: 10px; align-self: stretch; }
-.yed .yed-scope { opacity: 0.8; }
-/* a refused verbatim commit: the typed text stands with the ring (hints are never validators) */
-.yed .yed-ptr-error .crumb-cell { box-shadow: 0 0 0 2px var(--danger, #e5484d); }
-/* the YED (y2) pointer cells host the same kit — the same inline layout, y2-prefixed
-   (yed-cells.tsx PickKit; the y2 registry's reference faces) */
+/* ---- the projectional yamlover editor (the UNLOCKED data view: yed) ------------------------- */
+/* The yed (y2) pointer cells host the SHARED query cells (query-cells.tsx) — same
+   slots/dropdown as the breadcrumb, laid inline in the code row (yed-cells.tsx PickKit;
+   the y2 registry's reference faces). The `.crumb-slot` position:relative anchors the
+   dropdown under its cell as in the breadcrumb. */
 .y2-ptrwrap { position: relative; display: inline-flex; align-items: center; outline: none; }
 .y2-ptrwrap .qcells { display: inline-flex; align-items: center; }
 .y2-ptrwrap .crumbs-tail { flex: 0 0 auto; min-width: 10px; align-self: stretch; }
 .y2-scope { opacity: 0.8; }
 .y2-refnav { margin-left: 2px; }
-/* the append affordance: a quiet ＋ row that opens a fresh entry hole */
-.yed .yed-tail {
-  background: none;
-  border: 1px dashed var(--line);
-  border-radius: 4px;
-  color: var(--dim, #777);
-  cursor: pointer;
-  font: inherit;
-  line-height: 1;
-  padding: 0 6px;
-}
-.yed .yed-tail:hover { color: var(--accent); border-color: var(--accent); }
 
 /* a LaTeX chunk edits its raw source in a monospace, auto-growing textarea */
 textarea.chapter-latex-src {

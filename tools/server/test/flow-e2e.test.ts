@@ -18,7 +18,7 @@ describe("flow round-trip, end to end", () => {
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
-    // exactly what the editor emits after typing `[12,13,14]` (yamlover-editor.test.tsx pins it)
+    // exactly what the editor emits after typing `[12,13,14]` (the yed matrix suites pin it)
     const r = await callBody(h, "POST", "/api/edit", { path: ":d", op: "emplace", yamlover: "[12, 13, 14]" });
     expect(r.status, JSON.stringify(r.json)).toBe(200);
     expect(bodyOf(root, "d")).toBe("[12, 13, 14]\n"); // byte-for-byte, no block flattening
