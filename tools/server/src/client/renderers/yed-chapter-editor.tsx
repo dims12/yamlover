@@ -31,6 +31,7 @@ import {
 import { rolesOf } from "../../../../yed/src/chapter/legend";
 import { createColumnMemory } from "../../../../yed/src/chapter/caret";
 import { editChunks, fetchNode, pasteFileInline, rekeyNode, type NodeJson } from "../api";
+import { makeSourceCells } from "./yed-cells";
 import { irFromNodeJson } from "./yed-load";
 import { diffToOps } from "./yed-sync";
 import { anchorOf, CHAPTER_META, childSlot, isSubchapter } from "./chapter-model";
@@ -232,7 +233,15 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
     pasteFiles: (el, range, files, commit) => { void insertPastedImages(el, range, files, path, commit); },
     navigate: onNavigate,
     columnMemory,
-    // sourceCells: the default yed registry — future math cells register byFormat entries once
+    // the SERVER registry: PICK-mode reference cells + link atoms in source chunks (future
+    // math cells register byFormat entries over this same object)
+    sourceCells: makeSourceCells({ navigate: onNavigate }),
+    // a source chunk's wire addresses — its reference cells spell and address from here
+    sourceHost: (p) => {
+      const doc = stateRef.current?.doc;
+      if (!doc) return undefined;
+      return { base: subchapterServerPath(doc, path, p), doc: path };
+    },
   }), [path, onNavigate, columnMemory]);
 
   const debug = ((): boolean => {

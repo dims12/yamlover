@@ -57,6 +57,10 @@ export interface ChapterCellsAdapter {
   codec: ProseCodec;
   /** The source-chunk registry — THE extension seam shared with the source editor. */
   sourceCells?: CellRegistry;
+  /** A SOURCE chunk's wire addresses ({base, doc}) for its embedded editor — a server mount
+   *  computes them (subchapterServerPath) so the chunk's reference cells can spell and
+   *  address; default: none, the pure layer runs server-free. */
+  sourceHost?(path: Path): { base: string; doc: string } | undefined;
   /** A read-only format's renderer face (csv, images, …); default: a labeled box. */
   renderReadonly?(node: Value, path: Path): ReactNode;
   /** A linked subchapter's inline preview; default: a descend heading. */
@@ -629,6 +633,7 @@ function SourceCell({ path }: { path: Path }): ReactNode {
           }}
           debug={false}
           cells={ctx.adapter.sourceCells ?? defaultRegistry}
+          host={ctx.adapter.sourceHost?.(path)}
           plantCaret={focused}
         />
       </div>
