@@ -11,11 +11,12 @@
 // and-alerted on failure (the NEXT flush re-diffs from the same committed snapshot against the
 // newest document — never a queued-op double-apply), flushed on unmount.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EditorView } from "../../../../yed/src/page";
 import type { CellRegistry } from "../../../../yed/src/cells";
 import { type Document, type EditorState } from "../../../../yed/src/state";
 import { editChunks, fetchNode, rekeyNode } from "../api";
+import { makeSourceCells } from "./yed-cells";
 import { irFromNodeJson } from "./yed-load";
 import { diffToOps } from "./yed-sync";
 import "../../../../yed/src/yed.css";
@@ -35,13 +36,16 @@ export function yedSourceEditor(): boolean {
 const freshCursor = (): EditorState["cursor"] => ({ at: "hole", path: [], index: 0, text: "", key: null });
 
 export function YedEditor({ path, onNavigate, cells }: { path: string; onNavigate: (p: string) => void; cells?: CellRegistry }) {
-  void onNavigate; // pointers open in PICK mode later; the atom is walkable already
+  // the SERVER registry: PICK-mode reference cells + link atoms; an explicit `cells` prop
+  // stays the external override seam (a future format registry composes over this one)
+  const serverCells = useMemo(() => makeSourceCells({ navigate: onNavigate }), [onNavigate]);
   const [state, setState] = useState<EditorState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const stateRef = useRef<EditorState | null>(null);
   const committedRef = useRef<Document | null>(null); // the doc the SERVER has (per the last acked flush)
   const timerRef = useRef<number | null>(null);
   const inflightRef = useRef(false);
+  const docPathRef = useRef(path); // the DOCUMENT holding the node — the `*:` spelling base
 
   const flush = (): void => {
     const st = stateRef.current;
@@ -83,6 +87,7 @@ export function YedEditor({ path, onNavigate, cells }: { path: string; onNavigat
     fetchNode(path, null) // depth `.inf` — the whole subtree, every storage shape
       .then((node) => {
         if (!alive) return;
+        docPathRef.current = node.documentPath ?? path;
         const doc = irFromNodeJson(node);
         if ((doc.root as { kind?: string }).kind === "blob") {
           setError("a binary node has no cell projection");
@@ -106,5 +111,5 @@ export function YedEditor({ path, onNavigate, cells }: { path: string; onNavigat
   const debug = ((): boolean => {
     try { return new URLSearchParams(window.location.search).get("yed") === "debug"; } catch { return false; }
   })();
-  return <EditorView state={state} setState={update} debug={debug} cells={cells} />;
+  return <EditorView state={state} setState={update} debug={debug} cells={cells ?? serverCells} host={{ base: path, doc: docPathRef.current }} />;
 }

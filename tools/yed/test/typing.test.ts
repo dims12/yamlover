@@ -310,11 +310,18 @@ describe("yed2 — REFERENCE ENTRY: `*` in a hole commits a pointer", () => {
     expect(garbage.refused).toBe(true);
     expect(src(garbage)).toBe("");
   });
-  it("a pointer cannot BE the document — the root-value position refuses it", () => {
+  it("a BARE pointer lands as the KEYLESS member it is — a pointer has no self-value form", () => {
+    // `*x` at the fresh root: not the document's own value (the parser refuses a top-level
+    // pointer) but the first member — `- *x`, the chapter pointer-array shape
     const s = type("*x{Enter}");
-    expect(s.refused).toBe(true);
-    expect(src(s)).toBe("");
-    expect(s.cursor).toMatchObject({ at: "hole", path: [], text: "*x" });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("- *x\n");
+  });
+  it("a bare pointer among entries inserts the keyless member (no omni diversion)", () => {
+    let s = ({ doc: parseSource("a: 1\n"), cursor: { at: "hole", path: [], index: 1, text: "", key: null }, refused: false, log: [] }) as EditorState;
+    s = type("*x{Enter}", s);
+    expect(src(s)).toBe("a: 1\n- *x\n");
+    expect(s.refused).toBe(false);
   });
   it("RETARGET: Enter on the atom opens PICK with the raw; edit; Enter commits the new target", () => {
     let s = load("a: *x\nb: 1\n");

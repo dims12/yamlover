@@ -39,6 +39,8 @@ export interface CellCtx {
     cancel(path: Path): void;
     /** the hole's `*` decision undone — back to the plain empty hole */
     dismantle(): void;
+    /** the EMPTIED reference removed (the kit's floor Backspace) — removeLevel at its path */
+    removeAt(path: Path): void;
   };
   /** False for an EMBEDDED editor that does not hold focus (a chapter source chunk): the
    *  active cell renders but must not STEAL the caret. Absent ⇒ true. */
@@ -175,10 +177,8 @@ function HoleCell({ ctx }: { ctx: CellCtx }) {
   const c = ctx.cursor;
   if (c.at !== "hole") return null;
   // a `*`-led hole is a REFERENCE being entered — a server registry projects the PICK kit
-  // over it (the same cursor state; QUERY_EDITOR.yo owns the inner grammar). The root-VALUE
-  // hole never delegates: a pointer cannot BE the document, the pure face rings there.
-  const rootValueHole = c.path.length === 0 && c.key === null && c.ordinal !== true;
-  if (ctx.cells.holePick && !rootValueHole && c.text.trimStart().startsWith("*")) {
+  // over it (the same cursor state; QUERY_EDITOR.yo owns the inner grammar)
+  if (ctx.cells.holePick && c.text.trimStart().startsWith("*")) {
     return <>{ctx.cells.holePick({ ctx })}</>;
   }
   return (

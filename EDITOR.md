@@ -94,12 +94,23 @@ diagram, its mirror, and this doc aligned when any of the three changes.
 ## 5. The reference / pointer PICK-mode kit
 
 A `*` pointer or reference cell is edited with a shared **query-cell kit**, not bespoke code.
-`cells.tsx:16-18` mounts `QueryCells` + `useQueryCellHost` (`client/query-cells.tsx`) with
-`treeCandidateProvider` (`client/query-complete.ts`). This is the *same* `breadcrumb-machine`
-reducer as the breadcrumb, run in **`pick`** mode (select commits one node path) instead of
-`browse` mode (select navigates). The tag picker (`renderers/annotate.tsx`) reuses the exact
-same kit. So the breadcrumb, the pointer cell, and the tag picker are one machine in three
-hosts — change the reducer once.
+The yed host is `renderers/yed-cells.tsx`: `makeSourceCells()` grows the yed cell registry with
+`ServerPointerHole` (the `*`-led hole face — the registry's `holePick` seam) and
+`ServerPointerCell` (the committed atom plus the `↗` target affordance; the `pick` cursor
+mounts the kit to retarget). Both faces mount `QueryCells` + `useQueryCellHost`
+(`client/query-cells.tsx`) with `treeCandidateProvider` (`client/query-complete.ts`) and the
+`pointer-spell.ts` scope-ladder spelling (`spellPointer`/`pointerCells`). This is the *same*
+`breadcrumb-machine` reducer as the breadcrumb, run in **`pick`** mode (select commits one node
+path) instead of `browse` mode (select navigates). The tag picker (`renderers/annotate.tsx`)
+reuses the exact same kit. So the breadcrumb, the yed reference cells, and the tag picker are
+one machine in three hosts — change the reducer once.
+
+Every kit commit funnels through `ctx.pick` into yed's PURE apply layer (the same Enter path
+typing takes — the sibling rule, the refusal ring, the watchdog), and the wire spelling is
+COMPACT (`yed-sync.ts payloadOf` respells via `renderPointer({spaced: false})` — the server's
+single-line `*\S*` payload gate). The cell's wire address comes from `serverPathOf`
+(`yed-sync.ts`) — the same addressing law the ops use. Outer states:
+`YAMLOVER_EDITOR.yo` `pointer_entry` / `pointer_pick_editing` / `atom_focused`.
 
 ## 6. The write path
 

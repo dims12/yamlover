@@ -1307,6 +1307,13 @@ a.chunk-index:hover {
 .yed .yed-scope { opacity: 0.8; }
 /* a refused verbatim commit: the typed text stands with the ring (hints are never validators) */
 .yed .yed-ptr-error .crumb-cell { box-shadow: 0 0 0 2px var(--danger, #e5484d); }
+/* the YED (y2) pointer cells host the same kit — the same inline layout, y2-prefixed
+   (yed-cells.tsx PickKit; the y2 registry's reference faces) */
+.y2-ptrwrap { position: relative; display: inline-flex; align-items: center; outline: none; }
+.y2-ptrwrap .qcells { display: inline-flex; align-items: center; }
+.y2-ptrwrap .crumbs-tail { flex: 0 0 auto; min-width: 10px; align-self: stretch; }
+.y2-scope { opacity: 0.8; }
+.y2-refnav { margin-left: 2px; }
 /* the append affordance: a quiet ＋ row that opens a fresh entry hole */
 .yed .yed-tail {
   background: none;

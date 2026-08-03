@@ -457,16 +457,18 @@ export function commitPending(state: EditorState): EditorState | null {
     const container = nodeAt(doc, cursor.path);
     if (!container) return null;
     if (cursor.key === null && bracketOf(container) === "{" && isFlow(container)) return null; // an unnamed pair cannot land in `{`
-    // A REFERENCE: `*`-led text commits as a POINTER value, never a scalar. The parser refuses
-    // a top-level pointer, so the OMNI positions refuse it too — a pointer is an entry's value
-    // or a flow element; it cannot BE the document or a container's self line. The one
-    // exception mirrors the scalar law: the EMPTY container a `k:` ⏎ descend opened takes the
-    // pointer as the whole value of its entry (`k: *x` in two gestures).
+    // A REFERENCE: `*`-led text commits as a POINTER value, never a scalar. A pointer has no
+    // SELF-VALUE form (the parser refuses a top-level pointer, and an omni's self line is a
+    // scalar), so the omni diversion does not apply: a bare pointer lands as the KEYLESS
+    // member it is (`*x` ≡ `- *x` — the chapter pointer-array case, legacy parity). The one
+    // wholesale exception mirrors the scalar law: the EMPTY container a `k:` ⏎ descend
+    // opened takes the pointer as the entry's whole value (`k: *x` in two gestures) — never
+    // the ROOT, which must stay a document.
     if (cursor.text.trim().startsWith("*") && d.pointers) {
       const ptr = pointerFromText(cursor.text.trim().slice(1));
       if (!ptr) return null; // not a pointer the wire can carry — the ring, the text stands
-      if (cursor.key === null && cursor.ordinal !== true && !isFlow(container)) {
-        if (cursor.path.length === 0 || container.kind !== "mapping" || (container.entries ?? []).length > 0) return null;
+      if (cursor.key === null && cursor.ordinal !== true && !isFlow(container)
+          && container.kind === "mapping" && (container.entries ?? []).length === 0 && cursor.path.length > 0) {
         return { ...state, doc: withValue(doc, cursor.path, ptr), cursor: { at: "ptr", path: cursor.path } };
       }
       const entry = { ...keyFields(cursor), edge: "ref", value: ptr } as unknown as Entry;
@@ -517,6 +519,12 @@ export function commitPending(state: EditorState): EditorState | null {
     if (t === prev.raw) return state; // unchanged — leaving is not an edit
     const ptr = pointerFromText(t);
     if (!ptr) return null; // not a pointer — the ring, the text stands
+    // SEMANTICALLY unchanged (the same target respelled — a kit reduce re-spelling an
+    // authored `pets[1]` as `pets: 1`) is a no-op too: an unasked spelling rewrite must
+    // never reach the disk
+    try {
+      if (prev.base !== undefined && ptr.raw === renderPointer(prev)) return state;
+    } catch { /* an unrenderable prev — fall through to the real retarget */ }
     return { ...state, doc: withValue(doc, cursor.path, ptr), cursor: { at: "ptr", path: cursor.path } };
   }
   if (cursor.at === "token") {

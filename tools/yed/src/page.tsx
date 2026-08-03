@@ -36,25 +36,22 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
     cells,
     host,
     // PICK actions — the query kit's dropdown/TOC commits bypass the key routing but funnel
-    // through the SAME pure commit points and the same apply() (watchdog and log ride along)
+    // through the SAME Enter path (applyKey): the pure commit points, THE SIBLING RULE, the
+    // refusal ring, watchdog and log all ride along
     pick: {
       commitHole: (raw) => {
         if (state.cursor.at !== "hole") return false;
-        const staged: EditorState = { ...state, cursor: { ...state.cursor, text: "*" + raw } };
-        const committed = commitPending(staged);
-        if (committed === null) { apply({ ...staged, refused: true }); return false; }
-        apply({ ...committed, refused: false });
-        return true;
+        const next = applyKey({ ...state, cursor: { ...state.cursor, text: "*" + raw } }, { key: "Enter" });
+        apply(next);
+        return !next.refused;
       },
       commitAt: (path, raw) => {
-        const staged: EditorState = { ...state, cursor: { at: "pick", path, text: raw } };
-        const committed = commitPending(staged);
-        if (committed === null) { apply({ ...staged, refused: true }); return false; }
-        // an unchanged raw commits as the no-op landing — back onto the atom
-        apply(committed === staged ? { ...state, cursor: { at: "ptr", path }, refused: false } : { ...committed, refused: false });
-        return true;
+        const next = applyKey({ ...state, cursor: { at: "pick", path, text: raw } }, { key: "Enter" });
+        apply(next);
+        return !next.refused;
       },
       cancel: (path) => apply({ ...state, cursor: { at: "ptr", path }, refused: false }),
+      removeAt: (path) => apply(applyKey({ ...state, cursor: { at: "pick", path, text: "" } }, { key: "Backspace" })),
       dismantle: () => {
         if (state.cursor.at === "hole") apply({ ...state, cursor: { ...state.cursor, text: "" }, refused: false });
         else if (state.cursor.at === "pick") apply({ ...state, cursor: { at: "ptr", path: state.cursor.path }, refused: false });

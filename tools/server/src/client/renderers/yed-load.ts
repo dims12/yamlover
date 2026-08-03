@@ -135,10 +135,13 @@ function valueFrom(value: unknown, frag: string, comments: CommentMap | undefine
   const ref = asSingle<{ text: string; path: string | null }>(value, REF_KEY);
   if (ref) {
     const text = bucket.pointer ?? ref.text.replace(/^\*/, "");
+    // the SERVER-resolved target rides along (a non-IR extension read by the ↗ affordance;
+    // canon/serialize ignore it, and a retarget replaces the value wholesale — never stale)
+    const nav = ref.path !== null ? { refPath: ref.path } : {};
     try {
-      return { ...parsePointer(text), raw: text } as unknown as Pointer;
+      return { ...parsePointer(text), raw: text, ...nav } as unknown as Pointer;
     } catch {
-      return { kind: "pointer", raw: text } as unknown as Value; // dangling spelling, kept verbatim
+      return { kind: "pointer", raw: text, ...nav } as unknown as Value; // dangling spelling, kept verbatim
     }
   }
   // a `$yamloverLink` marker — still an ATOM (walkable, deletable, never editable as content,

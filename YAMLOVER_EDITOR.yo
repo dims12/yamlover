@@ -133,8 +133,7 @@ empty: Empty document
     alphanumeric: *: unquoted_scalar_appending
     double_quote: *: double_quoted_scalar_started
     single_quote: *: double_quoted_scalar_started
-    asterisk:
-        "a pointer cannot BE the document - the star accumulates as plain text whose every commit RINGS (the server host never mounts the pick kit at the root-value hole)": *: unquoted_scalar_appending
+    asterisk: *: pointer_entry
     pipe: *: block_scalar_editing
     dash_space: *: value_hole
     key_colon_space: *: value_hole
@@ -278,9 +277,10 @@ pointer_entry: Reference being entered (a `*`-led hole)
         filtering and TOC-click insertion are QUERY_EDITOR.yo's cell_editing in PICK mode):
         candidates come from the HOLDER via GET /api/query, `:` typed in the empty first
         cell CLIMBS the ladder (`*` -> `*:` -> `*::` -> `*:::`), the TOC swaps to the live
-        filter (claiming the shared session). NEVER offered at the root-VALUE hole - a
-        pointer cannot BE the document (the parser refuses a top-level pointer), and the
-        omni self-line refuses it the same way.
+        filter (claiming the shared session). A pointer has no SELF-VALUE form (the parser
+        refuses a top-level pointer), so the omni diversion never applies: a BARE pointer
+        lands as the KEYLESS member it is (`*x` ≡ `- *x` - the chapter pointer-array case);
+        only the `k:` ⏎ descend's EMPTY container takes it wholesale (`k: *x`).
     alphanumeric: *: pointer_entry
     colon: *: pointer_entry
     toc_click: *: pointer_entry

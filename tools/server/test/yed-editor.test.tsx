@@ -69,6 +69,25 @@ describe("the yed mount — real server, real file", () => {
       expect(fs.readFileSync(m.bodyPath, "utf8")).toBe("z: 9\na: 1\nb: 2\n");
     } finally { m.done(); }
   });
+
+  it("a REFERENCE typed through the PICK kit lands COMPACT on disk (the isPointerValue gate)", async () => {
+    const m = await mount("pets:\n  - one\n  - two\n");
+    try {
+      typeKeys("k: *"); // `k: ` names the pair; `*` mounts the query kit over the hole
+      const cell = await waitFor(() => {
+        const c = document.querySelector<HTMLElement>(".y2-ptrwrap .crumb-cell");
+        expect(c, "the kit did not mount over the `*` hole").toBeTruthy();
+        return c!;
+      });
+      cell.textContent = "pets[1]"; // the legacy alias spelling — the reduce respells it
+      fireEvent.input(cell);
+      fireEvent.keyDown(cell, { key: "Enter" });
+      await waitFor(() => expect(fs.readFileSync(m.bodyPath, "utf8")).toContain("*pets:1"), { timeout: 3000 });
+      await settleOps();
+      expect(m.alerts, `the server rejected the pointer flush: ${m.alerts.join(" | ")}`).toEqual([]);
+      expect(fs.readFileSync(m.bodyPath, "utf8")).toBe("k: *pets:1\npets:\n  - one\n  - two\n");
+    } finally { m.done(); }
+  });
 });
 
 // An EMPTY TREE is the coldest start there is: no file, no body, the mount is the DIRECTORY root,
