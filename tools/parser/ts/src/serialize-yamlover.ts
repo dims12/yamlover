@@ -14,7 +14,7 @@ import type { Document, Node, Entry, Value, Scalar, Pointer, Comment } from './i
 import { isPointer } from './ir.ts';
 import { foldLines, plainScalar, splitKV, unquoteKey } from './yamlover.ts';
 import { renderPointer } from './pointer.ts';
-import { LossyError, anchorBody, dq, isAnchorizableBack, backAnchorBody, keyText } from './serialize-common.ts';
+import { LossyError, anchorBody, dq, flowKeyText, isAnchorizableBack, backAnchorBody, keyText } from './serialize-common.ts';
 import { json5pSubtree } from './serialize-json5p.ts';
 
 const STEP = 2;
@@ -556,6 +556,16 @@ function authoredKey(e: Entry): string | null {
   return sp !== null && sp.key === raw ? raw : null;
 }
 
+/** The FLOW-position twin: the raw must also be safe among the flow separators — a quoted
+ *  token, a balanced flow token (splitKV consumed it whole above), or a plain token free of
+ *  `,`/braces/brackets. A block-only-safe raw (`a,b`) falls back to the canonical flow key. */
+function authoredFlowKey(e: Entry): string | null {
+  const raw = authoredKey(e);
+  if (raw === null) return null;
+  if (/^['"[{]/.test(raw)) return raw;
+  return /[,{}[\]]/.test(raw) ? null : raw;
+}
+
 /** The one-line rendering of an inline `!!<…>` schema node. Top level: a scalar, a
  *  keyless seq (`[…]`), or ONE `key: value` block one-liner; nested values may be flow. */
 function schemaNodeText(n: Node): string {
@@ -612,7 +622,7 @@ function flowTextOrNull(n: Node): string | null {
   for (const e of ents) {
     const v = isPointer(e.value) ? flowPtr(e.value) : flowTextOrNull(e.value);
     if (v === null) return null; // one unrepresentable member demotes the whole token
-    items.push(e.key === null && e.nullKey !== true ? v : `${e.nullKey === true ? '~' : (authoredKey(e) ?? flowKey(e.key!))}: ${v}`);
+    items.push(e.key === null && e.nullKey !== true ? v : `${e.nullKey === true ? '~' : (authoredFlowKey(e) ?? flowKeyText(e.key!))}: ${v}`);
   }
   return keyed.length === 0 ? `[${items.join(', ')}]` : `{${items.join(', ')}}`;
 }
@@ -648,6 +658,3 @@ function flowPtr(p: Pointer): string | null {
   return `*${compact}`;
 }
 
-function flowKey(k: string): string {
-  return /^[\w.$/-]+$/.test(k) ? k : `'${k.replace(/'/g, "''")}'`;
-}

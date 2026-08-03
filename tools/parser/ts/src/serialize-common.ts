@@ -34,6 +34,20 @@ export function keyText(key: string): string {
   return key.replace(/[/[\]*&#~?!()<>=|]/g, (c) => '\\' + c);
 }
 
+/** The FLOW key emission: bare when word-like, single-quoted otherwise (the flow separators
+ *  make more tokens unsafe than the block line grammar does). */
+export function flowKeyText(k: string): string {
+  return /^[\w.$/-]+$/.test(k) ? k : `'${k.replace(/'/g, "''")}'`;
+}
+
+/** Is this authored key token REPRESENTATION worth keeping (EntryMeta.keyRaw)? — iff EITHER
+ *  canonical emitter (block keyText, flow flowKeyText) would spell the key differently. A
+ *  `{}` token key is keyText-canonical but flow would quote it: without the raw, a flow
+ *  round-trip drifts to `'{}'`. */
+export function keyRawWorthKeeping(raw: string, key: string): boolean {
+  return raw !== keyText(key) || raw !== flowKeyText(key);
+}
+
 /** The CANONICAL (colon-form, spaced) path text of an anchor token (after `&`):
  *  re-rendered from base+steps — the dual window emits `:` regardless of how the
  *  anchor was authored — plus the ordinal `[]`. */

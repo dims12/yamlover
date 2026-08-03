@@ -1,5 +1,5 @@
 weird:
-  cat:dog:
+  cat\:dog:
     n: 1
 ref: *weird: cat\:dog: n
 spacey: *: tags: 'дорожный знак'

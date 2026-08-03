@@ -425,6 +425,32 @@ describe("yed2 — BLOCK-SCALAR BIRTH: a `|`/`>` header + Enter allocates the bl
   });
 });
 
+describe("yed2 — TOKEN-AS-KEY: `:` past a flow token's closer names the pair", () => {
+  it("the 0012 shape: `{{}: 12}` — the inner token becomes the key, bytes exact", () => {
+    const s = type("{{{{}: 12}");
+    expect(src(s)).toBe("{{}: 12}\n");
+  });
+  it("a seq token keys a BLOCK row: `[256, 256]: v`", () => {
+    // the root stays block: type the token in an entry hole below an existing row
+    let s = ({ doc: parseSource("a: 1\n"), cursor: { at: "hole", path: [], index: 1, text: "", key: null }, refused: false, log: [] }) as EditorState;
+    s = type("[256, 256]: v{Enter}", s);
+    expect(src(s)).toBe("a: 1\n[256, 256]: v\n");
+  });
+  it("the ROOT token undoes the root decision: `{}` + `:` names the document's first pair", () => {
+    const s = type("{{}: 12{Enter}");
+    expect(src(s)).toBe("{}: 12\n");
+  });
+  it("`:` in a SEQUENCE refuses (a seq has no keys) and a SPREAD token refuses too", () => {
+    const seq = type("[[1]:");
+    expect(seq.refused).toBe(true);
+    // a spread token has no one-line spelling: `[` ⏎ `1` `]` — K&R — then `:` at its gap
+    let s = type("[{Enter}1]");
+    s = applyKey(s, { key: ":" });
+    expect(s.refused).toBe(true);
+    expect(src(s)).toBe("[\n  1\n]\n");
+  });
+});
+
 describe("yed2 — an EMPTIED key never traps the caret", () => {
   it("committing `: value1` un-names the pair; the caret lands on the value and arrows walk on", () => {
     const s = type("key1: value1{ArrowRight}");

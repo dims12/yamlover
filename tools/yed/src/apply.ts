@@ -15,9 +15,9 @@ import {
   blockRawOf, bracketOf, dialectOf, entryAt, isContainer, isFlow, isSpread, nodeAt, sourceOf,
   type Cursor, type Document, type EditorState, type Entry, type Node, type Path, type Value,
 } from "./state";
-import { parseSchemaRef, parseYamlover } from "../../parser/ts/src/yamlover.ts";
+import { parseSchemaRef, parseYamlover, unquoteKey } from "../../parser/ts/src/yamlover.ts";
 import { schemaTagToken } from "../../parser/ts/src/serialize-yamlover.ts";
-import { anchorBody, keyText } from "../../parser/ts/src/serialize-common.ts";
+import { anchorBody, keyRawWorthKeeping } from "../../parser/ts/src/serialize-common.ts";
 import { makeAnchor, parsePointer, renderPointer } from "../../parser/ts/src/pointer.ts";
 import { isPointer, type Anchor, type Pointer } from "../../parser/ts/src/ir.ts";
 import { formatFromMetaTag, proseFormatOfTag } from "./chapter/format";
@@ -444,7 +444,7 @@ function toCursor(doc: Document, p: Position): Cursor {
 function keyFields(cursor: { key: string | null; keyRaw?: string }): Pick<Entry, "key" | "meta"> {
   return {
     key: cursor.key,
-    ...(cursor.key !== null && cursor.keyRaw !== undefined && cursor.keyRaw !== keyText(cursor.key)
+    ...(cursor.key !== null && cursor.keyRaw !== undefined && keyRawWorthKeeping(cursor.keyRaw, cursor.key)
       ? { meta: { keyRaw: cursor.keyRaw } } : {}),
   };
 }
@@ -1267,6 +1267,42 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       return ok({ ...state, cursor: { at: "hole", path: [...cursor.path, cursor.index - 1], index: (v.entries ?? []).length, text: "", key: null } });
     }
 
+    case "tokenKey": {
+      // `:` past a flow token's closer — the TOKEN becomes the entry's KEY (`{}: 12`,
+      // `[256, 256]: v`): the committed token re-opens as the NAMED hole, its one-line
+      // spelling the authored key token (EntryMeta.keyRaw — the bytes survive). A spread
+      // token has no one-line spelling and refuses; so does a named or multi-line one.
+      if (cursor.at !== "after") return refuse(state);
+      const tokenValue: Value | null = cursor.path.length === 0 ? doc.root : (entryAt(doc, cursor.path)?.value ?? null);
+      if (!tokenValue || isPointer(tokenValue)) return refuse(state);
+      if (!isFlow(tokenValue as Node) || isSpread(tokenValue as Node)) return refuse(state);
+      const token = (() => {
+        try { return sourceOf({ ...doc, root: tokenValue } as Document).replace(/\n$/, ""); } catch { return null; }
+      })();
+      if (token === null || token.includes("\n")) return refuse(state);
+      const key = (() => { try { return unquoteKey(token); } catch { return null; } })();
+      if (key === null || key === "") return refuse(state);
+      const keyRaw = keyRawWorthKeeping(token, key) ? { keyRaw: token } : {};
+      if (cursor.path.length === 0) {
+        // the ROOT token: the `{`-at-empty-root decision UNDOES — the document becomes the
+        // block mapping whose first pair the token names (`{}` + `:` → `{}: …`)
+        return ok({
+          ...state,
+          doc: { ...doc, root: keepIdentityMeta(doc.root, { kind: "mapping", entries: [] } as unknown as Node) },
+          cursor: { at: "hole", path: [], index: 0, text: "", key, ...keyRaw },
+        });
+      }
+      const e = entryAt(doc, cursor.path);
+      if (!e || e.key !== null || e.nullKey === true) return refuse(state);
+      const parentPath = cursor.path.slice(0, -1);
+      const idx = cursor.path[cursor.path.length - 1];
+      return ok({
+        ...state,
+        doc: removeEntryAt(doc, parentPath, idx),
+        cursor: { at: "hole", path: parentPath, index: idx, text: "", key, ...keyRaw },
+      });
+    }
+
     case "pick": {
       // Enter on a pointer atom OPENS the reference for editing: the pick cursor holds the
       // spaced display raw, the pointer stays in the document (no remove+insert churn against
@@ -1363,9 +1399,9 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       return ok({ ...committed, cursor: { at: "hole", path: entryPath, index: at, text: "", key: null } });
     }
 
-    // Not implemented yet: tokenKey, quotedKey, reopenQuote, quoteExit*, nestValue. A key the
-    // grammar CLAIMS must never fall through to the browser (a silent Tab would walk the focus
-    // out of the editor) — an unimplemented intent REFUSES, visibly.
+    // Not implemented yet: quotedKey, reopenQuote, quoteExit*, nestValue. A key the grammar
+    // CLAIMS must never fall through to the browser (a silent Tab would walk the focus out
+    // of the editor) — an unimplemented intent REFUSES, visibly.
     default:
       return refuse(state);
   }

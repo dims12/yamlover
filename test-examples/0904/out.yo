@@ -49,9 +49,9 @@ fan:
 crew: !!set
   - *: fan
 weird:
-  cat:dog:
+  cat\:dog:
     n: 1
-  cat\/dog: 2
+  cat/dog: 2
 ref: *weird: cat\:dog: n
 slsh: *weird: cat/dog
 dots: *\.\.

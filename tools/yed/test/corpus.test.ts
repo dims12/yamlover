@@ -19,9 +19,7 @@ const CORPUS = path.join(REPO, "edit-examples");
 const FIXTURE_ID = /^\d{4}(-\d{2})?$/;
 
 // --- the defect inventory: what yed2 cannot do YET, by cause. THE LIST ONLY SHRINKS. -----------
-const ENTER_ALLOW = new Map<string, string>([
-  ["0012", "token-as-key (`{}: 12`) — the tokenKey intent is not implemented yet"],
-]);
+const ENTER_ALLOW = new Map<string, string>([]);
 const DELETE_ALLOW = new Map<string, string>([]);
 
 // BYTES fixtures whose content enters IR-EQUAL but whose SPELLING drifts — each drift named.

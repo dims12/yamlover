@@ -5,4 +5,4 @@ tags:
   - b
 nested:
   ok: true
-  none:
+  none: ~

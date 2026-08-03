@@ -16,7 +16,7 @@
 import type { Document, Node, Mapping, Scalar, Entry, Value, Pointer, Span, Anchor } from './ir.ts';
 import { isPointer } from './ir.ts';
 import { parsePointer, makeAnchor } from './pointer.ts';
-import { keyText } from './serialize-common.ts';
+import { keyRawWorthKeeping } from './serialize-common.ts';
 import { attachComments, type RawComment } from './comments.ts';
 
 interface Line { indent: number; text: string; n: number; blankBefore?: boolean }
@@ -373,9 +373,9 @@ class Block {
             this.fail(`a plain numeric key is a position — author it by order ("- value"), or quote a numeric STRING key ("'${key}':")`);
           }
           entry = { key, edge: back ? 'back' : isPointer(value) ? 'ref' : 'contain', value };
-          // representation worth keeping: the authored key token differs from the canonical
-          // emission (`"a":` quoted-by-choice, `{}:` a token key) — the serializer prefers it
-          if (rawKey !== keyText(key)) entry.meta = { keyRaw: rawKey };
+          // representation worth keeping: the authored key token differs from a canonical
+          // emission (`"a":` quoted-by-choice, `{}:` a token key) — the serializers prefer it
+          if (keyRawWorthKeeping(rawKey, key)) entry.meta = { keyRaw: rawKey };
         }
       }
       // … and ends at the last source line the value consumed — a contiguous run, so
@@ -737,8 +737,8 @@ class Flow {
       entries.push(nullKey
         ? { key: null, nullKey: true, edge, value: v }
         // the same representation rule as block entries: an authored token that differs
-        // from the canonical emission rides EntryMeta.keyRaw
-        : { key, edge, value: v, ...(rawTok !== undefined && rawTok !== keyText(key) ? { meta: { keyRaw: rawTok } } : {}) });
+        // from a canonical emission rides EntryMeta.keyRaw
+        : { key, edge, value: v, ...(rawTok !== undefined && keyRawWorthKeeping(rawTok, key) ? { meta: { keyRaw: rawTok } } : {}) });
       this.ws();
       if (this.s[this.i] === ',') { this.i++; continue; }
       if (this.s[this.i] === '}') { this.i++; break; }

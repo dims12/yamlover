@@ -18,8 +18,8 @@ types:
   hex: 0xFF
   boolean: true
   disabled: false
-  nothing:
-  empty:
+  nothing: ~
+  empty: null
   plain: just text
   single: single 'quoted'
   double: she said "hi" — ok
