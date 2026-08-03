@@ -13,7 +13,7 @@ import { interpret } from "./grammar/dispatch";
 import { defaultRegistry, DocCells, type CellCtx, type CellRegistry } from "./cells";
 import { lineDiff } from "./diff";
 import { Legend } from "./legend";
-import { anchorDecorations, initialState, parseSource, schemaTextOf, sourceOf, type Cursor, type EditorState } from "./state";
+import { anchorDecorations, initialState, parseSource, schemaTextOf, sourceOf, trySourceOf, type Cursor, type EditorState } from "./state";
 
 export function EditorView({ state, setState, debug = true, cells = defaultRegistry, plantCaret = true, host }: { state: EditorState; setState: (s: EditorState) => void; debug?: boolean; cells?: CellRegistry; plantCaret?: boolean; host?: { base: string; doc: string } }) {
   const site = siteOf(state);
@@ -116,9 +116,13 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
           if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || (t instanceof HTMLElement && t.isContentEditable)) return;
           const committed = commitPending(state);
           if (committed === null) { apply({ ...state, refused: true }); return; }
+          // a BLOB-carrying document has no yamlover text form — the browser's own copy of the
+          // visible selection proceeds (the banner must never reach a clipboard)
+          const text = trySourceOf(committed.doc);
+          if (text === null) return;
           e.preventDefault();
           if (committed !== state) apply({ ...committed, refused: false });
-          e.clipboardData.setData("text/plain", sourceOf(committed.doc));
+          e.clipboardData.setData("text/plain", text);
         }}
       >
         <DocCells doc={state.doc} ctx={ctx} />

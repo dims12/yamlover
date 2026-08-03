@@ -325,8 +325,9 @@ class Emitter {
     const v = s.value;
     if (v === null) {
       // the null twin of the number-raw rule: an authored null SPELLING (`~`, `null`, …)
-      // re-emits verbatim — `a: ~` stays `a: ~`, never silently thins to `a:`
-      const raw = s.raw.trim();
+      // re-emits verbatim — `a: ~` stays `a: ~`, never silently thins to `a:`. A MINTED
+      // null (the wire's bare `key:` — yed-load omits the raw) spells the default.
+      const raw = typeof s.raw === 'string' ? s.raw.trim() : '';
       if (/^(~|null|Null|NULL)$/.test(raw)) return raw;
       return needToken ? 'null' : '';
     }

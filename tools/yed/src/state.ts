@@ -86,14 +86,31 @@ export function initialState(dialect?: DialectId): EditorState {
 /** Serialize for the panes — a document that cannot serialize is a yed2 BUG (the invariant says
  *  the doc is always valid), so surface the error text instead of throwing at render. */
 export function sourceOf(doc: Document): string {
+  const text = trySourceOf(doc);
+  return text !== null ? text : `!! UNSERIALIZABLE (yed2 invariant broken): ${unserializableWhy(doc)}`;
+}
+
+/** The serialized source, or NULL when the document has no yamlover text form (a blob-carrying
+ *  doc — link atoms have bytes elsewhere). Callers that would otherwise hand a user the
+ *  banner (the clipboard) fall back on this. */
+export function trySourceOf(doc: Document): string | null {
   try {
     const root = doc.root as Node;
     // the EMPTY DOCUMENT is a block mapping with no entries; an empty FLOW root is content
     // (`{}` / `[]` are values — the bracket-authored law) and serializes as itself
     if (root.kind === "mapping" && (root.entries ?? []).length === 0 && !isFlow(root)) return "";
     return serializeYamlover(doc);
+  } catch {
+    return null;
+  }
+}
+
+function unserializableWhy(doc: Document): string {
+  try {
+    serializeYamlover(doc);
+    return "serializes on the second try (a heisen-state)";
   } catch (e) {
-    return `!! UNSERIALIZABLE (yed2 invariant broken): ${(e as Error).message}`;
+    return (e as Error).message;
   }
 }
 

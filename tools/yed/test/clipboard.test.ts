@@ -4,7 +4,7 @@
 import { describe, it, expect } from "vitest";
 import { applyKey, copySubtree, pasteSubtree } from "../src/apply";
 import { MAX_PASTE, pasteText } from "../src/paste";
-import { initialState, parseSource, sourceOf, type Cursor, type EditorState } from "../src/state";
+import { initialState, parseSource, sourceOf, trySourceOf, type Cursor, type EditorState } from "../src/state";
 import { parseScript } from "./keys-util";
 
 function type(script: string, from: EditorState = initialState()): EditorState {
@@ -31,6 +31,16 @@ describe("yed2 copy — the caret's subtree, as file text", () => {
   });
   it("a hole has nothing to copy", () => {
     expect(copySubtree(type("["))).toBeNull();
+  });
+  it("a BLOB-carrying subtree copies NOTHING (never the banner) — and trySourceOf says why", () => {
+    const doc = parseSource("a: 1\n");
+    (doc.root as { entries: { value: unknown }[] }).entries[0].value = { kind: "blob", entries: [], meta: { link: { path: ":x" } } } as never;
+    expect(copySubtree(at(doc, { at: "after", path: [] } as Cursor))).toBeNull();
+    expect(trySourceOf(doc)).toBeNull();
+    // …and a MINTED raw-less null (the wire's bare `key:`) still serializes — the reported crash
+    const nulled = parseSource("a: 1\n");
+    (nulled.root as { entries: { value: unknown }[] }).entries[0].value = { kind: "scalar", value: null } as never;
+    expect(trySourceOf(nulled)).toBe("a:\n");
   });
 });
 

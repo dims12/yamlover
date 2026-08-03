@@ -12,7 +12,7 @@
 import { interpret, type Intent, type Site } from "./grammar/dispatch";
 import { classifyHoleInput, keyedEditParts } from "./grammar/keys";
 import {
-  blockRawOf, bracketOf, dialectOf, entryAt, isContainer, isFlow, isSpread, nodeAt, sourceOf,
+  blockRawOf, bracketOf, dialectOf, entryAt, isContainer, isFlow, isSpread, nodeAt, sourceOf, trySourceOf,
   type Cursor, type Document, type EditorState, type Entry, type Node, type Path, type Value,
 } from "./state";
 import { parseSchemaRef, parseYamlover, unquoteKey } from "../../parser/ts/src/yamlover.ts";
@@ -821,7 +821,10 @@ export function copySubtree(state: EditorState): string | null {
   const v = cursor.path.length === 0 ? doc.root : entryAt(doc, cursor.path)?.value;
   if (!v) return null;
   if (isPointer(v)) return "*" + ((v as { raw?: string }).raw ?? ""); // the authored round-trip spelling
-  return sourceOf({ ...doc, root: v } as Document).replace(/\n$/, "");
+  // a subtree with no text form (a blob inside — a link atom's bytes live elsewhere) copies
+  // NOTHING rather than a banner — the caller rings
+  const text = trySourceOf({ ...doc, root: v } as Document);
+  return text !== null ? text.replace(/\n$/, "") : null;
 }
 
 /** Paste INTO A HOLE: the clipboard parses as one yamlover document and its root splices in as

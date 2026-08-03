@@ -124,6 +124,13 @@ test('yamlover: authored key and null SPELLINGS survive (EntryMeta.keyRaw; raw-f
   const doc = parseYamlover('a: 1\n', 't');
   (doc.root as { entries: { meta?: object }[] }).entries[0].meta = { keyRaw: 'b' };
   assert.match(serializeYamlover(doc), /^a: 1$/m);
+  // a MINTED null (no raw at all — the yed loader's bare `key:` shape) spells the default and
+  // never crashes (the reported UNSERIALIZABLE `.trim` banner)
+  const minted = {
+    root: { kind: 'mapping', entries: [{ key: 'a', edge: 'contain', value: { kind: 'scalar', value: null } }] },
+    source: { concrete: 'yamlover', uri: 't' },
+  };
+  assert.equal(serializeYamlover(minted as never), 'a:\n');
 });
 
 test('pointer: the bare-token typing rule — integers, ~, quotes, aliases', () => {
