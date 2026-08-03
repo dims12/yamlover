@@ -690,6 +690,13 @@ body {
 }
 
 /* --- node view ------------------------------------------------------------ */
+/* Every view (data / chapter / editors) keeps SCROLL HEADROOM below its content, so an anchor
+   link near the document's end can still bring its target to the pane's top — a `#fragment`
+   always lands where the reader looks, not pinned to the bottom edge. Sized to the pane
+   (viewport minus the app header): even the LAST line's anchor reaches the top. */
+.nodeview {
+  padding-bottom: calc(100vh - 120px);
+}
 .nodehead {
   display: flex;
   align-items: center;
@@ -851,6 +858,11 @@ body {
   position: relative;
   padding-left: 22px;
   margin-left: -14px;
+  /* `overflow-x: auto` makes the computed overflow-y `auto` too, and a TRANSFORMED descendant's
+     bounds count toward the scrollable overflow — a `.yaml-dash` (scale 1.55) on the LAST line
+     overhangs its line box by ~6px, which drew a second, pane-length vertical scrollbar inside
+     the pane's own. The padding swallows the overhang: one scrollbar again. */
+  padding-bottom: 10px;
 }
 /* a `!!yo` DATA ISLAND in a chapter body: the generic data view framed as deliberate raw
    yamlover — a bordered panel so the mode switch reads as intended, not as a rendering bug */
