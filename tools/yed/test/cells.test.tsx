@@ -3,7 +3,7 @@
 // closed set at every depth, the gap visible, the active cell marked. EditorView is pure over its
 // props, so the test hands it a state and reads the DOM.
 import { describe, it, expect, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { render, cleanup, fireEvent } from "@testing-library/react";
 import { EditorView } from "../src/page";
 import { defaultRegistry, type CellRegistry } from "../src/cells";
 import { parseSource, initialState, type EditorState, type Node } from "../src/state";
@@ -107,6 +107,32 @@ describe("yed2 cells — the projection is visible", () => {
     const { container } = render(<EditorView state={state} setState={() => {}} />);
     expect(container.querySelector(".y2-refused")).toBeTruthy();
     expect(container.querySelector("[data-testid=y2-cursor]")?.textContent).toContain("REFUSED");
+  });
+
+  it("a DERIVED-anchor member (meta.anchorKey) shows the dimmed `&key` chip — decoration, not a cell", () => {
+    const state = stateFor("- Alice\n- 42\n");
+    const entries = (state.doc.root as Node).entries!;
+    entries[0] = { ...entries[0], meta: { anchorKey: "anyfile01" } } as never;
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    const chip = container.querySelector(".y2-anchor-derived")!;
+    expect(chip.textContent).toBe("&anyfile01 ");
+    expect(chip.getAttribute("tabindex")).toBeNull(); // read-only chrome — the walk never lands here
+    expect(container.querySelectorAll(".y2-dash")).toHaveLength(2); // the rows stay positional
+  });
+
+  it("the ＋ tail opens the trailing hole; it hides while that hole is open and off flow roots", () => {
+    const state = stateFor("a: 1\n");
+    let latest = state;
+    const { container, rerender } = render(<EditorView state={state} setState={(s) => { latest = s; }} />);
+    const tail = container.querySelector<HTMLButtonElement>(".y2-tail")!;
+    expect(tail, "the non-empty block root draws the ＋ tail").toBeTruthy();
+    fireEvent.click(tail);
+    expect(latest.cursor).toEqual({ at: "hole", path: [], index: 1, text: "", key: null });
+    rerender(<EditorView state={latest} setState={() => {}} />);
+    expect(container.querySelector(".y2-tail")).toBeNull(); // the hole is open — never doubled
+    cleanup();
+    const flow = render(<EditorView state={stateFor("[1, 2]\n")} setState={() => {}} />);
+    expect(flow.container.querySelector(".y2-tail")).toBeNull(); // flow appends through its own grammar
   });
 });
 

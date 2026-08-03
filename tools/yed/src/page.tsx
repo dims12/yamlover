@@ -85,6 +85,7 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
       if (next !== state) { e.preventDefault(); apply(next); }
     },
     onText: (text) => apply(applyText(state, text)),
+    onAppend: (path, index) => apply({ ...state, cursor: { at: "hole", path, index, text: "", key: null }, refused: false }),
     onFocus: (pos: Position) => {
       const cursor: Cursor =
         pos.at === "after" ? { at: "after", path: pos.path }

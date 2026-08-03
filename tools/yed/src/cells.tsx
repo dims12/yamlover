@@ -48,6 +48,9 @@ export interface CellCtx {
   onKey: (e: React.KeyboardEvent, edges?: { atStart: boolean; atEnd: boolean; firstLine?: boolean; lastLine?: boolean }) => void;
   onText: (text: string) => void;
   onFocus: (pos: Position) => void;
+  /** Open a fresh entry hole at (path, index) — the ＋ tail affordance's click. Absent ⇒ the
+   *  affordance is not drawn (embedded/test mounts that do not want the extra row). */
+  onAppend?: (path: Path, index: number) => void;
 }
 
 // ---------------------------------------------------------------------------- //
@@ -360,10 +363,15 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow,
       const childSpread = !isPointer(e.value) && (e.value as Node).kind === "mapping" && isSpread(e.value as Node);
       const wantComma = withCommas && childSpread && slot < total - 1;
       // the entry's lead marker: `k: ` for a named entry, `- ` for a keyless one in BLOCK rows
-      // (flow keyless entries take no marker — the commas separate them)
+      // (flow keyless entries take no marker — the commas separate them). A DERIVED-anchor
+      // member (a dir-backed pointer array's positional entry — meta.anchorKey) shows its
+      // wire name as a dimmed read-only chip: `- &key value`. Decoration, never a cell.
+      const anchorKey = e.key == null ? (e.meta as { anchorKey?: string } | undefined)?.anchorKey : undefined;
       const keyFrag = e.key != null
         ? <><KeyCell entry={e} path={p} ctx={ctx} /><span className="y2-punct">: </span></>
-        : !flow ? <DashMark /> : null;
+        : !flow
+          ? <><DashMark />{anchorKey !== undefined && <span className="y2-anchor-derived" data-yo-chrome>&{anchorKey} </span>}</>
+          : null;
       // a KEYED entry holding a BLOCK container WRAPS: the key alone on its row, the child's
       // rows BELOW it, indented one step — `children:` / `  - name: Europe`. (A keyless `- `
       // entry keeps the compact form: the child's first row rides the dash.)
@@ -693,6 +701,19 @@ export function DocCells({ doc, ctx }: { doc: Document; ctx: CellCtx }) {
             <AnchorsCell node={root} path={[]} ctx={ctx} />
           </>
         : <NodeCell node={root} path={[]} ctx={ctx} />}
+      {/* the ＋ TAIL — one click opens a fresh entry hole at the document's end (mouse-only
+          chrome; the keyboard reaches the same hole through the walk). Hidden while that very
+          hole is already open, and off flow roots (the token's own grammar appends). */}
+      {ctx.onAppend !== undefined && !isFlow(root) && (root.entries ?? []).length > 0
+        && !(holeAtRoot && (ctx.cursor as { index?: number }).index === (root.entries ?? []).length) && (
+        <div className="y2-row">
+          <button
+            className="y2-tail"
+            title="add an entry"
+            onClick={() => ctx.onAppend!([], (root.entries ?? []).length)}
+          >＋</button>
+        </div>
+      )}
     </div>
   );
 }
