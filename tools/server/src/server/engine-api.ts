@@ -57,6 +57,7 @@ import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
 import type { Node as IrNode, Document, Comment as IrComment, Entry as IrEntry, Step as IrStep, Pointer as IrPointer } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
+import { buildEnvelope } from "../content-envelope.js";
 import { deriveMemberEncoding, deriveDirEditRoute, nextMemberName, subchapterMaterializes } from "../concrete-rules.js";
 import {
   validatePath,
@@ -821,6 +822,56 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         } catch (e) {
           sendJson(res, 404, { error: String((e as Error).message || e) });
         }
+        return;
+      }
+
+      // THE CONTENT ENDPOINT (the one-wire migration): the node's projected subtree AS YAMLOVER,
+      // depth-limited at DOCUMENT boundaries, in a yamlover envelope (source + sidecar +
+      // relations + header). The path rides IN the URL, slash-spelled. See content-envelope.ts.
+      if (url.pathname === "/api/content" || url.pathname.startsWith("/api/content/")) {
+        (async () => {
+          // the merged IR is the payload — a nulled cache (a just-landed relink) must REBUILD,
+          // never degrade (unlike /api/json's comments, which just went empty)
+          if (!cachedDoc) await reconcile();
+          const doc = cachedDoc;
+          if (!doc) throw new Error("the merged document is unavailable (index rebuild failed)");
+          const rest = url.pathname === "/api/content" ? "" : url.pathname.slice("/api/content/".length);
+          const segs = canonSegs(s, slashToSegs(rest), false);
+          const p = storePath(segs);
+          const row = s.node(p);
+          const subtree = row ? irNodeAt(doc, segs) : undefined;
+          if (!row || !subtree) return notFound(res, url);
+          const kind = displayKind(s, p, row);
+          const depthParam = parseDepth(url.searchParams.get("depth"));
+          const docDepth = depthParam === undefined ? defaultDepth(s, dataRoot, segs, row, kind) : depthParam;
+          const header = {
+            path: segsToStr(segs),
+            documentPath: documentPath(s, segs),
+            type: tocType(s, p, row),
+            ...facetsOf(s, p, row),
+            format: row.format ?? null,
+            concrete: concreteOf(s, dataRoot, segs, row),
+            title: titleOf(s, p),
+            description: descriptionOf(s, p),
+          };
+          const text = buildEnvelope(
+            { segs, subtree, docDepth, header, relations: buildRelations(dataRoot, s, segs) as never },
+            {
+              memberExists: (sg) =>
+                sg.every((x) => typeof x === "string") && fs.existsSync(path.resolve(dataRoot, ...sg.map(String))),
+              stub: (sg) => (s.node(storePath(sg)) ? linkMarker(dataRoot, s, sg) : null),
+              refTargetAt: (holder, pos) => {
+                const hit = ownedEntries(s, storePath(holder)).find((e) => e.kind === "ref" && e.pos === pos && e.to);
+                if (!hit?.to) return null;
+                const tsegs = storePathToSegs(hit.to);
+                return { path: segsToStr(tsegs), stub: s.node(hit.to) ? linkMarker(dataRoot, s, tsegs) : null };
+              },
+            },
+          );
+          res.statusCode = 200;
+          res.setHeader("Content-Type", "text/yamlover; charset=utf-8");
+          res.end(text);
+        })().catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
         return;
       }
 
@@ -4833,20 +4884,31 @@ function segsToStr(segs: Seg[]): string {
   return segs.map((seg) => ":" + encodeURIComponent(segToken(seg))).join("") || ":";
 }
 
+/** Classify ONE decoded path token by the bare-token typing rule (shared by the colon and
+ *  slash spellings): `~` = the null key, digits = a position, `'…'` = a quoted (string) key,
+ *  anything else a bare key with `\x` → `x` unescaping (pathseg.ts's read rule). */
+function classifyToken(t: string): Seg {
+  if (t === "~") return null;
+  if (/^\d+$/.test(t)) return Number(t);
+  if (t.length >= 2 && t[0] === "'" && t[t.length - 1] === "'") return t.slice(1, -1).replace(/''/g, "'");
+  return t.replace(/\\(.)/g, "$1");
+}
+
 /** Parse a client JSON path into segments — the decoded token classifies by the bare-token
- *  typing rule; the retired `[n]` spelling reads forever as an alias. A bare token unescapes
- *  `\x` → `x` (segToken's metachar escaping — the pathseg.ts read rule). */
+ *  typing rule; the retired `[n]` spelling reads forever as an alias. */
 function strToSegs(str: string): Seg[] {
   const out: Seg[] = [];
   for (const tok of str.match(PATH_TOKEN) || []) {
     if (/^\[\d+\]$/.test(tok)) { out.push(Number(tok.slice(1, -1))); continue; }
-    const t = safeDecode(tok);
-    if (t === "~") out.push(null);
-    else if (/^\d+$/.test(t)) out.push(Number(t));
-    else if (t.length >= 2 && t[0] === "'" && t[t.length - 1] === "'") out.push(t.slice(1, -1).replace(/''/g, "'"));
-    else out.push(t.replace(/\\(.)/g, "$1"));
+    out.push(classifyToken(safeDecode(tok)));
   }
   return out;
+}
+
+/** Parse the SLASH spelling (`/api/content/<a>/<b>/<0>`): one percent-encoded token per
+ *  segment, the same classifier as the colon form; empty = the root. */
+function slashToSegs(rest: string): Seg[] {
+  return rest.split("/").filter((t) => t !== "").map((t) => classifyToken(safeDecode(t)));
 }
 
 /** Build the raw Store path the index uses (pathseg.ts — the ONE spelling). */

@@ -43,6 +43,32 @@ export function call(handler: Handler, pathname: string, params: Record<string, 
   return captured;
 }
 
+/** Invoke a handler (GET-style) and AWAIT the raw text response — the non-JSON endpoints
+ *  (`/api/content` answers `text/yamlover`; its handler is async, so `call`'s synchronous
+ *  capture would miss it). A JSON error body still arrives as text — parse it yourself. */
+export function callText(
+  handler: Handler,
+  pathname: string,
+  params: Record<string, string> = {},
+): Promise<{ status: number; text: string }> {
+  return new Promise((resolve) => {
+    const state = { statusCode: 200 };
+    const res = {
+      setHeader() {},
+      get statusCode() {
+        return state.statusCode;
+      },
+      set statusCode(v: number) {
+        state.statusCode = v;
+      },
+      end(b: string) {
+        resolve({ status: state.statusCode, text: b ?? "" });
+      },
+    } as unknown as ServerResponse;
+    handler({} as IncomingMessage, res, urlFor(pathname, params));
+  });
+}
+
 /** Subscribe to the handler's SSE endpoint (/api/events) and capture every pushed frame —
  *  asserts the unified change flow: writes must announce their diffs. Call `close()` when done
  *  (it clears the server's keep-alive ping for this subscriber). */

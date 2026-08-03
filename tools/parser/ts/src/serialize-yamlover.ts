@@ -335,8 +335,9 @@ class Emitter {
     if (typeof v === 'number') {
       if (!Number.isFinite(v)) return nonFinite(v); // YAML float specials: .inf / -.inf / .nan
       // keep the authored spelling (0x1F, 1.0, .5, -0) when it reparses to the same number —
-      // Object.is so `-0` keeps its sign (plain `===` treats -0 and 0 as one value)
-      const raw = s.raw.trim();
+      // Object.is so `-0` keeps its sign (plain `===` treats -0 and 0 as one value). A MINTED
+      // number (no raw — a programmatic node) spells the default, like the null twin above.
+      const raw = typeof s.raw === 'string' ? s.raw.trim() : '';
       if (raw !== '' && plainToken(raw) && Object.is(plainScalar(raw).value, v)) return raw;
       return Object.is(v, -0) ? '-0' : String(v);
     }
