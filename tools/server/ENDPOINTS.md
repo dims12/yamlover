@@ -1,0 +1,59 @@
+# ENDPOINTS — the yamlover server's HTTP API
+
+The complete route table of the live server (`src/server/engine-api.ts`, mounted by
+`bin/yamlover.js`; the older `src/server/api.ts` is a reduced legacy handler set kept for
+embedding). Everything a renderer or editor does goes through these — clients never touch
+storage. All paths are **colon paths** (`:a:b:0` — keys and absolute entry indexes in one
+address space; a positional segment may alias a keyed member). Errors are
+`{ error: string }` with a 4xx/5xx status.
+
+> The representation note (2026-08-03): `/api/json` serves the value DECODED into JSON with
+> `$yamlover*` markers for what JSON cannot say — a third format, neither the parser IR nor
+> yamlover text. The declared direction is to converge clients on YAMLOVER as the one wire
+> representation (parse in-browser with the shared `tools/parser`); this table documents
+> what exists today.
+
+## Reading
+
+| Endpoint | Method | Params | Returns |
+|---|---|---|---|
+| `/api/info` | GET | — | `{ root }` — the served root's display name (its title, else the folder name) |
+| `/api/tree` | GET | `path`, `depth` (default 3) | The TOC subtree: `TreeNode` rows (label, type, format, concrete, `hasChildren`), children to `depth` |
+| `/api/json` | GET | `path`, `depth` (`.inf` = unlimited; default per concrete), `binary=1` | The node projection: `{ path, type, format, valueType, hasKeyed, hasOrdinal, concrete, documentPath, title, description, value, comments, relations }`. `value` is the DECODED value; deeper-than-depth nodes are `$yamloverLink` markers, references `$yamloverRef`, omni/mix `$yamloverMixed`. `binary=1` on a blob inlines base64 bytes |
+| `/api/schema` | GET | `path`, `depth` | The node's derived instance schema |
+| `/api/source` | GET | `path` | `{ source }` — the yamlover TEXT: the raw body file at a document root; a deeper node re-serializes its parsed subtree |
+| `/api/blob` | GET | `path` | The file-backed node's raw bytes, streamed with its content type |
+| `/api/thumb` | GET | `path`, `w`, `h` | A lazily generated JPEG thumbnail (content-addressed sidecar cache); `415` when no server decoder exists |
+| `/api/query` | GET | `q`, `path` (evaluation root), `shape` (`paths` \| `tree` \| `filter`) | The colon-grammar query evaluator: matching paths; `tree` = TreeNode rows (dropdown candidates); `filter` = one pruned TOC of matches + ancestors, capped |
+| `/api/dangling` | GET | — | Pointers that did not resolve at index time (`{ from, raw, reason }[]`) |
+| `/api/annotations` | GET | `path` | Annotations whose `target` is this node (the reverse link) |
+| `/api/tagged` | GET | `path` | Materials filed under this tag (annotations resolved to targets, deduped) |
+| `/api/config` | GET | — | `{ source, settings, path }` — the project config (`<root>/.yo/settings.yo`), raw + parsed |
+| `/api/doctor` | GET | — | The layout-rule sweep over the whole tree (a filesystem walk — finds what the index cannot see) |
+| `/api/tasks` | GET | — | Long-running server tasks in flight (indexing, hashing); updates ride `/api/events` |
+| `/api/events` | GET (SSE) | — | The server-push stream: reindex diffs as they land, keep-alive pings |
+
+## Writing
+
+All writes are serialized through one queue; each reindexes what it touched and broadcasts
+the diff over `/api/events`.
+
+| Endpoint | Method | Body | Does |
+|---|---|---|---|
+| `/api/edit` | POST | one edit `{ path, op, yamlover?, meta?, concrete?, name?, at? }` or `{ edits: […] }` | THE SURGICAL EDITOR. Ops: `emplace` (replace only the facets the payload carries), `replace` (drop all four facets, assign), `insert` (at the position `path` names), `remove` (never deletes disk storage — a member detaches; an already-orphaned member archives to `.yo/.trash/`). `yamlover` is inline SOURCE, parsed to validate then spliced verbatim — comments and spellings elsewhere survive. Returns `{ ok, path? }` (where a creator should navigate) |
+| `/api/rekey` | POST | `{ path, key }` | Rename a key — ONE verb, storage-routed (THE CONCRETE IS NOT A STATE): an fs-backed member renames on disk with inbound pointers rewritten; an inline entry has its key token rewritten in place |
+| `/api/mv` | POST | `{ from, to }` (keyed segments only) | Move/rename a file or directory; rewrites every inbound `*`/`~` pointer (surgical span edits) |
+| `/api/paste` | POST | `{ path, filename, contentBase64 }` \| `{ path, text }` \| `{ path, rich }` | Upload: a file lands in the directory (a chapter also gains a `*` pointer chunk); text appends as a chunk; rich HTML becomes chunks + subchapters |
+| `/api/annotate` | POST / DELETE | POST `{ target, tag, description?, params? }`; DELETE `?target&tag` | Apply / remove a tag application in the target's `yamlover-annotations` |
+| `/api/fragment` | POST | `{ target, selector, imageBase64? }` | Mark a fragment (a region) under the target's `yamlover-fragments`, optional crop sidecar; returns `{ slug, fragmentPath }` |
+| `/api/tag` | POST | `{ name }` | Create a named tag in the taxonomy location (`settings.tags`); idempotent |
+| `/api/board` | POST | `{ path, lanes: string[][] }` | Persist a board's lane configuration (tag pointers in the directory overlay) |
+| `/api/reindex` | POST | — | Manual reconcile (the watcher's fallback); responds with the diff |
+| `/api/agent-docs` | POST | — | Install/refresh the bundled AGENTS.md + CLAUDE.md guidance into the served root (marker-fenced; human text never clobbered) |
+
+## Stateless (no served tree touched)
+
+| Endpoint | Method | Body | Does |
+|---|---|---|---|
+| `/api/preview` | POST | `{ source }` | Render a standalone yamlover text exactly as `/api/json` would (parse → throwaway index → project) — the browser-settings document's renderer |
+| `/api/edit-text` | POST | `{ source, edits }` | The `/api/edit` ops applied to a standalone text; returns the new `{ source }` — the caller persists it |
