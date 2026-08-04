@@ -17,3 +17,4 @@ description: JSON5, JSON for Humans — json/code extended with ES5 sugars
 - *: 00-json5_structured
 - *: 01-json5_scalar
 - *: 02-json5_comment
+- *..:04-json_code

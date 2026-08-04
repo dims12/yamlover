@@ -1,5 +1,8 @@
 yaml
-description: Code in YAML language, Yet another markup lanugate, Yaml Ain't markup languge
-- Can be any of
+description: Code in the YAML language — YAML Ain't Markup Language
+- >
+  **YAML** is an indentation-based text format for structured data — the human-editable cousin
+  of JSON. A YAML source is either one **code** — a single document — or a whole **stream** of
+  documents in one file. See the subchapters below for the two:
 - *: 00-yaml_stream
 - *: 01-yaml_code

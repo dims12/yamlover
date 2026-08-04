@@ -1,0 +1,18 @@
+yaml/key-value-pair
+description: A key and a value separated by a colon; node properties may precede the value
+- >
+  A key and a value separated by a colon and a space. Leaving the value empty means null — the
+  bare key IS the null. Between the colon and the value a pair may carry the node's
+  PROPERTIES — an **anchor** and/or a **tag**:
+- !!<format: text/x-yaml> |
+  age: 42
+  boss: &chief
+    name: Rex
+  count: !!int '42'
+- >
+  The key, the anchor, and the tag have subchapters below; the value can be ANY YAML value —
+  the grammar recurses here:
+- *: 00-yaml_key
+- *: 01-yaml_anchor
+- *: 02-yaml_tag
+- *..:..:..

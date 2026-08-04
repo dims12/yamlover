@@ -1,0 +1,6 @@
+json5/hexadecimal
+description: Hexadecimal integer — 0x and the hex digits
+- >
+  An integer in base sixteen — `0x` (or `0X`) followed by hex digits, upper or lower case:
+- !!<format: text/x-json5> |
+  0x2A   0xC0FFEE   0XDEADbeef

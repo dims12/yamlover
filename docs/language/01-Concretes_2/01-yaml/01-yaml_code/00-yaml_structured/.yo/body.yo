@@ -1,0 +1,8 @@
+yaml/structured
+description: Composite value that nests other YAML values
+- >
+  The structured shapes of YAML are the keyed **mapping** and the positional **sequence**, each
+  writable in two spellings — the indentation-based block style and the JSON-like flow style.
+  See the subchapters below for the two shapes:
+- *: 00-yaml_mapping
+- *: 01-yaml_sequence

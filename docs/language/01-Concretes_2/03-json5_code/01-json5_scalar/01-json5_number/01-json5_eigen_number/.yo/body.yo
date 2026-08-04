@@ -1,7 +1,0 @@
-json5/eigen-number
-description: Hexadecimal integer, bare-point decimal, explicit plus, Infinity, or NaN
-- >
-  The number spellings JSON5 adds over JSON — hexadecimal integers, a decimal that leads or
-  trails with a bare point, an explicit plus sign, and the IEEE 754 specials:
-- !!<format: text/x-json5> |
-  0xC0FFEE   .5   42.   +1   Infinity   -Infinity   NaN

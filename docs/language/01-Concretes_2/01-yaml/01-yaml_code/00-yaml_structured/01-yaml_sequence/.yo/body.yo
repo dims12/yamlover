@@ -1,0 +1,9 @@
+yaml/sequence
+description: Ordered collection of values
+- >
+  A **sequence** is an ordered collection. It comes in two concretes — the dash-led block
+  spelling and the bracketed flow one. An element can be ANY YAML value — the grammar
+  recurses here. See the subchapters below:
+- *: 00-yaml_sequence_block
+- *: 01-yaml_sequence_flow
+- *..:..

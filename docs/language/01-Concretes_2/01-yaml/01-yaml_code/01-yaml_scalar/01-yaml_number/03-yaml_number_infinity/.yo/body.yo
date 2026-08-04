@@ -1,0 +1,8 @@
+yaml/number/infinity
+description: The literal .inf
+- >
+  The IEEE 754 infinity as the literal `.inf` (`.Inf` and `.INF` accepted too), either sign
+  allowed:
+- !!<format: text/x-yaml> |
+  a: .inf
+  b: -.inf

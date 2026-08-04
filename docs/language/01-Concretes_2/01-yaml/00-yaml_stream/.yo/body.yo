@@ -1,2 +1,16 @@
 yaml/stream
-description: Sequence of yaml/code blocks, separated with ---
+description: A sequence of YAML documents in one file, separated by --- markers
+- >
+  A **stream** is what a `.yaml` file holds: zero or more documents. `---` starts a document,
+  an optional `...` ends one, and a `%YAML` directive may precede a start. Most files hold
+  exactly one document and skip the markers altogether:
+- !!<format: text/x-yaml> |
+  %YAML 1.2
+  ---
+  first: document
+  ...
+  ---
+  second: document
+- >
+  Each document's content is a yaml/code — see its chapter:
+- *..:01-yaml_code

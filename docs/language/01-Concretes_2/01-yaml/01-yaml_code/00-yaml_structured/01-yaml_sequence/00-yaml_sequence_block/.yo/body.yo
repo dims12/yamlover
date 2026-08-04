@@ -1,0 +1,10 @@
+yaml/sequence/block
+description: Each element on its own dash-led line
+- >
+  The block concrete: each element takes a `- ` line of its own; a structured element indents
+  deeper:
+- !!<format: text/x-yaml> |
+  pets:
+    - cat
+    - name: Sting
+      species: scorpion

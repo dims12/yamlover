@@ -1,0 +1,9 @@
+yaml/key
+description: A scalar before the colon — plain or quoted
+- >
+  A key is a scalar — most often plain, quoted when it needs punctuation. (YAML also allows a
+  whole structure as a key via the explicit `? ` form — rarely seen in practice.)
+- !!<format: text/x-yaml> |
+  age: 1
+  'first name': 2
+  "tab\there": 3

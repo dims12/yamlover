@@ -20,3 +20,4 @@ description: JSON5 with pointers — json5/code extended with the pointer layer
 - *: 00-json5p_structured
 - *: 01-json5p_scalar
 - *..:03-json5_code:02-json5_comment
+- *..:03-json5_code

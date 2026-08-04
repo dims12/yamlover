@@ -9,3 +9,4 @@ description: Comma-separated list of key-value pairs, enclosed into curly braces
 - >
   The pair is a construct of its own — see the subchapter below:
 - *: 00-json5_key_value_pair
+- *..:..:..:04-json_code:00-json_structured:00-json_object

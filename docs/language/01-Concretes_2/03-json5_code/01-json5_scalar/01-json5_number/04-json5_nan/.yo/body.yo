@@ -1,0 +1,6 @@
+json5/nan
+description: The literal NaN
+- >
+  The IEEE 754 not-a-number as the literal `NaN`:
+- !!<format: text/x-json5> |
+  NaN

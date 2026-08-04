@@ -1,0 +1,18 @@
+yaml/string
+description: Text in one of five concretes — plain, quoted, or block
+- >
+  A string comes in five concretes — the bare **plain** style, the two quoted ones, and the
+  two block ones. See the subchapters below:
+- !!<format: text/x-yaml> |
+  a: plain text
+  b: 'single quoted'
+  c: "double\tquoted"
+  d: |
+    literal block
+  e: >
+    folded block
+- *: 00-yaml_string_plain
+- *: 01-yaml_string_single_quoted
+- *: 02-yaml_string_double_quoted
+- *: 03-yaml_string_literal_block
+- *: 04-yaml_string_folded_block

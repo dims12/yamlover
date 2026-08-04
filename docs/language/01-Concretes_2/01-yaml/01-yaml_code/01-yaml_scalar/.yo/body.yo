@@ -1,0 +1,17 @@
+yaml/scalar
+description: Atomic token — a string, a number, a boolean, a null, or an alias
+- >
+  An atomic token. An UNQUOTED one resolves its type from its content — the null and boolean
+  literals, the number shapes, everything else a string — while quoting or a block header
+  always makes a string. See the subchapters below for the types, each with its own concretes:
+- !!<format: text/x-yaml> |
+  a: plain text
+  b: 'single quoted'
+  c: 42
+  d: true
+  e: ~
+- *: 00-yaml_string
+- *: 01-yaml_number
+- *: 02-yaml_boolean
+- *: 03-yaml_null
+- *: 04-yaml_alias

@@ -1,0 +1,7 @@
+json5/eigen-decimal
+description: Decimal that may lead or trail with a bare point
+- >
+  The eigen JSON5 spelling of the decimal — a json/number that may also LEAD or TRAIL with a
+  bare decimal point:
+- !!<format: text/x-json5> |
+  .5   42.   .25e2

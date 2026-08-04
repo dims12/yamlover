@@ -1,0 +1,10 @@
+yaml/mapping/block
+description: Each pair on its own line; nesting by indentation
+- >
+  The block concrete: each pair takes a line of its own, and a nested value indents deeper
+  than its key:
+- !!<format: text/x-yaml> |
+  julia:
+    age: 42
+    address:
+      city: Prague

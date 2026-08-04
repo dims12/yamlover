@@ -1,0 +1,12 @@
+yaml/alias
+description: A *name token — stands for the node the anchor named
+- >
+  An **alias** `*name` stands for the node an
+  [anchor](::language:01-Concretes_2:01-yaml:01-yaml_code:00-yaml_structured:00-yaml_mapping:02-yaml_key_value_pair:01-yaml_anchor)
+  `&name` named earlier — the very same node, shared, not a copy. This is YAML's sharing
+  ceiling: an alias names a whole anchored node and can never reach INTO one — which is where
+  yamlover's pointer paths begin:
+- !!<format: text/x-yaml> |
+  boss: &chief {name: Rex}
+  team:
+    lead: *chief

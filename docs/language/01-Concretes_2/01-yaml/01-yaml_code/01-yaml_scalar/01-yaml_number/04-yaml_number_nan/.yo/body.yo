@@ -1,0 +1,6 @@
+yaml/number/nan
+description: The literal .nan
+- >
+  The IEEE 754 not-a-number as the literal `.nan` (`.NaN` and `.NAN` accepted too):
+- !!<format: text/x-yaml> |
+  a: .nan
