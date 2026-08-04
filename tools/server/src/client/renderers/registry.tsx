@@ -403,9 +403,10 @@ const REGISTRY: Renderer[] = [
     // DOCSMIGRATION.md §Conventions), SYNTAX-HIGHLIGHTED by the shared lexer: PlaintextView /
     // PlaintextChunk tokenize when the format names a known language (highlight.tsx over
     // tools/parser/ts/src/highlight.ts) and stay verbatim otherwise (the plaintext entry).
+    // JSON/JSON5 ride the json5p rules (lexical subsets — highlight.tsx's mapping).
     name: "code",
     icon: "⌨",
-    accepts: byFormat("text/x-yamlover", "text/x-json5p", "text/x-yaml"),
+    accepts: byFormat("text/x-yamlover", "text/x-json5p", "text/x-json5", "text/x-json", "text/x-yaml"),
     specificity: 2,
     render: (node) => <PlaintextView node={node} />,
     renderChunk: (chunk) => <PlaintextChunk chunk={chunk} />,

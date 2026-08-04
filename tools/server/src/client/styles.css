@@ -1638,6 +1638,12 @@ textarea.chapter-latex-src {
   line-height: 1.55;
   color: var(--fg);
 }
+/* …but as a CHAPTER CHUNK it keeps the page's vertical rhythm: the same bottom margin a
+   prose paragraph carries (.chapter-prose), so a code block gets even air above and below
+   (margin: 0 alone left it flush against whatever follows). */
+.chunk-body > .plaintext {
+  margin: 0 0 14px;
+}
 /* a node-bar selector beside a renderer's tab (plaintext encoding, explorer view) */
 .enc-control {
   display: inline-flex;

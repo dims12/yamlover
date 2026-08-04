@@ -9,13 +9,19 @@ import { tokenize, type HlKind, type HlLang } from "../../../parser/ts/src/highl
  * reference color without `.descend`'s link affordance (a highlight is not a hyperlink).
  */
 
-/** The `format` values that name a tokenizable language — grows with the lexer. */
+/** The `format` values that name a tokenizable language — grows with the lexer. JSON and
+ *  JSON5 are lexical SUBSETS of json5p (flow end to end, `//` and `/* *\/` comments, hex and
+ *  the float specials), so the json5p rules tokenize both — no lexer entry of their own. */
 const LANG_BY_FORMAT: Record<string, HlLang> = {
   "text/x-yamlover": "yamlover",
   "text/x-json5p": "json5p",
+  "text/x-json5": "json5p",
+  "text/x-json": "json5p",
   "text/x-yaml": "yaml",
   yamlover: "yamlover",
   json5p: "json5p",
+  json5: "json5p",
+  json: "json5p",
   yaml: "yaml",
 };
 
