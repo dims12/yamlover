@@ -1,0 +1,7 @@
+json5/comment
+description: Ignored text that may appear between any two tokens
+- >
+  JSON5 code may carry **comments** — text the parser ignores. A comment may appear wherever
+  whitespace may, i.e. between any two tokens. See the subchapters below for the two forms:
+- *: 00-json5_line_comment
+- *: 01-json5_block_comment

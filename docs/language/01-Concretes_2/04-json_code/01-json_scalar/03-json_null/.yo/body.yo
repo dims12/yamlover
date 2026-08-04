@@ -1,0 +1,6 @@
+json/null
+description: The literal null
+- >
+  The absence of a value is a value of its own, spelled with one literal, always lowercase:
+- !!<format: text/x-json> |
+  null

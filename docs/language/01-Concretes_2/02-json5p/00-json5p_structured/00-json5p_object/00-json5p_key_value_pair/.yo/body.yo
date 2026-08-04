@@ -1,0 +1,13 @@
+json5p/key-value-pair
+description: Colon-separated pair of a key and a value; anchors may stand before the value
+- >
+  As in JSON5 — a key and a value separated by a colon — with one addition: one or more
+  **anchors** may stand between the colon and the value:
+- !!<format: text/x-json5p> |
+  boss: &": chief" {name: 'Rex'}
+- >
+  The key is the JSON5 one, the anchor has its subchapter below, and the value can be ANY json5p
+  value — the grammar recurses here:
+- *..:..:..:..:03-json5_code:00-json5_structured:00-json5_object:00-json5_key_value_pair:00-json5_key
+- *: 01-json5p_anchor
+- *..:..:..

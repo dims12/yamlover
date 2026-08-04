@@ -1,0 +1,10 @@
+json/object
+description: Comma-separated list of key-value pairs, enclosed into curly braces
+- >
+  An **object** is a collection of key-value pairs, enclosed into curly braces and separated by
+  commas. The pairs are unordered, and keys within one object should be unique:
+- !!<format: text/x-json> |
+  {"name": "Julia", "age": 42}
+- >
+  The pair is a construct of its own — see the subchapter below:
+- *: 00-json_key_value_pair

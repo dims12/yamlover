@@ -1,0 +1,10 @@
+json/list
+description: Comma-separated list of values, enclosed into square brackets
+- >
+  A **list** (array) is an ordered sequence of values, enclosed into square brackets and separated
+  by commas. Elements are addressed by position and need not share a shape:
+- !!<format: text/x-json> |
+  [1, "two", [3], {"four": 4}, null]
+- >
+  An element can be ANY JSON value — the grammar recurses here:
+- *..:..

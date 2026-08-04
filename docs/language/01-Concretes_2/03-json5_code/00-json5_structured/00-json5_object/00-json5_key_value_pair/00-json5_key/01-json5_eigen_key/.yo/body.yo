@@ -1,0 +1,7 @@
+json5/eigen-key
+description: Unquoted ECMAScript 5.1 identifier name, or a single-quoted string
+- >
+  The key spellings JSON5 adds over JSON — a bare ECMAScript 5.1 identifier name (letters,
+  digits, `$` and `_`, not starting with a digit), or a single-quoted string for anything else:
+- !!<format: text/x-json5> |
+  age   $ref   _private   'first name'

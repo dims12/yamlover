@@ -1,0 +1,10 @@
+json5/eigen-string
+description: Single-quoted string, or a double-quoted one with the JSON5 extras
+- >
+  The string spellings JSON5 adds over JSON — single quotes, extra escapes (`\'`, `\x41`, and an
+  escaped literal for any other punctuator), and a backslash-escaped line break that lets one
+  string span several source lines:
+- !!<format: text/x-json5> |
+  'it\'s "quoted"'
+  "one string \
+  on two source lines"

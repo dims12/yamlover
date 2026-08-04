@@ -1,0 +1,8 @@
+json5/block-comment
+description: From /* to */, spanning any number of lines
+- >
+  A block comment is enclosed between `/*` and `*/`; it may span any number of lines and does not
+  nest:
+- !!<format: text/x-json5> |
+  /* a block
+     comment */ {age: 42}

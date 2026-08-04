@@ -1,0 +1,6 @@
+json5/line-comment
+description: From // to the end of the line
+- >
+  A line comment starts with a double slash and runs to the end of the line:
+- !!<format: text/x-json5> |
+  {age: 42}  // the answer

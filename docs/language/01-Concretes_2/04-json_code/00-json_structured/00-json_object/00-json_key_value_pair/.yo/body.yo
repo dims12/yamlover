@@ -1,0 +1,12 @@
+json/key-value-pair
+description: Colon-separated pair of a key and a value
+- >
+  A **key-value pair** is a key and a value separated by a colon; the key names the value within
+  its object:
+- !!<format: text/x-json> |
+  "age": 42
+- >
+  The key has a subchapter below. The value can be ANY JSON value — the grammar recurses here,
+  which is what lets objects nest to any depth:
+- *: 00-json_key
+- *..:..:..

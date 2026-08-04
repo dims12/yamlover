@@ -1,0 +1,3 @@
+json5
+description: JSON with some syntax sugars
+- *: 00-json

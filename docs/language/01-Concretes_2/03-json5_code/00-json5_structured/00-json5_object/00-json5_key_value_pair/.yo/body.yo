@@ -1,0 +1,12 @@
+json5/key-value-pair
+description: Colon-separated pair of a key and a value
+- >
+  As in JSON — a key and a value separated by a colon; only the key spelling differs, see its
+  subchapter below:
+- !!<format: text/x-json5> |
+  age: 42
+- >
+  The value can be ANY JSON5 value — the grammar recurses here, which is what lets objects nest
+  to any depth:
+- *: 00-json5_key
+- *..:..:..

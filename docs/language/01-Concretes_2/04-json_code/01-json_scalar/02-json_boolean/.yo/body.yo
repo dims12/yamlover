@@ -1,0 +1,6 @@
+json/boolean
+description: One of the literals true and false
+- >
+  A boolean is one of the two literals, always lowercase:
+- !!<format: text/x-json> |
+  true   false

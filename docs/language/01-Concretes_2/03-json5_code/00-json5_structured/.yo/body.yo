@@ -1,0 +1,11 @@
+json5/structured
+description: Composite value that nests other JSON5 values
+- >
+  The structured shapes of JSON5 are those of JSON — the keyed **object** and the positional
+  **list** — each extended with small sugars:
+- !!<format: text/x-json5> |
+  {matrix: [[1, 0], [0, 1],], meta: {unit: true},}
+- >
+  See the subchapters below for the two shapes:
+- *: 00-json5_object
+- *: 01-json5_list

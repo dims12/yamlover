@@ -1,0 +1,10 @@
+json5/string
+description: String in either the JSON spelling or the eigen JSON5 one
+- >
+  A JSON5 string is written in either of two spellings — the JSON one or the eigen JSON5 one:
+- !!<format: text/x-json5> |
+  "json spelling"   'json5 spelling'
+- >
+  See the subchapters below for the two spellings:
+- *..:..:..:04-json_code:01-json_scalar:00-json_string
+- *: 01-json5_eigen_string

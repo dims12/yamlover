@@ -1,9 +1,9 @@
 ### THE YAMLOVER WIRE — the node's projected subtree as yamlover (envelope: header + source
 ### + side + relations). Depth counts DOCUMENT boundaries; default: dir=1, text=.inf.
-GET http://127.0.0.1:5173/api/content/language/01-Concretes_2/02-json_code?depth=1
+GET http://127.0.0.1:5173/api/content/language/01-Concretes_2/04-json_code?depth=1
 
 ### …one chunk (digits are positions, ~ is the null key)
-GET http://127.0.0.1:5173/api/content/language/01-Concretes_2/02-json_code/01-json_structured/2
+GET http://127.0.0.1:5173/api/content/language/01-Concretes_2/04-json_code/00-json_structured/2
 
 ### the whole subtree, unlimited (blobs still cut to pointers)
 GET http://127.0.0.1:5173/api/content/language?depth=.inf
