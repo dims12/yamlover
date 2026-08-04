@@ -1,8 +1,8 @@
-name: Alice
+name: "Alice"
 age: 30
 tags:
-  - a
-  - b
+  - "a"
+  - "b"
 nested:
   ok: true
   none: null

@@ -21,8 +21,8 @@ types:
   nothing: ~
   empty: null
   plain: just text
-  single: single 'quoted'
-  double: she said "hi" — ok
+  single: 'single ''quoted'''
+  double: "she said \"hi\" — ok"
   literal: |
     line one
     line two

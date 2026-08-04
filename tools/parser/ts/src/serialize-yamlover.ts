@@ -121,7 +121,14 @@ class Emitter {
   entries(ents: Entry[], indent: number): void {
     const pad = ' '.repeat(indent);
     for (const e of ents) {
-      if (this.comments) for (const c of leadingOf(e)) this.out.push(pad + '#' + c.text);
+      if (this.comments) {
+        // a BLANK source line before the entry (or before its leading-comment block) is part
+        // of the retained typography — re-emit it so blankBefore round-trips like the texts
+        const lead = leadingOf(e);
+        const blank = (e.meta as { blankBefore?: boolean } | undefined)?.blankBefore === true || lead[0]?.blankBefore === true;
+        if (blank && this.out.length > 0 && this.out[this.out.length - 1] !== '') this.out.push('');
+        for (const c of lead) this.out.push(pad + '#' + c.text);
+      }
       const before = this.out.length;
       if (isAnchorizableBack(e)) {
         continue; // re-emitted as an `&` anchor in decorations()/rootAnchors(), not as `~`
@@ -331,7 +338,13 @@ class Emitter {
       if (/^(~|null|Null|NULL)$/.test(raw)) return raw;
       return needToken ? 'null' : '';
     }
-    if (typeof v === 'boolean') return v ? 'true' : 'false';
+    if (typeof v === 'boolean') {
+      // the boolean twin of the raw law: an authored casing (`True`, `FALSE`) that reparses
+      // to the same boolean re-emits verbatim; a minted boolean spells the default
+      const sr = typeof s.raw === 'string' ? s.raw.trim() : '';
+      if (sr !== '' && plainToken(sr) && plainScalar(sr).value === v) return sr;
+      return v ? 'true' : 'false';
+    }
     if (typeof v === 'number') {
       if (!Number.isFinite(v)) return nonFinite(v); // YAML float specials: .inf / -.inf / .nan
       // keep the authored spelling (0x1F, 1.0, .5, -0) when it reparses to the same number —
@@ -340,6 +353,16 @@ class Emitter {
       const raw = typeof s.raw === 'string' ? s.raw.trim() : '';
       if (raw !== '' && plainToken(raw) && Object.is(plainScalar(raw).value, v)) return raw;
       return Object.is(v, -0) ? '-0' : String(v);
+    }
+    // the STRING twin of the number/null raw law: an authored one-line SPELLING that provably
+    // reparses to the same string re-emits verbatim — quoting is a choice the author made
+    // (`'e = mc^2'` stays quoted, a quoted "42" stays a string). Only the three canonical
+    // forms are accepted; anything else falls through to the default rendering.
+    if (typeof s.raw === 'string' && !s.raw.includes('\n')) {
+      const sr = s.raw.trim();
+      if (sr === `'${v.replace(/'/g, "''")}'`) return sr;
+      if (sr === dq(v)) return sr;
+      if (sr !== '' && plainToken(sr) && plainScalar(sr).value === v) return sr;
     }
     if (v === '') return "''";
     if (v.includes('\n') || /[\u0000-\u0008\u000b-\u001f\u007f]/.test(v)) return dq(v);

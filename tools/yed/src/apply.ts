@@ -1011,8 +1011,9 @@ function classifyHole(state: EditorState): EditorState {
   if (action.kind === "metaTag") {
     // `!!<` typed in an entry hole: the TAG CELL materializes eagerly on a fresh empty scalar
     // entry (the same eager-structure law as `{` / `[`), caret in the tag's inner text; the
-    // committed tag then stamps the entry, and Enter walks on to type its value
-    const value = scalarFromText('""')!;
+    // committed tag then stamps the entry, and Enter walks on to type its value. MINTED, so
+    // no raw — the serializer spells the default (raw-first would keep a `""` verbatim).
+    const value = { kind: "scalar", value: "" } as unknown as Value;
     const entry = { ...keyFields(cursor), edge: "contain", value } as unknown as Entry;
     return {
       ...state,

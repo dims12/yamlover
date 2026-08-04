@@ -16,5 +16,7 @@ description: Data islands and spellings
   - two
 - Annotated prose carries an overlay.
   yamlover-annotations:
-    - *:: tags: important
+    - *: tags: important
 - *: data.csv
+- *: tags
+&: misc.yo: kin

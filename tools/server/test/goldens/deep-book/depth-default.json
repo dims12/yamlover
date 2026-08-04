@@ -111,7 +111,7 @@
                 "format": "x-yamlover-chapter",
                 "concrete": "dir/yamlover",
                 "title": "Part Two",
-                "count": 6,
+                "count": 7,
                 "value": "Part Two"
               }
             },
@@ -130,24 +130,7 @@
                 "format": "x-yamlover-chapter",
                 "concrete": "dir/yamlover",
                 "title": "The Appendix",
-                "count": 3
-              }
-            },
-            "anchor": true
-          },
-          {
-            "key": "tags",
-            "value": {
-              "$yamloverLink": {
-                "kind": "object",
-                "type": "object",
-                "valueType": null,
-                "hasKeyed": true,
-                "hasOrdinal": false,
-                "path": ":tags",
-                "format": "x-yamlover-chapter",
-                "concrete": "dir/yamlover",
-                "count": 1
+                "count": 4
               }
             },
             "anchor": true
@@ -182,6 +165,11 @@
         "blankBefore": true,
         "repr": "yaml/single",
         "raw": "''"
+      },
+      "/part-two": {
+        "anchors": [
+          ": misc.yo: kin"
+        ]
       }
     },
     "relations": {
@@ -296,13 +284,22 @@
           {
             "key": null,
             "value": {
+              "$yamloverRef": {
+                "text": "missing-target",
+                "path": null
+              }
+            }
+          },
+          {
+            "key": null,
+            "value": {
               "$yamloverLink": {
                 "kind": "scalar",
                 "type": "string",
                 "valueType": "string",
                 "hasKeyed": false,
                 "hasOrdinal": false,
-                "path": ":appendix:2",
+                "path": ":appendix:3",
                 "format": "text/marklower",
                 "concrete": "yamlover",
                 "value": "The closing chunk."
@@ -319,6 +316,9 @@
         "raw": "''"
       },
       "/2": {
+        "pointer": "missing-target"
+      },
+      "/3": {
         "trailing": [
           " with a tail comment"
         ]
@@ -822,7 +822,7 @@
                 "format": "x-yamlover-chapter",
                 "concrete": "dir/yamlover",
                 "title": "The Deep Book",
-                "count": 9,
+                "count": 8,
                 "value": "The Deep Book"
               }
             }
@@ -1041,6 +1041,23 @@
             "anchor": true
           },
           {
+            "key": "tags",
+            "value": {
+              "$yamloverLink": {
+                "kind": "object",
+                "type": "object",
+                "valueType": null,
+                "hasKeyed": true,
+                "hasOrdinal": false,
+                "path": ":part-two:tags",
+                "format": "x-yamlover-chapter",
+                "concrete": "dir/yamlover",
+                "count": 1
+              }
+            },
+            "anchor": true
+          },
+          {
             "key": "misc.yo",
             "value": {
               "$yamloverLink": {
@@ -1061,6 +1078,11 @@
       }
     },
     "comments": {
+      "": {
+        "anchors": [
+          ": misc.yo: kin"
+        ]
+      },
       "/1": {
         "tag": "!!yo"
       },
@@ -1531,8 +1553,8 @@
             "value": [
               {
                 "$yamloverRef": {
-                  "text": "*:: tags: important",
-                  "path": ":tags:important"
+                  "text": "*:: part-two: tags: important",
+                  "path": ":part-two:tags:important"
                 }
               }
             ]
@@ -1544,7 +1566,7 @@
     },
     "comments": {
       "/yamlover-annotations/0": {
-        "pointer": ":: tags: important"
+        "pointer": ": tags: important"
       }
     },
     "relations": {
@@ -1570,14 +1592,14 @@
     "value": [
       {
         "$yamloverRef": {
-          "text": "*:: tags: important",
-          "path": ":tags:important"
+          "text": "*:: part-two: tags: important",
+          "path": ":part-two:tags:important"
         }
       }
     ],
     "comments": {
       "/0": {
-        "pointer": ":: tags: important"
+        "pointer": ": tags: important"
       }
     },
     "relations": {
@@ -1752,15 +1774,15 @@
       }
     }
   },
-  ":tags": {
-    "path": ":tags",
+  ":part-two:tags": {
+    "path": ":part-two:tags",
     "type": "object",
     "format": "x-yamlover-chapter",
     "valueType": null,
     "hasKeyed": true,
     "hasOrdinal": false,
     "concrete": "dir/yamlover",
-    "documentPath": ":tags",
+    "documentPath": ":part-two:tags",
     "title": null,
     "description": null,
     "value": {
@@ -1771,7 +1793,7 @@
           "valueType": null,
           "hasKeyed": true,
           "hasOrdinal": false,
-          "path": ":tags:important",
+          "path": ":part-two:tags:important",
           "format": "x-yamlover-tag",
           "concrete": "yamlover",
           "count": 1,
@@ -1788,7 +1810,7 @@
       "..": {
         "$yamloverRef": {
           "text": "..",
-          "path": ":"
+          "path": ":part-two"
         }
       }
     }

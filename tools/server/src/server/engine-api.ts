@@ -58,6 +58,7 @@ import { isPointer } from "../../../parser/ts/src/ir.ts";
 import type { Node as IrNode, Document, Comment as IrComment, Entry as IrEntry, Step as IrStep, Pointer as IrPointer } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
 import { buildEnvelope } from "../content-envelope.js";
+import { collectComments, irNodeAt } from "../projection-comments.js";
 import { deriveMemberEncoding, deriveDirEditRoute, nextMemberName, subchapterMaterializes } from "../concrete-rules.js";
 import {
   validatePath,
@@ -853,18 +854,38 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             concrete: concreteOf(s, dataRoot, segs, row),
             title: titleOf(s, p),
             description: descriptionOf(s, p),
+            ...(row.type === "blob" ? { size: row.size } : {}),
           };
           const text = buildEnvelope(
             { segs, subtree, docDepth, header, relations: buildRelations(dataRoot, s, segs) as never },
             {
               memberExists: (sg) =>
                 sg.every((x) => typeof x === "string") && fs.existsSync(path.resolve(dataRoot, ...sg.map(String))),
+              formatAt: (sg) => s.node(storePath(sg))?.format ?? null,
               stub: (sg) => (s.node(storePath(sg)) ? linkMarker(dataRoot, s, sg) : null),
               refTargetAt: (holder, pos) => {
                 const hit = ownedEntries(s, storePath(holder)).find((e) => e.kind === "ref" && e.pos === pos && e.to);
                 if (!hit?.to) return null;
                 const tsegs = storePathToSegs(hit.to);
-                return { path: segsToStr(tsegs), stub: s.node(hit.to) ? linkMarker(dataRoot, s, tsegs) : null };
+                return {
+                  path: segsToStr(tsegs),
+                  text: refPointerText(s, tsegs, documentRootSegs(s, holder as Seg[])),
+                  stub: s.node(hit.to) ? linkMarker(dataRoot, s, tsegs) : null,
+                };
+              },
+              backEdgesAt: (sg) => {
+                const currentDoc = documentRootSegs(s, sg as Seg[]);
+                return downstreamEntries(s, storePath(sg))
+                  .filter((e) => e.pos === null && e.kind === "ref" && e.to)
+                  .map((e) => {
+                    const fsegs = storePathToSegs(e.to);
+                    return {
+                      label: e.label,
+                      path: segsToStr(fsegs),
+                      text: refPointerText(s, fsegs, currentDoc),
+                      stub: s.node(e.to) ? linkMarker(dataRoot, s, fsegs) : null,
+                    };
+                  });
               },
             },
           );
@@ -1406,203 +1427,9 @@ function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, to
   return wireScalar(row.value); // scalar
 }
 
-/** The IR node at client `segs` within the assembled document, or undefined when the path
- *  leaves the contained spine (a pointer / missing key). Keyless segments index the FULL
- *  `entries` array — the same basis the store path uses (graph.ts / resolve.ts: `[i]`). */
-function irNodeAt(doc: Document, segs: Seg[]): IrNode | undefined {
-  let node: IrNode = doc.root;
-  for (const seg of segs) {
-    const entries = node.entries ?? [];
-    let val;
-    if (typeof seg === "number") {
-      const e = entries[seg];
-      // a position addresses only a KEYLESS entry — the null-keyed one (`nullKey`) is keyed
-      if (!e || e.key !== null || e.nullKey === true || e.edge !== "contain") return undefined;
-      val = e.value;
-    } else if (seg === null) {
-      val = entries.find((en) => en.nullKey === true && en.edge === "contain")?.value;
-    } else {
-      val = entries.find((en) => en.key === seg && en.edge === "contain")?.value;
-    }
-    if (!val || isPointer(val)) return undefined;
-    node = val;
-  }
-  return node;
-}
-
-/** The comments to show with the value at `segs`, keyed by each node's fragment continuation
- *  FROM THE VIEWED NODE — exactly what the client looks up as `frag.slice(base.length)`. So a
- *  child's leading/trailing comments live under `/key` or `[i]` (i = its index among the node's
- *  RENDERED own entries, matching render.tsx). `$head` is the file banner (only at the served
- *  root); `$tail` is the viewed node's own leftover comments (after its last entry). Comments
- *  are typography: this never changes the value projection, only annotates it. */
-type CommentBucket = {
-  leading?: string[];
-  trailing?: string[];
-  pointer?: string;      // a ref entry's authored pointer text, canonical colon form (no `*`)
-  anchors?: string[];    // the value node's `&` path-anchor bodies (no `&`), source order
-  tag?: string;          // the value node's yamlover tags: `!!<…>` schema and/or `!!set` (shape tags are default)
-  blankBefore?: boolean;  // a blank source line precedes this entry (or its leading comments)
-  valueTrailing?: string[]; // a comment trailing the node's own SELF-VALUE line (an omni `5 # …`)
-  tail?: string[];        // a container's LEFTOVER comments — own-line remarks after its last
-                          // entry (the parser's tail rule), rendered inside the block
-  raw?: string;           // a scalar's authored SOURCE token, carried only when it differs from the
-                          // plain decoded form — so `"~"` reads as a string not null, `0xff`/`True`
-                          // keep their spelling (CONCRETES.md §Scalar representation). A BLOCK
-                          // scalar's is the whole authored token: the `|`/`|-`/`>`… header line
-                          // plus the de-indented content lines — renderers reproduce it verbatim.
-  repr?: string;          // the node's REPRESENTATION concrete (repr.ts) — `yaml/flow` for a
-                          // container authored in flow form, `yaml/hex`/`yaml/single`/… for a
-                          // scalar. Carried only when it is NOT the default for the value, so an
-                          // ordinary `Rex`/`42`/block mapping costs nothing. The COLLECTION half
-                          // has no other channel: `raw` is scalars-only and `NodeJson.concrete`
-                          // describes the viewed node alone, while nested flow needs it per node.
-  block?: BlockQualifiers; // a literal/folded scalar's chomping / indent indicator, when not clip
-  concrete?: string;      // an INLINE CONCRETE SWITCH (`NodeMeta.concrete`) — `json5p` for a flow
-                          // token written K&R, i.e. spanning lines (CONCRETES.md §Collection
-                          // style). Carried only where the switch HAPPENS: below it the language
-                          // lock makes the concrete derivable, so the interior stays silent (the
-                          // same economy as `yaml/block` and json-family nodes carrying no `repr`).
-};
-
-/** A scalar's authored source token to render faithfully — but only when it differs from the plain
- *  decoded form (a quoted string, a `~`/word null, a hex/octal int, a `True` casing, `.inf`, …), so
- *  the sidecar stays sparse and a plain `Rex`/`42` carries nothing. A BLOCK scalar's raw (the
- *  authored `|`/`>` header + content lines) is always carried — the representation lives in the
- *  concrete and the renderer must not re-derive it from the chomped value. */
-function scalarRawToken(node: IrNode): string | undefined {
-  if (isPointer(node) || node.kind !== "scalar") return undefined;
-  const raw = node.raw;
-  if (raw == null) return undefined;
-  const v = node.value;
-  if (raw.includes("\n")) {
-    // a block token is carried only for a genuinely MULTILINE value — a one-line `|-` chunk
-    // (what tagging produces) normalizes to its inline form instead
-    return /^[|>]/.test(raw) && typeof v === "string" && v.includes("\n") ? raw : undefined;
-  }
-  if (typeof v === "string" && v.includes("\n")) return undefined;
-  const plain = v === null ? "null" : String(v); // mirrors the client's default bare rendering
-  return raw === plain ? undefined : raw;
-}
-
-/** The yamlover type tags a node carries in canonical serialization, or undefined. Mirrors
- *  serialize-yamlover's `decorations`: the `!!<…>` schema tag (a tag APPLICATION — it must not
- *  vanish from the view just because the store routes it as `format`), then `!!yo` (the
- *  plain-yamlover mark) and `!!set` (set semantics). The shape tag `!!mix` (a mixed
- *  keyed+keyless container) is the DEFAULT — omni-by-default (YAMLOVER.md §4) — so it is never
- *  shown; an untagged mixture reads back the same. */
-function tagOf(n: IrNode): string | undefined {
-  const parts: string[] = [];
-  if (n.meta?.schema !== undefined) {
-    try {
-      parts.push(schemaTagToken(n.meta.schema));
-    } catch {
-      // an inline schema with no one-line form: parsed input always has one, so only a
-      // programmatic IR can get here — better an untagged view than a failed page
-    }
-  }
-  if (n.meta?.yo) parts.push("!!yo");
-  if (n.meta?.set) parts.push("!!set");
-  return parts.length ? parts.join(" ") : undefined;
-}
-
-/** An IR node's representation concrete: a scalar classifies from its authored token, a container
- *  from the parser's authored flow bit. The LANGUAGE default (a json-family document is flow end to
- *  end) is deliberately not consulted here — the client already knows the document's concrete, and
- *  stamping every node of a `.json5p` file would bloat the sidecar to say what `concrete` says. */
-function classifyNodeRepr(node: IrNode): ScalarStyle | { repr: Repr; block?: undefined } | undefined {
-  if (node.kind === "scalar") return classifyScalar(node.value, node.raw);
-  if (node.kind === "blob") return undefined;
-  return node.meta?.style === "flow" ? { repr: "yaml/flow" as const } : undefined;
-}
-
-/** Syntax decorations of a value node (anchors, type tag, a self-value trailing comment),
- *  attached to its fragment. */
-function nodeDeco(bucket: CommentBucket, node: IrNode): void {
-  const anchors = (node.meta?.anchors ?? []).map(anchorBody);
-  if (anchors.length > 0) bucket.anchors = anchors;
-  const tag = tagOf(node);
-  if (tag) bucket.tag = tag;
-  // the REPRESENTATION concrete (repr.ts), one rule for scalars and containers alike: classify,
-  // then send only what the default cannot re-derive
-  const style = isPointer(node) ? undefined : classifyNodeRepr(node);
-  if (style && !isDefaultRepr(style.repr, node.kind === "scalar" ? node.value : undefined)) {
-    bucket.repr = style.repr;
-    if (style.block) bucket.block = style.block;
-  }
-  // the inline CONCRETE switch (K&R) — one signal, so it replaces the repr rather than joining it:
-  // a json-family concrete already means flow (repr.ts `collectionRepr`)
-  const inline = isPointer(node) ? undefined : (node.meta as { concrete?: string } | undefined)?.concrete;
-  if (inline) {
-    bucket.concrete = inline;
-    delete bucket.repr;
-  }
-  // a comment trailing the node's own SELF-VALUE line (an omni `5 # …`) — placement `trailing`
-  // on the node itself (attachComments routes self-value trailers here, not to an entry)
-  const vt = (node.meta?.comments ?? []).filter((c) => c.placement === "trailing").map((c) => c.text);
-  if (vt.length > 0) bucket.valueTrailing = vt;
-}
-
-function collectComments(doc: Document, segs: Seg[], depth: number): Record<string, CommentBucket | string[]> {
-  const out: Record<string, CommentBucket | string[]> = {};
-  const root = irNodeAt(doc, segs);
-  if (!root) return out;
-  { // the viewed node's own anchors / tag / self-value trailing comment / raw token, keyed at ""
-    const self: CommentBucket = {};
-    nodeDeco(self, root);
-    const raw = scalarRawToken(root);
-    if (raw) self.raw = raw;
-    // ANY field is worth sending, not a hand-kept list of five: the list silently dropped the
-    // root's own `concrete` (a whole document written K&R rendered as block, because the switch
-    // never reached the client) and would have dropped a root block scalar's `block` qualifiers
-    // the same way. The per-child buckets below have always used this test.
-    if (Object.keys(self).length > 0) out[""] = self;
-  }
-  // $head is the head-of-file banner — shown when the VIEWED node is a document root (the walk
-  // carries each document's head onto its root node, so sub-documents surface theirs too).
-  const head = (root.meta?.head ?? []).map((c) => c.text);
-  if (head.length > 0) out.$head = head;
-  // leftover comments after the node's last entry render at the bottom ($tail); a `trailing`
-  // one rides the self-value line instead (valueTrailing, via nodeDeco above).
-  const tail = (root.meta?.comments ?? []).filter((c) => c.placement === "leading").map((c) => c.text);
-  if (tail.length > 0) out.$tail = tail;
-  const placed = (cs: IrComment[] | undefined, p: "leading" | "trailing"): string[] =>
-    (cs ?? []).filter((c) => c.placement === p).map((c) => c.text);
-  const walk = (node: IrNode, rel: string, d: number, top: boolean): void => {
-    if (!top && d <= 0) return; // a non-top node past the depth budget renders as a link marker
-    let i = 0; // index over RENDERED own entries (own back-edges and hidden children are filtered)
-    for (const e of node.entries ?? []) {
-      if (e.edge === "back") continue;
-      if (e.edge === "contain" && !isPointer(e.value) && e.value.meta?.hidden) continue;
-      // the slash continuation mirrors the client's childFrag/fragmentOf spelling: `/` + the
-      // segment's canonical token (`/key`, `/0`, `/~` for the null key)
-      const cont = "/" + segToken(e.key != null ? e.key : e.nullKey === true ? null : i);
-      i++;
-      const bucket: CommentBucket = {};
-      const lead = placed(e.meta?.comments, "leading");
-      const trail = placed(e.meta?.comments, "trailing");
-      if (lead.length > 0) bucket.leading = lead;
-      if (trail.length > 0) bucket.trailing = trail;
-      // a blank line before the entry, or before its leading-comment block, is worth keeping
-      const leadComment = e.meta?.comments?.find((c) => c.placement === "leading");
-      if (e.meta?.blankBefore || leadComment?.blankBefore) bucket.blankBefore = true;
-      if (isPointer(e.value)) bucket.pointer = renderPointer(e.value); // the authored `*…` token
-      else {
-        nodeDeco(bucket, e.value); // the value node's anchors + type tag
-        const raw = scalarRawToken(e.value); // a scalar's faithful source token (when it differs)
-        if (raw) bucket.raw = raw;
-        // the container's LEFTOVER comments (the tail rule, comments.ts): own-line remarks
-        // after its last entry, kept on the node meta — rendered inside the block
-        const tailC = placed(e.value.meta?.comments, "leading");
-        if (tailC.length > 0) bucket.tail = tailC;
-      }
-      if (Object.keys(bucket).length > 0) out[rel + cont] = bucket;
-      if (e.edge === "contain" && !isPointer(e.value)) walk(e.value, rel + cont, d - 1, false);
-    }
-  };
-  walk(root, "", depth, true);
-  return out;
-}
+// irNodeAt / collectComments (and the CommentBucket vocabulary) moved to
+// ../projection-comments.ts — PURE over the parser IR, shared with the client-side
+// derivation (the one-wire migration, Stage 2).
 
 /** The instance schema (every value `v` → `{const: v}`); containers past depth = link markers. */
 function projectSchema(dataRoot: string, s: Store, segs: Seg[], depth: number, top: boolean): unknown {

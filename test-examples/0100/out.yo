@@ -2,5 +2,5 @@ user:
   name: Alice
   address:
     city: Springfield
-    zip: '49007'
+    zip: "49007"
   age: 30

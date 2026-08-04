@@ -27,6 +27,7 @@ import { isPointer, type Document, type Entry, type Node, type Pointer, type Val
 import { parsePointer } from "../../parser/ts/src/pointer.ts";
 import { serializeYamlover } from "../../parser/ts/src/serialize-yamlover.ts";
 import { segToken } from "../../parser/ts/src/pathseg.ts";
+import { nodeDeco, scalarRawToken, type CommentBucket } from "./projection-comments.js";
 
 export type Seg = string | number | null;
 
@@ -35,11 +36,20 @@ export type Seg = string | number | null;
 export interface EnvelopeDeps {
   /** A real file/directory stands behind this path (the member test — rekey's fs rule). */
   memberExists(segs: Seg[]): boolean;
+  /** The STORE's format for a node — explicit `!!<format: …>` tags and schema-resolved
+   *  `$defs` refs alike (the IR's `derivedFormat` covers only the schema-application half). */
+  formatAt(segs: Seg[]): string | null;
   /** The `linkMarker(...)` payload for a node — THE stub shape every renderer already reads. */
   stub(segs: Seg[]): Record<string, unknown> | null;
   /** The resolved target of the reference ENTRY at `pos` under the holder (store edges);
-   *  null = unrealized/dangling. */
-  refTargetAt(holderSegs: Seg[], pos: number): { path: string; stub: Record<string, unknown> | null } | null;
+   *  null = unrealized/dangling. `text` is the scope-correct canonical pointer spelling
+   *  (refPointerText, framed at the holder's document) — what the projection shows at
+   *  unlimited depth. */
+  refTargetAt(holderSegs: Seg[], pos: number): { path: string; text: string; stub: Record<string, unknown> | null } | null;
+  /** The incoming `~` back-edges the projection APPENDS at this node (downstreamEntries'
+   *  pseudo-entries, deduped and in their lexicographic order) — they exist nowhere in the
+   *  authored text, so the wire carries them here. */
+  backEdgesAt(segs: Seg[]): { label: string | null; path: string; text: string; stub: Record<string, unknown> | null }[];
 }
 
 export interface EnvelopeInput {
@@ -55,15 +65,25 @@ interface SideBucket {
   anchorKey?: string;            // a body-positioned member (serialized keyless here)
   member?: true;                 // a keyed-remainder member (its key IS its storage name)
   format?: string;               // engine-derived format (extension folds, resolved tags)
+  fileText?: true;               // a whole-file text scalar: raw IS the value (the decoder restores it)
   refPath?: string;              // a realized reference's resolved target
+  refText?: string;              // …its scope-correct canonical spelling (the projection's text)
   target?: Record<string, unknown>; // …and the target's link stub
-  stub?: Record<string, unknown>;   // a CUT member's link stub (linkMarker verbatim)
+  stub?: Record<string, unknown>;   // a member's link stub (linkMarker verbatim)
+  /** A CUT member's node DECORATIONS (anchors / tags / raw / tail) — the comment-map bucket
+   *  its inlined form would have carried, pruned away with the content. */
+  deco?: CommentBucket;
+  backEdges?: { label: string | null; path: string; text: string; stub: Record<string, unknown> | null }[];
 }
 
 /** Build the envelope TEXT (`text/yamlover`). */
 export function buildEnvelope(input: EnvelopeInput, deps: EnvelopeDeps): string {
   const side: Record<string, SideBucket> = {};
-  const pruned = pruneClone(input.subtree, input.segs, "", input.docDepth, side, deps);
+  // a BLOB request has no text form at all (bytes live behind /api/blob) — the source is
+  // empty and the header's type/size/format say everything
+  const pruned = (input.subtree as Node).kind === "blob"
+    ? ({ kind: "scalar", value: null } as unknown as Node)
+    : pruneClone(input.subtree, input.segs, "", input.docDepth, side, deps);
   // the requested node's own head banner (a document root's meta.head) rides as Document.head
   const head = (pruned.meta as { head?: string[] } | undefined)?.head;
   const source = serializeYamlover(
@@ -125,20 +145,34 @@ function pruneClone(
   const put = (f: string, patch: SideBucket): void => {
     side[f] = { ...(side[f] ?? {}), ...patch };
   };
-  const df = ((node.meta ?? {}) as { derivedFormat?: string }).derivedFormat;
-  if (df !== undefined) put(frag, { format: df });
+  const df = deps.formatAt(segs);
+  if (df !== null) put(frag, { format: df });
+  // THE WHOLE-FILE RULE (walk.ts textScalar): a text FILE's raw IS its content, headerless.
+  // The wire must spell it as a block scalar (text is text), so mark it — the decoder
+  // restores `raw = value` and no representation is minted out of transport.
+  const nv = (node as { value?: unknown; raw?: string }).value;
+  if (node.kind === "scalar" && typeof nv === "string" && nv.includes("\n") && (node as { raw?: string }).raw === nv) {
+    put(frag, { fileText: true });
+  }
+  const backs = deps.backEdgesAt(segs);
+  if (backs.length > 0) put(frag, { backEdges: backs });
 
   const anchored = anchoredOf(node);
   const out: Entry[] = [];
+  // the RENDERED index — what the client computes over the parsed source. It counts every
+  // rendered entry EXCEPT authored `~` back-edges, exactly like collectComments' `i`, so the
+  // sidecar keys and the client's comment keys can never disagree.
+  let renderedIdx = 0;
   (node.entries ?? []).forEach((e, srcIdx) => {
     if (hiddenNode(e.value)) return; // the `.yo` overlay subtree — never content
-    const idx = out.length; // the RENDERED index — what the client's parse will see
+    const idx = renderedIdx;
+    if ((e as { edge?: string }).edge !== "back") renderedIdx++;
 
     // an authored reference stays a reference; the sidecar resolves it
     if (isPointer(e.value)) {
       const f = fragOf(frag, e, idx);
       const hit = deps.refTargetAt(segs, srcIdx);
-      if (hit) put(f, { refPath: hit.path, ...(hit.stub ? { target: hit.stub } : {}) });
+      if (hit) put(f, { refPath: hit.path, refText: hit.text, ...(hit.stub ? { target: hit.stub } : {}) });
       out.push(e);
       return;
     }
@@ -158,9 +192,20 @@ function pruneClone(
       const keptKeyEntry = (value: Value): Entry =>
         ({ ...e, key: anchoredHere ? null : name, value }) as Entry;
       const f = fragOf(frag, cut ? cutEntry : keptKeyEntry(e.value), idx);
-      put(f, anchoredHere ? { anchorKey: name } : { member: true });
+      // EVERY member carries its stub (not only cut ones): the client's old-depth derivation
+      // needs the member's linkMarker (concrete/type/title/count) wherever ITS cut falls
+      put(f, { ...(anchoredHere ? { anchorKey: name } : { member: true }), stub: deps.stub(childSegs) ?? undefined });
       if (cut) {
-        put(f, { stub: deps.stub(childSegs) ?? undefined });
+        // the member's node decorations would have ridden its inlined form — carry the
+        // comment-map bucket so the client's derived comments stay whole
+        const deco: CommentBucket = {};
+        nodeDeco(deco, e.value as Node);
+        const rawTok = scalarRawToken(e.value as Node);
+        if (rawTok) deco.raw = rawTok;
+        const tailC = (((e.value as Node).meta?.comments ?? []) as { placement: string; text: string }[])
+          .filter((c) => c.placement === "leading").map((c) => c.text);
+        if (tailC.length > 0) deco.tail = tailC;
+        if (Object.keys(deco).length > 0) put(f, { deco });
         out.push(cutEntry);
         return;
       }

@@ -1,12 +1,12 @@
 pets:
-  - name: Rex
-    species: dog
-  - name: Whiskers
-    species: cat
-  - name: Bubbles
-    species: fish
+  - name: "Rex"
+    species: "dog"
+  - name: "Whiskers"
+    species: "cat"
+  - name: "Bubbles"
+    species: "fish"
 humans:
-  - name: Alice
+  - name: "Alice"
     manager:
-      name: Whiskers
-      species: cat
+      name: "Whiskers"
+      species: "cat"

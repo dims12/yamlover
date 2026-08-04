@@ -1,19 +1,19 @@
 pets:
-  - name: Rex
-    species: dog
-  - name: Whiskers
-    species: cat
-  - name: Bubbles
-    species: fish
+  - name: 'Rex'
+    species: 'dog'
+  - name: 'Whiskers'
+    species: 'cat'
+  - name: 'Bubbles'
+    species: 'fish'
 humans:
-  - name: Alice
+  - name: 'Alice'
     manager: *: pets: 1
 feline: *pets: 1
 topDog: *: pets: 0
 boss:
   &: chief
-  name: Rex
-  species: dog
+  name: 'Rex'
+  species: 'dog'
 team:
   lead: *: chief
 secondPet: *pets: 1
@@ -28,7 +28,7 @@ favorites:
 fan:
   &: favorites[]
   &: crew[]
-  name: Bob
+  name: 'Bob'
 crew:
   - *: fan
 odd\/key:
