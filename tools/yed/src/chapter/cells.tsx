@@ -25,6 +25,7 @@ import type { EditorState, Entry, Node, Path, Value } from "../state";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
 import { Cell, type CellRegistry } from "../cells";
 import { defaultRegistry } from "../cells";
+import type { HintProvider } from "../complete";
 import { EditorView } from "../page";
 import type { Position } from "../apply";
 import { proseNode, type ChapterState, type SplitPayload } from "./apply";
@@ -58,6 +59,9 @@ export interface ChapterCellsAdapter {
   codec: ProseCodec;
   /** The source-chunk registry — THE extension seam shared with the source editor. */
   sourceCells?: CellRegistry;
+  /** COMPLETION hints for a source chunk's reference portion cells (complete.ts) — the
+   *  server mount injects its tree-backed provider; default: none (no dropdown). */
+  sourceHints?: HintProvider;
   /** A SOURCE chunk's wire addresses ({base, doc}) for its embedded editor — a server mount
    *  computes them (subchapterServerPath) so the chunk's reference cells can spell and
    *  address; default: none, the pure layer runs server-free. */
@@ -695,6 +699,7 @@ function SourceCell({ path }: { path: Path }): ReactNode {
           debug={false}
           cells={ctx.adapter.sourceCells ?? defaultRegistry}
           host={ctx.adapter.sourceHost?.(path)}
+          hints={ctx.adapter.sourceHints}
           plantCaret={focused}
         />
       </div>
@@ -770,6 +775,7 @@ function PointerChunkCell({ path }: { path: Path }): ReactNode {
           debug={false}
           cells={ctx.adapter.sourceCells ?? defaultRegistry}
           host={ctx.adapter.sourceHost?.(path.slice(0, -1))}
+          hints={ctx.adapter.sourceHints}
           plantCaret={focused}
         />
       </div>

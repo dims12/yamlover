@@ -10,8 +10,25 @@ import { parseYamlover } from "../../parser/ts/src/yamlover.ts";
 import { schemaTagToken, serializeYamlover } from "../../parser/ts/src/serialize-yamlover.ts";
 import { anchorBody } from "../../parser/ts/src/serialize-common.ts";
 import { DIALECTS, type Dialect, type DialectId } from "./dialect";
+import type { Ladder } from "./grammar/portions";
 
 export type { Document, Node, Entry, Value };
+export type { Ladder };
+
+/** Where a machine-driven rewrite plants the caret in a text cell: an edge, or a character
+ *  offset (a portion merge lands at the junction). */
+export type CaretHint = "start" | "end" | number;
+
+/** A REFERENCE being entered, decomposed into PORTIONS - the key-value gesture repeated:
+ *  `ladder` is the scope opener (`:` x 0-3), `portions` the cells' committed texts, `active`
+ *  the cell being typed (its LIVE text rides the cursor's `text`). Wholly cursor-level:
+ *  the document holds the OLD pointer (a retarget) or nothing (a hole) until the joined
+ *  reference parses on commit. */
+export interface RefEntry {
+  ladder: Ladder;
+  portions: string[];
+  active: number;
+}
 
 /** A path into the IR: entry indices from the document root. [] is the root node itself. */
 export type Path = number[];
@@ -36,14 +53,16 @@ export type Path = number[];
 export type Cursor =
   | { at: "hole"; path: Path; index: number; text: string; key: string | null; ordinal?: boolean;
       /** the AUTHORED key token (`"a"` typed with its quotes) — commits as EntryMeta.keyRaw */
-      keyRaw?: string }
+      keyRaw?: string;
+      /** the `*` decision - the reference PORTIONS being entered (text = the active portion) */
+      ref?: RefEntry; caret?: CaretHint }
   | { at: "token"; path: Path; text: string; caret?: "start" | "end" }
   | { at: "key"; path: Path; text: string; caret?: "start" | "end" }
   | { at: "tag"; path: Path; text: string; caret?: "start" | "end" }
   | { at: "anchors"; path: Path; index: number; text: string; caret?: "start" | "end" }
   | { at: "after"; path: Path }
   | { at: "ptr"; path: Path }
-  | { at: "pick"; path: Path; text: string; caret?: "start" | "end" };
+  | { at: "pick"; path: Path; text: string; ref?: RefEntry; caret?: CaretHint };
 
 /** One applied edit, for the visible history pane. */
 export interface LogEntry {

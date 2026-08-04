@@ -1,5 +1,5 @@
 // THE GRAMMAR TABLE, executable — every (site, key) → intent transition of dispatch.ts asserted
-// as data. This is the file YAMLOVER_EDITOR.yo mirrors: a grammar change edits BOTH or the
+// as data. This is the file docs/server/yamlover-editor mirrors: a grammar change edits BOTH or the
 // review catches it. Pure — no DOM, no React; it runs in a plain node environment.
 import { describe, it, expect } from "vitest";
 import { interpret, type Site, type Intent } from "../src/grammar/dispatch";

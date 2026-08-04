@@ -40,6 +40,31 @@
    inherits the link accent (no dashed underline while editing; the frame carries focus) */
 .y2-p.y2-pick { border-bottom: none; }
 .y2-p.y2-pick .y2-input { color: var(--accent, #1e66f5); }
+/* the COMPLETION dropdown over the active portion cell (complete.ts) - advisory rows under
+   the input; the highlighted row takes the selection tint. Absolute over the flow: hints
+   must never push the document's rows around. */
+.y2-portionwrap { position: relative; display: inline-block; }
+.y2-hints {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  min-width: 12em;
+  max-height: 14em;
+  overflow-y: auto;
+  background: var(--bg, #fff);
+  border: 1px solid var(--line, #ccc);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .12);
+  font-size: .92em;
+}
+.y2-hint { display: flex; gap: 1em; justify-content: space-between; padding: 1px 8px; cursor: pointer; white-space: pre; }
+.y2-hint:hover { background: var(--sel, #ccd0da); }
+.y2-hint.y2-hint-sel { background: var(--sel, #ccd0da); }
+.y2-hint-insert { color: var(--jb-key, #660e7a); }
+.y2-hint-detail { color: var(--dim, #8c959f); }
 /* a DERIVED anchor — a dir member's wire name, dimmed read-only chrome (never a cell) */
 .y2-anchor-derived { color: var(--dim, #777); opacity: 0.8; }
 /* the ＋ tail — a quiet row that opens a fresh entry hole at the document's end */

@@ -130,10 +130,10 @@ describe("yed2 DOM typing — the reported yaml, through real key events", () =>
     domType("←"); // back onto the atom — the focus home is the .y2-p span
     expect(lastState.cursor).toEqual({ at: "ptr", path: [0] });
     expect(document.activeElement?.classList.contains("y2-p")).toBe(true);
-    domType("⏎"); // Enter opens PICK with the raw loaded
-    expect(lastState.cursor).toMatchObject({ at: "pick", path: [0], text: "pets: 1" });
-    expect(focusedInput().value).toBe("pets: 1");
-    domType("0⏎"); // append to the raw, commit the retarget
+    domType("⏎"); // Enter opens PICK with the raw decomposed into portions, caret in the LAST
+    expect(lastState.cursor).toMatchObject({ at: "pick", path: [0], text: "1", ref: { ladder: 0, portions: ["pets", "1"], active: 1 } });
+    expect(focusedInput().value).toBe("1");
+    domType("0⏎"); // append to the last portion, commit the retarget
     expect(sourceOf(lastState.doc)).toBe("k: *pets: 10\n");
     focusedInput();
   });

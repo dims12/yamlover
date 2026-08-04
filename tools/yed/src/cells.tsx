@@ -9,11 +9,12 @@
 // through `ctx.onText`, every click through `ctx.onFocus` (the cursor moves to the clicked
 // position). What you see is `state`, all of it.
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import type { Cursor, Document, Entry, Node, Path, Value } from "./state";
 import { anchorDecorations, blockRawOf, bracketOf, isFlow, isSpread, schemaTextOf } from "./state";
 import { isPointer, type Comment, type Pointer } from "../../parser/ts/src/ir.ts";
 import { blockBodyOf, blockTextFrom, type Position } from "./apply";
+import { rankHints, type Hint, type HintProvider } from "./complete";
 
 export interface CellCtx {
   cursor: Cursor;
@@ -45,9 +46,15 @@ export interface CellCtx {
   /** False for an EMBEDDED editor that does not hold focus (a chapter source chunk): the
    *  active cell renders but must not STEAL the caret. Absent ⇒ true. */
   plantCaret?: boolean;
-  onKey: (e: React.KeyboardEvent, edges?: { atStart: boolean; atEnd: boolean; firstLine?: boolean; lastLine?: boolean }) => void;
+  onKey: (e: React.KeyboardEvent, edges?: { atStart: boolean; atEnd: boolean; firstLine?: boolean; lastLine?: boolean; offset?: number }) => void;
   onText: (text: string) => void;
   onFocus: (pos: Position) => void;
+  /** A click on an IDLE portion cell of the reference being entered (the ref cursor): move
+   *  the active cell there (apply.ts focusPortion). Absent: the cell is not clickable. */
+  onPortion?: (index: number) => void;
+  /** COMPLETION hints for the active portion cell (complete.ts) - advisory only, never a
+   *  gate on typing. Absent: the portion cells draw no dropdown (the grammar is unchanged). */
+  hints?: HintProvider;
   /** Open a fresh entry hole at (path, index) — the ＋ tail affordance's click. Absent ⇒ the
    *  affordance is not drawn (embedded/test mounts that do not want the extra row). */
   onAppend?: (path: Path, index: number) => void;
@@ -126,7 +133,7 @@ export function Cell({ kind, active, refused, pos, badge, block, tone, children 
 
 /** A controlled inline input sized to its content — native caret, selection, text copy/paste.
  *  `caret` places the caret on the side the cursor ARRIVED from (movement stamps it). */
-function CellInput({ value, ctx, autoFocus, caret }: { value: string; ctx: CellCtx; autoFocus: boolean; caret?: "start" | "end" }) {
+function CellInput({ value, ctx, autoFocus, caret }: { value: string; ctx: CellCtx; autoFocus: boolean; caret?: "start" | "end" | number }) {
   return (
     <input
       className="y2-input"
@@ -135,13 +142,16 @@ function CellInput({ value, ctx, autoFocus, caret }: { value: string; ctx: CellC
       ref={(el) => {
         if (el && autoFocus && ctx.plantCaret !== false && document.activeElement !== el) {
           el.focus();
-          if (caret) { const n = caret === "end" ? el.value.length : 0; el.setSelectionRange(n, n); }
+          if (caret !== undefined) {
+            const n = caret === "end" ? el.value.length : caret === "start" ? 0 : Math.min(caret, el.value.length);
+            el.setSelectionRange(n, n);
+          }
         }
       }}
       onChange={(e) => ctx.onText(e.target.value)}
       onKeyDown={(e) => {
         const el = e.currentTarget;
-        ctx.onKey(e, { atStart: el.selectionStart === 0, atEnd: el.selectionEnd === el.value.length });
+        ctx.onKey(e, { atStart: el.selectionStart === 0, atEnd: el.selectionEnd === el.value.length, offset: el.selectionStart ?? el.value.length });
       }}
     />
   );
@@ -174,21 +184,109 @@ const commentsOf = (meta: unknown, placement: "leading" | "trailing"): string[] 
 const TrailSpan = ({ texts }: { texts: string[] }): ReactNode =>
   texts.length === 0 ? null : <span className="y2-comment y2-trail">{texts.map(fmtComment).join(" ")}</span>;
 
+/** The PORTION CELLS of a reference being entered (the cursor's RefEntry): the `*` sigil, the
+ *  scope ladder's colons, then one cell per portion with `:` separators - the ACTIVE cell is
+ *  the live input, the others focusable spans (a click moves the active cell there, the arrow
+ *  walk crosses commitlessly). The same face serves the hole (a new reference) and the pick
+ *  (a retarget); the grammar lives in dispatch.ts ("portion"), never here. */
+function PortionCells({ ctx }: { ctx: CellCtx }) {
+  const c = ctx.cursor;
+  const r = (c.at === "hole" || c.at === "pick") ? c.ref : undefined;
+  // COMPLETION over the active cell - advisory UI state, never document state (the hint list
+  // and the highlight live here; picking one only replaces the cell's text via onText)
+  const [items, setItems] = useState<Hint[]>([]);
+  const [sel, setSel] = useState(-1);
+  const active = r?.active ?? 0;
+  const text = r !== undefined ? (c as { text: string }).text : "";
+  const left = r !== undefined ? r.portions.slice(0, active).join("\u0000") : "";
+  const holder = c.at === "pick" ? c.path.slice(0, -1) : c.at === "hole" ? c.path : [];
+  useEffect(() => {
+    setSel(-1);
+    const clear = (): void => setItems((prev) => (prev.length === 0 ? prev : []));
+    if (r === undefined || ctx.hints === undefined) { clear(); return; }
+    let live = true;
+    const q = { ladder: r.ladder, portions: r.portions.slice(0, active), prefix: text, path: holder, doc: ctx.doc, host: ctx.host };
+    Promise.resolve(ctx.hints(q)).then((h) => { if (live) setItems(rankHints(h, text)); }, () => { if (live) clear(); });
+    return () => { live = false; };
+    // ctx.hints stays OUT of the deps deliberately: a host may pass an inline provider (a fresh
+    // identity every render), and re-querying is only meaningful when the typed context moved
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, active, left, r?.ladder, r === undefined, holder.join(".")]);
+  if ((c.at !== "hole" && c.at !== "pick") || !c.ref) return null;
+  const pick = (h: Hint): void => { ctx.onText(h.insert); setSel(-1); };
+  // the dropdown's keys ride BEFORE the grammar - only while a hint list is up, and only the
+  // keys the list claims (vertical walk, Enter on a HIGHLIGHTED row, Escape); everything else
+  // falls through to ctx.onKey untouched - hints never gate typing
+  const hctx: CellCtx = items.length === 0 ? ctx : {
+    ...ctx,
+    onKey: (e, edges) => {
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => (s + 1) % items.length); return; }
+        if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => (s <= 0 ? items.length - 1 : s - 1)); return; }
+        if (e.key === "Enter" && sel >= 0) { e.preventDefault(); pick(items[sel]); return; }
+        if (e.key === "Escape" && sel >= 0) { e.preventDefault(); setSel(-1); return; }
+      }
+      ctx.onKey(e, edges);
+    },
+  };
+  return (
+    <span className="y2-p y2-pick y2-portions">
+      <span className="y2-punct">*</span>
+      {r!.ladder > 0 && <span className="y2-punct y2-scope">{":".repeat(r!.ladder)}</span>}
+      {r!.portions.map((p, i) => (
+        <Fragment key={i}>
+          {i > 0 && <span className="y2-punct">: </span>}
+          {i === r!.active
+            ? <span className="y2-portionwrap">
+                <CellInput value={text} ctx={hctx} autoFocus caret={c.caret} />
+                {items.length > 0 && (
+                  <span className="y2-hints" data-testid="y2-hints">
+                    {items.map((h, j) => (
+                      <span
+                        key={j}
+                        className={"y2-hint" + (j === sel ? " y2-hint-sel" : "")}
+                        onMouseDown={(e) => { e.preventDefault(); pick(h); }}
+                      >
+                        <span className="y2-hint-insert">{h.label ?? h.insert}</span>
+                        {h.detail !== undefined && <span className="y2-hint-detail">{h.detail}</span>}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </span>
+            : <span
+                className="y2-v y2-portion"
+                tabIndex={0}
+                onFocus={() => ctx.onPortion?.(i)}
+              >{p === "" ? "\u00a0" : p}</span>}
+        </Fragment>
+      ))}
+    </span>
+  );
+}
+
 /** The HOLE — the entry being typed (it exists only in the cursor). Shows the named key when
  *  `k: ` already fixed it. */
 function HoleCell({ ctx }: { ctx: CellCtx }) {
   const c = ctx.cursor;
   if (c.at !== "hole") return null;
-  // a `*`-led hole is a REFERENCE being entered — a server registry projects the PICK kit
-  // over it (the same cursor state; QUERY_EDITOR.yo owns the inner grammar)
-  if (ctx.cells.holePick && c.text.trimStart().startsWith("*")) {
-    return <>{ctx.cells.holePick({ ctx })}</>;
+  // the `*` decision made (the ref cursor): a REFERENCE entered as PORTION cells - a server
+  // registry may project the PICK kit (completion hints) over the same cursor state instead
+  if (c.ref) {
+    if (ctx.cells.holePick) return <>{ctx.cells.holePick({ ctx })}</>;
+    return (
+      <Cell kind="pointer" active refused={ctx.refused}>
+        {c.ordinal === true && <DashMark />}
+        {c.key !== null && <span className="y2-k">{c.key}: </span>}
+        <PortionCells ctx={ctx} />
+      </Cell>
+    );
   }
   return (
     <Cell kind="hole" active refused={ctx.refused}>
       {c.ordinal === true && <DashMark />}
       {c.key !== null && <span className="y2-k">{c.key}: </span>}
-      <CellInput value={c.text} ctx={ctx} autoFocus />
+      <CellInput value={c.text} ctx={ctx} autoFocus caret={c.caret} />
     </Cell>
   );
 }
@@ -315,9 +413,12 @@ function KeyCell({ entry, path, ctx }: { entry: Entry; path: Path; ctx: CellCtx 
 function PointerCell({ node, path, ctx }: ValueCellProps) {
   const picking = ctx.cursor.at === "pick" && pathEq(ctx.cursor.path, path);
   const active = picking || (ctx.cursor.at === "ptr" && pathEq(ctx.cursor.path, path));
+  const refCursor = picking && (ctx.cursor as { ref?: unknown }).ref !== undefined;
   return (
     <Cell kind="pointer" active={active} refused={ctx.refused} pos={{ at: "ptr", path }}>
-      {picking
+      {refCursor
+        ? <PortionCells ctx={ctx} />
+        : picking
         ? <span className="y2-p y2-pick">
             <span className="y2-punct">*</span>
             <CellInput value={(ctx.cursor as { text: string }).text} ctx={ctx} autoFocus caret={(ctx.cursor as { caret?: "start" | "end" }).caret} />

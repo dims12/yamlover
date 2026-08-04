@@ -305,7 +305,8 @@ describe("yed2 — REFERENCE ENTRY: `*` in a hole commits a pointer", () => {
     const alone = type("k: *{Enter}");
     expect(alone.refused).toBe(true);
     expect(src(alone)).toBe(""); // the empty document — nothing landed
-    expect(alone.cursor).toMatchObject({ at: "hole", text: "*", key: "k" });
+    // the `*` decision stands as the ref cursor (empty portions) - the text was never lost
+    expect(alone.cursor).toMatchObject({ at: "hole", text: "", key: "k", ref: { ladder: 0, portions: [""], active: 0 } });
     const garbage = type("k: *::{Enter}");
     expect(garbage.refused).toBe(true);
     expect(src(garbage)).toBe("");
@@ -327,7 +328,8 @@ describe("yed2 — REFERENCE ENTRY: `*` in a hole commits a pointer", () => {
     let s = load("a: *x\nb: 1\n");
     s = { ...s, cursor: { at: "ptr", path: [0] } };
     s = applyKey(s, { key: "Enter" });
-    expect(s.cursor).toEqual({ at: "pick", path: [0], text: "x", caret: "end" });
+    // the raw decomposes into PORTION cells - one portion here, the caret in it
+    expect(s.cursor).toEqual({ at: "pick", path: [0], text: "x", ref: { ladder: 0, portions: ["x"], active: 0 }, caret: "end" });
     watchdog(s);
     // retype the raw wholesale (the controlled input's onChange path)
     s = applyKey({ ...s, cursor: { ...s.cursor, text: "pets: 1" } as never }, { key: "Enter" });

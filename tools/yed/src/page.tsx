@@ -7,15 +7,17 @@
 // state, the corpus picker and document-level copy/paste.
 
 import { useMemo, useState } from "react";
-import { applyKey, applyText, blockEditText, commitPending, copySubtree, positionsOf, siteOf, watchdog, type Position } from "./apply";
+import { applyKey, applyText, blockEditText, commitPending, copySubtree, focusPortion, positionsOf, siteOf, watchdog, type Position } from "./apply";
 import { pasteText } from "./paste";
 import { interpret } from "./grammar/dispatch";
 import { defaultRegistry, DocCells, type CellCtx, type CellRegistry } from "./cells";
 import { lineDiff } from "./diff";
 import { Legend } from "./legend";
 import { anchorDecorations, initialState, parseSource, schemaTextOf, sourceOf, trySourceOf, type Cursor, type EditorState } from "./state";
+import { docHints, type HintProvider } from "./complete";
+import { portionsOfRaw } from "./grammar/portions";
 
-export function EditorView({ state, setState, debug = true, cells = defaultRegistry, plantCaret = true, host }: { state: EditorState; setState: (s: EditorState) => void; debug?: boolean; cells?: CellRegistry; plantCaret?: boolean; host?: { base: string; doc: string } }) {
+export function EditorView({ state, setState, debug = true, cells = defaultRegistry, plantCaret = true, host, hints }: { state: EditorState; setState: (s: EditorState) => void; debug?: boolean; cells?: CellRegistry; plantCaret?: boolean; host?: { base: string; doc: string }; hints?: HintProvider }) {
   const site = siteOf(state);
   const source = sourceOf(state.doc);
   const last = state.log[state.log.length - 1];
@@ -42,9 +44,23 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
     pick: {
       commitHole: (raw) => {
         if (state.cursor.at !== "hole") return false;
-        const next = applyKey({ ...state, cursor: { ...state.cursor, text: "*" + raw } }, { key: "Enter" });
+        // a WHOLE-raw commit: the flat `*`-text path (ref stripped - the kit already joined)
+        const next = applyKey({ ...state, cursor: { ...state.cursor, ref: undefined, text: "*" + raw } }, { key: "Enter" });
+        // a REFUSAL keeps the PORTION cursor - the stripped text must not land (the kit face
+        // would unmount) and the refused raw folds BACK into the portions, so the typed text
+        // stands on screen with the ring (hints are never validators, and neither is commit)
+        if (next.refused) {
+          const { ladder, portions } = portionsOfRaw(raw);
+          const active = Math.max(0, portions.length - 1);
+          apply({
+            ...state,
+            cursor: { ...state.cursor, ref: { ladder, portions, active }, text: portions[active] ?? "" },
+            refused: true,
+          });
+          return false;
+        }
         apply(next);
-        return !next.refused;
+        return true;
       },
       commitAt: (path, raw) => {
         const next = applyKey({ ...state, cursor: { at: "pick", path, text: raw } }, { key: "Enter" });
@@ -54,7 +70,7 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
       cancel: (path) => apply({ ...state, cursor: { at: "ptr", path }, refused: false }),
       removeAt: (path) => apply(applyKey({ ...state, cursor: { at: "pick", path, text: "" } }, { key: "Backspace" })),
       dismantle: () => {
-        if (state.cursor.at === "hole") apply({ ...state, cursor: { ...state.cursor, text: "" }, refused: false });
+        if (state.cursor.at === "hole") apply({ ...state, cursor: { ...state.cursor, ref: undefined, text: "" }, refused: false });
         else if (state.cursor.at === "pick") apply({ ...state, cursor: { at: "ptr", path: state.cursor.path }, refused: false });
       },
     },
@@ -85,6 +101,8 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
       if (next !== state) { e.preventDefault(); apply(next); }
     },
     onText: (text) => apply(applyText(state, text)),
+    onPortion: (index) => apply(focusPortion(state, index)),
+    hints,
     onAppend: (path, index) => apply({ ...state, cursor: { at: "hole", path, index, text: "", key: null }, refused: false }),
     onFocus: (pos: Position) => {
       const cursor: Cursor =
@@ -235,7 +253,9 @@ export function DebugEditorPage({ corpus }: { corpus: Record<string, string> }) 
         <label className="y2-mode"><input type="checkbox" checked={debug} onChange={(e) => setDebug(e.target.checked)} /> debug</label>
         {loadError && <span className="y2-loaderr">parse failed: {loadError}</span>}
       </header>
-      <EditorView state={state} setState={setState} debug={debug} />
+      {/* the debug editor's hints come from the document ITSELF (complete.ts docHints) -
+          the pointer entrance pops its dropdown with no server anywhere */}
+      <EditorView state={state} setState={setState} debug={debug} hints={docHints} />
     </div>
   );
 }

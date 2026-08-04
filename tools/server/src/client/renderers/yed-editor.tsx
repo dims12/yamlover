@@ -18,7 +18,7 @@ import type { CellRegistry } from "../../../../yed/src/cells";
 import { type Document, type EditorState } from "../../../../yed/src/state";
 import { editChunks, rekeyNode } from "../api";
 import { fetchContent } from "../content";
-import { makeSourceCells } from "./yed-cells";
+import { makeSourceCells, treeHints } from "./yed-cells";
 import { irFromContent } from "./yed-content-load";
 import { diffToOps } from "./yed-sync";
 import "../../../../yed/src/yed.css";
@@ -101,5 +101,5 @@ export function YedEditor({ path, onNavigate, cells }: { path: string; onNavigat
   const debug = ((): boolean => {
     try { return new URLSearchParams(window.location.search).get("yed") === "debug"; } catch { return false; }
   })();
-  return <EditorView state={state} setState={update} debug={debug} cells={cells ?? serverCells} host={{ base: path, doc: docPathRef.current }} />;
+  return <EditorView state={state} setState={update} debug={debug} cells={cells ?? serverCells} host={{ base: path, doc: docPathRef.current }} hints={treeHints} />;
 }

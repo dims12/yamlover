@@ -73,10 +73,13 @@ describe("the chapter cell laws", () => {
     const h = mountChapter("Structured\n- some prose\n- *..:..:..\n");
     const ptr = h.container.querySelector('.y2-cell[data-kind=atom] .y2-p') as HTMLElement;
     fireEvent.keyDown(ptr, { key: "Enter" });
-    // the nested yed editor's pick cursor: the raw opens in an input (the retarget face)
+    // the nested yed editor's pick cursor: the raw decomposes into PORTION cells (the
+    // retarget face) - the caret's input holds the LAST portion, the rest are idle spans
     const input = h.container.querySelector('.y2-cell[data-kind=atom] .y2-pick input') as HTMLInputElement;
     expect(input).toBeTruthy();
-    expect(input.value).toBe("..:..:..");
+    expect(input.value).toBe("..");
+    const idle = h.container.querySelectorAll('.y2-cell[data-kind=atom] .y2-pick .y2-portion');
+    expect(Array.from(idle).map((el) => el.textContent)).toEqual(["..", ".."]);
     h.unmount();
   });
 

@@ -347,7 +347,7 @@ describe("yed chapter — tables and source chunks (Stage 7)", () => {
     expect(await flush()).toEqual([{ path: ":doc:1:serves", op: "emplace", yamlover: "6" }]);
   });
 
-  it("a REFERENCE typed in a source chunk mounts the PICK kit; the commit grafts and flushes COMPACT", async () => {
+  it("a REFERENCE typed in a source chunk opens the PORTION face; the commit grafts and flushes", async () => {
     const node = withTag(chapterNode({
       title: "Recipes",
       body: [
@@ -358,23 +358,22 @@ describe("yed chapter — tables and source chunks (Stage 7)", () => {
     const { container } = renderSync(node);
     await settle();
     const source = container.querySelector(".chunk-source")!;
-    // the sub-editor's fresh hole — `*` starts a reference; the chapter's sourceCells
-    // registry (makeSourceCells) mounts the query kit over it
+    // the sub-editor's fresh hole — `*` starts a reference: the PURE portion face (the
+    // chapter's sourceHints add completion over the same cells)
     const hole = source.querySelector<HTMLInputElement>(".y2-hole .y2-input")!;
     expect(hole, "the source chunk draws its entry hole").toBeTruthy();
-    // FOCUS the chunk first — an unfocused embedded editor never plants the caret, and the
-    // kit only claims the machine's first cell while it may hold focus
+    // FOCUS the chunk first — an unfocused embedded editor never plants the caret
     await act(async () => { fireEvent.focus(hole); });
     const hole2 = container.querySelector<HTMLInputElement>(".chunk-source .y2-hole .y2-input")!;
     await act(async () => { fireEvent.change(hole2, { target: { value: "*" } }); });
     // re-query — the re-render may have replaced the chunk's DOM subtree
-    const cell = container.querySelector<HTMLElement>(".chunk-source .y2-ptrwrap .crumb-cell")!;
-    expect(cell, "the PICK kit did not mount over the `*` hole").toBeTruthy();
-    // free-type a target and reduce — no match (the filter mock rejects) → verbatim commit
-    cell.textContent = "serves";
-    fireEvent.input(cell);
-    await act(async () => { fireEvent.keyDown(cell, { key: "Enter" }); vi.advanceTimersByTime(10); await Promise.resolve(); await Promise.resolve(); });
-    // the commit grafted into the chapter doc and the diff flushed ONE compact keyless insert
+    const cell = container.querySelector<HTMLInputElement>(".chunk-source .y2-portions .y2-input")!;
+    expect(cell, "the portion face did not open over the `*` hole").toBeTruthy();
+    // free-type a target — hints never gate; the grammar's Enter commits the joined raw
+    await act(async () => { fireEvent.change(cell, { target: { value: "serves" } }); });
+    const cell2 = container.querySelector<HTMLInputElement>(".chunk-source .y2-portions .y2-input")!;
+    await act(async () => { fireEvent.keyDown(cell2, { key: "Enter" }); vi.advanceTimersByTime(10); await Promise.resolve(); await Promise.resolve(); });
+    // the commit grafted into the chapter doc and the diff flushed ONE keyless insert
     expect(await flush()).toEqual([{ path: ":doc:1:0", op: "insert", yamlover: "*serves" }]);
   });
 

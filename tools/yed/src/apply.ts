@@ -11,9 +11,10 @@
 
 import { interpret, type Intent, type Site } from "./grammar/dispatch";
 import { classifyHoleInput, keyedEditParts } from "./grammar/keys";
+import { joinPortions, portionsOfRaw } from "./grammar/portions";
 import {
   blockRawOf, bracketOf, dialectOf, entryAt, isContainer, isFlow, isSpread, nodeAt, sourceOf, trySourceOf,
-  type Cursor, type Document, type EditorState, type Entry, type Node, type Path, type Value,
+  type Cursor, type Document, type EditorState, type Entry, type Node, type Path, type RefEntry, type Value,
 } from "./state";
 import { parseSchemaRef, parseYamlover, unquoteKey } from "../../parser/ts/src/yamlover.ts";
 import { schemaTagToken } from "../../parser/ts/src/serialize-yamlover.ts";
@@ -115,6 +116,36 @@ export function pointerFromText(text: string): Pointer | null {
   }
 }
 
+/** The full RAW a ref cursor's portions currently spell (no `*`): the committed portions with
+ *  the active cell's LIVE text folded in, joined under the scope ladder. */
+export function refRawOf(cursor: { text: string; ref?: RefEntry }): string {
+  const r = cursor.ref;
+  if (!r) return cursor.text;
+  const cells = [...r.portions];
+  cells[r.active] = cursor.text;
+  return joinPortions(cells, r.ladder);
+}
+
+/** Seed a RefEntry from an existing raw (a retarget) or a typed rest (the hole's `*` decision):
+ *  the spelling decomposes into portions, the caret takes the LAST cell. */
+export function refFromRaw(raw: string): { ref: RefEntry; text: string } {
+  const { ladder, portions } = portionsOfRaw(raw);
+  const cells = portions.length ? portions : [""];
+  return { ref: { ladder, portions: cells, active: cells.length - 1 }, text: cells[cells.length - 1] };
+}
+
+/** A click on an IDLE portion cell: the active cell's text stands (commitless, like the arrow
+ *  walk), the clicked one opens with the caret at its end. */
+export function focusPortion(state: EditorState, index: number): EditorState {
+  const { cursor } = state;
+  if ((cursor.at !== "hole" && cursor.at !== "pick") || !cursor.ref) return state;
+  const r = cursor.ref;
+  const portions = [...r.portions];
+  portions[r.active] = cursor.text;
+  const active = Math.max(0, Math.min(index, portions.length - 1));
+  return { ...state, refused: false, cursor: { ...cursor, ref: { ...r, portions, active }, text: portions[active], caret: "end" } };
+}
+
 /** An empty flow container node, bracket authored by the key typed. */
 function emptyFlow(bracket: "{" | "["): Node {
   return { kind: "mapping", entries: [], ...(bracket === "[" ? { array: true } : {}), meta: { style: "flow" } } as unknown as Node;
@@ -149,6 +180,19 @@ export function siteOf(state: EditorState): Site {
   if (cursor.at === "hole") {
     const container = nodeAt(doc, cursor.path);
     const kind = containerKind(container);
+    // the `*` decision made: the hole's face is the PORTION cells (the reference being entered)
+    if (cursor.ref) {
+      return {
+        ...base,
+        cell: "portion",
+        container: kind,
+        textEmpty: cursor.text.trim() === "",
+        entryDecided: true,
+        portionFirst: cursor.ref.active === 0,
+        portionLast: cursor.ref.active === cursor.ref.portions.length - 1,
+        ladder: cursor.ref.ladder,
+      };
+    }
     return {
       ...base,
       cell: kind === "block" ? "holeEntry" : "holeValue",
@@ -182,6 +226,19 @@ export function siteOf(state: EditorState): Site {
   }
   if (cursor.at === "pick") {
     const parent = nodeAt(doc, cursor.path.slice(0, -1));
+    // the portion face (the normal path); a ref-less pick is a host-synthesized whole-raw commit
+    if (cursor.ref) {
+      return {
+        ...base,
+        cell: "portion",
+        container: containerKind(parent),
+        textEmpty: cursor.text.trim() === "",
+        entryCommitted: true,
+        portionFirst: cursor.ref.active === 0,
+        portionLast: cursor.ref.active === cursor.ref.portions.length - 1,
+        ladder: cursor.ref.ladder,
+      };
+    }
     return { ...base, cell: "pick", container: containerKind(parent), textEmpty: cursor.text.trim() === "", entryCommitted: true };
   }
   // after — the gap past the container at cursor.path
@@ -453,7 +510,7 @@ export function commitPending(state: EditorState): EditorState | null {
   const { doc, cursor } = state;
   const d = dialectOf(state);
   if (cursor.at === "hole") {
-    if (cursor.text.trim() === "" && cursor.key === null) return state; // nothing pending
+    if (!cursor.ref && cursor.text.trim() === "" && cursor.key === null) return state; // nothing pending
     const container = nodeAt(doc, cursor.path);
     if (!container) return null;
     if (cursor.key === null && bracketOf(container) === "{" && isFlow(container)) return null; // an unnamed pair cannot land in `{`
@@ -464,8 +521,10 @@ export function commitPending(state: EditorState): EditorState | null {
     // wholesale exception mirrors the scalar law: the EMPTY container a `k:` ⏎ descend
     // opened takes the pointer as the entry's whole value (`k: *x` in two gestures) — never
     // the ROOT, which must stay a document.
-    if (cursor.text.trim().startsWith("*") && d.pointers) {
-      const ptr = pointerFromText(cursor.text.trim().slice(1));
+    if ((cursor.ref !== undefined || cursor.text.trim().startsWith("*")) && d.pointers) {
+      // the portion face joins its cells; a legacy flat `*`-text commits its tail verbatim
+      const raw = cursor.ref !== undefined ? refRawOf(cursor) : cursor.text.trim().slice(1);
+      const ptr = pointerFromText(raw);
       if (!ptr) return null; // not a pointer the wire can carry — the ring, the text stands
       if (cursor.key === null && cursor.ordinal !== true && !isFlow(container)
           && container.kind === "mapping" && (container.entries ?? []).length === 0 && cursor.path.length > 0) {
@@ -515,7 +574,9 @@ export function commitPending(state: EditorState): EditorState | null {
     if (!e || !isPointer(e.value)) return null;
     const prev = e.value as Pointer;
     // a typed/pasted leading sigil is tolerated — the cell edits the RAW, the `*` is chrome
-    const t = cursor.text.trim().replace(/^\*/, "");
+    // the portion face joins its cells; on the flat face a typed/pasted leading sigil is
+    // tolerated - the cell edits the RAW, the `*` is chrome
+    const t = cursor.ref !== undefined ? refRawOf(cursor).trim() : cursor.text.trim().replace(/^\*/, "");
     if (t === prev.raw) return state; // unchanged — leaving is not an edit
     const ptr = pointerFromText(t);
     if (!ptr) return null; // not a pointer — the ring, the text stands
@@ -896,12 +957,17 @@ function restCursor(node: Node, path: Path): Cursor {
 // ---------------------------------------------------------------------------- //
 
 export interface KeyInput { key: string; shift?: boolean }
-export interface Edges { atStart: boolean; atEnd: boolean; firstLine?: boolean; lastLine?: boolean }
+export interface Edges { atStart: boolean; atEnd: boolean; firstLine?: boolean; lastLine?: boolean; offset?: number }
 
 /** The cursor's text replaced wholesale (a controlled input's onChange — native caret, selection,
  *  mid-text edits and text-level paste all included), then the hole classifier runs. */
 export function applyText(state: EditorState, text: string): EditorState {
   const { cursor } = state;
+  // a PORTION cell's leading whitespace is formatting, never content (the hole's own rule:
+  // the space after a committed `:` belongs to the previous portion's styling)
+  if ((cursor.at === "hole" || cursor.at === "pick") && cursor.ref !== undefined) {
+    return ok({ ...state, cursor: { ...cursor, text: text.replace(/^\s+/, "") } });
+  }
   if (cursor.at === "token" || cursor.at === "key" || cursor.at === "tag" || cursor.at === "anchors" || cursor.at === "pick") return ok({ ...state, cursor: { ...cursor, text } });
   if (cursor.at !== "hole") return state;
   return classifyHole(ok({ ...state, cursor: { ...cursor, text } }));
@@ -917,6 +983,7 @@ export function applyKey(state: EditorState, k: KeyInput, edges?: Edges): Editor
     ...(edges ? { caretAtStart: edges.atStart, caretAtEnd: edges.atEnd } : {}),
     ...(edges?.firstLine !== undefined ? { caretFirstLine: edges.firstLine } : {}),
     ...(edges?.lastLine !== undefined ? { caretLastLine: edges.lastLine } : {}),
+    ...(edges?.offset !== undefined ? { caretOffset: edges.offset } : {}),
   };
   const intent = interpret({ key: k.key, shift: k.shift }, site);
   // the table calls both arrow axes "move"; the vertical pair walks ROWS, not positions — and
@@ -943,6 +1010,11 @@ export function applyKey(state: EditorState, k: KeyInput, edges?: Edges): Editor
 function applyPrintable(state: EditorState, ch: string): EditorState {
   if (ch.length !== 1) return state;
   const { cursor } = state;
+  // a PORTION cell: a space typed into the EMPTY cell is formatting (the `: ` habit), consumed
+  if ((cursor.at === "hole" || cursor.at === "pick") && cursor.ref !== undefined) {
+    if (ch === " " && cursor.text === "") return ok(state);
+    return ok({ ...state, cursor: { ...cursor, text: cursor.text + ch } });
+  }
   if (cursor.at === "token" || cursor.at === "key" || cursor.at === "tag" || cursor.at === "anchors" || cursor.at === "pick") {
     return ok({ ...state, cursor: { ...cursor, text: cursor.text + ch } });
   }
@@ -1021,7 +1093,13 @@ function classifyHole(state: EditorState): EditorState {
       cursor: { at: "tag", path: [...cursor.path, cursor.index], text: "" },
     };
   }
-  return state; // quote/pointer/block: D3
+  if (action.kind === "pointer" && d.pointers) {
+    // the `*` DECISION: the hole becomes the reference's PORTION cells (state.ts RefEntry) -
+    // the entry's shape is decided (a pointer value), and the portions accumulate in the
+    // cursor alone until the joined reference parses on commit (cursor-level commits)
+    return { ...state, cursor: { ...cursor, ...refFromRaw(action.rest) } };
+  }
+  return state; // quote/block (and a dialect-refused pointer): D3
 }
 
 function applyIntent(state: EditorState, intent: Intent, site: Site): EditorState {
@@ -1148,6 +1226,12 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
     }
 
     case "undoMarker": {
+      if (cursor.at === "hole" && cursor.ref !== undefined) {
+        // the `*` decision undone - back to the plain empty hole (the portions lived only in
+        // the cursor, so nothing else changes; one press, one level)
+        const { ref: _ref, caret: _caret, ...rest } = cursor;
+        return ok({ ...state, cursor: { ...rest, text: "" } });
+      }
       if (cursor.at === "hole" && cursor.key !== null) {
         return ok({ ...state, cursor: { ...cursor, key: null, text: cursor.key } });
       }
@@ -1333,7 +1417,60 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       if (cursor.at !== "ptr") return refuse(state);
       const v = entryAt(doc, cursor.path)?.value;
       if (!v || !isPointer(v)) return refuse(state);
-      return ok({ ...state, cursor: { at: "pick", path: cursor.path, text: (v as Pointer).raw ?? "", caret: "end" } });
+      // the raw decomposes into PORTION cells (state.ts RefEntry), caret in the last one
+      return ok({ ...state, cursor: { at: "pick", path: cursor.path, ...refFromRaw((v as Pointer).raw ?? ""), caret: "end" } });
+    }
+
+    // ---- the PORTION grammar - a reference entered as cells, wholly in the cursor ---------- //
+    case "portionSplit": {
+      if ((cursor.at !== "hole" && cursor.at !== "pick") || !cursor.ref) return refuse(state);
+      const r = cursor.ref;
+      const off = Math.min(site.caretOffset ?? cursor.text.length, cursor.text.length);
+      const portions = [...r.portions];
+      portions[r.active] = cursor.text.slice(0, off);
+      portions.splice(r.active + 1, 0, cursor.text.slice(off));
+      return ok({ ...state, cursor: { ...cursor, ref: { ...r, portions, active: r.active + 1 }, text: cursor.text.slice(off), caret: "start" } });
+    }
+    case "portionMerge": {
+      if ((cursor.at !== "hole" && cursor.at !== "pick") || !cursor.ref) return refuse(state);
+      const r = cursor.ref;
+      const portions = [...r.portions];
+      portions[r.active] = cursor.text;
+      const i = intent.dir < 0 ? r.active - 1 : r.active;
+      if (i < 0 || i + 1 >= portions.length) return refuse(state);
+      const junction = portions[i].length; // the caret lands at the JOIN, like a text-editor join
+      const merged = portions[i] + portions[i + 1];
+      portions.splice(i, 2, merged);
+      return ok({ ...state, cursor: { ...cursor, ref: { ...r, portions, active: i }, text: merged, caret: junction } });
+    }
+    case "portionFold": {
+      // `[` in an empty portion: the index belongs to the PREVIOUS portion - `pets` `:` `[`
+      // spells `pets[|]`, never the non-canonical `pets: [1]`; the pair projects, caret inside
+      if ((cursor.at !== "hole" && cursor.at !== "pick") || !cursor.ref) return refuse(state);
+      const r = cursor.ref;
+      if (r.active === 0 || cursor.text.trim() !== "") return refuse(state);
+      const portions = [...r.portions];
+      const merged = portions[r.active - 1] + "[]";
+      portions.splice(r.active - 1, 2, merged);
+      return ok({ ...state, cursor: { ...cursor, ref: { ...r, portions, active: r.active - 1 }, text: merged, caret: merged.length - 1 } });
+    }
+    case "portionMove": {
+      // arrows walk BETWEEN portion cells commitlessly - the leaving cell's text just stands
+      if ((cursor.at !== "hole" && cursor.at !== "pick") || !cursor.ref) return refuse(state);
+      const r = cursor.ref;
+      const portions = [...r.portions];
+      portions[r.active] = cursor.text;
+      const active = r.active + intent.dir;
+      if (active < 0 || active >= portions.length) return refuse(state);
+      return ok({ ...state, cursor: { ...cursor, ref: { ...r, portions, active }, text: portions[active], caret: intent.dir < 0 ? "end" : "start" } });
+    }
+    case "scope": {
+      // the ladder climbs/descends (clamped 0..3) - more colons, wider scope
+      if ((cursor.at !== "hole" && cursor.at !== "pick") || !cursor.ref) return refuse(state);
+      const r = cursor.ref;
+      const ladder = Math.min(3, Math.max(0, r.ladder + intent.dir)) as RefEntry["ladder"];
+      if (ladder === r.ladder) return refuse(state);
+      return ok({ ...state, cursor: { ...cursor, ref: { ...r, ladder } } });
     }
 
     case "commit": {
@@ -1345,7 +1482,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       }
       // `k:` + Enter — the LEVEL RULE's descend spelled without the trailing space: the bare-colon
       // text is a key decision the plain classifier only makes when Enter confirms it
-      if (cursor.at === "hole" && cursor.key === null) {
+      if (cursor.at === "hole" && cursor.key === null && cursor.ref === undefined) {
         const act = classifyHoleInput(cursor.text, true, /*enterPressed*/ true);
         if (act && act.kind === "keyed" && act.viaEnter) {
           const child: Node = { kind: "mapping", entries: [] } as unknown as Node;
@@ -1361,7 +1498,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       // scalar materializes per the hole's shape and the cursor takes the header-with-newline
       // spelling (siteOf's blockToken bit → the textarea face) — the document stays valid, the
       // incomplete body lives in the cursor, exactly the hole doctrine.
-      if (cursor.at === "hole") {
+      if (cursor.at === "hole" && cursor.ref === undefined) {
         const act = classifyHoleInput(cursor.text, true, /*enterPressed*/ true);
         if (act && act.kind === "block") {
           const container = nodeAt(doc, cursor.path);

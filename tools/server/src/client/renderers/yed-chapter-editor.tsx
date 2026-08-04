@@ -31,7 +31,7 @@ import {
 import { rolesOf } from "../../../../yed/src/chapter/legend";
 import { createColumnMemory } from "../../../../yed/src/chapter/caret";
 import { editChunks, fetchNode, pasteFileInline, rekeyNode, type NodeJson } from "../api";
-import { makeSourceCells } from "./yed-cells";
+import { makeSourceCells, treeHints } from "./yed-cells";
 import { fetchContent } from "../content";
 import { irFromContent } from "./yed-content-load";
 import { diffToOps } from "./yed-sync";
@@ -237,6 +237,8 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
     // the SERVER registry: PICK-mode reference cells + link atoms in source chunks (future
     // math cells register byFormat entries over this same object)
     sourceCells: makeSourceCells({ navigate: onNavigate }),
+    // completion over a source chunk's reference portion cells - the tree-backed provider
+    sourceHints: treeHints,
     // a source chunk's wire addresses — its reference cells spell and address from here
     sourceHost: (p) => {
       const doc = stateRef.current?.doc;

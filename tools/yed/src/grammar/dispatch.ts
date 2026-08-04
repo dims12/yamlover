@@ -5,8 +5,8 @@
 // here and only here — the per-cell handlers hold no grammar of their own, which is what makes
 // the same edit behave identically in every context (THE LAW, yed-*.matrix).
 //
-// YAMLOVER_EDITOR.yo mirrors this table state for state; keep the two in sync (the table
-// test iterates the diagram's transitions against `interpret`).
+// docs/server/yamlover-editor (the machine chapter) mirrors this table state for state; keep
+// the two in sync (the table test iterates the diagram's transitions against `interpret`).
 
 /** WHERE the caret stands. Everything the grammar may branch on — nothing else may. */
 export interface Site {
@@ -16,7 +16,7 @@ export interface Site {
    *  place (Enter opens `pick`); `pick` is a pointer's RAW being edited (the reference cell);
    *  `tag` is a node's editable `!!<…>` tag cell (its INNER text). Quotes are ORDINARY
    *  CHARACTERS of a token — there is no quote mode and no quote gap. */
-  cell: "holeEntry" | "holeValue" | "token" | "key" | "gapClose" | "atom" | "pick" | "tag" | "anchors";
+  cell: "holeEntry" | "holeValue" | "token" | "key" | "gapClose" | "atom" | "pick" | "tag" | "anchors" | "portion";
   /** The container the caret's entry lives in. */
   container: "block" | "flowMap" | "flowSeq";
   /** For gaps: the kind of the token AROUND this one (undefined ⇒ not nested in a flow token). */
@@ -37,6 +37,14 @@ export interface Site {
   /** Token cells only: the cursor holds a `|`/`>` BLOCK spelling (a newline in the text — an
    *  input can never hold one). Enter is the textarea's newline, not a commit. */
   blockToken?: boolean;
+  /** Portion cells only (a reference being entered as PORTIONS): is the active portion the
+   *  first/last one, and the scope ladder the row opens with (0 bare .. 3 world). */
+  portionFirst?: boolean;
+  portionLast?: boolean;
+  ladder?: number;
+  /** The caret's character offset in the active text cell, when the projection reports it
+   *  (a mid-text `:` splits a portion AT the caret). Undefined: assume the end. */
+  caretOffset?: number;
 }
 
 export type Dir = -1 | 1;
@@ -63,6 +71,11 @@ export type Intent =
   | { kind: "siblingBefore" }               // Enter at the HEAD of a committed row: the row is
                                             //   pushed down, a fresh sibling hole opens BEFORE it
   | { kind: "pick" }                        // Enter on a pointer atom: open its raw for editing
+  | { kind: "portionSplit" }                // `:` in a portion cell: commit it, open the next
+  | { kind: "portionMerge"; dir: Dir }      // Backspace at a portion head / Delete at its end
+  | { kind: "portionFold" }                 // `[` in an empty portion: an index of the PREVIOUS one
+  | { kind: "portionMove"; dir: Dir }       // arrows between portion cells (commitless walk)
+  | { kind: "scope"; dir: Dir }             // the scope ladder climbs (`:`) / descends (Backspace)
   | { kind: "nop" };                        // consumed, nothing happens (Enter in an empty
                                             //   entry hole must not insert a DOM newline)
 
@@ -104,6 +117,39 @@ export function interpret(k: Key, s: Site): Intent | null {
   // The pure face is a plain text cell over the raw; a server host overlays the query kit on
   // the SAME cursor state (QUERY_EDITOR.yo owns that inner grammar). Commit parses-or-refuses;
   // leaving with arrows commits too — nothing is ever lost, garbage refuses the move.
+  // ---- a PORTION cell -- ONE portion of a reference being entered (the key-value gesture,
+  // repeated). The portions live in the CURSOR; Enter joins them and parses-or-refuses.
+  // `:` commits the portion and opens the next -- in the EMPTY FIRST cell it climbs the scope
+  // ladder instead (more colons, wider scope); Backspace at the first cell's head descends it,
+  // and on the emptied floor undoes the `*` decision (hole) / removes the reference (retarget).
+  if (s.cell === "portion") {
+    if (k.key === "Enter") return { kind: "commit", submit: true };
+    if (k.key === ":") {
+      if (s.textEmpty && s.portionFirst && (s.ladder ?? 0) < 3) return { kind: "scope", dir: 1 };
+      return { kind: "portionSplit" };
+    }
+    if (k.key === "[" && s.textEmpty && !s.portionFirst) return { kind: "portionFold" };
+    if (k.key === "Backspace" && s.caretAtStart) {
+      if (!s.portionFirst) return { kind: "portionMerge", dir: -1 };
+      if ((s.ladder ?? 0) > 0) return { kind: "scope", dir: -1 };
+      if (s.textEmpty && s.portionLast) {
+        // the floor: the `*` decision undoes (hole) / the emptied reference goes (retarget)
+        return s.entryCommitted ? { kind: "removeLevel" } : { kind: "undoMarker" };
+      }
+      return { kind: "move", dir: -1 };
+    }
+    if (k.key === "Delete" && s.caretAtEnd && !s.portionLast) return { kind: "portionMerge", dir: 1 };
+    if (k.key === "," && inFlow(s)) return { kind: "nextElement", spread: false };
+    if ((k.key === "]" || k.key === "}") && inFlow(s)) {
+      return k.key === closerOf(s) ? { kind: "closeToken", closer: k.key } : { kind: "refuse" };
+    }
+    if (k.key === "Tab") return inFlow(s) ? { kind: "move", dir: k.shift ? -1 : 1 } : k.shift ? { kind: "dedent" } : { kind: "indent" };
+    if (k.key === "ArrowLeft" && s.caretAtStart) return s.portionFirst ? { kind: "move", dir: -1 } : { kind: "portionMove", dir: -1 };
+    if (k.key === "ArrowRight" && s.caretAtEnd) return s.portionLast ? { kind: "move", dir: 1 } : { kind: "portionMove", dir: 1 };
+    if (k.key === "ArrowUp") return { kind: "move", dir: -1 };
+    if (k.key === "ArrowDown") return { kind: "move", dir: 1 };
+    return null; // printables: native text editing of the portion
+  }
   if (s.cell === "pick") {
     if (k.key === "Enter") return { kind: "commit", submit: true };
     if (k.key === "Backspace" && s.textEmpty) return { kind: "removeLevel" }; // the emptied reference goes

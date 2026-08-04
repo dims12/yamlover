@@ -70,18 +70,15 @@ describe("the yed mount — real server, real file", () => {
     } finally { m.done(); }
   });
 
-  it("a REFERENCE typed through the PICK kit lands COMPACT on disk (the isPointerValue gate)", async () => {
+  it("a REFERENCE typed through the PORTION cells lands on disk (the isPointerValue gate)", async () => {
     const m = await mount("pets:\n  - one\n  - two\n");
     try {
-      typeKeys("k: *"); // `k: ` names the pair; `*` mounts the query kit over the hole
-      const cell = await waitFor(() => {
-        const c = document.querySelector<HTMLElement>(".y2-ptrwrap .crumb-cell");
-        expect(c, "the kit did not mount over the `*` hole").toBeTruthy();
-        return c!;
-      });
-      cell.textContent = "pets[1]"; // the legacy alias spelling — the reduce respells it
-      fireEvent.input(cell);
-      fireEvent.keyDown(cell, { key: "Enter" });
+      // `k: ` names the pair; `*` opens the PORTION face over the hole (the pure grammar -
+      // the server only adds completion hints over the same cells); `:` splits the portion
+      typeKeys("k: *");
+      await waitFor(() => expect(document.querySelector(".y2-portions .y2-input"),
+        "the portion face did not open over the `*` hole").toBeTruthy());
+      typeKeys("pets: 1⏎");
       await waitFor(() => expect(fs.readFileSync(m.bodyPath, "utf8")).toContain("*pets:1"), { timeout: 3000 });
       await settleOps();
       expect(m.alerts, `the server rejected the pointer flush: ${m.alerts.join(" | ")}`).toEqual([]);

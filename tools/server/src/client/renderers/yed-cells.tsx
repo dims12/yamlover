@@ -1,147 +1,66 @@
-// THE SERVER CELL REGISTRY — yed's cell zoo grown with server awareness (EDITOR.md §4).
-// ONE registry serves both mounts — the source editor (yed-editor.tsx) and the chapter
-// projection (adapter.sourceCells) — the architecture law: capability enters yed by
+// THE SERVER CELL REGISTRY - yed's cell zoo grown with server awareness (EDITOR.md section 4).
+// ONE registry serves both mounts - the source editor (yed-editor.tsx) and the chapter
+// projection (adapter.sourceCells) - the architecture law: capability enters yed by
 // EXTENDING the registry, never by forking the stack.
 //
-// - `byKind.pointer` / `holePick`: the reference cells host the SHARED query-cell kit
-//   (query-cells.tsx — the breadcrumb machinery in PICK mode): server-backed candidates at
-//   the HOLDER (`GET /api/query`), the scope ladder (`*` bare / `*:` / `*::` / `*:::`),
-//   live TOC filtering through the shared session, TOC-click insertion, Enter reducing the
-//   query to a pointer. The kit is CELL-LOCAL (async, DOM); every commit funnels through
-//   `ctx.pick` into the pure apply layer — yed's core never sees a promise.
+// - references: entry and retarget are the PURE editor's PORTION cells (yed cells.tsx /
+//   grammar/portions.ts) - the server adds only COMPLETION over them: `treeHints` below is
+//   the HintProvider a server mount passes to EditorView, answering each portion cell with
+//   the context's REAL children over `GET /api/query` (query-complete.ts). Hints advise and
+//   never gate typing (pointer-hints doctrine); with the wire down the cells work bare.
+// - `byKind.pointer`: the idle atom face plus the go-to-target affordance.
 // - `byKind.blob`: a `$yamloverLink` member draws its descend hyperlink (the read-only
 //   view's affordance) while staying a walkable, deletable atom.
 
-import { useEffect, type ReactNode } from "react";
-import { Cell, defaultRegistry, type CellCtx, type CellRegistry, type ValueCellProps } from "../../../../yed/src/cells";
+import { type ReactNode } from "react";
+import { Cell, defaultRegistry, type CellRegistry, type ValueCellProps } from "../../../../yed/src/cells";
+import type { Hint, HintProvider } from "../../../../yed/src/complete";
+import { joinPortions } from "../../../../yed/src/grammar/portions";
 import type { Node, Path } from "../../../../yed/src/state";
 import type { Pointer } from "../../../../parser/ts/src/ir.ts";
-import { QueryCells, useQueryCellHost } from "../query-cells";
-import { treeCandidateProvider } from "../query-complete";
-import { pointerCells, spellCells, spellPointer } from "../pointer-spell";
-import { useTocFilter } from "../toc-filter-session";
+import { treeCandidateProvider, type Candidate } from "../query-complete";
 import { serverPathOf } from "./yed-sync";
 
 const pathEq = (a: Path, b: Path): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
 
-/** The wire address of a CONTAINER (the holder a bare `*` resolves at) — the same addressing
- *  law the sync's ops use (serverPathOf), so the cell and the ops can never disagree. */
-const containerAddr = (ctx: CellCtx, containerPath: Path): string =>
-  serverPathOf(ctx.host?.base ?? ":", ctx.doc, containerPath);
-const docAddr = (ctx: CellCtx): string => ctx.host?.doc ?? ctx.host?.base ?? ":";
+/** The SERVER completion provider - ONE stable value for every mount. The bare scope's
+ *  holder is the cursor's container spelled onto the wire (serverPathOf - the same
+ *  addressing law the sync's ops use, so the hints and the ops can never disagree); the
+ *  committed portions join to the context query and the wire answers with the context's
+ *  real children (plus the query grammar's operator rows). A wire failure is an empty
+ *  list - hints, never validators. */
+export const treeHints: HintProvider = async (q): Promise<Hint[]> => {
+  const holder = serverPathOf(q.host?.base ?? ":", q.doc, q.path);
+  const cands: Candidate[] = await treeCandidateProvider(holder)(joinPortions(q.portions, q.ladder), q.prefix);
+  return cands.map((c) =>
+    c.kind === "key"
+      ? { insert: c.insert, detail: c.node.label !== c.insert ? c.node.label : undefined }
+      : { insert: c.insert, detail: c.detail });
+};
 
-/** The kit over ONE reference edit — shared by the hole face (entry) and the pick face
- *  (retarget). `raw` seeds the idle spelling; commits go up through the callbacks (the
- *  pure layer decides; false keeps the typed text with the ring — hints are never
- *  validators). Abandonment needs no wiring: clicking another cell moves the cursor and
- *  the un-committed edit simply never lands (the document was never touched). */
-function PickKit({ ctx, raw, holder, onCommit, onEmptyBackspace }: {
-  ctx: CellCtx;
-  raw: string;
-  holder: string;
-  onCommit: (raw: string) => void;
-  onEmptyBackspace: () => void;
-}) {
-  const session = useTocFilter();
-  const docPath = docAddr(ctx);
-  const host = useQueryCellHost({
-    ctx: () => ({
-      mode: "pick",
-      ladder: pointerCells(raw).ladder,
-      idlePortions: () => pointerCells(raw).portions,
-      spell: (path, ladder) => spellCells(path, holder, ladder, docPath),
-    }),
-    provider: (q, prefix) => treeCandidateProvider(holder)(q, prefix),
-    onSelect: (path, meta) => {
-      if (meta && meta.query.trim() === "") return; // an empty query's Enter is a nop
-      if (path !== null) onCommit(spellPointer(path, holder, meta?.ladder ?? 1, docPath));
-      else if (meta) onCommit(meta.query); // free-typed: verbatim if the wire accepts it
-    },
-    session,
-  });
-  // the face mounted with the caret conceptually here — the kit claims the DOM focus (the
-  // hole input / atom span just unmounted; the focus law forbids the caret falling to BODY)
-  useEffect(() => {
-    if (ctx.plantCaret !== false) host.dispatch({ type: "FOCUS_CELL", caret: "end" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const editing = host.state.mode === "editing";
-  const idle = pointerCells(raw);
-  const ladder = editing && host.state.mode === "editing" ? host.state.ladder : idle.ladder;
-  return (
-    <span className="y2-p y2-pick">
-      <span className="y2-punct">*</span>
-      {ladder > 0 && <span className="y2-punct y2-scope">{":".repeat(ladder)}</span>}
-      <span
-        className="y2-ptrwrap"
-        tabIndex={-1}
-        onFocus={(e) => {
-          // focus landing on the wrapper (the walk, a click on the frame) forwards into the
-          // machine, which places the caret in a cell — the legacy PointerCell's rule
-          if (e.target === e.currentTarget) host.dispatch({ type: "FOCUS_CELL", caret: "end" });
-        }}
-      >
-        <QueryCells host={host} idlePortions={idle.portions} scopeKeys onEmptyBackspace={onEmptyBackspace} className="y2-ptrcells" />
-      </span>
-    </span>
-  );
-}
-
-/** The `*`-led HOLE face — a reference being entered (YAMLOVER_EDITOR.yo pointer_entry). */
-function ServerPointerHole({ ctx }: { ctx: CellCtx }) {
-  const c = ctx.cursor;
-  if (c.at !== "hole") return null;
-  const raw = c.text.trimStart().replace(/^\*/, "");
-  return (
-    <Cell kind="pointer" active refused={ctx.refused}>
-      {c.ordinal === true && <span className="y2-punct">- </span>}
-      {c.key !== null && <span className="y2-k">{c.key}: </span>}
-      <PickKit
-        ctx={ctx}
-        raw={raw}
-        holder={containerAddr(ctx, c.path)}
-        onCommit={(r) => void ctx.pick?.commitHole(r)}
-        onEmptyBackspace={() => ctx.pick?.dismantle()}
-      />
-    </Cell>
-  );
-}
-
-/** The pointer VALUE cell: idle = the pure atom face plus the ↗ target affordance; the
- *  `pick` cursor here = the kit seeded from the raw (retarget). */
+/** The pointer VALUE cell: the pure face (idle atom / PICK portion cells) plus the server's
+ *  go-to-target affordance on the idle atom. */
 function ServerPointerCell(props: ValueCellProps & { navigate: (p: string) => void }) {
   const { node, path, ctx, navigate } = props;
   const picking = ctx.cursor.at === "pick" && pathEq(ctx.cursor.path, path);
-  if (!picking) {
-    const refPath = (node as Pointer & { refPath?: string }).refPath;
-    return (
-      <>
-        {defaultRegistry.byKind.pointer!(props)}
-        {refPath !== undefined && (
-          <a
-            className="descend y2-refnav"
-            href={refPath}
-            title="go to the target"
-            onClick={(e) => { e.preventDefault(); navigate(refPath); }}
-          >↗</a>
-        )}
-      </>
-    );
-  }
+  if (picking) return <>{defaultRegistry.byKind.pointer!(props)}</>;
+  const refPath = (node as Pointer & { refPath?: string }).refPath;
   return (
-    <Cell kind="pointer" active refused={ctx.refused} pos={{ at: "ptr", path }}>
-      <PickKit
-        ctx={ctx}
-        raw={(ctx.cursor as { text: string }).text}
-        holder={containerAddr(ctx, path.slice(0, -1))}
-        onCommit={(r) => void ctx.pick?.commitAt(path, r)}
-        onEmptyBackspace={() => ctx.pick?.removeAt(path)}
-      />
-    </Cell>
+    <>
+      {defaultRegistry.byKind.pointer!(props)}
+      {refPath !== undefined && (
+        <a
+          className="descend y2-refnav"
+          href={refPath}
+          title="go to the target"
+          onClick={(e) => { e.preventDefault(); navigate(refPath); }}
+        >&#8599;</a>
+      )}
+    </>
   );
 }
 
-/** A `$yamloverLink` blob — the descend hyperlink over the walkable atom. A linkless blob
+/** A `$yamloverLink` blob - the descend hyperlink over the walkable atom. A linkless blob
  *  falls back to the opaque atom face. */
 function LinkAtomCell(props: ValueCellProps & { navigate: (p: string) => void }) {
   const { node, path, ctx, navigate } = props;
@@ -179,6 +98,5 @@ export function makeSourceCells({ navigate }: { navigate: (p: string) => void })
       pointer: (props: ValueCellProps): ReactNode => <ServerPointerCell {...props} navigate={navigate} />,
       blob: (props: ValueCellProps): ReactNode => <LinkAtomCell {...props} navigate={navigate} />,
     },
-    holePick: (props: { ctx: CellCtx }): ReactNode => <ServerPointerHole {...props} />,
   };
 }
