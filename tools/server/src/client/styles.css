@@ -60,7 +60,7 @@
    hues keep their familiar meaning). See COLORS.md. */
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #eff1f5;
+  --bg: #f7f8fb; /* lighter than Latte base (#eff1f5) — the document read too gray */
   --bg-alt: #e6e9ef;
   --panel: #dce0e8;
   --line: #ccd0da;
@@ -989,7 +989,9 @@ pre.code.chapter-data {
      chunk gutter's 12px address digits can compute ancestor rule positions without em drift. */
   --sub-margin: 17.5px;
   --sub-pad: 10.5px;
-  --sub-step: calc(var(--sub-margin) + var(--sub-pad));
+  /* one level's full pitch INCLUDES the 1px left rule — without it every ancestor crumb
+     drifted 1px right per level, off the § column (the gutter-shift report) */
+  --sub-step: calc(var(--sub-margin) + var(--sub-pad) + 1px);
 }
 .chapter-title {
   font-size: 22px;
@@ -1041,13 +1043,15 @@ pre.code.chapter-data {
   padding-right: 0.35rem;
   font-size: 12px;
   font-weight: normal;
-  color: var(--dim);
+  color: var(--accent); /* bluish, like the chunk digits — the gutter is one address system */
+  opacity: 0.65;
   text-decoration: none;
   user-select: none;
 }
 .chapter .chapter-title:hover .section-anchor,
 .chapter .section-anchor:hover {
   color: var(--accent);
+  opacity: 1;
 }
 /* why a subchapter is a LINK rather than laid out here: loading, failed, or a pointer cycle */
 .chapter-link-note {
@@ -1141,7 +1145,8 @@ a.chunk-index {
   /* the body line box (14px base × 1.65 .chapter leading) expressed over this 12px font, so a
      digit's baseline sits on the chunk's FIRST-LINE baseline */
   line-height: calc(1.65 * 14 / 12);
-  color: var(--dim);
+  color: var(--accent); /* bluish, like the § anchors — one address system, one ink */
+  opacity: 0.65;
   user-select: none;
   border-bottom-width: 0;
 }
@@ -1155,6 +1160,7 @@ a.chunk-index {
 }
 a.chunk-index:hover {
   color: var(--accent);
+  opacity: 1;
 }
 .chunk-body {
   flex: 1 1 auto;

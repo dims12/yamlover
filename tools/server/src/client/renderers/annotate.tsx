@@ -788,7 +788,7 @@ export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
   openCreate: (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string, nodePath?: string) => void;
   openEdit: (ann: Annotation, screen: { x: number; y: number }) => void;
   palette: ReactNode;
-  preview: { selector: Record<string, unknown>; color: string } | null;
+  preview: { selector: Record<string, unknown>; color: string; node?: string } | null;
   color: string;
 } {
   const [open, setOpen] = useState<OpenRegion | null>(null);
@@ -880,9 +880,10 @@ export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
   // yet (so the rectangle you just dragged stays visible until its first tag draws it) — in the
   // neutral SELECTION_COLOR, not a tag color, because nothing is preselected. EDITING an existing
   // region never previews — untagging it down to zero must let it vanish, not re-draw a ghost that
-  // makes "uncheck all tags" look like a no-op.
+  // makes "uncheck all tags" look like a no-op. `node` scopes a TEXT preview to its chunk
+  // (AnnotatedMaterial draws it as a mark — see the highlight() preview leg).
   const preview = open && open.create && applied.length === 0
-    ? { selector: open.selector, color: SELECTION_COLOR }
+    ? { selector: open.selector, color: SELECTION_COLOR, node: open.nodePath }
     : null;
   return { openCreate, openEdit, palette, preview, color: SELECTION_COLOR };
 }
@@ -898,7 +899,7 @@ function isChrome(n: Node | null): boolean {
 export function AnnotatedMaterial({ path, children }: { path: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const material = useMaterialAnnotations(path);
-  const { openCreate, openEdit, palette } = useAnnotationMenu(material, path);
+  const { openCreate, openEdit, palette, preview } = useAnnotationMenu(material, path);
   const { annotations } = material;
 
   // The node a selection lives on: the enclosing chapter CHUNK (its `.chunk[data-node-path]`), so the
@@ -909,11 +910,14 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
   };
 
   // Re-highlight after each render: the material (esp. a chapter's chunks) may settle a tick
-  // after mount, so do it on a frame and clear any prior marks first.
+  // after mount, so do it on a frame and clear any prior marks first. The `preview` rides along:
+  // the tagging popup's first act plants the caret in its query cells, which takes the browser's
+  // ONE selection with it — so the just-selected text is re-drawn as a neutral preview mark and
+  // stays visible until the first tag lands (or the popup closes).
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const raf = requestAnimationFrame(() => highlight(el, annotations, path));
+    const raf = requestAnimationFrame(() => highlight(el, annotations, path, preview));
     return () => cancelAnimationFrame(raf);
   });
 
@@ -1036,8 +1040,9 @@ function capture(sel: Selection): { exact: string; prefix: string; suffix: strin
 
 /** (Re)apply highlight marks for the text annotations in `container`. `materialPath` lets a
  *  fragment mark carry its `#/yamlover-fragments/<slug>` anchor id so the RHS panel / a shared link
- *  can scroll-to-&-flash it. */
-function highlight(container: HTMLElement, anns: Annotation[], materialPath: string): void {
+ *  can scroll-to-&-flash it. `preview` is the popup's not-yet-tagged selection, drawn as a mark in
+ *  the neutral color so it survives the popup taking the browser's selection. */
+function highlight(container: HTMLElement, anns: Annotation[], materialPath: string, preview?: { selector: Record<string, unknown>; color: string; node?: string } | null): void {
   container.querySelectorAll("mark.yo-annotation").forEach((m) => {
     const parent = m.parentNode;
     if (!parent) return;
@@ -1045,13 +1050,18 @@ function highlight(container: HTMLElement, anns: Annotation[], materialPath: str
     parent.removeChild(m);
     parent.normalize();
   });
+  // scope a wrap to the node the fragment lives on: a chapter CHUNK (its `.chunk[data-node-path]`
+  // element), so a word repeated across chunks marks only the right one; else the whole material.
+  const scopeOf = (node: string | undefined): HTMLElement => {
+    if (node) for (const el of container.querySelectorAll<HTMLElement>("[data-node-path]")) if (el.dataset.nodePath === node) return el;
+    return container;
+  };
   for (const a of anns) {
     if (a.selector?.type !== "text" || !a.selector.exact) continue;
-    // scope the wrap to the node the fragment lives on: a chapter CHUNK (its `.chunk[data-node-path]`
-    // element), so a word repeated across chunks marks only the right one; else the whole material.
-    let scope = container;
-    if (a.node) for (const el of container.querySelectorAll<HTMLElement>("[data-node-path]")) if (el.dataset.nodePath === a.node) { scope = el; break; }
-    wrapQuote(scope, a, a.node ?? materialPath);
+    wrapQuote(scopeOf(a.node), a, a.node ?? materialPath);
+  }
+  if (preview && preview.selector.type === "text" && preview.selector.exact) {
+    wrapQuote(scopeOf(preview.node), { selector: preview.selector } as Annotation, preview.node ?? materialPath, preview.color);
   }
 }
 
@@ -1060,8 +1070,9 @@ function highlight(container: HTMLElement, anns: Annotation[], materialPath: str
  *  in a heading AND a chunk) marks the SAME one the user selected. Falls back to the first
  *  occurrence when the context does not disambiguate. The `<mark>` carries the annotation's identity
  *  key (a click maps back to it) and, for a fragment, its `#`-anchor id (skip if already drawn). The
- *  match must lie within ONE text node for `surroundContents` (v1); a cross-element match is skipped. */
-function wrapQuote(container: HTMLElement, a: Annotation, materialPath: string): void {
+ *  match must lie within ONE text node for `surroundContents` (v1); a cross-element match is skipped.
+ *  `colorOverride` paints the popup's not-yet-tagged selection preview (the neutral color). */
+function wrapQuote(container: HTMLElement, a: Annotation, materialPath: string, colorOverride?: string): void {
   const sel = a.selector!;
   const exact = String(sel.exact);
   const fragId = a.fragmentSlug ? fragmentAnchorId(materialPath, a.fragmentSlug) : "";
@@ -1090,7 +1101,7 @@ function wrapQuote(container: HTMLElement, a: Annotation, materialPath: string):
   const range = document.createRange();
   range.setStart(hit.node, local);
   range.setEnd(hit.node, local + exact.length);
-  const c = colorOf(a);
+  const c = colorOverride ?? colorOf(a);
   const mark = document.createElement("mark");
   mark.className = "yo-annotation";
   // Works for hex AND a named tag's hsl(). The mix weight is themed (--mark-mix, styles.css):
@@ -1099,7 +1110,7 @@ function wrapQuote(container: HTMLElement, a: Annotation, materialPath: string):
   mark.style.borderBottomColor = c;
   mark.dataset.annSel = annKey(a);
   if (fragId) mark.id = fragId;
-  mark.title = a.description || "click to re-tag or delete";
+  mark.title = colorOverride !== undefined ? "" : a.description || "click to re-tag or delete";
   try {
     range.surroundContents(mark);
   } catch {
