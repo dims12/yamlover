@@ -1,0 +1,22 @@
+yamlover/code
+description: One yamlover document's content — the project's own text language
+- >
+  **yamlover** is this project's own text language — a CLOSE KIN of YAML, deliberately NOT a
+  superset (the [differences have their own chapter](::language:vs-yaml)). Kept from YAML:
+  block and flow spelling, comments, every scalar style. Extended with the POINTER LAYER —
+  `*` dereference over colon paths, `&` path anchors — and the UNIFIED NODE, where keyed
+  entries, positions, and a scalar self-value mix freely:
+- !!<format: text/x-yamlover> |
+  pets:
+    - name: Rex
+    - name: Whiskers
+  feline: *pets: 1
+  boss: &: chief
+    name: Rex
+  team:
+    lead: *: chief
+- >
+  See the subchapters below for the parts; comments are exactly YAML's:
+- *: 00-yamlover_structured
+- *: 01-yamlover_scalar
+- *..:..:..:01-yaml:01-yaml_code:02-yaml_comment

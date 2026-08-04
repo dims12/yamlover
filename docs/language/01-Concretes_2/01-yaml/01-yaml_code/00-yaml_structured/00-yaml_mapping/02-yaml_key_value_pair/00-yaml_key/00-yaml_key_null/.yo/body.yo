@@ -1,0 +1,10 @@
+yaml/key/null
+description: The null key — a null scalar in key position
+- >
+  `~: v` is a KEYED entry whose key is null — a real entry, addressed by the null key, of which
+  a mapping holds at most ONE. An EMPTY key (`: v`) spells the same null key; the quoted `'~'`
+  is instead the literal-tilde STRING key:
+- !!<format: text/x-yaml> |
+  ~: the null key
+  : the same null key, empty spelling
+  '~': the string key "~"

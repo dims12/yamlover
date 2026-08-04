@@ -1,9 +1,15 @@
 yaml/key
-description: A scalar before the colon — plain or quoted
+description: Any scalar before the colon — a string, an integer, or the null key
 - >
-  A key is a scalar — most often plain, quoted when it needs punctuation. (YAML also allows a
-  whole structure as a key via the explicit `? ` form — rarely seen in practice.)
+  A key is ANY scalar, in any style — most often plain, quoted when it needs punctuation. An
+  integer-shaped plain scalar is an INTEGER key, and the null scalar makes the NULL key — see
+  its subchapter below. (YAML also allows a whole structure as a key via the explicit `? `
+  form — rarely seen in practice.)
 - !!<format: text/x-yaml> |
   age: 1
   'first name': 2
   "tab\there": 3
+  42: 4
+  ~: 5
+- *..:..:..:..:01-yaml_scalar
+- *: 00-yaml_key_null
