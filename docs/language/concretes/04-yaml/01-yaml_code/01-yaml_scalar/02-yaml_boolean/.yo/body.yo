@@ -1,0 +1,14 @@
+yaml/boolean
+description: The literals true and false, three casings each
+- >
+  A boolean is one of the literals `true` and `false` — also accepted Capitalized and in ALL
+  CAPS. A SUPERCLASS of
+  [json/boolean](::language:concretes:07-json_code:01-json_scalar:02-json_boolean), which
+  knows the lowercase pair only. (YAML 1.1 also read `yes` / `no` / `on` / `off` as booleans —
+  the 1.2 core schema reads them as ordinary strings; the words are reserved, opt-in
+  vocabulary.)
+- !!<format: text/x-yaml> |
+  a: true
+  b: False
+  c: TRUE
+- *..:..:..:..:07-json_code:01-json_scalar:02-json_boolean

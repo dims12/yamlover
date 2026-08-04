@@ -9,4 +9,4 @@ description: file, directory, or mid-stream language switch — the concrete is 
   The concrete is **representation, not identity**: authored provenance the engine preserves, but
   never part of a node's identity — a reflow, a move between file and directory, or a language switch
   leaves the logical value equal. The full storage taxonomy is the [concretes
-  part](::language:01-Concretes_2).
+  part](::language:concretes).

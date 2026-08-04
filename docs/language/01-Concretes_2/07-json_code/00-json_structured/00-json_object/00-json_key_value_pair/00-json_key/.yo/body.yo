@@ -1,9 +1,0 @@
-json/key
-description: Double-quoted string naming the value
-- >
-  A key is a double-quoted string — lexically the same as
-  [json/string](::language:01-Concretes_2:07-json_code:01-json_scalar:00-json_string), but its role
-  differs: it names a value rather than being data itself. The quotes are mandatory — `age` bare or
-  `42` are not valid JSON keys, while `"age"` and `"42"` are:
-- !!<format: text/x-json> |
-  "age"

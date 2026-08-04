@@ -44,7 +44,7 @@ description: the same model, spelled in a .yo file, in json5p, and as a director
 - >
   The two text surfaces meet mid-file: a flow token written across several lines is the inline switch
   to json5p
-  ([K&R](::language:01-Concretes_2:03-yamlover:00-yamlover_stream:00-yamlover_code:00-yamlover_structured)),
+  ([K&R](::language:concretes:03-yamlover:00-yamlover_stream:00-yamlover_code:00-yamlover_structured)),
   and everything json5p cannot hold falls back
   to block yamlover, silently and losslessly. A file and a subdirectory are equivalent representations
-  of one node; the full storage rules are the [concretes part](::language:01-Concretes_2).
+  of one node; the full storage rules are the [concretes part](::language:concretes).

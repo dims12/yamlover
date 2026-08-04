@@ -24,14 +24,16 @@ docs/
     principles/        one subdirectory per principle (order-is-data, one-node, …)
     vs-yaml/           the kept surface + every deliberate break, one each
     model/             terminology, facets, values, order, graph, metadata, matching
-    concretes/         storage axis + the full representation catalog, one form each
+    concretes/         storage laws (storage, choosing, invariants) + the per-language
+                       catalogs (yamlover, yaml, json5p, json5_code, json_code)
     pointers/          paths, scopes, deref, anchors, escaping + queries/ nested
   documents/         — Documents (chapters, marklower, tables, lists)
 ```
 
-Order is each body's pointer-array data; directory names carry no order prefixes (the
-chapters are hand-authored, not editor-materialized, so the `01-…` cosmetic numbering of
-CONCRETES.md §Member-encoding does not apply).
+Order is each body's pointer-array data. Toplevel chapter names carry no order prefixes
+(hand-authored); the `concretes/` interior was REBUILT through the editor (§Progress) and so
+carries the `NN-` cosmetic member numbering of CONCRETES.md §Member-encoding — both shapes
+are legal, the numbering is never order's source of truth.
 
 ## Source → chapter mapping
 
@@ -98,6 +100,14 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
 - [x] `language/pointers/` (incl. `queries/`) ← `URIs.md` + `SEPARATOR.md` rulings +
       `QUERY.md` + `ANCHOR_REFACTOR.md` decisions (2026-08-01 — the M/O rulings folded in
       as normative rules; the retired `~` query axis described only as deprecation)
+- [x] `language/concretes/` REBUILT through dogfooding (2026-08-02→04): grouped by
+      concretes, the class lattice in prose AND on the spine — general laws first
+      (`00-storage`, `01-choosing`, `02-invariants`; the directory story a cross-reference
+      pointer into the yamlover catalog), then the per-language catalogs `03-yamlover` …
+      `07-json_code`. The hand-authored 2026-08-01 tree retired to
+      `language/.yo/.trash/concretes/`. Editor-materialized, so the interior carries the
+      `NN-` member numbering; the chapter directory itself git-renamed from the working
+      name `01-Concretes_2` back to `concretes/` and all links repointed (2026-08-04)
 - [ ] `CHAPTER.md` → `documents/`
 - [ ] `MARKLOWER.md` → `documents/`
 - [ ] Rule on the candidate files (§above)
@@ -127,6 +137,11 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
         anchors); the `[.±k]` merge idiom and `[?]`/`&…[]` operators unchanged;
         `05-tour.yaml` stays the plain-YAML baseline. Every edited `.yo` vet-parsed
         before commit (the reconcile-poisoning gotcha honored).
+  - [x] JSON code chunks highlight (2026-08-03): `text/x-json` and `text/x-json5` join the
+        code-chunk registry and the shared lexer, keeping the page rhythm
+  - [x] The chapter page navigates itself (2026-08-03→04): in-page links resolve smartly,
+        one scroll primitive; a reference is cited, never inlined (the chapter's
+        containment law)
   - Authoring gotcha worth knowing: marklower emphasis never spans a code token, so the MD
     habit `` **`code`** `` renders literally — write the code span unbolded
   - Authoring gotcha (2026-08-01): a `$defs/table` FLOW row's plain cell must not contain

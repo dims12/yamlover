@@ -1,0 +1,14 @@
+yamlover/key-value-pair
+description: A key and a value separated by a colon; node properties may precede the value
+- >
+  As in YAML — a key, a colon, the node's properties, the value — under yamlover's readings:
+  QUOTES make string keys (`'1'` is the numeric STRING key), a bare integer key IS a position —
+  so in data a bare `1:` is a parse error, positions are authored by order — and the `~` null
+  key is exactly
+  [YAML's null key](::language:concretes:04-yaml:01-yaml_code:00-yaml_structured:00-yaml_mapping:02-yaml_key_value_pair:00-yaml_key:00-yaml_key_null).
+  The key chapter is YAML's; the anchor and the schema tag are yamlover's own; the value can be
+  ANY yamlover value — the grammar recurses here:
+- *..:..:..:..:..:04-yaml:01-yaml_code:00-yaml_structured:00-yaml_mapping:02-yaml_key_value_pair:00-yaml_key
+- *: 01-yamlover_anchor
+- *: 02-yamlover_tag
+- *..:..
