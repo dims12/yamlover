@@ -448,6 +448,18 @@ atom_focused: The caret stands ON an atom (a `*` pointer)
 # THE FORMAT RULE is ITEM-LOCAL for "normal": ¶ in a list extracts THE ITEM (the list splits
 # around it; a single-item list dissolves) - the leaf->list wrap's exact inverse, so the
 # format cycle converges and committed labour survives.
+# THE ROLES LAW (tools/yed/src/chapter/roles.ts - the one decision table BOTH faces consult;
+# the read renderer's chapterFlow and this projection's cells/walk can never disagree, and the
+# face-parity gate pins it):
+#   - a KEYED entry that is not title/description (a planning field, a keyed-remainder member)
+#     is BODY, its key the gutter label (the null key shows as `~`);
+#   - the title renders at its AUTHORED slot (`meta.selfAt`), not hoisted first;
+#   - the title test is hasSelfValue - ANY scalar self titles the chapter;
+#   - a LEGACY keyed `title:` entry is the heading (an editable title line at the entry);
+#   - a body-positioned MEMBER is body whatever its storage name (anchorKey is provenance,
+#     never a field - a member named `description` stays a chunk);
+#   - the annotation overlay keys (`yamlover-annotations`/`-fragments`) are hidden; an
+#     annotated scalar chunk stays the prose it is (never a spurious subchapter).
 
 chapter_title_editing: A chapter title / subtitle, focused
     description: The document's (or a subchapter's) self-value as an editable heading, or the keyed `description` as the subtitle - the SAME editor at every level, indented. Title and description are OPTIONAL and have NO placeholder cells - a cell exists only when its model does; any one-line chunk takes (or gives back) the role via the bar's T / D buttons. Opening the editor lands in the first cell that EXISTS - title, description, first paragraph, or an empty chapter's bootstrap paragraph. A title EMPTIED character by character drops its self line and the caret lands on the chapter's first remaining stop (never nowhere - the reported lost focus)

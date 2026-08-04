@@ -31,6 +31,7 @@ import { proseNode, type ChapterState, type SplitPayload } from "./apply";
 import type { ChapterIntent, ChapterKey } from "./dispatch";
 import type { ChapterEdges } from "./site";
 import { chunkModeOf, explicitFormatOf, hasSelfValue, metaOf, type ChunkMode } from "./format";
+import { bodyLabel, entryRole, titleSlot } from "./roles";
 import {
   applyCaret, caretAtEnd, caretAtStart, caretOnFirstLine, caretOnLastLine, caretVisibleOffset,
   placeCaretVisible, type ColumnMemory,
@@ -230,18 +231,37 @@ export function ChapterNode({ path, spath, level, budget, crumbs = [] }: { path:
   if (!node) return null;
   const entries = node.entries ?? [];
   const body: ReactNode[] = [];
+  // the title's AUTHORED position among the entries (roles.ts, the two-face law) — the read
+  // face honors `selfAt` and so does this one; -1 = no title row
+  const slot = titleSlot(hasSelfValue(node), (node.meta as { selfAt?: number } | undefined)?.selfAt, entries.length);
+  const title = <TitleCell key="self-title" path={path} level={level} />;
   entries.forEach((e, i) => {
+    if (i === slot) body.push(title);
     const p = [...path, i];
     const anchorKey = ((e.meta ?? {}) as { anchorKey?: string }).anchorKey;
-    if (e.key === "description" && anchorKey === undefined) {
+    const role = entryRole({ key: e.key, nullKey: (e as { nullKey?: boolean }).nullKey === true, anchored: anchorKey !== undefined });
+    if (role === "hidden") return; // the annotation overlay — the layer's storage, never a chunk
+    if (role === "description") {
       body.push(<LineCell key={i} kind="description" path={p} className="chapter-subtitle" placeholder="Description" block />);
       return;
     }
+    if (role === "title") {
+      // the LEGACY keyed `title:` entry (an unmigrated file) IS the heading — in both faces
+      const H = hx(level);
+      body.push(
+        <H key={i} className="chapter-title">
+          <LineCell kind="title" path={p} className="chapter-title-text" />
+        </H>,
+      );
+      return;
+    }
     const mode = chunkModeOf(e.value);
-    // the gutter label is the entry's yamlover ADDRESS: its key, or the composed positional
-    // chain from the page root (each level's digit beside its own rule; a top-level chunk is
-    // the bare digit)
-    const labels: readonly (number | string)[] = e.key !== null && anchorKey === undefined ? [e.key] : [...crumbs, i];
+    // the gutter label is the entry's yamlover ADDRESS: its key (the null key as `~`), or the
+    // composed positional chain from the page root (each level's digit beside its own rule)
+    const labels: readonly (number | string)[] = bodyLabel(
+      { key: e.key, nullKey: (e as { nullKey?: boolean }).nullKey === true, anchored: anchorKey !== undefined },
+      crumbs, i,
+    );
     if (mode === "chapter") {
       const sp = anchorKey !== undefined
         ? `${spath === ":" ? "" : spath}:${encodeURIComponent(anchorKey)}`
@@ -264,10 +284,15 @@ export function ChapterNode({ path, spath, level, budget, crumbs = [] }: { path:
     }
     body.push(<ChunkCell key={i} path={p} index={i} labels={labels} mode={mode} level={level} budget={budget} />);
   });
-  const hasBody = entries.some((e) => e.key !== "description" || ((e.meta ?? {}) as { anchorKey?: string }).anchorKey !== undefined);
+  if (slot === entries.length) body.push(title);
+  const hasBody = entries.some((e) =>
+    entryRole({
+      key: e.key,
+      nullKey: (e as { nullKey?: boolean }).nullKey === true,
+      anchored: ((e.meta ?? {}) as { anchorKey?: string }).anchorKey !== undefined,
+    }) === "body");
   return (
     <>
-      {hasSelfValue(node) && <TitleCell path={path} level={level} />}
       {body}
       {!hasBody && <BootCell path={path} crumbs={crumbs} />}
     </>

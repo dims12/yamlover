@@ -17,6 +17,9 @@
 
 import { asLink, asMixed, scalarValue } from "../render";
 import { fragmentOf, isAncestorPath, segsToStr, strToSegs } from "../paths";
+import { entryRole, isOverlayKey, titleSlot } from "../../../../yed/src/chapter/roles.ts";
+
+export { entryRole, isOverlayKey };
 
 const MIXED_KEY = "$yamloverMixed"; // an omni/mix node's ordered entries (render.tsx / engine-api.ts)
 
@@ -122,7 +125,10 @@ export function chapterBodyEntries(value: unknown): { value: unknown; absIndex: 
     | { entries?: { key: string | null; keyNull?: boolean; anchor?: boolean; value: unknown }[] }
     | undefined;
   if (!mixed?.entries) return [];
-  return mixed.entries.map((e, i) => ({ e, i })).filter(({ e }) => isBodyEntry(e)).map(({ e, i }) => ({ value: e.value, absIndex: i }));
+  return mixed.entries
+    .map((e, i) => ({ e, i }))
+    .filter(({ e }) => entryRole({ key: e.key, nullKey: e.keyNull === true, anchored: e.anchor === true }) === "body")
+    .map(({ e, i }) => ({ value: e.value, absIndex: i }));
 }
 
 /** How many entries the chapter has in all — the absolute index an APPENDED entry will take.
@@ -148,21 +154,9 @@ export interface FlowItem {
   kind: FlowKind;
   value: unknown; // the entry value (a `$yamloverLink` marker or an inline scalar)
   absIndex: number; // its ABSOLUTE entry index (-1 for the omni self-value, which consumes none)
+  /** A KEYED body element's gutter label — its key (the null key as `~`); absent = positional. */
+  key?: string;
 }
-
-/** An ANNOTATION OVERLAY key — a tag application / fragment set laid OVER a value (ANNOTATIONS.md).
- *  Per CHAPTER.md these "are not body, so a scalar carrying only those stays a chunk". */
-const isOverlayKey = (k: string | null): boolean => k === "yamlover-annotations" || k === "yamlover-fragments";
-
-/** A POSITIONAL body element. `key == null` is an inline `- item` — unless `keyNull` says it is
- *  the NULL-KEYED entry (a keyed field like any other, skipped from the body); `anchor: true` is a
- *  member the
- *  BODY positioned by pointer (`- *file` consumed — a dir subchapter, a pointer chunk): its key is
- *  derived storage provenance, not an authored keyed field (META.md §body.yo), so it is body too —
- *  the same rule the projectional editor applies (yed-load.ts). Checked BEFORE the title/description
- *  keys so a member whose storage name happens to be `title` stays a body element. */
-const isBodyEntry = (e: { key: string | null; keyNull?: boolean; anchor?: boolean }): boolean =>
-  (e.key == null && e.keyNull !== true) || e.anchor === true;
 
 /** A body element's kind. A subchapter that ran out of depth budget arrives as a `$yamloverLink`
  *  carrying its own `format`; an INLINED one (any deeper fetch) arrives as a `$yamloverMixed`
@@ -194,32 +188,40 @@ export function bodyKindOf(v: unknown): FlowKind {
 }
 
 /** The chapter's full rendered stream in SOURCE order — the title (the omni node's scalar
- *  SELF-VALUE, CHAPTER.md), the keyed `description` entry, and the keyless body (chunks +
- *  subchapter links) interleaved exactly where the author placed them, so the renderer never hoists
+ *  SELF-VALUE, CHAPTER.md), the keyed `description` entry, and the body (chunks + subchapter
+ *  links) interleaved exactly where the author placed them, so the renderer never hoists
  *  the heading or forces subchapters to the end (position is the author's; the self-value's
- *  authored position rides the marker's `selfAt`). Any OTHER keyed entry (a directory member
- *  surfaced as a key, a task planning field) is skipped: it is not chapter body content. An
- *  untitled chapter (plain-array projection) is all keyless — chunks and subchapter links, in
- *  order. A legacy keyed `title` entry still flows as the title. */
+ *  authored position rides the marker's `selfAt`). ROLES are the shared decision table
+ *  (roles.ts, the two-face law): a keyed non-title/description entry is BODY with its key as
+ *  the gutter label; overlay keys are hidden; a legacy keyed `title` entry flows as the title.
+ *  An untitled chapter (plain-array projection) is all keyless — chunks and links, in order. */
 export function chapterFlow(value: unknown): FlowItem[] {
   if (Array.isArray(value)) return value.map((v, i) => ({ kind: bodyKindOf(v), value: v, absIndex: i }));
   const mixed = (value as Record<string, unknown> | null | undefined)?.[MIXED_KEY] as
     | { kind?: string; value?: unknown; selfAt?: number; entries?: { key: string | null; keyNull?: boolean; anchor?: boolean; value: unknown }[] }
     | undefined;
   if (!mixed?.entries) return [];
-  const self = mixed.kind === "omni" && typeof mixed.value === "string" && mixed.value !== "" ? mixed.value : null;
-  const selfAt = typeof mixed.selfAt === "number" ? mixed.selfAt : 0;
+  // the title test is hasSelfValue's wire twin: ANY scalar self titles the chapter (row 3) —
+  // an object self (the blob-backed omni's binary link) is not a title
+  const self = mixed.kind === "omni" && mixed.value != null && typeof mixed.value !== "object" ? mixed.value : null;
+  const slot = titleSlot(self != null, mixed.selfAt, mixed.entries.length);
   const out: FlowItem[] = [];
-  let placed = self == null;
   for (let i = 0; i < mixed.entries.length; i++) {
-    if (!placed && i >= selfAt) { out.push({ kind: "title", value: self, absIndex: -1 }); placed = true; }
+    if (i === slot) out.push({ kind: "title", value: self, absIndex: -1 });
     const e = mixed.entries[i];
-    if (isBodyEntry(e)) out.push({ kind: bodyKindOf(e.value), value: e.value, absIndex: i });
-    else if (e.key === "title") out.push({ kind: "title", value: e.value, absIndex: i }); // legacy keyed title
-    else if (e.key === "description") out.push({ kind: "description", value: e.value, absIndex: i });
-    // else: another keyed entry (task planning field, an unconsumed directory member) — not body
+    const role = entryRole({ key: e.key, nullKey: e.keyNull === true, anchored: e.anchor === true });
+    if (role === "hidden") continue;
+    if (role === "title") { out.push({ kind: "title", value: e.value, absIndex: i }); continue; } // legacy keyed title
+    if (role === "description") { out.push({ kind: "description", value: e.value, absIndex: i }); continue; }
+    const keyed = e.anchor !== true && (e.key !== null || e.keyNull === true);
+    out.push({
+      kind: bodyKindOf(e.value),
+      value: e.value,
+      absIndex: i,
+      ...(keyed ? { key: e.keyNull === true ? "~" : (e.key as string) } : {}),
+    });
   }
-  if (!placed) out.push({ kind: "title", value: self, absIndex: -1 });
+  if (slot === mixed.entries.length) out.push({ kind: "title", value: self, absIndex: -1 });
   return out;
 }
 

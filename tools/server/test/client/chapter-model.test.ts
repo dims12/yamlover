@@ -106,16 +106,18 @@ describe("chapterFlow", () => {
     expect(chapterFlow(last).map((f) => f.kind)).toEqual(["chunk", "title"]);
   });
 
-  it("skips other keyed entries (directory members / task fields) — they are not chapter body content", () => {
+  it("keyed entries (directory members / task fields) are BODY with their key as the gutter label (roles row 1)", () => {
     const value = omni(
       "T",
       0,
-      keyed("dogs", subchapter(":doc", 9, "Dogs")), // a directory-member key (dup of the body ref) — skipped
-      keyed("priority", "high"), // a task planning field — skipped
+      keyed("dogs", subchapter(":doc", 9, "Dogs")), // a directory-member key — a keyed subchapter
+      keyed("priority", "high"), // a task planning field — a keyed chunk
       keyless(inlined(":doc", 2, "body")),
-      keyless(subchapter(":doc", 3, "Dogs")), // the SAME subchapter, placed positionally — kept
+      keyless(subchapter(":doc", 3, "Dogs")), // the SAME subchapter, placed positionally
     );
-    expect(chapterFlow(value).map((f) => f.kind)).toEqual(["title", "chunk", "subchapter"]);
+    const flow = chapterFlow(value);
+    expect(flow.map((f) => f.kind)).toEqual(["title", "subchapter", "chunk", "chunk", "subchapter"]);
+    expect(flow.map((f) => f.key)).toEqual([undefined, "dogs", "priority", undefined, undefined]);
   });
 
   it("flows a BODY-ANCHORED member (`anchor: true`) as a positional body element — the key is storage provenance", () => {
@@ -128,9 +130,12 @@ describe("chapterFlow", () => {
       keyed("description", "A subtitle"),
       anchored("cover-paw.png", { $yamloverLink: { kind: "scalar", type: "binary", path: ":cover-paw.png", format: "image/png" } }),
       anchored("dogs", subchapter(":dogs", 2, "Dogs")),
-      keyed("unconsumed", "a keyed-only member — still skipped"),
+      keyed("unconsumed", "a keyed-only member — body too now, cited by its key (roles row 1)"),
     );
-    expect(chapterFlow(value).map((f) => f.kind)).toEqual(["title", "description", "chunk", "subchapter"]);
+    const flow = chapterFlow(value);
+    expect(flow.map((f) => f.kind)).toEqual(["title", "description", "chunk", "subchapter", "chunk"]);
+    // the anchored members stay POSITIONAL (provenance, no key label); the keyed-only one cites its key
+    expect(flow.map((f) => f.key)).toEqual([undefined, undefined, undefined, undefined, "unconsumed"]);
   });
 
   it("keeps an anchored member named `title`/`description` a BODY element — storage names never steal the heading", () => {

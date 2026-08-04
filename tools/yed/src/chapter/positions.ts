@@ -11,6 +11,7 @@ import { isPointer } from "../../../parser/ts/src/ir.ts";
 import type { Document, Node, Path, Value } from "../state";
 import { positionsOf, type Position } from "../apply";
 import { chunkModeOf, hasSelfValue, isChapterContainer } from "./format";
+import { entryRole, titleSlot } from "./roles";
 
 /** A node REACHED AS A CHAPTER shows its scalar self as the title — uniformly: the mount root
  *  and every subchapter alike (whether it is a chunk or a title-only chapter is the PARENT
@@ -25,23 +26,36 @@ export function chapterPositionsOf(doc: Document): Position[] {
   return out;
 }
 
-/** A chapter-mode container: title (always drawn first), then entries in source order —
- *  `description` as the subtitle, keyless entries as body chunks, other keyed fields skipped.
- *  A chapter with no BODY entries draws the bootstrap paragraph (`into`). */
+/** A chapter-mode container, in the roles.ts order (the two-face law): the title at its
+ *  AUTHORED slot (`meta.selfAt`), entries in source order — `description` as the subtitle, a
+ *  legacy keyed `title:` as the heading, overlay keys skipped, everything else body (keyed
+ *  fields included — the gutter shows the key). A chapter with no BODY entries draws the
+ *  bootstrap paragraph (`into`). */
 function walkChapter(v: Value, path: Path, out: Position[]): void {
-  if (isTitled(v)) out.push({ at: "token", path });
   const entries = (isPointer(v) ? [] : ((v as Node).entries ?? []));
+  const slot = titleSlot(
+    isTitled(v),
+    (isPointer(v) ? undefined : ((v as Node).meta as { selfAt?: number } | undefined)?.selfAt),
+    entries.length,
+  );
   let body = 0;
   entries.forEach((e, i) => {
+    if (i === slot) out.push({ at: "token", path }); // the self title, at its authored slot
     const p = [...path, i];
-    if (e.key === "description" && ((e.meta ?? {}) as { anchorKey?: string }).anchorKey === undefined) {
-      out.push({ at: "token", path: p });
+    const role = entryRole({
+      key: e.key,
+      nullKey: (e as { nullKey?: boolean }).nullKey === true,
+      anchored: ((e.meta ?? {}) as { anchorKey?: string }).anchorKey !== undefined,
+    });
+    if (role === "hidden") return; // the annotation overlay draws no cell
+    if (role === "description" || role === "title") {
+      out.push({ at: "token", path: p }); // one line cell (the subtitle / the legacy heading)
       return;
     }
-    // KEYED chunks are body content too (a chunk may carry a key — the gutter shows it)
     body++;
     walkChunk(e.value, p, out);
   });
+  if (slot === entries.length) out.push({ at: "token", path });
   if (body === 0) out.push({ at: "into", path }); // the bootstrap paragraph
 }
 

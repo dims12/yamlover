@@ -4,17 +4,11 @@
 // Both faces load the ONE WIRE now (fetchNode derives from /api/content; the editor parses
 // it), so any disagreement is a WALK-RULE divergence, not a data one.
 //
-// The known divergences are the Stage-5 unification targets (roles.ts) — recorded here as
-// `it.todo` rows and flipped to assertions when the shared rule lands:
-//   1. keyed non-title/description entries: read DROPS them, edit shows them as chunks
-//   2. title placement: read honors selfAt, edit always draws the title first
-//   3. the title test: read wants an omni STRING, edit takes any self-value
-//   4. legacy keyed `title:`: read flows it as the heading, edit as a body chunk
-//   5. the description gate: edit excludes anchorKey'd members named `description`
-//   6. overlay keys (`yamlover-annotations`): read hides them, edit walks into them
+// The six Stage-5 divergences are UNIFIED now (roles.ts — the shared decision table): each
+// former `it.todo` row below is an assertion pinning one row of the table.
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup, waitFor } from "@testing-library/react";
-import { createHandlers, tmpExample } from "./helpers";
+import { createHandlers, tmpExample, tmpTree } from "./helpers";
 import { installFetch } from "./edit-corpus-harness";
 import { fetchNode } from "../src/client/api";
 import { ChapterView } from "../src/client/renderers/chapter";
@@ -27,8 +21,16 @@ const guttersOf = (root: HTMLElement): string[][] =>
   Array.from(root.querySelectorAll(".chunk-index")).map((g) =>
     Array.from(g.querySelectorAll(".chunk-crumb")).map((c) => c.textContent ?? ""));
 
-async function mountBoth(path: string): Promise<{ read: string[][]; edit: string[][]; done: () => void }> {
-  const h = createHandlers(tmpExample("74-deep-book"), { gitignore: false });
+interface Faces {
+  read: string[][];
+  edit: string[][];
+  readEl: HTMLElement;
+  editEl: HTMLElement;
+  done: () => void;
+}
+
+async function mountBoth(path: string, files?: Record<string, string>): Promise<Faces> {
+  const h = createHandlers(files ? tmpTree(files) : tmpExample("74-deep-book"), { gitignore: false });
   await h.ready;
   const restore = installFetch(h);
   window.history.replaceState({}, "", "/?depth=.inf");
@@ -40,6 +42,8 @@ async function mountBoth(path: string): Promise<{ read: string[][]; edit: string
   return {
     read: guttersOf(read.container),
     edit: guttersOf(edit.container),
+    readEl: read.container,
+    editEl: edit.container,
     done: () => { read.unmount(); edit.unmount(); restore(); },
   };
 }
@@ -53,12 +57,81 @@ describe("the chapter face-parity gate — examples/74-deep-book", () => {
     } finally { done(); }
   }, 30_000);
 
-  // the Stage-5 rows — each currently FAILS on part-one (status field, stray member) or
-  // appendix (legacy keyed title, selfAt) and flips to an assertion with roles.ts:
-  it.todo("keyed planning fields are BODY in both faces (part-one's `status`)");
-  it.todo("keyed-remainder members show in both faces (part-one's `stray`)");
-  it.todo("the title's selfAt row is honored in both faces (01-deep's quote above the title)");
-  it.todo("a legacy keyed `title:` is the heading in both faces (appendix)");
-  it.todo("a member named `description` stays body in both faces");
-  it.todo("overlay keys are hidden in both faces (the annotated chunk's yamlover-annotations)");
+  it("keyed planning fields are BODY in both faces (part-one's `status`)", async () => {
+    const { read, edit, readEl, editEl, done } = await mountBoth(":part-one");
+    try {
+      expect(read).toContainEqual(["status"]); // the key IS the gutter label (roles row 1)
+      expect(edit).toContainEqual(["status"]);
+      // …and the field's VALUE shows as chunk content in both faces
+      expect(readEl.textContent).toContain("draft");
+      expect(editEl.textContent).toContain("draft");
+    } finally { done(); }
+  }, 30_000);
+
+  it("keyed-remainder members show in both faces (part-one's `stray`)", async () => {
+    const { readEl, editEl, done } = await mountBoth(":part-one");
+    try {
+      // stray/ is walked keyed-only (no granting line) — a keyed CONTAINER member, so it
+      // folds as a subchapter in both faces, its title visible on the page
+      expect(readEl.textContent).toContain("Stray Member");
+      expect(editEl.textContent).toContain("Stray Member");
+    } finally { done(); }
+  }, 30_000);
+
+  it("the title's selfAt row is honored in both faces (01-deep's quote above the title)", async () => {
+    const { readEl, editEl, done } = await mountBoth(":part-one:01-deep");
+    try {
+      for (const el of [readEl, editEl]) {
+        const text = el.textContent ?? "";
+        const quote = text.indexOf("The quote ABOVE the title");
+        const title = text.indexOf("Deep Chapter");
+        expect(quote, "the quote chunk renders").toBeGreaterThanOrEqual(0);
+        expect(title, "the title renders").toBeGreaterThanOrEqual(0);
+        expect(quote, "the quote stays ABOVE the title (selfAt = 1)").toBeLessThan(title);
+      }
+    } finally { done(); }
+  }, 30_000);
+
+  it("a legacy keyed `title:` is the heading in both faces (appendix)", async () => {
+    const { read, edit, readEl, editEl, done } = await mountBoth(":appendix");
+    try {
+      // a heading's text lives in textContent (read) or the active title INPUT's value (edit)
+      const headingText = (t: Element): string =>
+        (t.textContent ?? "") + Array.from(t.querySelectorAll("input")).map((i) => i.value).join("");
+      for (const el of [readEl, editEl]) {
+        const heading = Array.from(el.querySelectorAll(".chapter-title"))
+          .find((t) => headingText(t).includes("The Appendix"));
+        expect(heading, "the legacy keyed title renders as the HEADING").toBeTruthy();
+      }
+      expect(read, "no chunk gutter cites the title key").not.toContainEqual(["title"]);
+      expect(edit, "no chunk gutter cites the title key").not.toContainEqual(["title"]);
+    } finally { done(); }
+  }, 30_000);
+
+  it("a body-positioned member named `description` stays body in both faces", async () => {
+    const { readEl, editEl, done } = await mountBoth(":d", {
+      "d/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nHost\n- the real opening\n- *: description\n",
+      "d/description/.yo/body.yo": "the member that merely SHARES the field's name\n",
+    });
+    try {
+      for (const el of [readEl, editEl]) {
+        // anchorKey is storage provenance, not a field (roles row 5): the member is a chunk,
+        // never the page subtitle
+        expect(el.querySelector(".chapter-subtitle")?.textContent ?? "").not.toContain("SHARES the field's name");
+        expect(el.textContent).toContain("SHARES the field's name");
+      }
+    } finally { done(); }
+  }, 30_000);
+
+  it("overlay keys are hidden in both faces (the annotated chunk's yamlover-annotations)", async () => {
+    const { read, edit, readEl, editEl, done } = await mountBoth(":part-two");
+    try {
+      expect(readEl.textContent).toContain("Annotated prose carries an overlay.");
+      expect(editEl.textContent).toContain("Annotated prose carries an overlay.");
+      expect(readEl.textContent).not.toContain("yamlover-annotations");
+      expect(editEl.textContent).not.toContain("yamlover-annotations");
+      expect(read, "the overlay never takes a gutter").not.toContainEqual(["yamlover-annotations"]);
+      expect(edit, "the overlay never takes a gutter").not.toContainEqual(["yamlover-annotations"]);
+    } finally { done(); }
+  }, 30_000);
 });

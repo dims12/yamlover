@@ -251,7 +251,7 @@ export function ChapterBody({
       const link = asLink(f.value);
       const anchor = anchorOf(anchorBase, link?.path ?? "", childSlotId);
       return (
-        <ChunkShell key={i} anchor={anchor} nodePath={link?.path} gutter={<ChunkGutter index={chunkLabel(crumbs, f.absIndex)} anchor={anchor} />}>
+        <ChunkShell key={i} anchor={anchor} nodePath={link?.path} gutter={<ChunkGutter index={f.key !== undefined ? [f.key] : chunkLabel(crumbs, f.absIndex)} anchor={anchor} />}>
           <DataChunk item={f.value} documentPath={documentPath} onNavigate={onNavigate} />
         </ChunkShell>
       );
@@ -298,7 +298,8 @@ export function ChapterBody({
     return (
       <ReadChunk
         key={i}
-        index={chunkLabel(crumbs, f.absIndex)}
+        // a KEYED body element cites its key (the roles law, row 1) — the edit face's rule
+        index={f.key !== undefined ? [f.key] : chunkLabel(crumbs, f.absIndex)}
         item={f.value}
         anchorBase={anchorBase}
         slot={childSlotId}
