@@ -4,9 +4,11 @@ import { render, cleanup, fireEvent, act, waitFor } from "@testing-library/react
 
 // Mock the write APIs — the editor's background sync + the context menu's create call.
 // (hoisted so the mock fns exist before vi.mock's hoisted factory runs.)
-const { editChunks, createObject, fetchNode } = vi.hoisted(() => ({ editChunks: vi.fn(), createObject: vi.fn(), fetchNode: vi.fn() }));
+const { editChunks, createObject, fetchNode, fetchContent } = vi.hoisted(() => ({ editChunks: vi.fn(), createObject: vi.fn(), fetchNode: vi.fn(), fetchContent: vi.fn() }));
 vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), editChunks, createObject, fetchNode }));
+vi.mock("../../src/client/content", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchContent }));
 
+import { contentViaNode } from "./wire-fixture";
 import { ChapterView } from "../../src/client/renderers/chapter";
 import { EditingContext } from "../../src/client/renderers/editing";
 import { creatablesFor } from "../../src/client/renderers/create";
@@ -17,6 +19,7 @@ beforeEach(() => {
   editChunks.mockReset().mockResolvedValue({ ok: true });
   createObject.mockReset().mockResolvedValue({ path: ":doc[9]" });
   fetchNode.mockReset().mockRejectedValue(new Error("fetchNode not stubbed for this test"));
+  fetchContent.mockReset().mockImplementation(contentViaNode(fetchNode)); // the yed mount's wire follows fetchNode
   // These suites exercise the FLAT editor — since the projection became the default
   // (chapter.tsx projectionalChapterEditor), opt back in via the escape hatch.
   window.history.replaceState({}, "", "/?chapterEditor=flat");

@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, cleanup, waitFor, act, fireEvent } from "@testing-library/react";
+
+// fetchNode no longer rides a `?path=` query (the ONE WIRE fetches /api/content/<slash-path>),
+// so the liveness probes are mocked at the API layer, routed by the SAME per-test route table.
+const { fetchNode } = vi.hoisted(() => ({ fetchNode: vi.fn() }));
+vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchNode }));
+
 import { AnnotationMenu, AnnotatedMaterial, useAnnotations, useAnnotationMenu, DEFAULT_TAG, copyText } from "../../src/client/renderers/annotate";
 
 // The annotation layer's live-refresh + remembered-tag hygiene: external changes arrive as a
@@ -11,8 +17,15 @@ const ALIVE = { path: ":tags:alive", name: "alive", color: null };
 const DEAD = { path: ":tags:dead", name: "dead", color: null };
 const RECENT_KEY = "yo-annotate-recent-tags";
 
-/** Route fetches by their decoded `path` query param; undefined → a 404 {error} response. */
+/** Route fetches by their decoded `path` query param; undefined → a 404 {error} response.
+ *  `fetchNode` (the pruning/liveness probes) is mocked off the same table: a listed path
+ *  resolves to its NodeJson, an unlisted one rejects like the old 404 did. */
 function mockFetch(routes: Record<string, unknown>): ReturnType<typeof vi.fn> {
+  fetchNode.mockImplementation(async (p: string) => {
+    const hit = routes[p];
+    if (hit === undefined) throw new Error("no such node");
+    return hit as never;
+  });
   const fn = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     const p = new URLSearchParams(url.split("?")[1] ?? "").get("path") ?? "";
@@ -29,7 +42,10 @@ function mockFetch(routes: Record<string, unknown>): ReturnType<typeof vi.fn> {
   return fn;
 }
 
-beforeEach(() => localStorage.clear());
+beforeEach(() => {
+  localStorage.clear();
+  fetchNode.mockReset().mockRejectedValue(new Error("no routes — call mockFetch first"));
+});
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();

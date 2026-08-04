@@ -13,6 +13,7 @@ const { editChunks, fetchNode, fetchAnnotations, queryTree, queryFilter } = vi.h
 vi.mock("../../src/client/api", async (orig) => ({
   ...(await orig<Record<string, unknown>>()), editChunks, fetchNode, fetchAnnotations, queryTree, queryFilter,
 }));
+vi.mock("../../src/client/content", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchContent: vi.fn() }));
 import { cellText, mountKit, unwindToEmpty, caretTo, type Kit } from "./yed-kit";
 
 /** Put the caret at the document's natural APPEND point: the INNER slot of an empty token when

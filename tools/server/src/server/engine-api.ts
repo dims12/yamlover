@@ -57,7 +57,7 @@ import { colonSegment } from "../../../parser/ts/src/pointer.ts";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
 import type { Node as IrNode, Document, Comment as IrComment, Entry as IrEntry, Step as IrStep, Pointer as IrPointer } from "../../../parser/ts/src/ir.ts";
 import { buildGitIgnore } from "./gitignore.js";
-import { buildEnvelope } from "../content-envelope.js";
+import { buildEnvelope, type EnvelopeDeps } from "../content-envelope.js";
 import { collectComments, irNodeAt } from "../projection-comments.js";
 import { deriveMemberEncoding, deriveDirEditRoute, nextMemberName, subchapterMaterializes } from "../concrete-rules.js";
 import {
@@ -858,36 +858,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           };
           const text = buildEnvelope(
             { segs, subtree, docDepth, header, relations: buildRelations(dataRoot, s, segs) as never },
-            {
-              memberExists: (sg) =>
-                sg.every((x) => typeof x === "string") && fs.existsSync(path.resolve(dataRoot, ...sg.map(String))),
-              formatAt: (sg) => s.node(storePath(sg))?.format ?? null,
-              stub: (sg) => (s.node(storePath(sg)) ? linkMarker(dataRoot, s, sg) : null),
-              refTargetAt: (holder, pos) => {
-                const hit = ownedEntries(s, storePath(holder)).find((e) => e.kind === "ref" && e.pos === pos && e.to);
-                if (!hit?.to) return null;
-                const tsegs = storePathToSegs(hit.to);
-                return {
-                  path: segsToStr(tsegs),
-                  text: refPointerText(s, tsegs, documentRootSegs(s, holder as Seg[])),
-                  stub: s.node(hit.to) ? linkMarker(dataRoot, s, tsegs) : null,
-                };
-              },
-              backEdgesAt: (sg) => {
-                const currentDoc = documentRootSegs(s, sg as Seg[]);
-                return downstreamEntries(s, storePath(sg))
-                  .filter((e) => e.pos === null && e.kind === "ref" && e.to)
-                  .map((e) => {
-                    const fsegs = storePathToSegs(e.to);
-                    return {
-                      label: e.label,
-                      path: segsToStr(fsegs),
-                      text: refPointerText(s, fsegs, currentDoc),
-                      stub: s.node(e.to) ? linkMarker(dataRoot, s, fsegs) : null,
-                    };
-                  });
-              },
-            },
+            envelopeDeps(s, dataRoot, true),
           );
           res.statusCode = 200;
           res.setHeader("Content-Type", "text/yamlover; charset=utf-8");
@@ -902,7 +873,12 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       // the live index. Body: { source }.
       if (req.method === "POST" && url.pathname === "/api/preview") {
         readBody(req)
-          .then((data) => sendJson(res, 200, previewPayload(String((data as { source?: unknown }).source ?? ""))))
+          .then((data) => {
+            const text = previewEnvelope(String((data as { source?: unknown }).source ?? ""));
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "text/yamlover; charset=utf-8");
+            res.end(text);
+          })
           .catch((e) => sendJson(res, 400, { error: String((e as Error).message || e) }));
         return;
       }
@@ -4578,7 +4554,46 @@ const PREVIEW_ROOT = path.join(os.tmpdir(), ".yo-preview-nonexistent");
  *  UNLIMITED depth. Depth is pinned to Infinity by design — a finite depth would emit
  *  `$yamloverLink` markers into a store no later request can reach. In-document pointers resolve
  *  to in-page refs; project/world-scope ones are unrealized and render as plain pointer text. */
-export function previewPayload(source: string): Record<string, unknown> {
+/** The envelope-builder capabilities over a Store — shared by the live tree route (members
+ *  exist on disk) and the standalone preview (a throwaway in-memory index; nothing on disk). */
+function envelopeDeps(s: Store, dataRoot: string, membersOnDisk: boolean): EnvelopeDeps {
+  return {
+    memberExists: (sg) =>
+      membersOnDisk && sg.every((x) => typeof x === "string") && fs.existsSync(path.resolve(dataRoot, ...sg.map(String))),
+    formatAt: (sg) => s.node(storePath(sg))?.format ?? null,
+    stub: (sg) => (s.node(storePath(sg)) ? linkMarker(dataRoot, s, sg) : null),
+    refTargetAt: (holder, pos) => {
+      const hit = ownedEntries(s, storePath(holder)).find((e) => e.kind === "ref" && e.pos === pos && e.to);
+      if (!hit?.to) return null;
+      const tsegs = storePathToSegs(hit.to);
+      return {
+        path: segsToStr(tsegs),
+        text: refPointerText(s, tsegs, documentRootSegs(s, holder as Seg[])),
+        stub: s.node(hit.to) ? linkMarker(dataRoot, s, tsegs) : null,
+      };
+    },
+    backEdgesAt: (sg) => {
+      const currentDoc = documentRootSegs(s, sg as Seg[]);
+      return downstreamEntries(s, storePath(sg))
+        .filter((e) => e.pos === null && e.kind === "ref" && e.to)
+        .map((e) => {
+          const fsegs = storePathToSegs(e.to);
+          return {
+            label: e.label,
+            path: segsToStr(fsegs),
+            text: refPointerText(s, fsegs, currentDoc),
+            stub: s.node(e.to) ? linkMarker(dataRoot, s, fsegs) : null,
+          };
+        });
+    },
+  };
+}
+
+/** A STANDALONE yamlover text's content envelope — /api/preview: the same wire the live tree
+ *  serves, over a throwaway in-memory index (schema/format resolution included), touching
+ *  neither the served tree nor the live index. The client derives NodeJson exactly as it
+ *  does for /api/content. */
+export function previewEnvelope(source: string): string {
   const doc = parseYamlover(source, "<preview>");
   // stamp what the walk stamps on a parsed file: the root IS a document root, and the head-of-file
   // banner rides its meta (collectComments reads both from the node, not the Document)
@@ -4587,19 +4602,20 @@ export function previewPayload(source: string): Record<string, unknown> {
   try {
     s.indexDocument(doc);
     const row = s.node(":")!;
-    return {
+    const header = {
       path: ":",
       type: tocType(s, ":", row),
-      format: row.format ?? null,
       ...facetsOf(s, ":", row),
+      format: row.format ?? null,
       concrete: "yamlover", // by construction — the document IS yamlover text
       documentPath: ":",
       title: titleOf(s, ":"),
       description: descriptionOf(s, ":"),
-      value: projectValue(PREVIEW_ROOT, s, [], Infinity, true),
-      comments: collectComments(doc, [], Infinity),
-      relations: {}, // a standalone document has no project around it
     };
+    return buildEnvelope(
+      { segs: [], subtree: doc.root, docDepth: Infinity, header, relations: {} },
+      envelopeDeps(s, PREVIEW_ROOT, false),
+    );
   } finally {
     s.close();
   }

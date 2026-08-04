@@ -13,7 +13,10 @@ vi.mock("../../src/client/api", () => ({
   pasteText: vi.fn(),
   pasteRich: vi.fn(),
 }));
+vi.mock("../../src/client/content", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchContent: vi.fn() }));
 import { fetchNode, fetchSchema, pasteFile, pasteRich, pasteText } from "../../src/client/api";
+import { fetchContent } from "../../src/client/content";
+import { contentViaNode } from "./wire-fixture";
 import { NodeView } from "../../src/client/NodeView";
 
 const mNode = fetchNode as unknown as ReturnType<typeof vi.fn>;
@@ -28,6 +31,8 @@ beforeEach(() => {
   mPasteFile.mockReset();
   mPasteText.mockReset();
   mPasteRich.mockReset();
+  // the yed mount (unlock) loads the ONE WIRE — follow whatever fetchNode resolves
+  (fetchContent as unknown as ReturnType<typeof vi.fn>).mockReset().mockImplementation(contentViaNode(fetchNode));
 });
 afterEach(cleanup);
 

@@ -86,10 +86,17 @@ export function buildEnvelope(input: EnvelopeInput, deps: EnvelopeDeps): string 
     : pruneClone(input.subtree, input.segs, "", input.docDepth, side, deps);
   // the requested node's own head banner (a document root's meta.head) rides as Document.head
   const head = (pruned.meta as { head?: string[] } | undefined)?.head;
-  const source = serializeYamlover(
-    { root: pruned, ...(head ? { head } : {}), source: { concrete: "yamlover", uri: "<content>" } } as unknown as Document,
-    { comments: true },
-  );
+  // THE EMPTINESS LAW: an EMPTY document's source is the empty text — never a minted token.
+  // An empty body file parses to a null scalar with raw "" (spelling `null` would invent an
+  // authored word), and a BODYLESS dir root is a minted empty container (spelling `{}` would
+  // invent a flow token the editor then walks INTO). Authored emptiness keeps its spelling:
+  // `{}`/`[]` carry `style: flow`, `null`/`~` carry their raw — both excluded here.
+  const source = emptyDocRoot(pruned) && !head?.length
+    ? ""
+    : serializeYamlover(
+        { root: pruned, ...(head ? { head } : {}), source: { concrete: "yamlover", uri: "<content>" } } as unknown as Document,
+        { comments: true },
+      );
 
   const envelope: Node = mappingOf([
     ...Object.entries(input.header)
@@ -101,6 +108,21 @@ export function buildEnvelope(input: EnvelopeInput, deps: EnvelopeDeps): string 
     keyed("relations", jsToIr(input.relations)),
   ]);
   return serializeYamlover({ root: envelope, source: { concrete: "yamlover", uri: "<envelope>" } } as unknown as Document);
+}
+
+/** An EMPTY document root — no entries, no authored spelling (`style: flow` or a raw token),
+ *  no identity to keep (tags/anchors) and no comments to host. The blob placeholder root
+ *  (`{kind:"scalar", value:null}`, raw-less) counts too: a blob's source IS empty. */
+function emptyDocRoot(n: Node): boolean {
+  if ((n.entries ?? []).length > 0) return false;
+  const m = (n.meta ?? {}) as { style?: string; schema?: unknown; yo?: boolean; set?: boolean; anchors?: unknown[]; comments?: unknown[] };
+  if (m.style === "flow" || m.schema !== undefined || m.yo === true || m.set === true) return false;
+  if ((m.anchors?.length ?? 0) > 0 || (m.comments?.length ?? 0) > 0) return false;
+  if (n.kind === "scalar") {
+    const s = n as Node & { value?: unknown; raw?: string };
+    return s.value === null && (s.raw ?? "") === "";
+  }
+  return true;
 }
 
 // --------------------------------------------------------------------------- //

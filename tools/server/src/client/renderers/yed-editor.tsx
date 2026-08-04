@@ -15,9 +15,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { EditorView } from "../../../../yed/src/page";
 import type { CellRegistry } from "../../../../yed/src/cells";
 import { type Document, type EditorState } from "../../../../yed/src/state";
-import { editChunks, fetchNode, rekeyNode } from "../api";
+import { editChunks, rekeyNode } from "../api";
+import { fetchContent } from "../content";
 import { makeSourceCells } from "./yed-cells";
-import { irFromNodeJson } from "./yed-load";
+import { irFromContent } from "./yed-content-load";
 import { diffToOps } from "./yed-sync";
 import "../../../../yed/src/yed.css";
 
@@ -72,15 +73,15 @@ export function YedEditor({ path, onNavigate, cells }: { path: string; onNavigat
     setError(null);
     stateRef.current = null;
     committedRef.current = null;
-    fetchNode(path, null) // depth `.inf` — the whole subtree, every storage shape
-      .then((node) => {
+    fetchContent(path, null) // depth `.inf` — the whole subtree, every storage shape
+      .then((content) => {
         if (!alive) return;
-        docPathRef.current = node.documentPath ?? path;
-        const doc = irFromNodeJson(node);
-        if ((doc.root as { kind?: string }).kind === "blob") {
+        docPathRef.current = String(content.header.documentPath ?? path);
+        if (content.header.type === "binary") {
           setError("a binary node has no cell projection");
           return;
         }
+        const doc = irFromContent(content);
         const st: EditorState = { doc, cursor: freshCursor(), refused: false, log: [] };
         committedRef.current = doc;
         stateRef.current = st;

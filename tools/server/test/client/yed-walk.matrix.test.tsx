@@ -11,6 +11,7 @@ const { editChunks, fetchNode, fetchAnnotations, queryTree, queryFilter } = vi.h
 vi.mock("../../src/client/api", async (orig) => ({
   ...(await orig<Record<string, unknown>>()), editChunks, fetchNode, fetchAnnotations, queryTree, queryFilter,
 }));
+vi.mock("../../src/client/content", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchContent: vi.fn() }));
 import { cellText, mountKit, walk } from "./yed-kit";
 
 beforeEach(() => {

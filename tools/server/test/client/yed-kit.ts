@@ -17,6 +17,9 @@ import { fireEvent, render, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { press, parseKeys, rowsOf, cellText } from "../edit-corpus-harness";
 import { YedEditor } from "../../src/client/renderers/yed-editor";
+import { fetchContent } from "../../src/client/content";
+import { contentFromNodeJson } from "./wire-fixture";
+import type { NodeJson } from "../../src/client/api";
 
 export { rowsOf, cellText };
 
@@ -49,7 +52,13 @@ export interface Kit {
  *  (vi.mock is per-file); it hands `fetchNode` here so the kit can prime the empty document. */
 export async function mountKit(fetchNode: { mockResolvedValue(v: unknown): void }, doc?: Record<string, unknown>): Promise<Kit> {
   window.history.replaceState({}, "", "/?yed=debug"); // the state panels ARE the kit's instruments
-  fetchNode.mockResolvedValue(doc ?? EMPTY_DOC);
+  const node = (doc ?? EMPTY_DOC) as unknown as NodeJson;
+  fetchNode.mockResolvedValue(node);
+  // the mount loads the ONE WIRE (fetchContent), not fetchNode — the suite must vi.mock
+  // content.ts so the kit can prime it; the fixture stays the legacy NodeJson shape
+  const fc = fetchContent as unknown as { mockResolvedValue?: (v: unknown) => void };
+  expect(typeof fc.mockResolvedValue, "the suite must vi.mock ../../src/client/content — the mount loads fetchContent").toBe("function");
+  fc.mockResolvedValue!(contentFromNodeJson(node));
   const { container } = render(createElement(YedEditor, { path: ":n", onNavigate: () => {} }));
   await waitFor(() => expect(container.querySelector("[data-testid=y2-doc]")).toBeTruthy(), { timeout: 3000 });
   return {

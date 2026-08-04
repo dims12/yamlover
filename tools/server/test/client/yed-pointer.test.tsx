@@ -8,16 +8,19 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, cleanup, waitFor, fireEvent, act } from "@testing-library/react";
 import { TocFilterCtx, useTocFilterSession } from "../../src/client/toc-filter-session";
 
-const { editChunks, fetchNode, rekeyNode, queryTree, queryFilter } = vi.hoisted(() => ({
+const { editChunks, fetchNode, fetchContent, rekeyNode, queryTree, queryFilter } = vi.hoisted(() => ({
   editChunks: vi.fn(),
   fetchNode: vi.fn(),
+  fetchContent: vi.fn(),
   rekeyNode: vi.fn(),
   queryTree: vi.fn(),
   queryFilter: vi.fn(),
 }));
 vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), editChunks, fetchNode, rekeyNode, queryTree, queryFilter }));
+vi.mock("../../src/client/content", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchContent }));
 
 import { YedEditor } from "../../src/client/renderers/yed-editor";
+import { contentViaNode } from "./wire-fixture";
 
 const PETS = {
   path: ":doc", type: "object", concrete: "file/yamlover", title: null, description: null,
@@ -29,6 +32,7 @@ const FILTER = (matches: string[]) => ({ root: TREE(":", "r"), matches, truncate
 beforeEach(() => {
   editChunks.mockReset().mockResolvedValue({ ok: true });
   fetchNode.mockReset().mockResolvedValue(PETS);
+  fetchContent.mockReset().mockImplementation(contentViaNode(fetchNode)); // the mount's wire follows fetchNode
   queryTree.mockReset().mockResolvedValue([]);
   queryFilter.mockReset().mockRejectedValue(new Error("no filter mock")); // pick Enter falls back to verbatim
 });

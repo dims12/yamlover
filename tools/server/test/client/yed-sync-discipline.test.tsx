@@ -7,12 +7,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, fireEvent, waitFor } from "@testing-library/react";
 
-const { editChunks, fetchNode, queryTree, queryFilter } = vi.hoisted(() => ({
-  editChunks: vi.fn(), fetchNode: vi.fn(), queryTree: vi.fn(), queryFilter: vi.fn(),
+const { editChunks, fetchNode, fetchContent, queryTree, queryFilter } = vi.hoisted(() => ({
+  editChunks: vi.fn(), fetchNode: vi.fn(), fetchContent: vi.fn(), queryTree: vi.fn(), queryFilter: vi.fn(),
 }));
 vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), editChunks, fetchNode, queryTree, queryFilter }));
+vi.mock("../../src/client/content", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchContent }));
 
 import { YedEditor } from "../../src/client/renderers/yed-editor";
+import { contentViaNode } from "./wire-fixture";
 
 const ARR = {
   path: ":d", type: "array", concrete: "file/yamlover", title: null, description: null,
@@ -22,6 +24,7 @@ const ARR = {
 beforeEach(() => {
   editChunks.mockReset().mockResolvedValue({ ok: true });
   fetchNode.mockReset().mockResolvedValue(ARR);
+  fetchContent.mockReset().mockImplementation(contentViaNode(fetchNode)); // the mount's wire follows fetchNode
   queryTree.mockReset().mockResolvedValue([]);
   queryFilter.mockReset().mockRejectedValue(new Error("no filter mock"));
 });

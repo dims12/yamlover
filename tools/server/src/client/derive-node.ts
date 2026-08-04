@@ -251,9 +251,16 @@ export function deriveNodeJson(content: Content, oldDepth?: number | null): Node
         ? Infinity
         : oldDepth;
   const segs = strToSegs(String(h.path ?? ":"));
+  // THE EMPTINESS TWIN: an empty document rides the wire as empty TEXT (the envelope's
+  // emptiness law) and parses to a raw-less null scalar; the old wire projected a bodyless
+  // OBJECT root (a bare dir) as `{}` — keep the derivation byte-compatible with it
+  const r = content.doc.root as { kind?: string; value?: unknown; raw?: string; entries?: unknown[] };
+  const emptyRoot = r.kind === "scalar" && r.value === null && (r.raw ?? "") === "" && !(r.entries ?? []).length;
   const value = isBinaryTop
     ? { size: h.size, format: h.format ?? null }
-    : deriveValue(content.doc.root, "", segs, depth, true, innerConcrete(concrete), { side: content.side });
+    : emptyRoot && h.type === "object"
+      ? {}
+      : deriveValue(content.doc.root, "", segs, depth, true, innerConcrete(concrete), { side: content.side });
   return {
     path: String(h.path ?? ":"),
     type: String(h.type ?? "object"),

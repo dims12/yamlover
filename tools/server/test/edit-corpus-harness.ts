@@ -12,7 +12,7 @@
 import { expect } from "vitest";
 import { createEvent, fireEvent, waitFor } from "@testing-library/react";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { call, callBody } from "./http";
+import { callBody, callText } from "./http";
 
 type Handler = (req: IncomingMessage, res: ServerResponse, url: URL) => void;
 
@@ -59,9 +59,9 @@ export function parseKeys(script: string): Stroke[] {
 // The transport stub — the real client, a real server
 // --------------------------------------------------------------------------- //
 
-/** Route `fetch` into `handler` for the duration of a test. GET goes through http.ts's `call`,
- *  POST/DELETE through `callBody` — the same adapters the server tests use, so there is one
- *  definition of "what the handler sees". Returns the restore function. */
+/** Route `fetch` into `handler` for the duration of a test. GET goes through http.ts's
+ *  `callText`, POST/DELETE through `callBody` — the same adapters the server tests use, so
+ *  there is one definition of "what the handler sees". Returns the restore function. */
 export function installFetch(handler: Handler): () => void {
   const real = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -71,10 +71,19 @@ export function installFetch(handler: Handler): () => void {
     const params: Record<string, string> = {};
     url.searchParams.forEach((v, k) => (params[k] = v));
     const body = init?.body !== undefined ? JSON.parse(String(init.body)) : undefined;
-    const r =
-      method === "GET"
-        ? call(handler, url.pathname, params)
-        : await callBody(handler, method as "POST" | "DELETE", url.pathname, body, params);
+    if (method === "GET") {
+      // callText awaits ASYNC handlers and carries NON-JSON bodies (/api/content answers
+      // text/yamlover) — JSON endpoints still parse lazily in json()
+      const r = await callText(handler, url.pathname, params);
+      return {
+        ok: r.status >= 200 && r.status < 300,
+        status: r.status,
+        json: async () => JSON.parse(r.text),
+        text: async () => r.text,
+        arrayBuffer: async () => new TextEncoder().encode(r.text).buffer,
+      } as unknown as Response;
+    }
+    const r = await callBody(handler, method as "POST" | "DELETE", url.pathname, body, params);
     return {
       ok: r.status >= 200 && r.status < 300,
       status: r.status,

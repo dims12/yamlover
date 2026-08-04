@@ -3,6 +3,35 @@ import { createHandlers } from "./helpers";
 import { applyTextEdits } from "../src/server/engine-api";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
+import { Readable } from "node:stream";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { decodeEnvelope } from "../src/client/content";
+import { deriveNodeJson } from "../src/client/derive-node";
+
+/** POST /api/preview now answers `text/yamlover` (the content envelope) — post the source and
+ *  derive the NodeJson the way the client does. */
+function previewNode(h: Parameters<typeof call>[0], source: string): Promise<{ status: number; node?: ReturnType<typeof deriveNodeJson>; error?: string }> {
+  return new Promise((resolve) => {
+    const req = Readable.from([Buffer.from(JSON.stringify({ source }))]) as unknown as IncomingMessage;
+    (req as { method?: string }).method = "POST";
+    const state = { statusCode: 200 };
+    const res = {
+      setHeader() {},
+      get statusCode() { return state.statusCode; },
+      set statusCode(v: number) { state.statusCode = v; },
+      end(b: string) {
+        if (state.statusCode !== 200) {
+          let error = b;
+          try { error = String((JSON.parse(b) as { error?: string }).error ?? b); } catch { /* raw */ }
+          resolve({ status: state.statusCode, error });
+          return;
+        }
+        resolve({ status: 200, node: deriveNodeJson(decodeEnvelope(b), null) });
+      },
+    } as unknown as ServerResponse;
+    (h as unknown as (rq: IncomingMessage, rs: ServerResponse, u: URL) => void)(req, res, new URL("http://localhost/api/preview"));
+  });
+}
 
 // POST /api/preview + /api/edit-text — the STANDALONE-document services behind the client's
 // browser-settings page: the same projection and surgical-edit semantics as /api/json + /api/edit,
@@ -20,24 +49,26 @@ describe("/api/preview (standalone yamlover text)", () => {
   it("projects a browser-settings-like doc: value, head banner, root tag, format, unresolved pointer", async () => {
     const h = createHandlers(tmpTree({}), { gitignore: false });
     await h.ready;
-    const r = await callBody(h, "POST", "/api/preview", { source: TEMPLATE });
+    const r = await previewNode(h, TEMPLATE);
     expect(r.status).toBe(200);
-    expect(r.json.path).toBe(":");
-    expect(r.json.format).toBe("x-yamlover-config");
-    expect(r.json.concrete).toBe("yamlover");
-    expect(r.json.value.width).toBe(72);
+    const n = r.node!;
+    expect(n.path).toBe(":");
+    expect(n.format).toBe("x-yamlover-config");
+    expect(n.concrete).toBe("yamlover");
+    expect((n.value as Record<string, unknown>).width).toBe(72);
     // the project-scope pointer has no target in a standalone doc → plain pointer text, no link
-    expect(r.json.value.tags).toEqual({ $yamloverRef: { text: ":: taxonomy", path: null } });
-    expect(r.json.comments.$head?.[0]).toContain("Browser settings");
-    expect(r.json.comments[""].tag).toBe("!!<*yamlover: $defs: config>"); // canonical spaced form
-    expect(r.json.comments["/width"].trailing?.[0]).toContain("reading width");
+    expect((n.value as Record<string, unknown>).tags).toEqual({ $yamloverRef: { text: ":: taxonomy", path: null } });
+    const comments = n.comments as Record<string, { tag?: string; trailing?: string[] } | string[]>;
+    expect((comments.$head as string[])?.[0]).toContain("Browser settings");
+    expect((comments[""] as { tag?: string }).tag).toBe("!!<*yamlover: $defs: config>"); // canonical spaced form
+    expect((comments["/width"] as { trailing?: string[] }).trailing?.[0]).toContain("reading width");
     h.close();
   });
 
   it("400s on a parse error, and never touches the served tree", async () => {
     const h = createHandlers(tmpTree({ name: "Alice" }), { gitignore: false });
     await h.ready;
-    const r = await callBody(h, "POST", "/api/preview", { source: "a: [unclosed" });
+    const r = await previewNode(h, "a: [unclosed");
     expect(r.status).toBe(400);
     expect(call(h, "/api/json", { path: ":name" }).json.value).toBe("Alice"); // tree unharmed
     h.close();
@@ -87,8 +118,8 @@ describe("applyTextEdits (/api/edit-text)", () => {
       edits: [{ path: ":width", op: "emplace", yamlover: "120" }],
     });
     expect(r.status).toBe(200);
-    const p = await callBody(h, "POST", "/api/preview", { source: r.json.source });
-    expect(p.json.value.width).toBe(120);
+    const p = await previewNode(h, r.json.source);
+    expect((p.node!.value as Record<string, unknown>).width).toBe(120);
     h.close();
   });
 });

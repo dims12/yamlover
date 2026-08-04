@@ -1,4 +1,7 @@
-// THE YED LOADER — NodeJson (the /api/json projection, depth `.inf`) → parser IR. This is what
+﻿// TEST FIXTURE ADAPTER — the retired yed-load, kept ONLY as a fixture bridge: suites that
+// hand-build legacy NodeJson wire shapes convert them to the Content the mounts now load
+// (contentFromNodeJson). Production loads irFromContent (yed-content-load.ts) instead.
+// THE (RETIRED) YED LOADER — NodeJson (the /api/json projection, depth `.inf`) → parser IR. This is what
 // makes the yed mount CONCRETE-AGNOSTIC: the projection exists for EVERY node the engine serves
 // (flat files, dir-backed documents, bare directories, .yaml bodies, deep positional nodes), so
 // the editor never asks how a node is stored — the backend's concrete-inheritance rules answer
@@ -18,14 +21,14 @@
 // edit. They are display-only carriage: the diff layer never reads them (canon is comment-
 // blind) and payloads strip them before serializing, so no op is ever emitted for a comment.
 
-import type { NodeJson, CommentBucket, CommentMap } from "../api";
-import type { Comment } from "../../../../parser/ts/src/ir.ts";
-import type { Document, Entry, Node, Value } from "../../../../yed/src/state";
-import { makeAnchor, parsePointer } from "../../../../parser/ts/src/pointer.ts";
-import { segToken } from "../../../../parser/ts/src/pathseg.ts";
-import { parseSchemaRef } from "../../../../parser/ts/src/yamlover.ts";
-import type { Pointer } from "../../../../parser/ts/src/ir.ts";
-import { formatFromMetaTag, proseFormatOfTag } from "../../../../yed/src/chapter/format";
+import type { NodeJson, CommentBucket, CommentMap } from "../../src/client/api";
+import type { Comment } from "../../../parser/ts/src/ir.ts";
+import type { Document, Entry, Node, Value } from "../../../yed/src/state";
+import { makeAnchor, parsePointer } from "../../../parser/ts/src/pointer.ts";
+import { segToken } from "../../../parser/ts/src/pathseg.ts";
+import { parseSchemaRef } from "../../../parser/ts/src/yamlover.ts";
+import type { Pointer } from "../../../parser/ts/src/ir.ts";
+import { formatFromMetaTag, proseFormatOfTag } from "../../../yed/src/chapter/format";
 
 const MIXED_KEY = "$yamloverMixed";
 const REF_KEY = "$yamloverRef";
@@ -261,4 +264,30 @@ export function irFromNodeJson(node: NodeJson): Document {
     n.meta = { ...(n.meta ?? {}), comments: [...prior, ...tail.map((t) => wireComment(t, "leading"))] };
   }
   return doc;
+}
+
+import type { Content } from "../../src/client/content";
+
+/** Route a suite's mocked `fetchContent` through its `fetchNode` mock — the ONE-WIRE mounts
+ *  load Content, the fixtures stay NodeJson, and whatever `fetchNode` currently resolves is
+ *  what the mount sees. Install as `fetchContent.mockImplementation(contentViaNode(fetchNode))`. */
+export const contentViaNode = (fetchNode: (path: string, depth: number | null) => Promise<unknown>) =>
+  async (path: string, depth: number | null): Promise<Content> =>
+    contentFromNodeJson((await fetchNode(path, depth)) as NodeJson);
+
+/** A legacy NodeJson fixture as the Content the mounts consume: the IR is fully stamped
+ *  here (anchorKey/link/derivedFormat), so the loader's sidecar pass is a no-op. */
+export function contentFromNodeJson(node: NodeJson): Content {
+  const doc = irFromNodeJson(node);
+  return {
+    header: {
+      path: node.path, documentPath: node.documentPath ?? node.path, type: node.type,
+      format: node.format ?? null, valueType: node.valueType ?? null,
+      hasKeyed: node.hasKeyed ?? false, hasOrdinal: node.hasOrdinal ?? false,
+      concrete: node.concrete ?? "yamlover", title: node.title, description: node.description,
+    },
+    doc,
+    side: {},
+    relations: (node.relations ?? {}) as Content["relations"],
+  };
 }

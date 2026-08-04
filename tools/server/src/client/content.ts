@@ -5,6 +5,7 @@
 
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { isPointer, type Document, type Node, type Value } from "../../../parser/ts/src/ir.ts";
+import { api } from "./base";
 import { strToSegs, segsToStr } from "./paths";
 
 /** One sidecar bucket — what the authored text cannot say (content-envelope.ts's twin). */
@@ -70,7 +71,7 @@ export async function fetchContent(path: string, depth?: number | null): Promise
   // token is itself percent-encoded, so the split is unambiguous)
   const slash = segsToStr(segs).slice(1).split(":").join("/");
   const q = depth === null ? "?depth=.inf" : depth !== undefined ? `?depth=${depth}` : "";
-  const r = await fetch(`/api/content${slash ? "/" + slash : ""}${q}`);
+  const r = await fetch(api(`/api/content${slash ? "/" + slash : ""}${q}`));
   const text = await r.text();
   if (!r.ok) {
     let msg = text;

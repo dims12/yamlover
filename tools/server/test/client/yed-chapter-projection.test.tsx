@@ -5,17 +5,22 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, cleanup, fireEvent, act, waitFor } from "@testing-library/react";
 
-const { fetchNode, editChunks, queryTree, queryFilter } = vi.hoisted(() => ({ fetchNode: vi.fn(), editChunks: vi.fn(), queryTree: vi.fn(), queryFilter: vi.fn() }));
+const { fetchNode, fetchContent, editChunks, queryTree, queryFilter } = vi.hoisted(() => ({
+  fetchNode: vi.fn(), fetchContent: vi.fn(), editChunks: vi.fn(), queryTree: vi.fn(), queryFilter: vi.fn(),
+}));
 vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchNode, editChunks, queryTree, queryFilter }));
+vi.mock("../../src/client/content", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchContent }));
 
 import { YedChapterEditor } from "../../src/client/renderers/yed-chapter-editor";
 import { ChapterFormatControl } from "../../src/client/renderers/chapter-editor/format-control";
 import type { NodeJson } from "../../src/client/api";
+import { contentFromNodeJson } from "./wire-fixture";
 
 afterEach(cleanup);
 beforeEach(() => {
   editChunks.mockReset().mockResolvedValue({ ok: true });
   fetchNode.mockReset();
+  fetchContent.mockReset();
   queryTree.mockReset().mockResolvedValue([]); // the reference kit's candidates — empty by default
   queryFilter.mockReset().mockRejectedValue(new Error("no filter mock")); // pick Enter falls back to verbatim
 });
@@ -37,8 +42,12 @@ function chapterNode(opts: { title?: string; description?: string; body?: unknow
   } as unknown as NodeJson;
 }
 
+const mockLoad = (node: NodeJson): void => {
+  fetchNode.mockResolvedValue(node); // LinkedPreview still reads NodeJson
+  fetchContent.mockResolvedValue(contentFromNodeJson(node)); // the mount loads the ONE WIRE
+};
 const renderSync = (node: NodeJson) => {
-  fetchNode.mockResolvedValue(node);
+  mockLoad(node);
   return render(<YedChapterEditor path=":doc" onNavigate={vi.fn()} />);
 };
 const settle = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
@@ -61,7 +70,7 @@ function descriptionText(scope: Element): string | null {
 
 describe("yed chapter — structure", () => {
   it("draws the title as an editable h1, the description as a subtitle, prose with §gutters", async () => {
-    fetchNode.mockResolvedValue(chapterNode({ title: "Book", description: "a guide", body: ["opening"] }));
+    mockLoad(chapterNode({ title: "Book", description: "a guide", body: ["opening"] }));
     const { container } = render(<YedChapterEditor path=":doc" onNavigate={vi.fn()} />);
     await waitFor(() => expect(container.querySelector("h1.chapter-title")).toBeTruthy());
     expect(titleText(container)).toBe("Book"); // active on open — the controlled input holds it
@@ -74,7 +83,7 @@ describe("yed chapter — structure", () => {
 
   it("a subchapter is an inline <section> with the SAME editor one level down; it takes no §", async () => {
     const sub = mixed({ kind: "omni", value: "Dogs", selfAt: 0, entries: [{ key: null, value: "woof" }] });
-    fetchNode.mockResolvedValue(chapterNode({ title: "Book", body: ["opening", sub, "closing"] }));
+    mockLoad(chapterNode({ title: "Book", body: ["opening", sub, "closing"] }));
     const { container } = render(<YedChapterEditor path=":doc" onNavigate={vi.fn()} />);
     await waitFor(() => expect(container.querySelector("section.chapter-sub")).toBeTruthy());
     const section = container.querySelector("section.chapter-sub")!;
@@ -89,7 +98,7 @@ describe("yed chapter — structure", () => {
   });
 
   it("an EMPTY chapter shows one bootstrap paragraph with the placeholder", async () => {
-    fetchNode.mockResolvedValue(chapterNode({ body: [] }));
+    mockLoad(chapterNode({ body: [] }));
     const { container } = render(<YedChapterEditor path=":doc" onNavigate={vi.fn()} />);
     await waitFor(() => expect(container.querySelector(".chapter-wysiwyg")).toBeTruthy());
     const boot = container.querySelector(".chunk-body .chapter-prose") as HTMLElement;
@@ -97,7 +106,7 @@ describe("yed chapter — structure", () => {
   });
 
   it("opens with the caret in the title — no click to begin", async () => {
-    fetchNode.mockResolvedValue(chapterNode({ title: "Book", body: ["p"] }));
+    mockLoad(chapterNode({ title: "Book", body: ["p"] }));
     const { container } = render(<YedChapterEditor path=":doc" onNavigate={vi.fn()} />);
     await waitFor(() => expect(document.activeElement).toBe(container.querySelector("h1.chapter-title input.y2-input")));
   });
@@ -397,7 +406,7 @@ describe("yed chapter — the ?depth= window", () => {
   it("at depth=1 a subchapter collapses to the descend heading; a WRAP stays editable", async () => {
     window.history.replaceState(null, "", "/?depth=1");
     const sub = mixed({ kind: "omni", value: "Dogs", selfAt: 0, entries: [{ key: null, value: "woof" }] });
-    fetchNode.mockResolvedValue(chapterNode({ title: "Book", body: [sub, "fresh"] }));
+    mockLoad(chapterNode({ title: "Book", body: [sub, "fresh"] }));
     const onNavigate = vi.fn();
     const { container } = render(<YedChapterEditor path=":doc" onNavigate={onNavigate} />);
     await waitFor(() => expect(container.querySelector("h1.chapter-title")).toBeTruthy());
@@ -420,7 +429,7 @@ describe("yed chapter — the format bar rides the SHARED bus", () => {
   afterEach(() => vi.useRealTimers());
 
   const renderWithBar = (node: NodeJson) => {
-    fetchNode.mockResolvedValue(node);
+    mockLoad(node);
     return render(
       <>
         <YedChapterEditor path=":doc" onNavigate={vi.fn()} />

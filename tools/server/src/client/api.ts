@@ -2,6 +2,8 @@
 
 import { api } from "./base"; // prefixes every server path with the served base path (--base-path)
 import { strToSegs } from "./paths";
+import { decodeEnvelope, fetchContent } from "./content";
+import { deriveNodeJson } from "./derive-node";
 
 export interface TreeNode {
   path: string;
@@ -99,15 +101,30 @@ export function fetchTree(path = ":", depth?: number): Promise<TreeNode> {
   return getJson<TreeNode>(api(`/api/tree?${q}`));
 }
 
-export function fetchNode(
+export async function fetchNode(
   path: string,
   depth?: number | null, // a finite level, `null` = `.inf` (unlimited), or omit for the server default
   opts?: { binary?: boolean },
 ): Promise<NodeJson> {
-  const q = new URLSearchParams({ path });
-  setDepth(q, depth);
-  if (opts?.binary) q.set("binary", "1"); // request a binary leaf's base64 bytes
-  return getJson<NodeJson>(api(`/api/json?${q}`));
+  // THE ONE WIRE: the server speaks yamlover (/api/content); the old NodeJson shape every
+  // renderer consumes is DERIVED here, client-side — proven equivalent by the
+  // wire-equivalence gate. Bytes never ride the text wire: `binary` fetches them raw from
+  // /api/blob and splices the old marker shape.
+  const content = await fetchContent(path, depth);
+  const node = deriveNodeJson(content, depth);
+  if (!opts?.binary) return node;
+  const res = await fetch(blobUrl(path));
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const buf = new Uint8Array(await res.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  const payload = { format: node.format ?? null, size: buf.length, base64: btoa(bin) };
+  if (node.type === "binary") return { ...node, value: { $yamloverBinary: payload } };
+  // a blob-backed OMNI (an image carrying overlay entries): the bytes fill the mixed
+  // marker's self-value slot, entries and base64 together — the old ?binary=1 contract
+  const marker = (node.value as Record<string, { value?: unknown }> | null)?.$yamloverMixed;
+  if (marker) marker.value = { $yamloverBinary: payload };
+  return node;
 }
 
 /** Encode a render depth into the query: `null` → `.inf` (unlimited), a finite
@@ -385,9 +402,21 @@ export function fetchSource(path: string): Promise<{ source: string }> {
 }
 
 /** Render a STANDALONE yamlover text (no file behind it — the browser-settings document) exactly
- *  as /api/json renders a node. Stateless; always unlimited depth. Rejects on a parse error. */
-export function previewSource(source: string): Promise<NodeJson> {
-  return postJson(api("/api/preview"), { source });
+ *  as a served node renders. Stateless; always unlimited depth. Rejects on a parse error.
+ *  The server answers with a CONTENT ENVELOPE (the one wire); the NodeJson derives here. */
+export async function previewSource(source: string): Promise<NodeJson> {
+  const res = await fetch(api("/api/preview"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source }),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    let msg = text;
+    try { msg = String((JSON.parse(text) as { error?: string }).error ?? text); } catch { /* raw */ }
+    throw new Error(msg);
+  }
+  return deriveNodeJson(decodeEnvelope(text), null);
 }
 
 /** Apply surgical {@link Edit}s to a STANDALONE yamlover text, returning the new text — the

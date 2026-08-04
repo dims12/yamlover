@@ -32,7 +32,8 @@ import { rolesOf } from "../../../../yed/src/chapter/legend";
 import { createColumnMemory } from "../../../../yed/src/chapter/caret";
 import { editChunks, fetchNode, pasteFileInline, rekeyNode, type NodeJson } from "../api";
 import { makeSourceCells } from "./yed-cells";
-import { irFromNodeJson } from "./yed-load";
+import { fetchContent } from "../content";
+import { irFromContent } from "./yed-content-load";
 import { diffToOps } from "./yed-sync";
 import { anchorOf, CHAPTER_META, childSlot, isSubchapter } from "./chapter-model";
 import { canonPath } from "../paths";
@@ -145,18 +146,18 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
     setError(null);
     stateRef.current = null;
     committedRef.current = null;
-    fetchNode(path, null)
-      .then((node) => {
+    fetchContent(path, null)
+      .then((content) => {
         if (!alive) return;
-        const doc = irFromNodeJson(node);
-        if ((doc.root as { kind?: string }).kind === "blob") { setError("a binary node has no chapter projection"); return; }
+        if (content.header.type === "binary") { setError("a binary node has no chapter projection"); return; }
+        const doc = irFromContent(content);
         const tagged = tagContentOf(doc.root) !== null || isSubchapter(explicitFormatOf(doc.root));
         // THE STAMP BELONGS TO THE DOCUMENT: only a mount at a document's own root may stamp.
         // A mounted SUBNODE inherits its chapterhood from the enclosing document — and a
         // value-position tag on a keyed member is not even writable by the server surgery.
-        const isDocRoot = canonPath(node.documentPath ?? path) === canonPath(path);
+        const isDocRoot = canonPath(String(content.header.documentPath ?? path)) === canonPath(path);
         stampedRef.current = tagged || !isDocRoot;
-        concreteRef.current = node.concrete ?? null;
+        concreteRef.current = (content.header.concrete as string | undefined) ?? null;
         const st = initialChapterState(doc);
         // open with the caret in the first cell that EXISTS — no click to begin, nothing written
         const first = chapterPositionsOf(doc)[0] ?? null;
