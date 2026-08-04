@@ -74,7 +74,7 @@ describe("ChapterView (locked) read-only", () => {
     );
     expect(container.querySelector("[contenteditable=true]")).toBeNull();
     expect(container.querySelector("h1.chapter-title")?.textContent).toBe("My Title");
-    expect(container.querySelector("h2.chapter-title a.descend")?.textContent).toBe("Sub");
+    expect(container.querySelector("h2.chapter-title a.descend")?.textContent).toContain("Sub"); // note rides inside the anchor
   });
 });
 

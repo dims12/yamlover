@@ -332,7 +332,7 @@ describe("ChapterView — inline subchapters", () => {
     fetchNode.mockReturnValue(new Promise(() => {})); // never settles
     const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
     const head = container.querySelector("h2.chapter-title")!;
-    expect(head.querySelector("a.descend")?.textContent).toBe("Dogs");
+    expect(head.querySelector("a.descend")?.textContent).toContain("Dogs"); // the note rides inside the anchor
     expect(head.id).toBe("/dogs"); // the anchor exists before the body lands
     expect(head.querySelector(".chapter-link-note")?.textContent?.trim()).toBe("…");
   });
@@ -367,7 +367,7 @@ describe("ChapterView — inline subchapters", () => {
     const { container } = render(<ChapterView node={page} onNavigate={onNav} />);
     expect(fetchNode).not.toHaveBeenCalled(); // cited, not loaded — nothing to inline
     const link = container.querySelector("a.descend")!;
-    expect(link.textContent).toBe("Dogs"); // the target's own title labels the link
+    expect(link.textContent).toContain("Dogs"); // the target's own title labels the link
     expect(container.querySelector(".chapter-link-note")?.textContent).toContain("↗");
     fireEvent.click(link);
     expect(onNav).toHaveBeenCalledWith(":json:boolean");
@@ -377,6 +377,44 @@ describe("ChapterView — inline subchapters", () => {
     const { container } = render(<ChapterView node={withSub(":dogs:puppies")} onNavigate={vi.fn()} />);
     expect(fetchNode).not.toHaveBeenCalled();
     expect(container.querySelector(".chapter-link-note")?.textContent).toContain("↗");
+  });
+
+  // THE IN-PAGE UPGRADE (SubchapterHeading): a reference whose target is RENDERED on this very
+  // page becomes a #fragment jump — no navigation — and its note shows the direction (↑ above).
+  it("a reference to a target inlined on the SAME page becomes a #fragment link with a direction arrow", async () => {
+    const onNav = vi.fn();
+    // the page: [prose, the dogs subchapter (inlined), a REFERENCE to :dogs:puppies (a grandchild)]
+    const page = {
+      ...withSub(":dogs"),
+      value: {
+        $yamloverMixed: {
+          kind: "omni", value: "Book", selfAt: 0,
+          entries: [
+            { key: null, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/marklower", path: ":0", value: "Opening." } } },
+            { key: null, value: { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: ":dogs", title: "Dogs" } } },
+            { key: null, value: { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: ":dogs:puppies", title: "Puppies" } } },
+          ],
+        },
+      },
+    } as unknown as NodeJson;
+    const deeper = { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: ":dogs:puppies", title: "Puppies" } };
+    fetchNode.mockImplementation((p: string) =>
+      Promise.resolve(p === ":dogs" ? subNode(":dogs", "Dogs", "Dogs are good.", deeper) : subNode(":dogs:puppies", "Puppies", "Puppies too.")));
+    const { container } = render(<ChapterView node={page} onNavigate={onNav} />);
+    // the inlined grandchild lands with its path-fragment anchor…
+    await waitFor(() => expect(document.getElementById("/dogs/puppies")).not.toBeNull());
+    // …and the reference upgrades: same-page fragment href, ↑ (the target sits above), no ↗
+    const refLink = await waitFor(() => {
+      const a = Array.from(container.querySelectorAll("a.descend")).find(
+        (x) => x.textContent?.includes("Puppies") && x.getAttribute("href")?.startsWith("#"));
+      expect(a).toBeTruthy();
+      return a!;
+    });
+    expect(refLink.getAttribute("href")).toBe("#/dogs/puppies");
+    expect(refLink.querySelector(".chapter-link-note")?.textContent?.trim()).toBe("↑");
+    fireEvent.click(refLink);
+    expect(window.location.hash).toBe("#/dogs/puppies"); // an in-page jump…
+    expect(onNav).not.toHaveBeenCalled(); // …never a navigation
   });
 
   it("an INLINE subchapter (a container in the chapter's own source) needs no fetch", async () => {

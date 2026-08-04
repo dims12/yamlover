@@ -1012,12 +1012,14 @@ pre.code.chapter-data {
 }
 /* A subchapter laid out IN PLACE (subchapter.tsx): the indent + rule is the only thing marking the
    nesting, and it compounds naturally because the sections really are nested in the DOM. The
-   reading width belongs to the outer `.chapter` alone, so a deep subchapter's column narrows only
-   by its indent rather than being re-capped at every level. */
+   READING WIDTH is constant at every depth: each nesting wrapper (a section here, a chunk below)
+   pays --sub-step on its LEFT and takes the same back on its RIGHT, so a deep column keeps the
+   `.chapter` line length and its whole band STAIRCASES right instead of narrowing. */
 .chapter-sub {
   margin-left: var(--sub-margin);
   padding-left: var(--sub-pad);
   border-left: 1px solid var(--line);
+  margin-right: calc(-1 * var(--sub-step));
 }
 /* a heading is a `#fragment` target like a chunk — keep it off the viewport's top edge */
 .chapter-sub > .chapter-title {
@@ -1040,7 +1042,10 @@ pre.code.chapter-data {
   margin-right: 0.55rem;
   box-sizing: border-box;
   text-align: right;
-  padding-right: 0.35rem;
+  /* in px, tuned so the § glyph's right edge lands EXACTLY where a chunk digit's does
+     (rule − 3px): at 0.35rem it sat 0.1px off, which could rasterize one pixel astray —
+     the same column snapping left on one line and right on the next */
+  padding-right: 5.7px;
   font-size: 12px;
   font-weight: normal;
   color: var(--accent); /* bluish, like the chunk digits — the gutter is one address system */
@@ -1103,16 +1108,10 @@ pre.code.chapter-data {
 }
 /* THE DEPTH-STYLING RULE (chapter-shared.tsx): a not-laid-out subchapter renders the SAME
    `chapter-title` heading inside the SAME `chapter-sub` section (identical indent + left rule)
-   — only its text is a `descend` hyperlink, with a trailing » marking the collapsed link. */
+   — only its text is a `descend` hyperlink. (The far-right » marker is gone: floated to the
+   staircased right edge it read as clutter, and it was never clickable.) */
 .chapter-title a.descend {
   border-bottom-width: 0;
-}
-.chapter-title .chapter-link-more {
-  float: right;
-  color: var(--accent);
-  opacity: 0.6;
-  font-weight: 400;
-  user-select: none;
 }
 
 /* a numbered chunk: it sits at the SAME nesting rank as a subchapter section (in the yamlover
@@ -1129,6 +1128,7 @@ pre.code.chapter-data {
   margin-left: var(--sub-margin);
   padding-left: var(--sub-pad);
   border-left: 1px solid var(--line);
+  margin-right: calc(-1 * var(--sub-step)); /* the constant-reading-width law (.chapter-sub) */
   scroll-margin-top: 12px; /* a chunk targeted via #/chunks[n] isn't flush to the top */
 }
 a.chunk-index {
@@ -1646,9 +1646,13 @@ textarea.chapter-latex-src {
 }
 /* …but as a CHAPTER CHUNK it keeps the page's vertical rhythm: the same bottom margin a
    prose paragraph carries (.chapter-prose), so a code block gets even air above and below
-   (margin: 0 alone left it flush against whatever follows). */
+   (margin: 0 alone left it flush against whatever follows). The darker card face
+   (--bg-alt: below the page background in both themes) sets code apart from prose. */
 .chunk-body > .plaintext {
   margin: 0 0 14px;
+  padding: 8px 10px;
+  background: var(--bg-alt);
+  border-radius: 6px;
 }
 /* a node-bar selector beside a renderer's tab (plaintext encoding, explorer view) */
 .enc-control {

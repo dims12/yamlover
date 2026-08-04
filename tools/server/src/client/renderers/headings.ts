@@ -84,17 +84,15 @@ export function useHashScroll(dep: unknown, opts?: { once?: boolean }): void {
       const fresh = restore.current === id; // the mount's own hash — restored even when spy-written
       if (!fresh && id === spyHash) return; // reader-following hash: never scroll back to it
       if (opts?.once && done.current === id) return; // landed once — later dep runs stay put
-      // the navigation intent is registered EVEN IF the anchor has not landed yet — the spy stays
-      // quiet through the loading layout shifts until the reader actually scrolls (the spy below)
-      hashScrolledAt = Date.now();
-      const el = document.getElementById(id);
-      if (!el?.scrollIntoView) return; // absent in jsdom, or no such anchor yet (value still loading)
-      el.scrollIntoView({ block: "center" });
+      // An ALREADY-REVEALED hash may re-anchor through late layout shifts (a subtree landing
+      // above the target pushes it down) — but ONLY while the reader has not scrolled since the
+      // last programmatic reveal. The wheel always wins over a landing subchapter: without this,
+      // every lazy load yanked the page back to the hash mid-scroll (the aperiodic-interruption
+      // report). `lastRevealed` is module-level so click navigations (navigateToFragment) count.
+      if (lastRevealed === id && userScrolledAt > hashScrolledAt) return;
+      if (!scrollToId(id)) return; // absent in jsdom, or no such anchor yet (value still loading)
       done.current = id;
       if (fresh) { restore.current = null; if (spyHash === id) spyHash = null; } // consumed
-      if (!id.includes("yamlover-fragments/")) return; // only fragments flash
-      el.classList.add("yo-reveal-flash");
-      window.setTimeout(() => el.classList.remove("yo-reveal-flash"), 1000);
     };
     const onHashChange = () => { spyHash = null; restore.current = null; done.current = null; reveal(); };
     reveal();
@@ -108,6 +106,54 @@ export function useHashScroll(dep: unknown, opts?: { once?: boolean }): void {
  *  a hashchange — happens). {@link useHashScroll} never scrolls back to it: the reader is
  *  already there, and a late-loading subchapter re-running the reveal must not yank the page. */
 let spyHash: string | null = null;
+
+/** The fragment the last programmatic scroll landed on — module-level, so the user-veto guard
+ *  in {@link useHashScroll} covers reveals AND click navigations alike. */
+let lastRevealed: string | null = null;
+
+/** THE ONE SCROLLING PRIMITIVE every fragment navigation uses — the deep-link reveal and the
+ *  click navigations (§ anchors, gutter digits, in-page chapter links). Lands the target at the
+ *  TOP of the pane (its `scroll-margin-top` gives it air) — the deterministic place a reader
+ *  expects of an anchor, not a viewport-dependent centering. Returns whether it scrolled. */
+function scrollToId(id: string): boolean {
+  const el = document.getElementById(id);
+  if (!el?.scrollIntoView) return false;
+  // stamped only when a scroll actually happens — a retry against a not-yet-landed anchor
+  // must not stand the spy down (it would keep a stale hash pinned against real reading)
+  hashScrolledAt = Date.now();
+  lastRevealed = id;
+  // The STICKY node bar overlays the pane's top, so a bare top-anchored scroll lands the
+  // target beneath it. Measure the ACTUAL overlay — the bar's bottom relative to its
+  // scroller's top, the same whether the bar is stuck or at rest, and robust to it wrapping
+  // taller at narrow widths — and stamp it as the element's scroll margin; scrollIntoView
+  // respects it, and so would a native anchor jump.
+  const nh = document.querySelector<HTMLElement>(".nodehead");
+  if (nh) {
+    const scroller = nh.closest(".pane") ?? document.documentElement;
+    const clearance = Math.max(0, nh.getBoundingClientRect().bottom - scroller.getBoundingClientRect().top);
+    el.style.scrollMarginTop = `${Math.round(clearance) + 12}px`;
+  }
+  el.scrollIntoView({ block: "start" });
+  if (id.includes("yamlover-fragments/")) { // only fragments flash
+    el.classList.add("yo-reveal-flash");
+    window.setTimeout(() => el.classList.remove("yo-reveal-flash"), 1000);
+  }
+  return true;
+}
+
+/** Navigate to an in-page anchor from a CLICK — never via `location.hash`: assigning an equal
+ *  hash fires NO hashchange (so nothing would scroll — the "sometimes works" report; whether
+ *  the hashes are equal depended on what the scroll SPY last wrote), and assigning a different
+ *  one also triggers the browser's own jump, doubling the motion. `pushState` records the
+ *  navigation (back-button works), the shared primitive does the one scroll, and the spy is
+ *  reset — this is a real navigation, not the reader drifting. */
+export function navigateToFragment(id: string): void {
+  spyHash = null;
+  if (decodeURIComponent(window.location.hash.slice(1)) !== id) {
+    history.pushState(null, "", "#" + id);
+  }
+  scrollToId(id);
+}
 
 /** When {@link useHashScroll} last scrolled programmatically — the scroll spy stands down after,
  *  so following a link keeps the CLICKED fragment rather than whichever anchor the centering

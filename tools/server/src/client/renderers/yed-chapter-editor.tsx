@@ -319,7 +319,6 @@ function LinkedPreview({ link, level, budget, chapterPath, onNavigate }: {
   return (
     <section className="chapter-sub" data-chapter-path={link.path}>
       <H className="chapter-title">
-        <span className="chapter-link-more" data-yo-chrome aria-hidden="true">»</span>
         <a className="descend" href="#" onClick={(e) => { e.preventDefault(); onNavigate(link.path); }}>
           {link.title ?? link.path}
         </a>

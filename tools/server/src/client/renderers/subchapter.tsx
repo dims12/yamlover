@@ -45,6 +45,9 @@ export interface SubchapterLinkProps {
   level: number;
   id: string;
   note?: string;
+  /** True for a REFERENCE (a citation of a chapter that is not this chapter's own member) —
+   *  the page must NOT give its heading the target's anchor id (see chapter-shared renderLink). */
+  reference?: boolean;
 }
 
 /** The page's own body renderer, applied to an inlined subchapter. */
@@ -128,7 +131,7 @@ export function InlineSubchapter({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, needsFetch]);
 
-  const asLinkFace = (note?: string) => renderLink({ path: target ?? undefined, title: link?.title, level, id: slot, note });
+  const asLinkFace = (note?: string) => renderLink({ path: target ?? undefined, title: link?.title, level, id: slot, note, reference });
 
   if (!allowed) return asLinkFace(reference ? "↗" : cyclic ? "↻ already shown above" : undefined);
   if (!linked) {

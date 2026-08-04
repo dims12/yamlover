@@ -8,13 +8,14 @@
 // rank; crossing the depth budget only turns the title text into a `descend` hyperlink (and
 // the body is absent). Depth changes toggle links, never typography.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { rendererFor, type Chunk } from "./registry";
 import { focusEnd } from "./caret";
 import { asLink, asMixed, scalarValue } from "../render";
 import { anchorOf, chapterFlow, childPath, childSlot, flowText } from "./chapter-model";
 import { InlineSubchapter, subchapterTarget } from "./subchapter";
 import { DataChunk } from "./data-chunk";
+import { navigateToFragment } from "./headings";
 
 /** The index gutter — an in-page anchor link to the chunk's own location, or a plain marker.
  *  Each entry of `index` is one level's ADDRESS token (CHAPTER.md §Addressing): the chunk's
@@ -28,7 +29,9 @@ export function ChunkGutter({ index, anchor }: { index: number | string | readon
     <span key={i} className="chunk-crumb" style={{ "--lvl": chain.length - 1 - i } as React.CSSProperties}>{n}</span>
   ));
   return anchor ? (
-    <a className="chunk-index" href={`#${anchor}`}>{crumbs}</a>
+    // through navigateToFragment, never the native jump: a SAME-hash click fires no hashchange
+    // and would scroll nothing (headings.ts)
+    <a className="chunk-index" href={`#${anchor}`} onClick={(e) => { e.preventDefault(); navigateToFragment(anchor); }}>{crumbs}</a>
   ) : (
     <span className="chunk-index">{crumbs}</span>
   );
@@ -74,7 +77,13 @@ export function renderChunkBody(chunk: Chunk, onNavigate: (path: string) => void
  *  twin of the chunk gutter's address digit (and of the markup renderer's `header-anchor`). */
 export function SectionAnchor({ id }: { id: string }) {
   return (
-    <a className="section-anchor" href={`#${id}`} aria-label="Link to this section" data-yo-chrome>§</a>
+    <a
+      className="section-anchor"
+      href={`#${id}`}
+      aria-label="Link to this section"
+      data-yo-chrome
+      onClick={(e) => { e.preventDefault(); navigateToFragment(id); }}
+    >§</a>
   );
 }
 
@@ -82,11 +91,17 @@ export function SectionAnchor({ id }: { id: string }) {
  *  whether the body is laid out in place or not (the depth-styling rule above). It wraps in its
  *  own `chapter-sub` SECTION so a collapsed subchapter keeps the exact indent + left rule its
  *  inlined body would have (and `data-chapter-path` keeps drops/creates targeting it). With
- *  `linked`, the title text is a `descend` hyperlink and a trailing `»` marks the collapsed
- *  state (past the depth budget, mid-load, failed, a pointer cycle, or the flat editor); the
- *  anchor `id` the inlined body would have had is kept either way, so a `#fragment` resolves. */
+ *  `linked`, the title text is a `descend` hyperlink (past the depth budget, mid-load, failed,
+ *  a reference, or the flat editor); the anchor `id` the inlined body would have had is kept
+ *  either way, so a `#fragment` resolves.
+ *
+ *  THE IN-PAGE UPGRADE: when `targetFragment` names an element that is RENDERED on this page
+ *  (the target chapter inlined elsewhere — the DOM is the truth, re-checked every render as
+ *  lazy subtrees land), the link becomes a `#fragment` jump instead of a navigation, and the note
+ *  shows the direction — ↑ when the target sits above this heading, ↓ below. The heading's OWN
+ *  element is excluded: a collapsed subchapter carries the very id its body would have. */
 export function SubchapterHeading({
-  path, title, level = 1, id, note, linked = true, onNavigate,
+  path, title, level = 1, id, note, linked = true, targetFragment, onNavigate,
 }: {
   path?: string;
   title?: string;
@@ -95,29 +110,62 @@ export function SubchapterHeading({
   note?: string;
   /** False renders the title as plain text (an in-place body follows it). */
   linked?: boolean;
+  /** The in-page anchor id the TARGET would have when rendered under this page's root
+   *  (anchorOf(base, target, "") — empty when the target lives outside the page). */
+  targetFragment?: string;
   onNavigate?: (path: string) => void;
 }) {
   const Heading = `h${Math.min(level + 1, 6)}` as "h2";
+  const headRef = useRef<HTMLHeadingElement>(null);
+  const [inPage, setInPage] = useState<"up" | "down" | null>(null);
+  // no dep array on purpose: the page re-renders as each lazy subtree lands (noteLoad), and the
+  // target may appear — or disappear — with any of them; the setState is change-guarded.
+  useEffect(() => {
+    let next: "up" | "down" | null = null;
+    const own = headRef.current;
+    if (targetFragment && own) {
+      // scan in DOCUMENT ORDER rather than getElementById: the id is deliberately DUPLICATED —
+      // every collapsed/reference heading carries the id its inlined body would have (so a
+      // #fragment resolves) — and engines disagree on which duplicate getElementById returns.
+      // Only a REAL rendering upgrades the link: a link-face heading sits ALONE in its section,
+      // an inlined chapter's heading has its body beside it.
+      for (const e of document.querySelectorAll("[id]")) {
+        if (e.id !== targetFragment || e === own) continue;
+        if ((e.parentElement?.childElementCount ?? 0) <= 1) continue;
+        next = own.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_PRECEDING ? "up" : "down";
+        break;
+      }
+    }
+    if (next !== inPage) setInPage(next);
+  });
+  const shownNote = inPage ? (inPage === "up" ? "↑" : "↓") : note;
   return (
     <section className="chapter-sub" data-chapter-path={path || undefined}>
-      <Heading className="chapter-title" id={id || undefined}>
+      <Heading className="chapter-title" id={id || undefined} ref={headRef}>
         {id && <SectionAnchor id={id} />}
-        {linked && <span className="chapter-link-more" data-yo-chrome aria-hidden="true">»</span>}
         {linked ? (
           <a
             className="descend"
-            href={path ?? "#"}
+            href={inPage && targetFragment ? `#${targetFragment}` : path ?? "#"}
             onClick={(e) => {
               e.preventDefault();
+              // the in-page jump goes through the shared navigation primitive (headings.ts) —
+              // it scrolls even when the hash is ALREADY the target (location.hash assignment
+              // fires no hashchange then) and stands the scroll spy down
+              if (inPage && targetFragment) { navigateToFragment(targetFragment); return; }
               if (path) onNavigate?.(path);
             }}
           >
             {title || "(untitled chapter)"}
+            {/* the note rides INSIDE the anchor — the arrow is clickable, not mere chrome */}
+            {shownNote && <span className="chapter-link-note" data-yo-chrome> {shownNote}</span>}
           </a>
         ) : (
-          title || "(untitled chapter)"
+          <>
+            {title || "(untitled chapter)"}
+            {note && <span className="chapter-link-note" data-yo-chrome> {note}</span>}
+          </>
         )}
-        {note && <span className="chapter-link-note" data-yo-chrome> {note}</span>}
       </Heading>
     </section>
   );
@@ -285,13 +333,27 @@ export function ChapterBody({
               onNavigate={onNavigate}
             />
           )}
-          renderLink={(p) => (
-            <SubchapterHeading
-              {...p}
-              id={anchorOf(anchorBase, subchapterTarget(f.value).path ?? childPath(nodePath, f.absIndex), p.id)}
-              onNavigate={onNavigate}
-            />
-          )}
+          renderLink={(p) => {
+            const target = subchapterTarget(f.value).path;
+            // THE ID LAW: only a collapsed CONTAINED subchapter — the target's sole
+            // representation on this page — wears the id its inlined body would have, so a
+            // deep link resolves. A REFERENCE keeps its own SLOT id: claiming the target's
+            // would duplicate it (every citation + the real section), and hash resolution
+            // then lands on whichever bearer comes first — the mis-landing click report.
+            const ownId = p.reference
+              ? anchorOf(anchorBase, childPath(nodePath, f.absIndex), p.id)
+              : anchorOf(anchorBase, target ?? childPath(nodePath, f.absIndex), p.id);
+            return (
+              <SubchapterHeading
+                {...p}
+                id={ownId}
+                // the target's would-be anchor on THIS page — empty (→ no upgrade) when the
+                // target lives outside the page's own subtree (anchorOf falls back to the slot)
+                targetFragment={(target ? anchorOf(anchorBase, target, "") : "") || undefined}
+                onNavigate={onNavigate}
+              />
+            );
+          }}
         />
       );
     }
