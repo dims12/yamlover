@@ -1,16 +1,16 @@
 The value axis
-description: the self-value's types — JSON Schema's set, binary added, its own subtyping
-- 'The self-value''s type keeps JSON Schema''s set. It is not flat — it subtypes:'
+description: the self-value's types - JSON Schema's set, binary added, its own subtyping
+- 'The self-value''s type keeps JSON Schema''s set. It is not flat - it subtypes:'
 - !!<*yamlover: $defs: bullets>
-  - '`null` — the **singleton**: its only value is null (`~`, or a bare `a:`). A type that is also a value.'
-  - '`boolean` · `number` · `integer` — with `integer` a subtype of `number` (a number whose value is whole).'
-  - '`string` — refined by `format` (`text/markdown`, `text/x-latex`, …); a bare string''s default prose format is `text/marklower`.'
-  - '`binary` — the yamlover addition: opaque bytes, refined by `format` (`image/png`, `application/pdf`, `int32/le`). YAML''s `!!binary` (base64) is the same value.'
-  - '`scalar` — the alias for "any leaf value": a value facet allowing every type above.'
+  - '`null` - the **singleton**: its only value is null (`~`, or a bare `a:`). A type that is also a value.'
+  - '`boolean` · `number` · `integer` - with `integer` a subtype of `number` (a number whose value is whole).'
+  - '`string` - refined by `format` (`text/markdown`, `text/x-latex`, ...); a bare string''s default prose format is `text/marklower`.'
+  - '`binary` - the yamlover addition: opaque bytes, refined by `format` (`image/png`, `application/pdf`, `int32/le`). YAML''s `!!binary` (base64) is the same value.'
+  - '`scalar` - the alias for "any leaf value": a value facet allowing every type above.'
 - >
-  `format` is **not a type** — it refines a facet, usually the value facet, and has an open
+  `format` is **not a type** - it refines a facet, usually the value facet, and has an open
   sub-lattice of its own (whether `text/markdown` subtypes `text/plain` is deliberately unsettled).
-  Closed `scalar` — a leaf with no fields — and the *open* value facet differ exactly on omni nodes:
+  Closed `scalar` - a leaf with no fields - and the *open* value facet differ exactly on omni nodes:
   the open reading includes a scalar that has grown entries.
 - 'YAML''s extra collection "types" are refinements of the facets, not new corners:'
 - !!<format: text/plain> |
@@ -20,11 +20,11 @@ description: the self-value's types — JSON Schema's set, binary added, its own
                 keyed: false, ordinal: false}    # value axis
   set        → {value: false,
                 ordinal: {uniqueItems: true}}    # a dedup FLAG
-  omap       → {value: false, ordinal: false}    # = object — maps are
+  omap       → {value: false, ordinal: false}    # = object - maps are
                                                  #   ALREADY ordered
   pairs      → {value: false, keyed: false,      # ordered [k, v]s;
-                ordinal: {items: …}}             #   keys may repeat
+                ordinal: {items: ...}}             #   keys may repeat
 - >
-  A facet carries a small fixed set of modifier keywords beyond false-or-schema — `uniqueItems` (set),
-  key-uniqueness (omap versus pairs), ordering (yamlover's default) — almost all kept verbatim from
+  A facet carries a small fixed set of modifier keywords beyond false-or-schema - `uniqueItems` (set),
+  key-uniqueness (omap versus pairs), ordering (yamlover's default) - almost all kept verbatim from
   JSON Schema. The merge key `<<` and YAML's `!!value` are mechanisms, not types.

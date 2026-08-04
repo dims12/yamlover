@@ -1,0 +1,5 @@
+Query does not parse
+description: the error_ring state (a pseudo-state)
+- >
+  A pseudo-state - the active cell wears the red ring while the text stands and the LAST GOOD
+  filter stays on screen; typing on continues from the previous state

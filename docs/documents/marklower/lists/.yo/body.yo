@@ -1,0 +1,27 @@
+Lists
+description: $defs/bullets and $defs/numbered - same-kind nesting at any depth
+- >
+  Typographical lists - unnumbered (bullet) and numbered - are delegated exactly like tables:
+  marklower has no `- ` or `1. ` syntax; a list is a **body element** tagged
+  `!!<*yamlover: $defs: bullets>` or `!!<*yamlover: $defs: numbered>`, and syntactically it is
+  **just a yamlover list** whose items are marklower chunks:
+- !!<format: text/x-yamlover> |
+  - !!<*yamlover: $defs: bullets>
+    - the first point, with **bold** and [links](:2) - items are marklower
+    - - a nested sub-point               # an untagged container = a sublist of the SAME kind
+      - - and deeper still               # -at ANY depth (compact `- - ` or block form alike)
+  - !!<*yamlover: $defs: numbered>
+    - step one
+    - step two
+- >
+  The one rule that distinguishes lists from tables: where the table schema spends exactly two levels
+  and hands a deeper container back to `chapter`, a list schema applies **at any depth** - an
+  untagged container item *is* a nested sublist of the same kind - until an **explicit tag** switches
+  (a numbered list inside a bullets list, a table inside an item, each by its own tag). Both schemas
+  are two-line mirrors of each other (`items: anyOf: [<self>, chunk]`, `type: variant` deriving
+  `x-yamlover-bullets` / `x-yamlover-numbered`), registered like every `$defs` schema and rendered as
+  `<ul>` / `<ol>`.
+- >
+  A chapter body remains the home of *structural* lists - a body's own `- ` elements are paragraphs
+  and subchapters, not typography. Tag a list when the bullets are *content* (a shopping list inside
+  a paragraph flow), not when they are the document's structure.

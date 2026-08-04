@@ -1,0 +1,20 @@
+The projectional editor
+description: the maintainer's map - projections, the pure machine, the write path, and yed
+- >
+  How the web client edits a yamlover node **in place**. This is the maintainer's map of the code
+  under `tools/server/src/client/renderers/`; for the *user-facing* "how to drive it" guide see
+  [operating the UI](::server:ui), and for the surgical write endpoint see
+  `tools/server/README.md` (`POST /api/edit`).
+- >
+  Three abstract state machines accompany this chapter and must stay in sync with the code: [the
+  yamlover editor](::server:yamlover-editor), [the chapter editor](::server:chapter-editor), and
+  [the query editor](::server:query-editor) - see [the sync convention](::server:editor:machines).
+- *: projectional
+- *: projections
+- *: machines
+- *: pick-kit
+- *: write-path
+- *: focus
+- *: chapter-projection
+- *: yed
+- *: file-index

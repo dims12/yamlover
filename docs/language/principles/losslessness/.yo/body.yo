@@ -1,12 +1,12 @@
 Lossless, forever readable
 description: representation and comments survive round-trips; fallbacks never drop data
 - >
-  What you wrote is what you keep. Comments survive; a scalar's spelling — quoted, hex, folded — is
+  What you wrote is what you keep. Comments survive; a scalar's spelling - quoted, hex, folded - is
   classified and preserved (the representation axis of the [concretes part](::language:concretes)); a
   flow container re-emits as flow. Round-trip identity is the value *plus* its authored
   representation, normalized but never flattened.
 - >
-  Where a target form cannot hold a construct — flow refusing a path anchor, json5p refusing a tag —
+  Where a target form cannot hold a construct - flow refusing a path anchor, json5p refusing a tag -
   the serializer **falls back silently and losslessly** to a form that can: never a throw, never a
-  drop. And a spelling, once valid, is read forever — the legacy `.yamlover` extension and the
+  drop. And a spelling, once valid, is read forever - the legacy `.yamlover` extension and the
   deprecated `~` back-edge sigil still parse, even though neither is ever written again.

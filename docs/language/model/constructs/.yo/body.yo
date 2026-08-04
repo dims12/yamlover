@@ -14,8 +14,8 @@ description: the same model, spelled in a .yo file, in json5p, and as a director
     - 'In a directory'
       width: 2
   - - keyed entry
-    - '`key: value`; the null key `~: value`; the numeric string key `''1'': value` (a plain `1:` is a parse error — a position is authored by order)'
-    - '`key: value` (no null key — a LossyError)'
+    - '`key: value`; the null key `~: value`; the numeric string key `''1'': value` (a plain `1:` is a parse error - a position is authored by order)'
+    - '`key: value` (no null key - a LossyError)'
     - 'a file or subdirectory named `key`'
   - - keyless entry
     - '`- value`'
@@ -23,23 +23,23 @@ description: the same model, spelled in a .yo file, in json5p, and as a director
     - 'an `itemNN` member granted its position by a `- *: itemNN` pointer in `body.yo`'
   - - scalar self-value
     - 'a bare scalar line among the entries'
-    - '— (falls back to yamlover)'
+    - '- (falls back to yamlover)'
     - 'the directory''s own scalar line in `body.yo`'
   - - mixture (keyed + keyless)
     - entries interleaved freely
-    - '— (falls back)'
+    - '- (falls back)'
     - 'ordered members, then the keyed-only remainder'
   - - pointer
     - '`*: pets: 1` (unquoted)'
     - '`*'': pets: 1''` (quoted)'
     - 'a `key: *path` line in `body.yo`'
   - - anchor
-    - '`&: P: k` — on the value''s line or its own'
+    - '`&: P: k` - on the value''s line or its own'
     - '`&'': P: k''` (quoted)'
     - 'an anchor line in `body.yo`'
   - - schema attachment
-    - 'the `!!<…>` tag'
-    - '— (no tags: overlay only)'
+    - 'the `!!<...>` tag'
+    - '- (no tags: overlay only)'
     - '`.yo/meta.yo`'
 - >
   The two text surfaces meet mid-file: a flow token written across several lines is the inline switch

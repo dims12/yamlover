@@ -1,0 +1,38 @@
+The reference / pointer pick-mode kit
+description: portion cells in the pure grammar, one query-cell kit and one hint seam over them
+- >
+  A `*` reference is entered as **portion cells** - the key-value gesture repeated. The
+  decomposition lives in the PURE editor, not in the server client: `grammar/portions.ts` spells
+  raw <-> portions both ways (the scope ladder, quoted keys, `[n]` folding), the dispatch table's
+  `portion` cell owns the grammar (`:` splits or climbs the scope, `[` folds an index, Backspace
+  merges or descends, Enter joins and parses-or-refuses), and the cursor's `RefEntry` carries the
+  committed cells - wholly cursor-level, the document holds the OLD pointer or nothing until the
+  full reference parses. The debug editor gets the same pointer entrance with no server anywhere.
+- >
+  **Completion hints are a separate, optional service** (`complete.ts`): a `HintProvider` answers
+  "what could the active portion be" (the query carries the ladder, the committed portions, the
+  live prefix, the container path, the document and the mount's server addresses) and the cells
+  draw the dropdown. THE DOCTRINE: hints ADVISE and never validate or gate typing - the grammar
+  works identically with no provider at all, and a picked hint only replaces the active cell's
+  text (committing stays the grammar's Enter). The pure editor ships `docHints` (the in-memory
+  document - bare and document scopes only); the server host plugs the live tree in instead.
+- >
+  The server host is `renderers/yed-cells.tsx`: `treeHints` is the server's `HintProvider` -
+  the bare scope's holder is the cursor's container spelled onto the wire (`serverPathOf`,
+  `yed-sync.ts` - the same addressing law the ops use), the committed portions join to the
+  context query and `treeCandidateProvider` (`client/query-complete.ts`) answers with the
+  context's real children over `GET /api/query` (plus the query grammar's operator rows).
+  `makeSourceCells()` only adds the idle affordances now (the go-to-target arrow, the
+  `$yamloverLink` descend); the entry and retarget faces ARE the pure portion cells. The
+  breadcrumb and the tag picker (`renderers/annotate.tsx`) still run the query-cell kit
+  (`client/query-cells.tsx` over `breadcrumb-machine`) - [one machine](::server:query-editor)
+  in two hosts; the TOC filter session and TOC-click insertion ride those, no longer the
+  reference cells (a follow-up may re-plug the session over the hint seam).
+- >
+  Commits ride yed's PURE grammar (commitPending - the same Enter path typing takes: the
+  sibling rule, the refusal ring, the watchdog; a REFUSED commit keeps the portion cursor and
+  the typed text stands), and the wire spelling is COMPACT (`yed-sync.ts payloadOf` respells
+  via `renderPointer({spaced: false})` - the server's single-line `*\S*` payload gate). Outer
+  states: [pointer_entry](::server:yamlover-editor:pointer_entry) /
+  [pointer_pick_editing](::server:yamlover-editor:pointer_pick_editing) /
+  [atom_focused](::server:yamlover-editor:atom_focused).

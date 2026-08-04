@@ -1,0 +1,9 @@
+Addressing cells
+description: ':P:r:c - row and cell by bare-integer omni positions'
+- >
+  A table node at path `P` addresses a cell as `: P: r: c` (compact `:P:r:c`) - row by its omni
+  position, cell by its position in the row, both bare integers - so a document-relative marklower
+  link points at `:i:r:c` (the table at body index `i`). The `header` row is also addressable by
+  name (`P: header`), and `title`/`header` consume indices per the omni model, as noted under
+  [the table model](::documents:marklower:tables:model). Nested tables just go deeper:
+  `:i:r:c:r':c'`.

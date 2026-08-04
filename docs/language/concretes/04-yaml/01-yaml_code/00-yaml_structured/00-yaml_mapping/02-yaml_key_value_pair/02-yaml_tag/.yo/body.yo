@@ -1,8 +1,8 @@
 yaml/tag
-description: A !tag before a value — names its type explicitly
+description: A !tag before a value - names its type explicitly
 - >
   A **tag** before a value names its type instead of letting the plain-scalar rules resolve
-  it — `!!str`, `!!int` and kin from the core schema, or an application's own `!name`:
+  it - `!!str`, `!!int` and kin from the core schema, or an application's own `!name`:
 - !!<format: text/x-yaml> |
   version: !!str 1.2
   point: !point {x: 1, y: 2}

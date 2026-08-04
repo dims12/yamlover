@@ -1,0 +1,4 @@
+Rejected input
+description: the error_flash state (a pseudo-state)
+- >
+  A pseudo-state - the cell flashes the error ring, text kept, the previous state stays

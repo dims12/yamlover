@@ -3,16 +3,16 @@ description: YAML's reusable label turns into "this node also lives at that path
 - >
   In YAML, `&anchor` gives a node a reusable intra-document name, living in a namespace of its own. In
   yamlover, an anchor's name **is a full pointer path**: `&: P: k` on a node means the container at `:
-  P` gains the key `k` — a real entry, a ref edge to this node ("I also live there"). There is no
+  P` gains the key `k` - a real entry, a ref edge to this node ("I also live there"). There is no
   anchor namespace: anchors create real keys, and lookup is pure path resolution.
 - !!<format: text/x-yamlover> |
   pet: &: supercat       # ALSO the document-root key "supercat"
     species: cat
   friend: *: supercat    # a plain path reaches it
 - >
-  This is the consequential break, and the reason reading is concrete-aware. A YAML `&a` … `*a` pair
-  is document-wide, so the parser reading a `.yaml` file maps it to yamlover's document scope — `&: a`
-  … `*: a`, one shared key at the document root — and the alias resolves exactly as YAML intends. A
+  This is the consequential break, and the reason reading is concrete-aware. A YAML `&a` ... `*a` pair
+  is document-wide, so the parser reading a `.yaml` file maps it to yamlover's document scope - `&: a`
+  ... `*: a`, one shared key at the document root - and the alias resolves exactly as YAML intends. A
   `.yo` file's bare `&a` instead anchors into the current mapping. Either way the parsed result is
-  concrete-agnostic and renders back in yamlover syntax. Full semantics — ordinal membership,
+  concrete-agnostic and renders back in yamlover syntax. Full semantics - ordinal membership,
   multiplicity, collisions: the [anchors subchapter](::language:pointers:anchors).

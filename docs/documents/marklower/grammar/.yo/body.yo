@@ -1,0 +1,39 @@
+The grammar
+description: five constructs, atomic tokens, soft breaks
+- >
+  Five constructs, and no others. Everything else passes through verbatim.
+- !!<*yamlover: $defs: table>
+  header:
+    - Syntax
+    - Meaning
+      width: 2
+  - ['`**bold**`, `__bold__`', strong]
+  - ['`*italic*`, `_italic_`', emphasis]
+  - ['`~~strike~~`', 'struck through']
+  - ['`` `code` ``', 'code span - **atomic**']
+  - ['`$$...$$`', 'math, typeset with KaTeX - **atomic**, may span lines']
+  - ['`[label](target)`', 'a link - *points at* the target']
+  - ['`*[label](target)`', 'an **embed** - *inlines* the target']
+- >
+  **Atomic** means the contents are never re-interpreted as markup: a `*` inside `` `code` `` or
+  `$$...$$` is a literal asterisk, not emphasis. Bold is matched before italic, so `**x**` is one
+  strong run rather than two emphases. Emphasis does not span a token - `*a `b` c*` leaves its
+  markers as literal text.
+- >
+  An **intra-word `_` is a literal character**, never an emphasis marker - Markdown's rule, kept
+  for the same reason: technical prose is full of `snake_case_ids`, and an unbackticked
+  `unquoted_scalar_appending` must not italicize its middle. Only a `_` at a word boundary opens
+  or closes emphasis (`__` likewise). `*` keeps intra-word emphasis - identifiers don't use it.
+- >
+  Marklower is **not a Markdown subset**, and does not try to be. `![](...)` is not image syntax here
+  (see [embeds](::documents:marklower:embeds)), and `*[a](b)` means something Markdown has no word
+  for.
+- Line breaks
+  - >
+    A **single newline is a soft break**: the hard-wrapped lines of a block scalar are a *source*
+    courtesy, so they rejoin into one flowing run and the rendered prose wraps at the reader's
+    chosen width instead of the authored column - Markdown's rule, kept for the same reason. The
+    join crosses an inline token (`text\n$$x$$` is one sentence), and emphasis may span it. A
+    **blank line stays**: it renders as the vertical gap the author drew. A block embed's own line
+    vanishes with the figure (see [embeds](::documents:marklower:embeds)), never leaving a stray gap
+    above or below it.

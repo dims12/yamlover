@@ -1,0 +1,7 @@
+Inside a SOURCE chunk (an explicitly non-chapter-typed structure)
+description: the source_chunk_editing state
+- >
+  The chunk renders and edits as inline yamlover SOURCE - the standard cells and the typing
+  grammar ABOVE own every key (holes, `- `/`key:`, flow); the chapter grammar declines. Arrows
+  walk across the chunk's boundary into the neighbouring chapter cells. The mode is DERIVED per
+  render - dropping the type reverts the chunk to prose/chapter editing

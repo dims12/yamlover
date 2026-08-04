@@ -1,7 +1,7 @@
 yaml/number/hexadecimal
-description: Integer in base sixteen — 0x and the hex digits
+description: Integer in base sixteen - 0x and the hex digits
 - >
-  An integer in base sixteen — `0x` followed by hex digits:
+  An integer in base sixteen - `0x` followed by hex digits:
 - !!<format: text/x-yaml> |
   a: 0x2A
   b: 0xC0FFEE

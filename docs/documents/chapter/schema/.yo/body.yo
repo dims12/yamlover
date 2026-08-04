@@ -1,0 +1,28 @@
+The schema
+description: $defs/chapter and $defs/chunk - the body union and shape routing
+- >
+  `$defs/chapter` is a normal yamlover/meta schema ([metadata](::language:model:metadata)):
+- !!<format: text/x-yamlover> |
+  type: variant                     # fully omni: a scalar self-value, keyed fields, AND a positional body
+  value:       { type: string, format: text/marklower }   # the self-value - the TITLE
+  properties:
+    description: { type: string, format: text/marklower }
+  items:                            # the body - a positional sequence
+    anyOf:
+      - *:: yamlover: $defs: chapter   # a subchapter (a container) - the recursion
+      - *:: yamlover: $defs: table     # a table - enters only by its explicit tag
+      - *:: yamlover: $defs: chunk     # a content block (a leaf)
+- >
+  The body element type is a **union** (`items: {anyOf: [...]}`) - the first construct of its kind in
+  the taxonomy. The engine's schema propagation (`walk.ts`) routes each body element to the matching
+  branch by shape (container → chapter, leaf → chunk) and stamps its `(type, format)`, so a chapter
+  tagged only at its root makes every nested subchapter `x-yamlover-chapter` and every prose chunk
+  `text/marklower` - no per-node tag needed. A **table** (`$defs/table`) does not take part in the
+  shape routing - both a subchapter and a table are containers - so it enters the body only by its
+  **explicit tag** (`!!<*yamlover: $defs: table>`), which wins over the structural default; an
+  untagged container stays a subchapter.
+- >
+  `$defs/chunk`:
+- !!<format: text/x-yamlover> |
+  type: [string, binary]            # prose, or an image/pdf/- pointer
+  format: text/marklower            # the default; overridden per chunk

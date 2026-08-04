@@ -1,0 +1,20 @@
+Link targets
+description: document, project, and external - the colon grammar
+- >
+  A target is addressed in the app's **instance space** - the same space the tree, the breadcrumbs,
+  and the URL navigate - with the colon grammar of [pointers](::language:pointers):
+- !!<*yamlover: $defs: table>
+  header:
+    - Target
+    - 'Anchored at'
+      width: 2
+  - ['`:a:b`, `:2`', 'the **document** the link appears in (the nearest yamlover entity)']
+  - ['`::a:b`', 'the **project root** (the directory yamlover was served)']
+  - ['`scheme://...`, `mailto:...`', 'an ordinary **external** link, opened in a new tab']
+- >
+  A position in a target is the **bare integer** segment (`:2`, `::a:0` - the YAML-keys round); the
+  retired bracket index (`:[2]`) reads forever as an alias, written never. Anything else does not
+  resolve, and the label renders as plain text. The legacy slash spellings (`/a/b` document-relative,
+  `//a/b` project-rooted, with `/1` bare-integer segments) still parse; `examples/69-marklower-links.yo`
+  is a tour of all three flavours. One function, `resolveLink`, decides what a target means, for
+  every renderer that emits links.

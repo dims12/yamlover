@@ -1,12 +1,12 @@
 One document, many materializations
-description: file, directory, or mid-stream language switch — the concrete is not the identity
+description: file, directory, or mid-stream language switch - the concrete is not the identity
 - >
-  The same logical document can live in one `.yo` file, as a directory tree — each file or
-  subdirectory an entry — or partly in another language: a flow token spanning several lines switches
+  The same logical document can live in one `.yo` file, as a directory tree - each file or
+  subdirectory an entry - or partly in another language: a flow token spanning several lines switches
   that subtree to json5p mid-document. A file and a subdirectory are equivalent ways to represent the
   same node, and any materialization converts to the others and back.
 - >
   The concrete is **representation, not identity**: authored provenance the engine preserves, but
-  never part of a node's identity — a reflow, a move between file and directory, or a language switch
+  never part of a node's identity - a reflow, a move between file and directory, or a language switch
   leaves the logical value equal. The full storage taxonomy is the [concretes
   part](::language:concretes).

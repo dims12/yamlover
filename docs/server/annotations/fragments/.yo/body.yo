@@ -1,0 +1,44 @@
+Fragments - yamlover-fragments
+description: a selected region as a slug-keyed selector on the node it was made in
+- >
+  A **fragment** is a user-selected region inside a supported node: a text span, an
+  image/PDF/djvu rectangle, a map box. Selecting a region **creates a fragment in the node it was
+  made in**, stored under the node's **`yamlover-fragments`** key - a **mapping** whose keys are
+  **slugs** (`${base36(now)}-${rand}`, the scheme that used to name annotation files).
+- >
+  A fragment holds **only what locates/highlights the region** - no description, no color. Its
+  value is the *selector* (the same shapes the renderers already produce) plus `created`:
+- !!<*yamlover: $defs: table>
+  header:
+    - target
+    - 'fragment value'
+      width: 3
+  - ['text (prose / markdown chunk)', '`{type: text, exact, prefix, suffix}` - a W3C TextQuoteSelector; prefix/suffix context disambiguates repeats (no character offsets)']
+  - ['image', '`{type: rect, x, y, w, h}`']
+  - ['PDF', '`{type: pdf, page, x, y, w, h}`']
+  - ['djvu', '`{type: djvu, page, x, y, w, h}`']
+  - ['map', '`{type: map, n, s, e, w}` (geographic edges)']
+- Image-like fragments embed a crop
+  - >
+    For **image / PDF / djvu** selections the fragment also carries an **`image`** field - a
+    **binary** crop (`format: image/png`) of the selected region, produced client-side from the
+    already-rendered canvas. Because inline binary is unsolved on the text surface, the bytes
+    live as a **sidecar blob file** referenced by a `*` pointer:
+  - !!<format: text/x-yamlover> |
+    image: *::papers:fragments:mqdo07z1-owgrcv.png
+  - >
+    Text and map fragments carry no crop.
+- A fragment's scrollable URL
+  - >
+    A fragment is addressable in the browser by the in-page `#` rule (see
+    `tools/server/README.md`): its node path `<material>/yamlover-fragments/<slug>` becomes the
+    scrollable URL `<material-url>#yamlover-fragments/<slug>` - the `#` standing in for the `/`
+    after the served material. Opening that URL (or clicking the fragment in the viewer's
+    fragments panel) scrolls text/PDF/djvu regions into view and pans image/map regions to fit,
+    then briefly flashes the region.
+- Future
+  - >
+    Fragments will become **hierarchical** and surface as **children under the document node** -
+    e.g. marking up the table of contents of a textless (image-only) PDF, so the viewer can show
+    those fragments as a navigable tree. Out of scope here; the shape above is
+    forward-compatible.

@@ -1,7 +1,7 @@
 yaml/number/binary
-description: Integer in base two — 0b and the bits
+description: Integer in base two - 0b and the bits
 - >
-  An integer in base two — `0b` followed by binary digits. A YAML 1.1 notation: the 1.2 core
+  An integer in base two - `0b` followed by binary digits. A YAML 1.1 notation: the 1.2 core
   schema reads it as an ordinary string; the spelling is reserved, opt-in vocabulary,
   classified the moment a reader decodes it:
 - !!<format: text/x-yaml> |

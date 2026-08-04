@@ -1,11 +1,11 @@
 yamlover/tag
-description: The !!<…> inline schema tag — metadata riding the value
+description: The !!<...> inline schema tag - metadata riding the value
 - >
-  The `!!<…>` tag carries a value's METADATA inline, and its contents are themselves yamlover —
+  The `!!<...>` tag carries a value's METADATA inline, and its contents are themselves yamlover -
   either a pointer to a hosted schema (`!!<*yamlover: $defs: chapter>`) or an inline literal
   (`!!<format: text/x-plantuml>`). It is the file-concrete counterpart of a directory's
-  `.yo/meta.yo`, and yamlover-only — json5p has no tags. YAML's `!tag` is the kin, one name
-  where yamlover carries a whole schema — the subclass:
+  `.yo/meta.yo`, and yamlover-only - json5p has no tags. YAML's `!tag` is the kin, one name
+  where yamlover carries a whole schema - the subclass:
 - !!<format: text/x-yamlover> |
   diagram: !!<format: text/x-plantuml> |
     @startuml

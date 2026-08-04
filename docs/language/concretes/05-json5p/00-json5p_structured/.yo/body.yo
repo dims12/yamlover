@@ -1,8 +1,8 @@
 json5p/structured
 description: Composite value that nests other json5p values
 - >
-  The structured shapes of json5p are those of JSON5 — the keyed **object** and the positional
-  **list** — with their pairs and elements now nesting json5p values, so a pointer or an
+  The structured shapes of json5p are those of JSON5 - the keyed **object** and the positional
+  **list** - with their pairs and elements now nesting json5p values, so a pointer or an
   anchored value can stand inside either. See the subchapters below for the two shapes:
 - *: 00-json5p_object
 - *: 01-json5p_list

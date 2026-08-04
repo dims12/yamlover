@@ -1,0 +1,21 @@
+Committed query, browsing the matches (browse mode only)
+description: the filtered state
+- >
+  The query's cells stay in the breadcrumb (a ✕ after them clears), the TOC stays filtered, and a
+  match is SELECTED - the post-Enter / post-click browsing state. Ctrl/Alt+arrows step through the
+  filtered rows. Pick-mode machines never reach this state - their commit returns to idle_path
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`click_cell`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`toc_click`', 'another MATCH row', '`filtered` (stays)']
+  - ['`toc_click`', 'otherwise - e.g. a chevron-loaded real child; the breadcrumb regresses to its path', '[idle_path](::server:query-editor:idle_path)']
+  - ['`escape`', '', '[idle_path](::server:query-editor:idle_path)']
+  - ['`evicted`', '', '[idle_path](::server:query-editor:idle_path)']
+  - ['`clear_button`', '', '[idle_path](::server:query-editor:idle_path)']
+  - ['`navigate_elsewhere`', '', '[idle_path](::server:query-editor:idle_path)']

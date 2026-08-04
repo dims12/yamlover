@@ -1,14 +1,14 @@
 A graph, kept as written
-description: an acyclic containment spine, ref edges on top — cycles allowed, nothing rewritten
+description: an acyclic containment spine, ref edges on top - cycles allowed, nothing rewritten
 - >
-  Containment — a key holding its value — is an **acyclic spine**: the tree. The `*` edges laid on top
+  Containment - a key holding its value - is an **acyclic spine**: the tree. The `*` edges laid on top
   of it may point anywhere, including back to an ancestor, so the full structure is a **general
   directed graph**, not a DAG: cycles are allowed, traversal is cycle-safe, and a `*` edge is never
   expanded inline to infinity.
 - >
-  Containment and `*` references are **one relation kind, keyed by the child's name** — "two parents"
+  Containment and `*` references are **one relation kind, keyed by the child's name** - "two parents"
   is just two same-named child-edges into one node. A relation may be authored forward (`x: *target`),
-  reverse (an `&` anchor on the target), or both — valid as long as the two do not contradict. The
+  reverse (an `&` anchor on the target), or both - valid as long as the two do not contradict. The
   engine keeps the graph exactly as written and offers a `normalize` command to reduce it to a
   canonical forwards-only form; queries see the normalized view and cannot tell which way an edge was
   authored.

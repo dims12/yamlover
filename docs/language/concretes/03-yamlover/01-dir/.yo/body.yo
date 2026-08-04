@@ -1,23 +1,23 @@
 dir
-description: A plain filesystem directory — an object with keyed entries
+description: A plain filesystem directory - an object with keyed entries
 - >
   A **directory** is a mapping: FILENAMES are the keys, and the entries are
-  [blobs](::language:concretes:00-storage:02-binary_files) or nested documents — the
+  [blobs](::language:concretes:00-storage:02-binary_files) or nested documents - the
   [storage axis](::language:concretes:00-storage) names the concretes.
   A plain dir parses into the abstract as an OBJECT with keyed elements, and nothing
-  more: it cannot BE a list — disk has no order — and it cannot carry a scalar self-value; the
+  more: it cannot BE a list - disk has no order - and it cannot carry a scalar self-value; the
   control `.yo` subdirectory lifts both limits (see the case concretes' subchapters). Scalar
-  CHILDREN are fine — a small file is a scalar:
+  CHILDREN are fine - a small file is a scalar:
 - !!<format: text/plain> |
   julia/
-    name       — "Julia"
-    age        — 42
+    name       - "Julia"
+    age        - 42
     pets/
-      cat      — "Whiskers"
+      cat      - "Whiskers"
 - >
-  Case sensitivity of the keys is the filesystem's, not the language's — the two concretes
+  Case sensitivity of the keys is the filesystem's, not the language's - the two concretes
   below; the entry NAME is a construct of its own; an entry's value can be ANY yamlover
-  representation — the grammar recurses here:
+  representation - the grammar recurses here:
 - *: 00-dir_posix
 - *: 01-dir_win
 - *: 02-filename

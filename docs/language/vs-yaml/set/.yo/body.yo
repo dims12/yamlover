@@ -2,9 +2,9 @@
 description: from a null-valued mapping to a dedup-by-identity container
 - >
   YAML's `!!set` denotes a mapping whose keys have null values. yamlover reinterprets the tag as a
-  **set-semantics container**: an element appears at most once, so duplicate memberships — forward and
-  forward, forward and reverse (`&…[]`), reverse and reverse — collapse to one, deduplicated by
-  target. Like `!!yo` — and unlike the `!!mix` marker — it is not a no-op: it changes behavior.
+  **set-semantics container**: an element appears at most once, so duplicate memberships - forward and
+  forward, forward and reverse (`&...[]`), reverse and reverse - collapse to one, deduplicated by
+  target. Like `!!yo` - and unlike the `!!mix` marker - it is not a no-op: it changes behavior.
 - >
   `!!set` is the inline spelling of the schema keyword `uniqueItems: true`, which is the route for
-  json5p and directory overlays — neither has tags.
+  json5p and directory overlays - neither has tags.

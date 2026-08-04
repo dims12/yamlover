@@ -6,7 +6,7 @@ description: Colon-separated pair of a key and a value
 - !!<format: text/x-json> |
   "age": 42
 - >
-  The key has a subchapter below. The value can be ANY JSON value — the grammar recurses here,
+  The key has a subchapter below. The value can be ANY JSON value - the grammar recurses here,
   which is what lets objects nest to any depth:
 - *: 00-json_key
 - *..:..:..

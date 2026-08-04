@@ -1,0 +1,29 @@
+Empty document
+description: the empty state
+- >
+  The one root hole drawn with the cursor inside; no content exists yet
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`alphanumeric`', '', '[unquoted_scalar_appending](::server:yamlover-editor:unquoted_scalar_appending)']
+  - ['`asterisk`', '', '[pointer_entry](::server:yamlover-editor:pointer_entry)']
+  - ['`pipe`', '', '[block_scalar_editing](::server:yamlover-editor:block_scalar_editing)']
+  - ['`dash_space`', '', '[value_hole](::server:yamlover-editor:value_hole)']
+  - ['`key_colon_space`', '', '[value_hole](::server:yamlover-editor:value_hole)']
+  - ['`key_colon_enter`', '', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`bang_bang_lt`', '', '[meta_tag_editing](::server:yamlover-editor:meta_tag_editing)']
+  - ['`open_brace`', '', '[flow_map_editing](::server:yamlover-editor:flow_map_editing)']
+  - ['`open_bracket`', '', '[flow_seq_editing](::server:yamlover-editor:flow_seq_editing)']
+  - ['`enter`', '', '[nop](::server:yamlover-editor:nop)']
+  - ['`backspace`', '', '[nop](::server:yamlover-editor:nop)']
+  - ['`tab`', '', '[nop](::server:yamlover-editor:nop)']
+  - ['`shift_tab`', '', '[nop](::server:yamlover-editor:nop)']
+  - ['`left_arrow`', '', '[nop](::server:yamlover-editor:nop)']
+  - ['`right_arrow`', '', '[nop](::server:yamlover-editor:nop)']
+  - ['`up_arrow`', '', '[nop](::server:yamlover-editor:nop)']
+  - ['`down_arrow`', '', '[nop](::server:yamlover-editor:nop)']

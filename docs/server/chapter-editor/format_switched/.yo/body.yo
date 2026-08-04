@@ -1,0 +1,7 @@
+The block's format was chosen (bar / Ctrl+Alt+1..4)
+description: the format_switched state (a pseudo-state)
+- >
+  A pseudo-state - the block the caret is in is retagged (→ chapter DROPS the tag, →
+  bullets/numbered/table retag or wrap a leaf), re-projected in place, and the caret stays in its
+  content. The target is the ENCLOSING block: standing in a list item retags the list, in a table
+  cell the table

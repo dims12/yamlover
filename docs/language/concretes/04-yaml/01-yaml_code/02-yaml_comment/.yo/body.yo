@@ -1,7 +1,7 @@
 yaml/comment
 description: From # to the end of the line
 - >
-  A comment runs from `#` to the end of the line, wherever whitespace may stand — never inside
+  A comment runs from `#` to the end of the line, wherever whitespace may stand - never inside
   a scalar (`a#b` is one plain scalar):
 - !!<format: text/x-yaml> |
   age: 42  # the answer

@@ -1,11 +1,11 @@
-# The abstract model — terminology, facets, the value axis, order, the graph, metadata,
+# The abstract model - terminology, facets, the value axis, order, the graph, metadata,
 # matching, and the constructs-in-concretes matrix; each a subdirectory chapter.
 The logical model
-description: omnivorous nodes with ordered relations — the terminology and the type system
+description: omnivorous nodes with ordered relations - the terminology and the type system
 - >
   Beneath every surface and every storage form there is one logical model: a graph of **omnivorous
   nodes** connected by **ordered relations**. A node may carry a scalar value of its own, named
-  entries, and positional entries — all at once; the relations between nodes keep their order as data.
+  entries, and positional entries - all at once; the relations between nodes keep their order as data.
   This part defines the model precisely: the terms, the three facets a node exercises, the value
   types, where order lives, the graph shape, the metadata layer, and how consumers match against it
   all.

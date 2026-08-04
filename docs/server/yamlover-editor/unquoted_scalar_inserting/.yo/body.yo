@@ -1,0 +1,27 @@
+Plain token editing, caret inside
+description: the unquoted_scalar_inserting state
+- >
+  A non-empty cell with part of the scalar entered so far, cursor at the beginning or in the
+  middle. The keyed trigger is LIVE here too - an edit that makes the text read `key: ...`
+  restructures the cell wherever the caret sits
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`alphanumeric`', 'the text now reads `key: ` and the key is free in the node', '[value_hole](::server:yamlover-editor:value_hole)']
+  - ['`alphanumeric`', 'caret reached the end', '[unquoted_scalar_appending](::server:yamlover-editor:unquoted_scalar_appending)']
+  - ['`alphanumeric`', 'otherwise', '`unquoted_scalar_inserting` (stays)']
+  - ['`left_arrow`', 'was at the beginning', '[nop](::server:yamlover-editor:nop)']
+  - ['`left_arrow`', 'otherwise', '`unquoted_scalar_inserting` (stays)']
+  - ['`right_arrow`', 'reached the end', '[unquoted_scalar_appending](::server:yamlover-editor:unquoted_scalar_appending)']
+  - ['`right_arrow`', 'otherwise', '`unquoted_scalar_inserting` (stays)']
+  - ['`backspace`', 'was at the beginning', '[focus_prev](::server:yamlover-editor:focus_prev)']
+  - ['`backspace`', 'otherwise', '`unquoted_scalar_inserting` (stays)']
+  - ['`enter`', 'caret at the very beginning of a COMMITTED entry''s value - the row is pushed down, a fresh sibling entry hole opens BEFORE this row (THE HEAD-OF-ROW EXCEPTION; at the root the level rule stands)', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`enter`', 'the token is not a valid scalar', '[error_flash](::server:yamlover-editor:error_flash)']
+  - ['`enter`', 'a BARE token in an entry hole, but the node already has its scalar line', '[error_flash](::server:yamlover-editor:error_flash)']
+  - ['`enter`', 'valid', '[entry_hole](::server:yamlover-editor:entry_hole)']

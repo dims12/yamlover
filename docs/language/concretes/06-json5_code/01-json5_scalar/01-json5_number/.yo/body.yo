@@ -1,7 +1,7 @@
 json5/number
 description: Number in the JSON spelling or one of the eigen JSON5 ones
 - >
-  A JSON5 number is written in the JSON spelling or one of the eigen JSON5 ones — and ANY of
+  A JSON5 number is written in the JSON spelling or one of the eigen JSON5 ones - and ANY of
   them may carry an explicit sign, the plus included (JSON allows only the minus, and only on
   its decimal). See the subchapters below for the concretes:
 - !!<format: text/x-json5> |

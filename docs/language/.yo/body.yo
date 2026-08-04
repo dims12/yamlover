@@ -1,32 +1,32 @@
-# The yamlover language — the self-contained spec. Root body: what yamlover is, the name,
+# The yamlover language - the self-contained spec. Root body: what yamlover is, the name,
 # and the five parts (each a subdirectory chapter, ordered by the pointer array below).
-# Sources: YAMLOVER.md, URIs.md, SEPARATOR.md, TYPES.md, META.md, CONCRETES.md, QUERY.md —
+# Sources: YAMLOVER.md, URIs.md, SEPARATOR.md, TYPES.md, META.md, CONCRETES.md, QUERY.md -
 # progress in ../../DOCSMIGRATION.md.
 The yamlover language
-description: the full spec — principles, the abstract model, concretes, pointers, queries
+description: the full spec - principles, the abstract model, concretes, pointers, queries
 - >
-  **yamlover** is a data language close to YAML that adds a *pointer layer* — first-class links that
-  make a document a graph, not just a tree — and *concretes*: the same logical document can live in
+  **yamlover** is a data language close to YAML that adds a *pointer layer* - first-class links that
+  make a document a graph, not just a tree - and *concretes*: the same logical document can live in
   one file, in a directory tree, or switch language mid-stream. It is the indentation / filesystem
   surface over the shared pointer model; **json5p**, its twin, is the brace surface over the same
   model.
 - >
-  **The name.** *yamlover* stands for **YAML Overlay** — not "Yam lover". It means a YAML layer laid
+  **The name.** *yamlover* stands for **YAML Overlay** - not "Yam lover". It means a YAML layer laid
   *over* the filesystem: a directory is a mapping, a file is a value, and one grammar reads the whole
   tree as a single document space. The file extension is `.yo` (the legacy `.yamlover` spelling is
   read forever, never written).
 - >
-  yamlover is *not* a superset of YAML — it is a distinct, closely-related language: close in surface,
+  yamlover is *not* a superset of YAML - it is a distinct, closely-related language: close in surface,
   different in links and anchors. Because of that divergence it has its own parser, and reading is
   **concrete-aware**: a `.yaml`/`.yml` file is parsed with YAML's link semantics, a `.yo` file with
-  yamlover's — each read faithfully into the one concrete-agnostic representation.
+  yamlover's - each read faithfully into the one concrete-agnostic representation.
 - >
   This chapter is the self-contained spec, in five parts: the [general
   principles](::language:principles) the rest follows from; the [relationship to
   YAML](::language:vs-yaml), similarity by similarity and break by break; the [abstract
-  model](::language:model) — omnivorous nodes with ordered relations, the terminology and the type
-  system; the [concretes](::language:concretes) — every way a node is physically stored and
-  written; and [pointers and queries](::language:pointers) — paths, anchors, and the query language
+  model](::language:model) - omnivorous nodes with ordered relations, the terminology and the type
+  system; the [concretes](::language:concretes) - every way a node is physically stored and
+  written; and [pointers and queries](::language:pointers) - paths, anchors, and the query language
   they are the singleton fragment of.
 - *: principles
 - *: vs-yaml

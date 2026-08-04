@@ -1,7 +1,7 @@
 yaml/string/plain
 description: Bare unquoted text
 - >
-  The plain concrete is bare text, no quotes — an unquoted token whose content resolves to no
+  The plain concrete is bare text, no quotes - an unquoted token whose content resolves to no
   other type is a string. Punctuation YAML claims for itself (`: ` and ` #` inside, an
   indicator character at the start) forces one of the quoted concretes:
 - !!<format: text/x-yaml> |

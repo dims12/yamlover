@@ -1,0 +1,17 @@
+The write path
+description: a tree diff turns edits into surgical /api/edit ops - the machine never emits ops
+- >
+  An edit becomes a batch of surgical server ops through the yed mount's tree diff - the machine
+  never emits ops itself:
+- !!<*yamlover: $defs: numbered>
+  - 'A keystroke runs `applyKey(state, key)` in yed''s pure `apply.ts`; the mount (`yed-editor.tsx`) keeps the resulting `EditorState`.'
+  - '**`yed-sync.ts` `diffToOps`** diffs the last COMMITTED document against the current one into per-node `/api/edit` ops (whole-token emplaces at flow boundaries, self-value emplaces with `at`, removals last-first / insertions forward); pure key renames become `POST /api/rekey` after the flush. What the diff cannot express falls back to ONE whole-node emplace (warned; a shrink-only ledger).'
+  - 'The flush is **debounced 500 ms**, one batch in flight; a failed flush alerts, keeps the change, and the NEXT flush re-diffs from the same committed snapshot against the newest document - never a queued-op double-apply. `flush()` is forced on lock and unmount. (The yed chapter mount keeps the same discipline and additionally forces a flush before an auto-descend into a subchapter.)'
+- >
+  The op shape is `{ path, op: "emplace" | "replace" | "insert" | "remove", yamlover?, meta? }`
+  (`meta` carries the `!!<...>` facet). Ops address body elements by **absolute entry index**
+  (`:doc[3]` - keyed entries consume indices too, [the chapter model](::documents:chapter)); the
+  server applies a batch strictly in order, re-scanning after each op. The yed chapter mount
+  likewise auto-stamps the document's chapter meta with its first flush - the exactly-once
+  CHAPTER stamp (`yed-chapter-editor.tsx` `stampedRef`, `yed-chapter/materialize.ts`
+  `stampBorn`).

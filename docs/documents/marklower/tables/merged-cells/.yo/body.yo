@@ -1,0 +1,28 @@
+Merged cells - relative pointers
+description: '*[.-1] colspan, *..[.-1][.] rowspan; filled rectangle'
+- >
+  A merged (spanned) region is not new vocabulary: it is a cell declaring **"I *am* the previous
+  cell"** with a `*` pointer, using the language's [relative
+  indexes](::language:pointers:relative-indexes) (`[.]` = my own position at this depth,
+  `[.-1]` = one before it). The YAML-keys round leaves this idiom **unchanged**: `[.±k]` is one of
+  the surviving non-literal position operators - `*[.-1]` and `*..[.-1][.]` keep their bracket
+  spelling (only *literal* absolute indexes went bare):
+- !!<*yamlover: $defs: table>
+  header:
+    - Cell
+    - Meaning
+      width: 2
+  - ['`*[.-1]`', 'I am the cell to my **left** (row r, column c-1) → **colspan**']
+  - ['`*..[.-1][.]`', 'I am the cell **above** (`..` to the table, `[.-1]` = previous row, `[.]` = my column) → **rowspan**']
+- !!<format: text/x-yamlover> |
+  !!<*yamlover: $defs: table>
+  header: [Animal, Trait, *[.-1]]        # "Trait" spans two columns - its neighbor IS it
+  - [Mammals, warm-blooded, furry]
+  - [*..[.-1][.], warm-blooded, barky]   # "Mammals" spans down - this cell IS the one above
+- >
+  The rules:
+- !!<*yamlover: $defs: bullets>
+  - 'A merge pointer targets the **adjacent** previous cell - left (`*[.-1]`) or up (`*..[.-1][.]`). Chains resolve transitively to the **origin** cell (a pointer to a pointer cell is a pointer to its origin).'
+  - 'The origin plus every cell resolving to it must tile a **filled rectangle**. The renderer gives the origin `colspan` = the rectangle''s width and `rowspan` = its height, and emits nothing for the pointer cells.'
+  - 'A pointer to any **non-adjacent** cell is *not* a merge - it renders as its own cell showing the shared content (plain dereference, the ordinary yamlover meaning). Merging is just the rendering of the adjacent-self-reference case; general pointer semantics are untouched. A region that is adjacent but **non-rectangular**, or a merge that crosses the `header`/body boundary, is a reported inconsistency and renders unmerged.'
+  - 'Merge pointers do not change a row''s **cell count**: a spanned position is still authored, as the pointer - every row keeps the full column count.'

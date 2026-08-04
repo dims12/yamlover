@@ -1,12 +1,12 @@
 Binary files
 description: opaque bytes, read lazily, decoded by format
 - >
-  `file/binary` is opaque bytes — an image, a pdf, a djvu, an unknown or large blob: read
+  `file/binary` is opaque bytes - an image, a pdf, a djvu, an unknown or large blob: read
   lazily, never parsed as yamlover data. What the bytes *mean* is the format's job:
   `image/png` marks an image, `application/pdf` a document, `int32/le` a four-byte integer.
 - >
   So even a SCALAR may live as raw bytes: a `file/binary` member whose `.yo/meta.yo` entry
-  gives the decoding — `type: binary` with `format: int32/le` turns a four-byte file into an
+  gives the decoding - `type: binary` with `format: int32/le` turns a four-byte file into an
   integer; `image/png` keeps an image an image. The data is the on-disk file; the metadata says
-  how to read it — the instance and its description never trade places
+  how to read it - the instance and its description never trade places
   ([metadata first](::language:principles:metadata-first)).

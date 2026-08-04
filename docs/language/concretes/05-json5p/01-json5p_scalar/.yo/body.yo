@@ -1,7 +1,7 @@
 json5p/scalar
-description: Atomic token — a JSON5 scalar or a pointer
+description: Atomic token - a JSON5 scalar or a pointer
 - >
-  An atomic token of json5p is either any JSON5 scalar, or a **pointer** — and since a pointer
+  An atomic token of json5p is either any JSON5 scalar, or a **pointer** - and since a pointer
   dereferences to the node its path names, it stands wherever a value can. See the subchapters
   below for the two:
 - !!<format: text/x-json5p> |

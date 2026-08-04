@@ -1,0 +1,24 @@
+The caret stands ON an atom (a * pointer)
+description: the atom_focused state
+- >
+  The atom is a single non-text cell (dispatch.ts `cell: "atom"`) - the caret stands ON it, never
+  inside it. It walks, it deletes, it copies; typing into it rings - Enter opens the reference for
+  editing (pointer_pick_editing). An OPAQUE atom (a blob) has no raw to edit, so its Enter
+  refuses, visibly.
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`backspace`', 'removeLevel - the value goes, a name survives as the named hole', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`comma`', 'inside a flow container - nextElement - the next element''s hole', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`comma`', 'in block rows - no meaning - falls through, nothing', '`atom_focused` (stays)']
+  - ['`closer`', 'the matching closer, in flow - closeToken', '`gap_after_token`']
+  - ['`closer`', 'the wrong closer - refuse - the ring', '`atom_focused` (stays)']
+  - ['`enter`', 'a pointer atom - the pick intent - the raw opens for editing', '[pointer_pick_editing](::server:yamlover-editor:pointer_pick_editing)']
+  - ['`enter`', 'an opaque atom (a blob) - refuse - nothing to edit, visibly', '`atom_focused` (stays)']
+  - ['`alphanumeric`', 'refuse - typing into an atom RINGS', '`atom_focused` (stays)']
+  - ['`arrows`', 'the neighbouring position per the walk order', '']

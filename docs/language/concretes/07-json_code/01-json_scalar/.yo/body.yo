@@ -1,7 +1,7 @@
 json/scalar
 description: Atomic value that nests nothing
 - >
-  A **scalar** is an atomic value — it nests nothing further. JSON has exactly four scalar kinds:
+  A **scalar** is an atomic value - it nests nothing further. JSON has exactly four scalar kinds:
 - !!<format: text/x-json> |
   "text"   42   true   null
 - >

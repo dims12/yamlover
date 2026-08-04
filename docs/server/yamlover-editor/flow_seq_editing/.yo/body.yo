@@ -1,0 +1,24 @@
+Flow sequence editing
+description: the flow_seq_editing state
+- >
+  The `[` and `]` are projected with value cells between them, comma-separated; the cursor sits in
+  the current inner cell. A sequence has NO keys, so a `:` past a closer inside one is refused (in
+  a flow MAP it makes the token that entry's key). EVERY CELL IS WALKABLE - a token is one line of
+  several cells, so the left/right arrows CROSS them at a cell edge, including into the KEY cells,
+  which are editable like any other. A token opened INSIDE a spread one is spread too, since
+  json5p expands everything under the switch
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`alphanumeric`', '', '[unquoted_scalar_appending](::server:yamlover-editor:unquoted_scalar_appending)']
+  - ['`close_bracket`', '', '[scalar_committed](::server:yamlover-editor:scalar_committed)']
+  - ['`comma`', '', '`flow_seq_editing` (stays)']
+  - ['`enter`', 'the token cannot be spread (a keyed+keyless mixture)', '[scalar_committed](::server:yamlover-editor:scalar_committed)']
+  - ['`enter`', 'otherwise', '[flow_seq_spread](::server:yamlover-editor:flow_seq_spread)']
+  - ['`backspace`', 'the inner cell is empty and it is the only one', '[empty_cell_of_origin](::server:yamlover-editor:empty_cell_of_origin)']
+  - ['`backspace`', 'otherwise', '`flow_seq_editing` (stays)']

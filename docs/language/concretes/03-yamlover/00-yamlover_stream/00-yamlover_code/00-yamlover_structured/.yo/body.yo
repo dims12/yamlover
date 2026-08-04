@@ -1,21 +1,21 @@
 yamlover/structured
-description: The one ordered container — keyed entries, positions, and a self-value mix
+description: The one ordered container - keyed entries, positions, and a self-value mix
 - >
-  yamlover has ONE ordered container — there is no separate list and dict. Keyed and positional
+  yamlover has ONE ordered container - there is no separate list and dict. Keyed and positional
   entries MIX in one node, a position is an integer key authored BY ORDER, and a scalar
-  self-value may ride among the entries — the unified node (omni) is the DEFAULT, no tag
-  needed. The spellings are YAML's —
+  self-value may ride among the entries - the unified node (omni) is the DEFAULT, no tag
+  needed. The spellings are YAML's -
   [block](::language:concretes:04-yaml:01-yaml_code:00-yaml_structured:00-yaml_mapping:00-yaml_mapping_block)
   and
   [flow](::language:concretes:04-yaml:01-yaml_code:00-yaml_structured:00-yaml_mapping:01-yaml_mapping_flow)
-  — and a multi-line K&R flow token is a concrete SWITCH to
+  - and a multi-line K&R flow token is a concrete SWITCH to
   [json5p](::language:concretes:05-json5p) mid-document. Flow cannot hold everything: a
-  container carrying a path anchor, a `!!<…>` tag, a leading comment, a multi-line scalar, or
-  a keyed+keyless mixture falls back to block form — silently and losslessly:
+  container carrying a path anchor, a `!!<...>` tag, a leading comment, a multi-line scalar, or
+  a keyed+keyless mixture falls back to block form - silently and losslessly:
 - !!<format: text/x-yamlover> |
   - solid
   scale: 10
   - recommended
 - >
-  The pair is a construct of its own — see the subchapter below:
+  The pair is a construct of its own - see the subchapter below:
 - *: 00-yamlover_key_value_pair

@@ -1,0 +1,17 @@
+Meta tag editing
+description: the meta_tag_editing state
+- >
+  The `!!<` and `>` are projected with the tag-content cell between them, cursor inside
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`alphanumeric`', '', '`meta_tag_editing` (stays)']
+  - ['`gt`', '', '[value_hole](::server:yamlover-editor:value_hole)']
+  - ['`enter`', '', '[value_hole](::server:yamlover-editor:value_hole)']
+  - ['`backspace`', 'the content became empty', '[empty_cell_of_origin](::server:yamlover-editor:empty_cell_of_origin)']
+  - ['`backspace`', 'otherwise', '`meta_tag_editing` (stays)']

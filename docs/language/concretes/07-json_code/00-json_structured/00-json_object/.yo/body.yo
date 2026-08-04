@@ -6,5 +6,5 @@ description: Comma-separated list of key-value pairs, enclosed into curly braces
 - !!<format: text/x-json> |
   {"name": "Julia", "age": 42}
 - >
-  The pair is a construct of its own — see the subchapter below:
+  The pair is a construct of its own - see the subchapter below:
 - *: 00-json_key_value_pair

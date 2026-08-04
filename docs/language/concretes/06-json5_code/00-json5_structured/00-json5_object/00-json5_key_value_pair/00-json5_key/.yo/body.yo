@@ -1,7 +1,7 @@
 json5/key
 description: Key in either the JSON spelling or the eigen JSON5 one
 - >
-  A JSON5 key comes in either of two spellings — the JSON one (a double-quoted string) or the
+  A JSON5 key comes in either of two spellings - the JSON one (a double-quoted string) or the
   eigen JSON5 one. All three keys below name the same member:
 - !!<format: text/x-json5> |
   "age"   age   'age'

@@ -1,0 +1,5 @@
+Focus the previous cell
+description: the focus_prev state (a pseudo-state)
+- >
+  A pseudo-state - the caret lands at the END of the preceding cell in visual order; continue in
+  that cell's focused state

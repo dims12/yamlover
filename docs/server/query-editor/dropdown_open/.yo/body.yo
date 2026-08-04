@@ -1,0 +1,26 @@
+Candidates offered, nothing armed
+description: the dropdown_open state
+- >
+  The dropdown hangs under the active cell - the context's real children as TOC rows (icons and
+  all) followed by the operator hints, ranked by the typed prefix. NOTHING is highlighted (hi =
+  -1): Enter here commits the typed query, never a hint; Tab takes the FIRST candidate
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`alphanumeric`', '', '`dropdown_open` (stays)']
+  - ['`down_arrow`', '', '[dropdown_armed](::server:query-editor:dropdown_armed)']
+  - ['`up_arrow`', '', '[dropdown_armed](::server:query-editor:dropdown_armed)']
+  - ['`hover_candidate`', '', '[dropdown_armed](::server:query-editor:dropdown_armed)']
+  - ['`click_candidate`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`tab`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`enter`', 'the filter answered with matches', '[filtered](::server:query-editor:filtered)']
+  - ['`enter`', 'the filter answered with none', '[nop](::server:query-editor:nop)']
+  - ['`enter`', 'the filter is in flight', '`dropdown_open` (stays)']
+  - ['`escape`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`toc_click`', 'a MATCH row', '[filtered](::server:query-editor:filtered)']
+  - ['`toc_click`', 'otherwise', '[idle_path](::server:query-editor:idle_path)']

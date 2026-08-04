@@ -1,0 +1,34 @@
+Two projections, and the legacy flat editor
+description: the source and chapter yed mounts share the machine, the cells, and the sync
+- !!<*yamlover: $defs: table>
+  header:
+    - Projection
+      width: 2
+    - Component
+      width: 3
+    - File
+      width: 3
+    - 'Draws the model as...'
+      width: 5
+  - ['**Source**', '`<EditorView>` (yed mount)', '`renderers/yed-editor.tsx`', 'rows of yamlover cells (the `yamlover`/`json5p` data view, unlocked) - DEFAULT']
+  - ['**Chapter**', '`<YedChapterEditor>`', '`renderers/yed-chapter-editor.tsx`', 'prose, headings, sections, tables, source chunks (a chapter/task page, unlocked) - DEFAULT']
+- >
+  Both are yed mounts over the parser IR: load via `/api/json` -> `yed-load.ts`, edit via a pure
+  machine (`tools/yed/src/` grammar for source, `tools/yed/src/chapter/` for chapters), persist
+  via the `yed-sync.ts` tree diff. They share the cell contract (`tools/yed/src/cells.tsx`) and
+  the never-locked laws (watchdog, positions law, dry-run legend).
+- >
+  **The legacy editors are gone.** The pre-yed `<ChapterProjection>` retired with Stage 9
+  (`chapter-editor/{view,blocks,format,tab}` deleted; only `format-bus.ts` + `format-control.tsx`
+  survive, since the yed mount publishes to the same bus), and the legacy SOURCE projection
+  (`renderers/yamlover-editor/` - its own host/model/cells stack, behind `?yedEditor=legacy`) was
+  deleted after the A1-A8 parity port: yed mounts unconditionally. The pre-projectional flat
+  `ChapterEditor` (in-memory `renderers/chapter-model.ts` + `useChapterSync`) remains the one
+  escape hatch at `?chapterEditor=flat`, slated for deletion (`TODO.md`). The switch is
+  `chapterEditorFlavor()` (`renderers/chapter.tsx`).
+- !!<format: text/plain> |
+  NodeView (unlocked data view) ---> yed-editor.tsx (source)          +  tools/yed machine + cells
+                                                                      +- yed-load.ts / yed-sync.ts
+  ChapterView (unlocked, DEFAULT) -> yed-chapter-editor.tsx (chapter) +  (the SHARED yed base)
+
+  ChapterView (?chapterEditor=flat) -> ChapterEditor -> chapter-model.ts + useChapterSync   (LEGACY)

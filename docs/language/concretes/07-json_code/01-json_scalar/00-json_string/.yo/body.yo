@@ -2,8 +2,8 @@ json/string
 description: Double-quoted string
 - >
   A string is a sequence of Unicode characters enclosed into double quotes. Special characters
-  ride behind a backslash — `\"`, `\\`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`, and `\uXXXX` for an
-  arbitrary code unit. Literal line breaks inside a string are not allowed — a JSON string always
+  ride behind a backslash - `\"`, `\\`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`, and `\uXXXX` for an
+  arbitrary code unit. Literal line breaks inside a string are not allowed - a JSON string always
   fits one line:
 - !!<format: text/x-json> |
   "line one\nline \"two\"\tand a tab"

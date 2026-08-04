@@ -1,9 +1,9 @@
 yamlover/stream
-description: What a .yo file holds — today exactly one document
+description: What a .yo file holds - today exactly one document
 - >
   A **stream** is what a `.yo` file holds (the legacy `.yamlover` extension is read forever,
   written never). Today a file holds exactly ONE document; multi-document `---` streams are
-  RESERVED — the multi-yamlover concrete is
+  RESERVED - the multi-yamlover concrete is
   [defined but not yet implemented](::language:concretes:00-storage:04-multi_document_streams). The document's
-  content is a yamlover/code — see its chapter:
+  content is a yamlover/code - see its chapter:
 - *: 00-yamlover_code

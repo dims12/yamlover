@@ -1,0 +1,16 @@
+The state machines and the sync convention
+description: each machine chapter has exactly one executable mirror in the code
+- >
+  Each machine chapter has exactly one executable mirror in the code. Keep the chapter, its
+  mirror, and this doc aligned when any of the three changes.
+- !!<*yamlover: $defs: bullets>
+  - '[The yamlover editor](::server:yamlover-editor) - the editor''s typing grammar / hole-materialization table (what a keystroke into an empty "hole" becomes: `- ` sequence, `key:` entry, `{`/`[` flow, `*` pointer, `!!<` tag, block scalar...; quotes are ordinary characters - no quote mode). Mirror: `interpret(key, site)` in `tools/yed/src/grammar/dispatch.ts` (the whole key grammar as ONE pure table) plus the hole classifier in `tools/yed/src/grammar/keys.ts`, applied by the pure `apply.ts`; `tools/yed/test/yed-dispatch.test.ts` runs the table as data.'
+  - '[The chapter editor](::server:chapter-editor) - the chapter projection''s grammar. Mirror: `tools/yed/src/chapter/dispatch.ts`; `tools/yed/test/chapter-dispatch.test.ts` mirrors the chapter as data.'
+  - '[The query editor](::server:query-editor) - the query/pointer editing machine. Mirror: `client/breadcrumb-machine.ts`, a pure reducer `reduce(state, event, currentPath) -> [state, effects]`; `breadcrumb-machine.test.ts` runs the table.'
+- >
+  Inside a flow token the grammar adds one pair of verbs: a **comma** keeps the next element on
+  this line, **Enter** puts it on the next one - which SPREADS the token to K&R (per-container: a
+  container spreads by ITS OWN bit; spreading propagates upward only) and is, on disk, an inline
+  concrete switch to json5p ([concretes](::language:concretes)). **Backspace** at the head of the
+  token's first line joins it back. Spreading is skipped, not refused, for a container json5p
+  cannot hold (a keyed+keyless mixture).

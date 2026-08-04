@@ -1,7 +1,7 @@
 filename/posix
 description: Case-sensitive, byte-exact name
 - >
-  A POSIX filename is a byte string — case-sensitive and byte-exact as a key. Anything goes
+  A POSIX filename is a byte string - case-sensitive and byte-exact as a key. Anything goes
   except the path separator `/` and the NUL byte; `.` and `..` are taken:
 - !!<format: text/plain> |
   Readme   readme   дорожный знак   a.b c

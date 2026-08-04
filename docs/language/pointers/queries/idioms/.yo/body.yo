@@ -1,18 +1,18 @@
 Idioms
-description: compositions of the primitives — not new syntax
+description: compositions of the primitives - not new syntax
 - 'The everyday questions are compositions of the primitives, never new syntax:'
 - !!<*yamlover: $defs: table>
   header:
     - Want
     - Query
       width: 3
-  - ['members of tag T (the embedded model)', '`T: ?..: ?..: !!<type: binary>` — annotated materials reach the tag forward through their annotations, so members are two uplinks away']
+  - ['members of tag T (the embedded model)', '`T: ?..: ?..: !!<type: binary>` - annotated materials reach the tag forward through their annotations, so members are two uplinks away']
   - ['tags applied to node N', '`: N: yamlover-annotations: [?]: !!<format: x-yamlover-tag>`']
   - ['sub-tags of T (not members)', '`T: ?: !!<*:: yamlover: $defs: tag>`']
   - ['all tag nodes (the tag-picker)', '`:: ...: !!<format: x-yamlover-tag>`']
   - ['find-usages of N', '`N: ?..`']
   - ['every blob under here', '`...: !!<type: binary>`']
 - >
-  The future extensions — repetition and quantifiers, regex matching, branching, the capture sigil,
-  projection — live behind the reserved characters (`! ( ) < > = |`), so none of them changes the
+  The future extensions - repetition and quantifiers, regex matching, branching, the capture sigil,
+  projection - live behind the reserved characters (`! ( ) < > = |`), so none of them changes the
   meaning of a v1 query when it lands.

@@ -47,13 +47,19 @@ are legal, the numbering is never order's source of truth.
 | `META.md` | `language/model/metadata/` + `language/concretes/` | the metadata schema; the `.yo/` contract |
 | `CONCRETES.md` | `language/concretes/` | storage taxonomy, representation, inheritance rules, layout invariants |
 | `QUERY.md` | `language/pointers/queries/` | the query language |
-| `CHAPTER.md` | `documents/` | the chapter/chunk document model |
-| `MARKLOWER.md` | `documents/` | the inline markup, tables, lists |
+| `CHAPTER.md` | `documents/chapter/` | the chapter/chunk document model |
+| `MARKLOWER.md` | `documents/marklower/` | the inline markup, tables, lists |
+| `UI.md` | `server/ui/` | operating the UI - layout, views, interaction, upload |
+| `EDITOR.md` | `server/editor/` | the projectional editor - the maintainer's map |
+| `ANNOTATIONS.md` | `server/annotations/` | fragments & tag applications |
+| `YAMLOVER_EDITOR.yo` | `server/yamlover-editor/` + `server/chapter-editor/` | the two machines split; one subchapter per state, transitions as linked tables |
+| `QUERY_EDITOR.yo` | `server/query-editor/` | the breadcrumb/pick machine, same shape |
 
 ### Candidates (not yet in scope — decide per file)
 
-`JSON5P.md` (→ `language/`), `IR.md`, `ENGINE.md`, `IMPORTS.md`, `ANNOTATIONS.md`,
-`EDITOR.md`, `UI.md`, `TICKETS.md`, `QUERY-FUTURE.md`, `PRIOR-ART.md`, `VERSION-CONTROL.md`.
+`JSON5P.md` (→ `language/`), `IR.md`, `ENGINE.md`, `IMPORTS.md`, `TICKETS.md`,
+`QUERY-FUTURE.md`, `PRIOR-ART.md`, `VERSION-CONTROL.md`. (Ruled 2026-08-04: `UI.md`,
+`EDITOR.md`, `ANNOTATIONS.md` and the two machine `.yo` diagrams migrated into `docs/server/`.)
 Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `README.md`,
 `YOMIGRATION.md`, this file.
 
@@ -108,11 +114,27 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
       `language/.yo/.trash/concretes/`. Editor-materialized, so the interior carries the
       `NN-` member numbering; the chapter directory itself git-renamed from the working
       name `01-Concretes_2` back to `concretes/` and all links repointed (2026-08-04)
-- [ ] `CHAPTER.md` → `documents/`
-- [ ] `MARKLOWER.md` → `documents/`
-- [ ] Rule on the candidate files (§above)
+- [x] `CHAPTER.md` → `documents/chapter/` (2026-08-04 — positional-body omni model, schema,
+      attaching/materialization, addressing, `task` extension; slash-path tags modernized to
+      colon; status history compressed into `task/`)
+- [x] `MARKLOWER.md` → `documents/marklower/` (2026-08-04 — inline grammar, link targets,
+      embeds, structure division, tables with merges/widths, lists, WYSIWYG atoms, known
+      paste divergence; MD tables → `$defs/table`, content lists → `$defs/bullets`)
+- [x] `docs/server/` - the "Demo server" chapter (2026-08-04): `UI.md` → `server/ui/`,
+      `EDITOR.md` → `server/editor/`, `ANNOTATIONS.md` → `server/annotations/`, and the two
+      state-machine diagrams converted from pure yamlover into marklower chapters -
+      `server/yamlover-editor/` + `server/chapter-editor/` (split from `YAMLOVER_EDITOR.yo`
+      at its CHAPTER-projection divider) and `server/query-editor/` (`QUERY_EDITOR.yo`).
+      Every state is a subchapter (39 of them); its transitions are a `$defs/table`
+      (Event | Condition/note | Next state) whose next-state cells LINK to the sibling
+      state chapters — the machine graph became a browsable hypertext. The shared machine
+      conventions (THE LEVEL RULE, host modes, …) are the machine chapters' intro chunks.
+      Machine-root descriptions and state pages generated mechanically from the source
+      diagrams; sources stubbed (the sync-mirror code comments still name the old files,
+      whose stubs redirect). All 68 new bodies vet-parsed
+- [ ] Rule on the remaining candidate files (§above)
 - [ ] Marklower improvements met along the way (asides, syntax highlighting, …) — spec'd in
-      `MARKLOWER.md` as they land
+      `docs/documents/marklower/` (and this checklist) as they land
   - [x] Code chunks render (2026-08-01): the `code` registry entry accepts `text/x-yamlover`,
         `text/x-json5p`, `text/x-yaml`; `PlaintextChunk` reads an inline chunk's own text
         instead of fetching bytes
@@ -125,7 +147,7 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
         `!!yo` and made SEMANTIC — plain yamlover, exempt from the enclosing schema; a
         `!!yo`-marked body element renders via the generic data view (read-only) and edits as
         an inline source cell (yed); first live use in `language/principles/one-node`
-        (CHAPTER.md §Data island)
+        (::documents:chapter:model — data island)
   - [x] The YAML-keys round, phase D — the docs respell (2026-08-02): the book, the root
         specs, and `examples/` moved to the new spelling — bare-integer positions
         (`: pets: 1`, store `:pets:1`; the retired `[n]` reads forever as an alias),
@@ -149,4 +171,47 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
     whole tree's reconcile with a parse error while the served index silently keeps the
     last good state; check the server log's `[reconciling]` lines when a body edit seems
     to have no effect
-- [ ] Stub / retire the migrated MD files
+  - [x] Intra-word `_` no longer italicizes (2026-08-04, found QA-ing the machine chapters):
+        `styleText` treated any `_..._` pair as emphasis, so `unquoted_scalar_appending`
+        italicized its middle — including inside link labels, mangling every next-state link.
+        Markdown's rule adopted: a `_` inside a word is a literal character; only a
+        word-boundary `_` (and `__`) opens/closes emphasis. `*` keeps intra-word emphasis.
+        Spec'd in `documents/marklower/grammar/`, regression-tested (marklower.test.tsx).
+        Same QA pass: state-page descriptions de-backticked (descriptions render plain),
+        Event columns widened, stale `QUERY_EDITOR.yo`/`CONCRETES.md` mentions in three
+        state descriptions repointed at book links, a live WYSIWYG edit round-tripped on a
+        state page (valid write, atomicity held), and a focus-after-flush observation filed
+        as MINITODO 028. Open: `atom_focused` targets a `gap_after_token` state the diagram
+        never defined (renders as plain code, not a link) — author it or reword the row.
+  - [x] The chunk-mangle bug fixed (2026-08-04): touching a long folded prose chunk in the
+        yed editor corrupted the file — three fixes. (1) `itemHasFields` misread a PLAIN
+        `- >` block (content at the child column) as an omni when a prose line looked like
+        `key: ...`, so the emplace replaced one line and orphaned the rest; the block form
+        now pins its content indent to the first content line. (2) `/api/edit` now parses
+        every spliced file before writing — a surgical bug 400s with the document
+        untouched, never persists a corrupt body. (3) `inlineMd` trimmed emphasis inners
+        (`<strong> is ... an </strong>` → `**is ... an**`), eating the boundary spaces on
+        every round-trip; the whitespace is hoisted outside the markers now. Bonus: a keyed
+        insert quotes an all-digit key (`"12": tue` — a bare `12:` is a position).
+  - [x] Machine chapters resynced to the PORTION grammar (2026-08-04): the pointer entry
+        refactor decomposed a reference into portion cells in the PURE editor
+        (grammar/portions.ts + the dispatch table's `portion` cell; completion hints are an
+        optional HintProvider seam - complete.ts, `docHints` over the in-memory document in
+        the debug editor, `treeHints` over GET /api/query in the server host; the old
+        PickKit/holePick mounting retired, TOC-click insertion parked as MINITODO 029).
+        `pointer_entry` / `pointer_pick_editing` rewritten with the new transition tables
+        (scope climb/descend, portion split/merge/fold, the walk across cells),
+        `editor/pick-kit` + `file-index` restructured around the pure/portions + hint-seam
+        + server-host layering. Two code comments repointed from the YAMLOVER_EDITOR.yo
+        stub to the machine chapter. Fix ridden along: a REFUSED commit no longer strips
+        the portion cursor - the cells stay mounted and the typed text stands
+        (yed 672, server 1366, both typecheck clean).
+  - [x] Self-loop transitions de-linked (2026-08-04, user-reported): a state page's
+        transition table linked self-loops (`key_cell_editing` -> itself), and clicking a
+        link to the page you are already on changes nothing - reads as "links don't work".
+        Links were never broken (cross-state links navigate fine); the 26 pages with
+        self-loops now render them as plain code with a `(stays)` marker, so only real
+        transitions look navigable. All 39 state pages vet-parsed.
+- [x] Stub the migrated MD files (2026-08-04 — all ten sources are one-screen stubs
+      pointing into `docs/`; kept one cycle so stale references land somewhere)
+- [ ] Delete the stubs after the cycle

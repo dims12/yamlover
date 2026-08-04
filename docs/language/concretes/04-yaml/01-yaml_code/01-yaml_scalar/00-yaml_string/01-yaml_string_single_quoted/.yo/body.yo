@@ -1,7 +1,7 @@
 yaml/string/single-quoted
 description: Literal text between single quotes; a doubled '' spells one quote
 - >
-  Everything between single quotes is LITERAL — no escapes work; the one special is `''`, a
+  Everything between single quotes is LITERAL - no escapes work; the one special is `''`, a
   doubled quote spelling one quote character:
 - !!<format: text/x-yaml> |
-  a: 'it''s literal — \n stays two characters'
+  a: 'it''s literal - \n stays two characters'

@@ -3,7 +3,7 @@ description: Case-insensitive name with the Windows reservations
 - >
   A Windows filename compares CASE-INSENSITIVELY as a key, and carries the platform's
   reservations: the characters `< > : " / \ | ? *` are forbidden, the device names (`CON`,
-  `NUL`, `PRN`, `AUX`, `COM1`…, `LPT1`…) are taken in any case and with any extension, and a
+  `NUL`, `PRN`, `AUX`, `COM1`..., `LPT1`...) are taken in any case and with any extension, and a
   trailing dot or space is stripped:
 - !!<format: text/plain> |
   Readme   (the same key as readme)

@@ -1,8 +1,8 @@
 json/number
 description: Integer or floating-point number in decimal notation
 - >
-  A number is a decimal — an optional minus, an integer part without leading zeros, an optional
-  fraction, an optional exponent. Nothing else — no leading plus, no bare point, no hexadecimal,
+  A number is a decimal - an optional minus, an integer part without leading zeros, an optional
+  fraction, an optional exponent. Nothing else - no leading plus, no bare point, no hexadecimal,
   no `Infinity` or `NaN`:
 - !!<format: text/x-json> |
   42   -0.5   6.022e23

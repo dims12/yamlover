@@ -12,5 +12,5 @@ description: A sequence of YAML documents in one file, separated by --- markers
   ---
   second: document
 - >
-  Each document's content is a yaml/code — see its chapter:
+  Each document's content is a yaml/code - see its chapter:
 - *..:01-yaml_code

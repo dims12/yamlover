@@ -1,0 +1,71 @@
+The query editor - the state machine
+description: the breadcrumb, the pointer pick cells, and the tag picker - one machine in three hosts
+- >
+  Each subchapter is a **state** of the editable breadcrumb - the topbar's locator and query
+  editor in one (a permanent row of smart cells, one per query portion). Unlike the yamlover
+  editor's, this machine is ALSO executable code - `tools/server/src/client/breadcrumb-machine.ts`
+  is the pure reducer these states compile to, and `breadcrumb-machine.test.ts` runs the table.
+  [The projectional editor](::server:editor) is the prose architecture doc for how this machine
+  hosts the breadcrumb, the pointer cell, and the tag picker.
+- >
+  **Conventions.** A PORTION is one colon-separated step of the query - a key (`pets[1]` includes
+  its index suffixes), a wildcard (`?`, `[?]`), descent (`...`), an uplink (`..`, `?..`), a value
+  test (`>10`, `=text`) or a meta test (`!!<type: integer>`). While any cell is focused the TOC
+  FILTERS live (matches + all their ancestors, expanded down to the matches, no row selected); the
+  dropdown under the cell offers the context's REAL children as true TOC rows plus the operator
+  hints. Hints are never validators - free-typed text always stands, and the dropdown arms only on
+  an explicit ArrowDown or hover (nothing armed = Enter commits the typed query). TAB is the
+  ACCEPT key: it takes the armed candidate, or the FIRST one when nothing is armed. The dropdown
+  is PORTALED to the body at fixed coordinates under the cell, so no ancestor popup or scrolling
+  pane can clip it. A query that stops parsing mid-edit keeps the LAST GOOD filter on screen and
+  rings the cell red - it never blocks. Candidate and filter fetches are debounced and
+  sequence-guarded; a stale arrival is dropped.
+- >
+  **HOST MODES.** The SAME machine drives every query-cell surface, in one of two modes. BROWSE -
+  the breadcrumb: selecting means navigating, a committed query keeps the `filtered` browsing
+  state, and the scope is fixed at the document root. PICK - a selection host: selecting means
+  committing ONE node path (the query REDUCES to a path - a pointer, never a matcher), `filtered`
+  is unreachable, and the SCOPE LADDER is the user's: bare (current scope), `:` document, `::`
+  project, `:::` world. In pick mode a TOC click is an INSERTION, not a commit. The TOC filter is
+  ONE shared surface: a session owner holds it, and a host that starts editing EVICTS the previous
+  owner. The append cell (`click_tail` / F4) REUSES an already-empty trailing cell, never doubles
+  it.
+- >
+  **THE THREE HOSTS.** (1) The BREADCRUMB - browse mode, this chapter's main table. (2) The yed
+  editor's REFERENCE CELL (`*` in a hole, and the atom's pick retarget) - pick mode; its outer
+  states live in [the yamlover editor machine](::server:yamlover-editor) (`pointer_entry` /
+  `pointer_pick_editing` / `atom_focused`), which delegate the inner grammar here through the cell
+  registry's `holePick`/pointer seam. (3) The TAG PICKER (the annotation popup's search row) -
+  pick mode, opening at the PROJECT scope with the caret already in the trailing cell, cells
+  seeded `...` + an empty cell so a bare typed name spells the find-anywhere query `:: ...:
+  <name>`; Enter commits the first match, and a TOC row click TOGGLES the node as the annotation
+  ref (already applied -> it unapplies), while Enter ASSIGNS the typed path (already applied -> a
+  satisfied no-op). Create-on-miss births a named tag from a bare unmatched name; any OTHER miss
+  keeps the cells ringed and editable, never a modal error ([annotations](::server:annotations)).
+- >
+  **THE PORTION RULE.** `:` and `[` are STRUCTURE, not text. Typing `:` splits the cell at the
+  caret - the tail becomes the next cell. Typing `[` projects the closing `]` with the caret in
+  between; `]` jumps OVER the projected closer; Backspace between an empty projected pair
+  dismantles it. An index belongs to the portion BEFORE it - `[` in an EMPTY cell folds into the
+  previous cell (`pets` `:` `[` `1` spells `pets[1]`, never `pets: [1]`). For the FIRST cell the
+  previous portion is the ROOT itself. Backspace at a cell's start (or Delete at a cell's end)
+  deletes the `:` boundary - the neighbouring cells merge with the caret at the junction.
+- >
+  **THE REGRESSION RULE.** Leaving the editor always lands somewhere honest: selecting a node that
+  MATCHES the query keeps the query (the `filtered` state - cells intact, TOC still filtered);
+  selecting anything else regresses the breadcrumb to that node's plain path; Escape restores the
+  current path's cells and the unfiltered TOC.
+- >
+  **Pseudo-states.** `nop`, `error_ring`, `focus_prev`, `focus_next` follow the yamlover editor's:
+  consume-and-stay, red-ring-and-stay, and the two focus-walk actions landing in the adjacent
+  cell's focused state.
+- *: nop
+- *: error_ring
+- *: focus_prev
+- *: focus_next
+- *: idle_path
+- *: cell_editing
+- *: index_editing
+- *: dropdown_open
+- *: dropdown_armed
+- *: filtered

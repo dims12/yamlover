@@ -1,0 +1,27 @@
+Paste and drag-and-drop upload
+description: files, text, links, and rich HTML land in the tree by what the current node is
+- >
+  A file can be added to the tree straight from the clipboard (**Ctrl+V** on a node page) or by
+  **dropping** it onto the page - both follow the same rules, by what the current node is:
+- !!<*yamlover: $defs: bullets>
+  - '**A directory** - the file lands in that directory (the page refreshes in place).'
+  - '**A member of a directory** (any non-chapter node) - the file lands in the nearest enclosing directory, and the new file opens in its renderer.'
+  - '**A chapter** - the file lands in the chapter''s owning directory **and** a `*...` pointer to it is appended as the chapter''s last chunk, so it appears inline at the bottom of the page.'
+- >
+  Filenames are sanitized and de-duplicated (`name-1.ext`, ...); pasted images get a generated
+  name. Everything is an ordinary file on disk afterwards - move or rename it like anything else.
+- >
+  **Pasting text** follows the same shape: on a **chapter** the text becomes an inline
+  block-scalar chunk appended to the page; anywhere else it becomes a **new chapter file**
+  (`.yo`), titled from its first line. **Pasting links or rich HTML** goes further: a pasted URL
+  list becomes pointer chunks, an arXiv link fetches the PDF, a tweet link captures the full
+  tweet, and a rich-HTML selection is decomposed into chunks (text, images, embedded video,
+  subchapters) so the pasted page stays structured rather than landing as one opaque blob. A
+  copied **YouTube or Vimeo player** survives the trip as a marklower embed; a frame from any
+  other origin is dropped rather than pasted (the [embeddable
+  hosts](::documents:marklower:embeds) are an allowlist, and that is a security boundary).
+- >
+  **Pasting an image *into* an open prose chunk** is the one case that does not append anything:
+  the picture is uploaded beside the chapter and referenced from the sentence you were writing,
+  as a marklower embed. The bytes become an ordinary file in the tree - never a hotlink to
+  someone else's server, and never a second copy of the picture at the foot of the page.

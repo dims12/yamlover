@@ -1,0 +1,19 @@
+A typographical-list item, focused
+description: the list_item_editing state
+- >
+  An item of a tagged bullets/numbered list. Tab nests it as a SUBLIST of the same kind - the same
+  model move as a subchapter, since an untagged nested container inherits the list's kind
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`enter`', '', '`list_item_editing` (stays)']
+  - ['`ctrl_enter`', 'THE TABLE GESTURE - the list retags as a table', '[format_switched](::server:chapter-editor:format_switched)']
+  - ['`tab`', 'a previous item exists', '`list_item_editing` (stays)']
+  - ['`tab`', 'otherwise', '[nop](::server:yamlover-editor:nop)']
+  - ['`shift_tab`', '', '`list_item_editing` (stays)']
+  - ['`ctrl_alt_number`', '', '[format_switched](::server:chapter-editor:format_switched)']

@@ -1,0 +1,48 @@
+Where the keys physically live (omni)
+description: the parallel keys sit beside the node's value - a document root, a chunk, a blob
+- >
+  A target usually already *has a value* (a markdown string, a PDF's bytes). yamlover's **omni**
+  shape ([the model](::language:model)) lets a node carry that self-value **and** fields at once,
+  so `yamlover-fragments` / `yamlover-annotations` sit beside it.
+- >
+  **Whole yamlover document** - plain root keys (the root may carry a scalar value too):
+- !!<format: text/x-yamlover> |
+  !!<*::yamlover:$defs:chapter>
+  title: A Pinch of Math
+  yamlover-annotations:
+  - *::tags:genre:brevity:shortest-paper
+- >
+  **Chapter chunk (markdown block scalar)** - a chunk is a positional body element; the annotated
+  chunk becomes an **omni block-scalar**, its fields at a **shallower** indent than the block
+  content (and deeper than the `-`):
+- !!<format: text/x-yamlover> |
+  - !!var |
+      Mathematics likes to hide, but a standalone LaTeX block
+      gives it away.
+    yamlover-fragments:
+      mqdo07z1-owgrcv: {type: text, exact: LaTeX, prefix: ", a standalone ", suffix: " block"}
+    yamlover-annotations:
+    - *::tags:topic:math
+- >
+  **On-disk binary file (a `.pdf`)** - omni over a blob: the parallel keys go in the enclosing
+  directory's `.yo/body.yo` overlay under the `"<filename>":` key (the engine's overlay merge
+  keeps the blob's bytes while attaching fields):
+- !!<format: text/x-yamlover> |
+  # papers/.yo/body.yo
+  "S0002-9904-1966-11654-3.pdf":
+    yamlover-annotations:
+    - *::tags:genre:brevity:shortest-paper          # whole document, parameterless
+    - {description: Two-line proof, tag: *::tags:review:flagged}
+    yamlover-fragments:
+      myslag:
+        type: pdf
+        page: 1
+        x: 133
+        y: 322
+        w: 73
+        h: 11
+        image: *::papers:fragments:myslag.png        # the embedded crop
+        created: 2026-06-14T11:20:28.901Z
+        yamlover-annotations:                         # tagging just this region
+        - *::tags:topic:math
+        - {importance: 10, tag: *::tags:review:flagged}

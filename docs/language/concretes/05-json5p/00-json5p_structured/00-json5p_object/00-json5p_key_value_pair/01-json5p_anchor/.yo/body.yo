@@ -1,11 +1,11 @@
 json5p/anchor
-description: An & path anchor between the colon and the value — a reverse edge saying where else the node lives
+description: An & path anchor between the colon and the value - a reverse edge saying where else the node lives
 - >
   An **anchor** `&"<path>"` standing between the pair's colon and its value declares that the
-  value ALSO lives at that path — the reverse of a pointer, authored on the target's side.
-  Several anchors may stack, and a trailing `[]` declares positional MEMBERSHIP in a list —
-  unpositioned and additive. ANY value can be anchored — a scalar just as well as an object or
-  a list. The deprecated `~key:` and `~*'…'` back-edge spellings still parse and mean the same:
+  value ALSO lives at that path - the reverse of a pointer, authored on the target's side.
+  Several anchors may stack, and a trailing `[]` declares positional MEMBERSHIP in a list -
+  unpositioned and additive. ANY value can be anchored - a scalar just as well as an object or
+  a list. The deprecated `~key:` and `~*'...'` back-edge spellings still parse and mean the same:
 - !!<format: text/x-json5p> |
   boss: &": chief" {name: 'Rex', species: 'dog'},
   nickname: &": alias" 'Rexie',                    // a scalar, anchored

@@ -1,3 +1,16 @@
-# Documents — from CHAPTER.md and MARKLOWER.md. See ../../DOCSMIGRATION.md.
+# Documents - chapters, marklower prose, tables, and lists. Sources: CHAPTER.md,
+# MARKLOWER.md - progress in ../../DOCSMIGRATION.md.
 Documents
-description: Chapters and chunks, marklower prose, tables, and lists
+description: chapters and chunks, marklower prose, tables, and lists
+- >
+  A **document** in yamlover is a [chapter](::documents:chapter): a readable page whose positional
+  body interleaves prose, media, tables, lists, and subchapters. The prose format is
+  [marklower](::documents:marklower) - intentionally below Markdown: inline markup only, with
+  structure delegated to yamlover nodes. Together they are the document layer built on the
+  [language](::language).
+- >
+  This chapter absorbs `CHAPTER.md` and `MARKLOWER.md`. Cross-links into the language point at the
+  [model](::language:model), [metadata](::language:model:metadata), [pointers](::language:pointers),
+  and [concretes](::language:concretes).
+- *: chapter
+- *: marklower

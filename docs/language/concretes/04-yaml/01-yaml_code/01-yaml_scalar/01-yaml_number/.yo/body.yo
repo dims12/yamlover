@@ -1,7 +1,7 @@
 yaml/number
 description: Number in one of six concretes
 - >
-  A number is a plain scalar in one of six concretes — decimal, hexadecimal, octal, binary,
+  A number is a plain scalar in one of six concretes - decimal, hexadecimal, octal, binary,
   infinity, or not-a-number. See the subchapters below:
 - !!<format: text/x-yaml> |
   a: 42

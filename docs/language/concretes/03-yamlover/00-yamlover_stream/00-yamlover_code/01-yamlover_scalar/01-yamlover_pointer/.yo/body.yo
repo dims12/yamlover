@@ -1,8 +1,8 @@
 yamlover/pointer
 description: A * dereference over an unquoted colon path with the scope ladder
 - >
-  A **pointer** is `*` followed by an UNQUOTED colon path — the value IS the node the path
-  names, a shared edge rather than a copy. More colons at the start widen the scope — bare is
+  A **pointer** is `*` followed by an UNQUOTED colon path - the value IS the node the path
+  names, a shared edge rather than a copy. More colons at the start widen the scope - bare is
   the current mapping (a sibling), `:` the document root, `::` the project, `:::` the world. A
   bare integer portion is a POSITION, `: name` a string key, `: '1'` the numeric STRING key:
 - !!<format: text/x-yamlover> |
@@ -10,6 +10,6 @@ description: A * dereference over an unquoted colon path with the scope ladder
   topDog: *: pets: 0
   secondName: *pets: 1: name
 - >
-  YAML's `*alias` maps to the document-scope `*: name` — the YAML alias is the subclass, and
+  YAML's `*alias` maps to the document-scope `*: name` - the YAML alias is the subclass, and
   where the alias can only name a whole anchored node, the pointer path reaches INTO anything:
 - *..:..:..:..:..:04-yaml:01-yaml_code:01-yaml_scalar:04-yaml_alias

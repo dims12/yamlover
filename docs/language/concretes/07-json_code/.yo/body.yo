@@ -2,7 +2,7 @@ json/code
 description: JSON code, JavaScript Object Notation
 - >
   **JSON** (JavaScript Object Notation) is a text format for structured data. A JSON code is one
-  single value — anything from a bare `42` to a deep nesting of objects and lists:
+  single value - anything from a bare `42` to a deep nesting of objects and lists:
 - !!<format: text/x-json> |
   {
     "name": "Julia",
@@ -11,7 +11,7 @@ description: JSON code, JavaScript Object Notation
     "address": null
   }
 - >
-  Every value belongs to one of two families — **structured** values that nest further values, and
+  Every value belongs to one of two families - **structured** values that nest further values, and
   **scalar** values that nest nothing. See the subchapters below for the two families:
 - *: 00-json_structured
 - *: 01-json_scalar

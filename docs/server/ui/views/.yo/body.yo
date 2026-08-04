@@ -1,0 +1,20 @@
+Views - the representation tabs
+description: yamlover, json5p, schema, renderer tabs, the explorer grid, and the relations panel
+- >
+  Every node can be shown in several representations; pick one with the tabs:
+- !!<*yamlover: $defs: bullets>
+  - '`yamlover` - the YAML-family syntax (the default).'
+  - '`json5p` - the JSON-family syntax.'
+  - '`yamlover/schema` - the node''s instance schema.'
+  - 'A **renderer tab** (e.g. `chapter`, `image`, `map`, `pdf`) - present only when the node is a material; it is that node''s default, showing the rendered document.'
+  - '`explorer` - a file-manager-style **icon grid**, the default for a concrete directory (each child as an icon + label; click to open) and for a **tag''s own page**, where the grid shows the materials filed under that tag (via `/api/tagged` - annotation targets deduplicated, whole-node tags included).'
+- >
+  Each data/schema view is **one level deep**: a nested object or array appears as a
+  `{ N properties }` / `[ M elements ]` link - click it to descend. Pointers (`*`/`~` edges)
+  likewise render as links you click to follow.
+- Relations panel
+  - >
+    In a data view, the area **above the `<hr>`** lists the node's **upstream** relations - its
+    containment parent as `..`, plus any incoming references (who points at it). The
+    material/value and the node's **downstream** relations sit **below** the `<hr>`. This split by
+    natural edge direction is uniform across every node.

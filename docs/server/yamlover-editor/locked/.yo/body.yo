@@ -1,0 +1,5 @@
+Editor locked
+description: the locked state
+- >
+  Pending edits are flushed and the read-only view returns. Esc reaches here from any state - the
+  first press cancels the cell being edited (text reverts), the second locks

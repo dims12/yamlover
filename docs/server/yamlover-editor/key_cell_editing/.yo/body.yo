@@ -1,0 +1,29 @@
+A committed key cell, focused
+description: the key_cell_editing state
+- >
+  The entry's KEY as an editable cell - the caret ENTERS it (a click, or an arrow walk in visual
+  order), the text edits in place. Reached by clicking a committed key or arrowing into it. Commit
+  (Enter / blur) RENAMES the key: the server routes by STORAGE - a directory-backed member is
+  renamed on disk (inbound `*`/`~` pointers rewritten), an inline keyed entry has its key token
+  rewritten in the body, value and comments kept (THE CONCRETE IS NOT A STATE). The rename is
+  OPTIMISTIC - the key updates in place and the caret stays in the cell, the persist runs after
+  any pending body edits flush. A key that duplicates a sibling is rejected with the error ring,
+  the typed text kept (keys are unique per node); an empty/unchanged key is a no-op. A
+  DERIVED-anchor key (a positional dir-member's storage provenance) is not editable here
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`alphanumeric`', '', '`key_cell_editing` (stays)']
+  - ['`enter`', 'the new key duplicates a sibling in the node', '[error_flash](::server:yamlover-editor:error_flash)']
+  - ['`enter`', 'empty, or unchanged', '`key_cell_editing` (stays)']
+  - ['`enter`', 'a free key - the rename persists (dir move or inline rewrite), caret kept in the key cell', '`key_cell_editing` (stays)']
+  - ['`click_outside`', '', '`key_cell_editing` (stays)']
+  - ['`backspace`', 'caret at the start', '[focus_prev](::server:yamlover-editor:focus_prev)']
+  - ['`backspace`', 'otherwise', '`key_cell_editing` (stays)']
+  - ['`up_arrow`', '', '[focus_prev](::server:yamlover-editor:focus_prev)']
+  - ['`down_arrow`', '', '[focus_next](::server:yamlover-editor:focus_next)']

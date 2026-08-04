@@ -1,0 +1,53 @@
+The chapter editor - the state machine
+description: the chapter projection's states - titles, prose, lists, tables, atoms
+- >
+  The SAME document as [the yamlover editor](::server:yamlover-editor), drawn as prose, headings,
+  sections and lists. The machine is PURE and lives in `tools/yed/src/chapter/` (`site.ts` ->
+  `dispatch.ts` -> `apply.ts`, `watchdog.ts` enforcing the never-locked law);
+  `tools/yed/test/chapter-dispatch.test.ts` mirrors this chapter as data. The typing grammar of
+  the source projection does not apply here (no holes, no `- `/`key:`) - EXCEPT inside a [SOURCE
+  chunk](::server:chapter-editor:source_chunk_editing), where the chapter grammar DECLINES every
+  key and the source grammar owns the caret entirely. THE PROSE EXCEPTION governs Enter; THE
+  FORMAT RULE governs Tab and the format commands (both defined in [the yamlover editor
+  machine](::server:yamlover-editor)).
+- >
+  **Ctrl+Enter is THE TABLE GESTURE**: outside a table it INITIATES one (the bar's table button as
+  a keystroke), inside one it appends a ROW. Closed intents: `splitProse` `joinPrev` `joinNext`
+  `deleteChunk` `nest` `unwrap` `indent` `dedent` `cellWalk` `appendRow` `enterWalk` `move` `role`
+  `format` `nop` `refuse`. Re-choosing the ACTIVE format is idle (`nop`).
+- >
+  **THE DELETION LAW** (`deleteChunk`). Backspace at the start of an EMPTY chunk deletes THE CHUNK
+  (a non-empty chunk keeps `joinPrev` - deletion never eats text); the per-chunk trash tool
+  dispatches the same intent carrying the chunk's path, so non-empty chunks, atoms, and
+  MATERIALIZED subchapters delete through the one verb without moving the caret. An untitled group
+  emptied by the removal is a husk and dissolves upward; a titled or member-backed ancestor is a
+  document, never a husk. The caret homes on the walk stop before the chunk; the root never
+  deletes. Server-side, removing a member document DETACHES it and ARCHIVES its storage into the
+  parent's `.yo/.trash/` (collision-suffixed, post-commit): deletion is never a wall, never
+  destroys.
+- >
+  **THE FORMAT RULE is ITEM-LOCAL for "normal"**: choosing paragraph in a list extracts THE ITEM
+  (the list splits around it; a single-item list dissolves) - the leaf-to-list wrap's exact
+  inverse, so the format cycle converges and committed labour survives.
+- >
+  **THE ROLES LAW** (`tools/yed/src/chapter/roles.ts` - the one decision table BOTH faces consult;
+  the read renderer's `chapterFlow` and this projection's cells/walk can never disagree, and the
+  face-parity gate pins it):
+- !!<*yamlover: $defs: bullets>
+  - 'a KEYED entry that is not title/description (a planning field, a keyed-remainder member) is BODY, its key the gutter label (the null key shows as `~`);'
+  - 'the title renders at its AUTHORED slot (`meta.selfAt`), not hoisted first;'
+  - 'the title test is `hasSelfValue` - ANY scalar self titles the chapter;'
+  - 'a LEGACY keyed `title:` entry is the heading (an editable title line at the entry);'
+  - 'a body-positioned MEMBER is body whatever its storage name (`anchorKey` is provenance, never a field - a member named `description` stays a chunk);'
+  - 'the annotation overlay keys (`yamlover-annotations`/`yamlover-fragments`) are hidden; an annotated scalar chunk stays the prose it is (never a spurious subchapter).'
+- >
+  The states below reuse the source machine's pseudo-states (`nop`, `error_flash`, the focus
+  walks) and reach its pointer states (`pointer_pick_editing`) from atoms; `format_switched` is
+  this projection's own pseudo-state.
+- *: chapter_title_editing
+- *: chapter_prose_editing
+- *: list_item_editing
+- *: format_switched
+- *: table_cell_editing
+- *: source_chunk_editing
+- *: chapter_atom_focused

@@ -1,0 +1,8 @@
+Engine derivation
+description: annotations are ordinary graph entries - the engine derives the views
+- >
+  Annotations and fragments are ordinary graph entries, so the engine derives the views:
+- !!<*yamlover: $defs: bullets>
+  - '**A node''s annotations** = its own `yamlover-annotations` elements (plus those of its fragments), each resolving to a tag via the element''s value pointer or `tag:` field.'
+  - '**Materials filed under a tag** (`/api/tagged`) = the reverse of those forward tag pointers - every `yamlover-annotations` element pointing at the tag, surfaced as its owning material or fragment.'
+  - '**Highlighting** reads the sibling fragment''s selector (and its `image` crop) for the region.'

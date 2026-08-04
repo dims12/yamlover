@@ -1,0 +1,14 @@
+# The chapter / chunk document model - from CHAPTER.md.
+Chapters
+description: a fully omni node with a positional body of chunks and subchapters
+- >
+  A **chapter** is yamlover's document node: a readable page with an optional heading and a body of
+  content. It is the schema the web viewer renders as an article. This part defines its shape; the
+  inline markup a prose chunk is written in is [marklower](::documents:marklower). Companion
+  language material: the [type lattice](::language:model), the [schema
+  vocabulary](::language:model:metadata), the [surface](::language).
+- *: model
+- *: schema
+- *: attaching
+- *: addressing
+- *: task

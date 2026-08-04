@@ -1,0 +1,34 @@
+Reference retarget (the pick cursor)
+description: the pointer_pick_editing state
+- >
+  Enter on a committed atom (atom_focused) opened its reference for editing - the pick cursor
+  (state.ts): the pointer STAYS in the document while it edits behind the projected `*` (no
+  remove+insert churn against the sync flush). The raw decomposes into the SAME portion cells the
+  entry face uses (grammar/portions.ts portionsOfRaw seeds the ladder and the cells from the
+  committed spelling), with the same grammar: `:` splits, `[` folds an index, Backspace merges /
+  descends the scope, and the optional completion hints (complete.ts) advise over the active
+  cell - the server host's provider is the live tree, the pure editor's the in-memory document.
+  Commit JOINS the portions and parses-or-refuses; an UNCHANGED raw commits as a no-op (an
+  unasked spelling rewrite never reaches the disk); leaving with arrows commits too - garbage
+  refuses the move. Abandonment needs no wiring: clicking another cell moves the cursor and the
+  un-committed edit simply never lands (the document held the OLD pointer throughout).
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`alphanumeric`', 'native text in the active portion cell', '`pointer_pick_editing` (stays)']
+  - ['`colon`', 'the empty first cell climbs the scope; otherwise the portion commits, the next opens', '`pointer_pick_editing` (stays)']
+  - ['`open_bracket`', 'an empty non-first cell - an index folds onto the previous portion', '`pointer_pick_editing` (stays)']
+  - ['`hint_pick`', 'a dropdown row replaces the active cell''s text; Enter still commits', '`pointer_pick_editing` (stays)']
+  - ['`enter`', 'the joined raw parses (or stands unchanged) - the retarget lands and Enter walks the SIBLING rule', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`enter`', 'not a pointer the wire can carry', '[error_flash](::server:yamlover-editor:error_flash)']
+  - ['`backspace`', 'at the head of a non-first portion - the cells merge; the first cell''s head descends the scope', '`pointer_pick_editing` (stays)']
+  - ['`backspace`', 'the emptied floor - the REFERENCE goes, the entry''s name survives as the named hole (removeLevel)', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`backspace`', 'otherwise', '`pointer_pick_editing` (stays)']
+  - ['`tab`', 'block rows: indent/dedent (refused on a committed row, visibly); flow: the walk', '']
+  - ['`up_arrow`', '', '[focus_prev](::server:yamlover-editor:focus_prev)']
+  - ['`down_arrow`', '', '[focus_next](::server:yamlover-editor:focus_next)']

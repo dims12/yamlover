@@ -1,5 +1,5 @@
 Everything from YAML (kept)
-description: the surface you know — block and flow, scalars, comments, the odd corners too
+description: the surface you know - block and flow, scalars, comments, the odd corners too
 - 'yamlover keeps the YAML surface you know:'
 - !!<*yamlover: $defs: table>
   header:
@@ -7,13 +7,13 @@ description: the surface you know — block and flow, scalars, comments, the odd
     - Example
       width: 2
   - ['Block mappings & sequences', '`key: value` / `- item`']
-  - ['Flow style (one line, or spanning them — see concretes)', '`{a: 1, b: 2}`, `[1, 2, 3]`']
-  - ['A flow token as a KEY', '`{[1, 2]: 3}`, and `[256, 256]: *thumb` in block — the key is that text']
+  - ['Flow style (one line, or spanning them - see concretes)', '`{a: 1, b: 2}`, `[1, 2, 3]`']
+  - ['A flow token as a KEY', '`{[1, 2]: 3}`, and `[256, 256]: *thumb` in block - the key is that text']
   - [Comments, '`# note`']
   - ['Scalars (plain / quoted / folded / literal)', '`a`, `''a''`, `"a"`, `>`, `|`']
   - ['`null` spellings, incl. `~` in value position', '`key: ~` → null']
   - ['Float specials (YAML, **not** json5''s `Infinity`/`NaN`)', '`.inf`, `-.inf`, `.nan` (case-tolerant: `.Inf`/`.NaN`)']
-  - ['`&` anchors and `*` aliases', '`&a {…}` … `*a` — syntax kept, **meaning extended**']
+  - ['`&` anchors and `*` aliases', '`&a {...}` ... `*a` - syntax kept, **meaning extended**']
 - >
-  A YAML `- item` sequence entry is the same thing as a keyless entry in the one ordered container —
+  A YAML `- item` sequence entry is the same thing as a keyless entry in the one ordered container -
   an entry with no string key ([order is data](::language:principles:order-is-data)).

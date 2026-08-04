@@ -1,0 +1,9 @@
+Structure - how a chapter, a table, and a list divide the work
+description: schema tag and shape tell the three constructs apart
+- >
+  The structures marklower delegates to are all ordinary yamlover nodes, told apart by their schema
+  tag and their shape:
+- !!<*yamlover: $defs: bullets>
+  - '**A chapter** (`$defs/chapter`) is a list whose elements are the **paragraphs** (chunks); its scalar self-value is the **title**, and a keyed `description` is supported. A **nested container is a subchapter** (titled when it carries its own self-value): an untagged container element keeps routing to the chapter recursion, so structure comes free. A table or a typographical list enters a body **only by its explicit tag** ([chapters](::documents:chapter)).'
+  - '**A table** (`$defs/table`) consumes exactly **two nesting levels**: the first level is the **rows**, the second the **cells**. A third-or-deeper untagged container **switches back to a chapter** - a cell holding prose and structure under the same rules as the top chapter. Nesting a table needs the explicit table tag again.'
+  - '**A list** (`$defs/bullets`, `$defs/numbered`) applies at **any depth**: an untagged nested container is a sublist of the *same kind*, until an explicit tag switches to something else.'

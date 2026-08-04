@@ -1,6 +1,6 @@
 yaml/number/octal
-description: Integer in base eight — 0o and the octal digits
+description: Integer in base eight - 0o and the octal digits
 - >
-  An integer in base eight — `0o` followed by octal digits:
+  An integer in base eight - `0o` followed by octal digits:
 - !!<format: text/x-yaml> |
   a: 0o52

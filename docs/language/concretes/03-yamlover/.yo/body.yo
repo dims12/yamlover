@@ -1,7 +1,7 @@
 yamlover
 description: The yamlover language in any representation
 - >
-  **yamlover** is one abstract node graph with many representations — a yamlover text document,
+  **yamlover** is one abstract node graph with many representations - a yamlover text document,
   or a whole directory whose layout IS the data. See the subchapters below for the two:
 - *: 00-yamlover_stream
 - *: 01-dir

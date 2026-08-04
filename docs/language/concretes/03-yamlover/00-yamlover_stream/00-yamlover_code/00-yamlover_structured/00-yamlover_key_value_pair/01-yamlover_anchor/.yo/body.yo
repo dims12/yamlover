@@ -1,11 +1,11 @@
 yamlover/anchor
-description: An & path anchor before the value — this node also lives at that path
+description: An & path anchor before the value - this node also lives at that path
 - >
   An **anchor** `&: P: k` before a value declares that the node ALSO lives at path P under key
-  k — a REAL key, with no separate anchor namespace, so plain paths reach it. A trailing `[]`
+  k - a REAL key, with no separate anchor namespace, so plain paths reach it. A trailing `[]`
   (`&P[]`) declares keyless appended MEMBERSHIP in a container; several anchors may stack. The
   deprecated `~key:` and `~-` back-edge spellings still parse through the migration window.
-  YAML's `&name` maps to the document-scope `&: name` — the YAML anchor is the subclass:
+  YAML's `&name` maps to the document-scope `&: name` - the YAML anchor is the subclass:
 - !!<format: text/x-yamlover> |
   boss: &: chief
     name: Rex

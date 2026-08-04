@@ -1,0 +1,21 @@
+A candidate highlighted
+description: the dropdown_armed state
+- >
+  ArrowDown/Up (or hover) armed a row; arrows cycle with wraparound. Enter, Tab or a click takes
+  it - the cell's text becomes the candidate's portion spelling. A MIDDLE cell keeps its tail (the
+  query re-filters); the LAST cell opens a fresh append cell after it, ready for the next step
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`down_arrow`', '', '`dropdown_armed` (stays)']
+  - ['`up_arrow`', '', '`dropdown_armed` (stays)']
+  - ['`enter`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`tab`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`click_candidate`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`escape`', '', '[dropdown_open](::server:query-editor:dropdown_open)']
+  - ['`alphanumeric`', '', '[dropdown_open](::server:query-editor:dropdown_open)']

@@ -1,0 +1,100 @@
+The yamlover editor - the state machine
+description: the source projection's typing grammar, one state per subchapter
+- >
+  Each subchapter of this chapter is a **state** of the unlocked yamlover (source) editor - the
+  cell tree drawn by `tools/yed`. A state page carries what is on screen and where the caret sits,
+  and a **transitions table**: the event (a key press, a click) and the state it leads to, as a
+  link. Conditional transitions list one row per condition. The executable mirror is
+  `interpret(key, site)` in `tools/yed/src/grammar/dispatch.ts` - ONE pure table, run as data by
+  `tools/yed/test/yed-dispatch.test.ts`; **the code table is normative**, and a grammar change
+  edits the code, its test, and this chapter together ([the projectional
+  editor](::server:editor)).
+- >
+  **Conventions.** `alphanumeric` covers letters, digits and any ordinary character that starts or
+  extends a plain token - QUOTES INCLUDED: yed projects no quote glyphs and has no quote mode; a
+  `"` is a character of the token, and an authored-quoted token commits with its spelling kept
+  (raw-first). The keyed trigger mirrors how one types yamlover SOURCE - `key_colon_space` (a
+  word, the colon, a space) puts the value INLINE on the same row, while `key_colon_enter` (the
+  colon confirmed by Enter) puts the value on the NEXT rows. In VALUE position the same triggers
+  open a nested structure COMPACTLY (`- name: `, `- - ` and their kin keep editing on the SAME
+  row); only Enter breaks to the next row. A `key_colon` whose key ALREADY exists in the node is
+  rejected with the error ring - keys are unique per node. Backspace in an empty value cell UNDOES
+  the last structural token (the colon or the dash), never the whole entry. Clicking any cell
+  enters that cell's focused state. A committed KEY is itself an editable cell - editing its text
+  RENAMES the key on commit (the server routes the rename by STORAGE), and a duplicate key is
+  rejected with the ring. Commits never lose focus - every transition that persists a value ALSO
+  names the cell the caret lands in.
+- >
+  **THE PROJECTION RULE.** One machine, several PROJECTIONS. The pure yed state
+  (`tools/yed/src/state.ts`: the parser IR document + the cursor) is what edits; a projection only
+  DRAWS. The source projection draws rows of yamlover token cells and applies the typing grammar
+  of this chapter. The [chapter projection](::server:chapter-editor) draws its own cell zoo over
+  the same IR and does NOT use the typing grammar at all - no holes, no `- `/`key:` decisions.
+- >
+  **THE FORMAT RULE.** A block's format is its `!!<...$defs:X>` tag - table, bullets, numbered -
+  and NORMAL CHAPTER is the untagged case, so choosing it DROPS the tag rather than stamping one.
+  An untagged container INHERITS from its enclosing format, compounding down the whole chain: a
+  sublist stays that list's kind at any depth, a table is exactly two levels (rows, then cells)
+  and anything below a cell is a chapter again. The format is READ from the spine on demand, never
+  stored.
+- >
+  **THE LEVEL RULE.** Enter after committing a value DESCENDS - the entry hole it opens lives
+  INSIDE the just-committed node: the value becomes the node's own scalar line and the node is now
+  an omni whose body you are editing, one level deeper. Editing STAYS at that level until
+  Shift-Tab climbs back out; consecutive same-level entries cost a Shift-Tab each. The rule is the
+  same at every depth, the document root included. The one exception - a committed REFERENCE holds
+  no children, so its Enter opens the next SIBLING hole.
+- >
+  **THE HEAD-OF-ROW EXCEPTION.** Enter with the caret at the very START of a committed value cell
+  does not descend: the row is pushed DOWN and a fresh SIBLING entry hole opens BEFORE the entry,
+  caret in it - the gesture every text editor gives Enter at a line's head. Only an ENTRY's row
+  has a row above it; at the document root, and mid-text or at the end of the cell, the level rule
+  stands.
+- >
+  **THE PROSE EXCEPTION.** Under the [chapter projection](::server:chapter-editor) Enter makes a
+  SIBLING block, not a descent, and Tab is the only descent - prose is a stream of paragraphs, not
+  a tree of typed values. In a LIST, Tab keeps the classic outliner move; inside a TABLE, Tab is a
+  caret walk across the grid.
+- >
+  **THE REPRESENTATION RULE.** The concrete stores the REPRESENTATION and the renderer REPRODUCES
+  it - never re-derives it from the decoded value. A quoted scalar keeps its quotes, a hex int its
+  spelling, and a block scalar its AUTHORED header (`|`, `|-`, `|+`, `>`, ...) with its content
+  lines exactly as they sit in the source. Editing keeps the representation too: committing a
+  block cell re-emits the SAME header over the edited lines, and only a text that cannot live
+  under a block header at all falls back to a quoted scalar. The self-value line's POSITION among
+  the node's entries is representation too - saved at the position it was typed, never hoisted to
+  the top.
+- >
+  **THE CONCRETE IS NOT A STATE.** The editor edits ANY yamlover-shaped node the same way - a file
+  document, a directory, a directory-backed document. WHERE a newly typed child is STORED is
+  decided server-side by the concrete-derivation module (`derive-concrete.ts`) - invisible to the
+  editing states.
+- >
+  **Pseudo-states.** `nop`, `error_flash`, `focus_prev`, `focus_next` and `empty_cell_of_origin`
+  stand for "consume the event and stay", "flash the red ring and stay", the two focus-walk
+  actions whose next real state is the adjacent cell's focused state, and "return to the hole this
+  cell grew from". Tab / Shift-Tab MOVE the focused entry and the FOCUS FOLLOWS it. The
+  `open_brace` / `open_bracket` transitions apply IDENTICALLY at the document root, in entry holes
+  and in value holes.
+- *: nop
+- *: error_flash
+- *: focus_prev
+- *: focus_next
+- *: locked
+- *: empty
+- *: unquoted_scalar_appending
+- *: unquoted_scalar_inserting
+- *: scalar_committed
+- *: key_cell_editing
+- *: pointer_entry
+- *: pointer_pick_editing
+- *: block_scalar_editing
+- *: flow_map_editing
+- *: flow_seq_editing
+- *: flow_map_spread
+- *: flow_seq_spread
+- *: entry_hole
+- *: value_hole
+- *: meta_tag_editing
+- *: empty_cell_of_origin
+- *: atom_focused

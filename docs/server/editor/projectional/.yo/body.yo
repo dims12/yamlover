@@ -1,0 +1,11 @@
+What "projectional" means here
+description: the rendered surface is the editable surface - one model, drawn by cells
+- >
+  The rendered surface **is** the editable surface. There is no source textarea beside the view -
+  the DOM is a tree of editable cells that mirror the parser IR, and you type into the
+  projection. This is the JetBrains-MPS sense of *projectional*: one model, drawn by cells;
+  editing mutates the model and the cells re-project it.
+- >
+  The load-bearing consequence: **two projections (source and chapter) drive the same pure
+  machine, and only the cell zoo differs** - the machine (`tools/yed/src/`) contains no JSX at
+  all.

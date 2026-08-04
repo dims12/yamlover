@@ -1,8 +1,8 @@
 Anchors
-description: the push — & gives this node another real path
+description: the push - & gives this node another real path
 - >
-  `&path` **pushes**: "I *also* live there". An anchor's name is a full pointer path — same ladder,
-  same metacharacters, same escaping — and declaring `&: P: k` on a node means the container at `: P`
+  `&path` **pushes**: "I *also* live there". An anchor's name is a full pointer path - same ladder,
+  same metacharacters, same escaping - and declaring `&: P: k` on a node means the container at `: P`
   gains the entry `k`: a ref edge to this node, exactly what a forward `k: *me` authored there would
   produce; `normalize` folds the two authorings of one edge together. The authored position stays the
   containment spine and the node's identity path.
@@ -12,15 +12,15 @@ description: the push — & gives this node another real path
       pet: &: supercat    # ALSO the document-root key "supercat"
         species: cat
     - age: 10
-      pet: *: supercat    # a plain path — no anchor namespace
+      pet: *: supercat    # a plain path - no anchor namespace
 - >
-  **Anchors are real keys, not a namespace** — `*name` is pure path lookup; there is no precedence
+  **Anchors are real keys, not a namespace** - `*name` is pure path lookup; there is no precedence
   rule and no local-versus-global ambiguity. **Anchors are not entries**: they never count toward a
-  node's kind — a scalar with anchors is still a scalar, a blob still a blob; no tag is needed to
+  node's kind - a scalar with anchors is still a scalar, a blob still a blob; no tag is needed to
   anchor a scalar. An anchor attaches to a node; a pointer entry (`k: *p`) cannot carry one.
 - >
   **Multiplicity and placement.** A node may declare any number of anchors: on the value's line
-  (quoted when colon-styled — `path: &': another: path' 12`), or — the canonical style — on their own
+  (quoted when colon-styled - `path: &': another: path' 12`), or - the canonical style - on their own
   lines after the value, where the token runs to end of line unquoted. A whole-document scalar is
   tagged in two bare lines:
 - !!<format: text/x-yamlover> |
@@ -28,22 +28,22 @@ description: the push — & gives this node another real path
   &:: tags: field: mathematics: numbers: whole[]
 - >
   **Ordinal anchors.** A trailing `[]` makes the membership keyless: the container gains this node as
-  a positional member. No position may be claimed — `&: path: 3` is rejected (a bare-integer tail is a
+  a positional member. No position may be claimed - `&: path: 3` is rejected (a bare-integer tail is a
   position); order is the container's own data ([order is data](::language:principles:order-is-data))
-  — and membership is **additive**: each `[]` appends one element, lists may repeat — except into a
+  - and membership is **additive**: each `[]` appends one element, lists may repeat - except into a
   `!!set`, where duplicates collapse by target. Anchor-created members project after the container's
   own entries, lexicographically by member path. Anchor paths must be **unambiguous**: wildcards and
   matchers are rejected by the arity rule, position claims by this one. A keyed anchor must end in a
-  nonempty *string* key — it may not create the null key either (`&: p: ~` is rejected; the null key
+  nonempty *string* key - it may not create the null key either (`&: p: ~` is rejected; the null key
   is authored in place, [null keys](::language:vs-yaml:null-keys)); the literal-tilde key is fine,
   quoted (`&: p: '~'`).
 - >
-  **Collisions.** An anchor-created entry may meet an authored one at the same path — valid exactly
+  **Collisions.** An anchor-created entry may meet an authored one at the same path - valid exactly
   when the two denote the same thing: the same target node, or structurally equal values. Unequal
   declarations are a **reported conflict**, surfaced like dangling pointers, never silently dropped.
   In-document anchors are checked at parse time; cross-document anchors (project and world scopes) are
   realized and checked at index time.
 - >
-  Relocation needs no special form — point a new place at the existing node with `*` (`acting_boss: *:
-  pets: 0`). And the deprecated tilde spellings read as anchors through the migration window — `~key:
+  Relocation needs no special form - point a new place at the existing node with `*` (`acting_boss: *:
+  pets: 0`). And the deprecated tilde spellings read as anchors through the migration window - `~key:
   *P` ≡ `&: P: key`, `~- *P` ≡ `&: P[]` ([the tilde sigil](::language:vs-yaml:tilde)).

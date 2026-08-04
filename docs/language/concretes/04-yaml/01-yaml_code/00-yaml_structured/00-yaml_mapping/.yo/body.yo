@@ -1,8 +1,8 @@
 yaml/mapping
 description: Keyed collection of key-value pairs
 - >
-  A **mapping** is a collection of key-value pairs. It comes in two concretes — the
-  indentation-based block spelling and the braced flow one — and in either, the pair is a
+  A **mapping** is a collection of key-value pairs. It comes in two concretes - the
+  indentation-based block spelling and the braced flow one - and in either, the pair is a
   construct of its own. See the subchapters below:
 - *: 00-yaml_mapping_block
 - *: 01-yaml_mapping_flow

@@ -1,20 +1,20 @@
 Queries
-description: match templates over the graph — a strict superset of pointers
+description: match templates over the graph - a strict superset of pointers
 - >
   A query is a bare colon-form pointer expression whose portions may be **matchers**. Four principles
   shape the language. **A query is a match template**: evaluation walks the graph as the template
-  directs, steps either move the walk or test it, and a walk that exhausts the template succeeds —
+  directs, steps either move the walk or test it, and a walk that exhausts the template succeeds -
   like a regex, the pattern visits the subject. **Strict superset of pointers**: every pointer is a
-  valid query with at most one result, and the grammar has the *erasure property* — delete the
+  valid query with at most one result, and the grammar has the *erasure property* - delete the
   query-only alternatives and exactly the pointer grammar remains. **One lexical space**: one escaping
   regime, one metacharacter set, shared with pointers. **Queries see the normalized graph**: a
   relation authored forward, by an anchor, or both ways is one edge, and queries cannot tell which way
   it was written.
 - >
-  A query is asked, not authored — it is the pointer expression written without the `*` (the sigil is
+  A query is asked, not authored - it is the pointer expression written without the `*` (the sigil is
   the authoring embedding, and an ambiguous expression after `*` is a parse error by the arity rule).
-  JSONPath is the inspiration, not the syntax: its two core sigils are spoken for here — `*` is
-  dereference, `..` the parent scope — and it has nothing to say about the graph.
+  JSONPath is the inspiration, not the syntax: its two core sigils are spoken for here - `*` is
+  dereference, `..` the parent scope - and it has nothing to say about the graph.
 - *: wildcards
 - *: descent
 - *: uplinks

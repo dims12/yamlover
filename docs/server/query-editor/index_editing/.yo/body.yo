@@ -1,0 +1,20 @@
+Inside a projected index
+description: the index_editing state
+- >
+  The `[` and `]` are in the cell with the caret between them - the index digits (or the `?`
+  position wildcard) type inside. This is cell_editing wearing brackets; the same filter and
+  dropdown scheduling applies
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`alphanumeric`', '', '`index_editing` (stays)']
+  - ['`close_bracket`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`backspace`', 'the pair is empty - it dismantles', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`backspace`', 'otherwise', '`index_editing` (stays)']
+  - ['`colon`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`escape`', '', '[idle_path](::server:query-editor:idle_path)']

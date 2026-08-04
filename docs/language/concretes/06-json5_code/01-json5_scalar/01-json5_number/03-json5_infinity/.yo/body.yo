@@ -1,7 +1,7 @@
 json5/infinity
 description: The literal Infinity
 - >
-  The IEEE 754 infinity as the literal `Infinity`, either sign allowed — a value JSON's decimal
+  The IEEE 754 infinity as the literal `Infinity`, either sign allowed - a value JSON's decimal
   cannot spell:
 - !!<format: text/x-json5> |
   Infinity   -Infinity

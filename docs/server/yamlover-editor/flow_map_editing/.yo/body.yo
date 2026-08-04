@@ -1,0 +1,28 @@
+Flow mapping editing
+description: the flow_map_editing state
+- >
+  The `{` and `}` are projected with entry cells between them, comma-separated; the cursor sits in
+  the current inner cell, which follows the entry-hole grammar (`key colon space` expected). THE
+  BRACKET IS AUTHORED - `{}` and `[]` are different values, so a `{` stays a `{` while its first
+  key is still coming (`{12` is on its way to `{12: 3}`, and `{` `{` to `{{}: 12}` - a flow token
+  used as a KEY). Only the shape the file cannot hold overrides it: a decided KEYED entry wears
+  the map brackets, since `[k: v]` does not parse. A pair in progress is DRAWN but never WRITTEN -
+  no op reaches the server until the key lands. ONE PRESS, ONE LEVEL - collapsing a structure
+  returns the ENTRY that held it to what it was before it was typed: inside a flow token a keyless
+  entry was decided BY the bracket alone, so it goes back to undecided, while in a block container
+  the `- ` is its own decision and stays
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`key_colon_space`', '', '[value_hole](::server:yamlover-editor:value_hole)']
+  - ['`close_brace`', '', '[scalar_committed](::server:yamlover-editor:scalar_committed)']
+  - ['`comma`', '', '`flow_map_editing` (stays)']
+  - ['`enter`', 'the token cannot be spread (a keyed+keyless mixture)', '[scalar_committed](::server:yamlover-editor:scalar_committed)']
+  - ['`enter`', 'otherwise', '[flow_map_spread](::server:yamlover-editor:flow_map_spread)']
+  - ['`backspace`', 'the inner cell is empty and it is the only one', '[empty_cell_of_origin](::server:yamlover-editor:empty_cell_of_origin)']
+  - ['`backspace`', 'otherwise', '`flow_map_editing` (stays)']

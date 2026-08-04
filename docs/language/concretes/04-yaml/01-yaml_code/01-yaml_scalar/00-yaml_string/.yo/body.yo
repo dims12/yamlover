@@ -1,7 +1,7 @@
 yaml/string
-description: Text in one of five concretes — plain, quoted, or block
+description: Text in one of five concretes - plain, quoted, or block
 - >
-  A string comes in five concretes — the bare **plain** style, the two quoted ones, and the
+  A string comes in five concretes - the bare **plain** style, the two quoted ones, and the
   two block ones. See the subchapters below:
 - !!<format: text/x-yaml> |
   a: plain text

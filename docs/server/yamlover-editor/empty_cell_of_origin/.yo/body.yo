@@ -1,0 +1,6 @@
+Back to the hole this cell grew from
+description: the empty_cell_of_origin state (a pseudo-state)
+- >
+  A pseudo-state - the projected structure (sigil, braces, marker) is dismantled and the cell
+  returns to the hole it was born from; the document root returns to the `empty` state, an entry
+  returns to `entry_hole`

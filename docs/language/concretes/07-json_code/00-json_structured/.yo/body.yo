@@ -1,8 +1,8 @@
 json/structured
 description: Composite value that nests other JSON values
 - >
-  A **structured** value nests other values. JSON has exactly two structured shapes — the keyed
-  **object** and the positional **list** — and they nest into each other freely:
+  A **structured** value nests other values. JSON has exactly two structured shapes - the keyed
+  **object** and the positional **list** - and they nest into each other freely:
 - !!<format: text/x-json> |
   {"matrix": [[1, 0], [0, 1]], "meta": {"unit": true}}
 - >

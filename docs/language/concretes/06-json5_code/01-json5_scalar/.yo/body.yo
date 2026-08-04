@@ -1,7 +1,7 @@
 json5/scalar
 description: Atomic value that nests nothing
 - >
-  A **scalar** is an atomic value — it nests nothing further. Strings and numbers gain eigen
+  A **scalar** is an atomic value - it nests nothing further. Strings and numbers gain eigen
   JSON5 spellings, while booleans and null are exactly the JSON ones:
 - !!<format: text/x-json5> |
   'text'   0x2A   Infinity   true   null

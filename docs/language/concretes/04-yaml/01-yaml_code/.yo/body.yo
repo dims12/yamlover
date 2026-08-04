@@ -1,9 +1,9 @@
 yaml/code
-description: One YAML document's content — a single value
+description: One YAML document's content - a single value
 - >
-  A YAML code is one value — structured or scalar — with comments allowed around it. Structure
+  A YAML code is one value - structured or scalar - with comments allowed around it. Structure
   is spelled by INDENTATION in block style, or by braces and brackets in flow style. yaml/code
-  is a SUPERCLASS of [json/code](::language:concretes:07-json_code) — every JSON code is
+  is a SUPERCLASS of [json/code](::language:concretes:07-json_code) - every JSON code is
   valid YAML, arriving through the flow spellings:
 - !!<format: text/x-yaml> |
   name: Julia

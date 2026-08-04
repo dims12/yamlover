@@ -1,0 +1,20 @@
+Header widths
+description: proportional column weights on omni header cells
+- >
+  A header cell follows the same rules as a regular cell, with one extra: it may be an **omni
+  scalar** - the heading text plus a keyed sidecar - carrying `width`, a **proportional column
+  weight** (the AsciiDoc `cols="1,2,6"` precedent; Markdown has no widths at all):
+- !!<format: text/x-yamlover> |
+  !!<*yamlover: $defs: table>
+  header:
+    - Name                               # an omni header cell: text + a `width` sidecar
+      width: 3
+    - Species
+    - Duty
+  - [Whiskers, cat, 'supervising humans']
+- >
+  A bare number is a relative weight; the renderer emits each column as `weight / sum-of-weights`
+  percent (`<colgroup>`). A width-less column defaults to weight 1, so a partial spec still lays out
+  the whole grid; a non-numeric width, and a pointer or merged header cell, contribute nothing
+  (weight 1). `width` is deliberately **schema-untyped** - an omni cell must stay a *leaf* for shape
+  routing, so the sidecar is convention, not vocabulary.

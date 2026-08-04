@@ -1,12 +1,12 @@
 Metadata first, validation optional
-description: a schema gives a node its shape, type, and format — it is not a gate
+description: a schema gives a node its shape, type, and format - it is not a gate
 - >
-  A schema in yamlover is **metadata-first**: it tells consumers what a node *is* — its shape, type,
-  `format`, presentation — rather than gating what it may be. Validation is optional and separate;
+  A schema in yamlover is **metadata-first**: it tells consumers what a node *is* - its shape, type,
+  `format`, presentation - rather than gating what it may be. Validation is optional and separate;
   nothing refuses to load because a schema disagrees.
 - >
-  Metadata attaches two ways, one per concrete: a directory's `.yo/meta.yo` overlay — a
-  JSON-Schema-equivalent written in yamlover — and, inside a file, the `!!<…>` tag, whose contents are
+  Metadata attaches two ways, one per concrete: a directory's `.yo/meta.yo` overlay - a
+  JSON-Schema-equivalent written in yamlover - and, inside a file, the `!!<...>` tag, whose contents are
   themselves yamlover: a pointer to a hosted schema (`!!<*yamlover: $defs: chapter>`) or an inline
   schema literal (`!!<format: text/x-plantuml>`). Both speak the same vocabulary (the [metadata
   subchapter](::language:model:metadata)).

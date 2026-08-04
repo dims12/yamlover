@@ -1,0 +1,58 @@
+File index
+description: where each piece of the editor lives in the source tree
+- >
+  **`renderers/yed-editor.tsx` + `yed-load.ts` + `yed-sync.ts` (the yed mount):** the
+  unlocked-data-view editor, CONCRETE-AGNOSTIC by construction. LOAD is the `/api/json`
+  projection (depth `.inf`) converted to parser IR (`yed-load.ts` - omni/`selfAt`, pointers via
+  the sidecar's canonical text, authored raw spellings, flow/K&R meta at the switch, blobs as
+  opaque atoms). PERSIST is an IR tree diff emitted as PER-NODE `/api/edit` ops (`yed-sync.ts` -
+  whole-token emplaces at flow boundaries, self-value emplaces with `at`, removals last-first /
+  insertions forward, pure key renames via `POST /api/rekey` after the flush); the backend's
+  concrete-inheritance rules (`concrete-rules.ts`) route every write, and untouched regions -
+  comments included - survive on disk. Flush discipline: 500 ms debounce, one in flight,
+  re-diffed (never re-queued) after a failure, flushed on unmount. `?yed=debug` turns the debug
+  panels on in place. THE PARITY GATE (`test/yed-parity.test.tsx`) holds the mount to the retired
+  legacy editor's storage matrix - flat files, `.yaml`, dir-backed docs, bare directories, member
+  dirs, deep mounts, omni, K&R, comment survival - against a real server; a mount swap must be
+  gated by the superset of what it replaces. `GET /api/source` remains as a diagnostic.
+- >
+  **`renderers/yed-chapter-editor.tsx` + `renderers/yed-chapter/materialize.ts` (the DEFAULT
+  chapter editor):** the yed chapter mount - load `/api/json` -> IR, the pure machine in
+  `tools/yed/src/chapter/`, persistence through the `yed-sync.ts` diff with the exactly-once
+  CHAPTER stamp and deferred subchapter materialization (predicted `meta.anchorKey` keys via the
+  shared `concrete-rules.ts`). Gate: `test/yed-chapter-parity.test.tsx` (disk-asserting, real
+  handler, storage matrix; header = the behavior checklist).
+- >
+  **`renderers/chapter-editor/` (what SURVIVED the Stage 9 retirement):** `format-bus.ts`
+  (bridges the mounted editor's format state to the node-bar control) + `format-control.tsx`
+  (`ChapterFormatControl`, the paragraph/bullets/numbered/table/T/D buttons over the bus's
+  dry-run verdicts). The legacy projection itself (`view.tsx`, `blocks.ts`, `format.ts`,
+  `tab.ts` and its suites) is DELETED - the yed chapter editor is the only projectional chapter
+  editor.
+- >
+  **Related:** `renderers/chapter.tsx` (`ChapterView` + the flat/projectional switch),
+  `renderers/chapter-model.ts` (**legacy** flat model), `renderers/chapter-shared.tsx` (shared
+  chunk/heading render), `renderers/chunk-editors.tsx` (per-format chunk editors + marklower
+  seam), `renderers/marklower.tsx` + `renderers/marklower-serialize.ts` (the round-trip pair),
+  `renderers/{subchapter,list,table,depth}.tsx`, `caret.ts` (caret primitives),
+  `client/{query-cells,breadcrumb-machine,query-complete,toc-filter-session}.ts(x)` (the
+  browse/pick query-cell kit - the breadcrumb and the tag picker; the yed reference cells now
+  ride the pure portion cells with `renderers/yed-cells.tsx treeHints` for completion),
+  `client/NodeView.tsx` (mounts the source projection).
+- >
+  **`tools/yed/` (the editor package):** `src/state.ts` (IR state + cursor + dialectOf),
+  `src/apply.ts` (pure intents + copy/paste + the watchdog), `src/dialect.ts` (language policy),
+  `src/cells.tsx` (framed recursive cells + `CellRegistry` + the portion cells' dropdown),
+  `src/complete.ts` (the completion hint seam: `HintProvider` + the in-memory `docHints`),
+  `src/legend.tsx` (the dry-run keyboard), `src/page.tsx` (the debug page), `src/diff.ts`
+  (line diff), `src/grammar/{dispatch,keys}.ts` (THE shared grammar - production imports it
+  from here), `src/grammar/portions.ts` (the pointer portion spelling);
+  `src/chapter/` (the CHAPTER machine + cells: `site/dispatch/apply/format/positions/watchdog`,
+  `cells.tsx` + `caret.ts` + `legend.tsx` + `chapter-cells.css` - the server injects its
+  capabilities through `ChapterCellsAdapter`); debug pages under `tools/yed/debug-editor/` (port
+  5199) and `tools/yed/debug-chapter/` (port 5198), suites under `tools/yed/test/`.
+- >
+  **State machines:** [the yamlover editor](::server:yamlover-editor), [the chapter
+  editor](::server:chapter-editor), [the query editor](::server:query-editor) - keep in sync with
+  `tools/yed/src/grammar/dispatch.ts`, `tools/yed/src/chapter/dispatch.ts` and
+  `breadcrumb-machine.ts` respectively.

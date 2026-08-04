@@ -1,0 +1,18 @@
+The current path as cells
+description: the idle_path state
+- >
+  No cell is focused. The cells spell the current node's path (indices folded - `pets[1]` is one
+  cell), the root label first. The TOC is unfiltered and shows the normal selection. Every cell is
+  click-to-edit - there is no separate view mode
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`click_cell`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`click_tail`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`f4`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`toc_click`', '', '`idle_path` (stays)']

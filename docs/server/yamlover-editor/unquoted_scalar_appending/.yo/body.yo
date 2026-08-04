@@ -1,0 +1,31 @@
+Plain token editing, caret at the end
+description: the unquoted_scalar_appending state
+- >
+  A non-empty cell with the part of the plain scalar entered so far, cursor after the last
+  character. The keyed trigger is LIVE here exactly as in a hole - the moment the text reads `key:
+  ` the cell restructures, whether it grew from a hole or is a COMMITTED token being re-edited
+  (`abc` + `:` + space behaves the same as typing `a b c : space` from scratch)
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`alphanumeric`', '', '`unquoted_scalar_appending` (stays)']
+  - ['`key_colon_space`', 'the key is free in the node', '[value_hole](::server:yamlover-editor:value_hole)']
+  - ['`key_colon_space`', 'the key already exists in the node', '[error_flash](::server:yamlover-editor:error_flash)']
+  - ['`left_arrow`', '', '[unquoted_scalar_inserting](::server:yamlover-editor:unquoted_scalar_inserting)']
+  - ['`right_arrow`', '', '[nop](::server:yamlover-editor:nop)']
+  - ['`backspace`', 'more than one character', '`unquoted_scalar_appending` (stays)']
+  - ['`backspace`', 'the only character removed, cell is a root hole or entry hole', '[empty_cell_of_origin](::server:yamlover-editor:empty_cell_of_origin)']
+  - ['`enter`', 'the token is not a valid scalar', '[error_flash](::server:yamlover-editor:error_flash)']
+  - ['`enter`', 'a BARE token in an entry hole, but the node already has its scalar line', '[error_flash](::server:yamlover-editor:error_flash)']
+  - ['`enter`', 'valid', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`tab`', 'the cell is an entry with a previous ordinal sibling', '`unquoted_scalar_appending` (stays)']
+  - ['`tab`', 'otherwise', '[nop](::server:yamlover-editor:nop)']
+  - ['`shift_tab`', 'the cell is an entry below the root level', '`unquoted_scalar_appending` (stays)']
+  - ['`shift_tab`', 'otherwise', '[nop](::server:yamlover-editor:nop)']
+  - ['`up_arrow`', '', '[focus_prev](::server:yamlover-editor:focus_prev)']
+  - ['`down_arrow`', '', '[focus_next](::server:yamlover-editor:focus_next)']

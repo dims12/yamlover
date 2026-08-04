@@ -1,18 +1,18 @@
 json5/code
-description: JSON5, JSON for Humans — json/code extended with ES5 sugars
+description: JSON5, JSON for Humans - json/code extended with ES5 sugars
 - >
   **JSON5** ("JSON for Humans") extends
   [json/code](::language:concretes:07-json_code) with syntax sugars borrowed from
-  ECMAScript 5.1 — unquoted keys, single quotes, trailing commas, comments, richer numbers. Every
+  ECMAScript 5.1 - unquoted keys, single quotes, trailing commas, comments, richer numbers. Every
   JSON code is also a valid JSON5 code:
 - !!<format: text/x-json5> |
   {
     name: 'Julia',              // an unquoted key, a single-quoted string
-    age: 0x2A,                  /* hexadecimal — the answer */
+    age: 0x2A,                  /* hexadecimal - the answer */
     pets: ['cat', 'scorpion',], // a trailing comma
   }
 - >
-  As in JSON, a JSON5 code is one value — structured or scalar — and comments may accompany it
+  As in JSON, a JSON5 code is one value - structured or scalar - and comments may accompany it
   anywhere between tokens. See the subchapters below for the three parts:
 - *: 00-json5_structured
 - *: 01-json5_scalar

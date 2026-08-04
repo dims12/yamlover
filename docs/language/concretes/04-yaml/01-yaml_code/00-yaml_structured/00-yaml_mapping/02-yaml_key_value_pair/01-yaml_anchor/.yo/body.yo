@@ -1,10 +1,10 @@
 yaml/anchor
-description: An &name before a value — names the node so an alias can share it
+description: An &name before a value - names the node so an alias can share it
 - >
   An **anchor** `&name` before a value NAMES the node; an
   [alias](::language:concretes:04-yaml:01-yaml_code:01-yaml_scalar:04-yaml_alias) `*name`
-  elsewhere then stands for the very same node — sharing, not copying. Any value can be
-  anchored — a scalar as well as a mapping, and sequence elements too:
+  elsewhere then stands for the very same node - sharing, not copying. Any value can be
+  anchored - a scalar as well as a mapping, and sequence elements too:
 - !!<format: text/x-yaml> |
   boss: &chief {name: Rex}
   team:

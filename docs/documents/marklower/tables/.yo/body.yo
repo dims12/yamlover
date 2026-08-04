@@ -1,0 +1,12 @@
+# Tables - delegated structure; marklower has no pipe syntax.
+Tables
+description: rows of cells as an omni node; merges via relative pointers
+- >
+  Marklower has **no table syntax** - no pipe rows, no separator lines. A table is structure, and
+  structure is yamlover's job: it is a **body element** tagged `!!<*yamlover: $defs: table>`.
+- *: model
+- *: cells
+- *: merged-cells
+- *: header-widths
+- *: schema
+- *: addressing

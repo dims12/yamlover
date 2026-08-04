@@ -1,0 +1,48 @@
+The model - a fully omni node with a positional body
+description: title as self-value, optional description, one interleaved body stream
+- >
+  A chapter is just an omni (`variant`) node (the [logical model](::language:model)) - a
+  **fully** omni one: the node's own scalar **self-value is the title** (there is no `title:` key),
+  `description` is an optional keyed field, and everything else is an **unkeyed (positional)
+  body element**. Each body element is *either* a **nested chapter** (the recursion) *or* a
+  **chunk** (a renderable content block). There is one interleaved body stream, read top to bottom -
+  no `chunks` array and no `children` array.
+- >
+  This is the whole design. Prose, media, diagrams, and subchapters are **siblings in one ordered
+  sequence**, the way a real document reads. A chapter with only prose is a flat article; a chapter
+  with subchapters is a tree.
+- >
+  Because the title is the self-value, a **bare string body element is indistinguishable from a
+  title-only subchapter - and that is the design**: a title-only subchapter IS a chunk. With no body
+  there is nothing to descend into, so it renders as prose in place; the moment it gains body
+  entries it becomes a container and routes as a subchapter.
+- >
+  **Position is the author's.** The renderer shows every element - title, `description`, chunks, and
+  subchapter links - **in source order**, wherever the author placed it: the heading is not hoisted
+  to the top, subchapters are not forced to the end, and base-level prose may follow a subchapter.
+  The **TOC** likewise lists subchapters in **body order** - even when each subchapter is its own
+  subdirectory (a directory chapter, `examples/66-pet-keeper-handbook`), whose alphabetical directory
+  scan is overridden by the positional `*` body pointers that place them. A subdirectory present on
+  disk but never referenced by a body pointer sorts **after** the ordered ones, in directory-scan
+  order - the general pointer-array rule (`examples/56-array-of-files`): the body orders the subset
+  it names; the rest are keyed-only members. No chapter special case.
+- !!<format: text/x-yamlover> |
+  # a whole article in one tagged .yo file
+  !!<*yamlover: $defs: chapter>
+  Getting Started                           # the node's SELF-VALUE - the title (no `title:` key)
+  description: the shortest tour            # optional, keyed
+  - yamlover is a YAML layer over the filesystem.   # a chunk (marklower prose by default)
+  - !!<format: text/x-latex> |              # a chunk that overrides its (type, format)
+    e^{i\pi} + 1 = 0
+  - *: diagram.png                          # a chunk that is a pointer to a file
+  - A subchapter                            # a nested chapter: ITS self-value + its own body
+    - its own body chunk, and so on...      # recursion
+  - A title-only subchapter is a chunk      # a bare string - the same thing, by design
+  - - an untitled subchapter                # a container with no self-value - still a chapter
+    - its second chunk
+- !!<*yamlover: $defs: bullets>
+  - '**The title** is the node''s own scalar **self-value** (`text/marklower`) - declared in the schema as the `value:` facet. `description` is keyed and optional (`text/marklower`). Together they are the heading.'
+  - '**A chunk** (`$defs/chunk`) is one renderable value; its `(type, format)` selects the renderer, defaulting to `text/marklower` prose ([marklower](::documents:marklower)). Override per chunk with an inline tag (`!!<format: ...>`) or a file pointer (`*: pic.png`, whose format comes from the extension). A chunk may be a `string` or a `binary` (an image/pdf/... pointer).'
+  - '**A subchapter** is a body element that is itself a chapter - recognized **structurally**: a *container* (it has body entries - a titled one is an omni scalar whose self-value is its title, an untitled one a plain container) renders as a subchapter; a *leaf* (a scalar or a file pointer) renders as a chunk, which is exactly what a title-only subchapter is. (An annotated chunk''s overlay keys - `yamlover-annotations`/`yamlover-fragments` - are not body, so a scalar carrying only those stays a chunk.)'
+  - '**A table** is a body element explicitly tagged `!!<*yamlover: $defs: table>` - a container, so the tag (not shape) is what keeps it from being a subchapter ([tables](::documents:marklower:tables)).'
+  - '**A data island** is a body element tagged `!!yo` - plain yamlover, exempt from the chapter schema (the tag is SEMANTIC; formerly `!!var`/`!!omni`, read forever as aliases). The chapter renderer must NOT interpret it: it is handed to the **generic** yamlover renderer (the read-only data view, framed as an island) and, in the projectional editor, opens as an inline yamlover SOURCE cell. The mark trumps both the structural rule and any format - whatever the node''s shape, it is data, never a subchapter and never a chunk. The member-encoding rules treat it like a tagged container: CONTENT, kept inline in the body, never materialized as an `itemNN` member ([one omnivorous node](::language:principles:one-node)).'

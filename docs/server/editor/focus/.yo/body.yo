@@ -1,0 +1,10 @@
+Caret and focus preservation
+description: THE FOCUS LAW - a keystroke never lands nowhere
+- >
+  THE FOCUS LAW: `document.activeElement` is always a cell of the editor - a keystroke never
+  lands nowhere. The cursor lives in the pure state (`state.ts` `Cursor`), the cells project it,
+  and the active cell claims focus on render (an input's ref plants the caret at the cursor's
+  `caret` edge); a focus request is consumed only by a render that can fulfill it. The tests pin
+  the invariant: `document.activeElement` is asserted after every editor interaction
+  (`dom-typing.test.tsx`, the matrix suites, `yed-chapter-projection.test.tsx`), so a change that
+  breaks caret placement fails CI rather than shipping.

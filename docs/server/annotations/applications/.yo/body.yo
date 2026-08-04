@@ -1,0 +1,24 @@
+Annotations - yamlover-annotations
+description: a tag applied to a whole node or a fragment - parameterless or parametrized
+- >
+  An **annotation** is the application of a **tag** to a target - the **whole node** or a
+  **fragment** within it. Annotations live under the target's **`yamlover-annotations`** key, a
+  **sequence**. Each element is one of:
+- >
+  **Parameterless** - a bare **tag pointer**. We only know the target *has* this tag:
+- !!<format: text/x-yamlover> |
+  - *::tags:genre:brevity:shortest-paper
+- >
+  **Parametrized** - an **object** carrying a **`tag:`** field plus one or more parameters:
+- !!<format: text/x-yamlover> |
+  - {description: A standalone LaTeX block, tag: *::tags:topic:math}
+  - importance: 10
+    tag: *::tags:review:flagged
+- >
+  The applied tag's **color** (its explicit `color`, else a name-derived hue) drives display -
+  never the selector. A **fragment node carries its own `yamlover-annotations`** (tagging that
+  region); the **document root** carries a top-level one (tagging the whole node). Two tags on
+  one target = two elements.
+- >
+  Tag pointers are written in **project scope** (`*::...`), matching the tag taxonomy at the
+  project root (`::tags:...`) and the built-in palette (`::yamlover:tags:colors:...`).

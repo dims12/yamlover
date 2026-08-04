@@ -1,23 +1,23 @@
 Relative indexes
-description: the dot in the brackets — the host frame, aligned by depth
+description: the dot in the brackets - the host frame, aligned by depth
 - >
   A dot in the brackets makes the index **relative to the pointer's own position**: `[.]` is "my
   position at this depth", `[.-1]` one before me, `[.+2]` two after. The `[.±k]` bracket survived the
-  YAML-keys round unchanged — it is a non-literal position operator, not an index literal (an absolute
-  position is a bare-integer portion); the surviving bracket bodies stay disjoint by form — dot
+  YAML-keys round unchanged - it is a non-literal position operator, not an index literal (an absolute
+  position is a bare-integer portion); the surviving bracket bodies stay disjoint by form - dot
   relative, `?` the query wildcard, empty the anchor append. A bare `-1` portion is deliberately not
   taken as a key, kept free for a possible future from-the-end index.
 - >
-  Resolution is the **frame rule**: the frame is the host entry's own path — the entry holding the
+  Resolution is the **frame rule**: the frame is the host entry's own path - the entry holding the
   pointer. After the base and any `..` ascents, each step consumes one depth, and a `[.±k]` at depth d
   selects the host's position at that depth, offset by k. Keyed entries hold positions too, so the
   frame always exists.
 - !!yo
-  - *[.-1]        # the cell to my LEFT — a colspan
+  - *[.-1]        # the cell to my LEFT - a colspan
   - *..[.-1][.]   # the cell ABOVE: up to the table, previous
-                  #   row, my column — a rowspan
+                  #   row, my column - a rowspan
 - >
-  The motivating idiom is the table — a merged cell names its neighbor. A relative index yields at
+  The motivating idiom is the table - a merged cell names its neighbor. A relative index yields at
   most one successor, so it is a **link**, authorable after `*`; out of range is the ordinary dangling
-  diagnostic. In anchors it is **rejected** — a position claim is outlawed, and a relative claim is
-  still a claim — and in queries too: a query has no host frame.
+  diagnostic. In anchors it is **rejected** - a position claim is outlawed, and a relative claim is
+  still a claim - and in queries too: a query has no host frame.

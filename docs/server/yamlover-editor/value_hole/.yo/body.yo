@@ -1,0 +1,33 @@
+Entry value hole
+description: the value_hole state
+- >
+  The entry's marker is drawn (`- `, or the key with its colon) and the empty value cell after it
+  holds the cursor. `dash_space` / `key_colon_space` here open the nested structure COMPACTLY -
+  the fresh marker and its value cell stay on THIS row
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`alphanumeric`', '', '[unquoted_scalar_appending](::server:yamlover-editor:unquoted_scalar_appending)']
+  - ['`asterisk`', '', '[pointer_entry](::server:yamlover-editor:pointer_entry)']
+  - ['`pipe`', '', '[block_scalar_editing](::server:yamlover-editor:block_scalar_editing)']
+  - ['`open_brace`', '', '[flow_map_editing](::server:yamlover-editor:flow_map_editing)']
+  - ['`open_bracket`', '', '[flow_seq_editing](::server:yamlover-editor:flow_seq_editing)']
+  - ['`dash_space`', '', '`value_hole` (stays)']
+  - ['`key_colon_space`', 'the key already exists in the node', '[error_flash](::server:yamlover-editor:error_flash)']
+  - ['`key_colon_space`', 'otherwise', '`value_hole` (stays)']
+  - ['`key_colon_enter`', '', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`enter`', '', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`backspace`', 'an uncommitted key - the colon is undone, its text (quoted spelling kept) returns to the hole', '[unquoted_scalar_appending](::server:yamlover-editor:unquoted_scalar_appending)']
+  - ['`backspace`', 'an uncommitted dash - the marker is undone', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`backspace`', 'otherwise', '[focus_prev](::server:yamlover-editor:focus_prev)']
+  - ['`tab`', 'a previous ordinal sibling exists', '`value_hole` (stays)']
+  - ['`tab`', 'otherwise', '[nop](::server:yamlover-editor:nop)']
+  - ['`shift_tab`', 'the entry is below the root level', '`value_hole` (stays)']
+  - ['`shift_tab`', 'otherwise', '[nop](::server:yamlover-editor:nop)']
+  - ['`up_arrow`', '', '[focus_prev](::server:yamlover-editor:focus_prev)']
+  - ['`down_arrow`', '', '[focus_next](::server:yamlover-editor:focus_next)']

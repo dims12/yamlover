@@ -1,0 +1,4 @@
+Nothing happens
+description: the nop state (a pseudo-state)
+- >
+  A pseudo-state - the event is consumed, the current state stays
