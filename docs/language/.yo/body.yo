@@ -25,13 +25,11 @@ description: the full spec — principles, the abstract model, concretes, pointe
   principles](::language:principles) the rest follows from; the [relationship to
   YAML](::language:vs-yaml), similarity by similarity and break by break; the [abstract
   model](::language:model) — omnivorous nodes with ordered relations, the terminology and the type
-  system; the [concretes](::language:concretes) — every way a node is physically stored and written;
-  and [pointers and queries](::language:pointers) — paths, anchors, and the query language they are
-  the singleton fragment of.
+  system; the [concretes](::language:01-Concretes_2) — every way a node is physically stored and
+  written; and [pointers and queries](::language:pointers) — paths, anchors, and the query language
+  they are the singleton fragment of.
 - *: principles
 - *: vs-yaml
 - *: model
-- ''
 - *: 01-Concretes_2
-- *: concretes
 - *: pointers

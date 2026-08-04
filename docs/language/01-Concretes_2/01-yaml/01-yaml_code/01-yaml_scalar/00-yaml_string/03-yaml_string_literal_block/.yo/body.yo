@@ -1,9 +1,0 @@
-yaml/string/literal-block
-description: A | block — line breaks kept verbatim
-- >
-  A literal block starts with `|` and holds the following indented lines VERBATIM — every line
-  break kept. `|-` chomps the trailing break, `|+` keeps every trailing one:
-- !!<format: text/x-yaml> |
-  script: |
-    line one
-    line two

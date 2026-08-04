@@ -1,9 +1,0 @@
-yaml/string/folded-block
-description: A > block — line breaks folded into spaces
-- >
-  A folded block starts with `>` and reads like the literal one, except single line breaks FOLD
-  into spaces — paragraphs for prose; a blank line keeps a real break:
-- !!<format: text/x-yaml> |
-  note: >
-    these two lines
-    become one

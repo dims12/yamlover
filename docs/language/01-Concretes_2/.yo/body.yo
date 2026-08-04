@@ -1,6 +1,27 @@
-Concretes 2
-- *: 00-yamlover
-- *: 01-yaml
-- *: 02-json5p
-- *: 03-json5_code
-- *: 04-json_code
+Concretes
+description: every way a node is physically stored and written
+- >
+  A **concrete** records *how and where* a node's value is physically stored. Every materialized
+  node carries exactly one, and it is orthogonal to the node's *type* and its *format*: a string
+  may live inline in a document, in its own file, or as bytes a format decodes — same value,
+  different concrete.
+- >
+  There are two independent axes. The **storage** axis answers *where, in what language*: a
+  portion of a text file, a whole file, opaque bytes, a directory. The **representation** axis
+  answers *how it is written*: a string picks a style, a number picks a notation, a container
+  picks flow or block. This chapter opens with the general laws — the storage axis, the choosing
+  rules, the layout invariants — and then catalogs the languages, concrete by concrete:
+- >
+  Representations are **not different values** — the spellings decode identically — but the
+  representation is worth keeping: it is what makes a string `"~"` distinguishable from a null
+  `~` on screen, and what a schema may want to pin ("this id is hex", "this note is a literal
+  block"). A non-default spelling is classified from the authored token and preserved end to
+  end; the default costs nothing.
+- *: 00-storage
+- *: 01-choosing
+- *: 02-invariants
+- *: 03-yamlover
+- *: 04-yaml
+- *: 05-json5p
+- *: 06-json5_code
+- *: 07-json_code

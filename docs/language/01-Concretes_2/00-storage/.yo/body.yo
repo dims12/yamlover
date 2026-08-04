@@ -1,0 +1,15 @@
+The storage axis
+description: where a value lives, and what language it speaks
+- >
+  The storage concrete answers *where, in what language*: inline in an enclosing document, a
+  whole file of its own, opaque bytes, or a directory. Two rules govern the axis. The
+  **language-switch rule**: yamlover can switch to json5p mid-stream and yaml to json — never
+  the reverse; after a switch, descendants take the switched language. And the **per-node
+  rule**: every materialized node carries exactly one concrete, derived from the filesystem
+  when unstated. See the subchapters below — the directory story lives in the yamlover
+  section, referenced here:
+- *: 00-inlined
+- *: 01-files
+- *: 02-binary_files
+- *..:03-yamlover:01-dir
+- *: 04-multi_document_streams

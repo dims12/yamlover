@@ -1,0 +1,11 @@
+yaml/string/literal-block
+description: A | block — line breaks kept verbatim
+- >
+  A literal block starts with `|` and holds the following indented lines VERBATIM — every line
+  break kept. Two qualifiers ride the header: CHOMPING — clip (the default), strip (`|-`),
+  keep (`|+`) — and the INDENTATION INDICATOR (`|2`), pinning the content indent where the
+  first line leaves it ambiguous:
+- !!<format: text/x-yaml> |
+  script: |
+    line one
+    line two

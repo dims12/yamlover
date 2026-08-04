@@ -1,0 +1,15 @@
+Files
+description: a whole text file of a given language — the extension names the concrete
+- >
+  The node *is* a file, and the FILENAME EXTENSION names the concrete: `file/json` (`.json`),
+  `file/json5` (`.json5`), `file/json5p` (`.json5p`), `file/yaml` (`.yaml` / `.yml`),
+  `file/yamlover` (`.yo`, plus the legacy `.yamlover` spelling — read forever, never written).
+  Interior nodes take the same language without the `file/` prefix — the inlined forms. A file
+  and a subdirectory are equivalent representations of one node.
+- >
+  A non-data **text material** — markdown, asciidoc, csv, plantuml — is modeled as a
+  `file/yaml` scalar: its single value is the raw text, kept verbatim and rendered by its
+  `format`. The format carries the real material type (`text/markdown`); the concrete only
+  records "a text file holding one scalar", so the same modeling covers every material the
+  system will ever meet. Any other extension — no recognized language, no metadata — defaults
+  to the binary concrete below.

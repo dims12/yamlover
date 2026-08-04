@@ -2,7 +2,7 @@ Lossless, forever readable
 description: representation and comments survive round-trips; fallbacks never drop data
 - >
   What you wrote is what you keep. Comments survive; a scalar's spelling — quoted, hex, folded — is
-  classified and preserved (the representation axis of the [concretes part](::language:concretes)); a
+  classified and preserved (the representation axis of the [concretes part](::language:01-Concretes_2)); a
   flow container re-emits as flow. Round-trip identity is the value *plus* its authored
   representation, normalized but never flattened.
 - >

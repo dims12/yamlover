@@ -1,9 +1,0 @@
-yaml/mapping/flow
-description: Pairs comma-separated inside curly braces
-- >
-  The flow concrete: the pairs ride comma-separated inside curly braces. It is a SUPERCLASS of
-  [json/object](::language:01-Concretes_2:04-json_code:00-json_structured:00-json_object) —
-  every JSON object parses as a flow mapping, while YAML also lets keys and values ride plain:
-- !!<format: text/x-yaml> |
-  julia: {age: 42, pets: [cat, scorpion]}
-- *..:..:..:..:..:04-json_code:00-json_structured:00-json_object

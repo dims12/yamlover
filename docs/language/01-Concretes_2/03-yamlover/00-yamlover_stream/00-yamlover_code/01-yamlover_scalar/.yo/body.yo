@@ -1,0 +1,8 @@
+yamlover/scalar
+description: Atomic token — a YAML scalar or a pointer
+- >
+  An atomic token of yamlover is either any YAML scalar, or a **pointer** — and since a pointer
+  dereferences to the node its path names, it stands wherever a value can. See the subchapters
+  below for the two:
+- *..:..:..:..:04-yaml:01-yaml_code:01-yaml_scalar
+- *: 01-yamlover_pointer

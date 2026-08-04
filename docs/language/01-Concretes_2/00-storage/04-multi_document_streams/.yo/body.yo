@@ -1,0 +1,7 @@
+Multi-document streams
+description: several ---separated documents in one file — defined, not yet implemented
+- >
+  One file holding several `---`-separated documents is the reserved pair `multi-yaml` and
+  `multi-yamlover`: each document an element of the singular concrete. The parser currently
+  rejects document streams; the concretes are defined and reserved, and no node carries one
+  today.

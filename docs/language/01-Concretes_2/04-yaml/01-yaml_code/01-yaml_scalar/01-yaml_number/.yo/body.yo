@@ -1,0 +1,19 @@
+yaml/number
+description: Number in one of six concretes
+- >
+  A number is a plain scalar in one of six concretes — decimal, hexadecimal, octal, binary,
+  infinity, or not-a-number. See the subchapters below:
+- !!<format: text/x-yaml> |
+  a: 42
+  b: 3.14e2
+  c: 0x2A
+  d: 0o52
+  e: 0b101010
+  f: .inf
+  g: .nan
+- *: 00-yaml_number_decimal
+- *: 01-yaml_number_hexadecimal
+- *: 02-yaml_number_octal
+- *: 03-yaml_number_binary
+- *: 04-yaml_number_infinity
+- *: 05-yaml_number_nan

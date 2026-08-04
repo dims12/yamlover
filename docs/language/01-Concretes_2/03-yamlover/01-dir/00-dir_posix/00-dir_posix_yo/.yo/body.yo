@@ -1,0 +1,21 @@
+dir/posix/.yo
+description: Directory with the control .yo subdirectory — the overlays; the engine calls it dir/yamlover
+- >
+  A dir/posix carrying the hidden control subdirectory `.yo/` — the engine's name for either
+  case flavor is `dir/yamlover`. The directory itself becomes a yamlover NODE, and the overlays
+  add what bare disk cannot say:
+- !!<format: text/plain> |
+  .yo/
+    body.yo     — the INSTANCE overlay: data values over the directory
+    meta.yo     — the METADATA schema: types, formats, presentation
+    settings.yo — project configuration (the served root only)
+    index.db    — engine cache (derived)
+- >
+  `body.yo` is the instance overlay — a scalar SELF-VALUE for the directory, extra keyed fields
+  no file holds, pointers, anchors and back-edges, and ORDER: its positional pointer-array
+  (`- *file1 …`) grants positions to the children it names, and disk has none — this is exactly
+  what lifts the plain dir's no-lists and no-scalar limits. `meta.yo` is the metadata schema —
+  types, formats, decoding, what turns a file's bytes into a value. Either overlay is optional,
+  and the mere presence of `.yo/` is the marker that promotes the concrete. The storage-wide
+  rules live in [the storage axis](::language:01-Concretes_2:00-storage) and the
+  [choosing rules](::language:01-Concretes_2:01-choosing).
