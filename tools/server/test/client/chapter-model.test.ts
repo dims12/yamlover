@@ -314,6 +314,13 @@ describe("bodyKindOf — inlined containers", () => {
     expect(bodyKindOf(inlined(":doc", 1, "prose"))).toBe("chunk");
   });
 
+  it("a SCALAR link is a CHUNK whatever its format — a title-only chapter member reads as its text", () => {
+    // the depth-1 stub of a scalar member document wearing the chapter tag (the json/null
+    // report: folding it as a subchapter drew an EMPTY section — its body flows to nothing)
+    const titleOnly = { $yamloverLink: { kind: "scalar", type: "string", path: ":d:01-1-json_null", format: "x-yamlover-chapter", concrete: "dir/yamlover", title: "json/null", value: "json/null" } };
+    expect(bodyKindOf(titleOnly)).toBe("chunk");
+  });
+
   it("an INLINED chapter marker (no path) is a subchapter, not a chunk", () => {
     expect(bodyKindOf(mixedOf("x-yamlover-chapter"))).toBe("subchapter");
     expect(bodyKindOf(mixedOf("x-yamlover-task"))).toBe("subchapter");

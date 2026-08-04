@@ -170,6 +170,12 @@ export function bodyKindOf(v: unknown): FlowKind {
   const link = asLink(v);
   if (link) {
     if (link.yo === true) return "data";
+    // a SCALAR link is a CHUNK whatever its format: a TITLE-ONLY chapter member (a scalar
+    // document wearing the chapter tag) reads as its text — the edit face's rule
+    // (chunkModeOf: a scalar leaf is prose). Folding it as a subchapter drew an EMPTY
+    // section: its depth-1 body value is a bare string, which flows to nothing (the
+    // json/null-invisible-in-read report).
+    if (link.kind === "scalar") return "chunk";
     if (link.format != null) return isSubchapter(link.format) ? "subchapter" : "chunk";
     // UNTAGGED at the depth boundary (a not-yet-stamped chapter, mid-write): the same structural
     // rule as the mixed branch below — a container body element IS a subchapter. Ordinal entries
