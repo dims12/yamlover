@@ -1,4 +1,6 @@
 json/scalar
-- ''
+- One of
 - *: item02
 - *: item03
+- *: 01-json_boolean
+- *: 02-json_null

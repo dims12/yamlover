@@ -1,5 +1,5 @@
 yamlover
 description: The yamlover language in any representation
 - Can be any of
-- yaml/scalar
+- *: 00-yaml_scalar
 - *: 01-yamlover_code_file
