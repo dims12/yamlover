@@ -4,10 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Drives the heuristic lexer directly. A pointer = the SIGIL (`* & ~`) + a tokenized PATH in
+/** Drives the heuristic lexer directly, pinning it to the shared TS ruleset
+ *  (tools/parser/ts/src/highlight.ts). A pointer = the SIGIL (`* & ~`) + a tokenized PATH in
  *  the COLON grammar (SEPARATOR.md): name segments are REF, `:` separators / `[ ]` are PUNCT
  *  (sign), index digits are NUMBER, `/` is an ordinary key char. A `~` back-edge's key NAME
- *  colors as a KEY. A `|`/`>` block scalar body is one opaque SCALAR. */
+ *  colors as a KEY. A `|`/`>` block scalar is a PUNCT header + one opaque SCALAR body. */
 class YamloverLexerTest {
     private fun tokens(text: String): List<Pair<String, String>> {
         val lx = YamloverLexer()
@@ -114,23 +115,66 @@ class YamloverLexerTest {
     }
 
     @Test
-    fun `a block scalar header and its indented body are one opaque scalar`() {
+    fun `a block scalar is a PUNCT header and one opaque scalar body`() {
         val src = "desc: |\n  note: not a key\n  *not a pointer\nnext: 1\n"
         val toks = tokens(src)
         assertTrue("no phantom key in the body", toks.none { it.first == "YAMLOVER_KEY" && it.second == "note" })
         assertTrue("no phantom pointer in the body", toks.none { it.first == "YAMLOVER_POINTER" })
+        // the `|`+indicators lex as PUNCT, the body as one opaque SCALAR (highlight.ts:209-213)
+        assertTrue("the header is a sign: ${ofType(src, "YAMLOVER_PUNCT")}", ofType(src, "YAMLOVER_PUNCT").contains("|"))
         assertTrue("the body is a scalar: ${ofType(src, "YAMLOVER_SCALAR")}", ofType(src, "YAMLOVER_SCALAR").any { it.contains("note: not a key") })
+        // indicators ride in the header token
+        assertTrue(ofType("x: |2-\n    keep\nnext: 1\n", "YAMLOVER_PUNCT").contains("|2-"))
         // the dedented next line is still a key
         assertTrue(tokens(src).any { it.first == "YAMLOVER_KEY" && it.second == "next" })
     }
 
     @Test
-    fun `inf, nan and hex classify as numbers, keywords include capitalized null`() {
+    fun `inf, nan and hex classify as numbers, null and tilde ride their own NULL kind`() {
         assertTrue(ofType("x: .inf\n", "YAMLOVER_NUMBER").contains(".inf"))
         assertTrue(ofType("x: .nan\n", "YAMLOVER_NUMBER").contains(".nan"))
         assertTrue(ofType("x: 0xFF\n", "YAMLOVER_NUMBER").contains("0xFF"))
-        assertTrue(ofType("x: Null\n", "YAMLOVER_KEYWORD").contains("Null"))
-        assertTrue(ofType("x: NULL\n", "YAMLOVER_KEYWORD").contains("NULL"))
+        assertTrue(ofType("x: true\n", "YAMLOVER_KEYWORD").contains("true"))
+        // null/~ split off the boolean keywords — the web client's dedicated `null` class
+        assertTrue(ofType("x: Null\n", "YAMLOVER_NULL").contains("Null"))
+        assertTrue(ofType("x: NULL\n", "YAMLOVER_NULL").contains("NULL"))
+        assertTrue(ofType("x: ~\n", "YAMLOVER_NULL").contains("~"))
+    }
+
+    @Test
+    fun `number classification follows JS Number — NaN and java-only forms are plain`() {
+        assertTrue(ofType("x: NaN\n", "YAMLOVER_SCALAR").contains("NaN"))
+        assertTrue(ofType("x: Infinity\n", "YAMLOVER_NUMBER").contains("Infinity"))
+        assertTrue(ofType("x: 0b101\n", "YAMLOVER_NUMBER").contains("0b101"))
+        assertTrue(ofType("x: 0o17\n", "YAMLOVER_NUMBER").contains("0o17"))
+        assertTrue("Java-only float suffix is no number", ofType("x: 1f\n", "YAMLOVER_SCALAR").contains("1f"))
+    }
+
+    @Test
+    fun `a quoted string before a colon is a KEY, elsewhere a STRING`() {
+        val src = "\"key with spaces\": 1\n'1': x\ny: 'just a value'\n"
+        val keys = ofType(src, "YAMLOVER_KEY")
+        assertTrue("quoted keys: $keys", keys.contains("\"key with spaces\""))
+        assertTrue("a quoted numeric key: $keys", keys.contains("'1'"))
+        assertTrue(ofType(src, "YAMLOVER_STRING").contains("'just a value'"))
+    }
+
+    @Test
+    fun `the sequence dash has its own kind and a signed number is one token`() {
+        val src = "- item\n"
+        assertTrue(ofType(src, "YAMLOVER_DASH").contains("-"))
+        assertTrue(ofType(src, "YAMLOVER_SCALAR").contains("item"))
+        // a `-` NOT before a space starts a word: `-1` is ONE number, `-foo:` a key
+        assertTrue(ofType("x: -1\n", "YAMLOVER_NUMBER").contains("-1"))
+        assertTrue(ofType("-foo: 1\n", "YAMLOVER_KEY").contains("-foo"))
+        assertTrue("no dash inside a word", ofType("x: a-b\n", "YAMLOVER_DASH").isEmpty())
+    }
+
+    @Test
+    fun `a quoted portion inside a pointer path is a REF, not a STRING`() {
+        val src = "x: *: 'дорожный знак': name\n"
+        assertTrue("quoted portion: ${ofType(src, "YAMLOVER_REF")}", ofType(src, "YAMLOVER_REF").contains("'дорожный знак'"))
+        assertTrue(ofType(src, "YAMLOVER_STRING").isEmpty())
     }
 
     @Test

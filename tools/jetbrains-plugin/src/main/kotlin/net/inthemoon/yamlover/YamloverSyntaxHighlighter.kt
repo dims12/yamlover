@@ -25,6 +25,8 @@ class YamloverSyntaxHighlighter : SyntaxHighlighterBase() {
             YamloverTokenTypes.STRING -> STRING_KEYS
             YamloverTokenTypes.NUMBER -> NUMBER_KEYS
             YamloverTokenTypes.KEYWORD -> KEYWORD_KEYS
+            YamloverTokenTypes.NULL -> NULL_KEYS
+            YamloverTokenTypes.DASH -> DASH_KEYS
             else -> EMPTY
         }
 
@@ -41,6 +43,12 @@ class YamloverSyntaxHighlighter : SyntaxHighlighterBase() {
         val STRING_KEYS = keys("YAMLOVER_STRING", DefaultLanguageHighlighterColors.STRING)
         val NUMBER_KEYS = keys("YAMLOVER_NUMBER", DefaultLanguageHighlighterColors.NUMBER)
         val KEYWORD_KEYS = keys("YAMLOVER_KEYWORD", DefaultLanguageHighlighterColors.KEYWORD)
+        // null/~ — keyword-colored by default but its own key, like the web client's dedicated
+        // `null` class (CLASS_BY_KIND in highlight.tsx); themes can restyle it alone
+        val NULL_KEYS = keys("YAMLOVER_NULL", DefaultLanguageHighlighterColors.KEYWORD)
+        // the sequence marker `- ` — sign-colored by default but its own key (the web's
+        // `punct yaml-dash` split)
+        val DASH_KEYS = keys("YAMLOVER_DASH", DefaultLanguageHighlighterColors.OPERATION_SIGN)
         val INDEX_KEYS = keys("YAMLOVER_INDEX", DefaultLanguageHighlighterColors.NUMBER)
         val EMPTY = emptyArray<TextAttributesKey>()
     }

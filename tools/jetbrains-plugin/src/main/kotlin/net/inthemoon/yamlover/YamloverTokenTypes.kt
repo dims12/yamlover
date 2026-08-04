@@ -12,8 +12,10 @@ object YamloverTokenTypes {
     @JvmField val KEY     = YamloverTokenType("YAMLOVER_KEY")       // name before ':'
     @JvmField val STRING  = YamloverTokenType("YAMLOVER_STRING")
     @JvmField val NUMBER  = YamloverTokenType("YAMLOVER_NUMBER")
-    @JvmField val KEYWORD = YamloverTokenType("YAMLOVER_KEYWORD")   // true/false/null/~
+    @JvmField val KEYWORD = YamloverTokenType("YAMLOVER_KEYWORD")   // true/false
+    @JvmField val NULL    = YamloverTokenType("YAMLOVER_NULL")      // null/~ — its own kind
     @JvmField val INDEX   = YamloverTokenType("YAMLOVER_INDEX")     // [n]
     @JvmField val PUNCT   = YamloverTokenType("YAMLOVER_PUNCT")
+    @JvmField val DASH    = YamloverTokenType("YAMLOVER_DASH")      // the sequence marker `- `
     @JvmField val SCALAR  = YamloverTokenType("YAMLOVER_SCALAR")
 }

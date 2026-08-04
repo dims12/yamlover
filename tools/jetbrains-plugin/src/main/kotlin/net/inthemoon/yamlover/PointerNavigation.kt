@@ -9,10 +9,13 @@ package net.inthemoon.yamlover
  * closed 2026-07-24). Portions separated by `:`, canonical `: ` styling. Scope ladder:
  * bare = current mapping, `:` = document root, `..` = parent, `::`/`:::` = project/world
  * (cross-tree — needs the engine, resolves to null here). `/` is an ORDINARY key character.
- * A key with a space must be quoted. Index groups: `[n]` absolute, `[.]`/`[.±k]` relative
- * (relative positions need the host frame — parsed, but resolve returns null). There is NO
- * anchor namespace and no precedence: `*name` is pure path lookup (resolve.ts §no-precedence).
- * Out of scope: `::`/`:::` cross-tree links (waits for the engine protocol).
+ * A key with a space must be quoted. The bare-token typing rule (the YAML-keys round,
+ * 2026-08-01): an unquoted, unescaped portion of pure digits is a POSITION (`: pets: 1`),
+ * a bare `~` the NULL key; quotes/escapes carry the string reading (`'1'`, `'~'`, `\~`).
+ * Index groups: `[n]` absolute (reads forever as the position's legacy alias), `[.]`/`[.±k]`
+ * relative (relative positions need the host frame — parsed, but resolve returns null).
+ * There is NO anchor namespace and no precedence: `*name` is pure path lookup (resolve.ts
+ * §no-precedence). Out of scope: `::`/`:::` cross-tree links (waits for the engine protocol).
  */
 
 sealed class Step {
@@ -20,6 +23,7 @@ sealed class Step {
     data class Index(val n: Int) : Step()
     data class RelIndex(val k: Int) : Step() // [.] / [.±k] — the host's own position ± k
     object Parent : Step()
+    object NullKey : Step() // the null key: bare `~` (YAML: `: v` ≡ `~: v`)
 }
 
 sealed class Scope {
@@ -92,8 +96,15 @@ object Pointers {
         return out
     }
 
-    /** One colon portion → steps: `..`, a (possibly quoted) name, optional `[n]`/`[.±k]`
-     *  groups. A bare name containing a SPACE must be quoted (SEPARATOR.md §3). */
+    /** One colon portion → steps: `..`, a (possibly quoted) name, optional `[.±k]` groups
+     *  (`[n]` reads as a legacy alias of the bare-integer portion). A bare name containing a
+     *  SPACE must be quoted (SEPARATOR.md §3).
+     *
+     *  THE BARE-TOKEN TYPING RULE (pointer.ts, the YAML-keys round): an UNQUOTED, UNESCAPED
+     *  portion of pure digits is the INTEGER KEY — a position (`: pets: 1`); a bare `~` is
+     *  the NULL KEY. Everything quoted or escaped is a string key, so `'1'` is the numeric
+     *  STRING key and `'~'` / `\~` the literal tilde — quotes carry the distinction. Other
+     *  bare tokens (`-1`, `1.5`, `true`) remain ordinary string keys. */
     private fun portionToSteps(p: String): List<Step> {
         if (p == "..") return listOf(Step.Parent)
         // `..[.-1][.]` — the table rowspan idiom: the uplink, then the indexes. (The literal
@@ -101,7 +112,9 @@ object Pointers {
         if (p.startsWith("..") && p.length > 2 && p[2] == '[') return listOf(Step.Parent) + indexGroups(p.substring(2))
         val name = StringBuilder()
         var i = 0
+        var plain = true // false once quoted or backslash-escaped — a literal string key either way
         if (p.isNotEmpty() && (p[0] == '\'' || p[0] == '"')) {
+            plain = false
             val q = p[0]; i = 1
             while (i < p.length) {
                 if (p[i] == q) {
@@ -114,14 +127,22 @@ object Pointers {
         } else {
             while (i < p.length) {
                 val c = p[i]
-                if (c == '\\' && i + 1 < p.length) { name.append(p[i + 1]); i += 2; continue }
+                if (c == '\\' && i + 1 < p.length) { name.append(p[i + 1]); i += 2; plain = false; continue }
                 if (c == '[') break
                 if (c == ' ' || c == '\t') throw IllegalArgumentException("a key containing a space must be quoted")
                 name.append(c); i++
             }
         }
         val steps = ArrayList<Step>()
-        if (name.isNotEmpty()) steps.add(Step.Key(name.toString()))
+        if (name.isNotEmpty()) {
+            val n = name.toString()
+            steps.add(when {
+                plain && n == "~" -> Step.NullKey
+                // ASCII digits only — TS's /^\d+$/ (Kotlin's isDigit() is Unicode-wide)
+                plain && n.all { it in '0'..'9' } -> Step.Index(n.toInt())
+                else -> Step.Key(n)
+            })
+        }
         if (i < p.length) steps.addAll(indexGroups(p.substring(i)))
         return steps
     }
@@ -271,6 +292,9 @@ class PathIndex(
             path = when (step) {
                 is Step.Parent -> parentOf(path) ?: return null
                 is Step.Key -> path + seg(step.name)
+                // `:~` — pathseg's canonical null-key spelling. (A literal quoted `'~'` key
+                // collides with it here — an accepted heuristic.)
+                is Step.NullKey -> path + seg("~")
                 is Step.Index -> "$path[${step.n}]"
                 is Step.RelIndex -> return null // a relative position needs the host frame
             }
@@ -343,7 +367,11 @@ class PathIndex(
                 if (indent > frame.indent) continue // deeper than any entry column (block scalar …)
                 containers.add(offset to frame.path)
 
-                if (line == "~-" || line.startsWith("~- ") || line.startsWith("~")) continue // back-edges: not owned
+                // Back-edges (`~key:` / `~-`) are not owned children — but a back-edge needs a
+                // NONEMPTY name (yamlover.ts): `~: v` is the NULL-KEY entry and falls through
+                // to splitKey, which registers it at `:~`.
+                if (line == "~-" || line.startsWith("~- ")) continue
+                if (line.startsWith("~") && !NULL_KEY_HEAD.containsMatchIn(line)) continue
                 if (line.startsWith("!!")) continue // a document/value tag line: not an entry
 
                 if (line == "-" || line.startsWith("- ")) {
@@ -395,6 +423,9 @@ class PathIndex(
 
         /** A YAML block-scalar header: `|` / `>` with optional chomping/indent indicators. */
         private val BLOCK_SCALAR_HEAD = Regex("[|>][0-9+-]*")
+
+        /** The null-key entry head `~:` (YAML: `: v` ≡ `~: v`) — NOT a back-edge. */
+        private val NULL_KEY_HEAD = Regex("^~[ \t]*:")
 
         /** Index a json5p file by brace/bracket structure (strings/comments respected). */
         fun ofJson5p(text: String): PathIndex {

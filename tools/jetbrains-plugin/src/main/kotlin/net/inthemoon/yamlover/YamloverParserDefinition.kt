@@ -16,7 +16,7 @@ import com.intellij.psi.tree.IFileElementType
 import com.intellij.psi.tree.TokenSet
 
 /**
- * Minimal ParserDefinition — required for a `.yamlover` file to be recognized as the
+ * Minimal ParserDefinition — required for a `.yo` / legacy `.yamlover` file to be recognized as the
  * yamlover *language* (without it the file's PSI language falls back to TEXT and the
  * lexer-based syntax highlighter never engages). The parser is intentionally flat (all
  * tokens under one file node); a real PSI grammar is Phase J2.

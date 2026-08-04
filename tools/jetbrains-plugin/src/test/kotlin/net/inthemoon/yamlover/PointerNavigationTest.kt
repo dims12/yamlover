@@ -43,6 +43,22 @@ class PointerNavigationTest {
     }
 
     @Test
+    fun `bare-token typing — digits are positions, tilde the null key, quotes carry strings`() {
+        // the YAML-keys round (pointer.ts): an unquoted, unescaped portion of pure digits IS
+        // the position; `[n]` reads forever as its legacy alias
+        assertEquals(PointerExpr(Scope.Current, listOf(Step.Key("pets"), Step.Index(1))), Pointers.parse("pets: 1"))
+        assertEquals(Pointers.parse("pets[1]"), Pointers.parse("pets: 1"))
+        assertEquals(PointerExpr(Scope.Current, listOf(Step.NullKey)), Pointers.parse("~"))
+        // quotes/escapes carry the string reading
+        assertEquals(PointerExpr(Scope.Current, listOf(Step.Key("1"))), Pointers.parse("'1'"))
+        assertEquals(PointerExpr(Scope.Current, listOf(Step.Key("~"))), Pointers.parse("'~'"))
+        assertEquals(PointerExpr(Scope.Current, listOf(Step.Key("~"))), Pointers.parse("\\~"))
+        // other bare tokens stay ordinary string keys
+        assertEquals(PointerExpr(Scope.Current, listOf(Step.Key("-1"))), Pointers.parse("-1"))
+        assertEquals(PointerExpr(Scope.Current, listOf(Step.Key("1.5"))), Pointers.parse("1.5"))
+    }
+
+    @Test
     fun `pointer text under the caret (yamlover, unquoted)`() {
         val src = "feline: *: pets[1]\n"
         val inside = src.indexOf("pets") + 2
@@ -110,6 +126,27 @@ class PointerNavigationTest {
         // fan has one owned entry (name) and a ~- declaration; the back-edge is not indexed
         assertEquals(yOffsetOfLine("name: Bob"), ix.resolve(Pointers.parse(": fan[0]")!!, 0))
         assertNull(ix.resolve(Pointers.parse(": fan[1]")!!, 0))
+    }
+
+    @Test
+    fun `a bare-digit portion resolves like its legacy bracket alias`() {
+        val ix = PathIndex.ofYamlover(Y)
+        assertEquals(yOffsetOfLine("- name: Whiskers"), ix.resolve(Pointers.parse(": pets: 1")!!, 0))
+        assertEquals(ix.resolve(Pointers.parse(": pets[1]")!!, 0), ix.resolve(Pointers.parse(": pets: 1")!!, 0))
+    }
+
+    @Test
+    fun `the null key indexes at tilde and back-edges still take no position`() {
+        val src = "a: 1\n~: nothing\nb:\n  ~mother: *: a\n  x: 2\n"
+        val ix = PathIndex.ofYamlover(src)
+        val lineOf = { s: String -> src.indexOf(s).let { src.lastIndexOf('\n', it) + 1 } }
+        // `~: v` is the NULL-KEY entry (a back-edge needs a nonempty name) — the bare `~`
+        // portion reaches it, and it occupies a position like any keyed entry
+        assertEquals(lineOf("~: nothing"), ix.resolve(Pointers.parse(": ~")!!, 0))
+        assertEquals(lineOf("~: nothing"), ix.resolve(Pointers.parse(": 1")!!, 0))
+        // a `~name:` back-edge is still not an owned child
+        assertNull(ix.resolve(Pointers.parse(": b: mother")!!, 0))
+        assertEquals(lineOf("x: 2"), ix.resolve(Pointers.parse(": b: x")!!, 0))
     }
 
     // ---- keyed omni (`world: World` + a deeper body — the 517a7a4 shape) ----

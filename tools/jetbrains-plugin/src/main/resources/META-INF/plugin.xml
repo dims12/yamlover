@@ -4,21 +4,24 @@
     <vendor email="dimskraft@gmail.com" url="https://yamlover.inthemoon.net">inthemoon</vendor>
 
     <description><![CDATA[
-        Support for the <b>yamlover</b> language and file type
-        (<code>.yamlover</code>) — a YAML/JSON superset with graph pointers
-        (<code>*</code> dereference, <code>~</code> reverse edges, <code>&amp;</code>
-        anchors, <code>#/</code> and <code>/</code> scopes, <code>[n]</code> indices).
+        Support for the <b>yamlover</b> language and file type (<code>.yo</code>;
+        the legacy <code>.yamlover</code> extension reads forever) — a YAML/JSON
+        superset with graph pointers in the COLON grammar: <code>*: a: b</code>
+        dereference, <code>~</code> reverse edges, <code>&amp;</code> anchors, the
+        scope ladder (<code>:</code> document, <code>::</code> project,
+        <code>:::</code> world), <code>..</code> parent, bare-integer positions
+        (<code>: pets: 1</code>; <code>[n]</code> reads as the legacy alias),
+        relative <code>[.&#177;k]</code> indexes, and the <code>~</code> null key.
         <br/><br/>
         Also supports <b>json5p</b> (<code>.json5p</code>, JSON5 + pointers) and
         highlights <code>yamlover</code>/<code>json5p</code> fenced code blocks inside
         Markdown.
         <br/><br/>
         Provides file-type recognition, syntax highlighting, and <b>Ctrl+click /
-        Ctrl+B navigation on pointers</b> (heuristic, in-file: paths, <code>[n]</code>
-        positions, <code>..</code>, <code>/</code> document scope, anchors; a
-        <code>body.yamlover</code> overlay also reaches the overlaid directory's
-        files). Richer support — real lexer/PSI, cross-tree link resolution via the
-        yamlover engine — is planned.
+        Ctrl+B navigation on pointers</b> (heuristic, in-file: paths, positions,
+        <code>..</code>, document scope; a <code>body.yo</code> overlay also reaches
+        the overlaid directory's files). Richer support — real lexer/PSI, cross-tree
+        link resolution via the yamlover engine — is planned.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -53,7 +56,7 @@
             implementationClass="net.inthemoon.yamlover.Json5pSyntaxHighlighterFactory"/>
 
         <!-- Ctrl+click / Ctrl+B on a *pointer → its target (heuristic in-file resolution;
-             body.yamlover document-scope segments also reach the overlaid dir's files).
+             body.yo document-scope segments also reach the overlaid dir's files).
              The directNavigationProvider is what paints the Ctrl+hover link underline —
              the legacy handler alone navigates but shows no visual hint. -->
         <lang.directNavigationProvider
