@@ -278,6 +278,9 @@ export function ChapterNode({ path, spath, level, budget, crumbs = [] }: { path:
           ) : (
             <DescendHeading path={sp} title={scalarText(e.value)} level={level + 1} />
           )}
+          {/* a MATERIALIZED subchapter deletes only through the tool (never a keystroke) —
+              the same verb; the server archives the member's storage to .yo/.trash */}
+          {anchorKey !== undefined && <DeleteChunkTool path={p} />}
         </Cell>,
       );
       return;
@@ -347,7 +350,26 @@ function ChunkShell({ path, index, labels, children }: { path: Path; index: numb
     <div className="chunk" id={anchor ?? undefined}>
       {anchor ? <a className="chunk-index" href={`#${anchor}`}>{chunkCrumbs(labels)}</a> : <span className="chunk-index">{chunkCrumbs(labels)}</span>}
       <div className="chunk-body">{children}</div>
+      <DeleteChunkTool path={path} />
     </div>
+  );
+}
+
+/** The 🗑 chunk tool — ONE deletion verb for what Backspace cannot reach: non-empty chunks,
+ *  atoms, and materialized subchapters all dispatch `deleteChunk` at their own path (the
+ *  intent carries it, so the caret never has to visit first). The server archives a detached
+ *  member's storage to `.yo/.trash` — deletion is never a wall and never destroys. */
+function DeleteChunkTool({ path }: { path: Path }): ReactNode {
+  const ctx = useChapter();
+  return (
+    <span className="chunk-tools" data-yo-chrome>
+      <button
+        className="chunk-tool"
+        title="Delete this chunk"
+        tabIndex={-1}
+        onMouseDown={(e) => { e.preventDefault(); ctx.dispatch({ kind: "deleteChunk", path }); }}
+      >🗑</button>
+    </span>
   );
 }
 

@@ -44,6 +44,14 @@
 /* the wrap/linked badge inside the caption */
 .y2-badge { color: #d29922; font-weight: 600; }
 
+/* the 🗑 chunk tool — hidden until its chunk row (or a linked chapter cell) is hovered.
+   (The server app also styles .chunk-tools; these rules keep the standalone debug page and
+   the chapter-cell placement honest on their own.) */
+.y2-chapter .chunk-tools { flex: 0 0 auto; display: flex; gap: 2px; opacity: 0; transition: opacity 0.12s ease; }
+.y2-chapter .chunk:hover > .chunk-tools,
+.y2-chapter .y2-cell[data-kind="chapter"]:hover > .chunk-tools { opacity: 0.8; }
+.y2-chapter .chunk-tool { background: none; border: none; cursor: pointer; font-size: 13px; line-height: 1; padding: 2px 4px; border-radius: 4px; }
+
 /* an embedded source chunk keeps a quiet border even in plain mode — it IS a different grammar */
 .y2-chapter .chunk-source { border-left: 2px solid #d0d7de55; padding-left: 6px; }
 

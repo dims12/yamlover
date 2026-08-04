@@ -53,6 +53,9 @@ export interface ChapterSite {
   /** ANY strict ancestor is a declared table — Ctrl+Enter appends a row from a cell's inner
    *  chunks too, not only from the cell itself. */
   inTable: boolean;
+  /** The focused PROSE chunk is EMPTY (a childless scalar with no text) — Backspace at its
+   *  start deletes the CHUNK (the deletion law); a non-empty chunk keeps joinPrev. */
+  chunkEmpty: boolean;
   /** The FORMAT TARGET's current chosen format (the bar's highlight; re-choosing it is idle). */
   currentFormat: "chapter" | "table" | "bullets" | "numbered" | null;
 }
@@ -88,7 +91,7 @@ export function chapterSiteOf(doc: Document, focus: Position | null, edges: Chap
     isRootTitle: false, prevSiblingIsChapter: false, hasPrevItem: false, belowRoot: false,
     materialized: false, movable: true, firstChunkWalkable: true,
     tableEdge: null, atFirstCell: false, atRowStart: false, rowEmpty: false,
-    singleRow: false, inTable: false, currentFormat: null,
+    singleRow: false, inTable: false, chunkEmpty: false, currentFormat: null,
   };
   if (!focus) return base;
   const path = focus.path;
@@ -188,6 +191,7 @@ export function chapterSiteOf(doc: Document, focus: Position | null, edges: Chap
   base.cell = "prose";
   base.oneLine = oneLineScalar(v);
   base.belowRoot = path.length > 1;
+  base.chunkEmpty = cellEmpty(v);
   return base;
 }
 
@@ -212,7 +216,7 @@ export function moveSafeValue(v: Value): boolean {
 }
 
 /** An empty prose cell: a childless scalar with no text (the unwind ladder's "cleared"). */
-const cellEmpty = (v: Value): boolean =>
+export const cellEmpty = (v: Value): boolean =>
   !isPointer(v) && (v as Node).kind === "scalar" && ((v as Node).entries ?? []).length === 0 &&
   String(((v as Node) as { value?: unknown }).value ?? "") === "";
 

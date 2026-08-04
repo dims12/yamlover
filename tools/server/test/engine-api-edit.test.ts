@@ -1735,8 +1735,8 @@ describe("/api/edit — `replace` at a document root (the kind-conversion landin
   });
 });
 
-describe("/api/edit — `remove` at a MEMBER document root detaches it from the parent", () => {
-  it("the pointer entry goes; the member's storage stays (orphaning, never deletion)", async () => {
+describe("/api/edit — `remove` at a MEMBER document root detaches it AND archives its storage (trash on delete)", () => {
+  it("the pointer entry goes; the member's storage moves into the parent's .yo/.trash — recoverable, never destroyed", async () => {
     const { root, h } = await chapterHandlers({
       "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- keep\n- *: m\n- after\n",
       "doc/m/.yo/body.yo": "member text\n",
@@ -1747,8 +1747,37 @@ describe("/api/edit — `remove` at a MEMBER document root detaches it from the 
     expect(body).not.toContain("- *: m");
     expect(body).toContain("- keep");
     expect(body).toContain("- after");
-    // the member directory is ORPHANED, not destroyed
-    expect(fs.existsSync(path.join(root, "doc", "m", ".yo", "body.yo"))).toBe(true);
+    // TRASH ON DELETE: the member directory left its place…
+    expect(fs.existsSync(path.join(root, "doc", "m"))).toBe(false);
+    // …and survives, whole, inside the parent's trash (a dot-name the walk never visits)
+    expect(fs.readFileSync(path.join(root, "doc", ".yo", ".trash", "m", ".yo", "body.yo"), "utf8")).toBe("member text\n");
+  });
+
+  it("a name already in the trash collision-suffixes (nothing is ever overwritten)", async () => {
+    const { root, h } = await chapterHandlers({
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- *: m\n",
+      "doc/m/.yo/body.yo": "second life\n",
+      "doc/.yo/.trash/m/.yo/body.yo": "first life\n", // a prior deletion already archived here
+    });
+    expect((await callBody(h, "POST", "/api/edit", { path: ":doc:m", op: "remove" })).status).toBe(200);
+    const trash = path.join(root, "doc", ".yo", ".trash");
+    expect(fs.readFileSync(path.join(trash, "m", ".yo", "body.yo"), "utf8")).toBe("first life\n");
+    expect(fs.readFileSync(path.join(trash, "m-2", ".yo", "body.yo"), "utf8")).toBe("second life\n");
+  });
+
+  it("a MID-BATCH failure archives NOTHING — the storage moves only after the batch commits", async () => {
+    const { root, h } = await chapterHandlers({
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- keep\n- *: m\n",
+      "doc/m/.yo/body.yo": "member text\n",
+    });
+    const r = await callBody(h, "POST", "/api/edit", [
+      { path: ":doc:m", op: "remove" },
+      { path: ":doc:no_such_key", op: "emplace", yamlover: "boom" }, // fails the batch
+    ]);
+    expect(r.status).toBe(400);
+    expect(bodyOf(root)).toContain("- *: m"); // the splice rolled back…
+    expect(fs.existsSync(path.join(root, "doc", "m", ".yo", "body.yo"))).toBe(true); // …and the storage never moved
+    expect(fs.existsSync(path.join(root, "doc", ".yo", ".trash"))).toBe(false);
   });
 });
 

@@ -771,7 +771,10 @@ describe("the yed chapter parity gate — roles and formats on disk", () => {
       // the parent lost the member's pointer entry; the content moved INTO the code chapter
       expect(m.read("d/.yo/body.yo")).not.toContain("- *: item01");
       expect(m.read("d/code/.yo/body.yo")).toContain("son/object");
-      expect(m.exists("d/item01/.yo/body.yo"), "the member's storage stays — orphaned, never deleted").toBe(true);
+      // TRASH ON DELETE: the detached member's storage archives into the parent's .yo/.trash
+      // (recoverable, never destroyed) — orphans stopped existing as a category
+      expect(m.exists("d/item01"), "the member's storage left its place").toBe(false);
+      expect(m.read("d/.yo/.trash/item01/.yo/body.yo")).toBe("son/object\n");
     } finally { m.done(); }
   });
 

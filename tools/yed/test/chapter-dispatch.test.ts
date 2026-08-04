@@ -11,7 +11,7 @@ const site = (over: Partial<ChapterSite>): ChapterSite => ({
   isRootTitle: false, prevSiblingIsChapter: false, hasPrevItem: false, belowRoot: false,
   materialized: false, movable: true, firstChunkWalkable: true,
   tableEdge: null, atFirstCell: false, atRowStart: false, rowEmpty: false,
-  singleRow: false, inTable: false, currentFormat: "chapter",
+  singleRow: false, inTable: false, chunkEmpty: false, currentFormat: "chapter",
   ...over,
 });
 
@@ -39,6 +39,7 @@ const rows: { name: string; key: ChapterKey; site: Partial<ChapterSite>; intent:
   { name: "Shift-Tab below the root lifts the paragraph out", key: { key: "Tab", shift: true }, site: { cell: "prose", belowRoot: true }, intent: { kind: "dedent" } },
   { name: "Shift-Tab at the root level nops", key: { key: "Tab", shift: true }, site: { cell: "prose" }, intent: { kind: "nop" } },
   { name: "Backspace at the start joins into the previous paragraph", key: { key: "Backspace" }, site: { cell: "prose", caretAtStart: true }, intent: { kind: "joinPrev" } },
+  { name: "Backspace at an EMPTY chunk's start deletes THE CHUNK (the deletion law)", key: { key: "Backspace" }, site: { cell: "prose", caretAtStart: true, chunkEmpty: true }, intent: { kind: "deleteChunk" } },
   { name: "Backspace mid-text is native", key: { key: "Backspace" }, site: { cell: "prose" }, intent: null },
   { name: "Delete at the end pulls the next paragraph in", key: { key: "Delete" }, site: { cell: "prose", caretAtEnd: true }, intent: { kind: "joinNext" } },
   { name: "ArrowUp on the first visual line walks; mid-paragraph it is native", key: { key: "ArrowUp" }, site: { cell: "prose", caretFirstLine: true }, intent: { kind: "move", dir: -1 } },

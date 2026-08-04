@@ -6,7 +6,7 @@ import { describe, it, expect } from "vitest";
 import { parseSource, sourceOf, type Node } from "../src/state";
 import type { Position } from "../src/apply";
 import {
-  applyChapterIntent, applyChapterKey, commitChapterText, demoteDescription, demoteTitle,
+  applyChapterIntent, applyChapterKey, commitChapterText, deleteChunk, demoteDescription, demoteTitle,
   indentEntry, initialChapterState, joinWalk, makeDescription, makeTitle, nestParagraph,
   promoteFormat, splitProse, unwrapChapter, type ChapterState,
 } from "../src/chapter/apply";
@@ -751,5 +751,61 @@ describe("the chapter watchdog over the corpora — no dead advertised keys anyw
         }
       }
     }
+  });
+});
+
+describe("deleteChunk — THE DELETION LAW (Backspace on empty, the 🗑 tool)", () => {
+  it("Backspace at an EMPTY chunk's start deletes the chunk; the caret homes on the stop before", () => {
+    const s0 = st("- alpha\n- ''\n- omega\n", tok(1));
+    const s1 = applyChapterKey(s0, { key: "Backspace" }, { atStart: true })!;
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("- alpha\n- omega\n");
+    expect(s1.focus).toEqual(tok(0));
+    expect(s1.caret).toBe("end");
+  });
+
+  it("a NON-empty chunk keeps joinPrev — deletion never eats text", () => {
+    const s0 = st("- alpha\n- beta\n", tok(1));
+    const s1 = applyChapterKey(s0, { key: "Backspace" }, { atStart: true })!;
+    expect(sourceOf(s1.doc)).toBe("- alphabeta\n"); // merged, not deleted
+  });
+
+  it("an untitled group emptied by the deletion is a HUSK and dissolves upward", () => {
+    const s0 = st("- - ''\n- tail\n", tok(0, 0));
+    const s1 = deleteChunk(s0, [0, 0]);
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("- tail\n");
+  });
+
+  it("a TITLED group is a document, never a husk — its last chunk leaves, the title stays", () => {
+    const s0 = st("- Dogs\n  - ''\n- tail\n", tok(0, 0));
+    const s1 = deleteChunk(s0, [0, 0]);
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("- Dogs\n- tail\n");
+  });
+
+  it("the 🗑 intent carries its own path — the focused cell never has to move first", () => {
+    const s0 = st("- alpha\n- beta\n- gamma\n", tok(0));
+    const s1 = applyChapterIntent(s0, { kind: "deleteChunk", path: [1] });
+    expect(s1.refused).toBe(false);
+    expect(sourceOf(s1.doc)).toBe("- alpha\n- gamma\n");
+  });
+
+  it("the LEADING chunk deletes too — the caret falls to the new walk's first stop", () => {
+    const s0 = st("- ''\n- omega\n", tok(0));
+    const s1 = applyChapterKey(s0, { key: "Backspace" }, { atStart: true })!;
+    expect(sourceOf(s1.doc)).toBe("- omega\n");
+    expect(s1.focus).toEqual(tok(0));
+  });
+
+  it("the ROOT never deletes — the boot cell remains", () => {
+    const s0 = st("- ''\n", tok(0));
+    const s1 = deleteChunk(s0, []);
+    expect(s1.refused).toBe(true);
+    // deleting the last chunk leaves the EMPTY chapter (the bootstrap paragraph), not nothing
+    const s2 = deleteChunk(s0, [0]);
+    expect(s2.refused).toBe(false);
+    expect((s2.doc.root.entries ?? []).length).toBe(0);
+    expect(s2.focus).toEqual({ at: "into", path: [] });
   });
 });

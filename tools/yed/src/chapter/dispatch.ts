@@ -8,10 +8,13 @@
 
 import type { ChapterSite } from "./site";
 import type { ChosenFormat } from "./format";
+import type { Path } from "../state";
 
 export type ChapterIntent =
   | { kind: "splitProse" }                       // Enter in prose: head stays, tail is a sibling
   | { kind: "joinPrev" } | { kind: "joinNext" }  // Backspace-at-start / Delete-at-end
+  | { kind: "deleteChunk"; path?: Path }         // Backspace at an EMPTY chunk's start / the 🗑 tool
+                                                 //   (path targets a chunk without moving the caret)
   | { kind: "nest" }                             // Tab: THIS chunk nests one level (an untitled group; T titles it)
   | { kind: "unwrap" }                           // Shift-Tab: the title dissolves, body splices out
   | { kind: "indent" } | { kind: "dedent" }      // list nesting / title-under-chapter / prose lift
@@ -124,6 +127,10 @@ export function chapterInterpret(k: ChapterKey, s: ChapterSite): ChapterIntent |
         // (Tab-wrap's inverse); a MATERIALIZED subchapter must not dissolve by keystroke
         return s.materialized ? { kind: "refuse" } : { kind: "joinPrev" };
       }
+      // THE DELETION LAW: Backspace at the start of an EMPTY prose chunk deletes THE CHUNK
+      // itself (an emptied untitled group dissolves with it); a non-empty chunk keeps the
+      // joinPrev merge. Lists keep their own unwind ladder.
+      if (s.cell === "prose" && s.caretAtStart && s.chunkEmpty) return { kind: "deleteChunk" };
       return (s.cell === "prose" || s.cell === "listItem") && s.caretAtStart ? { kind: "joinPrev" } : null;
     case "Delete":
       return (s.cell === "prose" || s.cell === "listItem") && s.caretAtEnd ? { kind: "joinNext" } : null;

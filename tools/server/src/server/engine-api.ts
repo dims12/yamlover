@@ -3961,6 +3961,8 @@ function bornAsDocument(dataRoot: string, e: ResolvedEdit, tag: string | undefin
  *  written once. Returns the touched files (to reindex) and any document born along the way. */
 function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: string[]; created: string[]; appended: Seg[][]; movedStorage: boolean } {
   let movedStorage = false;
+  // detached members' storage, archived to `.yo/.trash/` only AFTER the whole batch commits
+  const pendingArchives: { abs: string; name: string }[] = [];
   const byFile = new Map<string, ResolvedEdit[]>();
   const jsonByFile = new Map<string, { within: Seg[]; valueSrc: string }[]>(); // JSON-family scalar edits
   const appended: Seg[][] = []; // parents an INLINE entry was appended to — their new last child is the created node
@@ -4308,9 +4310,12 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
     if (op === "remove" && editSegs.length > 0 && docSegs.length === editSegs.length) {
       // REMOVING A MEMBER DOCUMENT: a root remove routed into the member has no meaning (a
       // document cannot remove itself) — the op DETACHES it from the PARENT instead: the
-      // pointer entry granting its position goes; the member's storage stays on disk
-      // (orphaning is deliberate — never destroy user data). Addressed BY NAME, resolved at
-      // splice time (findEntry's member-pointer match), so pending parent ops keep working.
+      // pointer entry granting its position goes, and the member's storage ARCHIVES into the
+      // parent's `.yo/.trash/` (TRASH ON DELETE — deletion is never a wall and never
+      // destroys; the data survives on disk, recoverable). The archive is queued and runs
+      // POST-COMMIT: a mid-batch throw must leave storage untouched. Addressed BY NAME,
+      // resolved at splice time (findEntry's member-pointer match), so pending parent ops
+      // keep working.
       const memberName = String(editSegs[editSegs.length - 1]);
       const parentSegs = editSegs.slice(0, -1);
       let detach: ResolvedEdit | null = null;
@@ -4346,6 +4351,10 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       const list = byFile.get(detachFile!) ?? [];
       list.push(detach);
       byFile.set(detachFile!, list);
+      // the detached member's storage (a directory OR a file member) archives after the
+      // batch commits — same trash, same collision suffixing as the orphan branch above
+      const memberAbs = path.resolve(dataRoot, ...editSegs.map(String));
+      if (fs.existsSync(memberAbs)) pendingArchives.push({ abs: memberAbs, name: memberName });
       continue;
     }
     if (op === "insert" && !e.concrete?.includes("/")) {
@@ -4424,6 +4433,19 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
   for (const [file, src] of pendingWrites) {
     fs.writeFileSync(file, src);
     touched.push(file);
+  }
+  // TRASH ON DELETE, post-commit: every detached member's storage archives into its parent's
+  // `.yo/.trash/` (dirs and file members alike, collision-suffixed) — the batch's writes are
+  // durable by now, so a throw above never moved anything.
+  for (const a of pendingArchives) {
+    if (!fs.existsSync(a.abs)) continue; // an earlier archive took an enclosing directory
+    const trashDir = path.join(path.dirname(a.abs), ".yo", ".trash");
+    fs.mkdirSync(trashDir, { recursive: true });
+    let dest = path.join(trashDir, a.name);
+    for (let n = 2; fs.existsSync(dest); n++) dest = path.join(trashDir, `${a.name}-${n}`);
+    console.warn(`[/api/edit] remove of member: archived ${a.abs} -> ${dest}`);
+    fs.renameSync(a.abs, dest);
+    movedStorage = true; // the graph changed shape — the caller rewalks fully
   }
   return { touched, created, appended, movedStorage };
 }

@@ -437,6 +437,39 @@ export function deleteTableRow(s: ChapterState, cellPath: Path): ChapterState {
   return ok(s, { doc, focus, caret: "end" }, "deleteRow");
 }
 
+/** THE DELETION LAW: the chunk at `path` leaves the chapter — Backspace at the start of an
+ *  EMPTY chunk, or the 🗑 chunk tool (which passes the target path: non-empty chunks, atoms,
+ *  and materialized subchapters delete through the SAME verb; the server archives a detached
+ *  member's storage to `.yo/.trash`). An UNTITLED group emptied by the removal is a husk and
+ *  dissolves upward (the nest's inverse, deleteTableRow's twin) — a MEMBER-backed or titled
+ *  ancestor is a document, never a husk. The caret lands on the walk stop before the chunk;
+ *  the root itself never deletes (the boot cell remains). */
+export function deleteChunk(s: ChapterState, path: Path): ChapterState {
+  if (path.length === 0) return refuse(s, "deleteChunk");
+  let parent = path.slice(0, -1);
+  let index = path[path.length - 1];
+  if (!nodeAt(s.doc, parent)?.entries?.[index]) return refuse(s, "deleteChunk");
+  const list = chapterPositionsOf(s.doc);
+  const first = list.findIndex((p) => isPrefix(path, p.path));
+  let doc = removeEntryAt(s.doc, parent, index);
+  // the husk loop: an untitled, emptied, non-member group leaves with its last chunk
+  while (parent.length > 0) {
+    const husk = nodeAt(doc, parent);
+    if (!husk || hasSelfValue(husk) || (husk.entries ?? []).length > 0 || chunkModeOf(husk) !== "chapter") break;
+    const holder = nodeAt(doc, parent.slice(0, -1));
+    const entry = holder?.entries?.[parent[parent.length - 1]];
+    if (((entry?.meta ?? {}) as { anchorKey?: string }).anchorKey !== undefined) break; // a member dir is a document
+    index = parent[parent.length - 1];
+    parent = parent.slice(0, -1);
+    doc = removeEntryAt(doc, parent, index);
+  }
+  // the stop BEFORE the removed chunk is untouched by the removal — the caret's home; a
+  // chunk that led the document falls back to whatever the new walk starts with
+  const prev = first > 0 ? list[first - 1] : null;
+  const focus = prev ?? chapterPositionsOf(doc)[0] ?? null;
+  return ok(s, { doc, focus, caret: "end" }, "deleteChunk");
+}
+
 /** A new COLUMN: every row (the header included) gains a trailing empty cell; a SCALAR row
  *  becomes a two-cell array (its text, then the fresh cell). Caret: this row's new cell. */
 export function appendColumn(s: ChapterState, cellPath: Path): ChapterState {
@@ -815,6 +848,7 @@ export function applyChapterIntent(s: ChapterState, intent: ChapterIntent, split
     case "dedent": return dedentEntry(s, path);
     case "appendRow": return appendRow(s, path);
     case "deleteRow": return deleteTableRow(s, path);
+    case "deleteChunk": return deleteChunk(s, intent.path ?? path);
     case "role": {
       // on the BOOT cell the role MATERIALIZES: an empty title to type into / a description
       if (s.focus?.at === "into") {

@@ -443,8 +443,17 @@ atom_focused: The caret stands ON an atom (a `*` pointer)
 # THE PROSE EXCEPTION governs Enter; THE FORMAT RULE governs Tab and the format commands.
 # Ctrl+Enter is THE TABLE GESTURE: outside a table it INITIATES one (the bar's table button
 # as a keystroke - the format command's gates apply), inside one it appends a ROW.
-# Closed intents: splitProse joinPrev joinNext nest unwrap indent dedent cellWalk appendRow
-# enterWalk move role format nop refuse. Re-choosing the ACTIVE format is idle (nop).
+# Closed intents: splitProse joinPrev joinNext deleteChunk nest unwrap indent dedent cellWalk
+# appendRow enterWalk move role format nop refuse. Re-choosing the ACTIVE format is idle (nop).
+# THE DELETION LAW (deleteChunk): Backspace at the start of an EMPTY chunk deletes THE CHUNK
+# (a non-empty chunk keeps joinPrev — deletion never eats text); the per-chunk 🗑 tool
+# dispatches the same intent carrying the chunk's path, so non-empty chunks, atoms, and
+# MATERIALIZED subchapters delete through the one verb without moving the caret. An untitled
+# group emptied by the removal is a husk and dissolves upward; a titled or member-backed
+# ancestor is a document, never a husk. The caret homes on the walk stop before the chunk;
+# the root never deletes (the boot cell remains). Server-side, removing a member document
+# DETACHES it and ARCHIVES its storage into the parent's `.yo/.trash/` (collision-suffixed,
+# post-commit — a mid-batch throw moves nothing): deletion is never a wall, never destroys.
 # THE FORMAT RULE is ITEM-LOCAL for "normal": ¶ in a list extracts THE ITEM (the list splits
 # around it; a single-item list dissolves) - the leaf->list wrap's exact inverse, so the
 # format cycle converges and committed labour survives.

@@ -156,6 +156,14 @@ A flat member with a clean subtree still moves — the pinned detach semantics. 
 holds the same line: a payload carrying member storage refuses as unserializable
 (`yed-sync.ts payloadOf`) instead of flattening.
 
+**THE DELETION LAW.** Backspace at the start of an EMPTY chunk deletes THE CHUNK (a
+non-empty one keeps joinPrev — deletion never eats text); the per-chunk 🗑 tool dispatches
+the same `deleteChunk` intent carrying the chunk's path, so non-empty chunks, atoms, and
+materialized subchapters delete through one verb. An untitled group emptied by the removal
+dissolves upward (the husk loop); the root never deletes. Server-side, removing a member
+document DETACHES it and its storage ARCHIVES into the parent's `.yo/.trash/`
+(collision-suffixed, strictly post-commit) — deletion is never a wall and never destroys.
+
 - **Subchapters** lay out inline as the SAME editor one level down; beyond the `?depth=`
   window they collapse to descend headings, and a session-born wrap stays editable in place.
   `isSubchapter` / `anchorOf` / `CHAPTER_META` come from `chapter-model.ts`.
