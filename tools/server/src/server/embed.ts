@@ -34,7 +34,9 @@ function firstContentIndent(lines: string[]): number {
  *  (JSON escapes — the subset the parser reads back). Mirrors how filenames with dots/spaces are
  *  authored as overlay keys (e.g. `"S0002-9904.pdf":`). */
 export function keyToken(key: string): string {
-  return /^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(key) ? key : JSON.stringify(key);
+  // an all-digit key must quote: a bare `12:` is a POSITION under the YAML-keys round,
+  // and the parser refuses it as a key outright
+  return /^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(key) && !/^\d+$/.test(key) ? key : JSON.stringify(key);
 }
 
 /** Line index of `key:` at exactly `indent` within [lo,hi); -1 once the mapping ends (a dedent

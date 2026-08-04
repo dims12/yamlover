@@ -72,3 +72,21 @@
 - Section sign (§) that is marked title #fragments in yed should be aligned with the title baseline +DONE
   (the § is IN FLOW on the heading's baseline now — absolute positioning floated the 12px glyph
   to the line top; self-cancelling margins keep it in the gutter without shifting the title)
+- 028 FOCUS observation (2026-08-04, dogfooding docs/server): in the yed chapter editor, after a
+  prose-chunk edit FLUSHES and the chunk re-renders, focus was seen landing on the TITLE input
+  instead of staying in the chunk (observed on a one-chunk page, caret at the chunk end past a
+  typed newline). THE FOCUS LAW says commits never lose the cell; reproduce and pin with a test.
+- 029 REFERENCE entry DECOMPOSED into portion cells (2026-08-04, supersedes 027's kit hosting):
+  pointer entry is now the key-value gesture repeated, wholly in the PURE editor - the cursor's
+  RefEntry (tools/yed/src/state.ts) carries the scope ladder + portion cells, the `portion`
+  grammar lives in grammar/dispatch.ts + grammar/portions.ts (`:` splits or climbs, `[` folds an
+  index, Backspace merges/descends, Enter joins and parses-or-refuses; cursor-level commits -
+  the document holds the OLD pointer or nothing until the reference parses). COMPLETION is an
+  optional advisory seam (tools/yed/src/complete.ts HintProvider): the debug editor answers from
+  the in-memory document (docHints - the pointer entrance pops server-free now), the server from
+  the live tree (renderers/yed-cells.tsx treeHints over GET /api/query). ServerPointerHole /
+  holePick / the kit hosting in the reference cells are RETIRED; the query-cell kit remains the
+  breadcrumb's and tag picker's. Docs: ::server:editor:pick-kit + the pointer_* state pages.
+  OPEN follow-up: the TOC filter session + TOC-click insertion no longer ride pointer entry -
+  if wanted back, re-plug the session as a side-channel of the hint seam (client/pointer-spell.ts
+  - spellPointer/spellCells, kept + tested - already spells a picked wire path into cells).

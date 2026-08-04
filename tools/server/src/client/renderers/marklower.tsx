@@ -46,14 +46,17 @@ function escapeHtml(s: string): string {
  *  it, then apply emphasis. Bold (`**`/`__`) runs before italic (`*`/`_`) so a
  *  double marker isn't mistaken for two single ones; non-greedy so neighbours don't
  *  merge. The markers (`* _ ~`) survive `escapeHtml`, so styling the escaped text
- *  is safe. */
+ *  is safe. An INTRA-WORD `_` is a literal character, not a marker (Markdown's rule,
+ *  kept for the same reason): technical prose is full of `snake_case_ids`, and
+ *  `unquoted_scalar_appending` must not italicize its middle. `*` keeps intra-word
+ *  emphasis - identifiers don't use it. */
 function styleText(text: string): string {
   return escapeHtml(text)
     .replace(/~~(.+?)~~/g, "<del>$1</del>")
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/__(.+?)__/g, "<strong>$1</strong>")
+    .replace(/(?<![A-Za-z0-9])__(.+?)__(?![A-Za-z0-9])/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/_(.+?)_/g, "<em>$1</em>");
+    .replace(/(?<![A-Za-z0-9])_(.+?)_(?![A-Za-z0-9])/g, "<em>$1</em>");
 }
 
 /** A link/embed label: may contain a balanced `[…]` (so a path used as its own label —

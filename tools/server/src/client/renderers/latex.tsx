@@ -11,13 +11,32 @@ import { Chunk } from "./registry";
  * chunk (`renderChunk`).
  *
  * `renderMath` is the one place KaTeX is invoked, exported so **marklower** can
- * reuse it for its inline `$$…$$` spans — math is rendered the same way whether it
+ * reuse it for its inline `$$...$$` spans - math is rendered the same way whether it
  * is a standalone `text/x-latex` string or embedded in marklower prose.
  */
+
+/** Map typographic punctuation KaTeX lacks metrics for onto TeX-safe forms.
+ *  Em/en dashes and ellipsis show up in authored math and in marklower examples
+ *  that quote `$$...$$`; without this, KaTeX warns (`No character metrics for '...'`)
+ *  and falls back to a broken glyph. */
+function normalizeMathSource(tex: string): string {
+  return tex
+    .replace(/\u2014/g, "\\text{\\textemdash}") // em dash
+    .replace(/\u2013/g, "\\text{\\textendash}") // en dash
+    .replace(/\u2212/g, "-") // minus sign
+    .replace(/\u2026/g, "\\ldots ") // ellipsis
+    .replace(/\uFFFD/g, "-"); // replacement char (corrupt UTF-8)
+}
+
 export function renderMath(tex: unknown, displayMode: boolean): string {
   // `throwOnError: false` makes KaTeX emit the offending source in red rather than
   // throwing, so a typo in one formula never blanks the whole page.
-  return katex.renderToString(String(tex ?? ""), { displayMode, throwOnError: false });
+  // `strict: "ignore"` keeps unknown Unicode from spamming the console once normalized.
+  return katex.renderToString(normalizeMathSource(String(tex ?? "")), {
+    displayMode,
+    throwOnError: false,
+    strict: "ignore",
+  });
 }
 
 export function LatexView({ node }: { node: NodeJson }) {

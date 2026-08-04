@@ -3225,7 +3225,7 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
     const at = entry ? entry.start
       : seg !== undefined && entries.length ? entries[entries.length - 1].end
       : bodyAppendPoint(lines, r);
-    lines.splice(at, 0, ...renderNode(payloadFacets(valueSrc), r.indent, key !== undefined ? `${key}: ` : "- ", metaTag(meta, undefined, false)));
+    lines.splice(at, 0, ...renderNode(payloadFacets(valueSrc), r.indent, key !== undefined ? `${keyToken(key)}: ` : "- ", metaTag(meta, undefined, false)));
     return;
   }
 
@@ -3354,9 +3354,25 @@ function reachChapterItem(lines: string[], indices: number[]): { parent: Region;
 /** True once the item at `[item.start,item.end)` already has keyed fields at `fieldIndent` (an omni
  *  node) — a `key:` line at exactly that column (its block-scalar content sits deeper). */
 function itemHasFields(lines: string[], item: ChapterEntry, fieldIndent: number): boolean {
+  // A BLOCK-headed item pins its content indent to the FIRST content line after the header (the
+  // YAML rule). Content AT the field column is the PLAIN form: the whole tail is scalar content,
+  // and a "key: ..." line inside the folded prose is text, not a field (misreading it spliced a
+  // fresh block over the first line only and orphaned the rest -- the reported chunk mangle).
+  // Content one step deeper is the OMNI form: block lines (>= content indent) skip; a "key:"
+  // line at exactly the field column is a real field.
+  const blockHeaded = isBlockHeader(entryHead(lines, item));
+  let contentIndent: number | null = null;
   for (let i = item.start + 1; i < item.end; i++) {
     if (!isContentLine(lines[i])) continue;
     const ind = indentOf(lines[i]);
+    if (blockHeaded) {
+      if (contentIndent === null) {
+        if (ind <= fieldIndent) return false; // the plain form: everything is block content
+        contentIndent = ind;
+        continue;
+      }
+      if (ind >= contentIndent) continue; // still block content
+    }
     if (ind < fieldIndent) break;
     if (ind === fieldIndent && /^[^\s-][^:]*:(\s|$)/.test(lines[i].trim())) return true;
   }
@@ -4209,7 +4225,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
             const selfSrc = [head, ...rest].join("\n").replace(/\s+$/, "");
             const childVal = String(e.yamlover ?? "");
             if (childVal && !isPointerValue(childVal)) parseYamlover(childVal, "<edit>");
-            const marker = e.key !== undefined ? `${String(e.key)}: ` : "- ";
+            const marker = e.key !== undefined ? `${keyToken(String(e.key))}: ` : "- ";
             const childLines = renderEntry(childVal, 0, marker, metaTag(e.meta, undefined, false));
             memberSrc = [selfSrc, ...childLines].filter((l, i) => !(i === 0 && l === "")).join("\n");
           }
@@ -4421,6 +4437,9 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       if (valueSrc && !isPointerValue(valueSrc)) parseYamlover(valueSrc, "<edit>");
       src = editChapterSource(src, o.within, o.op, valueSrc, meta, o.key, o.at);
     }
+    // the SPLICED document must itself parse: a surgical bug must 400 with the file untouched,
+    // never persist a corrupt body (the reported orphaned block lines)
+    parseYamlover(src, bodyFile);
     pendingWrites.push([bodyFile, src]);
   }
   for (const [file, jedits] of jsonByFile) {

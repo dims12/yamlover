@@ -52,11 +52,23 @@ export function inlineMd(n: Node): string {
     const t = inner.trim();
     return /^https?:\/\//.test(href) && t ? `[${t}](${href})` : inner;
   }
-  if (tag === "strong" || tag === "b") return inner.trim() ? `**${inner.trim()}**` : "";
-  if (tag === "em" || tag === "i") return inner.trim() ? `*${inner.trim()}*` : "";
+  if (tag === "strong" || tag === "b") return emphasis(inner, "**");
+  if (tag === "em" || tag === "i") return emphasis(inner, "*");
   if (tag === "code") return inner.trim() ? "`" + inner.trim() + "`" : "";
-  if (tag === "del" || tag === "s" || tag === "strike") return inner.trim() ? `~~${inner.trim()}~~` : "";
+  if (tag === "del" || tag === "s" || tag === "strike") return emphasis(inner, "~~");
   return inner;
+}
+
+/** An emphasis inner with its boundary whitespace HOISTED outside the markers - trimming it
+ *  away changed text the user never touched (`**` + ` is` re-read as `**is`, the reported
+ *  eaten spaces), and `** text**` does not parse as emphasis anyway. All-whitespace content
+ *  keeps the whitespace (dropping it glued the neighboring words together). */
+function emphasis(inner: string, mark: string): string {
+  const lead = /^\s*/.exec(inner)![0];
+  const core = inner.slice(lead.length).replace(/\s+$/, "");
+  if (!core) return inner;
+  const trail = inner.slice(lead.length + core.length);
+  return `${lead}${mark}${core}${mark}${trail}`;
 }
 
 /** A contentEditable subtree → marklower text. A chunk is inline-only markup, but the browser

@@ -48,3 +48,19 @@ describe("inlineMd — media becomes an embed token", () => {
     expect(domToMarklower(d)).toBe("a **bold** [link](https://x.y)");
   });
 });
+
+describe("inlineMd - emphasis boundary whitespace is HOISTED, never eaten", () => {
+  // trimming the inner glued the neighbors together on round-trip: `<strong> is ... an </strong>`
+  // came back as `**is ... an**` and the flush rewrote text the user never touched
+  it("moves leading/trailing spaces outside the markers", () => {
+    expect(one("<b> is an optional field, and </b>")).toBe(" **is an optional field, and** ");
+    expect(one("<i>tail </i>")).toBe("*tail* ");
+    expect(one("<s> lead</s>")).toBe(" ~~lead~~");
+  });
+
+  it("keeps an all-whitespace emphasis as the whitespace (never glue the words)", () => {
+    const d = document.createElement("div");
+    d.innerHTML = "left<b> </b>right";
+    expect(domToMarklower(d)).toBe("left right");
+  });
+});

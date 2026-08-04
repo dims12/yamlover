@@ -591,7 +591,8 @@ describe("/api/edit — creating objects (concrete)", () => {
     // past-end append: lands AFTER the bare self line, exactly where it was typed
     const r1 = await callBody(h, "POST", "/api/edit", { path: ":days.yo[1]", op: "insert", key: "12", yamlover: "tue" });
     expect(r1.status).toBe(200);
-    expect(fs.readFileSync(path.join(root, "days.yo"), "utf8")).toBe("- mon\n12\n12: tue\n");
+    // the numeric STRING key is quoted on write - a bare `12:` is a position (YAML-keys round)
+    expect(fs.readFileSync(path.join(root, "days.yo"), "utf8")).toBe('- mon\n12\n"12": tue\n');
     // mid-list: splices BEFORE entry [1], keyed — unlike a fresh keyed emplace (top of block)
     const r2 = await callBody(h, "POST", "/api/edit", { path: ":list.yo[1]", op: "insert", key: "k", yamlover: '"v"' });
     expect(r2.status).toBe(200);
@@ -1813,5 +1814,53 @@ describe("/api/edit — removing an ORPHANED member archives its storage (never 
     // the projection no longer surfaces it
     const j = (await nodeJson(h, { path: ":doc", depth: "1" })).json as { value: Record<string, unknown> };
     expect(JSON.stringify(j.value)).not.toContain("orphan text");
+  });
+});
+
+describe("/api/edit - a PLAIN folded chunk whose prose looks like keys (the chunk-mangle regression)", () => {
+  // A `- >` block with content AT the child column is the PLAIN form: every deeper-or-equal
+  // line is scalar content. A content line like "omni one: the node's ..." must NOT read as a
+  // keyed field (itemHasFields) - misreading it made the emplace replace only the first content
+  // line and orphan the rest, leaving an unparseable file on disk (a `**...` orphan line then
+  // read as a pointer: "a key containing a space must be quoted").
+  const PROSE_BODY =
+    "Title line\n" +
+    "description: d\n" +
+    "- >\n" +
+    "  A chapter is **just an omni (`variant`) node** - a **fully**\n" +
+    "  omni one: the node's own scalar **self-value is the title** (there is no `title:` key),\n" +
+    "  **`description`** is an optional keyed field, and everything else is positional.\n" +
+    "  element**. There is one interleaved body stream - no `chunks`\n" +
+    "  array and no `children` array.\n" +
+    "- second chunk\n";
+
+  it("emplace replaces the WHOLE block and the file still parses", async () => {
+    const { root, h } = await chapterHandlers({ "doc/.yo/body.yo": PROSE_BODY });
+    const payload =
+      ">-\n" +
+      "  A chapter is **just an omni (`variantX`) node** - a **fully**\n" +
+      "  omni one: the node's own scalar **self-value is the title** (there is no `title:` key),\n" +
+      "  edited tail.";
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc:1", op: "emplace", yamlover: payload });
+    expect(r.status).toBe(200);
+    const out = bodyOf(root);
+    expect(out).toContain("variantX");
+    expect(out, "no orphaned lines of the old block").not.toContain("array and no");
+    const j = (await nodeJson(h, { path: ":doc", depth: ".inf" })).json as { value: unknown };
+    const items = body(j as { value: unknown });
+    expect(items.length).toBe(2);
+    expect(String(items[0])).toContain("edited tail");
+    expect(String(items[1])).toBe("second chunk");
+  });
+
+  it("a splice that would corrupt the document 400s with the file untouched", async () => {
+    // the post-splice parse gate: whatever surgical bug produces an unparseable body must
+    // refuse to write (this drives the gate with a payload that splices fine but cannot
+    // reparse in place - an over-deep block header the entry grammar rejects)
+    const { root, h } = await chapterHandlers({ "doc/.yo/body.yo": PROSE_BODY });
+    const before = bodyOf(root);
+    const r = await callBody(h, "POST", "/api/edit", { path: ":doc:1", op: "emplace", yamlover: "x: [unclosed" });
+    expect(r.status).toBe(400);
+    expect(bodyOf(root), "the document must be untouched").toBe(before);
   });
 });

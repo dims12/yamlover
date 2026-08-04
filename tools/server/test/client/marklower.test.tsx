@@ -56,6 +56,31 @@ describe("marklower (the default format for bare strings)", () => {
     expect(container.querySelectorAll("em")).toHaveLength(1);
   });
 
+  it("leaves an intra-word _ literal (snake_case ids stay whole - Markdown's rule)", () => {
+    const { container } = render(
+      <MarklowerChunk chunk={chunk("unquoted_scalar_appending and empty_cell_of_origin")} onNavigate={noop} />,
+    );
+    expect(container.querySelector("em")).toBeNull();
+    expect(container.textContent).toBe("unquoted_scalar_appending and empty_cell_of_origin");
+  });
+
+  it("keeps whole-word _italic_ and __bold__ working next to snake_case", () => {
+    const { container } = render(
+      <MarklowerChunk chunk={chunk("_it_ meets snake_case_id and __b__")} onNavigate={noop} />,
+    );
+    expect(container.querySelector("em")?.textContent).toBe("it");
+    expect(container.querySelector("strong")?.textContent).toBe("b");
+    expect(container.textContent).toContain("snake_case_id");
+  });
+
+  it("keeps snake_case whole inside a link label", () => {
+    const { container } = render(
+      <MarklowerChunk chunk={chunk("[unquoted_scalar_appending](:target)")} onNavigate={noop} />,
+    );
+    expect(container.querySelector("a")?.textContent).toBe("unquoted_scalar_appending");
+    expect(container.querySelector("em")).toBeNull();
+  });
+
   it("renders ~~strikethrough~~ as <del>", () => {
     const { container } = render(<MarklowerChunk chunk={chunk("~~gone~~")} onNavigate={noop} />);
     expect(container.querySelector("del")?.textContent).toBe("gone");
