@@ -346,11 +346,37 @@ describe("ChapterView — inline subchapters", () => {
     expect(onNav).toHaveBeenCalledWith(":dogs"); // still navigable
   });
 
-  it("a POINTER CYCLE stops the recursion instead of fetching forever", () => {
+  // THE REFERENCE RULE (subchapter.tsx): only a chapter's own DIRECT child inlines. A pointer
+  // anywhere else — an ancestor ("above"), another subtree ("forward") — is a CITATION, and
+  // both directions read the same: the navigable heading link, marked ↗, never inlined.
+  it("a pointer at an ANCESTOR (the page root) is a reference — a link, never a fetch loop", () => {
     // the subchapter points back at the page root — an unguarded `.inf` budget would loop
     const { container } = render(<ChapterView node={withSub(":")} onNavigate={vi.fn()} />);
     expect(fetchNode).not.toHaveBeenCalled();
-    expect(container.querySelector(".chapter-link-note")?.textContent).toContain("↻");
+    expect(container.querySelector("a.descend")).not.toBeNull();
+    expect(container.querySelector(".chapter-link-note")?.textContent).toContain("↗");
+  });
+
+  it("a pointer at ANOTHER subtree (a forward reference) is the SAME link face — never inlined", async () => {
+    const onNav = vi.fn();
+    // the page is `:json5`; the member cites `:json:boolean` — a different subtree entirely
+    const page = {
+      ...withSub(":json:boolean"),
+      path: ":json5", documentPath: ":json5",
+    } as unknown as NodeJson;
+    const { container } = render(<ChapterView node={page} onNavigate={onNav} />);
+    expect(fetchNode).not.toHaveBeenCalled(); // cited, not loaded — nothing to inline
+    const link = container.querySelector("a.descend")!;
+    expect(link.textContent).toBe("Dogs"); // the target's own title labels the link
+    expect(container.querySelector(".chapter-link-note")?.textContent).toContain("↗");
+    fireEvent.click(link);
+    expect(onNav).toHaveBeenCalledWith(":json:boolean");
+  });
+
+  it("a pointer at the chapter's own GRANDCHILD is a reference too — only a direct child inlines", () => {
+    const { container } = render(<ChapterView node={withSub(":dogs:puppies")} onNavigate={vi.fn()} />);
+    expect(fetchNode).not.toHaveBeenCalled();
+    expect(container.querySelector(".chapter-link-note")?.textContent).toContain("↗");
   });
 
   it("an INLINE subchapter (a container in the chapter's own source) needs no fetch", async () => {

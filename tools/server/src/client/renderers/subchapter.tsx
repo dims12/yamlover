@@ -1,12 +1,18 @@
 // A subchapter rendered INLINE, one nesting level per component (CHAPTER.md, chapter.tsx).
 //
 // A chapter page reads as ONE document: its subchapters are laid out in place, indented, under
-// their own heading — not as links that navigate away. Two shapes reach us and both must inline:
+// their own heading — not as links that navigate away. Three shapes reach us:
 //
 //   - an INLINE subchapter (a container inside the chapter's own source) — its value is already
 //     in hand at the parent's fetch depth, nothing to load;
-//   - a POINTER/LINK subchapter (its own file or directory, `- *: dogs`) — it arrives as a
-//     `$yamloverLink` marker carrying its target `path`, and its content is FETCHED here.
+//   - a MEMBER subchapter (the chapter's own file or directory child, `- *: dogs`) — it arrives
+//     as a `$yamloverLink` marker carrying its target `path`, and its content is FETCHED here;
+//   - a REFERENCE (`- *..: …`, `- *:: …` — any pointer whose target is NOT this chapter's own
+//     direct child): a CITATION of another part of the book, not containment. It ALWAYS renders
+//     as the navigable heading link, marked `↗` — never inlined. Inlining would duplicate the
+//     cited chapter's content in place; and before this rule the two directions read as
+//     different things (a backward ref collapsed on the cycle guard, a forward ref inlined)
+//     when both are the same authored construct.
 //
 // Why per-level fetching rather than one deep fetch: the projection never inlines a `*` reference.
 // At a finite depth a reference RESOLVES to a summary link marker, at `.inf` it becomes pointer
@@ -22,7 +28,7 @@
 import { useEffect, useState } from "react";
 import { fetchNode, NodeJson } from "../api";
 import { asLink, asRef } from "../render";
-import { canonPath } from "../paths";
+import { canonPath, strToSegs } from "../paths";
 import { childPath } from "./chapter-model";
 
 /** The deepest nesting a page will inline, and the most subchapters it will pull in — a cheap,
@@ -84,15 +90,27 @@ export function subchapterTarget(marker: unknown): { path: string | null; linked
   return { path: null, linked: false };
 }
 
+/** CONTAINMENT: the target is the citing chapter's own DIRECT child — exactly what an anchored
+ *  member (`- *: dogs`) resolves to. Anything else (an ancestor, a cousin subtree, even the
+ *  chapter's own grandchild) is a REFERENCE, and a reference is cited, never inlined. */
+function isOwnMember(parentPath: string, target: string): boolean {
+  const p = strToSegs(canonPath(parentPath));
+  const t = strToSegs(canonPath(target));
+  return t.length === p.length + 1 && p.every((s, i) => s === t[i]);
+}
+
 /** One subchapter, inlined when the budget and the guards allow, else the page's heading link. */
 export function InlineSubchapter({
   marker, parentPath, absIndex, slot, level, budget, ancestors, onLoaded, renderBody, renderLink,
 }: InlineSubchapterProps) {
   const { path: target, linked } = subchapterTarget(marker);
   const link = asLink(marker);
+  // the reference rule (the module banner): only a chapter's OWN member inlines; a pointer
+  // anywhere else — above or forward — is a citation and keeps the link face, ALWAYS
+  const reference = linked && !!target && !isOwnMember(parentPath, target);
   const cyclic = !!target && ancestors.includes(canonPath(target));
   const capped = level > MAX_INLINE_LEVELS || ancestors.length > MAX_INLINE_NODES;
-  const allowed = budget > 0 && !cyclic && !capped;
+  const allowed = budget > 0 && !reference && !cyclic && !capped;
   const needsFetch = allowed && linked && !!target;
 
   const [node, setNode] = useState<NodeJson | null>(null);
@@ -112,7 +130,7 @@ export function InlineSubchapter({
 
   const asLinkFace = (note?: string) => renderLink({ path: target ?? undefined, title: link?.title, level, id: slot, note });
 
-  if (!allowed) return asLinkFace(cyclic ? "↻ already shown above" : undefined);
+  if (!allowed) return asLinkFace(reference ? "↗" : cyclic ? "↻ already shown above" : undefined);
   if (!linked) {
     // already in hand — render the parent's own value for this slot
     const nodePath = childPath(parentPath, absIndex);
