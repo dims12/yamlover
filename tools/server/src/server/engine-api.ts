@@ -9,7 +9,7 @@
  * Endpoints (path is JSON-space: `/key[0]/sub`):
  *   GET /api/info                         breadcrumb head (root label)
  *   GET /api/tree?path&depth              the TOC subtree
- *   GET /api/json?path&depth&binary       the node value (depth-limited; nested = link markers)
+ *   GET /api/content/{slash-path}?depth   THE ONE WIRE — the node as a yamlover envelope
  *   GET /api/schema?path&depth            the instance schema
  *   GET /api/blob?path                    a file-backed node's raw bytes
  *   GET /api/thumb?path&w&h                a lazily-generated thumbnail of a file-backed blob
@@ -20,7 +20,7 @@
  *   GET /api/dangling                     pointers that did not resolve at index time
  *   POST /api/reindex                     manual reconcile (the watcher's fallback)
  *   GET  /api/source?path=P               the node's yamlover SOURCE (the yed editor's load)
- *   POST /api/preview                     render a STANDALONE yamlover text as /api/json would (stateless)
+ *   POST /api/preview                     render a STANDALONE yamlover text as a content envelope (stateless)
  *   POST /api/edit-text                   the /api/edit ops over a standalone text → new text (stateless)
  *
  * The on-disk index lives at <root>/.yo/index.db. It is a derived cache with a persistent
@@ -89,9 +89,9 @@ interface Options {
 }
 
 // Marker keys + types the client recognizes (must match src/client expectations).
+// ($yamloverBinary / $yamloverMixed retired with the JSON wire — the client mints them
+//  in derive-node.ts now; the server still speaks $yamloverLink / $yamloverRef stubs.)
 const LINK_KEY = "$yamloverLink";
-const BINARY_KEY = "$yamloverBinary";
-const MIXED_KEY = "$yamloverMixed"; // an omni/mix node: a self-value and/or interleaved items+fields
 // A reference shown AS a reference: its yamlover pointer `text` (the scope-correct colon spelling),
 // hyperlinked to where it resolves (`path`). The client renders the pointer text — a LOCAL target
 // (inside the rendered subtree) becomes an in-page `#` fragment link, else it navigates. Distinct
@@ -685,6 +685,9 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               const written = writeTag(dataRoot, settings.tags, name);
               s.addTag(storePath(strToSegs(settings.tags)), name, written.pos, written.node);
               if (s.node(storePath(segs))?.format !== TAG_FORMAT) throw new Error(`the created tag did not index as a tag: ${tagPath}`);
+              // the merged IR must see the new tag too — /api/content serves cachedDoc, and
+              // "moments later" is after the client's immediate re-fetch of the created tag
+              await doReindexFile(written.file); // writeTag returns the ABSOLUTE body path
               announce(written.createdFile ? { added: [written.file] } : { changed: [written.file] });
               return { path: tagPath, name, color: null, created: true };
             }),
@@ -868,9 +871,9 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       }
 
       // Render a STANDALONE yamlover text (no file behind it — e.g. the client's browser-settings
-      // document, stored in localStorage) exactly as /api/json would render a node: parse, index
-      // into a throwaway in-memory store, project. STATELESS — touches neither the served tree nor
-      // the live index. Body: { source }.
+      // document, stored in localStorage) as a CONTENT ENVELOPE, exactly as /api/content serves a
+      // node: parse, index into a throwaway in-memory store, build the envelope. STATELESS —
+      // touches neither the served tree nor the live index. Body: { source }.
       if (req.method === "POST" && url.pathname === "/api/preview") {
         readBody(req)
           .then((data) => {
@@ -1133,36 +1136,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       // concrete (unlimited for a text document, one level for a directory / binary).
       const viewDepth = depth === undefined ? defaultDepth(s, dataRoot, segs, row, kind) : depth;
 
-      if (url.pathname === "/api/json") {
-        // Gate the byte fetch on the binary VALUE FACET (a blob), not the display `kind`: an image
-        // that also owns overlay entries (thumbnails/fragments/annotations) reads as `variant`/omni,
-        // but its bytes are still fetchable via ?binary=1. For such an omni the projection is KEPT —
-        // the bytes fill the mixed marker's self-value slot (otherwise null: bytes never sit in the
-        // store's value column) — so the entries and the base64 arrive together.
-        const wantBytes = row.type === "blob" && url.searchParams.get("binary") === "1";
-        let value: unknown;
-        if (!wantBytes) value = projectValue(dataRoot, s, segs, viewDepth, true);
-        else if (kind !== "omni") value = binaryContent(dataRoot, segs, row);
-        else {
-          const projected = projectValue(dataRoot, s, segs, viewDepth, true) as Record<string, { value?: unknown }>;
-          const marker = projected[MIXED_KEY];
-          if (marker) marker.value = binaryContent(dataRoot, segs, row);
-          value = projected;
-        }
-        sendJson(res, 200, {
-          path: segsToStr(segs),
-          type: tocType(s, p, row),
-          format: row.format ?? null,
-          ...facetsOf(s, p, row), // valueType / hasKeyed / hasOrdinal — the renderer dispatch facets (TYPES.md §9)
-          concrete: concreteOf(s, dataRoot, segs, row), // the full per-node concrete taxonomy (stat + document language)
-          documentPath: documentPath(s, segs), // nearest enclosing document root (for `/…` links)
-          title: titleOf(s, p),
-          description: descriptionOf(s, p),
-          value,
-          comments: cachedDoc && !wantBytes ? collectComments(cachedDoc, segs, viewDepth) : {},
-          relations: buildRelations(dataRoot, s, segs),
-        });
-      } else if (url.pathname === "/api/schema") {
+      if (url.pathname === "/api/schema") {
         sendJson(res, 200, projectSchema(dataRoot, s, segs, viewDepth, true));
       } else {
         notFound(res, url);
@@ -1328,80 +1302,10 @@ function downstreamEntries(s: Store, p: string): { to: string; label: string | n
   return out;
 }
 
-/** A node value as plain JSON-able data. `depth` limits nesting; a container past the budget,
- *  or any non-top binary, becomes a `$yamloverLink` marker the client navigates on click. */
-function projectValue(dataRoot: string, s: Store, segs: Seg[], depth: number, top: boolean): unknown {
-  const p = storePath(segs);
-  const row = s.node(p)!;
-  const k = displayKind(s, p, row);
-  if (!top && depth <= 0) return linkMarker(dataRoot, s, segs);
-  if (k === "binary" && !top) return linkMarker(dataRoot, s, segs);
-  if (k === "binary") return { size: row.size, format: row.format }; // top binary header
-  // DOWNSTREAM entries in order — containment recursed, a forward `*` ref or an incoming `~`
-  // back-edge shown as a link marker to the downstream node (so a `chunks` array mixing inline
-  // blocks and `*sample.png` pointers is whole, and a child reached only by `~` still appears).
-  const kids = downstreamEntries(s, p);
-  const nullKeyed = nullKeyTargets(s, p); // the NULL-keyed entries — keyed, addressed by `~`
-  const currentDoc = documentRootSegs(s, segs); // frame for a reference's scope-correct pointer text
-  const project = (c: { to: string; label: string | null; pos: number | null; kind: string; raw?: string }) => {
-    if (c.kind === "contain") return projectValue(dataRoot, s, [...segs, childSegOf(c, nullKeyed)], depth - 1, false);
-    // an UNREALIZED ref (dangling / external — no local target): the authored pointer text,
-    // not hyperlinked (`path: null`), at any depth — there is nothing to link or summarize.
-    if (!c.to) return refMarker(c.raw ?? "", null);
-    // a reference (a forward `*` ref or an incoming `~` back-edge). At UNLIMITED depth show it AS a
-    // reference — its yamlover pointer text, hyperlinked — so the link syntax stays visible (and the
-    // possibly-cyclic graph is never inlined). At a FINITE depth it is RESOLVED to a navigable link
-    // marker (a `{ … }` summary of the target); since that only happens under an explicit finite
-    // `?depth=`, the `{ … }` marker means "truncated by the depth setting" everywhere it appears.
-    const targetSegs = storePathToSegs(c.to);
-    return depth === Infinity
-      ? refMarker(refPointerText(s, targetSegs, currentDoc), segsToStr(targetSegs))
-      : linkMarker(dataRoot, s, targetSegs);
-  };
-  // a FORMAT-STAMPED array (a tagged/derived x-yamlover-* container, e.g. an all-keyless
-  // nested table or list) keeps its format via the marker path below; a plain data array
-  // projects bare — the client cannot otherwise tell a tagged keyless table from data.
-  // A node with BODY-ANCHORED members (a dir-backed body that ordered them by pointer) always
-  // takes the marker path: their keys are storage provenance the client shows as derived `&`
-  // anchors, which a bare array projection would throw away.
-  const anchored = anchoredOf(row);
-  if (k === "array" && !row.format && !anchored.size) return kids.map(project);
-  if (k === "omni" || k === "mix" || k === "array") {
-    // A `$yamloverMixed` marker preserving source order: each entry is positional (`key: null` →
-    // a `- item`) or keyed (`key: "scale"` → `scale: …`); an omni also carries its self-value.
-    // `anchor: true` marks a member the BODY positioned by pointer: its key is a DERIVED storage
-    // anchor (`- &key value`). Members the body never named are the ordinary keyed remainder.
-    const entries = kids.map((c) => ({
-      key: c.label,
-      value: project(c),
-      ...(c.label !== null && anchored.has(c.label) ? { anchor: true } : {}),
-      // the NULL KEY (YAML's rule): a KEYED entry whose key is the null value — the client
-      // renders it `~: value` and addresses it by the `~` segment
-      ...(c.label === null && nullKeyed.has(c.to) ? { keyNull: true } : {}),
-    }));
-    const marker: Record<string, unknown> = { kind: k, entries };
-    // the node's stamped/derived format — an inlined container otherwise carries none, and the
-    // table renderer needs it to tell a CHAPTER cell from a nested table (MARKLOWER.md §Cells)
-    if (row.format) marker.format = row.format;
-    // the `!!yo` plain-yamlover mark: the node is exempt from the enclosing document's schema,
-    // so a structured consumer (the chapter view) hands it to the generic renderer
-    if (row.meta?.yo === true) marker.yo = true;
-    if (k === "omni") {
-      // the node's own scalar self-value (the `!!var 5`); a FILE-backed omni (an image carrying
-      // `yamlover-thumbnails`/annotations) shows its bytes as a navigable `< binary >`, not `null`
-      marker.value = row.type === "blob" ? binaryValueMarker(segs, row) : wireScalar(row.value);
-      // its authored display position among the entries (order-preserving; 0/absent → first)
-      if (typeof row.meta?.selfAt === "number") marker.selfAt = row.meta.selfAt;
-    }
-    return { [MIXED_KEY]: marker };
-  }
-  if (k === "object") {
-    const out: Record<string, unknown> = {};
-    for (const c of kids) out[c.label ?? String(c.pos)] = project(c);
-    return out;
-  }
-  return wireScalar(row.value); // scalar
-}
+// projectValue — the JSON wire's projection — is RETIRED (the one-wire migration, Stage 4):
+// the client derives its NodeJson from /api/content (derive-node.ts deriveNodeJson, pinned by
+// the derivation goldens). What survives here is what other routes still speak: linkMarker,
+// refMarker, refPointerText, downstreamEntries, wireScalar, childSegOf, projectSchema.
 
 // irNodeAt / collectComments (and the CommentBucket vocabulary) moved to
 // ../projection-comments.ts — PURE over the parser IR, shared with the client-side
@@ -1543,13 +1447,6 @@ function buildRelations(dataRoot: string, s: Store, segs: Seg[]): Record<string,
     put(key, s.node(src)?.format === TAG_FORMAT ? linkMarker(dataRoot, s, segs2) : refMarker(key, segsToStr(segs2)));
   }
   return out;
-}
-
-/** A binary leaf's bytes as a base64 payload (only when the leaf itself is selected). */
-function binaryContent(dataRoot: string, segs: Seg[], row: NodeRow): Record<string, unknown> {
-  const file = path.join(dataRoot, ...segs.map(String));
-  const bytes = fs.existsSync(file) ? fs.readFileSync(file) : Buffer.alloc(0);
-  return { [BINARY_KEY]: { format: row.format ?? null, size: row.size ?? bytes.length, base64: bytes.toString("base64") } };
 }
 
 interface TreeNode {
@@ -4549,11 +4446,6 @@ interface EditInput {
 // "yamlover" — nothing a standalone-document projection does can reach the real filesystem.
 const PREVIEW_ROOT = path.join(os.tmpdir(), ".yo-preview-nonexistent");
 
-/** The /api/json-shaped payload for a STANDALONE yamlover document (no file behind it — e.g. the
- *  client's browser-settings text): parse, index into a throwaway in-memory store, project at
- *  UNLIMITED depth. Depth is pinned to Infinity by design — a finite depth would emit
- *  `$yamloverLink` markers into a store no later request can reach. In-document pointers resolve
- *  to in-page refs; project/world-scope ones are unrealized and render as plain pointer text. */
 /** The envelope-builder capabilities over a Store — shared by the live tree route (members
  *  exist on disk) and the standalone preview (a throwaway in-memory index; nothing on disk). */
 function envelopeDeps(s: Store, dataRoot: string, membersOnDisk: boolean): EnvelopeDeps {
@@ -4802,15 +4694,6 @@ function defaultDepth(s: Store, dataRoot: string, segs: Seg[], row: NodeRow, kin
  *  or plain text when `path` is null (an unrealized ref: dangling or external). */
 function refMarker(text: string, path: string | null): Record<string, unknown> {
   return { [REF_KEY]: { text, path } };
-}
-
-/** A blob-backed node's own bytes AS a value slot — a navigable `< binary of N bytes >` link (never
- *  the raw bytes, which don't sit in the JSON tree). Used for an omni whose self-value is a file
- *  (an image with `yamlover-thumbnails`/annotations): clicking opens the file, not `null`. */
-function binaryValueMarker(segs: Seg[], row: NodeRow): Record<string, unknown> {
-  const info: Record<string, unknown> = { kind: "binary", type: "blob", path: segsToStr(segs), size: row.size };
-  if (row.format) info.format = row.format;
-  return { [LINK_KEY]: info };
 }
 
 /** A thumbnail box dimension from the query, clamped to a sane range so a request can't ask the

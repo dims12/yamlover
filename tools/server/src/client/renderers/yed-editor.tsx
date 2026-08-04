@@ -1,6 +1,7 @@
 // THE YED MOUNT — the @yamlover/yed reference editor behind the unlocked data view (EDITOR.md).
 // CONCRETE-AGNOSTIC by construction:
-// LOAD is the /api/json PROJECTION (depth `.inf`) converted to parser IR (yed-load.ts) — it
+// LOAD is the ONE WIRE (/api/content, depth `.inf`): the envelope's source parses with the
+// SHARED parser and the sidecar stamps what text cannot spell (yed-content-load.ts) — it
 // exists for every storage shape (flat files, dir-backed documents, bare directories, .yaml
 // bodies, deep nodes); PERSIST is an IR tree diff emitted as PER-NODE /api/edit ops
 // (yed-sync.ts) — the backend's concrete-inheritance rules route each write, and untouched

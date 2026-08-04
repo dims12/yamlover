@@ -7,6 +7,7 @@ import { Readable } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { decodeEnvelope } from "../src/client/content";
 import { deriveNodeJson } from "../src/client/derive-node";
+import { nodeJson } from "./node-json";
 
 /** POST /api/preview now answers `text/yamlover` (the content envelope) — post the source and
  *  derive the NodeJson the way the client does. */
@@ -70,7 +71,7 @@ describe("/api/preview (standalone yamlover text)", () => {
     await h.ready;
     const r = await previewNode(h, "a: [unclosed");
     expect(r.status).toBe(400);
-    expect(call(h, "/api/json", { path: ":name" }).json.value).toBe("Alice"); // tree unharmed
+    expect((await nodeJson(h, { path: ":name" })).json.value).toBe("Alice"); // tree unharmed
     h.close();
   });
 });

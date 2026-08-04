@@ -1,11 +1,11 @@
-// THE WIRE GOLDENS — the /api/json responses over the frozen deep fixture
-// (examples/74-deep-book): every TOC-addressable node × depth {0, 1, 2, default, .inf},
-// recorded under goldens/deep-book/depth-<d>.json.
+// THE DERIVATION GOLDENS — the NodeJson every renderer consumes, derived from /api/content
+// (the ONE WIRE) over the frozen deep fixture (examples/74-deep-book): every TOC-addressable
+// node × depth {0, 1, 2, default, .inf}, recorded under goldens/deep-book/depth-<d>.json.
 //
-// Purpose (the one-wire migration, Stage 0): pin the OLD wire byte-for-byte so the Stage-2
-// client derivation (`deriveNodeJson` over /api/content) can be proven EQUIVALENT while both
-// wires are live. After /api/json retires (Stage 4) these goldens flip role: they become the
-// derivation's own goldens — the shape every renderer still consumes.
+// These files were RECORDED FROM THE RETIRED /api/json wire (Stage 0) and the derivation was
+// proven byte-equivalent against it while both wires were live (the Stage-2 equivalence
+// gate). Now they pin the derivation itself: `deriveNodeJson(decodeEnvelope(...))` must keep
+// producing the exact projection the old server produced — the renderers' contract.
 //
 // RECORD: `RECORD_GOLDENS=1 npx vitest run test/wire-goldens.test.ts` rewrites the files.
 // The goldens directory carries `* -text` (byte-golden law) — record on LF, never hand-edit.
@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import { createHandlers, tmpExample } from "./helpers";
 import { call } from "./http";
+import { nodeJson } from "./node-json";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const GOLDEN_DIR = path.join(HERE, "goldens", "deep-book");
@@ -36,7 +37,7 @@ const collectPaths = (t: TreeRow, out: string[] = []): string[] => {
   return out;
 };
 
-describe("the wire goldens — /api/json over examples/74-deep-book", () => {
+describe("the derivation goldens — deriveNodeJson over /api/content, examples/74-deep-book", () => {
   it("every node × every depth matches the recorded wire", async () => {
     const h = createHandlers(tmpExample("74-deep-book"), { gitignore: false });
     await h.ready;
@@ -48,8 +49,8 @@ describe("the wire goldens — /api/json over examples/74-deep-book", () => {
     for (const d of DEPTHS) {
       const bucket: Record<string, unknown> = {};
       for (const p of paths) {
-        const r = call(h, "/api/json", { path: p, ...(d.param !== undefined ? { depth: d.param } : {}) });
-        expect(r.status, `GET /api/json ${p} depth=${d.name}`).toBe(200);
+        const r = await nodeJson(h, { path: p, ...(d.param !== undefined ? { depth: d.param } : {}) });
+        expect(r.status, `derive ${p} depth=${d.name}`).toBe(200);
         bucket[p] = r.json;
       }
       const file = path.join(GOLDEN_DIR, `depth-${d.name}.json`);

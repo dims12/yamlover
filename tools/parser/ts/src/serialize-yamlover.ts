@@ -65,6 +65,7 @@ class Emitter {
     if (root.meta?.schema !== undefined) this.out.push(schemaTagToken(root.meta.schema));
     const ents = root.entries ?? [];
     const kept = ents.filter((e) => !isAnchorizableBack(e)); // conv backs re-emit as anchors
+    let rootTrailingDone: Comment | undefined;
     if (root.kind === 'scalar') {
       // A root omni self-value is written among its entries at its AUTHORED position (`meta.selfAt`,
       // 0 = first) — order-preserving, though the value stays positionless DATA. The omni SHAPE
@@ -74,7 +75,14 @@ class Emitter {
       for (const tag of this.containerTags(root)) this.out.push(tag);
       const at = Math.min(root.meta?.selfAt ?? 0, ents.length);
       this.entries(ents.slice(0, at), 0);
+      const selfLineAt = this.out.length;
       this.selfLine(root, 0);
+      // the value-trailing remark rides the self LINE (emitTrailing's law, the root twin) —
+      // a block-scalar self keeps it below via the end-of-file push, never lost
+      if (this.comments && this.out.length === selfLineAt + 1) {
+        const t = (root.meta?.comments ?? []).find((c) => c.placement === 'trailing');
+        if (t) { this.out[selfLineAt] += ' #' + t.text; rootTrailingDone = t; }
+      }
       this.rootAnchors(root);
       this.entries(ents.slice(at), 0);
     } else if (kept.length === 0) {
@@ -97,7 +105,12 @@ class Emitter {
       this.entries(ents, 0);
     }
     // comments with no entry to host them (after the last entry, trailing-of-file)
-    if (this.comments) for (const c of root.meta?.comments ?? []) this.out.push('#' + c.text);
+    if (this.comments) {
+      for (const c of root.meta?.comments ?? []) {
+        if (c === rootTrailingDone) continue; // already on the self line
+        this.out.push('#' + c.text);
+      }
+    }
     return this.out.join('\n') + '\n';
   }
 

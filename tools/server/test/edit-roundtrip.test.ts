@@ -4,6 +4,7 @@ import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
 import { buildChapterModel, snapshotChapter, diffChapter, newProsePart } from "../src/client/renderers/chapter-model";
+import { nodeJson } from "./node-json";
 
 const DEFS = {
   "$defs/chapter": "type: variant\nproperties:\n  title:\n    type: string\n  description:\n    type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n",
@@ -34,7 +35,7 @@ describe("the editor round-trip", () => {
     await callBody(h, "POST", "/api/annotate", { target: ":doc[1]", tag: tag.json.path });
 
     // 1. build the model exactly as the client does (depth 1)
-    const node: any = call(h, "/api/json", { path: ":doc", depth: "1" }).json;
+    const node: any = (await nodeJson(h, { path: ":doc", depth: "1" })).json;
     const model = buildChapterModel(node);
     const committed = snapshotChapter(model);
 
@@ -50,7 +51,7 @@ describe("the editor round-trip", () => {
     expect(r.status).toBe(200);
 
     // 4. the document reads back as intended, and the comment + annotation survived
-    const after: any = call(h, "/api/json", { path: ":doc", depth: "3" }).json;
+    const after: any = (await nodeJson(h, { path: ":doc", depth: "3" })).json;
     expect(after.title).toBe("Renamed");
     expect(read()).toContain("# a hand-written comment that must survive");
     expect(read()).toContain("yamlover-annotations:");
@@ -64,7 +65,7 @@ describe("the editor round-trip", () => {
     model.chunks[2].text = "edited again";
     const edits2 = diffChapter(committed2, model);
     expect((await callBody(h, "POST", "/api/edit", { edits: edits2 })).status).toBe(200);
-    const after2: any = call(h, "/api/json", { path: ":doc", depth: "3" }).json;
+    const after2: any = (await nodeJson(h, { path: ":doc", depth: "3" })).json;
     const b2 = (after2.value.$yamloverMixed.entries as any[]).filter((e) => e.key == null).map((e) => e.value);
     expect(b2[2]).toBe("edited again");
   });

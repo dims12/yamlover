@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHandlers, tmpTree } from "./helpers";
 import { call, callBody } from "./http";
+import { nodeJson } from "./node-json";
 
 const bodyOf = (root: string, ...segs: string[]): string =>
   fs.readFileSync(path.join(root, ...segs, ".yo", "body.yo"), "utf8");
@@ -23,7 +24,7 @@ describe("flow round-trip, end to end", () => {
     expect(r.status, JSON.stringify(r.json)).toBe(200);
     expect(bodyOf(root, "d")).toBe("[12, 13, 14]\n"); // byte-for-byte, no block flattening
 
-    const j = call(h, "/api/json", { path: ":d", depth: ".inf" }).json as Wire;
+    const j = (await nodeJson(h, { path: ":d", depth: ".inf" })).json as Wire;
     expect(j.value).toEqual([12, 13, 14]);
     expect(j.comments[""]?.repr).toBe("yaml/flow"); // the style survived the walk + the index
   });
@@ -34,7 +35,7 @@ describe("flow round-trip, end to end", () => {
     await h.ready;
     expect((await callBody(h, "POST", "/api/edit", { path: ":d", op: "emplace", yamlover: "{a: [1, 2], b: 3}" })).status).toBe(200);
     expect(bodyOf(root, "d")).toBe("{a: [1, 2], b: 3}\n");
-    const j = call(h, "/api/json", { path: ":d", depth: ".inf" }).json as Wire;
+    const j = (await nodeJson(h, { path: ":d", depth: ".inf" })).json as Wire;
     expect(j.value).toEqual({ a: [1, 2], b: 3 });
     expect(j.comments[""]?.repr).toBe("yaml/flow");
     expect(j.comments["/a"]?.repr).toBe("yaml/flow"); // per NODE — nested flow needs its own bit
@@ -57,7 +58,7 @@ describe("flow round-trip, end to end", () => {
     const root = tmpTree({ "d/.yo/body.yo": "k:\n  - 1\n  - 2\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const j = call(h, "/api/json", { path: ":d", depth: ".inf" }).json as Wire;
+    const j = (await nodeJson(h, { path: ":d", depth: ".inf" })).json as Wire;
     expect(j.value).toEqual({ k: [1, 2] });
     expect(j.comments["/k"]?.repr).toBeUndefined(); // block is the default and costs nothing
   });

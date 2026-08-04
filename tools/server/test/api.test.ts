@@ -4,6 +4,7 @@ import path from "node:path";
 import { createHandlers } from "./helpers";
 import { tmpExample, tmpTree } from "./helpers";
 import { call, callBody } from "./http";
+import { nodeJson } from "./node-json";
 
 // Read endpoints, against DISPOSABLE COPIES of the example fixtures (indexing writes the
 // .yo/index.db cache into the served tree, so even reads must not target the repo).
@@ -28,13 +29,13 @@ describe("api endpoints (engine-backed)", () => {
     const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
     await h.ready;
     // hidden: not in the TOC (asserted above), not among the root projection's entries
-    const rootJson = call(h, "/api/json", { path: ":", depth: "1" }).json;
+    const rootJson = (await nodeJson(h, { path: ":", depth: "1" })).json;
     expect(Object.keys(rootJson.value as object)).not.toContain("yamlover");
     // reachable: direct navigation works and serves the grafted taxonomy
-    const tags = call(h, "/api/json", { path: ":yamlover:tags:colors" });
+    const tags = (await nodeJson(h, { path: ":yamlover:tags:colors" }));
     expect(tags.status).toBe(200);
     // reachable: project-scope pointers into it still resolve (schema application shows it)
-    const y = call(h, "/api/json", { path: ":yamlover" });
+    const y = (await nodeJson(h, { path: ":yamlover" }));
     expect(y.status).toBe(200);
     expect(Object.keys(y.json.value as object)).toContain("$defs");
   });
@@ -53,7 +54,7 @@ describe("api endpoints (engine-backed)", () => {
     ].join("\n");
     const h = createHandlers(tmpTree({ "t.yo": doc }), { gitignore: false });
     await h.ready;
-    const r = call(h, "/api/json", { path: ":t.yo", depth: "9" });
+    const r = (await nodeJson(h, { path: ":t.yo", depth: "9" }));
     expect(r.status).toBe(200);
     // the table projects with its rows intact; the anchors ALSO mint their alias keys
     // (anchors create real keys — spec'd), which must not disturb the ordinal rows
@@ -105,7 +106,7 @@ describe("api endpoints (engine-backed)", () => {
     // an object with a nested array child → the child projects as an array link marker
     const h = createHandlers(tmpTree({ ".yo/body.yo": "markup:\n- x: 1\n  y: 2\n- x: 3\n  y: 4\n" }), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":" });
+    const { json } = (await nodeJson(h, { path: ":" }));
     expect(json.type).toBe("object");
     expect(json.value.markup.$yamloverLink.kind).toBe("array");
   });
@@ -118,7 +119,7 @@ describe("api endpoints (engine-backed)", () => {
       ".yo/body.yo": "\"pic.png\":\n  yamlover-fragments:\n    f1:\n      type: rect\n      x: 1\n      y: 2\n      w: 3\n      h: 4\n",
     }), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":pic.png", binary: "1" });
+    const { json } = (await nodeJson(h, { path: ":pic.png", binary: "1" }));
     // the png owns embedded overlay entries (fragments), so it reads as `variant` — but its
     // binary VALUE facet is intact, so ?binary=1 still streams the bytes. The omni projection is
     // KEPT: the bytes fill the mixed marker's self-value slot, alongside the overlay entries.
@@ -140,7 +141,7 @@ describe("api endpoints (engine-backed)", () => {
   it("reports an unknown path as a 404", async () => {
     const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
     await h.ready;
-    const { status, json } = call(h, "/api/json", { path: ":nope" });
+    const { status, json } = (await nodeJson(h, { path: ":nope" }));
     expect(status).toBe(404);
     expect(json.error).toBeTruthy();
   });
@@ -156,7 +157,7 @@ describe("comment projection (/api/json)", () => {
   it("returns comments keyed by each node's fragment (leading/trailing/nested)", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":", depth: ".inf" });
+    const { json } = (await nodeJson(h, { path: ":", depth: ".inf" }));
     expect(json.comments.$head).toEqual([" banner"]); // head-of-file banner (carried onto the root)
     // `name` has a blank line before its comment block (banner ⏎⏎ # the name)
     expect(json.comments["/name"]).toEqual({ leading: [" the name"], trailing: [" who"], blankBefore: true });
@@ -167,7 +168,7 @@ describe("comment projection (/api/json)", () => {
   it("only projects comments within the depth budget (nested past it is omitted)", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":", depth: "1" });
+    const { json } = (await nodeJson(h, { path: ":", depth: "1" }));
     expect(json.comments["/name"]).toEqual({ leading: [" the name"], trailing: [" who"], blankBefore: true });
     expect(json.comments["/user/role"]).toBeUndefined(); // user's child is a link marker at depth 1
   });
@@ -180,7 +181,7 @@ describe("comment projection (/api/json)", () => {
       { gitignore: false },
     );
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":", depth: ".inf" });
+    const { json } = (await nodeJson(h, { path: ":", depth: ".inf" }));
     expect((json.comments["/boss"] as any).anchors).toEqual([": chief"]); // the `&: chief` path anchor
     expect((json.comments["/team/lead"] as any).pointer).toBe(": chief"); // authored pointer (colon form)
     expect((json.comments["/crew"] as any).tag).toBe("!!set"); // the `!!set` type tag
@@ -194,7 +195,7 @@ describe("comment projection (/api/json)", () => {
       { gitignore: false },
     );
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":", depth: ".inf" });
+    const { json } = (await nodeJson(h, { path: ":", depth: ".inf" }));
     // the representation lives in the concrete — the renderer reproduces it, never re-derives
     expect((json.comments["/clip"] as any).raw).toBe("|\none\ntwo");
     expect((json.comments["/strip"] as any).raw).toBe("|-\nsolo\nduo");
@@ -213,7 +214,7 @@ describe("comment projection (/api/json)", () => {
       { gitignore: false },
     );
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":", depth: ".inf" });
+    const { json } = (await nodeJson(h, { path: ":", depth: ".inf" }));
     expect((json.comments["/c"] as any)?.blankBefore).toBe(true); // blank line before c
     expect(json.comments["/b"]).toBeUndefined(); // b directly follows a — no blank
   });
@@ -221,7 +222,7 @@ describe("comment projection (/api/json)", () => {
   it("scopes comment keys to the viewed node", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":user", depth: ".inf" });
+    const { json } = (await nodeJson(h, { path: ":user", depth: ".inf" }));
     // relative to :user, the nested comment lands at /role (no /user prefix)
     expect(json.comments["/role"]).toEqual({ leading: [" nested"] });
   });
@@ -238,7 +239,7 @@ describe("reverse positional membership (~-) projection", () => {
   it("appends reverse members after owned entries, lexicographically, ADDITIVE (repetition kept)", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":items", depth: "2" });
+    const { json } = (await nodeJson(h, { path: ":items", depth: "2" }));
     const items = json.value as any[];
     expect(items[0]).toBe("alpha"); // owned entry first
     // then /dup twice (two ~- declarations — lists repeat), then /member
@@ -248,7 +249,7 @@ describe("reverse positional membership (~-) projection", () => {
   it("a !!set container dedups forward+reverse authoring to one membership", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":unique", depth: "2" });
+    const { json } = (await nodeJson(h, { path: ":unique", depth: "2" }));
     const items = json.value as any[];
     expect(items).toHaveLength(1);
     expect(items[0].$yamloverLink.path).toBe(":member");
@@ -257,7 +258,7 @@ describe("reverse positional membership (~-) projection", () => {
   it("reverse declarations do not change the member's own type", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":member", depth: "2" });
+    const { json } = (await nodeJson(h, { path: ":member", depth: "2" }));
     expect(json.type).toBe("object");
     expect(json.value.name).toBe("m");
   });
@@ -275,14 +276,14 @@ describe("render depth: .inf default + references as references", () => {
   it("defaults to UNLIMITED depth inside a document: the whole subtree inlines (no truncation marker)", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":adam" }); // no ?depth= → server default (.inf)
+    const { json } = (await nodeJson(h, { path: ":adam" })); // no ?depth= → server default (.inf)
     expect(json.value.deep.nested.leaf).toBe(1); // inlined all the way down
   });
 
   it("renders a reference AS a reference (its pointer text) at the default .inf depth", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":adam" });
+    const { json } = (await nodeJson(h, { path: ":adam" }));
     // the ref renders as a VALID yamlover deref token (`*` + canonical spaced colon path)
     expect(json.value.mother.$yamloverRef).toEqual({ text: "*: eve", path: ":eve" });
     expect(json.value.mother.$yamloverLink).toBeUndefined(); // not a { object … } marker
@@ -291,7 +292,7 @@ describe("render depth: .inf default + references as references", () => {
   it("?depth=.inf is unlimited (whole subtree, references as references)", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":adam", depth: ".inf" });
+    const { json } = (await nodeJson(h, { path: ":adam", depth: ".inf" }));
     expect(json.value.deep.nested.leaf).toBe(1);
     expect(json.value.mother.$yamloverRef.text).toBe("*: eve");
   });
@@ -299,7 +300,7 @@ describe("render depth: .inf default + references as references", () => {
   it("at an explicit FINITE depth a reference resolves to a navigable link marker; deep containment truncates", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":adam", depth: "1" });
+    const { json } = (await nodeJson(h, { path: ":adam", depth: "1" }));
     expect(json.value.mother.$yamloverLink.path).toBe(":eve"); // resolved → a link, not a $yamloverRef
     expect(json.value.mother.$yamloverRef).toBeUndefined();
     expect(json.value.deep.$yamloverLink).toBeTruthy(); // past the depth-1 budget → truncation marker
@@ -308,7 +309,7 @@ describe("render depth: .inf default + references as references", () => {
   it("a DIRECTORY defaults to ONE level (children are link markers, not inlined whole)", async () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
-    const { json } = call(h, "/api/json", { path: ":" }); // the served root = a .yo directory
+    const { json } = (await nodeJson(h, { path: ":" })); // the served root = a .yo directory
     expect(json.value.adam.$yamloverLink).toBeTruthy();
   });
 });
@@ -317,7 +318,7 @@ describe("the legacy `.yamlover` extension (YOMIGRATION.md §1 — read forever,
   it("a legacy standalone file serves like a native `.yo` one", async () => {
     const h = createHandlers(tmpTree({ "note.yamlover": "a: 1\nb: two\n" }), { gitignore: false });
     await h.ready;
-    const r = call(h, "/api/json", { path: ":note.yamlover" });
+    const r = (await nodeJson(h, { path: ":note.yamlover" }));
     expect(r.status).toBe(200);
     expect(r.json.value).toEqual({ a: 1, b: "two" });
   });

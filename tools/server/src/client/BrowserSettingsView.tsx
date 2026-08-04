@@ -1,7 +1,8 @@
 // The BROWSER SETTINGS page — the per-device settings document (browser-settings.ts), shown in
 // the same generic editable data view as the project settings node. The document lives in
 // localStorage, not on the server, so the round-trips are the STATELESS pair: /api/preview
-// projects the text exactly as /api/json projects a node, and edits go through /api/edit-text
+// renders the text as a content envelope (the client derives the NodeJson the same way
+// fetchNode does over /api/content), and edits go through /api/edit-text
 // (the same surgical ops as /api/edit) with the result persisted back into localStorage — the
 // editing context's `sink` reroutes the scalar leaves' commits here.
 

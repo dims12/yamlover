@@ -4,6 +4,7 @@ import path from "node:path";
 import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
+import { nodeJson } from "./node-json";
 
 // A TEXT fragment lives ON the chunk it was drawn in (ANNOTATIONS.md §3), NOT the whole chapter:
 // tagging a chunk's text turns that chunk into an omni node (its prose becomes a block-scalar
@@ -53,7 +54,7 @@ describe("chunk text fragments (ANNOTATIONS.md §3)", () => {
     expect(src).toMatch(/^ {2}yamlover-fragments:/m); // at the chunk's field indent (2)
 
     // the fragment node resolves at the chunk path
-    expect(call(h, "/api/json", { path: fragmentPath }).status).toBe(200);
+    expect((await nodeJson(h, { path: fragmentPath })).status).toBe(200);
 
     // /api/annotations on the CHAPTER aggregates the chunk fragment, carrying its owning node
     const list = call(h, "/api/annotations", { path: ":doc.yo" }).json as any[];

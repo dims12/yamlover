@@ -97,6 +97,7 @@ import { call } from "./http";
 import { captureAlerts, installFetch, settleOps } from "./edit-corpus-harness";
 import { YedChapterEditor } from "../src/client/renderers/yed-chapter-editor";
 import { ChapterFormatControl } from "../src/client/renderers/chapter-editor/format-control";
+import { nodeJson } from "./node-json";
 
 afterEach(cleanup);
 
@@ -666,7 +667,7 @@ describe("the yed chapter parity gate — roles and formats on disk", () => {
       const h2 = createHandlers(m.root, { gitignore: false });
       await h2.ready;
       try {
-        const j = call(h2, "/api/json", { path: ":d" }).json as {
+        const j = (await nodeJson(h2, { path: ":d" })).json as {
           value: { $yamloverMixed: { entries: { key: string | null; value: { $yamloverLink?: { format: string | null; title: string | null } } }[] } };
         };
         const member = j.value.$yamloverMixed.entries.find((e) => e.key === born[0]);

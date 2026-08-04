@@ -7,11 +7,10 @@ storage. All paths are **colon paths** (`:a:b:0` — keys and absolute entry ind
 address space; a positional segment may alias a keyed member). Errors are
 `{ error: string }` with a 4xx/5xx status.
 
-> The representation note (2026-08-03): `/api/json` serves the value DECODED into JSON with
-> `$yamlover*` markers for what JSON cannot say — a third format, neither the parser IR nor
-> yamlover text. The declared direction is to converge clients on YAMLOVER as the one wire
-> representation (parse in-browser with the shared `tools/parser`); this table documents
-> what exists today.
+> The representation note (2026-08-04): the ONE WIRE landed. `/api/json` is RETIRED — clients
+> fetch `/api/content` (a yamlover envelope), parse in-browser with the shared `tools/parser`,
+> and derive the legacy NodeJson shape locally (`src/client/derive-node.ts`, pinned by the
+> derivation goldens). Bytes ride `/api/blob`, never the text wire.
 
 ## Reading
 
@@ -19,7 +18,6 @@ address space; a positional segment may alias a keyed member). Errors are
 |---|---|---|---|
 | `/api/info` | GET | — | `{ root }` — the served root's display name (its title, else the folder name) |
 | `/api/tree` | GET | `path`, `depth` (default 3) | The TOC subtree: `TreeNode` rows (label, type, format, concrete, `hasChildren`), children to `depth` |
-| `/api/json` | GET | `path`, `depth` (`.inf` = unlimited; default per concrete), `binary=1` | The node projection: `{ path, type, format, valueType, hasKeyed, hasOrdinal, concrete, documentPath, title, description, value, comments, relations }`. `value` is the DECODED value; deeper-than-depth nodes are `$yamloverLink` markers, references `$yamloverRef`, omni/mix `$yamloverMixed`. `binary=1` on a blob inlines base64 bytes |
 | `/api/schema` | GET | `path`, `depth` | The node's derived instance schema |
 | `/api/content/{slash-path}` | GET | `depth` (document boundaries; default per concrete: dir=1, text=∞) | **THE YAMLOVER WIRE** (`text/yamlover`): a yamlover envelope — header keys, `source` (the merged-IR subtree serialized with comments; cut members respelled as their authored pointers `- *: name` / `name: *: name`; blobs always cut), `side` (fragment-keyed sidecar: `anchorKey`/`member` provenance, derived formats, resolved ref targets, cut-member `$yamloverLink` stubs), `relations`. The path rides IN the URL, slash-spelled (`/part-one/2`, digits = positions, `~` = null key) |
 | `/api/source` | GET | `path` | `{ source }` — the yamlover TEXT: the raw body file at a document root; a deeper node re-serializes its parsed subtree |
@@ -56,5 +54,5 @@ the diff over `/api/events`.
 
 | Endpoint | Method | Body | Does |
 |---|---|---|---|
-| `/api/preview` | POST | `{ source }` | Render a standalone yamlover text exactly as `/api/json` would (parse → throwaway index → project) — the browser-settings document's renderer |
+| `/api/preview` | POST | `{ source }` | Render a standalone yamlover text as a CONTENT ENVELOPE (`text/yamlover`), exactly as `/api/content` serves a node (parse → throwaway index → envelope) — the browser-settings document's renderer |
 | `/api/edit-text` | POST | `{ source, edits }` | The `/api/edit` ops applied to a standalone text; returns the new `{ source }` — the caller persists it |

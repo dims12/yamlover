@@ -240,7 +240,7 @@ export function newProsePart(text: string, format: string | null = "text/marklow
   return { id: freshId(), rev: 0, editable: true, text, format, concrete: "yamlover", subchapter: false, marker: null, absIndex: -1 };
 }
 
-/** Build the editing model from a chapter node's `/api/json` value (depth 1): its title/description
+/** Build the editing model from a chapter node's NodeJson value (depth 1): its title/description
  *  and its body elements as `$yamloverLink` markers. A body element is EDITABLE when it is an inlined
  *  prose scalar (its marker points at its OWN slot `<chapter>:i`); a subchapter or a marker pointing
  *  elsewhere (a `*…` file/pointer chunk) is a read-only part this iteration. */

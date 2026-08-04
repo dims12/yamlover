@@ -80,9 +80,15 @@ interface SideBucket {
 export function buildEnvelope(input: EnvelopeInput, deps: EnvelopeDeps): string {
   const side: Record<string, SideBucket> = {};
   // a BLOB request has no text form at all (bytes live behind /api/blob) — the source is
-  // empty and the header's type/size/format say everything
-  const pruned = (input.subtree as Node).kind === "blob"
-    ? ({ kind: "scalar", value: null } as unknown as Node)
+  // empty and the header's type/size/format say everything. A blob that OWNS overlay entries
+  // (an image carrying fragments/annotations — the blob-backed OMNI) keeps them: the entries
+  // are authored content, only the byte self-value has no spelling (the header's
+  // `valueType: binary` tells the derivation to mint the navigable binary self).
+  const sub = input.subtree as Node;
+  const pruned = sub.kind === "blob"
+    ? ((sub.entries ?? []).length === 0
+        ? ({ kind: "scalar", value: null } as unknown as Node)
+        : pruneClone({ ...sub, kind: "mapping" } as Node, input.segs, "", input.docDepth, side, deps))
     : pruneClone(input.subtree, input.segs, "", input.docDepth, side, deps);
   // the requested node's own head banner (a document root's meta.head) rides as Document.head
   const head = (pruned.meta as { head?: string[] } | undefined)?.head;

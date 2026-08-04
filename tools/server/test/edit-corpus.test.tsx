@@ -19,6 +19,7 @@ import { captureAlerts, installFetch, replay, settleOps } from "./edit-corpus-ha
 import { YedEditor } from "../src/client/renderers/yed-editor";
 import { parseYamlover } from "../../parser/ts/src/yamlover.ts";
 import { canonDoc } from "../../parser/ts/src/canon.ts";
+import { nodeJson } from "./node-json";
 
 const CORPUS = path.join(REPO, "edit-examples");
 const FIXTURE_ID = /^\d{4}(-\d{2})?$/;
@@ -116,7 +117,7 @@ async function runFixture(f: Fixture): Promise<string | null> {
 
     // 3. and the SERVER agrees about what is there (a splice the walker reads differently is a bug
     //    the bytes alone would hide)
-    const j = call(h, "/api/json", { path: ":note.yo", depth: ".inf" }).json as { value: unknown };
+    const j = (await nodeJson(h, { path: ":note.yo", depth: ".inf" })).json as { value: unknown };
     if (j === undefined) return "the document no longer projects";
     return null;
   } catch (e) {

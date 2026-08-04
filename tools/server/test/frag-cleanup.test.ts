@@ -4,6 +4,7 @@ import path from "node:path";
 import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
+import { nodeJson } from "./node-json";
 
 const TAG = "::yamlover:tags:colors:yellow";
 const TAG2 = "::yamlover:tags:colors:green";
@@ -21,19 +22,19 @@ describe("untagging the last tag deletes the empty fragment", () => {
     const f2 = await callBody(h, "POST", "/api/fragment", { target: ":docs:pic.png", selector: { type: "rect", x: 9, y: 9, w: 5, h: 5 } });
     await callBody(h, "POST", "/api/annotate", { target: f2.json.fragmentPath, tag: TAG });
 
-    const fragNode = (slug: string) => call(h, "/api/json", { path: `:docs:pic.png:yamlover-fragments:${slug}` });
+    const fragNode = (slug: string) => nodeJson(h, { path: `:docs:pic.png:yamlover-fragments:${slug}` });
 
     // remove ONE of f1's two tags → f1 still exists (one tag left)
     await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(f1.json.fragmentPath)}&tag=${encodeURIComponent(":yamlover:tags:colors:yellow")}`, {});
-    expect(fragNode(f1.json.slug).status).toBe(200); // still there
+    expect((await fragNode(f1.json.slug)).status).toBe(200); // still there
 
     // remove f1's LAST tag → the whole fragment node disappears
     await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(f1.json.fragmentPath)}&tag=${encodeURIComponent(":yamlover:tags:colors:green")}`, {});
-    expect(fragNode(f1.json.slug).status).toBe(404); // gone
+    expect((await fragNode(f1.json.slug)).status).toBe(404); // gone
 
     // sibling f2 (and the image host) untouched
-    expect(fragNode(f2.json.slug).status).toBe(200);
-    expect(call(h, "/api/json", { path: ":docs:pic.png" }).status).toBe(200);
+    expect((await fragNode(f2.json.slug)).status).toBe(200);
+    expect((await nodeJson(h, { path: ":docs:pic.png" })).status).toBe(200);
     expect(fs.existsSync(path.join(root, "docs", "pic.png"))).toBe(true);
     h.close();
   });
@@ -79,7 +80,7 @@ describe("untagging the last tag deletes the empty fragment", () => {
     // remove the last one → fragment deleted
     await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(FRAG)}&tag=${encodeURIComponent(":yamlover:tags:forth tag")}`, {});
     expect(tagged()).toHaveLength(0);
-    expect(call(h, "/api/json", { path: FRAG }).status).toBe(404);
+    expect((await nodeJson(h, { path: FRAG })).status).toBe(404);
     h.close();
   });
 
@@ -90,7 +91,7 @@ describe("untagging the last tag deletes the empty fragment", () => {
     const f = await callBody(h, "POST", "/api/fragment", { target: ":docs:pic.png", selector: { type: "rect", x: 1, y: 1, w: 5, h: 5 } });
     await callBody(h, "POST", "/api/annotate", { target: f.json.fragmentPath, tag: TAG });
     await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(f.json.fragmentPath)}&tag=${encodeURIComponent(":yamlover:tags:colors:yellow")}`, {});
-    expect(call(h, "/api/json", { path: ":docs:pic.png:yamlover-fragments" }).status).toBe(404);
+    expect((await nodeJson(h, { path: ":docs:pic.png:yamlover-fragments" })).status).toBe(404);
     h.close();
   });
 });

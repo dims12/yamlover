@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
+import { nodeJson } from "./node-json";
 
 // The TYPE FACETS the projection exposes for renderer dispatch (TYPES.md §9): valueType / hasKeyed
 // / hasOrdinal. The regression they fix: tagging a node turns it omni, but its value facet (format,
@@ -15,7 +16,7 @@ describe("type facets in /api/json", () => {
     const root = tmpTree({ "note.yo": "!!<format: text/markdown>\nHello markdown\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const j = call(h, "/api/json", { path: ":note.yo" }).json;
+    const j = (await nodeJson(h, { path: ":note.yo" })).json;
     expect(j.valueType).toBe("string");
     expect(j.hasKeyed).toBe(false);
     expect(j.hasOrdinal).toBe(false);
@@ -29,7 +30,7 @@ describe("type facets in /api/json", () => {
     await h.ready;
     expect((await callBody(h, "POST", "/api/annotate", { target: ":note.yo", tag: TAG })).status).toBe(201);
 
-    const j = call(h, "/api/json", { path: ":note.yo" }).json;
+    const j = (await nodeJson(h, { path: ":note.yo" })).json;
     expect(j.type).toBe("variant"); // the KIND flipped to omni…
     expect(j.format).toBe("text/markdown"); // …but the value facet's format SURVIVES
     expect(j.valueType).toBe("string"); // and its value type
@@ -42,7 +43,7 @@ describe("type facets in /api/json", () => {
     const root = tmpTree({ "docs/pic.png": "\x89PNG\r\n\x1a\n bytes" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const j = call(h, "/api/json", { path: ":docs:pic.png" }).json;
+    const j = (await nodeJson(h, { path: ":docs:pic.png" })).json;
     expect(j.valueType).toBe("binary");
     expect(j.hasKeyed).toBe(false);
     h.close();
@@ -52,7 +53,7 @@ describe("type facets in /api/json", () => {
     const root = tmpTree({ "obj.yo": "a: 1\nb: 2\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const j = call(h, "/api/json", { path: ":obj.yo" }).json;
+    const j = (await nodeJson(h, { path: ":obj.yo" })).json;
     expect(j.valueType).toBeNull();
     expect(j.hasKeyed).toBe(true);
     expect(j.hasOrdinal).toBe(false);

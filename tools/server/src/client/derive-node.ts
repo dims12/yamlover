@@ -1,9 +1,9 @@
-// THE DERIVATION — the old `/api/json` NodeJson shape computed CLIENT-SIDE from the yamlover
-// wire (content.ts). This is projectValue's twin over the parsed IR + sidecar: the ~20 read
-// renderers keep consuming the exact shape they always did, while the server speaks only
-// yamlover. Proven equivalent by test/wire-equivalence.test.ts over the deep-book fixture
-// (every node × every depth) while both wires are live; after /api/json retires, that suite's
-// goldens become THIS module's own.
+// THE DERIVATION — the retired `/api/json` NodeJson shape computed CLIENT-SIDE from the
+// yamlover wire (content.ts). This is projectValue's twin over the parsed IR + sidecar: the
+// ~20 read renderers keep consuming the exact shape they always did, while the server speaks
+// only yamlover. Proven equivalent against the live /api/json over the deep-book fixture
+// (every node × every depth) while both wires were live; the recorded responses now pin this
+// module as THE derivation goldens (test/wire-goldens.test.ts).
 //
 // The correspondences:
 //   - depth: the OLD units (every nesting level; `!top && depth <= 0` cuts) — reproduced
@@ -260,7 +260,9 @@ export function deriveNodeJson(content: Content, oldDepth?: number | null): Node
     ? { size: h.size, format: h.format ?? null }
     : emptyRoot && h.type === "object"
       ? {}
-      : deriveValue(content.doc.root, "", segs, depth, true, innerConcrete(concrete), { side: content.side });
+      : h.valueType === "binary"
+        ? blobOmniValue(content, segs, depth, concrete)
+        : deriveValue(content.doc.root, "", segs, depth, true, innerConcrete(concrete), { side: content.side });
   return {
     path: String(h.path ?? ":"),
     type: String(h.type ?? "object"),
@@ -276,6 +278,28 @@ export function deriveNodeJson(content: Content, oldDepth?: number | null): Node
     comments: isBinaryTop ? {} : (deriveComments(content, depth) as NodeJson["comments"]),
     relations: content.relations as NodeJson["relations"],
   } as NodeJson;
+}
+
+/** The blob-backed OMNI (an image carrying overlay entries — fragments/annotations): the old
+ *  wire spelled it as an omni marker whose SELF-VALUE is the navigable binary link
+ *  (binaryValueMarker) with the overlay entries alongside. The wire carries only the entries
+ *  (bytes have no text form); the self is minted here from the header facets. */
+function blobOmniValue(content: Content, segs: Seg[], depth: number, concrete: string): unknown {
+  const h = content.header;
+  const self: Record<string, unknown> = { kind: "binary", type: "blob", path: segsToStr(segs), size: h.size };
+  if (h.format != null) self.format = h.format;
+  const derived = deriveValue(content.doc.root, "", segs, depth, true, innerConcrete(concrete), { side: content.side });
+  const m = (derived as Record<string, { entries?: unknown[] }> | null)?.[MIX];
+  const entries = m?.entries
+    ?? (Array.isArray(derived)
+      ? derived.map((value) => ({ key: null, value }))
+      : derived !== null && typeof derived === "object"
+        ? Object.entries(derived as Record<string, unknown>).map(([key, value]) => ({ key, value }))
+        : []);
+  const marker: Record<string, unknown> = { kind: "omni", entries };
+  if (h.format != null) marker.format = h.format;
+  marker.value = { [LINK]: self };
+  return { [MIX]: marker };
 }
 
 /** collectComments over the parsed source — minus the artifacts of the wire's own spelling:

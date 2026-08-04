@@ -7,6 +7,7 @@ import path from "node:path";
 import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers.js";
 import { call, callBody } from "./http.js";
+import { nodeJson } from "./node-json";
 
 describe("POST /api/mv", () => {
   it("moves a file, rewrites the referrer on disk, and the node answers at the new path", async () => {
@@ -28,7 +29,7 @@ describe("POST /api/mv", () => {
     expect(fs.readFileSync(path.join(root, "refs.yo"), "utf8")).toBe("link: *:: new.md\n");
     expect(fs.existsSync(path.join(root, "old.md"))).toBe(false);
 
-    const node = call(h, "/api/json", { path: ":new.md" });
+    const node = (await nodeJson(h, { path: ":new.md" }));
     expect(node.status).toBe(200);
     const dangling = call(h, "/api/dangling", {});
     expect(dangling.json).toEqual([]);

@@ -8,6 +8,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers.ts";
 import { call, callBody } from "./http.ts";
+import { nodeJson } from "./node-json";
 
 async function handlers(root: string, opts: Parameters<typeof createHandlers>[1] = {}) {
   const h = createHandlers(root, { gitignore: false, ...opts });
@@ -34,7 +35,7 @@ describe("reconcile: external edits reach the index", () => {
     expect(r.status).toBe(200);
     expect(r.json).toEqual({ added: ["b.md"], changed: [], removed: [], moved: [] });
     expect(treeLabels(h)).toEqual(["a.md", "b.md"]);
-    expect(call(h, "/api/json", { path: ":b.md" }).json.value).toBe("# b");
+    expect((await nodeJson(h, { path: ":b.md" })).json.value).toBe("# b");
   });
 
   it("a deleted file disappears, an edited one re-reads", async () => {
@@ -46,7 +47,7 @@ describe("reconcile: external edits reach the index", () => {
     const r = await callBody(h, "POST", "/api/reindex");
     expect(r.json).toEqual({ added: [], changed: ["b.yo"], removed: ["a.md"], moved: [] });
     expect(treeLabels(h)).toEqual(["b.yo"]);
-    expect(call(h, "/api/json", { path: ":b.yo:x" }).json.value).toBe(2);
+    expect((await nodeJson(h, { path: ":b.yo:x" })).json.value).toBe(2);
   });
 
   it("the persisted index survives a restart without a re-walk being wrong", async () => {

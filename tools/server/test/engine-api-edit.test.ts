@@ -4,6 +4,7 @@ import path from "node:path";
 import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
+import { nodeJson } from "./node-json";
 
 // The WRITE endpoint /api/edit — surgical source-text edits of any `.yo` document, against
 // synthetic temp trees (never the repo's own examples/). It splices lines rather than reserializing,
@@ -54,7 +55,7 @@ describe("/api/edit — scalars", () => {
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc:title", op: "emplace", yamlover: '"New Title"' });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toContain('title: "New Title"');
-    expect(call(h, "/api/json", { path: ":doc" }).json.title).toBe("New Title");
+    expect((await nodeJson(h, { path: ":doc" })).json.title).toBe("New Title");
   });
 
   it("adds a description when the chapter has none", async () => {
@@ -64,7 +65,7 @@ describe("/api/edit — scalars", () => {
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc:description", op: "emplace", yamlover: '"A subtitle"' });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toContain('description: "A subtitle"');
-    expect(call(h, "/api/json", { path: ":doc" }).json.description).toBe("A subtitle");
+    expect((await nodeJson(h, { path: ":doc" })).json.description).toBe("A subtitle");
   });
 
   it("removes a keyed entry", async () => {
@@ -72,7 +73,7 @@ describe("/api/edit — scalars", () => {
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc:description", op: "remove" });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).not.toContain("description:");
-    expect(call(h, "/api/json", { path: ":doc" }).json.description).toBeNull();
+    expect((await nodeJson(h, { path: ":doc" })).json.description).toBeNull();
   });
 
   it("edits a subchapter title (descend to the subchapter at [4], then its `title` key)", async () => {
@@ -80,7 +81,7 @@ describe("/api/edit — scalars", () => {
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[4]:title", op: "emplace", yamlover: '"Renamed"' });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toContain('title: "Renamed"');
-    expect(call(h, "/api/json", { path: ":doc[4]", depth: "3" }).json.title).toBe("Renamed");
+    expect((await nodeJson(h, { path: ":doc[4]", depth: "3" })).json.title).toBe("Renamed");
   });
 });
 
@@ -92,15 +93,15 @@ describe("/api/edit — entries", () => {
     const { h } = await chapterHandlers();
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "emplace", yamlover: "|-\n  Goodbye **world**" });
     expect(r.status).toBe(200);
-    expect(body(call(h, "/api/json", { path: ":doc", depth: "3" }).json)[0]).toBe("Goodbye **world**");
-    expect(body(call(h, "/api/json", { path: ":doc", depth: "3" }).json)[1]).toBe("first line\nsecond line\n"); // untouched
+    expect(body((await nodeJson(h, { path: ":doc", depth: "3" })).json)[0]).toBe("Goodbye **world**");
+    expect(body((await nodeJson(h, { path: ":doc", depth: "3" })).json)[1]).toBe("first line\nsecond line\n"); // untouched
   });
 
   it("replaces a multi-line block-scalar chunk whole", async () => {
     const { h } = await chapterHandlers();
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[3]", op: "replace", yamlover: "|-\n  one\n  two\n  three" });
     expect(r.status).toBe(200);
-    const b = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json);
+    const b = body((await nodeJson(h, { path: ":doc", depth: "3" })).json);
     expect(b[0]).toBe("Hello");
     expect(b[1]).toBe("one\ntwo\nthree");
   });
@@ -109,7 +110,7 @@ describe("/api/edit — entries", () => {
     const { h } = await chapterHandlers();
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[3]", op: "insert", yamlover: "|-\n  inserted" });
     expect(r.status).toBe(200);
-    const b = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json);
+    const b = body((await nodeJson(h, { path: ":doc", depth: "3" })).json);
     expect(b.slice(0, 3)).toEqual(["Hello", "inserted", "first line\nsecond line\n"]);
   });
 
@@ -117,7 +118,7 @@ describe("/api/edit — entries", () => {
     const { h } = await chapterHandlers();
     await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "insert", yamlover: "|-\n  top" });
     await callBody(h, "POST", "/api/edit", { path: ":doc", op: "insert", yamlover: "|-\n  bottom" });
-    const b = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json);
+    const b = body((await nodeJson(h, { path: ":doc", depth: "3" })).json);
     expect(b[0]).toBe("top");
     expect(b[1]).toBe("Hello");
     expect(b[b.length - 1]).toBe("bottom"); // after the last positional item (the subchapter)
@@ -127,7 +128,7 @@ describe("/api/edit — entries", () => {
     const { h } = await chapterHandlers();
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[99]", op: "insert", yamlover: "|-\n  last" });
     expect(r.status).toBe(200);
-    const b = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json);
+    const b = body((await nodeJson(h, { path: ":doc", depth: "3" })).json);
     expect(b[b.length - 1]).toBe("last");
   });
 
@@ -135,14 +136,14 @@ describe("/api/edit — entries", () => {
     const { h } = await chapterHandlers();
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "remove" });
     expect(r.status).toBe(200);
-    expect(body(call(h, "/api/json", { path: ":doc", depth: "3" }).json)[0]).toBe("first line\nsecond line\n");
+    expect(body((await nodeJson(h, { path: ":doc", depth: "3" })).json)[0]).toBe("first line\nsecond line\n");
   });
 
   it("edits a chunk inside a subchapter — the inline `title` consumes index 0 there too", async () => {
     const { h } = await chapterHandlers();
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[4][1]", op: "emplace", yamlover: "|-\n  Deep edit" });
     expect(r.status).toBe(200);
-    expect(body(call(h, "/api/json", { path: ":doc[4]", depth: "3" }).json)[0]).toBe("Deep edit");
+    expect(body((await nodeJson(h, { path: ":doc[4]", depth: "3" })).json)[0]).toBe("Deep edit");
   });
 });
 
@@ -157,7 +158,7 @@ describe("/api/edit — batch", () => {
       ],
     });
     expect(r.status).toBe(200);
-    const b = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json);
+    const b = body((await nodeJson(h, { path: ":doc", depth: "3" })).json);
     expect(b.slice(0, 3)).toEqual(["Hel", "lo", "first line\nsecond line\n"]);
   });
 
@@ -172,7 +173,7 @@ describe("/api/edit — batch", () => {
     });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toContain('title: "Batched"');
-    const b = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json);
+    const b = body((await nodeJson(h, { path: ":doc", depth: "3" })).json);
     expect(b[0]).toBe("H2");
     expect(b).not.toContain("first line\nsecond line\n");
   });
@@ -192,8 +193,8 @@ describe("/api/edit — batch", () => {
       ],
     });
     expect(r.status).toBe(200);
-    expect(body(call(h, "/api/json", { path: ":a", depth: "3" }).json)[0]).toBe("one!");
-    expect(call(h, "/api/json", { path: ":b" }).json.title).toBe("B2");
+    expect(body((await nodeJson(h, { path: ":a", depth: "3" })).json)[0]).toBe("one!");
+    expect((await nodeJson(h, { path: ":b" })).json.title).toBe("B2");
   });
 });
 
@@ -210,7 +211,7 @@ describe("/api/edit — facets", () => {
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toContain("yamlover-annotations:"); // the keyed facet stood
     // the chunk is now an omni node — its prose under the annotation overlay
-    const chunk = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json)[0] as { $yamloverMixed: { value: string } };
+    const chunk = body((await nodeJson(h, { path: ":doc", depth: "3" })).json)[0] as { $yamloverMixed: { value: string } };
     expect(chunk.$yamloverMixed.value).toBe("edited prose");
   });
 
@@ -228,10 +229,10 @@ describe("/api/edit — facets", () => {
     });
     await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "emplace", yamlover: "|-\n  \\sqrt{2}" });
     expect(bodyOf(root)).toContain("!!<format: text/x-latex>");
-    expect(call(h, "/api/json", { path: ":doc[1]" }).json.format).toBe("text/x-latex");
+    expect((await nodeJson(h, { path: ":doc[1]" })).json.format).toBe("text/x-latex");
 
     await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "emplace", meta: "format: text/markdown", yamlover: "|-\n  # H" });
-    expect(call(h, "/api/json", { path: ":doc[1]" }).json.format).toBe("text/markdown");
+    expect((await nodeJson(h, { path: ":doc[1]" })).json.format).toBe("text/markdown");
 
     await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "emplace", meta: null });
     expect(bodyOf(root)).not.toContain("!!<format:");
@@ -317,17 +318,17 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toMatch(/^New Title$/m); // authored PLAIN — the safe quoted payload unquotes
     expect(bodyOf(root)).not.toMatch(/^T$/m);
-    expect(call(h, "/api/json", { path: ":doc" }).json.title).toBe("New Title");
+    expect((await nodeJson(h, { path: ":doc" })).json.title).toBe("New Title");
   });
 
   it("a title the bare line would misread KEEPS its quotes (an entry opener, a number)", async () => {
     const { root, h } = await omniChapterHandlers();
     await callBody(h, "POST", "/api/edit", { path: ":doc", op: "emplace", yamlover: '"note: to self"' });
     expect(bodyOf(root)).toContain('"note: to self"'); // bare it would open a keyed entry
-    expect(call(h, "/api/json", { path: ":doc" }).json.title).toBe("note: to self");
+    expect((await nodeJson(h, { path: ":doc" })).json.title).toBe("note: to self");
     await callBody(h, "POST", "/api/edit", { path: ":doc", op: "emplace", yamlover: '"30"' });
     expect(bodyOf(root)).toContain('"30"'); // bare it would read as a number
-    expect(call(h, "/api/json", { path: ":doc" }).json.title).toBe("30");
+    expect((await nodeJson(h, { path: ":doc" })).json.title).toBe("30");
   });
 
   it("an EMPTY payload drops the title line (an untitled chapter has no self-value at all)", async () => {
@@ -335,7 +336,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "emplace", yamlover: '""' });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).not.toMatch(/^T$/m);
-    expect(call(h, "/api/json", { path: ":doc" }).json.title).toBeNull();
+    expect((await nodeJson(h, { path: ":doc" })).json.title).toBeNull();
   });
 
   it("an EXPLICITLY EMPTY payload at the root CLEARS the body — the banner and comments stand", async () => {
@@ -370,7 +371,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "emplace", yamlover: '"Fresh"' });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toBe("!!<*yamlover: $defs: chapter>\nFresh\n- Hello\n");
-    expect(call(h, "/api/json", { path: ":doc" }).json.title).toBe("Fresh");
+    expect((await nodeJson(h, { path: ":doc" })).json.title).toBe("Fresh");
   });
 
   it("a FRESH self-value with `at` lands at its typed position — order kept (REPRESENTATION RULE)", async () => {
@@ -382,7 +383,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toBe("- solid\n|\n  A block-scalar self-value\n  multi-line text\n- recommended\nscale: 10\n");
-    const v = call(h, "/api/json", { path: ":doc" }).json.value as { $yamloverMixed?: { selfAt?: number } };
+    const v = (await nodeJson(h, { path: ":doc" })).json.value as { $yamloverMixed?: { selfAt?: number } };
     expect(v.$yamloverMixed?.selfAt).toBe(1); // the projection keeps the authored position too
   });
 
@@ -416,7 +417,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     await callBody(h, "POST", "/api/edit", { path: ":doc", op: "emplace", yamlover: '"Renamed"' });
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "emplace", yamlover: "|-\n  Goodbye" });
     expect(r.status).toBe(200);
-    const b = body(call(h, "/api/json", { path: ":doc", depth: "3" }).json);
+    const b = body((await nodeJson(h, { path: ":doc", depth: "3" })).json);
     expect(b[0]).toBe("Goodbye");
     expect(b[1]).toBe("first line\nsecond line\n");
   });
@@ -426,7 +427,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[3]", op: "emplace", yamlover: '"Renamed Sub"' });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toContain("- Renamed Sub\n  - First"); // plain — the safe payload unquotes
-    expect(call(h, "/api/json", { path: ":doc[3]", depth: "3" }).json.title).toBe("Renamed Sub");
+    expect((await nodeJson(h, { path: ":doc[3]", depth: "3" })).json.title).toBe("Renamed Sub");
   });
 
   it("an EMPTY payload on a subchapter un-titles it (its body survives as a compact container)", async () => {
@@ -434,7 +435,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[3]", op: "emplace", yamlover: '""' });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toContain("- - First");
-    expect(call(h, "/api/json", { path: ":doc[3]", depth: "3" }).json.title).toBeNull();
+    expect((await nodeJson(h, { path: ":doc[3]", depth: "3" })).json.title).toBeNull();
   });
 
   it("inserts a titled subchapter whole: a `\"Title\"\\n- chunk` payload becomes an item directory", async () => {
@@ -448,7 +449,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     // chapter TITLE convenience needs the tag — the chapter flows pass meta/concrete explicitly.
     expect(bodyOf(root)).toContain("- *: item01");
     expect(fs.readFileSync(path.join(root, "doc", "item01", ".yo", "body.yo"), "utf8")).toBe('"T2"\n- "c1"\n');
-    const j = call(h, "/api/json", { path: ":doc:item01", depth: "3" }).json;
+    const j = (await nodeJson(h, { path: ":doc:item01", depth: "3" })).json;
     expect((j.value as { $yamloverMixed?: { value?: unknown } }).$yamloverMixed?.value).toBe("T2");
     expect(j.concrete).toBe("dir/yamlover");
   });
@@ -462,7 +463,7 @@ describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node'
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[1]", op: "emplace", yamlover: '"Added title"' });
     expect(r.status).toBe(200);
     expect(bodyOf(root)).toContain("- Added title\n  - first chunk\n  - second chunk");
-    const sub = call(h, "/api/json", { path: ":doc[1]", depth: "3" }).json;
+    const sub = (await nodeJson(h, { path: ":doc[1]", depth: "3" })).json;
     expect(sub.title).toBe("Added title");
   });
 });
@@ -481,7 +482,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     expect(r.status).toBe(200);
     expect(r.json.path).toBe(":doc:5"); // after title(0)/description(1)/Hello(2)/block(3)/Sub(4)
     expect(bodyOf(root)).toContain('title: "Fresh"');
-    const node = call(h, "/api/json", { path: ":doc[5]", depth: "3" });
+    const node = (await nodeJson(h, { path: ":doc[5]", depth: "3" }));
     expect(node.json.format).toBe("x-yamlover-chapter");
     expect(body(node.json)).toEqual([""]); // one empty, immediately-editable chunk
   });
@@ -493,7 +494,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     expect(fs.existsSync(path.join(root, "doc", "Linked.yo"))).toBe(true); // dir-backed doc → inside doc/
     expect(bodyOf(root)).toContain("- *: Linked.yo");
     expect(r.json.path).toBe(":doc:Linked.yo"); // navigates to the linked doc's own node
-    expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
+    expect((await nodeJson(h, { path: r.json.path })).json.format).toBe("x-yamlover-chapter");
   });
 
   it("child linked dir: writes an order-numbered <NN-name>/.yo/body.yo + a pointer", async () => {
@@ -503,7 +504,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     expect(fs.existsSync(path.join(root, "doc", "01-SubDir", ".yo", "body.yo"))).toBe(true);
     expect(bodyOf(root)).toContain("- *: 01-SubDir");
     expect(r.json.path).toBe(":doc:01-SubDir");
-    expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
+    expect((await nodeJson(h, { path: r.json.path })).json.format).toBe("x-yamlover-chapter");
   });
 
   it("a UNICODE name stays readable (pointer-safe): «Заголовок части» → Заголовок_части, not underscores", async () => {
@@ -516,7 +517,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     expect(fs.existsSync(path.join(root, "doc", "01-Заголовок_части", ".yo", "body.yo"))).toBe(true);
     expect(bodyOf(root)).toContain("- *: 01-Заголовок_части");
     // the member resolves as a chapter and edits address it by its KEYED path
-    expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
+    expect((await nodeJson(h, { path: r.json.path })).json.format).toBe("x-yamlover-chapter");
     const r2 = await callBody(h, "POST", "/api/edit", { path: `${r.json.path}[0]`, op: "emplace", yamlover: "Первый абзац" });
     expect(r2.status).toBe(200);
     expect(fs.readFileSync(path.join(root, "doc", "01-Заголовок_части", ".yo", "body.yo"), "utf8")).toContain("Первый абзац");
@@ -545,7 +546,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     const r = await callBody(h, "POST", "/api/edit", { path: ":dir", op: "insert", concrete: "file/yamlover", name: "New Note", meta: CHAP, yamlover: BODY });
     expect(r.status).toBe(200);
     expect(fs.existsSync(path.join(root, "dir", "New Note.yo"))).toBe(true);
-    expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
+    expect((await nodeJson(h, { path: r.json.path })).json.format).toBe("x-yamlover-chapter");
   });
 
   it("member dir: a directory-backed chapter in a directory", async () => {
@@ -555,7 +556,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     const r = await callBody(h, "POST", "/api/edit", { path: ":dir", op: "insert", concrete: "dir/yamlover", name: "New Dir", meta: CHAP, yamlover: BODY });
     expect(r.status).toBe(200);
     expect(fs.existsSync(path.join(root, "dir", "New Dir", ".yo", "body.yo"))).toBe(true);
-    expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-chapter");
+    expect((await nodeJson(h, { path: r.json.path })).json.format).toBe("x-yamlover-chapter");
   });
 
   it("untagged NODE member: no `meta`, no body — an EMPTY generic yamlover document", async () => {
@@ -565,14 +566,14 @@ describe("/api/edit — creating objects (concrete)", () => {
     const r = await callBody(h, "POST", "/api/edit", { path: ":dir", op: "insert", concrete: "dir/yamlover", name: "New node" });
     expect(r.status).toBe(200);
     expect(fs.readFileSync(path.join(root, "dir", "New node", ".yo", "body.yo"), "utf8")).toBe("\n");
-    const node = call(h, "/api/json", { path: r.json.path }).json;
+    const node = (await nodeJson(h, { path: r.json.path })).json;
     expect(node.format).toBeNull(); // no schema meta — a plain node, not a chapter
     expect(node.value).toBeNull(); // an empty document, NOT an empty-string scalar
     expect(node.concrete).toBe("dir/yamlover");
     // the first token lands via a root emplace — `12` becomes the integer scalar 12
     const e = await callBody(h, "POST", "/api/edit", { path: r.json.path, op: "emplace", yamlover: "12" });
     expect(e.status).toBe(200);
-    expect(call(h, "/api/json", { path: r.json.path }).json.value).toBe(12);
+    expect((await nodeJson(h, { path: r.json.path })).json.value).toBe(12);
   });
 
   it("rejects creating against a scalar — it backs no document and is no directory", async () => {
@@ -606,7 +607,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc.yo[0]", op: "emplace", yamlover: "scalar\n- element" });
     expect(r.status).toBe(200);
     expect(fs.readFileSync(path.join(root, "doc.yo"), "utf8")).toBe("- scalar\n  - element\n");
-    const j = call(h, "/api/json", { path: ":doc.yo", depth: ".inf" }).json as { value: { $yamloverMixed: { kind: string; value: unknown; entries: unknown[] } }[] };
+    const j = (await nodeJson(h, { path: ":doc.yo", depth: ".inf" })).json as { value: { $yamloverMixed: { kind: string; value: unknown; entries: unknown[] } }[] };
     const m = j.value[0].$yamloverMixed;
     expect(m.kind).toBe("omni");
     expect(m.value).toBe("scalar");
@@ -622,7 +623,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     const src = fs.readFileSync(path.join(root, "pets.yo"), "utf8");
     expect(src).toContain("pets:");
     expect(src).toContain("- name: Rex"); // the compact dash form, as the client serializes it
-    const j = call(h, "/api/json", { path: ":pets.yo", depth: ".inf" }).json as { value: unknown };
+    const j = (await nodeJson(h, { path: ":pets.yo", depth: ".inf" })).json as { value: unknown };
     expect(j.value).toEqual({ pets: [{ name: "Rex" }] });
   });
 
@@ -639,7 +640,7 @@ describe("/api/edit — creating objects (concrete)", () => {
       { path: ":n.yo", op: "emplace", yamlover: "A Title" },
     ] });
     expect(r.status).toBe(200);
-    const j = call(h, "/api/json", { path: ":n.yo", depth: ".inf" }).json as { value: unknown };
+    const j = (await nodeJson(h, { path: ":n.yo", depth: ".inf" })).json as { value: unknown };
     expect(j.value).toEqual({
       $yamloverMixed: {
         kind: "omni", value: "A Title", // selfAt 0 is elided by the projection
@@ -662,7 +663,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     expect(r.status).toBe(200);
     const src = fs.readFileSync(path.join(root, "n.yo"), "utf8");
     expect(src).not.toContain('""'); // the placeholder line LEFT
-    const j = call(h, "/api/json", { path: ":n.yo", depth: ".inf" }).json as { value: unknown };
+    const j = (await nodeJson(h, { path: ":n.yo", depth: ".inf" })).json as { value: unknown };
     expect(j.value).toEqual({ pets: [{ name: "Rex" }] });
   });
 
@@ -676,7 +677,7 @@ describe("/api/edit — creating objects (concrete)", () => {
     const abs = path.join(root, "dir", "New Folder");
     expect(fs.statSync(abs).isDirectory()).toBe(true);
     expect(fs.readdirSync(abs)).toEqual([]); // truly empty — no .yo marker, no body file
-    expect(call(h, "/api/json", { path: r.json.path }).json.concrete).toBe("dir");
+    expect((await nodeJson(h, { path: r.json.path })).json.concrete).toBe("dir");
   });
 
   it("bare folder inside a dir-backed chapter: a keyed member, the parent's body UNTOUCHED", async () => {
@@ -720,7 +721,7 @@ describe("/api/edit — standalone chapter file", () => {
     expect(r.status).toBe(200);
     const src = fs.readFileSync(path.join(root, "статья.yo"), "utf8");
     expect(src).toContain("Пока"); // re-emitted losslessly (block scalar) — verify the parsed value
-    expect(call(h, "/api/json", { path: at }).json.value).toBe("Пока");
+    expect((await nodeJson(h, { path: at })).json.value).toBe("Пока");
   });
 });
 
@@ -754,7 +755,7 @@ describe("/api/edit — general data files (yaml/json)", () => {
     expect(out).toContain("age: 5");
     expect(out).toContain("active: false");
     expect(out).toContain("- z");
-    expect(call(h, "/api/json", { path: ":pet.yaml:age" }).json.value).toBe(5);
+    expect((await nodeJson(h, { path: ":pet.yaml:age" })).json.value).toBe(5);
   });
 
   it("descends a keyed `key:` → sequence → item and edits an inline field (regression: no phantom entry)", async () => {
@@ -768,7 +769,7 @@ describe("/api/edit — general data files (yaml/json)", () => {
     const out = read(root, "z.yaml");
     expect(out).toContain("- name: Rex1");
     expect(out).toContain("- name: Whiskers"); // the other item untouched
-    expect(call(h, "/api/json", { path: ":z.yaml:pets[0]:name" }).json.value).toBe("Rex1");
+    expect((await nodeJson(h, { path: ":z.yaml:pets[0]:name" })).json.value).toBe("Rex1");
   });
 
   it("edits scalar values in a .json file by SPAN surgery — comments and flow formatting survive", async () => {
@@ -917,7 +918,7 @@ describe("/api/edit — flow-row cells (a table's `- [a, b, c]`, MARKLOWER.md)",
   it("the edited cell round-trips through /api/json", async () => {
     const { h } = await tableHandlers();
     await callBody(h, "POST", "/api/edit", { path: ":doc[1][2][2]", op: "emplace", yamlover: "|-\n  the boss" });
-    const json = call(h, "/api/json", { path: ":doc[1][2]", depth: ".inf" }).json as { value: unknown[] };
+    const json = (await nodeJson(h, { path: ":doc[1][2]", depth: ".inf" })).json as { value: unknown[] };
     expect(json.value[2]).toBe("the boss");
   });
 });
@@ -938,11 +939,11 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     const r = await callBody(h, "POST", "/api/edit", { path: ":d", op: "emplace", yamlover: "12" });
     expect(r.status).toBe(200);
     expect(dBody(root)).toBe("12\n");
-    expect(call(h, "/api/json", { path: ":d" }).json.value).toBe(12);
+    expect((await nodeJson(h, { path: ":d" })).json.value).toBe(12);
     // a second emplace REPLACES the line in place (the body now exists — the ordinary route)
     const r2 = await callBody(h, "POST", "/api/edit", { path: ":d", op: "emplace", yamlover: '"hello"' });
     expect(r2.status).toBe(200);
-    expect(call(h, "/api/json", { path: ":d" }).json.value).toBe("hello");
+    expect((await nodeJson(h, { path: ":d" })).json.value).toBe("hello");
   });
 
   it("keyed SCALAR insert into a bodyless dir lands in the body overlay", async () => {
@@ -952,7 +953,7 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     const r = await callBody(h, "POST", "/api/edit", { path: ":d[0]", op: "insert", key: "scale", yamlover: "10" });
     expect(r.status).toBe(200);
     expect(dBody(root)).toContain("scale: 10");
-    expect((call(h, "/api/json", { path: ":d", depth: ".inf" }).json.value as Record<string, unknown>).scale).toBe(10);
+    expect(((await nodeJson(h, { path: ":d", depth: ".inf" })).json.value as Record<string, unknown>).scale).toBe(10);
   });
 
   it("keyed CONTAINER insert becomes a NESTED real directory, recursively", async () => {
@@ -965,7 +966,7 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     expect(fs.readFileSync(path.join(root, "d", "sub", ".yo", "body.yo"), "utf8")).toBe("a: 1\n");
     expect(fs.statSync(path.join(root, "d", "sub", "deep")).isDirectory()).toBe(true);
     expect(fs.readFileSync(path.join(root, "d", "sub", "deep", ".yo", "body.yo"), "utf8")).toBe("b: 2\n");
-    const j = call(h, "/api/json", { path: ":d:sub", depth: ".inf" }).json;
+    const j = (await nodeJson(h, { path: ":d:sub", depth: ".inf" })).json;
     expect(j.value).toEqual({ a: 1, deep: { b: 2 } });
     expect(j.concrete).toBe("dir/yamlover");
   });
@@ -997,7 +998,7 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     expect(r.status).toBe(200);
     expect(dBody(root)).toBe("- *: item01\n");
     expect(fs.readFileSync(path.join(root, "d", "item01", ".yo", "body.yo"), "utf8")).toBe("a: 1\n- 2\n");
-    expect(call(h, "/api/json", { path: ":d:item01", depth: ".inf" }).json.concrete).toBe("dir/yamlover");
+    expect((await nodeJson(h, { path: ":d:item01", depth: ".inf" })).json.concrete).toBe("dir/yamlover");
   });
 
   it("two ordinal containers in one batch: item01 then item02, in order", async () => {
@@ -1081,7 +1082,7 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     expect(dBody(root)).toBe("- chunk\n");
     // never destroy user data: the directory is ORPHANED and resurfaces as a keyed-only member
     expect(fs.readFileSync(path.join(root, "d", "item01", ".yo", "body.yo"), "utf8")).toBe("- kept data\n");
-    const m = (call(h, "/api/json", { path: ":d", depth: ".inf" }).json.value as
+    const m = ((await nodeJson(h, { path: ":d", depth: ".inf" })).json.value as
       { $yamloverMixed?: { entries: { key: string | null; anchor?: boolean }[] } }).$yamloverMixed;
     const item = m?.entries.find((e) => e.key === "item01");
     expect(item).toBeTruthy();
@@ -1121,7 +1122,7 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     const r = await callBody(h, "POST", "/api/edit", { path: "[0]", op: "insert", key: "a", yamlover: "12" });
     expect(r.status).toBe(200);
     expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe("a: 12\n");
-    expect((call(h, "/api/json", { path: "", depth: ".inf" }).json.value as Record<string, unknown>).a).toBe(12);
+    expect(((await nodeJson(h, { path: "", depth: ".inf" })).json.value as Record<string, unknown>).a).toBe(12);
     // the body now exists — the NEXT edit takes the established route and appends to it
     const r2 = await callBody(h, "POST", "/api/edit", { path: "[1]", op: "insert", key: "b", yamlover: "34" });
     expect(r2.status).toBe(200);
@@ -1153,7 +1154,7 @@ describe("/api/edit — directory targets (concrete derivation, derive-concrete.
     expect(r.status).toBe(200);
     expect(dBody(root)).toBe("12\nscale: 10\n");
     expect(fs.readFileSync(path.join(root, "d", "sub", ".yo", "body.yo"), "utf8")).toBe("a: 1\n");
-    const j = call(h, "/api/json", { path: ":d", depth: ".inf" }).json as { value: { $yamloverMixed?: { value?: unknown; entries?: { key: string | null; value: unknown }[] } } };
+    const j = (await nodeJson(h, { path: ":d", depth: ".inf" })).json as { value: { $yamloverMixed?: { value?: unknown; entries?: { key: string | null; value: unknown }[] } } };
     const m = j.value.$yamloverMixed!;
     expect(m.value).toBe(12); // the dir's own scalar line
     expect(Object.fromEntries(m.entries!.map((e) => [e.key, e.value]))).toEqual({ scale: 10, sub: { a: 1 } });
@@ -1181,7 +1182,7 @@ describe("/api/edit — compact `- - x` nesting (a one-line nested item is a con
     expect(r.status).toBe(200);
     expect(dBody(root)).toBe("- 12\n- *: item01\n");
     expect(fs.readFileSync(path.join(root, "d", "item01", ".yo", "body.yo"), "utf8")).toBe("- 12\n- 13\n");
-    expect(call(h, "/api/json", { path: ":d[1]", depth: ".inf" }).json.value).toEqual([12, 13]);
+    expect((await nodeJson(h, { path: ":d[1]", depth: ".inf" })).json.value).toEqual([12, 13]);
   });
 
   it("the same flow typed FAST — one batch, the member born mid-batch (the in-batch remap)", async () => {
@@ -1224,7 +1225,7 @@ describe("/api/edit — compact `- - x` nesting (a one-line nested item is a con
     const r2 = await callBody(h, "POST", "/api/edit", { path: ":d[1][0]", op: "remove" });
     expect(r2.status).toBe(200);
     expect(dBody(root)).toBe("- 12\n-\n  - 13\n");
-    expect(call(h, "/api/json", { path: ":d[1]", depth: ".inf" }).json.value).toEqual([13]);
+    expect((await nodeJson(h, { path: ":d[1]", depth: ".inf" })).json.value).toEqual([13]);
   });
 });
 
@@ -1241,7 +1242,7 @@ describe("/api/edit — stamping a schema tag on a bodyless directory", () => {
     const r = await callBody(h, "POST", "/api/edit", { path: "", op: "emplace", meta: CHAPTER_META });
     expect(r.status).toBe(200);
     expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe(`!!<${CHAPTER_META}>\n`);
-    expect(call(h, "/api/json", { path: "" }).json.format).toBe("x-yamlover-chapter");
+    expect((await nodeJson(h, { path: "" })).json.format).toBe("x-yamlover-chapter");
   });
 
   it("meta + a scalar payload sets the tag AND the title in one op (the first-edit stamp)", async () => {
@@ -1251,7 +1252,7 @@ describe("/api/edit — stamping a schema tag on a bodyless directory", () => {
     const r = await callBody(h, "POST", "/api/edit", { path: "", op: "emplace", meta: CHAPTER_META, yamlover: '"My book"' });
     expect(r.status).toBe(200);
     expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe(`!!<${CHAPTER_META}>\nMy book\n`);
-    const j = call(h, "/api/json", { path: "" }).json;
+    const j = (await nodeJson(h, { path: "" })).json;
     expect(j.format).toBe("x-yamlover-chapter");
     expect(j.title).toBe("My book");
   });
@@ -1267,7 +1268,7 @@ describe("/api/edit — stamping a schema tag on a bodyless directory", () => {
     expect(r.status).toBe(200);
     expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8"))
       .toBe(`!!<${CHAPTER_META}>\nMy book\n- "first paragraph"\n`); // a body insert splices verbatim; only the title emplace unquotes
-    expect(call(h, "/api/json", { path: "" }).json.format).toBe("x-yamlover-chapter");
+    expect((await nodeJson(h, { path: "" })).json.format).toBe("x-yamlover-chapter");
   });
 
   it("the same on a bodyless SUBdirectory — the directory itself becomes the chapter", async () => {
@@ -1277,8 +1278,8 @@ describe("/api/edit — stamping a schema tag on a bodyless directory", () => {
     await h.ready;
     const r = await callBody(h, "POST", "/api/edit", { path: ":d", op: "emplace", meta: CHAPTER_META, yamlover: '"Sub"' });
     expect(r.status).toBe(200);
-    expect(call(h, "/api/json", { path: ":d" }).json.format).toBe("x-yamlover-chapter");
-    expect(call(h, "/api/json", { path: ":d" }).json.concrete).toBe("dir/yamlover");
+    expect((await nodeJson(h, { path: ":d" })).json.format).toBe("x-yamlover-chapter");
+    expect((await nodeJson(h, { path: ":d" })).json.concrete).toBe("dir/yamlover");
   });
 
   it("a second edit carries no meta and leaves the tag standing", async () => {
@@ -1289,7 +1290,7 @@ describe("/api/edit — stamping a schema tag on a bodyless directory", () => {
     const r = await callBody(h, "POST", "/api/edit", { path: "", op: "emplace", yamlover: '"T2"' });
     expect(r.status).toBe(200);
     expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe(`!!<${CHAPTER_META}>\nT2\n`);
-    expect(call(h, "/api/json", { path: "" }).json.format).toBe("x-yamlover-chapter");
+    expect((await nodeJson(h, { path: "" })).json.format).toBe("x-yamlover-chapter");
   });
 });
 
@@ -1338,7 +1339,7 @@ describe("/api/edit — an ordinal element grows into a directory member", () =>
     expect(body(root, "item01")).toBe("World\n- *: item01\n"); // the old scalar is the member's SELF-value
     expect(body(root, "item01", "item01")).toBe("Eurasia\n- Europe\n- Asia\n");
     // and the value still reads back as the list the user typed
-    expect(call(h, "/api/json", { path: ":", depth: ".inf" }).json.value).toMatchObject({
+    expect((await nodeJson(h, { path: ":", depth: ".inf" })).json.value).toMatchObject({
       $yamloverMixed: { entries: [{ key: "item01" }] },
     });
   });
@@ -1575,12 +1576,12 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
     await h.ready;
     return { root, h, disk: () => fs.readFileSync(path.join(root, "note.yo"), "utf8") };
   }
-  const valueOf = (h: Parameters<typeof call>[0]) =>
-    (call(h, "/api/json", { path: ":note.yo", depth: ".inf" }).json as { value: unknown }).value;
+  const valueOf = async (h: Parameters<typeof call>[0]) =>
+    ((await nodeJson(h, { path: ":note.yo", depth: ".inf" })).json as { value: unknown }).value;
 
   it("projects the value and leaves its siblings alone", async () => {
     const { h, disk } = await krHandlers();
-    expect(valueOf(h)).toEqual({ a: { x: 1, y: 2 }, b: 9 });
+    expect(await valueOf(h)).toEqual({ a: { x: 1, y: 2 }, b: 9 });
     const r = await callBody(h, "POST", "/api/edit", { path: ":note.yo:b", op: "emplace", yamlover: "10" });
     expect(r.status).toBe(200);
     expect(disk()).toBe("a: {\n  x: 1,\n  y: 2\n}\nb: 10\n"); // the token is untouched, byte for byte
@@ -1592,7 +1593,7 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
       { path: ":note.yo:a", op: "emplace", yamlover: "{\n  x: 1,\n  y: 9\n}" });
     expect(r.status).toBe(200);
     expect(disk()).toBe("a: {\n  x: 1,\n  y: 9\n}\nb: 9\n"); // no orphaned interior lines
-    expect(valueOf(h)).toEqual({ a: { x: 1, y: 9 }, b: 9 });
+    expect(await valueOf(h)).toEqual({ a: { x: 1, y: 9 }, b: 9 });
   });
 
   it("switches between K&R, one-line flow and block without leaving orphans", async () => {
@@ -1618,13 +1619,13 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
 
   it("nests, on a dash item and under several keys", async () => {
     const { h: h1, disk: d1 } = await krHandlers("- [\n  1,\n  2\n]\n- 7\n");
-    expect(valueOf(h1)).toEqual([[1, 2], 7]);
+    expect(await valueOf(h1)).toEqual([[1, 2], 7]);
     expect((await callBody(h1, "POST", "/api/edit",
       { path: ":note.yo[0]", op: "emplace", yamlover: "[\n  1,\n  3\n]" })).status).toBe(200);
     expect(d1()).toBe("- [\n  1,\n  3\n]\n- 7\n");
 
     const { h: h2, disk: d2 } = await krHandlers("a:\n  b: {\n    x: 1\n  }\n");
-    expect(valueOf(h2)).toEqual({ a: { b: { x: 1 } } });
+    expect(await valueOf(h2)).toEqual({ a: { b: { x: 1 } } });
     expect((await callBody(h2, "POST", "/api/edit",
       { path: ":note.yo:a:b", op: "emplace", yamlover: "{\n  x: 2\n}" })).status).toBe(200);
     expect(d2()).toBe("a:\n  b: {\n    x: 2\n  }\n"); // the closer keeps its key's column
@@ -1644,7 +1645,7 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
     // not among them: a K&R document rendered as BLOCK, because the switch never reached the
     // client. Any field is worth sending — the per-child buckets always used that test.
     const { h } = await krHandlers('[\n  {\n    "name": "Eurasia"\n  }\n]\n');
-    const j = call(h, "/api/json", { path: ":note.yo", depth: ".inf" }).json as
+    const j = (await nodeJson(h, { path: ":note.yo", depth: ".inf" })).json as
       { comments?: Record<string, { concrete?: string }> };
     expect(j.comments?.[""]).toEqual({ concrete: "json5p" });
   });
@@ -1653,7 +1654,7 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
     // Layout is per container (2026-07-27): a multi-line container carries its own `concrete`,
     // an inner ONE-LINE token keeps `repr: yaml/flow` — and round-trips as one line.
     const { h } = await krHandlers("a: {\n  q: [\n    1\n  ],\n  t: {p: 1}\n}\nb: {x: 1}\n");
-    const j = call(h, "/api/json", { path: ":note.yo", depth: ".inf" }).json as
+    const j = (await nodeJson(h, { path: ":note.yo", depth: ".inf" })).json as
       { comments?: Record<string, { concrete?: string; repr?: string }> };
     expect(j.comments?.["/a"]).toEqual({ concrete: "json5p" });
     expect(j.comments?.["/a/q"]).toEqual({ concrete: "json5p" }); // its own span, its own bit
@@ -1781,7 +1782,7 @@ describe("/api/edit — removing an ORPHANED member archives its storage (never 
     expect(fs.existsSync(path.join(root, "doc", "m")), "the member left its place").toBe(false);
     expect(fs.readFileSync(path.join(root, "doc", ".yo", ".trash", "m", ".yo", "body.yo"), "utf8"), "…into the trash, intact").toBe("orphan text\n");
     // the projection no longer surfaces it
-    const j = call(h, "/api/json", { path: ":doc", depth: "1" }).json as { value: Record<string, unknown> };
+    const j = (await nodeJson(h, { path: ":doc", depth: "1" })).json as { value: Record<string, unknown> };
     expect(JSON.stringify(j.value)).not.toContain("orphan text");
   });
 });

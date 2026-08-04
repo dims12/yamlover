@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createHandlers, tmpTree } from "./helpers";
 import { call } from "./http";
+import { nodeJson } from "./node-json";
 
 // The POSITIONAL PREFIX projection (walk.ts applyBody + node-kind.ts positionalOf): a dir-backed
 // node whose `body.yo` is a pointer-array grants positions ONLY to the members it names.
@@ -30,7 +31,7 @@ const mixedOf = (json: { value: unknown }) =>
 describe("/api/json — positional prefix (dir-backed pointer-array body)", () => {
   it("named members carry anchor:true in body order; the unreferenced file is a keyed-only tail", async () => {
     const h = await handlers(TREE_56);
-    const json = call(h, "/api/json", { path: ":d", depth: ".inf" }).json;
+    const json = (await nodeJson(h, { path: ":d", depth: ".inf" })).json;
     const m = mixedOf(json);
     expect(m).toBeTruthy();
     expect(m!.kind).toBe("mix"); // prefix + keyed remainder = an honest mix
@@ -45,7 +46,7 @@ describe("/api/json — positional prefix (dir-backed pointer-array body)", () =
   it("a FULLY referenced dir still projects as an array kind, each member anchored", async () => {
     const { "d/andany04.json": _omit, ...referencedOnly } = TREE_56;
     const h = await handlers(referencedOnly);
-    const json = call(h, "/api/json", { path: ":d", depth: ".inf" }).json;
+    const json = (await nodeJson(h, { path: ":d", depth: ".inf" })).json;
     const m = mixedOf(json);
     expect(m).toBeTruthy();
     expect(m!.kind).toBe("array");
@@ -62,7 +63,7 @@ describe("/api/json — positional prefix (dir-backed pointer-array body)", () =
       "d/a": "alpha\n",
       "d/b": "beta\n",
     });
-    const json = call(h, "/api/json", { path: ":d", depth: ".inf" }).json;
+    const json = (await nodeJson(h, { path: ":d", depth: ".inf" })).json;
     const m = mixedOf(json);
     expect(m).toBeTruthy();
     expect(m!.kind).toBe("mix");
@@ -75,7 +76,7 @@ describe("/api/json — positional prefix (dir-backed pointer-array body)", () =
 
   it("facets report the prefix as ordinal and only the remainder as keyed", async () => {
     const h = await handlers(TREE_56);
-    const json = call(h, "/api/json", { path: ":d" }).json;
+    const json = (await nodeJson(h, { path: ":d" })).json;
     expect(json.type).toBe("mixed");
     expect(json.hasOrdinal ?? json.facets?.hasOrdinal).not.toBe(false);
   });
@@ -93,7 +94,7 @@ describe("/api/json — a member ordered from an OMNI or MIXED body is consumed 
       "item01/.yo/body.yo": "World\n- *: item01\n",
       "item01/item01/.yo/body.yo": "Eurasia\n- Europe\n- Asia\n",
     });
-    const m = mixedOf(call(h, "/api/json", { path: ":", depth: ".inf" }).json);
+    const m = mixedOf((await nodeJson(h, { path: ":", depth: ".inf" })).json);
     expect(m!.entries).toEqual([
       {
         key: "item01",
@@ -122,7 +123,7 @@ describe("/api/json — a member ordered from an OMNI or MIXED body is consumed 
       "doc/sub/.yo/body.yo": "Deep\n",
       "doc/unlisted.txt": "x", // never named by the body → keyed remainder, no anchor
     });
-    const m = mixedOf(call(h, "/api/json", { path: ":doc", depth: "2" }).json);
+    const m = mixedOf((await nodeJson(h, { path: ":doc", depth: "2" })).json);
     expect(m!.kind).toBe("omni");
     expect(m!.value).toBe("Title");
     expect(m!.entries.map((e) => [e.key, e.anchor ?? false])).toEqual([

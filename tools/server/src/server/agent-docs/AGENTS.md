@@ -267,7 +267,8 @@ UI within a moment, and theirs appear to you on disk. Work with that, not agains
 - **Settings live in `.yo/settings.yo`** at the project root (e.g. where new tags and
   annotations are written). Treat it as configuration; change it only when asked.
 - **When unsure of a path, query it.** The server answers `GET /api/query?...` using the path
-  grammar above, and serves the tree at `GET /api/tree` / a node at `GET /api/json?path=:a:b`.
+  grammar above, and serves the tree at `GET /api/tree` / a node's yamlover at
+  `GET /api/content/a/b` (slash-spelled path; digits are positions, `~` the null key).
   Use these to confirm a path resolves before you author a pointer to it.
 
 ---

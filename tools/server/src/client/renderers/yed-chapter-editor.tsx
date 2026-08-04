@@ -1,8 +1,8 @@
 // THE YED CHAPTER MOUNT — the chapter projection over the yed architecture, behind
 // `?chapterEditor=yed` until the superset parity gate passes (chapter.tsx chapterEditorFlavor).
 //
-// LOAD is the /api/json projection (depth `.inf`) → parser IR (yed-load.ts) — concrete-agnostic
-// like the source yed mount. EDIT is the pure chapter machine (tools/yed/src/chapter/); the
+// LOAD is the ONE WIRE (/api/content, depth `.inf`) → parser IR (yed-content-load.ts) —
+// concrete-agnostic like the source yed mount. EDIT is the pure chapter machine (tools/yed/src/chapter/); the
 // CELLS are the yed-contract layer (tools/yed/src/chapter/cells.tsx) — this file only fills
 // the ChapterCellsAdapter with the server's capabilities: the marklower codec, read-only
 // renderers, linked previews, image paste, §N anchors, navigation, and the column memory.

@@ -4,6 +4,7 @@ import path from "node:path";
 import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
+import { nodeJson } from "./node-json";
 
 // GET /api/config — the project config (IMPORTS.md). settings.yo is read through this endpoint
 // for its parsed settings (the annotate flow's tags location). It is now EDITED through the ordinary
@@ -53,7 +54,7 @@ describe("/api/config (project configuration)", () => {
     expect(cfg.json.source).toContain("annotations: *:: annotations");
     expect(cfg.json.settings.tags).toBe(":tags");
     // and it is now a real, fetchable node (the gear's /api/json no longer 404s) with the config format
-    const node = call(h, "/api/json", { path: ":.yo:settings.yo" });
+    const node = (await nodeJson(h, { path: ":.yo:settings.yo" }));
     expect(node.status).toBe(200);
     expect(node.json.format).toBe("x-yamlover-config");
     h.close();
@@ -66,7 +67,7 @@ describe("/api/config (project configuration)", () => {
     const root = tmpTree({ name: "Alice" });
     const h = createHandlers(root, { gitignore: false, ensureSettings: true });
     await h.ready;
-    const node = call(h, "/api/json", { path: ":.yo:settings.yo", comments: "1" });
+    const node = (await nodeJson(h, { path: ":.yo:settings.yo", comments: "1" }));
     expect(node.status).toBe(200);
     // the dangling location pointers render as unresolved refs (pointer text, no link), in place
     expect(Object.keys(node.json.value)).toEqual(["annotations", "tags", "sidecars"]);
@@ -75,7 +76,7 @@ describe("/api/config (project configuration)", () => {
     // the authored tag application (a POINTER, not the resolved schema) rides the root bucket
     expect(node.json.comments[""].tag).toBe("!!<*yamlover: $defs: config>");
     // the parent's link label counts the pointer members too
-    const dir = call(h, "/api/json", { path: ":.yo" });
+    const dir = (await nodeJson(h, { path: ":.yo" }));
     expect(dir.json.value["settings.yo"].$yamloverLink.count).toBe(3);
     h.close();
   });

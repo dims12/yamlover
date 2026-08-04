@@ -127,7 +127,7 @@ take an optional `depth` (container-nesting limit).
 |----------|---------|
 | `GET /api/info` | the breadcrumb head (the root label) |
 | `GET /api/tree?path&depth` | the TOC subtree at `path`, `depth` levels deep (default 3) — fetched again per branch for lazy expansion |
-| `GET /api/json?path&depth&binary` | the node's value, one level deep (`depth` default 1); nested containers become link markers (`&binary=1` for a binary leaf's base64) |
+| `GET /api/content/{slash-path}?depth` | **THE ONE WIRE** (`text/yamlover`): the node as a yamlover envelope — header facets, the serialized `source` subtree (cut members respelled as pointers), the fragment-keyed `side` sidecar, `relations`. Clients parse it with the shared `tools/parser` and derive the legacy NodeJson locally |
 | `GET /api/schema?path&depth` | the node's instance schema, with the same link markers |
 | `GET /api/blob?path` | a file-backed node's **raw bytes**, with its (inferred) format as the `Content-Type` |
 | `GET /api/thumb?path&w&h` | a lazily-generated thumbnail of a file-backed blob |
@@ -140,7 +140,7 @@ take an optional `depth` (container-nesting limit).
 | `GET /api/tasks` | long-running tasks in flight (a snapshot for a fresh page) |
 | `POST /api/reindex` | manual reconcile (the watcher's fallback) |
 | `POST /api/edit` | the yamlover **editor** — surgical source edits (see below) |
-| `POST /api/preview` | **stateless**: render a standalone yamlover source as `/api/json` would (nothing touches the store) |
+| `POST /api/preview` | **stateless**: render a standalone yamlover source as a content envelope, like `/api/content` (nothing touches the store) |
 | `POST /api/edit-text` | **stateless**: apply `/api/edit` ops to a standalone source, returning the new source |
 | `POST /api/paste` | clipboard paste / upload (text or files) |
 | `POST /api/mv` | mediated move (surgical inbound-ref rewrite + auto-relink) |

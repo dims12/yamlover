@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
+import { nodeJson } from "./node-json";
 
 // The explorer renderer's server side: the stat-derived `concrete` (dir | yamlover | null)
 // on /api/json, link markers, and the TOC — and GET /api/tagged, a tag's materials with
@@ -20,14 +21,14 @@ describe("concrete (stat-derived)", () => {
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
-    expect(call(h, "/api/json", { path: ":sub" }).json.concrete).toBe("dir");
-    expect(call(h, "/api/json", { path: ":d" }).json.concrete).toBe("dir/yamlover");
+    expect((await nodeJson(h, { path: ":sub" })).json.concrete).toBe("dir");
+    expect((await nodeJson(h, { path: ":d" })).json.concrete).toBe("dir/yamlover");
     // a stray extensionless text file → a file-backed scalar
-    expect(call(h, "/api/json", { path: ":top" }).json.concrete).toBe("file/yaml");
+    expect((await nodeJson(h, { path: ":top" })).json.concrete).toBe("file/yaml");
     // an interior mapping (inside the d document) reports the document's inlined language
-    expect(call(h, "/api/json", { path: ":d:m" }).json.concrete).toBe("yamlover");
+    expect((await nodeJson(h, { path: ":d:m" })).json.concrete).toBe("yamlover");
     // the served root is a `.yo`-backed directory
-    expect(call(h, "/api/json", { path: ":" }).json.concrete).toBe("dir/yamlover");
+    expect((await nodeJson(h, { path: ":" })).json.concrete).toBe("dir/yamlover");
   });
 
   it("rides the member link markers and the TOC tree", async () => {
@@ -38,7 +39,7 @@ describe("concrete (stat-derived)", () => {
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
-    const value = call(h, "/api/json", { path: ":" }).json.value;
+    const value = (await nodeJson(h, { path: ":" })).json.value;
     expect(value.sub.$yamloverLink.concrete).toBe("dir");
     expect(value.d.$yamloverLink.concrete).toBe("dir/yamlover");
 

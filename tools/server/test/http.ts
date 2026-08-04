@@ -1,4 +1,4 @@
-import { Readable } from "node:stream";
+import { Readable, Writable } from "node:stream";
 import { EventEmitter } from "node:events";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
@@ -65,6 +65,27 @@ export function callText(
         resolve({ status: state.statusCode, text: b ?? "" });
       },
     } as unknown as ServerResponse;
+    handler({} as IncomingMessage, res, urlFor(pathname, params));
+  });
+}
+
+/** Invoke a handler (GET-style) and AWAIT the raw BYTES — the streaming endpoints
+ *  (`/api/blob` pipes a file into the response, so the response must be a real Writable). */
+export function callBytes(
+  handler: Handler,
+  pathname: string,
+  params: Record<string, string> = {},
+): Promise<{ status: number; bytes: Buffer }> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    const state = { statusCode: 200 };
+    const sink = new Writable({
+      write(c: Buffer, _enc, cb) { chunks.push(Buffer.from(c)); cb(); },
+    });
+    sink.on("finish", () => resolve({ status: state.statusCode, bytes: Buffer.concat(chunks) }));
+    const res = sink as unknown as ServerResponse;
+    Object.defineProperty(res, "statusCode", { get: () => state.statusCode, set: (v: number) => { state.statusCode = v; } });
+    (res as unknown as { setHeader: () => void }).setHeader = () => {};
     handler({} as IncomingMessage, res, urlFor(pathname, params));
   });
 }

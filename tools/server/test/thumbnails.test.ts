@@ -12,6 +12,7 @@ import { createHandlers } from "./helpers";
 import { Store } from "../../engine/ts/src/store.ts";
 import { tmpTree } from "./helpers.ts";
 import { call, sseCapture } from "./http.ts";
+import { nodeJson } from "./node-json";
 
 function handlers(root: string) {
   const h = createHandlers(root, { gitignore: false });
@@ -156,14 +157,14 @@ describe("GET /api/thumb", () => {
     await callStream(h, "/api/thumb", { path: ":pic.png", w: "64", h: "64" }); // creates .yo/thumbnails
 
     // the root's member list omits .yo…
-    const rootJson = call(h, "/api/json", { path: ":" }).json;
+    const rootJson = (await nodeJson(h, { path: ":" })).json;
     expect(Object.keys(rootJson.value)).not.toContain(".yo");
     // …and so does the TOC
     const tree = call(h, "/api/tree", { path: ":", depth: "2" }).json;
     expect(tree.children.map((c: { label: string }) => c.label)).not.toContain(".yo");
     // but the sidecar blob inside it is still resolvable by direct path
     const name = fs.readdirSync(path.join(root, ".yo", "thumbnails"))[0];
-    const blob = call(h, "/api/json", { path: `:.yo:thumbnails:${name}` }).json;
+    const blob = (await nodeJson(h, { path: `:.yo:thumbnails:${name}` })).json;
     expect(blob.type).toBe("binary");
   });
 

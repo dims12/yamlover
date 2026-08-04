@@ -16,6 +16,7 @@ import type { Document, Node, Pointer, Value } from "../../parser/ts/src/ir.ts";
 import { isPointer } from "../../parser/ts/src/ir.ts";
 import { tmpTree } from "./helpers";
 import { call } from "./http";
+import { nodeJson } from "./node-json";
 
 // ---- IR equality (graph, not typography) — a trimmed copy of serialize.test.ts's canon ----
 function canonNode(n: Node): unknown {
@@ -52,7 +53,7 @@ function renderedText(value: unknown, comments: unknown, documentPath: string, n
 async function roundTrip(body: string): Promise<string> {
   const h = createHandlers(tmpTree({ ".yo/body.yo": body }), { gitignore: false });
   await h.ready;
-  const { json } = call(h, "/api/json", { path: ":", depth: ".inf" });
+  const { json } = (await nodeJson(h, { path: ":", depth: ".inf" }));
   if (json.value && typeof json.value === "object") delete (json.value as Record<string, unknown>).yamlover; // graft
   const text = renderedText(json.value, json.comments, json.documentPath ?? ":", json.path ?? ":");
   const re = parseYamlover(text, "<rendered>");
@@ -64,7 +65,7 @@ async function roundTrip(body: string): Promise<string> {
 async function renderNode(files: Record<string, string>, path: string): Promise<string> {
   const h = createHandlers(tmpTree(files), { gitignore: false });
   await h.ready;
-  const { json } = call(h, "/api/json", { path, depth: ".inf" });
+  const { json } = (await nodeJson(h, { path, depth: ".inf" }));
   return renderedText(json.value, json.comments, json.documentPath ?? path, json.path ?? path);
 }
 

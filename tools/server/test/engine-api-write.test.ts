@@ -4,6 +4,7 @@ import path from "node:path";
 import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers";
 import { call, callBody, sseCapture } from "./http";
+import { nodeJson } from "./node-json";
 
 // The WRITE endpoints /api/tag and /api/paste, against synthetic temp trees — never the repo.
 // (The embedded /api/annotate + /api/fragment endpoints are covered in embed-api.test.ts.)
@@ -46,7 +47,7 @@ describe("/api/tag (create)", () => {
     expect(r.json).toMatchObject({ path: ENC, name: NAME, color: null, created: true });
     const body = fs.readFileSync(path.join(root, "tags", ".yo", "body.yo"), "utf8");
     expect(body).toContain(`${NAME}: !!<*::yamlover:$defs:tag>`);
-    expect(call(h, "/api/json", { path: r.json.path }).json.format).toBe("x-yamlover-tag");
+    expect((await nodeJson(h, { path: r.json.path })).json.format).toBe("x-yamlover-tag");
 
     // the freshly created tag can be applied right away
     const a = await callBody(h, "POST", "/api/annotate", { target: ":name", tag: r.json.path });
@@ -77,7 +78,7 @@ describe("/api/tag (create)", () => {
     const body = fs.readFileSync(path.join(root, "tags", ".yo", "body.yo"), "utf8");
     expect(body).toContain("old: !!<*yamlover: $defs: tag>");
     expect(body).toContain("new: !!<*::yamlover:$defs:tag>");
-    expect(call(h, "/api/json", { path: ":tags:old" }).json.format).toBe("x-yamlover-tag");
+    expect((await nodeJson(h, { path: ":tags:old" })).json.format).toBe("x-yamlover-tag");
   });
 
   it("honors a *-pointer tags location from settings.yo", async () => {
@@ -233,13 +234,13 @@ describe("annotating a node never changes how it reads", () => {
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    expect(call(h, "/api/json", { path: ":chap.yo", depth: "1" }).json.title).toBe("T");
+    expect((await nodeJson(h, { path: ":chap.yo", depth: "1" })).json.title).toBe("T");
 
     const tag = await callBody(h, "POST", "/api/tag", { name: "important" });
     await callBody(h, "POST", "/api/annotate", { target: ":chap.yo:title", tag: tag.json.path });
 
     // the title node is now omni (a mapping carrying the annotation) — but it still IS "T"
-    expect(call(h, "/api/json", { path: ":chap.yo", depth: "1" }).json.title).toBe("T");
+    expect((await nodeJson(h, { path: ":chap.yo", depth: "1" })).json.title).toBe("T");
   });
 });
 
@@ -405,7 +406,7 @@ describe("/api/paste (text)", () => {
     expect(src).toBe('!!<*::yamlover:$defs:chapter>\n"Hello World"\n- |\n  # Hello World\n\n  First paragraph.\n');
 
     // the new file indexed as a chapter holding the text as its one body chunk
-    const node = call(h, "/api/json", { path: ":dir:'Hello%20World.yo'", depth: "3" });
+    const node = (await nodeJson(h, { path: ":dir:'Hello%20World.yo'", depth: "3" }));
     expect(node.json.format).toBe("x-yamlover-chapter");
     expect(bodyVals(node.json.value)).toEqual(["# Hello World\n\nFirst paragraph.\n"]);
   });
@@ -423,7 +424,7 @@ describe("/api/paste (text)", () => {
     // the chunk is appended after the last body item (the subchapter) — one interleaved stream
     const body = fs.readFileSync(path.join(root, "doc", ".yo", "body.yo"), "utf8");
     expect(body).toContain('- |\n  New paragraph\n  with two lines');
-    const vals = bodyVals(call(h, "/api/json", { path: ":doc", depth: "3" }).json.value);
+    const vals = bodyVals((await nodeJson(h, { path: ":doc", depth: "3" })).json.value);
     expect(vals[vals.length - 1]).toBe("New paragraph\nwith two lines\n");
   });
 
@@ -437,7 +438,7 @@ describe("/api/paste (text)", () => {
     // the subchapter "Sub" is body element [2] (title is store index 0, "Hello" is [1])
     const r = await callBody(h, "POST", "/api/paste", { path: ":doc[2]", text: "deep note" });
     expect(r.json).toMatchObject({ path: ":doc:2", chapter: ":doc:2" });
-    const node = call(h, "/api/json", { path: ":doc[2]", depth: "3" });
+    const node = (await nodeJson(h, { path: ":doc[2]", depth: "3" }));
     expect(bodyVals(node.json.value)).toEqual(["First", "deep note"]);
   });
 
@@ -450,7 +451,7 @@ describe("/api/paste (text)", () => {
     await callBody(h, "POST", "/api/paste", { path: ":doc", text });
     const body = fs.readFileSync(path.join(root, "doc", ".yo", "body.yo"), "utf8");
     expect(body).toContain(`- ${JSON.stringify(text)}`);
-    const vals = bodyVals(call(h, "/api/json", { path: ":doc", depth: "3" }).json.value);
+    const vals = bodyVals((await nodeJson(h, { path: ":doc", depth: "3" })).json.value);
     expect(vals[vals.length - 1]).toBe(text);
   });
 
@@ -496,13 +497,13 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
 
     // the round-trip: the new prose chunks (order kept), the image as a resolved pointer, and the
     // new subchapter (with its nested child) — all in ONE positional body after the old content
-    const vals = bodyVals(call(h, "/api/json", { path: ":doc", depth: "7" }).json.value);
+    const vals = bodyVals((await nodeJson(h, { path: ":doc", depth: "7" })).json.value);
     expect(vals.filter((x) => typeof x === "string")).toEqual(["Hello", "intro", "outro"]);
     expect((vals.find((x) => (x as { $yamloverLink?: { path: string } })?.$yamloverLink) as { $yamloverLink: { path: string } }).$yamloverLink.path).toBe(":doc:cat.jpg");
     // the image member is ANCHORED at its body position — its `- *: cat.jpg` pointer was consumed,
     // so it appears ONCE, never also as a bare keyed child beside its own pointer
     expect(
-      bodyEntries(call(h, "/api/json", { path: ":doc", depth: "7" }).json.value)
+      bodyEntries((await nodeJson(h, { path: ":doc", depth: "7" })).json.value)
         .filter((e) => e.key === "cat.jpg")
         .map((e) => [e.key, e.anchor ?? false]),
     ).toEqual([["cat.jpg", true]]);
@@ -524,7 +525,7 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
       rich: { chunks: [{ text: "body" }], children: [{ title: "Sub", chunks: [{ text: "inner" }], children: [] }] },
     });
     expect(r.status).toBe(201);
-    const vals = bodyVals(call(h, "/api/json", { path: ":doc", depth: "4" }).json.value);
+    const vals = bodyVals((await nodeJson(h, { path: ":doc", depth: "4" })).json.value);
     expect(vals.filter((x) => typeof x === "string")).toEqual(["body"]);
     expect(bodyVals(vals.find((x) => subTitle(x) === "Sub"))).toEqual(["inner"]);
   });
@@ -540,7 +541,7 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
       rich: { chunks: [], children: [{ title: "Cats", chunks: [{ text: "feline facts" }], children: [{ title: "Kittens", chunks: [{ text: "tiny" }], children: [] }] }] },
     });
     expect(r.json).toMatchObject({ path: ":dir:Cats.yo", dir: ":dir", open: false });
-    const node = call(h, "/api/json", { path: ":dir:Cats.yo", depth: "4" });
+    const node = (await nodeJson(h, { path: ":dir:Cats.yo", depth: "4" }));
     expect(node.json.format).toBe("x-yamlover-chapter");
     expect(node.json.title).toBe("Cats"); // the heading became the chapter title, not a child
     const vals = bodyVals(node.json.value);
@@ -568,7 +569,7 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
     expect(body).toContain("- *: cat.jpg");
     expect(body).toContain("- *: cat-1.jpg");
 
-    const node = call(h, "/api/json", { path: encodeURI(":dir:A cat article"), depth: "4" });
+    const node = (await nodeJson(h, { path: encodeURI(":dir:A cat article"), depth: "4" }));
     expect(node.json.format).toBe("x-yamlover-chapter");
     const img = bodyVals(node.json.value).find((x) => (x as { $yamloverLink?: unknown })?.$yamloverLink) as { $yamloverLink: { path: string } };
     expect(img.$yamloverLink.path).toBe(encodeURI(":dir:'A cat article':cat.jpg")); // spacey key quoted
@@ -614,7 +615,7 @@ describe("agile board — drag = re-tag a task's state", () => {
       call(h, "/api/tagged", { path: tag }).json.map((m: any) => m?.$yamloverLink?.path).filter(Boolean);
 
     // the task starts in the backlog lane
-    expect(call(h, "/api/json", { path: ":mytask.yo" }).json.format).toBe("x-yamlover-task");
+    expect((await nodeJson(h, { path: ":mytask.yo" })).json.format).toBe("x-yamlover-task");
     expect(column(":tags:state:backlog")).toContain(":mytask.yo");
     expect(column(":tags:state:in-progress")).not.toContain(":mytask.yo");
 
@@ -655,7 +656,7 @@ describe("/api/board (lane config)", () => {
     expect(body).toContain("- [*::tags:workflow:dev:done, *::tags:workflow:dev:cancelled]");
     expect(body).toContain("workflow: *::tags:workflow:dev"); // the existing config is preserved
     // the lane tag pointers resolve (the board reads them at depth 3)
-    const deep = call(h, "/api/json", { path: ":", depth: "3" }).json;
+    const deep = (await nodeJson(h, { path: ":", depth: "3" })).json;
     const lanes = deep.value.lanes;
     expect(Array.isArray(lanes)).toBe(true);
     expect(lanes).toHaveLength(2);

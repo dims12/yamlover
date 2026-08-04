@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers";
 import { call } from "./http";
+import { nodeJson } from "./node-json";
 
 // A scalar's decoded VALUE loses its authored spelling — `"~"` (a string) and `~` (null) both project
 // to distinct values, but `0xff`→255, `True`→true, a quoted `"~"`→"~" all render ambiguously if shown
@@ -14,7 +15,7 @@ describe("scalar raw representation (comment sidecar)", () => {
     const root = tmpTree({ "d.yo": src });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const j = call(h, "/api/json", { path: ":d.yo", depth: ".inf" }).json as { value: any; comments: Record<string, { raw?: string }> };
+    const j = (await nodeJson(h, { path: ":d.yo", depth: ".inf" })).json as { value: any; comments: Record<string, { raw?: string }> };
     const c = j.comments;
 
     expect(j.value.humans[0].name).toBe("~"); // still the STRING "~", not null
@@ -51,7 +52,7 @@ describe("representation concretes on the wire", () => {
   async function comments() {
     const h = createHandlers(tmpTree({ "d/.yo/body.yo": source }), { gitignore: false });
     await h.ready;
-    return (call(h, "/api/json", { path: ":d", depth: "2" }).json as { comments: Record<string, { repr?: string; block?: unknown }> }).comments;
+    return ((await nodeJson(h, { path: ":d", depth: "2" })).json as { comments: Record<string, { repr?: string; block?: unknown }> }).comments;
   }
 
   it("classifies each authored spelling", async () => {
@@ -81,7 +82,7 @@ describe("notations the core reader does not decode", () => {
   it("read as strings, so they carry no representation concrete", async () => {
     const h = createHandlers(tmpTree({ "d/.yo/body.yo": "oct: 0o377\nbin: 0b1111\nyes11: yes\n" }), { gitignore: false });
     await h.ready;
-    const j = call(h, "/api/json", { path: ":d", depth: "2" }).json as { value: Record<string, unknown>; comments: Record<string, { repr?: string }> };
+    const j = (await nodeJson(h, { path: ":d", depth: "2" })).json as { value: Record<string, unknown>; comments: Record<string, { repr?: string }> };
     expect(j.value).toMatchObject({ oct: "0o377", bin: "0b1111", yes11: "yes" });
     for (const k of ["/oct", "/bin", "/yes11"]) expect(j.comments[k]?.repr, k).toBeUndefined();
   });

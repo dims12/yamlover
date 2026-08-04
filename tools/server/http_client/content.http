@@ -8,7 +8,4 @@ GET http://127.0.0.1:5173/api/content/language/01-Concretes_2/02-json_code/01-js
 ### the whole subtree, unlimited (blobs still cut to pointers)
 GET http://127.0.0.1:5173/api/content/language?depth=.inf
 
-### the LEGACY json projection (retiring — the one-wire migration, Stage 4)
-GET http://127.0.0.1:5173/api/json?path=:language:01-Concretes_2:02-json_code:01-json_structured:0&depth=.inf
-
 ###

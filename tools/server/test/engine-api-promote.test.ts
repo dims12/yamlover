@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHandlers, tmpTree } from "./helpers";
 import { call, callBody } from "./http";
+import { nodeJson } from "./node-json";
 
 // THE SCALAR→CONTAINER PROMOTION (CONCRETES.md §Member encoding; concrete-rules.ts
 // subchapterMaterializes). Building a keyed tree "by one" against a DIRECTORY-backed root: each
@@ -17,8 +18,8 @@ const bodyAt = (root: string, ...segs: string[]) =>
 const hasBody = (root: string, ...segs: string[]) =>
   fs.existsSync(path.join(root, ...segs, ".yo", "body.yo"));
 const edit = (h: unknown, body: Record<string, unknown>) => callBody(h as never, "POST", "/api/edit", body);
-const leaf = (h: unknown, p: string) => {
-  const v = (call(h as never, "/api/json", { path: p }).json as { value: unknown }).value;
+const leaf = async (h: unknown, p: string) => {
+  const v = ((await nodeJson(h as never, { path: p })).json as { value: unknown }).value;
   const m = (v as { $yamloverMixed?: { value: unknown } })?.$yamloverMixed;
   return m ? m.value : v; // an omni node wraps its self-value under $yamloverMixed
 };
@@ -50,15 +51,15 @@ describe("scalar-first, grow-by-one → directories (the EmptyYamlover shape)", 
 
     // the root, whose body is now EMPTY (world moved out), must NOT read as a spurious null-valued
     // omni — an empty body.yo is an empty overlay, not a self-value (walk.ts applyBody)
-    const rootJson = call(h as never, "/api/json", { path: ":" }).json as { type: string; value: unknown };
+    const rootJson = (await nodeJson(h as never, { path: ":" })).json as { type: string; value: unknown };
     expect(rootJson.type).toBe("object"); // a plain mapping, not "variant" (omni)
     expect((rootJson.value as { $yamloverMixed?: { value: unknown } }).$yamloverMixed?.value).toBeUndefined();
 
     // the whole tree reads back correctly through the resolver (leaves by direct path)
-    expect(leaf(h, ":world")).toBe("World");
-    expect(leaf(h, ":world:eurasia")).toBe("Eurasia");
-    expect(leaf(h, ":world:eurasia:europe")).toBe("Europe");
-    expect(leaf(h, ":world:eurasia:asia")).toBe("Asia");
+    expect(await leaf(h, ":world")).toBe("World");
+    expect(await leaf(h, ":world:eurasia")).toBe("Eurasia");
+    expect(await leaf(h, ":world:eurasia:europe")).toBe("Europe");
+    expect(await leaf(h, ":world:eurasia:asia")).toBe("Asia");
   });
 
   it("INSERT (a child under a still-scalar member) promotes the same way", async () => {
@@ -72,8 +73,8 @@ describe("scalar-first, grow-by-one → directories (the EmptyYamlover shape)", 
     expect(hasBody(root, "world")).toBe(true);
     expect(bodyAt(root, "world")).toContain("World");
     expect(bodyAt(root, "world")).toContain("eurasia: Eurasia");
-    expect(leaf(h, ":world")).toBe("World");
-    expect(leaf(h, ":world:eurasia")).toBe("Eurasia");
+    expect(await leaf(h, ":world")).toBe("World");
+    expect(await leaf(h, ":world:eurasia")).toBe("Eurasia");
   });
 
   it("stays INLINE when the enclosing document is a FILE (inline storage family)", async () => {
