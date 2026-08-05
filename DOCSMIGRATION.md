@@ -206,6 +206,14 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
         stub to the machine chapter. Fix ridden along: a REFUSED commit no longer strips
         the portion cursor - the cells stay mounted and the typed text stands
         (yed 672, server 1366, both typecheck clean).
+  - [x] TOC re-plug documented (2026-08-05): MINITODO 029's parked half landed - the TOC
+        filter session + TOC-click insertion re-plugged onto the portion cells host-side
+        (renderers/yed-toc-pick.ts useTocRefPick; the pure editor stays TOC-blind). The
+        `editor/pick-kit` chapter gained the re-plug bullet (session lifetime = the ref
+        edit's, filter fed at the holder, TOC click inserts via pointer-spell, Enter stays
+        the one commit), and `pointer_entry` / `pointer_pick_editing` gained the `toc_click`
+        transition rows + the session prose. MINITODO 029 closed with the same note
+        (yed 672 green, affected server suites 133 green, server typecheck clean).
   - [x] Self-loop transitions de-linked (2026-08-04, user-reported): a state page's
         transition table linked self-loops (`key_cell_editing` -> itself), and clicking a
         link to the page you are already on changes nothing - reads as "links don't work".

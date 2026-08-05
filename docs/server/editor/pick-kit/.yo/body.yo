@@ -26,8 +26,17 @@ description: portion cells in the pure grammar, one query-cell kit and one hint 
   `$yamloverLink` descend); the entry and retarget faces ARE the pure portion cells. The
   breadcrumb and the tag picker (`renderers/annotate.tsx`) still run the query-cell kit
   (`client/query-cells.tsx` over `breadcrumb-machine`) - [one machine](::server:query-editor)
-  in two hosts; the TOC filter session and TOC-click insertion ride those, no longer the
-  reference cells (a follow-up may re-plug the session over the hint seam).
+  in two hosts.
+- >
+  **The TOC is re-plugged onto the portion cells HOST-SIDE** (`renderers/yed-toc-pick.ts`
+  `useTocRefPick`, mounted by `yed-editor.tsx`): a live reference edit claims the shared TOC
+  filter session for its lifetime, the joined query feeds `GET /api/query?shape=filter` at the
+  HOLDER (the same addressing law `treeHints` uses - the TOC prunes as you type), and a TOC row
+  click spells the picked path INTO the cells (`pointer-spell`, the typed scope ladder honored) -
+  INSERTED, never committed: the grammar's Enter stays the one commit, exactly like a dropdown
+  hint. The pure editor remains TOC-BLIND - the seam rides public surfaces only (EditorState in,
+  the pure `refFromRaw`/`refRawOf`, setState out); with no session in context the hook is inert,
+  and eviction (another host claimed the TOC) only unplugs the panel - the edit stands.
 - >
   Commits ride yed's PURE grammar (commitPending - the same Enter path typing takes: the
   sibling rule, the refusal ring, the watchdog; a REFUSED commit keeps the portion cursor and

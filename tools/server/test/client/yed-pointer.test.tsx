@@ -20,6 +20,7 @@ vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string,
 vi.mock("../../src/client/content", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchContent }));
 
 import { YedEditor } from "../../src/client/renderers/yed-editor";
+import { TocFilterCtx, useTocFilterSession, type TocFilterSession } from "../../src/client/toc-filter-session";
 import { contentViaNode } from "./wire-fixture";
 
 const PETS = {
@@ -27,6 +28,7 @@ const PETS = {
   value: { pets: [{ name: "Rex" }, { name: "Whiskers" }] },
 };
 const TREE = (path: string, label: string) => ({ path, label, type: "object", format: null, concrete: null, hasChildren: false, children: [] });
+const FILTER = (matches: string[]) => ({ root: TREE(":", "r"), matches, truncated: false });
 
 beforeEach(() => {
   editChunks.mockReset().mockResolvedValue({ ok: true });
@@ -144,6 +146,57 @@ describe("yed pointer cells - the PORTION face with tree-backed completion", () 
     await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
       { path: ":doc:0", op: "insert", yamlover: "*pets" },
     ]), { timeout: 2000 });
+  });
+
+  it("a TOC pick lands the picked path IN THE CELLS (bare scope); Enter commits; the session claims/releases", async () => {
+    queryFilter.mockResolvedValue(FILTER([":doc:pets:0:name"]));
+    let session!: TocFilterSession;
+    function Host() {
+      session = useTocFilterSession();
+      return (
+        <TocFilterCtx.Provider value={session}>
+          <YedEditor path=":doc" onNavigate={() => {}} />
+        </TocFilterCtx.Provider>
+      );
+    }
+    const { container } = render(<Host />);
+    await waitFor(() => expect(container.querySelector("[data-testid=y2-doc]")).toBeTruthy());
+    await star(container);
+    await waitFor(() => expect(session.active).toBe(true)); // editing a reference claims the TOC filter
+    act(() => session.pick(":doc:pets:0:name")); // a TOC row click routes here
+    // spelled relative to the holder; a position is its own cell - the committed cells idle,
+    // the LAST one is the active input (the pick inserted, the caret stands ready)
+    const idleCells = () => Array.from(container.querySelectorAll<HTMLElement>(".y2-portions .y2-portion")).map((c) => c.textContent);
+    await waitFor(() => expect(idleCells()).toEqual(["pets", "0"]));
+    expect(portionInput(container).value).toBe("name");
+    await new Promise((r) => setTimeout(r, 700)); // across the flush debounce
+    expect(editChunks).not.toHaveBeenCalled(); // the pick INSERTED, not committed
+    fireEvent.keyDown(portionInput(container), { key: "Enter" }); // the grammar's Enter commits
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":doc:0", op: "insert", yamlover: "*pets:0:name" },
+    ]), { timeout: 2000 });
+    await waitFor(() => expect(session.active).toBe(false)); // the commit released the TOC filter
+  });
+
+  it("typing FEEDS the TOC filter session - the pruned tree arrives on the handle (at the holder)", async () => {
+    queryFilter.mockResolvedValue({ root: TREE(":doc:pets", "pets"), matches: [":doc:pets"], truncated: false });
+    let session!: TocFilterSession;
+    function Host() {
+      session = useTocFilterSession();
+      return (
+        <TocFilterCtx.Provider value={session}>
+          <YedEditor path=":doc" onNavigate={() => {}} />
+        </TocFilterCtx.Provider>
+      );
+    }
+    const { container } = render(<Host />);
+    await waitFor(() => expect(container.querySelector("[data-testid=y2-doc]")).toBeTruthy());
+    await star(container);
+    await waitFor(() => expect(session.active).toBe(true));
+    expect(session.filter).toBeNull(); // nothing typed yet - the normal TOC stands
+    type(container, "pe");
+    await waitFor(() => expect(queryFilter).toHaveBeenCalledWith("pe", ":doc")); // evaluated AT the holder
+    await waitFor(() => expect(session.filter?.root.label).toBe("pets"));
   });
 
   it("RETARGET of a committed SPACED-canonical pointer: an unchanged Enter emits NO op", async () => {

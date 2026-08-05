@@ -21,6 +21,7 @@ import { fetchContent } from "../content";
 import { makeSourceCells, treeHints } from "./yed-cells";
 import { irFromContent } from "./yed-content-load";
 import { diffToOps } from "./yed-sync";
+import { useTocRefPick } from "./yed-toc-pick";
 import "../../../../yed/src/yed.css";
 
 const freshCursor = (): EditorState["cursor"] => ({ at: "hole", path: [], index: 0, text: "", key: null });
@@ -67,6 +68,11 @@ export function YedEditor({ path, onNavigate, cells }: { path: string; onNavigat
     setState(next);
     if (committedRef.current && next.doc !== committedRef.current) schedule();
   };
+
+  // THE TOC RE-PLUG: a reference edit claims the shared TOC filter session, the typed query
+  // prunes the TOC, and a TOC row click spells the picked path into the portion cells
+  // (yed-toc-pick.ts - host-side only; the pure editor stays TOC-blind)
+  useTocRefPick({ state, stateRef, apply: update, hostOf: () => ({ base: path, doc: docPathRef.current }) });
 
   useEffect(() => {
     let alive = true;

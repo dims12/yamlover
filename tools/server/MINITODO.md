@@ -87,6 +87,12 @@
   the live tree (renderers/yed-cells.tsx treeHints over GET /api/query). ServerPointerHole /
   holePick / the kit hosting in the reference cells are RETIRED; the query-cell kit remains the
   breadcrumb's and tag picker's. Docs: ::server:editor:pick-kit + the pointer_* state pages.
-  OPEN follow-up: the TOC filter session + TOC-click insertion no longer ride pointer entry -
-  if wanted back, re-plug the session as a side-channel of the hint seam (client/pointer-spell.ts
-  - spellPointer/spellCells, kept + tested - already spells a picked wire path into cells).
+  Follow-up +DONE (2026-08-05): the TOC filter session + TOC-click insertion RE-PLUGGED onto
+  the portion cells, HOST-SIDE only (renderers/yed-toc-pick.ts useTocRefPick, mounted by
+  yed-editor.tsx; the pure editor stays TOC-blind): a live ref edit claims the session, the
+  joined query feeds `GET /api/query?shape=filter` at the holder, and a TOC click spells the
+  picked path into the cells (pointer-spell, the typed ladder honored) - inserted like a hint,
+  the grammar's Enter stays the one commit; eviction/no-session only unplugs the panel. The
+  legacy TOC-pick test expectations revived in yed-pointer.test.tsx (session claims/releases,
+  pick lands in cells, Enter commits `*pets:0:name`; plus the filter-feed case). Chapter
+  source-chunk references still hint-only (no session plug in the embedded chunks yet).

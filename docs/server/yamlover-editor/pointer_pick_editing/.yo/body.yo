@@ -8,6 +8,9 @@ description: the pointer_pick_editing state
   committed spelling), with the same grammar: `:` splits, `[` folds an index, Backspace merges /
   descends the scope, and the optional completion hints (complete.ts) advise over the active
   cell - the server host's provider is the live tree, the pure editor's the in-memory document.
+  The server mount claims the shared TOC FILTER SESSION here too (yed-toc-pick.ts): the typed
+  query prunes the TOC, and a TOC row click spells the picked path into the cells (the
+  retarget's holder, the typed ladder) - inserted, never committed.
   Commit JOINS the portions and parses-or-refuses; an UNCHANGED raw commits as a no-op (an
   unasked spelling rewrite never reaches the disk); leaving with arrows commits too - garbage
   refuses the move. Abandonment needs no wiring: clicking another cell moves the cursor and the
@@ -24,6 +27,7 @@ description: the pointer_pick_editing state
   - ['`colon`', 'the empty first cell climbs the scope; otherwise the portion commits, the next opens', '`pointer_pick_editing` (stays)']
   - ['`open_bracket`', 'an empty non-first cell - an index folds onto the previous portion', '`pointer_pick_editing` (stays)']
   - ['`hint_pick`', 'a dropdown row replaces the active cell''s text; Enter still commits', '`pointer_pick_editing` (stays)']
+  - ['`toc_click`', 'the server mount only (yed-toc-pick.ts): the picked path spells into the cells (the retarget''s holder, the typed ladder) - inserted; Enter still commits', '`pointer_pick_editing` (stays)']
   - ['`enter`', 'the joined raw parses (or stands unchanged) - the retarget lands and Enter walks the SIBLING rule', '[entry_hole](::server:yamlover-editor:entry_hole)']
   - ['`enter`', 'not a pointer the wire can carry', '[error_flash](::server:yamlover-editor:error_flash)']
   - ['`backspace`', 'at the head of a non-first portion - the cells merge; the first cell''s head descends the scope', '`pointer_pick_editing` (stays)']
