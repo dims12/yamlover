@@ -1,7 +1,7 @@
 // Hand-written recursive-descent parser for json5p (JSON5 + pointers) → the IR.
 // Spec: JSON5P.md. JSON ⊂ JSON5 ⊂ json5p, so this also accepts all JSON/JSON5.
 //
-// Adds over JSON5: `*'<pointer>'` (deref), `&'<path>' <value>` (PATH anchor — URIs.md §`&`;
+// Adds over JSON5: `*'<pointer>'` (deref), `&'<path>' <value>` (PATH anchor — docs/language/pointers/anchors;
 // quoted like a pointer, trailing `[]` = ordinal membership, several may stack; a legacy
 // bare `&name` reads as the current-scope path `name`), and the deprecated `~key:` /
 // `~*'…'` back-edges (≡ `&'P/key'` / `&'P[]'`).
@@ -94,7 +94,7 @@ class Parser {
       let back = false;
       if (this.peek() === '~') { back = true; this.i++; }
       if (back && this.peek() === '*') {
-        // `~*'…'` — a KEYLESS back member (reverse positional membership, URIs.md §`~-`):
+        // `~*'…'` — a KEYLESS back member (reverse positional membership, docs/language/vs-yaml/tilde):
         // no key, no colon; the pointer names the container that holds this node.
         entries.push(withSpan({ key: null, edge: 'back', value: this.pointer() }, this.uri, entryStart, this.i));
       } else {

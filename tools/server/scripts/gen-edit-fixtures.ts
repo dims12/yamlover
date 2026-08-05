@@ -4,7 +4,7 @@
 // document, plus `from` so the harness knows what the result must reparse to. Goldens are
 // GENERATED, REVIEWED and COMMITTED (the discipline of gen-fixtures.ts); the harness only READS.
 //
-// THE DERIVATION follows THE LEVEL RULE (YAMLOVER_EDITOR.yo §"THE LEVEL RULE"): Enter after
+// THE DERIVATION follows THE LEVEL RULE (docs/server/yamlover-editor - THE LEVEL RULE): Enter after
 // committing a value DESCENDS into it, so staying at the same level costs one Shift-Tab and every
 // step outwards costs another. That is the whole model — line text, `{Enter}`, then as many
 // `{ShiftTab}`s as it takes to reach the next line's depth.

@@ -6,7 +6,7 @@ import { renderPointer } from './pointer.ts';
 
 /** The target concrete cannot express this construct. The lossy policy (PLAN.md 2d) is
  *  REFUSE: a serializer never drops or silently rewrites graph data — route inexpressible
- *  metadata through the meta layer (META.md) or pick a fuller concrete instead. */
+ *  metadata through the meta layer (docs/language/model/metadata) or pick a fuller concrete instead. */
 export class LossyError extends Error {}
 
 /** Double-quoted, JSON-escape style — the parser's dq escapes are a JSON superset. */
@@ -14,8 +14,7 @@ export function dq(s: string): string {
   return JSON.stringify(s);
 }
 
-/** The CANONICAL key emission. Plain keys carry the pointer-metachar escaping (URIs.md
- *  §escaping); keys the line grammar itself would misread are double-quoted instead. A
+/** The CANONICAL key emission. Plain keys carry the pointer-metachar escaping (docs/language/pointers/escaping); keys the line grammar itself would misread are double-quoted instead. A
  *  NUMERIC key is always quoted (the YAML-keys round): bare `1:` is a position claim — a
  *  parse error — so the string key "1" round-trips as `"1":`. Shared with the PARSER: an
  *  authored key token that differs from this emission is representation worth keeping
@@ -30,7 +29,7 @@ export function keyText(key: string): string {
     /^['"]/.test(key) ||
     key.includes('\\'); // plain keys are backslash-UNescaped on parse
   if (needsQuote) return dq(key);
-  // escape the pointer metachars (incl. the QUERY.md reservations) — parse strips them back
+  // escape the pointer metachars (incl. the docs/language/pointers/escaping reservations) — parse strips them back
   return key.replace(/[/[\]*&#~?!()<>=|]/g, (c) => '\\' + c);
 }
 

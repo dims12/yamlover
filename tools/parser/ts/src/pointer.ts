@@ -1,13 +1,13 @@
 // Shared pointer parser: a pointer expression (the text after `*`, already string-
-// unquoted) → an unresolved Pointer. Grammar: SEPARATOR.md (colon — the ONLY form).
+// unquoted) → an unresolved Pointer. Grammar: docs/language/pointers/paths (colon — the ONLY form).
 //
-// COLON form (SEPARATOR.md): portions separated by `:`, canonical styling `: `
+// COLON form (docs/language/pointers/paths): portions separated by `:`, canonical styling `: `
 // (colon + space; the space is optional on input). Scope ladder — more colons,
 // wider scope: bare = current, `:` = document root, `::` = project, `:::` = world
 // (an AWS-like project URI). A key containing a SPACE must be quoted
 // (`'дорожный знак'`); `/` is an ORDINARY character in a key (MIME types, dates).
 //
-// The legacy slash-separator form (URIs.md pre-SEPARATOR spelling, `*/a/b`) is DEAD:
+// The legacy slash-separator form (the pre-colon spelling, `*/a/b`) is DEAD:
 // the migration window is CLOSED (2026-07-24). A `/` never separates — `*/pets` is a
 // (dangling) reference to the literal key "/pets", and `*/pets[0]/name` is a syntax
 // error (text after an index group). Tests pin both.
@@ -29,7 +29,7 @@ export function parsePointer(raw: string, yaml = false): Pointer {
   return parseColon(raw);
 }
 
-// ---- colon form (SEPARATOR.md) ---------------------------------------------------
+// ---- colon form (docs/language/pointers/paths) ---------------------------------------------------
 
 function parseColon(raw: string): Pointer {
   let rest = raw;
@@ -88,7 +88,7 @@ function portionsToSteps(portions: string[]): Step[] {
 
 /** One colon portion → steps: `..`, a (possibly quoted) name, optional `[.±k]` groups
  *  (`[n]` reads as a legacy alias of the bare-integer portion). A bare name containing a
- *  SPACE must be quoted (SEPARATOR.md §3).
+ *  SPACE must be quoted (docs/language/pointers/paths).
  *
  *  THE BARE-TOKEN TYPING RULE (the YAML-keys round, 2026-08-01): an UNQUOTED, UNESCAPED
  *  portion of pure digits is the INTEGER KEY — a position (`: pets: 1`); a bare `~` is the
@@ -137,8 +137,7 @@ function portionToSteps(p: string): Step[] {
 }
 
 /** A run of bracket groups on a portion tail: `[n]` (absolute — the integer key n)
- *  or `[.]` / `[.±k]` (RELATIVE — the host's own position at this depth, ± k; URIs.md
- *  §Relative indexes). Bracket bodies are disjoint by form: digits = absolute, a leading
+ *  or `[.]` / `[.±k]` (RELATIVE — the host's own position at this depth, ± k; docs/language/pointers/relative-indexes). Bracket bodies are disjoint by form: digits = absolute, a leading
  *  `.` = relative; an offset requires an explicit sign (`[.5]` is malformed). `whole`
  *  shapes the error text of the calling grammar. */
 function indexGroups(s: string, whole: string): Step[] {
@@ -214,7 +213,7 @@ export function renderPointer(p: Pointer, opts: { spaced?: boolean } = {}): stri
  *  five disagreeing copies). A string key is QUOTED whenever its bare form would read as
  *  something else: empty, pure digits (a position), `~` (the null key), a leading `-` with
  *  digits (reserved), a space, or a leading quote; otherwise it rides bare with metachars
- *  backslash-escaped — `:` in the set, `/` out of it (SEPARATOR.md §3). */
+ *  backslash-escaped — `:` in the set, `/` out of it (docs/language/pointers/paths). */
 export function keyPortion(name: string): string {
   if (name === '..') return '\\.\\.';
   if (
@@ -233,7 +232,7 @@ export function keyPortion(name: string): string {
 /** Back-compat alias — the historical name for {@link keyPortion}. */
 export const colonSegment = keyPortion;
 
-/** Build an Anchor (URIs.md §`&`) from the authored path text (after `&`, quotes already
+/** Build an Anchor (docs/language/pointers/anchors) from the authored path text (after `&`, quotes already
  *  stripped): strip a trailing `[]` (ordinal membership), parse the rest as a pointer, and
  *  check that a keyed anchor ends in a KEY segment — a position may not be claimed. Shared
  *  by both surface parsers; `fail` raises in the caller's error style. */
@@ -241,7 +240,7 @@ export function makeAnchor(body: string, fail: (msg: string) => never, yaml = fa
   let ordinal = false;
   if (body.endsWith('[]') && !body.endsWith('\\[]')) { ordinal = true; body = body.slice(0, -2); }
   const path = parsePointer(body, yaml);
-  // a relative index is link-only (URIs.md §Relative indexes): an anchor claiming a
+  // a relative index is link-only (docs/language/pointers/relative-indexes): an anchor claiming a
   // relative position is still a position claim
   if (path.steps.some((s) => s.sel === 'relindex')) fail('an anchor may not claim a position — "[.±k]" is link-only');
   if (!ordinal) {

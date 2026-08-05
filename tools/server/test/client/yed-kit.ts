@@ -1,5 +1,5 @@
 // THE EDIT KIT — the shared machinery of the yed-*.matrix suites (the executable form of the
-// editor's LAWS, EDITOR.md). A suite mounts an EMPTY document with the api mocked, then types its
+// editor's LAWS, docs/server/editor). A suite mounts an EMPTY document with the api mocked, then types its
 // way into a context and through a script; the kit asserts, after EVERY keystroke, that the caret
 // resolves to a real cell (the harness's `press` does this), so a caret trap fails at the exact
 // keystroke that caused it rather than as a mystery later.

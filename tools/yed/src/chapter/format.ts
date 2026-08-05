@@ -3,7 +3,7 @@
 // instead of the MNode sidecar).
 //
 // A block's format is DERIVED, never stored: it is read off the IR spine every time it is needed.
-// The rule (MARKLOWER.md "Structure", CHAPTER.md):
+// The rule (docs/documents/marklower/structure, docs/documents/chapter):
 //   - an explicit `!!<…$defs:X>` tag wins — table / bullets / numbered;
 //   - otherwise the ENCLOSING format decides, because an untagged container INHERITS:
 //       inside a table  → the level below is a ROW, below that a CELL (back to chapter rules);

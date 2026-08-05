@@ -621,7 +621,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
         </EditingContext.Provider>
       ) : unlocked && isEditableView && !isJsonFamily(node.concrete) ? (
         /* the UNLOCKED yamlover data view is the projectional STRUCTURE editor: yed — the
-           @yamlover/yed reference implementation (EDITOR.md). JSON-family files stay on the
+           @yamlover/yed reference implementation (docs/server/editor). JSON-family files stay on the
            per-scalar editor below — their backing supports only scalar emplaces. */
         <YedEditor path={path} onNavigate={navigateData} />
       ) : (

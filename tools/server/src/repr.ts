@@ -1,5 +1,5 @@
 // repr.ts — the REPRESENTATION axis, in one pure module (no I/O, no index, shared client and
-// server), the sibling of concrete.ts. Normative prose: CONCRETES.md §"Scalar representation".
+// server), the sibling of concrete.ts. Normative prose: docs/language/concretes/04-yaml.
 //
 // A node carries TWO orthogonal concretes:
 //
@@ -23,7 +23,7 @@
 import { isJsonFamily } from "./concrete";
 
 // --------------------------------------------------------------------------- //
-// The vocabulary — CONCRETES.md §"String styles" … §"Float notations"
+// The vocabulary — docs/language/concretes/04-yaml
 // --------------------------------------------------------------------------- //
 
 /** How a string is delimited / laid out (YAML 1.2 Ch. 7-8). */
@@ -42,7 +42,7 @@ export type CollectionRepr = "yaml/flow" | "yaml/block";
 export type ScalarRepr = StringRepr | NullRepr | BoolRepr | IntRepr | FloatRepr;
 export type Repr = ScalarRepr | CollectionRepr;
 
-/** A block scalar's further modifiers (CONCRETES.md §113-116). They change trailing whitespace and
+/** A block scalar's further modifiers (docs/language/concretes/04-yaml). They change trailing whitespace and
  *  layout, never the value, so they qualify the literal/folded concrete rather than replacing it. */
 export interface BlockQualifiers {
   /** §8.1.1.2 — `clip` is the default and is not recorded. */
@@ -117,8 +117,7 @@ function plainRepr(value: unknown, tok: string): ScalarRepr {
     if (body.startsWith("0x")) return "yaml/hex";
     if (body.startsWith("0b")) return "yaml/bin";
     if (body.startsWith("0o")) return "yaml/oct";
-    // NOT `0377`: the core schema reads a leading zero as decimal (377, not 255), and CONCRETES.md
-    // §155-158 keeps leading zeros in `raw` rather than giving them a concrete of their own.
+    // NOT `0377`: the core schema reads a leading zero as decimal (377, not 255), and docs/language/concretes/04-yaml keeps leading zeros in `raw` rather than giving them a concrete of their own.
     if (/[.e]/.test(body)) return /e/.test(body) ? "yaml/exp" : "yaml/float";
     return "yaml/dec";
   }

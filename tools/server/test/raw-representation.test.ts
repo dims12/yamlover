@@ -7,8 +7,7 @@ import { nodeJson } from "./node-json";
 // A scalar's decoded VALUE loses its authored spelling — `"~"` (a string) and `~` (null) both project
 // to distinct values, but `0xff`→255, `True`→true, a quoted `"~"`→"~" all render ambiguously if shown
 // bare. The projection carries the authored SOURCE token (`raw`) in the comment sidecar, but ONLY when
-// it differs from the plain decoded form, so the renderer can show it faithfully (CONCRETES.md
-// §Scalar representation). Plain `Rex`/`42` carry nothing.
+// it differs from the plain decoded form, so the renderer can show it faithfully (docs/language/concretes/04-yaml). Plain `Rex`/`42` carry nothing.
 describe("scalar raw representation (comment sidecar)", () => {
   it("carries raw for representation-significant scalars only, value unchanged", async () => {
     const src = 'humans:\n  - name: "~"\n    plain: Rex\n    id: 0xff\n    n: 42\n    b: True\n    nul: ~\n';
@@ -31,7 +30,7 @@ describe("scalar raw representation (comment sidecar)", () => {
   });
 });
 
-// The REPRESENTATION concrete (repr.ts, CONCRETES.md §Scalar representation) rides the same sidecar
+// The REPRESENTATION concrete (repr.ts, docs/language/concretes/04-yaml) rides the same sidecar
 // beside `raw`: `raw` is the bytes, `repr` is the CLASSIFICATION a renderer, schema or style-picker
 // reasons about. It is carried only when it is not the default for the value, so the sidecar stays
 // as sparse as it is for `raw`.
@@ -74,7 +73,7 @@ describe("representation concretes on the wire", () => {
 });
 
 // Known parser gaps, pinned so the vocabulary and the reader do not drift apart silently:
-// CONCRETES.md lists `yaml/oct` / `yaml/bin` / `yaml/bool11`, but the reader follows the YAML 1.2
+// docs/language/concretes lists `yaml/oct` / `yaml/bin` / `yaml/bool11`, but the reader follows the YAML 1.2
 // CORE schema, where `0o377`, `0b1111`, `yes` and `no` are ordinary STRINGS (1.1 word booleans are
 // marked "opt-in" there). repr.ts classifies them the moment a reader decodes them — repr.test.ts
 // drives the classifier directly, so the vocabulary stays covered either way.

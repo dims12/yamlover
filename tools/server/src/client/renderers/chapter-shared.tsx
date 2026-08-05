@@ -18,7 +18,7 @@ import { DataChunk } from "./data-chunk";
 import { navigateToFragment } from "./headings";
 
 /** The index gutter — an in-page anchor link to the chunk's own location, or a plain marker.
- *  Each entry of `index` is one level's ADDRESS token (CHAPTER.md §Addressing): the chunk's
+ *  Each entry of `index` is one level's ADDRESS token (docs/documents/chapter/addressing): the chunk's
  *  ABSOLUTE entry index, shown as the canonical bare digit — the same number a marklower link
  *  (`:i`), an edit path, and the tree label spell. The chain renders WITHOUT colons: every
  *  crumb hangs beside the vertical rule of its own nesting level (`--lvl` 0 = the chunk's own
@@ -408,11 +408,11 @@ export function ReadChunk({
 /** Build a {@link Chunk} (for a renderer's `renderChunk`) from a chapter chunk value/link marker.
  *
  *  An ANNOTATED chunk arrives as an omni marker — its tag applications are keyed entries laid over
- *  the prose (ANNOTATIONS.md) — so the scalar is peeled out of it before anything else looks at it;
+ *  the prose (docs/server/annotations) — so the scalar is peeled out of it before anything else looks at it;
  *  an unannotated one is already its own value.
  *
  *  An INLINE string is a chapter's prose, so it carries the chunk schema's format — `text/marklower`
- *  (CHAPTER.md `$defs/chunk`) — even when the value reached the client unstamped (a `$yamloverLink`
+ *  (docs/documents/chapter/schema `$defs/chunk`) — even when the value reached the client unstamped (a `$yamloverLink`
  *  marker carries its node's own format; a bare inline scalar has none to carry). Saying so here is
  *  what lets the registry ask for the format BY NAME instead of claiming every format-less string in
  *  the tree, which would make prose of a plain `name: Alice`. */

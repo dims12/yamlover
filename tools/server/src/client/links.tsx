@@ -61,7 +61,7 @@ function slashSegs(str: string): Seg[] {
 
 /** Interpret a link `target` against the `documentPath` it appears in (the JSON-space
  *  path of its document; defaults to root). Colon spellings (`:a:b`, `::a:b` —
- *  SEPARATOR.md) are canonical; legacy slash spellings (`/a/b`, `//a/b`) still parse. */
+ *  docs/language/pointers/paths) are canonical; legacy slash spellings (`/a/b`, `//a/b`) still parse. */
 export function resolveLink(target: string, documentPath = ":"): ResolvedLink {
   const raw = target.trim();
   if (!raw) return UNRESOLVED;

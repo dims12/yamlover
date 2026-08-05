@@ -1,24 +1,23 @@
-// repr.ts — the pure representation axis (no I/O). The table below IS CONCRETES.md §"Scalar
-// representation": every row of every vocabulary sub-table gets a case, so the doc and the code
+// repr.ts — the pure representation axis (no I/O). The table below IS docs/language/concretes/04-yaml: every row of every vocabulary sub-table gets a case, so the doc and the code
 // cannot drift apart silently.
 import { describe, it, expect } from "vitest";
 import { classifyScalar, collectionRepr, defaultRepr, isDefaultRepr, isFlowRepr, type ScalarRepr } from "../src/repr";
 
 /** value + authored token → the concrete it classifies as. */
 const cases: [unknown, string | null | undefined, ScalarRepr][] = [
-  // --- string styles (CONCRETES.md §106-112) --------------------------------
+  // --- string styles (docs/language/concretes/04-yaml) --------------------------------
   ["Rex", "Rex", "yaml/plain"],
   ["Rex", "'Rex'", "yaml/single"],
   ["a\tb", '"a\\tb"', "yaml/double"],
   ["line\n", "|\n  line", "yaml/literal"],
   ["line ", ">\n  line", "yaml/folded"],
-  // --- null notations (§124-128) --------------------------------------------
+  // --- null notations --------------------------------------------
   [null, "~", "yaml/tilde"],
   [null, "null", "yaml/null"],
   [null, "Null", "yaml/null"],
   [null, "NULL", "yaml/null"],
   [null, "", "yaml/empty"],
-  // --- boolean notations (§132-135) -----------------------------------------
+  // --- boolean notations -----------------------------------------
   [true, "true", "yaml/bool"],
   [false, "False", "yaml/bool"],
   [true, "TRUE", "yaml/bool"],
@@ -26,17 +25,16 @@ const cases: [unknown, string | null | undefined, ScalarRepr][] = [
   [false, "no", "yaml/bool11"],
   [true, "on", "yaml/bool11"],
   [false, "off", "yaml/bool11"],
-  // --- integer notations (§139-144) — all 255 -------------------------------
+  // --- integer notations — all 255 -------------------------------
   [255, "255", "yaml/dec"],
   [255, "0xff", "yaml/hex"],
   [255, "0xFF", "yaml/hex"],
   [255, "0o377", "yaml/oct"],
-  // NOT octal: the core schema reads a leading zero as decimal (377, not 255), and CONCRETES.md
-  // §155-158 keeps leading zeros in `raw` rather than giving them a concrete of their own
+  // NOT octal: the core schema reads a leading zero as decimal (377, not 255), and docs/language/concretes/04-yaml keeps leading zeros in `raw` rather than giving them a concrete of their own
   [377, "0377", "yaml/dec"],
   [255, "0b11111111", "yaml/bin"],
   [-255, "-0xff", "yaml/hex"], // a sign never changes the base
-  // --- float notations (§148-153) -------------------------------------------
+  // --- float notations -------------------------------------------
   [3.14, "3.14", "yaml/float"],
   [6.022e23, "6.022e23", "yaml/exp"],
   [1, "1.0", "yaml/float"], // the VALUE is the integer 1 — only the token says it is a float
@@ -45,7 +43,7 @@ const cases: [unknown, string | null | undefined, ScalarRepr][] = [
   [NaN, ".nan", "yaml/nan"],
 ];
 
-describe("classifyScalar — the CONCRETES.md vocabulary, row by row", () => {
+describe("classifyScalar — the docs/language/concretes vocabulary, row by row", () => {
   for (const [value, raw, want] of cases) {
     it(`${JSON.stringify(raw)} (${String(value)}) → ${want}`, () => {
       expect(classifyScalar(value, raw).repr).toBe(want);

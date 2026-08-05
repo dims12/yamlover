@@ -4,7 +4,7 @@
 // `*` refs. Reverse (`~`/`&`) members — an UPSTREAM relation the node does not own — must never
 // change its type (a reverse-tagged blob stays `binary`, keeping its renderer). The reverse
 // direction is guarded too: a node that genuinely OWNS fields is a `variant`/`omni`. Under the
-// EMBEDDED tagging model (ANNOTATIONS.md) the 67-pdf-tags papers now OWN a `yamlover-annotations`
+// EMBEDDED tagging model (docs/server/annotations) the 67-pdf-tags papers now OWN a `yamlover-annotations`
 // array, so each is an omni-blob; the reverse-member invariant is checked on a synthetic fixture.
 
 import { test } from 'node:test';

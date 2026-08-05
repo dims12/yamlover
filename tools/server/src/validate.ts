@@ -10,7 +10,7 @@
 //     metadata at all, so they hold for a fresh directory the user has only just started typing
 //     into — which is exactly where the corruption they catch is born.
 //
-//   VALUE (`value/*`) — a node's data against a `.yo/meta.yo` schema (META.md). The
+//   VALUE (`value/*`) — a node's data against a `.yo/meta.yo` schema (docs/language/model/metadata). The
 //     codes and the {@link SchemaRule} shape are RESERVED here and {@link compileMeta} ships
 //     returning `[]`: the seam exists so that landing real schema rules later adds a rule SOURCE
 //     and changes no call site, no diagnostic shape, and no enforcement decision.
@@ -30,7 +30,7 @@ import { deriveMemberEncoding, requiredChildLanguage, type DirEditRoute } from "
 // The overlay vocabulary — the ONLY names that may live inside a `.yo/`
 // --------------------------------------------------------------------------- //
 
-/** The hidden marker/overlay directory (CONCRETES.md, META.md §Where it lives). */
+/** The hidden marker/overlay directory (docs/language/concretes/03-yamlover/01-dir). */
 export const OVERLAY_DIR = ".yo";
 
 /** The files a `.yo/` may hold: the instance overlay, the schema, the project config, and
@@ -75,7 +75,7 @@ export type DiagnosticCode =
   // layout — whole-tree invariants (the doctor sweep)
   | "layout/orphan-overlay"
   | "layout/concrete-mismatch"
-  // value — RESERVED for meta.yo (META.md §Vocabulary)
+  // value — RESERVED for meta.yo (docs/language/model/metadata)
   | "value/type"
   | "value/required"
   | "value/enum"
@@ -110,7 +110,7 @@ const DEFAULT_SEVERITY: Partial<Record<DiagnosticCode, Severity>> = { "layout/of
 // Snapshots — the caller gathers, this module decides (the DirTargetState precedent)
 // --------------------------------------------------------------------------- //
 
-/** One node of the CONCRETE tree, observed or planned. `concrete` is the CONCRETES.md value;
+/** One node of the CONCRETE tree, observed or planned. `concrete` is the docs/language/concretes value;
  *  `names` is a directory's on-disk child names, when the caller has them. */
 export interface ConcreteNode {
   path: string; // canonical colon path
@@ -171,7 +171,7 @@ export interface LayoutRule {
   onNode?(node: ConcreteNode, tree: TreeSnapshot, fsPaths: ReadonlySet<string>): Diagnostic[];
 }
 
-/** FUTURE — one compiled `meta.yo` keyword, keyed by META-PATH (META.md's meta-path →
+/** FUTURE — one compiled `meta.yo` keyword, keyed by META-PATH (docs/language/model/metadata's meta-path →
  *  instance-path contract). A plain string, so a later `$ref`/`$defs` scheme slots in without
  *  touching the runner. */
 export interface SchemaRule {
@@ -220,7 +220,7 @@ export const layoutRules: readonly LayoutRule[] = [
     },
   },
   {
-    // Everything under a `.yo/` is format furniture with a fixed vocabulary (META.md). A
+    // Everything under a `.yo/` is format furniture with a fixed vocabulary (docs/language/model/metadata). A
     // stray name here is content that has escaped the data tree.
     code: "layout/reserved-overlay-name",
     onPath(fsPath, segs) {

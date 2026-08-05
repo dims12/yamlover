@@ -16,7 +16,7 @@ import type { Node, Entry } from '../../../parser/ts/src/ir.ts';
 import { isPointer } from '../../../parser/ts/src/ir.ts';
 import { walkTree } from './walk.ts';
 
-/** The yamlover project's world URI authority (SEPARATOR.md §2). */
+/** The yamlover project's world URI authority (docs/language/pointers/scopes). */
 export const YAMLOVER_AUTHORITY = 'yamlover.inthemoon.net';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));

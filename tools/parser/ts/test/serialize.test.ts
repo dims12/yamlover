@@ -210,7 +210,7 @@ test('yamlover rt: !!yo is semantic — kept on keyed nodes, containers, and the
 });
 
 test('yamlover rt: a MULTILINE root omni self-value re-emits as a tagless block scalar, fields follow', () => {
-  // a bare block-scalar self-value mixed with entries — no `!!var` (YAMLOVER.md §4)
+  // a bare block-scalar self-value mixed with entries — no `!!var` (docs/language/vs-yaml/mixtures)
   const out = rtYamlover('- solid\n|\n   multi\n   line\n- recommended\nscale: 10\n');
   assert.doesNotMatch(out, /!!var|!!omni/);
   assert.match(out, /^\|$/m); // the block-scalar introducer on its own line
@@ -418,7 +418,7 @@ test('cross lossy: 06-tour.yo does not fit json5p (mix/omni/set)', () => {
   assert.throws(() => serializeJson5p(doc), LossyError);
 });
 
-// ── flow style: the `yaml/flow` representation concrete (CONCRETES.md) ──────────────────────
+// ── flow style: the `yaml/flow` representation concrete (docs/language/concretes) ──────────────────────
 // An AUTHORED flow container re-emits as flow; anything flow cannot hold LOSSLESSLY falls back to
 // block form rather than throwing or dropping. The refusal list here is the contract the editor's
 // `flowFits` mirrors — if the two disagree, the screen and the file disagree.
@@ -458,7 +458,7 @@ test('yamlover: a json5p document still serializes to BLOCK yamlover', () => {
 });
 
 // ── K&R: a MULTI-LINE flow token is an inline concrete switch to json5p ─────────────────────
-// CONCRETES.md §Collection style. One line ⇒ yamlover with the `yaml/flow` representation; several
+// docs/language/concretes/00-storage/00-inlined. One line ⇒ yamlover with the `yaml/flow` representation; several
 // lines ⇒ the LANGUAGE changes, so the subtree re-emits through the json5p serializer (whose layout
 // is K&R) and everything json5p cannot hold falls back to block, like flow's own refusals.
 

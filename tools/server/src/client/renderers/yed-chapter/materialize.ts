@@ -1,4 +1,4 @@
-﻿// THE DEFERRED MATERIALIZATION (CHAPTER.md §Attaching a chapter), as a FLUSH-TIME transformer
+﻿// THE DEFERRED MATERIALIZATION (docs/documents/chapter/attaching), as a FLUSH-TIME transformer
 // over the diff channel: a freshly Tab-wrapped subchapter — an untagged, keyless, wrapped
 // (`meta.chapterWrapped`) child of a document whose inheritance rule says "directory"
 // (concrete-rules.ts subchapterMaterializes) — becomes its OWN SUBDIRECTORY the moment it

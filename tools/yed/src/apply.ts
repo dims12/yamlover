@@ -1543,7 +1543,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       // and a same-level sibling costs one Shift-Tab (dedent). This is what every corpus script
       // is written against.
       const value = entryPath.length ? entryAt(committed.doc, entryPath)?.value : committed.doc.root;
-      // THE SIBLING RULE (YAMLOVER_EDITOR.yo pointer_committed): a reference holds no children,
+      // THE SIBLING RULE (docs/server/yamlover-editor pointer_committed): a reference holds no children,
       // so its Enter opens the hole AFTER it — the one exception to the level rule's descend
       if (value && isPointer(value) && entryPath.length > 0) {
         return ok({ ...committed, cursor: { at: "hole", path: entryPath.slice(0, -1), index: entryPath[entryPath.length - 1] + 1, text: "", key: null } });

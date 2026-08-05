@@ -506,7 +506,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // The QUERY evaluator (PLAN.md 3g / QUERY.md): a colon-grammar match template,
+      // The QUERY evaluator (PLAN.md 3g / docs/language/pointers/queries): a colon-grammar match template,
       // evaluated at `path` (default: the root). Results are client JSON paths — or, with
       // `shape=tree`, TreeNode rows (metadata only, children lazy — the breadcrumb dropdown's
       // candidates), or, with `shape=filter`, ONE pruned tree of the matches plus ALL their
@@ -518,7 +518,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         const shape = url.searchParams.get("shape");
         try {
           const paths = evalQuery(s, q, at);
-          // Hidden filtering honors the SCOPE LADDER (URIs.md): a PROJECT/world-scoped query
+          // Hidden filtering honors the SCOPE LADDER (docs/language/pointers): a PROJECT/world-scoped query
           // (`::` / `:::`) sees the grafted self-import's CONTENT — that is project furniture,
           // and searching `:: ...: colors` must find the built-in palette. Document/current
           // scoped queries keep the strict TOC hiding: `:` is the document, not the project.
@@ -586,7 +586,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Create an annotation — TAG a target (a WRITE path; ANNOTATIONS.md). The tag application is
+      // Create an annotation — TAG a target (a WRITE path; docs/server/annotations). The tag application is
       // appended to the target's own `yamlover-annotations` array, embedded in the target's host
       // body (a `*.yo` document, or a directory's `.yo/body.yo` overlay keyed by
       // filename). The target may be a whole node OR a fragment (`…:yamlover-fragments:<slug>`).
@@ -622,7 +622,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Create a FRAGMENT — a user-marked region inside a target (a WRITE path; ANNOTATIONS.md).
+      // Create a FRAGMENT — a user-marked region inside a target (a WRITE path; docs/server/annotations).
       // Stored under the target's `yamlover-fragments` mapping keyed by a fresh slug; for an
       // image-like selection the optional `imageBase64` crop is written as a sidecar blob the
       // fragment references. Body: { target, selector, imageBase64? } → { slug, fragmentPath }.
@@ -926,7 +926,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       }
 
       // RENAME A KEY (the editor's key cell). One verb, two backends chosen by the node's STORAGE —
-      // THE CONCRETE IS NOT A STATE (YAMLOVER_EDITOR.yo): the editor asks to rename a key and
+      // THE CONCRETE IS NOT A STATE (docs/server/yamlover-editor): the editor asks to rename a key and
       // the server routes it. An fs-backed member (a real directory/file named by the key — the
       // promoted `world/`, a linked note) is renamed on disk via `mv`, which ALSO rewrites every
       // inbound `*`/`~` pointer; an INLINE keyed entry (a scalar/flow field in a body) has its key
@@ -1013,7 +1013,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // canonicalized: a positional segment may alias a KEYED member (URIs.md — a keyed
+      // canonicalized: a positional segment may alias a KEYED member (docs/language/pointers — a keyed
       // entry's position is an alias to it; the dir-backed pointer-array members of
       // examples/56), and the store paths those by key
       const segs = canonSegs(s, strToSegs(url.searchParams.get("path") || ":"), false);
@@ -1171,7 +1171,7 @@ function tocType(s: Store, p: string, row: NodeRow): string {
   return typeName(s, p, row);
 }
 
-/** How the node at `segs` is stored — the full per-node concrete taxonomy (CONCRETES.md), derived
+/** How the node at `segs` is stored — the full per-node concrete taxonomy (docs/language/concretes), derived
  *  from a stat plus the enclosing document's language (the engine tracks no per-node concrete yet).
  *  A filesystem-backed node reports its own storage (`dir` / `dir/yamlover` / `file/<lang>` /
  *  `file/binary`); an interior (inlined) node reports the inlined language of the document it lives
@@ -1209,7 +1209,7 @@ const relKey = (label: string | null, other: string): string => `${label ?? ""}\
 /** A node's DOWNSTREAM entries (it is the natural source), in source order: its containment
  *  children and forward `*` refs (authored here, positioned), then any `~` back-edges that target
  *  it from elsewhere (authored on the downstream node, so unpositioned → appended, ordered
- *  lexicographically by the member's path — URIs.md §`~-`).
+ *  lexicographically by the member's path — docs/language/vs-yaml/tilde).
  *
  *  Dedup is by identity, which only a LABEL provides: a same-label both-ways pair (`L: *x` +
  *  `~L: …`) is one relation authored twice → one entry. A KEYLESS membership (label null, the
@@ -1387,7 +1387,7 @@ const segsEqual = (a: Seg[], b: Seg[]): boolean => a.length === b.length && a.ev
 
 /** An upstream node's path written in the scope it has FROM the current node's document frame:
  *  document-relative (`:eve`) when it lives in the same document, else a project-scope link
- *  (`::examples:…`) — mirroring the colon scope ladder (SEPARATOR.md: `:` = document root,
+ *  (`::examples:…`) — mirroring the colon scope ladder (docs/language/pointers/paths: `:` = document root,
  *  `::` = project). */
 function scopedPath(s: Store, src: Seg[], currentDoc: Seg[]): string {
   if (segsEqual(documentRootSegs(s, src), currentDoc)) return segsToStr(src.slice(currentDoc.length)); // `:…`
@@ -1451,7 +1451,7 @@ function buildRelations(dataRoot: string, s: Store, segs: Seg[]): Record<string,
 
 interface TreeNode {
   path: string; label: string; type: string; format: string | null;
-  valueType?: string | null; hasKeyed?: boolean; hasOrdinal?: boolean; // renderer dispatch facets (TYPES.md §9)
+  valueType?: string | null; hasKeyed?: boolean; hasOrdinal?: boolean; // renderer dispatch facets (docs/language/model/matching)
   concrete: string | null; hasChildren: boolean; children: TreeNode[];
   value?: string; // the scalar self-value as a short one-line preview (see tocValue)
   match?: boolean; // shape=filter only: this row is one of the query's matches
@@ -1492,7 +1492,7 @@ function buildTree(dataRoot: string, s: Store, segs: Seg[], label: string, depth
   const v = tocValue(row, label);
   if (v !== undefined) node.value = v;
   if (node.hasChildren && depth > 0) {
-    // A BODY-ANCHORED member is ORDINAL (TYPES.md §1): its key is the storage name the body
+    // A BODY-ANCHORED member is ORDINAL (docs/language/model/facets): its key is the storage name the body
     // consumed a pointer to, not an authored key, so the TOC names it by POSITION like any other
     // array element. The PATH stays keyed — that is the canonical, stable address.
     const anchored = anchoredOf(row);
@@ -1560,7 +1560,7 @@ function firstChunkText(s: Store, p: string): string | null {
 }
 
 // --------------------------------------------------------------------------- //
-// Tags, fragments & annotations — EMBEDDED in the target (ANNOTATIONS.md). A user-marked region
+// Tags, fragments & annotations — EMBEDDED in the target (docs/server/annotations). A user-marked region
 // is a FRAGMENT under the target's `yamlover-fragments` mapping (keyed by slug; selector + an
 // optional binary crop). TAGGING a target — a whole node or a fragment — appends to its
 // `yamlover-annotations` array: a bare tag pointer (`- *::tag`) or a `{tag, …params}` object. The
@@ -1665,7 +1665,7 @@ function readFragments(s: Store, hostStore: string): { slug: string; node: strin
 /** The annotations ON this material: its own whole-node tags, plus each fragment's tags carrying
  *  that fragment's selector + crop (so the client highlights the region and colors by tag). Each
  *  entry carries `node` — the CLIENT path of the node it lives on — so a multi-node page (a chapter
- *  whose CHUNKS each carry their own fragments, ANNOTATIONS.md §3) can target/highlight per node.
+ *  whose CHUNKS each carry their own fragments, docs/server/annotations/storage) can target/highlight per node.
  *  A chapter also gathers its DIRECT children's fragments (the chunks), one level deep. */
 function annotationsFor(dataRoot: string, s: Store, segs: Seg[]): unknown[] {
   void dataRoot;
@@ -1790,7 +1790,7 @@ function yScalar(v: unknown): string {
 }
 
 /** The yamlover host body holding the node at `segs`, and the mapping-key path WITHIN it to that
- *  node (ANNOTATIONS.md §3). A standalone `*.yo` document → the file itself (within = the
+ *  node (docs/server/annotations/storage). A standalone `*.yo` document → the file itself (within = the
  *  path inside it); a directory → its `.yo/body.yo` overlay; an on-disk blob (a PDF) →
  *  the ENCLOSING directory's overlay, keyed by the filename. */
 function hostFor(dataRoot: string, s: Store, segs: Seg[]): { bodyFile: string; within: string[] } {
@@ -1806,7 +1806,7 @@ function hostFor(dataRoot: string, s: Store, segs: Seg[]): { bodyFile: string; w
       // blob, or array — would become an UNTAGGED omni/mix if a key were appended to its source
       // (a parse error under the current parser), so route it through the enclosing directory's
       // overlay keyed by the filename: the engine merges the fields onto the file at IR level
-      // (augmentEntry — omni-blob), never reparsing a mixed source. ANNOTATIONS.md §3.
+      // (augmentEntry — omni-blob), never reparsing a mixed source. docs/server/annotations/storage.
       if (node?.meta?.documentRoot && node.type === "mapping" && !node.is_array) {
         return { bodyFile: abs, within: segs.slice(i).map(String) };
       }
@@ -1841,7 +1841,7 @@ function fragmentBlockLines(slug: string, selector: Record<string, unknown>, ima
 }
 
 /** Embed a tag application into the target's `yamlover-annotations` array (editing the target's
- *  host body in place — ANNOTATIONS.md). */
+ *  host body in place — docs/server/annotations). */
 function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): string {
   const segs = strToSegs(a.target || ":");
   // A tag ON a chunk fragment (`:chapter[k]:yamlover-fragments:<slug>`) descends past a body index:
@@ -1868,7 +1868,7 @@ function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: Fra
   const segs = strToSegs(f.target || ":");
   const slug = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   // A chunk target (`:chapter[k]`, a positional prose item) can't be reached by the mapping-key
-  // writer — turn the chunk into an omni node and hang `yamlover-fragments:` off it (ANNOTATIONS.md §3).
+  // writer — turn the chunk into an omni node and hang `yamlover-fragments:` off it (docs/server/annotations/storage).
   if (isChunkTarget(s, segs)) {
     const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
     const { indices, keys } = splitChunkWithin(segs.slice(docSegs.length));
@@ -1964,7 +1964,7 @@ async function ensureThumbnail(dataRoot: string, s: Store, mode: SidecarLocation
 /** Remove a tag application from the target's `yamlover-annotations` array — the first element
  *  referencing `tag` (bare pointer or object `tag:` field). When the target is a FRAGMENT and that
  *  was its last tag, the now-empty fragment node is deleted whole (its selector + crop ref) — a
- *  fragment exists only to carry tags, so a tagless one is dead weight (ANNOTATIONS.md). Sibling
+ *  fragment exists only to carry tags, so a tagless one is dead weight (docs/server/annotations). Sibling
  *  fragments and the host node are untouched. */
 function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: string): string {
   const segs = strToSegs(target || ":");
@@ -2166,7 +2166,7 @@ function chapterSource(dataRoot: string, s: Store, segs: Seg[], allow: RegExp = 
   return r;
 }
 
-/** Colon-form pointer raws (SEPARATOR.md — the slash separator is DEAD; the server never
+/** Colon-form pointer raws (docs/language/pointers/paths — the slash separator is DEAD; the server never
  *  authors it). A document member: `*: name` (spacey/metachar names portion-quoted). */
 function memberPointer(name: string): string {
   return "*" + renderPointer({ kind: "pointer", base: { scope: "document" }, steps: [{ sel: "key", name }], raw: "" });
@@ -2319,7 +2319,7 @@ function richItemLines(item: RichItem, indent: number, pointerFor: (name: string
 
 /** A subchapter as a positional body item: `- "Title"` (the title is the omni node's scalar
  *  SELF-VALUE — no `title:` key) then its OWN body (chunks + recursive subchapters) as positional
- *  items 2 deeper — the fully-omni chapter shape (CHAPTER.md). */
+ *  items 2 deeper — the fully-omni chapter shape (docs/documents/chapter). */
 function richChildLines(node: Rich & { title: string }, indent: number, pointerFor: (name: string, bytes: Buffer) => string): string[] {
   const pad = " ".repeat(indent);
   const lines = [`${pad}- ${JSON.stringify(node.title)}`];
@@ -2393,7 +2393,7 @@ function pasteRichAsChapter(dataRoot: string, segs: Seg[], rich: Rich): Record<s
 }
 
 /** The whole .yo source of a new rich chapter: the tag, the title as the root's scalar
- *  SELF-VALUE line (CHAPTER.md — no `title:` key), and the positional body. */
+ *  SELF-VALUE line (docs/documents/chapter — no `title:` key), and the positional body. */
 function renderChapterSource(title: string, rich: Rich, pointerFor: (name: string, bytes: Buffer) => string): string {
   const lines = ["!!<*::yamlover:$defs:chapter>", JSON.stringify(title), ...richBodyLines(rich, 0, pointerFor)];
   return lines.join("\n") + "\n";
@@ -2706,7 +2706,7 @@ function escapeScalarSrc(text: string): string {
  *
  *  `deeper` pushes the value's continuation lines two columns further in — for a node that ALSO
  *  carries keyed fields (which sit at indent+2), a block scalar must be deeper than them so its
- *  dedent to the field column ends the block (YAMLOVER.md §4). Blank lines are emitted truly empty:
+ *  dedent to the field column ends the block (docs/language/vs-yaml/mixtures). Blank lines are emitted truly empty:
  *  a `pad`-only line at a shallower column would truncate the block. */
 function renderEntry(valueSrc: string, indent: number, marker: string, tag?: string, deeper = false): string[] {
   const pad = " ".repeat(indent + (deeper ? 2 : 0));
@@ -2771,7 +2771,7 @@ function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
       const inline = raw.replace(/^-\s*/, "").replace(/^!!<[^>]*>\s*/, "");
       // Only an inline ENTRY OPENER is the first child: a nested `- ` item (compact `- - x`
       // nesting) or a `key: …` field (`- title: X`). A plain/quoted/pointer scalar head is the
-      // node's own SELF-VALUE (an omni titled subchapter, `- Sub` + body — CHAPTER.md) — not an
+      // node's own SELF-VALUE (an omni titled subchapter, `- Sub` + body — docs/documents/chapter) — not an
       // entry; surfacing it would inject a phantom [0] and shift every body index off the store.
       if (inline.trim()) {
         if (/^-/.test(inline)) starts.push({ key: null, start: r.marker, inline: true });
@@ -2789,7 +2789,7 @@ function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
     const t = lines[i].trim();
     if (t.startsWith("!!<")) continue; // the node's OWN schema tag line — not an entry
     // A line that opens no entry (and is no quoted key either) is the node's scalar SELF-VALUE —
-    // a fully-omni chapter's title line (CHAPTER.md). It consumes NO index; a block-header
+    // a fully-omni chapter's title line (docs/documents/chapter). It consumes NO index; a block-header
     // self-value's content sits deeper and is skipped by the indent check above.
     if (!opensEntry(t) && !opensQuotedKey(t)) continue;
     starts.push({ key: entryKeyOf(t), start: i, inline: false });
@@ -2923,7 +2923,7 @@ function appendBody(text: string, chapterPath: Seg[], renderItems: (indent: numb
 }
 
 // --- facets: the /api/edit surgical ops ------------------------------------------------------ //
-// A node has four FACETS (TYPES.md): its scalar value, its keyed entries, its ordinal (positional)
+// A node has four FACETS (docs/language/model/facets): its scalar value, its keyed entries, its ordinal (positional)
 // entries, and its `!!<…>` meta tag. `emplace` replaces only the facets its payload carries and
 // leaves the rest standing — which is what lets a prose edit keep an annotated chunk's
 // `yamlover-annotations` overlay. `replace` drops all four and assigns the payload.
@@ -2998,7 +2998,7 @@ function rootIsYo(src: string | null | undefined): boolean {
 /** The facets a column-0 `yamlover` payload carries. A payload whose first content line opens no
  *  entry is (or starts with) a SCALAR — a block header, a quoted/plain scalar, or a `*…` pointer.
  *  A one-line scalar head followed by column-0 entry lines is an OMNI payload (a self-value plus
- *  entries — e.g. a titled chapter, CHAPTER.md); a block-header payload keeps the whole source as
+ *  entries — e.g. a titled chapter, docs/documents/chapter); a block-header payload keeps the whole source as
  *  the scalar (its content lines live below the header, never entries). */
 function payloadFacets(src: string): Facets {
   const lines = src.split("\n");
@@ -3037,7 +3037,7 @@ function payloadFacets(src: string): Facets {
 
 /** The facets an EXISTING entry carries, as column-0 source (its own indentation stripped), plus
  *  the inline `!!<…>` it wears. A block scalar's content lives at the child column when the node is
- *  plain, and one step deeper when it is an omni carrying keyed fields (YAMLOVER.md §4). */
+ *  plain, and one step deeper when it is an omni carrying keyed fields (docs/language/vs-yaml/mixtures). */
 function entryFacets(lines: string[], e: ChapterEntry, indent: number): Facets & { tag?: string } {
   const marked = lines[e.start].trim().replace(/^-\s*/, "");
   const tag = marked.match(/^(!!<[^>]*>)/)?.[1];
@@ -3069,7 +3069,7 @@ function entryFacets(lines: string[], e: ChapterEntry, indent: number): Facets &
   }
   // An inline head is the first KEYED entry (`- title: X`), the first ORDINAL entry (`- - x`,
   // the compact nesting of an untitled subchapter), or — when it opens no entry — the node's own
-  // SELF-VALUE (`- Sub` + body: an omni titled subchapter, CHAPTER.md). Misfiling the compact
+  // SELF-VALUE (`- Sub` + body: an omni titled subchapter, docs/documents/chapter). Misfiling the compact
   // `- ` head as the scalar would make a title emplace SWALLOW the first child.
   const inlineKeyed = !blockValue && !!head && /^[^\s"'*|>#-][^:]*:(\s|$)/.test(head.replace(/\s+#.*$/, ""));
   const inlineDash = !blockValue && !!head && /^-(\s|$)/.test(head);
@@ -3295,7 +3295,7 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
                : keyed === had.keyed && ordinal === had.ordinal ? had.order : undefined,
         };
   // An EMPTY scalar emplaced onto a container DROPS the self-value: an untitled chapter's title
-  // is no value at all, not an empty string (CHAPTER.md) — `emplace '""'` on a subchapter un-titles it.
+  // is no value at all, not an empty string (docs/documents/chapter) — `emplace '""'` on a subchapter un-titles it.
   if (op === "emplace" && payload.scalar !== undefined && next.scalar !== undefined && (next.keyed.length || next.ordinal.length)) {
     const p = parseYamlover(next.scalar, "<scalar>").root as { kind?: string; value?: unknown };
     if (p.kind === "scalar" && (p.value == null || p.value === "")) next.scalar = undefined;
@@ -3334,11 +3334,11 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
   lines.splice(entry.start, entry.end - entry.start, ...rendered);
 }
 
-// --- chunk fragments (ANNOTATIONS.md §3): a text fragment lives ON the chunk it was drawn in ----- //
+// --- chunk fragments (docs/server/annotations/storage): a text fragment lives ON the chunk it was drawn in ----- //
 // A chunk that carries a fragment becomes an OMNI node — its prose is a block-scalar self-value and
 // `yamlover-fragments:`/`yamlover-annotations:` are keyed fields. These fields sit at the item's
 // child indent (item-indent + 2); the block-scalar content is pushed one step DEEPER (item-indent +
-// 4) so its dedent to the field level ends the block (YAMLOVER.md §4). Reached by ABSOLUTE index
+// 4) so its dedent to the field level ends the block (docs/language/vs-yaml/mixtures). Reached by ABSOLUTE index
 // (node-path space — what the fragment target uses), NOT the /api/edit rank space.
 
 /** The absolute-index body item at `indices` (the last descends INTO the item; earlier ones descend
@@ -3451,10 +3451,10 @@ function splitChunkWithin(within: Seg[]): { indices: number[]; keys: string[] } 
 }
 
 /** Set, replace, or (an empty payload) DROP a document root's scalar SELF-VALUE line — a fully-omni
- *  chapter's title (CHAPTER.md). The self-value is the content line at the root indent that is
+ *  chapter's title (docs/documents/chapter). The self-value is the content line at the root indent that is
  *  neither the leading `!!<…>` tag line nor an entry opener; a block-header self-value owns its
  *  deeper-indented content lines too. Replacement happens in place (the authored position among the
- *  entries is the author's — YAMLOVER.md §4); a fresh self-value lands right after the tag line. */
+ *  entries is the author's — docs/language/vs-yaml/mixtures); a fresh self-value lands right after the tag line. */
 /** Replace a document's whole body with one FLOW token. Unlike a self-value line, a flow token is
  *  the entire value — nothing else may stand beside it — so every content line goes and the token
  *  takes their place. The `!!<…>` banner and the head-of-file comments are not content and stay. */
@@ -3562,7 +3562,7 @@ function setRootTag(lines: string[], meta: string | null): void {
   else lines.splice(Math.max(at, 0), 0, `!!<${meta}>`);
 }
 
-// --- flow-row cell surgery (MARKLOWER.md) --------------------------------------------------------- //
+// --- flow-row cell surgery (docs/documents/marklower) --------------------------------------------------------- //
 // A table's flow row (`- [a, 'b c', *[.-1]]`) is ONE source line; the block engine above cannot
 // descend into it. A cell edit — `<table>[r][c]` with a scalar payload — is spliced token-wise:
 // the row's `[…]` body splits on top-level commas (quotes and nested brackets respected), the
@@ -3643,8 +3643,7 @@ function isFlowToken(src: string): boolean {
 }
 
 /** The column of a flow opener on `line` that does NOT close there — the head of a **K&R value**, a
- *  flow token spanning the lines below it (an inline concrete switch to json5p, CONCRETES.md
- *  §Collection style). -1 when the line opens no such token. Quote-aware, and blind to a comment. */
+ *  flow token spanning the lines below it (an inline concrete switch to json5p, docs/language/concretes/00-storage/00-inlined). -1 when the line opens no such token. Quote-aware, and blind to a comment. */
 function flowOpenAt(line: string): number {
   let q: string | null = null;
   for (let i = 0; i < line.length; i++) {
@@ -3703,7 +3702,7 @@ function editFlowRowCell(lines: string[], row: ChapterEntry, cellIdx: number, op
   const parsed = parseYamlover(payload.scalar, "cell").root as { kind?: string; value?: unknown };
   if (parsed.kind !== "scalar") throw new Error("a flow-row cell takes a scalar value");
   const text = String(parsed.value ?? "");
-  if (text.includes("\n")) throw new Error("a flow-row cell cannot hold multi-line text — rewrite the row in block form (MARKLOWER.md)");
+  if (text.includes("\n")) throw new Error("a flow-row cell cannot hold multi-line text — rewrite the row in block form (docs/documents/marklower)");
   const cell = scan.cells[cellIdx];
   if (!cell) throw new Error(`no cell ${cellIdx} in the flow row (${scan.cells.length} cells)`);
   const lead = cellIdx === 0 ? "" : " "; // the row's own style: none after `[`, one after `,`
@@ -3794,7 +3793,7 @@ function editChapterSource(src: string, within: Seg[], op: string, valueSrc: str
     throw new Error(`\`${op}\` at a document root needs a key or index target`);
   }
   // a numeric segment into a FLOW row (a table's `- [a, b, c]` / `header: […]`): the block
-  // engine cannot descend into the one-line row — splice the cell token instead (MARKLOWER.md)
+  // engine cannot descend into the one-line row — splice the cell token instead (docs/documents/marklower)
   const last = within[within.length - 1];
   if (within.length >= 2 && typeof last === "number") {
     const parentR = reachChapter(lines, within.slice(0, -2));
@@ -3911,7 +3910,7 @@ function isPlainDir(dataRoot: string, s: Store, segs: Seg[]): boolean {
 }
 
 /** Store-CANONICALIZE a client path: a NUMERIC segment is a position (`[n]`), and a position may
- *  alias a KEYED member (URIs.md — "a keyed entry's position is a `*`-alias to it"; the members
+ *  alias a KEYED member (docs/language/pointers — "a keyed entry's position is a `*`-alias to it"; the members
  *  of a dir-backed pointer-array body, examples/56). The store paths keyed children BY KEY, so a
  *  positional segment with no keyless node behind it rewrites to the key of the contain entry at
  *  that position. `keepLast` leaves the FINAL segment untouched — an edit's terminal position
@@ -4618,7 +4617,7 @@ function documentPath(s: Store, segs: Seg[]): string {
 }
 
 /** A node's title, if any — used as a friendly label. A chapter/task is FULLY OMNI: its title
- *  is the node's own scalar SELF-VALUE (CHAPTER.md), so read that first; the keyed `title`
+ *  is the node's own scalar SELF-VALUE (docs/documents/chapter), so read that first; the keyed `title`
  *  child remains as the legacy read for unmigrated files (and for any other schema that still
  *  keys a title). */
 function titleOf(s: Store, p: string): string | null {
@@ -4635,9 +4634,9 @@ function descriptionOf(s: Store, p: string): string | null {
 /** A node's scalar keyed child `key` (a leaf scalar), or null — the chapter title/description.
  *
  *  CHILDLESSNESS is not part of being a scalar. Annotating a title lays the tag applications over it
- *  as keyed entries (ANNOTATIONS.md): the row stays a `scalar` carrying its own value, and gains a
+ *  as keyed entries (docs/server/annotations): the row stays a `scalar` carrying its own value, and gains a
  *  child. That is precisely an omni/`variant` node — `type: string` and `type: variant` both match
- *  it (query.ts) — and tagging must never change how a node reads (TYPES.md §9). Demanding no
+ *  it (query.ts) — and tagging must never change how a node reads (docs/language/model/matching). Demanding no
  *  children here made a chapter lose its title, its tree label, and its browser-tab name the moment
  *  anyone annotated it. The `scalar` check stays: a mapping's own value is not a title. */
 function scalarKeyOf(s: Store, p: string, key: string): string | null {

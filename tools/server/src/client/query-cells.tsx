@@ -7,7 +7,7 @@
 // Cell mechanics follow the yamlover editor's EditableCell patterns (uncontrolled
 // contentEditable, machine-driven rewrites applied only alongside a focus request,
 // dropdown mousedown prevented so a click never blurs the cell first) and reuse
-// caret.ts verbatim. The human-readable state table lives in QUERY_EDITOR.yo.
+// caret.ts verbatim. The human-readable state table lives in docs/server/query-editor.
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";

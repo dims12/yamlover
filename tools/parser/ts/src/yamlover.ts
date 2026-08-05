@@ -1,10 +1,10 @@
-// Hand-written parser for yamlover (YAML + pointers) → the IR. Spec: ../../../YAMLOVER.md.
+// Hand-written parser for yamlover (YAML + pointers) → the IR. Spec: docs/language.
 //
 // Covers a practical YAML subset: block mappings & sequences (incl. compact `- key:`,
 // `- - nested` and `- &anchor`), flow `{}`/`[]`, plain/single/double-quoted scalars,
 // `#` comments. Plus the
 // yamlover extensions: value `*pointer` (unquoted), PATH anchors `&path` / `&path[]`
-// (URIs.md §`&` — same line as the value or on their own lines; multiple per node), the
+// (docs/language/pointers/anchors — same line as the value or on their own lines; multiple per node), the
 // deprecated `~key:` back-edges and `~-` keyless back-edges (≡ `&P/key` / `&P[]`), and
 // omni-by-default: an untagged node may mix keyed+keyless entries and carry a scalar
 // value line anywhere in its block (`!!mix` parses as a no-op marker; `!!yo` — aliases
@@ -61,7 +61,7 @@ export function parseYamlover(src: string, uri = '<yamlover>', opts: { yaml?: bo
   if (isPointer(root)) throw new SyntaxError(`yamlover: a top-level pointer is not allowed in ${uri}`);
   // Omni by default: a root that began as a lone scalar (or flow) line may CONTINUE with
   // entries and/or anchor lines at the root indent — `30` + `&//tags/…[]` is the two-line
-  // tagged-scalar file (URIs.md §`&`); `30` + `- one` + `two: three` is a root omni node.
+  // tagged-scalar file (docs/language/pointers/anchors); `30` + `- one` + `two: three` is a root omni node.
   if (p.i < p.lines.length && p.peek()!.indent === 0) {
     root = p.mergeCont(root, p.container(0));
   }
@@ -155,7 +155,7 @@ class Block {
 
   peek(): Line | undefined { return this.lines[this.i]; }
 
-  /** Read ONE `&` anchor token at the head of `text` (URIs.md §`&`): `&path`, `&path[]`,
+  /** Read ONE `&` anchor token at the head of `text` (docs/language/pointers/anchors): `&path`, `&path[]`,
    *  or the quoted form `&'path with spaces'`. Plain tokens run to unescaped whitespace.
    *  `inline` — the anchor PREFIXES a same-line value (valueAfter): the colon-form's
    *  run-to-end-of-line rule then reads only the HEAD token (up to the first whitespace) —
@@ -176,7 +176,7 @@ class Block {
       body = quotedScalar(text.slice(1, j + 1)).value as string;
       tokenLen = j + 1;
     } else if (hasSeparatorColon(inline ? text.slice(1).split(/[ \t]/, 1)[0] : text.slice(1))) {
-      // COLON-form anchor (SEPARATOR.md): the `: ` styling holds spaces, so the token
+      // COLON-form anchor (docs/language/pointers/paths): the `: ` styling holds spaces, so the token
       // runs to END OF LINE — a same-line value needs the quoted form (M3).
       body = text.slice(1).trim();
       tokenLen = text.length;
@@ -319,7 +319,7 @@ class Block {
         }
         entry = { key: null, edge: isPointer(value) ? 'ref' : 'contain', value };
       } else if (isBackSeqLine(l.text)) {
-        // a KEYLESS back-edge — reverse positional membership (URIs.md §`~-`): the value
+        // a KEYLESS back-edge — reverse positional membership (docs/language/vs-yaml/tilde): the value
         // names the container that holds this node, so it must be a pointer.
         if (keylessOnly) break;
         this.i++;
@@ -342,7 +342,7 @@ class Block {
           if (/^[|>][+-]?\d*$/.test(l.text)) {
             // a bare block-scalar SELF-VALUE (omni, tagless — no `!!var` needed): its content is
             // the deeper-indented run, and a dedent back to this node's indent ends it, so sibling
-            // entries resume. (YAMLOVER.md §4 — the value line may sit anywhere among the entries.)
+            // entries resume. (docs/language/vs-yaml/mixtures — the value line may sit anywhere among the entries.)
             v = this.blockScalar(l.text, indent, l.n);
           } else {
             const iv = this.valueInline(l.text, indent, /*allowBlock*/ false, l.n, l.indent);
@@ -547,7 +547,7 @@ class Block {
       // source by bracket balance (flowTokenEnd is newline-agnostic: it counts quotes and brackets),
       // hand the whole thing to the flow reader, and take its interior lines out of the block
       // cursor. On the yamlover surface that spanning IS a concrete switch to json5p
-      // (CONCRETES.md §Collection style); in YAML it is ordinary multi-line flow (Ch. 7).
+      // (docs/language/concretes/00-storage/00-inlined); in YAML it is ordinary multi-line flow (Ch. 7).
       if (flowTokenEnd(text) < 0) {
         const end = flowTokenEnd(this.src.slice(start));
         if (end < 0) this.fail('unterminated flow token');
@@ -745,7 +745,7 @@ class Flow {
       this.fail('expected "," or "}"');
     }
     // `style: 'flow'` records the AUTHORED one-line form so the serializer re-emits it and a
-    // projection can offer flow cells — the `yaml/flow` representation concrete (CONCRETES.md).
+    // projection can offer flow cells — the `yaml/flow` representation concrete (docs/language/concretes).
     return { kind: 'mapping', entries, array: false, meta: this.layoutMeta(open) };
   }
 
@@ -892,7 +892,7 @@ export function foldLines(lines: string[]): string {
 }
 
 
-/** An unescaped, unquoted `:` anywhere — marks a colon-form (SEPARATOR.md) token. */
+/** An unescaped, unquoted `:` anywhere — marks a colon-form (docs/language/pointers/paths) token. */
 function hasSeparatorColon(s: string): boolean {
   let q: string | null = null;
   for (let i = 0; i < s.length; i++) {

@@ -32,7 +32,7 @@ const chunk = (i: number, value: string) => ({
   $yamloverLink: { kind: "scalar", type: "string", path: `:doc[${i + 1}]`, format: "text/marklower", concrete: "yamlover", value },
 });
 
-/** A chapter node, FULLY OMNI (CHAPTER.md): the title is the mixed marker's `value` (the scalar
+/** A chapter node, FULLY OMNI (docs/documents/chapter): the title is the mixed marker's `value` (the scalar
  *  self-value — no index), `description` keyed at [0], then the positional body (prose chunks +
  *  one subchapter) as the marker's keyless entries. */
 function chapterNode(chunks: string[], title = "My Title", description = "My subtitle"): NodeJson {

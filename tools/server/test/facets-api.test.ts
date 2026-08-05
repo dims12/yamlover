@@ -4,7 +4,7 @@ import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
 import { nodeJson } from "./node-json";
 
-// The TYPE FACETS the projection exposes for renderer dispatch (TYPES.md §9): valueType / hasKeyed
+// The TYPE FACETS the projection exposes for renderer dispatch (docs/language/model/matching): valueType / hasKeyed
 // / hasOrdinal. The regression they fix: tagging a node turns it omni, but its value facet (format,
 // valueType) must survive so the client still routes it (e.g. markdown stays markdown).
 

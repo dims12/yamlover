@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { getRenderer, rendererFor, rendererName, renderersFor, rendererTabs, plaintextTab, tocView } from "../../src/client/renderers/registry";
 import type { NodeJson, TreeNode } from "../../src/client/api";
 
-// Dispatch keys on TYPE FACETS (TYPES.md §9): the scalar self-value's type, the node's format,
+// Dispatch keys on TYPE FACETS (docs/language/model/matching): the scalar self-value's type, the node's format,
 // and whether it owns keyed/ordinal elements. A matcher tolerates what it doesn't test — so a
 // node that gained `yamlover-annotations` keys (an omni node, hasKeyed:true) still routes by format.
 
@@ -222,7 +222,7 @@ describe("renderer registry (facet predicates)", () => {
     expect(rendererName({ type: "array", format: null, hasOrdinal: true })).toBeNull();
   });
 
-  // The whole point (TYPES.md §9): tagging a node turns it OMNI (hasKeyed:true), and the matcher
+  // The whole point (docs/language/model/matching): tagging a node turns it OMNI (hasKeyed:true), and the matcher
   // must tolerate the extra keyed facet — render exactly as before the annotation.
   describe("tolerance — an annotated (omni) node still routes by its value facet", () => {
     it("a tagged markdown chunk → markdown", () => {

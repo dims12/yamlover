@@ -31,7 +31,7 @@ export type CommentBucket = {
                           // entry (the parser's tail rule), rendered inside the block
   raw?: string;           // a scalar's authored SOURCE token, carried only when it differs from the
                           // plain decoded form — so `"~"` reads as a string not null, `0xff`/`True`
-                          // keep their spelling (CONCRETES.md §Scalar representation). A BLOCK
+                          // keep their spelling (docs/language/concretes/04-yaml). A BLOCK
                           // scalar's is the whole authored token: the `|`/`|-`/`>`… header line
                           // plus the de-indented content lines — renderers reproduce it verbatim.
   repr?: string;          // the node's REPRESENTATION concrete (repr.ts) — `yaml/flow` for a
@@ -92,7 +92,7 @@ export function scalarRawToken(node: IrNode): string | undefined {
  *  serialize-yamlover's `decorations`: the `!!<…>` schema tag (a tag APPLICATION — it must not
  *  vanish from the view just because the store routes it as `format`), then `!!yo` (the
  *  plain-yamlover mark) and `!!set` (set semantics). The shape tag `!!mix` is the DEFAULT —
- *  omni-by-default (YAMLOVER.md §4) — so it is never shown. */
+ *  omni-by-default (docs/language/vs-yaml/mixtures) — so it is never shown. */
 export function tagOf(n: IrNode): string | undefined {
   const parts: string[] = [];
   if (n.meta?.schema !== undefined) {

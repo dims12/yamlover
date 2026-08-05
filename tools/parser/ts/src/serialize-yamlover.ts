@@ -4,11 +4,11 @@
 // same values, entry order, keys, edge kinds, pointer texts (verbatim `raw`), anchors,
 // `!!set` and `!!<…>` schema tags. The no-op shape tags `!!mix` (a mixed keyed+keyless
 // container) and `!!var` (a scalar-plus-fields) are NOT emitted — omni is the default, so an
-// untagged mixture reparses to the same IR (YAMLOVER.md §4). Inexpressible content — blobs,
+// untagged mixture reparses to the same IR (docs/language/vs-yaml/mixtures). Inexpressible content — blobs,
 // non-finite numbers, an anchored document
 // root — raises LossyError: refuse, never drop. (Blobs are refused only for now: the IR
 // carries the content HASH, not the bytes; once a byte source is wired in, a blob can
-// emit INLINE as base64 — META.md `type: binary` — the same node in a different concrete.)
+// emit INLINE as base64 — docs/language/model/values `type: binary` — the same node in a different concrete.)
 
 import type { Document, Node, Entry, Value, Scalar, Pointer, Comment } from './ir.ts';
 import { isPointer } from './ir.ts';
@@ -124,7 +124,7 @@ class Emitter {
   /** Every anchor token a node carries: meta anchors + anchorizable `~` back entries
    *  (ANCHOR_REFACTOR — serializers emit anchors, never `~`, for absolute scopes).
    *  `ownLine` tokens run to EOL so colon bodies ride bare; same-line tokens (the
-   *  decorations on a key line) quote them (SEPARATOR.md M3). */
+   *  decorations on a key line) quote them (docs/language/pointers/paths). */
   anchorTokens(node: Node, ownLine = false): string[] {
     const bodies = (node.meta?.anchors ?? []).map(anchorBody);
     for (const e of node.entries ?? []) if (isAnchorizableBack(e)) bodies.push(backAnchorBody(e));
@@ -312,7 +312,7 @@ class Emitter {
   /** Value-position prefixes, in the parser's reading order: the `!!<…>` schema, `!!yo`
    *  (plain-yamlover, exempt from the enclosing schema) and `!!set` — the shape tags with
    *  semantics (omni/`!!mix` is the default and is never emitted).
-   *  Anchors are NOT here — canonical style (SEPARATOR.md M3) puts them on own lines. */
+   *  Anchors are NOT here — canonical style (docs/language/pointers/paths) puts them on own lines. */
   decorations(node: Node): string[] {
     const parts: string[] = [];
     if (node.meta?.schema !== undefined) parts.push(schemaTagToken(node.meta.schema));
@@ -321,7 +321,7 @@ class Emitter {
   }
 
   /** The canonical anchor placement: own lines at `indent`, right after the value line
-   *  (SEPARATOR.md M3 — `path: 12` then `  &: another: path`). */
+   *  (docs/language/pointers/paths — `path: 12` then `  &: another: path`). */
   anchorLines(node: Node, indent: number): void {
     const pad = ' '.repeat(indent);
     for (const t of this.anchorTokens(node, /*ownLine*/ true)) this.out.push(pad + t);
@@ -329,7 +329,7 @@ class Emitter {
 
   containerTags(node: Node): string[] {
     // `!!yo` and `!!set` carry semantics and are emitted; `!!mix` (a mixed keyed+keyless
-    // container) is the DEFAULT shape (omni-by-default, YAMLOVER.md §4), so it is never
+    // container) is the DEFAULT shape (omni-by-default, docs/language/vs-yaml/mixtures), so it is never
     // emitted — an untagged mixture parses back to the same IR. `!!var`/`!!omni` are read as
     // deprecated aliases of `!!yo` and re-emit as `!!yo`.
     const tags: string[] = [];

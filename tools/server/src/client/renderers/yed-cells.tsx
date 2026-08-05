@@ -1,4 +1,4 @@
-// THE SERVER CELL REGISTRY - yed's cell zoo grown with server awareness (EDITOR.md section 4).
+// THE SERVER CELL REGISTRY - yed's cell zoo grown with server awareness (docs/server/editor/pick-kit).
 // ONE registry serves both mounts - the source editor (yed-editor.tsx) and the chapter
 // projection (adapter.sourceCells) - the architecture law: capability enters yed by
 // EXTENDING the registry, never by forking the stack.

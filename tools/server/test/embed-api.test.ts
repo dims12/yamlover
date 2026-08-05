@@ -5,7 +5,7 @@ import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
 
-// The EMBEDDED tags/fragments model (ANNOTATIONS.md): /api/annotate appends to a target's
+// The EMBEDDED tags/fragments model (docs/server/annotations): /api/annotate appends to a target's
 // `yamlover-annotations`; /api/fragment adds a `yamlover-fragments` region; reads derive from
 // those forward `*::tag` edges. Synthetic temp trees only — never the repo.
 

@@ -100,7 +100,7 @@ export function portionsFromPath(path: string): string[] {
   return strToSegs(path).map((seg) => (typeof seg === "string" ? quoteKey(seg) : segToken(seg)));
 }
 
-/** The SCOPE LADDER a query/pointer opens with (SEPARATOR.md §2 — more colons, wider
+/** The SCOPE LADDER a query/pointer opens with (docs/language/pointers/scopes — more colons, wider
  *  scope): 0 = current (bare), 1 = `:` document, 2 = `::` project, 3 = `:::` world. */
 export type Ladder = 0 | 1 | 2 | 3;
 

@@ -26,7 +26,7 @@ import {
 type FocusReq = { id: string; at: FocusAt };
 
 /**
- * The renderer for an `x-yamlover-chapter` (CHAPTER.md): a chapter shown as a readable page — a
+ * The renderer for an `x-yamlover-chapter` (docs/documents/chapter): a chapter shown as a readable page — a
  * heading (`title`/`description`) plus a POSITIONAL body of elements, each either a numbered chunk
  * (delegated to the renderer for its own (type, format)) or a subchapter (a navigable heading link),
  * interleaved in source order. See the registry for how a chapter is flattened into this page.
@@ -91,7 +91,7 @@ export function chapterEditorFlavor(): "yed" | "flat" {
 }
 
 /** The read-only chapter page (locked). Title, description, chunks, and subchapters all render in
- *  SOURCE order — the heading is not hoisted, subchapters are not forced to the end (CHAPTER.md).
+ *  SOURCE order — the heading is not hoisted, subchapters are not forced to the end (docs/documents/chapter).
  *  `[n]` labels each chunk with its absolute entry index; subchapters render as heading links. */
 function ChapterRead({ node, onNavigate }: { node: NodeJson; onNavigate: (path: string) => void }) {
   // How many levels of SUBCHAPTER nesting are laid out in place before the rest stay links —

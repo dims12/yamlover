@@ -1,4 +1,4 @@
-// JSON-space path helpers. The CANONICAL client path is COLON-form (SEPARATOR.md M4):
+// JSON-space path helpers. The CANONICAL client path is COLON-form (docs/language/pointers/paths):
 // `:key[0]:sub`, root `:` — what the API speaks and the UI displays. The BROWSER URL
 // stays SLASH-transported (`/key[0]/sub` — ruling: "the URL should be slashed, of
 // course"), converted at this boundary only.

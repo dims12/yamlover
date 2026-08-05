@@ -24,7 +24,7 @@ const SCHEMA_FILE = "schema.yaml";
 
 // A value pinned in the schema (via `const`, or built from `const` leaves) lives
 // in `.yamlover/schema.yaml`, which is YAML — so its concrete is the inlined
-// `yaml` language of that file. (See CONCRETES.md.)
+// `yaml` language of that file. (See docs/language/concretes.)
 const SCHEMA_INLINED = "yaml";
 
 /** A binary leaf value (a `file/binary` child) we do not expand inline. We keep
@@ -156,7 +156,7 @@ export function loadEntity(entityPath: string, knownDir?: boolean): YNode {
   if (fmt) {
     // A text material (markdown / asciidoc / csv / …): its single value is the raw
     // text, kept verbatim and rendered by `fmt`. Modeled as a `file/<lang>` scalar
-    // string (file/yaml for non-data text) — see CONCRETES.md.
+    // string (file/yaml for non-data text) — see docs/language/concretes.
     const node = new YNode(fs.readFileSync(entityPath, "utf-8"), fileConcreteForExt(entityPath), entityPath);
     node.format = fmt;
     node.kind = "scalar";
@@ -654,7 +654,7 @@ export function displayTypeLabel(node: YNode): string {
 export type Seg = string | number;
 
 /** Render path segments JSON-path style: `:key:0:other` (root → `:`, colon-form —
- *  SEPARATOR.md M4; the YAML-keys round: a position is a bare-digit segment, a numeric
+ *  docs/language/pointers/paths; the YAML-keys round: a position is a bare-digit segment, a numeric
  *  STRING key rides quoted). Each segment's canonical token is percent-encoded whole so a
  *  `:`, `[`, or `]` *inside* a key (e.g. `@vitejs/plugin-react`) does not read as a separator. */
 export function segsToStr(segs: Seg[]): string {

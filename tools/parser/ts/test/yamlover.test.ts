@@ -121,7 +121,7 @@ test('& path anchor on a block value; * reaches the anchor-created key', () => {
 });
 
 test('& anchors: own-line, multiple, ordinal []', () => {
-  // the two-line tagged-scalar file (URIs.md §&) — order-free
+  // the two-line tagged-scalar file (docs/language/pointers/anchors) — order-free
   const a = parseYamlover('30\n&:: tags: whole[]\n').root as any;
   assert.equal(a.value, 30);
   assert.deepEqual(a.meta.anchors.map((x: any) => [x.path.raw, x.ordinal === true]), [[':: tags: whole', true]]);
@@ -147,7 +147,7 @@ test('~ back-edge key (sigil outside the key)', () => {
 
 test('escaping: `/` is ordinary in keys and paths, and \\.\\.', () => {
   const d = parseYamlover('weird:\n  cat/dog:\n    n: 1\nref: *weird: cat/dog: n\ndots: *\\.\\.\n');
-  // the key "cat/dog" needs no escaping — `/` left the metachar set (SEPARATOR.md §3)
+  // the key "cat/dog" needs no escaping — `/` left the metachar set (docs/language/pointers/paths)
   const weird = entry(asMap(d.root), 'weird').value as Mapping;
   assert.equal(weird.entries[0].key, 'cat/dog');
   const ref = entry(asMap(d.root), 'ref');
@@ -223,7 +223,7 @@ test('parses examples/60-simple-chapter.yo (tagged file)', () => {
   const d = parseYamlover(readFileSync(join(examples, '60-simple-chapter.yo'), 'utf8'), '60');
   const root = d.root as Scalar;
   assert.ok(root.meta?.schema, 'root tagged with chapter schema');
-  // a FULLY-OMNI chapter (CHAPTER.md): the root's scalar SELF-VALUE is the title (no `title:`
+  // a FULLY-OMNI chapter (docs/documents/chapter): the root's scalar SELF-VALUE is the title (no `title:`
   // key, and it is NOT an entry), `description` is the one keyed entry, the body is keyless
   assert.equal(root.kind, 'scalar');
   assert.equal(root.value, 'Getting Started with yamlover');
@@ -247,7 +247,7 @@ test('parses examples/05-tour.yaml (YAML anchors/aliases)', () => {
   // `&whiskers` reads as a PATH anchor on pets[1] (current-scope key "whiskers")
   assert.deepEqual((pets.entries[1].value as any).meta?.anchors?.map((a: any) => a.path.raw), ['whiskers']);
   // humans[0].manager parses as a current-scope pointer; resolving it CROSS-scope is the
-  // documented YAML divergence (YAMLOVER.md §3) — the 06 twin uses */pets[1]
+  // documented YAML divergence (docs/language/vs-yaml) — the 06 twin uses */pets[1]
   const humans = entry(asMap(d.root), 'humans').value as Mapping;
   const mgr = entry(humans.entries[0].value as Mapping, 'manager');
   assert.equal(mgr.edge, 'ref');
@@ -400,7 +400,7 @@ test('a bare BLOCK-SCALAR self-value is omni (tagless) and may sit anywhere amon
 
 // ---- `~-` keyless back-edges (reverse positional membership) + `!!set` ----------
 
-test('~- entry: a keyless back-edge with a pointer value (URIs.md §~-)', () => {
+test('~- entry: a keyless back-edge with a pointer value (docs/language/vs-yaml/tilde)', () => {
   const d = parseYamlover('my_node:\n  name: x\n  ~- *: some: other: location\n');
   const my = asMap(entry(asMap(d.root), 'my_node').value);
   const back = my.entries.find((e) => e.edge === 'back')!;
@@ -442,7 +442,7 @@ test('!!set tags a container with set semantics (NodeMeta.set)', () => {
   assert.deepEqual(toPlain(root), [1, 2]);
 });
 
-// ---- the colon round (SEPARATOR.md): `:` separators, the scope ladder, dual window ----
+// ---- the colon round (docs/language/pointers/paths): `:` separators, the scope ladder, dual window ----
 
 test('colon paths: the scope ladder — bare, :, ::, :::', () => {
   const d = parseYamlover([

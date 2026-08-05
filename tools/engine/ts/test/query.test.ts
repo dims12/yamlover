@@ -1,5 +1,5 @@
 // The 3g acceptance gate: every case in query.cases.ts runs through the evaluator
-// (QUERY.md §6 obligations, restated for the colon grammar in the cases file header).
+// (docs/language/pointers/queries obligations, restated for the colon grammar in the cases file header).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

@@ -10,7 +10,7 @@
 
 import { keyPortion, parsePointer } from "../../../parser/ts/src/pointer.ts";
 
-/** The SCOPE LADDER a pointer opens with (SEPARATOR.md section 2 - more colons, wider scope):
+/** The SCOPE LADDER a pointer opens with (docs/language/pointers/scopes - more colons, wider scope):
  *  0 = current (bare), 1 = `:` document, 2 = `::` project, 3 = `:::` world. */
 export type Ladder = 0 | 1 | 2 | 3;
 

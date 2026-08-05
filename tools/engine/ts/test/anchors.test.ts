@@ -1,4 +1,4 @@
-// Path anchors (URIs.md §`&`, ANCHOR_REFACTOR.md) — the Phase A acceptance checks:
+// Path anchors (docs/language/pointers/anchors) — the Phase A acceptance checks:
 // the deprecated `~` forms and their `&` replacements produce IDENTICAL normalized
 // edges (`~key: *P` ≡ `&P: key`, `~- *P` ≡ `&P[]`), an anchored scalar stays a scalar
 // (anchors are not entries), and a dangling anchor is reported, never dropped.

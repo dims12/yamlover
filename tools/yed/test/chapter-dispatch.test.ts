@@ -1,5 +1,4 @@
-// THE CHAPTER GRAMMAR TABLE AS DATA — mirrors YAMLOVER_EDITOR.yo §"The CHAPTER
-// projection" the way yed-dispatch.test.ts mirrors the source table. Every row: a key at a
+// THE CHAPTER GRAMMAR TABLE AS DATA — mirrors docs/server/chapter-editor the way yed-dispatch.test.ts mirrors the source table. Every row: a key at a
 // site → the intent. Change the machine ⇒ change the diagram ⇒ change this file.
 import { describe, it, expect } from "vitest";
 import { chapterInterpret, type ChapterIntent, type ChapterKey } from "../src/chapter/dispatch";
@@ -99,7 +98,7 @@ const rows: { name: string; key: ChapterKey; site: Partial<ChapterSite>; intent:
   { name: "…ArrowLeft walks back off the atom", key: { key: "ArrowLeft" }, site: { cell: "atom" }, intent: { kind: "move", dir: -1 } },
 ];
 
-describe("the chapter dispatch table (the YAMLOVER_EDITOR.yo mirror)", () => {
+describe("the chapter dispatch table (the docs/server/yamlover-editor mirror)", () => {
   for (const r of rows) {
     it(r.name, () => {
       expect(chapterInterpret(r.key, site(r.site))).toEqual(r.intent);

@@ -78,7 +78,7 @@ export function scalarType(v: unknown): string {
   return "string";
 }
 
-/** The three TYPE FACETS the client dispatches on (TYPES.md §1): the scalar self-VALUE's type
+/** The three TYPE FACETS the client dispatches on (docs/language/model/facets): the scalar self-VALUE's type
  *  (`null|boolean|integer|number|string|binary`, or null when there is no value facet), and
  *  whether the node OWNS any KEYED / ORDINAL (keyless) elements. Reverse `~` members are excluded
  *  (ownedEntries) — a tagged node keeps its facets, so a renderer can tolerate the extra keys. */

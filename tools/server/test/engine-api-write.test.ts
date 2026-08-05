@@ -9,7 +9,7 @@ import { nodeJson } from "./node-json";
 // The WRITE endpoints /api/tag and /api/paste, against synthetic temp trees — never the repo.
 // (The embedded /api/annotate + /api/fragment endpoints are covered in embed-api.test.ts.)
 
-// A chapter is an OMNI node (CHAPTER.md): title/description keyed, the body positional. Its
+// A chapter is an OMNI node (docs/documents/chapter): title/description keyed, the body positional. Its
 // `/api/json` value is a `$yamloverMixed` marker (or a plain array when untitled). These read the
 // positional body values, a subchapter's title, and the hosted $defs the paste tests need.
 const bodyVals = (v: unknown): unknown[] => {
@@ -23,7 +23,7 @@ const bodyVals = (v: unknown): unknown[] => {
 const bodyEntries = (v: unknown): { key: string | null; anchor?: boolean }[] =>
   (v as { $yamloverMixed?: { entries: { key: string | null; anchor?: boolean }[] } })?.$yamloverMixed?.entries ?? [];
 const subTitle = (marker: unknown): unknown => {
-  // a fully-omni subchapter's title is the marker's `value` (its scalar self-value, CHAPTER.md);
+  // a fully-omni subchapter's title is the marker's `value` (its scalar self-value, docs/documents/chapter);
   // a legacy keyed `title:` entry still reads
   const m = (marker as { $yamloverMixed?: { value?: unknown; entries: { key: string | null; value: unknown }[] } })?.$yamloverMixed;
   return m?.value ?? m?.entries.find((e) => e.key === "title")?.value;
@@ -208,7 +208,7 @@ describe("any node as a tag", () => {
   });
 });
 
-// TYPES.md §9: tagging a node turns it OMNI — keyed tag applications laid over its own value — and
+// docs/language/model/matching: tagging a node turns it OMNI — keyed tag applications laid over its own value — and
 // nothing about how it READS may change. A chapter's title is a keyed scalar child, so annotating it
 // gives that child a child of its own; reading the title by "a CHILDLESS scalar" lost it entirely.
 describe("annotating a node never changes how it reads", () => {
@@ -402,7 +402,7 @@ describe("/api/paste (text)", () => {
     expect(r.status).toBe(201);
     expect(r.json).toMatchObject({ path: ":dir:'Hello%20World.yo'", dir: ":dir", open: false });
     const src = fs.readFileSync(path.join(root, "dir", "Hello World.yo"), "utf8");
-    // the title is the root's scalar SELF-VALUE line — no `title:` key (CHAPTER.md)
+    // the title is the root's scalar SELF-VALUE line — no `title:` key (docs/documents/chapter)
     expect(src).toBe('!!<*::yamlover:$defs:chapter>\n"Hello World"\n- |\n  # Hello World\n\n  First paragraph.\n');
 
     // the new file indexed as a chapter holding the text as its one body chunk

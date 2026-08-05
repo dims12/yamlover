@@ -15,7 +15,7 @@ const subchapter = (base: string, i: number, title: string) => ({
   $yamloverLink: { kind: "mix", type: "variant", path: `${base}:${i}`, format: "x-yamlover-chapter", title },
 });
 
-/** A titled chapter is FULLY OMNI (CHAPTER.md): the title is the marker's `value` (the node's
+/** A titled chapter is FULLY OMNI (docs/documents/chapter): the title is the marker's `value` (the node's
  *  scalar self-value — it consumes NO index); the keyed `description` entry is [0], so the body
  *  starts at [1]. */
 const node = (body: unknown[], title = "T", description = "D", path = ":doc") => ({
@@ -219,7 +219,7 @@ describe("diffChapter", () => {
   });
 
   // The chunks sit at ABSOLUTE indices 1 and 2 — the keyed `description` consumes index 0; the
-  // title, being the self-value, consumes none (CHAPTER.md).
+  // title, being the self-value, consumes none (docs/documents/chapter).
   it("edited chunk text → an emplace at its absolute index", () => {
     const committed = base();
     const current = clone(committed);
@@ -294,7 +294,7 @@ describe("diffChapter", () => {
   });
 
   // An ANNOTATED title projects as an omni marker — the tag applications laid over the scalar
-  // (ANNOTATIONS.md). Unpeeled it stringifies, and the chapter's heading reads "[object Object]".
+  // (docs/server/annotations). Unpeeled it stringifies, and the chapter's heading reads "[object Object]".
   it("flowText peels an annotation overlay off a title", () => {
     const omni = { $yamloverMixed: { kind: "omni", entries: [{ key: "yamlover-annotations", value: [] }], value: "The Title" } };
     expect(flowText(omni)).toBe("The Title");
@@ -303,7 +303,7 @@ describe("diffChapter", () => {
   });
 });
 
-// A body element's kind is STRUCTURAL (CHAPTER.md): a container is a subchapter unless an explicit
+// A body element's kind is STRUCTURAL (docs/documents/chapter): a container is a subchapter unless an explicit
 // tag says it is content. This is what lets a page inline subchapters — an inlined one arrives as a
 // `$yamloverMixed` marker carrying no `path`, where the old link-marker-only test saw a chunk.
 describe("bodyKindOf — inlined containers", () => {
@@ -342,7 +342,7 @@ describe("bodyKindOf — inlined containers", () => {
     expect(bodyKindOf(annotatedLink)).toBe("chunk");
   });
 
-  it("an ANNOTATED chunk stays a chunk — overlay keys are not body (CHAPTER.md)", () => {
+  it("an ANNOTATED chunk stays a chunk — overlay keys are not body (docs/documents/chapter)", () => {
     const annotated = (key: string) => ({ $yamloverMixed: { kind: "omni", value: "a **bold** chunk", entries: [{ key, value: [] }] } });
     expect(bodyKindOf(annotated("yamlover-annotations"))).toBe("chunk");
     expect(bodyKindOf(annotated("yamlover-fragments"))).toBe("chunk");

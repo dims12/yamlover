@@ -7,7 +7,7 @@ import { nodeJson } from "./node-json";
 
 // /api/rekey — rename a key. One verb, two backends routed by the node's STORAGE: an fs-backed
 // member (a real directory named by the key) is renamed on disk via `mv`; an INLINE keyed entry
-// has its key token rewritten in the enclosing body. (YAMLOVER_EDITOR.yo: the concrete is
+// has its key token rewritten in the enclosing body. (docs/server/yamlover-editor: the concrete is
 // not a state — the editor asks to rename, the server routes.)
 
 const bodyAt = (root: string, ...segs: string[]) =>

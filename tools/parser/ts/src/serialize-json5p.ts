@@ -44,7 +44,7 @@ export function serializeJson5p(doc: Document, opts?: SerializeOpts): string {
 
 /** One SUBTREE as json5p text, laid out K&R from column `indent` — the emitter's own layout, reused
  *  by the yamlover serializer for an inline concrete switch (`NodeMeta.concrete === 'json5p'`,
- *  CONCRETES.md §Collection style). Throws {@link LossyError} for everything json5p cannot hold, so
+ *  docs/language/concretes/00-storage/00-inlined). Throws {@link LossyError} for everything json5p cannot hold, so
  *  the caller can fall back to block form exactly as it does when flow refuses a value. */
 export function json5pSubtree(node: Node, indent = 0, opts?: SerializeOpts): string {
   return new Emitter(opts?.comments ?? false).value(node, indent);
@@ -67,7 +67,7 @@ class Emitter {
 
   node(n: Node, indent: number): string {
     if (n.kind === 'blob') throw new LossyError('a blob has no json5p text form (its bytes live in a file)');
-    if (n.meta?.schema !== undefined) throw new LossyError('json5p has no !!<…> schema tag — attach the schema via the meta layer (META.md)');
+    if (n.meta?.schema !== undefined) throw new LossyError('json5p has no !!<…> schema tag — attach the schema via the meta layer (docs/language/model/metadata)');
     if (n.meta?.set === true) throw new LossyError('json5p has no !!set — set semantics come from the meta layer (uniqueItems: true)');
     if (n.meta?.yo === true) throw new LossyError('json5p has no !!yo — the plain-yamlover mark has no brace-surface spelling');
     if (n.kind === 'scalar') {

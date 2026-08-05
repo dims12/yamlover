@@ -1,4 +1,4 @@
-// THE YED MOUNT — the @yamlover/yed reference editor behind the unlocked data view (EDITOR.md).
+// THE YED MOUNT — the @yamlover/yed reference editor behind the unlocked data view (docs/server/editor).
 // CONCRETE-AGNOSTIC by construction:
 // LOAD is the ONE WIRE (/api/content, depth `.inf`): the envelope's source parses with the
 // SHARED parser and the sidecar stamps what text cannot spell (yed-content-load.ts) — it

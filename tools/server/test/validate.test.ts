@@ -214,7 +214,7 @@ describe("validateTree — the doctor sweep", () => {
   });
 
   it("leaves a concrete alone when the extension names no data language", () => {
-    // CONCRETES.md: an unknown text file is modeled as a file/yaml scalar string.
+    // docs/language/concretes: an unknown text file is modeled as a file/yaml scalar string.
     expect(validateTree({ nodes: [n(":readme.md", "file/yaml", { fsPath: "readme.md" })] })).toMatchObject({ allowed: true });
     expect(validateTree({ nodes: [n(":pic.png", "file/binary", { fsPath: "pic.png" })] })).toMatchObject({ allowed: true });
   });

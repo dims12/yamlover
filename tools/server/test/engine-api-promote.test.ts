@@ -5,7 +5,7 @@ import { createHandlers, tmpTree } from "./helpers";
 import { call, callBody } from "./http";
 import { nodeJson } from "./node-json";
 
-// THE SCALAR→CONTAINER PROMOTION (CONCRETES.md §Member encoding; concrete-rules.ts
+// THE SCALAR→CONTAINER PROMOTION (docs/language/concretes/01-choosing; concrete-rules.ts
 // subchapterMaterializes). Building a keyed tree "by one" against a DIRECTORY-backed root: each
 // node is born a scalar (a title), then grows children. The moment an inline keyed node in a
 // dir-backed body gains its first CONTAINER content it must LIFT OUT into its own subdirectory — so

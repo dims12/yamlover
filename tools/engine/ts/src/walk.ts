@@ -1,4 +1,4 @@
-// Directory walker — the directory concrete (YAMLOVER.md §5) → IR Document. Replaces the
+// Directory walker — the directory concrete (docs/language/concretes) → IR Document. Replaces the
 // Python walker / the server's legacy `loadEntity`, mirroring its file→value semantics so the
 // web UI works "as it was", but emitting the new IR (parser/ts/src/ir.ts) the engine consumes.
 //
@@ -211,7 +211,7 @@ export async function walkTreeAsync(absDir: string, opts: AsyncWalkOptions = {})
 // and color-tag annotations validate — in a PLAIN directory, not only a yamlover project. Mirrors
 // the on-disk taxonomy at the repo root; the palette hexes mirror COLOR_TAGS in annotate.tsx.
 const BUILTIN_TAG_SCHEMA = 'type: object\nformat: x-yamlover-tag\nproperties:\n  color:\n    type: string\nadditionalProperties: *:: yamlover: $defs: tag\n';
-// embedded fragments / annotations (ANNOTATIONS.md) — minimal so the `!!<*::yamlover/$defs/…>`
+// embedded fragments / annotations (docs/server/annotations) — minimal so the `!!<*::yamlover/$defs/…>`
 // tags resolve (and the nodes index as x-yamlover-fragment / -annotation) in a plain served tree.
 const BUILTIN_FRAGMENT_SCHEMA = 'type: object\nformat: x-yamlover-fragment\n';
 const BUILTIN_ANNOTATION_SCHEMA = 'type: variant\nformat: x-yamlover-annotation\n';
@@ -761,7 +761,7 @@ function* childNode(abs: string, m: { type?: string; format?: string } | undefin
   if (fmt && (DOC_FORMATS[fmt] || TEXT_FORMATS.has(fmt))) {
     // a format-matched doc/text file is slurped to parse — unless it is too big to slurp
     if (stat.size > MAX_DOC_BYTES) return blob(abs, fmt, ctx);
-    if (DOC_FORMATS[fmt]) return parsedDoc(abs, DOC_FORMATS[fmt], ctx); // a sub-document encoding → parse (META.md)
+    if (DOC_FORMATS[fmt]) return parsedDoc(abs, DOC_FORMATS[fmt], ctx); // a sub-document encoding → parse (docs/language/model/metadata)
     return textScalar(abs, fmt, ctx); // markdown/adoc/plantuml/csv → string + format
   }
   if (fmt) return blob(abs, fmt, ctx); // a known but non-text format = opaque bytes
@@ -772,7 +772,7 @@ function* childNode(abs: string, m: { type?: string; format?: string } | undefin
 /** Apply `meta.yo` `properties.<key>.format` to the matching entries, so a body-overlay
  *  text entry (e.g. 59's `markdown:`) gets its (type, format) just like a file child does. A
  *  Blob already carries its format; a node with a format already wins; binary stays a Blob.
- *  `uniqueItems: true` marks the child a SET (≡ the `!!set` tag — META.md): NodeMeta.set. */
+ *  `uniqueItems: true` marks the child a SET (≡ the `!!set` tag — docs/language/model/metadata): NodeMeta.set. */
 function applyMeta(node: Node, meta: Meta): Node {
   for (const e of node.entries ?? []) {
     if (e.key == null || isPointer(e.value)) continue;
@@ -914,7 +914,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
   // is a container (a titled CHILDLESS subchapter's body is a bare title, indistinguishable
   // from a chunk by value shape alone — its directory says what it is). An inline bare
   // scalar and a FILE-backed scalar stay leaves — chunks, which ARE title-only content
-  // (CHAPTER.md). The overlay keys an annotated chunk gains (ANNOTATIONS.md) are not body —
+  // (docs/documents/chapter). The overlay keys an annotated chunk gains (docs/server/annotations) are not body —
   // a scalar with only those stays a chunk.
   const OVERLAY_KEYS = new Set(['yamlover-annotations', 'yamlover-fragments']);
   const elemIsContainer = (el: Node): boolean =>
@@ -930,7 +930,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     const anyOf = itemsNode ? field(itemsNode, 'anyOf') : null;
     // An element that declares its OWN inline `!!<*…/$defs/X>` schema wins over the inherited
     // `items` — its tag decides, not shape routing (a tagged table in a chapter body stays a
-    // table; CHAPTER.md §The schema). `walk()` applies the element's pointer separately.
+    // table; docs/documents/chapter/schema). `walk()` applies the element's pointer separately.
     // a `!!yo` element is PLAIN YAMLOVER — exempt from the enclosing schema by definition
     // (the data-island semantics): never routed to a branch, never stamped with a format,
     // so a chapter body's island does not become an x-yamlover-chapter in the TOC.
@@ -971,7 +971,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     // must survive for views/serialization; the derived typing rides its own meta slot
     if (fmt && !hasFormat(inst)) inst.meta = { ...inst.meta, derivedFormat: fmt };
     // recurse structurally — `variant`/`mixed` carry keyed fields exactly like `object`
-    // (META.md vocabulary: variant = !!var, mixed = !!mix), so `properties`/
+    // (docs/language/model/facets: variant = !!var, mixed = !!mix), so `properties`/
     // `additionalProperties` propagate through them too (e.g. a tag taxonomy whose tags
     // hold their description as a BODY still tags every sub-tag). A `variant`/`mixed` node ALSO
     // carries a positional body on the ordinal facet, so `items` propagates alongside them.
@@ -1014,7 +1014,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
   walk(root);
 }
 
-/** Merge `.yo/body.yo` over the directory mapping (YAMLOVER.md §5):
+/** Merge `.yo/body.yo` over the directory mapping (docs/language/concretes):
  *  - a mapping body OVERRIDES same-key children and ADDS overlay-only keys (scalars/pointers);
  *  - a pointer-array body (`- *file …`) imposes ORDER over the existing children;
  *  - a SCALAR body root with fields (the omni shape, e.g. `!!var A taxonomy` over a tag
@@ -1065,7 +1065,7 @@ function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
       bodyOrder.push(hit);
       continue;
     }
-    // a keyed body entry AUGMENTS the member it names (YAMLOVER.md §5: a file blob + body
+    // a keyed body entry AUGMENTS the member it names (docs/language/concretes: a file blob + body
     // title/tags ⇒ an omni-blob) — wherever that member already sits. Augmenting is not ORDERING:
     // only a `*` pointer grants a position, so a merely-augmented child keeps its filesystem place.
     const bi = bodyAt.get(e.key);
@@ -1177,7 +1177,7 @@ const EXT_FORMAT: Record<string, string> = {
 
 const TEXT_FORMATS = new Set(['text/markdown', 'text/asciidoc', 'text/x-plantuml', 'text/csv', 'text/tab-separated-values']);
 
-// A `format` naming a SUB-DOCUMENT ENCODING (META.md): the file's text parses into a node in
+// A `format` naming a SUB-DOCUMENT ENCODING (docs/language/model/metadata): the file's text parses into a node in
 // that surface language — `yamlover`/`yaml`/`json`/… for an instance, `…/meta` for a schema doc
 // (e.g. the extensionless `$defs/*` files). These must never fall into the opaque-Blob branch.
 const DOC_FORMATS: Record<string, 'yamlover' | 'json5p' | 'yaml'> = {

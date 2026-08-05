@@ -15,7 +15,7 @@ import { isDirConcrete, isFileConcrete } from "./concrete";
 import { strToSegs, segsToStr, isAncestorPath } from "./client/paths";
 
 /** The facets a drop decision needs — a TreeNode, an explorer Link, or a NodeJson projects
- *  onto this. `concrete` is the CONCRETES.md value ("dir", "file/yaml", "yamlover", …). */
+ *  onto this. `concrete` is the docs/language/concretes value ("dir", "file/yaml", "yamlover", …). */
 export interface DropNode {
   path: string; // canonical colon path
   concrete: string | null;

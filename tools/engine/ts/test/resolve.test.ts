@@ -130,7 +130,7 @@ test('self-import: `::tags:x` and `::yamlover:tags:x` reach the SAME node in a p
   assert.equal((via.target as { path: string }).path, ':tags:x');
 });
 
-// ─────────────────────── relative indexes — [.±k] (URIs.md §Relative indexes) ───────────────────────
+// ─────────────────────── relative indexes — [.±k] (docs/language/pointers/relative-indexes) ───────────────────────
 
 test('relindex colspan: *[.-1] in a row targets the cell to my LEFT', () => {
   const doc = parseYamlover('header: [Animal, Trait, *[.-1]]\n');

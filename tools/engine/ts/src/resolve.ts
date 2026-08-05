@@ -1,11 +1,11 @@
 // Pointer resolver — turns an unresolved IR `Pointer` into the node it points at.
-// Model & scopes: ../../../../URIs.md.  IR: ../../../parser/ts/src/ir.ts.
+// Model & scopes: docs/language/pointers.  IR: ../../../parser/ts/src/ir.ts.
 //
 // - Containment is the spine; resolution walks it. Intermediate `*` edges are followed
 //   transitively (cycle-safe). `~` back-edges resolve like `*` (their value is a Pointer).
 // - Scopes: current (the mapping holding the pointer) · parent (`..`) · document (`/`,
 //   the root) · link (`//auth`, an external virtual id — NOT resolved locally).
-// - PATH anchors (URIs.md §`&`): `&P/k` on a node X means the container at `P` gains the
+// - PATH anchors (docs/language/pointers/anchors): `&P/k` on a node X means the container at `P` gains the
 //   key `k` → X (an ordinal `&P[]` appends X keyless). Anchors are REAL keys: the resolver
 //   realizes them as back-style edges and lets a `*` step traverse an anchor-created key.
 //   There is no anchor namespace and no precedence rule — `*name` is pure path lookup.
@@ -87,7 +87,7 @@ export function resolveDocument(doc: Document): ResolvedEdge[] {
 
 /** Resolve a single pointer, given the chain (root..node) of the mapping that holds it.
  *  `hostIndex` is the pointer entry's own position in that mapping — the deepest slot of the
- *  relative-index frame (URIs.md §Relative indexes); without it a `[.±k]` at full depth is
+ *  relative-index frame (docs/language/pointers/relative-indexes); without it a `[.±k]` at full depth is
  *  unresolved, while shallower ones (after `..`) still align. */
 export function resolvePointer(doc: Document, fromChain: Node[], ptr: Pointer, hostIndex?: number): Located {
   const chains = buildChains(doc.root);
@@ -100,7 +100,7 @@ function hasRelindex(p: Pointer): boolean {
   return p.steps.some((s) => s.sel === 'relindex');
 }
 
-/** The HOST FRAME of a relative index (URIs.md §Relative indexes): the host path's position
+/** The HOST FRAME of a relative index (docs/language/pointers/relative-indexes): the host path's position
  *  at every depth. `pos[d]` = the index of `chain[d]` within `chain[d-1]` (keyed entries hold
  *  positions too — one ordered mapping), and `pos[chain.length]` = the pointer entry's own
  *  index in the holder. A `[.±k]` step selecting a child at depth d reads `pos[d] + k`. */
@@ -166,7 +166,7 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
   let steps: Step[] = ptr.steps;
   let chain: Node[];
   const linkAuthority = ptr.base.scope === 'link' ? ptr.base.authority : '';
-  // Only the `:::` WORLD form (URIs.md: a cross-authority URI) may reference content outside the
+  // Only the `:::` WORLD form (docs/language/pointers: a cross-authority URI) may reference content outside the
   // loaded tree — a miss there is a legitimate external reference, not a bug. A plain `::` link is
   // project-internal, so a miss is a DANGLING typo and must be flagged, not silently dropped.
   const isWorld = ptr.base.scope === 'link' && ptr.base.world === true;
@@ -174,7 +174,7 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
 
   switch (ptr.base.scope) {
     case 'link': {
-      // `::authority:…` is PROJECT-root relative (URIs.md: `:`=document, `::`=project): resolve
+      // `::authority:…` is PROJECT-root relative (docs/language/pointers: `:`=document, `::`=project): resolve
       // `authority` + steps from the top-level (served) document root. A plain `::` link is always
       // intra-project (e.g. an annotation → its material), so a miss is DANGLING. Only the `:::`
       // world form (`isWorld`) may name a genuine external authority and stay external on a miss.
@@ -184,7 +184,7 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
       // rather than staying external. Every other world authority falls through to `external()`.
       let authority = ptr.base.authority;
       if (isWorld && authority === YAMLOVER_AUTHORITY) authority = 'yamlover';
-      // SELF-IMPORT (SEPARATOR.md §2): inside the yamlover project `::X` ≡ `::yamlover:X`. When the
+      // SELF-IMPORT (docs/language/pointers/scopes): inside the yamlover project `::X` ≡ `::yamlover:X`. When the
       // served root IS the project, the `yamlover` self-import is DE-MATERIALIZED (walk.ts) — there
       // is no `yamlover` node — so absorb the authority: resolve the steps straight from the project
       // root, landing on the REAL `:tags:…` / `:$defs:…`, not a graft duplicate. When a `yamlover`
@@ -221,7 +221,7 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
     const node = chain[chain.length - 1];
     if (node === undefined) return { kind: 'unresolved', reason: 'empty resolution scope' };
     // the entry INDEX each selector picks — a relative index is the host's own position at
-    // this depth ± k (the FRAME RULE, URIs.md §Relative indexes); keyed lookup finds its
+    // this depth ± k (the FRAME RULE, docs/language/pointers/relative-indexes); keyed lookup finds its
     // position too, so the transitive-deref tail below can hand the inner pointer its frame
     let idx: number;
     if (st.sel === 'key') idx = node.entries?.findIndex((e) => e.key === st.name) ?? -1;
@@ -229,7 +229,7 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
     else if (st.sel === 'index') idx = st.n;
     else {
       const at = host?.[chain.length];
-      if (at === undefined) return { kind: 'unresolved', reason: `relative index ${relRaw(st.k)} has no host frame at this depth (URIs.md §Relative indexes)` };
+      if (at === undefined) return { kind: 'unresolved', reason: `relative index ${relRaw(st.k)} has no host frame at this depth (docs/language/pointers/relative-indexes)` };
       idx = at + st.k;
       if (idx < 0) return { kind: 'unresolved', reason: `relative index ${relRaw(st.k)} out of range (position ${at})` };
     }
@@ -249,7 +249,7 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
       const next = new Set(visited);
       next.add(entry.value);
       // the inner pointer's host frame is ITS holder chain + its own entry index — so a
-      // chain of merge pointers (MARKLOWER.md) resolves transitively to the origin cell
+      // chain of merge pointers (docs/documents/marklower) resolves transitively to the origin cell
       const innerHost = hasRelindex(entry.value) ? hostPositions(chain, idx) : undefined;
       const r = resolve(doc, chains, chain, entry.value, next, anchorKeys, innerHost);
       if (r.kind !== 'node') return r; // external/unresolved propagates

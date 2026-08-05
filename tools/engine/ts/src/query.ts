@@ -1,5 +1,5 @@
 // The QUERY evaluator (PLAN.md 3g) — colon-grammar match templates over the Store
-// (SEPARATOR.md; the acceptance corpus lives in ../test/query.cases.ts).
+// (docs/language/pointers/paths; the acceptance corpus lives in ../test/query.cases.ts).
 //
 // A query is a bare colon path whose portions may be MATCHERS (the YAML-keys round:
 // a bare token is always a STEP — a bare integer is the position, `~` the null key,
@@ -128,7 +128,7 @@ function parsePortion(r: string): Portion[] {
     if (st.sel === 'key') return { kind: 'key', name: st.name } as Portion;
     if (st.sel === 'index') return { kind: 'index', n: st.n } as Portion;
     if (st.sel === 'nullkey') return { kind: 'nullkey' } as Portion;
-    if (st.sel === 'relindex') throw new SyntaxError('query: a relative index "[.±k]" is a link step, not a query portion (URIs.md §Relative indexes)');
+    if (st.sel === 'relindex') throw new SyntaxError('query: a relative index "[.±k]" is a link step, not a query portion (docs/language/pointers/relative-indexes)');
     return { kind: 'spine' } as Portion;
   });
 }
@@ -292,7 +292,7 @@ function ownEntries(s: Store, p: string): { to: string; label: string | null }[]
 }
 
 /** Anchor-created entries OF container `p`: the back edges landing on it (member → p),
- *  projected after the container's own entries, ordered by member path (URIs.md). */
+ *  projected after the container's own entries, ordered by member path (docs/language/pointers). */
 function anchorEntries(s: Store, p: string): { member: string; label: string | null }[] {
   return (s.db.prepare(
     "SELECT from_path AS f, label FROM edge WHERE to_path = ? AND kind = 'back' ORDER BY from_path",

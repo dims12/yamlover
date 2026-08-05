@@ -1,5 +1,5 @@
 // THE CHAPTER KEY TABLE — chapterInterpret(key, site) → ChapterIntent | null. The chapter
-// projection's own grammar (YAMLOVER_EDITOR.yo §"The CHAPTER projection"): the source
+// projection's own grammar (docs/server/chapter-editor): the source
 // typing grammar does not apply here (no holes, no `- `/`key:`); THE PROSE EXCEPTION governs
 // Enter, THE FORMAT RULE governs Tab and the format commands.
 //

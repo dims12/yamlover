@@ -10,7 +10,7 @@ export interface TreeNode {
   label: string;
   type: string;
   format: string | null;
-  valueType?: string | null; // renderer dispatch facets (TYPES.md §9)
+  valueType?: string | null; // renderer dispatch facets (docs/language/model/matching)
   hasKeyed?: boolean;
   hasOrdinal?: boolean;
   concrete: string | null; // how it is stored; `dir` → a plain-folder icon
@@ -23,7 +23,7 @@ export interface TreeNode {
 export interface NodeJson {
   path: string;
   type: string;
-  format?: string | null; // schema `format`; with the facets it keys the renderer (TYPES.md §9)
+  format?: string | null; // schema `format`; with the facets it keys the renderer (docs/language/model/matching)
   valueType?: string | null; // the scalar self-VALUE's type (null|boolean|integer|number|string|binary), or null
   hasKeyed?: boolean; // owns ≥1 keyed element
   hasOrdinal?: boolean; // owns ≥1 ordinal (keyless) element
@@ -57,9 +57,9 @@ export type CommentBucket = {
   repr?: string;      // the node's REPRESENTATION concrete (../repr): `yaml/flow` for a container
                       // authored on one line, `yaml/single`/`yaml/hex`/… for a scalar. Carried only
                       // when it is not the default for the value — absent means "the canonical one"
-  block?: { chomp?: "strip" | "keep"; indent?: number }; // a literal/folded scalar's qualifiers (CONCRETES.md §Scalar representation)
+  block?: { chomp?: "strip" | "keep"; indent?: number }; // a literal/folded scalar's qualifiers (docs/language/concretes/04-yaml)
   concrete?: string;  // an INLINE CONCRETE SWITCH — `json5p` for a flow token written K&R, i.e.
-                      // spanning lines (CONCRETES.md §Collection style). Present only where the
+                      // spanning lines (docs/language/concretes/00-storage/00-inlined). Present only where the
                       // switch HAPPENS; below it the language lock makes the concrete derivable, so
                       // a renderer reads it once and draws the whole subtree that way.
 };
@@ -162,7 +162,7 @@ export interface TagRef {
   color: string | null;
 }
 
-/** An annotation of a material — ONE TAG APPLICATION (ANNOTATIONS.md): the whole node, or a
+/** An annotation of a material — ONE TAG APPLICATION (docs/server/annotations): the whole node, or a
  *  fragment within it (then `selector` carries that fragment's region and `fragmentSlug` its
  *  key, and `imageUrl` its crop), tagged by `tag` with optional `description` / `params`. */
 export interface Annotation {
@@ -174,7 +174,7 @@ export interface Annotation {
   params?: Record<string, unknown>;
   created?: string;
   node?: string; // the CLIENT path of the node this annotation/fragment lives ON — the chapter, or a
-                 // CHUNK when the fragment hangs off a chunk (ANNOTATIONS.md §3). Drives the delete
+                 // CHUNK when the fragment hangs off a chunk (docs/server/annotations/storage). Drives the delete
                  // target, the `#`-anchor, and which element the highlight is scoped to.
   path?: string; // a transient client marker only ("(preview)"/"(pending)"); annotations have no node path
 }
@@ -190,7 +190,7 @@ export function fetchTagged(path: string): Promise<unknown[]> {
   return getJson<unknown[]>(api(`/api/tagged?path=${encodeURIComponent(path)}`));
 }
 
-/** Evaluate a colon-grammar QUERY (QUERY.md / engine `query` op) at `at` (default: the root `:`),
+/** Evaluate a colon-grammar QUERY (docs/language/pointers/queries / engine `query` op) at `at` (default: the root `:`),
  *  returning the matched node paths in canonical colon form. A malformed query rejects (the
  *  server answers 400). Reused by the tag-picker typeahead and, later, by find-usages. */
 export function query(q: string, at = ":"): Promise<string[]> {
@@ -247,7 +247,7 @@ export function fetchConfig(): Promise<ConfigPayload> {
   return getJson<ConfigPayload>(api("/api/config"));
 }
 
-/** Create a FRAGMENT — a marked region in the node at `target` (ANNOTATIONS.md). Returns its slug
+/** Create a FRAGMENT — a marked region in the node at `target` (docs/server/annotations). Returns its slug
  *  and full node path, which is then the `target` for {@link annotate}. `imageBase64` is an
  *  optional PNG crop for image-like selections. */
 export function createFragment(target: string, selector: Record<string, unknown>, imageBase64?: string): Promise<{ slug: string; fragmentPath: string }> {
@@ -459,7 +459,7 @@ function defaultObjectTitle(schema: string): string {
 
 /** A fresh object's body source: a title and one empty prose chunk, so it is immediately editable.
  *  The title is the omni node's scalar SELF-VALUE — a bare quoted line, no `title:` key
- *  (CHAPTER.md). (The server no longer knows what a chapter is — the body template lives with the
+ *  (docs/documents/chapter). (The server no longer knows what a chapter is — the body template lives with the
  *  client that offers the schema.) */
 function objectBody(title: string): string {
   return `${JSON.stringify(title)}\n- ""`;

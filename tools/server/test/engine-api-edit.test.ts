@@ -289,7 +289,7 @@ describe("/api/edit — rejections", () => {
   });
 });
 
-// The FULLY-OMNI chapter (CHAPTER.md): the title is the node's own scalar SELF-VALUE — no `title:`
+// The FULLY-OMNI chapter (docs/documents/chapter): the title is the node's own scalar SELF-VALUE — no `title:`
 // key — so it consumes NO absolute index. `description` (keyed) is [0], the body follows.
 const OMNI_CHAPTER =
   "!!<*yamlover: $defs: chapter>\n" +
@@ -311,7 +311,7 @@ async function omniChapterHandlers(extra: Record<string, string> = {}) {
   return { root, h };
 }
 
-describe("/api/edit — the omni self-value title (CHAPTER.md: title = the node's scalar facet)", () => {
+describe("/api/edit — the omni self-value title (docs/documents/chapter: title = the node's scalar facet)", () => {
   it("emplaces the ROOT title: a scalar payload on the document node replaces the self-value line", async () => {
     const { root, h } = await omniChapterHandlers();
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "emplace", yamlover: '"New Title"' });
@@ -859,7 +859,7 @@ describe("/api/tree — directory-chapter subchapter order", () => {
   });
 });
 
-describe("/api/edit — flow-row cells (a table's `- [a, b, c]`, MARKLOWER.md)", () => {
+describe("/api/edit — flow-row cells (a table's `- [a, b, c]`, docs/documents/marklower)", () => {
   const TABLE =
     "!!<*yamlover: $defs: chapter>\n" +
     'title: "T"\n' +
@@ -1564,7 +1564,7 @@ describe("/api/edit — a flow token payload stays one token", () => {
 });
 
 // --- K&R values: a flow token that SPANS LINES ------------------------------------------------- //
-// CONCRETES.md §Collection style — a multi-line flow token is an inline concrete switch to json5p.
+// docs/language/concretes/00-storage/00-inlined — a multi-line flow token is an inline concrete switch to json5p.
 // For the SPLICER the point is simpler: it is ONE value written across several lines, so every
 // line-level reader must step over its interior. Before `flowSpanEnd` the splicer read `a: {` plus
 // two indented lines as an entry WITH CHILDREN and rewrote them as block mapping lines, dropping

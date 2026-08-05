@@ -1,4 +1,4 @@
-// The renderer for a TABLE node (format `x-yamlover-table` — MARKLOWER.md §Tables): an omni
+// The renderer for a TABLE node (format `x-yamlover-table` — docs/documents/marklower/tables): an omni
 // node whose keyless entries are the ROWS (arrays of cells), the row keyed `header` is the
 // header, keyed `title` is the caption. The table consumes exactly TWO nesting levels — rows,
 // then cells. A cell is marklower prose (the default), a CHAPTER (an untagged container cell
@@ -8,12 +8,11 @@
 // column weight (AsciiDoc `cols` style), rendered as weight/sum percent via <colgroup>.
 //
 // Merged cells: the engine resolves the relative-index pointers (`*[.-1]`, `*..[.-1][.]` —
-// URIs.md §Relative indexes) transitively to the ORIGIN cell, so every member of a merged
+// docs/language/pointers/relative-indexes) transitively to the ORIGIN cell, so every member of a merged
 // region arrives as a `$yamloverRef` marker whose `path` IS the origin cell's path. The grid
 // therefore detects merges by TARGET PATH + GEOMETRY: a ref cell targeting another cell of
 // this grid joins that origin's region; a region renders merged only when it tiles a filled
-// rectangle with the origin top-left, all on one side of the header/body boundary (MARKLOWER.md
-// §Merged cells). Anything else — a pointer to a non-adjacent cell, a non-cell target, a
+// rectangle with the origin top-left, all on one side of the header/body boundary (docs/documents/marklower/tables/merged-cells). Anything else — a pointer to a non-adjacent cell, a non-cell target, a
 // non-rectangular region — renders as an ordinary deref cell, per the spec.
 //
 // Editing (the chapter's lock): STRING cells edit in place via MarklowerChunkEditor, each cell
@@ -57,7 +56,7 @@ interface TableGrid {
 
 /** Read a projected table value (a `$yamloverMixed` omni marker, or a plain array of rows for
  *  a fully keyless table) into the grid model. Rows keep their authored order; keyed rows other
- *  than `title` are rows too — the key just names them (MARKLOWER.md §The model). */
+ *  than `title` are rows too — the key just names them (docs/documents/marklower/model). */
 export function buildTableGrid(value: unknown, tablePath: string): TableGrid {
   const entries: { key: string | null; value: unknown }[] = Array.isArray(value)
     ? value.map((v) => ({ key: null, value: v }))
@@ -91,7 +90,7 @@ export function buildTableGrid(value: unknown, tablePath: string): TableGrid {
   for (const r of rows) r.overflow = Math.max(0, r.cells.length - cols);
 
   // header `width` sidecars: an omni header cell (scalar + fields) may carry a keyed `width`
-  // — a proportional column weight (MARKLOWER.md §Header widths). The cell keeps rendering
+  // — a proportional column weight (docs/documents/marklower/tables/header-widths). The cell keeps rendering
   // its self-value; a pointer/merged or non-numeric width contributes nothing (weight 1).
   const header = rows.find((r) => r.header);
   const widths: (number | null)[] = (header?.cells ?? []).map((c) => {
@@ -107,7 +106,7 @@ export function buildTableGrid(value: unknown, tablePath: string): TableGrid {
  *  merged region), `null` (a region member — emit nothing), or undefined (an ordinary cell). */
 type Spans = (null | { colSpan: number; rowSpan: number } | undefined)[][];
 
-/** Compute merged regions per MARKLOWER.md §Merged cells: group ref cells by their (origin) target
+/** Compute merged regions per docs/documents/marklower/tables/merged-cells: group ref cells by their (origin) target
  *  path; a group merges iff origin + members tile a filled rectangle, origin top-left, all on
  *  one side of the header/body boundary. Invalid groups render unmerged (ordinary deref cells). */
 export function computeSpans(grid: TableGrid): Spans {
@@ -243,12 +242,12 @@ function CellContent({
     return <Grid value={cell.value} path={cell.path} documentPath={documentPath} onNavigate={onNavigate} caption />;
   }
   if (mixed?.format === "x-yamlover-bullets" || mixed?.format === "x-yamlover-numbered") {
-    // a tagged LIST cell — bullets / numbered (MARKLOWER.md §Lists)
+    // a tagged LIST cell — bullets / numbered (docs/documents/marklower/lists)
     return <ListBody value={cell.value} path={cell.path} kind={listKind(mixed.format)} documentPath={documentPath} onNavigate={onNavigate} />;
   }
   if ((mixed && mixed.kind !== "omni") || Array.isArray(cell.value)) {
     // an UNTAGGED container cell IS a CHAPTER — the table schema consumes exactly two
-    // nesting levels, then switches back to chapter rules (MARKLOWER.md §Cells)
+    // nesting levels, then switches back to chapter rules (docs/documents/marklower/tables/cells)
     return <ChapterCell value={cell.value} path={cell.path} tablePath={tablePath} documentPath={documentPath} onNavigate={onNavigate} />;
   }
   if (mixed) {
@@ -274,7 +273,7 @@ function CellContent({
   return <MarklowerChunk chunk={proseChunk(cell, documentPath)} onNavigate={onNavigate} />;
 }
 
-/** A CHAPTER cell (MARKLOWER.md §Cells): the UNTAGGED container cell — the table schema
+/** A CHAPTER cell (docs/documents/marklower/tables/cells): the UNTAGGED container cell — the table schema
  *  consumes two nesting levels, so a container cell switches back to chapter rules (an
  *  explicit `!!<…chapter>` tag stays legal). Keyed `title`/`description` head the block; the
  *  positional body renders in order, each item through the ordinary cell routing (prose →
@@ -407,7 +406,7 @@ export function Grid({
       </table>
       {overflow > 0 && (
         <p className="yl-table-notice">
-          ⚠ {overflow} cell{overflow > 1 ? "s" : ""} beyond the column count inferred from the first row (MARKLOWER.md)
+          ⚠ {overflow} cell{overflow > 1 ? "s" : ""} beyond the column count inferred from the first row (docs/documents/marklower)
         </p>
       )}
     </div>

@@ -43,11 +43,11 @@ const EXPLICIT_KEY = ['5WE3','7W2P','A2M4','CT4Q','GH63','JTV5','L94M','RR7F','S
 // 652Z/ZF4X/ZK9H removed 2026-07-26 (multi-line flow): a flow collection may SPAN LINES (YAML Ch.
 // 7). `Flow.ws()` now skips line breaks and an unterminated first line is sliced from the source by
 // bracket balance, so `{ ?foo: bar,\nbar: 42\n}` reads whole. On the YAMLOVER surface that spanning
-// additionally means an inline concrete switch to json5p (CONCRETES.md §Collection style); in YAML
+// additionally means an inline concrete switch to json5p (docs/language/concretes/00-storage/00-inlined); in YAML
 // mode it is plain flow, which is what these cases assert.
 const OTHER_PARSE = ['2EBW','4CQQ','4ZYM','5GBF','5T43','6BCT','6CA3','6HB6','6VJK','7A4E','7T8X','87E4','8UDB','9YRD','A984','AB8U','C2DT','CN3R','D83L','DBG4','DWX9','FBC9','HS5T','JR7V','K527','L9U5','LP6E','LQZ7','NB6Z','NP9H','P2AD','PRH3','QF4Y','TL85','TS54','UV7Q','XV9V','YD5X'];
 const VALUE_MISMATCH = ['26DV','2AUY','2SXE','3GZX','4QFQ','4UYU','58MP','74H7','7FWL','8MK2','A6F9','AZW3','CUP7','E76Z','F2C7','H2RW','HMQ5','K54U','K858','LE5A','Q5MG','R4YG','S4JQ','UDM2','ZH7C'];
-// Diverges BY DESIGN since the colon round (SEPARATOR.md, 2026-06-13): `:` is the path
+// Diverges BY DESIGN since the colon round (docs/language/pointers/paths, 2026-06-13): `:` is the path
 // separator, so a YAML anchor/alias NAME containing `:` reads as a colon path. One-time
 // reclassification, like the anchor round's — documented in YAML-CONFORMANCE.md.
 const COLON_SEPARATOR = ['W5VH'];

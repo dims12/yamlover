@@ -181,8 +181,10 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
         Event columns widened, stale `QUERY_EDITOR.yo`/`CONCRETES.md` mentions in three
         state descriptions repointed at book links, a live WYSIWYG edit round-tripped on a
         state page (valid write, atomicity held), and a focus-after-flush observation filed
-        as MINITODO 028. Open: `atom_focused` targets a `gap_after_token` state the diagram
-        never defined (renders as plain code, not a link) — author it or reword the row.
+        as MINITODO 028. The dangling `gap_after_token` target closed 2026-08-05: `closeToken`
+        lands the caret `at: "after"` — the gap past the closer — which the machine already
+        names `scalar_committed` (flow_seq_editing's `close_bracket` row says so), so
+        `atom_focused`'s closer row links there instead of naming a state that never existed.
   - [x] The chunk-mangle bug fixed (2026-08-04): touching a long folded prose chunk in the
         yed editor corrupted the file — three fixes. (1) `itemHasFields` misread a PLAIN
         `- >` block (content at the child column) as an omni when a prose line looked like
@@ -222,4 +224,42 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
         transitions look navigable. All 39 state pages vet-parsed.
 - [x] Stub the migrated MD files (2026-08-04 — all ten sources are one-screen stubs
       pointing into `docs/`; kept one cycle so stale references land somewhere)
-- [ ] Delete the stubs after the cycle
+- [x] The code comments repointed (2026-08-05) — the gate on deleting the stubs. 292 citations
+      across 91 source files under `tools/` named a migrated file, most with a `§section` that
+      would resolve to nothing once the stub went. All now name their BOOK CHAPTER by path
+      (`docs/language/pointers/escaping`, `docs/documents/chapter/schema`, … - the spelling the
+      one hand-repointed comment already used); the section anchor is DROPPED, the chapter name
+      carries it. The section-level mapping was read off the pre-stub headings in git, not
+      guessed - `TYPES.md §9` (Matching) to `model/matching` but `§1` (the facets) to
+      `model/facets`; `CONCRETES.md §Member encoding` to `concretes/01-choosing`,
+      §Collection style to `concretes/00-storage/00-inlined` (the K&R concrete switch),
+      the representation vocabulary to `concretes/04-yaml`; `URIs.md §~-` to `vs-yaml/tilde`
+      rather than `pointers/anchors`, since the book kept the deprecated tilde its own chapter;
+      the `YAMLOVER_EDITOR.yo §"The CHAPTER projection"` mirrors to `server/chapter-editor`,
+      the machine the split produced. Hand-finished afterwards: citations that WRAPPED across
+      two comment lines (the anchor survived on the next line), a doubled
+      `pointers/anchors, pointers/anchors` where two sources had collapsed into one chapter,
+      three `../../../`-relative spellings made repo-root relative like every other, and one
+      genuinely stale line - `ir.ts` still said `/` = document root, from before the colon
+      round. 793 parser/engine + 672 yed + the server suite green, typecheck clean.
+- [ ] Delete the stubs after the cycle - unblocked now that nothing in the code points at them.
+- [x] The bundled agent guide caught up (2026-08-05): `tools/server/src/server/agent-docs/`
+      AGENTS.md — the file `POST /api/agent-docs` installs into a USER's project, so its
+      spelling is what other agents author — still taught the pre-YAML-keys forms. Respelled to
+      the bare-integer position (`*pets: 1`, `*: humans: 0: name`) with the bare-token rule
+      stated (digits → position, `~` → the null key, quoted `'1'` → the numeric string key, a
+      plain `1:` a parse error) and the retired `[n]` demoted to a read-forever alias; the
+      surviving non-literal brackets (`[.±k]`, `[]`, `[?]`) named as the exception. Two more
+      corrections: `!!var` was listed as a no-op readability marker beside `!!mix` — it is a
+      deprecated alias of `!!yo`, which is SEMANTIC (the data island, exempt from the enclosing
+      schema), so an agent dropping it changes meaning; and the "deeper specs" pointer named the
+      now-stubbed root MD files instead of the book.
+- [x] The taught examples now PARSE (2026-08-05): the same `!!var` slip stood in
+      `server/annotations/storage/` — an annotated markdown chunk shown as `- !!var |`, which
+      under the rename marks the chunk a DATA ISLAND (the chapter renderer would hand the prose
+      to the generic data view). The omni shape needs no tag at all, so the tag is simply gone
+      (the shape `examples/74-deep-book/part-two` already uses). And three flow rows across
+      AGENTS.md + `server/annotations/{applications,storage}` carried the §Conventions gotcha
+      itself — an unquoted spacey cell (`{description: A math block, …}`) is a parse error —
+      now quoted. Swept mechanically: all 274 `.yo` under `docs/`, `examples/`, `tags/` parse,
+      as do the 27 embedded `text/x-yamlover` code chunks and all 10 AGENTS.md fences.

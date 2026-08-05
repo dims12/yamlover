@@ -115,7 +115,7 @@ export function interpret(k: Key, s: Site): Intent | null {
   }
   // ---- the PICK cell — a pointer's RAW being edited (atom Enter opened it) ------------------ //
   // The pure face is a plain text cell over the raw; a server host overlays the query kit on
-  // the SAME cursor state (QUERY_EDITOR.yo owns that inner grammar). Commit parses-or-refuses;
+  // the SAME cursor state (docs/server/query-editor owns that inner grammar). Commit parses-or-refuses;
   // leaving with arrows commits too — nothing is ever lost, garbage refuses the move.
   // ---- a PORTION cell -- ONE portion of a reference being entered (the key-value gesture,
   // repeated). The portions live in the CURSOR; Enter joins them and parses-or-refuses.

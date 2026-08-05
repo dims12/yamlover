@@ -88,7 +88,7 @@ test('pointer-array body: inline elements and dangling pointers keep their posit
 });
 
 test('pointer-array body: the DEAD slash spelling `- */file` does not consume a member', () => {
-  // The migration window is closed (SEPARATOR.md): `*/b` is a pointer to the literal key
+  // The migration window is closed (docs/language/pointers/paths): `*/b` is a pointer to the literal key
   // "/b" — it matches nothing, so it dangles at its position and `b` trails keyed-only.
   // The colon spelling `- *b` (or `- *: b`) is the one that consumes.
   const dir = mkdtempSync(join(tmpdir(), 'yamlover-deadslash-'));
@@ -260,7 +260,7 @@ test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→c
   // The union's structural dispatch, over the FULLY-OMNI chapter shape (title = the self-value):
   // a titled subchapter (omni scalar + body entries) and an untitled one (a mapping) take the
   // chapter branch; a bare scalar — a chunk, which IS a title-only subchapter — takes the chunk
-  // branch, and so does an annotated chunk (its overlay keys are not body — ANNOTATIONS.md).
+  // branch, and so does an annotated chunk (its overlay keys are not body — docs/server/annotations).
   const root = mkdtempSync(join(tmpdir(), 'yo-anyof-'));
   mkdirSync(join(root, '$defs'), { recursive: true });
   writeFileSync(join(root, '$defs', 'chapter'),
@@ -299,7 +299,7 @@ test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→c
   rmSync(root, { recursive: true, force: true });
 });
 
-test('table cells: leaf→chunk, untagged container→CHAPTER, a TAGGED table cell→table (MARKLOWER.md §Cells)', () => {
+test('table cells: leaf→chunk, untagged container→CHAPTER, a TAGGED table cell→table (docs/documents/marklower/tables/cells)', () => {
   // The cell union is anyOf:[chunk, chapter, table] with chapter the FIRST container branch — the
   // table schema consumes exactly TWO nesting levels (rows, cells), so an untagged container cell
   // switches BACK to a chapter; a nested table enters only by its explicit tag.
@@ -397,7 +397,7 @@ test('67-pdf-tags (instance): omni-blobs (file + embedded annotations) + a tag t
   assert.equal(s.node(R + ':tags')?.format, 'x-yamlover-tag');
   assert.equal(s.node(R + ':tags:field:mathematics:number-theory')?.format, 'x-yamlover-tag');
   // a paper is the real file (a blob) AUGMENTED with an owned `yamlover-annotations` array — an
-  // omni-blob (binary value + a field), the EMBEDDED tagging model (ANNOTATIONS.md).
+  // omni-blob (binary value + a field), the EMBEDDED tagging model (docs/server/annotations).
   const euler = R + ':S0002-9904-1966-11654-3.pdf';
   assert.equal(s.node(euler)?.type, 'blob');
   assert.equal(s.node(euler)?.format, 'application/pdf');
@@ -589,7 +589,7 @@ test('~- membership in a body overlay: stored as a keyless back edge; !!set / un
 });
 
 test('self-import graft: a root that IS a project is DE-MATERIALIZED — `::yamlover:X` resolves to the real `:X`', () => {
-  // SEPARATOR.md §2: inside the yamlover project, ::X ≡ ::yamlover:X. When the served root IS the
+  // docs/language/pointers/scopes: inside the yamlover project, ::X ≡ ::yamlover:X. When the served root IS the
   // project (its own $defs/ is a direct child), the taxonomy is already at :$defs / :tags — so the
   // self-import is NOT materialized a second time (no duplicate :yamlover: subtree); the `yamlover`
   // authority is absorbed VIRTUALLY by the resolver back to the project root (graft-virtualize).

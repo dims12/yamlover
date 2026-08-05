@@ -49,7 +49,7 @@ export function defaultChildConcrete(parent: string | null | undefined): ChildCo
 
 /** Whether a freshly wrapped SUBCHAPTER of a document stored as `parent` MATERIALIZES as its
  *  own directory member the moment it gains body content (the chapter editor's deferred
- *  Tab-wrap rule, CHAPTER.md §Attaching a chapter) — the same inheritance as
+ *  Tab-wrap rule, docs/documents/chapter/attaching) — the same inheritance as
  *  {@link defaultChildConcrete}, asked with the enclosing DOCUMENT's concrete: the edited
  *  root's, or a just-materialized member's own (`dir/yamlover` from birth). */
 export function subchapterMaterializes(parent: string | null | undefined): boolean {

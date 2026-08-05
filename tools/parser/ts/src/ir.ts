@@ -32,7 +32,7 @@ export interface Comment {
 export interface SourceInfo {
   /** The document's source language — the whole file/stream this Document was parsed from.
    *  This is the DOCUMENT-level vocabulary; the richer PER-NODE storage taxonomy (file/…,
-   *  dir/yamlover, inlined languages) lives on the materialized nodes — see CONCRETES.md.
+   *  dir/yamlover, inlined languages) lives on the materialized nodes — see docs/language/concretes.
    *  `multi-yaml` / `multi-yamlover` are reserved for multi-document streams (Phase 2c). */
   concrete: 'json' | 'json5' | 'json5p' | 'yaml' | 'yamlover' | 'directory' | 'multi-yaml' | 'multi-yamlover';
   uri: string;
@@ -42,7 +42,7 @@ export type Node = Mapping | Scalar | Blob;
 
 export interface NodeMeta {
   span?: Span;
-  /** Path anchors (`&P/k` / `&P[]`, URIs.md §`&`): this node ALSO lives at that path —
+  /** Path anchors (`&P/k` / `&P[]`, docs/language/pointers/anchors): this node ALSO lives at that path —
    *  the container at the path's parent gains an entry (the last segment as key; a
    *  positional member for `[]`) that is a ref edge to this node. Anchors are NOT
    *  entries: they never count toward the node's kind. Realized by the resolver. */
@@ -50,7 +50,7 @@ export interface NodeMeta {
   /** A schema/meta attached via the `!!<…>` tag (yamlover). Its contents are themselves
    *  yamlover, so the schema is any Value: a Pointer to a hosted schema
    *  (`!!<*yamlover/$defs/chapter>`) OR an inline schema Node (`!!<format: text/x-plantuml>`).
-   *  Stored unresolved (see URIs.md / META.md) — ALWAYS the authored tag, never a derived one. */
+   *  Stored unresolved (see docs/language/pointers / docs/language/model/metadata) — ALWAYS the authored tag, never a derived one. */
   schema?: Value;
   /** The format the ENGINE derived for this node (walk.ts: a file's extension, a `meta.yo`
    *  `format:`, or the resolved target of an authored `!!<…>` tag). Kept apart from `schema` so
@@ -59,16 +59,16 @@ export interface NodeMeta {
   derivedFormat?: string;
   /** This node is a DOCUMENT root — a self-contained instance: a parsed file, a directory with
    *  a `.yo/` overlay, or the served root. The `/` pointer scope resolves to the nearest
-   *  enclosing such node (URIs.md: `/` = document root), so a reference is depth-independent. */
+   *  enclosing such node (docs/language/pointers/scopes: `:` = document root), so a reference is depth-independent. */
   documentRoot?: boolean;
   /** POSITIONAL PREFIX length (a dir-backed node whose `body.yo` is a pointer-array,
-   *  YAMLOVER.md §5): the first N entries are body-ordered (positional) members; keyed entries
+   *  docs/language/concretes): the first N entries are body-ordered (positional) members; keyed entries
    *  past N are the keyed-only remainder the body never granted a position. Derived by the
    *  engine's graft (walk.ts applyBody), never authored. */
   positional?: number;
   /** SET semantics (`!!set` tag / `uniqueItems: true` in meta): an element appears at most
    *  once, so duplicate memberships — forward+forward, forward+`~-` reverse, reverse+reverse —
-   *  collapse to one (URIs.md §`~-`). Unlike `!!mix` (a parse permission visible in the
+   *  collapse to one (docs/language/vs-yaml/tilde). Unlike `!!mix` (a parse permission visible in the
    *  node's shape), this must survive into the graph. */
   set?: boolean;
   /** The `!!yo` tag (formerly `!!var`/`!!omni` — read forever as aliases, emitted as `!!yo`):
@@ -102,14 +102,14 @@ export interface NodeMeta {
   /** FLOW STYLE (typography, not graph): this container was AUTHORED on one line — `{k: v, …}` /
    *  `[v, …]` — inside an otherwise block-structured document. Recorded so the serializer re-emits
    *  what was written and a projection can offer flow cells; classified as the `yaml/flow`
-   *  REPRESENTATION concrete (CONCRETES.md §Scalar representation, repr.ts). `array` remains the
+   *  REPRESENTATION concrete (docs/language/concretes/04-yaml, repr.ts). `array` remains the
    *  sole source of truth for WHICH bracket (a flow map is never `array`) — this only says "one
    *  line". Absent ⇒ block. Never set by the json5p reader: a json5p document is flow END TO END,
    *  which its language already says. Not part of IR identity — canon.ts ignores it. */
   style?: 'flow';
   /** An INLINE CONCRETE SWITCH — the one the surface can express on its own: this container and its
    *  subtree are written in **json5p**, which on the yamlover surface looks like a flow token that
-   *  SPANS LINES (K&R braces). CONCRETES.md §Collection style: a one-line `{k: v}` in a `.yo`
+   *  SPANS LINES (K&R braces). docs/language/concretes/00-storage/00-inlined: a one-line `{k: v}` in a `.yo`
    *  file is yamlover with the `yaml/flow` representation, while a multi-line one is a concrete
    *  switch — the language changes, so the interior is json5p and re-emits through its serializer.
    *  Set only by the yamlover reader (a `.yaml` file's multi-line flow is plain YAML flow, and there
@@ -119,7 +119,7 @@ export interface NodeMeta {
 }
 export interface Span { uri: string; start: number; end: number; }
 
-/** One `&` path-anchor declaration (URIs.md §`&`). For a keyed anchor the path's LAST
+/** One `&` path-anchor declaration (docs/language/pointers/anchors). For a keyed anchor the path's LAST
  *  step is the key the target container gains; an ordinal anchor (`&path[]`) points at
  *  the container itself and appends a keyless member. `path.span` covers the whole
  *  `&…` token; `path.raw` is the authored path text (without the trailing `[]`). */
@@ -219,7 +219,7 @@ export type PointerBase =
   /** "::" — project scope: authority = the first portion, an INTERNAL key at the served root
    *  (an import or a mounted authority). It is intra-project by definition, so an unresolved
    *  authority is a DANGLING typo, not an external reference. `world: true` marks the
-   *  ":::"-spelled WORLD scope (an AWS-like cross-authority URI, SEPARATOR.md §2) — the only
+   *  ":::"-spelled WORLD scope (an AWS-like cross-authority URI, docs/language/pointers/scopes) — the only
    *  form that may name content outside the loaded tree, so it alone stays external on a miss. */
   | { scope: 'link'; authority: string; world?: boolean };
 
@@ -229,7 +229,7 @@ export type Step =
                                                 //   (position); `[n]` reads as an alias
   | { sel: 'nullkey' }                          // ~  — the NULL key (YAML's rule)
   | { sel: 'relindex'; k: number }              // [.±k] — RELATIVE position: the host's own position
-                                                //   at this depth ± k (URIs.md §Relative indexes)
+                                                //   at this depth ± k (docs/language/pointers/relative-indexes)
   | { sel: 'parent' };                          // ..  — up one node
 
 export function isPointer(v: Value): v is Pointer {

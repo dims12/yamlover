@@ -1,4 +1,4 @@
-// The canonical concrete taxonomy. Normative prose: CONCRETES.md (repo root).
+// The canonical concrete taxonomy. Normative prose: docs/language/concretes.
 //
 // A node's `concrete` records HOW / WHERE its value is stored. The vocabulary,
 // shared by the server (which assigns it onto every YNode) and the client (which
@@ -48,7 +48,7 @@ export function isFileConcrete(c?: string | null): boolean {
 }
 
 /** A file/dir name for a document reached by a `*` POINTER, from its title. Unicode letters are
- *  first-class in pointers (URIs.md `nchar` bars only metachars and whitespace), so they are KEPT
+ *  first-class in pointers (docs/language/pointers/paths `nchar` bars only metachars and whitespace), so they are KEPT
  *  — «Заголовок части» must not collapse into underscores. Only what a pointer token cannot carry
  *  goes: whitespace becomes `_`, punctuation-metachars are stripped, never hidden, never empty.
  *  SHARED client/server: the client that births a linked document computes the SAME name the
@@ -111,7 +111,7 @@ export function interiorOf(c?: string | null): Inlined {
 
 // Extension → the `file/<lang>` concrete of a stray/loose data file. Anything not
 // listed (a markdown/csv material, an unknown text file) is modeled as a
-// `file/yaml` scalar string — see CONCRETES.md.
+// `file/yaml` scalar string — see docs/language/concretes.
 const EXT_FILE_CONCRETE: Record<string, FileConcrete> = {
   ".yo": "file/yamlover",
   ".yamlover": "file/yamlover", // legacy spelling — read forever, never written (YOMIGRATION.md §1)
@@ -135,7 +135,7 @@ export function dataFileConcrete(filePath: string): FileConcrete | null {
 }
 
 /** The `file/<lang>` concrete implied by a path's extension, defaulting to `file/yaml` for a
- *  non-data text file (a raw string is a valid yaml scalar — see CONCRETES.md). */
+ *  non-data text file (a raw string is a valid yaml scalar — see docs/language/concretes). */
 export function fileConcreteForExt(filePath: string): FileConcrete {
   return dataFileConcrete(filePath) ?? "file/yaml";
 }

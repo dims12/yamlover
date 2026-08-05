@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// The LIST renderers (MARKLOWER.md §Lists): x-yamlover-bullets → <ul>, x-yamlover-numbered →
+// The LIST renderers (docs/documents/marklower/lists): x-yamlover-bullets → <ul>, x-yamlover-numbered →
 // <ol>; an untagged container item is a nested sublist of the SAME kind at any depth, until an
 // explicit tag switches (a tagged table item renders as an inline grid).
 import { describe, it, expect, afterEach } from "vitest";

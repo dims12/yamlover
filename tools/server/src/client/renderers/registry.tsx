@@ -86,7 +86,7 @@ export interface Chunk {
   path: string;
   type: string;
   format: string | null;
-  valueType?: string | null; // renderer dispatch facets (TYPES.md §9) — so a tagged chunk still routes
+  valueType?: string | null; // renderer dispatch facets (docs/language/model/matching) — so a tagged chunk still routes
   hasKeyed?: boolean;
   hasOrdinal?: boolean;
   /** The JSON-space path of the document this chunk belongs to (the enclosing
@@ -109,7 +109,7 @@ export interface TocView {
   loadDepth?: number;
 }
 
-/** The three TYPE FACETS a renderer dispatches on (TYPES.md §9): the scalar self-VALUE's type,
+/** The three TYPE FACETS a renderer dispatches on (docs/language/model/matching): the scalar self-VALUE's type,
  *  the node's `format`, and whether it owns keyed/ordinal elements. */
 export interface TypeFacets {
   valueType: string | null;
@@ -243,7 +243,7 @@ const REGISTRY: Renderer[] = [
     config: () => <ChapterFormatControl />,
   },
   {
-    // Prose: marklower, a markup language a notch below Markdown (MARKLOWER.md). It is the format a
+    // Prose: marklower, a markup language a notch below Markdown (docs/documents/marklower). It is the format a
     // chapter's chunks carry — `$defs/chunk` says `format: text/marklower`, and `chunkOf` stamps an
     // inline one that reached the client unstamped. It is asked for BY NAME: a format-less string is
     // data, not prose, and a plain `name: Alice` must not open in a prose renderer.
@@ -287,7 +287,7 @@ const REGISTRY: Renderer[] = [
     config: (rerender) => <CsvControls rerender={rerender} />,
   },
   {
-    // A TABLE node (MARKLOWER.md §Tables): rows/header/caption from the omni entries, merged
+    // A TABLE node (docs/documents/marklower/tables): rows/header/caption from the omni entries, merged
     // cells (colSpan/rowSpan) from resolved relative-index pointers, tagged nested tables
     // inline, marklower cells. Depth null: the grid needs the whole subtree (chapter cells
     // and nested tables included).
@@ -300,7 +300,7 @@ const REGISTRY: Renderer[] = [
     renderChunk: (chunk, onNavigate) => <TableChunk chunk={chunk} onNavigate={onNavigate} />,
   },
   {
-    // A BULLET list node (MARKLOWER.md §Lists): keyless entries are the items; an untagged
+    // A BULLET list node (docs/documents/marklower/lists): keyless entries are the items; an untagged
     // container item is a nested sublist of the same kind, at any depth. Depth null: the
     // whole subtree renders as one list.
     name: "bullets",
@@ -312,7 +312,7 @@ const REGISTRY: Renderer[] = [
     renderChunk: (chunk, onNavigate) => <ListChunk chunk={chunk} onNavigate={onNavigate} />,
   },
   {
-    // A NUMBERED list node (MARKLOWER.md §Lists) — the ordered twin of `bullets`.
+    // A NUMBERED list node (docs/documents/marklower/lists) — the ordered twin of `bullets`.
     name: "numbered",
     icon: "1.",
     accepts: byFormat("x-yamlover-numbered"),
@@ -503,7 +503,7 @@ function chapterTocView(node: TreeNode): TocView {
 }
 
 /** The renderer that claims `src`'s facets, or null when none does: of the matchers that accept
- *  it, the most SPECIFIC (highest `specificity`) wins (TYPES.md §9). */
+ *  it, the most SPECIFIC (highest `specificity`) wins (docs/language/model/matching). */
 export function rendererFor(src: FacetSource): Renderer | null {
   const f = facetsFrom(src);
   let best: Renderer | null = null;

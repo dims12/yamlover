@@ -448,7 +448,7 @@ describe("Render — the yaml/flow collection style", () => {
 });
 
 // K&R — a flow token written across SEVERAL lines, which on the yamlover surface is an inline
-// concrete switch to json5p (CONCRETES.md §Collection style). It arrives as the sidecar's
+// concrete switch to json5p (docs/language/concretes/00-storage/00-inlined). It arrives as the sidecar's
 // `concrete: "json5p"`, set only WHERE THE SWITCH HAPPENS: the interior is json5p by language, so
 // this renderer expands the whole subtree — exactly what serialize-json5p.ts writes to the file.
 describe("Render — a K&R (multi-line flow) value", () => {

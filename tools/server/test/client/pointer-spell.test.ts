@@ -30,7 +30,7 @@ describe("spellPointer — ladder 0 (current scope, relative to the holder)", ()
   });
 
   it("keys are percent-DECODED from the client path, then pointer-escaped", () => {
-    // `/` left the metachar set (SEPARATOR.md §3) — a decoded slashy key rides bare
+    // `/` left the metachar set (docs/language/pointers/paths) — a decoded slashy key rides bare
     expect(spellPointer(":pkgs:%40vitejs%2Fplugin-react", ":pkgs", 0)).toBe("@vitejs/plugin-react");
     expect(spellPointer(":a:has%20space", ":a", 0)).toBe("'has space'");
   });

@@ -1,6 +1,6 @@
 /**
  * QUERY evaluator cases (PLAN.md 3g) — the acceptance corpus, in the COLON grammar
- * (SEPARATOR.md) with every M-ruling applied. Consumed by query.test.ts:
+ * (docs/language/pointers/paths) with every M-ruling applied. Consumed by query.test.ts:
  *
  *   for (const c of CASES) assert.deepEqual(evalQuery(store(c), c.q, c.from), c.expect);
  *
@@ -241,7 +241,7 @@ export const CASES: QueryCase[] = [
   { q: ':: nowhere: x', fixture: 'graft', expect: [],
     note: '∅ + an external/dangling diagnostic — never an error' },
   // ═══ `::` IS the project root: a plain NAME after it is the authority/import key; a
-  //     MATCHER portion applies at the project root itself (URIs.md ladder honored) ═══
+  //     MATCHER portion applies at the project root itself (the scope ladder honored) ═══
   { q: '::', fixture: 'graft', expect: [':'],
     note: 'bare `::` binds the served project root' },
   { q: ':: ...: colors', fixture: 'graft', expect: [':tags:colors'],

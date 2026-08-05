@@ -120,7 +120,7 @@ export function useColorTags(): TagRef[] {
 }
 
 // Enumerate every NAMED tag in the project for the picker typeahead: a document-root recursive
-// descent, format-filtered (QUERY.md "all tag nodes"). Document-root scope finds tags wherever
+// descent, format-filtered (docs/language/pointers/queries/idioms "all tag nodes"). Document-root scope finds tags wherever
 // `settings.tags.location` puts them — the client need not know that path. The grafted COLOR
 // palette lives off the document root (link scope `::yamlover:…`) so it is naturally absent;
 // the defensive filter below also drops any color tag a project re-themes in-tree (those are the
@@ -536,7 +536,7 @@ export function AnnotationMenu({
   // at the PROJECT scope with a recursive-descent seed — typing a bare name spells
   // `:: ...: name`, the "find a node by name anywhere IN THE PROJECT" query. The project rung
   // is what makes the grafted yamlover taxonomy (the built-in palette included) searchable —
-  // `:` would be the document only (URIs.md ladder). The cells stay fully editable.
+  // `:` would be the document only (docs/language/pointers/scopes). The cells stay fully editable.
   // `commitOnMiss` gates a no-match Enter: only a create-on-miss-ELIGIBLE bare name commits —
   // any other miss keeps the machine editing with the red ring, the typed query still visible.
   const host = useQueryCellHost({
@@ -903,7 +903,7 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
   const { annotations } = material;
 
   // The node a selection lives on: the enclosing chapter CHUNK (its `.chunk[data-node-path]`), so the
-  // fragment attaches to the chunk (ANNOTATIONS.md §3); else the material itself (a standalone doc).
+  // fragment attaches to the chunk (docs/server/annotations/storage); else the material itself (a standalone doc).
   const nodeAt = (n: Node | null): string => {
     const start = n instanceof HTMLElement ? n : n?.parentElement;
     return (start?.closest?.("[data-node-path]") as HTMLElement | null)?.dataset.nodePath || path;

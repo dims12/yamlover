@@ -1,5 +1,5 @@
 // The renderer for typographical LIST nodes (formats `x-yamlover-bullets` /
-// `x-yamlover-numbered` — MARKLOWER.md §Lists): an ordinary yamlover list whose keyless
+// `x-yamlover-numbered` — docs/documents/marklower/lists): an ordinary yamlover list whose keyless
 // entries are the items. An item is marklower prose, a `*` pointer (a link), or — when it
 // is an untagged container — a nested sublist of the SAME kind: the list schema applies at
 // any depth, until an explicit `!!<…>` tag switches (a tagged table inside an item renders
@@ -21,7 +21,7 @@ export const listKind = (format: string | null | undefined): ListKind =>
   format === "x-yamlover-numbered" ? "numbered" : "bullets";
 
 /** A nested item's kind: its OWN (when it names one), else the parent list's — the any-depth
- *  inheritance rule (MARKLOWER.md). Shared with the projectional editor's list cells. */
+ *  inheritance rule (docs/documents/marklower). Shared with the projectional editor's list cells. */
 export const sublistKind = (own: string | null, parent: ListKind): ListKind =>
   own === "bullets" || own === "numbered" ? own : parent;
 

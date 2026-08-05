@@ -1,4 +1,4 @@
-// Project configuration — `<root>/.yo/settings.yo` (PLAN.md 1d, META.md §Settings).
+// Project configuration — `<root>/.yo/settings.yo` (PLAN.md 1d, docs/language/model/metadata).
 //
 // Settings are DEFAULTS, never constraints: a graph node (an annotation, say) may live in ANY
 // directory and keeps working — that is the point of the graph. Settings only tell the server
@@ -7,7 +7,7 @@
 //
 // A location is authored as a PROJECT-SCOPE `*`-pointer naming the object at the project root
 // (`annotations: *:: annotations` — "create annotations in `:annotations`"). The scope ladder
-// (SEPARATOR.md §2): `*x` = parent/current scope, `*:x` = document root, `*::x` = project root.
+// (docs/language/pointers/scopes): `*x` = parent/current scope, `*:x` = document root, `*::x` = project root.
 // A bare `*x` would be parent-relative (self-referential here), so locations use `*::`. A plain
 // string (`annotations: /annotations`) is accepted too. The settings file speaks the same pointer
 // language as any yamlover document, resolved against the served root.
@@ -24,7 +24,7 @@ export interface Settings {
    *  project declares no URI (then it cannot be imported by others). Identity, not transport. */
   uri?: string;
   /** The paths this project EXPORTS to importers (IMPORTS.md §2): a list of pointer/query texts
-   *  (QUERY.md), e.g. `*:: $defs`, `*:: tags`. Empty when nothing is exported. Advisory metadata —
+   *  (docs/language/pointers/queries), e.g. `*:: $defs`, `*:: tags`. Empty when nothing is exported. Advisory metadata —
    *  the engine bundles the yamlover taxonomy regardless; this documents the contract. */
   exports: string[];
   /** Where new annotations are created — a project path (`:annotations`), authored as the
@@ -72,7 +72,7 @@ export const DEFAULT_SETTINGS_SOURCE = `# .yo/settings.yo — project settings f
 # Settings are DEFAULTS, never constraints: they only say where the server CREATES things when you
 # do not; reading is location-independent (a node is recognized by its schema, wherever it sits).
 # Locations are PROJECT-SCOPE pointers: \`*::x\` = project root, \`*:x\` = document root, \`*x\` =
-# parent/current scope (SEPARATOR.md §2). A missing field falls back to these same values. Edit me
+# parent/current scope (docs/language/pointers/scopes). A missing field falls back to these same values. Edit me
 # here or via the gear button's settings editor.
 !!<*yamlover:$defs:config>
 

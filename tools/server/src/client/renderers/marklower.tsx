@@ -9,13 +9,13 @@ import { EmbedChip, EmbedFigure, GLYPH } from "./embed";
 
 /**
  * The renderer for `text/marklower` — our own lightweight markup language, **marklower**:
- * deliberately a notch below Markdown ("downshifted" from it), spec'd in `MARKLOWER.md`. It is the
+ * deliberately a notch below Markdown ("downshifted" from it), spec'd in `docs/documents/marklower`. It is the
  * format a chapter's prose chunks carry (`$defs/chunk`, stamped by schema propagation); a
  * format-less string elsewhere in the tree is data, and routes to the data view rather than here.
  *
  * The language covers inline concerns only — font styling, hyperlinks, media embeds, math, and code
  * spans — but deliberately **no** chapter structure: no headings/subheadings, since a chapter's
- * shape is its positional body (CHAPTER.md), not its markup.
+ * shape is its positional body (docs/documents/chapter), not its markup.
  *
  * The syntax so far is all inline:
  *

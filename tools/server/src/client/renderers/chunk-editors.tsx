@@ -78,7 +78,7 @@ async function insertPastedImages(el: HTMLElement, range: Range, files: File[], 
   for (const f of files) {
     const name = pastedName(f);
     const res = await pasteFileInline(chapterPath, name, await fileToBase64(f));
-    // `res.path` is a `:`-rooted node path; a second colon makes it project-rooted (SEPARATOR.md),
+    // `res.path` is a `:`-rooted node path; a second colon makes it project-rooted (docs/language/pointers/paths),
     // which is the spelling `resolveLink` reads back.
     const holder = document.createElement("span");
     holder.innerHTML = marklowerToEditableHtml(`*[${captionOf(name)}](:${res.path})`);

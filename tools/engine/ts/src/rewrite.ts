@@ -3,7 +3,7 @@
 // that retarget every inbound `*`/`~` pointer — replacing exactly the deref token at
 // its recorded span, never re-rendering the file (comments and formatting survive).
 // Rewrites are emitted in CANONICAL colon form only (the slash separator is dead —
-// SEPARATOR.md). Pure: no filesystem access; `mv.ts` applies the plan.
+// docs/language/pointers/paths). Pure: no filesystem access; `mv.ts` applies the plan.
 
 import * as path from 'node:path';
 import type { Document, Pointer, PointerBase, Step } from '../../../parser/ts/src/ir.ts';
@@ -135,7 +135,7 @@ export function planRewrites(
       }
     }
     if (newPtr === null) { miss("target left the holder's document"); continue; }
-    const newRaw = renderPointer(newPtr); // canonical colon form (SEPARATOR.md)
+    const newRaw = renderPointer(newPtr); // canonical colon form (docs/language/pointers/paths)
     if (newRaw === e.raw) continue; // the relative form survived the move — nothing to edit
 
     const token = isJson5pUri(span.uri) ? json5pToken(newRaw) : pointerToken(newRaw);
@@ -181,7 +181,7 @@ export function nominalPath(doc: Document, e: ResolvedEdge): string | null {
     } else if (st.sel === 'key') p += ':' + segToken(st.name);
     else if (st.sel === 'index') p += ':' + st.n;
     else if (st.sel === 'nullkey') p += ':~';
-    else return null; // a relative index has no canonical store path (host-frame; MARKLOWER.md)
+    else return null; // a relative index has no canonical store path (host-frame; docs/documents/marklower)
   }
   return p === '' ? ':' : p;
 }

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// The TABLE renderer (MARKLOWER.md §Tables): grid from omni entries, header/caption, merged
+// The TABLE renderer (docs/documents/marklower/tables): grid from omni entries, header/caption, merged
 // cells (colSpan/rowSpan) from resolved relative-index pointer cells, TAGGED nested tables,
 // untagged container cells as CHAPTERS, header `width` sidecars, marklower cells.
 import { describe, it, expect, afterEach, vi } from "vitest";
@@ -90,7 +90,7 @@ describe("table renderer", () => {
   });
 
   it("an UNTAGGED container cell is a CHAPTER keeping prose AND its tagged table", () => {
-    // the table schema consumes exactly two nesting levels (MARKLOWER.md §Cells): a container
+    // the table schema consumes exactly two nesting levels (docs/documents/marklower/tables/cells): a container
     // cell switches back to chapter rules — the engine stamps it x-yamlover-chapter; a nested
     // table inside it enters only by its explicit tag
     const innerTable = taggedTable([{ key: null, value: ["duty", "always"] }]);

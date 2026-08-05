@@ -3,7 +3,7 @@
 // background sync (see chapter.tsx `useChapterSync`) reconciles it to the server as a coalesced
 // batch of surgical ops (/api/edit), routing each part to its own backing file by its `concrete`/`path`.
 //
-// A chapter is an OMNI node (CHAPTER.md): optional keyed `title`/`description`, then a POSITIONAL
+// A chapter is an OMNI node (docs/documents/chapter): optional keyed `title`/`description`, then a POSITIONAL
 // body whose elements are chunks (renderable blocks) and subchapters (the recursion), interleaved.
 // An element's edit address is its ABSOLUTE entry index (`<chapter>[i]`), in which the keyed
 // title/description count too — the same index the node path uses, so an edit path is a plain
@@ -40,7 +40,7 @@ export interface ChunkPart {
 
 export interface ChapterModel {
   path: string; // the chapter's node path (the routing base for edits)
-  title: string; // the omni node's scalar SELF-VALUE (CHAPTER.md) — consumes NO entry index
+  title: string; // the omni node's scalar SELF-VALUE (docs/documents/chapter) — consumes NO entry index
   description: string;
   chunks: ChunkPart[]; // the FULL ordered body (chunks + subchapters), in source order
   entryCount: number; // ALL entries, keyed ones included — the abs index an appended entry takes
@@ -117,7 +117,7 @@ export function anchorOf(base: string, nodePath: string | null | undefined, slot
 }
 
 /** The body elements with their ABSOLUTE entry index — the index an edit path segment carries, in
- *  which the keyed `title`/`description` count too (CHAPTER.md). An untitled chapter projects as a
+ *  which the keyed `title`/`description` count too (docs/documents/chapter). An untitled chapter projects as a
  *  plain array, where the two indexes coincide. */
 export function chapterBodyEntries(value: unknown): { value: unknown; absIndex: number }[] {
   if (Array.isArray(value)) return value.map((v, i) => ({ value: v, absIndex: i }));
@@ -161,7 +161,7 @@ export interface FlowItem {
 /** A body element's kind. A subchapter that ran out of depth budget arrives as a `$yamloverLink`
  *  carrying its own `format`; an INLINED one (any deeper fetch) arrives as a `$yamloverMixed`
  *  marker carrying `format` but NO `path`, and an untagged all-keyless one as a bare array. So the
- *  rule is CHAPTER.md's own: a CONTAINER body element is a subchapter — unless an explicit tag (a
+ *  rule is docs/documents/chapter's own: a CONTAINER body element is a subchapter — unless an explicit tag (a
  *  table, a typographical list) says it is content, or its only entries are annotation overlays,
  *  which leave a scalar a scalar. A leaf is always a chunk. The `!!yo` mark trumps everything:
  *  the node opted out of the chapter schema, so it is a DATA island drawn by the generic
@@ -194,7 +194,7 @@ export function bodyKindOf(v: unknown): FlowKind {
 }
 
 /** The chapter's full rendered stream in SOURCE order — the title (the omni node's scalar
- *  SELF-VALUE, CHAPTER.md), the keyed `description` entry, and the body (chunks + subchapter
+ *  SELF-VALUE, docs/documents/chapter), the keyed `description` entry, and the body (chunks + subchapter
  *  links) interleaved exactly where the author placed them, so the renderer never hoists
  *  the heading or forces subchapters to the end (position is the author's; the self-value's
  *  authored position rides the marker's `selfAt`). ROLES are the shared decision table
@@ -308,7 +308,7 @@ export function snapshotChapter(m: ChapterModel): ChapterModel {
 /**
  * The minimal ordered edit list to turn `committed` into `current`, addressed by node path:
  *  - title changed → `emplace` the chapter node ITSELF with the scalar — the title is the omni
- *    node's SELF-VALUE (CHAPTER.md), so it consumes no index; an empty payload drops the line
+ *    node's SELF-VALUE (docs/documents/chapter), so it consumes no index; an empty payload drops the line
  *    server-side. A legacy keyed `title:` entry is removed alongside (migrate-on-edit).
  *  - description changed → `emplace` its new value; emptied → `remove` the key;
  *  - part id gone → `remove` (last first, so an earlier remove never moves a pending one);

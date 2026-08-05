@@ -1,4 +1,4 @@
-// A subchapter rendered INLINE, one nesting level per component (CHAPTER.md, chapter.tsx).
+// A subchapter rendered INLINE, one nesting level per component (docs/documents/chapter, chapter.tsx).
 //
 // A chapter page reads as ONE document: its subchapters are laid out in place, indented, under
 // their own heading — not as links that navigate away. Three shapes reach us:
@@ -65,7 +65,7 @@ export interface InlineSubchapterProps {
   marker: unknown;
   /** The parent chapter's node path — an INLINE subchapter's own path is this plus its index. */
   parentPath: string;
-  /** Its absolute entry index in the parent (the addressing rule `P[i]`, CHAPTER.md). */
+  /** Its absolute entry index in the parent (the addressing rule `P[i]`, docs/documents/chapter). */
   absIndex: number;
   /** Its render position on the PAGE, as an index chain from the page root — its anchor id. */
   slot: string;

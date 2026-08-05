@@ -16,7 +16,7 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/"); // the depth budget rides `?depth=`
 });
 
-// A chapter (CHAPTER.md): title/description are keyed; the body is the mixed marker's KEYLESS
+// A chapter (docs/documents/chapter): title/description are keyed; the body is the mixed marker's KEYLESS
 // entries — scalar chunk link markers (text in `value`) and object subchapter markers (with a
 // `title`). Title/description are entries 0/1, so the body elements sit at store slots 2, 3, 4.
 const chapter: NodeJson = {
@@ -174,7 +174,7 @@ describe("ChapterView", () => {
     ]);
   });
 
-  // A chunk's format is `text/marklower` (CHAPTER.md `$defs/chunk`), but a BARE inline scalar
+  // A chunk's format is `text/marklower` (docs/documents/chapter/schema `$defs/chunk`), but a BARE inline scalar
   // reaches the client with nothing stamped on it — `chunkOf` supplies it. Without that, prose in a
   // chapter would fall through to the plain-paragraph fallback and lose its markup.
   it("renders a bare inline chunk as marklower prose, not as plain text", () => {
