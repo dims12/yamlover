@@ -1,6 +1,9 @@
 # JetBrains IDE
 .idea/
 
+# VS Code (the C# extension regenerates launch/tasks for the onenote2yamlover solution)
+.vscode/
+
 # Claude Code local (personal) settings
 .claude/settings.local.json
 

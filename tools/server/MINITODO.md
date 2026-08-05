@@ -96,3 +96,5 @@
   legacy TOC-pick test expectations revived in yed-pointer.test.tsx (session claims/releases,
   pick lands in cells, Enter commits `*pets:0:name`; plus the filter-feed case). Chapter
   source-chunk references still hint-only (no session plug in the embedded chunks yet).
+- 030 Let editor (yamlover and chapter) detect that nothing has changed and don't update the content in the case
+- 031 support editing history with Undo and Redo
