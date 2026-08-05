@@ -16,7 +16,7 @@ description: the atom_focused state
   - ['`backspace`', 'removeLevel - the value goes, a name survives as the named hole', '[entry_hole](::server:yamlover-editor:entry_hole)']
   - ['`comma`', 'inside a flow container - nextElement - the next element''s hole', '[entry_hole](::server:yamlover-editor:entry_hole)']
   - ['`comma`', 'in block rows - no meaning - falls through, nothing', '`atom_focused` (stays)']
-  - ['`closer`', 'the matching closer, in flow - closeToken', '`gap_after_token`']
+  - ['`closer`', 'the matching closer, in flow - closeToken - the caret lands in the gap past it', '[scalar_committed](::server:yamlover-editor:scalar_committed)']
   - ['`closer`', 'the wrong closer - refuse - the ring', '`atom_focused` (stays)']
   - ['`enter`', 'a pointer atom - the pick intent - the raw opens for editing', '[pointer_pick_editing](::server:yamlover-editor:pointer_pick_editing)']
   - ['`enter`', 'an opaque atom (a blob) - refuse - nothing to edit, visibly', '`atom_focused` (stays)']

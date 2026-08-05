@@ -6,9 +6,10 @@ yamlover web UI (`npx yamlover .`) while you read and edit the files on disk. Th
 tells you how to manipulate these files **correctly** so you don't corrupt the data or break the
 human's live view.
 
-> This file is self-contained. You do **not** need any other spec to follow it. If the project
-> also contains files like `YAMLOVER.md`, `SEPARATOR.md`, `QUERY.md`, or `ANNOTATIONS.md`, those
-> are the authoritative, deeper specs — consult them for edge cases.
+> This file is self-contained. You do **not** need any other spec to follow it. The full,
+> authoritative spec is the yamlover documentation book (the `docs/` tree of the yamlover
+> project itself — the language under `docs/language/`, the document model under
+> `docs/documents/`); consult it for edge cases.
 
 ---
 
@@ -25,7 +26,7 @@ surface it adds a small **pointer layer** so that data forms a graph, not just a
 
 There is a sibling brace surface called **json5p** (`.json5p` files) — the same pointer layer
 expressed in JSON5 syntax. Most projects use `.yo`; treat `.json5p` as the JSON-flavored
-twin (pointers are written as quoted strings, e.g. `*": pets[1]"`).
+twin (pointers are written as quoted strings, e.g. `*": pets: 1"`).
 
 **Important:** because `*` and `&` mean something different than in stock YAML (a `*` is a path
 pointer, **not** a YAML alias), these files require the yamlover parser. Do not "fix" them with
@@ -37,29 +38,30 @@ a generic YAML formatter — you will destroy the pointers and anchors.
 
 Plain YAML forces a node to be **either** a sequence (all `- item`) **or** a mapping (all
 `key: value`). yamlover unifies them: there is **one ordered container**. Every entry has an
-integer **position** (`[0]`, `[1]`, …) and **may also** carry a string key. Keyless (positional)
+integer **position** (0, 1, …) and **may also** carry a string key. Keyless (positional)
 and keyed entries coexist in one node — this is the default ("omni"):
 
 ```yamlover
 playlist:
-  - Intro                  # [0]            keyless / positional
-  - Verse                  # [1]            keyless
-  title: Greatest Hits     # [2], key=title keyed — AND still positioned
-  - Chorus                 # [3]            keyless
-  encore: *: pets[0]       # [4], key=encore a keyed pointer, still in order
+  - Intro                  # position 0            keyless / positional
+  - Verse                  # position 1            keyless
+  title: Greatest Hits     # position 2, key=title keyed — AND still positioned
+  - Chorus                 # position 3            keyless
+  encore: *: pets: 0       # position 4, key=encore a keyed pointer, still in order
 ```
 
 A node can even carry a **scalar value AND fields at once**:
 
 ```yamlover
 rating: 5                  # the node's own scalar value …
-  - solid                  # [0]  positional field
-  scale: 10                # [2]  keyed field
+  - solid                  # position 0  positional field
+  scale: 10                # position 2  keyed field
 ```
 
-(You may see optional `!!mix` / `!!var` tags marking these shapes. They are **no-op readability
-markers** — mixing and scalar-plus-fields are the default. Don't add or remove them to change
-meaning; they don't carry any.)
+(You may see an optional `!!mix` tag marking these shapes. It is a **no-op readability marker**
+— mixing and scalar-plus-fields are the default. Don't add or remove it to change meaning; it
+doesn't carry any. `!!yo` — whose deprecated aliases `!!var` / `!!omni` still parse — is a
+DIFFERENT thing and is **semantic**: see §6.)
 
 ---
 
@@ -82,13 +84,30 @@ current: object: path                         # bare       — current scope (si
 ::: yamlover.inthemoon.net: $defs: tag        # :::        — the world (an external project)
 ```
 
-- `*pets[1]` — bare: a **sibling** named `pets`, position 1.
-- `*: pets[0]` — `:` document root.
+- `*pets: 1` — bare: a **sibling** named `pets`, position 1.
+- `*: pets: 0` — `:` document root.
 - `*:: tags: genre` — `::` this project's root.
 - `*::: host.example: $defs: tag` — `:::` a world/external reference.
 
-`[n]` addresses by **position** (integer key); a bare word addresses by **string key**. They
-chain: `*: pets[1]: name` = root → position 1 → key `name`.
+### The bare-token rule — what a portion means
+
+Every portion is typed **by its own form**:
+
+- **pure digits** = the integer key, i.e. a **position**: `*: pets: 1: name` = root → position 1
+  → key `name`.
+- **a bare `~`** = the **null key** (`~: value`; `: v` is the same entry). The *string* key
+  `"null"` is written `null:`.
+- **anything else bare, and any quoted portion** = a **string key**: `: '1'` is the numeric
+  string key, `: '~'` the literal tilde.
+
+A key whose bare form would read as something else MUST be quoted: empty, pure digits, `~`,
+`-`+digits, or a key containing a space. In a document, a plain `1:` is a **parse error** —
+author `'1':` for the numeric string key.
+
+> **The retired bracket index.** The old `[n]` position form (`*pets[1]`) still *reads* — it is
+> a permanent alias — but it is **written never**. Author the bare-integer portion. Only the
+> non-literal brackets survive as operators: `[.±k]` (a position relative to the pointer's own
+> host), `[]` (an anchor's positional append, §5), and `[?]` (a query wildcard).
 
 ---
 
@@ -99,9 +118,9 @@ A `*` value dereferences a path to another node and creates a **shared edge** (n
 ```yamlover
 humans:
   - name: Alice
-    manager: *: pets[1]      # Alice.manager IS the node at root → pets → position 1
-feline: *pets[1]             # bare → a sibling
-topDog: *: pets[0]           # : → document root
+    manager: *: pets: 1      # Alice.manager IS the node at root → pets → position 1
+feline: *pets: 1             # bare → a sibling
+topDog: *: pets: 0           # : → document root
 ```
 
 Pointers are **lazy** and **cycle-safe** — pointing two nodes at each other is fine. Editing the
@@ -138,8 +157,9 @@ fan:
   &: favorites[]           # Bob appends himself to `favorites`
 ```
 
-Anchor paths must be **unambiguous** (no wildcards, no trailing `[n]` position claim) — they
-create real keys, so they must resolve to exactly one place.
+Anchor paths must be **unambiguous** (no wildcards, no trailing position claim — neither a bare
+integer nor a relative `[.±k]`) — they create real keys, so they must resolve to exactly one
+place. The empty `[]` above is the one legal bracket: an append, not a claim.
 
 > You may encounter the older `~key: *path` back-edge syntax in legacy files. It still parses but
 > is deprecated; author new reverse edges as `&` anchors.
@@ -148,8 +168,13 @@ create real keys, so they must resolve to exactly one place.
 
 ## 6. Tags `!!` and `$defs` schemas
 
-- `!!type` — a YAML-style tag. Common no-op markers: `!!mix`, `!!var` (see §2). `!!set` marks a
-  container whose membership is by identity (duplicates collapse).
+- `!!type` — a YAML-style tag. `!!mix` is the one no-op marker (see §2). The rest are
+  **semantic** and must not be added or dropped casually:
+  - `!!set` marks a container whose membership is by identity (duplicates collapse);
+  - `!!yo` (deprecated aliases `!!var` / `!!omni`) marks a node as **plain yamlover, exempt
+    from the enclosing document's schema** — a *data island*. Inside a structured document (a
+    chapter, say) a `!!yo` node is never interpreted by that schema: it is data, drawn by the
+    generic renderer.
 - **Inline schema reference** `!!<…>` binds a node to a reusable schema definition:
   ```yamlover
   mychapter: !!<*:: yamlover: $defs: chapter>
@@ -216,8 +241,11 @@ The human marks up documents in the UI. These live **on the target node**, not i
   ```yamlover
   yamlover-annotations:
     - *:: tags: genre: brevity            # parameterless
-    - {description: A math block, tag: *:: tags: topic: math}   # parametrized
+    - {description: 'A math block', tag: *:: tags: topic: math}   # parametrized
   ```
+
+  (A flow scalar carrying a SPACE must be quoted — an unquoted `A math block` inside `{…}` is a
+  parse error.)
 
 Prefer letting the human create these through the UI. If you must touch them by hand, keep the
 exact key names (`yamlover-fragments`, `yamlover-annotations`) and the tag-pointer form, and do
@@ -277,8 +305,10 @@ UI within a moment, and theirs appear to you on disk. Work with that, not agains
 
 ```yamlover
 # pointers (pull) — colon paths, the scope ladder
-sibling:   *pets[1]                 # current scope, by position
-rooted:    *: humans[0]: name       # document root → position 0 → key name
+sibling:   *pets: 1                 # current scope, by position (bare digits = the position)
+rooted:    *: humans: 0: name       # document root → position 0 → key name
+strkey:    *: counts: '1'           # QUOTED digits = the numeric STRING key
+nullkey:   *: doc: ~                # the null key
 projscope: *:: tags: genre          # this project's root
 world:     *::: host.example: $defs: tag
 

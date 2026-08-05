@@ -11,7 +11,7 @@ description: a tag applied to a whole node or a fragment - parameterless or para
 - >
   **Parametrized** - an **object** carrying a **`tag:`** field plus one or more parameters:
 - !!<format: text/x-yamlover> |
-  - {description: A standalone LaTeX block, tag: *::tags:topic:math}
+  - {description: 'A standalone LaTeX block', tag: *::tags:topic:math}
   - importance: 10
     tag: *::tags:review:flagged
 - >

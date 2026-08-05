@@ -16,7 +16,7 @@ description: the parallel keys sit beside the node's value - a document root, a 
   chunk becomes an **omni block-scalar**, its fields at a **shallower** indent than the block
   content (and deeper than the `-`):
 - !!<format: text/x-yamlover> |
-  - !!var |
+  - |
       Mathematics likes to hide, but a standalone LaTeX block
       gives it away.
     yamlover-fragments:
@@ -32,7 +32,7 @@ description: the parallel keys sit beside the node's value - a document root, a 
   "S0002-9904-1966-11654-3.pdf":
     yamlover-annotations:
     - *::tags:genre:brevity:shortest-paper          # whole document, parameterless
-    - {description: Two-line proof, tag: *::tags:review:flagged}
+    - {description: 'Two-line proof', tag: *::tags:review:flagged}
     yamlover-fragments:
       myslag:
         type: pdf
