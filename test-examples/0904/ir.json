@@ -571,7 +571,7 @@
               "value": {
                 "ptr": {
                   "base": {
-                    "scope": "document"
+                    "scope": "parent"
                   },
                   "steps": [
                     {

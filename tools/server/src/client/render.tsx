@@ -239,14 +239,19 @@ function TailComments({ ctx, frag, syntax }: { ctx: Ctx; frag: string; syntax: S
 
 /** The viewed node's OWN decorations as standalone lines above its value (yamlover syntax):
  *  its `!!<…>` tag application / `!!set`, then its `&` path anchors — the same own-line
- *  placement the canonical serializer uses for a document root. */
-function RootDeco({ ctx, frag }: { ctx: Ctx; frag: string }): ReactNode {
+ *  placement the canonical serializer uses for a document root.
+ *
+ *  `tag` false CONSUMES the root's tag: an embedding whose very existence was decided BY that
+ *  tag (a `!!yo` island in a chapter) would otherwise print the switch alongside the thing it
+ *  switched to. Anchors still show — they are content, not the dispatch. */
+function RootDeco({ ctx, frag, tag = true }: { ctx: Ctx; frag: string; tag?: boolean }): ReactNode {
   const d = commentsAt(ctx, frag);
   const anchors = d?.anchors ?? [];
-  if (!d?.tag && anchors.length === 0) return null;
+  const shown = tag ? d?.tag : undefined;
+  if (!shown && anchors.length === 0) return null;
   return (
     <>
-      {d?.tag && <><span className="b">{d.tag}</span>{"\n"}</>}
+      {shown && <><span className="b">{shown}</span>{"\n"}</>}
       {anchors.map((a, i) => <Fragment key={`ra${i}`}><span className="anchor">{fmtAnchor(a, "yaml")}</span>{"\n"}</Fragment>)}
     </>
   );
@@ -299,6 +304,7 @@ export function Render({
   comments,
   editable = false,
   concrete = null,
+  rootTag = true,
 }: {
   value: unknown;
   syntax: Syntax;
@@ -309,6 +315,7 @@ export function Render({
   comments?: CommentMap;
   editable?: boolean;    // when true (and the view is unlocked), scalar leaves become editable
   concrete?: string | null; // the storage language — carried to leaf editors for concrete-safe edits
+  rootTag?: boolean;     // false: the caller was DISPATCHED by the root's tag and consumes it (RootDeco)
 }) {
   const base = fragmentOf(documentPath, nodePath); // the rendered root's continuation from the doc
   const ctx: Ctx = { nav: onNavigate, doc: documentPath, node: nodePath, anchors, comments, base, editable, concrete };
@@ -322,7 +329,7 @@ export function Render({
       {head && <CommentBlock texts={head} syntax={syntax} />}
       {syntax === "yaml" ? (
         <>
-          <RootDeco ctx={ctx} frag={base} />
+          <RootDeco ctx={ctx} frag={base} tag={rootTag} />
           <YamlRoot value={v} indent={0} ctx={ctx} frag={base} path={nodePath} />
         </>
       ) : (

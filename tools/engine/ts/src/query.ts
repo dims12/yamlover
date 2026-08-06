@@ -22,6 +22,7 @@ import type { Store, NodeRow } from './store.ts';
 import { parsePointer } from '../../../parser/ts/src/pointer.ts';
 import { parseYamlover } from '../../../parser/ts/src/yamlover.ts';
 import { isPointer } from '../../../parser/ts/src/ir.ts';
+import { isBoundaryRow } from './boundary.ts';
 
 export type Portion =
   | { kind: 'key'; name: string }
@@ -357,8 +358,7 @@ function descend(s: Store, p: string): string[] {
 function docRootOf(s: Store, p: string): string {
   let cur: string | null = p;
   while (cur !== null && cur !== ':') {
-    const row = s.node(cur);
-    if (row?.meta && (row.meta as { documentRoot?: boolean }).documentRoot === true) return cur;
+    if (isBoundaryRow(s.node(cur) ?? undefined)) return cur;
     cur = spineParent(s, cur);
   }
   return ':';

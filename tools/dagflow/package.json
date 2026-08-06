@@ -1,0 +1,16 @@
+{
+  "name": "@yamlover/dagflow",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Test app: a dagre-laid-out DAG drawn with React Flow. Standalone Vite root, no server.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^3.1.0",
+    "@xyflow/react": "^12.11.2"
+  },
+  "engines": { "node": ">=22" }
+}

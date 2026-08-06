@@ -9,7 +9,8 @@
     "tools/engine/ts",
     "tools/yed",
     "tools/server",
-    "tools/demo"
+    "tools/demo",
+    "tools/dagflow"
   ],
   "scripts": {
     "test": "node --test tools/parser/ts/test/*.test.ts tools/engine/ts/test/*.test.ts",
@@ -23,6 +24,11 @@
     "clean-index": "node tools/clean-index.mjs",
     "gen:edit-fixtures": "npm run gen:edit-fixtures -w tools/server --",
     "debug-editor": "npm run debug-editor -w tools/yed",
-    "test:yed": "npm run test -w tools/yed"
+    "test:yed": "npm run test -w tools/yed",
+    "dagflow": "npm run dev -w tools/dagflow"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^3.1.0",
+    "@xyflow/react": "^12.11.2"
   }
 }

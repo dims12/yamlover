@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 
 // A chapter page fetches each inlined subchapter itself (subchapter.tsx), so `fetchNode` is the
 // seam every depth/inlining test drives. (hoisted so the mock exists before vi.mock's factory runs)
@@ -8,6 +8,7 @@ const { fetchNode } = vi.hoisted(() => ({ fetchNode: vi.fn() }));
 vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchNode }));
 
 import { ChapterView } from "../../src/client/renderers/chapter";
+import { broadcastDiff } from "../../src/client/live";
 import type { NodeJson } from "../../src/client/api";
 
 afterEach(cleanup);
@@ -265,6 +266,29 @@ describe("ChapterView — inline subchapters", () => {
     expect(sub.querySelector("h2.chapter-title")?.textContent).toContain("Dogs");
     expect(sub.textContent).toContain("Dogs are good.");
     expect(container.querySelector("a.descend")).toBeNull(); // laid out, not linked
+  });
+
+  // THE LIVE SEAM (live.ts): the parent projects a member subchapter as a link MARKER, so an edit
+  // inside it leaves the parent's own content byte-identical — refetching the PAGE can never carry
+  // it. The subtree bump does, and only for a diff that overlaps this subchapter's own subtree.
+  it("refetches an inlined subchapter when a diff touches its file", async () => {
+    fetchNode.mockResolvedValue(subNode(":dogs", "Dogs", "Dogs are good."));
+    const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
+    await waitFor(() => expect(container.querySelector("section.chapter-sub")?.textContent).toContain("Dogs are good."));
+
+    fetchNode.mockResolvedValue(subNode(":dogs", "Dogs", "Dogs are BETTER."));
+    act(() => broadcastDiff({ paths: [":dogs:index.yo"], removed: [] })); // its `dir/index.yo` overlay
+    await waitFor(() => expect(container.querySelector("section.chapter-sub")?.textContent).toContain("Dogs are BETTER."));
+    expect(fetchNode).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves an inlined subchapter alone when the diff lands outside its subtree", async () => {
+    fetchNode.mockResolvedValue(subNode(":dogs", "Dogs", "Dogs are good."));
+    const { container } = render(<ChapterView node={withSub(":dogs")} onNavigate={vi.fn()} />);
+    await waitFor(() => expect(container.querySelector("section.chapter-sub")).toBeTruthy());
+    act(() => broadcastDiff({ paths: [":cats:.yo:body.yo"], removed: [] }));
+    await Promise.resolve();
+    expect(fetchNode).toHaveBeenCalledTimes(1);
   });
 
   it("anchors an inlined subchapter and its chunks by PATH fragment, and restarts §N", async () => {

@@ -29,6 +29,7 @@ import { useEffect, useState } from "react";
 import { fetchNode, NodeJson } from "../api";
 import { asLink, asRef } from "../render";
 import { canonPath, strToSegs } from "../paths";
+import { useSubtreeDiffBump } from "../live";
 import { childPath } from "./chapter-model";
 
 /** The deepest nesting a page will inline, and the most subchapters it will pull in — a cheap,
@@ -118,6 +119,10 @@ export function InlineSubchapter({
 
   const [node, setNode] = useState<NodeJson | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The page's own refetch stops at this seam: the parent projected us as a link MARKER, so an
+  // edit to our body — from this window, another tab, or a shell — leaves the parent's content
+  // unchanged. The subtree bump is what carries the change across (live.ts).
+  const bump = useSubtreeDiffBump(needsFetch ? target : null);
   useEffect(() => {
     if (!needsFetch) return;
     let cancelled = false;
@@ -129,7 +134,7 @@ export function InlineSubchapter({
     return () => { cancelled = true; };
     // `onLoaded` is a stable page-level notifier — listing it would refetch on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, needsFetch]);
+  }, [target, needsFetch, bump]);
 
   const asLinkFace = (note?: string) => renderLink({ path: target ?? undefined, title: link?.title, level, id: slot, note, reference });
 

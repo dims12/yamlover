@@ -102,6 +102,36 @@ test('pointer cycle is detected, not infinite', () => {
   assert.ok(t.every((k) => k === 'node' || k === 'unresolved')); // terminates
 });
 
+// ─────────────────────── the DOCUMENT BOUNDARY — a tag opens a document (src/boundary.ts) ───────────────────────
+
+test('boundary: `:` inside a `!!yo` island resolves from the ISLAND, not the file', () => {
+  // both `whiskers` keys are in scope by path; the island's own must win, or the content could not
+  // be pasted anywhere else without rewriting every pointer
+  const doc = parseYamlover('whiskers: the outer one\nisland: !!yo\n  whiskers: the inner one\n  pet: *: whiskers\n');
+  const e = find(resolveDocument(doc), ':island:pet');
+  assert.equal((e.target as { path: string }).path, ':island:whiskers');
+  assert.equal((e.target as any).node.value, 'the inner one');
+  assert.equal(e.docRoot, ':island'); // what a rewrite re-spells against
+});
+
+test('boundary: `..` still steps OUT of an island — the boundary is for `:` alone', () => {
+  const doc = parseYamlover('outer: 42\nisland: !!yo\n  up: *..: outer\n');
+  assert.equal((find(resolveDocument(doc), ':island:up').target as any).node.value, 42);
+});
+
+test('boundary: a tagged GRAPH is a document too, so a `&` anchor inside it lands inside it', () => {
+  const doc = parseYamlover(
+    'exports: outer\ngraph: !!<*yamlover: $defs: xyflow>\n  exports:\n    latest: the shelf\n  publish: to the shelf\n    &: exports: shipped\n',
+  );
+  const anchor = resolveDocument(doc).find((e) => e.anchor)!;
+  assert.equal((anchor.target as { path: string }).path, ':graph:exports');
+});
+
+test('boundary: an ORDINARY tag opens no document — `:` still means the file', () => {
+  const doc = parseYamlover('whiskers: the outer one\nt: !!<*yamlover: $defs: table>\n  pet: *: whiskers\n');
+  assert.equal((find(resolveDocument(doc), ':t:pet').target as { path: string }).path, ':whiskers');
+});
+
 // ─────────────────────── self-import absorption (graft-virtualize) ───────────────────────
 
 test('self-import: `::yamlover:tags:x` is ABSORBED to the real `:tags:x` when no yamlover node', () => {

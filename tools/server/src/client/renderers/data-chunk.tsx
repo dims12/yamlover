@@ -11,6 +11,10 @@ import { Render, asLink } from "../render";
  * whole subtree is fetched by path — the TableChunk pattern; a marker already inlined by a
  * deeper fetch renders in place, no request. `anchors` stays off: the island's fragment ids
  * would collide with the chapter's own chunk anchors (the relations panel does the same).
+ *
+ * `rootTag` stays off too: the `!!yo` IS the switch that put this renderer here, so the panel
+ * consumes it — printing it inside its own frame would announce the mode twice, and read as
+ * source the author must still look past (the chapter renderer swallows its own tag alike).
  */
 export function DataChunk({
   item,
@@ -42,7 +46,7 @@ export function DataChunk({
     // already inlined by a deeper fetch — the marker itself is the value to draw
     return (
       <pre className="code chapter-data">
-        <Render value={item} syntax="yaml" onNavigate={onNavigate} documentPath={documentPath ?? ":"} nodePath={documentPath ?? ":"} anchors={false} />
+        <Render value={item} syntax="yaml" onNavigate={onNavigate} documentPath={documentPath ?? ":"} nodePath={documentPath ?? ":"} anchors={false} rootTag={false} />
       </pre>
     );
   }
@@ -58,6 +62,7 @@ export function DataChunk({
         documentPath={node.documentPath ?? path ?? ":"}
         nodePath={path ?? ":"}
         anchors={false}
+        rootTag={false}
       />
     </pre>
   );

@@ -14,6 +14,7 @@
 import type { Document, Node, Pointer, Step, Anchor } from '../../../parser/ts/src/ir.ts';
 import { isPointer } from '../../../parser/ts/src/ir.ts';
 import { segToken } from '../../../parser/ts/src/pathseg.ts';
+import { isDocumentBoundary } from './boundary.ts';
 
 export type Located =
   | { kind: 'node'; node: Node; path: string }
@@ -57,7 +58,7 @@ export function resolveDocument(doc: Document): ResolvedEdge[] {
     if (!node.entries && !node.meta?.anchors) return;
     const chain = chains.get(node)!;
     const base = pathOf(chain);
-    const dr = node.meta?.documentRoot ? base : docRoot;
+    const dr = isDocumentBoundary(node) ? base : docRoot;
     const prefix = base === ':' ? '' : base; // root is ':', so a top-level entry is ":key" not "::key"
     node.entries?.forEach((e, i) => {
       const seg = ':' + segToken(e.nullKey === true ? null : e.key ?? i);
@@ -194,12 +195,13 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
       break;
     }
     case 'document': {
-      // the nearest enclosing DOCUMENT root (a parsed file / a `.yo` dir / the served
-      // root), so `/file` is relative to the chapter (or other instance) it sits in — not the
-      // whole served tree. Falls back to the overall root when nothing in the chain is marked.
+      // the nearest enclosing DOCUMENT (boundary.ts: a parsed file / a `.yo` dir / the served
+      // root — or a tag that opens one, like a `!!yo` island), so `: file` is relative to the
+      // chapter (or other instance) it sits in — not the whole served tree. Falls back to the
+      // overall root when nothing in the chain is marked.
       let docRoot = root;
       for (let k = fromChain.length - 1; k >= 0; k--) {
-        if (fromChain[k].meta?.documentRoot) { docRoot = fromChain[k]; break; }
+        if (isDocumentBoundary(fromChain[k])) { docRoot = fromChain[k]; break; }
       }
       chain = chains.get(docRoot) ?? [docRoot];
       break;

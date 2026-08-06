@@ -41,6 +41,9 @@ const MapView = lazy(() => import("./map").then((m) => ({ default: m.MapView }))
 const MapChunk = lazy(() => import("./map").then((m) => ({ default: m.MapChunk })));
 const ImageView = lazy(() => import("./imagemap").then((m) => ({ default: m.ImageView })));
 const ImageChunk = lazy(() => import("./imagemap").then((m) => ({ default: m.ImageChunk })));
+// React Flow + dagre are heavy and browser-only (React Flow measures the DOM at mount); lazy-load.
+const XyflowView = lazy(() => import("./xyflow").then((m) => ({ default: m.XyflowView })));
+const XyflowChunk = lazy(() => import("./xyflow").then((m) => ({ default: m.XyflowChunk })));
 const lazily = (el: JSX.Element) => <Suspense fallback={<div className="loading">…</div>}>{el}</Suspense>;
 
 /** Synthesize a minimal `NodeJson` from a chunk so a file-backed renderer (which
@@ -310,6 +313,18 @@ const REGISTRY: Renderer[] = [
     depth: null,
     render: (node, onNavigate) => <ListView node={node} onNavigate={onNavigate} />,
     renderChunk: (chunk, onNavigate) => <ListChunk chunk={chunk} onNavigate={onNavigate} />,
+  },
+  {
+    // A GRAPH node (`!!<*yamlover: $defs: xyflow>`): the subtree drawn as the directed graph it
+    // is (docs/language/model/graph) — self-values inside the boxes, relations titled by ordinal
+    // and key, `*` and `&` edges dashed. Depth null: the whole subtree is the drawing.
+    name: "xyflow",
+    icon: "⬡",
+    accepts: byFormat("x-yamlover-xyflow"),
+    specificity: 2,
+    depth: null,
+    render: (node, onNavigate) => lazily(<XyflowView node={node} onNavigate={onNavigate} />),
+    renderChunk: (chunk, onNavigate) => lazily(<XyflowChunk chunk={chunk} onNavigate={onNavigate} />),
   },
   {
     // A NUMBERED list node (docs/documents/marklower/lists) — the ordered twin of `bullets`.

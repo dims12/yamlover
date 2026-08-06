@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { fetchNode, NodeJson } from "../api";
 import { asLink, asMixed, asRef } from "../render";
+import { useSubtreeDiffBump } from "../live";
 import { childPath } from "./chapter-model";
 import { MarklowerChunk } from "./marklower";
 import { Grid } from "./table";
@@ -160,6 +161,8 @@ export function ListChunk({ chunk, onNavigate }: { chunk: Chunk; onNavigate: (pa
   const [node, setNode] = useState<NodeJson | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inline = asMixed(chunk.value) || Array.isArray(chunk.value); // already deep (a nested fetch)
+  // fetched behind the page's own content, so it needs its own live-refresh seam (live.ts)
+  const bump = useSubtreeDiffBump(inline ? null : chunk.path);
   useEffect(() => {
     if (inline) return;
     let cancelled = false;
@@ -169,7 +172,7 @@ export function ListChunk({ chunk, onNavigate }: { chunk: Chunk; onNavigate: (pa
     return () => {
       cancelled = true;
     };
-  }, [chunk.path, inline]);
+  }, [chunk.path, inline, bump]);
 
   const kind = listKind(chunk.format);
   if (inline) return <ListBody value={chunk.value} path={chunk.path} kind={kind} documentPath={chunk.documentPath} onNavigate={onNavigate} />;

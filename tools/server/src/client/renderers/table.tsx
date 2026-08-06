@@ -22,6 +22,7 @@
 import { useEffect, useRef, useState } from "react";
 import { editChunks, fetchNode, NodeJson } from "../api";
 import { asLink, asMixed, asRef, scalarValue } from "../render";
+import { useSubtreeDiffBump } from "../live";
 import { childPath, escapeYamloverScalar } from "./chapter-model";
 import { ListBody, listKind } from "./list";
 import { MarklowerChunk } from "./marklower";
@@ -433,6 +434,8 @@ export function TableChunk({ chunk, onNavigate }: { chunk: Chunk; onNavigate: (p
   const [node, setNode] = useState<NodeJson | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inline = asMixed(chunk.value) || Array.isArray(chunk.value); // already deep (a nested fetch)
+  // fetched behind the page's own content, so it needs its own live-refresh seam (live.ts)
+  const bump = useSubtreeDiffBump(inline ? null : chunk.path);
   useEffect(() => {
     if (inline) return;
     let cancelled = false;
@@ -442,7 +445,7 @@ export function TableChunk({ chunk, onNavigate }: { chunk: Chunk; onNavigate: (p
     return () => {
       cancelled = true;
     };
-  }, [chunk.path, inline]);
+  }, [chunk.path, inline, bump]);
 
   if (inline) return <Grid value={chunk.value} path={chunk.path} documentPath={chunk.documentPath} onNavigate={onNavigate} caption />;
   if (error) return <p className="csv-empty">table failed to load: {error}</p>;

@@ -28,8 +28,8 @@ description: the full spec - principles, the abstract model, concretes, pointers
   system; the [concretes](::language:concretes) - every way a node is physically stored and
   written; and [pointers and queries](::language:pointers) - paths, anchors, and the query language
   they are the singleton fragment of.
-- *: principles
-- *: vs-yaml
 - *: model
 - *: concretes
 - *: pointers
+- *: principles
+- *: vs-yaml

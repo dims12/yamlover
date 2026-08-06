@@ -40,7 +40,7 @@ import fs from "node:fs";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, loadSettings, ensureSettingsFile, mv, relinkMoved, evalQuery } from "../../../engine/ts/src/index.ts";
+import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, loadSettings, ensureSettingsFile, mv, relinkMoved, evalQuery, isBoundaryRow } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { parseJson5p } from "../../../parser/ts/src/json5p.ts";
@@ -1059,7 +1059,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         // STREAM the bytes — a readFileSync of a big PDF/video would block the event loop
         // (and with it every other request and the Vite HMR socket) for its whole read.
         res.statusCode = 200;
-        res.setHeader("Content-Type", s.node(p)?.format ?? formatFromExt(file) ?? "application/octet-stream");
+        res.setHeader("Content-Type", blobContentType(s.node(p)?.format ?? formatFromExt(file)));
         res.setHeader("Content-Length", String(fs.statSync(file).size));
         const stream = fs.createReadStream(file);
         stream.on("error", () => res.destroy());
@@ -1426,7 +1426,7 @@ const segsEqual = (a: Seg[], b: Seg[]): boolean => a.length === b.length && a.ev
  *  (`::examples:…`) — mirroring the colon scope ladder (docs/language/pointers/paths: `:` = document root,
  *  `::` = project). */
 function scopedPath(s: Store, src: Seg[], currentDoc: Seg[]): string {
-  if (segsEqual(documentRootSegs(s, src), currentDoc)) return segsToStr(src.slice(currentDoc.length)); // `:…`
+  if (segsEqual(refFrameSegs(s, src), currentDoc)) return segsToStr(src.slice(currentDoc.length)); // `:…`
   return "::" + segsToStr(src).slice(1); // `::…` — a project-scope link
 }
 
@@ -1437,7 +1437,7 @@ function scopedPath(s: Store, src: Seg[], currentDoc: Seg[]): string {
  *  comment/deco sidecar; this is the faithful fallback so a ref never renders as a bare `:path`. */
 function refPointerText(s: Store, src: Seg[], currentDoc: Seg[]): string {
   const seg = (x: Seg): string => `: ${segToken(x)}`;
-  if (segsEqual(documentRootSegs(s, src), currentDoc)) {
+  if (segsEqual(refFrameSegs(s, src), currentDoc)) {
     const tail = src.slice(currentDoc.length);
     return "*" + (tail.length > 0 ? tail.map(seg).join("") : ":"); // document scope; `*:` = the doc root
   }
@@ -1467,7 +1467,7 @@ function buildRelations(dataRoot: string, s: Store, segs: Seg[]): Record<string,
   // Upstream `*`/`~` sources (this node is the natural target), deduped across forward+reverse
   // authoring. A forward ref INTO p has its source at `from`; a `~` back-edge OUT of p (stored
   // reversed) has its source at `to`.
-  const currentDoc = documentRootSegs(s, segs);
+  const currentDoc = refFrameSegs(s, segs);
   const { out: outEdges, in: inEdges } = s.relationships(p);
   const upstream = new Map<string, string>(); // relKey → source store-path
   const addUp = (src: string | null, label: string | null) => {
@@ -4567,12 +4567,12 @@ function envelopeDeps(s: Store, dataRoot: string, membersOnDisk: boolean): Envel
       const tsegs = storePathToSegs(hit.to);
       return {
         path: segsToStr(tsegs),
-        text: refPointerText(s, tsegs, documentRootSegs(s, holder as Seg[])),
+        text: refPointerText(s, tsegs, refFrameSegs(s, holder as Seg[])),
         stub: s.node(hit.to) ? linkMarker(dataRoot, s, tsegs) : null,
       };
     },
     backEdgesAt: (sg) => {
-      const currentDoc = documentRootSegs(s, sg as Seg[]);
+      const currentDoc = refFrameSegs(s, sg as Seg[]);
       return downstreamEntries(s, storePath(sg))
         .filter((e) => e.pos === null && e.kind === "ref" && e.to)
         .map((e) => {
@@ -4668,12 +4668,24 @@ function readBody(req: IncomingMessage): Promise<unknown> {
 }
 
 /** The nearest enclosing DOCUMENT root for `segs` — the closest ancestor (or self) whose node
- *  is flagged `documentRoot` (a parsed file / `.yo` dir / served root), as segments. It is
- *  the anchor a document-relative (`/…`) pointer resolves against, mirroring the `/` pointer scope. */
+ *  is flagged `documentRoot` (a parsed file / `.yo` dir / served root), as segments. This is the
+ *  STORAGE document: where the bytes live, so it also answers "which file does an edit go to". */
 function documentRootSegs(s: Store, segs: Seg[]): Seg[] {
   for (let i = segs.length; i >= 0; i--) {
     const anc = segs.slice(0, i);
     if (s.node(storePath(anc))?.meta?.documentRoot) return anc;
+  }
+  return [];
+}
+
+/** The frame a `:`-scoped REFERENCE resolves in (engine boundary.ts): the storage document, or a
+ *  nearer node whose tag opens one — a `!!yo` island, a tagged graph. Storage and reference frames
+ *  part ways here, so a pointer is SPELLED the way it will be READ while an edit still routes to
+ *  the file that holds the bytes. */
+function refFrameSegs(s: Store, segs: Seg[]): Seg[] {
+  for (let i = segs.length; i >= 0; i--) {
+    const anc = segs.slice(0, i);
+    if (isBoundaryRow(s.node(storePath(anc)) ?? undefined)) return anc;
   }
   return [];
 }
@@ -4776,6 +4788,20 @@ const EXT_CT: Record<string, string> = {
 };
 function formatFromExt(file: string): string | null {
   return EXT_CT[path.extname(file).toLowerCase()] ?? null;
+}
+
+// Formats the project itself reads and writes as UTF-8 (the walker's TEXT_FORMATS, plus the two
+// markup ones served as bytes). They must SAY so: a consumer that decodes the response by the
+// header rather than by hand — the HTML iframe, a direct URL, a download — otherwise falls back
+// to the browser's locale encoding and mangles every non-ASCII byte. `text/plain` is deliberately
+// absent: its encoding is unknown by design and the reader picks it (plaintext.tsx `?enc=`).
+const UTF8_CT = new Set([
+  "text/html", "image/svg+xml", "text/markdown", "text/asciidoc",
+  "text/x-plantuml", "text/csv", "text/tab-separated-values",
+]);
+function blobContentType(format: string | null): string {
+  if (format == null) return "application/octet-stream";
+  return UTF8_CT.has(format) ? `${format}; charset=utf-8` : format;
 }
 
 // `undefined` = absent (the caller picks a per-concrete default), `Infinity` = `.inf`/`inf`

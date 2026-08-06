@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 510" role="img" aria-label="A directed acyclic graph: a root node with three keyed relations, to alice, bob and whiskers; alice and bob each hold a number scalar and a relation named pet, and both pet relations lead to the same whiskers node; whiskers holds the string cat and a pair of keyless relations to ball and mouse.">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 8" refX="9.5" refY="4" markerWidth="10" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto">
+      <path d="M0 0 L10 4 L0 8 Z" fill="#9aa2b8"/>
+    </marker>
+    <style>
+      .edge { stroke: #9aa2b8; stroke-width: 1.7; fill: none; marker-end: url(#arrow); }
+      .node { fill: #4c63a8; }
+      .root { fill: #2f3f73; }
+      .num  { fill: #a9560f; }
+      .str  { fill: #2f7a43; }
+      .pill { fill: #656d84; }
+      text  { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #ffffff; text-anchor: middle; dominant-baseline: central; }
+      .lbl  { font-size: 15px; }
+      .tag  { font-size: 12px; }
+    </style>
+  </defs>
+
+  <!-- relations -->
+  <path class="edge" d="M270.2 46.6 L164.8 139.4"/>
+  <path class="edge" d="M289.8 46.6 L395.2 139.4"/>
+  <path class="edge" d="M280 51 L280 245"/>
+  <path class="edge" d="M146.3 157.6 L70.5 241"/>
+  <path class="edge" d="M164.8 156.6 L270.2 249.4"/>
+  <path class="edge" d="M413.7 157.6 L489.6 241"/>
+  <path class="edge" d="M395.2 156.6 L289.8 249.4"/>
+  <path class="edge" d="M271.8 268.1 L203.9 351"/>
+  <path class="edge" d="M288.2 268.1 L361.8 357.9"/>
+  <path class="edge" d="M363.4 379.2 L315 461"/>
+  <path class="edge" d="M376.6 379.2 L425 461"/>
+
+  <!-- nodes carrying no value of their own -->
+  <circle class="root" cx="280" cy="38"  r="13"/>
+  <circle class="node" cx="155" cy="148" r="13"/>
+  <circle class="node" cx="405" cy="148" r="13"/>
+  <circle class="node" cx="280" cy="258" r="13"/>
+  <circle class="node" cx="370" cy="368" r="13"/>
+
+  <!-- nodes carrying a scalar value -->
+  <rect class="num" x="31"  y="241" width="48" height="34" rx="8"/>
+  <text class="lbl" x="55"  y="258">30</text>
+  <rect class="num" x="481" y="241" width="48" height="34" rx="8"/>
+  <text class="lbl" x="505" y="258">25</text>
+  <rect class="str" x="161" y="351" width="58" height="34" rx="8"/>
+  <text class="lbl" x="190" y="368">cat</text>
+  <rect class="str" x="273" y="461" width="64" height="34" rx="8"/>
+  <text class="lbl" x="305" y="478">ball</text>
+  <rect class="str" x="397" y="461" width="76" height="34" rx="8"/>
+  <text class="lbl" x="435" y="478">mouse</text>
+
+  <!-- the root marker -->
+  <rect class="root" x="205" y="29" width="39" height="18" rx="5"/>
+  <text class="tag" x="224.5" y="38">root</text>
+
+  <!-- relation labels: the ordinal, then the key where the relation has one -->
+  <rect class="pill" x="187.5" y="84"    width="60" height="18" rx="5"/>
+  <text class="tag" x="217.5" y="93">0 alice</text>
+  <rect class="pill" x="319.5" y="84"    width="46" height="18" rx="5"/>
+  <text class="tag" x="342.5" y="93">1 bob</text>
+  <rect class="pill" x="239"   y="139"   width="82" height="18" rx="5"/>
+  <text class="tag" x="280"   y="148">2 whiskers</text>
+  <rect class="pill" x="85.4"  y="190.3" width="46" height="18" rx="5"/>
+  <text class="tag" x="108.4" y="199.3">0 age</text>
+  <rect class="pill" x="194.5" y="194"   width="46" height="18" rx="5"/>
+  <text class="tag" x="217.5" y="203">1 pet</text>
+  <rect class="pill" x="428.7" y="190.3" width="46" height="18" rx="5"/>
+  <text class="tag" x="451.7" y="199.3">0 age</text>
+  <rect class="pill" x="319.5" y="194"   width="46" height="18" rx="5"/>
+  <text class="tag" x="342.5" y="203">1 pet</text>
+  <rect class="pill" x="200.4" y="300.6" width="75" height="18" rx="5"/>
+  <text class="tag" x="237.9" y="309.6">0 species</text>
+  <rect class="pill" x="298.5" y="304"   width="53" height="18" rx="5"/>
+  <text class="tag" x="325"   y="313">1 toys</text>
+  <rect class="pill" x="330.7" y="411.1" width="17" height="18" rx="5"/>
+  <text class="tag" x="339.2" y="420.1">0</text>
+  <rect class="pill" x="392.3" y="411.1" width="17" height="18" rx="5"/>
+  <text class="tag" x="400.8" y="420.1">1</text>
+</svg>

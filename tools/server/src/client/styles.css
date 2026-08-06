@@ -1106,6 +1106,18 @@ pre.code.chapter-data {
 .chapter-prose.editable {
   min-height: 1.5em;
 }
+/* a marklower `` `code` `` span: the INLINE twin of the data island's card — the same darker
+   face (--bg-alt) and mono stack, so code reads as code at either scale. Bare, it inherited the
+   prose font and was invisible as markup. The selector catches the read `<code>` and the
+   editor's atomic `<code class="mlw-atom">` alike, so locked and unlocked look the same. */
+.chapter-prose code {
+  font-family: var(--font);
+  font-size: 0.92em;
+  background: var(--bg-alt);
+  border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
+  border-radius: 3px;
+  padding: 0 4px;
+}
 /* THE DEPTH-STYLING RULE (chapter-shared.tsx): a not-laid-out subchapter renders the SAME
    `chapter-title` heading inside the SAME `chapter-sub` section (identical indent + left rule)
    — only its text is a `descend` hyperlink. (The far-right » marker is gone: floated to the
@@ -1161,6 +1173,18 @@ a.chunk-index {
 a.chunk-index:hover {
   color: var(--accent);
   opacity: 1;
+}
+/* A CARD-FACED chunk (a `!!yo` data island, a plaintext/code block) does not start its text at
+   its own top edge: the frame's border + padding push the first line down, and its 13px/1.55
+   line box is SHORTER than the 14px/1.65 one the gutter is calibrated to, so the digit floated
+   above the line it addresses. Follow the text down — the offset is the frame's top inset plus
+   half the line-box difference, written out rather than as a measured magic number, so a change
+   to either type scale carries. */
+.chunk:has(> .chunk-body > pre.chapter-data) .chunk-index {
+  top: calc(9px + (13px * 1.55 - 12px * (1.65 * 14 / 12)) / 2); /* 1px border + 8px padding */
+}
+.chunk:has(> .chunk-body > .plaintext) .chunk-index {
+  top: calc(8px + (13px * 1.55 - 12px * (1.65 * 14 / 12)) / 2); /* padding, no border */
 }
 .chunk-body {
   flex: 1 1 auto;
@@ -1762,9 +1786,98 @@ textarea.chapter-latex-src {
 .yl-list .yl-list {
   margin: 0; /* a nested sublist sits flush under its parent item */
 }
+/* …but as a CHAPTER CHUNK a list keeps the page's vertical rhythm exactly as a prose paragraph
+   does (.chapter-prose): flush at the top — the 4px lead floated the first item below the
+   address digit that names it — and the same 14px of air below. */
+.chunk-body > .yl-list {
+  margin: 0 0 14px;
+}
 .yl-list li > .chapter-prose {
   margin: 0; /* a marklower item is the item, not a paragraph in it */
   max-width: none;
+}
+
+/* ---- xyflow graph renderer (x-yamlover-xyflow) --------------------------- */
+.xyflow-view {
+  width: 100%;
+  height: 70vh;
+  min-height: 320px;
+}
+.chunk-body > .xyflow-chunk {
+  width: 100%;
+  height: 420px;
+  margin: 0 0 14px;
+}
+/* React Flow paints its own surface; let the page theme through instead. */
+.xyflow-view .react-flow__background,
+.xyflow-chunk .react-flow__background {
+  background: transparent;
+}
+.xyflow-node {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 9px;
+  border: 1px solid var(--fg);
+  border-radius: 13px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 12px ui-sans-serif, system-ui, -apple-system, sans-serif;
+  white-space: nowrap;
+}
+.xyflow-node-nav {
+  cursor: pointer;
+}
+/* the value keeps its own (type) colour on hover — the outline carries the affordance */
+.xyflow-node-nav:hover {
+  border-color: var(--accent);
+}
+/* a node carrying no value has nothing to write inside it — it IS the circle */
+.xyflow-node-empty {
+  padding: 0;
+  border-radius: 50%;
+}
+/* a `*`/`&` end outside the drawn subtree: named by its path (in the reference colour, like a
+   pointer in the source view), drawn as a dashed outline */
+.xyflow-node-stub {
+  border-style: dashed;
+  border-color: var(--dim);
+}
+/* the connection points stay live for hit-testing but are never painted — an edge leaves the
+   node's outline, not a dot on it */
+.xyflow-node .react-flow__handle {
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: none;
+  background: transparent;
+}
+/* a title riding its own curve overlaps the stroke, so it gets a halo of the page background
+   (paint-order draws that halo UNDER the glyphs instead of over them) */
+.xyflow-edge-label {
+  font: 11px ui-sans-serif, system-ui, -apple-system, sans-serif;
+  fill: var(--fg);
+  stroke: var(--bg);
+  stroke-width: 3px;
+  paint-order: stroke;
+  pointer-events: none;
+  user-select: none;
+}
+/* a relation with a position but no key is named by a number alone — say it quietly */
+.xyflow-edge-label.xyflow-edge-ordinal {
+  font-size: 10px;
+}
+/* the code palette, spelled for SVG: the token classes paint `color`, which text nodes ignore */
+.xyflow-edge-label .k {
+  fill: var(--jb-key);
+}
+.xyflow-edge-label .n {
+  fill: var(--jb-number);
+}
+.xyflow-edge-label .punct {
+  fill: var(--jb-punct);
 }
 
 /* ---- spreadsheet (xls/xlsx) sheet tabs ----------------------------------- */

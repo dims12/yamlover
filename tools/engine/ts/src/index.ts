@@ -15,3 +15,4 @@ export type { WatchOptions } from './watch.ts';
 export { loadSettings, DEFAULT_SETTINGS, DEFAULT_SETTINGS_SOURCE, writeSettingKey, ensureSettingsFile } from './settings.ts';
 export type { Settings, SidecarLocation } from './settings.ts';
 export { evalQuery, parseQuery } from './query.ts';
+export { isDocumentBoundary, isBoundaryRow } from './boundary.ts';

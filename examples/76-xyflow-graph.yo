@@ -1,0 +1,37 @@
+# A chapter carrying a GRAPH — the shape a table or a list cannot hold: nodes joined by
+# relations, drawn as a diagram instead of a nesting. The body element is a yamlover node tagged
+# with the xyflow schema, and everything under it is ordinary yamlover (docs/language/model/graph).
+#
+# What the drawing shows, one rule at a time:
+#   - a node's scalar SELF-VALUE is written inside its box; a node with no value is a bare circle;
+#   - every relation is titled by its ORDINAL and, when it has one, its KEY (`2: review`), so a
+#     position-only relation shows a number alone — and is drawn lighter for it;
+#   - a `*` dereference is an EDGE, never a copy (docs/language/pointers/dereference): the relation
+#     lands straight on the target, dashed;
+#   - an `&` anchor pushes a membership the other way (docs/language/pointers/anchors) and is dashed
+#     to its own rhythm;
+#   - a `*`/`&` end OUTSIDE the drawn subtree becomes a dashed stub named by its path.
+#
+# The tag also opens a DOCUMENT (the engine's boundary.ts): a `:`-scoped reference inside the graph
+# resolves from the graph's own root, so the content reads the same wherever it is pasted. Stepping
+# out of it takes an explicit `..`.
+!!<*yamlover: $defs: chapter>
+Pipeline, drawn
+description: One graph, every edge kind.
+- The pipeline below is a **graph**, not a nesting — the same document the tree shows as keys.
+- !!<*yamlover: $defs: xyflow>
+  ingest: raw documents
+  validate:
+    rules: strict
+    quarantine:                 # no value — an empty circle
+  classify:
+    - fast lane                 # position-only relations: titled `0` and `1`
+    - slow lane
+  review:
+    reads: *: validate          # a `*` dereference — dashed, straight onto the validate node
+  exports:
+    latest: the shelf
+  publish: to the shelf
+    &: exports: shipped         # an `&` anchor — publish ALSO lives at exports: shipped
+  glossary: *..: description    # `..` steps OUT of the graph — a dashed stub
+- Read the numbers as positions and the names as keys; both title the same relation.

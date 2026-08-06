@@ -59,7 +59,9 @@ export interface NodeMeta {
   derivedFormat?: string;
   /** This node is a DOCUMENT root — a self-contained instance: a parsed file, a directory with
    *  a `.yo/` overlay, or the served root. The `/` pointer scope resolves to the nearest
-   *  enclosing such node (docs/language/pointers/scopes: `:` = document root), so a reference is depth-independent. */
+   *  enclosing such node (docs/language/pointers/scopes: `:` = document root), so a reference is depth-independent.
+   *  STORAGE opens a document this way; a TAG can open one too, for references only — see the
+   *  engine's boundary.ts (a `!!yo` island, a tagged graph). */
   documentRoot?: boolean;
   /** POSITIONAL PREFIX length (a dir-backed node whose `body.yo` is a pointer-array,
    *  docs/language/concretes): the first N entries are body-ordered (positional) members; keyed entries

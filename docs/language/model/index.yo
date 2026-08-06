@@ -1,7 +1,58 @@
 # The abstract model - terminology, facets, the value axis, order, the graph, metadata,
 # matching, and the constructs-in-concretes matrix; each a subdirectory chapter.
-The logical model
+The logical (abstract) model
 description: omnivorous nodes with ordered relations - the terminology and the type system
+
+- >
+  The model a yamlover database holds is a **directed** (oriented) **graph**. Graph can have cycles (i.e.
+  it is not acyclic.
+
+- >
+  The vertices of that graph are called **nodes**. A node may carry a **scalar value** - a string, a
+  number, or a boolean. A node carrying no value of its own is taken to hold the special value
+  `null`.
+
+- >
+  Nodes are joined by directed edges called **relations**. A relation runs from a **parent** node to
+  a **child** node. Every relation carries an **ordinal**, counted from zero within its parent; a
+  relation may additionally carry a string name, its **key**. Keys are unique within one parent.
+
+- >
+  Yamlover is a language for writing such graphs down.
+
+- >
+  For example, the graph
+
+- !!<*yamlover: $defs: xyflow>
+    alice:
+      age: 30
+      pet: *: whiskers
+    bob:
+      age: 25
+      pet: *: whiskers
+    whiskers:
+      species: cat
+      toys:
+        - ball
+        - mouse
+
+- >
+  can be written as
+
+- !!yo
+  alice:
+    age: 30
+    pet: *: whiskers
+  bob:
+    age: 25
+    pet: *: whiskers
+  whiskers:
+    species: cat
+    toys:
+      - ball
+      - mouse
+
+
 - >
   Beneath every surface and every storage form there is one logical model: a graph of **omnivorous
   nodes** connected by **ordered relations**. A node may carry a scalar value of its own, named

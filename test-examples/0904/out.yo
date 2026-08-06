@@ -31,7 +31,7 @@ rating: !!yo 5
   - solid
   - recommended
   scale: 10
-  author: *: humans: 0
+  author: *..: humans: 0
 ratingValue: *rating
 ratingTag: *rating: 0
 ratingScale: *rating: scale
