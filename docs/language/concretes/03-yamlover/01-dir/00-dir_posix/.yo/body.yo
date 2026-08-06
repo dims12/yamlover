@@ -1,7 +1,0 @@
-dir/posix
-description: Directory with case-sensitive filenames
-- >
-  On a POSIX filesystem the filenames - hence the KEYS - are CASE SENSITIVE: `Readme` and
-  `readme` are two different entries, and keys compare byte-exactly. With the control `.yo`
-  subdirectory it becomes the overlay concrete - see the subchapter below:
-- *: 00-dir_posix_yo

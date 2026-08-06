@@ -73,8 +73,8 @@ export function PlaintextView({ node }: { node: NodeJson }) {
   // A file-backed node loads its raw bytes via /api/blob (with the encoding selector — legacy
   // Cyrillic files). An INLINE textual node (no source file: markdown/asciidoc/string authored in
   // place) has its already-decoded string value, shown verbatim — no fetch, no encoding choice.
-  // Everything ELSE that the tab enables (plaintextTab: a dir/yamlover document, an inline
-  // container of a data language) shows its yamlover SOURCE via /api/source — the body.yo of a
+  // Everything ELSE that the tab enables (plaintextTab: an overlay-carrying directory, an inline
+  // container of a data language) shows its yamlover SOURCE via /api/source — the overlay of a
   // directory chapter, a re-serialized subtree deeper: raw content wherever raw content exists.
   const fileBacked = isFileConcrete(node.concrete);
   const inline = fileBacked ? null : scalarValue(node.value);

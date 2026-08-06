@@ -91,9 +91,9 @@ function effectiveFormat(format: Format, node: NodeJson, tabs: TabEntry[]): Form
 
 /** Whether the DATA view may be unlocked for in-place value editing. Only the **yamlover renderer**
  *  (the `yamlover` data view) offers editing — never the `json5p` or `yamlover/schema` views, nor
- *  opaque bytes (nothing backs them). DIRECTORIES edit too — bare (`dir`) and dir-backed
- *  (`dir/yamlover`) alike: the server derives where each new child is STORED (the dir's
- *  `.yo/body.yo` overlay vs a nested directory — concrete-rules.ts). The yamlover
+ *  opaque bytes (nothing backs them). DIRECTORIES edit too — bare (`dir`) and overlay-backed
+ *  (`dir/.yo`, `dir/index.yo`) alike: the server derives where each new child is STORED (the
+ *  dir's own instance overlay vs a nested directory — concrete-rules.ts). The yamlover
  *  renderer is the UNIVERSAL edit surface: you edit yamlover source there, and the server writes
  *  it in the target's concrete — a yaml/yamlover file gets the source verbatim, a json/json5/json5p
  *  file gets the parsed scalar re-serialized as JSON. */

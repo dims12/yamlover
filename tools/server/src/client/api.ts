@@ -444,7 +444,7 @@ export function createObject(schema: string, parent: string, concrete: string, t
 
 /** Create a generic NODE — an UNTAGGED, EMPTY yamlover document (no schema meta, no body: an
  *  empty document is not an empty-string scalar). The editor opens it as a root hole ready for
- *  the first token. `concrete` picks the storage form (`file/yamlover` | `dir/yamlover`); the
+ *  the first token. `concrete` picks the storage form (`file/yamlover` | `dir/.yo` | `dir/index.yo`); the
  *  parent decides member vs linked child, exactly like {@link createObject}. Returns the new
  *  node's path (navigate to it). */
 export function createNode(parent: string, concrete: string, name = "New node"): Promise<{ path: string }> {

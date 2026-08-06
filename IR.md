@@ -54,7 +54,7 @@ export interface Comment {
 
 export interface SourceInfo {
   // The DOCUMENT's source language (the whole file/stream). The richer PER-NODE storage
-  // taxonomy (file/…, dir/yamlover, inlined languages) lives on the materialized nodes —
+  // taxonomy (file/…, dir/.yo, inlined languages) lives on the materialized nodes —
   // see CONCRETES.md. `multi-*` is reserved for multi-document streams (Phase 2c).
   concrete: "json" | "json5" | "json5p" | "yaml" | "yamlover" | "directory" | "multi-yaml" | "multi-yamlover";
   uri: string;                      // file path or dir path, project-relative

@@ -16,9 +16,12 @@
 //   Binary file — opaque bytes (an image, a pdf, …):
 //       file/binary
 //
-//   Directories:
-//       dir          — a plain OS directory
-//       dir/yamlover — a directory carrying a `.yo/` marker; descendants are yamlover
+//   Directories — a plain folder, or one carrying an INSTANCE OVERLAY. The two overlay
+//   flavors differ only in WHERE the overlay is kept; descendants are yamlover either way:
+//       dir           — a plain OS directory
+//       dir/.yo       — the overlay is `.yo/body.yo`, under the hidden control subdirectory
+//       dir/index.yo  — the overlay is `index.yo`, a plain file inside the directory itself
+//                       (never rendered as a key, so such a dir cannot hold one named `index.yo`)
 //
 //   Multi-document — one file holding several `---`-separated documents, each an
 //   element of the singular concrete (RESERVED — multi-doc parsing is Phase 2c):
@@ -35,9 +38,20 @@ export type FileConcrete =
   | "file/yaml"
   | "file/yamlover"
   | "file/binary";
-export type DirConcrete = "dir" | "dir/yamlover";
+export type DirConcrete = "dir" | "dir/.yo" | "dir/index.yo";
 export type MultiConcrete = "multi-yaml" | "multi-yamlover";
 export type Concrete = Inlined | FileConcrete | DirConcrete | MultiConcrete;
+
+// --------------------------------------------------------------------------- //
+// The overlay vocabulary — the names a directory concrete is spelled with on disk
+// --------------------------------------------------------------------------- //
+
+/** The hidden control subdirectory that marks a `dir/.yo`. */
+export const OVERLAY_DIR = ".yo";
+/** The instance overlay inside the control subdirectory. */
+export const BODY_FILE = "body.yo";
+/** The instance overlay of a `dir/index.yo`, sitting in the directory it controls. */
+export const INDEX_FILE = "index.yo";
 
 const JSON_FAMILY = new Set<string>(["json", "json5", "json5p"]);
 const YAML_FAMILY = new Set<string>(["yaml", "yamlover"]);
@@ -70,9 +84,32 @@ export function isBinaryConcrete(c?: string | null): boolean {
   return c === "file/binary";
 }
 
-/** A directory concrete (`dir` or `dir/yamlover`). */
+/** A directory concrete (`dir`, `dir/.yo` or `dir/index.yo`). */
 export function isDirConcrete(c?: string | null): boolean {
-  return c === "dir" || c === "dir/yamlover";
+  return c === "dir" || c === "dir/.yo" || c === "dir/index.yo";
+}
+
+/** A directory concrete carrying an INSTANCE OVERLAY — the two flavors that make a folder a
+ *  yamlover document (a plain `dir` is a bare mapping). */
+export function isOverlayDirConcrete(c?: string | null): boolean {
+  return c === "dir/.yo" || c === "dir/index.yo";
+}
+
+/** The directory concrete a folder's shape implies. `names` are its own child names and
+ *  `hasOverlayBody` says whether `.yo/body.yo` exists. An `index.yo` names the concrete only
+ *  when no `.yo/body.yo` competes with it: carrying BOTH overlays is a layout violation
+ *  (`layout/duplicate-overlay`), and the `.yo/` one wins so the tree still reads while the
+ *  doctor reports it. */
+export function dirConcreteFor(names: readonly string[], hasOverlayBody: boolean): DirConcrete {
+  if (names.includes(INDEX_FILE) && !hasOverlayBody) return "dir/index.yo";
+  return names.includes(OVERLAY_DIR) ? "dir/.yo" : "dir";
+}
+
+/** Where a directory concrete keeps its INSTANCE OVERLAY, as path segments relative to the
+ *  directory: `index.yo` for a `dir/index.yo`, `.yo/body.yo` for every other directory — the
+ *  form a plain `dir` materializes into when it first gains body content. */
+export function overlaySegs(c?: string | null): string[] {
+  return c === "dir/index.yo" ? [INDEX_FILE] : [OVERLAY_DIR, BODY_FILE];
 }
 
 /** A multi-document concrete (`multi-yaml` / `multi-yamlover`). */

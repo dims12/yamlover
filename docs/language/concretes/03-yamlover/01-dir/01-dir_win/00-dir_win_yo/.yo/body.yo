@@ -1,7 +1,0 @@
-dir/win/.yo
-description: The same .yo overlay contract over case-insensitive names; the engine calls it dir/yamlover
-- >
-  A dir/win carrying the control `.yo/` subdirectory - the very same overlay contract as
-  [dir/posix/.yo](::language:concretes:03-yamlover:01-dir:00-dir_posix:00-dir_posix_yo),
-  over case-insensitive names; the engine's name for either flavor is `dir/yamlover`:
-- *..:..:00-dir_posix:00-dir_posix_yo

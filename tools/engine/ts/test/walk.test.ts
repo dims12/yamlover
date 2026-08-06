@@ -652,6 +652,48 @@ test('a .yo holding only the overlay + index db adds NO node (plain dirs keep th
   rmSync(root, { recursive: true, force: true });
 });
 
+test('dir/index.yo: the overlay is a plain `index.yo`, CONSUMED rather than listed', () => {
+  // the second overlay flavor (docs/language/concretes/03-yamlover/01-dir/01-dir_index_yo):
+  // everything `.yo/body.yo` says, said by a file inside the directory it controls.
+  const root = mkdtempSync(join(tmpdir(), 'yo-indexyo-'));
+  try {
+    const dir = join(root, 'julia');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'name'), 'Julia\n');
+    writeFileSync(join(dir, 'index.yo'), 'A person\nage: 42\n- *: name\n');
+    const s = new Store(':memory:');
+    s.indexDocument(walkDir(root));
+    assert.equal(s.node(':julia')?.value, 'A person'); // the overlay's SCALAR self-value
+    assert.equal(s.node(':julia:age')?.value, 42);     // an overlay-only key
+    assert.equal(s.node(':julia:name')?.value, 'Julia');
+    assert.equal(s.node(':julia:index.yo'), null);     // never an entry
+    assert.ok(!s.children(':julia').map((c) => c.label).includes('index.yo'));
+    assert.deepEqual(s.dangling(), []);                // `- *: name` granted the position
+    s.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('both overlays present: `.yo/body.yo` WINS and the index.yo stops being data (duplicate-overlay)', () => {
+  const root = mkdtempSync(join(tmpdir(), 'yo-dupoverlay-'));
+  try {
+    const dir = join(root, 'julia');
+    mkdirSync(join(dir, '.yo'), { recursive: true });
+    writeFileSync(join(dir, '.yo', 'body.yo'), 'from the marker\n');
+    writeFileSync(join(dir, 'index.yo'), 'from the file\n');
+    const s = new Store(':memory:');
+    s.indexDocument(walkDir(root));
+    assert.equal(s.node(':julia')?.value, 'from the marker');
+    // the loser is an ordinary member again — visible, so the tree still reads while the
+    // doctor reports the violation
+    assert.equal(s.node(':julia:index.yo')?.value, 'from the file');
+    s.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('ANCHORED members route through the items schema — a bannerless member folds the same in every face', () => {
   // the reported face split: a member born WITHOUT its own `!!<…>` banner got no format at
   // all (items propagation skipped keyed entries; anchored members are keyed) — the read

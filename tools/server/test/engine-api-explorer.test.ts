@@ -12,7 +12,7 @@ const TAG_FILE = { "tags.yo": 'yellow: !!<*yamlover: $defs: tag>\n  color: "#f9e
 const TAG = ":tags.yo:yellow";
 
 describe("concrete (stat-derived)", () => {
-  it("reports the per-node concrete: dir / dir/yamlover / file-backed / inlined language", async () => {
+  it("reports the per-node concrete: dir / dir/.yo / file-backed / inlined language", async () => {
     const root = tmpTree({
       "sub/name": "Alice",
       "d/.yo/body.yo": "m:\n  x: 1\n",
@@ -22,13 +22,13 @@ describe("concrete (stat-derived)", () => {
     await h.ready;
 
     expect((await nodeJson(h, { path: ":sub" })).json.concrete).toBe("dir");
-    expect((await nodeJson(h, { path: ":d" })).json.concrete).toBe("dir/yamlover");
+    expect((await nodeJson(h, { path: ":d" })).json.concrete).toBe("dir/.yo");
     // a stray extensionless text file → a file-backed scalar
     expect((await nodeJson(h, { path: ":top" })).json.concrete).toBe("file/yaml");
     // an interior mapping (inside the d document) reports the document's inlined language
     expect((await nodeJson(h, { path: ":d:m" })).json.concrete).toBe("yamlover");
     // the served root is a `.yo`-backed directory
-    expect((await nodeJson(h, { path: ":" })).json.concrete).toBe("dir/yamlover");
+    expect((await nodeJson(h, { path: ":" })).json.concrete).toBe("dir/.yo");
   });
 
   it("rides the member link markers and the TOC tree", async () => {
@@ -41,12 +41,12 @@ describe("concrete (stat-derived)", () => {
 
     const value = (await nodeJson(h, { path: ":" })).json.value;
     expect(value.sub.$yamloverLink.concrete).toBe("dir");
-    expect(value.d.$yamloverLink.concrete).toBe("dir/yamlover");
+    expect(value.d.$yamloverLink.concrete).toBe("dir/.yo");
 
     const tree = call(h, "/api/tree", { path: ":" }).json;
     const byLabel = Object.fromEntries(tree.children.map((c: { label: string }) => [c.label, c]));
     expect(byLabel.sub.concrete).toBe("dir");
-    expect(byLabel.d.concrete).toBe("dir/yamlover");
+    expect(byLabel.d.concrete).toBe("dir/.yo");
     const m = byLabel.d.children.find((c: { label: string }) => c.label === "m");
     expect(m.concrete).toBe("yamlover"); // interior of the d document → its inlined language
   });

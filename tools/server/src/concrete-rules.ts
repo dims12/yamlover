@@ -23,37 +23,45 @@
 
 import { isDirConcrete, interiorOf, pointerSafeName, type Inlined } from "./concrete";
 
+/** The directory concrete a new member of a `parent`-stored node takes: the parent's OWN overlay
+ *  flavor, so an `index.yo` chapter grows `index.yo` members and a `.yo/` chapter `.yo/` ones.
+ *  Anything else (a plain `dir`, a file, an inline node) births the `.yo/` form. */
+function dirFlavorOf(parent: string | null | undefined): "dir/.yo" | "dir/index.yo" {
+  return parent === "dir/index.yo" ? "dir/index.yo" : "dir/.yo";
+}
+
 // --------------------------------------------------------------------------- //
 // Child creation — the concretes offered, the default picked
 // --------------------------------------------------------------------------- //
 
 /** A creatable child's storage form (the create menu's vocabulary). */
-export type ChildConcrete = "yamlover" | "file/yamlover" | "dir/yamlover";
+export type ChildConcrete = "yamlover" | "file/yamlover" | "dir/.yo" | "dir/index.yo";
 
 /** The concretes a NEW child of a `parent`-stored node may take (the create menu's rows).
  *  A CHILD of a document (any storage) may be inline in the parent's source, a linked file,
  *  or a linked directory; a MEMBER of a plain directory has no source to be inline in —
- *  file or directory only. */
+ *  file or directory only. The DIRECTORY row is the parent's own overlay flavor
+ *  ({@link dirFlavorOf}): one menu entry, spelled the way this branch of the tree is spelled. */
 export function allowedChildConcretes(parent: string | null | undefined, kind: "child" | "member"): ChildConcrete[] {
-  void parent; // today the allowed SET does not depend on the parent — the default does
-  return kind === "member" ? ["file/yamlover", "dir/yamlover"] : ["yamlover", "file/yamlover", "dir/yamlover"];
+  const dir = dirFlavorOf(parent);
+  return kind === "member" ? ["file/yamlover", dir] : ["yamlover", "file/yamlover", dir];
 }
 
 /** THE INHERITANCE RULE — the default concrete for a NEW child when the author picks none:
  *  a directory-concrete parent keeps its children directory-concrete (a sub-container of a
- *  directory stays a directory; a subchapter of a dir chapter becomes a subdirectory member);
- *  everything else stays inline in the parent's source. */
+ *  directory stays a directory; a subchapter of a dir chapter becomes a subdirectory member),
+ *  in the parent's own overlay flavor; everything else stays inline in the parent's source. */
 export function defaultChildConcrete(parent: string | null | undefined): ChildConcrete {
-  return isDirConcrete(parent) ? "dir/yamlover" : "yamlover";
+  return isDirConcrete(parent) ? dirFlavorOf(parent) : "yamlover";
 }
 
 /** Whether a freshly wrapped SUBCHAPTER of a document stored as `parent` MATERIALIZES as its
  *  own directory member the moment it gains body content (the chapter editor's deferred
  *  Tab-wrap rule, docs/documents/chapter/attaching) — the same inheritance as
  *  {@link defaultChildConcrete}, asked with the enclosing DOCUMENT's concrete: the edited
- *  root's, or a just-materialized member's own (`dir/yamlover` from birth). */
+ *  root's, or a just-materialized member's own (directory-concrete from birth). */
 export function subchapterMaterializes(parent: string | null | undefined): boolean {
-  return defaultChildConcrete(parent) === "dir/yamlover";
+  return isDirConcrete(defaultChildConcrete(parent));
 }
 
 /** THE LANGUAGE LOCK (obligatory): the inlined language content inside a document stored as
@@ -85,8 +93,8 @@ export type MemberEncoding = "body" | "dir" | "dir-seq";
  *     promoting one would leave a `- *: itemNN` pointer inside the content unit, which the
  *     positional addressing the editor uses cannot descend through (the reported
  *     "cannot descend into a scalar element" sync failures);
- *   - everything else — a keyed scalar, an ordinal scalar, a flow one-liner — → the parent's
- *     `.yo/body.yo` overlay (created on demand).
+ *   - everything else — a keyed scalar, an ordinal scalar, a flow one-liner — → the parent's own
+ *     instance overlay, `.yo/body.yo` or `index.yo` by its flavor (created on demand).
  *  An explicit `concrete:` on the edit always overrides this derivation. */
 export function deriveMemberEncoding(child: { keyed: boolean; container: boolean; tagged?: boolean; insideContent?: boolean }): MemberEncoding {
   if (child.insideContent) return "body";
@@ -191,7 +199,7 @@ export function nextItemName(names: readonly string[]): string {
 /** The observed state of a DIRECTORY edit target — everything the routing decision needs.
  *  The caller gathers it (engine-api owns the I/O and the index); the decision lives here. */
 export interface DirTargetState {
-  hasBody: boolean; // `.yo/body.yo` exists on disk
+  hasBody: boolean; // the directory's instance overlay (`.yo/body.yo` or `index.yo`) exists on disk
   indexedAsDocument: boolean; // the index knows the directory as a document root
 }
 

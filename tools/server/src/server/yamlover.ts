@@ -3,7 +3,7 @@
  *
  * It materializes the single *logical* node of a yamlover entity from any of its
  * concrete representations (a plain file, a plain directory, or a directory
- * carrying `.yamlover/schema.yaml`), resolving where every value actually lives —
+ * carrying a `.yo/` overlay), resolving where every value actually lives —
  * inline `const`, a `file/yaml` / `file/json` / `file/binary` child, a collapsed
  * file, an expanded subdirectory, a `$ref` into `$defs`. The result is one tree
  * of {@link YNode}s the web server serves as JSON, JSON Schema, and a TOC.
@@ -132,7 +132,7 @@ export function loadEntity(entityPath: string, knownDir?: boolean): YNode {
     if (isFile(schemaPath)) {
       const schema = yaml.load(fs.readFileSync(schemaPath, "utf-8")) as Schema;
       const node = resolve(schema, entityPath, null, true, schema);
-      node.concrete = "dir/yamlover"; // a directory carrying a `.yamlover/` marker
+      node.concrete = "dir/.yo"; // a directory carrying a `.yo/` marker
       node.path = entityPath;
       annotate(node, schema);
       return node;
@@ -749,7 +749,7 @@ function virtualChildren(node: YNode): Record<string, string> {
  *  anchor an absolute (`/…`) pointer is written relative to. Falls back to root. */
 function entityRootSegs(root: YNode, segs: Seg[]): Seg[] {
   for (let i = segs.length; i >= 0; i--)
-    if (getNode(root, segs.slice(0, i)).concrete === "dir/yamlover") return segs.slice(0, i);
+    if (getNode(root, segs.slice(0, i)).concrete === "dir/.yo") return segs.slice(0, i);
   return [];
 }
 

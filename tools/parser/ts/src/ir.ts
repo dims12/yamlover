@@ -32,9 +32,9 @@ export interface Comment {
 export interface SourceInfo {
   /** The document's source language — the whole file/stream this Document was parsed from.
    *  This is the DOCUMENT-level vocabulary; the richer PER-NODE storage taxonomy (file/…,
-   *  dir/yamlover, inlined languages) lives on the materialized nodes — see docs/language/concretes.
+   *  dir/.yo, inlined languages) lives on the materialized nodes — see docs/language/concretes.
    *  `multi-yaml` / `multi-yamlover` are reserved for multi-document streams (Phase 2c). */
-  concrete: 'json' | 'json5' | 'json5p' | 'yaml' | 'yamlover' | 'directory' | 'multi-yaml' | 'multi-yamlover';
+  concrete: 'json' | 'json5' | 'json5p' | 'yaml' | 'yamlover' | 'dir' | 'multi-yaml' | 'multi-yamlover';
   uri: string;
 }
 

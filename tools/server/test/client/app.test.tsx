@@ -17,7 +17,7 @@ vi.mock("../../src/client/api", () => ({
   fetchNode: vi.fn().mockResolvedValue({
     path: ":",
     type: "object",
-    concrete: "dir/yamlover",
+    concrete: "dir/.yo",
     title: null,
     description: null,
     value: {},
@@ -98,13 +98,13 @@ describe("App", () => {
       format: null,
       concrete: null,
       hasChildren: true,
-      children: [{ path: ":ch", label: "ch", type: "object", format: "x-yamlover-chapter", concrete: "dir/yamlover", hasChildren: false, children: [] }],
+      children: [{ path: ":ch", label: "ch", type: "object", format: "x-yamlover-chapter", concrete: "dir/.yo", hasChildren: false, children: [] }],
     });
     // … reached from the ROOT's yamlover data view as a depth continuation link
     vi.mocked(fetchNode).mockResolvedValue({
       path: ":",
       type: "object",
-      concrete: "dir/yamlover",
+      concrete: "dir/.yo",
       title: null,
       description: null,
       value: { ch: { $yamloverLink: { kind: "object", count: 2, path: ":ch" } } },

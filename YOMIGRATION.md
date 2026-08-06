@@ -42,7 +42,7 @@ Fill the **Decision** column: `switch` (rename to `yo`), `alias` (accept both, e
 | 1  | File extension `.yamlover`                                  | alias    | new files are born `.yo`; readers accept both `.yo` and `.yamlover` |
 | 2  | Overlay directory `.yamlover/`                              | switch   | `.yo/` — repo's own trees renamed in the same change; old external trees need a one-time rename |
 | 3  | Overlay file names `body/meta/settings.yamlover`            | switch   | `body.yo` / `meta.yo` / `settings.yo` |
-| 4  | Concrete ids (`yamlover`, `file/yamlover`, `dir/yamlover`)  | keep     | `ir.json` goldens untouched |
+| 4  | Concrete ids (`yamlover`, `file/yamlover`, `dir/.yo`)  | keep     | `ir.json` goldens untouched |
 | 5  | yed dialect id `yamlover`                                   | keep     |       |
 | 6  | Format names `x-yamlover-*`                                 | keep     |       |
 | 7  | JSON API marker keys `$yamlover*`                           | keep     |       |
@@ -152,7 +152,7 @@ Doubly defaulted: the fixed basenames AND the extension inside them.
   `.yamlover/` (`body`, `meta`, `settings`), `doc/.yamlover/settings.yamlover`,
   `$defs/board` and `$defs/config` doc-comments.
 
-## 4. Concrete / language identifiers (`'yamlover'`, `file/yamlover`, `dir/yamlover`)
+## 4. Concrete / language identifiers (`'yamlover'`, `file/yamlover`, `dir/.yo`)
 
 Internal enum values, but they leak into goldens and API payloads.
 
@@ -160,10 +160,10 @@ Internal enum values, but they leak into goldens and API payloads.
   `'yamlover' | … | 'multi-yamlover'` (reserved).
 - `tools/server/src/concrete.ts:14,36` — the `file/yamlover` concrete;
   `tools/server/src/concrete-rules.ts:31,39` — `ChildConcrete = "yamlover" | "file/yamlover" |
-  "dir/yamlover"` (what the editor offers when a child is born).
-- `tools/server/src/validate.ts:128,373-382` — `dir/yamlover` vs marker agreement.
+  "dir/.yo"` (what the editor offers when a child is born).
+- `tools/server/src/validate.ts:128,373-382` — `dir/.yo` vs marker agreement.
 - `tools/server/src/server/engine-api.ts:1141-1157, 4409-4430, 4480` — concrete strings in the
-  edit API (`concrete: yamlover | file/yamlover | dir/yamlover | dir`) and storage reporting.
+  edit API (`concrete: yamlover | file/yamlover | dir/.yo | dir`) and storage reporting.
 - **Golden impact**: `test-examples/*/ir.json` embed `"concrete": "yamlover"` — renaming the id
   rewrites the IR goldens (mechanical, but a real diff).
 

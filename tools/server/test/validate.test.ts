@@ -66,7 +66,7 @@ describe("validatePath — the rules needing only a root-relative path", () => {
 });
 
 describe("validateWrite — the encoding rules", () => {
-  const dirTarget = n(":World", "dir/yamlover", { fsPath: "World", names: [".yo"] });
+  const dirTarget = n(":World", "dir/.yo", { fsPath: "World", names: [".yo"] });
 
   it("refuses a keyed container spliced inline instead of promoted to a directory", () => {
     const v = validateWrite(
@@ -84,12 +84,33 @@ describe("validateWrite — the encoding rules", () => {
         route: "dir",
         memberName: "Eurasia",
         writes: [
-          { kind: "dir", fsPath: "World/Eurasia", concrete: "dir/yamlover" },
+          { kind: "dir", fsPath: "World/Eurasia", concrete: "dir/.yo" },
           { kind: "overlay", fsPath: "World/Eurasia/.yo/body.yo" },
         ],
       }),
     );
     expect(v).toMatchObject({ allowed: true });
+  });
+
+  it("refuses a member named `index.yo` — the name a directory reads as its own overlay", () => {
+    const v = validateWrite(w({ target: dirTarget, route: "dir", memberName: "index.yo" }));
+    expect(v.allowed).toBe(false);
+    expect(codes(v)).toContain("layout/unsafe-member-name");
+    // the OVERLAY's own write is spelled the same and must pass
+    expect(validatePath("World/index.yo")).toMatchObject({ allowed: true });
+    expect(
+      validateWrite(
+        w({
+          target: dirTarget,
+          route: "dir",
+          memberName: "Eurasia",
+          writes: [
+            { kind: "dir", fsPath: "World/Eurasia", concrete: "dir/index.yo" },
+            { kind: "splice", fsPath: "World/Eurasia/index.yo" },
+          ],
+        }),
+      ),
+    ).toMatchObject({ allowed: true });
   });
 
   it("refuses an ORDINAL container spliced inline, and allows the dir-seq plan", () => {
@@ -105,7 +126,7 @@ describe("validateWrite — the encoding rules", () => {
           route: "dir-seq",
           memberName: "item01",
           writes: [
-            { kind: "dir", fsPath: "World/item01", concrete: "dir/yamlover" },
+            { kind: "dir", fsPath: "World/item01", concrete: "dir/.yo" },
             { kind: "splice", fsPath: "World/.yo/body.yo" },
           ],
         }),
@@ -142,8 +163,8 @@ describe("validateWrite — the encoding rules", () => {
 
   it("refuses a keyed member whose key already names a child, but not a dir-seq name", () => {
     const names = ["Eurasia", ".yo"];
-    const target = n(":World", "dir/yamlover", { fsPath: "World", names });
-    expect(codes(validateWrite(w({ target, route: "dir", memberName: "Eurasia", writes: [{ kind: "dir", fsPath: "World/Eurasia", concrete: "dir/yamlover" }] })))).toContain(
+    const target = n(":World", "dir/.yo", { fsPath: "World", names });
+    expect(codes(validateWrite(w({ target, route: "dir", memberName: "Eurasia", writes: [{ kind: "dir", fsPath: "World/Eurasia", concrete: "dir/.yo" }] })))).toContain(
       "layout/duplicate-member",
     );
     // dir-seq names go through uniqueName/nextMemberName — a collision is renamed, not refused.
@@ -158,7 +179,7 @@ describe("validateWrite — the encoding rules", () => {
   });
 
   it("imposes no interior language on a directory parent", () => {
-    const parent = n(":World", "dir/yamlover", { fsPath: "World" });
+    const parent = n(":World", "dir/.yo", { fsPath: "World" });
     expect(validateWrite(w({ parent, childLanguage: "yamlover", writes: [] }))).toMatchObject({ allowed: true });
   });
 
@@ -175,9 +196,9 @@ describe("validateTree — the doctor sweep", () => {
   it("passes a well-formed tree", () => {
     const v = validateTree({
       nodes: [
-        n(":", "dir/yamlover", { fsPath: "", names: [".yo", "World"] }),
+        n(":", "dir/.yo", { fsPath: "", names: [".yo", "World"] }),
         n(":.yo", "dir", { fsPath: ".yo", names: ["settings.yo", "index.db"] }),
-        n(":World", "dir/yamlover", { fsPath: "World", names: [".yo", "Eurasia"] }),
+        n(":World", "dir/.yo", { fsPath: "World", names: [".yo", "Eurasia"] }),
         n(":World:.yo", "dir", { fsPath: "World/.yo", names: ["body.yo"] }),
         n(":World:Eurasia", "dir", { fsPath: "World/Eurasia", names: [] }),
         n(":note.yo", "file/yamlover", { fsPath: "note.yo" }),
@@ -192,11 +213,27 @@ describe("validateTree — the doctor sweep", () => {
   });
 
   it("finds an overlay holding only sidecar blobs, but allows a meta-only marker", () => {
-    const parent = n(":a", "dir/yamlover", { fsPath: "a", names: [".yo"] });
+    const parent = n(":a", "dir/.yo", { fsPath: "a", names: [".yo"] });
     const blobs = n(":a:.yo", "dir", { fsPath: "a/.yo", names: ["thumbnails"] });
     expect(codes(validateTree({ nodes: [parent, blobs] }))).toContain("layout/orphan-overlay");
     const metaOnly = n(":a:.yo", "dir", { fsPath: "a/.yo", names: ["meta.yo"] });
     expect(validateTree({ nodes: [parent, metaOnly] })).toMatchObject({ allowed: true });
+  });
+
+  it("allows a `.yo/` with no body of its own when the body is the directory's `index.yo`", () => {
+    // the overlay dir is UNAFFECTED by the flavor — only the instance overlay moved out, and
+    // what stays behind (schema, cache, sidecars) is read and written exactly as before
+    const parent = n(":a", "dir/index.yo", { fsPath: "a", names: ["index.yo", ".yo"] });
+    for (const names of [["thumbnails"], ["index.db"], ["meta.yo", "fragments"]]) {
+      const overlay = n(":a:.yo", "dir", { fsPath: "a/.yo", names });
+      expect(validateTree({ nodes: [parent, overlay] }), names.join()).toMatchObject({ allowed: true });
+    }
+  });
+
+  it("allows an overlay holding only a `.trash` archive — the one copy of what was deleted", () => {
+    const parent = n(":a", "dir/.yo", { fsPath: "a", names: [".yo"] });
+    const trashOnly = n(":a:.yo", "dir", { fsPath: "a/.yo", names: [".trash"] });
+    expect(validateTree({ nodes: [parent, trashOnly] })).toMatchObject({ allowed: true });
   });
 
   it("finds a nested overlay in the tree too, not only pre-flight", () => {
@@ -205,12 +242,30 @@ describe("validateTree — the doctor sweep", () => {
   });
 
   it("finds a concrete disagreeing with the shape backing it", () => {
-    const marker = n(":a", "dir/yamlover", { fsPath: "a", names: ["x.yo"] });
+    const marker = n(":a", "dir/.yo", { fsPath: "a", names: ["x.yo"] });
     expect(codes(validateTree({ nodes: [marker] }))).toContain("layout/concrete-mismatch");
     const plain = n(":b", "dir", { fsPath: "b", names: [".yo"] });
     expect(codes(validateTree({ nodes: [plain] }))).toContain("layout/concrete-mismatch");
     const mistyped = n(":c.json", "file/yaml", { fsPath: "c.json" });
     expect(codes(validateTree({ nodes: [mistyped] }))).toContain("layout/concrete-mismatch");
+    const noIndex = n(":d", "dir/index.yo", { fsPath: "d", names: ["x.yo"] });
+    expect(codes(validateTree({ nodes: [noIndex] }))).toContain("layout/concrete-mismatch");
+    const unclaimed = n(":e", "dir", { fsPath: "e", names: ["index.yo"] });
+    expect(codes(validateTree({ nodes: [unclaimed] }))).toContain("layout/concrete-mismatch");
+  });
+
+  it("allows an index.yo overlay, alone or beside a `.yo/` holding no body", () => {
+    const lone = n(":a", "dir/index.yo", { fsPath: "a", names: ["index.yo", "name"] });
+    expect(validateTree({ nodes: [lone] })).toMatchObject({ allowed: true });
+    const withMeta = n(":b", "dir/index.yo", { fsPath: "b", names: ["index.yo", ".yo"] });
+    const metaOnly = n(":b:.yo", "dir", { fsPath: "b/.yo", names: ["meta.yo"] });
+    expect(validateTree({ nodes: [withMeta, metaOnly] })).toMatchObject({ allowed: true });
+  });
+
+  it("refuses ONE directory carrying BOTH instance overlays", () => {
+    const dir = n(":a", "dir/.yo", { fsPath: "a", names: ["index.yo", ".yo"] });
+    const overlay = n(":a:.yo", "dir", { fsPath: "a/.yo", names: ["body.yo"] });
+    expect(codes(validateTree({ nodes: [dir, overlay] }))).toContain("layout/duplicate-overlay");
   });
 
   it("leaves a concrete alone when the extension names no data language", () => {

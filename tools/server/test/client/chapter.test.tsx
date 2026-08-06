@@ -23,7 +23,7 @@ const chapter: NodeJson = {
   path: ":",
   type: "variant",
   format: "x-yamlover-chapter",
-  concrete: "dir/yamlover",
+  concrete: "dir/.yo",
   title: "The Handbook",
   description: "A friendly guide",
   value: {
@@ -226,7 +226,7 @@ describe("ChapterView — an empty node (a folder written as a chapter)", () => 
 describe("ChapterView — inline subchapters", () => {
   /** A chapter whose body is one prose chunk then one subchapter LINK marker at `:[2]`. */
   const withSub = (subPath: string): NodeJson => ({
-    path: ":", type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover",
+    path: ":", type: "variant", format: "x-yamlover-chapter", concrete: "dir/.yo",
     documentPath: ":", title: "Book", description: null,
     value: {
       $yamloverMixed: {
@@ -241,7 +241,7 @@ describe("ChapterView — inline subchapters", () => {
 
   /** What the fetch of a subchapter returns: its own title + one chunk. */
   const subNode = (path: string, title: string, chunk: string, deeper?: unknown) => ({
-    path, documentPath: path, type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover",
+    path, documentPath: path, type: "variant", format: "x-yamlover-chapter", concrete: "dir/.yo",
     title, description: null,
     value: {
       $yamloverMixed: {
@@ -293,7 +293,7 @@ describe("ChapterView — inline subchapters", () => {
       { key: null, value: "Grouped two." },
     ] } };
     const node = {
-      path: ":", type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover", documentPath: ":",
+      path: ":", type: "variant", format: "x-yamlover-chapter", concrete: "dir/.yo", documentPath: ":",
       title: "Book", description: null,
       value: { $yamloverMixed: { kind: "omni", value: "Book", selfAt: 0, entries: [
         { key: null, value: "Opening." },
@@ -425,7 +425,7 @@ describe("ChapterView — inline subchapters", () => {
       },
     };
     const node = {
-      path: ":", type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover", documentPath: ":",
+      path: ":", type: "variant", format: "x-yamlover-chapter", concrete: "dir/.yo", documentPath: ":",
       title: "Book", description: null,
       value: { $yamloverMixed: { kind: "omni", value: "Book", selfAt: 0, entries: [{ key: null, value: inlineSub }] } },
     } as unknown as NodeJson;
@@ -442,14 +442,14 @@ describe("ChapterView — inline subchapters", () => {
 describe("ChapterView — creating inside an inlined subchapter", () => {
   it("the context menu targets the nearest enclosing chapter", async () => {
     const page = {
-      path: ":", type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover", documentPath: ":",
+      path: ":", type: "variant", format: "x-yamlover-chapter", concrete: "dir/.yo", documentPath: ":",
       title: "Book", description: null,
       value: { $yamloverMixed: { kind: "omni", value: "Book", selfAt: 0, entries: [
         { key: null, value: { $yamloverLink: { kind: "object", type: "object", format: "x-yamlover-chapter", path: ":dogs", title: "Dogs" } } },
       ] } },
     } as unknown as NodeJson;
     fetchNode.mockResolvedValue({
-      path: ":dogs", documentPath: ":dogs", type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover",
+      path: ":dogs", documentPath: ":dogs", type: "variant", format: "x-yamlover-chapter", concrete: "dir/.yo",
       title: "Dogs", description: null,
       value: { $yamloverMixed: { kind: "omni", value: "Dogs", selfAt: 0, entries: [] } },
     });

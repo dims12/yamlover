@@ -234,28 +234,28 @@ describe("creatablesFor (what/where a schema object can be created)", () => {
   it("a chapter → child concretes (inline default); a directory → member concretes (dir default); else none", () => {
     const chap = creatablesFor({ format: "x-yamlover-chapter", concrete: "yamlover" }, {});
     expect(chap).toHaveLength(1);
-    expect(chap[0].concretes.map((c) => c.id)).toEqual(["yamlover", "file/yamlover", "dir/yamlover"]);
+    expect(chap[0].concretes.map((c) => c.id)).toEqual(["yamlover", "file/yamlover", "dir/.yo"]);
     expect(chap[0].defaultConcrete).toBe("yamlover");
     expect(chap[0].label).toContain("chapter"); // schema title absent → path fallback
 
     // a DIRECTORY-concrete chapter/task defaults new subchapters to a SUBDIRECTORY (the
     // 66-pet-keeper-handbook shape); the inline/file options stay in the picker
-    const dirTask = creatablesFor({ format: "x-yamlover-task", concrete: "dir/yamlover" }, {})[0];
-    expect(dirTask.defaultConcrete).toBe("dir/yamlover");
-    expect(dirTask.concretes.map((c) => c.id)).toEqual(["yamlover", "file/yamlover", "dir/yamlover"]);
+    const dirTask = creatablesFor({ format: "x-yamlover-task", concrete: "dir/.yo" }, {})[0];
+    expect(dirTask.defaultConcrete).toBe("dir/.yo");
+    expect(dirTask.concretes.map((c) => c.id)).toEqual(["yamlover", "file/yamlover", "dir/.yo"]);
 
     const dir = creatablesFor({ concrete: "dir" }, {});
-    expect(dir[0].concretes.map((c) => c.id)).toEqual(["file/yamlover", "dir/yamlover"]);
-    expect(dir[0].defaultConcrete).toBe("dir/yamlover"); // the last / richer form
+    expect(dir[0].concretes.map((c) => c.id)).toEqual(["file/yamlover", "dir/.yo"]);
+    expect(dir[0].defaultConcrete).toBe("dir/.yo"); // the last / richer form
 
     // every filesystem directory ALSO offers a generic NODE (untagged document, default directory)
     expect(dir[1]).toEqual({
       schema: "node",
       label: "node",
-      concretes: [{ id: "file/yamlover", label: "file" }, { id: "dir/yamlover", label: "directory" }],
-      defaultConcrete: "dir/yamlover",
+      concretes: [{ id: "file/yamlover", label: "file" }, { id: "dir/.yo", label: "directory" }],
+      defaultConcrete: "dir/.yo",
     });
-    const dirChap = creatablesFor({ format: "x-yamlover-chapter", concrete: "dir/yamlover" }, {});
+    const dirChap = creatablesFor({ format: "x-yamlover-chapter", concrete: "dir/.yo" }, {});
     expect(dirChap.map((c) => c.schema)).toEqual(["::yamlover:$defs:chapter", "node"]); // dir-backed chapter: both
     expect(chap.map((c) => c.schema)).toEqual(["::yamlover:$defs:chapter"]); // inline chapter: no node — no dir to hold it
 

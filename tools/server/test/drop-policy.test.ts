@@ -12,7 +12,7 @@ describe("planNodeMove", () => {
   });
 
   it("allows a directory into a yamlover directory", () => {
-    const v = planNodeMove(n(":a:sub", "dir"), n(":b", "dir/yamlover"));
+    const v = planNodeMove(n(":a:sub", "dir"), n(":b", "dir/.yo"));
     expect(v).toMatchObject({ allowed: true, plan: { to: ":b:sub" } });
   });
 

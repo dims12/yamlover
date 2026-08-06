@@ -72,7 +72,7 @@ describe("GET /api/content — the yamlover wire over examples/74-deep-book", ()
     const env = await getContent(h, "");
     expect(env.status).toBe(200);
     expect(env.header.path).toBe(":");
-    expect(env.header.concrete).toBe("dir/yamlover");
+    expect(env.header.concrete).toBe("dir/.yo");
     expect(env.header.depth).toBe(1);
     // the root document's own text is whole: title, description, prose, the empty chunk
     expect((env.root as Node & { value?: unknown }).value).toBe("The Deep Book");

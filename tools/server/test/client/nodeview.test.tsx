@@ -148,7 +148,7 @@ describe("NodeView", () => {
     // markers and a multiline chunk rendered as invalid inline multiline text. No `?depth=` → default `.inf`.
     window.history.replaceState({}, "", "/");
     mNode.mockReset();
-    mNode.mockResolvedValue({ path: ":66", type: "variant", format: "x-yamlover-chapter", concrete: "dir/yamlover",
+    mNode.mockResolvedValue({ path: ":66", type: "variant", format: "x-yamlover-chapter", concrete: "dir/.yo",
       title: null, description: null, value: { $yamloverMixed: { kind: "mix", entries: [] } } });
     render(<NodeView path=":66" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await waitFor(() => expect(mNode).toHaveBeenCalledWith(":66", null)); // .inf refetch past the depth-1 settle
@@ -156,7 +156,7 @@ describe("NodeView", () => {
 
   it("ENABLES the json5p tab only for a json-family file — elsewhere it stays in place, disabled", async () => {
     mNode.mockResolvedValue({
-      path: ":x", type: "object", concrete: "dir/yamlover", title: null, description: null, value: { name: "Alice" },
+      path: ":x", type: "object", concrete: "dir/.yo", title: null, description: null, value: { name: "Alice" },
     });
     render(<NodeView path=":x" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("Alice");
@@ -238,7 +238,7 @@ describe("NodeView", () => {
   });
 
   it("renders the instance schema in the yamlover/schema tab", async () => {
-    mNode.mockResolvedValue({ path: ":x", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":x", type: "object", concrete: "dir/.yo", title: null, description: null, value: {} });
     mSchema.mockResolvedValue({ type: "object", properties: { name: { const: "Alice" } } });
     render(<NodeView path=":x" format="yamlover/schema" onFormat={() => {}} onNavigate={() => {}} />);
     expect(await screen.findByText("Alice")).toBeTruthy();
@@ -246,35 +246,35 @@ describe("NodeView", () => {
 
   it("sets the document title to `<schema title> - <ancestor path>` when the node has one", async () => {
     // a dir-concrete node now defaults to the explorer view (an empty grid here)
-    mNode.mockResolvedValue({ path: ":book", type: "object", concrete: "dir/yamlover", title: "My Book", description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":book", type: "object", concrete: "dir/.yo", title: "My Book", description: null, value: {} });
     render(<NodeView path=":book" format="yaml" rootLabel="examples" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("empty");
     expect(document.title).toBe("My Book - examples");
   });
 
   it("falls back to the node's path name when it has no title", async () => {
-    mNode.mockResolvedValue({ path: ":chapters[2]", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":chapters[2]", type: "object", concrete: "dir/.yo", title: null, description: null, value: {} });
     render(<NodeView path=":chapters[2]" format="yaml" rootLabel="examples" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("empty");
     expect(document.title).toBe("2 - examples: chapters");
   });
 
   it("the ancestor path drops its separator while the root label hasn't loaded yet", async () => {
-    mNode.mockResolvedValue({ path: ":a:b", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":a:b", type: "object", concrete: "dir/.yo", title: null, description: null, value: {} });
     render(<NodeView path=":a:b" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("empty");
     expect(document.title).toBe("b - a");
   });
 
   it("the root (no path) shows its title alone", async () => {
-    mNode.mockResolvedValue({ path: ":", type: "object", concrete: "dir/yamlover", title: "My Root", description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":", type: "object", concrete: "dir/.yo", title: "My Root", description: null, value: {} });
     render(<NodeView path=":" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("empty");
     expect(document.title).toBe("My Root");
   });
 
   it("a titleless root falls back to the CLI ROOT's label (the TOC's first row)", async () => {
-    mNode.mockResolvedValue({ path: ":", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":", type: "object", concrete: "dir/.yo", title: null, description: null, value: {} });
     render(<NodeView path=":" format="yaml" rootLabel="yamlover-examples" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("empty");
     expect(document.title).toBe("yamlover-examples");
@@ -391,7 +391,7 @@ describe("chapter media drop — targets the ENCLOSING chapter section", () => {
   const chapterPage = () => {
     const sub = mixed({ kind: "omni", value: "Dogs", selfAt: 0, entries: [{ key: null, value: "woof" }] });
     mNode.mockResolvedValue({
-      path: ":doc", type: "mixed", format: "x-yamlover-chapter", concrete: "dir/yamlover", documentPath: ":doc",
+      path: ":doc", type: "mixed", format: "x-yamlover-chapter", concrete: "dir/.yo", documentPath: ":doc",
       title: "Book", description: null,
       value: mixed({
         kind: "omni", value: "Book", selfAt: 0, format: "x-yamlover-chapter",
@@ -427,7 +427,7 @@ describe("chapter media drop — targets the ENCLOSING chapter section", () => {
 
 describe("link paste (arXiv, tweets)", () => {
   it("pasting an arXiv link downloads the PDF and uploads it via the file-paste flow", async () => {
-    mNode.mockResolvedValue({ path: ":papers", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":papers", type: "object", concrete: "dir/.yo", title: null, description: null, value: {} });
     mPasteFile.mockResolvedValue({ path: ":papers:arxiv-2605.00615.pdf", dir: ":papers", open: false });
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(["PDF"], { type: "application/pdf" }) });
     vi.stubGlobal("fetch", fetchMock);
@@ -452,7 +452,7 @@ describe("link paste (arXiv, tweets)", () => {
   });
 
   it("a failed download reports and never uploads", async () => {
-    mNode.mockResolvedValue({ path: ":papers", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":papers", type: "object", concrete: "dir/.yo", title: null, description: null, value: {} });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404 }));
 
     try {
@@ -467,7 +467,7 @@ describe("link paste (arXiv, tweets)", () => {
   });
 
   it("pasting an HTML selection with an image and a heading goes through the RICH flow", async () => {
-    mNode.mockResolvedValue({ path: ":wiki", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":wiki", type: "object", concrete: "dir/.yo", title: null, description: null, value: {} });
     mPasteRich.mockResolvedValue({ path: ":wiki", chapter: ":wiki" });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, blob: async () => new Blob(["JPG"], { type: "image/jpeg" }) }));
 
@@ -493,7 +493,7 @@ describe("link paste (arXiv, tweets)", () => {
   });
 
   it("formatted HTML without images or headings still pastes as plain TEXT", async () => {
-    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "dir/.yo", title: null, description: null, value: {} });
     mPasteText.mockResolvedValue({ path: ":notes", chapter: ":notes" });
 
     render(<NodeView path=":notes" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
@@ -508,7 +508,7 @@ describe("link paste (arXiv, tweets)", () => {
   });
 
   it("dropping an OS file shows the unified confirm popup — uploading only on confirm", async () => {
-    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "dir/.yo", title: null, description: null, value: {} });
     mPasteFile.mockResolvedValue({ path: ":notes:x.png", dir: ":notes", open: false });
 
     render(<NodeView path=":notes" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
@@ -529,7 +529,7 @@ describe("link paste (arXiv, tweets)", () => {
   });
 
   it("cancelling the drop confirm uploads nothing", async () => {
-    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "dir/.yo", title: null, description: null, value: {} });
 
     render(<NodeView path=":notes" format="yaml" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByText("empty");
@@ -542,7 +542,7 @@ describe("link paste (arXiv, tweets)", () => {
   });
 
   it("pasting a tweet link fetches the full message via oEmbed and pastes it as TEXT", async () => {
-    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} });
+    mNode.mockResolvedValue({ path: ":notes", type: "object", concrete: "dir/.yo", title: null, description: null, value: {} });
     mPasteText.mockResolvedValue({ path: ":notes", chapter: ":notes" });
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

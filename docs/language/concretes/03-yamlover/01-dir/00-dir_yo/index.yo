@@ -1,0 +1,30 @@
+dir/.yo
+description: Directory with the control .yo subdirectory - the overlays live under it
+- >
+  A dir carrying the hidden control subdirectory `.yo/`. The directory itself becomes a yamlover
+  NODE, and the overlays add what bare disk cannot say:
+- !!<format: text/plain> |
+  .yo/
+    body.yo      - the INSTANCE overlay: data values over the directory
+    meta.yo      - the METADATA schema: types, formats, presentation
+    settings.yo  - project configuration (the served root only)
+    index.db     - engine cache (derived)
+    fragments/   - image crops a body key points at (derived)
+    thumbnails/  - preview renderings of a blob member (derived)
+    .trash/      - storage of DETACHED members, kept recoverable
+- >
+  `body.yo` is the instance overlay - a scalar SELF-VALUE for the directory, extra keyed fields
+  no file holds, pointers, anchors and back-edges, and ORDER: its positional pointer-array
+  (`- *file1 ...`) grants positions to the children it names, and disk has none - this is exactly
+  what lifts the plain dir's no-lists and no-scalar limits. `meta.yo` is the metadata schema -
+  types, formats, decoding, what turns a file's bytes into a value. Either overlay is optional,
+  and the mere presence of `.yo/` is the marker that promotes the concrete.
+- >
+  The overlay subtree is HIDDEN, not secret: `body.yo`, `meta.yo` and the index cache are read by
+  the engine and never appear as entries, while `settings.yo` and the two sidecar directories ARE
+  indexed - hidden from the table of contents, yet addressable (`*:.yo:settings.yo`,
+  `*:.yo:thumbnails:cover.png`). `.trash/` alone is skipped ENTIRELY - a deleted member leaves the
+  projection while its storage survives here, recoverable. Nothing else may live under `.yo/` - see the
+  [layout invariants](::language:concretes:02-invariants). The storage-wide rules live in
+  [the storage axis](::language:concretes:00-storage) and the
+  [choosing rules](::language:concretes:01-choosing).

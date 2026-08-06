@@ -26,7 +26,7 @@ const node = (value: Record<string, unknown>): NodeJson => ({
   path: ":board",
   type: "object",
   format: "x-yamlover-board",
-  concrete: "dir/yamlover",
+  concrete: "dir/.yo",
   title: null,
   description: null,
   value,

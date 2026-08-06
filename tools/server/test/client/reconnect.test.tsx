@@ -22,7 +22,7 @@ vi.mock("../../src/client/api", async (orig) => {
     fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yo:settings.yo" }),
     fetchInfo: vi.fn().mockResolvedValue({ root: "myroot" }),
     fetchTree: vi.fn().mockResolvedValue({ path: ":", label: "root", type: "object", format: null, concrete: null, hasChildren: true, children: [{ path: ":a", label: "a", type: "string", format: null, concrete: null, hasChildren: false, children: [] }] }),
-    fetchNode: vi.fn().mockResolvedValue({ path: ":", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} }),
+    fetchNode: vi.fn().mockResolvedValue({ path: ":", type: "object", concrete: "dir/.yo", title: null, description: null, value: {} }),
     fetchSchema: vi.fn().mockResolvedValue({ type: "object" }),
     fetchAnnotations: vi.fn().mockResolvedValue([]),
     fetchTasks: vi.fn().mockResolvedValue([]),

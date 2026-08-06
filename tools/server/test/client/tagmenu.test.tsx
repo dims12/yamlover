@@ -207,7 +207,7 @@ describe("AnnotationMenu — create entries (split button + bare folder)", () =>
     const onCreate = vi.fn();
     const creates = [{
       schema: "::yamlover:$defs:chapter", label: "chapter", defaultConcrete: "yamlover",
-      concretes: [{ id: "yamlover", label: "inline" }, { id: "file/yamlover", label: "file" }, { id: "dir/yamlover", label: "directory" }],
+      concretes: [{ id: "yamlover", label: "inline" }, { id: "file/yamlover", label: "file" }, { id: "dir/.yo", label: "directory" }],
       onCreate,
     }];
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={noop} onUnpick={noop} onClose={noop} creates={creates} />);
@@ -227,23 +227,23 @@ describe("AnnotationMenu — create entries (split button + bare folder)", () =>
   it("the generic-node entry: a split pill defaulted to `directory`; clicking creates with it", () => {
     const onCreate = vi.fn();
     const creates = [{
-      schema: "node", label: "node", defaultConcrete: "dir/yamlover",
-      concretes: [{ id: "file/yamlover", label: "file" }, { id: "dir/yamlover", label: "directory" }],
+      schema: "node", label: "node", defaultConcrete: "dir/.yo",
+      concretes: [{ id: "file/yamlover", label: "file" }, { id: "dir/.yo", label: "directory" }],
       onCreate,
     }];
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={noop} onUnpick={noop} onClose={noop} creates={creates} />);
     const row = container.querySelector(".annotate-create.split")!;
     expect(row.querySelector("button.annotate-action")!.textContent).toBe("＋ New node");
     const select = row.querySelector("select.annotate-concrete") as HTMLSelectElement;
-    expect(select.value).toBe("dir/yamlover"); // defaulted to directory
+    expect(select.value).toBe("dir/.yo"); // defaulted to directory
     fireEvent.click(row.querySelector("button.annotate-action")!);
-    expect(onCreate).toHaveBeenCalledWith("dir/yamlover");
+    expect(onCreate).toHaveBeenCalledWith("dir/.yo");
   });
 
   it("remembers the last-picked concrete per schema across menus (localStorage)", () => {
     const entry = () => ({
       schema: "::yamlover:$defs:chapter", label: "chapter", defaultConcrete: "yamlover",
-      concretes: [{ id: "yamlover", label: "inline" }, { id: "file/yamlover", label: "file" }, { id: "dir/yamlover", label: "directory" }],
+      concretes: [{ id: "yamlover", label: "inline" }, { id: "file/yamlover", label: "file" }, { id: "dir/.yo", label: "directory" }],
       onCreate: vi.fn(),
     });
     const first = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={noop} onUnpick={noop} onClose={noop} creates={[entry()]} />);

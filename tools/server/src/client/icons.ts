@@ -1,7 +1,7 @@
 // Type/format icon for a TOC node — chosen by the schema `format`, falling back
 // to `type`. One exception to being concrete-agnostic: a node stored as an
 // on-disk directory gets a folder icon, since it really is a filesystem folder —
-// plain (`dir`, no `.yo/` marker) or a yamlover entity (`yamlover`).
+// plain (`dir`, no overlay) or a yamlover entity (`dir/.yo`, `dir/index.yo`).
 
 export interface Glyph {
   glyph: string;
@@ -86,8 +86,9 @@ export function typeIcon(type: string, format: string | null, concrete?: string 
   }
   // a plain directory (no `.yo/`) — a real OS folder
   if (concrete === "dir") return { glyph: "📁", cls: "t-struct", title: "folder" };
-  // a yamlover entity stored as a directory (a folder with a `.yo/` marker)
-  if (concrete === "dir/yamlover") return { glyph: "🗂️", cls: "t-struct", title: "yamlover folder" };
+  // a yamlover entity stored as a directory — a folder carrying an instance overlay, under the
+  // `.yo/` marker or as a plain `index.yo` (docs/language/concretes/03-yamlover/01-dir)
+  if (concrete === "dir/.yo" || concrete === "dir/index.yo") return { glyph: "🗂️", cls: "t-struct", title: "yamlover folder" };
   const t = TYPE[type];
   if (t) return { glyph: t.glyph, cls: t.cls, title: type };
   return { glyph: "•", cls: "t-bin", title: type || "unknown" };

@@ -116,7 +116,7 @@ describe("collectionRepr — the collection half of the axis", () => {
   });
 
   it("block is the default for a block-structured language", () => {
-    for (const c of ["yamlover", "yaml", "file/yamlover", "file/yaml", "dir/yamlover", null, undefined]) {
+    for (const c of ["yamlover", "yaml", "file/yamlover", "file/yaml", "dir/.yo", null, undefined]) {
       expect(collectionRepr(undefined, c), String(c)).toBe("yaml/block");
     }
   });

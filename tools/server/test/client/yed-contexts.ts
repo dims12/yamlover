@@ -80,7 +80,7 @@ export const CONTEXTS: EditContext[] = [
     name: "at the root of a DIRECTORY document",
     hosts: "any",
     prefix: "",
-    doc: { path: ":n", type: "object", concrete: "dir/yamlover", title: null, description: null, value: {} },
+    doc: { path: ":n", type: "object", concrete: "dir/.yo", title: null, description: null, value: {} },
     wrapInline: (s) => [s],
     wrapRows: (r) => r,
   },

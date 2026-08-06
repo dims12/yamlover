@@ -1,7 +1,0 @@
-dir/win
-description: Directory with case-insensitive filenames
-- >
-  On a Windows-like filesystem the filenames - hence the KEYS - are CASE INSENSITIVE: one entry
-  per case-class, `Readme` and `readme` are the SAME key. With the control `.yo` subdirectory
-  it becomes the overlay concrete - see the subchapter below:
-- *: 00-dir_win_yo

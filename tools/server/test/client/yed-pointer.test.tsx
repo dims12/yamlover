@@ -222,7 +222,7 @@ describe("yed pointer cells - the PORTION face with tree-backed completion", () 
   it("a $yamloverLink member draws the DESCEND hyperlink over a walkable atom", async () => {
     const navigate = vi.fn();
     fetchNode.mockResolvedValue({
-      path: ":d", type: "object", concrete: "dir/yamlover", title: null, description: null,
+      path: ":d", type: "object", concrete: "dir/.yo", title: null, description: null,
       value: { pic: { $yamloverLink: { path: ":d:pic", title: "the picture", format: "image/png" } } },
     });
     const utils = render(<YedEditor path=":d" onNavigate={navigate} />);

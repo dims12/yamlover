@@ -25,7 +25,7 @@ describe("irFromContent — the yed editors' load over the real wire", () => {
     await h.ready;
 
     const doc = await load(h as unknown as Handler, "");
-    expect(doc.source.concrete).toBe("dir/yamlover");
+    expect(doc.source.concrete).toBe("dir/.yo");
     expect(doc.source.uri).toBe(":");
 
     // a body-positioned member: KEYLESS entry + anchorKey provenance (the sync's address)

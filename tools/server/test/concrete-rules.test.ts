@@ -12,8 +12,13 @@ import {
 
 describe("defaultChildConcrete (the inheritance rule)", () => {
   it("a directory-concrete parent keeps its children directory-concrete", () => {
-    expect(defaultChildConcrete("dir/yamlover")).toBe("dir/yamlover");
-    expect(defaultChildConcrete("dir")).toBe("dir/yamlover");
+    expect(defaultChildConcrete("dir/.yo")).toBe("dir/.yo");
+    expect(defaultChildConcrete("dir")).toBe("dir/.yo");
+  });
+
+  it("a directory child is born in the PARENT's overlay flavor", () => {
+    expect(defaultChildConcrete("dir/index.yo")).toBe("dir/index.yo");
+    expect(subchapterMaterializes("dir/index.yo")).toBe(true);
   });
 
   it("file and inline parents keep children inline in their source", () => {
@@ -26,7 +31,7 @@ describe("defaultChildConcrete (the inheritance rule)", () => {
 
 describe("subchapterMaterializes (the deferred Tab-wrap rule)", () => {
   it("mirrors the inheritance rule: dir documents materialize, file documents stay inline", () => {
-    expect(subchapterMaterializes("dir/yamlover")).toBe(true);
+    expect(subchapterMaterializes("dir/.yo")).toBe(true);
     expect(subchapterMaterializes("file/yamlover")).toBe(false);
     expect(subchapterMaterializes(null)).toBe(false);
   });
@@ -34,12 +39,17 @@ describe("subchapterMaterializes (the deferred Tab-wrap rule)", () => {
 
 describe("allowedChildConcretes (the obligatory set)", () => {
   it("a document CHILD may be inline, a linked file, or a linked directory", () => {
-    expect(allowedChildConcretes("yamlover", "child")).toEqual(["yamlover", "file/yamlover", "dir/yamlover"]);
-    expect(allowedChildConcretes("dir/yamlover", "child")).toEqual(["yamlover", "file/yamlover", "dir/yamlover"]);
+    expect(allowedChildConcretes("yamlover", "child")).toEqual(["yamlover", "file/yamlover", "dir/.yo"]);
+    expect(allowedChildConcretes("dir/.yo", "child")).toEqual(["yamlover", "file/yamlover", "dir/.yo"]);
   });
 
   it("a plain-directory MEMBER has no source to be inline in — file or directory only", () => {
-    expect(allowedChildConcretes("dir", "member")).toEqual(["file/yamlover", "dir/yamlover"]);
+    expect(allowedChildConcretes("dir", "member")).toEqual(["file/yamlover", "dir/.yo"]);
+  });
+
+  it("the DIRECTORY row is spelled in the parent's own flavor — one offer, not two", () => {
+    expect(allowedChildConcretes("dir/index.yo", "member")).toEqual(["file/yamlover", "dir/index.yo"]);
+    expect(allowedChildConcretes("dir/index.yo", "child")).toEqual(["yamlover", "file/yamlover", "dir/index.yo"]);
   });
 });
 

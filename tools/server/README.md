@@ -177,7 +177,7 @@ the title line).
 `yamlover` is valid inline yamlover **source**, not prose — the caller escapes its own text (the web
 client through `escapeYamloverScalar`), and the server parses the fragment to validate it before
 anything is written. `meta` is a schema pointer (`*::yamlover:$defs:chapter`) written as the tag;
-`null` removes it. `concrete` (`yamlover` | `file/yamlover` | `dir/yamlover`) is accepted only where
+`null` removes it. `concrete` (`yamlover` | `file/yamlover` | `dir/.yo`) is accepted only where
 content is **born**, and rejected on an existing node — converting one is a move, not an edit.
 
 Creating an object is therefore just an `insert` carrying a `meta` and a body: a document's body

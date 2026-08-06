@@ -1,0 +1,24 @@
+dir
+description: A plain filesystem directory - an object with keyed entries
+- >
+  A **directory** is a mapping: FILENAMES are the keys, and the entries are
+  [blobs](::language:concretes:00-storage:02-binary_files) or nested documents - the
+  [storage axis](::language:concretes:00-storage) names the concretes.
+  A plain dir parses into the abstract as an OBJECT with keyed elements, and nothing
+  more: it cannot BE a list - disk has no order - and it cannot carry a scalar self-value; an
+  INSTANCE OVERLAY lifts both limits, and the two concretes below differ only in where that
+  overlay is kept. Scalar CHILDREN are fine - a small file is a scalar:
+- !!<format: text/plain> |
+  julia/
+    name       - "Julia"
+    age        - 42
+    pets/
+      cat      - "Whiskers"
+- >
+  Case sensitivity of the keys is the FILESYSTEM's, not the language's - it belongs to the entry
+  NAME, a construct of its own with the two platform concretes under it. An entry's value can be
+  ANY yamlover representation - the grammar recurses here:
+- *: 00-dir_yo
+- *: 01-dir_index_yo
+- *: 02-filename
+- *..

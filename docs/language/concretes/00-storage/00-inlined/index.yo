@@ -1,0 +1,12 @@
+Inlined
+description: a portion of a text file, in a given language
+- >
+  The value lives inside an enclosing document, and the concrete names the language it is
+  written in: `json`, `json5`, `json5p`, `yaml`, or `yamlover`. Descendants inherit the
+  language unless the syntax switches - and only two switches exist: yamlover to json5p - the
+  [K&R form](::language:concretes:03-yamlover:00-yamlover_stream:00-yamlover_code:00-yamlover_structured) -
+  and yaml to json, which the subset relation gives for free and which nothing classifies
+  today: a JSON-shaped flow token inside a `.yaml` is recorded as yaml, since every JSON code
+  already IS one.
+  yamlover can never switch to pure yaml: it is not a superset, so the interior of a `.yo`
+  document is yamlover all the way down until braces span lines.

@@ -6,7 +6,8 @@
 //
 //   LAYOUT (`layout/*`) — SCHEMA-LESS structure: where a value may live on disk. A `.yo`
 //     overlay never nests inside another; a container derived to a real directory must actually be
-//     written as one; a `dir/yamlover` owns its marker and a plain `dir` does not. These need no
+//     written as one; a directory carries ONE instance overlay, and its concrete says which
+//     (a `dir/.yo` owns its marker, a `dir/index.yo` its file, a plain `dir` neither). These need no
 //     metadata at all, so they hold for a fresh directory the user has only just started typing
 //     into — which is exactly where the corruption they catch is born.
 //
@@ -23,23 +24,26 @@
 // Paths cross this boundary as ROOT-RELATIVE POSIX strings (`a/b/.yo/body.yo`, `""`
 // for the root) — the caller converts, the way engine-api.ts already does for the index.
 
-import { baseLanguage, dataFileConcrete, isBinaryConcrete, isFileConcrete, type Inlined } from "./concrete";
+import { BODY_FILE, INDEX_FILE, OVERLAY_DIR, baseLanguage, dataFileConcrete, isBinaryConcrete, isFileConcrete, type DirConcrete, type Inlined } from "./concrete";
 import { deriveMemberEncoding, requiredChildLanguage, type DirEditRoute } from "./concrete-rules";
 
 // --------------------------------------------------------------------------- //
 // The overlay vocabulary — the ONLY names that may live inside a `.yo/`
 // --------------------------------------------------------------------------- //
 
-/** The hidden marker/overlay directory (docs/language/concretes/03-yamlover/01-dir). */
-export const OVERLAY_DIR = ".yo";
+export { OVERLAY_DIR };
 
 /** The files a `.yo/` may hold: the instance overlay, the schema, the project config, and
  *  the engine's derived index (plus SQLite's own journal siblings). */
-const OVERLAY_FILES = new Set(["body.yo", "meta.yo", "settings.yo", "index.db", "index.db-wal", "index.db-shm"]);
+const OVERLAY_FILES = new Set([BODY_FILE, "meta.yo", "settings.yo", "index.db", "index.db-wal", "index.db-shm"]);
 
-/** The sidecar subdirectories a `.yo/` may hold — derived/user blobs addressed by a
- *  `*::.yo:<subdir>:name` pointer (engine-api's CROP_SUBDIR / THUMB_SUBDIR). */
-const OVERLAY_SUBDIRS = new Set(["fragments", "thumbnails"]);
+/** The archive a detached member's storage moves into (engine-api's TRASH ON DELETE) — not
+ *  derived: while it sits here it is the ONLY copy of what was deleted. */
+const TRASH_DIR = ".trash";
+
+/** The subdirectories a `.yo/` may hold — the derived sidecar blobs addressed by a
+ *  `*::.yo:<subdir>:name` pointer (engine-api's CROP_SUBDIR / THUMB_SUBDIR), and the trash. */
+const OVERLAY_SUBDIRS = new Set(["fragments", "thumbnails", TRASH_DIR]);
 
 /** Characters no path segment may carry (the writeDirMemberTree charset, hoisted). */
 const UNSAFE_SEG = /[\\/:*?"<>|]/;
@@ -74,6 +78,7 @@ export type DiagnosticCode =
   | "layout/off-scheme-name"
   // layout — whole-tree invariants (the doctor sweep)
   | "layout/orphan-overlay"
+  | "layout/duplicate-overlay"
   | "layout/concrete-mismatch"
   // value — RESERVED for meta.yo (docs/language/model/metadata)
   | "value/type"
@@ -125,7 +130,7 @@ export interface ConcreteNode {
 /** One filesystem object a write is ABOUT to produce — the PLAN, not the deed. */
 export type PlannedWrite =
   | { kind: "file"; fsPath: string; concrete: string }
-  | { kind: "dir"; fsPath: string; concrete: "dir" | "dir/yamlover" }
+  | { kind: "dir"; fsPath: string; concrete: DirConcrete }
   | { kind: "overlay"; fsPath: string } // a `<dir>/.yo/<entry>` write
   | { kind: "splice"; fsPath: string; within?: (string | number)[] }; // an in-body edit
 
@@ -270,6 +275,19 @@ export const layoutRules: readonly LayoutRule[] = [
       }
       return out;
     },
+    // `index.yo` is the OTHER reserved name — the `dir/index.yo` flavor consumes it as the
+    // directory's own overlay, so a member of that name would be swallowed rather than listed.
+    // Judged on the member NAME, not on the path: the overlay's own write is spelled the same.
+    onWrite(snap) {
+      if (snap.memberName !== INDEX_FILE) return [];
+      return [
+        d("layout/unsafe-member-name", `\`${INDEX_FILE}\` is reserved and cannot name a member`, {
+          path: snap.target.path,
+          fsPath: snap.target.fsPath,
+          hint: "a directory reads that file as its own overlay",
+        }),
+      ];
+    },
   },
   {
     // THE PROMOTION CHECK. concrete-rules said this child becomes a real directory; assert the
@@ -342,10 +360,10 @@ export const layoutRules: readonly LayoutRule[] = [
     },
   },
   {
-    // A `.yo/` whose directory is gone, or which holds only sidecar blobs, is debris: the
-    // walk will never reach it and the user cannot see it.
+    // A `.yo/` whose directory is gone, or which holds only DERIVED sidecar blobs, is debris:
+    // the walk will never reach it and the user cannot see it.
     code: "layout/orphan-overlay",
-    onNode(node, _tree, fsPaths) {
+    onNode(node, tree, fsPaths) {
       const fsPath = node.fsPath;
       if (!fsPath) return [];
       const segs = segsOf(fsPath);
@@ -355,14 +373,19 @@ export const layoutRules: readonly LayoutRule[] = [
       if (!fsPaths.has(parent)) {
         out.push(d("layout/orphan-overlay", `\`${OVERLAY_DIR}\` has no directory to mark`, { path: node.path, fsPath }));
       }
-      // A marker-only overlay (meta.yo alone — the scalar-as-binary shape) is LEGAL; an
-      // overlay with no format file at all is not.
-      if (node.names && !node.names.some((n) => OVERLAY_FILES.has(n))) {
+      // An overlay earns its place three ways: it holds a format FILE (meta.yo alone is legal —
+      // the scalar-as-binary shape); it preserves a `.trash` archive, which is the only copy of
+      // what was deleted; or it marks a `dir/index.yo`, whose INSTANCE OVERLAY sits outside it —
+      // the `.yo/` is unaffected by the flavor and still carries the schema, the cache and the
+      // sidecars, it simply has no body of its own to hold.
+      const bodyOutside = tree.nodes.find((n) => n.fsPath === parent)?.names?.includes(INDEX_FILE) ?? false;
+      const earnsIt = node.names?.some((n) => OVERLAY_FILES.has(n) || n === TRASH_DIR) ?? true;
+      if (node.names && !earnsIt && !bodyOutside) {
         out.push(
           d("layout/orphan-overlay", `\`${OVERLAY_DIR}\` holds no body, meta or settings`, {
             path: node.path,
             fsPath,
-            hint: "an overlay with only sidecar blobs is debris",
+            hint: "an overlay with only derived sidecars is debris",
           }),
         );
       }
@@ -370,16 +393,39 @@ export const layoutRules: readonly LayoutRule[] = [
     },
   },
   {
-    // The concrete and the shape backing it must agree — a `dir/yamlover` without its marker is
+    // ONE directory, ONE instance overlay. The two flavors are alternatives, not layers: with
+    // both present the walk reads `.yo/body.yo` and the `index.yo` silently stops being data,
+    // so the user's edits land in a file nothing renders.
+    code: "layout/duplicate-overlay",
+    onNode(node, tree) {
+      const { names, fsPath } = node;
+      if (fsPath === undefined || !names?.includes(INDEX_FILE)) return [];
+      const overlay = tree.nodes.find((n) => n.fsPath === [...segsOf(fsPath), OVERLAY_DIR].join("/"));
+      if (!overlay?.names?.includes(BODY_FILE)) return [];
+      return [
+        d("layout/duplicate-overlay", `\`${INDEX_FILE}\` sits beside a \`${OVERLAY_DIR}/${BODY_FILE}\``, {
+          path: node.path,
+          fsPath,
+          hint: `\`${OVERLAY_DIR}/${BODY_FILE}\` wins; move its content into one file or the other`,
+        }),
+      ];
+    },
+  },
+  {
+    // The concrete and the shape backing it must agree — a `dir/.yo` without its marker is
     // indistinguishable from a plain folder to the next walk.
     code: "layout/concrete-mismatch",
     onNode(node) {
       const { concrete, names, fsPath } = node;
       const at = { path: node.path, fsPath };
-      if (concrete === "dir/yamlover" && names && !names.includes(OVERLAY_DIR))
-        return [d("layout/concrete-mismatch", `a \`dir/yamlover\` carries no \`${OVERLAY_DIR}\` marker`, at)];
+      if (concrete === "dir/.yo" && names && !names.includes(OVERLAY_DIR))
+        return [d("layout/concrete-mismatch", `a \`dir/.yo\` carries no \`${OVERLAY_DIR}\` marker`, at)];
+      if (concrete === "dir/index.yo" && names && !names.includes(INDEX_FILE))
+        return [d("layout/concrete-mismatch", `a \`dir/index.yo\` carries no \`${INDEX_FILE}\` overlay`, at)];
+      if (concrete === "dir" && names && names.includes(INDEX_FILE))
+        return [d("layout/concrete-mismatch", `a plain \`dir\` carries an \`${INDEX_FILE}\` overlay`, { ...at, hint: "its concrete is dir/index.yo" })];
       if (concrete === "dir" && names && names.includes(OVERLAY_DIR))
-        return [d("layout/concrete-mismatch", `a plain \`dir\` carries a \`${OVERLAY_DIR}\` marker`, { ...at, hint: "its concrete is dir/yamlover" })];
+        return [d("layout/concrete-mismatch", `a plain \`dir\` carries a \`${OVERLAY_DIR}\` marker`, { ...at, hint: "its concrete is dir/.yo" })];
       if (fsPath && isFileConcrete(concrete) && !isBinaryConcrete(concrete)) {
         const byExt = dataFileConcrete(fsPath);
         if (byExt && byExt !== concrete) return [d("layout/concrete-mismatch", `\`${concrete}\` is backed by a ${byExt} file`, at)];

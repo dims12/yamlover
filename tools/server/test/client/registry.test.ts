@@ -84,7 +84,7 @@ describe("renderer registry (facet predicates)", () => {
 
   it("falls back to the explorer (large-icons representative) for a node stored as a filesystem directory", () => {
     expect(getRenderer(node({ concrete: "dir" }))?.name).toBe("large-icons");
-    expect(getRenderer(node({ concrete: "dir/yamlover" }))?.name).toBe("large-icons");
+    expect(getRenderer(node({ concrete: "dir/.yo" }))?.name).toBe("large-icons");
     expect(rendererName({ format: null, type: "object" }, "dir")).toBe("large-icons");
     // other concretes don't
     expect(getRenderer(node({ concrete: "yaml-schema/instantiate" }))).toBeNull();
@@ -96,10 +96,10 @@ describe("renderer registry (facet predicates)", () => {
       "thumbnails", "large-icons", "small-icons", "details",
     ]);
     // a board (by format): tag-board leads, then the icon views — and it is the navigation default
-    const boardViews = renderersFor(node({ format: "x-yamlover-board", concrete: "dir/yamlover" })).map((r) => r.name);
+    const boardViews = renderersFor(node({ format: "x-yamlover-board", concrete: "dir/.yo" })).map((r) => r.name);
     expect(boardViews[0]).toBe("tag-board");
     expect(boardViews).toContain("large-icons");
-    expect(rendererName({ format: "x-yamlover-board" }, "dir/yamlover")).toBe("tag-board");
+    expect(rendererName({ format: "x-yamlover-board" }, "dir/.yo")).toBe("tag-board");
     // a board detected only via overlay value (workflow:/lanes:) also leads with tag-board
     expect(renderersFor(node({ concrete: "dir", value: { lanes: [] } })).map((r) => r.name)[0]).toBe("tag-board");
     // the view tabs carry human labels
@@ -109,7 +109,7 @@ describe("renderer registry (facet predicates)", () => {
   });
 
   it("a dir-backed chapter leads with its chapter view, then the directory views", () => {
-    expect(renderersFor(node({ format: "x-yamlover-chapter", concrete: "dir/yamlover" })).map((r) => r.name)).toEqual([
+    expect(renderersFor(node({ format: "x-yamlover-chapter", concrete: "dir/.yo" })).map((r) => r.name)).toEqual([
       "chapter", "thumbnails", "large-icons", "small-icons", "details",
     ]);
   });
@@ -126,8 +126,8 @@ describe("renderer registry (facet predicates)", () => {
     // a data SCALAR (a .json holding `30`) gets NO icon tabs (they would be empty)
     expect(renderersFor(node({ concrete: "file/json", type: "integer", valueType: "integer", value: 30 }))).toEqual([]);
     // a scalar-bodied DIRECTORY (54-scalar-file-overlay) likewise — and defaults to yamlover, not the explorer
-    expect(renderersFor(node({ concrete: "dir/yamlover", type: "integer", valueType: "integer", value: 30 }))).toEqual([]);
-    expect(rendererName(node({ concrete: "dir/yamlover", type: "integer", value: 30 }), "dir/yamlover")).toBeNull();
+    expect(renderersFor(node({ concrete: "dir/.yo", type: "integer", valueType: "integer", value: 30 }))).toEqual([]);
+    expect(rendererName(node({ concrete: "dir/.yo", type: "integer", value: 30 }), "dir/.yo")).toBeNull();
   });
 
   it("rendererTabs: the explorer family is ALWAYS present — enabled per eligibility (a stable bar)", () => {
@@ -163,13 +163,13 @@ describe("renderer registry (facet predicates)", () => {
   it("the chapter is offered only to an UNTAGGED container directory", () => {
     const offered = (n: NodeJson) => rendererTabs(n).some((t) => t.offered && t.renderer.name === "chapter");
     expect(offered(node({ concrete: "dir" }))).toBe(true);
-    expect(offered(node({ concrete: "dir/yamlover" }))).toBe(true);
+    expect(offered(node({ concrete: "dir/.yo" }))).toBe(true);
     // already has a representation of its own
     expect(offered(node({ concrete: "dir", format: "x-yamlover-chapter" }))).toBe(false);
     expect(offered(node({ concrete: "dir", format: "x-yamlover-tag" }))).toBe(false);
     expect(offered(node({ concrete: "dir", format: "x-yamlover-board" }))).toBe(false);
     // not a container: a scalar-bodied directory holds a value, not prose
-    expect(offered(node({ concrete: "dir/yamlover", type: "integer", valueType: "integer", value: 30 }))).toBe(false);
+    expect(offered(node({ concrete: "dir/.yo", type: "integer", valueType: "integer", value: 30 }))).toBe(false);
     // not a directory: a chapter's home is a folder or a tagged file, never a stray data file
     expect(offered(node({ concrete: "file/json" }))).toBe(false);
     expect(offered(node({ concrete: "file/yamlover" }))).toBe(false);
@@ -183,10 +183,10 @@ describe("renderer registry (facet predicates)", () => {
     expect(plaintextTab(node({ concrete: "file/yaml", hasKeyed: true }))?.renderer.name).toBe("plaintext");
     // inline string content (no source file) → plaintext renders the value
     expect(plaintextTab(node({ concrete: "yamlover", valueType: "string", format: "text/markdown", value: "# hi" }))).toMatchObject({ enabled: true });
-    // a data-language container — inline or a dir/yamlover DOCUMENT — shows its SOURCE
+    // a data-language container — inline or a dir/.yo DOCUMENT — shows its SOURCE
     // (/api/source: a directory chapter's body.yo, a re-serialized subtree deeper)
     expect(plaintextTab(node({ concrete: "json", hasKeyed: true, value: {} }))).toMatchObject({ enabled: true });
-    expect(plaintextTab(node({ concrete: "dir/yamlover", format: "x-yamlover-chapter", hasKeyed: true }))).toMatchObject({ enabled: true });
+    expect(plaintextTab(node({ concrete: "dir/.yo", format: "x-yamlover-chapter", hasKeyed: true }))).toMatchObject({ enabled: true });
     // a bare directory (no overlay — nothing textual behind it) keeps the tab IN PLACE, disabled
     expect(plaintextTab(node({ concrete: "dir" }))).toMatchObject({ enabled: false });
     expect(plaintextTab(node({ concrete: "file/binary", format: "application/pdf" }))).toMatchObject({ enabled: false });
@@ -195,8 +195,8 @@ describe("renderer registry (facet predicates)", () => {
   });
 
   it("a format renderer wins over the dir concrete (a dir-backed chapter stays a chapter)", () => {
-    expect(getRenderer(node({ format: "x-yamlover-chapter", concrete: "dir/yamlover" }))?.name).toBe("chapter");
-    expect(rendererName({ format: "x-yamlover-chapter" }, "dir/yamlover")).toBe("chapter");
+    expect(getRenderer(node({ format: "x-yamlover-chapter", concrete: "dir/.yo" }))?.name).toBe("chapter");
+    expect(rendererName({ format: "x-yamlover-chapter" }, "dir/.yo")).toBe("chapter");
   });
 
   it("claims tags (every projection shape) for the explorer — the format alone identifies them", () => {

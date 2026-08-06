@@ -16,7 +16,7 @@ description: Concretes, the supersession lattice, and the two overlays
     TODO — define concrete against CONCRETES.md. A concrete is a STORAGE choice, not a
     type; the value is the same either way.
   - |
-    TODO — `file/yamlover`, `dir/yamlover`, `dir`, `file/json5p`, a bare blob.
+    TODO — `file/yamlover`, `dir/.yo`, `dir`, `file/json5p`, a bare blob.
 - The supersession lattice
   notes: |
     TODO — README.md §Concrete representations. Which concrete can express which: json

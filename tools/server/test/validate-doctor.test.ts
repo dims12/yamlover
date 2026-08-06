@@ -58,6 +58,18 @@ describe("GET /api/doctor — corruption is found", () => {
     expect(d).toMatchObject({ allowed: true });
   });
 
+  it("passes a dir/index.yo tree — the other overlay flavor is not corruption", async () => {
+    const d = await doctor(tmpTree({ "World/index.yo": "- *Eurasia\n", "World/Eurasia/index.yo": "Europe: 1\n" }));
+    expect(d).toMatchObject({ allowed: true, diagnostics: [] });
+  });
+
+  it("finds a directory carrying BOTH instance overlays", async () => {
+    const d = await doctor(tmpTree({ "World/index.yo": "from the file\n", "World/.yo/body.yo": "from the marker\n" }));
+    expect(d.allowed).toBe(false);
+    const hit = d.diagnostics.find((x) => x.code === "layout/duplicate-overlay");
+    expect(hit?.fsPath).toBe("World");
+  });
+
   it("reports the fsPath of the offending object, so the message is actionable", async () => {
     const d = await doctor(tmpTree({ "a/.yo/body.yo": "x\n", "a/.yo/junk.yaml": "y\n" }));
     const hit = d.diagnostics.find((x) => x.code === "layout/reserved-overlay-name");

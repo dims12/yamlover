@@ -143,7 +143,7 @@ is stored:
 
 > The strings above are this (Python) walker's output. The canonical concrete
 > taxonomy — and the slightly normalized strings the TypeScript server emits
-> (`dir/yamlover` for a `.yamlover/` directory, `file/<lang>` rather than a bare
+> (`dir/.yo` for a `.yamlover/` directory, `file/<lang>` rather than a bare
 > `file`, the inlined `yaml` for schema-pinned values) — is specified in
 > [`CONCRETES.md`](../../CONCRETES.md).
 

@@ -32,7 +32,8 @@ export interface Creatable {
 const CONCRETE_LABELS: Record<ChildConcrete, string> = {
   "yamlover": "inline",
   "file/yamlover": "file",
-  "dir/yamlover": "directory",
+  "dir/.yo": "directory",
+  "dir/index.yo": "directory", // the same offer, spelled in the parent's overlay flavor
 };
 const options = (parent: string | null | undefined, kind: "child" | "member"): ConcreteOption[] =>
   allowedChildConcretes(parent, kind).map((id) => ({ id, label: CONCRETE_LABELS[id] }));
@@ -55,7 +56,7 @@ export function creatablesFor(node: { format?: string | null; concrete?: string 
   }
   // Any filesystem directory (a plain dir OR a dir-backed document) can also gain a generic NODE —
   // an UNTAGGED yamlover document (no schema meta, an empty scalar body), stored as a member file
-  // or (the default) a dir/yamlover directory. Creating one opens it in yamlover editing mode.
+  // or (the default) a dir/.yo directory. Creating one opens it in yamlover editing mode.
   if (isDirConcrete(node.concrete)) {
     out.push({ schema: NODE_SCHEMA, label: "node", concretes: options(node.concrete, "member"), defaultConcrete: defaultChildConcrete(node.concrete) });
   }

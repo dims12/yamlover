@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { isDirConcrete, isJsonFamily, isYamlFamily, isFileConcrete } from "../../concrete";
+import { isDirConcrete, isJsonFamily, isYamlFamily, isFileConcrete, isOverlayDirConcrete } from "../../concrete";
 import { scalarValue } from "../render";
 import { NodeJson, TreeNode } from "../api";
 import { ChapterView } from "./chapter";
@@ -575,8 +575,8 @@ export const PLAINTEXT = REGISTRY.find((r) => r.name === "plaintext")!;
  *  node, `enabled` wherever RAW CONTENT exists to show:
  *  - a FILE-backed textual node — the raw bytes via /api/blob (markdown, a whole `.yo`, …);
  *  - an INLINE string value — shown verbatim;
- *  - any other node of a DATA language, a `dir/yamlover` document included — its yamlover
- *    SOURCE via /api/source (the body.yo of a directory chapter, a re-serialized subtree
+ *  - any other node of a DATA language, an overlay-carrying directory included — its yamlover
+ *    SOURCE via /api/source (the overlay of a directory chapter, a re-serialized subtree
  *    deeper), so a chapter page's raw content is one tab away.
  *  Only a bare `dir` (no overlay — nothing textual behind it) and a binary stay DISABLED; the
  *  tab is always rendered, so the bar keeps its shape. Null only for a node already LED by
@@ -584,7 +584,7 @@ export const PLAINTEXT = REGISTRY.find((r) => r.name === "plaintext")!;
 export function plaintextTab(node: NodeJson): { renderer: Renderer; enabled: boolean } | null {
   if (rendererFor(node) === PLAINTEXT) return null; // a text/plain node already leads with it
   const sourced =
-    isJsonFamily(node.concrete) || isYamlFamily(node.concrete) || node.concrete === "dir/yamlover";
+    isJsonFamily(node.concrete) || isYamlFamily(node.concrete) || isOverlayDirConcrete(node.concrete);
   const textualFile =
     isFileConcrete(node.concrete) &&
     (node.format === "text/markdown" || node.format === "text/asciidoc");

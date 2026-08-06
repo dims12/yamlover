@@ -34,7 +34,7 @@ function chapterNode(opts: { title?: string; description?: string; body?: unknow
   for (const v of opts.body ?? []) entries.push({ key: null, value: v });
   const tagged = opts.tagged ?? true;
   return {
-    path: ":doc", type: "object", concrete: "dir/yamlover", documentPath: ":doc", title: null, description: null,
+    path: ":doc", type: "object", concrete: "dir/.yo", documentPath: ":doc", title: null, description: null,
     value: opts.title !== undefined
       ? mixed({ kind: "omni", value: opts.title, selfAt: 0, ...(tagged ? { format: "x-yamlover-chapter" } : {}), entries })
       : mixed({ kind: "mix", ...(tagged ? { format: "x-yamlover-chapter" } : {}), entries }),

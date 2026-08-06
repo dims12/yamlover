@@ -33,6 +33,11 @@ const { h64Raw, create64 } = await xxhash();
 const hashBytes = (bytes: Uint8Array): string => 'xxh64:' + h64Raw(bytes).toString(16).padStart(16, '0');
 
 const YAMLOVER_DIR = '.yo';
+const BODY_FILE = 'body.yo';
+// The `dir/index.yo` flavor keeps its INSTANCE OVERLAY in a plain file inside the directory it
+// controls instead of under `.yo/` (docs/language/concretes/03-yamlover/01-dir/01-dir_index_yo).
+// The file is CONSUMED — never an entry — so such a directory cannot hold a member of that name.
+const INDEX_FILE = 'index.yo';
 // Engine-owned files inside `.yo/` that must NOT be indexed: the overlays are read into the
 // parent directory (applyBody/loadMeta), and the index db would otherwise index itself. Everything
 // else under `.yo/` (the derived `thumbnails/` and `fragments/` sidecar dirs) is walked
@@ -175,7 +180,7 @@ function assemblePartial(open: PartialFrame[]): Node | null {
   return child?.node ?? null;
 }
 
-/** Walk a directory (absolute path) into an IR Document (concrete: "directory"). */
+/** Walk a directory (absolute path) into an IR Document (concrete: "dir"). */
 export function walkDir(absDir: string, opts: WalkOptions = {}): Document {
   return walkTree(absDir, opts).doc;
 }
@@ -342,7 +347,7 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
   }
   applySchemas(root, defsRoot, builtinDefs); // propagate attached !!<…> schemas down the instance
   return {
-    doc: { root, source: { concrete: 'directory', uri: absDir } },
+    doc: { root, source: { concrete: 'dir', uri: absDir } },
     files: [...ctx.files.values()],
   };
 }
@@ -419,7 +424,7 @@ export async function reindexAsyncDoc(
     const t0 = Date.now();
     try {
       snap.root.meta = { ...snap.root.meta, documentRoot: true };
-      store.indexDocument({ root: snap.root, source: { concrete: 'directory', uri: absDir } });
+      store.indexDocument({ root: snap.root, source: { concrete: 'dir', uri: absDir } });
       minInterval = Math.max(partialMs, 5 * (Date.now() - t0));
       const added = snap.filePaths.slice(reported);
       reported = snap.filePaths.length;
@@ -561,8 +566,11 @@ async function countChildren(absRoot: string, opts: WalkOptions, onCount?: (n: n
     } catch {
       return;
     }
+    // the `index.yo` the walk CONSUMES as this directory's overlay is not a child (dirNode)
+    const consumesIndex = entries.some((e) => e.name === INDEX_FILE) && path.basename(overlayFile(dir) ?? '') === INDEX_FILE;
     for (const e of entries) {
       if (e.name.startsWith('.') && e.name !== YAMLOVER_DIR) continue;
+      if (consumesIndex && e.name === INDEX_FILE) continue;
       const abs = path.join(dir, e.name);
       if (opts.ignore?.(abs)) continue;
       if (e.name === YAMLOVER_DIR) {
@@ -685,15 +693,18 @@ function loadMeta(dir: string, ctx: Ctx): Meta {
   }
 }
 
-/** A directory → a Mapping node: one entry per file/subdir, then the body.yo overlay.
+/** A directory → a Mapping node: one entry per file/subdir, then the instance overlay.
  *  A generator: yields one progress tick per child processed (subtree ticks ride through). */
 function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
   const meta = loadMeta(dir, ctx);
+  const overlay = overlayFile(dir);
+  const consumesIndex = overlay !== null && path.basename(overlay) === INDEX_FILE;
   const names = fs
     .readdirSync(dir)
     .filter((n) => n === YAMLOVER_DIR || !n.startsWith('.')) // keep `.yo` (hidden subtree); drop other dotfiles
+    .filter((n) => !(consumesIndex && n === INDEX_FILE)) // the overlay is read, never an entry
     .filter((n) => !ctx.opts.ignore?.(path.join(dir, n))) // skip git-ignored (e.g. node_modules)
-    .sort(); // filesystem order = sorted names (stable; body.yo can re-impose order)
+    .sort(); // filesystem order = sorted names (stable; the overlay can re-impose order)
 
   const entries: Entry[] = [];
   ctx.open?.push({ name: path.basename(dir), entries });
@@ -716,7 +727,7 @@ function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
   ctx.open?.pop();
 
   const node: Mapping = { kind: 'mapping', entries, array: false };
-  return applyMeta(applyBody(dir, node, ctx), meta); // attach meta `format` to entries (incl. body-overlay ones)
+  return applyMeta(applyBody(overlay, node, ctx), meta); // attach meta `format` to entries (incl. body-overlay ones)
 }
 
 /** A `.yo/` overlay dir → a HIDDEN content subtree (its derived `thumbnails/`/`fragments/`
@@ -1014,16 +1025,26 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
   walk(root);
 }
 
-/** Merge `.yo/body.yo` over the directory mapping (docs/language/concretes):
+/** A directory's INSTANCE OVERLAY file, or null when it has none (docs/language/concretes):
+ *  `.yo/body.yo` for the `dir/.yo` flavor, else an `index.yo` inside the directory itself for
+ *  the `dir/index.yo` one. Carrying BOTH is a layout violation the doctor reports
+ *  (`layout/duplicate-overlay`); `.yo/body.yo` wins here so such a tree still reads. */
+function overlayFile(dir: string): string | null {
+  const body = path.join(dir, YAMLOVER_DIR, BODY_FILE);
+  if (fs.existsSync(body)) return body;
+  const index = path.join(dir, INDEX_FILE);
+  return fs.existsSync(index) ? index : null;
+}
+
+/** Merge a directory's instance overlay over its mapping (docs/language/concretes):
  *  - a mapping body OVERRIDES same-key children and ADDS overlay-only keys (scalars/pointers);
  *  - a pointer-array body (`- *file …`) imposes ORDER over the existing children;
  *  - a SCALAR body root with fields (the omni shape, e.g. `!!var A taxonomy` over a tag
  *    directory) gives the directory that scalar as its own BODY, fields merged as above.
  *  The body root's `meta` (e.g. a `!!<*yamlover/$defs/chapter>` tag attaching a schema to the
  *  whole directory) is carried onto the merged node, so a directory CHAPTER is recognized. */
-function applyBody(dir: string, node: Mapping, ctx: Ctx): Node {
-  const file = path.join(dir, YAMLOVER_DIR, 'body.yo');
-  if (!fs.existsSync(file)) return node;
+function applyBody(file: string | null, node: Mapping, ctx: Ctx): Node {
+  if (file === null) return node;
   const bodyDoc = parseYamlover(readTracked(ctx, file).toString('utf8'), file);
   const body = bodyDoc.root;
   if (body.kind !== 'mapping' && body.kind !== 'scalar') return node;
