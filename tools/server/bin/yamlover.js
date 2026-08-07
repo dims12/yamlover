@@ -339,28 +339,30 @@ function serveStatic(res, url, distClient, distIndex) {
 function serveIndex(res, distIndex) {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
-  if (basePath || readOnly) {
-    // The shell must learn its server-side posture before first render: its base prefix (the
-    // client prepends it to every server URL; asset refs are rewritten to match) and/or the
-    // read-only flag (so no edit affordance ever flashes).
-    res.end(injectGlobals(fs.readFileSync(distIndex, "utf-8")));
-    return;
-  }
-  fs.createReadStream(distIndex).pipe(res);
+  // Always rewritten, never streamed: the built shell's asset refs are RELATIVE (vite
+  // `base: "./"`), and a client route is arbitrarily deep — `./assets/…` served at /a/b/c
+  // would resolve to /a/b/assets/…. Anchoring them at the mount point is what makes a deep
+  // link reloadable, with or without a base path.
+  res.end(injectGlobals(fs.readFileSync(distIndex, "utf-8")));
 }
 
-/** Stamp server-side posture into a served index.html as pre-render globals: `window.__BASE__`
- *  (the client's URL helper prefix; root-absolute `src="/…"` / `href="/…"` asset refs are also
- *  prefixed, protocol-relative `//…` left alone) and `window.__READONLY__` (the client hides
- *  every modification affordance). No-op when neither is set. */
+/** Anchor a served index.html to its mount point and stamp the server's posture into it.
+ *
+ *  Asset refs (`src`/`href`) are rewritten to absolute `<basePath>/…`: the build emits them
+ *  relative so LAZY chunks resolve against `import.meta.url` (see vite.config.mjs), but the
+ *  shell itself is served at every client route, so its own refs must not follow the URL.
+ *  Both spellings are handled — `./assets/…` as built, `/assets/…` should the base ever go
+ *  back to absolute; protocol-relative `//…` is left alone.
+ *
+ *  The pre-render globals follow: `window.__BASE__` (the client's URL helper prefix) and
+ *  `window.__READONLY__` (the client hides every modification affordance), each set only
+ *  when it applies. */
 function injectGlobals(html) {
-  if (!basePath && !readOnly) return html;
+  html = html.replace(/((?:src|href)=")(?:\.\/|\/(?!\/))/g, `$1${basePath}/`);
   const globals = [];
-  if (basePath) {
-    html = html.replace(/((?:src|href)=")\/(?!\/)/g, `$1${basePath}/`);
-    globals.push(`window.__BASE__=${JSON.stringify(basePath)}`);
-  }
+  if (basePath) globals.push(`window.__BASE__=${JSON.stringify(basePath)}`);
   if (readOnly) globals.push("window.__READONLY__=true");
+  if (!globals.length) return html;
   const tag = `<script>${globals.join(";")}</script>`;
   return html.includes("<head>") ? html.replace("<head>", `<head>${tag}`) : tag + html;
 }

@@ -18,6 +18,15 @@ const root = dirname(fileURLToPath(import.meta.url)); // tools/server
 
 export default defineConfig({
   root,
+  // RELATIVE base, because the same build must serve from any prefix: `/` for a plain
+  // `npx yamlover`, `/demo/<hash>` or `/docs` behind the demo server (--base-path). With the
+  // default absolute base Vite bakes `/assets/…` into the preload helper, so every LAZY
+  // import (the pdf/office/map/graph renderers) is fetched from the document root and 404s
+  // under a prefix. Relative makes Vite resolve those deps against `import.meta.url` — the
+  // importing chunk's own URL — which carries the prefix wherever the app is mounted. The
+  // shell's own `src`/`href` are rewritten to ABSOLUTE at serve time (bin/yamlover.js), since
+  // those would otherwise resolve against a deep client route rather than the mount point.
+  base: "./",
   plugins: [react()],
   // Collapse react/react-dom to this package's single copy, mirroring the dev
   // server — guards against a stale React hoisted into a parent node_modules.
