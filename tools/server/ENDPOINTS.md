@@ -16,7 +16,7 @@ address space; a positional segment may alias a keyed member). Errors are
 
 | Endpoint | Method | Params | Returns |
 |---|---|---|---|
-| `/api/info` | GET | — | `{ root }` — the served root's display name (its title, else the folder name) |
+| `/api/info` | GET | — | `{ root, readOnly }` — the served root's display name (its title, else the folder name) and the server's read-only posture |
 | `/api/tree` | GET | `path`, `depth` (default 3) | The TOC subtree: `TreeNode` rows (label, type, format, concrete, `hasChildren`), children to `depth` |
 | `/api/schema` | GET | `path`, `depth` | The node's derived instance schema |
 | `/api/content/{slash-path}` | GET | `depth` (document boundaries; default per concrete: dir=1, text=∞) | **THE YAMLOVER WIRE** (`text/yamlover`): a yamlover envelope — header keys, `source` (the merged-IR subtree serialized with comments; cut members respelled as their authored pointers `- *: name` / `name: *: name`; blobs always cut), `side` (fragment-keyed sidecar: `anchorKey`/`member` provenance, derived formats, resolved ref targets, cut-member `$yamloverLink` stubs), `relations`. The path rides IN the URL, slash-spelled (`/part-one/2`, digits = positions, `~` = null key) |
@@ -56,3 +56,15 @@ the diff over `/api/events`.
 |---|---|---|---|
 | `/api/preview` | POST | `{ source }` | Render a standalone yamlover text as a CONTENT ENVELOPE (`text/yamlover`), exactly as `/api/content` serves a node (parse → throwaway index → envelope) — the browser-settings document's renderer |
 | `/api/edit-text` | POST | `{ source, edits }` | The `/api/edit` ops applied to a standalone text; returns the new `{ source }` — the caller persists it |
+
+## Read-only mode (`--read-only` / `YAMLOVER_READ_ONLY`)
+
+The rule is an **allowlist** (`src/server/read-only-policy.ts`), checked before any route:
+GET/HEAD always answer; of the non-GET routes only `/api/preview`, `/api/edit-text`
+(stateless) and `/api/reindex` (index housekeeping) pass. Everything else — every route in
+the *Writing* table above, and any future one — answers **403**
+`{ error: "server is read-only", readOnly: true }`. Two write paths hide behind reads and are
+degraded rather than blocked: `/api/thumb` serves only pre-existing sidecars (a cache miss
+answers `415`, the client's glyph fallback) and a reconcile (`/api/reindex`, the FS watcher)
+indexes an externally inferred move **without** relinking — source files are never rewritten.
+The server still maintains `<root>/.yo/index.db`; `settings.yo` is not materialized.

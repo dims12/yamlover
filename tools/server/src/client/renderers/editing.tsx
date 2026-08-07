@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type { Edit } from "../api";
+import { READ_ONLY } from "../base";
 
 /**
  * The editing lock signal. `NodeView` owns the lock (locked by default, re-locked on navigation) and
@@ -9,6 +10,9 @@ import type { Edit } from "../api";
  */
 export interface EditingApi {
   unlocked: boolean;
+  /** The server refuses every modification (`--read-only`); renderers with lock-independent
+   *  write affordances (tagging, board lanes, fragment delete) hide them on this. */
+  readOnly?: boolean;
   /** Turn the lock OFF programmatically — a renderer that just CREATED an object calls this so the
    *  freshly navigated-to page opens straight in editing mode. Absent outside NodeView. */
   unlock?: () => void;
@@ -18,7 +22,7 @@ export interface EditingApi {
   sink?: (edit: Edit) => Promise<boolean>;
 }
 
-export const EditingContext = createContext<EditingApi>({ unlocked: false });
+export const EditingContext = createContext<EditingApi>({ unlocked: false, readOnly: READ_ONLY });
 
 export function useEditing(): EditingApi {
   return useContext(EditingContext);

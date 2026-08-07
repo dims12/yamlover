@@ -7,6 +7,7 @@ import { touchesYamlover, useDiffBump } from "../live";
 import { QueryCells, useQueryCellHost } from "../query-cells";
 import { splitQueryPortions, treeCandidateProvider } from "../query-complete";
 import { TocFilterHandle, useTocFilter } from "../toc-filter-session";
+import { READ_ONLY } from "../base";
 
 /**
  * The annotation layer, shared across materials (the UI guide). An annotation is ONE TAG
@@ -801,10 +802,13 @@ export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
   // region's real tags. `nodePath` is the node the region hangs off (a CHUNK for a chapter selection,
   // else the material). The title bar shows the fragment's path (existing region) or the material's.
   const openCreate = (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string, nodePath?: string) => {
+    if (READ_ONLY) return; // a fresh region exists only to be tagged — a write; existing marks still render
     setOpen({ selector, nodePath: nodePath ?? path, create: true, copy, imageBase64, x: screen.x, y: screen.y, title: displayPath(nodePath ?? path) });
   };
-  const openEdit = (ann: Annotation, screen: { x: number; y: number }) =>
+  const openEdit = (ann: Annotation, screen: { x: number; y: number }) => {
+    if (READ_ONLY) return; // the picker only adds/removes tags — both writes
     setOpen({ selector: (ann.selector ?? {}) as Record<string, unknown>, nodePath: ann.node ?? path, create: false, x: screen.x, y: screen.y, title: displayPath(annotationTarget(path, ann)) });
+  };
 
   // The region's tag applications, live from the material — toggles reflect at once (optimistic).
   // These ARE the outlined tags: an outlined tag is a real application, so clicking it removes it.

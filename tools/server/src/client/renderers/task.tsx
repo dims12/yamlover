@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { NodeJson, fetchAnnotations } from "../api";
+import { READ_ONLY } from "../base";
 import { touchesYamlover, useDiffBump } from "../live";
 import { asLink } from "../render";
 import { resolveTagColor, tagStyle } from "./tag";
@@ -68,7 +69,7 @@ export function TaskView({ node, onNavigate }: { node: NodeJson; onNavigate: (pa
             {state.label}
           </span>
         )}
-        {state?.nextStates.map((ns) => (
+        {!READ_ONLY && state?.nextStates.map((ns) => (
           <button
             key={ns.path}
             className="task-advance"

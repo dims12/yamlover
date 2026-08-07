@@ -67,6 +67,10 @@ let prodFlag = false; // force production (static) mode even in the repo checkou
 // Seeded from $BASE_PATH so a shell-less image (e.g. distroless) can inject it via env without
 // needing `sh -c` to expand it into a `--base-path` flag; an explicit flag below still overrides.
 let basePath = process.env.BASE_PATH ?? "";
+// CONTENT READ-ONLY: every user-data-mutating API route answers 403 and the UI hides its edit
+// affordances; the server still maintains its own index (.yo/index.db). Seeded from
+// $YAMLOVER_READ_ONLY (same shell-less-image rationale as $BASE_PATH); `--read-only` below too.
+let readOnly = ["1", "true", "yes"].includes(String(process.env.YAMLOVER_READ_ONLY ?? "").toLowerCase());
 // Normalize a base path: leading `/`, no trailing `/`; `""`/`"/"` → disabled.
 function normBase(s) {
   let b = (s ?? "").trim();
@@ -88,10 +92,12 @@ for (let i = 0; i < argv.length; i++) {
   else if (a.startsWith("--base-path=")) basePath = normBase(a.slice("--base-path=".length));
   else if (a === "--no-gitignore") gitignore = false;
   else if (a === "--prod") prodFlag = true;
+  else if (a === "--read-only") readOnly = true;
   else if (a === "--help" || a === "-h") {
-    console.log("usage: npx yamlover [ROOT] [--port N] [--headless] [--host ADDR] [--base-path PREFIX] [--no-gitignore] [--prod]");
+    console.log("usage: npx yamlover [ROOT] [--port N] [--headless] [--host ADDR] [--base-path PREFIX] [--no-gitignore] [--prod] [--read-only]");
     console.log("  default: serve on 127.0.0.1 (local only); --headless serves on all interfaces");
     console.log("  --base-path PREFIX: serve the whole app under PREFIX (e.g. /demo/abc) instead of /");
+    console.log("  --read-only: serve content read-only — every modifying request is refused (403)");
     process.exit(0);
   } else if (!a.startsWith("-")) rootArg = a;
 }
@@ -239,7 +245,7 @@ if (prod) {
     try {
       let html = fs.readFileSync(indexHtmlPath, "utf-8");
       html = await vite.transformIndexHtml(url.pathname, html);
-      html = injectBase(html); // base-path-aware shell (no-op without --base-path)
+      html = injectGlobals(html); // base-path/read-only-aware shell (no-op without either)
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.end(html);
     } catch (e) {
@@ -279,7 +285,8 @@ const ts = () => {
 handle = createHandlers(dataRoot, {
   gitignore,
   watch: true, // re-index + push on external edits
-  ensureSettings: true, // create .yo/settings.yo with defaults if absent (so the gear opens)
+  ensureSettings: !readOnly, // create .yo/settings.yo with defaults if absent (so the gear opens)
+  readOnly,
   log: (line) => console.log(`yamlover ${ts()}  ${line}`),
 });
 handle.ready.catch((e) => console.error(`yamlover ${ts()}  indexing failed:`, e));
@@ -332,22 +339,29 @@ function serveStatic(res, url, distClient, distIndex) {
 function serveIndex(res, distIndex) {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
-  if (basePath) {
-    // The shell must learn its prefix (the client prepends it to every server URL) and its
-    // root-absolute asset refs must point under the prefix (the strip above maps them back).
-    res.end(injectBase(fs.readFileSync(distIndex, "utf-8")));
+  if (basePath || readOnly) {
+    // The shell must learn its server-side posture before first render: its base prefix (the
+    // client prepends it to every server URL; asset refs are rewritten to match) and/or the
+    // read-only flag (so no edit affordance ever flashes).
+    res.end(injectGlobals(fs.readFileSync(distIndex, "utf-8")));
     return;
   }
   fs.createReadStream(distIndex).pipe(res);
 }
 
-/** Make a served index.html base-path-aware: expose `window.__BASE__` for the client's URL helper
- *  and prefix root-absolute `src="/…"` / `href="/…"` asset refs with the base path (protocol-relative
- *  `//…` left alone). No-op when no base path is set. */
-function injectBase(html) {
-  if (!basePath) return html;
-  html = html.replace(/((?:src|href)=")\/(?!\/)/g, `$1${basePath}/`);
-  const tag = `<script>window.__BASE__=${JSON.stringify(basePath)}</script>`;
+/** Stamp server-side posture into a served index.html as pre-render globals: `window.__BASE__`
+ *  (the client's URL helper prefix; root-absolute `src="/…"` / `href="/…"` asset refs are also
+ *  prefixed, protocol-relative `//…` left alone) and `window.__READONLY__` (the client hides
+ *  every modification affordance). No-op when neither is set. */
+function injectGlobals(html) {
+  if (!basePath && !readOnly) return html;
+  const globals = [];
+  if (basePath) {
+    html = html.replace(/((?:src|href)=")\/(?!\/)/g, `$1${basePath}/`);
+    globals.push(`window.__BASE__=${JSON.stringify(basePath)}`);
+  }
+  if (readOnly) globals.push("window.__READONLY__=true");
+  const tag = `<script>${globals.join(";")}</script>`;
   return html.includes("<head>") ? html.replace("<head>", `<head>${tag}`) : tag + html;
 }
 

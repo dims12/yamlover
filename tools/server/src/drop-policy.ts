@@ -13,6 +13,7 @@
 
 import { isDirConcrete, isFileConcrete } from "./concrete";
 import { strToSegs, segsToStr, isAncestorPath } from "./client/paths";
+import { isReadOnly } from "./client/base";
 
 /** The facets a drop decision needs — a TreeNode, an explorer Link, or a NodeJson projects
  *  onto this. `concrete` is the docs/language/concretes value ("dir", "file/yaml", "yamlover", …). */
@@ -43,6 +44,7 @@ function nameOf(n: DropNode): string {
  *  relocates the FS object and rewrites inbound pointers). The rules mirror what the
  *  engine's mv and the /api/mv route enforce, so a refused drop never even offers a popup. */
 export function planNodeMove(source: DropNode, target: DropNode): DropVerdict {
+  if (isReadOnly()) return no("server is read-only");
   if (!isDirConcrete(target.concrete)) return no(`target is not a directory (${target.concrete ?? "unknown"})`);
   if (!isFileConcrete(source.concrete) && !isDirConcrete(source.concrete))
     return no(`only file- or directory-backed nodes can be moved (this one is inlined ${source.concrete ?? "unknown"})`);
@@ -65,6 +67,7 @@ export function planNodeMove(source: DropNode, target: DropNode): DropVerdict {
  *  described and confirmed like every other drop. The server routes the landing spot
  *  (chapter chunk vs nearest enclosing directory), so any target is acceptable. */
 export function planFileUpload(target: DropNode, fileNames: string[]): DropVerdict {
+  if (isReadOnly()) return no("server is read-only");
   if (!fileNames.length) return no("nothing to upload");
   const shown = fileNames.slice(0, 3).join(", ") + (fileNames.length > 3 ? ", …" : "");
   const noun = fileNames.length === 1 ? "file" : `${fileNames.length} files`;
@@ -81,6 +84,7 @@ export function planBoardRetag(
   fromTag: string | null,
   toTag: { path: string; label: string },
 ): DropVerdict {
+  if (isReadOnly()) return no("server is read-only");
   if (fromTag === toTag.path) return no("already in this lane");
   const name = task.title || task.path;
   return {

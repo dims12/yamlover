@@ -3,7 +3,7 @@
 Browse a yamlover tree in the web browser.
 
 ```console
-$ npx yamlover [ROOT] [--port N] [--headless] [--host ADDR] [--base-path PREFIX] [--no-gitignore] [--prod]
+$ npx yamlover [ROOT] [--port N] [--headless] [--host ADDR] [--base-path PREFIX] [--no-gitignore] [--prod] [--read-only]
 ```
 
 `ROOT` is any yamlover entity — a project directory (one with a `.yo/`),
@@ -24,6 +24,18 @@ prefix instead of `/` — for hosting several instances behind one reverse proxy
 (see `tools/demo`); the server strips the prefix itself and injects it into the
 SPA shell as `window.__BASE__`. The `BASE_PATH` env var seeds the same setting
 (an explicit flag wins), so a shell-less container image can inject it.
+
+`--read-only` serves the tree **content read-only** — e.g. publishing `docs/`:
+every user-data-mutating request (edits, tagging, moves, renames, uploads,
+board edits, agent-docs install) answers **403** `server is read-only`,
+enforced by a route allowlist on the backend, and the UI hides every
+modification affordance (the flag rides into the SPA shell as
+`window.__READONLY__`; `GET /api/info` reports `readOnly` too). The server
+still maintains its own index (`.yo/index.db`), so browsing stays fast and
+live; but it never generates thumbnails (pre-existing ones still serve — a
+miss falls back to the type glyph), never materializes `settings.yo`, and
+never rewrites source files over an externally inferred move. The
+`YAMLOVER_READ_ONLY` env var (`1`/`true`/`yes`) seeds the same setting.
 
 The page is split into two independently scrolling panes:
 

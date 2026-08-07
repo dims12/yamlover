@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createNode, createObject, fetchInfo, fetchTasks, fetchTree, installAgentDocs, moveNode, PasteResult, TaskInfo, TreeNode } from "./api";
-import { api } from "./base";
+import { api, READ_ONLY } from "./base";
 import { planNodeMove } from "../drop-policy";
 import { currentDrag } from "./dnd";
 import { useDropConfirm } from "./DropConfirm";
@@ -605,16 +605,18 @@ export function App() {
                     <span className="side-action-icon" aria-hidden="true">{"⛭"}</span>
                     <span className="side-action-title">Local settings</span>
                   </button>
-                  <button
-                    type="button"
-                    className="side-action"
-                    disabled={docsState === "busy"}
-                    title="Install the LLM agent guide (AGENTS.md + CLAUDE.md) into this project"
-                    onClick={installDocs}
-                  >
-                    <span className="side-action-icon" aria-hidden="true">🤖</span>
-                    <span className="side-action-title">Install LLM agent guide</span>
-                  </button>
+                  {!READ_ONLY && (
+                    <button
+                      type="button"
+                      className="side-action"
+                      disabled={docsState === "busy"}
+                      title="Install the LLM agent guide (AGENTS.md + CLAUDE.md) into this project"
+                      onClick={installDocs}
+                    >
+                      <span className="side-action-icon" aria-hidden="true">🤖</span>
+                      <span className="side-action-title">Install LLM agent guide</span>
+                    </button>
+                  )}
                 </div>
               ) : (() => {
                 // no tree yet + a server task running ⇒ the index is still being built — show

@@ -3,6 +3,7 @@ import { Annotation, TagRef, annotate, deleteAnnotation, fetchAnnotations } from
 import { AnnotationMenu, rememberTag, withinQueryDropdown, withinTocPane, type CreateEntry } from "./annotate";
 import { canonPath, displayPath } from "../paths";
 import { creatablesFor, useCreatableLabels } from "./create";
+import { READ_ONLY } from "../base";
 
 /** A target node's kind, enough to decide what can be created inside it. */
 export type NodeKind = { format?: string | null; concrete?: string | null };
@@ -32,6 +33,7 @@ export function useExplorerTagMenu(opts?: {
   // tagging (which auto-applies the last tag to save a click once a selection is drawn), a right-click
   // on a whole node must NEVER silently tag it just for opening the menu.
   const openAt = (target: string, x: number, y: number, node?: NodeKind) => {
+    if (READ_ONLY) return; // tagging and creation both write — no menu on a read-only server
     setMenu({ target, x, y, node });
     setCurrent([]);
     reload(target);

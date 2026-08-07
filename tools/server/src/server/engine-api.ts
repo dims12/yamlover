@@ -76,6 +76,7 @@ import {
 import { displayKind, ownedEntries, anchoredOf, typeName, facetsOf } from "./node-kind.js";
 import { TaskRegistry } from "./tasks.js";
 import type { TaskHandle, TaskInfo } from "./tasks.js";
+import { allowedInReadOnly, READ_ONLY_ERROR } from "./read-only-policy.js";
 
 type Handler = (req: IncomingMessage, res: ServerResponse, url: URL) => void;
 interface Options {
@@ -86,6 +87,10 @@ interface Options {
   // always exists (default: false; the bin turns it on). OFF for programmatic/test use, so the
   // pure indexer never writes into the served tree.
   ensureSettings?: boolean;
+  // CONTENT READ-ONLY: every user-data-mutating route answers 403, thumbnail generation and
+  // move relinking are suppressed; housekeeping (index, settings) still runs. See
+  // read-only-policy.ts for the route rule.
+  readOnly?: boolean;
 }
 
 // Marker keys + types the client recognizes (must match src/client expectations).
@@ -151,6 +156,8 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   let cachedDoc: Document | null = null;
   const log = opts.log ?? ((): void => {});
   setValidationLog(log); // non-fatal format diagnostics surface on the server's own log
+  const readOnly = opts.readOnly === true;
+  setReadOnlyWrites(readOnly); // the byte chokepoint refuses too — belt for any future GET-that-writes
   let closed = false;
 
   // SSE subscribers. Frames are typed: `{type:"diff", added,changed,removed,moved}` (a reindex
@@ -403,7 +410,10 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       const h = tasks.start("reconciling");
       try {
         const diff = await doReindex();
-        if (diff.moved.length > 0) {
+        // Relinking REWRITES source files (inbound pointers follow the moved node) — the one
+        // side channel by which pure indexing mutates user data, so read-only skips it: an
+        // externally moved file just shows up moved, its inbound pointers dangling.
+        if (diff.moved.length > 0 && !readOnly) {
           const r = relinkMoved(dataRoot, diff.moved, { ignore });
           if (r.editedFiles.length > 0) {
             const follow = reindex(store0, dataRoot, { ignore });
@@ -459,6 +469,11 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
 
   const handler: Handler = (req, res, url) => {
     try {
+      // THE read-only gate: one allowlist check before any route can look at the request.
+      // Everything below it may assume a mutating request already proved it is allowed.
+      if (readOnly && !allowedInReadOnly(req.method, url.pathname)) {
+        return sendJson(res, 403, READ_ONLY_ERROR);
+      }
       const s = store();
 
       // Server-pushed change notifications: an SSE stream of reindex diffs (client JSON
@@ -1023,7 +1038,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       if (url.pathname === "/api/info") {
         // the breadcrumb head goes by the root's TITLE when it has one (a titled chapter names
         // itself), falling back to the served folder's name
-        sendJson(res, 200, { root: titleOf(s, ":") || rootName });
+        sendJson(res, 200, { root: titleOf(s, ":") || rootName, readOnly });
         return;
       }
 
@@ -1102,6 +1117,10 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         };
         const ready = existingThumb(dataRoot, s, settings.sidecars, segs, sourceRow, w, h); // no-write fast path
         if (ready) return serve(ready);
+        // Generation writes a sidecar AND splices a `yamlover-thumbnails` overlay entry into the
+        // source's host body — user data. Read-only serves only what already exists; a miss
+        // answers 415, which the explorer already renders as the type glyph.
+        if (readOnly) return sendJson(res, 415, { error: `thumbnail not pre-generated (read-only)` });
         thumbBegin(); // count this generation into the coalesced "building thumbnails" task
         const t0 = Date.now();
         // The content hash (it names the sidecar) is computed OUTSIDE the writer queue — it only
@@ -2657,6 +2676,16 @@ function logDiagnostics(found: Diagnostic[]): void {
   for (const x of found) validationLog(`validate ${x.severity}: ${x.code} at ${x.path ?? x.fsPath ?? "?"} — ${x.message}`);
 }
 
+/** Read-only's second line of defense: {@link writeInside} refuses outright when set. The HTTP
+ *  allowlist is the first line; this catches the gap it cannot see — a future GET route that
+ *  writes (the way `/api/thumb` does). Same module-level-setter shape (and same last-created-
+ *  handler-wins caveat) as {@link setValidationLog}. `mkdirInside` stays ungated: the index's
+ *  own `.yo/` directory is permitted housekeeping. */
+let readOnlyWrites = false;
+export function setReadOnlyWrites(v: boolean): void {
+  readOnlyWrites = v;
+}
+
 /** How a validation verdict is acted on here: dev/test THROWS (so corruption turns the suite red
  *  before it can reach a user's tree), production REFUSES the write and reports. `YAMLOVER_VALIDATE`
  *  overrides. A per-project `validate:` in settings.yo is the natural next override, but the
@@ -2676,6 +2705,7 @@ function guardPath(dataRoot: string, abs: string): void {
 /** Write `bytes` to `dir/name`, refusing any path that escapes the served root or violates the
  *  format's layout invariants. */
 function writeInside(dataRoot: string, dir: string, name: string, bytes: Buffer): void {
+  if (readOnlyWrites) throw new Error("refused: server is read-only");
   const root = path.resolve(dataRoot);
   const target = path.resolve(dir, name);
   if (target !== root && !target.startsWith(root + path.sep)) throw new Error("target escapes the data root");

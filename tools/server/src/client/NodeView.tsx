@@ -1,5 +1,6 @@
 import { Fragment, memo, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { fetchNode, fetchSchema, NodeJson, pasteFile, pasteRich, pasteText, PasteResult } from "./api";
+import { READ_ONLY } from "./base";
 import { arxivPdf, tweetUrl, fetchTweetText } from "./paste-links";
 import { countImages, htmlToRich, resolveImages, RichDraft } from "./paste-html";
 import { clipboardFiles, fileToBase64, pastedName } from "./clipboard";
@@ -170,7 +171,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   const editableRef = useRef(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!editableRef.current) return;
+      if (READ_ONLY || !editableRef.current) return;
       if (e.key === "F2" && !unlocked) { e.preventDefault(); setUnlocked(true); }
       else if (e.key === "Escape" && unlocked) { e.preventDefault(); setUnlocked(false); }
     };
@@ -182,9 +183,9 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   // object flows straight into editing it. The context `unlock` is the same door for renderers
   // that create from INSIDE the page (the chapter view's right-click menu).
   useEffect(() => {
-    if (unlockSignal) setUnlocked(true);
+    if (unlockSignal && !READ_ONLY) setUnlocked(true);
   }, [unlockSignal]);
-  const unlock = useCallback(() => setUnlocked(true), []);
+  const unlock = useCallback(() => { if (!READ_ONLY) setUnlocked(true); }, []);
   // The DATA views' in-content links (depth continuations, resolved refs, the editor's ↗)
   // continue reading in the SAME representation — the format is pinned across the hop, so a
   // `{ … }` continuation on a chapter-formatted node stays yamlover, not the chapter page.
@@ -263,7 +264,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   // .yo file in the nearest directory. Skipped while the focus is in a text field (so
   // annotation notes still paste text normally).
   useEffect(() => {
-    if (!node) return;
+    if (!node || READ_ONLY) return; // Ctrl+V bypasses drop-policy — gated here
     const onPaste = (e: ClipboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
@@ -308,7 +309,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   // default is suppressed); a `depth` counter keeps the overlay steady as the cursor crosses nested
   // elements.
   useEffect(() => {
-    if (!node) return;
+    if (!node || READ_ONLY) return; // no drop affordance, no highlight — uploads are refused anyway
     const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types || []).includes("Files");
     let depth = 0;
     const onEnter = (e: DragEvent) => { if (!hasFiles(e)) return; e.preventDefault(); depth++; setDragging(true); };
@@ -553,21 +554,25 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
             an icon + caption so the action reads at a glance. ALWAYS rendered, DISABLED on a
             non-editable view, so the bar keeps its shape. The lock STICKS across navigation
             (`unlocked` stays true), but on a non-editable page the button wears the inert "Edit"
-            face — a disabled "Done" would claim an editor that isn't there. */}
-        <button
-          className={"lockbtn" + (unlocked && isEditableView ? " unlocked" : "")}
-          disabled={!isEditableView}
-          title={
-            !isEditableView ? "This view is not editable"
-            : unlocked ? "Editing — click or Esc to finish"
-            : "Read-only — click or F2 to edit"
-          }
-          aria-pressed={unlocked && isEditableView}
-          onClick={() => setUnlocked((v) => !v)}
-        >
-          <span className="lockbtn-icon" aria-hidden="true">{unlocked && isEditableView ? "✓" : "✏️"}</span>
-          <span className="lockbtn-label">{unlocked && isEditableView ? "Done" : "Edit"}</span>
-        </button>
+            face — a disabled "Done" would claim an editor that isn't there. On a READ-ONLY server
+            it is absent altogether: a deployment posture, not a transient state — dead chrome
+            would only invite the question the missing button answers. */}
+        {!READ_ONLY && (
+          <button
+            className={"lockbtn" + (unlocked && isEditableView ? " unlocked" : "")}
+            disabled={!isEditableView}
+            title={
+              !isEditableView ? "This view is not editable"
+              : unlocked ? "Editing — click or Esc to finish"
+              : "Read-only — click or F2 to edit"
+            }
+            aria-pressed={unlocked && isEditableView}
+            onClick={() => setUnlocked((v) => !v)}
+          >
+            <span className="lockbtn-icon" aria-hidden="true">{unlocked && isEditableView ? "✓" : "✏️"}</span>
+            <span className="lockbtn-label">{unlocked && isEditableView ? "Done" : "Edit"}</span>
+          </button>
+        )}
         <div className="tabs">
           {tabs.map(({ name: f, enabled, offered }) => (
             <Fragment key={f}>
@@ -609,7 +614,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
       {!showRendered && node.description && <p className="nodedesc">{node.description}</p>}
 
       {showRendered ? (
-        <EditingContext.Provider value={{ unlocked, unlock }}>
+        <EditingContext.Provider value={{ unlocked, unlock, readOnly: READ_ONLY }}>
           {/* While UNLOCKED, skip the annotation wrapper: its document `mouseup` selection→picker and
               its per-render `<mark>` DOM rewrite both fight contentEditable. Highlights return on
               re-lock. A non-editable prose material keeps the annotation layer as before. */}
@@ -625,7 +630,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
            per-scalar editor below — their backing supports only scalar emplaces. */
         <YedEditor path={path} onNavigate={navigateData} />
       ) : (
-        <EditingContext.Provider value={{ unlocked, unlock }}>
+        <EditingContext.Provider value={{ unlocked, unlock, readOnly: READ_ONLY }}>
           <pre className="code">
             {/* data views lead with the relations panel (reverse members / `..`),
                 an <hr/>, then the value; schema views embed rel inline already */}

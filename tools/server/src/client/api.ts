@@ -72,9 +72,10 @@ async function getJson<T>(url: string): Promise<T> {
   return body as T;
 }
 
-/** Server info: the ROOT path as given on the CLI (breadcrumb head; "" if omitted). */
-export function fetchInfo(): Promise<{ root: string }> {
-  return getJson<{ root: string }>(api("/api/info"));
+/** Server info: the ROOT path as given on the CLI (breadcrumb head; "" if omitted), plus the
+ *  server's read-only posture (`--read-only`; the SPA reads the injected global instead). */
+export function fetchInfo(): Promise<{ root: string; readOnly?: boolean }> {
+  return getJson<{ root: string; readOnly?: boolean }>(api("/api/info"));
 }
 
 /** A long-running server task (indexing, hashing, …) — mirrors server/tasks.ts. Updates ride

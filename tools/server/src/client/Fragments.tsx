@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Annotation, deleteAnnotation } from "./api";
 import { fragmentAnchorId } from "./paths";
+import { READ_ONLY } from "./base";
 import { TagBadges, TagLink } from "./renderers/tag";
 
 /** A fragment's own node path (`<material>:yamlover-fragments:<slug>`) — the delete target. */
@@ -107,15 +108,17 @@ export function Fragments({ path, groups, width, onNavigate }: {
                   ? <img className="fragment-thumb" src={g.imageUrl} alt="" />
                   : <span className="fragment-excerpt">{fragmentLabel(g)}</span>}
               </button>
-              <button
-                type="button"
-                className="fragment-delete"
-                title="Delete this fragment"
-                aria-label="Delete this fragment"
-                onClick={() => removeFragment(g)}
-              >
-                ✕
-              </button>
+              {!READ_ONLY && (
+                <button
+                  type="button"
+                  className="fragment-delete"
+                  title="Delete this fragment"
+                  aria-label="Delete this fragment"
+                  onClick={() => removeFragment(g)}
+                >
+                  ✕
+                </button>
+              )}
             </div>
             {g.tags.length > 0 && (
               <div className="fragment-tags">

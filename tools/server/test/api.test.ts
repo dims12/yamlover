@@ -13,7 +13,7 @@ describe("api endpoints (engine-backed)", () => {
   it("/api/info returns the served root's directory name", async () => {
     const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
     await h.ready;
-    expect(call(h, "/api/info").json).toEqual({ root: "51-object-in-dir" });
+    expect(call(h, "/api/info").json).toEqual({ root: "51-object-in-dir", readOnly: false });
   });
 
   it("/api/tree lists scalars and respects depth", async () => {

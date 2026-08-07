@@ -1,5 +1,5 @@
 // drop-policy.ts — the pure drag-drop possibility rules (no I/O, no DOM).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { planNodeMove, planFileUpload, planBoardRetag, DropNode } from "../src/drop-policy";
 
 const n = (path: string, concrete: string | null, label?: string): DropNode => ({ path, concrete, label });
@@ -93,5 +93,23 @@ describe("planBoardRetag", () => {
     const v = planBoardRetag({ path: ":t", title: "Fix login" }, ":tags:todo", { path: ":tags:doing", label: "doing" });
     expect(v).toMatchObject({ allowed: true, plan: { kind: "board-retag", task: ":t", fromTag: ":tags:todo", toTag: ":tags:doing" } });
     if (v.allowed) expect(v.plan.description).toBe('Move "Fix login" to "doing"');
+  });
+});
+
+describe("read-only server (window.__READONLY__)", () => {
+  afterEach(() => {
+    delete (globalThis as { window?: unknown }).window;
+  });
+
+  it("every planner refuses with the read-only reason", () => {
+    (globalThis as { window?: unknown }).window = { __READONLY__: true };
+    expect(planNodeMove(n(":a:note.yo", "file/yamlover"), n(":b", "dir"))).toEqual({ allowed: false, reason: "server is read-only" });
+    expect(planFileUpload(n(":a", "dir"), ["x.png"])).toEqual({ allowed: false, reason: "server is read-only" });
+    expect(planBoardRetag({ path: ":t" }, ":tags:todo", { path: ":tags:doing", label: "doing" })).toEqual({ allowed: false, reason: "server is read-only" });
+  });
+
+  it("an explicit false flag changes nothing", () => {
+    (globalThis as { window?: unknown }).window = { __READONLY__: false };
+    expect(planNodeMove(n(":a:note.yo", "file/yamlover"), n(":b", "dir")).allowed).toBe(true);
   });
 });

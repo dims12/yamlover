@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { planBoardRetag } from "../../drop-policy";
 import { NodeJson, fetchNode, TagRef, saveBoardLanes } from "../api";
+import { READ_ONLY } from "../base";
 import { useDropConfirm } from "../DropConfirm";
 import { memberItems } from "./explorer";
 import { touchesYamlover, useDiffBump } from "../live";
@@ -208,10 +209,10 @@ export function BoardView({
                     </button>
                   </TagTip>
                 )}
-                <button className="board-lane-add" title={lane.tags.length === 0 ? "set this lane's tag" : "add a sublane"} onClick={(e) => setPicker({ lane: laneI, x: e.clientX, y: e.clientY })}>＋</button>
+                {!READ_ONLY && <button className="board-lane-add" title={lane.tags.length === 0 ? "set this lane's tag" : "add a sublane"} onClick={(e) => setPicker({ lane: laneI, x: e.clientX, y: e.clientY })}>＋</button>}
               </div>
               <span className="board-col-count">{total}</span>
-              <button className="board-lane-del" title="remove this lane" onClick={() => removeLane(laneI)}>🗑</button>
+              {!READ_ONLY && <button className="board-lane-del" title="remove this lane" onClick={() => removeLane(laneI)}>🗑</button>}
             </header>
             <div className="board-col-body">
               {lane.tags.map((t, gi) => {
@@ -230,7 +231,7 @@ export function BoardView({
                         <span className="board-group-dot" style={tagStyle(color)} />
                         <span className="board-group-title">{t.label}</span>
                         <span className="board-col-count">{groupCards.length}</span>
-                        <button className="board-group-del" title="remove this sublane" onClick={() => removeTagFromLane(laneI, t.path)}>✕</button>
+                        {!READ_ONLY && <button className="board-group-del" title="remove this sublane" onClick={() => removeTagFromLane(laneI, t.path)}>✕</button>}
                       </div>
                     )}
                     <div className="board-group-cards">
@@ -262,7 +263,7 @@ export function BoardView({
           </section>
         );
       })}
-      <button className="board-add-lane" title="add a lane" onClick={addLane}>＋ lane</button>
+      {!READ_ONLY && <button className="board-add-lane" title="add a lane" onClick={addLane}>＋ lane</button>}
       {picker && (
         <AnnotationMenu
           menuRef={pickerRef}
