@@ -27,6 +27,12 @@ jobs:
     # Real GitHub only — skipped on the Forgejo mirror, which runs the .forgejo copy.
     if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
+    env:
+      # npm's HTTP agent only drains its queue when a connection SUCCEEDS, so one flaky
+      # registry fetch strands every request queued behind the 15-socket default and the
+      # install dies with "Exit handler never called!" (npm/cli#9386). Above the dependency
+      # count nothing queues, so a failed fetch reports and retries instead of hanging.
+      npm_config_maxsockets: 1000
     steps:
       - uses: actions/checkout@v4
         # examples/ are normal tracked files; the conformance submodules aren't

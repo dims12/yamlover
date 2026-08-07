@@ -23,6 +23,10 @@ on:
 # warning is gone. These action majors are Node-24 compatible.
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  # npm's HTTP agent only drains its queue when a connection SUCCEEDS, so one flaky registry
+  # fetch strands every request queued behind the 15-socket default and the install dies with
+  # "Exit handler never called!" (npm/cli#9386). Above the dependency count nothing queues.
+  npm_config_maxsockets: 1000
 
 jobs:
   build:
