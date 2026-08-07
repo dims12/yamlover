@@ -34,6 +34,9 @@ env:
 
 jobs:
   build:
+    # Real GitHub only. Forgejo already ignores this whole directory (it prefers
+    # .forgejo/workflows, an all-or-nothing fallback), so this guard is the backstop for the
+    # day that directory is emptied — see .forgejo/workflows/ci.yml for the full account.
     if: github.server_url == 'https://github.com'
     strategy:
       fail-fast: false

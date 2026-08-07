@@ -4,6 +4,17 @@
 # (native .ts type-stripping + the built-in node:sqlite the engine runs on). A second job
 # runs the JetBrains plugin's Gradle tests — its Kotlin lexer + pointer navigation
 # reimplement the parser, so this gate catches drift when the grammar changes.
+#
+# ISOLATION FROM THE GITHUB SIDE — the two forges never run each other's jobs:
+#   • GitHub reads ONLY .github/workflows, so everything here is invisible to it.
+#   • Forgejo prefers .forgejo/workflows and falls back to .github/workflows only when this
+#     directory holds no workflow at all — the fallback is all-or-nothing, so while this file
+#     exists the .github copies never run here.
+# That makes the directory layout the real boundary. The `if:` on each job below (and its
+# mirror image on the .github side) is the belt-and-braces backstop for the one way the
+# boundary can fail: if this directory is ever emptied, the fallback would hand Forgejo the
+# GitHub jobs, whose `runs-on: ubuntu-latest`, cloud secrets and public registry do not exist
+# here. Anything LAN-bound (Nexus, calculon's docker daemon) must live on this side only.
 on:
   push:
     branches: [main]
@@ -12,6 +23,8 @@ on:
 
 jobs:
   test:
+    # Forgejo only — the mirror image of the .github guard (see the header).
+    if: github.server_url != 'https://github.com'
     runs-on: docker
     container:
       image: node:22-bookworm
@@ -38,6 +51,8 @@ jobs:
         run: npm --prefix tools/server test
 
   jetbrains-plugin:
+    # Forgejo only — the mirror image of the .github guard (see the header).
+    if: github.server_url != 'https://github.com'
     runs-on: docker
     container:
       image: eclipse-temurin:21-jdk

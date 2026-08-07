@@ -12,8 +12,10 @@ on:
 
 jobs:
   publish:
-    # Real GitHub only. The Forgejo runner reports its own server_url, so this whole job is
-    # skipped there — Nexus stays publish-npm-inthemoon.yml's job, npmjs stays this one's.
+    # Real GitHub only — npmjs is this job's, Nexus stays publish-npm-inthemoon.yml's. Forgejo
+    # already ignores this whole directory (it prefers .forgejo/workflows, an all-or-nothing
+    # fallback); this guard is the backstop for the day that directory is emptied — see
+    # .forgejo/workflows/ci.yml for the full account.
     if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     permissions:
