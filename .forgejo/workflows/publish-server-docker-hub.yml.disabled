@@ -1,6 +1,7 @@
-# Build the demo image (server prod build + examples/ baked in) and push it to
-# Docker Hub as dimskraft/yamlover-demo. The design-vm demo server then just
-# `docker pull`s this public image — it never reaches back to Forgejo/Nexus.
+# Build the two runtime images from one server prod build and push them to Docker Hub:
+#   dimskraft/yamlover-demo — examples/ baked in, one throwaway container per visitor
+#   dimskraft/yamlover-docs — docs/ baked in, read-only, the always-on /docs instance
+# The design-vm demo server just `docker pull`s them — it never reaches back to Forgejo/Nexus.
 #
 # The job runs in a node container, but this runner is configured with
 # `container.docker_host: automount`, so the host docker socket is mounted in and
@@ -13,6 +14,7 @@ on:
     paths:
       - 'tools/server/**'
       - 'examples/**'
+      - 'docs/**'
       - 'tools/demo/docker/**'
       - '.forgejo/workflows/publish-server-docker-hub.yml'
   workflow_dispatch: {}
@@ -60,7 +62,7 @@ jobs:
       - name: Create buildkit builder (needed for attestations)
         run: docker buildx create --name ci --driver docker-container --use --bootstrap
 
-      - name: Build, attest (SBOM + provenance), and push
+      - name: Build, attest (SBOM + provenance), and push both images
         run: |
           SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-12)   # sh has no ${var::n}
           docker buildx build -f tools/demo/docker/Dockerfile \
@@ -68,5 +70,13 @@ jobs:
             -t dimskraft/yamlover-demo:latest \
             -t "dimskraft/yamlover-demo:${{ steps.v.outputs.version }}" \
             -t "dimskraft/yamlover-demo:${SHORT_SHA}" \
+            --push \
+            .
+          # same build, docs/ instead of examples/, served read-only
+          docker buildx build -f tools/demo/docker/docs.Dockerfile \
+            --provenance=true --sbom=true \
+            -t dimskraft/yamlover-docs:latest \
+            -t "dimskraft/yamlover-docs:${{ steps.v.outputs.version }}" \
+            -t "dimskraft/yamlover-docs:${SHORT_SHA}" \
             --push \
             .

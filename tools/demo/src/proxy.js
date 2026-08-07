@@ -6,7 +6,9 @@
 
 import http from "node:http";
 
-export function proxy(req, res, port) {
+/** `onError` (optional) fires when the upstream refuses/drops the connection — the docs
+ *  route uses it to drop its cached port so the next hit re-provisions the instance. */
+export function proxy(req, res, port, onError) {
   const upstream = http.request(
     {
       host: "127.0.0.1",
@@ -21,6 +23,7 @@ export function proxy(req, res, port) {
     },
   );
   upstream.on("error", () => {
+    onError?.();
     if (!res.headersSent) {
       res.statusCode = 502;
       res.end("demo backend unavailable");

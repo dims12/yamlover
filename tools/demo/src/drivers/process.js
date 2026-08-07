@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { config, basePathFor } from "../config.js";
 
 const procs = new Map(); // id -> { hash, child, dir }
+let docsProc = null; // { id, child, port } — the always-on docs instance
 
 /** An OS-assigned free TCP port on loopback (a hint; the actual bound port is read back). */
 function freePort() {
@@ -24,6 +25,39 @@ function freePort() {
   });
 }
 
+/** Spawn a yamlover child serving `dir` under `basePath`, resolved once it reports its port. */
+async function spawnYamlover(dir, basePath, extraArgs = []) {
+  const hint = await freePort();
+  const child = spawn(
+    process.execPath,
+    [config.yamloverBin, dir, "--prod", "--headless", "--port", String(hint), "--base-path", basePath, ...extraArgs],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  // yamlover prints "http://<host>:<port>/" once bound; trust that port (it may have
+  // bumped off our hint via its own EADDRINUSE fallback).
+  const port = await new Promise((resolve, reject) => {
+    let buf = "";
+    const timer = setTimeout(() => reject(new Error("yamlover start timeout")), 20_000);
+    const onData = (d) => {
+      buf += d.toString();
+      const m = buf.match(/http:\/\/[^/]+:(\d+)\//);
+      if (m) {
+        clearTimeout(timer);
+        child.stdout.off("data", onData);
+        child.stdout.resume(); // keep draining so the pipe never fills
+        resolve(Number(m[1]));
+      }
+    };
+    child.stdout.on("data", onData);
+    child.stderr.resume();
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      reject(new Error(`yamlover exited early (code ${code})`));
+    });
+  });
+  return { child, port };
+}
+
 export const processDriver = {
   name: "process",
 
@@ -34,39 +68,41 @@ export const processDriver = {
     const parent = await mkdtemp(join(config.spoolDir, hash + "-"));
     const dir = join(parent, "examples");
     await cp(config.examplesDir, dir, { recursive: true });
-    const hint = await freePort();
-    const child = spawn(
-      process.execPath,
-      [config.yamloverBin, dir, "--prod", "--headless", "--port", String(hint), "--base-path", basePathFor(hash)],
-      { stdio: ["ignore", "pipe", "pipe"] },
-    );
+    const { child, port } = await spawnYamlover(dir, basePathFor(hash));
     const id = `p${child.pid}`;
     procs.set(id, { hash, child, dir: parent }); // remove the whole parent on stop
     child.on("exit", () => procs.delete(id));
+    return { id, port };
+  },
 
-    // yamlover prints "http://<host>:<port>/" once bound; trust that port (it may have
-    // bumped off our hint via its own EADDRINUSE fallback).
-    const port = await new Promise((resolve, reject) => {
-      let buf = "";
-      const timer = setTimeout(() => reject(new Error("yamlover start timeout")), 20_000);
-      const onData = (d) => {
-        buf += d.toString();
-        const m = buf.match(/http:\/\/[^/]+:(\d+)\//);
-        if (m) {
-          clearTimeout(timer);
-          child.stdout.off("data", onData);
-          child.stdout.resume(); // keep draining so the pipe never fills
-          resolve(Number(m[1]));
-        }
-      };
-      child.stdout.on("data", onData);
-      child.stderr.resume();
-      child.once("exit", (code) => {
-        clearTimeout(timer);
-        reject(new Error(`yamlover exited early (code ${code})`));
-      });
+  // --- the always-on docs instance ---------------------------------------- //
+  // Serves the repo's docs/ IN PLACE (no temp copy): `--read-only` means the child never
+  // writes user data, and its index under docs/.yo is exactly what a local yamlover would
+  // build anyway. There is no image, so nothing is ever stale.
+
+  async docsStatus() {
+    if (!docsProc) return null;
+    return { id: docsProc.id, port: docsProc.port, stale: false };
+  },
+
+  async startDocs() {
+    const { child, port } = await spawnYamlover(config.docsDir, config.docsBasePath, ["--read-only"]);
+    const id = `p${child.pid}`;
+    docsProc = { id, child, port };
+    child.on("exit", () => {
+      if (docsProc?.id === id) docsProc = null;
     });
     return { id, port };
+  },
+
+  async stopDocs() {
+    const rec = docsProc;
+    docsProc = null;
+    try {
+      rec?.child.kill("SIGTERM");
+    } catch {
+      /* already gone */
+    }
   },
 
   async stop(id) {
@@ -89,6 +125,7 @@ export const processDriver = {
   // Kill children on graceful shutdown — they can't be adopted across a restart
   // (the child list is in-memory), so leaving them would orphan real processes.
   async shutdown() {
+    await this.stopDocs();
     for (const rec of procs.values()) {
       try {
         rec.child.kill("SIGTERM");

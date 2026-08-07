@@ -1,7 +1,9 @@
-# Build the demo image (server prod build + examples/ baked in) and push it to
-# Docker Hub as dimskraft/yamlover-demo. The design-vm demo server then just
-# `docker pull`s this public image. GitHub counterpart of
-# .forgejo/workflows/publish-server-docker-hub.yml.
+# Build the two runtime images from one server prod build and push them to Docker Hub:
+#   dimskraft/yamlover-demo — examples/ baked in, one throwaway container per visitor
+#   dimskraft/yamlover-docs — docs/ baked in, read-only, the always-on /docs instance
+# The design-vm demo server just `docker pull`s them; it re-pulls the docs image on a timer
+# (DOCS_REFRESH_MS), so a docs edit goes live from this push alone — no redeploy.
+# GitHub counterpart of .forgejo/workflows/publish-server-docker-hub.yml.
 #
 # Unlike the Forgejo runner (which mounts calculon's host docker daemon and has to
 # drop in the docker CLI + buildx by hand), GitHub-hosted ubuntu-latest already
@@ -15,6 +17,7 @@ on:
     paths:
       - 'tools/server/**'
       - 'examples/**'
+      - 'docs/**'
       - 'tools/demo/docker/**'
       - '.github/workflows/publish-server-docker-hub.yml'
   workflow_dispatch: {}
@@ -55,7 +58,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build, attest (SBOM + provenance), and push
+      - name: Build, attest (SBOM + provenance), and push the demo image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -67,3 +70,18 @@ jobs:
             dimskraft/yamlover-demo:latest
             dimskraft/yamlover-demo:${{ steps.v.outputs.version }}
             dimskraft/yamlover-demo:${{ steps.sha.outputs.short }}
+
+      # Same build, different content: docs/ instead of examples/, served read-only. Shares
+      # this job's dist/ and buildx layer cache, so it costs little on top of the demo image.
+      - name: Build, attest (SBOM + provenance), and push the docs image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: tools/demo/docker/docs.Dockerfile
+          push: true
+          provenance: true
+          sbom: true
+          tags: |
+            dimskraft/yamlover-docs:latest
+            dimskraft/yamlover-docs:${{ steps.v.outputs.version }}
+            dimskraft/yamlover-docs:${{ steps.sha.outputs.short }}

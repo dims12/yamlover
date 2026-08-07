@@ -23,6 +23,16 @@ const num = (name, def) => {
 
 const port = int("PORT", 8080);
 
+/** Normalize a URL prefix: leading `/`, no trailing `/` (matches yamlover's own `--base-path`). */
+const normBase = (s) => {
+  let b = (s ?? "").trim();
+  if (b === "" || b === "/") return "";
+  if (!b.startsWith("/")) b = "/" + b;
+  return b.endsWith("/") ? b.slice(0, -1) : b;
+};
+
+const reapIntervalMs = int("REAP_INTERVAL_MS", 30 * 60 * 1000);
+
 export const config = {
   host: str("HOST", "127.0.0.1"), // behind Caddy in prod; localhost is the safe default
   port,
@@ -34,7 +44,7 @@ export const config = {
   ttlDays: num("TTL_DAYS", 3), // hard lifetime of a provisioned demo
   idleHours: str("IDLE_HOURS", null) == null ? null : num("IDLE_HOURS", null), // optional idle reclaim
   maxDemos: int("MAX_DEMOS", 50), // global concurrent-running cap
-  reapIntervalMs: int("REAP_INTERVAL_MS", 30 * 60 * 1000),
+  reapIntervalMs,
 
   dbPath: str("DB_PATH", resolve(repoRoot, "tools/demo/.data/demos.db")),
 
@@ -50,6 +60,16 @@ export const config = {
   // captcha (Cloudflare Turnstile). Both unset → captcha disabled (form works without it).
   turnstileSiteKey: str("TURNSTILE_SITE_KEY", ""), // public, embedded in the page
   turnstileSecret: str("TURNSTILE_SECRET", ""), // private, server-side siteverify
+
+  // --- the always-on docs instance (one read-only yamlover serving docs/, not a demo) ---
+  docsEnabled: str("DOCS_ENABLED", "1") !== "0",
+  docsBasePath: normBase(str("DOCS_BASE_PATH", "/docs")), // URL prefix it is served under
+  docsImage: str("DOCS_IMAGE", "dimskraft/yamlover-docs:latest"), // published on Docker Hub by CI
+  // How often to re-pull the docs image and recreate the container if the tag moved. This is
+  // what makes a docs edit go live: CI pushes a new :latest, and the next check picks it up
+  // with no redeploy. Shares the reaper's cadence by default.
+  docsRefreshMs: int("DOCS_REFRESH_MS", reapIntervalMs),
+  docsDir: str("DOCS_DIR", resolve(repoRoot, "docs")), // process-driver content (served in place)
 
   // process driver (local dev)
   examplesDir: str("EXAMPLES_DIR", resolve(repoRoot, "examples")),

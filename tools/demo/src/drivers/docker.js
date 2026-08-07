@@ -10,6 +10,14 @@ import { config, basePathFor } from "../config.js";
 
 const run = promisify(execFile);
 const containerName = (hash) => `yld-${hash}`;
+const DOCS_NAME = "yld-docs"; // the single always-on docs container
+
+/** The host port a container publishes 5173 on, or null if it publishes none. */
+async function publishedPort(idOrName) {
+  const { stdout } = await run("docker", ["port", idOrName, "5173"]).catch(() => ({ stdout: "" }));
+  const m = stdout.match(/:(\d+)\s*$/m);
+  return m ? Number(m[1]) : null;
+}
 
 export const dockerDriver = {
   name: "docker",
@@ -26,6 +34,78 @@ export const dockerDriver = {
     } catch (e) {
       console.warn(`               image  ${config.dockerImage} — pull failed, using local copy: ${e.message}`);
     }
+  },
+
+  // Same rationale as prepare(), for the docs image. Separate so the docs refresh timer can
+  // re-pull it on its own cadence without disturbing the demo image.
+  async prepareDocs() {
+    if (!config.dockerPull) return;
+    try {
+      await run("docker", ["pull", config.docsImage]);
+    } catch (e) {
+      console.warn(`               docs image ${config.docsImage} — pull failed, using local copy: ${e.message}`);
+    }
+  },
+
+  /** The live docs container, if any: `{ id, port, stale }`. `stale` means it is running an
+   *  image other than the one `${config.docsImage}` now resolves to — i.e. CI pushed a new
+   *  build and the last `docker pull` fetched it, so the container should be recreated.
+   *  Compares image IDs, not tags: a moving tag like `:latest` never changes name. */
+  async docsStatus() {
+    const { stdout } = await run("docker", [
+      "ps",
+      "--no-trunc",
+      "--filter",
+      "label=yamlover-docs=1",
+      "--format",
+      "{{.ID}}",
+    ]);
+    const id = stdout.trim().split("\n").filter(Boolean)[0];
+    if (!id) return null;
+    const [port, running, wanted] = await Promise.all([
+      publishedPort(id),
+      run("docker", ["inspect", "-f", "{{.Image}}", id]).then((r) => r.stdout.trim()),
+      run("docker", ["image", "inspect", "-f", "{{.Id}}", config.docsImage])
+        .then((r) => r.stdout.trim())
+        .catch(() => null), // image not present locally (pull failed) → nothing to compare against
+    ]);
+    return { id, port, stale: wanted != null && running !== wanted };
+  },
+
+  async startDocs() {
+    // Clear any leftover of the same name (a stopped-but-not-removed or stale container)
+    // so the run below cannot fail on a name collision.
+    await run("docker", ["rm", "-f", DOCS_NAME]).catch(() => {});
+    const { stdout } = await run("docker", [
+      "run",
+      "-d",
+      "--rm",
+      "--init",
+      "--label",
+      "yamlover-docs=1", // deliberately NOT yamlover-demo=1: the reaper must never touch this
+      "--name",
+      DOCS_NAME,
+      "--memory",
+      config.dockerMemory,
+      "--cpus",
+      config.dockerCpus,
+      "-e",
+      `BASE_PATH=${config.docsBasePath}`,
+      "-p",
+      "127.0.0.1::5173",
+      config.docsImage,
+    ]);
+    const id = stdout.trim();
+    const port = await publishedPort(DOCS_NAME);
+    if (!port) {
+      await run("docker", ["rm", "-f", DOCS_NAME]).catch(() => {});
+      throw new Error("could not read docker port mapping for the docs container");
+    }
+    return { id, port };
+  },
+
+  async stopDocs() {
+    await run("docker", ["rm", "-f", DOCS_NAME]).catch(() => {}); // --rm tears it down
   },
 
   async start(hash) {
@@ -54,14 +134,12 @@ export const dockerDriver = {
     ]);
     const id = stdout.trim(); // full 64-char container id
 
-    // Read the published host port (e.g. "127.0.0.1:49153").
-    const { stdout: portOut } = await run("docker", ["port", name, "5173"]);
-    const m = portOut.match(/:(\d+)\s*$/m);
-    if (!m) {
+    const port = await publishedPort(name); // the OS-assigned loopback port (e.g. 49153)
+    if (!port) {
       await this.stop(id).catch(() => {});
       throw new Error("could not read docker port mapping");
     }
-    return { id, port: Number(m[1]) };
+    return { id, port };
   },
 
   async stop(id) {

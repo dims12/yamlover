@@ -1,6 +1,7 @@
-// The demo server's HTTP router. Two concerns:
+// The demo server's HTTP router. Three concerns:
 //   • registration   — GET / (the email form) and POST /register (mint hash + email link)
 //   • demo proxying   — GET|* /demo/<hash>/... → provision-on-first-hit then reverse-proxy
+//   • docs proxying   — GET|* /docs/... → the single always-on read-only instance
 // Anything else 404s. Friendly status pages for unknown/expired/at-capacity links.
 
 import { readFile } from "node:fs/promises";
@@ -25,9 +26,32 @@ export function parseDemoPath(pathname) {
   return { hash: decodeURIComponent(m[1]), rest: m[2] ?? null };
 }
 
-export function makeRouter({ store, provision, rateLimit }) {
+/** Is this request for the always-on docs instance (`/docs`, `/docs/…`)? Pure; tested directly. */
+export function isDocsPath(pathname, base = config.docsBasePath) {
+  return Boolean(base) && (pathname === base || pathname.startsWith(base + "/"));
+}
+
+export function makeRouter({ store, provision, rateLimit, docs }) {
   return async function route(req, res) {
     const { pathname } = new URL(req.url, "http://localhost");
+
+    // --- the always-on docs instance ---------------------------------------- //
+    if (docs && config.docsEnabled && isDocsPath(pathname)) {
+      if (pathname === config.docsBasePath) {
+        res.writeHead(301, { Location: config.docsBasePath + "/" }); // canonical trailing slash
+        return res.end();
+      }
+      let port;
+      try {
+        // Cheap when the instance is already up; starts (or restarts) it otherwise, so a
+        // container that died between requests self-heals on the next hit.
+        port = await docs.ensure();
+      } catch (e) {
+        console.error("docs unavailable:", e.message);
+        return sendPage(res, 502, "Docs unavailable", "The documentation is starting up. Please retry in a moment.");
+      }
+      return proxy(req, res, port, () => docs.invalidate());
+    }
 
     // --- demo links --------------------------------------------------------- //
     const demo = parseDemoPath(pathname);

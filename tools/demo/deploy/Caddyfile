@@ -4,8 +4,9 @@
 # Because it's our own file, the shared Caddyfile's other sites are
 # never touched, and edits to this file actually propagate (no append-only drift).
 # Reuses the wildcard *.inthemoon.net cert already on the box and reverse-proxies the
-# whole app — the registration page AND every /demo/<hash>/ — to the demo server. Caddy
-# flushes streamed responses, so the yamlover SSE stream (/api/events) passes through live.
+# whole app — the registration page, /docs/, AND every /demo/<hash>/ — to the demo server,
+# which fans out to the per-instance containers on loopback. Caddy flushes streamed
+# responses, so the yamlover SSE stream (/api/events) passes through live.
 
 yamlover.inthemoon.net {
 	tls /etc/caddy/certs/inthemoon.net/fullchain.pem /etc/caddy/certs/inthemoon.net/privkey.pem

@@ -5,17 +5,39 @@ Hands each visitor a **private, disposable yamlover** pre-loaded with the repo's
 and the first click provisions a yamlover instance served under that path prefix. Each
 demo is reaped after a TTL.
 
+It also serves the project's **documentation** at `/docs/` from one always-on, read-only
+instance (see below).
+
 ```
 visitor ─▶ GET /                     registration page (email form)
         ─▶ POST /register            mint 128-bit hash, email the link (lazy: no instance yet)
         ─▶ GET /demo/<hash>/…        first hit provisions an instance, then reverse-proxies to it
+        ─▶ GET /docs/…               reverse-proxied to the always-on read-only docs instance
 reaper  ─▶ every 30 min              stop demos past their TTL; reconcile against live instances on boot
 ```
 
 Routing is **path-prefix**: one domain, one TLS cert, one A record. Each yamlover
-instance is launched with `--base-path /demo/<hash>` so the whole app (assets, every
-`/api/*`, the SSE stream) lives under that prefix; the proxy forwards the URL unchanged
-and yamlover strips the prefix itself.
+instance is launched with `--base-path /demo/<hash>` (`/docs` for the docs one) so the
+whole app (assets, every `/api/*`, the SSE stream) lives under that prefix; the proxy
+forwards the URL unchanged and yamlover strips the prefix itself.
+
+## The docs instance (`/docs`)
+
+One extra instance that is **not** a demo: no hash, no email, never reaped, always up. It
+runs the `dimskraft/yamlover-docs` image (the repo's `docs/` baked in) with yamlover's
+`--read-only` flag, so every mutating request is refused with 403 and the UI shows no edit
+affordances. It is kept alive by three triggers, all funnelling through one `ensure()`:
+
+- **at boot** — started alongside the server, but never blocking it: if the docs fail, the
+  registration page and the demos still come up;
+- **on a `/docs` hit** — a container that died (or a restarted docker daemon) self-heals on
+  the next request; the proxy drops the cached port as soon as the upstream refuses;
+- **every `DOCS_REFRESH_MS`** (default 30 min) — re-pull the image and recreate the container
+  if the tag moved. This is what makes a documentation edit go live: CI pushes a new
+  `:latest`, and the next check picks it up **without a redeploy**.
+
+The container carries the label `yamlover-docs=1`, never `yamlover-demo=1` — so the reaper,
+which filters on the latter, cannot touch it. `DOCS_ENABLED=0` turns the whole thing off.
 
 ## Drivers (isolation)
 
@@ -30,7 +52,8 @@ Selected with `DEMO_DRIVER`:
   and adopted by `reconcile()`).
 - **`process`** (local dev) — one `node yamlover.js` child per hash serving a fresh copy
   of `examples/` in a temp dir. No Docker needed. Children are killed on graceful
-  shutdown; cleanup of the temp dir happens on stop.
+  shutdown; cleanup of the temp dir happens on stop. The docs instance is a child too,
+  serving the repo's `docs/` **in place** (`--read-only` means it writes no user data).
 
 ## Email
 
@@ -54,25 +77,32 @@ DEMO_DRIVER=process EMAIL_PROVIDER=console \
 ```
 
 Open <http://127.0.0.1:8099/>, submit an email, copy the link printed to the console,
-open it.
+open it. The docs are at <http://127.0.0.1:8099/docs/> (served from the repo's `docs/`).
 
-## The Docker image
+## The Docker images
 
-In production the driver pulls **`dimskraft/yamlover-demo:latest`** from Docker Hub (CI
-builds and pushes it on every change). Just run with the docker driver and it pulls on
-startup:
+Two, built from the same server production bundle by the same CI job:
+
+| image | content | how it runs |
+|-------|---------|-------------|
+| `dimskraft/yamlover-demo` | `examples/` | one throwaway container per visitor |
+| `dimskraft/yamlover-docs` | `docs/` | one always-on container, `--read-only` |
+
+In production the driver pulls both from Docker Hub. Just run with the docker driver and it
+pulls on startup:
 
 ```bash
 DEMO_DRIVER=docker node tools/demo/bin/demo-server.js
 ```
 
-To iterate on the image locally instead, build it and point `DEMO_IMAGE` at the local
-tag (and skip the registry pull):
+To iterate on the images locally instead, build them and point `DEMO_IMAGE` / `DOCS_IMAGE`
+at the local tags (and skip the registry pull):
 
 ```bash
 npm --prefix tools/server run build
-docker build -f tools/demo/docker/Dockerfile -t yamlover-demo .   # from the repo root
-DEMO_DRIVER=docker DEMO_IMAGE=yamlover-demo DEMO_IMAGE_PULL=0 \
+docker build -f tools/demo/docker/Dockerfile      -t yamlover-demo .   # from the repo root
+docker build -f tools/demo/docker/docs.Dockerfile -t yamlover-docs .
+DEMO_DRIVER=docker DEMO_IMAGE=yamlover-demo DOCS_IMAGE=yamlover-docs DEMO_IMAGE_PULL=0 \
   node tools/demo/bin/demo-server.js
 ```
 
@@ -91,9 +121,13 @@ DEMO_DRIVER=docker DEMO_IMAGE=yamlover-demo DEMO_IMAGE_PULL=0 \
 | `EMAIL_FROM` / `RESEND_API_KEY` | — | Resend sender + key |
 | `REGISTER_PER_HOUR` | `3` | per-IP registration rate limit |
 | `DEMO_IMAGE` | `dimskraft/yamlover-demo:latest` | docker image (Docker Hub) |
-| `DEMO_IMAGE_PULL` | `1` | `docker pull` the image on startup (`0` to skip) |
+| `DEMO_IMAGE_PULL` | `1` | `docker pull` the images on startup (`0` to skip) |
 | `DOCKER_MEMORY` / `DOCKER_CPUS` | `512m` / `1` | per-container caps |
-| `EXAMPLES_DIR` / `YAMLOVER_BIN` / `SPOOL_DIR` | repo paths | process-driver inputs |
+| `DOCS_ENABLED` | `1` | serve the always-on read-only docs instance |
+| `DOCS_IMAGE` | `dimskraft/yamlover-docs:latest` | docs image (Docker Hub) |
+| `DOCS_BASE_PATH` | `/docs` | URL prefix the docs are served under |
+| `DOCS_REFRESH_MS` | `REAP_INTERVAL_MS` | re-pull + recreate the docs container if the tag moved |
+| `EXAMPLES_DIR` / `DOCS_DIR` / `YAMLOVER_BIN` / `SPOOL_DIR` | repo paths | process-driver inputs |
 
 ## Deploy (design-vm)
 
@@ -119,7 +153,7 @@ first run and re-runs only refresh what changed. The job:
 3. seeds `~/.config/yamlover-demo.env` from the example *if absent* (then never clobbers it,
    so secrets/edits survive), installs the user unit, makes `/etc/resend.env` group-readable
    if present, enables linger, and `enable` + `restart`s the service — which re-pulls the
-   latest `dimskraft/yamlover-demo` image on startup;
+   latest `dimskraft/yamlover-demo` and `dimskraft/yamlover-docs` images on startup;
 4. ensures `/etc/caddy/conf.d` exists and is imported by `/etc/caddy/Caddyfile`, installs
    `deploy/Caddyfile` as the whole-file drop-in `/etc/caddy/conf.d/yamlover.caddy`, then
    `caddy validate` + `systemctl reload caddy`.

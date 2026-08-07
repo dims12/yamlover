@@ -38,6 +38,7 @@
       a:hover { text-decoration: underline; }
       h1 { font-size: 1.5rem; margin: 1.25rem 0 0.4rem; letter-spacing: -0.02em; }
       p.about { color: var(--muted); margin: 0 0 1rem; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; }
       p.lede { color: var(--muted); margin: 0 0 1.5rem; }
       form { display: flex; flex-direction: column; gap: 0.75rem; }
       label { font-weight: 600; font-size: 0.9rem; }
@@ -78,8 +79,8 @@
     <main class="card">
       <div class="mark">yaml<span class="dot">over</span></div>
       <h1>Try it live</h1>
-      <p class="about"><strong>yamlover</strong> (YAML Overlay) is a materialization language that supersedes YAML and JSON — it stores tree- and DAG-like data across filesystem trees, with first-class pointers as graph edges. <a href="https://github.com/dims12/yamlover" target="_blank" rel="noopener">Source on GitHub →</a></p>
-      <p class="lede">Enter your email and we'll send you a private link to a hosted yamlover, pre-loaded with example data. No install.</p>
+      <p class="about"><strong>yamlover</strong> is a shared memory for people, tools and LLMs: one knowledge base you edit like notes, an agent reads like a database, and <code>git</code> versions like code. Your prose, images and structured data live together — as ordinary files in your own folders, readable offline and locked into nothing. <a href="https://github.com/dims12/yamlover" target="_blank" rel="noopener">Source on GitHub →</a></p>
+      <p class="lede">Leave your email and we'll send you a private link to your own hosted yamlover, pre-loaded with examples — browse it, edit anything, break it if you like. Nothing to install. Or just <a href="/docs/">read the documentation →</a>, which is itself a yamlover you can click through.</p>
       <form id="form">
         <label for="email">Email address</label>
         <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@example.com" />

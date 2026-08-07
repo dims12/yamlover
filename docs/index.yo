@@ -4,6 +4,7 @@
 !!<*yamlover: $defs: chapter>
 yamlover
 description: YAML with pointers - the language, its storage model, and its documents
+
 - >
   **yamlover** is a language close to YAML that adds a *pointer layer* - `*` dereferences, `&` path
   anchors, keys that are pointers - and *concretes*: the same logical document can live in one file,
