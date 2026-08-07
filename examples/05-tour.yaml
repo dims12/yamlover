@@ -25,7 +25,7 @@ humans:
                        # root key `whiskers`, and `*whiskers` ≡ `*: whiskers`. A NATIVE .yo
                        # file writes the path form instead (`*: pets[1]`, see 06-tour.yo).
                        # yamlover is close to YAML but NOT a superset — links/anchors differ
-                       # (YAMLOVER.md §3); reading is concrete-aware.
+                       # (docs/language/vs-yaml); reading is concrete-aware.
 
 # ---- a tour of YAML scalar & collection types (the JSON types, plus YAML's own) ----
 types:

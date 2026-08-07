@@ -4,7 +4,7 @@
 # the YAML-keys round) addresses body element i of the document root (the title is the
 # node's SELF-VALUE, so it consumes no index — the first chunk is `:0`). The legacy
 # bracket/slash spellings (`/[i]`, `/i`) read forever as aliases, written never.
-# Spec: ../CHAPTER.md, ../MARKLOWER.md, ../YAMLOVER.md.
+# Spec: docs/documents/chapter, docs/documents/marklower, docs/language.
 !!<*yamlover: $defs: chapter>
 A Tour of marklower Links
 - |

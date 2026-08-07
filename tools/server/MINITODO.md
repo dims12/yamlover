@@ -60,7 +60,7 @@
   ladder (`*` bare / `*:` / `*::`), live TOC filtering through the shared TocFilterSession, TOC
   click inserts the picked path spelled in the chosen scope, Enter reduces the query to a
   link-arity pointer. The tag picker's search row runs on the same kit (annotate.tsx).
-  State tables: QUERY_EDITOR.yo (pick mode), YAMLOVER_EDITOR.yo (pointer_* states).
+  State tables: docs/server/query-editor (pick mode), docs/server/yamlover-editor (pointer_* states).
 - Support copy to clipboard in all json, json5, json5p, yaml and yamlover renderers and copy/paste in yamlover editor
   +DONE for the EDITOR half (yed: subtree Ctrl+C, selection copy as source, Ctrl+V with the
   sibling splice, JSON/JSON5 sniff, back-edge/size guards — tools/yed/src/paste.ts); the

@@ -2,7 +2,7 @@
 # bottom. Textual chunks are inline (block scalars); binary chunks point at the sample
 # files in this directory. The first chunk is the DEFAULT format, marklower; every other
 # non-default textual chunk carries an inline schema (`!!<format: …>`); the binary file
-# types live in meta.yo. The body is one positional stream (CHAPTER.md).
+# types live in meta.yo. The body is one positional stream (docs/documents/chapter).
 !!<*yamlover: $defs: chapter>
 All Supported Formats — as a chapter
 - |

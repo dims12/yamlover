@@ -23,11 +23,11 @@
 > `GET /api/query`, gated by the 77-case corpus in `query.cases.ts`).
 > **Not yet built:** the directory serializer (blocks `put`/`normalize`),
 > `rm`/`put`/`link`/`normalize`, the authoring-time link/query ARITY check
-> (SEPARATOR.md §5), and the versioned protocol. The rest of this document is the
+> (docs/language/pointers/queries), and the versioned protocol. The rest of this document is the
 > design those pieces build toward.
 
 Forward-looking design, not a commitment (companion to [`FUTURE.md`](FUTURE.md) and
-the pointer model in [`URIs.md`](URIs.md)). Where `FUTURE.md` covers *serving* a
+the pointer model in [`docs/language/pointers`](docs/language/pointers/)). Where `FUTURE.md` covers *serving* a
 tree and the implementation-language axis, this document describes the **stateful
 core** that should sit behind the protocol: the thing that turns a filesystem tree
 into a live, queryable **property graph** and keeps it in sync.
@@ -65,13 +65,13 @@ dangling(from_path, raw, reason, holder, label, pos, edge, external)  # unresolv
   `contain`. Acyclic by construction.
 - **ref** — a `*pointer` edge; may point anywhere in the graph (incl. other trees /
   external URIs).
-- **back** — a `~` edge (see `URIs.md`): excluded from the spine, **never inlined**,
+- **back** — a `~` edge (see `docs/language/pointers`): excluded from the spine, **never inlined**,
   may point to an ancestor. Materializes onto the filesystem as a **symlink**, not a
   nested directory.
 - **derived** — computed and cacheable (inverses, transitive closures); always
   recomputable from the other kinds.
 
-This is where the pointer model from `URIs.md` lives at runtime: the engine is the
+This is where the pointer model from `docs/language/pointers` lives at runtime: the engine is the
 component that **resolves** `*`, `&`, `~`, `..`, `#`, `/`, and URIs — mapping
 names/paths to node ids lazily, then caching the result as `ref` / `back` edges.
 Containment stays acyclic; reference edges may form cycles, so all traversal is
@@ -94,7 +94,7 @@ engine is defined by the queries it answers and the events it emits, not by its
 implementation. A first sketch:
 
 ```
-resolve(pointer, base) → path               # the URIs.md pointer model
+resolve(pointer, base) → path               # the docs/language/pointers pointer model
 node(path)             → node attributes
 toc(root, depth?)      → containment subtree
 relationships(path)    → edges in/out of a node, by kind
@@ -167,7 +167,7 @@ inverse(b, a, label) :- ref(a, b, label).      # the ~edge / "my name" relation
 ## Identity is the path (decided)
 
 There are **no durable node ids**. A node's identity is its location in the graph —
-its path. This is consistent with the `URIs.md` pointer model, which is itself
+its path. This is consistent with the `docs/language/pointers` pointer model, which is itself
 path/location-based (`*..: ..: pets: 1`, `*: …`, `*:: …`): references address *where a
 node sits*, so a move legitimately *is* a graph change rather than something to
 track and repair.
@@ -253,7 +253,7 @@ the binding changes.
 ## Bottom line
 
 1. Model it as a **property graph**: `node` + typed `edge {contain, ref, back, derived}`.
-   TOC = the `contain` projection; the `URIs.md` pointer model is the resolver that
+   TOC = the `contain` projection; the `docs/language/pointers` pointer model is the resolver that
    fills `ref` / `back`.
 2. **Spec the engine API first** (`resolve` / `node` / `toc` / `relationships` /
    `derive` / `blob` + `changed` / `moved` events).

@@ -1,7 +1,7 @@
 # DECK 00 — the TEMPLATE. A real, working three-slide deck whose subject is its own skeleton:
 # copy this directory, rename it `NN-topic`, add the `- *: NN-topic` pointer to
 # ../.yo/body.yo, and rewrite the slides. The rules it describes are the series
-# rules; the file itself is the example of them. Spec: ../../CHAPTER.md.
+# rules; the file itself is the example of them. Spec: docs/documents/chapter.
 !!<*yamlover: $defs: chapter>
 The deck template
 description: Copy this folder, rename it, rewrite the slides — the rules are in the slides

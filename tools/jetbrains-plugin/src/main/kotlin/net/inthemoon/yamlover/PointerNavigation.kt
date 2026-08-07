@@ -5,7 +5,7 @@ package net.inthemoon.yamlover
  * and no engine (that is PLAN.md J3 proper). Mirrors the heuristic-lexer spirit: parse the
  * pointer under the caret, resolve it against a lightweight path index of the SAME file.
  *
- * Grammar: COLON (SEPARATOR.md — the ONLY form; the legacy `/` separator is DEAD, window
+ * Grammar: COLON (docs/language/pointers/paths — the ONLY form; the legacy `/` separator is DEAD, window
  * closed 2026-07-24). Portions separated by `:`, canonical `: ` styling. Scope ladder:
  * bare = current mapping, `:` = document root, `..` = parent, `::`/`:::` = project/world
  * (cross-tree — needs the engine, resolves to null here). `/` is an ORDINARY key character.
@@ -44,7 +44,7 @@ object Pointers {
         return try { parseColon(s) } catch (e: Exception) { null }
     }
 
-    // ---- colon form (SEPARATOR.md), ported from parser/ts/src/pointer.ts ------------------
+    // ---- colon form (docs/language/pointers/paths), ported from parser/ts/src/pointer.ts ------------------
 
     private fun parseColon(raw: String): PointerExpr {
         if (raw.startsWith(":::")) {
@@ -98,7 +98,7 @@ object Pointers {
 
     /** One colon portion → steps: `..`, a (possibly quoted) name, optional `[.±k]` groups
      *  (`[n]` reads as a legacy alias of the bare-integer portion). A bare name containing a
-     *  SPACE must be quoted (SEPARATOR.md §3).
+     *  SPACE must be quoted (docs/language/pointers/paths).
      *
      *  THE BARE-TOKEN TYPING RULE (pointer.ts, the YAML-keys round): an UNQUOTED, UNESCAPED
      *  portion of pure digits is the INTEGER KEY — a position (`: pets: 1`); a bare `~` is
@@ -268,7 +268,7 @@ object Pointers {
 
 /** A path → offset index of one file, plus the enclosing-container lookup. Canonical path:
  *  "" for the root, then ":key" (compact colon; `:` and `\` escaped in a name, `/` literal)
- *  and "[n]" segments — the same compact-colon store form the engine uses (SEPARATOR.md §M4). */
+ *  and "[n]" segments — the same compact-colon store form the engine uses (docs/language/pointers/paths). */
 class PathIndex(
     private val byPath: Map<String, Int>,
     private val containers: List<Pair<Int, String>>, // (startOffset, containerPath), ordered
@@ -314,7 +314,7 @@ class PathIndex(
 
     companion object {
         /** A canonical compact-colon segment: `:` prefix, then the name with `\` and `:`
-         *  escaped so `parentOf` can split back. `/` stays literal (SEPARATOR.md §3). */
+         *  escaped so `parentOf` can split back. `/` stays literal (docs/language/pointers/paths). */
         private fun seg(name: String) = ":" + name.replace("\\", "\\\\").replace(":", "\\:")
 
         /** The parent of a compact-colon path: drop a trailing `[n]`, else the last `:key`
@@ -519,7 +519,7 @@ class PathIndex(
                     else -> {
                         val at = i
                         val sb = StringBuilder()
-                        // `/` is an ordinary key character now (SEPARATOR.md §3): it does not end a word
+                        // `/` is an ordinary key character now (docs/language/pointers/paths): it does not end a word
                         while (i < text.length && !text[i].isWhitespace() && text[i] !in ":,{}[]'\"") { sb.append(text[i]); i++ }
                         if (sb.isEmpty()) i++ else nameLike(sb.toString(), at, i)
                         afterTilde = false

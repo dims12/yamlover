@@ -12,7 +12,7 @@ self-contained programs that demonstrate it.
   mediated `mv`, and the query evaluator (`../ENGINE.md`).
 - [`yed/`](yed/) — `@yamlover/yed`, the projectional **editor** core (the typing
   grammar, cells, the chapter machine) the server's unlocked views mount; a raw-TS
-  workspace member like the parser, no build (`../EDITOR.md` §9).
+  workspace member like the parser, no build (`docs/server/editor/yed`).
 - [`server/`](server/) — browse **and edit** a yamlover tree in the web browser:
   `npx yamlover <root>` serves a React SPA over an engine-backed JSON API.
 - [`desktop/`](desktop/) — Electron wrapper: runs the local server (127.0.0.1, prod

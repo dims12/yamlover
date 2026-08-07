@@ -2,11 +2,11 @@
 # points at one subdirectory per presentation (`- *: 01-…`), the shape of
 # ../examples/66-pet-keeper-handbook. This file IS the unified plan: the format every deck
 # follows, the deck table, and the recording checklist. Each deck is a self-contained folder —
-# zip it and send it. Specs: ../CHAPTER.md (the document model), ../MARKLOWER.md (the prose).
+# zip it and send it. Specs: docs/documents/chapter (the document model), docs/documents/marklower (the prose).
 #
 # The BODY POINTERS at the foot carry the series ORDER (what the tree lists, and in which order).
 # The table is the CLICKABLE index: its deck cells are marklower links written DOCUMENT-relative
-# (`:00-template`, MARKLOWER.md §Link targets), so they resolve whether this repository or this
+# (`:00-template`, docs/documents/marklower/link-targets), so they resolve whether this repository or this
 # `slides/` folder is the served root. A cell opening with `[` must be quoted — bare, it would
 # lex as a flow sequence.
 !!<*yamlover: $defs: chapter>

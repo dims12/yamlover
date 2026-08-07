@@ -1,4 +1,4 @@
-# .yo/meta.yo — metadata for the repo root's own children (see META.md).
+# .yo/meta.yo — metadata for the repo root's own children (see docs/language/model/metadata).
 # Replaces the old schema-as-storage `.yamlover/schema.yaml` (descriptions buried in
 # `x-yamlover`/`concrete`/`os.path` ceremony): the data IS the tree; this only describes it.
 properties:

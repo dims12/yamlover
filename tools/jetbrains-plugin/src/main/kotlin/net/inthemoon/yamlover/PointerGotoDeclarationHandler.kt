@@ -19,7 +19,7 @@ import com.intellij.psi.PsiWhiteSpace
  *    Ctrl+B keeps working in contexts that bypass the new pipeline.
  *
  * Resolution: in-file paths, `..` parent, `:` document scope, `[n]` positions (colon grammar,
- * SEPARATOR.md); plus, in a `.yo/body.yo` overlay, a document-scope segment falls
+ * docs/language/pointers/paths); plus, in a `.yo/body.yo` overlay, a document-scope segment falls
  * back to the overlaid directory's child file/dir. `::`/`:::` cross-tree links wait for the
  * engine protocol (PLAN.md J3).
  */

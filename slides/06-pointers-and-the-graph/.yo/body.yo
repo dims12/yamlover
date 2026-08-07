@@ -1,6 +1,7 @@
 # DECK 06 — SCAFFOLD. Titles, demo targets and `notes:` stubs in place; TODO prose to write.
-# Sources: ../../URIs.md (the pointer and anchor grammar), ../../SEPARATOR.md (the `:` path
-# grammar), ../../YAMLOVER.md §2 and §7, ../../QUERY.md §4.3 (the uplink family).
+# Sources: docs/language/pointers (the pointer and anchor grammar), docs/language/pointers/paths
+# (the `:` path grammar), docs/language/pointers/scopes (the scope ladder),
+# docs/language/pointers/queries/uplinks (the uplink family).
 # Series rules: ../.yo/body.yo.
 !!<*yamlover: $defs: chapter>
 Pointers and the graph
@@ -13,8 +14,9 @@ description: When a tree is not enough — shared nodes, cycles, and path anchor
     TODO — one sentence on the shape a tree cannot express.
 - A pointer is a path expression
   notes: |
-    TODO — YAMLOVER.md §2 and §7. `*a` is a sibling key, `*[1]` a parent's position, a
-    leading `:` makes it document-scoped. No anchor namespace, no precedence rules.
+    TODO — docs/language/pointers and docs/language/pointers/scopes. `*a` is a sibling key,
+    `*[1]` a parent's position, a leading `:` makes it document-scoped. No anchor namespace,
+    no precedence rules.
   - !!<*yamlover: $defs: table>
     header: [Pointer, Reaches]
     - - '`*a`'
@@ -27,7 +29,7 @@ description: When a tree is not enough — shared nodes, cycles, and path anchor
       - project scope — another document entirely
 - An anchor is a claim about a path
   notes: |
-    TODO — the `&` row of YAMLOVER.md §3: in YAML an anchor names a node for local reuse;
+    TODO — the `&` row of docs/language/vs-yaml: in YAML an anchor names a node for local reuse;
     here it says this node ALSO lives at that path, and the path's parent really gains
     that key. That is the consequential difference, and why reading is concrete-aware.
   - |

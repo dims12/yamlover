@@ -2,7 +2,7 @@
 
 The **IR** is the in-memory instance graph that every surface parser emits and the
 engine consumes. It is the real interface between Phase 2 (parsers/serializers) and
-Phase 3 (engine). Companion to `URIs.md` (pointer model), `ENGINE.md` (storage/API),
+Phase 3 (engine). Companion to `docs/language/pointers` (pointer model), `ENGINE.md` (storage/API),
 `PLAN.md` (roadmap). Normative types are the TypeScript block below; prose explains the
 decisions.
 
@@ -20,9 +20,9 @@ decisions.
   may *also* carry entries — a single node can be at once a scalar value, partially positioned,
   and partially keyed. A pure list/dict/scalar is just the degenerate case. (The *surface*
   gates these: yamlover requires an explicit `!!mix` / `!!var` tag to write a mixture — see
-  `YAMLOVER.md` — but the IR itself just represents the result.)
+  `docs/language` — but the IR itself just represents the result.)
 - **Positions are derived, not stored.** The integer-key aliases (the bare-integer
-  portions; the `0: *key0` expansion in `URIs.md`) are a *view* the engine materializes
+  portions; the `0: *key0` expansion in `docs/language/pointers`) are a *view* the engine materializes
   from entry order. The IR
   stores order (the array) once; it does **not** double-store integer keys.
 - **`*` is the only edge-creator** beyond containment; `~` marks a back/non-owning edge;
@@ -55,7 +55,7 @@ export interface Comment {
 export interface SourceInfo {
   // The DOCUMENT's source language (the whole file/stream). The richer PER-NODE storage
   // taxonomy (file/…, dir/.yo, inlined languages) lives on the materialized nodes —
-  // see CONCRETES.md. `multi-*` is reserved for multi-document streams (Phase 2c).
+  // see docs/language/concretes. `multi-*` is reserved for multi-document streams (Phase 2c).
   concrete: "json" | "json5" | "json5p" | "yaml" | "yamlover" | "directory" | "multi-yaml" | "multi-yamlover";
   uri: string;                      // file path or dir path, project-relative
 }
@@ -128,19 +128,19 @@ export type PointerBase =
   | { scope: "link"; authority: string; world?: boolean };
       // "::" — project scope: authority = an internal key at the served root (import /
       // mounted authority); a miss is a DANGLING typo. `world: true` marks the ":::"
-      // WORLD scope (SEPARATOR.md §2) — the only form that stays external on a miss.
+      // WORLD scope (docs/language/pointers/scopes) — the only form that stays external on a miss.
 
 export type Step =
   | { sel: "key"; name: string }                  // :x  — string key
   | { sel: "index"; n: number }                   // a bare integer — integer key (position; the retired [n] reads as an alias)
   | { sel: "relindex"; k: number }                // [.±k] — the host's own position ± k
-                                                  //   (URIs.md §Relative indexes)
+                                                  //   (docs/language/pointers/relative-indexes)
   | { sel: "parent" };                            // ..  — up one node
 
 // ---- Metadata ----------------------------------------------------------------
 export interface NodeMeta {
   span?: Span;
-  anchors?: Anchor[];               // `&P/k` / `&P[]` path anchors on this node (URIs.md §`&`)
+  anchors?: Anchor[];               // `&P/k` / `&P[]` path anchors on this node (docs/language/pointers/anchors)
   schema?: Value;                   // the authored `!!<…>` tag: Pointer to a hosted schema or inline Node
   derivedFormat?: string;           // engine-derived format (extension / meta / resolved tag); never authored
   documentRoot?: boolean;           // a self-contained instance; the `/`-scope target
@@ -150,7 +150,7 @@ export interface NodeMeta {
   head?: Comment[];                 // a document root's banner, carried onto the node
   selfAt?: number;                  // omni: display position of the scalar self-value line
   style?: 'flow';                   // AUTHORED on one line (`{k: v}` / `[v, …]`) — the `yaml/flow`
-                                    // representation concrete (CONCRETES.md). Typography, not
+                                    // representation concrete (docs/language/concretes). Typography, not
                                     // graph: `array` still decides WHICH bracket, canon ignores it,
                                     // and json5p never sets it (that language is flow throughout).
 }
@@ -176,8 +176,8 @@ export interface Span { uri: string; start: number; end: number; }
 An `Entry` stores at most a **string** key; the **integer** position is its index in
 `entries`. A keyless entry (`- value` in yamlover and a YAML sequence, a bare element
 in a json5p array) has `key: null`; a NULL-KEYED entry (`~: value` ≡ `: value` — the
-null key, `URIs.md` §The null key) is keyed, carrying the `nullKey` flag — distinct
-from keyless. The `URIs.md` expansion — `0: *key0`,
+null key, `docs/language/vs-yaml/null-keys`) is keyed, carrying the `nullKey` flag — distinct
+from keyless. The `docs/language/pointers` expansion — `0: *key0`,
 `1: value1` — is the engine's *derived* positional view; the IR never writes those alias
 entries. So the position step `1` resolves to `entries[1]`; the key step `x` resolves to
 the entry whose `key === "x"`.
@@ -195,14 +195,14 @@ value: Pointer(document-root → eve) }`. The IR records the back-edge as writte
 synthesize the matching forward edge (that's `normalize`/`derive` in the engine).
 
 The **keyless** form — yamlover `~- *…`, json5p `~*'…'` (reverse positional membership,
-`URIs.md` §`~-`) — is `Entry { key: null, edge:"back", value: Pointer }`: the same nullable
+`docs/language/vs-yaml/tilde`) — is `Entry { key: null, edge:"back", value: Pointer }`: the same nullable
 `key` a keyless forward entry uses, with `edge:"back"`. The value is always a `Pointer`
 (the `Value` contract already requires it for `ref`/`back`). Unlike `!!mix`/`!!var` —
 parse *permissions* whose effect is visible in the node's shape — `!!set` (≡
 `uniqueItems: true`) must survive into the graph, so it is recorded as `NodeMeta.set`.
 
 ### `&` anchors
-An anchor is a **path**, not a name (`ANCHOR_REFACTOR.md` / URIs.md §`&`): `&P/k value`
+An anchor is a **path**, not a name (`docs/language/pointers/anchors`): `&P/k value`
 declares that the value *also* lives at `P/k`. The parser records it on the anchored node
 as `NodeMeta.anchors: Anchor[]` — anchors are not entries and never count toward the node's
 kind. There is **no anchor namespace and no precedence rule**: a `*name` is pure path
@@ -220,7 +220,7 @@ A directory's foreign files become `Blob` nodes: the IR holds `format` + `conten
 
 ### Metadata (type/format) comes from the schema layer
 The IR carries *data*. A node's **`type`/`format`/presentation** metadata lives in the
-separate **metadata schema** (`.yo/meta.yo`, see `META.md`) — a JSON-Schema-
+separate **metadata schema** (`.yo/meta.yo`, see `docs/language/model/metadata`) — a JSON-Schema-
 equivalent whose meta-path maps to an instance-path. The engine attaches it to nodes (e.g.
 to drive decoding a `Blob` via `format`, or rendering by `(type, format)`); the parser does
 not require it. A `Blob`'s `format` may thus be filled from `meta` rather than inferred.

@@ -145,7 +145,7 @@ is stored:
 > taxonomy — and the slightly normalized strings the TypeScript server emits
 > (`dir/.yo` for a `.yamlover/` directory, `file/<lang>` rather than a bare
 > `file`, the inlined `yaml` for schema-pinned values) — is specified in
-> [`CONCRETES.md`](../../CONCRETES.md).
+> [`docs/language/concretes`](../../docs/language/concretes/).
 
 For an object node, `ls` lists both the schema-described properties **and** any
 ordinary files/directories that physically exist but aren't described (a stray

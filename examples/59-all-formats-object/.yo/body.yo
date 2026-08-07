@@ -30,7 +30,7 @@ csv: |
   Bob,"Designer, UX",Lisbon
   Carol,Manager,Oslo
 # a chapter is a renderable too — here it is one property of this object (inline schema tag).
-# A chapter is an omni node: the keyed title, then a POSITIONAL body (CHAPTER.md — no chunks array).
+# A chapter is an omni node: the keyed title, then a POSITIONAL body (docs/documents/chapter — no chunks array).
 chapter: !!<*yamlover: $defs: chapter>
   title: A chapter, as one property
   - A **chapter** is also a renderable format — here it sits as one property of this object.

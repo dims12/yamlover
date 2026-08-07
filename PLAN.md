@@ -1,6 +1,6 @@
 # PLAN — instance-only yamlover: grammars, parsers, engine
 
-Working plan for the next build phase. Companion to `URIs.md` (pointer model),
+Working plan for the next build phase. Companion to `docs/language/pointers` (pointer model),
 `ENGINE.md` (engine), `FUTURE.md` (platform/language). Living document.
 
 ## Decisions locked this round
@@ -20,7 +20,7 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
 - **`.yo/` holds two overlays** (+ engine cache), both keyed by node path:
   **`body.yo`** = the *instance* (data; replaces the old `schema.yaml`-as-storage),
   and **`meta.yo`** = the *metadata schema*. A bare dir has neither.
-- **Schema kept as METADATA, not storage** (refined 2026-06-07; see `META.md`). A
+- **Schema kept as METADATA, not storage** (refined 2026-06-07; see `docs/language/model/metadata`). A
   **JSON-Schema-equivalent for yamlover** — same/close vocab (`properties`, `type`,
   `format`, `prefixItems`, …), written *in yamlover*, **purpose = metadata** (typing,
   `format`/decoding, `concrete`, presentation — the server renders by `(type,format)`),
@@ -40,7 +40,7 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
 
 ## Phase 1 — Foundations & specs (design before code)
 
-1a. **Finalize the pointer/path grammar** in `URIs.md` — scopes (`# / ..` + URI
+1a. **Finalize the pointer/path grammar** in `docs/language/pointers` — scopes (`# / ..` + URI
    authority), `* ~ &`, position indexing (since 2026-08-01: bare-integer portions;
    the drafted `[n]` reads as an alias), backslash escaping, name rules. One ABNF,
    shared by both surface languages.
@@ -62,9 +62,9 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    directory with no overlay takes filesystem order. This is the heart of "YAML
    overlay over the filesystem."
 1d. **`.yo/` directory contract** — `body.yo` (instance) **and**
-   `meta.yo` (metadata schema, `META.md`); plus reserved names for the SQLite cache;
+   `meta.yo` (metadata schema, `docs/language/model/metadata`); plus reserved names for the SQLite cache;
    plus, in the **project root** only, `settings.yo` — the **project configuration**
-   (added 2026-06-10, see `META.md` §Settings): e.g. the *default* location for new
+   (added 2026-06-10, see `docs/language/model/metadata`): e.g. the *default* location for new
    annotations. Settings never constrain *where* a node may live (a maintainer may put
    annotations in any directory and they keep working — that's the point of the graph);
    they only set defaults for where the server *creates* things.
@@ -76,7 +76,7 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
 > type-stripping, `node:test`) and a future `tools/parser/rust/`, over **shared**
 > conformance corpora at `tools/parser/conformance/` (JSON, JSON5, YAML submodules).
 > Surface languages (json5p, yamlover) are modules inside each impl. Specs written:
-> `JSON5P.md`, `YAMLOVER.md`.
+> `JSON5P.md`, `docs/language`.
 
 2a. **Pointer parser** (shared) — **DONE** (`ts/src/pointer.ts`): pointer expr →
    `{base, steps[], raw}`, backslash escaping, scopes (`/`=doc, `//`=link, `..`, current).
@@ -105,7 +105,7 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    `!!set`/`!!<…>` (json5p → route via the meta layer, as 03-tour already documents).
    **Remaining:** the *directory* concrete (graph → tree + `body.yo`);
    **inlined binary** — a blob must also be emittable INLINE in a text concrete
-   (YAML-`!!binary`-style base64; META.md already has `type: binary` + codec
+   (YAML-`!!binary`-style base64; docs/language/model/metadata already has `type: binary` + codec
    `format`, cf. `55-scalar-as-binary`) — the same node in a different concrete,
    file-on-disk vs inline scalar; needs a byte source (the IR carries only the hash —
    the engine's blob store/manifest resolves it), at which point the blob refusal
@@ -115,7 +115,7 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
    and inline-binary-vs-blob-file is the same choice again. Today the parsers ACCEPT
    the switch (flow inside block) but the IR forgets it, so SeDe normalizes everything
    to one style. The work: record the authored concrete on the node
-   (`NodeMeta.concrete`, aligning with META.md's `concrete` keyword — there it is
+   (`NodeMeta.concrete`, aligning with docs/language/model/metadata's `concrete` keyword — there it is
    *prescribed*, here it is *observed*), have the serializers honor it on re-emission
    (a flow/json5p subtree re-emits as flow inside a block yamlover doc), and define
    the legal switch lattice (which concrete may nest in which — `json ⊂ json5 ⊂
@@ -130,9 +130,9 @@ Working plan for the next build phase. Companion to `URIs.md` (pointer model),
 
 ## Phase A — anchor refactor: path anchors absorb `~`, omni by default
 
-> **Spec DONE (2026-06-12)** — `ANCHOR_REFACTOR.md` (decision log) + the amended
-> specs: `URIs.md` §`&` (normative), `YAMLOVER.md` §2/§3/§4, `JSON5P.md` §`&`,
-> `QUERY.md` §4.3 note. Summary: `&` takes a full pointer path — `&P/k` = "the
+> **Spec DONE (2026-06-12)** — the anchor decision round, folded into
+> `docs/language/pointers/anchors` (normative), `docs/language/vs-yaml`, `JSON5P.md` §`&`, and
+> `docs/language/pointers/queries/uplinks`. Summary: `&` takes a full pointer path — `&P/k` = "the
 > container at `P` gains key `k` → ref to me" (push, the dual of `*`'s pull);
 > `&P[]` = keyless appended membership; multiple anchors per node, own-line
 > placement; anchors are NOT entries (never affect node kind); the anchor
@@ -285,17 +285,17 @@ A6. **Conformance** — yaml-test-suite anchor/alias cases reclassified to a
    rename.
 
 3g. **Query language** *(added 2026-06-11)* — JSONPath-inspired selectors, specced as
-   a **strict superset of the pointer grammar** (`URIs.md`): every pointer is a valid
-   query with at most one result. **Spec DONE (2026-06-11): `QUERY.md`** — core model
+   a **strict superset of the pointer grammar** (`docs/language/pointers`): every pointer is a valid
+   query with at most one result. **Spec DONE (2026-06-11): `docs/language/pointers/queries`** — core model
    is the **match template** (a query walks the graph; success returns a capture).
    v1 constructs: `?` / `[?]` wildcards, `...` descent (contain-only), the `~` sigil
    as the **reverse axis** (`~name` / `~?` find-usages / `~-`), bracket **filters**
    (kind, `contain`/`ref`, `!!tag`, `format=`). `? ! ( ) < > = |` joined the shared
-   metachar set (URIs.md amended) — `! ( ) < > = |` are reserved for the sketched
+   metachar set (docs/language/pointers amended) — `! ( ) < > = |` are reserved for the sketched
    future constructs (comparison steps `age/>30`, capture `!`, branching
    `(… && …)`, projection). **DONE (2026-06-13): the evaluator** — in the engine over the
    store (the `edge` table + `deriveInverses` already make reverse axes cheap),
-   exposed as `query` (3f); acceptance gate = QUERY.md §6 conformance obligations
+   exposed as `query` (3f); acceptance gate = docs/language/pointers/queries conformance obligations
    over the existing resolve.test.ts corpus (and `pointer.ts` catching up to the
    enlarged metachar set). Pure read-side — runs **parallel to the serializers
    (2d)**. First consumers: the tag-picker autocomplete (TODO) and JetBrains
@@ -336,20 +336,20 @@ protocol (OpenAPI).
 - **67-pdf-tags** (was 18) — migrated (commit `c2d8772`): `rel` tables → a
   `!!<*yamlover/$defs/tag>` taxonomy with `*`-pointer membership authored both ways.
 - Schema-pinning / `rel` / `$ref`-in-schema demos retired (`62-defs-and-refs`
-  dropped pending the meta-authoring rethink, see `META.md`).
+  dropped pending the meta-authoring rethink, see `docs/language/model/metadata`).
 
 ## Phase 6 — Schema: metadata now, validation later
 
-**Reframed 2026-06-07 (see `META.md`):** the schema is **not** deferred — it returns as a
+**Reframed 2026-06-07 (see `docs/language/model/metadata`):** the schema is **not** deferred — it returns as a
 **metadata layer** (`.yo/meta.yo`), a JSON-Schema-equivalent for yamlover whose
 job is typing / `format`-decoding / `concrete` / presentation (the engine & server consume
 it). It exists now (`55-scalar-as-binary`). Remaining spec work:
-- **`META.md` vocabulary** — pin `type` (+`binary`), `format`, `concrete` (inferable),
+- **`docs/language/model/metadata` vocabulary** — pin `type` (+`binary`), `format`, `concrete` (inferable),
   `properties`/`prefixItems` nesting, `*`-refs (not `$ref`); meta-path → instance-path map.
 - **Built-in schemas live at the PROJECT ROOT, grafted as the self-import key
   (restructured 2026-06-13; supersedes the `yamlover/` wrapper of `8872299`):**
-  a project's tree IS its URI's tree (`::: yamlover.inthemoon.net`, SEPARATOR.md
-  §2), so `$defs/` and `tags/colors` sit at the repo root, and the engine grafts
+  a project's tree IS its URI's tree (`::: yamlover.inthemoon.net`,
+  docs/language/pointers/scopes), so `$defs/` and `tags/colors` sit at the repo root, and the engine grafts
   the key `yamlover` → {$defs, tags} into EVERY served root — including this
   project itself (self-import: `//X` ≡ `//yamlover/X`). All `*yamlover/$defs/…`
   pointer texts keep resolving. The taxonomy now also ships as **package data**
@@ -407,9 +407,9 @@ Scaffolded under `tools/jetbrains-plugin/` (Kotlin + IntelliJ Platform Gradle Pl
 ## Suggested immediate next step
 
 *(Updated 2026-06-13 — Phases 1, 2a–2c/2e, 3a–3e, 4, 5 done; Phase A implemented;
-**SEPARATOR.md dual window IMPLEMENTED** — colon grammar parses alongside legacy
+**the colon grammar's dual window IMPLEMENTED** — colon parses alongside legacy
 slash, serializers emit colon, corpus migrated, `mv` style-preserving; M1–M4 ruled
-and implemented — see SEPARATOR.md. **3g IS DONE (2026-06-13):** the evaluator
+and implemented — see docs/language/pointers/paths. **3g IS DONE (2026-06-13):** the evaluator
 (`tools/engine/ts/src/query.ts`) runs the colon grammar over the Store — wildcards,
 descent, the `..` uplink family, value/`!!<…>` matchers, combos — gated by the
 77-case corpus (`query.cases.ts` + `query.test.ts`, all green) and exposed as
@@ -417,18 +417,18 @@ descent, the `..` uplink family, value/`!!<…>` matchers, combos — gated by t
 06-tour (`encore`/`author` were current-scope from inside their containers).
 The frontier is now: (i) wire the first consumers — tag-picker autocomplete over
 /api/query, JetBrains find-usages (J3); (ii) the static link/query ARITY check at
-authoring time (ambiguous-after-`*`/`&` = parse error — SEPARATOR.md §5, not yet
-enforced); (iii) window close: `/` leaves the metachar set, URIs.md/QUERY.md
+authoring time (ambiguous-after-`*`/`&` = parse error — docs/language/pointers/queries, not yet
+enforced); (iii) window close: `/` leaves the metachar set, the pointer and query
 grammars rewritten; (iv) the older backlog — 2d remaining, 3f write side,
 EntryMeta.span, YAML conformance. Layout restructure DONE.)*
 
 0. **Anchor refactor A1 (parsers + IR)** — the spec landed this round; A1 is the
    gate for everything else in Phase A and changes the IR other work builds on,
    so it should land before (or alongside) new evaluator/serializer work.
-1. **Query evaluator (3g)** — the headline. The spec is done (`QUERY.md`), it is
+1. **Query evaluator (3g)** — the headline. The spec is done (`docs/language/pointers/queries`), it is
    pure read-side over the existing store (the `edge` table + `deriveInverses`
    already make reverse axes cheap), and the acceptance gate is pre-defined
-   (QUERY.md §6 obligations over the resolve.test.ts corpus, plus `pointer.ts`
+   (docs/language/pointers/queries obligations over the resolve.test.ts corpus, plus `pointer.ts`
    catching up to the enlarged metachar set). It unblocks the tag-picker
    autocomplete (TODO.md) and JetBrains find-usages (J3).
 2. **2d remaining** (parallel-friendly) — the **directory serializer**

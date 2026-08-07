@@ -1,6 +1,6 @@
 # DECK 07 — SCAFFOLD. Titles, demo targets and `notes:` stubs in place; TODO prose to write.
-# Sources: ../../EDITOR.md (the architecture), ../../YAMLOVER_EDITOR.yo (the typing
-# grammar and THE LEVEL RULE), ../../CHAPTER.md §The editors, ../../CONCRETES.md
+# Sources: docs/server/editor (the architecture), docs/server/yamlover-editor (the typing
+# grammar and THE LEVEL RULE), docs/server/editor/chapter-projection, docs/language/concretes
 # (directory promotion). Series rules: ../.yo/body.yo.
 !!<*yamlover: $defs: chapter>
 The projectional editor
@@ -20,7 +20,7 @@ description: Editing structure instead of text, one cell at a time
     TODO — one sentence: typing a delimiter materializes the structure it opens.
 - The level rule
   notes: |
-    TODO — YAMLOVER_EDITOR.yo. Enter after committing a value DESCENDS into it; a
+    TODO — docs/server/yamlover-editor. Enter after committing a value DESCENDS into it; a
     sibling at the same level costs a Shift-Tab. Type three levels, then climb back out.
   - |
     **Enter descends** into what you just wrote; **Shift-Tab** climbs back out. A sibling

@@ -1,7 +1,0 @@
-QUERY_EDITOR - moved
-description: |
-    The breadcrumb / query editor state machine now lives in the documentation book as a
-    marklower chapter, one subchapter per state:
-    docs/server/query-editor/  (sync mirror: tools/server/src/client/breadcrumb-machine.ts,
-    breadcrumb-machine.test.ts runs the table).
-    See DOCSMIGRATION.md.

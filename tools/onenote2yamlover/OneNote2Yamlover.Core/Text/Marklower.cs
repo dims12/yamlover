@@ -17,7 +17,7 @@ public static partial class Marklower
     public static string Decode(string? s) => s is null ? "" : WebUtility.HtmlDecode(s);
 
     /// <summary>
-    /// `[label](t)` points at a target; `*[label](t)` INLINES it (MARKLOWER.md §Embeds). A YouTube or
+    /// `[label](t)` points at a target; `*[label](t)` INLINES it (docs/documents/marklower/embeds). A YouTube or
     /// Vimeo target becomes a privacy-preserving player facade; a video file becomes a native
     /// &lt;video&gt;. Anything else degrades to the plain link it already was, so only widen this
     /// where the spec promises an embed — a bare `*` on a non-embeddable target buys nothing and

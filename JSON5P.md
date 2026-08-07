@@ -9,7 +9,7 @@ which is itself a strict superset of JSON:
 So anything you can write in JSON or JSON5 is already valid json5p; json5p only **adds**
 the pointer layer — the `*` dereference family, keys-as-pointers, `~` back-edges, and
 `&` anchors. This document specifies the json5p *concrete syntax*. The pointer grammar it
-embeds is defined once in `URIs.md`; the abstract model both produce is `IR.md`.
+embeds is defined once in `docs/language/pointers`; the abstract model both produce is `IR.md`.
 
 File extension **`.json5p`**; suggested media type `application/json5p`.
 
@@ -53,7 +53,7 @@ expanded inline.
 ### Keys are pointers; a bare integer vs a name
 
 Every key is addressable, so it can be a `*` target. Arrays and objects are the **one
-ordered container** (see `URIs.md`): a position is an **integer key**, a name is a
+ordered container** (see `docs/language/pointers`): a position is an **integer key**, a name is a
 **string key**, and the bare-token typing rule keeps the access forms apart (the
 YAML-keys round, 2026-08-01):
 
@@ -64,13 +64,14 @@ YAML-keys round, 2026-08-01):
 
 The brace/bracket surface is still ordinary JSON5 (`{…}` objects, `[…]` arrays); the
 *semantics* is the single ordered mapping. **json5p has no null-key spelling**: JSON5
-object keys are strings, so a null-keyed entry (yamlover `~: v`, `URIs.md` §The null
-key) cannot be serialized to json5p — the serializer raises a `LossyError`.
+object keys are strings, so a null-keyed entry (yamlover `~: v`,
+`docs/language/vs-yaml/null-keys`) cannot be serialized to json5p — the serializer raises a
+`LossyError`.
 
 ### Scopes (where a pointer starts)
 
 A leading sigil sets the base; with none, the base is the **current mapping**. Full rules
-in `URIs.md` — summarized:
+in `docs/language/pointers` — summarized:
 
 | Form | Base |
 |---|---|
@@ -81,7 +82,7 @@ in `URIs.md` — summarized:
 
 ### `~` — back-edges (in key position; DEPRECATED → path anchors)
 
-> **Deprecated 2026-06-12** in favor of path anchors (§`&` below; `URIs.md` §`&`):
+> **Deprecated 2026-06-12** in favor of path anchors (§`&` below; `docs/language/pointers/anchors`):
 > `~key: *'P'` ≡ `&'P:key'`, and the keyless `~*'P'` ≡ `&'P[]'`. Both forms produce
 > identical normalized edges; parsers keep accepting `~` through the migration
 > window (PLAN.md Phase A), serializers will emit anchors only.
@@ -128,18 +129,18 @@ and **additive**: with no label and no index there is no identity to dedup on, s
 declaration adds one element, even alongside a forward element pointing at the same node —
 unless the container's metadata says `uniqueItems: true` (the schema-keyword route to set
 semantics; json5p has no tags, so yamlover's `!!set` is unavailable here). Full semantics
-in `URIs.md` §`~-`.
+in `docs/language/vs-yaml/tilde`.
 
 ### `&` — path anchors (in value position)
 
-> **Implemented** (spec'd 2026-06-12, `ANCHOR_REFACTOR.md`; landed with PLAN.md
+> **Implemented** (spec'd 2026-06-12, `docs/language/pointers/anchors`; landed with PLAN.md
 > Phase A): `json5p.ts` parses path anchors via `makeAnchor` onto `NodeMeta.anchors`,
 > and the resolver realizes them (`resolve.ts realizeAnchors`).
 
 `&'path'` declares that the value that follows **also lives at that path**: the
 path's parent gains the last segment as a key, a ref edge to this node (the push
 side of `*`'s pull — full semantics, ordinal `[]`, multiplicity, and collision
-rules in `URIs.md` §`&`). On the json5p surface the anchor path is a **quoted
+rules in `docs/language/pointers/anchors`). On the json5p surface the anchor path is a **quoted
 string** after the sigil, like a pointer's; multiple anchors may precede one value,
 and a keyless membership is a trailing `[]` inside the path string:
 
@@ -169,7 +170,7 @@ null key. Both surfaces share `&`; the operand is unquoted in yamlover
 ## 4. Escaping: two layers
 
 A literal key may contain a metacharacter (`: [ ] * & # ~ \`, the query characters
-`? ! ( ) < > = |` — see `QUERY.md` — or an all-dots segment `..` / `...`). It is
+`? ! ( ) < > = |` — see `docs/language/pointers/queries` — or an all-dots segment `..` / `...`). It is
 escaped with a **backslash inside the pointer expression**. But the pointer lives inside a
 **JSON5 string**, which has its *own* backslash escaping — so a literal backslash reaching
 the pointer layer must be written `\\` in the source string:
@@ -190,7 +191,7 @@ in the JSON5 string to deliver one backslash through the *string* layer.
 
 **Inline, inside a yamlover document.** A `.yo` file can switch to json5p mid-document
 without a file boundary: a flow token written across several lines (K&R braces) IS a json5p
-subtree, written by this concrete's own serializer (`CONCRETES.md` §K&R). It is the reason the
+subtree, written by this concrete's own serializer (`docs/language/concretes/00-storage/00-inlined`). It is the reason the
 switch is json5p rather than json — comments, pointers and `&` anchors all survive it.
 
 

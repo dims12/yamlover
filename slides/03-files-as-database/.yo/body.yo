@@ -1,7 +1,7 @@
 # DECK 03 — SCAFFOLD. Slide titles, demo targets and `notes:` stubs are in place; the prose
 # marked TODO is still to be written. Follow ../00-template and the series rules in
-# ../.yo/body.yo. Sources for this topic: ../../CONCRETES.md, ../../README.md
-# §Concrete representations and §The .yo overlays, ../../YAMLOVER.md §5.
+# ../.yo/body.yo. Sources for this topic: docs/language/concretes, ../../README.md
+# §Concrete representations and §The .yo overlays.
 !!<*yamlover: $defs: chapter>
 Files and folders as the database
 description: Concretes, the supersession lattice, and the two overlays
@@ -13,8 +13,8 @@ description: Concretes, the supersession lattice, and the two overlays
     TODO — one sentence: the same data, written five ways, read into one model.
 - A concrete is how it is written down
   notes: |
-    TODO — define concrete against CONCRETES.md. A concrete is a STORAGE choice, not a
-    type; the value is the same either way.
+    TODO — define concrete against docs/language/concretes. A concrete is a STORAGE choice,
+    not a type; the value is the same either way.
   - |
     TODO — `file/yamlover`, `dir/.yo`, `dir`, `file/json5p`, a bare blob.
 - The supersession lattice

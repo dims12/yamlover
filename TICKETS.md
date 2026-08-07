@@ -8,23 +8,24 @@ The whole feature is built by **reuse**, not by inventing parallel machinery:
 
 | concern | reuses |
 |---|---|
-| body (the self-value title, description, positional chunks + subtasks) | `$defs/chapter` (`CHAPTER.md`, `$defs/chapter`) |
-| lifecycle state (backlog → done, due, postponed) | **tags** + **tag applications** (`ANNOTATIONS.md`, `$defs/tag`) |
+| body (the self-value title, description, positional chunks + subtasks) | `$defs/chapter` (`docs/documents/chapter`, `$defs/chapter`) |
+| lifecycle state (backlog → done, due, postponed) | **tags** + **tag applications** (`docs/server/annotations`, `$defs/tag`) |
 | transitions / state machine | the tag **or-graph** — `next:` ref edges between state tags |
 | planning fields, scheduling fields | **parametrized annotations** (`additionalProperties: true`) |
 | boards, decks | directory views + the **unified change flow** (SSE) |
-| "what should the AI do next" | the **query language** (`QUERY.md`) |
+| "what should the AI do next" | the **query language** (`docs/language/pointers/queries`) |
 
-Companion specs: `YAMLOVER.md` (omni, chapters), `CHAPTER.md` (the model `task` extends) /
-`MARKLOWER.md` (the prose a task body is written in), `ANNOTATIONS.md` (fragments + tag
-applications), `META.md` / `TYPES.md` (`$defs`, facets, `variant`), `SEPARATOR.md` / `URIs.md`
-(the `::` project scope, `*` deref, ref vs contain), `QUERY.md` (selecting tasks).
+Companion specs: `docs/language` (omni, chapters), `docs/documents/chapter` (the model `task`
+extends) / `docs/documents/marklower` (the prose a task body is written in),
+`docs/server/annotations` (fragments + tag applications), `docs/language/model/metadata` /
+`docs/language/model/facets` (`$defs`, facets, `variant`), `docs/language/pointers` (the `::`
+project scope, `*` deref, ref vs contain), `docs/language/pointers/queries` (selecting tasks).
 
 ---
 
 ## 1. The `task` schema
 
-A task **IS-A chapter** (CHAPTER.md): it EXTENDS `$defs/chapter` with `allOf: [*chapter]`,
+A task **IS-A chapter** (docs/documents/chapter): it EXTENDS `$defs/chapter` with `allOf: [*chapter]`,
 inheriting the fully-omni shape — the scalar **self-value is the title** (no `title:` key), the
 optional keyed `description` — and the omni **positional body** — where its
 subchapter recursion means **subtasks** (a task tree) — **plus** a handful of **optional**
@@ -188,8 +189,8 @@ whose review schedule is an **SM-2** state carried on a parametrized annotation.
 
 ### 4.1 Quiz structure = chunk tags
 
-Chunks already carry their own `yamlover-annotations` (the omni block-scalar form, `ANNOTATIONS.md`
-§3). Tag them with the `card` taxonomy:
+Chunks already carry their own `yamlover-annotations` (the omni block-scalar form,
+`docs/server/annotations/storage`). Tag them with the `card` taxonomy:
 
 ```yamlover
 # tags/.yo/body.yo  (excerpt)
@@ -299,13 +300,13 @@ diff over SSE — the same write path as any state change. "Due today" cards are
 ## 5. Selecting tasks — boards, queues, and the AI loop
 
 Because tasks, states, due dates, and assignees are all ordinary graph data, **what to work on
-next is a query** (`QUERY.md`, colon grammar, `GET /api/query`). Sketches:
+next is a query** (`docs/language/pointers/queries`, colon grammar, `GET /api/query`). Sketches:
 
 - **A column of a board** — tasks in a given state:
   `... !!<*::tags:workflow:dev:in-progress>` (nodes annotated with that state).
 - **The AI's queue** — ready work assigned to the agent:
   ready-state tasks whose `assignee` resolves to the agent, ordered by `priority`/`due`.
-- **Due cards** — `review`-state cards whose `due ≤ today` (a comparison filter, `QUERY.md` §9).
+- **Due cards** — `review`-state cards whose `due ≤ today` (a comparison filter, `docs/language/pointers/queries`).
 - **Blocked work** — tasks whose `depends` targets are not yet `done` (reverse axis over the
   blocked-by edges).
 

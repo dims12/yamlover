@@ -5,7 +5,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /** The heuristic Ctrl+click resolution: pointer-at-caret extraction, path parsing, and the
- *  per-language path indexes — pure logic, driven without the IDE. COLON grammar (SEPARATOR.md;
+ *  per-language path indexes — pure logic, driven without the IDE. COLON grammar (docs/language/pointers/paths;
  *  the legacy `/` separator is DEAD — `/` is an ordinary key character now). */
 class PointerNavigationTest {
 

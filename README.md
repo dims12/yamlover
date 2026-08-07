@@ -80,10 +80,37 @@ directories *are* the data: a folder is a mapping, a file is a node, a `*`
 pointer is a graph edge. Nothing is locked in an app's private store; everything
 stays as files you can open, diff, grep, and hand to someone else.
 
+## Screenshots of Demo server
+
+Example of Yamlover code
+
+![Code exampls](images/code.png)
+
+Filesystem representation
+
+![Filesystem representation](images/filesystem.jpg)
+
+PDF annotation
+
+![pdf-annotation.jpg](images/pdf-annotation.jpg)
+
+Math rendering
+
+![math-rendering.jpg](images/math-rendering.jpg)
+
+Image tagging
+
+![image-tagging.jpg](images/image-tagging.jpg)
+
+Dev board representation
+
+![dev-board-representation.jpg](images/dev-board-representation.jpg)
+
+Docs rendering
+
+![docs-rendering.jpg](images/docs-rendering.jpg)
+
 > **▶ Try it live:** [**yamlover.inthemoon.net**](https://yamlover.inthemoon.net/) —
 > a private, disposable instance by email, pre-loaded with the examples. No install.
 
-![image](images/directory.jpg)
-
-![image](images/06-pinch-of-math.jpg)
 

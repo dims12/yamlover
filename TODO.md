@@ -1,6 +1,6 @@
 - Jetbrains plugins: structure window?
 - Jetbrains plugins: reformat code
-- ~~Disambiguate `manager: *whiskers`: local member vs global alias precedence~~ — resolved by design (ANCHOR_REFACTOR, 2026-06-12): the anchor namespace is eliminated, anchors are real keys, `*name` is pure path lookup (URIs.md §`&`); lands with PLAN Phase A
+- ~~Disambiguate `manager: *whiskers`: local member vs global alias precedence~~ — resolved by design (ANCHOR_REFACTOR, 2026-06-12): the anchor namespace is eliminated, anchors are real keys, `*name` is pure path lookup (docs/language/pointers/anchors); lands with PLAN Phase A
 - Plugins? L markdown preview functionality lost - DONE?
 - Design reverse tag into unkwonn location of an array? - DONE
 - Catch up YAML standard, why tuple key caused any confusions? 

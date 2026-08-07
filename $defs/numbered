@@ -4,7 +4,7 @@
 # schema applies at ANY depth, until an explicit !!<…> tag switches to something else.
 # A titled list is a chapter holding a list — no keyed properties here on purpose.
 # Attach with !!<*yamlover: $defs: numbered>.
-# No explicit `format:` — `type: variant` derives x-yamlover-numbered. Spec: ../MARKLOWER.md.
+# No explicit `format:` — `type: variant` derives x-yamlover-numbered. Spec: docs/documents/marklower.
 type: variant
 items:
   anyOf:

@@ -13,7 +13,7 @@ plus highlighting of `yamlover`/`json5p` fenced code blocks inside Markdown.
   comments (`#` for yamlover — only after whitespace/BOL, so `a#b` is one scalar; `//`
   and `/* */` for json5p), pointer/anchor runs (`* & ~ …`) in the **colon grammar**
   (`*: a: b`, `::`/`:::` scope, relative indexes `[.±k]`; `/` is an ordinary key char —
-  SEPARATOR.md), **block scalars** (`|`/`>` header signs + an opaque body, not re-lexed),
+  docs/language/pointers/paths), **block scalars** (`|`/`>` header signs + an opaque body, not re-lexed),
   strings and **quoted keys**, the dedicated `- ` dash and `null`/`~` kinds, and numbers
   by the JS `Number` reading (incl. `.inf`/`.nan`/hex).
 - **Markdown injection**: ` ```yamlover ` and ` ```json5p ` fenced code blocks are

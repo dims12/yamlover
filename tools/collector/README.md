@@ -24,7 +24,7 @@ Every node is annotated with its concrete representation under
 | `file/yaml` · `file/json` · `file/binary` | a value stored in its own file, per the owning schema |
 
 > Canonical taxonomy (and the TypeScript server's normalized strings — e.g.
-> `dir/.yo`, `file/<lang>`): see [`CONCRETES.md`](../../CONCRETES.md).
+> `dir/.yo`, `file/<lang>`): see [`docs/language/concretes`](../../docs/language/concretes/).
 
 A node's own schema is preserved verbatim (including `const`, `format`,
 `prefixItems`, `os`, …); parent context such as `description` and

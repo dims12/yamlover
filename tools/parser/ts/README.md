@@ -12,8 +12,8 @@ TypeScript, run directly on Node ≥ 22 (native type-stripping; tests via `node:
   block scalars (`|`/`>` with chomping), plus the extensions (`*`/`&`/`~`). Parses
   `examples/05-tour.yaml` & `06-tour.yo`; the yaml-test-suite gate runs with the
   divergence allowlist (`../YAML-CONFORMANCE.md`). **TODO:** multi-doc (`---`), merge
-  keys (`<<`), the remaining tag/header edge cases. Spec: `../../../YAMLOVER.md`.
-- **pointer** (`src/pointer.ts`) — shared pointer-expression parser (`../../../URIs.md`).
+  keys (`<<`), the remaining tag/header edge cases. Spec: `docs/language`.
+- **pointer** (`src/pointer.ts`) — shared pointer-expression parser (`docs/language/pointers`).
 - **ir** (`src/ir.ts`) — the IR types + `toPlain()` projection.
 
 ## Test

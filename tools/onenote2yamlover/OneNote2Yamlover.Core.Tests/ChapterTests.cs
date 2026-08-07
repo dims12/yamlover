@@ -8,7 +8,7 @@ public class ChapterSerializerTests
     private const string Tag = "!!<*yamlover: $defs: chapter>";
     private static string Lines(params string[] l) => string.Join("\n", l) + "\n";
 
-    // The title is the chapter root's scalar SELF-VALUE line (fully-omni, CHAPTER.md) — no `title:` key.
+    // The title is the chapter root's scalar SELF-VALUE line (fully-omni, docs/documents/chapter) — no `title:` key.
     [Fact]
     public void ProseChunks() => Assert.Equal(
         Lines(Tag, "Change license plates", "- |", "  own car", "- |", "  line one", "  line two"),
@@ -39,7 +39,7 @@ public class ChapterSerializerTests
              Chunk.Pointer("image-1a2b3c4d.png"), Chunk.Pointer("Zvukozapis.3gp")],
             ["Subpage.yo"]));
 
-    /// <summary>Flow-cell quoting (MARKLOWER.md): a space / sigil / quote forces single quotes with
+    /// <summary>Flow-cell quoting (docs/documents/marklower): a space / sigil / quote forces single quotes with
     /// <c>''</c> doubling; a marklower-bold cell opens with <c>*</c> (a yamlover sigil) so it quotes.</summary>
     [Fact]
     public void FlowRowQuoting() => Assert.Contains(
@@ -60,7 +60,7 @@ public class ChapterSerializerTests
             [Chunk.Grid(new TableModel([new TableRow([new TableCell("single"), new TableCell("two\nlines")])]))], null));
 
     /// <summary>A nested-table cell: explicitly tagged (an untagged container cell is a
-    /// CHAPTER — MARKLOWER.md §Cells), its rows at its child indent — the
+    /// CHAPTER — docs/documents/marklower/tables/cells), its rows at its child indent — the
     /// examples/61-table.yo shape.</summary>
     [Fact]
     public void NestedTableCellEmitsRecursively() => Assert.Contains(

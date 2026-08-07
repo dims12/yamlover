@@ -1,5 +1,5 @@
 # DECK 05 — SCAFFOLD. Titles, demo targets and `notes:` stubs in place; TODO prose to write.
-# Sources: ../../CHAPTER.md (the document model), ../../MARKLOWER.md (the prose format and its
+# Sources: docs/documents/chapter (the document model), docs/documents/marklower (the prose format and its
 # delegations). Series rules: ../.yo/body.yo.
 !!<*yamlover: $defs: chapter>
 Chapters and marklower
@@ -14,7 +14,7 @@ description: Why the prose format refuses headings — and what carries them ins
     chunks and subchapters, in the order the author wrote them.
 - Marklower — a notch below Markdown
   notes: |
-    TODO — MARKLOWER.md. Five constructs and no others: bold, italic, strike, code, math,
+    TODO — docs/documents/marklower. Five constructs and no others: bold, italic, strike, code, math,
     a link, an embed. Everything else passes through.
   - !!<*yamlover: $defs: table>
     header: [Syntax, Meaning]
@@ -43,7 +43,7 @@ description: Why the prose format refuses headings — and what carries them ins
 - Links across the tree
   notes: |
     TODO — examples/69-marklower-links.yo. A link target is a path in the same
-    space the tree and the URL navigate (SEPARATOR.md), so prose can point anywhere.
+    space the tree and the URL navigate (docs/language/pointers/paths), so prose can point anywhere.
   - |
     TODO — one sentence.
 - Embeds

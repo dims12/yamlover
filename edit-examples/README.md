@@ -46,8 +46,8 @@ moving away commits (or refuses — nothing is ever lost).
 
 ## THE LEVEL RULE
 
-Scripts must follow the editor's actual grammar (`YAMLOVER_EDITOR.yo`
-§"THE LEVEL RULE"): **Enter after committing a value DESCENDS into it**, so a sibling costs one
+Scripts must follow the editor's actual grammar (`docs/server/yamlover-editor`, THE LEVEL
+RULE): **Enter after committing a value DESCENDS into it**, so a sibling costs one
 `{ShiftTab}` and each step further out costs another. Writing a script as though Enter meant "next
 sibling" produces a document three levels deep — the generator's arithmetic is exactly this rule.
 

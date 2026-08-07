@@ -3,6 +3,6 @@
 # A chunk is a typed value; its (type, format) selects the renderer. The default is
 # markdown prose; a chunk overrides type/format/concrete to be a diagram, image, LaTeX,
 # CSV, a file pointer, etc. `binary` covers image/pdf/… chunks (a `*` pointer to a file).
-# Spec: ../CHAPTER.md.
+# Spec: docs/documents/chapter.
 type: [string, binary]
 format: text/marklower

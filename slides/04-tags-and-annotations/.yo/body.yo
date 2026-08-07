@@ -1,6 +1,6 @@
 # DECK 04 — SCAFFOLD. Titles, demo targets and `notes:` stubs in place; TODO prose to write.
-# Sources: ../../ANNOTATIONS.md, ../../TICKETS.md §2 (state is a tag), ../../UI.md
-# §Views (a tag's own page is a grid). Series rules: ../.yo/body.yo.
+# Sources: docs/server/annotations, ../../TICKETS.md §2 (state is a tag), docs/server/ui/views
+# (a tag's own page is a grid). Series rules: ../.yo/body.yo.
 !!<*yamlover: $defs: chapter>
 Tags and annotations
 description: Filing without choosing a folder, and marking up a region of anything
@@ -18,7 +18,7 @@ description: Filing without choosing a folder, and marking up a region of anythi
     A tag is an ordinary node; its **page** is a grid of everything filed under it.
 - Filing is an annotation
   notes: |
-    TODO — ANNOTATIONS.md. Applying a tag writes an annotation on the document that
+    TODO — docs/server/annotations. Applying a tag writes an annotation on the document that
     points at the tag node. The edge is data, and it is visible in the source.
   - |
     TODO — show the `yamlover-annotations` entry in the yamlover tab.
@@ -30,14 +30,14 @@ description: Filing without choosing a folder, and marking up a region of anythi
 - Marking up a region
   notes: |
     TODO — examples/72-images: tag a REGION of an image, and a FRAGMENT of prose
-    (ANNOTATIONS.md §3). Show that the fragment lives on the chunk it was drawn in.
+    (docs/server/annotations/storage). Show that the fragment lives on the chunk it was drawn in.
   - |
     TODO — an annotation can target a region of a picture or a run of text, not only a
     whole file.
 - Finding it again
   notes: |
     TODO — the breadcrumb query editor. `T: ?..: ?..` for a tag's members, `N: ?..` for
-    find-usages (QUERY.md §7 idioms). The tree filters to matches.
+    find-usages (docs/language/pointers/queries/idioms). The tree filters to matches.
   - |
     The **breadcrumb is a query editor**; a path is a query with one answer.
 - State is a tag too

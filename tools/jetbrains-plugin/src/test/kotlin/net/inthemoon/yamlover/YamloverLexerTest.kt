@@ -6,7 +6,7 @@ import org.junit.Test
 
 /** Drives the heuristic lexer directly, pinning it to the shared TS ruleset
  *  (tools/parser/ts/src/highlight.ts). A pointer = the SIGIL (`* & ~`) + a tokenized PATH in
- *  the COLON grammar (SEPARATOR.md): name segments are REF, `:` separators / `[ ]` are PUNCT
+ *  the COLON grammar (docs/language/pointers/paths): name segments are REF, `:` separators / `[ ]` are PUNCT
  *  (sign), index digits are NUMBER, `/` is an ordinary key char. A `~` back-edge's key NAME
  *  colors as a KEY. A `|`/`>` block scalar is a PUNCT header + one opaque SCALAR body. */
 class YamloverLexerTest {
@@ -39,7 +39,7 @@ class YamloverLexerTest {
 
     @Test
     fun `a slash is an ordinary key character in a pointer path`() {
-        // SEPARATOR.md §3: `/` left the metachar set — `text/html` is ONE key segment
+        // docs/language/pointers/paths: `/` left the metachar set — `text/html` is ONE key segment
         val src = "type: *: text/html\n"
         assertTrue("REF holds the whole key: ${ofType(src, "YAMLOVER_REF")}", ofType(src, "YAMLOVER_REF").contains("text/html"))
         assertTrue("'/' is not a separator PUNCT", !ofType(src, "YAMLOVER_PUNCT").contains("/"))

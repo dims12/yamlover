@@ -1,7 +1,8 @@
 # QUERY-FUTURE — proposed extensions to the query language
 
-Forward-looking design, not commitments. Companion to `QUERY.md` (the shipped
-language and its `§9` sketches), `SEPARATOR.md` (the COLON grammar this builds on),
+Forward-looking design, not commitments. Companion to `docs/language/pointers/queries` (the shipped
+language and its own future sketches), `docs/language/pointers/paths` (the COLON grammar this
+builds on),
 `ENGINE.md` (the evaluator's home, `tools/engine/ts/src/query.ts`), `IR.md` (the
 graph being queried).
 
@@ -9,8 +10,9 @@ graph being queried).
 > (tag-picker autocomplete; find-usages next). The recurring asks — *filter the TOC*,
 > *find anything by name or content* — need capabilities the v1 language can't express:
 > substring/regex matching, depth-bounded descent, and logical branching. This doc
-> specs them **in the colon grammar** (QUERY.md `§2–§4` bracket syntax is superseded
-> by SEPARATOR.md `§4–§6`), promotes QUERY.md `§9.3` branching from sketch to proposal,
+> specs them **in the colon grammar** (the old bracket syntax is superseded by
+> `docs/language/pointers/paths`), promotes the sketched branching in
+> `docs/language/pointers/queries` to a proposal,
 > and proposes **retiring `...`** as a primitive in favor of a general repetition
 > operator that subsumes it.
 
@@ -37,11 +39,11 @@ ancestry walks, and any fixed-or-ranged traversal.
 `?` is **not** reused as the `{0,1}` quantifier — it is already the any-key portion
 (ambiguity), so optional repetition is `{0,1}` spelled out. Newly reserved
 metacharacters: `{ }` (a grep over `examples/` + `yamlover/` must confirm zero keys
-contain them, per QUERY.md `§2`'s migration discipline; a literal becomes `\{`).
+contain them, per docs/language/pointers/escaping's migration discipline; a literal becomes `\{`).
 
 **Semantics.** A quantified pattern denotes the **union** over `k ∈ [m,n]` of the walk
 that applies the inner pattern exactly `k` times. Results are deduplicated by canonical
-path and returned in document order (QUERY.md `§5`), so overlapping depths collapse to
+path and returned in document order (docs/language/pointers/queries/semantics), so overlapping depths collapse to
 one node each. `k = 0` contributes the *current* binding unchanged (descendant-or-self
 falls out of `*` / `{0,…}`).
 
@@ -56,8 +58,8 @@ x: (:..enoch){1,3}     holders reachable by 1–3 hops of the reverse `enoch` ed
 (`*`, `+`, `{m,}`) terminate iff the repeated axis is finite under the visited-set:
 over the acyclic CONTAIN spine, trivially; over a ref-crossing axis, because dedup by
 canonical path + a finite node set bounds the walk (pointer-following is already
-cycle-safe, QUERY.md `§5`). **Consequence:** the visited-set makes ref-crossing closure
-safe — which QUERY.md `§9` "Also deferred" had punted on for cycle reasons. So a
+cycle-safe, docs/language/pointers/queries/semantics). **Consequence:** the visited-set makes
+ref-crossing closure safe — which the shipped language had punted on for cycle reasons. So a
 repetition over `[?]` (which derefs) becomes a legal, terminating *transitive closure
 across refs* — a genuinely new capability, not just sugar.
 
@@ -77,7 +79,7 @@ mechanical rename:
 
 1. **Contain-only vs deref.** `...` walks containment **and never crosses a `*` ref**.
    But the ordinary `?`/`[?]` steps **deref** when an entry's value is a pointer
-   (QUERY.md `§5` implicit dereference). So `(:[?])*` is *ref-crossing closure*, which
+   (docs/language/pointers/queries/semantics implicit dereference). So `(:[?])*` is *ref-crossing closure*, which
    is **broader** than `...`. To replace `...` exactly we need a **contain-only child
    axis** (a non-dereferencing wildcard) to quantify — propose a distinct token, or a
    per-step "no-deref" modifier. The richer ref-crossing form is desirable too (it is
@@ -85,9 +87,9 @@ mechanical rename:
 2. **Self-inclusion** comes from `k = 0`; confirm `(:?)*` at a leaf yields the leaf
    (matches `...` descendant-or-**self**).
 
-**Migration.** Same dual-window method as SEPARATOR.md: (i) parse `...` as sugar for
+**Migration.** Same dual-window method as docs/language/pointers/paths: (i) parse `...` as sugar for
 the chosen canonical form; (ii) serializers emit the canonical form; (iii) rewrite the
-`query.cases.ts` corpus and the QUERY.md idioms/examples; (iv) drop `...` from the
+`query.cases.ts` corpus and the docs/language/pointers/queries idioms/examples; (iv) drop `...` from the
 grammar once nothing emits it. The acceptance gate: every `...` case in
 `query.cases.ts` produces an identical result through its replacement.
 
@@ -98,8 +100,8 @@ grammar once nothing emits it. The acceptance gate: every `...` case in
 Substring is the degenerate case of regex; spec regex and get substring for free.
 
 **Regex literal (syntax TBD):** `/pattern/flags` (JS `RegExp` dialect; `i`, `s`, …).
-This depends on the `/`-window closing (QUERY.md frontier (iii) / SEPARATOR.md: `/`
-leaving the metachar set), which frees `/` to delimit literals. If that lands later, a
+This depends on the `/`-window closing (PLAN.md's frontier (iii) / docs/language/pointers/paths:
+`/` leaving the metachar set), which frees `/` to delimit literals. If that lands later, a
 fallback delimiter (e.g. `` `…` ``) is the contingency. A literal `/` inside the
 pattern is `\/` as usual.
 
@@ -134,7 +136,7 @@ Three uses, mapping onto the existing portion taxonomy (navigate vs test):
 
 ## 4. Branching — parallel walks, logically joined
 
-Promotes QUERY.md `§9.3` to the colon grammar. A parenthesized group is a
+Promotes the sketched branching of docs/language/pointers/queries to the colon grammar. A parenthesized group is a
 **non-navigating test** built from sub-walks: each branch evaluates from the current
 binding as an existence test; the boolean operators combine them; surviving bindings
 continue from **before** the group (so the group filters, it does not move the walk).
@@ -145,10 +147,10 @@ continue from **before** the group (so the group filters, it does not move the w
 ```
 
 Operators `( ) | ` and the comparison sigils `! < > =` are **already reserved**
-(QUERY.md `§2`), so this lands without changing any v1 query. `&&`/`||` bind as usual;
+(docs/language/pointers/escaping), so this lands without changing any v1 query. `&&`/`||` bind as usual;
 parentheses nest. Capture (`§9.2`, the `!` suffix) selects which binding returns when a
 group sits mid-template. **Negation stays open** — `!` is spent on capture; candidates
-(`not(...)`, a distinct sigil) are recorded, decision deferred (as in QUERY.md `§9.3`).
+(`not(...)`, a distinct sigil) are recorded, decision deferred (as in docs/language/pointers/queries).
 
 ### 4a. The `&&` predicate — conjunction without parentheses (ruled 2026-08-01, deferred)
 
@@ -193,17 +195,17 @@ Recorded intent from the same dialogue: the language will grow aggregation
 (`count`/`sum`/`min`/`max`/`avg` over a fan-out's results). No syntax is proposed yet —
 candidates must not collide with key steps (a bare `count` is a key), so the spelling
 likely rides the reserved characters (e.g. a function form behind `( )`). Design later,
-together with projection (QUERY.md §9).
+together with projection (docs/language/pointers/queries).
 
 ---
 
 ## 5. SQLite indexing & performance
 
-The store (`tools/engine/ts/src/store.ts`) is shaped for the v1 axes (QUERY.md `§10`);
+The store (`tools/engine/ts/src/store.ts`) is shaped for the v1 axes (docs/language/pointers/queries/semantics);
 these extensions add cost the index should absorb.
 
 - **Depth-bounded descent → recursive CTE.** Today `descend()` is an N+1 walk (one
-  child query per node, QUERY.md `§10`). `{m,n}` repetition maps cleanly to a
+  child query per node, docs/language/pointers/queries/semantics). `{m,n}` repetition maps cleanly to a
   `WITH RECURSIVE … depth < n` CTE over `contain` (or, for ref-crossing closure, over
   the unified edge set with a `visited` guard) — one statement, depth-pruned, instead
   of recursion in JS. This also speeds up plain `...`/`(:?)*`.
@@ -235,7 +237,7 @@ unbounded descent profiles hot.
 | retire `...` | — (removes a token) | new |
 | regex literal `/…/` | `/` (freed by the `/`-window close) | pending window |
 | value regex `=~ !~` | — (`! = ~` already reserved/used) | new operator |
-| branching `( … && … )` | — (`( ) ! < > = \|` reserved, QUERY.md `§2`) | sketch → proposal |
+| branching `( … && … )` | — (`( ) ! < > = \|` reserved, docs/language/pointers/escaping) | sketch → proposal |
 | `&&` predicates (§4a) | — (`&` reserved as a metachar already) | ruled, deferred |
 | position range `[m..n]` (§4b) | — (bracket body form, lexically contained) | ruled, deferred |
 | aggregation (§4c) | TBD (likely behind `( )`) | intent recorded |

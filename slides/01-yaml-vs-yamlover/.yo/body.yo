@@ -2,7 +2,7 @@
 # the spoken script: the chapter renderer draws the title, `description` and the keyless body,
 # and IGNORES every other keyed entry (tools/server/src/client/renderers/chapter-model.ts), so
 # the script sits in the file and never on the screen. Sources for every claim below:
-# ../../YAMLOVER.md §1–§5, ../../README.md §The core idea. Format rules: ../.yo/body.yo.
+# docs/language/vs-yaml, ../../README.md §The core idea. Format rules: ../.yo/body.yo.
 !!<*yamlover: $defs: chapter>
 YAML vs yamlover
 description: You already know the syntax — here is where the meaning parts ways

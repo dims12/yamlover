@@ -1,9 +1,0 @@
-YAMLOVER_EDITOR - moved
-description: |
-    The editor state machine now lives in the documentation book as marklower chapters,
-    one subchapter per state:
-    docs/server/yamlover-editor/  - the source projection's typing grammar
-                                    (sync mirror: tools/yed/src/grammar/dispatch.ts)
-    docs/server/chapter-editor/   - the chapter projection
-                                    (sync mirror: tools/yed/src/chapter/dispatch.ts)
-    See DOCSMIGRATION.md.

@@ -2,7 +2,7 @@
 # never renders (chapter-model.ts skips keyed entries other than `description`). Every feature
 # demoed here SHIPS today; the native mindmap and outliner editors are still planned
 # (../../teasers/RU.md), so this deck shows a PlantUML chunk and the board instead.
-# Specs: ../../CHAPTER.md, ../../TICKETS.md §3 (the board), ../../QUERY.md (finding things).
+# Specs: docs/documents/chapter, ../../TICKETS.md §3 (the board), docs/language/pointers/queries (finding things).
 !!<*yamlover: $defs: chapter>
 Mind-management in small doses
 description: Capture, outline, decide, track, tag, find — six small jobs, six plain files

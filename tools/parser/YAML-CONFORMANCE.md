@@ -41,7 +41,7 @@ Ordered roughly by impact (corpus cases) × independence. Counts are positive-co
    `!foo`, verbatim `!<…>`, and non-specific `!` (~9 parse failures + several value mismatches,
    e.g. `!!str 12` → the string `"12"`). Must **coexist** with yamlover's own `!!mix` / `!!var`
    / `!!<…>` tags. This is the YAML-tag ↔ JSON-Schema-type mapping (`!!int`→integer, `!!seq`→
-   array, …); see `META.md`.
+   array, …); see `docs/language/model/metadata`.
 
 3. **Multi-line & folded scalars** — the largest *grammar* gap, spread across many cases:
    - **Plain scalars spanning lines** (line folding: newline → space, blank line → newline).
@@ -76,13 +76,13 @@ Ordered roughly by impact (corpus cases) × independence. Counts are positive-co
 
 ## Intentional divergences (NOT gaps — keep diverging)
 
-When read *as yamlover*, these YAML spellings change meaning by design (see `URIs.md`):
+When read *as yamlover*, these YAML spellings change meaning by design (see `docs/language/pointers`):
 
 - `*alias` extends to **path pointers** (`*/pets[1]`, `*a/b`) and scopes/links — a plain anchor
   alias still resolves, but the syntax space is yamlover's.
 - A key prefixed with `~` (`~name:`) is a **back-edge**, not a literal key.
 - A `~-` entry (`~- *…`) is a **keyless back-edge** (reverse positional membership,
-  `URIs.md` §`~-`), not the plain scalar `~-`.
+  `docs/language/vs-yaml/tilde`), not the plain scalar `~-`.
 - `!!mix` / `!!var` / `!!<…>` / `!!set` are **yamlover tags** (mixed/variant containers,
   inline schema, set-semantics container), occupying the `!!` space that YAML uses for type
   tags — `!!set` in particular diverges from YAML's null-valued-mapping meaning.

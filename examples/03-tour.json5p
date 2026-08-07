@@ -1,9 +1,9 @@
 // ============================================================================
 // 03 — json5p.  JSON5 ⊂ json5p.  Same data as 02-tour.json5, plus POINTERS.
 // json5p = ALL of JSON5 (see 02) + the pointer layer: * dereference, keys-as-
-// COLON-path pointers (SEPARATOR.md), & PATH anchors (reverse edges; deprecated ~ still
+// COLON-path pointers (docs/language/pointers/paths), & PATH anchors (reverse edges; deprecated ~ still
 // parses). Nothing else is added.
-// Spec: ../JSON5P.md   ·   Pointer grammar: ../URIs.md   ·   Model: ../IR.md
+// Spec: ../JSON5P.md   ·   Pointer grammar: docs/language/pointers   ·   Model: ../IR.md
 // ============================================================================
 {
   pets: [
@@ -41,7 +41,7 @@
 
   // ---- &'P[]' : reverse positional MEMBERSHIP (ordinal anchors; was ~*'P') ----
   // The member declares "that container holds me" — unpositioned (no reverse index) and
-  // ADDITIVE (lists may repeat); see ../URIs.md §&. json5p has no tags, so SET semantics
+  // ADDITIVE (lists may repeat); see docs/language/pointers/anchors. json5p has no tags, so SET semantics
   // (dedup by target) come from the metadata layer (uniqueItems: true), not a !!set tag.
   favorites: [ *": pets: 0" ],          // forward: favorites holds Rex …
   fan: &": favorites[]" &": crew[]" {    // … and ALSO Bob — both memberships, anchor-spelled

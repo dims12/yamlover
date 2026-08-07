@@ -2,7 +2,7 @@
 # This root's positional body interleaves prose (default markdown), an image chunk (`*png`
 # pointer — format from the .png extension), a PlantUML diagram (tagged `!!<format: …>`), and
 # three SUBCHAPTERS that are `*`-pointers to the `dogs/`, `cats/`, `fish/` subdirectories — each
-# its own directory chapter with its own `.yo/body.yo`. Spec: ../CHAPTER.md, ../YAMLOVER.md.
+# its own directory chapter with its own `.yo/body.yo`. Spec: docs/documents/chapter, docs/language.
 !!<*yamlover: $defs: chapter>
 The Pet Keeper's Handbook
 description: A friendly guide to living with animals

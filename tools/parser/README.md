@@ -2,7 +2,7 @@
 
 Parsers for the yamlover family of surface languages → the shared **IR**
 (`../../IR.md`). The specs are language-agnostic and live at the repo root
-(`URIs.md`, `IR.md`, `JSON5P.md`, `YAMLOVER.md`); each implementation here is written
+(`docs/language/pointers`, `IR.md`, `JSON5P.md`, `docs/language`); each implementation here is written
 *from* those specs.
 
 ## Layout

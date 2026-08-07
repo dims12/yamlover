@@ -3,7 +3,7 @@
 # the user does not; reading is location-independent (a node is recognized by its schema,
 # wherever it sits). A missing file or field silently falls back to these same defaults.
 # Locations are PROJECT-SCOPE pointers (`*:: name`) naming the object at the project root — `*::x`
-# = project root, `*:x` = document root, `*x` = parent/current scope (SEPARATOR.md §2).
+# = project root, `*:x` = document root, `*x` = parent/current scope (docs/language/pointers/scopes).
 !!<*yamlover:$defs:config>
 
 # This project's identity (IMPORTS.md §1) — an AWS-ARN-like name, identity not transport. Other
@@ -12,7 +12,7 @@
 uri: ::: yamlover.inthemoon.net
 
 # The paths this project EXPORTS to importers (IMPORTS.md §2): the hosted schemas, the tag taxonomy
-# (palette + workflows), and the config schema. A list of pointer/query texts (QUERY.md).
+# (palette + workflows), and the config schema. A list of pointer/query texts (docs/language/pointers/queries).
 exports:
 - *:: $defs
 - *:: tags

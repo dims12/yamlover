@@ -18,7 +18,7 @@ model**. Don't extend them.
 | Legacy mechanism (walker/collector) | Replaced by |
 |---|---|
 | **Schema-as-storage** — data pinned in `.yamlover/schema.yaml` via `const:` (schema ↔ instance correspondence) | **Instance-only.** The instance graph is the only thing stored; schema is a *separate, deferred validator* (`../PLAN.md` Phase 6). A directory's overlay is now `.yamlover/body.yamlover`. |
-| **`x-yamlover.rel`** up-edges + **`^name`** ascent + **`.`-prefixed virtual children** (the DAG mechanism) | **`*` pointers** (the only edge-creator) + **`~` back-edges**; one general graph "kept as written", `normalize` to forwards-only (`../URIs.md`). |
+| **`x-yamlover.rel`** up-edges + **`^name`** ascent + **`.`-prefixed virtual children** (the DAG mechanism) | **`*` pointers** (the only edge-creator) + **`~` back-edges**; one general graph "kept as written", `normalize` to forwards-only (`docs/language/pointers`). |
 | **`$ref`/`$defs`** (JSON-Pointer in schema space) + sibling-keyword merge | Pointers live in **instance** space (`*`, scopes `/` `//` `..`); schema `$ref` is out of scope for the instance model. |
 | `json-schema/instantiate` / `yaml-schema/instantiate` commands | Not needed (no schema-as-storage). Serialization is IR → concrete (Phase 2d). |
 

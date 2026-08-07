@@ -1,16 +1,17 @@
-# A chapter carrying a TABLE — the structure marklower refuses to own (../MARKLOWER.md
-# §Tables): the grid is a yamlover node tagged with the table schema, and only its CELLS
-# are marklower.
+# A chapter carrying a TABLE — the structure marklower refuses to own
+# (docs/documents/marklower/tables): the grid is a yamlover node tagged with the table schema,
+# and only its CELLS are marklower.
 #
 # A table is an OMNI node: keyless entries are the ROWS (each an array of cells, left to
 # right); the row keyed `header` is the header row; optional `title` is the caption; the
 # column count is inferred from the first row. The table schema consumes exactly TWO
 # nesting levels — rows, then cells: an untagged container cell switches BACK to a CHAPTER,
-# and a nested table enters only by its explicit tag (MARKLOWER.md §Cells). A header cell
-# may be an omni scalar carrying a `width` sidecar — a proportional column weight
-# (§Header widths). MERGED cells are `*` pointers with RELATIVE indexes (../URIs.md
-# §Relative indexes): a cell that IS its left neighbor (*[.-1]) spans columns, a cell that
-# IS the one above (*..[.-1][.] — up to the table, previous row, my column) spans rows.
+# and a nested table enters only by its explicit tag (docs/documents/marklower/tables/cells).
+# A header cell may be an omni scalar carrying a `width` sidecar — a proportional column weight
+# (docs/documents/marklower/tables/header-widths). MERGED cells are `*` pointers with RELATIVE
+# indexes (docs/language/pointers/relative-indexes): a cell that IS its left neighbor (*[.-1])
+# spans columns, a cell that IS the one above (*..[.-1][.] — up to the table, previous row, my
+# column) spans rows.
 !!<*yamlover: $defs: chapter>
 Household staff
 - The roster below is a **table** — a body element, not marklower syntax; cells are marklower.

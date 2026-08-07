@@ -8,9 +8,9 @@
 # sidecar — a proportional column weight (AsciiDoc `cols` style), rendered weight/sum %;
 # `width` is deliberately schema-untyped (an omni cell must stay a LEAF for shape routing).
 # A cell that is a `*` pointer to its adjacent previous cell (`*[.-1]` left, `*..[.-1][.]`
-# up — relative indexes, URIs.md) declares a MERGED cell: colspan/rowspan. Attach with
+# up — relative indexes, docs/language/pointers/relative-indexes) declares a MERGED cell: colspan/rowspan. Attach with
 # !!<*yamlover: $defs: table>.
-# No explicit `format:` — `type: variant` derives x-yamlover-table. Spec: ../MARKLOWER.md.
+# No explicit `format:` — `type: variant` derives x-yamlover-table. Spec: docs/documents/marklower.
 type: variant
 properties:
   title:                           # optional caption

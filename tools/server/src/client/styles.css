@@ -1739,7 +1739,7 @@ textarea.chapter-latex-src {
   color: var(--dim);
 }
 
-/* ---- table (x-yamlover-table, MARKLOWER.md) ---------------------------------- */
+/* ---- table (x-yamlover-table, docs/documents/marklower) ---------------------------------- */
 .yl-table caption {
   caption-side: top;
   text-align: left;

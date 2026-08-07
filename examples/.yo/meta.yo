@@ -1,4 +1,4 @@
-# examples/.yo/meta.yo — per-example descriptions (presentation metadata, META.md).
+# examples/.yo/meta.yo — per-example descriptions (presentation metadata, docs/language/model/metadata).
 # Ported from the retired root schema.yaml, re-keyed to the current corpus; the prose
 # counterpart lives in README.md. Types/formats are inferred — only descriptions here.
 properties:

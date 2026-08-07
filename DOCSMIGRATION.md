@@ -242,7 +242,27 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
       three `../../../`-relative spellings made repo-root relative like every other, and one
       genuinely stale line - `ir.ts` still said `/` = document root, from before the colon
       round. 793 parser/engine + 672 yed + the server suite green, typecheck clean.
-- [ ] Delete the stubs after the cycle - unblocked now that nothing in the code points at them.
+- [x] The stubs DELETED (2026-08-07) - the fifteen redirect files are gone (thirteen `*.md` plus
+      `YAMLOVER_EDITOR.yo` / `QUERY_EDITOR.yo`), and the last 255 citations of them repointed at
+      book chapters by the same method as the 2026-08-05 code sweep. Where the 2026-08-05 round
+      had covered the TS sources, this one caught what it had missed: the JetBrains Kotlin, the
+      onenote2yamlover C#/PowerShell, `styles.css`, `yed/package.json`, nine `tools/**/README.md`,
+      the `$defs/` schema headers, every `.yo/settings.yo` comment (now matching the template
+      `settings.ts` writes), the `examples/` + `slides/` file comments, and the eleven root specs
+      that stayed MD (`PLAN.md`, `IR.md`, `ENGINE.md`, `IMPORTS.md`, `JSON5P.md`, `QUERY-FUTURE.md`,
+      `TICKETS.md`, `PRIOR-ART.md`, `FUTURE.md`, `TODO.md`, `edit-examples/README.md`). Section
+      anchors dropped as before, the chapter name carrying them - the section-level mapping read
+      off this file's own 2026-08-05 note and the pre-stub headings in git, so `QUERY.md §4.3`
+      lands on `pointers/queries/uplinks`, `§5` on `queries/semantics`, `MARKLOWER.md §Status` on
+      `marklower/known-divergence`, `EDITOR.md §9` on `editor/yed`. PROVENANCE mentions are
+      deliberately kept: this file's mapping table, `YOMIGRATION.md`'s extension inventory, and
+      the "Sources:" header comments of the book's own `index.yo` files still name the MD sources
+      they were made from. Hand-finished where a dropped anchor broke the sentence (a wrapped
+      `URIs.md §The null` in JSON5P, a doubled anchors citation in IR, PLAN's Phase A "Spec DONE"
+      log, four QUERY-FUTURE sentences that had cited sections by number, the orphaned
+      `§Header widths` in `61-table.yo`, `slides/06`'s "and §7"). All 345 tracked `.yo` re-vetted;
+      800 parser/engine + 672 yed + 1407 server green, typecheck clean. One fixture regenerated
+      (`test-examples/0925`) - the dev-board example whose ticket prose cited a spec by file name.
 - [x] The bundled agent guide caught up (2026-08-05): `tools/server/src/server/agent-docs/`
       AGENTS.md — the file `POST /api/agent-docs` installs into a USER's project, so its
       spelling is what other agents author — still taught the pre-YAML-keys forms. Respelled to

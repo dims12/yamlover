@@ -1,7 +1,7 @@
 # Exports & Imports — project linking
 
 How one yamlover project references the nodes of another. Builds directly on the scope ladder
-(SEPARATOR.md §2) and pointer resolution (URIs.md, resolve.ts) — an import is an ordinary pointer
+(docs/language/pointers/scopes) and pointer resolution (docs/language/pointers, resolve.ts) — an import is an ordinary pointer
 key, nothing more. Transport (actually fetching a remote project) is **out of scope** here; this
 spec defines the *naming and resolution* model. The one project that resolves with no transport is
 yamlover itself, which ships bundled with the tool (§4).
@@ -15,7 +15,7 @@ uri: ::: yamlover.inthemoon.net
 ```
 
 The URI is an **identity, not a transport** — an AWS-ARN-like pure colon-chained name
-(SEPARATOR.md §2). The authority (`yamlover.inthemoon.net`) is what other projects name when they
+(docs/language/pointers/scopes). The authority (`yamlover.inthemoon.net`) is what other projects name when they
 import it. `how` an engine would reach that authority — https, ssh, a local checkout, a sync mirror
 — is engine configuration, never part of the name. A project with no `uri` cannot be imported by
 others (it can still import them).
@@ -26,7 +26,7 @@ yield the authority string (settings.ts `uriSetting`).
 ## 2. Exports — what a project offers
 
 A project lists the paths it exports in the same config, as a sequence of pointer/query texts
-(QUERY.md — a query is a generalized pointer):
+(docs/language/pointers/queries — a query is a generalized pointer):
 
 ```yamlover
 exports:
@@ -64,7 +64,7 @@ how every `*` chain already resolves.
 Because transport is out of scope, a world authority that is **not mounted** (every authority except
 yamlover's, §4) resolves to an `external` reference on a miss — a legitimate "elsewhere", not a
 dangling error. Plain `::`-scope (intra-project) misses remain dangling typos, as before
-(SEPARATOR.md §2; resolve.ts distinguishes `world` from project scope).
+(docs/language/pointers/scopes; resolve.ts distinguishes `world` from project scope).
 
 ## 4. The yamlover self-import (bundled)
 
@@ -104,7 +104,7 @@ taxonomy is real and authoritative; the self-import de-materializes).
 
 ## 5. Resolution & the scope ladder
 
-Imports ride the existing scope ladder (SEPARATOR.md §2, URIs.md):
+Imports ride the existing scope ladder (docs/language/pointers/scopes, docs/language/pointers):
 
 ```
 current: object: path        # bare  — current scope

@@ -105,7 +105,7 @@ sections above (which weigh options), this one is a **committed aim** — only t
 migration is deferred.
 
 **The aim.** All prose in a yamlover tree is represented as **chapters of marklower
-chunks** (`CHAPTER.md`, `MARKLOWER.md`); `text/marklower` is *the* prose format.
+chunks** (`docs/documents/chapter`, `docs/documents/marklower`); `text/marklower` is *the* prose format.
 Marklower stays deliberately **inline-only** — bold/italic/strike, code, `$$math$$`,
 links, and `*[…](…)` embeds — and never grows block structure. Block structure is the
 graph's job: headings become **subchapters**, bullet/numbered lists become tagged
@@ -129,7 +129,7 @@ marklower (tables, lists) are exactly the seams a converter targets.
    the legacy PowerShell prototype still emits CSV tables). It is the first worked example
    of "foreign document → chapter+marklower".
 3. **Paste/HTML convergence** — `renderers/paste-html.ts` currently emits a few block
-   constructs marklower can't parse (`MARKLOWER.md` §divergence); folding those into the
+   constructs marklower can't parse (`docs/documents/marklower/known-divergence`); folding those into the
    chapter model closes the last in-app producer of non-marklower prose.
 
 **Open questions.**
@@ -141,7 +141,7 @@ marklower (tables, lists) are exactly the seams a converter targets.
 - **Multilingual chunks** (`TODO.md`) — a per-chunk language dimension interacts with how a
   converted document stores parallel prose.
 
-See `MARKLOWER.md` (the format), `CHAPTER.md` (the container it converges into), and the
+See `docs/documents/marklower` (the format), `docs/documents/chapter` (the container it converges into), and the
 [Documentation map](README.md#documentation-map).
 
 ## Open question to settle

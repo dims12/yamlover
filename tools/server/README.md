@@ -84,7 +84,7 @@ deep link expands the TOC along the path and selects (and scrolls to) the target
 splitting its path at the page boundary and replacing that `/` with `#`: for a full
 path `a/b/c/d` whose served page is `a/b`, the *scrollable* URL is `a/b#c/d` — the
 page loads `a/b` and scrolls to the `c/d` node within it. A **fragment** (a tagged
-region — see `ANNOTATIONS.md`) is one instance: a region of `…/IMG.jpg` lives at
+region — see `docs/server/annotations`) is one instance: a region of `…/IMG.jpg` lives at
 `…/IMG.jpg/yamlover-fragments/<slug>`, so its scrollable URL is
 `…/IMG.jpg#yamlover-fragments/<slug>` — opening it (or clicking the region in the
 fragments panel) scrolls/pans to **and briefly flashes** the region.
@@ -183,7 +183,7 @@ its `!!<…>` meta tag.
 That is why editing a chunk's prose is an `emplace`: an annotated chunk is an omni node whose tag
 applications are keyed entries laid over its scalar, and only the scalar facet is being replaced.
 A chapter's **title** works the same way — it is the chapter node's own scalar self-value
-(CHAPTER.md), so a title edit is an `emplace` on the chapter path itself (an empty payload drops
+(docs/documents/chapter), so a title edit is an `emplace` on the chapter path itself (an empty payload drops
 the title line).
 
 `yamlover` is valid inline yamlover **source**, not prose — the caller escapes its own text (the web
@@ -233,8 +233,8 @@ Registered today (a representative slice — the registry is the source of truth
 | `chapter` | `x-yamlover-chapter` | a positional body: numbered chunks + subchapter links |
 | `tag` / `board` | `x-yamlover-tag` / `x-yamlover-board` | tag-hierarchy diagram / board (handled outside the specificity loop) |
 | `task` | `x-yamlover-task` | task view |
-| `table` | `x-yamlover-table` | a grid (`MARKLOWER.md`): rows/header/caption from the omni entries, merged cells (`colSpan`/`rowSpan`) from resolved relative-index `*` pointers, nested tables inline, marklower cells; prose cells edit in place under the lock |
-| `marklower` | `text/marklower` (a chapter's prose chunks, by schema propagation) | its own inline grammar (`MARKLOWER.md`): emphasis, `` `code` ``, `$$math$$` via KaTeX, links, and `*[…](…)` media embeds |
+| `table` | `x-yamlover-table` | a grid (`docs/documents/marklower`): rows/header/caption from the omni entries, merged cells (`colSpan`/`rowSpan`) from resolved relative-index `*` pointers, nested tables inline, marklower cells; prose cells edit in place under the lock |
+| `marklower` | `text/marklower` (a chapter's prose chunks, by schema propagation) | its own inline grammar (`docs/documents/marklower`): emphasis, `` `code` ``, `$$math$$` via KaTeX, links, and `*[…](…)` media embeds |
 | `markdown` | `text/markdown` | [marked](https://marked.js.org) |
 | `asciidoc` | `text/asciidoc` | [@asciidoctor/core](https://asciidoctor.org) |
 | `csv` | `text/csv`, `text/tab-separated-values` | a table |
@@ -304,7 +304,7 @@ $ npm run test:watch
 This server suite is **separate** from the repository root's `npm test` (which
 runs only the parser and engine suites) and from the editor package's own suite
 (`npm --prefix tools/yed test` — the grammar/corpus conformance gate,
-`EDITOR.md` §9). CI gates on all of them, so run them before pushing. (Run
+`docs/server/editor/yed`). CI gates on all of them, so run them before pushing. (Run
 everything from the project root — see the root `package.json`.)
 
 ## Layout
@@ -323,7 +323,7 @@ src/server/            the engine-backed JSON API
   agent-docs/            the AGENTS.md / CLAUDE.md guide installed by POST /api/agent-docs
 src/client/            the React SPA (tree, node view, render, icons, paths, live SSE)
   renderers/             facet-predicate renderer registry + per-format renderers; the
-                         unlocked editors are yed mounts over ../yed (@yamlover/yed) — EDITOR.md
+                         unlocked editors are yed mounts over ../yed (@yamlover/yed) — docs/server/editor
   vendor/djvu.js         prebuilt DjVu.js bundle (GPL-v2; see vendor/README.md)
 test/                  Vitest suite (server logic + client components)
 index.html             SPA shell

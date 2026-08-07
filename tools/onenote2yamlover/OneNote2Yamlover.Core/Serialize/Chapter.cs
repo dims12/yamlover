@@ -7,13 +7,13 @@ public enum ChunkKind
 {
     /// <summary>Prose. Emitted as a bare block scalar; marklower is the default format.</summary>
     Text,
-    /// <summary>A table (MARKLOWER.md). Emitted as a <c>!!&lt;*yamlover: $defs: table&gt;</c> node.</summary>
+    /// <summary>A table (docs/documents/marklower). Emitted as a <c>!!&lt;*yamlover: $defs: table&gt;</c> node.</summary>
     Table,
     /// <summary>A pointer to a sibling file (image, attachment) or a subchapter directory.</summary>
     Pointer,
 }
 
-/// <summary>A grid (MARKLOWER.md): rows of cells, top to bottom / left to right. OneNote has no
+/// <summary>A grid (docs/documents/marklower): rows of cells, top to bottom / left to right. OneNote has no
 /// header rows and no merged cells, so the model carries neither — every row is a body row.</summary>
 public sealed record TableModel(IReadOnlyList<TableRow> Rows);
 
@@ -22,7 +22,7 @@ public sealed record TableRow(IReadOnlyList<TableCell> Cells);
 /// <summary>A cell is marklower prose, a nested table (entering only by its explicit tag), or —
 /// when a OneNote cell mixes prose and tables — a CHAPTER whose body keeps both in order (the
 /// cell schema is <c>anyOf: [chunk, chapter, table]</c>; an untagged container cell is the
-/// chapter branch — MARKLOWER.md §Cells).</summary>
+/// chapter branch — docs/documents/marklower/tables/cells).</summary>
 public sealed record TableCell(string Text = "", TableModel? Nested = null, IReadOnlyList<Chunk>? Chapter = null);
 
 /// <param name="Text">Body for <see cref="ChunkKind.Text"/>.</param>
@@ -48,7 +48,7 @@ public static class ChapterSerializer
     /// One positional body: chunks, then subchapter pointers. OneNote subpages always follow their
     /// parent page's own content, so appending them preserves the author's order. The
     /// <c>- *: name</c> pointers are what override the engine's alphabetical directory scan.
-    /// The chapter is FULLY OMNI (yamlover CHAPTER.md): the title is the root's scalar SELF-VALUE
+    /// The chapter is FULLY OMNI (yamlover docs/documents/chapter): the title is the root's scalar SELF-VALUE
     /// line right after the tag — there is no <c>title:</c> key, no <c>chunks:</c> key and no
     /// <c>children:</c> key. (<see cref="Yaml.Scalar"/> quotes any title a bare line could
     /// misread — a leading sigil, a <c>:</c> or <c>#</c> — so the line never opens an entry.)
@@ -105,7 +105,7 @@ public static class ChapterSerializer
     }
 
     /// <summary>
-    /// A table's rows at <paramref name="indent"/> (MARKLOWER.md §Tables; the worked shape is
+    /// A table's rows at <paramref name="indent"/> (docs/documents/marklower/tables; the worked shape is
     /// examples/61-table.yo). A row of single-line prose cells is FLOW
     /// (<c>- [a, 'b c']</c>); a row holding a multi-line cell or a nested table is BLOCK —
     /// a lone <c>-</c> with each cell a <c>- </c> item two columns deeper. A nested-table
@@ -136,7 +136,7 @@ public static class ChapterSerializer
                 }
                 else if (cell.Nested is not null)
                 {
-                    // a nested table enters a cell only by its explicit tag (MARKLOWER.md §Cells)
+                    // a nested table enters a cell only by its explicit tag (docs/documents/marklower/tables/cells)
                     sb.Append(pad).Append("  - ").Append(TableTag).Append('\n');
                     AppendTableRows(sb, cell.Nested, indent + 4);
                 }

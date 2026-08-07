@@ -8,12 +8,12 @@ here is exactly what the tools accept.
 The model is **instance-only**: an example stores *data* (plus pointers), in one of the
 **concretes** — a `.json`/`.json5`/`.json5p` file, a `.yaml`/`.yo` file, or a
 **directory** (optionally carrying a `.yo/` overlay). Metadata — types and formats —
-lives in a separate schema layer ([META.md](../META.md)), never as storage. When an example
+lives in a separate schema layer ([`docs/language/model/metadata`](../docs/language/model/metadata/)), never as storage. When an example
 needs to name a type or format it does so *inline* (a `!!<…>` tag) or in an overlay's
 `meta.yo`, alongside the data but never replacing it.
 
-**Specs:** [URIs.md](../URIs.md) · [IR.md](../IR.md) · [JSON5P.md](../JSON5P.md) ·
-[YAMLOVER.md](../YAMLOVER.md) · [META.md](../META.md) · [TICKETS.md](../TICKETS.md)
+**Specs:** [`docs/language/pointers`](../docs/language/pointers/) · [IR.md](../IR.md) · [JSON5P.md](../JSON5P.md) ·
+[`docs/language`](../docs/language/) · [`docs/language/model/metadata`](../docs/language/model/metadata/) · [TICKETS.md](../TICKETS.md)
 
 ## Tours — the supersession lattice over one dataset
 
@@ -63,17 +63,17 @@ optional keyed `description`, and a **positional body** of chunks and (recursive
 tagged with the `chapter` schema (`$defs/chapter`). A bare-string body element is at once a chunk
 and a title-only subchapter — the same thing, by design. A schema attaches *inline* in a
 `.yo` file via the `!!<…>` tag (no overlay needed), or through a directory's
-`.yo/meta.yo`. See [CHAPTER.md](../CHAPTER.md), [YAMLOVER.md](../YAMLOVER.md) and
-[META.md](../META.md).
+`.yo/meta.yo`. See [`docs/documents/chapter`](../docs/documents/chapter/), [`docs/language`](../docs/language/) and
+[`docs/language/model/metadata`](../docs/language/model/metadata/).
 
 | # | example | concrete / shows |
 |---|---------|------------------|
 | 60 | [`60-simple-chapter.yo`](60-simple-chapter.yo)   | a single tagged **file** — the minimal chapter (the title as the root's **self-value** + a positional body), with subchapters in every shape: **titled** (self-value + body), **untitled** (body only), and **title-only** (a bare string ≡ a chunk), plus tagged **typographical lists** (`$defs/bullets`, `$defs/numbered`) nesting untagged to any depth |
-| 61 | [`61-table.yo`](61-table.yo) | a tagged **file** — a chapter whose body holds a `!!<*yamlover: $defs: table>` **table**: an omni node of keyless rows (flow and compact `- - ` block forms) with a `header` row (an omni cell carrying a proportional `width`) and a caption, marklower cells, **merged cells** as relative-index pointers (`*[.-1]` colspan, `*..[.-1][.]` rowspan), a tagged nested-table cell, and an untagged **chapter cell**. See [MARKLOWER.md](../MARKLOWER.md) §Tables |
+| 61 | [`61-table.yo`](61-table.yo) | a tagged **file** — a chapter whose body holds a `!!<*yamlover: $defs: table>` **table**: an omni node of keyless rows (flow and compact `- - ` block forms) with a `header` row (an omni cell carrying a proportional `width`) and a caption, marklower cells, **merged cells** as relative-index pointers (`*[.-1]` colspan, `*..[.-1][.]` rowspan), a tagged nested-table cell, and an untagged **chapter cell**. See [`docs/documents/marklower/tables`](../docs/documents/marklower/tables/) |
 | 65 | [`65-all-formats-chunks`](65-all-formats-chunks)             | a **directory** chapter — textual chunks (block scalars) interleaved with `*sample.*` pointers to binary files; per-chunk formats and file types in `meta.yo` |
 | 66 | [`66-pet-keeper-handbook`](66-pet-keeper-handbook)           | a recursive chapter **tree where each chapter is its own directory** — the root plus `dogs/`, `cats/`, `fish/` (and nested `dogs/puppies/`), each a directory chapter with its own `.yo/`; subchapters are `*`-pointers to those subdirectories, prose + `*png` image chunks + per-chunk PlantUML |
 | 68 | [`68-math-chapter`](68-math-chapter)                         | a **directory** chapter — marklower prose (inline `$$…$$`) plus standalone LaTeX chunks (`format: text/x-latex` in `meta`) |
-| 69 | [`69-marklower-links.yo`](69-marklower-links.yo) | a tagged **file** — nested chapters demonstrating document-relative, project-rooted, and external marklower links (all default format, no meta). Written in the **legacy** slash spelling (`/`, `//`); `:` / `::` are canonical — see `SEPARATOR.md`, `MARKLOWER.md` |
+| 69 | [`69-marklower-links.yo`](69-marklower-links.yo) | a tagged **file** — nested chapters demonstrating document-relative, project-rooted, and external marklower links (all default format, no meta). Written in the **legacy** slash spelling (`/`, `//`); `:` / `::` are canonical — see `docs/language/pointers/paths`, `docs/documents/marklower` |
 
 ## Plain directories (format by extension)
 

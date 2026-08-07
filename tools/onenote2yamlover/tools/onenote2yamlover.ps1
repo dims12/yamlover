@@ -6,7 +6,7 @@
     -Section <name>  : only sync that one section (for fast format validation)
     -All             : sync every non-recycle section (default if -Section omitted)
 
-  Emits the positional-body chapter model (yamlover CHAPTER.md): optional keyed
+  Emits the positional-body chapter model (yamlover docs/documents/chapter): optional keyed
   title/description, then ONE ordered body of chunks and subchapter pointers.
 #>
 param(
@@ -128,7 +128,7 @@ function Get-UniqueName($usedSet, [string]$base, [string]$ext) {
   [void]$usedSet.Add($name.ToLowerInvariant()); return $name
 }
 # A pointer key: bare when unambiguous, else double-quoted. Page names routinely contain
-# spaces, and a bare key holding one is a parse error (parser/ts/src/pointer.ts, SEPARATOR.md
+# spaces, and a bare key holding one is a parse error (parser/ts/src/pointer.ts, docs/language/pointers/paths
 # "a key containing a space must be quoted"). An all-dots key must be quoted too, or `..`
 # reads as the parent selector. Inside double quotes only \ and " need escaping.
 function Escape-Ptr([string]$s) {
@@ -301,7 +301,7 @@ function Convert-Page([string]$pageId) {
 function Serialize-Chapter([string]$title, $chunks, $childNames) {
   $sb = New-Object System.Collections.Generic.List[string]
   $sb.Add('!!<*yamlover: $defs: chapter>')
-  # the title is the chapter root's scalar SELF-VALUE line (fully-omni, CHAPTER.md) - no `title:` key
+  # the title is the chapter root's scalar SELF-VALUE line (fully-omni, docs/documents/chapter) - no `title:` key
   $sb.Add((Yaml-Scalar $title))
   # the .Count guards are load-bearing: in PS 5.1 `foreach ($x in $null)` runs one iteration
   if ($chunks -and $chunks.Count -gt 0) {

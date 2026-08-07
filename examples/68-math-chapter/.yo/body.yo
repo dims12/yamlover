@@ -1,7 +1,7 @@
 # A chapter mixing two ways of showing math: inline formulas in marklower prose ($$…$$),
 # and whole standalone LaTeX chunks. The chapter schema is attached via the tag; each LaTeX
 # chunk carries its own inline schema, !!<format: text/x-latex> — no meta overlay needed.
-# The body is positional: prose and LaTeX chunks in order (CHAPTER.md).
+# The body is positional: prose and LaTeX chunks in order (docs/documents/chapter).
 !!<*yamlover: $defs: chapter>
 A Pinch of Math
 - |

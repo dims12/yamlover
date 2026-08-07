@@ -1,8 +1,8 @@
 # onenote2yamlover
 
 Imports Microsoft **OneNote** notebooks into a yamlover tree. Each OneNote page becomes a
-**chapter** (`../../CHAPTER.md`) whose positional body is **marklower** prose
-(`../../MARKLOWER.md`), tables, and pointers to attachments/subpages; the notebook's
+**chapter** (`docs/documents/chapter`) whose positional body is **marklower** prose
+(`docs/documents/marklower`), tables, and pointers to attachments/subpages; the notebook's
 section/page hierarchy becomes the directory tree (expanded directory concrete).
 
 > **Platform:** Windows + the OneNote **desktop** app (the importer talks to it over COM).
@@ -10,12 +10,12 @@ section/page hierarchy becomes the directory tree (expanded directory concrete).
 
 ## What it produces
 
-A page maps to the fully-omni chapter shape (`../../CHAPTER.md`): the title is the root's
+A page maps to the fully-omni chapter shape (`docs/documents/chapter`): the title is the root's
 scalar self-value line, followed by one ordered body of chunks. Concretely:
 
 - **Prose** → marklower block scalars (bold/italic/strike, links, `` `code` ``; the default
   chunk format `text/marklower`).
-- **Tables** → `!!<*yamlover: $defs: table>` nodes (`../../MARKLOWER.md`) — nested tables
+- **Tables** → `!!<*yamlover: $defs: table>` nodes (`docs/documents/marklower`) — nested tables
   carry the explicit table tag; a cell that mixes prose and tables becomes a chapter cell.
   OneNote has no header rows or merged cells, so none are emitted.
 - **Images / attachments / ink** → files written beside the chapter and referenced by `*`
@@ -62,7 +62,7 @@ open the notebook. Browse the imported tree with `npx yamlover <dest>`.
 
 - **Prose → marklower:** done (`Text/Marklower.cs`).
 - **Tables → marklower `$defs: table`:** done in the C# core (`Serialize/Chapter.cs`) —
-  matches `../../MARKLOWER.md` §Status.
+  matches `docs/documents/marklower/known-divergence`.
 - **Images, attachments, ink→SVG, subpages, SSH sync, rename-safe reconcile:** implemented.
 
 ### Legacy prototype
@@ -75,7 +75,7 @@ solution supersedes it — prefer the solution.
 
 ## See also
 
-- `../../CHAPTER.md` — the chapter model pages import into.
-- `../../MARKLOWER.md` — the prose markup + the `$defs: table` grid schema.
+- `docs/documents/chapter` — the chapter model pages import into.
+- `docs/documents/marklower` — the prose markup + the `$defs: table` grid schema.
 - `../README.md` — the tools index; `../../FUTURE.md` §"Prose convergence" places this
   importer in the broader "foreign document → chapter + marklower" direction.

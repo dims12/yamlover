@@ -1,7 +1,7 @@
 # PRIOR-ART — the omnivorous node, surveyed
 
-Companion to `YAMLOVER.md` §4 (*One ordered container*), `IR.md` (the model being
-claimed), `TYPES.md` (`variant` / the `omni` top type), and
+Companion to `docs/language/vs-yaml/mixtures` (*One ordered container*), `IR.md` (the model being
+claimed), `docs/language/model/facets` (`variant` / the `omni` top type), and
 `tools/parser/YAML-CONFORMANCE.md` (how far the YAML surface is actually shared).
 
 > **Why this doc.** Surveyed 2026-07-30, in answer to a direct question: *has the yamlover
@@ -16,7 +16,7 @@ claimed), `TYPES.md` (`variant` / the `omni` top type), and
 
 ## 1. The claim under test
 
-From `YAMLOVER.md` §4, an untagged yamlover node may carry, at once:
+From `docs/language/vs-yaml/mixtures`, an untagged yamlover node may carry, at once:
 
 - **at most one own scalar value** (its self-value, at any line position in the block),
 - **keyless entries** — positional, the `- item` spelling,
@@ -148,7 +148,7 @@ the concrete projections, the editor — not the shape of the node.
 - **"This is KDL / SDLang / XML with different punctuation."** Answer with §5's conjunction,
   and cite KDL and SDLang *first, ourselves*. Volunteering the nearest prior art is what makes
   the narrow claim credible; letting someone else produce the link makes it look missed.
-- **"You are calling it YAML."** `YAMLOVER.md`'s opening already takes the correct posture —
+- **"You are calling it YAML."** The opening of `docs/language` already takes the correct posture —
   *"It is **not** a superset of YAML — it is a distinct, closely-related language"* — and
   should stay verbatim in every public description. Note the wording to align:
   `tools/parser/YAML-CONFORMANCE.md:3` says the parser is "a **superset of a subset** of
