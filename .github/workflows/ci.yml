@@ -17,6 +17,12 @@ jobs:
     if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     env:
+      # `npm ci` installs the lockfile VERBATIM — including each entry's `resolved` tarball
+      # URL, whichever registry host happened to be configured when it was written. A local
+      # install against a private mirror therefore bakes an unreachable LAN host into the
+      # lockfile and CI dies with ENOTFOUND. `always` re-points every tarball at the registry
+      # configured HERE (npmjs), so the runner resolves fresh no matter what the file says.
+      npm_config_replace_registry_host: always
       # npm's HTTP agent only drains its queue when a connection SUCCEEDS, so one flaky
       # registry fetch strands every request queued behind the 15-socket default and the
       # install dies with "Exit handler never called!" (npm/cli#9386). Above the dependency

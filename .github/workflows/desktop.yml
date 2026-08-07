@@ -23,6 +23,10 @@ on:
 # warning is gone. These action majors are Node-24 compatible.
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  # `npm ci` installs the lockfile VERBATIM, including each entry's `resolved` tarball URL —
+  # a local install against a private mirror bakes an unreachable LAN host into it. `always`
+  # re-points every tarball at the registry configured HERE, so the runner resolves fresh.
+  npm_config_replace_registry_host: always
   # npm's HTTP agent only drains its queue when a connection SUCCEEDS, so one flaky registry
   # fetch strands every request queued behind the 15-socket default and the install dies with
   # "Exit handler never called!" (npm/cli#9386). Above the dependency count nothing queues.
