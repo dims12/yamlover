@@ -372,6 +372,9 @@ Scaffolded under `tools/jetbrains-plugin/` (Kotlin + IntelliJ Platform Gradle Pl
   covers the whole family. **Builds clean** (2026-06-07) on Gradle 8.14.5 + Kotlin
   2.0.21, toolchain JDK 17 → `build/distributions/yamlover-jetbrains-0.1.0.zip`; wrapper
   checked in. The Markdown `CodeFenceLanguageProvider` API is version-sensitive.
+- **J1.5 (done, plugin 0.5.1):** per-language **indent options** (2 columns, spaces only)
+  via `langCodeStyleSettingsProvider` — Tab / Shift+Tab / Enter now step like YAML instead
+  of the IDE's catch-all "Other" settings.
 - **J2:** swap the heuristic lexer for the **shared yamlover lexer/grammar** (Phase 2),
   add PSI + parser → structure view, folding, brace matching.
 - **J3:** pointer **reference resolution & navigation** (go-to-def, find-usages) via

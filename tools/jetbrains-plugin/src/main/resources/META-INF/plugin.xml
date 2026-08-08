@@ -17,7 +17,8 @@
         highlights <code>yamlover</code>/<code>json5p</code> fenced code blocks inside
         Markdown.
         <br/><br/>
-        Provides file-type recognition, syntax highlighting, and <b>Ctrl+click /
+        Provides file-type recognition, syntax highlighting, YAML-style two-space
+        (spaces-only) indentation, and <b>Ctrl+click /
         Ctrl+B navigation on pointers</b> (heuristic, in-file: paths, positions,
         <code>..</code>, document scope; a <code>body.yo</code> overlay also reaches
         the overlaid directory's files). Richer support — real lexer/PSI, cross-tree
@@ -41,6 +42,10 @@
         <lang.syntaxHighlighterFactory
             language="yamlover"
             implementationClass="net.inthemoon.yamlover.YamloverSyntaxHighlighterFactory"/>
+        <!-- Two-space, spaces-only indents (Tab / Shift+Tab / Enter). Without a per-language
+             provider the IDE falls back to the catch-all "Other" indent options. -->
+        <langCodeStyleSettingsProvider
+            implementation="net.inthemoon.yamlover.YamloverCodeStyleSettingsProvider"/>
 
         <fileType
             name="json5p"
@@ -54,6 +59,8 @@
         <lang.syntaxHighlighterFactory
             language="json5p"
             implementationClass="net.inthemoon.yamlover.Json5pSyntaxHighlighterFactory"/>
+        <langCodeStyleSettingsProvider
+            implementation="net.inthemoon.yamlover.Json5pCodeStyleSettingsProvider"/>
 
         <!-- Ctrl+click / Ctrl+B on a *pointer → its target (heuristic in-file resolution;
              body.yo document-scope segments also reach the overlaid dir's files).

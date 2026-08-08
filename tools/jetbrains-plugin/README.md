@@ -16,6 +16,10 @@ plus highlighting of `yamlover`/`json5p` fenced code blocks inside Markdown.
   docs/language/pointers/paths), **block scalars** (`|`/`>` header signs + an opaque body, not re-lexed),
   strings and **quoted keys**, the dedicated `- ` dash and `null`/`~` kinds, and numbers
   by the JS `Number` reading (incl. `.inf`/`.nan`/hex).
+- **Indentation**: both languages carry their own code-style indent options — **2 columns,
+  spaces only** (`YamloverCodeStyleSettingsProvider`), so Tab / Shift+Tab / Enter step like
+  YAML instead of falling back to the IDE's catch-all "Other" settings (4 columns, possibly
+  a tab character). Configurable per language in *Settings | Editor | Code Style*.
 - **Markdown injection**: ` ```yamlover ` and ` ```json5p ` fenced code blocks are
   highlighted inside `.md` files (`YamloverCodeFenceLanguageProvider`; loads only when
   the bundled Markdown plugin is present).
@@ -57,7 +61,7 @@ Network access is needed once to fetch the IntelliJ Platform SDK.
 ./gradlew runIde        # launches a sandbox IDE with the plugin
 ```
 
-Current version **0.5.0** (the highlight.ts parity sync — the YAML-keys round). Built against the
+Current version **0.5.1** (two-space indent options). Built against the
 **2023.2 (build 232)** platform with an **open-ended** upper bound (`since-build=232`,
 no `until-build`) so one artifact loads on any 2023.2+ backend.
 
