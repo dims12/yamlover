@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">yo mark</title>
+  <desc id="desc">A branching lowercase y in ink beside a cobalt circular node.</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="10">
+    <path d="M15 15 43 43 71 15M43 43 15 71" stroke="#111827"/>
+    <circle cx="59.970563" cy="59.970563" r="24" stroke="#246BFD"/>
+  </g>
+  <g fill="#111827">
+    <circle cx="15" cy="15" r="8"/>
+    <circle cx="71" cy="15" r="8"/>
+    <circle cx="15" cy="71" r="8"/>
+  </g>
+  <circle cx="59.970563" cy="59.970563" r="8" fill="#246BFD"/>
+</svg>

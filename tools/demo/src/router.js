@@ -1,5 +1,6 @@
 // The demo server's HTTP router. Three concerns:
-//   • registration   — GET / (the email form) and POST /register (mint hash + email link)
+//   • registration   — GET / (the email form, plus the brand files it links to) and
+//                       POST /register (mint hash + email link)
 //   • demo proxying   — GET|* /demo/<hash>/... → provision-on-first-hit then reverse-proxy
 //   • docs proxying   — GET|* /docs/... → the single always-on read-only instance
 // Anything else 404s. Friendly status pages for unknown/expired/at-capacity links.
@@ -20,6 +21,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(__dirname, "..", "public");
 
 const DEMO_RE = /^\/demo\/([^/]+)(\/.*)?$/;
+
+// The brand files the registration page links to. A bare `/<name>.<ext>` at the root, no
+// slashes and no dot segments — so `..` cannot appear and containment needs no second check.
+// register.html is deliberately unreachable through this: it is a template the handler below
+// fills in, not a file to hand out raw.
+const ASSET_RE = /^\/[A-Za-z0-9_-]+\.(svg|png|ico)$/;
+const ASSET_MIME = { svg: "image/svg+xml", png: "image/png", ico: "image/x-icon" };
 
 /** Pure URL parse: a `/demo/<hash>[/...]` request → {hash, rest}, else null. Tested directly. */
 export function parseDemoPath(pathname) {
@@ -87,6 +95,17 @@ export function makeRouter({ store, provision, rateLimit, docs }) {
       );
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       return res.end(html);
+    }
+    if (req.method === "GET" && ASSET_RE.test(pathname)) {
+      const bytes = await readFile(join(publicDir, pathname.slice(1))).catch(() => null);
+      if (bytes) {
+        const ext = pathname.slice(pathname.lastIndexOf(".") + 1);
+        res.writeHead(200, {
+          "Content-Type": ASSET_MIME[ext],
+          "Cache-Control": "public, max-age=3600",
+        });
+        return res.end(bytes);
+      }
     }
     if (req.method === "POST" && pathname === "/register") {
       return register(req, res, { store, rateLimit });
