@@ -35,6 +35,14 @@ logging:
     # `severity` is a top-level LogEntry field, not a payload one, and the agent does not
     # promote it by itself. Without this every record arrives as DEFAULT and the Logs
     # Explorer cannot filter or colour by level.
+    #
+    # This lifts the DEMO SERVER's severity. Caddy's access log (deploy/Caddyfile) is also
+    # JSON and also arrives through this pipeline, but it spells the level `level` and puts
+    # the request under `request` rather than the special httpRequest key — so Caddy entries
+    # land as DEFAULT severity with their own shape intact. Filter them on
+    # `jsonPayload.logger="http.log.access"` and read `jsonPayload.level`. Mapping them too
+    # would need a second processor whose missing-source behaviour is worth testing on the
+    # box before trusting it.
     lift_severity:
       type: modify_fields
       fields:

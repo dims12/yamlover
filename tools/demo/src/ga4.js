@@ -12,7 +12,10 @@
 /** The GA4 `<script>` for `measurementId`, or "" when analytics is switched off. */
 export function ga4Tag(measurementId) {
   if (!measurementId) return "";
-  const id = JSON.stringify(measurementId);
+  // JSON.stringify alone is not enough: it leaves `<` intact, so a `</script>` in the value
+  // would close the element and the rest would parse as markup. The id comes from the
+  // environment — trusted hands, but not a trusted shape.
+  const id = JSON.stringify(measurementId).replace(/</g, "\\u003c");
   return (
     `<script async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}"></script>` +
     `<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}` +

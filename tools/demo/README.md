@@ -92,9 +92,25 @@ SSE poll is proxied through this server, so `LOG_HTTP=all` is a firehose. The de
 analytics. Failures that a status code alone would not explain (at capacity, instance never
 became ready, email send failed) are logged where the reason is known.
 
-Fields worth filtering on in the Logs Explorer: `jsonPayload.hash`,
-`jsonPayload.component`, `severity`, and `httpRequest` (the agent lifts request records into
-the LogEntry's own field, so method/status/latency render as a request).
+**Caddy logs the edge.** `deploy/Caddyfile` enables access logging as JSON to stderr, which
+on a system unit means the same journal — so the agent ships it with everything else. This is
+the only hop that sees requests which never reach the demo server (a wrong `Host`, a failed
+TLS handshake, a client that hangs up mid-proxy) and the only one that sees the real client
+address before `X-Forwarded-For`. Static assets are excluded with `log_skip`, for the same
+volume reason as `LOG_HTTP`.
+
+Fields worth filtering on in the Logs Explorer:
+
+| field | what |
+|-------|------|
+| `jsonPayload.hash` | one demo, orchestrator and instance lines together |
+| `jsonPayload.component` | `instance` or `docs` — output relayed from a child |
+| `severity` | the demo server's level, lifted by the agent |
+| `httpRequest` | the demo server's requests, rendered as requests (method/status/latency) |
+| `jsonPayload.logger="http.log.access"` | Caddy's access log, which keeps its own shape |
+
+Caddy spells its level `level`, not `severity`, so its entries arrive as DEFAULT severity —
+see the note in `deploy/ops-agent-config.yaml`.
 
 ## Analytics (GA4)
 

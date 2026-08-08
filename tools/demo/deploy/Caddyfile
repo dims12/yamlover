@@ -13,6 +13,30 @@ yamlover.inthemoon.net {
 	encode gzip
 	reverse_proxy 127.0.0.1:8080
 
+	# Caddy does not access-log a site unless asked. Without this the edge is blind: requests
+	# that never reach the demo server — a wrong Host, a TLS handshake that fails, a client
+	# that hangs up mid-proxy — leave no trace anywhere, and Caddy is also the only hop that
+	# sees the real client address before X-Forwarded-For.
+	#
+	# stderr, not a file: Caddy is a system unit, so this lands in the journal alongside the
+	# demo server's own JSON and the Ops Agent ships both from one place with no logrotate to
+	# own (deploy/ops-agent-config.yaml). Caddy's own format is already structured JSON, so
+	# the agent's parse step reads it without extra configuration.
+	log {
+		output stderr
+		format json
+	}
+
+	# The SPA pulls a lot of content-hashed assets on a cold load, and Cloud Logging bills by
+	# volume — the same reason the demo server defaults to logging only failed requests. An
+	# asset fetch that succeeded says nothing the page view did not.
+	#
+	# `log_skip` was named `skip_log` before Caddy 2.8. If the box is older, `caddy validate`
+	# in the publish-demo-web job rejects this and the deploy stops BEFORE reloading, so the
+	# live vhost is never left broken — check with `caddy version` and rename if needed.
+	@assets path_regexp \.(js|mjs|css|map|wasm|woff2?|ttf|svg|png|jpe?g|gif|webp|ico)$
+	log_skip @assets
+
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"

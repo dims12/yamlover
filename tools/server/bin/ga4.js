@@ -34,6 +34,9 @@ export function ga4Tag({ measurementId, basePath = "", pagePath = "", collapse =
   return (
     `<script async src="https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}"></script>` +
     `<script>(function(){` +
+    // Initialise once per document. The tag wraps history.pushState, so a second copy in the
+    // same page would wrap the wrapper and report every SPA navigation twice.
+    `if(window.__yoGa4__)return;window.__yoGa4__=1;` +
     // A collapsed tag is handed no base path at all. `at()` would not read it either way,
     // but not emitting it is what makes "this script cannot know the hash" checkable by
     // reading the page instead of by reasoning about a branch.
