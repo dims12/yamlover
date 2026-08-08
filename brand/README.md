@@ -8,11 +8,40 @@
 
 ## Assets
 
-- `yo-mark.svg` — compact symbol for favicons, badges, and small UI surfaces.
+- `yo-mark.svg` — the symbol on its own, for badges and any surface down to about 32 px.
+- `yo-favicon.svg` — the small cut on a cobalt tile: browser tabs and anything else drawn at 16–32 px.
 - `yo-app-icon.svg` — square application icon.
 - `yo-wordmark.svg` — compact shorthand lockup.
 - `yamlover-lockup.svg` — primary full-name lockup.
 - `yamlover-logo-system.png` — visual overview and concept board.
+
+The mark is two-coloured: the `y` in ink, the `o` in cobalt — the same split the lockup makes at
+`yaml`/`over`. Reversed onto a cobalt ground (the app icon, the favicon tile, an active toolbar
+button) it goes to solid white instead: a cobalt `o` on cobalt is no `o` at all.
+
+## Small sizes
+
+Below roughly 32 px the three branch nodes swallow the arms they sit on and the `y` turns to
+mush, so the small sizes use a **small cut**: the branch nodes dropped and the stroke thickened
+to compensate. The round caps still terminate the branches, so the silhouette does not change.
+A line mark that fine also all but vanishes in a browser tab, which is why the favicon puts it
+on a tile.
+
+This folder is the source of truth. The copies that ship are:
+
+- `tools/server/public/yo-favicon.svg` — the app's own browser-tab icon.
+- `tools/demo/public/yo-favicon.svg` and `tools/demo/public/yo-mark.svg` — the demo landing page.
+- `tools/server/src/client/brand.tsx` — the small cut redrawn as JSX, which has to take its two
+  colours from CSS to survive being reversed on an active toolbar button.
+- `tools/jetbrains-plugin/src/main/resources/icons/yamlover{,_dark}.svg` — the 16 px file-type
+  icon, and `META-INF/pluginIcon{,_dark}.svg` — the 40 px Marketplace logo. The IDE has no
+  `currentColor` to offer, so those carry a hand-cut dark palette instead of one adaptive file.
+
+Change a mark here and those follow by hand.
+
+Keep the comments in these files ASCII. An em dash written into an SVG comment has already once
+landed as a raw control byte, which makes the whole file unparseable XML — and a favicon that
+silently renders as nothing.
 
 ## Color
 

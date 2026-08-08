@@ -1,15 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
   <title id="title">yo app icon</title>
   <desc id="desc">White branching y and circular node on a cobalt tile.</desc>
-  <rect width="128" height="128" rx="28" fill="#246BFD"/>
-  <g fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M22 22 48 48 74 22M48 48 22 74"/>
-    <circle cx="63.556349" cy="63.556349" r="22"/>
-  </g>
-  <g fill="#fff">
-    <circle cx="22" cy="22" r="7"/>
-    <circle cx="74" cy="22" r="7"/>
-    <circle cx="22" cy="74" r="7"/>
-    <circle cx="63.556349" cy="63.556349" r="7"/>
+  <rect width="96" height="96" rx="21" fill="#246BFD"/>
+  <!-- the mark's own coordinates, scaled about the tile centre to leave the icon margin -->
+  <g transform="translate(9.6 9.6) scale(0.8)">
+    <g fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 15 43 43 71 15M43 43 15 71"/>
+      <circle cx="59.970563" cy="59.970563" r="24"/>
+    </g>
+    <g fill="#fff">
+      <circle cx="15" cy="15" r="8"/>
+      <circle cx="71" cy="15" r="8"/>
+      <circle cx="15" cy="71" r="8"/>
+      <circle cx="59.970563" cy="59.970563" r="8"/>
+    </g>
   </g>
 </svg>
