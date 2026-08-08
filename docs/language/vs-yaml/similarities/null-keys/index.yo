@@ -20,6 +20,4 @@ description: "'~: v' and ': v' - a keyed entry whose key is the null value"
 - >
   json5p has **no null-key spelling** - JSON5 object keys are strings, so serializing a null-keyed
   entry raises a LossyError. Anchors may not create the null key - `&: p: ~` is rejected; the null key
-  is authored in place ([anchors](::language:pointers:anchors)). And the sigil reading lost this
-  collision: a back-edge needs a nonempty name, so a bare `~: v` line is always the null-keyed entry,
-  never an empty-named back-edge ([the tilde sigil](::language:vs-yaml:tilde)).
+  is authored in place ([anchors](::language:pointers:anchors)).

@@ -1,0 +1,5 @@
+Similarities
+description: the YAML surface yamlover keeps, and the constructs it adopts outright
+- 'Where the two languages read the same:'
+- *: kept
+- *: null-keys

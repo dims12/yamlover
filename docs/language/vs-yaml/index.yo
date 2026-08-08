@@ -1,54 +1,50 @@
 # Relationship to YAML - the kept surface, then every deliberate break, each its own
 # subdirectory chapter.
-Similarities and differences with YAML
+Differences (and similarities) with YAML
 description: the kept surface, and every place the same token means something else
 - >
-  yamlover is **not a superset of YAML** - it is a distinct, closely-related language. It shares
-  YAML's surface syntax nearly whole, and differs in **links and anchors** (plus the `~` sigil,
-  `!!set`, and the omni points below). Reading is therefore concrete-aware: a `.yaml`/`.yml` file is
-  parsed with YAML's own link semantics and read *faithfully*, with no "porting" step; a `.yo` file is
-  parsed with yamlover's.
+  The main feature of yamlover is its **omnivorous node** —
+  each node can simultaneously contain a scalar value, ordered elements
+  (like an array), and keyed elements (like a mapping), without restriction.
+  While yamlover shares much of YAML's surface syntax, this unified node
+  model is a fundamental difference and underpins all of yamlover’s semantics.
+  Another important differences are pointers and anchors. 
+  
+- > 
+  Reading is
+  concrete-aware: a `.yaml`/`.yml` file is interpreted with YAML’s own
+  semantics, producing a faithful abstract model; a `.yo` file is
+  parsed using yamlover’s semantics, expressing the full omnivorous structure.
+
 - >
-  The table is how the SAME token differs between the two surfaces - each break has its own subchapter
-  below, the kept surface first:
+  The table is how the SAME token differs between the two surfaces - the kept surface under
+  similarities, each break with its own subchapter under differences:
 - !!<*yamlover: $defs: table>
   header:
     - Construct
-    - 'YAML means'
-    - 'yamlover means'
+    - YAML means
+    - yamlover means
       width: 2
-  - - '`&anchor`'
-    - a reusable intra-document name for the node
-    - '**path anchor** - "this node also lives at that path"; the path''s parent gains a real key'
-  - - '`*alias`'
-    - 'alias to anchor `alias` (name only)'
-    - '**pointer** - a pure path/scope expression (`*a` = the sibling key `a`; no anchor namespace, no precedence rule)'
-  - - '`~key:` (key position)'
-    - 'the plain-scalar key `"~key"`'
-    - '**back-edge** sigil on key `key` (deprecated → `&: P: key`)'
-  - - '`~-` (entry position)'
-    - 'the plain scalar `~-` (rare)'
-    - '**keyless back-edge** (deprecated → `&: P[]`)'
-  - - '`~` (value position)'
+  - - "`&path: to: another: place`"
+    - only single components allowed and the scope is global
+    - "**path anchor** – indicates that this node also exists at the specified path; the parent of the referenced path receives an actual key"
+  - - "`*path: to: source: location`"
+    - alias to an anchor by its name only
+    - "**pointer** — a direct path or scope expression (`*a` means the sibling key `a`; there is no anchor namespace or precedence rule)"
+  - - `~` (value position)
     - null spelled as a sigil
-    - '**unchanged - still null**'
-  - - '`~: v` / `: v` (key position)'
+    - "**unchanged - still null**"
+  - - "`~: v` / `: v` (key position)"
     - a null-keyed entry
-    - '**adopted - the null key**: a keyed entry whose key is null; canonical emission `~: v`, addressed by the bare `~` portion'
-  - - '`null: v` / `1: v` (key position)'
-    - 'the null key / the integer key `1`'
-    - 'the string key `"null"` / a parse error - keys are strings, a position is authored by order (quote the numeric string: `''1'': v`)'
-  - - '`!!set`'
+    - "**adopted - the null key**: a keyed entry whose key is null; canonical emission `~: v`, addressed by the bare ~ portion"
+  - - "`null: v` / `1: v` (key position)"
+    - the null key / the integer key 1
+    - "the string key null / a parse error - keys are strings, a position is authored by order (quote the numeric string: `'1': v`)"
+  - - `!!set`
     - a mapping of null-valued keys
-    - 'a **set-semantics container** - memberships dedup by identity'
+    - a **set-semantics container** - memberships dedup by identity
   - - scalar + fields / mixed keyed+keyless
     - invalid / two node kinds
-    - '**one node** - omni by default'
-- *: kept
-- *: anchors
-- *: aliases
-- *: tilde
-- *: set
-- *: null-keys
-- *: mixtures
-- *: conformance
+    - "**one node** - omni by default"
+- *: similarities
+- *: differences

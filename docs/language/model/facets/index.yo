@@ -35,7 +35,7 @@ description: value, keyed, ordinal - the capability cube and its corners
   variant. As a *schema*, `type: variant` constrains nothing - and the `!!yo` surface tag (formerly
   `!!var`) is no shape assertion either: as a type it is the top, and its real payload is the schema
   *exemption* - plain yamlover, not bound by the enclosing document's meta
-  ([mixtures](::language:vs-yaml:mixtures)). (The query matcher `!!<type: variant>` deliberately tests
+  ([mixtures](::language:vs-yaml:differences:mixtures)). (The query matcher `!!<type: variant>` deliberately tests
   the *region* - a scalar that has own fields - a tautological test would select everything; the
   schema reading and the matcher reading are both correct, each on its own side.)
 - >
