@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>yamlover</title>
+    <!-- RELATIVE href on purpose: the shell is served at every client route and under any mount
+         prefix, so bin/yamlover.js rewrites `./…` to `<basePath>/…` on the way out (injectGlobals).
+         The file itself comes from public/, which Vite copies verbatim into dist/client. -->
+    <link rel="icon" type="image/svg+xml" href="./yo-favicon.svg" />
     <!-- Stamp the theme BEFORE first paint (no wrong-palette flash on reload). Reads the raw
          mirror of the resolved theme (browser-settings.ts applyTheme keeps it fresh); the
          yamlover settings document itself is the source of truth, parsed by the app bundle.

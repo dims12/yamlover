@@ -1,6 +1,7 @@
-import { Fragment, memo, useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { Fragment, memo, ReactNode, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { fetchNode, fetchSchema, NodeJson, pasteFile, pasteRich, pasteText, PasteResult } from "./api";
 import { READ_ONLY } from "./base";
+import { YoMark } from "./brand";
 import { arxivPdf, tweetUrl, fetchTweetText } from "./paste-links";
 import { countImages, htmlToRich, resolveImages, RichDraft } from "./paste-html";
 import { clipboardFiles, fileToBase64, pastedName } from "./clipboard";
@@ -488,11 +489,16 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   const { tabs, allRenderers } = tabModel(node);
   const effective = effectiveFormat(format, node, tabs);
   // A tab button shows an ICON; its human name (a renderer's `label`, else the format slug)
-  // becomes the hover tooltip. The data views' glyphs: `y:` YAML-family, `{}` JSON-family,
-  // `$` the schema (its `$defs` / `$ref` sigil).
+  // becomes the hover tooltip. The data views' glyphs: the yamlover mark itself for the native
+  // syntax — the one representation that IS the product, so it gets the logo rather than a
+  // stand-in — then `{}` JSON-family and `$` the schema (its `$defs` / `$ref` sigil).
   const labelOf = (f: Format): string => allRenderers.find((r) => r.name === f)?.label ?? f;
-  const DATA_ICONS: Record<string, string> = { yamlover: "y:", json5p: "{}", "yamlover/schema": "$" };
-  const iconOf = (f: Format): string => allRenderers.find((r) => r.name === f)?.icon ?? DATA_ICONS[f] ?? f;
+  const DATA_ICONS: Record<string, ReactNode> = {
+    yamlover: <YoMark className="tab-mark" />,
+    json5p: "{}",
+    "yamlover/schema": "$",
+  };
+  const iconOf = (f: Format): ReactNode => allRenderers.find((r) => r.name === f)?.icon ?? DATA_ICONS[f] ?? f;
   const renderer = allRenderers.find((r) => r.name === effective) ?? null;
   const showRendered = renderer != null;
   // an editable view — gates the lock button and the F2/Esc shortcut. Either a renderer page

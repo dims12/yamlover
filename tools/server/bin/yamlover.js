@@ -267,7 +267,17 @@ if (prod) {
   // "/src/" source modules; "/node_modules/" pre-bundles); everything else is an app route and
   // gets the SPA shell directly.
   const VITE_PREFIXES = ["/@", "/src/", "/node_modules/"];
+  // The one package asset the shell asks for by name, so it has to be a REAL FILE in live mode
+  // too. Vite's own public/ middleware is unreachable behind the prefix gate above — deliberately,
+  // since letting it serve stray package files is exactly what would shadow a served-tree route —
+  // so the icon gets a single explicit exception rather than the whole directory. Production needs
+  // none of this: `vite build` copies public/ into dist/client, which serveStatic already reads.
+  const faviconPath = join(pkgRoot, "public", "yo-favicon.svg");
   serveClient = (req, res, url) => {
+    if (url.pathname === "/yo-favicon.svg" && fs.existsSync(faviconPath)) {
+      res.setHeader("Content-Type", "image/svg+xml");
+      return fs.createReadStream(faviconPath).pipe(res);
+    }
     if (VITE_PREFIXES.some((p) => url.pathname.startsWith(p))) {
       vite.middlewares(req, res, () => spaShell(res, url)); // an unmatched vite path still lands on the shell
     } else {
