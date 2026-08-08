@@ -1,0 +1,16 @@
+<!-- The Marketplace logo (JetBrains asks for 40x40 at META-INF/pluginIcon.svg). This is the FULL
+     mark from brand/yo-mark.svg, branch nodes and all: at this size they read, so the small cut
+     the 16px file-type icon uses is not needed. Transparent ground, since the Marketplace and
+     the plugin dialog draw their own card behind it. -->
+<svg width="40" height="40" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="10">
+    <path d="M15 15 43 43 71 15M43 43 15 71" stroke="#111827"/>
+    <circle cx="59.970563" cy="59.970563" r="24" stroke="#246BFD"/>
+  </g>
+  <g fill="#111827">
+    <circle cx="15" cy="15" r="8"/>
+    <circle cx="71" cy="15" r="8"/>
+    <circle cx="15" cy="71" r="8"/>
+  </g>
+  <circle cx="59.970563" cy="59.970563" r="8" fill="#246BFD"/>
+</svg>

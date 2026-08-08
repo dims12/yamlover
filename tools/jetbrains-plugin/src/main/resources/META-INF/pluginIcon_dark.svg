@@ -1,0 +1,14 @@
+<!-- The dark-theme cut of pluginIcon.svg: brand ink disappears against a dark card, so the y takes
+     the IDE's dark foreground and the o a lighter cobalt. Geometry is identical. -->
+<svg width="40" height="40" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="10">
+    <path d="M15 15 43 43 71 15M43 43 15 71" stroke="#CED0D6"/>
+    <circle cx="59.970563" cy="59.970563" r="24" stroke="#548AF7"/>
+  </g>
+  <g fill="#CED0D6">
+    <circle cx="15" cy="15" r="8"/>
+    <circle cx="71" cy="15" r="8"/>
+    <circle cx="15" cy="71" r="8"/>
+  </g>
+  <circle cx="59.970563" cy="59.970563" r="8" fill="#548AF7"/>
+</svg>

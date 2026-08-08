@@ -1,12 +1,14 @@
-<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-  <g fill="none" stroke="#3592C4" stroke-width="1.2">
-    <line x1="4" y1="4" x2="11.5" y2="8"/>
-    <line x1="4" y1="4" x2="6" y2="12"/>
-    <line x1="11.5" y1="8" x2="6" y2="12"/>
-  </g>
-  <g fill="#3592C4">
-    <circle cx="4" cy="4" r="2.2"/>
-    <circle cx="11.5" cy="8" r="2.2"/>
-    <circle cx="6" cy="12" r="2.2"/>
+<!-- The yamlover mark (brand/yo-mark.svg), small cut: at 16px the three branch nodes swallow the
+     arms they sit on, so they are dropped and the stroke thickened; the round caps still terminate
+     the branches. Authored on the brand's own 96 grid — the translate only centres the ink, which
+     the thicker stroke pushes down-right of the box centre. `yamlover_dark.svg` is the same
+     drawing in the dark palette; IconLoader picks between them. -->
+<svg width="16" height="16" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(-1.5 -1.5)">
+    <g fill="none" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 15 43 43 71 15M43 43 15 71" stroke="#111827"/>
+      <circle cx="59.970563" cy="59.970563" r="24" stroke="#246BFD"/>
+    </g>
+    <circle cx="59.970563" cy="59.970563" r="5" fill="#246BFD"/>
   </g>
 </svg>

@@ -1,0 +1,12 @@
+<!-- The dark-theme cut of yamlover.svg. Brand ink would be all but invisible on a dark tree
+     background, so the y takes the IDE's dark foreground and the o a lighter cobalt: the same
+     lift the IDE gives its own blues. Geometry is identical; only the palette moves. -->
+<svg width="16" height="16" viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(-1.5 -1.5)">
+    <g fill="none" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 15 43 43 71 15M43 43 15 71" stroke="#CED0D6"/>
+      <circle cx="59.970563" cy="59.970563" r="24" stroke="#548AF7"/>
+    </g>
+    <circle cx="59.970563" cy="59.970563" r="5" fill="#548AF7"/>
+  </g>
+</svg>
