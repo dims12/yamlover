@@ -90,38 +90,38 @@ describe("renderer registry (facet predicates)", () => {
     expect(getRenderer(node({ concrete: "yaml-schema/instantiate" }))).toBeNull();
   });
 
-  it("offers the explorer VIEW FAMILY as tabs: the four icon views for a plain dir, led by tag-board for a board", () => {
-    // a plain directory: thumbnails / large icons / small icons / details (no tag board)
+  it("offers the FIXED VIEW FAMILY as tabs: xyflow then the icon views for a plain dir, tag-board second for a board", () => {
+    // a plain directory: xyflow / thumbnails / large icons / small icons / details (no tag board)
     expect(renderersFor(node({ concrete: "dir" })).map((r) => r.name)).toEqual([
-      "thumbnails", "large-icons", "small-icons", "details",
+      "xyflow", "thumbnails", "large-icons", "small-icons", "details",
     ]);
-    // a board (by format): tag-board leads, then the icon views — and it is the navigation default
+    // a board (by format): tag-board leads the explorer views — and it is the navigation default
     const boardViews = renderersFor(node({ format: "x-yamlover-board", concrete: "dir/.yo" })).map((r) => r.name);
-    expect(boardViews[0]).toBe("tag-board");
+    expect(boardViews.slice(0, 2)).toEqual(["xyflow", "tag-board"]);
     expect(boardViews).toContain("large-icons");
     expect(rendererName({ format: "x-yamlover-board" }, "dir/.yo")).toBe("tag-board");
-    // a board detected only via overlay value (workflow:/lanes:) also leads with tag-board
-    expect(renderersFor(node({ concrete: "dir", value: { lanes: [] } })).map((r) => r.name)[0]).toBe("tag-board");
-    // the view tabs carry human labels
-    expect(renderersFor(node({ concrete: "dir" })).map((r) => r.label)).toEqual([
-      "thumbnails", "large icons", "small icons", "details",
+    // a board detected only via overlay value (workflow:/lanes:) also carries its tag-board
+    expect(renderersFor(node({ concrete: "dir", value: { lanes: [] } })).map((r) => r.name)[1]).toBe("tag-board");
+    // the view tabs carry human labels (xyflow's name IS its label)
+    expect(renderersFor(node({ concrete: "dir" })).map((r) => r.label ?? r.name)).toEqual([
+      "xyflow", "thumbnails", "large icons", "small icons", "details",
     ]);
   });
 
   it("a dir-backed chapter leads with its chapter view, then the directory views", () => {
     expect(renderersFor(node({ format: "x-yamlover-chapter", concrete: "dir/.yo" })).map((r) => r.name)).toEqual([
-      "chapter", "thumbnails", "large-icons", "small-icons", "details",
+      "chapter", "xyflow", "thumbnails", "large-icons", "small-icons", "details",
     ]);
   });
 
   it("a json/yaml CONTAINER offers the icon views too (browse members like a folder); a SCALAR does not", () => {
-    // a yaml object file: icon views (thumbnails-led), like a directory
+    // a yaml object file: the fixed views, like a directory
     expect(renderersFor(node({ concrete: "file/yaml", hasKeyed: true })).map((r) => r.name)).toEqual([
-      "thumbnails", "large-icons", "small-icons", "details",
+      "xyflow", "thumbnails", "large-icons", "small-icons", "details",
     ]);
     // an inline json array node likewise (ordinal members)
     expect(renderersFor(node({ concrete: "json", hasOrdinal: true })).map((r) => r.name)).toEqual([
-      "thumbnails", "large-icons", "small-icons", "details",
+      "xyflow", "thumbnails", "large-icons", "small-icons", "details",
     ]);
     // a data SCALAR (a .json holding `30`) gets NO icon tabs (they would be empty)
     expect(renderersFor(node({ concrete: "file/json", type: "integer", valueType: "integer", value: 30 }))).toEqual([]);
@@ -130,20 +130,44 @@ describe("renderer registry (facet predicates)", () => {
     expect(rendererName(node({ concrete: "dir/.yo", type: "integer", value: 30 }), "dir/.yo")).toBeNull();
   });
 
-  it("rendererTabs: the explorer family is ALWAYS present — enabled per eligibility (a stable bar)", () => {
+  // The structured slots, flattened for order+enablement assertions.
+  const bar = (n: NodeJson): string[] => {
+    const { primary, fixed } = rendererTabs(n);
+    return [...(primary ? [primary] : []), ...fixed].map((t) => `${t.renderer.name}:${t.enabled}`);
+  };
+
+  it("rendererTabs: the fixed family is ALWAYS present — enabled per eligibility (a stable bar)", () => {
     // a PDF file: its own renderer leads (the one node-specific slot), the family rides along disabled
-    expect(rendererTabs(node({ concrete: "file/binary", format: "application/pdf" })).map((t) => `${t.renderer.name}:${t.enabled}`)).toEqual([
-      "pdf:true", "thumbnails:false", "large-icons:false", "small-icons:false", "details:false",
+    expect(bar(node({ concrete: "file/binary", format: "application/pdf" }))).toEqual([
+      "pdf:true", "xyflow:false", "thumbnails:false", "large-icons:false", "small-icons:false", "details:false",
     ]);
     // a directory: no primary slot of its own (its natural view IS the explorer), so the OFFERED
     // chapter fills it — a folder can be written as a chapter — and the family rides along enabled
-    expect(rendererTabs(node({ concrete: "dir" })).map((t) => `${t.renderer.name}:${t.enabled}`)).toEqual([
-      "chapter:true", "thumbnails:true", "large-icons:true", "small-icons:true", "details:true",
+    expect(bar(node({ concrete: "dir" }))).toEqual([
+      "chapter:true", "xyflow:true", "thumbnails:true", "large-icons:true", "small-icons:true", "details:true",
     ]);
-    // a data SCALAR: no primary, the family in place but disabled (its grids would be empty)
-    expect(rendererTabs(node({ concrete: "file/json", type: "integer", valueType: "integer", value: 30 })).map((t) => `${t.renderer.name}:${t.enabled}`)).toEqual([
-      "thumbnails:false", "large-icons:false", "small-icons:false", "details:false",
+    // a data SCALAR: no primary, the family in place but disabled (its grids would be empty,
+    // the drawing a lone box)
+    expect(bar(node({ concrete: "file/json", type: "integer", valueType: "integer", value: 30 }))).toEqual([
+      "xyflow:false", "thumbnails:false", "large-icons:false", "small-icons:false", "details:false",
     ]);
+  });
+
+  it("a tagged graph node's tab IS the fixed xyflow slot — enabled, never a duplicate primary", () => {
+    // the fixed slot serves the tagged node (the plaintextTab dedup, mirrored): one xyflow tab
+    const tagged = node({ format: "x-yamlover-xyflow" }); // concrete null — not even explorer-eligible
+    const tabs = rendererTabs(tagged);
+    expect(tabs.primary).toBeNull();
+    expect(tabs.fixed[0].renderer.name).toBe("xyflow");
+    expect(tabs.fixed[0].enabled).toBe(true); // its own format keeps the tab live…
+    expect(tabs.fixed[1].enabled).toBe(false); // …even where the explorer views stay grey
+    // the TAGGED node draws its whole subtree (the author scoped it); an UNTAGGED node gets a
+    // depth-2 PREVIEW — an unbounded root would fetch and lay out the entire tree
+    expect(tabs.fixed[0].renderer.depth).toBeNull();
+    expect(rendererTabs(node({ concrete: "dir" })).fixed[0].renderer.depth).toBe(2);
+    // dispatch and the navigation default are untouched — the node still OPENS on its graph
+    expect(getRenderer(tagged)?.name).toBe("xyflow");
+    expect(rendererName(tagged, null)).toBe("xyflow");
   });
 
   // An OFFER is a representation the node could ADOPT, not one it HAS. It must reach the tab bar
@@ -151,17 +175,20 @@ describe("renderer registry (facet predicates)", () => {
   // chapter (hijacking the explorer default, the chunk renderer, and the TOC).
   it("the offered chapter tab never leaks into dispatch or into `renderersFor`", () => {
     const dir = node({ concrete: "dir" });
-    expect(rendererTabs(dir)[0]).toMatchObject({ enabled: true, offered: true });
-    expect(rendererTabs(dir)[0].renderer.name).toBe("chapter");
+    expect(rendererTabs(dir).primary).toMatchObject({ enabled: true, offered: true });
+    expect(rendererTabs(dir).primary!.renderer.name).toBe("chapter");
     // …but the node HAS no chapter representation
-    expect(renderersFor(dir).map((r) => r.name)).toEqual(["thumbnails", "large-icons", "small-icons", "details"]);
+    expect(renderersFor(dir).map((r) => r.name)).toEqual(["xyflow", "thumbnails", "large-icons", "small-icons", "details"]);
     expect(rendererFor(dir)).toBeNull(); // chunk + TOC dispatch untouched
     expect(getRenderer(dir)!.name).toBe("large-icons"); // a folder still OPENS on its explorer
     expect(rendererName(dir, "dir")).toBe("large-icons");
   });
 
   it("the chapter is offered only to an UNTAGGED container directory", () => {
-    const offered = (n: NodeJson) => rendererTabs(n).some((t) => t.offered && t.renderer.name === "chapter");
+    const offered = (n: NodeJson) => {
+      const p = rendererTabs(n).primary;
+      return !!p?.offered && p.renderer.name === "chapter";
+    };
     expect(offered(node({ concrete: "dir" }))).toBe(true);
     expect(offered(node({ concrete: "dir/.yo" }))).toBe(true);
     // already has a representation of its own

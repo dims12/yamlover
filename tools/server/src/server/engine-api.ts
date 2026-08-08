@@ -156,6 +156,15 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   let cachedDoc: Document | null = null;
   const log = opts.log ?? ((): void => {});
   setValidationLog(log); // non-fatal format diagnostics surface on the server's own log
+  // Walk options every indexing path shares. `onFileError` is the reporting half of the walk's
+  // degradation contract: an unparsable file loses its structure (a data file becomes raw text,
+  // a directory overlay drops to the plain filesystem mapping) but never fails the whole index —
+  // so ONE broken `.yo` costs its own page, not the tree.
+  const walkOpts = {
+    ignore,
+    onFileError: (rel: string, e: unknown): void =>
+      log(`parse ${rel}: ${String((e as Error)?.message ?? e)} — degraded, rest of the tree indexed`),
+  };
   const readOnly = opts.readOnly === true;
   setReadOnlyWrites(readOnly); // the byte chokepoint refuses too — belt for any future GET-that-writes
   let closed = false;
@@ -327,7 +336,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   // A reindex usable inside an already-queued job (NOT queued itself — callers queue). Retains the
   // assembled doc so a subsequent single-file edit can patch against it in memory.
   const doReindex = async (): Promise<IndexDiff> => {
-    const { diff, doc } = await reindexAsyncDoc(store0, dataRoot, { ignore });
+    const { diff, doc } = await reindexAsyncDoc(store0, dataRoot, walkOpts);
     cachedDoc = doc;
     return diff;
   };
@@ -338,7 +347,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
     if (cachedDoc) {
       const rel = path.relative(dataRoot, absFile).split(path.sep).join("/");
       try {
-        const res = await reindexPathAsync(store0, dataRoot, cachedDoc, rel, { ignore });
+        const res = await reindexPathAsync(store0, dataRoot, cachedDoc, rel, walkOpts);
         if (res) {
           cachedDoc = res.doc;
           return res.diff;
@@ -359,7 +368,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       try {
         // progress + start/done/failure lines land in the terminal via the task logger
         const { diff, doc } = await reindexAsyncDoc(store0, dataRoot, {
-          ignore,
+          ...walkOpts,
           onProgress: (p) => h.progress(p.done, p.total, p.message),
           // The TOC populates DURING the walk: every few seconds the partial tree commits and
           // the newly visible files broadcast as an ordinary `added` diff — the client's branch
@@ -416,7 +425,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         if (diff.moved.length > 0 && !readOnly) {
           const r = relinkMoved(dataRoot, diff.moved, { ignore });
           if (r.editedFiles.length > 0) {
-            const follow = reindex(store0, dataRoot, { ignore });
+            const follow = reindex(store0, dataRoot, walkOpts);
             diff.changed = [...new Set([...diff.changed, ...follow.changed])];
             cachedDoc = null; // sync `reindex` rebuilt the DB but not the cached doc — invalidate
           }
@@ -697,7 +706,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               // Index INCREMENTALLY (the annotate pattern — not a full rebuild, which stats the
               // whole tree and blocks the picker for seconds on a big root); the watcher's
               // reconcile re-walks the edited body and trues the rows up moments later.
-              const written = writeTag(dataRoot, settings.tags, name);
+              const written = writeTag(dataRoot, s, settings.tags, name);
               s.addTag(storePath(strToSegs(settings.tags)), name, written.pos, written.node);
               if (s.node(storePath(segs))?.format !== TAG_FORMAT) throw new Error(`the created tag did not index as a tag: ${tagPath}`);
               // the merged IR must see the new tag too — /api/content serves cachedDoc, and
@@ -727,7 +736,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               const { bodyFile } = hostFor(dataRoot, s, strToSegs(b?.path || ":"));
               mkdirInside(dataRoot, path.dirname(bodyFile), { recursive: true });
               const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
-              fs.writeFileSync(bodyFile, writeBoardLanes(src, lanes));
+              writeBody(dataRoot, s, bodyFile, writeBoardLanes(src, lanes));
               broadcast(await doReindex());
               scheduleHasher();
               return { ok: true };
@@ -873,6 +882,9 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             title: titleOf(s, p),
             description: descriptionOf(s, p),
             ...(row.type === "blob" ? { size: row.size } : {}),
+            // a DEGRADED node (walk.ts: its source failed to parse) declares it, so the client
+            // shows the failure instead of a merely-empty page and keeps its editor shut
+            ...(row.meta?.parseError ? { parseError: row.meta.parseError } : {}),
           };
           const text = buildEnvelope(
             { segs, subtree, docDepth, header, relations: buildRelations(dataRoot, s, segs) as never },
@@ -974,7 +986,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               const backing = chapterSource(dataRoot, s, segs);
               const within = segs.slice(backing.docSegs.length);
               const src = editChapterSource(fs.readFileSync(backing.bodyFile, "utf8"), within, "rekey", "", undefined, newKey);
-              fs.writeFileSync(backing.bodyFile, src);
+              writeBody(dataRoot, s, backing.bodyFile, src);
               const diff = await doReindex();
               broadcast(diff);
               return { path: segsToStr([...parentSegs, newKey]), diff };
@@ -1914,13 +1926,13 @@ function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): string {
     const lines = fs.readFileSync(bodyFile, "utf8").replace(/\n$/, "").split("\n");
     const region = reachBodyAt(lines, chunkFieldRegion(lines, indices, /*ensureOmni*/ true), keys);
     appendAnnotationAt(lines, region, (indent) => annotationItemLines(a, indent));
-    fs.writeFileSync(bodyFile, lines.join("\n") + "\n");
+    writeBody(dataRoot, s, bodyFile, lines.join("\n") + "\n");
     return bodyFile;
   }
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
   mkdirInside(dataRoot, path.dirname(bodyFile), { recursive: true });
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
-  fs.writeFileSync(bodyFile, appendAnnotation(src, within, (indent) => annotationItemLines(a, indent)));
+  writeBody(dataRoot, s, bodyFile, appendAnnotation(src, within, (indent) => annotationItemLines(a, indent)));
   return bodyFile;
 }
 
@@ -1939,7 +1951,7 @@ function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: Fra
     assertProseChunk(lines, indices); // reject a `*…` / non-text chunk
     const region = chunkFieldRegion(lines, indices, /*ensureOmni*/ true); // convert the chunk to an omni node
     upsertMapEntryAt(lines, region, FRAG_KEY, slug, (indent) => fragmentBlockLines(slug, f.selector, null, indent));
-    fs.writeFileSync(bodyFile, lines.join("\n") + "\n");
+    writeBody(dataRoot, s, bodyFile, lines.join("\n") + "\n");
     return { slug, fragmentPath: segsToStr([...segs, FRAG_KEY, slug]) };
   }
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
@@ -1956,7 +1968,7 @@ function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: Fra
   }
   mkdirInside(dataRoot, path.dirname(bodyFile), { recursive: true });
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
-  fs.writeFileSync(bodyFile, upsertFragment(src, within, slug, (indent) => fragmentBlockLines(slug, f.selector, imagePtr, indent)));
+  writeBody(dataRoot, s, bodyFile, upsertFragment(src, within, slug, (indent) => fragmentBlockLines(slug, f.selector, imagePtr, indent)));
   return { slug, fragmentPath: segsToStr([...segs, FRAG_KEY, slug]) };
 }
 
@@ -1996,7 +2008,7 @@ function embedThumbnail(dataRoot: string, s: Store, mode: SidecarLocation, segs:
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
   const ptr = pointerToken(sidecarPointerRaw(THUMB_SUBDIR, name, scope));
   const key = thumbResKey(w, h);
-  fs.writeFileSync(bodyFile, upsertThumbnail(src, within, key, (indent) => [`${" ".repeat(indent)}${key}: ${ptr}`]));
+  writeBody(dataRoot, s, bodyFile, upsertThumbnail(src, within, key, (indent) => [`${" ".repeat(indent)}${key}: ${ptr}`]));
   onWrite?.(bodyFile);
 }
 
@@ -2049,7 +2061,7 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
       pruneEmptyAnnotationsAt(lines, fragRegion());
       collapseChunkOmni(lines, indices);
     }
-    fs.writeFileSync(bodyFile, lines.join("\n") + "\n");
+    writeBody(dataRoot, s, bodyFile, lines.join("\n") + "\n");
     return bodyFile;
   }
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
@@ -2074,7 +2086,7 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
     // key otherwise) and, in an overlay, the host keys emptied with it
     src = pruneEmptyAnnotations(src, within, overlay);
   }
-  fs.writeFileSync(bodyFile, src);
+  writeBody(dataRoot, s, bodyFile, src);
   return bodyFile;
 }
 
@@ -2085,6 +2097,7 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
  *  a comment, say) is refused instead of corrupting the taxonomy. */
 function writeTag(
   dataRoot: string,
+  s: Store,
   location: string,
   name: string,
 ): { node: IrNode; pos: number; file: string; createdFile: boolean } {
@@ -2104,7 +2117,7 @@ function writeTag(
     throw new Error(`cannot write a tag named ${JSON.stringify(name)}`);
   }
   mkdirInside(dataRoot, dir, { recursive: true });
-  fs.writeFileSync(file, body);
+  writeBody(dataRoot, s, file, body);
   return { node: entry.value, pos, file: relPosix(dataRoot, file), createdFile };
 }
 
@@ -2307,7 +2320,7 @@ function pasteIntoChapter(dataRoot: string, s: Store, segs: Seg[], name: string,
   // The chapter's location WITHIN its document — absolute body-item indices (empty = top-level).
   const within = segs.slice(docSegs.length);
   const src = fs.readFileSync(bodyFile, "utf8");
-  fs.writeFileSync(bodyFile, appendBody(src, within, (indent) => [`${" ".repeat(indent)}- ${pointer}`]));
+  writeBody(dataRoot, s, bodyFile, appendBody(src, within, (indent) => [`${" ".repeat(indent)}- ${pointer}`]));
   return { path: segsToStr(fileSegs), chapter: segsToStr(segs), pointer };
 }
 
@@ -2317,7 +2330,7 @@ function pasteTextIntoChapter(dataRoot: string, s: Store, segs: Seg[], text: str
   const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
   const within = segs.slice(docSegs.length);
   const src = fs.readFileSync(bodyFile, "utf8");
-  fs.writeFileSync(bodyFile, appendBody(src, within, (indent) => textChunkLines(text, indent)));
+  writeBody(dataRoot, s, bodyFile, appendBody(src, within, (indent) => textChunkLines(text, indent)));
   return { path: segsToStr(segs), chapter: segsToStr(segs) };
 }
 
@@ -2414,7 +2427,7 @@ function pasteRichIntoChapter(dataRoot: string, s: Store, segs: Seg[], rich: Ric
   const within = segs.slice(docSegs.length);
   let src = fs.readFileSync(bodyFile, "utf8");
   if (rich.chunks.length || rich.children.length) src = appendBody(src, within, (ind) => richBodyLines(rich, ind, pointerFor));
-  fs.writeFileSync(bodyFile, src);
+  writeBody(dataRoot, s, bodyFile, src);
   return { path: segsToStr(segs), chapter: segsToStr(segs), files };
 }
 
@@ -2711,6 +2724,39 @@ function writeInside(dataRoot: string, dir: string, name: string, bytes: Buffer)
   if (target !== root && !target.startsWith(root + path.sep)) throw new Error("target escapes the data root");
   guardPath(dataRoot, target);
   fs.writeFileSync(target, bytes);
+}
+
+/** The store rows that could OWN `rel` as their serialized SOURCE: the file's own node (a
+ *  standalone document), and — when `rel` is an overlay or a consumed `index.yo` — the
+ *  directory it speaks for. */
+function sourceOwnerSegs(rel: string): Seg[][] {
+  const segs: Seg[] = rel.split("/");
+  const n = segs.length;
+  const out: Seg[][] = [segs];
+  if (n >= 2 && segs[n - 2] === OVERLAY_DIR && (segs[n - 1] === BODY_FILE || segs[n - 1] === "meta.yo")) out.push(segs.slice(0, -2));
+  if (segs[n - 1] === INDEX_FILE) out.push(segs.slice(0, -1));
+  return out;
+}
+
+/** THE DEGRADATION GATE — every mediated rewrite of an EXISTING document source (a body splice,
+ *  an overlay append, a JSON scalar edit) leaves through here. A source the walk could not parse
+ *  is served DEGRADED (walk.ts: a raw-text scalar / the plain filesystem mapping, marked
+ *  `meta.parseError`); re-serializing it would overwrite the user's original text with the
+ *  degraded projection, so the write is refused until the file is fixed on disk. Keyed by the
+ *  FILE the stamp names, so a degraded directory's intact children (their own files) still edit
+ *  freely. `/api/mv` and the fs-rekey branch stay outside: they rename storage and rewrite
+ *  INDEXED inbound pointers, and a degraded file contributed none — its bytes are never
+ *  rewritten. Funnels into {@link writeInside}, closing the read-only and path-invariant gaps
+ *  these rewrites used to slip past via a raw writeFileSync. */
+function writeBody(dataRoot: string, s: Store, bodyFile: string, src: string): void {
+  const rel = relPosix(dataRoot, bodyFile);
+  for (const owner of sourceOwnerSegs(rel)) {
+    const pe = s.node(storePath(owner))?.meta?.parseError as { file?: string; message?: string } | undefined;
+    if (pe && pe.file === rel) {
+      throw new Error(`cannot edit ${segsToStr(owner)}: its source failed to parse and is shown degraded (${rel}: ${pe.message ?? "syntax error"}) — fix the file on disk first`);
+    }
+  }
+  writeInside(dataRoot, path.dirname(bodyFile), path.basename(bodyFile), Buffer.from(src, "utf8"));
 }
 
 /** {@link fs.mkdirSync} behind the same gate as {@link writeInside}. Directory creation is the
@@ -4546,7 +4592,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
     pendingWrites.push([file, src]);
   }
   for (const [file, src] of pendingWrites) {
-    fs.writeFileSync(file, src);
+    writeBody(dataRoot, s, file, src);
     touched.push(file);
   }
   // TRASH ON DELETE, post-commit: every detached member's storage archives into its parent's

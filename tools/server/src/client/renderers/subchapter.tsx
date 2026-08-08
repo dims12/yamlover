@@ -27,6 +27,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchNode, NodeJson } from "../api";
+import { ParseErrorBanner } from "../ParseErrorBanner";
 import { asLink, asRef } from "../render";
 import { canonPath, strToSegs } from "../paths";
 import { useSubtreeDiffBump } from "../live";
@@ -146,14 +147,21 @@ export function InlineSubchapter({
   }
   if (error) return asLinkFace(`failed to load: ${error}`);
   if (!node) return asLinkFace("…");
-  return renderBody({
-    value: node.value,
-    nodePath: node.path,
-    // the subchapter's OWN document: a marklower `/…` link inside `dogs/` resolves against `dogs/`,
-    // not against the page root — passing the parent's would silently misresolve every such link
-    documentPath: node.documentPath,
-    slot,
-    level,
-    ancestors: [...ancestors, canonPath(node.path)],
-  });
+  return (
+    <>
+      {/* a DEGRADED member (its source failed to parse) says so IN PLACE — the body below is
+          the fallback, and an embedded blank would otherwise pose as an empty subchapter */}
+      {node.parseError && <ParseErrorBanner error={node.parseError} />}
+      {renderBody({
+        value: node.value,
+        nodePath: node.path,
+        // the subchapter's OWN document: a marklower `/…` link inside `dogs/` resolves against `dogs/`,
+        // not against the page root — passing the parent's would silently misresolve every such link
+        documentPath: node.documentPath,
+        slot,
+        level,
+        ancestors: [...ancestors, canonPath(node.path)],
+      })}
+    </>
+  );
 }

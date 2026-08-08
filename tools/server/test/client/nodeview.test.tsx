@@ -64,12 +64,16 @@ describe("NodeView", () => {
     // format="" is not a real tab → falls to the node's natural default (a data file → yamlover)
     render(<NodeView path=":x.yaml" format="" onFormat={() => {}} onNavigate={() => {}} />);
     expect(await screen.findByText("Alice")).toBeTruthy(); // the yamlover data view, by default
-    // the unified bar, in order: icon views, the FIXED data views, then the trailing plaintext
-    for (const t of ["thumbnails", "large icons", "small icons", "details", "yamlover", "json5p", "yamlover/schema", "plaintext"])
-      expect(screen.getByRole("button", { name: t })).toBeTruthy();
+    // the unified bar, in order: yamlover, the FIXED rendered family (xyflow + icon views), the
+    // remaining data views, then the trailing plaintext — and the DOM keeps exactly that order
+    const order = ["yamlover", "xyflow", "thumbnails", "large icons", "small icons", "details", "json5p", "yamlover/schema", "plaintext"];
+    expect([...document.querySelectorAll(".tabs .tab")].map((b) => b.getAttribute("aria-label"))).toEqual(order);
+    for (const t of order) expect(screen.getByRole("button", { name: t })).toBeTruthy();
     // yaml is not json-family: the json5p tab stays IN PLACE (a stable bar), just disabled
     expect((screen.getByRole("button", { name: "json5p" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "yamlover" }) as HTMLButtonElement).disabled).toBe(false);
+    // a yaml container CAN be drawn — the graph tab is live even without the xyflow tag
+    expect((screen.getByRole("button", { name: "xyflow" }) as HTMLButtonElement).disabled).toBe(false);
     expect((screen.getByRole("button", { name: "plaintext" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -80,7 +84,7 @@ describe("NodeView", () => {
     render(<NodeView path=":a.pdf" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByRole("button", { name: "pdf" });
     expect((screen.getByRole("button", { name: "pdf" }) as HTMLButtonElement).disabled).toBe(false);
-    for (const t of ["thumbnails", "large icons", "small icons", "details"])
+    for (const t of ["xyflow", "thumbnails", "large icons", "small icons", "details"])
       expect((screen.getByRole("button", { name: t }) as HTMLButtonElement).disabled).toBe(true);
   });
 
@@ -141,6 +145,25 @@ describe("NodeView", () => {
     } finally {
       window.history.replaceState({}, "", "/");
     }
+  });
+
+  it("the fixed xyflow tab on an UNTAGGED node fetches the depth-2 PREVIEW — never the whole tree", async () => {
+    window.history.replaceState({}, "", "/");
+    mNode.mockReset();
+    mNode.mockResolvedValue({ path: ":d", type: "object", concrete: "dir", title: null, description: null,
+      value: { f: { $yamloverLink: { kind: "object", type: "object", path: ":d:f", count: 1 } } } });
+    const r1 = render(<NodeView path=":d" format="xyflow" onFormat={() => {}} onNavigate={() => {}} />);
+    await waitFor(() => expect(mNode).toHaveBeenCalledWith(":d", 2));
+    expect(mNode).not.toHaveBeenCalledWith(":d", null); // unlimited stays the tagged node's privilege
+    r1.unmount();
+
+    // a TAGGED graph node keeps the unlimited fetch (a dir-backed one settles at 1, refetches at .inf)
+    mNode.mockReset();
+    mNode.mockResolvedValue({ path: ":g", type: "object", format: "x-yamlover-xyflow", concrete: "dir/.yo",
+      hasKeyed: true, title: null, description: null, value: { a: 1 } });
+    render(<NodeView path=":g" format="xyflow" onFormat={() => {}} onNavigate={() => {}} />);
+    await waitFor(() => expect(mNode).toHaveBeenCalledWith(":g", null));
+    expect(mNode).not.toHaveBeenCalledWith(":g", 2);
   });
 
   it("a DIRECTORY-backed chapter's DATA view refetches at .inf — the full document, not the depth-1 settle", async () => {
@@ -315,6 +338,26 @@ describe("NodeView", () => {
     fireEvent.click(edit);
     await screen.findByRole("button", { name: /Done/ });
     await waitFor(() => expect(document.querySelector("[data-testid=y2-doc]")).toBeTruthy());
+  });
+
+  it("a DEGRADED node (parseError) leads with the banner and the Edit toggle is inert", async () => {
+    // the node's shape is one that WOULD be editable when healthy (a .yo data page, cf. the
+    // yed-mount test above) — the parse error alone is what shuts the editor
+    mNode.mockResolvedValue({
+      path: ":broken.yo", type: "string", valueType: "string", concrete: "file/yamlover",
+      title: null, description: null,
+      parseError: { file: "broken.yo", message: "pointer: a key containing a space must be quoted" },
+      value: "- **bold** is not a pointer\n",
+    });
+    render(<NodeView path=":broken.yo" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+    const banner = await screen.findByRole("alert");
+    expect(banner.classList.contains("parse-error")).toBe(true);
+    expect(banner.textContent).toContain("broken.yo");
+    expect(banner.textContent).toContain("failed to parse");
+    expect(banner.textContent).toContain("must be quoted"); // the parser's own message
+    const edit = screen.getByRole("button", { name: /Edit/ }) as HTMLButtonElement;
+    expect(edit.disabled).toBe(true);
+    expect(edit.title).toMatch(/failed to parse/);
   });
 
   it("the derived schema view is read-only — the Edit toggle stays IN PLACE, disabled", async () => {

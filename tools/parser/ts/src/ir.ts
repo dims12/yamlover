@@ -90,6 +90,13 @@ export interface NodeMeta {
    *  (a titled CHILDLESS subchapter, the T→Done shape, is otherwise indistinguishable from a
    *  chunk). Derived by the walk, never authored, never serialized. */
   dirBacked?: boolean;
+  /** This node is DEGRADED — its source file failed to parse, and what stands here is the
+   *  fallback (a data file's raw text, a directory's plain filesystem mapping). `file` is the
+   *  root-relative POSIX path of the unparsable source, `message` the parser's reason. A
+   *  consumer must treat the node as read-only: re-serializing the degraded shape would
+   *  overwrite the user's original text. Derived by the walk, never authored, never
+   *  serialized; not part of IR identity — canon.ts ignores it. */
+  parseError?: { file: string; message: string };
   /** Comments with no entry to attach to: a comment after the last entry of a block, or
    *  inside an empty container; the document root also collects any otherwise-unplaced ones. */
   comments?: Comment[];

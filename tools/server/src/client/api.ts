@@ -32,6 +32,10 @@ export interface NodeJson {
                          // the anchor a document-relative (`/…`) link resolves against
   title: string | null;
   description: string | null;
+  // The node is DEGRADED: its source failed to parse and the value below is the fallback
+  // (raw text / plain directory mapping). The banner shows it; the editor stays shut —
+  // saving would overwrite the unparsable original (the server refuses too).
+  parseError?: { file: string; message: string };
   value: unknown;
   // Retained source comments to render with the value, keyed by each node's fragment
   // continuation FROM THIS node (`/key`, `[i]`, nested): `{ leading?: string[], trailing?:

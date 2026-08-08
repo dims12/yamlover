@@ -81,6 +81,10 @@ export interface WalkOptions {
    *  reference, in-progress directories as provisional mappings). Powers partial index commits
    *  ({@link reindexAsyncDoc} `partialCommitMs`) so a TOC can populate while a big walk runs. */
   snapshot?: PartialSnapshot;
+  /** A file the walk could not parse, by root-relative POSIX path. The walk NEVER fails a whole
+   *  tree over one bad file — a broken node degrades (a data file to its raw text, a directory
+   *  overlay to the plain filesystem mapping) and the reason is reported here. */
+  onFileError?: (relPath: string, err: unknown) => void;
 }
 
 export interface PartialSnapshot {
@@ -660,13 +664,28 @@ export async function hashFileAsync(abs: string, onChunk?: (bytesDone: number) =
   }
 }
 
+/** A file's root-relative POSIX path — the currency diffs, watcher batches, progress ticks
+ *  and error reports all speak. */
+function rel(ctx: Ctx, abs: string): string {
+  return path.relative(ctx.root, abs).split(path.sep).join('/');
+}
+
 /** Record a file the walk saw into the manifest (`hash` is null for a large blob the walk did
  *  not read). Files outside the walked root (e.g. a `$defs` host found above it) are not
  *  manifested — the watcher cannot see them. */
 function record(ctx: Ctx, abs: string, hash: string | null, size: number, mtimeMs: number): void {
-  const rel = path.relative(ctx.root, abs).split(path.sep).join('/');
-  if (rel.startsWith('..')) return;
-  ctx.files.set(rel, { path: rel, hash, size, mtimeMs });
+  const relPath = rel(ctx, abs);
+  if (relPath.startsWith('..')) return;
+  ctx.files.set(relPath, { path: relPath, hash, size, mtimeMs });
+}
+
+/** Report an unparsable file and carry on. Returns the `parseError` stamp the degraded node
+ *  carries ({@link NodeMeta.parseError}) — the same root-relative POSIX path the report speaks,
+ *  plus the parser's reason. */
+function noteFileError(ctx: Ctx, abs: string, err: unknown): { file: string; message: string } {
+  const file = rel(ctx, abs);
+  ctx.opts.onFileError?.(file, err);
+  return { file, message: String((err as Error)?.message ?? err) };
 }
 
 /** Read a file's bytes, recording its content identity in the manifest. */
@@ -681,22 +700,24 @@ function readTracked(ctx: Ctx, abs: string): Buffer {
  *  { name → {type, format, uniqueItems} }. */
 type Meta = Record<string, { type?: string; format?: string; uniqueItems?: boolean }>;
 
-function loadMeta(dir: string, ctx: Ctx): Meta {
+function loadMeta(dir: string, ctx: Ctx): { props: Meta; error?: { file: string; message: string } } {
   const file = path.join(dir, YAMLOVER_DIR, 'meta.yo');
-  if (!fs.existsSync(file)) return {};
+  if (!fs.existsSync(file)) return { props: {} };
   try {
     const plain = toPlain(parseYamlover(readTracked(ctx, file).toString('utf8'), file).root) as Record<string, unknown>;
     const props = (plain?.properties ?? {}) as Meta;
-    return props && typeof props === 'object' ? props : {};
-  } catch {
-    return {};
+    return { props: props && typeof props === 'object' ? props : {} };
+  } catch (e) {
+    // there is no node yet to stamp — the error rides out to dirNode, which puts it on the
+    // directory (the node whose children just lost their per-child metadata)
+    return { props: {}, error: noteFileError(ctx, file, e) };
   }
 }
 
 /** A directory → a Mapping node: one entry per file/subdir, then the instance overlay.
  *  A generator: yields one progress tick per child processed (subtree ticks ride through). */
 function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
-  const meta = loadMeta(dir, ctx);
+  const { props: meta, error: metaError } = loadMeta(dir, ctx);
   const overlay = overlayFile(dir);
   const consumesIndex = overlay !== null && path.basename(overlay) === INDEX_FILE;
   const names = fs
@@ -716,18 +737,21 @@ function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
       const hidden = yield* yamloverDirNode(abs, ctx);
       if (hidden) {
         entries.push({ key: name, edge: 'contain', value: hidden });
-        yield { done: ++ctx.count, path: path.relative(ctx.root, abs).split(path.sep).join('/') };
+        yield { done: ++ctx.count, path: rel(ctx, abs) };
       }
       continue;
     }
     const child = yield* childNode(abs, meta[name], ctx);
     entries.push({ key: name, edge: 'contain', value: child });
-    yield { done: ++ctx.count, path: path.relative(ctx.root, abs).split(path.sep).join('/') };
+    yield { done: ++ctx.count, path: rel(ctx, abs) };
   }
   ctx.open?.pop();
 
   const node: Mapping = { kind: 'mapping', entries, array: false };
-  return applyMeta(applyBody(overlay, node, ctx), meta); // attach meta `format` to entries (incl. body-overlay ones)
+  const merged = applyMeta(applyBody(overlay, node, ctx), meta); // attach meta `format` to entries (incl. body-overlay ones)
+  // a broken meta.yo surfaces on the directory too, but the BODY's error wins the single
+  // slot — the body is what a mediated write would re-serialize
+  return metaError && !merged.meta?.parseError ? { ...merged, meta: { ...merged.meta, parseError: metaError } } : merged;
 }
 
 /** A `.yo/` overlay dir → a HIDDEN content subtree (its derived `thumbnails/`/`fragments/`
@@ -753,7 +777,7 @@ function* yamloverDirNode(absYamlover: string, ctx: Ctx): Generator<WalkProgress
     const abs = path.join(absYamlover, name);
     const child = yield* childNode(abs, undefined, ctx);
     entries.push({ key: name, edge: 'contain', value: child });
-    yield { done: ++ctx.count, path: path.relative(ctx.root, abs).split(path.sep).join('/') };
+    yield { done: ++ctx.count, path: rel(ctx, abs) };
   }
   ctx.open?.pop();
   if (entries.length === 0) return null;
@@ -803,8 +827,8 @@ function applyMeta(node: Node, meta: Meta): Node {
  *  (size, mtime) and contentHash stays null until the background hasher fills it in. */
 function blob(abs: string, format: string, ctx: Ctx): Blob {
   const stat = fs.statSync(abs);
-  const rel = path.relative(ctx.root, abs).split(path.sep).join('/');
-  const cached = ctx.opts.cache?.(rel, stat.size, stat.mtimeMs) ?? null;
+  const relPath = rel(ctx, abs);
+  const cached = ctx.opts.cache?.(relPath, stat.size, stat.mtimeMs) ?? null;
   if (cached) {
     record(ctx, abs, cached, stat.size, stat.mtimeMs);
     return { kind: 'blob', format, contentHash: cached, size: stat.size };
@@ -844,8 +868,11 @@ function parsedDoc(abs: string, lang: 'yamlover' | 'json5p' | 'yaml', ctx: Ctx):
     // survives assembly into the tree (Document.head would otherwise be lost here)
     root.meta = { ...root.meta, documentRoot: true, ...(doc.head?.length ? { head: doc.head } : {}) };
     return root;
-  } catch {
-    return { kind: 'scalar', value: text, raw: text };
+  } catch (e) {
+    // the degraded node stays a DOCUMENT root: the file still owns its bytes, so /api/source
+    // can serve the true text for rescue and an edit addressed at it resolves to this file —
+    // where the parseError stamp refuses the write — instead of routing into the parent overlay
+    return { kind: 'scalar', value: text, raw: text, meta: { documentRoot: true, parseError: noteFileError(ctx, abs, e) } };
   }
 }
 
@@ -1045,7 +1072,18 @@ function overlayFile(dir: string): string | null {
  *  whole directory) is carried onto the merged node, so a directory CHAPTER is recognized. */
 function applyBody(file: string | null, node: Mapping, ctx: Ctx): Node {
   if (file === null) return node;
-  const bodyDoc = parseYamlover(readTracked(ctx, file).toString('utf8'), file);
+  // A SYNTAX ERROR IN AN OVERLAY IS A ONE-FILE FAILURE, not a whole-tree one: the directory keeps
+  // its plain filesystem mapping (children still index, the rest of the walk still runs) and loses
+  // only what the overlay contributed — its title, fields and ordering. Same degradation contract
+  // as {@link parsedDoc} for an unparsable data file. The stamp rides the directory node —
+  // deliberately WITHOUT documentRoot/dirBacked: children keep routing as plain-dir member ops
+  // (their own files are intact), only a write that would re-serialize the overlay is refused.
+  let bodyDoc: Document;
+  try {
+    bodyDoc = parseYamlover(readTracked(ctx, file).toString('utf8'), file);
+  } catch (e) {
+    return { ...node, meta: { ...node.meta, parseError: noteFileError(ctx, file, e) } };
+  }
   const body = bodyDoc.root;
   if (body.kind !== 'mapping' && body.kind !== 'scalar') return node;
   // A scalar body has no `entries` (a bare `30`); an omni scalar body / mapping body does. Treat a

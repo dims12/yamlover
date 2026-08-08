@@ -285,6 +285,7 @@ export function contentFromNodeJson(node: NodeJson): Content {
       format: node.format ?? null, valueType: node.valueType ?? null,
       hasKeyed: node.hasKeyed ?? false, hasOrdinal: node.hasOrdinal ?? false,
       concrete: node.concrete ?? "yamlover", title: node.title, description: node.description,
+      ...(node.parseError ? { parseError: node.parseError } : {}),
     },
     doc,
     side: {},

@@ -5,7 +5,7 @@
 // off-subtree ends as stubs.
 import { describe, it, expect } from "vitest";
 import { buildGraph, edgeLabel } from "../../src/client/renderers/xyflow-graph";
-import { reseatInRelationOrder } from "../../src/client/renderers/xyflow";
+import { reseatInRelationOrder, wrapLabel } from "../../src/client/renderers/xyflow";
 import { getRenderer } from "../../src/client/renderers/registry";
 import type { NodeJson } from "../../src/client/api";
 
@@ -151,6 +151,40 @@ describe("xyflow renderer", () => {
     expect(place.get("a")!.y).toBeLessThan(place.get("b")!.y); // relation 0 above relation 1
     expect(place.get("a0")!.y).toBeLessThan(place.get("b0")!.y); // and their children follow them
     expect([...place.values()].map((p) => p.y).sort((x, y) => x - y)).toEqual([20, 20, 50, 80, 80]); // dagre's own slots, only permuted
+  });
+
+  it("wraps only a LONG label, into balanced lines tending the box to 4:3", () => {
+    // short stays one line (jsdom's measure estimates 7px a character — 13 chars ≪ the 180px gate)
+    expect(wrapLabel("raw documents")).toEqual(["raw documents"]);
+    const long = "The pipeline below is a graph, not a nesting, the same document the tree shows as keys.";
+    const lines = wrapLabel(long);
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.join(" ")).toBe(long); // nothing lost, dropped, or reordered
+    // the box those lines make (max line width + padding vs lines × line height) tends to 4:3
+    const w = Math.max(...lines.map((l) => l.length * 7)) + 20;
+    const h = lines.length * 16 + 10;
+    expect(w / h).toBeGreaterThan(0.8);
+    expect(w / h).toBeLessThan(2);
+    // a long UNBREAKABLE token has no seam to wrap at — left alone
+    expect(wrapLabel("x".repeat(40))).toEqual(["x".repeat(40)]);
+  });
+
+  it("relieves a crowded column when a TALL (wrapped) box inherits a short slot", () => {
+    const nodes = ["r", "a", "b"].map((id) => ({ id, path: `:${id}`, label: id, kind: "value" as const }));
+    const edge = (id: string, source: string, target: string, ordinal: number) =>
+      ({ id, source, target, kind: "contain" as const, key: null, ordinal, label: String(ordinal) });
+    const graph = { nodes, edges: [edge("e0", "r", "a", 0), edge("e1", "r", "b", 1)] };
+    // dagre seated the fan upside down; relation order swaps TALL `a` into the top (short) slot
+    const place = new Map([
+      ["r", { x: 0, y: 50 }],
+      ["a", { x: 100, y: 80 }],
+      ["b", { x: 100, y: 20 }],
+    ]);
+    const height = (id: string) => ({ r: 26, a: 100, b: 26 })[id]!;
+    reseatInRelationOrder(graph, place, height);
+    expect(place.get("a")!.y).toBe(20); // the swap itself — relation 0 takes the top slot
+    // …but a 100-tall box overflows the slot spaced for a 26 one: b is pushed clear below it
+    expect(place.get("b")!.y).toBe(20 + 50 + 12 + 13); // a's bottom + RELIEF_GAP + b's half-height
   });
 
   it("walks a cycle once and still draws the closing edge", () => {

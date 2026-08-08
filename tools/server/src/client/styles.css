@@ -804,10 +804,12 @@ body {
 }
 .tabs {
   display: flex;
-  gap: 4px;
+  align-items: center;
 }
 /* a representation tab: an icon button — its human name is the hover tooltip. A fixed
-   min-width keeps narrow glyphs (§, $) the same hit target as the emoji ones. */
+   min-width keeps narrow glyphs (§, $) the same hit target as the emoji ones. The tabs sit
+   ADJACENT — one segmented group: square inner corners, shared borders (the -1px overlap),
+   the outer corners rounded only at the group's ends. */
 .tab {
   background: none;
   border: 1px solid var(--line);
@@ -815,11 +817,28 @@ body {
   padding: 2px 6px;
   min-width: 34px;
   text-align: center;
-  border-radius: 4px;
+  border-radius: 0;
   cursor: pointer;
   font-family: var(--font);
   font-size: 14px;
   line-height: 1.3;
+}
+.tab + .tab {
+  margin-left: -1px;
+}
+.tab:first-child {
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+button.tab:last-of-type {
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+/* an active renderer's docked config control (format buttons, encoding, CSV options) rides
+   inside the group — set off from the adjoining segments (the old inter-tab gap's job) */
+.tabs > :not(.tab) {
+  margin-left: 6px;
+  margin-right: 6px;
 }
 /* the yamlover tab wears the logo instead of a glyph — a block child so the button's height comes
    from the mark rather than a line box, and `currentColor` so it inverts with the active tab. The
@@ -835,10 +854,20 @@ body {
 .tab.active .tab-mark {
   --yo-o: currentColor;
 }
+/* the drawn tab icons (tab-icons.tsx): same box and block layout as the mark, stroked in
+   currentColor so they grey with :disabled and invert with .active */
+.tab-icon {
+  display: block;
+  width: 1.25em;
+  height: 1.25em;
+  margin: 0 auto;
+}
 .tab.active {
   color: var(--bg);
   background: var(--accent);
   border-color: var(--accent);
+  position: relative; /* its accent border wins the shared edge over a neighbour's grey one */
+  z-index: 1;
 }
 /* an inapplicable representation: the tab stays IN PLACE (a stable bar), just greyed and inert —
    the same disabled treatment as .side-action */
@@ -1407,6 +1436,30 @@ textarea.chapter-latex-src {
   padding: 12px;
 }
 
+/* a DEGRADED node's banner (ParseErrorBanner): the source failed to parse and the page below
+   is the fallback. In-flow (never a toast) — it belongs to the content it explains, embedded
+   subchapters included. */
+.parse-error {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--danger);
+  border-left-width: 4px;
+  border-radius: 6px;
+  color: var(--fg);
+}
+.parse-error-file {
+  font-family: var(--mono, monospace);
+  color: var(--danger);
+}
+.parse-error-msg {
+  margin-top: 4px;
+  font-family: var(--mono, monospace);
+  font-size: 0.9em;
+  color: var(--dim);
+  white-space: pre-wrap;
+}
+
 /* a full-window hint shown while dragging file(s) over the page (drop = upload). pointer-events:
    none so the drag/drop events still reach the document listeners underneath. */
 .drop-overlay {
@@ -1814,18 +1867,13 @@ textarea.chapter-latex-src {
 /* ---- xyflow graph renderer (x-yamlover-xyflow) --------------------------- */
 .xyflow-view {
   width: 100%;
-  height: 70vh;
+  height: 70vh; /* a fallback frame — useFillHeight sizes it to the window bottom on mount */
   min-height: 320px;
 }
 .chunk-body > .xyflow-chunk {
   width: 100%;
   height: 420px;
   margin: 0 0 14px;
-}
-/* React Flow paints its own surface; let the page theme through instead. */
-.xyflow-view .react-flow__background,
-.xyflow-chunk .react-flow__background {
-  background: transparent;
 }
 .xyflow-node {
   box-sizing: border-box;

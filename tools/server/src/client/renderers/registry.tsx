@@ -1,5 +1,6 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import { isDirConcrete, isJsonFamily, isYamlFamily, isFileConcrete, isOverlayDirConcrete } from "../../concrete";
+import { GraphIcon, ThumbnailsIcon, LargeIconsIcon, SmallIconsIcon, DetailsIcon } from "../tab-icons";
 import { scalarValue } from "../render";
 import { NodeJson, TreeNode } from "../api";
 import { ChapterView } from "./chapter";
@@ -136,9 +137,10 @@ export interface Renderer {
   /** The human name — the tab button's hover tooltip. Defaults to {@link name}; lets a
    *  renderer whose `name` (= `?format=` slug) is hyphenated (e.g. `large-icons`) read spaced. */
   label?: string;
-  /** The tab button's icon glyph. Matches the TOC icon for the format where one exists
+  /** The tab button's icon — a glyph, or a drawn SVG (tab-icons.tsx) where no Unicode glyph
+   *  carries the meaning. A glyph matches the TOC icon for the format where one exists
    *  (icons.ts), so the tab reads as the same thing the tree shows. */
-  icon?: string;
+  icon?: ReactNode;
   /** Whether this renderer claims a node, from its {@link TypeFacets}. */
   accepts: Accepts;
   /** A representation this node does not YET have but can ADOPT — an OFFER. The tab is shown and
@@ -188,7 +190,7 @@ export interface Renderer {
  * TOC / chunks / `depth`); {@link renderersFor} expands them into the tab list, and {@link EXPLORER}
  * (the `large-icons` view) is the single REPRESENTATIVE the loop and the dir-concrete fallback use.
  */
-const explorerView = (name: string, label: string, icon: string, view: ViewMode): Renderer => ({
+const explorerView = (name: string, label: string, icon: ReactNode, view: ViewMode): Renderer => ({
   name,
   label,
   icon,
@@ -200,10 +202,10 @@ const explorerView = (name: string, label: string, icon: string, view: ViewMode)
 // Order = tab order. `tag-board` leads, but only for board nodes (renderersFor filters it).
 const TAG_BOARD = explorerView("tag-board", "tag board", "▥", "board");
 const ICON_VIEWS: Renderer[] = [
-  explorerView("thumbnails", "thumbnails", "🖼️", "thumbnails"),
-  explorerView("large-icons", "large icons", "⊞", "large"),
-  explorerView("small-icons", "small icons", "∷", "small"),
-  explorerView("details", "details", "☰", "details"),
+  explorerView("thumbnails", "thumbnails", <ThumbnailsIcon />, "thumbnails"),
+  explorerView("large-icons", "large icons", <LargeIconsIcon />, "large"),
+  explorerView("small-icons", "small icons", <SmallIconsIcon />, "small"),
+  explorerView("details", "details", <DetailsIcon />, "details"),
 ];
 // The representative for the single-valued paths (rendererFor / getRenderer / rendererName / depth):
 // the DEFAULT view, large icons — independent of the tab order above (thumbnails leads the bar, but a
@@ -319,7 +321,7 @@ const REGISTRY: Renderer[] = [
     // is (docs/language/model/graph) — self-values inside the boxes, relations titled by ordinal
     // and key, `*` and `&` edges dashed. Depth null: the whole subtree is the drawing.
     name: "xyflow",
-    icon: "⬡",
+    icon: <GraphIcon />,
     accepts: byFormat("x-yamlover-xyflow"),
     specificity: 2,
     depth: null,
@@ -542,34 +544,56 @@ function explorerViews(node: NodeJson): Renderer[] {
   return isBoardNode(node) ? [TAG_BOARD, ...ICON_VIEWS] : ICON_VIEWS;
 }
 
-/** The LEADING (rendered-view) tab slots for a node — the STABLE-BAR model: one PRIMARY slot (the
- *  node's own format renderer — chapter/pdf/image…, when any; a plain directory's primary IS the
- *  explorer, so its slot is empty) followed by the EXPLORER VIEW FAMILY, which is ALWAYS present
- *  (thumbnails / large icons / small icons / details, `tag-board` leading on a board) — `enabled`
- *  only where the members are worth browsing (a container directory, or a json/yaml container; a
- *  SCALAR shows them disabled — the grids would be empty). So navigating between node kinds only
- *  ever swaps the single primary icon; the family and everything after it keep their place. */
-export function rendererTabs(node: NodeJson): { renderer: Renderer; enabled: boolean; offered?: boolean }[] {
-  const out: { renderer: Renderer; enabled: boolean; offered?: boolean }[] = [];
-  const primary = rendererFor(node);
-  if (primary && primary !== EXPLORER) out.push({ renderer: primary, enabled: true }); // chapter/task/pdf… leads
-  else {
+/** One tab slot: a renderer plus whether it applies to this node (a disabled slot still renders,
+ *  greyed — the stable bar). */
+export interface TabSlot { renderer: Renderer; enabled: boolean; offered?: boolean }
+
+/** The graph view, reused as a FIXED tab (like the explorer family): any container subtree is a
+ *  drawing (buildGraph walks the value), not just a node tagged `$defs: xyflow`. */
+const XYFLOW = REGISTRY.find((r) => r.name === "xyflow")!;
+/** The fixed tab's UNTAGGED form — a depth-2 PREVIEW. The registry entry's own depth is
+ *  unlimited, which on an arbitrary node (the tree root!) would fetch and lay out everything.
+ *  A bounded fetch stays a graph: deeper containers arrive as `$yamloverLink` markers and draw
+ *  as leaf boxes. A node the author TAGGED keeps the unlimited entry (and a chapter chunk
+ *  fetches unlimited itself) — an authored scope is the author's responsibility. */
+const XYFLOW_PREVIEW: Renderer = { ...XYFLOW, depth: 2 };
+
+/** The rendered-view tab slots for a node — the STABLE-BAR model, in two parts NodeView interleaves
+ *  the data views between: one PRIMARY slot (the node's own format renderer — chapter/pdf/image…,
+ *  when any; a plain directory's primary IS the explorer, and a graph node's IS the fixed xyflow
+ *  slot, so their slot is empty) and the FIXED family, ALWAYS present: `xyflow` leading, then the
+ *  EXPLORER VIEWS (thumbnails / large icons / small icons / details, `tag-board` leading on a
+ *  board) — `enabled` only where the members are worth browsing (a container directory, or a
+ *  json/yaml container; a SCALAR shows them disabled — the grids would be empty, the drawing a lone
+ *  box). So navigating between node kinds only ever swaps the single primary icon; the family and
+ *  everything after it keep their place. */
+export function rendererTabs(node: NodeJson): { primary: TabSlot | null; fixed: TabSlot[] } {
+  const own = rendererFor(node);
+  let primary: TabSlot | null = null;
+  if (own && own !== EXPLORER && own !== XYFLOW) primary = { renderer: own, enabled: true }; // chapter/task/pdf… leads
+  else if (own === null) {
     // The primary slot is EMPTY (a plain directory leads with its explorer) — an OFFER fills it,
     // so a representation the node could adopt is exactly as discoverable as one it has, and the
     // bar keeps its shape either way.
     const offer = REGISTRY.find((r) => r.offers?.(node));
-    if (offer) out.push({ renderer: offer, enabled: true, offered: true });
+    if (offer) primary = { renderer: offer, enabled: true, offered: true };
   }
-  const eligible = primary === EXPLORER || explorerEligible(node);
-  out.push(...explorerViews(node).map((r) => ({ renderer: r, enabled: eligible })));
-  return out;
+  const eligible = own === EXPLORER || explorerEligible(node);
+  const fixed: TabSlot[] = [
+    // the tagged node gets its own (depth-unlimited) renderer; everyone else the depth-2 preview
+    own === XYFLOW ? { renderer: XYFLOW, enabled: true } : { renderer: XYFLOW_PREVIEW, enabled: eligible },
+    ...explorerViews(node).map((r) => ({ renderer: r, enabled: eligible })),
+  ];
+  return { primary, fixed };
 }
 
 /** Every representation a node actually HAS, best first — {@link rendererTabs}' enabled projection
  *  MINUS the offers (an offer is not yet a representation: the single-valued default paths and the
  *  TOC must not see one, or a plain folder would start claiming to be a chapter). */
 export function renderersFor(node: NodeJson): Renderer[] {
-  return rendererTabs(node).filter((t) => t.enabled && !t.offered).map((t) => t.renderer);
+  const { primary, fixed } = rendererTabs(node);
+  const slots = primary && !primary.offered ? [primary, ...fixed] : fixed;
+  return slots.filter((t) => t.enabled).map((t) => t.renderer);
 }
 
 // A node whose members are worth browsing as icons: object / array / mixed / variant (a `variant`

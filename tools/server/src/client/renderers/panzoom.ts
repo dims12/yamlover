@@ -18,16 +18,19 @@ export function useLeafletRefit(ref: React.RefObject<HTMLElement | null>, map: (
 
 /**
  * The unified pan/zoom/select gesture model for a Leaflet map (shared by the image viewer and the
- * KML map, see the UI guide). It overrides Leaflet's defaults so SELECTING is the primary gesture:
+ * KML map, and mirrored by the xyflow graph view — see the UI guide). It overrides Leaflet's
+ * defaults so SELECTING is the primary gesture:
  *
- *   - plain DRAG    → rubber-band a selection rectangle (→ `onSelect`, to annotate the region)
- *   - ctrl/alt DRAG → pan (grab-and-drag the canvas)
- *   - plain WHEEL   → pan vertically (scroll the canvas, like scrolling text)
- *   - ctrl/alt WHEEL→ zoom around the cursor
+ *   - plain DRAG      → rubber-band a selection rectangle (→ `onSelect`, to annotate the region)
+ *   - ctrl/alt DRAG   → pan (grab-and-drag the canvas)
+ *   - RIGHT-BUTTON DRAG → pan too (the browser menu inside the viewer is suppressed for it)
+ *   - plain WHEEL     → pan vertically (scroll the canvas, like scrolling text)
+ *   - ctrl/alt WHEEL  → zoom around the cursor
  *
  * When `onSelect` is omitted (e.g. an inline chapter chunk, which has no annotation target), plain
  * drag PANS instead (Leaflet's default) and the plain wheel is left alone so the page keeps
- * scrolling — only ctrl/alt-wheel zoom is added. Returns a disposer to unwire everything.
+ * scrolling — right-drag pan and ctrl/alt-wheel zoom are still added. Returns a disposer to
+ * unwire everything.
  */
 export interface GestureOptions {
   /** A plain-drag rectangle finished. `bounds` is in the map's coordinate space (CRS.Simple pixels
@@ -54,14 +57,26 @@ export function wireGestures(map: L.Map, opts: GestureOptions): () => void {
   let startPt: L.Point | null = null;
   let panning = false;
   let panPrev: L.Point | null = null;
+  let panFrom: L.Point | null = null;
+  let panMoved = false; // a right-drag actually panned — its release must not read as a right-CLICK
+
+  const beginPan = (at: L.Point) => {
+    panning = true;
+    panPrev = at;
+    panFrom = at;
+    panMoved = false;
+    L.DomUtil.disableTextSelection();
+  };
 
   const onDown = (e: L.LeafletMouseEvent) => {
-    if (e.originalEvent.button !== 0) return; // left button only — right/middle never select or pan
-    if (hasMod(e.originalEvent)) {
+    const btn = e.originalEvent.button;
+    if (btn === 2) {
+      beginPan(e.containerPoint); // right-button drag pans in EVERY view (menu suppressed below)
+    } else if (btn !== 0) {
+      return; // middle button never selects or pans
+    } else if (hasMod(e.originalEvent)) {
       if (!selectable) return; // dragging still enabled → Leaflet pans natively
-      panning = true; // modifier-drag → manual pan
-      panPrev = e.containerPoint;
-      L.DomUtil.disableTextSelection();
+      beginPan(e.containerPoint); // modifier-drag → manual pan
     } else if (selectable) {
       start = e.latlng; // plain drag → rubber-band a selection
       startPt = e.containerPoint;
@@ -73,6 +88,7 @@ export function wireGestures(map: L.Map, opts: GestureOptions): () => void {
   };
   const onMove = (e: L.LeafletMouseEvent) => {
     if (panning && panPrev) {
+      if (panFrom && e.containerPoint.distanceTo(panFrom) >= 4) panMoved = true;
       map.panBy(panPrev.subtract(e.containerPoint), { animate: false });
       panPrev = e.containerPoint;
     } else if (band && start) {
@@ -81,7 +97,7 @@ export function wireGestures(map: L.Map, opts: GestureOptions): () => void {
   };
   const onUp = (e: L.LeafletMouseEvent) => {
     L.DomUtil.enableTextSelection();
-    if (panning) { panning = false; panPrev = null; return; }
+    if (panning) { panning = false; panPrev = null; panFrom = null; return; } // panMoved survives to the contextmenu
     if (band && start && startPt) {
       const bounds = L.latLngBounds(start, e.latlng);
       const moved = startPt.distanceTo(e.containerPoint) >= 4; // ignore a click (zero-size drag)
@@ -94,6 +110,16 @@ export function wireGestures(map: L.Map, opts: GestureOptions): () => void {
   map.on("mousedown", onDown);
   map.on("mousemove", onMove);
   map.on("mouseup", onUp);
+
+  // Right button is a PAN gesture inside the viewer, so the browser menu never opens here. After a
+  // real drag the release must not open a saved region's tag window either — capture runs before
+  // the region rect's own contextmenu handler, so stopping there kills exactly that (a plain
+  // right-CLICK on a rect still reaches it and opens the window).
+  const onCtx = (ev: MouseEvent) => {
+    ev.preventDefault();
+    if (panMoved) ev.stopPropagation();
+  };
+  container.addEventListener("contextmenu", onCtx, true);
 
   const onWheel = (ev: WheelEvent) => {
     if (hasMod(ev)) {
@@ -112,6 +138,7 @@ export function wireGestures(map: L.Map, opts: GestureOptions): () => void {
     map.off("mousemove", onMove);
     map.off("mouseup", onUp);
     container.removeEventListener("wheel", onWheel);
+    container.removeEventListener("contextmenu", onCtx, true);
     band?.remove();
   };
 }

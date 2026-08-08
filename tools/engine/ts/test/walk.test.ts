@@ -694,6 +694,81 @@ test('both overlays present: `.yo/body.yo` WINS and the index.yo stops being dat
   }
 });
 
+test('an UNPARSABLE overlay costs its own directory, never the walk', () => {
+  // A syntax error in one `index.yo` used to throw out of the whole walk — a single bad file left
+  // the entire tree unindexed. It now degrades: the directory keeps its filesystem children and
+  // loses only what the overlay said, and the reason is reported through `onFileError`.
+  const root = mkdtempSync(join(tmpdir(), 'yo-badoverlay-'));
+  try {
+    const dir = join(root, 'julia');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'name'), 'Julia\n');
+    writeFileSync(join(dir, 'index.yo'), '- **bold** is not a pointer\n'); // `*` opens a pointer
+    writeFileSync(join(root, 'sibling'), 'unaffected\n');
+    const errors: string[] = [];
+    const s = new Store(':memory:');
+    s.indexDocument(walkDir(root, { onFileError: (rel, e) => errors.push(`${rel}: ${(e as Error).message}`) }));
+    assert.equal(s.node(':julia:name')?.value, 'Julia'); // children still index
+    assert.equal(s.node(':sibling')?.value, 'unaffected'); // and so does the rest of the tree
+    assert.equal(errors.length, 1);
+    assert.match(errors[0], /^julia\/index\.yo: pointer:/);
+    // the degraded directory WEARS the reason: meta.parseError names the file and the message,
+    // so a UI can show the failure and the server's write gate can refuse re-serialization
+    const pe = s.node(':julia')?.meta?.parseError as { file: string; message: string };
+    assert.equal(pe?.file, 'julia/index.yo');
+    assert.match(pe?.message ?? '', /^pointer:/);
+    s.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('an UNPARSABLE data file degrades to its raw text and wears the reason', () => {
+  // Same degradation contract as the overlay case, at the data-file site: the fallback scalar
+  // keeps the user's bytes verbatim, `meta.parseError` names the file and the parser's message,
+  // and `documentRoot` STAYS — the file still owns its bytes, so the raw-source rescue view
+  // resolves it and an edit addressed at it lands on the write gate instead of the parent.
+  const root = mkdtempSync(join(tmpdir(), 'yo-badfile-'));
+  try {
+    writeFileSync(join(root, 'broken.yo'), '- **bold** is not a pointer\n');
+    const errors: string[] = [];
+    const s = new Store(':memory:');
+    s.indexDocument(walkDir(root, { onFileError: (rel) => errors.push(rel) }));
+    const row = s.node(':broken.yo');
+    assert.equal(row?.value, '- **bold** is not a pointer\n'); // raw text, untouched
+    const pe = row?.meta?.parseError as { file: string; message: string };
+    assert.equal(pe?.file, 'broken.yo');
+    assert.match(pe?.message ?? '', /^pointer:/);
+    assert.equal(row?.meta?.documentRoot, true);
+    assert.deepEqual(errors, ['broken.yo']);
+    s.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('an UNPARSABLE .yo/meta.yo surfaces on its directory', () => {
+  // The third degradation site: the property table is lost, the children index unformatted,
+  // and the directory wears the reason. (When the BODY is also broken, the body's error wins
+  // the single parseError slot — the body is what a mediated write would re-serialize.)
+  const root = mkdtempSync(join(tmpdir(), 'yo-badmeta-'));
+  try {
+    const dir = join(root, 'julia');
+    mkdirSync(join(dir, '.yo'), { recursive: true });
+    writeFileSync(join(dir, 'name'), 'Julia\n');
+    writeFileSync(join(dir, '.yo', 'meta.yo'), '- **bold** is not a pointer\n');
+    const s = new Store(':memory:');
+    s.indexDocument(walkDir(root, {}));
+    assert.equal(s.node(':julia:name')?.value, 'Julia');
+    const pe = s.node(':julia')?.meta?.parseError as { file: string; message: string };
+    assert.equal(pe?.file, 'julia/.yo/meta.yo');
+    assert.match(pe?.message ?? '', /^pointer:/);
+    s.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('ANCHORED members route through the items schema — a bannerless member folds the same in every face', () => {
   // the reported face split: a member born WITHOUT its own `!!<…>` banner got no format at
   // all (items propagation skipped keyed entries; anchored members are keyed) — the read

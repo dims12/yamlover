@@ -4,25 +4,52 @@
     <vendor email="dimskraft@gmail.com" url="https://yamlover.inthemoon.net">inthemoon</vendor>
 
     <description><![CDATA[
-        Support for the <b>yamlover</b> language and file type (<code>.yo</code>;
-        the legacy <code>.yamlover</code> extension reads forever) — a YAML/JSON
-        superset with graph pointers in the COLON grammar: <code>*: a: b</code>
-        dereference, <code>~</code> reverse edges, <code>&amp;</code> anchors, the
-        scope ladder (<code>:</code> document, <code>::</code> project,
-        <code>:::</code> world), <code>..</code> parent, bare-integer positions
-        (<code>: pets: 1</code>; <code>[n]</code> reads as the legacy alias),
-        relative <code>[.&#177;k]</code> indexes, and the <code>~</code> null key.
-        <br/><br/>
-        Also supports <b>json5p</b> (<code>.json5p</code>, JSON5 + pointers) and
-        highlights <code>yamlover</code>/<code>json5p</code> fenced code blocks inside
-        Markdown.
-        <br/><br/>
-        Provides file-type recognition, syntax highlighting, YAML-style two-space
-        (spaces-only) indentation, and <b>Ctrl+click /
-        Ctrl+B navigation on pointers</b> (heuristic, in-file: paths, positions,
-        <code>..</code>, document scope; a <code>body.yo</code> overlay also reaches
-        the overlaid directory's files). Richer support — real lexer/PSI, cross-tree
-        link resolution via the yamlover engine — is planned.
+        <p>
+            Editor support for the <b>yamlover</b> (<code>.yo</code>) and <b>json5p</b>
+            (<code>.json5p</code>) file types in IntelliJ-based IDEs.
+        </p>
+        <p>
+            <b>yamlover</b> stands for <i>YAML Overlay</i> (not "Yam lover"): a plain-text,
+            local-first format for knowledge that people and machines can hold together, in
+            one human-readable graph that you edit like notes, an agent reads like a
+            database, and <code>git</code> versions like code. It is close kin to YAML and
+            JSON with first-class <b>pointers</b>, laid over your filesystem: a folder is a
+            mapping, a file is a node, a <code>*</code> pointer is a graph edge.
+        </p>
+        <p>This plugin gives you:</p>
+        <ul>
+            <li><b>File type recognition</b> for <code>.yo</code> (the legacy
+                <code>.yamlover</code> extension reads forever) and <code>.json5p</code>
+                (JSON5 + pointers), each with its own icon.</li>
+            <li><b>Syntax highlighting</b> for the COLON grammar: <code>*: a: b</code>
+                dereference, <code>~</code> reverse edges, <code>&amp;</code> anchors, the
+                scope ladder (<code>:</code> document, <code>::</code> project,
+                <code>:::</code> world), <code>..</code> parent, bare-integer positions
+                (<code>: pets: 1</code>; <code>[n]</code> reads as the legacy alias),
+                relative <code>[.&#177;k]</code> indexes, the <code>~</code> null key, block
+                scalars, quoted keys and comments.</li>
+            <li><b>YAML-style indentation</b>, two columns and spaces only, as real
+                per-language code style options rather than the IDE's catch-all "Other"
+                defaults. Configurable in <i>Settings | Editor | Code Style</i>.</li>
+            <li><b>Pointer navigation</b> with Ctrl+click / Ctrl+B: paths, positions,
+                <code>..</code> and document scope resolve in-file, and a
+                <code>body.yo</code> overlay also reaches the overlaid directory's
+                files.</li>
+            <li><b>Markdown injection</b>: <code>yamlover</code> and <code>json5p</code>
+                fenced code blocks are highlighted inside <code>.md</code> files.</li>
+        </ul>
+        <p>
+            This is deliberately a thin first cut. The grammar is a heuristic
+            reimplementation of the reference parser and navigation is in-file only; a real
+            lexer/PSI and cross-tree link resolution through the yamlover engine are
+            planned.
+        </p>
+        <p>
+            <a href="https://yamlover.inthemoon.net/docs">Documentation</a> (itself written
+            in yamlover, and clickable) &#183;
+            <a href="https://yamlover.inthemoon.net/">a live instance to try</a> &#183;
+            <a href="https://github.com/dims12/yamlover">source on GitHub</a>
+        </p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>

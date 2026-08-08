@@ -7,7 +7,8 @@ import { countImages, htmlToRich, resolveImages, RichDraft } from "./paste-html"
 import { clipboardFiles, fileToBase64, pastedName } from "./clipboard";
 import { planFileUpload } from "../drop-policy";
 import { useDropConfirm } from "./DropConfirm";
-import { rendererTabs, rendererName, plaintextTab, Renderer } from "./renderers/registry";
+import { ParseErrorBanner } from "./ParseErrorBanner";
+import { rendererTabs, rendererName, plaintextTab, Renderer, TabSlot } from "./renderers/registry";
 import { AnnotatedMaterial, useAnnotations } from "./renderers/annotate";
 import { EditingContext } from "./renderers/editing";
 import { YedEditor } from "./renderers/yed-editor";
@@ -51,32 +52,31 @@ const syntaxOf = (f: Format): "yaml" | "json" => (f === "json5p" ? "json" : "yam
  *  instead of appearing/disappearing and reshaping the bar. */
 type TabEntry = { name: Format; enabled: boolean; offered?: boolean };
 
-/** The standard data-view tabs — a FIXED set on every node: `yamlover` and `yamlover/schema`
- *  always work; `json5p` is enabled only for a json-family file (a yaml node must not be
- *  rendered as JSON) and shows disabled elsewhere. */
-function standardFormatsFor(node: NodeJson): TabEntry[] {
-  return [
+/** The node's whole tab-bar model, in the FIXED order: the PRIMARY slot (the node's own format
+ *  renderer — chapter/task/pdf…, or an offer), `yamlover` (the native data view — always works),
+ *  the FIXED rendered family (`xyflow`, then the explorer views — rendererTabs), the remaining
+ *  data views (`json5p` — enabled only for a json-family file, a yaml node must not be rendered
+ *  as JSON — and `yamlover/schema`), and the TRAILING raw-source tab — plus the renderer list the
+ *  active view is looked up in. One computation for the three consumers (depth choice, facet
+ *  fetch, the bar itself), so they can never disagree. */
+function tabModel(node: NodeJson): { tabs: TabEntry[]; allRenderers: Renderer[] } {
+  const { primary, fixed } = rendererTabs(node);
+  const trailing = plaintextTab(node);
+  const toEntry = (t: TabSlot): TabEntry => ({ name: t.renderer.name as Format, enabled: t.enabled, offered: t.offered });
+  const tabs: TabEntry[] = [
+    ...(primary ? [toEntry(primary)] : []),
     { name: "yamlover", enabled: true },
+    ...fixed.map(toEntry),
     { name: "json5p", enabled: isJsonFamily(node.concrete) },
     { name: "yamlover/schema", enabled: true },
-  ];
-}
-
-/** The node's whole tab-bar model: the LEADING rendered-view slots (the node's one primary
- *  renderer + the always-present explorer family — rendererTabs), the fixed STANDARD data views,
- *  and the TRAILING raw-source tab — plus the renderer list the active view is looked up in. One
- *  computation for the three consumers (depth choice, facet fetch, the bar itself), so they can
- *  never disagree. */
-function tabModel(node: NodeJson): { tabs: TabEntry[]; allRenderers: Renderer[] } {
-  const leading = rendererTabs(node);
-  const trailing = plaintextTab(node);
-  const tabs: TabEntry[] = [
-    ...leading.map((t) => ({ name: t.renderer.name as Format, enabled: t.enabled, offered: t.offered })),
-    ...standardFormatsFor(node),
-    ...(trailing ? [{ name: trailing.renderer.name as Format, enabled: trailing.enabled }] : []),
+    ...(trailing ? [toEntry(trailing)] : []),
   ];
   // the DISABLED slots ride along too: a greyed tab still needs its icon and label
-  const allRenderers = [...leading.map((t) => t.renderer), ...(trailing ? [trailing.renderer] : [])];
+  const allRenderers = [
+    ...(primary ? [primary.renderer] : []),
+    ...fixed.map((t) => t.renderer),
+    ...(trailing ? [trailing.renderer] : []),
+  ];
   return { tabs, allRenderers };
 }
 
@@ -482,8 +482,9 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   if (error) return <div className="error">{error}</div>;
   if (!node) return <div className="loading">…</div>;
 
-  // LEADING renderer tabs (format renderer / explorer views), then the standard DATA views, then the
-  // TRAILING `plaintext` (raw-source) tab. The default tab is the node's natural one
+  // The PRIMARY renderer tab, `yamlover`, the FIXED rendered family (xyflow / explorer views),
+  // the remaining DATA views, then the TRAILING `plaintext` (raw-source) tab — tabModel's order.
+  // The default tab is the node's natural one
   // (effectiveFormat), so the bar order is uniform while only the default differs by node kind;
   // an inapplicable standard/raw tab renders DISABLED in place, never removed (a stable bar).
   const { tabs, allRenderers } = tabModel(node);
@@ -502,8 +503,10 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   const renderer = allRenderers.find((r) => r.name === effective) ?? null;
   const showRendered = renderer != null;
   // an editable view — gates the lock button and the F2/Esc shortcut. Either a renderer page
-  // (chapter/task) or the DATA view (yamlover/json5p) whose scalars edit in place.
-  const isEditableView = showRendered ? !!renderer && EDITABLE_RENDERERS.has(renderer.name) : isEditableData(effective, node);
+  // (chapter/task) or the DATA view (yamlover/json5p) whose scalars edit in place. A node
+  // whose source FAILED TO PARSE is never editable: the value on screen is the degraded
+  // fallback, and saving it would overwrite the original text (the server refuses too).
+  const isEditableView = !node.parseError && (showRendered ? !!renderer && EDITABLE_RENDERERS.has(renderer.name) : isEditableData(effective, node));
   editableRef.current = isEditableView;
   // the document this node belongs to — the base its `#`-fragment anchors are measured from
   const docPath = node.documentPath ?? path;
@@ -568,7 +571,8 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
             className={"lockbtn" + (unlocked && isEditableView ? " unlocked" : "")}
             disabled={!isEditableView}
             title={
-              !isEditableView ? "This view is not editable"
+              node.parseError ? "The source failed to parse — fix the file on disk first"
+              : !isEditableView ? "This view is not editable"
               : unlocked ? "Editing — click or Esc to finish"
               : "Read-only — click or F2 to edit"
             }
@@ -615,12 +619,18 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
         </div>
       </div>
 
+      {/* a DEGRADED node leads with its parse error — the page below is the fallback, and an
+          empty-looking page must say why */}
+      {node.parseError && <ParseErrorBanner error={node.parseError} />}
+
       {/* a renderer presents the node's own title/description; the default view
           shows the description here as a subtitle above the value */}
       {!showRendered && node.description && <p className="nodedesc">{node.description}</p>}
 
       {showRendered ? (
-        <EditingContext.Provider value={{ unlocked, unlock, readOnly: READ_ONLY }}>
+        /* `unlocked` is gated by editability here: the sticky lock (it survives navigation)
+           must not mount a renderer's editor on a page whose button is disabled */
+        <EditingContext.Provider value={{ unlocked: unlocked && isEditableView, unlock, readOnly: READ_ONLY }}>
           {/* While UNLOCKED, skip the annotation wrapper: its document `mouseup` selection→picker and
               its per-render `<mark>` DOM rewrite both fight contentEditable. Highlights return on
               re-lock. A non-editable prose material keeps the annotation layer as before. */}
