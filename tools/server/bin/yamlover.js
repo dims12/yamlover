@@ -36,6 +36,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { dirname, join, resolve, extname, sep } from "node:path";
 import fs from "node:fs";
+import { ga4Tag, ga4ConfigFromEnv } from "./ga4.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(__dirname, ".."); // tools/server
@@ -106,6 +107,10 @@ if (!fs.existsSync(dataRoot)) {
   console.error(`yamlover: no such path: ${dataRoot}`);
   process.exit(1);
 }
+
+// Analytics: null unless $GA4_MEASUREMENT_ID is set, which only the hosted deployment does.
+// Resolved after the flags so it sees the final base path.
+const ga4 = ga4ConfigFromEnv(basePath);
 
 // --- mode ----------------------------------------------------------------- //
 // The engine SOURCE is present only in the monorepo checkout; its absence (the
@@ -356,14 +361,16 @@ function serveIndex(res, distIndex) {
  *
  *  The pre-render globals follow: `window.__BASE__` (the client's URL helper prefix) and
  *  `window.__READONLY__` (the client hides every modification affordance), each set only
- *  when it applies. */
+ *  when it applies. Last comes the analytics tag, which the hosted deployment configures
+ *  through the environment and every other way of running yamlover leaves off (ga4.js). */
 function injectGlobals(html) {
   html = html.replace(/((?:src|href)=")(?:\.\/|\/(?!\/))/g, `$1${basePath}/`);
   const globals = [];
   if (basePath) globals.push(`window.__BASE__=${JSON.stringify(basePath)}`);
   if (readOnly) globals.push("window.__READONLY__=true");
-  if (!globals.length) return html;
-  const tag = `<script>${globals.join(";")}</script>`;
+  let tag = globals.length ? `<script>${globals.join(";")}</script>` : "";
+  if (ga4) tag += ga4Tag(ga4);
+  if (!tag) return html;
   return html.includes("<head>") ? html.replace("<head>", `<head>${tag}`) : tag + html;
 }
 
@@ -389,6 +396,11 @@ function listenWithFallback(p, triesLeft) {
     server.off("error", onError); // bound OK — stop intercepting listen errors
     console.log(`yamlover ${ts()}  serving ${dataRoot}${prod ? "" : "  (live/Vite)"}`);
     console.log(`                        http://${shown}:${p}/  (bound to ${host})`);
+    // Say it out loud: analytics is off in every normal run, so when it IS on the operator
+    // should see which stream is being fed and exactly what paths reach it.
+    if (ga4) {
+      console.log(`                        analytics ${ga4.measurementId} → ${ga4.pagePath || ""}/${ga4.collapse ? "" : "…"}`);
+    }
   };
   server.once("error", onError);
   server.once("listening", onListening);

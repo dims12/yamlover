@@ -67,6 +67,72 @@ Selected with `EMAIL_PROVIDER`:
 The whole tool has **zero runtime npm dependencies** (`node:http`, `node:sqlite`,
 `node:crypto`, `node:child_process`, global `fetch`). Requires Node ≥ 22.
 
+## Logging (Google Cloud Logging)
+
+The server writes **one JSON object per line to its own stdout** and stops there
+(`src/log.js`). systemd captures that into the journal, and the **Ops Agent** already on the
+VM reads the journal and forwards it — see `deploy/ops-agent-config.yaml` for the config to
+merge into `/etc/google-cloud-ops-agent/config.yaml`.
+
+Nothing in this package talks to Google. That is deliberate: it keeps the zero-dependency
+rule, needs no service-account credentials in the app, means a Logging outage can never slow
+down or wedge a request, and leaves `journalctl --user -u yamlover-demo` working as before.
+Setting `LOG_FORMAT=text` gives a readable line instead of JSON; the default follows the TTY,
+so an interactive run is legible and a service run emits JSON without being told.
+
+**The children are in the same stream.** A per-visitor container is detached and `--rm`, so
+its output would die with it — the docker driver runs `docker logs -f` against each one and
+relays it, and the process driver pipes its children directly. Every relayed line carries
+`component` and the demo `hash`, so one instance's indexing progress stays attributable
+inside the merged stream. `LOG_INSTANCES=0` turns the relay off.
+
+**Volume is the thing to watch**, since Cloud Logging bills by it. Every SPA asset and every
+SSE poll is proxied through this server, so `LOG_HTTP=all` is a firehose. The default,
+`errors`, keeps the 4xx/5xx that actually need tracing and leaves the traffic questions to
+analytics. Failures that a status code alone would not explain (at capacity, instance never
+became ready, email send failed) are logged where the reason is known.
+
+Fields worth filtering on in the Logs Explorer: `jsonPayload.hash`,
+`jsonPayload.component`, `severity`, and `httpRequest` (the agent lifts request records into
+the LogEntry's own field, so method/status/latency render as a request).
+
+## Analytics (GA4)
+
+Set **`GA4_MEASUREMENT_ID`** and the tag is injected at serve time, into the registration
+page and into every yamlover instance this server spawns. Leave it unset — which is the
+default, and the only possibility outside this deployment — and no third-party script is
+injected anywhere. The measurement id lives in the env file rather than the repo, so the
+checked-in HTML carries no tag and a fork does not report to this property.
+
+`npx yamlover`, the desktop app and any self-hosted tree serve the same SPA shell and send
+**nothing**: the shell only gets a tag when the server is handed a measurement id, and only
+this deployment hands one over. A local-first viewer that phoned home by default would be a
+different product.
+
+**What each surface reports:**
+
+| surface | reported as | why |
+|---------|-------------|-----|
+| `/` (registration) | `/` | a plain single-view page, nothing to hide |
+| `/docs/…` | its real sub-path | published content — which chapter gets read is the point |
+| `/demo/<hash>/…` | `/demo/<id>/`, one page | see below |
+
+A demo hash **is** the credential for that instance — anyone holding the URL can open it — so
+it must never be copied into a third-party report. Below the mount point the URL is the
+yamlover data path, and in a demo the visitor may have typed those node names themselves.
+So a demo instance is collapsed to a single page, and its `document.title` (which the SPA
+rewrites to the node's own labels) is replaced with a constant.
+
+The redaction is applied with `gtag("set", …)`, as **global** parameters rather than per
+event, so the tag's own enhanced-measurement events report the redacted values too instead
+of reading `location.href` and routing around it. There is no `anonymize_ip`: that is a
+Universal Analytics parameter which GA4 ignores — GA4 truncates the address on receipt and
+never stores it.
+
+Implementation: `src/ga4.js` for the landing page, `tools/server/bin/ga4.js` for the SPA
+(deliberately not shared — only `tools/demo` is rsynced to the box, `tools/server` arrives as
+a Docker image, and the two are versioned apart).
+
 ## Run locally (no Docker)
 
 ```bash
@@ -128,6 +194,11 @@ DEMO_DRIVER=docker DEMO_IMAGE=yamlover-demo DOCS_IMAGE=yamlover-docs DEMO_IMAGE_
 | `DOCS_BASE_PATH` | `/docs` | URL prefix the docs are served under |
 | `DOCS_REFRESH_MS` | `REAP_INTERVAL_MS` | re-pull + recreate the docs container if the tag moved |
 | `EXAMPLES_DIR` / `DOCS_DIR` / `YAMLOVER_BIN` / `SPOOL_DIR` | repo paths | process-driver inputs |
+| `LOG_FORMAT` | `json` off a TTY, else `text` | line format on stdout |
+| `LOG_LEVEL` | `info` | `debug` \| `info` \| `notice` \| `warning` \| `error` |
+| `LOG_HTTP` | `errors` | which proxied exchanges are logged: `errors` \| `all` \| `off` |
+| `LOG_INSTANCES` | `1` | relay each yamlover instance's own output into the stream |
+| `GA4_MEASUREMENT_ID` | _(off)_ | GA4 stream; unset means no analytics anywhere |
 
 ## Deploy (design-vm)
 
@@ -140,7 +211,8 @@ Caddy (system service, already on the box) terminates TLS with the existing
 **Prerequisites (system software, already in place on design-vm):** Node ≥ 22, Docker
 (`dims` in the `docker` group), Caddy, the `*.inthemoon.net` cert, DNS pointing at
 `34.71.33.48`, and that `dims` has passwordless `sudo`. Everything *yamlover-specific* —
-the user unit, env file, Caddy drop-in, linger — is created by the deploy itself.
+the user unit, env file, Caddy drop-in, linger — is created by the deploy itself. The Ops
+Agent, if logs should reach Google Cloud Logging, is a one-time install (see below).
 
 **Deploy = the GitHub `publish-demo-web` workflow** (`.github/workflows/publish-demo-web.yml`),
 on a push to `main` touching `tools/demo/**`, or manually via **workflow_dispatch**. There is
@@ -170,6 +242,39 @@ To enable email, edit `~/.config/yamlover-demo.env` (`EMAIL_PROVIDER=resend` and
 `EMAIL_FROM` — verify SPF/DKIM in Resend first) and put `RESEND_API_KEY=…` in root-only
 `/etc/resend.env`, then `systemctl --user restart yamlover-demo`. With `EMAIL_PROVIDER=console`
 it instead logs the link to `journalctl --user -u yamlover-demo`.
+
+### Cloud Logging and analytics on the box
+
+Both are **host state, not deploy state** — CI ships code, and neither of these is code, so
+turning them on is a one-time manual step that survives every subsequent deploy.
+
+Logging needs the Ops Agent installed once (it is not part of a stock GCE image):
+
+```bash
+curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+sudo bash add-google-cloud-ops-agent-repo.sh --also-install
+sudo $EDITOR /etc/google-cloud-ops-agent/config.yaml   # merge deploy/ops-agent-config.yaml
+sudo systemctl restart google-cloud-ops-agent
+```
+
+The VM's service account needs `roles/logging.logWriter`; the default GCE service account
+already has it. Verify the pipeline end to end after a restart — a config that parses but
+matches nothing looks exactly like a quiet service:
+
+```bash
+gcloud logging read 'resource.type="gce_instance" AND jsonPayload.component="instance"' \
+  --limit 5 --freshness 10m
+```
+
+Analytics is one line in `~/.config/yamlover-demo.env` (`GA4_MEASUREMENT_ID=G-…`) followed by
+`systemctl --user restart yamlover-demo`. Two things to check in the GA4 property itself,
+because neither is controllable from here:
+
+- create the stream for `https://yamlover.inthemoon.net`, and take the **measurement id**
+  (`G-…`), not the stream id;
+- in **Enhanced measurement**, the redaction holds because the tag sets its page parameters
+  globally — but if you ever add a tag through Google Tag Manager instead, GTM reads
+  `location.href` directly and would ship demo hashes. Keep the tag server-injected.
 
 ## Tests
 

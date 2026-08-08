@@ -8,7 +8,8 @@ import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, cp, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join } from "node:path";
-import { config, basePathFor } from "../config.js";
+import { config, basePathFor, ga4EnvFor, GA4_DEMO_PATH } from "../config.js";
+import { log, captureLines } from "../log.js";
 
 const procs = new Map(); // id -> { hash, child, dir }
 let docsProc = null; // { id, child, port } — the always-on docs instance
@@ -25,14 +26,28 @@ function freePort() {
   });
 }
 
-/** Spawn a yamlover child serving `dir` under `basePath`, resolved once it reports its port. */
-async function spawnYamlover(dir, basePath, extraArgs = []) {
+/** Spawn a yamlover child serving `dir` under `basePath`, resolved once it reports its port.
+ *
+ *  `env` adds to the inherited environment (the analytics variables). `bindings` label every
+ *  line the child prints, which is how its output stays attributable once several instances
+ *  are interleaved into one stream. */
+async function spawnYamlover(dir, basePath, extraArgs = [], { env = {}, bindings = {} } = {}) {
   const hint = await freePort();
   const child = spawn(
     process.execPath,
     [config.yamloverBin, dir, "--prod", "--headless", "--port", String(hint), "--base-path", basePath, ...extraArgs],
-    { stdio: ["ignore", "pipe", "pipe"] },
+    { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, ...env } },
   );
+  // The child's pipes MUST be drained either way or they fill and block it. Capturing is
+  // just a drain that keeps what it reads.
+  if (config.logInstances) {
+    const logger = log.child(bindings);
+    captureLines(child.stdout, logger, "info");
+    captureLines(child.stderr, logger, "warn");
+  } else {
+    child.stdout.resume();
+    child.stderr.resume();
+  }
   // yamlover prints "http://<host>:<port>/" once bound; trust that port (it may have
   // bumped off our hint via its own EADDRINUSE fallback).
   const port = await new Promise((resolve, reject) => {
@@ -44,12 +59,10 @@ async function spawnYamlover(dir, basePath, extraArgs = []) {
       if (m) {
         clearTimeout(timer);
         child.stdout.off("data", onData);
-        child.stdout.resume(); // keep draining so the pipe never fills
         resolve(Number(m[1]));
       }
     };
     child.stdout.on("data", onData);
-    child.stderr.resume();
     child.once("exit", (code) => {
       clearTimeout(timer);
       reject(new Error(`yamlover exited early (code ${code})`));
@@ -68,10 +81,17 @@ export const processDriver = {
     const parent = await mkdtemp(join(config.spoolDir, hash + "-"));
     const dir = join(parent, "examples");
     await cp(config.examplesDir, dir, { recursive: true });
-    const { child, port } = await spawnYamlover(dir, basePathFor(hash));
+    const { child, port } = await spawnYamlover(dir, basePathFor(hash), [], {
+      env: ga4EnvFor(GA4_DEMO_PATH, { collapse: true }),
+      bindings: { component: "instance", hash },
+    });
     const id = `p${child.pid}`;
     procs.set(id, { hash, child, dir: parent }); // remove the whole parent on stop
-    child.on("exit", () => procs.delete(id));
+    child.on("exit", (code) => {
+      procs.delete(id);
+      log.info("instance exited", { hash, code });
+    });
+    log.info("instance started", { hash, port, pid: child.pid });
     return { id, port };
   },
 
@@ -86,7 +106,12 @@ export const processDriver = {
   },
 
   async startDocs() {
-    const { child, port } = await spawnYamlover(config.docsDir, config.docsBasePath, ["--read-only"]);
+    // Not collapsed, unlike a demo: docs/ is published content, so which chapter a visitor
+    // reaches is exactly the thing worth measuring, and its URL gives nothing away.
+    const { child, port } = await spawnYamlover(config.docsDir, config.docsBasePath, ["--read-only"], {
+      env: ga4EnvFor(config.docsBasePath),
+      bindings: { component: "docs" },
+    });
     const id = `p${child.pid}`;
     docsProc = { id, child, port };
     child.on("exit", () => {

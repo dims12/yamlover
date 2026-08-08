@@ -10,6 +10,7 @@
 //                        edit goes live from a plain CI image push, with no redeploy.
 
 import { config } from "./config.js";
+import { log } from "./log.js";
 import { waitForReady } from "./ready.js";
 
 export function makeDocs(driver) {
@@ -21,6 +22,7 @@ export function makeDocs(driver) {
     const cur = await driver.docsStatus().catch(() => null);
     if (cur && cur.port && !cur.stale) {
       await waitForReady(cur.port, config.docsBasePath);
+      log.info("docs adopted", { port: cur.port });
       return cur.port;
     }
     // A stale or half-dead instance is torn down first: there can be only one (the docker
@@ -33,6 +35,7 @@ export function makeDocs(driver) {
       await driver.stopDocs().catch(() => {});
       throw e;
     }
+    log.notice(cur ? "docs replaced (image moved)" : "docs started", { port: started.port });
     return started.port;
   }
 
@@ -64,7 +67,7 @@ export function makeDocs(driver) {
     /** The refresh timer. Failures are logged, never fatal — /docs retries on every hit. */
     startTimer() {
       const t = setInterval(
-        () => this.refresh().catch((e) => console.error("docs refresh error:", e.message)),
+        () => this.refresh().catch((e) => log.error("docs refresh failed", { err: e })),
         config.docsRefreshMs,
       );
       t.unref?.();

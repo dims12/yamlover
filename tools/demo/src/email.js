@@ -3,12 +3,14 @@
 // npm dep); GCE blocks outbound SMTP (port 25), so a hosted API over 443 is the way.
 
 import { config, REPO_URL } from "./config.js";
+import { log } from "./log.js";
 
 /** Email a visitor their demo link via the configured provider. Throws on send failure. */
 export async function sendDemoLink(to, link) {
   if (config.emailProvider === "resend") return sendViaResend(to, link);
-  // console provider
-  console.log(`\n[demo-email] to=${to}\n             ${link}\n`);
+  // console provider: the log IS the inbox, so unlike everywhere else the address and the
+  // link have to be in it. That is the whole point of this provider, and why it is local-dev only.
+  log.info("demo email (console provider)", { to, link });
 }
 
 function compose(link) {

@@ -25,13 +25,16 @@ test("isEmail basic validation", () => {
 });
 
 test("console email provider logs the link and does not throw", async () => {
-  const orig = console.log;
+  const orig = process.stdout.write;
   let captured = "";
-  console.log = (...a) => (captured += a.join(" "));
+  process.stdout.write = (chunk) => {
+    captured += chunk;
+    return true;
+  };
   try {
     await sendDemoLink("u@x.com", "http://h/demo/abc/");
   } finally {
-    console.log = orig;
+    process.stdout.write = orig;
   }
   assert.match(captured, /u@x\.com/);
   assert.match(captured, /http:\/\/h\/demo\/abc\//);

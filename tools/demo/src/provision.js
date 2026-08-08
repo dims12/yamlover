@@ -3,6 +3,7 @@
 // concurrent first-hits into a single start. Returns the instance's loopback port.
 
 import { config, basePathFor } from "./config.js";
+import { log } from "./log.js";
 import { waitForReady } from "./ready.js";
 
 /** A provisioning failure carrying the HTTP status the router should surface. */
@@ -30,13 +31,17 @@ export function makeProvisioner(driver, store) {
     if (inflight.has(hash)) return inflight.get(hash);
 
     const task = (async () => {
+      // Both refusals below reach the visitor as a status page, and the access log records
+      // only that a 5xx happened. The reason lives here, so log it where it is known.
       if (store.countRunning() >= config.maxDemos) {
+        log.warn("provision refused: at capacity", { hash, running: store.countRunning(), max: config.maxDemos });
         throw new ProvisionError(503, "demo capacity full");
       }
       const { id, port } = await driver.start(hash);
       try {
         await waitForReady(port, basePathFor(hash));
-      } catch {
+      } catch (e) {
+        log.error("provision failed: instance never became ready", { err: e, hash, port });
         await driver.stop(id).catch(() => {});
         throw new ProvisionError(502, "demo failed to start");
       }

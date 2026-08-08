@@ -1,0 +1,72 @@
+# Google Cloud Logging for design-vm, via the Ops Agent.
+#
+# Merge into /etc/google-cloud-ops-agent/config.yaml (that file is a USER overlay on the
+# agent's built-in config, so only what is below needs to be in it), then:
+#
+#   sudo systemctl restart google-cloud-ops-agent
+#
+# WHY THE JOURNAL AND NOT AN SDK: the demo server writes JSON lines to its own stdout and
+# stops there (src/log.js). systemd captures that into the journal, the agent reads the
+# journal, and only the agent talks to Google. So the app keeps zero npm dependencies, needs
+# no service-account credentials of its own, cannot be slowed down or wedged by a Logging
+# outage, and `journalctl --user -u yamlover-demo` still works exactly as before. The
+# per-visitor containers are covered too: the demo server relays their output through
+# `docker logs -f`, so it arrives here already tagged with the demo hash.
+#
+# The VM's service account needs roles/logging.logWriter. A default GCE instance already has
+# it through the default service account and the `logging-write` scope.
+
+logging:
+  receivers:
+    # The agent's built-in `syslog` receiver tails /var/log/syslog with a `files` receiver,
+    # which cannot see a systemd USER unit at all — hence reading journald directly. Note
+    # the journal is unified: running as root, the agent sees user-unit records too.
+    journald:
+      type: systemd_journald
+
+  processors:
+    # journald delivers the log line as the MESSAGE field, so that is where our JSON is.
+    # Its keys are merged into jsonPayload. A line that is not JSON — everything else on the
+    # box writes plain text — is left as it was rather than dropped.
+    parse_app_json:
+      type: parse_json
+      field: MESSAGE
+
+    # `severity` is a top-level LogEntry field, not a payload one, and the agent does not
+    # promote it by itself. Without this every record arrives as DEFAULT and the Logs
+    # Explorer cannot filter or colour by level.
+    lift_severity:
+      type: modify_fields
+      fields:
+        severity:
+          move_from: jsonPayload.severity
+
+  service:
+    pipelines:
+      # Redefining `default_pipeline` replaces the agent's built-in one.
+      default_pipeline:
+        receivers: [journald]
+        processors: [parse_app_json, lift_severity]
+
+# --- optional: ship only this service ---------------------------------------------------
+#
+# The pipeline above collects the whole machine, which is the safe default — it cannot
+# silently drop the very logs you came for. If the log bill should track the service rather
+# than the box, add the processor below and put `yamlover_only` FIRST in the processor list.
+#
+# The field is `_SYSTEMD_USER_UNIT`, not `_SYSTEMD_UNIT`: yamlover-demo runs as a systemd
+# USER unit, so journald records the unit name there and puts `user@<uid>.service` in
+# `_SYSTEMD_UNIT`. Getting this wrong excludes everything.
+#
+# VERIFY BEFORE YOU TRUST IT — after restarting the agent, hit the site and confirm the
+# entries still arrive:
+#
+#   gcloud logging read \
+#     'resource.type="gce_instance" AND jsonPayload._SYSTEMD_USER_UNIT="yamlover-demo.service"' \
+#     --limit 5 --freshness 10m
+#
+#   processors:
+#     yamlover_only:
+#       type: exclude_logs
+#       match_any:
+#         - jsonPayload._SYSTEMD_USER_UNIT != "yamlover-demo.service"

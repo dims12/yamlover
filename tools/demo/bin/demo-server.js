@@ -8,6 +8,8 @@
 
 import { createServer } from "node:http";
 import { config } from "../src/config.js";
+import { log } from "../src/log.js";
+import { clientIp } from "../src/http-util.js";
 import { openStore } from "../src/store.js";
 import { processDriver } from "../src/drivers/process.js";
 import { dockerDriver } from "../src/drivers/docker.js";
@@ -26,8 +28,26 @@ const route = makeRouter({ store, provision, rateLimit, docs });
 const reaper = makeReaper(driver, store);
 
 const server = createServer((req, res) => {
+  const started = Date.now();
+  // `finish` (not `close`) — the response was fully written, so res.statusCode is final.
+  // A client that hangs up mid-stream, which every open SSE tab eventually does, is not
+  // an event worth a log line.
+  if (config.logHttp !== "off") {
+    res.once("finish", () => {
+      if (config.logHttp !== "all" && res.statusCode < 400) return;
+      log.request({
+        method: req.method,
+        url: req.url,
+        status: res.statusCode,
+        latencyMs: Date.now() - started,
+        ip: clientIp(req),
+        userAgent: req.headers["user-agent"],
+        referer: req.headers.referer,
+      });
+    });
+  }
   Promise.resolve(route(req, res)).catch((e) => {
-    console.error("request error:", e);
+    log.error("request failed", { err: e, method: req.method, url: req.url });
     if (!res.headersSent) {
       res.statusCode = 500;
       res.end("internal error");
@@ -40,10 +60,18 @@ const server = createServer((req, res) => {
 await driver.prepare?.(); // docker: pull the image so a moving tag is refreshed on restart
 await reaper.start();
 server.listen(config.port, config.host, () => {
-  console.log(`yamlover-demo  driver=${config.driver}  email=${config.emailProvider}`);
-  console.log(`               listening http://${config.host}:${config.port}/`);
-  console.log(`               links → ${config.baseUrl}/demo/<hash>/   ttl=${config.ttlDays}d  max=${config.maxDemos}`);
-  if (docs) console.log(`               docs  → ${config.baseUrl}${config.docsBasePath}/   (read-only, always on)`);
+  // One record, not a banner: the fields are what an operator filters on later (and what
+  // tells them, on a box they did not deploy, which posture this process is actually in).
+  log.notice(`listening on http://${config.host}:${config.port}/`, {
+    driver: config.driver,
+    email: config.emailProvider,
+    baseUrl: config.baseUrl,
+    ttlDays: config.ttlDays,
+    maxDemos: config.maxDemos,
+    docs: docs ? config.docsBasePath : false,
+    analytics: config.ga4MeasurementId || false,
+    logHttp: config.logHttp,
+  });
 });
 
 // The docs instance comes up alongside the server rather than blocking it: a docs failure
@@ -51,7 +79,7 @@ server.listen(config.port, config.host, () => {
 // /docs hit and by the refresh timer.
 let stopDocsTimer = () => {};
 if (docs) {
-  await docs.refresh().catch((e) => console.error("docs start failed (will retry):", e.message));
+  await docs.refresh().catch((e) => log.error("docs start failed (will retry)", { err: e }));
   stopDocsTimer = docs.startTimer();
 }
 

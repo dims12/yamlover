@@ -8,6 +8,8 @@ import { readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config, linkFor } from "./config.js";
+import { log } from "./log.js";
+import { ga4Tag } from "./ga4.js";
 import { isHash, newHash } from "./hash.js";
 import { proxy } from "./proxy.js";
 import { ProvisionError } from "./provision.js";
@@ -47,7 +49,7 @@ export function makeRouter({ store, provision, rateLimit, docs }) {
         // container that died between requests self-heals on the next hit.
         port = await docs.ensure();
       } catch (e) {
-        console.error("docs unavailable:", e.message);
+        log.error("docs unavailable", { err: e });
         return sendPage(res, 502, "Docs unavailable", "The documentation is starting up. Please retry in a moment.");
       }
       return proxy(req, res, port, () => docs.invalidate());
@@ -75,9 +77,13 @@ export function makeRouter({ store, provision, rateLimit, docs }) {
     if (req.method === "GET" && (pathname === "/" || pathname === "/index.html")) {
       let html = await readFile(join(publicDir, "register.html"), "utf-8").catch(() => "<h1>yamlover demo</h1>");
       // Hand the (public) Turnstile site key to the page; empty string → captcha disabled.
+      // The analytics tag rides along on the same substitution — both are deployment
+      // posture, so the checked-in HTML stays free of keys and of any third party.
       html = html.replace(
         "</head>",
-        `<script>window.__TURNSTILE_SITEKEY__=${JSON.stringify(config.turnstileSiteKey)}</script></head>`,
+        `<script>window.__TURNSTILE_SITEKEY__=${JSON.stringify(config.turnstileSiteKey)}</script>` +
+          ga4Tag(config.ga4MeasurementId) +
+          "</head>",
       );
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       return res.end(html);
@@ -148,9 +154,12 @@ async function register(req, res, { store, rateLimit }) {
   try {
     await sendDemoLink(email, linkFor(hash));
   } catch (e) {
-    console.error("email send failed:", e.message);
+    // No `email` field: the address is the visitor's, and a failed send is diagnosable
+    // from the hash (which the store maps back to it) without copying it into the logs.
+    log.error("email send failed", { err: e, hash, provider: config.emailProvider });
     return sendJson(res, 502, { error: "Could not send the email. Please try again." });
   }
+  log.info(existing ? "demo link resent" : "demo registered", { hash });
   return sendJson(res, 200, { ok: true, message: "Check your email for your demo link." });
 }
 

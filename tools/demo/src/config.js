@@ -61,6 +61,18 @@ export const config = {
   turnstileSiteKey: str("TURNSTILE_SITE_KEY", ""), // public, embedded in the page
   turnstileSecret: str("TURNSTILE_SECRET", ""), // private, server-side siteverify
 
+  // --- observability ---
+  // Which proxied exchanges reach the log. Every SPA asset and every SSE poll passes through
+  // here, so "all" is a firehose that Cloud Logging bills by the byte — the default keeps the
+  // failures (4xx/5xx) that actually need a trace and lets GA4 answer the traffic questions.
+  logHttp: str("LOG_HTTP", "errors"), // "errors" | "all" | "off"
+  logInstances: str("LOG_INSTANCES", "1") !== "0", // relay each yamlover child's own output
+
+  // --- analytics (Google Analytics 4) ---
+  // Unset → no analytics anywhere: nothing is injected into the landing page and the children
+  // are spawned without the variable, so a self-hosted or `npx yamlover` instance stays silent.
+  ga4MeasurementId: str("GA4_MEASUREMENT_ID", ""), // public, embedded in the page (G-XXXXXXXXXX)
+
   // --- the always-on docs instance (one read-only yamlover serving docs/, not a demo) ---
   docsEnabled: str("DOCS_ENABLED", "1") !== "0",
   docsBasePath: normBase(str("DOCS_BASE_PATH", "/docs")), // URL prefix it is served under
@@ -90,6 +102,25 @@ export const REPO_URL = "https://github.com/dims12/yamlover";
 
 /** The base-path a yamlover instance for `hash` is served under (no trailing slash). */
 export const basePathFor = (hash) => `/demo/${hash}`;
+
+/** What a demo instance reports to analytics instead of its real path. A demo hash IS the
+ *  credential for that instance — anyone holding the URL can open it — so it must not be
+ *  copied into a third-party report. Every demo therefore aggregates under one page. */
+export const GA4_DEMO_PATH = "/demo/<id>";
+
+/** The analytics variables handed to a spawned yamlover instance (see tools/server/bin/ga4.js).
+ *
+ *  Empty when analytics is off, which is what keeps a child silent — and `GA4_PAGE_PATH` is
+ *  always explicit when it is on, never left to the child's default. The child would default
+ *  it to its own base path, and for a demo that base path is the secret we are hiding. */
+export function ga4EnvFor(pagePath, { collapse = false } = {}) {
+  if (!config.ga4MeasurementId) return {};
+  return {
+    GA4_MEASUREMENT_ID: config.ga4MeasurementId,
+    GA4_PAGE_PATH: pagePath,
+    GA4_COLLAPSE_PATH: collapse ? "1" : "0",
+  };
+}
 
 /** The public link emailed to a visitor for `hash` (trailing slash → SPA shell). */
 export const linkFor = (hash) => `${config.baseUrl}/demo/${hash}/`;
