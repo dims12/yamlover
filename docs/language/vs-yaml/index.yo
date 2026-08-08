@@ -46,5 +46,5 @@ description: the kept surface, and every place the same token means something el
   - - scalar + fields / mixed keyed+keyless
     - invalid / two node kinds
     - "**one node** - omni by default"
-- *: similarities
 - *: differences
+- *: similarities

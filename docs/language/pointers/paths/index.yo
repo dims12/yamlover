@@ -24,6 +24,15 @@ description: the colon grammar - one meaning for the colon everywhere
           - name: Bubbles
             species: fish
 
+- !!<*yamlover: $defs: xyflow>
+    humans:
+      - name: Alice
+        pets:
+          - name: Whiskers
+            species: cat
+          - name: Bubbles
+            species: fish
+
 - >
     The path to the name `Bubbles` inside this tree will be
 

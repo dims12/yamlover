@@ -1,8 +1,8 @@
 Differences
 description: every deliberate break - the same token, another meaning
 - 'Where the same token means something else, each break its own subchapter:'
+- *: mixtures
 - *: anchors
 - *: aliases
 - *: set
-- *: mixtures
 - *: conformance

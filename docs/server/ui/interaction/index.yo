@@ -1,22 +1,27 @@
 The unified interaction model
-description: one set of pan/zoom/select gestures across prose, images, maps, PDFs, and DjVu
+description: one set of pan/zoom/select gestures across prose, images, maps, graphs, PDFs, and DjVu
 - >
-  Materials that can pan/zoom (images, maps) or that are long documents (PDF, DjVu, prose) all
-  obey the **same gestures**, so muscle memory carries across them. **Selecting is the default**;
-  panning and zooming move to a held modifier (**Ctrl** or **Alt** - either works, plus **Cmd**
-  on a Mac).
+  Materials that can pan/zoom (images, maps, graphs) or that are long documents (PDF, DjVu, prose)
+  all obey the **same gestures**, so muscle memory carries across them. **The primary thing owns
+  the plain drag** - a selection on prose/images/maps, a node on a graph; panning and zooming move
+  to a held modifier (**Ctrl** or **Alt** - either works, plus **Cmd** on a Mac), and the **right
+  mouse button drags the canvas** too.
 - !!<*yamlover: $defs: table>
   header:
     - Gesture
     - 'Prose (text)'
     - 'Image / Map'
+    - 'Graph (xyflow)'
     - 'PDF / DjVu'
-  - ['**drag**', 'select text -> annotate', 'drag a rectangle -> annotate the region', '(PDF) select text -> annotate']
-  - ['**Ctrl/Alt + drag**', '', '**pan** the canvas', '']
-  - ['**wheel**', 'scroll', '**pan vertically**', 'scroll']
-  - ['**Ctrl/Alt + wheel**', '', '**zoom** (around the cursor)', '**zoom** (page width)']
+  - ['**drag**', 'select text -> annotate', 'drag a rectangle -> annotate the region', 'move a **node** (rearrange the drawing)', '(PDF) select text -> annotate']
+  - ['**Ctrl/Alt + drag**', '', '**pan** the canvas', '**pan** the canvas', '']
+  - ['**right-button drag**', '', '**pan** the canvas', '**pan** the canvas', '']
+  - ['**wheel**', 'scroll', '**pan vertically**', '**pan vertically**', 'scroll']
+  - ['**Ctrl/Alt + wheel**', '', '**zoom** (around the cursor)', '**zoom** (around the cursor)', '**zoom** (page width)']
+  - ['**double-click**', '', '', 'open the node''s **element**', '']
 - !!<*yamlover: $defs: bullets>
-  - 'A **plain drag is always a selection** - on an image or map the cursor is a crosshair to signal it. To move the canvas instead, **hold Ctrl/Alt and drag**.'
-  - 'A **plain wheel** behaves like scrolling everywhere: it scrolls prose and paged documents, and pans an image/map vertically (so a tall image scrolls past like text).'
-  - '**Ctrl/Alt + wheel zooms** an image, map, PDF, or DjVu. Images and maps zoom around the pointer; PDF and DjVu scale the page width (then the pane scrolls).'
-  - 'Inline materials embedded in a **chapter** (an image or map chunk) keep plain-drag **pan** and let a plain wheel scroll the chapter, so the surrounding page still scrolls normally; Ctrl/Alt + wheel still zooms the chunk. A marklower **embed** inside a prose chunk is a figure (alone on its line) or a chip that opens in place (mid-sentence); a video embed shows a poster and loads the player only once you click it.'
+  - 'A **plain drag moves the primary thing** - on an image or map it selects (the cursor is a crosshair to signal it), on a graph it grabs a node. To move the canvas instead, **hold Ctrl/Alt and drag**, or **drag with the right button** (the browser menu stays suppressed inside the viewer).'
+  - 'A **plain wheel** behaves like scrolling everywhere: it scrolls prose and paged documents, and pans an image/map/graph vertically (so a tall canvas scrolls past like text).'
+  - '**Ctrl/Alt + wheel zooms** an image, map, graph, or PDF/DjVu. Canvases zoom around the pointer; PDF and DjVu scale the page width (then the pane scrolls).'
+  - 'On a **graph**, a **double-click on a node** navigates to its element (a single click stays free for dragging it); the +/- zoom buttons sit at the top left, as on a map.'
+  - 'Inline materials embedded in a **chapter**: an image or map chunk keeps plain-drag **pan** and lets a plain wheel scroll the chapter, so the surrounding page still scrolls normally (Ctrl/Alt + wheel still zooms the chunk). A **graph chunk is inert** - it neither pans nor zooms; **double-click its canvas to open the graph alone** (a double-clicked node still opens that node''s element). A marklower **embed** inside a prose chunk is a figure (alone on its line) or a chip that opens in place (mid-sentence); a video embed shows a poster and loads the player only once you click it.'

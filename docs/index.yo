@@ -3,21 +3,45 @@
 # intro prose and orders the chapters. Sources and migration progress: ../DOCSMIGRATION.md.
 !!<*yamlover: $defs: chapter>
 yamlover
-description: YAML with pointers - the language, its storage model, and its documents
+description: YAML with pointers – the language, its storage model, and its documents
 
 - >
-  **yamlover** is a language close to YAML that adds a *pointer layer* - `*` dereferences, `&` path
-  anchors, keys that are pointers - and *concretes*: the same logical document can live in one file,
-  in a directory tree, or switch language mid-stream. What YAML gives one file, yamlover gives a whole
-  filesystem.
+  **Yamlover** is a platform that supports the following use cases:
+
+- !!<*yamlover: $defs: bullets>
+  - Cooperation and interoperability between humans, AI/LLMs, and automation tools
+  - AI/LLM memory and context management
+  - Simple text markup (called Marklower)
+  - Personal note-taking, tagging, knowledge organization, mind management, and self-education
+  - Knowledge graph storage and representation
+  - Local-first data ownership and support for cloudless work
+  - Controlled synchronization and collaboration over LAN or the internet
+
 - >
-  This book is the reference. It is itself a yamlover document tree - every page here is a chapter,
-  every paragraph a marklower chunk, and the table of contents is the positional body you are reading
-  now. The [language chapter](::language) is the self-contained spec - principles, the abstract model,
-  every concrete representation, pointers and queries; the [documents chapter](::documents) covers the
-  document layer built on top of it - chapters, marklower prose, tables, lists; the [demo server
-  chapter](::server) documents the web server this book is served by - the UI, the projectional
-  editors and their state machines, annotations.
+  **Yamlover** stands for "YAML overlay", not "Yam lover". YAML is a concise, human-readable data
+  structure language that has been around for years. We have modified and enhanced it, allowing it to
+  overlay a variety of data formats.
+
+- >
+  The following are the major changes:
+
+- !!<*yamlover: $defs: bullets>
+  - All YAML elements have been unified into a single, general-purpose type to represent arbitrary graph structures
+  - Systematic pointer support has been added, enabling full support for directed, cyclic graphs
+  - Yamlover can overlay filesystem directories, binary files, and other formats
+  - Markup (Marklower) is integrated into the language
+
+- >
+  Yamlover still supports JSON, JSON5, and YAML. See the [full differences documentation](::language:vs-yaml) here.
+
+- >
+  This book is the reference. It is itself a yamlover document tree—each page is a chapter,
+  each paragraph is a marklower chunk, and the table of contents is the positional body you are
+  now reading. The [language chapter](::language) is the self-contained specification—principles,
+  the abstract model, concrete representations, pointers, and queries. The [documents chapter](::documents)
+  explains the document layer built on top of yamlover—chapters, marklower prose, tables, and lists. The
+  [demo server chapter](::server) documents the web server that serves this book—the UI, projectional
+  editors, their state machines, and annotations.
 - *: language
 - *: documents
 - *: server
