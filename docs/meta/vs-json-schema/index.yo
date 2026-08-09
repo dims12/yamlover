@@ -1,0 +1,32 @@
+Versus JSON Schema
+description: the keyword-by-keyword equivalence - kept, renamed, replaced, dropped
+- >
+  **The yamlover specifics** over JSON Schema: `type` adds `binary`, `mixed` (the schema name of the
+  `!!mix` shape), and `variant` (the omni value-plus-fields shape, the self-value given as `value:`);
+  `format` is open - a MIME type, a codec, or a yamlover-defined view; `uniqueItems: true` marks a set
+  (the overlay-and-json5p route to `!!set`); `concrete` may be stated but is normally inferable from
+  the filesystem - keep meta minimal. References use `*` pointers, not `$ref`. The combinators
+  (`anyOf`, `oneOf`, `allOf`, `not`, type unions) are kept: a heterogeneous positional body is an
+  `items` union, and `allOf` over a schema pointer is the provisional "extends".
+- >
+  The table tracks each JSON Schema keyword's fate - kept, renamed, replaced, dropped, or still
+  undecided (the spellings await [terse keywords](::meta:principles:terse-keywords)):
+- !!<*yamlover: $defs: table>
+  header:
+    - JSON Schema
+    - yamlover meta
+      width: 2
+    - status
+  - ['`type: string/integer/number/boolean/null`', 'short YAML names - `str`, `int`, `float`, `bool`, `null`', 'TBD']
+  - ['-', '`type: binary`, `mixed`, `variant`', 'added']
+  - ['`$ref`', 'a `*` pointer', 'replaced']
+  - ['`$defs`', '`$defs`, referenced by normal pointers', 'kept']
+  - ['`$id` / `$schema` / `$anchor`', 'paths and `&` anchors', 'dropped']
+  - ['`properties` / `items` / `prefixItems`', 'kept today; per-facet spellings TBD', 'kept/TBD']
+  - ['`minProperties`/`maxProperties`, `minItems`/`maxItems`', '`min`/`max` inside the facet sub-schema', 'renamed']
+  - ['`uniqueItems: true`', 'the set marker (≡ `!!set`)', 'kept']
+  - ['`enum` / `const`', 'kept - `const` describes, never stores', 'kept']
+  - ['`allOf`/`anyOf`/`oneOf`/`not`', 'kept; `allOf` over a schema pointer is the provisional "extends"', 'kept']
+  - ['`title`/`description`/`default`/`examples`', 'kept - the primary purpose, not an annotation afterthought', 'kept']
+  - ['`contentMediaType`/`contentEncoding`', 'the open `format` (and `concrete`)', 'replaced']
+  - ['`if`/`then`/`else`, `dependentRequired`/`dependentSchemas`', 'undecided', 'TBD']

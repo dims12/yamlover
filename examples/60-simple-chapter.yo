@@ -1,7 +1,7 @@
 # A whole article in ONE .yo file — no directory or .yo/ overlay needed.
 # The `!!<…>` tag attaches a schema inline; its contents are a normal yamlover pointer
 # path (a leading `*` is implied), so `*yamlover: $defs: chapter` references the chapter
-# schema hosted by the yamlover project. Spec: docs/documents/chapter, docs/language, docs/language/model/metadata.
+# schema hosted by the yamlover project. Spec: docs/documents/chapter, docs/language, docs/meta.
 #
 # A chapter is a FULLY OMNI node: the node's own scalar SELF-VALUE — the bare line right
 # under the tag — is the TITLE (there is no `title:` key); `description` stays keyed; every

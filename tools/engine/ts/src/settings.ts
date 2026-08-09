@@ -1,4 +1,4 @@
-// Project configuration — `<root>/.yo/settings.yo` (PLAN.md 1d, docs/language/model/metadata).
+// Project configuration — `<root>/.yo/settings.yo` (PLAN.md 1d, docs/meta/structuring).
 //
 // Settings are DEFAULTS, never constraints: a graph node (an annotation, say) may live in ANY
 // directory and keeps working — that is the point of the graph. Settings only tell the server

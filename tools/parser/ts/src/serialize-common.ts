@@ -6,7 +6,7 @@ import { renderPointer } from './pointer.ts';
 
 /** The target concrete cannot express this construct. The lossy policy (PLAN.md 2d) is
  *  REFUSE: a serializer never drops or silently rewrites graph data — route inexpressible
- *  metadata through the meta layer (docs/language/model/metadata) or pick a fuller concrete instead. */
+ *  metadata through the meta layer (docs/meta/attaching) or pick a fuller concrete instead. */
 export class LossyError extends Error {}
 
 /** Double-quoted, JSON-escape style — the parser's dq escapes are a JSON superset. */

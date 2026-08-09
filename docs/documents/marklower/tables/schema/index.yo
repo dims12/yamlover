@@ -1,7 +1,7 @@
 The schema
 description: $defs/table - variant with title, header, and positional rows
 - >
-  `$defs/table` is a normal yamlover/meta schema ([metadata](::language:model:metadata)).
+  `$defs/table` is a normal yamlover/meta schema ([metadata](::meta)).
   `type: variant` with no explicit `format` derives `x-yamlover-table` (the chapter/task
   precedent), which is what the renderer registry keys on:
 - !!<format: text/x-yamlover> |

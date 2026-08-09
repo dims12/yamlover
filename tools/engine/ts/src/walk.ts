@@ -796,7 +796,7 @@ function* childNode(abs: string, m: { type?: string; format?: string } | undefin
   if (fmt && (DOC_FORMATS[fmt] || TEXT_FORMATS.has(fmt))) {
     // a format-matched doc/text file is slurped to parse — unless it is too big to slurp
     if (stat.size > MAX_DOC_BYTES) return blob(abs, fmt, ctx);
-    if (DOC_FORMATS[fmt]) return parsedDoc(abs, DOC_FORMATS[fmt], ctx); // a sub-document encoding → parse (docs/language/model/metadata)
+    if (DOC_FORMATS[fmt]) return parsedDoc(abs, DOC_FORMATS[fmt], ctx); // a sub-document encoding → parse (docs/meta)
     return textScalar(abs, fmt, ctx); // markdown/adoc/plantuml/csv → string + format
   }
   if (fmt) return blob(abs, fmt, ctx); // a known but non-text format = opaque bytes
@@ -807,7 +807,7 @@ function* childNode(abs: string, m: { type?: string; format?: string } | undefin
 /** Apply `meta.yo` `properties.<key>.format` to the matching entries, so a body-overlay
  *  text entry (e.g. 59's `markdown:`) gets its (type, format) just like a file child does. A
  *  Blob already carries its format; a node with a format already wins; binary stays a Blob.
- *  `uniqueItems: true` marks the child a SET (≡ the `!!set` tag — docs/language/model/metadata): NodeMeta.set. */
+ *  `uniqueItems: true` marks the child a SET (≡ the `!!set` tag — docs/meta): NodeMeta.set. */
 function applyMeta(node: Node, meta: Meta): Node {
   for (const e of node.entries ?? []) {
     if (e.key == null || isPointer(e.value)) continue;
@@ -1009,7 +1009,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     // must survive for views/serialization; the derived typing rides its own meta slot
     if (fmt && !hasFormat(inst)) inst.meta = { ...inst.meta, derivedFormat: fmt };
     // recurse structurally — `variant`/`mixed` carry keyed fields exactly like `object`
-    // (docs/language/model/facets: variant = !!var, mixed = !!mix), so `properties`/
+    // (docs/meta/facets: variant = !!var, mixed = !!mix), so `properties`/
     // `additionalProperties` propagate through them too (e.g. a tag taxonomy whose tags
     // hold their description as a BODY still tags every sub-tag). A `variant`/`mixed` node ALSO
     // carries a positional body on the ordinal facet, so `items` propagates alongside them.
@@ -1236,7 +1236,7 @@ const EXT_FORMAT: Record<string, string> = {
 
 const TEXT_FORMATS = new Set(['text/markdown', 'text/asciidoc', 'text/x-plantuml', 'text/csv', 'text/tab-separated-values']);
 
-// A `format` naming a SUB-DOCUMENT ENCODING (docs/language/model/metadata): the file's text parses into a node in
+// A `format` naming a SUB-DOCUMENT ENCODING (docs/meta): the file's text parses into a node in
 // that surface language — `yamlover`/`yaml`/`json`/… for an instance, `…/meta` for a schema doc
 // (e.g. the extensionless `$defs/*` files). These must never fall into the opaque-Blob branch.
 const DOC_FORMATS: Record<string, 'yamlover' | 'json5p' | 'yaml'> = {

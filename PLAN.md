@@ -20,7 +20,7 @@ Working plan for the next build phase. Companion to `docs/language/pointers` (po
 - **`.yo/` holds two overlays** (+ engine cache), both keyed by node path:
   **`body.yo`** = the *instance* (data; replaces the old `schema.yaml`-as-storage),
   and **`meta.yo`** = the *metadata schema*. A bare dir has neither.
-- **Schema kept as METADATA, not storage** (refined 2026-06-07; see `docs/language/model/metadata`). A
+- **Schema kept as METADATA, not storage** (refined 2026-06-07; see `docs/meta`). A
   **JSON-Schema-equivalent for yamlover** — same/close vocab (`properties`, `type`,
   `format`, `prefixItems`, …), written *in yamlover*, **purpose = metadata** (typing,
   `format`/decoding, `concrete`, presentation — the server renders by `(type,format)`),
@@ -62,9 +62,9 @@ Working plan for the next build phase. Companion to `docs/language/pointers` (po
    directory with no overlay takes filesystem order. This is the heart of "YAML
    overlay over the filesystem."
 1d. **`.yo/` directory contract** — `body.yo` (instance) **and**
-   `meta.yo` (metadata schema, `docs/language/model/metadata`); plus reserved names for the SQLite cache;
+   `meta.yo` (metadata schema, `docs/meta`); plus reserved names for the SQLite cache;
    plus, in the **project root** only, `settings.yo` — the **project configuration**
-   (added 2026-06-10, see `docs/language/model/metadata`): e.g. the *default* location for new
+   (added 2026-06-10, see `docs/meta`): e.g. the *default* location for new
    annotations. Settings never constrain *where* a node may live (a maintainer may put
    annotations in any directory and they keep working — that's the point of the graph);
    they only set defaults for where the server *creates* things.
@@ -105,7 +105,7 @@ Working plan for the next build phase. Companion to `docs/language/pointers` (po
    `!!set`/`!!<…>` (json5p → route via the meta layer, as 03-tour already documents).
    **Remaining:** the *directory* concrete (graph → tree + `body.yo`);
    **inlined binary** — a blob must also be emittable INLINE in a text concrete
-   (YAML-`!!binary`-style base64; docs/language/model/metadata already has `type: binary` + codec
+   (YAML-`!!binary`-style base64; docs/meta already has `type: binary` + codec
    `format`, cf. `55-scalar-as-binary`) — the same node in a different concrete,
    file-on-disk vs inline scalar; needs a byte source (the IR carries only the hash —
    the engine's blob store/manifest resolves it), at which point the blob refusal
@@ -115,7 +115,7 @@ Working plan for the next build phase. Companion to `docs/language/pointers` (po
    and inline-binary-vs-blob-file is the same choice again. Today the parsers ACCEPT
    the switch (flow inside block) but the IR forgets it, so SeDe normalizes everything
    to one style. The work: record the authored concrete on the node
-   (`NodeMeta.concrete`, aligning with docs/language/model/metadata's `concrete` keyword — there it is
+   (`NodeMeta.concrete`, aligning with docs/meta's `concrete` keyword — there it is
    *prescribed*, here it is *observed*), have the serializers honor it on re-emission
    (a flow/json5p subtree re-emits as flow inside a block yamlover doc), and define
    the legal switch lattice (which concrete may nest in which — `json ⊂ json5 ⊂
@@ -336,15 +336,15 @@ protocol (OpenAPI).
 - **67-pdf-tags** (was 18) — migrated (commit `c2d8772`): `rel` tables → a
   `!!<*yamlover/$defs/tag>` taxonomy with `*`-pointer membership authored both ways.
 - Schema-pinning / `rel` / `$ref`-in-schema demos retired (`62-defs-and-refs`
-  dropped pending the meta-authoring rethink, see `docs/language/model/metadata`).
+  dropped pending the meta-authoring rethink, see `docs/meta`).
 
 ## Phase 6 — Schema: metadata now, validation later
 
-**Reframed 2026-06-07 (see `docs/language/model/metadata`):** the schema is **not** deferred — it returns as a
+**Reframed 2026-06-07 (see `docs/meta`):** the schema is **not** deferred — it returns as a
 **metadata layer** (`.yo/meta.yo`), a JSON-Schema-equivalent for yamlover whose
 job is typing / `format`-decoding / `concrete` / presentation (the engine & server consume
 it). It exists now (`55-scalar-as-binary`). Remaining spec work:
-- **`docs/language/model/metadata` vocabulary** — pin `type` (+`binary`), `format`, `concrete` (inferable),
+- **`docs/meta` vocabulary** — pin `type` (+`binary`), `format`, `concrete` (inferable),
   `properties`/`prefixItems` nesting, `*`-refs (not `$ref`); meta-path → instance-path map.
 - **Built-in schemas live at the PROJECT ROOT, grafted as the self-import key
   (restructured 2026-06-13; supersedes the `yamlover/` wrapper of `8872299`):**

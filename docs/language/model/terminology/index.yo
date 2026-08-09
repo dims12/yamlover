@@ -6,7 +6,7 @@ description: the words the rest of the spec uses precisely
     - Term
     - Meaning
       width: 3
-  - ['**node**', 'one value in the graph - it may carry a self-value, keyed entries, and keyless entries at once']
+  - ['**node**', 'one vertex in the graph - it may carry a self-value, keyed entries, and keyless entries at once']
   - ['**entry**', 'one element of a node''s single ordered stream - **keyed** (`key: value`) or **keyless** (`- value`); every entry holds a position']
   - ['**self-value**', 'the scalar a node carries as its own value, beside any entries']
   - ['**member**', 'an entry seen from the container side; **anchor-created** members arrive through `&` paths, after the owned entries']
@@ -18,4 +18,5 @@ description: the words the rest of the spec uses precisely
   - ['**concrete**', 'how and where a node''s value is physically stored - orthogonal to type and format']
   - ['**projection**', 'the read-side view the engine serves - labels, order, derived anchors - computed from storage']
   - ['**containment spine**', 'the acyclic tree of key-holds-value edges; a node''s identity path']
+  - ['**spine edge**', 'the owning edge an entry creates - one link of the containment spine; every node but the root hangs from exactly one']
   - ['**ref edge**', 'a non-owning edge a `*` pointer or an `&` anchor creates, laid over the spine']

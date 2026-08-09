@@ -38,10 +38,15 @@ description: YAML with pointers – the language, its storage model, and its doc
   This book is the reference. It is itself a yamlover document tree—each page is a chapter,
   each paragraph is a marklower chunk, and the table of contents is the positional body you are
   now reading. The [language chapter](::language) is the self-contained specification—principles,
-  the abstract model, concrete representations, pointers, and queries. The [documents chapter](::documents)
+  the abstract model, concrete representations, pointers, and queries. The [meta chapter](::meta)
+  is the meta language—yamlover's replacement for JSON Schema: typing, description, and
+  presentation. The [transform chapter](::transform) extends meta to conversions—transforms
+  between yamlover shapes, typed like function prototypes. The [documents chapter](::documents)
   explains the document layer built on top of yamlover—chapters, marklower prose, tables, and lists. The
   [demo server chapter](::server) documents the web server that serves this book—the UI, projectional
   editors, their state machines, and annotations.
 - *: language
+- *: meta
+- *: transform
 - *: documents
 - *: server

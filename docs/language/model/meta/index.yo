@@ -1,0 +1,30 @@
+Meta
+description: attaching metadata with the !!<> tag - expressions, references, named metas
+- >
+  Metadata attaches to a node in-surface with the `!!<...>` **tag**: the tag binds to the value that
+  follows it - or, alone at the top of a document, to the document root. Inside the `<>` goes an
+  expression of the **metadata language** - yamlover meta, the subject of its
+  [own chapter](::meta) - so a one-off format needs no named definition:
+- !!<format: text/x-yamlover> |
+  - !!<format: text/x-plantuml> |   # an inline meta expression -
+    @startuml                       #   itself a one-line yamlover/meta document
+    ...
+- >
+  The expression may equally be a **reference** - a `*` pointer to a meta hosted elsewhere
+  ([structuring](::meta:structuring)) - so a shared definition is written once and attached
+  everywhere:
+- !!<format: text/x-yamlover> |
+  !!<*yamlover: $defs: chapter>     # a pointer to a hosted meta
+  My Article
+- >
+  And `!!` with a bare name - `!!set`, `!!mix`, `!!yo` - is nothing but a **named meta**: a
+  shorthand for the metadata expression known under that name (`!!set` names the set marker,
+  `uniqueItems: true`). `!!yo` is no exception - it names the yamlover meta itself, the top: today
+  its content (the omni shape, the exemption from the enclosing document's meta) is sparsely
+  hardcoded, but it is an ordinary named meta that will eventually be written out explicitly. A
+  bare name may equally name a **transform** ([transforms](::transform)) - `!!omap`, `!!pairs`,
+  `!!binary` - and the naming works the same, since a transform is a meta. There is no tag system
+  beside the meta language - YAML's `!!` surface survives only as this naming.
+- >
+  The tag is one of two attachment routes; the other - a directory's `.yo/meta.yo` overlay - and
+  the rules the two share are described in [attaching](::meta:attaching).

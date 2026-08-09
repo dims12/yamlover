@@ -1,7 +1,7 @@
 The schema
 description: $defs/chapter and $defs/chunk - the body union and shape routing
 - >
-  `$defs/chapter` is a normal yamlover/meta schema ([metadata](::language:model:metadata)):
+  `$defs/chapter` is a normal yamlover/meta schema ([metadata](::meta)):
 - !!<format: text/x-yamlover> |
   type: variant                     # fully omni: a scalar self-value, keyed fields, AND a positional body
   value:       { type: string, format: text/marklower }   # the self-value - the TITLE

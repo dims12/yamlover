@@ -9,7 +9,7 @@ description: inline-only prose; tables and lists are yamlover nodes
   string *elsewhere* in the tree is data, not prose. This part defines the language AND the
   structures it delegates to - [tables](::documents:marklower:tables) and [lists](::documents:marklower:lists).
   Companion language material: the [`:` path grammar](::language:pointers), the [type
-  lattice](::language:model), the [schema vocabulary](::language:model:metadata).
+  lattice](::language:model), the [schema vocabulary](::meta).
 - *: model
 - *: grammar
 - *: link-targets

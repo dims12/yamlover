@@ -100,7 +100,7 @@ export function acceptsAsFlowScalar(text: string): boolean {
 export type EditVerdict = { ok: true } | { ok: false; error: string };
 
 /** The seam for the future schema/meta validation layer — none exists in the codebase yet (deferred,
- *  IR.md Phase 6 / docs/language/model/metadata). Today it affirms every scalar; when the layer
+ *  IR.md Phase 6 / docs/meta). Today it affirms every scalar; when the layer
  *  lands, enforce enum / const / minimum / maximum (from an attached `!!<…>` schema) here. */
 export function validateEdit(_path: string, _source: string, _concrete: string | null): EditVerdict {
   return { ok: true };

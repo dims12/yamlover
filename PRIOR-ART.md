@@ -1,7 +1,7 @@
 # PRIOR-ART — the omnivorous node, surveyed
 
 Companion to `docs/language/vs-yaml/mixtures` (*One ordered container*), `IR.md` (the model being
-claimed), `docs/language/model/facets` (`variant` / the `omni` top type), and
+claimed), `docs/meta/facets` (`variant` / the `omni` top type), and
 `tools/parser/YAML-CONFORMANCE.md` (how far the YAML surface is actually shared).
 
 > **Why this doc.** Surveyed 2026-07-30, in answer to a direct question: *has the yamlover

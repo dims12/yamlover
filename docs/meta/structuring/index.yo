@@ -1,0 +1,16 @@
+Structuring
+description: $defs, pointers instead of $ref, hosted schemas
+- >
+  References use `*` pointers, not `$ref`: reusable fragments live under `$defs` and are referenced
+  with a normal pointer - one reference mechanism for the whole language. `$id`, `$schema`, and
+  `$anchor` have no yamlover spelling: paths and `&` anchors already do their jobs.
+- >
+  **Hosted schemas.** The yamlover project hosts reusable definitions under `$defs` at its project
+  root, and the engine grafts the self-import key `yamlover` into every served root - so
+  `!!<*yamlover: $defs: chapter>` resolves from any project, a detached tree included (the taxonomy
+  ships as package data). The document-model schemas hosted there - `chunk`, `chapter`, `table` - are
+  specified in the [documents chapter](::documents).
+- >
+  A served root's `.yo/settings.yo` carries project configuration. The governing rule: **settings are
+  defaults, never constraints** - a node is identified by what it *is*, not by where it sits; a
+  setting only says where to create things when the user doesn't.

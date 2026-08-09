@@ -26,8 +26,9 @@ description: the full spec – principles, the abstract model, concretes, pointe
 
 - >
   This chapter is the self-contained specification, in five parts: the [abstract
-  model](::language:model)—omnivorous nodes with ordered relations, terminology, and type
-  system; the [concretes](::language:concretes)—every way a node is physically stored and
+  model](::language:model)—omnivorous nodes with ordered relations and their terminology
+  (the type system now lives in the [meta chapter](::meta));
+  the [concretes](::language:concretes)—every way a node is physically stored and
   written; [pointers and queries](::language:pointers)—paths, anchors, and the query language
   (of which these are the only fragment); the [general
   principles](::language:principles) from which the rest follows; and the [relationship to

@@ -67,7 +67,7 @@ class Emitter {
 
   node(n: Node, indent: number): string {
     if (n.kind === 'blob') throw new LossyError('a blob has no json5p text form (its bytes live in a file)');
-    if (n.meta?.schema !== undefined) throw new LossyError('json5p has no !!<…> schema tag — attach the schema via the meta layer (docs/language/model/metadata)');
+    if (n.meta?.schema !== undefined) throw new LossyError('json5p has no !!<…> schema tag — attach the schema via the meta layer (docs/meta/attaching)');
     if (n.meta?.set === true) throw new LossyError('json5p has no !!set — set semantics come from the meta layer (uniqueItems: true)');
     if (n.meta?.yo === true) throw new LossyError('json5p has no !!yo — the plain-yamlover mark has no brace-surface spelling');
     if (n.kind === 'scalar') {

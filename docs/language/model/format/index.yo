@@ -1,0 +1,71 @@
+Format
+description: a named constraint on node content - not a type; markups, codecs, structures
+- >
+  A **format** is a **named constraint** on a node's content - finer than any type can state:
+  `type: string` admits every string, while `format: text/x-plantuml` claims the string parses as a
+  PlantUML diagram. A format refines a facet; it is **not a type**
+  ([terminology](::language:model:terminology)), and it has an open sub-lattice of its own (whether
+  `text/markdown` subtypes `text/plain` is deliberately unsettled). The `format:` schema keyword and
+  its resolution order are the [meta chapter](::meta:format)'s subject.
+- >
+  Usually a format constrains a **string scalar**. But a scalar is just a node **without
+  members** ([members](::language:model:members)), so nothing limits formats to strings: a format
+  may name the shape of *any* node - `x-yamlover-chapter` constrains a whole omni node (a title
+  self value, a `description` key, a positional body), and the platform's tag, fragment, and
+  annotation structures are formats over keyed nodes.
+- 'The formats the platform knows today:'
+- !!<*yamlover: $defs: table>
+  header:
+    - Format
+    - JSON Schema
+    - Usually constrains
+    - What it names
+      width: 2
+  - - '`text/marklower`'
+    - '-'
+    - a string
+    - 'The default prose markup - what a bare string with no stated format is read as.'
+  - - '`text/markdown` · `text/asciidoc` · `text/html` · `text/x-latex`'
+    - '`contentMediaType`'
+    - a string
+    - 'Foreign text markups, rendered by their markup views.'
+  - - '`text/x-plantuml` · `text/csv` · `text/tab-separated-values`'
+    - '`contentMediaType`'
+    - a string
+    - 'Text with a dedicated renderer - a diagram, a table.'
+  - - '`text/plain`'
+    - '`contentMediaType`'
+    - bytes
+    - 'Deliberately opaque - kept as raw bytes so the client decodes under a chosen encoding (legacy Cyrillic text files are common), rather than the server fixing UTF-8.'
+  - - '`yamlover` · `yaml` · `json` · `json5` · `json5p` - and the `.../meta` variants'
+    - '-'
+    - a file or string
+    - 'Sub-document encodings - the text parses into a node in that surface language; a `.../meta` variant marks a schema document.'
+  - - '`text/x-yamlover` · `text/x-yaml` · `text/x-json5p`'
+    - '-'
+    - a string
+    - 'Quoted code - the same surfaces kept *as text*, unparsed (how this book shows its examples).'
+  - - '`image/png` · `application/pdf` · any MIME type'
+    - '`contentMediaType` + `contentEncoding: base64`'
+    - bytes
+    - 'Opaque media - the viewer picks a renderer by the MIME name; an open set.'
+  - - '`int32/le`'
+    - '-'
+    - bytes
+    - 'A codec - decode the bytes into a value (a four-byte file becomes a number).'
+  - - '`date-time`'
+    - '`format: date-time`'
+    - a string
+    - 'A value format kept from JSON Schema.'
+  - - '`x-yamlover-chapter`'
+    - '-'
+    - an omni node
+    - 'A book chapter - title self value, `description`, positional body; the format that shapes this book.'
+  - - '`x-yamlover-tag` · `x-yamlover-fragment` · `x-yamlover-annotation`'
+    - '-'
+    - a keyed node
+    - 'The platform structures - tags, marklower fragments, annotations.'
+  - - '`application/octet-stream`'
+    - '`contentEncoding: base64`'
+    - bytes
+    - 'The fallback - a binary leaf nothing else claimed.'

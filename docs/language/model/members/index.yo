@@ -1,0 +1,57 @@
+Members
+description: entries seen from the container - keyed, keyless, anchor-created
+- >
+  In addition to the scalar self value, a node can have one or more **members**. Members are
+  themselves nodes, linked to this node by [spine edges](::language:model:terminology). Members can
+  be **ordered** (keyless) or **keyed** - and one node may hold both kinds at once, in one ordered
+  stream: every member has an integer position, and a keyed member carries a string key besides.
+- >
+  Examples:
+- !!<format: text/x-yamlover> |
+  whiskers: a grey tabby     # the node's own self value …
+    species: cat             # … a keyed member …
+    - ball                   # … and keyless members - position 0
+    - mouse                  #     position 1
+- >
+  Membership can be constrained. The constraints carry terse YAML-style names, like the
+  [self-value types](::language:model:values):
+- !!<*yamlover: $defs: table>
+  header:
+    - Yamlover name
+    - JSON Schema name
+    - Constraint description
+      width: 2
+    - Examples
+  - - seq
+    - array
+    - 'Only ordered members - no keyed members and no self value.'
+    - '`[ball, mouse]`'
+  - - map
+    - object
+    - 'Only keyed members - no ordered members and no self value.'
+    - '`{species: cat, age: 3}`'
+  - - omap
+    - '- (none)'
+    - 'Not a constraint but a **transform name** ([transforms](::transform)): as a shape it degenerates to `map` - every yamlover map is already ordered - and the transform reshapes a mapping into ordered `[key, value]` members and back.'
+    - '`!!omap {a: 1, b: 2}`'
+  - - set
+    - '- (`uniqueItems`)'
+    - 'Ordered members deduped by identity - membership itself is the data, repeats collapse.'
+    - '`!!set [red, green, blue]`'
+  - - pairs
+    - '- (none)'
+    - 'Also a **transform name**: ordered `[key, value]` members whose keys may repeat - the transform carries them to and from a mapping.'
+    - '`!!pairs [[a, 1], [a, 2]]`'
+  - - mix
+    - '- (none)'
+    - 'At least one keyed AND at least one ordered member, no self value - the mixture plain YAML forbids.'
+    - 'positions beside keys - `- Intro` next to `artist: Queen`'
+  - - yo
+    - '- (none)'
+    - 'No constraint - the **omni** default: members of both kinds, beside a self value.'
+    - 'the `whiskers` example above'
+- >
+  How a constraint is *written* - the facet record behind each name (`seq` is
+  `{value: false, keyed: false}`), and the capability cube the names are corners of - is the
+  [three facets](::meta:facets) chapter's subject; the schema keywords that state one are the
+  [meta chapter](::meta)'s.

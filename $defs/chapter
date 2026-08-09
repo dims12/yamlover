@@ -5,7 +5,7 @@
 #
 # There is no `chunks` array and no `children` array — prose, media, diagrams, and
 # subchapters are siblings in ONE ordered stream. Attach it to a yamlover node with the
-# tag  !!<*yamlover/$defs/chapter>.  Spec: docs/documents/chapter, docs/language/model/metadata.
+# tag  !!<*yamlover/$defs/chapter>.  Spec: docs/documents/chapter, docs/meta.
 #
 # `type: variant` is the omni node: a scalar self-value (the title, given as `value:`) AND
 # keyed fields (description) AND positional elements (the body) at once. The body element type
@@ -13,7 +13,7 @@
 # container, a chunk is a leaf). A BARE SCALAR body element is therefore both "a chunk" and
 # "a title-only subchapter" — the same thing, by design (docs/documents/chapter).
 # NOTE: `value` (scalar) + `properties` (keyed) + `items` (ordinal) is the JSON-Schema encoding
-# of an omni node's facets; docs/language/model/metadata proposes a native `elements`/`additionalElements`.
+# of an omni node's facets; docs/meta proposes a native `elements`/`additionalElements`.
 type: variant
 value:                             # the self-value — the chapter's TITLE
   type: string

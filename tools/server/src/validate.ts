@@ -11,7 +11,7 @@
 //     metadata at all, so they hold for a fresh directory the user has only just started typing
 //     into — which is exactly where the corruption they catch is born.
 //
-//   VALUE (`value/*`) — a node's data against a `.yo/meta.yo` schema (docs/language/model/metadata). The
+//   VALUE (`value/*`) — a node's data against a `.yo/meta.yo` schema (docs/meta). The
 //     codes and the {@link SchemaRule} shape are RESERVED here and {@link compileMeta} ships
 //     returning `[]`: the seam exists so that landing real schema rules later adds a rule SOURCE
 //     and changes no call site, no diagnostic shape, and no enforcement decision.
@@ -80,7 +80,7 @@ export type DiagnosticCode =
   | "layout/orphan-overlay"
   | "layout/duplicate-overlay"
   | "layout/concrete-mismatch"
-  // value — RESERVED for meta.yo (docs/language/model/metadata)
+  // value — RESERVED for meta.yo (docs/meta)
   | "value/type"
   | "value/required"
   | "value/enum"
@@ -176,7 +176,7 @@ export interface LayoutRule {
   onNode?(node: ConcreteNode, tree: TreeSnapshot, fsPaths: ReadonlySet<string>): Diagnostic[];
 }
 
-/** FUTURE — one compiled `meta.yo` keyword, keyed by META-PATH (docs/language/model/metadata's meta-path →
+/** FUTURE — one compiled `meta.yo` keyword, keyed by META-PATH (docs/meta/attaching's meta-path →
  *  instance-path contract). A plain string, so a later `$ref`/`$defs` scheme slots in without
  *  touching the runner. */
 export interface SchemaRule {
@@ -225,7 +225,7 @@ export const layoutRules: readonly LayoutRule[] = [
     },
   },
   {
-    // Everything under a `.yo/` is format furniture with a fixed vocabulary (docs/language/model/metadata). A
+    // Everything under a `.yo/` is format furniture with a fixed vocabulary (docs/meta). A
     // stray name here is content that has escaped the data tree.
     code: "layout/reserved-overlay-name",
     onPath(fsPath, segs) {

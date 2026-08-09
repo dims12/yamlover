@@ -8,12 +8,12 @@ here is exactly what the tools accept.
 The model is **instance-only**: an example stores *data* (plus pointers), in one of the
 **concretes** — a `.json`/`.json5`/`.json5p` file, a `.yaml`/`.yo` file, or a
 **directory** (optionally carrying a `.yo/` overlay). Metadata — types and formats —
-lives in a separate schema layer ([`docs/language/model/metadata`](../docs/language/model/metadata/)), never as storage. When an example
+lives in a separate schema layer ([`docs/meta`](../docs/meta/)), never as storage. When an example
 needs to name a type or format it does so *inline* (a `!!<…>` tag) or in an overlay's
 `meta.yo`, alongside the data but never replacing it.
 
 **Specs:** [`docs/language/pointers`](../docs/language/pointers/) · [IR.md](../IR.md) · [JSON5P.md](../JSON5P.md) ·
-[`docs/language`](../docs/language/) · [`docs/language/model/metadata`](../docs/language/model/metadata/) · [TICKETS.md](../TICKETS.md)
+[`docs/language`](../docs/language/) · [`docs/meta`](../docs/meta/) · [TICKETS.md](../TICKETS.md)
 
 ## Tours — the supersession lattice over one dataset
 
@@ -64,7 +64,7 @@ tagged with the `chapter` schema (`$defs/chapter`). A bare-string body element i
 and a title-only subchapter — the same thing, by design. A schema attaches *inline* in a
 `.yo` file via the `!!<…>` tag (no overlay needed), or through a directory's
 `.yo/meta.yo`. See [`docs/documents/chapter`](../docs/documents/chapter/), [`docs/language`](../docs/language/) and
-[`docs/language/model/metadata`](../docs/language/model/metadata/).
+[`docs/meta`](../docs/meta/).
 
 | # | example | concrete / shows |
 |---|---------|------------------|

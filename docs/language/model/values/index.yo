@@ -1,5 +1,42 @@
-The value axis
+Self value (scalar)
 description: the self-value's types - JSON Schema's set, binary added, its own subtyping
+
+- >
+  Each omnivorous node can have self value (or scalar). This value belongs to one of these types
+
+- !!<*yamlover: $defs: table>
+  header:
+    - Yamlover name
+    - JSON Schema name
+    - Type description
+      width: 2
+    - Examples
+  - - str
+    - string
+    - 'Unicode text. Quoting forces it - `''1''` is the string, bare `1` is not. Refined by `format`; a bare string''s default prose format is `text/marklower`.'
+    - '`Hello, *world*` · `''42''`'
+  - - int
+    - integer
+    - 'A whole number - the subtype of `float` whose value has no fractional part.'
+    - '`30` · `-7` · `0`'
+  - - float
+    - number
+    - 'Any number, whole or fractional. JSON Schema calls the same type `number`; `int` is its subtype.'
+    - '`3.14` · `-2.5` · `6.02e23`'
+  - - bool
+    - boolean
+    - 'The two truth values - nothing else coerces to them.'
+    - '`true` · `false`'
+  - - 'null'
+    - 'null'
+    - 'The singleton - its only value is `null`, so the type is also a value. A bare key `a:` means `a: null`.'
+    - '`~` · `null` · a bare `a:`'
+  - - binary
+    - '- (none)'
+    - 'Opaque bytes - the yamlover addition; JSON Schema has no bytes type. Refined by `format` (`image/png`, `int32/le`); usually stored as a file, and YAML''s `!!binary` (base64) is the same value.'
+    - 'the bytes of `logo.png` · `!!binary R0lGODlh...`'
+
+
 - 'The self-value''s type keeps JSON Schema''s set. It is not flat - it subtypes:'
 - !!<*yamlover: $defs: bullets>
   - '`null` - the **singleton**: its only value is null (`~`, or a bare `a:`). A type that is also a value.'
@@ -28,3 +65,9 @@ description: the self-value's types - JSON Schema's set, binary added, its own s
   A facet carries a small fixed set of modifier keywords beyond false-or-schema - `uniqueItems` (set),
   key-uniqueness (omap versus pairs), ordering (yamlover's default) - almost all kept verbatim from
   JSON Schema. The merge key `<<` and YAML's `!!value` are mechanisms, not types.
+- >
+  Three of these names are more than facet refinements: `!!omap`, `!!pairs`, and `!!binary` are
+  **transform names** ([transforms](::transform)). The records above are only their *result*
+  shapes - the reshaping itself (a mapping to and from ordered `[key, value]` members, bytes
+  decoded into a value and back) belongs to the transform, hardcoded today and to be written out
+  explicitly.

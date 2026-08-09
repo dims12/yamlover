@@ -1,0 +1,6 @@
+Enumerated and constant values
+description: enum and const - value sets and pinned values, kept from JSON Schema
+- >
+  TBD - `enum` and `const`, kept from JSON Schema. One boundary is already fixed: schema-as-storage -
+  pinning data with `const` so the schema *is* the instance - was dropped; `const` describes, never
+  stores.

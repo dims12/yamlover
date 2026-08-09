@@ -1,0 +1,41 @@
+# Yamlover meta - the meta language, yamlover's replacement for JSON Schema. Root body:
+# what meta is and what it drives; each part a subdirectory chapter, ordered by the pointer
+# array below. Absorbed from language/model/metadata (+ facets) - log in ../DOCSMIGRATION.md.
+Yamlover meta
+description: the meta language - the replacement for JSON Schema: typing, description, presentation
+- >
+  **Yamlover meta** is yamlover's schema language - and its **replacement for JSON Schema**. It keeps
+  the familiar vocabulary (`properties`, `type`, `format`, `prefixItems`, `items`) - the same or
+  close - but repurposes it: the primary purpose is **metadata** - typing, decoding, and
+  presentation - with validation a secondary, optional use
+  ([metadata first](::language:principles:metadata-first)). Data lives in the instance; the meta only
+  describes it. Schema-as-storage - pinning data with `const` so the schema *is* the instance - is
+  the one old model that was dropped.
+- >
+  **What the metadata drives.** *Decoding*: a leaf's type and format say how to turn bytes into a
+  value - `type: binary` with `format: int32/le` decodes a four-byte file - and `format` also names a
+  sub-document encoding (`yamlover`, `json5p`, or a `.../meta` variant for a schema document).
+  *Rendering*: the viewer picks a renderer from the facets and the format. *Presentation*: `title` and
+  `description` annotate a node without living in its data. Format resolution order: the meta
+  `format:` if present; else a recognized file extension; else - no meta and no extension - `binary`.
+- >
+  This chapter is the meta reference, shaped like the JSON Schema book: [attaching](:attaching) a
+  meta to an instance; the [three facets](:facets) - the type system that replaces the `type`
+  keyword's boxes; the per-facet keyword chapters - [value](:value), [keyed](:keyed),
+  [ordinal](:ordinal); [enumerated and constant values](:enum-const); [annotations](:annotations);
+  [formats](:format); [composition](:composition); [conditionals](:conditionals);
+  [structuring](:structuring) - `$defs`, pointers, hosted schemas; the [principles](:principles)
+  behind the design; and the keyword-by-keyword [comparison with JSON Schema](:vs-json-schema).
+- *: attaching
+- *: facets
+- *: value
+- *: keyed
+- *: ordinal
+- *: enum-const
+- *: annotations
+- *: format
+- *: composition
+- *: conditionals
+- *: structuring
+- *: principles
+- *: vs-json-schema

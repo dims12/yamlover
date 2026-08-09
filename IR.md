@@ -220,7 +220,7 @@ A directory's foreign files become `Blob` nodes: the IR holds `format` + `conten
 
 ### Metadata (type/format) comes from the schema layer
 The IR carries *data*. A node's **`type`/`format`/presentation** metadata lives in the
-separate **metadata schema** (`.yo/meta.yo`, see `docs/language/model/metadata`) — a JSON-Schema-
+separate **metadata schema** (`.yo/meta.yo`, see `docs/meta`) — a JSON-Schema-
 equivalent whose meta-path maps to an instance-path. The engine attaches it to nodes (e.g.
 to drive decoding a `Blob` via `format`, or rendering by `(type, format)`); the parser does
 not require it. A `Blob`'s `format` may thus be filled from `meta` rather than inferred.

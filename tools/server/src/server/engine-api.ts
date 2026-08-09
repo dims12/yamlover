@@ -1559,7 +1559,7 @@ function buildTree(dataRoot: string, s: Store, segs: Seg[], label: string, depth
   const v = tocValue(row, label);
   if (v !== undefined) node.value = v;
   if (node.hasChildren && depth > 0) {
-    // A BODY-ANCHORED member is ORDINAL (docs/language/model/facets): its key is the storage name the body
+    // A BODY-ANCHORED member is ORDINAL (docs/meta/facets): its key is the storage name the body
     // consumed a pointer to, not an authored key, so the TOC names it by POSITION like any other
     // array element. The PATH stays keyed — that is the canonical, stable address.
     const anchored = anchoredOf(row);
@@ -3060,7 +3060,7 @@ function appendBody(text: string, chapterPath: Seg[], renderItems: (indent: numb
 }
 
 // --- facets: the /api/edit surgical ops ------------------------------------------------------ //
-// A node has four FACETS (docs/language/model/facets): its scalar value, its keyed entries, its ordinal (positional)
+// A node has four FACETS (docs/meta/facets): its scalar value, its keyed entries, its ordinal (positional)
 // entries, and its `!!<…>` meta tag. `emplace` replaces only the facets its payload carries and
 // leaves the rest standing — which is what lets a prose edit keep an annotated chunk's
 // `yamlover-annotations` overlay. `replace` drops all four and assigns the payload.

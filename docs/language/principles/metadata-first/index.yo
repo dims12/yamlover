@@ -9,4 +9,4 @@ description: a schema gives a node its shape, type, and format - it is not a gat
   JSON-Schema-equivalent written in yamlover - and, inside a file, the `!!<...>` tag, whose contents are
   themselves yamlover: a pointer to a hosted schema (`!!<*yamlover: $defs: chapter>`) or an inline
   schema literal (`!!<format: text/x-plantuml>`). Both speak the same vocabulary (the [metadata
-  subchapter](::language:model:metadata)).
+  subchapter](::meta)).

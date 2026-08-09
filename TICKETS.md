@@ -17,8 +17,8 @@ The whole feature is built by **reuse**, not by inventing parallel machinery:
 
 Companion specs: `docs/language` (omni, chapters), `docs/documents/chapter` (the model `task`
 extends) / `docs/documents/marklower` (the prose a task body is written in),
-`docs/server/annotations` (fragments + tag applications), `docs/language/model/metadata` /
-`docs/language/model/facets` (`$defs`, facets, `variant`), `docs/language/pointers` (the `::`
+`docs/server/annotations` (fragments + tag applications), `docs/meta` /
+`docs/meta/facets` (`$defs`, facets, `variant`), `docs/language/pointers` (the `::`
 project scope, `*` deref, ref vs contain), `docs/language/pointers/queries` (selecting tasks).
 
 ---

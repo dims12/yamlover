@@ -41,7 +41,7 @@ Ordered roughly by impact (corpus cases) × independence. Counts are positive-co
    `!foo`, verbatim `!<…>`, and non-specific `!` (~9 parse failures + several value mismatches,
    e.g. `!!str 12` → the string `"12"`). Must **coexist** with yamlover's own `!!mix` / `!!var`
    / `!!<…>` tags. This is the YAML-tag ↔ JSON-Schema-type mapping (`!!int`→integer, `!!seq`→
-   array, …); see `docs/language/model/metadata`.
+   array, …); see `docs/meta`.
 
 3. **Multi-line & folded scalars** — the largest *grammar* gap, spread across many cases:
    - **Plain scalars spanning lines** (line folding: newline → space, blank line → newline).

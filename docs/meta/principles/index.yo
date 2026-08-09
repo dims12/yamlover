@@ -1,0 +1,5 @@
+Principles
+description: why meta, not schema - the design commitments
+- 'Two commitments separate yamlover meta from JSON Schema:'
+- *: more-than-validation
+- *: terse-keywords

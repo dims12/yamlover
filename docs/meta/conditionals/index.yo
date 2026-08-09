@@ -1,0 +1,5 @@
+Conditionals
+description: if/then/else and dependencies - kept or dropped, TBD
+- >
+  TBD - whether JSON Schema's conditional keywords (`if`/`then`/`else`, `dependentRequired`,
+  `dependentSchemas`) survive in yamlover meta, and in what spelling.
