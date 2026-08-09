@@ -1,33 +1,43 @@
 # DOCSMIGRATION — the MD specs become the `docs/` yamlover book
 
 The root-level `*.md` specs migrate into a **yamlover document tree under `docs/`** — a
-directory chapter (`CHAPTER.md` model, the `examples/66-pet-keeper-handbook` shape): `docs/` is
-the book, each toplevel chapter its own subdirectory with a `.yo/body.yo`, prose in marklower
-chunks, structure in the positional body. The book is read, edited, and dogfooded through the
-yamlover server itself — the documentation becomes the largest real instance of the thing it
-describes. Marklower features are expected to **improve along the way** (§Conventions lists the
-constructs the MD sources use that marklower does not carry yet).
+directory chapter (the `examples/66-pet-keeper-handbook` shape): `docs/` is the book, each
+chapter its own subdirectory with an `index.yo` (the overlay stepped out of `.yo/` — the
+`dir/index.yo` concrete), prose in marklower chunks, structure in the positional body. The book
+is read, edited, and dogfooded through the yamlover server itself — the documentation becomes
+the largest real instance of the thing it describes. Marklower features are expected to
+**improve along the way** (§Conventions lists the constructs the MD sources use that marklower
+does not carry yet).
+
+**The migration itself is DONE** (sources stubbed 2026-08-04, stubs deleted 2026-08-07). Since
+2026-08-09 this file is also **the standing plan for syncing the book with the code** —
+§Syncing at the bottom.
 
 ## Target structure
 
 Decided 2026-08-01: **`docs/language/` is the self-contained spec** — it absorbs the pointer,
 type, concrete, and query material (the planned `pointers/`, `types/`, `concretes/`, `query/`
-toplevel chapters were dropped). Storage follows the **default model, recursively**: every
-chapter's own content lives in its directory's `.yo/body.yo`, and ALL subchapters are
-subdirectories, the same way at every depth.
+toplevel chapters were dropped; `meta/` and `transform/` joined as toplevels 2026-08-09).
+Storage follows the **default model, recursively**: every chapter's own content lives in its
+directory's `index.yo`, and ALL subchapters are subdirectories, the same way at every depth.
 
 ```
 docs/
-  .yo/body.yo        — the book root: title, intro prose, the ordered chapter pointers
+  index.yo           — the book root: title, intro prose, the ordered chapter pointers
   .yo/settings.yo    — project settings (already present; docs/ is a served root)
-  language/          — The yamlover language: the full spec, five parts:
-    principles/        one subdirectory per principle (order-is-data, one-node, …)
-    vs-yaml/           the kept surface + every deliberate break, one each
-    model/             terminology, facets, values, order, graph, metadata, matching
+  language/          — The yamlover language: the spec, five parts:
+    model/             the abstract model: values, members, order, format, meta (the !!<> tag),
+                       graph, matching, terminology, constructs
     concretes/         storage laws (storage, choosing, invariants) + the per-language
                        catalogs (yamlover, yaml, json5p, json5_code, json_code)
     pointers/          paths, scopes, deref, anchors, escaping + queries/ nested
+    principles/        one subdirectory per principle (order-is-data, one-node, …)
+    vs-yaml/           the kept surface + every deliberate break, one each
+  meta/              — Yamlover meta: the JSON-Schema replacement (2026-08-09; holds the
+                       facets/type cube and the absorbed metadata vocabulary)
+  transform/         — Transforms: the meta extension for reshaping (2026-08-09)
   documents/         — Documents (chapters, marklower, tables, lists)
+  server/            — the demo server: UI, projectional editors, machines, annotations
 ```
 
 Order is each body's pointer-array data. Toplevel chapter names carry no order prefixes
@@ -283,3 +293,144 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
       itself — an unquoted spacey cell (`{description: A math block, …}`) is a parse error —
       now quoted. Swept mechanically: all 274 `.yo` under `docs/`, `examples/`, `tags/` parse,
       as do the 27 embedded `text/x-yamlover` code chunks and all 10 AGENTS.md fences.
+- [x] The meta language got its own toplevel chapter (2026-08-09): `docs/meta/` — yamlover meta
+      presented as the replacement for JSON Schema, shaped like the "Understanding JSON Schema"
+      book — inserted between `language` and `documents` in the root body. `language/model/facets`
+      moved in whole (`git mv` → `meta/facets`); `language/model/metadata` absorbed and retired:
+      its blocks now seed `meta/` (root body), `meta/attaching`, `meta/structuring`, and
+      `meta/vs-json-schema` (which adds the keyword-by-keyword equivalence table). New stub
+      chapters await prose: `value`, `keyed`, `ordinal`, `enum-const`, `annotations`, `format`,
+      `composition`, `conditionals`. `meta/principles/` states the two design commitments:
+      more-than-validation (why "meta", not "schema") and terse-keywords (yaml-style short
+      names, kebab-case TBD). All live citations repointed (`::language:model:metadata` → `::meta`,
+      `docs/language/model/{metadata,facets}` → `docs/meta{,/facets}`) across the book, the root
+      MDs, `$defs/chapter`, both `.yo/meta.yo` overlays, and the tools' code comments; this log
+      keeps the historical spellings.
+- [x] The model grew its missing chapters (2026-08-09): `model/members` (members as nodes on
+      spine edges; the membership-constraint table - seq/map/set/mix/yo with JSON Schema names
+      and examples), `model/format` (format as a NAMED CONSTRAINT on any node's content - a
+      scalar is just a node without members - with the known-formats table read off the engine's
+      EXT_FORMAT/TEXT_FORMATS/DOC_FORMATS + the builtin x-yamlover-* schemas), and `model/meta`
+      (the `!!<...>` attachment tag: a meta-language expression or a `*` reference inside `<>`;
+      a bare `!!name` is a NAMED meta, `!!yo` included - its content sparsely hardcoded today).
+      The values chapter's type table widened (JSON Schema names + examples columns, the
+      `binary` row); `terminology` gained the `spine edge` entry; model children reordered by
+      hand (terminology demoted toward the end).
+- [x] Transforms named (2026-08-09): `docs/transform/` - a toplevel chapter between `meta` and
+      `documents`. A transform is the meta EXTENSION describing conversions between yamlover
+      shapes, typed like a function prototype: metas for the arguments, a meta for the result,
+      plus the reshaping between. Terminology settled the same round: "projection" stays the
+      storage-derived read view, "transform" is the data-to-data reshaping. `!!omap`, `!!pairs`,
+      `!!binary` reframed as TRANSFORM NAMES (hardcoded today, written out later) consistently
+      across `model/values`, `model/members`, `model/meta`, and the transform chapter itself.
+
+## Syncing — the standing plan (2026-08-09–)
+
+The book and the code are now one system evolving together: dogfooding surfaces representation
+bugs, doc rounds surface undocumented behavior, and design rounds (the `meta`/`transform`
+chapters, the `entries:` keyword) deliberately run AHEAD of the code. The rules:
+
+- **The book is the spec.** Code comments cite chapters by repo-root path (the 2026-08-05/07
+  convention); a restructure repoints every live citation in the same change set
+  (`DOCSMIGRATION.md` and `.yo/.trash` keep historical spellings).
+- **No silent divergence.** A doc statement the code contradicts is either a defect to fix or
+  gets an explicit "hardcoded today / to be written out" marker in the prose. TBD stubs are
+  legal; unmarked divergence is not.
+- **Design-ahead chapters say so** in their own text (the transform chapter, `!!yo`'s content,
+  the terse-keyword spellings), so a reader can always tell law from plan.
+- Every edited `.yo` is vet-parsed before commit (the reconcile-poisoning gotcha), and
+  structural checks run against a SCRATCHPAD copy - never the live served index.
+
+### Sync checklist
+
+- [x] Full three-way consistency audit RAN (2026-08-09): book-internal claims + links;
+      `model`/`meta`/`transform` vs parser+engine; structure + `documents`/`server` vs
+      tools/server. STRUCTURE IS CLEAN: 246 chapters, every child pointer and all 390 absolute +
+      17 relative links resolve, zero orphans; the meta/facets+metadata repoint fully propagated.
+      Strong matches worth knowing: the tables chapter ($defs/table ↔ doc ↔ renderer) is
+      three consistent copies; THE ROLES LAW is verbatim in roles.ts; `!!set` ≡ `uniqueItems`
+      holds end-to-end incl. projection dedup; json5p refuses-never-drops as documented;
+      settings-are-defaults near-verbatim in settings.ts; `!!yo` exemption exact. Findings
+      filed as the items below.
+- [ ] DECIDE the `!!mix` story - four positions coexist: a constraint requiring one entry of
+      each (meta/facets:29,51; model/members:47), a no-op marker parsed-and-discarded
+      (principles/one-node:19, vs-yaml/differences/{mixtures:7,set:7} - matching the parser,
+      yamlover.ts:478), a named meta (model/meta:20). One ruling, then respell the losers.
+- [ ] DECIDE `type: variant` - "constrains nothing, a tautology" (meta/facets:34) vs
+      load-bearing in documents/*: asserts fully-omni AND derives `x-yamlover-*` formats
+      (tables/schema:5, lists:21). State the schema-derives-format reading in facets or split
+      the meanings.
+- [ ] MARK the design-ahead parts of `meta/facets` as future: the facet keywords
+      `value:`/`keyed:`/`ordinal:` and the `min`/`max` quantifiers are implemented nowhere -
+      the engine's whole schema vocabulary is type/format/properties/additionalProperties/
+      items/anyOf/allOf (walk.ts:1016-1044; compileMeta returns [] - validate.ts:192);
+      `$defs/chapter` even authors `value:` and the engine ignores it (a chapter title never
+      receives text/marklower from the schema). Same marker for meta/attaching's "nests under
+      the JSON-Schema keywords" (reality: one level, three keywords - walk.ts:699-715, which
+      validate.ts:179 itself calls FUTURE).
+- [ ] SOFTEN "hardcoded today" for `!!omap`/`!!pairs`/`!!binary` (transform:16, model/values:69,
+      model/members:33-44): none PARSE - the bare-tag regex is `!!(mix|var|omni|yo|set)`
+      (yamlover.ts:429); `!!binary` exists only as client output decoration; `int32/le` decodes
+      only in the superseded legacy loader (server/yamlover.ts:436), never in the engine walk
+      (cited as current in 5 chapters).
+- [ ] FIX the model-root vocabulary: model/index.yo defines "relations" carrying per-edge
+      "ordinals" - terminology has entry/member/spine edge/ref edge and no "relation" (used
+      undefined in 9 more chapters; "ordinal" also means the facet). Standardize
+      "self-value" (3 spellings live) and the omnivorous spelling; typos: "Nodeas",
+      "ombivorous", two unclosed parens (model/index:8, pointers/index:7), "ptah"/"alos"/
+      "ot"/"1th"/"it's" in pointers/paths, "tree" where the book insists on "graph".
+- [ ] ADD the `back` edge to terminology: anchors realize as EdgeKind 'back', not 'ref'
+      (resolve.ts:81, ir.ts:175; store adds 'derived'), and the load-bearing rule "reverse
+      members never change a node's kind" (node-kind.ts:20-28 - why a tagged PDF stays binary)
+      is documented nowhere; terminology:22 says an `&` anchor creates a ref edge.
+- [ ] FIX or file as defects: the query type matcher lacks `mixed`/`null`/`scalar`
+      (query.ts:386-398 - `!!<type: mixed>` silently matches nothing while `mixed` is a live
+      display kind); blob/binary is a first-class node kind beside scalar in code
+      (node-kind.ts:10), folded into scalar by the book; the format-resolution fallback is
+      sniff-then-parse-as-yamlover, not "binary" (walk.ts:793-804 vs meta/index:19); `text/html`
+      is NOT in TEXT_FORMATS so an .html file becomes a Blob (format table says string);
+      `x-yamlover-tag`/`-annotation` are `type: variant`, not "a keyed node" (format table);
+      "grafts the `yamlover` self-import into EVERY served root" - on the self-root it
+      DE-materializes instead (walk.ts:312-345); `json5/meta` missing from DOC_FORMATS while
+      the book generalizes "the .../meta variants" (and `json/schema` is code-only).
+- [ ] REPOINT the pre-meta stale citations the 2026-08-07 sweep missed - all from the vs-yaml
+      differences/similarities split: `docs/language/vs-yaml/tilde` (10 sites; the chapter does
+      NOT exist - nearest content similarities/null-keys), `vs-yaml/mixtures` →
+      `differences/mixtures` (13 sites incl. examples/06-tour.yo:50 and
+      examples/67-pdf-tags/.yo/body.yo:14), `vs-yaml/null-keys` → `similarities/null-keys`
+      (IR.md:179, JSON5P.md:68).
+- [ ] REFRESH docs/server for the one-wire migration it predates: `/api/json` cited as live
+      (editor/file-index:5,20; editor/projections:16) - the route does not exist, the wire is
+      `/api/content` + the envelope, never mentioned; `yed-load.ts` (4 sites) is now
+      yed-content-load.ts; `derive-concrete.ts` (yamlover-editor:70) is concrete-rules.ts +
+      concrete.ts. Also: ui/editing:15's retired `:doc[3]` bracket spelling, the `*`/`~`
+      "edges" wording (ui/views:13, yamlover-editor/key_cell_editing:7 - `~` is the null key
+      now), and annotations/storage:10's keyed `title:` example shown as current shape.
+- [ ] SMALL BOOK FIXES: documents/chapter/schema:11-14 quotes a 3-branch body union
+      ($defs/chapter has 5 - bullets/numbered missing; the sibling tables/schema lists all 5);
+      $defs/chunk:3 comment says "markdown prose" (schema and book say marklower);
+      source-header comments name deleted files (docs/server/index.yo:2,
+      docs/documents/index.yo:1, docs/documents/chapter/index.yo:1); model/index:27 tags its
+      example `$defs: xyflow` - no such def (renders only via derived-format leniency,
+      store.ts:615); pointer chapters conflict on quoted `'..'` (paths:90 "any quoted portion
+      is a string key" vs escaping:10 "both meaning parent") and on `null`/`<<`/`-` as path
+      tokens vs the normative ABNF (paths:54-66 vs :106-115); three tail-ordering stories
+      (order:21 lexicographic vs chapter/model:25 scan order vs order-is-data:20 keyed-only);
+      model/format:8 points at the meta/format stub for a resolution order the stub doesn't
+      state (it lives in meta/index:19).
+- [ ] Meta stub chapters await prose: `value`, `keyed`, `ordinal`, `enum-const`, `annotations`,
+      `format`, `composition`, `conditionals` (the `keyed`/`ordinal` pair may merge into an
+      `entries` chapter - next item)
+- [ ] Spec the `entries:` design round (2026-08-09 discussion) into `meta/`: ONE omni
+      `entries:` keyword - a keyed clause describes the same-named entry (`properties`), the
+      k-th keyless clause the k-th keyless entry (`prefixItems`), selector clauses sweep by
+      pattern/index-range; `others:` covers what no clause matched (`additionalProperties`/
+      `unevaluated*`); per-clause `min`/`max` subsume `required`/`contains`; a clause position
+      keyword (`at:` - restart the ordinal count from N, `~` = floating). Add the rows to
+      `meta/vs-json-schema`.
+- [ ] Decide the terse keyword spellings (kebab-case TBD) and respell `meta/vs-json-schema`'s
+      "yamlover meta" column
+- [ ] Write out the named metas/transforms that are hardcoded today: `!!yo` (the yamlover meta
+      itself), `!!omap`, `!!pairs`, `!!binary` - `docs/transform` carries the frame
+- [ ] Root `docs/index.yo` header comment still says `.yo/body.yo` - respell to `index.yo`
+      when next touching the file
