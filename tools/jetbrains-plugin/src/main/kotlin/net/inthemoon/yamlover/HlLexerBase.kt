@@ -297,13 +297,27 @@ abstract class HlLexerBase(
         return i - ls
     }
 
-    /** A `|`/`>` is a block header only at value start — after `key:`, a `- ` item, or BOL. */
+    /** A `|`/`>` is a block header only at value start — after `key:`, a `- ` item, BOL, or a
+     *  DECORATION TAG (`- !!<format: text/plain> |`, `- !!yo |`): the tag decorates the value, so
+     *  the indicator after it still starts one — without this the tagged block's body would be
+     *  re-lexed and an unbalanced quote inside could bleed a string across the chunks below
+     *  (highlight.ts atValueStart, the source of truth). */
     private fun atValueStart(pos: Int): Boolean {
         var i = pos - 1
         while (i >= 0 && (buffer[i] == ' ' || buffer[i] == '\t')) i--
         if (i < 0) return true
         val c = buffer[i]
-        return c == ':' || c == '-' || c == '\n' || c == '\r'
+        if (c == ':' || c == '-' || c == '\n' || c == '\r') return true
+        if (c == '>') {
+            // a closed `!!<…>` tag: scan to its `<` on this line, then require the `!!` sigil
+            var k = i - 1
+            while (k >= 0 && buffer[k] != '\n' && buffer[k] != '\r' && buffer[k] != '<') k--
+            return k >= 2 && buffer[k] == '<' && buffer[k - 1] == '!' && buffer[k - 2] == '!'
+        }
+        // a bare `!!name` tag (`!!yo`, `!!set`, …)
+        var k = i
+        while (k >= 0 && (buffer[k].isLetterOrDigit() || buffer[k] == '_' || buffer[k] == '-')) k--
+        return k in 1 until i && buffer[k] == '!' && buffer[k - 1] == '!'
     }
 
     /** If `from` (a `|`/`>`) opens a block header — `[+\-0-9]*` indicators then EOL / ` #` — the

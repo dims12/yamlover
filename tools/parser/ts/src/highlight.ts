@@ -99,13 +99,26 @@ export function tokenize(text: string, lang: HlLang = 'yamlover'): HlToken[] {
     return j - ls;
   };
 
-  /** A `|`/`>` opens a block header only at value start — after `key:`, a `- ` item, or BOL. */
+  /** A `|`/`>` opens a block header only at value start — after `key:`, a `- ` item, BOL, or a
+   *  DECORATION TAG (`- !!<format: text/plain> |`, `- !!yo |`): the tag decorates the value, so
+   *  the indicator after it still starts one — without this the tagged block's body would be
+   *  re-lexed and an unbalanced quote inside could bleed a string across the chunks below. */
   const atValueStart = (pos: number): boolean => {
     let j = pos - 1;
     while (j >= 0 && isSpace(text[j])) j--;
     if (j < 0) return true;
     const c = text[j];
-    return c === ':' || c === '-' || isEol(c);
+    if (c === ':' || c === '-' || isEol(c)) return true;
+    if (c === '>') {
+      // a closed `!!<…>` tag: scan to its `<` on this line, then require the `!!` sigil
+      let k = j - 1;
+      while (k >= 0 && !isEol(text[k]) && text[k] !== '<') k--;
+      return k >= 2 && text[k] === '<' && text[k - 1] === '!' && text[k - 2] === '!';
+    }
+    // a bare `!!name` tag (`!!yo`, `!!set`, …)
+    let k = j;
+    while (k >= 0 && /[A-Za-z0-9_-]/.test(text[k])) k--;
+    return k >= 1 && k < j && text[k] === '!' && text[k - 1] === '!';
   };
 
   /** Past-the-indicators index if `from` (a `|`/`>`) opens a block header, else null. */

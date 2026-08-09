@@ -79,6 +79,22 @@ test('hl: a block scalar body is opaque — never re-lexed', () => {
   assert.ok(toks.some(([k, t]) => k === 'key' && t === 'after'));
 });
 
+test('hl: a TAGGED block scalar is still a block — the tag decorates the value', () => {
+  // `- !!<format: text/plain> |` — an unbalanced quote in the body must NOT bleed a string
+  // into the sibling below (the ABNF-in-the-book case)
+  const tagged = kinds('- !!<format: text/plain> |\n  name = "\\" CHAR\nafter: 1\n');
+  assert.ok(tagged.some(([k, t]) => k === 'plain' && t.includes('name = "\\" CHAR')));
+  assert.ok(tagged.some(([k, t]) => k === 'key' && t === 'after'));
+  // the bare-name tag form: `- !!yo |`
+  const bare = kinds('- !!yo |\n  a: "open\nafter: 1\n');
+  assert.ok(bare.some(([k, t]) => k === 'plain' && t.includes('a: "open')));
+  assert.ok(bare.some(([k, t]) => k === 'key' && t === 'after'));
+  // but a `>` that is ordinary scalar content still does not open a block: the next line's
+  // `c:` lexes as a real key, not as opaque body
+  assert.ok(kinds('x: a > b |\n  c: 1\n').some(([k, t]) => k === 'key' && t === 'c'));
+  total('x: a > b |\n  c: 1\n');
+});
+
 test('hl: totality on adversarial half-typed input', () => {
   total('x: "unterminated\n  - *:\n!!<open\n| \n');
   total('*');
