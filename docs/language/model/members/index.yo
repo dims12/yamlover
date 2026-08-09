@@ -7,7 +7,7 @@ description: entries seen from the container - keyed, keyless, anchor-created
   stream: every member has an integer position, and a keyed member carries a string key besides.
 - >
   Examples:
-- !!<format: text/x-yamlover> |
+- !!yo
   whiskers: a grey tabby     # the node's own self value …
     species: cat             # … a keyed member …
     - ball                   # … and keyless members - position 0
