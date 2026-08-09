@@ -215,14 +215,17 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
   if ((c.at !== "hole" && c.at !== "pick") || !c.ref) return null;
   const pick = (h: Hint): void => { ctx.onText(h.insert); setSel(-1); };
   // the dropdown's keys ride BEFORE the grammar - only while a hint list is up, and only the
-  // keys the list claims (vertical walk, Enter on a HIGHLIGHTED row, Escape); everything else
-  // falls through to ctx.onKey untouched - hints never gate typing
+  // keys the list claims (vertical walk, Tab, Enter on a HIGHLIGHTED row, Escape); everything
+  // else falls through to ctx.onKey untouched - hints never gate typing
   const hctx: CellCtx = items.length === 0 ? ctx : {
     ...ctx,
     onKey: (e, edges) => {
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
         if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => (s + 1) % items.length); return; }
         if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => (s <= 0 ? items.length - 1 : s - 1)); return; }
+        // Tab is the ACCEPT key (the query editor's rule, query-cells.tsx): the armed candidate,
+        // else the FIRST one - Enter stays the free-typed commit (hints are never validators)
+        if (e.key === "Tab") { e.preventDefault(); e.stopPropagation(); pick(items[sel >= 0 ? sel : 0]); return; }
         if (e.key === "Enter" && sel >= 0) { e.preventDefault(); pick(items[sel]); return; }
         if (e.key === "Escape" && sel >= 0) { e.preventDefault(); setSel(-1); return; }
       }

@@ -135,6 +135,24 @@ describe("the dropdown over the portion cells - the debug editor's pointer entra
     expect(rows()).toEqual(["[0]", "[1]"]);
   });
 
+  it("Tab ACCEPTS - the armed candidate, else the FIRST row (the query editor's rule)", async () => {
+    render(<Harness />);
+    await act(async () => { domType("*"); });
+    // no row armed: Tab takes the FIRST hint into the cell - never an indent, never a focus walk
+    await act(async () => { fireEvent.keyDown(focused(), { key: "Tab" }); });
+    expect(focused().value).toBe("pets");
+    expect(sourceOf(lastState.doc)).toBe(DOC); // replaced text only - nothing committed
+    // an ARMED row: Tab takes it, like Enter would
+    await act(async () => { domType(":"); });
+    await act(async () => { fireEvent.keyDown(focused(), { key: "ArrowDown" }); });
+    await act(async () => { fireEvent.keyDown(focused(), { key: "ArrowDown" }); });
+    await act(async () => { fireEvent.keyDown(focused(), { key: "Tab" }); });
+    expect(focused().value).toBe("1");
+    // the grammar's Enter still owns the commit
+    await act(async () => { fireEvent.keyDown(focused(), { key: "Enter" }); });
+    expect(sourceOf(lastState.doc)).toBe(DOC + "- *pets: 1\n");
+  });
+
   it("a CLICK on a row picks it; the grammar's Enter still commits the reference", async () => {
     render(<Harness />);
     await act(async () => { domType("*"); });
