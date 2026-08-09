@@ -51,8 +51,9 @@ description: the self-value's types - JSON Schema's set, binary added, its own s
     - 'Opaque bytes - the yamlover addition; JSON Schema has no bytes type. Refined by `format` (`image/png`, `int32/le`); usually stored as a file, and YAML''s `!!binary` (base64) is the same value.'
     - 'the bytes of `logo.png` · `!!binary R0lGODlh...`'
 - >
-  A scalar may carry a **format** - `text/markdown`, `image/png`, `int32/le` - a named constraint
-  refining how the value is decoded, rendered, and edited; a bare string's default prose format is
-  `text/marklower`. The [format chapter](::language:model:format) is its subject.
+  A scalar may carry a **format** - JSON Schema's own (`date-time`, `email`, `uri`) and, beyond
+  them, `text/markdown`, `image/png`, `int32/le` - a named constraint refining how the value is
+  decoded, rendered, and edited; a bare string's default prose format is `text/marklower`. The
+  [format chapter](::language:model:format) is its subject.
 
 
