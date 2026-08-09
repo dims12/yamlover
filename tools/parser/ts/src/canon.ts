@@ -21,7 +21,7 @@ export function canonPtr(p: Pointer): unknown {
 }
 
 /** A deprecated `~` back entry with an absolute-scoped pointer is EQUIVALENT to a `&`
- *  path anchor (`~k: *P` ≡ `&P/k`, `~- *P` ≡ `&P[]`) — and the serializers emit the
+ *  path anchor (`~k: *P` ≡ `&P/k`, `~- *P` ≡ `&P: -`) — and the serializers emit the
  *  anchor form. Canon folds both authorings into one anchor set (semantic identity =
  *  base+steps+ordinal; raw differs between the spellings by construction). */
 function convBack(e: Entry): boolean {

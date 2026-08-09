@@ -46,8 +46,8 @@ test('hl: a pointer path runs to end of line, portions as refs', () => {
     ['punct', ':'], ['ref', 'name'],
   ]);
   // an anchor is the same grammar behind `&`; a trailing comment still ends it
-  assert.deepEqual(kinds('&:: tags: whole[] # also there\n')[0], ['pointer', '&']);
-  assert.ok(kinds('&:: tags: whole[] # also there\n').some(([k, t]) => k === 'comment' && t === '# also there'));
+  assert.deepEqual(kinds('&:: tags: whole: - # also there\n')[0], ['pointer', '&']);
+  assert.ok(kinds('&:: tags: whole: - # also there\n').some(([k, t]) => k === 'comment' && t === '# also there'));
 });
 
 test('hl: sequence dashes, flow punctuation, standalone [n] index', () => {

@@ -9,13 +9,13 @@
  * ── Semantics encoded here (the rulings) ──────────────────────────────────────────────
  * O1  Result ORDER is walk/entry order: members arrive in their container's document
  *     order, a deref'd member keeps its position; dedup by path keeps the FIRST hit.
- * O2  Wildcards ENUMERATE anchor-created entries: `?` sees keyed anchor grafts, `[?]`
+ * O2  Wildcards ENUMERATE anchor-created entries: `?` sees keyed anchor grafts, `-`
  *     sees those plus ordinal (`&…[]`) memberships — appended after the container's own
  *     entries. `[n]` never addresses an anchor-created entry (no position claims).
  * M1  No edge-kind test in v1 — member-vs-subtag splits use node-shape matchers.
  * M2  `..` = the spine parent (≤1); `?..` = ALL parents (holders of contain/ref edges
  *     into me + containers I'm an ordinal member of); `key..` = the parent who knows me
- *     as `key`; `[]..` = keyless holders only.
+ *     as `key`; `-..` = keyless holders only.
  * M4  Matchers: `!!<…>` carries META vocabulary (`type:`, `format:`) or a schema
  *     pointer (`!!<*…>` — conformance, equivalent to the derived x-yamlover-<name>
  *     format). Scalar value tests ALWAYS carry an operator (`=31`, `=true`, `=null`,
@@ -50,7 +50,7 @@ pets:
   - name: Mia
     species: cat
 thirty: 30
-  &: tags: whole[]
+  &: tags: whole: -
 tags:
   whole: Whole numbers
 `;
@@ -78,20 +78,20 @@ export const CASES: QueryCase[] = [
     note: 'implicit deref: the result is the TARGET node' },
   { q: 'team: alice: pet: name', fixture: 'inline', expect: [':pets:0:name'] },
 
-  // ════ 2. Wildcards `?` / `[?]` ════
+  // ════ 2. Wildcards `?` / `-` ════
   { q: 'team: ?', fixture: 'inline', expect: [':team:alice', ':team:bob'] },
   { q: 'team: ?: age', fixture: 'inline', expect: [':team:alice:age', ':team:bob:age'] },
   { q: 'pets: ?', fixture: 'inline', expect: [],
     note: 'pets has only keyless entries' },
-  { q: 'pets[?]', fixture: 'inline', expect: [':pets:0', ':pets:1'] },
-  { q: 'pets[?]: name', fixture: 'inline', expect: [':pets:0:name', ':pets:1:name'] },
+  { q: 'pets: -', fixture: 'inline', expect: [':pets:0', ':pets:1'] },
+  { q: 'pets: -: name', fixture: 'inline', expect: [':pets:0:name', ':pets:1:name'] },
   { q: 'team: ?: pet', fixture: 'inline', expect: [':pets:0', ':pets:1'] },
   { q: '?', fixture: 'inline', expect: [':team', ':pets', ':thirty', ':tags'],
     note: 'a query may open with a wildcard' },
   { q: '?: age', fixture: 'inline', from: ':team', expect: [':team:alice:age', ':team:bob:age'] },
-  { q: ': tags: whole[?]', fixture: 'inline', expect: [':thirty'],
-    note: 'O2: [?] sees the ordinal (&…[]) membership appended by /thirty' },
-  { q: 'team: alice[?]', fixture: 'inline', expect: [':team:alice:age', ':pets:0'],
+  { q: ': tags: whole: -', fixture: 'inline', expect: [':thirty'],
+    note: 'O2: - sees the ordinal (&…: -) membership appended by /thirty' },
+  { q: 'team: alice: -', fixture: 'inline', expect: [':team:alice:age', ':pets:0'],
     note: 'all entries in order: contain (age), then the deref’d ref (pet)' },
   { q: ': tags: whole: 0', fixture: 'inline', expect: [],
     note: 'O2: a position step never addresses an anchor-created member (no position claims)' },
@@ -113,7 +113,7 @@ export const CASES: QueryCase[] = [
     note: 'descent from a leaf is just self' },
 
   // ════ 4. The uplink family (M2) — replaces the old `~` axis ════
-  { q: ': thirty: []..', fixture: 'inline', expect: [':tags:whole'],
+  { q: ': thirty: -..', fixture: 'inline', expect: [':tags:whole'],
     note: '"which containers hold me keyless" — the ordinal anchor walked backwards' },
   { q: ': tags: whole: ?..', fixture: 'inline', expect: [':tags'],
     note: 'ALL parents of whole: only the spine (the membership edge leaves whole)' },
@@ -136,19 +136,19 @@ export const CASES: QueryCase[] = [
   { q: 'team: ?: age: =31', fixture: 'inline', expect: [':team:alice:age'],
     note: 'equality always carries = (a bare integer would be a position step)' },
   { q: 'team: ?: age: !=31', fixture: 'inline', expect: [':team:bob:age'] },
-  { q: 'pets[?]: species: =cat', fixture: 'inline', expect: [':pets:1:species'],
+  { q: 'pets: -: species: =cat', fixture: 'inline', expect: [':pets:1:species'],
     note: 'string equality is ALWAYS spelled with = (a bare word is a key step)' },
   { q: ': thirty: =30: ..', fixture: 'inline', expect: [':'],
     note: 'test portion then step: value-test the current node (=30 ✓ on /thirty), then up' },
 
   // ════ 6. 06-tour ════
-  { q: ': pets[?]: name', fixture: '06-tour',
+  { q: ': pets: -: name', fixture: '06-tour',
     expect: [':pets:0:name', ':pets:1:name', ':pets:2:name'] },
-  { q: ': playlist[?]', fixture: '06-tour',
+  { q: ': playlist: -', fixture: '06-tour',
     expect: [':playlist:0', ':playlist:1', ':playlist:title', ':playlist:3', ':pets:0'],
     note: 'O1 entry order: encore (a deref’d member) keeps its 5th position' },
   { q: ': playlist: ?', fixture: '06-tour', expect: [':playlist:title', ':pets:0'] },
-  { q: ': rating[?]', fixture: '06-tour',
+  { q: ': rating: -', fixture: '06-tour',
     expect: [':rating:0', ':rating:1', ':rating:scale', ':humans:0'],
     note: 'omni fields in entry order; author deref’d last' },
   { q: ': rating: =5: scale', fixture: '06-tour', expect: [':rating:scale'],
@@ -166,9 +166,9 @@ export const CASES: QueryCase[] = [
     note: 'spine (:), the anchor graft (also :, deduped), team.lead' },
   { q: ': pets: 1: ?..', fixture: '06-tour', expect: [':pets', ':humans:0', ':'],
     note: 'spine first, then ref holders in EDGE order (manager precedes feline in the walk)' },
-  { q: ': fan: []..', fixture: '06-tour', expect: [':favorites', ':crew'],
-    note: 'both ordinal-anchor memberships (&: favorites[] / &: crew[])' },
-  { q: ': favorites[?]', fixture: '06-tour', expect: [':pets:0', ':fan'],
+  { q: ': fan: -..', fixture: '06-tour', expect: [':favorites', ':crew'],
+    note: 'both ordinal-anchor memberships (&: favorites: - / &: crew: -)' },
+  { q: ': favorites: -', fixture: '06-tour', expect: [':pets:0', ':fan'],
     note: 'own entry first, then the anchored member (O2)' },
   { q: ': weird: ...: !!<type: integer>', fixture: '06-tour',
     expect: [':weird:cat\\:dog:n', ':weird:cat/dog'],
@@ -210,7 +210,7 @@ export const CASES: QueryCase[] = [
              ':tags:genre:brevity:empty-body', ':tags:genre:humor:deadpan',
              ':tags:genre:humor:satire'],
     note: 'two wildcard levels: every sub-sub-tag under genre' },
-  { q: ': jaba00061-0143a.pdf: yamlover-annotations: [?]: !!<format: x-yamlover-tag>', fixture: '67-pdf-tags',
+  { q: ': jaba00061-0143a.pdf: yamlover-annotations: -: !!<format: x-yamlover-tag>', fixture: '67-pdf-tags',
     expect: [':tags:field:psychology:behavior-analysis', ':tags:genre:brevity:empty-body',
              ':tags:genre:humor:deadpan'],
     note: '"tags applied to this node" — its yamlover-annotations members (FORWARD, embedded model), format-filtered' },

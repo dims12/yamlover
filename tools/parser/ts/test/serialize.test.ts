@@ -159,10 +159,10 @@ test('pointer: a null-keyed entry resolves via the bare ~ portion in a document'
   assert.deepEqual(ptr.steps, [{ sel: 'nullkey' }]);
 });
 
-test('anchor: no position claims in the new spelling; no null-key anchors', () => {
+test('bookmark: no position claims in the new spelling; no null-key bookmarks', () => {
   // a bare-integer tail is a position claim, same rule as the dead `&path[3]`
-  assert.throws(() => parseYamlover('x: 1\n  &: p: 3\n', 't'), /anchor may not claim a position/);
-  assert.throws(() => parseYamlover('x: 1\n  &: p: ~\n', 't'), /anchor cannot create the null key/);
+  assert.throws(() => parseYamlover('x: 1\n  &: p: 3\n', 't'), /bookmark may not claim a position/);
+  assert.throws(() => parseYamlover('x: 1\n  &: p: ~\n', 't'), /bookmark cannot create the null key/);
 });
 
 test('yamlover rt: anchors and anchor references', () => {
@@ -315,13 +315,13 @@ test('json5p rt: object/array nesting, odd keys, escapes', () => {
   rtJson5p('{ pets: [{name: "Rex"}, {name: "Wh\'iskers"}], "odd/key": {n: 1}, "key with spaces": 2 }');
 });
 
-test('json5p rt: pointers, anchors, back-edges (keyed and keyless)', () => {
-  const out = rtJson5p("{ boss: &': chief' {name: 'Rex'}, team: {lead: *': chief'}, eve: {cain: *': adam: cain'}, adam: {cain: {~cain: *': eve'}}, favorites: [*': adam'], fan: {name: 'Bob', ~*': favorites'}, thirty: &': tags: whole[]' 30 }");
+test('json5p rt: pointers, bookmarks, back-edges (keyed and keyless)', () => {
+  const out = rtJson5p("{ boss: &': chief' {name: 'Rex'}, team: {lead: *': chief'}, eve: {cain: *': adam: cain'}, adam: {cain: {~cain: *': eve'}}, favorites: [*': adam'], fan: {name: 'Bob', ~*': favorites'}, thirty: &': tags: whole: -' 30 }");
   assert.match(out, /&": chief" \{/);
-  assert.match(out, /&": tags: whole\[\]" 30/);
-  // deprecated `~` forms re-emit as anchors (absolute scopes), colon-rendered
+  assert.match(out, /&": tags: whole: -" 30/);
+  // deprecated `~` forms re-emit as bookmarks (absolute scopes), colon-rendered
   assert.match(out, /&": eve: cain"/);
-  assert.match(out, /&": favorites\[\]"/);
+  assert.match(out, /&": favorites: -"/);
   assert.doesNotMatch(out, /~/);
 });
 

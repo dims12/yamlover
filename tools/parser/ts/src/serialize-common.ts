@@ -47,11 +47,11 @@ export function keyRawWorthKeeping(raw: string, key: string): boolean {
   return raw !== keyText(key) || raw !== flowKeyText(key);
 }
 
-/** The CANONICAL (colon-form, spaced) path text of an anchor token (after `&`):
+/** The CANONICAL (colon-form, spaced) path text of a bookmark token (after `&`):
  *  re-rendered from base+steps — the dual window emits `:` regardless of how the
- *  anchor was authored — plus the ordinal `[]`. */
+ *  bookmark was authored — plus the ordinal trailing `-` segment. */
 export function anchorBody(a: Anchor): string {
-  return renderPointer(a.path) + (a.ordinal ? '[]' : '');
+  return renderPointer(a.path) + (a.ordinal ? ': -' : '');
 }
 
 /** Deprecated `~` back entries re-emit as `&` anchors (ANCHOR_REFACTOR; serializers emit
@@ -64,11 +64,11 @@ export function isAnchorizableBack(e: Entry): boolean {
     (e.value.base.scope === 'document' || e.value.base.scope === 'link');
 }
 
-/** The anchor-token body equivalent of a back entry, in canonical colon form:
- *  `~k: *P` → `P: k`, `~- *P` → `P[]`. */
+/** The bookmark-token body equivalent of a back entry, in canonical colon form:
+ *  `~k: *P` → `P: k`, `~- *P` → `P: -`. */
 export function backAnchorBody(e: Entry): string {
   if (!isPointer(e.value)) throw new LossyError('a back entry must hold a pointer');
-  if (e.key === null) return renderPointer(e.value) + '[]';
+  if (e.key === null) return renderPointer(e.value) + ': -';
   const withKey: Pointer = { ...e.value, steps: [...e.value.steps, { sel: 'key', name: e.key }] };
   return renderPointer(withKey);
 }

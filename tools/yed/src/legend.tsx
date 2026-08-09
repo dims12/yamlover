@@ -22,6 +22,16 @@ const KEYS: { label: string; key: string; shift?: boolean }[] = [
   { label: "↓", key: "ArrowDown" },
 ];
 
+/** The user-facing spelling of an intent kind — internal names stay ("portion" is the
+ *  historical identifier), the tooltip speaks the book's vocabulary (segments). */
+const INTENT_LABELS: Record<string, string> = {
+  portionSplit: "segment split",
+  portionMerge: "segment merge",
+  portionFold: "segment fold",
+  portionMove: "segment move",
+};
+const intentLabel = (kind: string): string => INTENT_LABELS[kind] ?? kind;
+
 export function Legend({ state }: { state: EditorState }) {
   const site = siteOf(state);
   const textCell = site.cell === "holeEntry" || site.cell === "holeValue" || site.cell === "token" || site.cell === "key" || site.cell === "tag" || site.cell === "anchors";
@@ -34,8 +44,8 @@ export function Legend({ state }: { state: EditorState }) {
         const nativeText = textCell && (k.key === "Backspace" || k.key.startsWith("Arrow"));
         const on = verdict === "acts" || (verdict === "none" && nativeText);
         const title =
-          verdict === "acts" ? (intent ? intent.kind : "text")
-          : verdict === "refuses" ? `${intent ? intent.kind + " — " : ""}refuses here`
+          verdict === "acts" ? (intent ? intentLabel(intent.kind) : "text")
+          : verdict === "refuses" ? `${intent ? intentLabel(intent.kind) + " — " : ""}refuses here`
           : nativeText ? "text editing"
           : "(no meaning here)";
         return (

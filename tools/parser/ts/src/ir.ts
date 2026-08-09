@@ -42,7 +42,7 @@ export type Node = Mapping | Scalar | Blob;
 
 export interface NodeMeta {
   span?: Span;
-  /** Path anchors (`&P/k` / `&P[]`, docs/language/pointers/anchors): this node ALSO lives at that path —
+  /** Bookmarks (`&P/k` / `&P: -`, docs/language/pointers/bookmarks): this node ALSO lives at that path —
    *  the container at the path's parent gains an entry (the last segment as key; a
    *  positional member for `[]`) that is a ref edge to this node. Anchors are NOT
    *  entries: they never count toward the node's kind. Realized by the resolver. */
@@ -70,7 +70,7 @@ export interface NodeMeta {
   positional?: number;
   /** SET semantics (`!!set` tag / `uniqueItems: true` in meta): an element appears at most
    *  once, so duplicate memberships — forward+forward, forward+`~-` reverse, reverse+reverse —
-   *  collapse to one (docs/language/pointers/anchors). Unlike `!!mix` (a parse permission visible in the
+   *  collapse to one (docs/language/pointers/bookmarks). Unlike `!!mix` (a parse permission visible in the
    *  node's shape), this must survive into the graph. */
   set?: boolean;
   /** The `!!yo` tag (formerly `!!var`/`!!omni` — read forever as aliases, emitted as `!!yo`):
@@ -128,13 +128,15 @@ export interface NodeMeta {
 }
 export interface Span { uri: string; start: number; end: number; }
 
-/** One `&` path-anchor declaration (docs/language/pointers/anchors). For a keyed anchor the path's LAST
- *  step is the key the target container gains; an ordinal anchor (`&path[]`) points at
- *  the container itself and appends a keyless member. `path.span` covers the whole
- *  `&…` token; `path.raw` is the authored path text (without the trailing `[]`). */
+/** One `&` BOOKMARK declaration (docs/language/pointers/bookmarks; historically "path anchor").
+ *  For a keyed bookmark the path's LAST step is the key the target container gains; an
+ *  ordinal bookmark (`&path: -`, the trailing keyless segment) points at the container
+ *  itself and appends a keyless member. `path.span` covers the whole `&…` token;
+ *  `path.raw` is the authored path text (the trailing `-` rides in raw, not in steps —
+ *  `ordinal` carries it). */
 export interface Anchor {
   path: Pointer;
-  /** True for `&path[]` — keyless appended membership. */
+  /** True for `&path: -` — keyless appended membership. */
   ordinal?: boolean;
 }
 
@@ -234,12 +236,15 @@ export type PointerBase =
 
 export type Step =
   | { sel: 'key'; name: string }                // name / 'quoted' — string key
-  | { sel: 'index'; n: number }                 // a bare integer portion — the integer key
+  | { sel: 'index'; n: number }                 // a bare integer segment — the integer key
                                                 //   (position); `[n]` reads as an alias
   | { sel: 'nullkey' }                          // ~  — the NULL key (YAML's rule)
   | { sel: 'relindex'; k: number }              // [.±k] — RELATIVE position: the host's own position
                                                 //   at this depth ± k (docs/language/pointers/relative-indexes)
-  | { sel: 'parent' };                          // ..  — up one node
+  | { sel: 'parent' }                           // ..  — up one node
+  | { sel: 'append' };                          // -  — the keyless segment: a bookmark's trailing
+                                                //   append (replaces the removed `[]`); mid-path
+                                                //   reserved; in queries = any position
 
 export function isPointer(v: Value): v is Pointer {
   return (v as Pointer).kind === 'pointer';

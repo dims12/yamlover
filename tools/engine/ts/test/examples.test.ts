@@ -107,7 +107,7 @@ test('annotations.yo reverse-links materials to their annotations', () => {
   // The standalone-annotations-file shape (formerly the 59-all-formats-object sample, retired
   // until re-authored — kept here as a temp fixture): an annotation is ONE TAG APPLICATION, its
   // `target` a RELATIVE pointer (`../../<key>`) escaping to a sibling material, its tag an
-  // ordinal `&…[]` anchor at a built-in pure color tag. The fixture lives UNDER the repo (a
+  // ordinal `&…: -` bookmark at a built-in pure color tag. The fixture lives UNDER the repo (a
   // yamlover/$defs host), so the graft resolves both the $defs/annotation schema and the palette.
   const dir = mkdtempSync(join(examples, '.yo-ann-'));
   try {
@@ -116,7 +116,7 @@ test('annotations.yo reverse-links materials to their annotations', () => {
       join(dir, 'annotations.yo'),
       `markdown-phrase: !!<*yamlover: $defs: annotation>
   target: *..: ..: markdown
-  &:: yamlover: tags: colors: yellow[]
+  &:: yamlover: tags: colors: yellow: -
   selector:
     type: text
     exact: Hover a heading to reveal its

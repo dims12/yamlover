@@ -1,2 +1,2 @@
 thirty: 30
-  &:: tags: whole[]
+  &:: tags: whole: -

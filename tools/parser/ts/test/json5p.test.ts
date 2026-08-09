@@ -62,7 +62,7 @@ test('back-edge: ~ sits outside the key', () => {
   assert.deepEqual(e.value.base, { scope: 'document' });
 });
 
-test('& path anchor: quoted form, ordinal [], bare name; *name is a pure path', () => {
+test('& bookmark: quoted form, ordinal trailing -, bare name; *name is a pure path', () => {
   const d = parseJson5p(`{ boss: &': chief' { n: 1 }, ref: *'chief' }`);
   const boss = (d.root as any).entries[0].value;
   assert.deepEqual(boss.meta.anchors.map((a: any) => a.path.raw), [': chief']);
@@ -71,12 +71,14 @@ test('& path anchor: quoted form, ordinal [], bare name; *name is a pure path', 
   assert.deepEqual(ref.value.base, { scope: 'current' });
   assert.deepEqual(ref.value.steps, [{ sel: 'key', name: 'chief' }]);
   // ordinal + stacking + the bare-identifier spelling (a current-scope path)
-  const e = parseJson5p(`{ thirty: &': tags: whole[]' &bare 30 }`);
+  const e = parseJson5p(`{ thirty: &': tags: whole: -' &bare 30 }`);
   const thirty = (e.root as any).entries[0].value;
   assert.deepEqual(
     thirty.meta.anchors.map((a: any) => [a.path.raw, a.ordinal === true]),
-    [[': tags: whole', true], ['bare', false]],
+    [[': tags: whole: -', true], ['bare', false]],
   );
+  // the removed [] spelling is a hard error naming the replacement
+  assert.throws(() => parseJson5p(`{ thirty: &': tags: whole[]' 30 }`), /"\[\]" append was removed/);
 });
 
 test('escaping: slash is ordinary; \\.\\. stays the literal ".." key', () => {

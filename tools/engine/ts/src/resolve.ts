@@ -5,8 +5,8 @@
 //   transitively (cycle-safe). `~` back-edges resolve like `*` (their value is a Pointer).
 // - Scopes: current (the mapping holding the pointer) · parent (`..`) · document (`/`,
 //   the root) · link (`//auth`, an external virtual id — NOT resolved locally).
-// - PATH anchors (docs/language/pointers/anchors): `&P/k` on a node X means the container at `P` gains the
-//   key `k` → X (an ordinal `&P[]` appends X keyless). Anchors are REAL keys: the resolver
+// - PATH anchors (docs/language/pointers/bookmarks): `&P/k` on a node X means the container at `P` gains the
+//   key `k` → X (an ordinal `&P: -` appends X keyless). Anchors are REAL keys: the resolver
 //   realizes them as back-style edges and lets a `*` step traverse an anchor-created key.
 //   There is no anchor namespace and no precedence rule — `*name` is pure path lookup.
 //   (Anchor paths themselves resolve without anchor keys: no anchor-through-anchor in v1.)
@@ -75,7 +75,8 @@ export function resolveDocument(doc: Document): ResolvedEdge[] {
     // the store/graph/node-kind machinery treats both alike
     for (const ae of anchorEdges) {
       if (ae.node !== node) continue;
-      const raw = '&' + ae.anchor.path.raw + (ae.anchor.ordinal ? '[]' : '');
+      // the authored raw already carries the trailing `-` segment of an ordinal bookmark
+      const raw = '&' + ae.anchor.path.raw;
       out.push({
         from: base, holder: base, label: anchorKeyOf(ae.anchor), pos: (node.entries?.length ?? 0) + ae.idx,
         raw, edge: 'back', target: ae.target, ptr: ae.anchor.path, docRoot: dr, anchor: true,
@@ -229,6 +230,11 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
     if (st.sel === 'key') idx = node.entries?.findIndex((e) => e.key === st.name) ?? -1;
     else if (st.sel === 'nullkey') idx = node.entries?.findIndex((e) => e.nullKey === true) ?? -1;
     else if (st.sel === 'index') idx = st.n;
+    else if (st.sel === 'append') {
+      // the keyless segment: a bookmark's trailing append (stripped by makeAnchor) or a query
+      // wildcard — never a resolvable step; mid-path use is reserved
+      return { kind: 'unresolved', reason: 'the "-" segment is reserved here (a bookmark append / query wildcard, not a resolvable step)' };
+    }
     else {
       const at = host?.[chain.length];
       if (at === undefined) return { kind: 'unresolved', reason: `relative index ${relRaw(st.k)} has no host frame at this depth (docs/language/pointers/relative-indexes)` };

@@ -22,7 +22,8 @@
                 <code>.yamlover</code> extension reads forever) and <code>.json5p</code>
                 (JSON5 + pointers), each with its own icon.</li>
             <li><b>Syntax highlighting</b> for the COLON grammar: <code>*: a: b</code>
-                dereference, <code>~</code> reverse edges, <code>&amp;</code> anchors, the
+                references (the pull), <code>~</code> reverse edges, <code>&amp;</code>
+                bookmarks (the push), the
                 scope ladder (<code>:</code> document, <code>::</code> project,
                 <code>:::</code> world), <code>..</code> parent, bare-integer positions
                 (<code>: pets: 1</code>; <code>[n]</code> reads as the legacy alias),

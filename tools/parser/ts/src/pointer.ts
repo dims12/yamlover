@@ -21,12 +21,18 @@ import type { Anchor, Pointer, PointerBase, Step } from './ir.ts';
  *  bare alias name (which yamlover would read as current-scope) is a DOCUMENT-wide name, so
  *  it resolves at the document root — `*name` (YAML) ≡ `*: name` (yamlover). The IR is
  *  concrete-agnostic; only the base scope differs. See [[yaml-not-superset]]. */
-export function parsePointer(raw: string, yaml = false): Pointer {
+export function parsePointer(raw: string, yaml = false, opts: { allowAppend?: boolean } = {}): Pointer {
   if (yaml) {
-    const p = parsePointer(raw); // YAML names never carry a scope sigil → parses as current
+    const p = parsePointer(raw, false, opts); // YAML names never carry a scope sigil → parses as current
     return p.base.scope === 'current' ? { ...p, base: { scope: 'document' } } : p;
   }
-  return parseColon(raw);
+  const p = parseColon(raw);
+  // The arity rule: a bare `-` segment is a bookmark's append or a query's any-position
+  // wildcard — never link-legal in a plain `*` reference. makeAnchor opts in.
+  if (opts.allowAppend !== true && p.steps.some((s) => s.sel === 'append')) {
+    throw new SyntaxError(`pointer: the "-" segment is a bookmark append or a query wildcard — not link-legal ("${raw}")`);
+  }
+  return p;
 }
 
 // ---- colon form (docs/language/pointers/paths) ---------------------------------------------------
@@ -129,6 +135,7 @@ function portionToSteps(p: string): Step[] {
   const steps: Step[] = [];
   if (name !== '') {
     if (plain && name === '~') steps.push({ sel: 'nullkey' });
+    else if (plain && name === '-') steps.push({ sel: 'append' }); // the keyless segment (quote a literal '-' key)
     else if (plain && /^\d+$/.test(name)) steps.push({ sel: 'index', n: Number.parseInt(name, 10) });
     else steps.push({ sel: 'key', name });
   }
@@ -189,7 +196,8 @@ export function renderPointer(p: Pointer, opts: { spaced?: boolean } = {}): stri
     if (st.sel === 'parent') { toks.push('..'); continue; }
     if (st.sel === 'key') { toks.push(colonSegment(st.name)); continue; }
     if (st.sel === 'nullkey') { toks.push('~'); continue; }
-    if (st.sel === 'index') { toks.push(String(st.n)); continue; } // the bare integer portion; `[n]` is read-only
+    if (st.sel === 'append') { toks.push('-'); continue; } // the keyless segment
+    if (st.sel === 'index') { toks.push(String(st.n)); continue; } // the bare integer segment; `[n]` is read-only
     // a relative group `[.]` / `[.±k]` attaches to the preceding token (`..[.-1][.]`,
     // `pets[.-1]` — it is a frame operator, not a portion of its own)
     const t = `[.${st.k === 0 ? '' : (st.k > 0 ? '+' : '') + st.k}]`;
@@ -220,6 +228,7 @@ export function keyPortion(name: string): string {
     name === '' ||
     /^\d+$/.test(name) ||
     name === '~' ||
+    name === '-' || // bare '-' is the keyless segment now — a literal '-' key rides quoted
     /^-\d/.test(name) ||
     /[ \t]/.test(name) ||
     /^['"]/.test(name)
@@ -232,22 +241,27 @@ export function keyPortion(name: string): string {
 /** Back-compat alias — the historical name for {@link keyPortion}. */
 export const colonSegment = keyPortion;
 
-/** Build an Anchor (docs/language/pointers/anchors) from the authored path text (after `&`, quotes already
- *  stripped): strip a trailing `[]` (ordinal membership), parse the rest as a pointer, and
- *  check that a keyed anchor ends in a KEY segment — a position may not be claimed. Shared
- *  by both surface parsers; `fail` raises in the caller's error style. */
+/** Build an Anchor — a BOOKMARK (docs/language/pointers/bookmarks) — from the authored path text
+ *  (after `&`, quotes already stripped): a trailing `-` segment marks keyless appended
+ *  membership (ordinal); otherwise the path must end in a KEY segment — a position may not
+ *  be claimed. The removed `[]` suffix is a hard parse error naming the replacement.
+ *  Shared by both surface parsers; `fail` raises in the caller's error style. */
 export function makeAnchor(body: string, fail: (msg: string) => never, yaml = false): Anchor {
-  let ordinal = false;
-  if (body.endsWith('[]') && !body.endsWith('\\[]')) { ordinal = true; body = body.slice(0, -2); }
-  const path = parsePointer(body, yaml);
-  // a relative index is link-only (docs/language/pointers/relative-indexes): an anchor claiming a
+  if (body.endsWith('[]') && !body.endsWith('\\[]')) {
+    fail('the "[]" append was removed — write a trailing ": -" segment (a bookmark\'s keyless membership)');
+  }
+  const path = parsePointer(body, yaml, { allowAppend: true });
+  // a relative index is link-only (docs/language/pointers/relative-indexes): a bookmark claiming a
   // relative position is still a position claim
-  if (path.steps.some((s) => s.sel === 'relindex')) fail('an anchor may not claim a position — "[.±k]" is link-only');
+  if (path.steps.some((s) => s.sel === 'relindex')) fail('a bookmark may not claim a position — "[.±k]" is link-only');
+  let ordinal = false;
+  const last = path.steps[path.steps.length - 1];
+  if (last?.sel === 'append') { ordinal = true; path.steps = path.steps.slice(0, -1); }
+  if (path.steps.some((s) => s.sel === 'append')) fail('a mid-path "-" segment is reserved — only the trailing append is defined');
   if (!ordinal) {
-    const last = path.steps[path.steps.length - 1];
-    if (last === undefined) fail('an anchor path needs a key segment (or a trailing "[]" for ordinal membership)');
-    if (last.sel === 'nullkey') fail('an anchor cannot create the null key');
-    if (last.sel !== 'key') fail('an anchor may not claim a position — use a trailing "[]" for ordinal membership');
+    if (last === undefined) fail('a bookmark path needs a key segment (or a trailing ": -" for keyless membership)');
+    if (last.sel === 'nullkey') fail('a bookmark cannot create the null key');
+    if (last.sel !== 'key') fail('a bookmark may not claim a position — use a trailing ": -" for keyless membership');
   }
   return { path, ...(ordinal ? { ordinal: true } : {}) };
 }

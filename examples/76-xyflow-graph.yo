@@ -6,9 +6,9 @@
 #   - a node's scalar SELF-VALUE is written inside its box; a node with no value is a bare circle;
 #   - every relation is titled by its ORDINAL and, when it has one, its KEY (`2: review`), so a
 #     position-only relation shows a number alone — and is drawn lighter for it;
-#   - a `*` dereference is an EDGE, never a copy (docs/language/pointers/dereference): the relation
+#   - a `*` dereference is an EDGE, never a copy (docs/language/pointers/reference): the relation
 #     lands straight on the target, dashed;
-#   - an `&` anchor pushes a membership the other way (docs/language/pointers/anchors) and is dashed
+#   - an `&` anchor pushes a membership the other way (docs/language/pointers/bookmarks) and is dashed
 #     to its own rhythm;
 #   - a `*`/`&` end OUTSIDE the drawn subtree becomes a dashed stub named by its path.
 #

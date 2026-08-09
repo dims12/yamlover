@@ -5,9 +5,9 @@
 // a bare token is always a STEP — a bare integer is the position, `~` the null key,
 // a bare word a string key; every value test carries an operator):
 //   keys/positions      team, 1, ~, 'quoted key', cat\:dog  (the pointer fragment — ≤1 each)
-//   wildcards           ?  (any string key)  [?]  (any position, incl. anchor-created)
+//   wildcards           ?  (any string key)  -  (any position, incl. bookmark-created)
 //   descent             ...            (contain-only, descendant-or-self, pre-order)
-//   uplinks             ..  (spine)    ?..  (all parents)   key..   []..   (M2)
+//   uplinks             ..  (spine)    ?..  (all parents)   key..   -..   (M2)
 //   value tests         =31  =true  =null  >10  >=10  <10  <=10  !=x  ='spacey text'
 //                       — a test portion is NON-NAVIGATING (`arr: 5: >10`)
 //
@@ -109,27 +109,28 @@ function parsePortion(r: string): Portion[] {
   if (r === '...') return [{ kind: 'descend' }];
   if (r === '..') return [{ kind: 'spine' }];
   if (r === '?..') return [{ kind: 'up', sel: 'any' }];
-  if (r === '[]..') return [{ kind: 'up', sel: 'keyless' }];
+  if (r === '-..') return [{ kind: 'up', sel: 'keyless' }];
+  if (r === '[]..') throw new SyntaxError('query: "[].." was removed — write "-.." (containers holding me keyless)');
   if (r.startsWith('!!<') && r.endsWith('>')) return [parseMeta(r.slice(3, -1))];
   if (unquotedSpace(r) > 0) throw new SyntaxError(`query: a key containing a space must be quoted ("${r}")`);
   if (r.endsWith('..') && !r.endsWith('\\..') && r.length > 2) {
     return [{ kind: 'up', sel: keyName(r.slice(0, -2)) }];
   }
   if (r === '?') return [{ kind: 'anykey' }];
-  if (r === '[?]') return [{ kind: 'anypos' }];
-  if (r.endsWith('[?]') && !r.endsWith('\\[?]')) {
-    // the position wildcard as a portion SUFFIX: `pets[?]` = key pets, then any position
-    return [...parsePortion(r.slice(0, -3)), { kind: 'anypos' }];
+  if (r === '-') return [{ kind: 'anypos' }]; // the keyless segment: any position, anchor-created included
+  if (r === '[?]' || (r.endsWith('[?]') && !r.endsWith('\\[?]'))) {
+    throw new SyntaxError('query: "[?]" was removed — write a "-" segment (any position): `pets: -`');
   }
   const test = parseValTest(r);
   if (test !== null) return [test];
-  // a plain key portion, possibly quoted/escaped with [n] suffixes — the pointer fragment
-  const steps = parsePointer(r).steps;
+  // a plain key segment, possibly quoted/escaped with [n] suffixes — the pointer fragment
+  const steps = parsePointer(r, false, { allowAppend: true }).steps;
   return steps.map((st) => {
     if (st.sel === 'key') return { kind: 'key', name: st.name } as Portion;
     if (st.sel === 'index') return { kind: 'index', n: st.n } as Portion;
     if (st.sel === 'nullkey') return { kind: 'nullkey' } as Portion;
-    if (st.sel === 'relindex') throw new SyntaxError('query: a relative index "[.±k]" is a link step, not a query portion (docs/language/pointers/relative-indexes)');
+    if (st.sel === 'append') return { kind: 'anypos' } as Portion; // `-` inside a compound segment
+    if (st.sel === 'relindex') throw new SyntaxError('query: a relative index "[.±k]" is a link step, not a query segment (docs/language/pointers/relative-indexes)');
     return { kind: 'spine' } as Portion;
   });
 }
@@ -199,7 +200,7 @@ function unquotedSpace(s: string): number {
 
 function keyName(portion: string): string {
   const steps = parsePointer(portion).steps;
-  if (steps.length !== 1 || steps[0].sel !== 'key') throw new SyntaxError(`query: bad name portion "${portion}"`);
+  if (steps.length !== 1 || steps[0].sel !== 'key') throw new SyntaxError(`query: bad name segment "${portion}"`);
   return steps[0].name;
 }
 

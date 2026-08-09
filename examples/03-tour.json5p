@@ -41,10 +41,10 @@
 
   // ---- &'P[]' : reverse positional MEMBERSHIP (ordinal anchors; was ~*'P') ----
   // The member declares "that container holds me" — unpositioned (no reverse index) and
-  // ADDITIVE (lists may repeat); see docs/language/pointers/anchors. json5p has no tags, so SET semantics
+  // ADDITIVE (lists may repeat); see docs/language/pointers/bookmarks. json5p has no tags, so SET semantics
   // (dedup by target) come from the metadata layer (uniqueItems: true), not a !!set tag.
   favorites: [ *": pets: 0" ],          // forward: favorites holds Rex …
-  fan: &": favorites[]" &": crew[]" {    // … and ALSO Bob — both memberships, anchor-spelled
+  fan: &": favorites: -" &": crew: -" {    // … and ALSO Bob — both memberships, anchor-spelled
     name: 'Bob',
   },
   crew: [ *": fan" ],                   // the forward half (set-ness would live in meta)

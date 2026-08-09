@@ -94,6 +94,8 @@ export function portionsOfRaw(raw: string): { ladder: Ladder; portions: string[]
       else if (st.sel === "index") {
         // a position is its own bare-digit portion now (`pets: 1`); `[n]` is read-only legacy
         portions.push(String(st.n));
+      } else if (st.sel === "append") {
+        portions.push("-"); // the keyless segment
       } else {
         // relindex attaches even to `..` (`..[.-1][.]` - the table rowspan idiom)
         const tok = `[.${st.k === 0 ? "" : (st.k > 0 ? "+" : "") + st.k}]`;

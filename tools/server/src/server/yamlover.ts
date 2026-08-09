@@ -793,7 +793,7 @@ function walkSegments(root: YNode, segs: Seg[], tokens: string[]): Seg[] {
 /** Resolve a `rel` pointer to target segments: `..`-relative walks from `segs`,
  *  an absolute `/…` from the enclosing yamlover entity (cf. walker.py). */
 function followPointer(root: YNode, segs: Seg[], ptr: string): Seg[] {
-  if (ptr.startsWith("*")) throw new Error(`anchor refs not yet supported: ${ptr}`);
+  if (ptr.startsWith("*")) throw new Error(`bookmark refs not yet supported: ${ptr}`);
   const base = ptr.startsWith("/") ? entityRootSegs(root, segs) : segs;
   return walkSegments(root, base, ptr.match(REL_TOKEN) || []);
 }

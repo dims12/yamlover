@@ -1,6 +1,6 @@
-// Path anchors (docs/language/pointers/anchors) — the Phase A acceptance checks:
+// Path anchors (docs/language/pointers/bookmarks) — the Phase A acceptance checks:
 // the deprecated `~` forms and their `&` replacements produce IDENTICAL normalized
-// edges (`~key: *P` ≡ `&P: key`, `~- *P` ≡ `&P[]`), an anchored scalar stays a scalar
+// edges (`~key: *P` ≡ `&P: key`, `~- *P` ≡ `&P: -`), an anchored scalar stays a scalar
 // (anchors are not entries), and a dangling anchor is reported, never dropped.
 
 import { test } from 'node:test';
@@ -13,11 +13,11 @@ import { Store } from '../src/store.ts';
 function edges(src: string): string[] {
   return normalize(buildGraph(parseYamlover(src, 'x.yo')))
     .filter((e) => e.kind !== 'contain')
-    .map((e) => `${e.from} --${e.label ?? '[]'}--> ${e.to}`)
+    .map((e) => `${e.from} --${e.label ?? '(keyless)'}--> ${e.to}`)
     .sort();
 }
 
-test('equivalence: ~key/~- and &P:key/&P[] normalize to the same edges (Chemical-Free shape)', () => {
+test('equivalence: ~key/~- and &P:key/&P: - normalize to the same edges (Chemical-Free shape)', () => {
   const tags = 'tags:\n  field:\n    chemistry: Chemistry\n  genre:\n    satire: Satire\n';
   const viaBack =
     tags +
@@ -30,15 +30,15 @@ test('equivalence: ~key/~- and &P:key/&P[] normalize to the same edges (Chemical
     'paper:\n' +
     '  &: tags: field: chemistry: chemical-free\n' +
     '  &: tags: genre: satire: chemical-free\n' +
-    '  &: tags: field: chemistry[]\n';
+    '  &: tags: field: chemistry: -\n';
   assert.deepEqual(edges(viaAnchor), edges(viaBack));
   assert.ok(edges(viaAnchor).includes(':tags:field:chemistry --chemical-free--> :paper'));
-  assert.ok(edges(viaAnchor).includes(':tags:field:chemistry --[]--> :paper'));
+  assert.ok(edges(viaAnchor).includes(':tags:field:chemistry --(keyless)--> :paper'));
 });
 
 test('the two-line tagged-scalar file: stays an integer in the store, back edge indexed', () => {
   // the root is one omni node: the `tags` field, the scalar value 30, and the membership
-  const doc = parseYamlover('tags:\n  whole: Whole numbers\n30\n&: tags: whole[]\n', 'thirty.yo');
+  const doc = parseYamlover('tags:\n  whole: Whole numbers\n30\n&: tags: whole: -\n', 'thirty.yo');
   const s = new Store(':memory:');
   s.indexDocument(doc);
   const root = s.node(':');

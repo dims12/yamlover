@@ -105,9 +105,11 @@ A key whose bare form would read as something else MUST be quoted: empty, pure d
 author `'1':` for the numeric string key.
 
 > **The retired bracket index.** The old `[n]` position form (`*pets[1]`) still *reads* — it is
-> a permanent alias — but it is **written never**. Author the bare-integer portion. Only the
-> non-literal brackets survive as operators: `[.±k]` (a position relative to the pointer's own
-> host), `[]` (an anchor's positional append, §5), and `[?]` (a query wildcard).
+> a permanent alias — but it is **written never**. Author the bare-integer segment. The one
+> surviving bracket operator is `[.±k]` (a position relative to the pointer's own host). The
+> former `[]` (append) and `[?]` (any position) brackets were REMOVED — both are now the `-`
+> segment: a trailing `: -` on a bookmark appends (§5), and `-` in a query matches any
+> position. A literal `-` key must be quoted (`'-'`).
 
 ---
 
@@ -148,18 +150,20 @@ adam:
     &: eve: cain           # "eve holds me as cain" — the reverse of eve's cain-edge
 ```
 
-`&: container[]` (trailing `[]`, no index) means **positional membership**: "that container also
+`&: container: -` (a trailing `-` segment) means **positional membership**: "that container also
 holds me", appended after the container's own entries:
 
 ```yamlover
 fan:
   name: Bob
-  &: favorites[]           # Bob appends himself to `favorites`
+  &: favorites: -          # Bob appends himself to `favorites`
 ```
 
 Anchor paths must be **unambiguous** (no wildcards, no trailing position claim — neither a bare
 integer nor a relative `[.±k]`) — they create real keys, so they must resolve to exactly one
-place. The empty `[]` above is the one legal bracket: an append, not a claim.
+place. The trailing `-` is an append, not a claim; a `-` anywhere else in an anchor path is
+reserved (a parse error today). The old `&: container[]` bracket spelling was removed and no
+longer parses.
 
 > You may encounter the older `~key: *path` back-edge syntax in legacy files. It still parses but
 > is deprecated; author new reverse edges as `&` anchors.
@@ -315,7 +319,7 @@ world:     *::: host.example: $defs: tag
 # anchors (push) — "I also live there"; real keys; unambiguous only
 here:  &: chief                     # also at document-root key `chief`
 rev:   &: parent: child             # parent holds me as `child`
-mem:   &: favorites[]               # appended member of `favorites`
+mem:   &: favorites: -             # appended member of `favorites`
 
 # tags / schema
 node:  !!<*:: $defs: chapter>       # bind a reusable schema

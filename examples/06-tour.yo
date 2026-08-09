@@ -30,7 +30,7 @@ topDog: *: pets: 0          # :     -> current document root (the ladder: more c
 
 # ---- & PATH anchors: "I also live there" (the push side of *'s pull) ----
 # &: chief grafts this node as the document-root key "chief" — a REAL key, no separate
-# anchor namespace — so any plain path reaches it. (docs/language/pointers/anchors)
+# anchor namespace — so any plain path reaches it. (docs/language/pointers/bookmarks)
 boss: &: chief
   name: Rex
   species: dog
@@ -81,17 +81,17 @@ adam:
   cain:
     &: eve: cain              # reverse of eve's cain-edge: "eve holds me as cain" (a path anchor)
 
-# ---- &P[] : reverse positional MEMBERSHIP (ordinal anchor; was `~- *P`) ----
+# ---- &P: - : reverse positional MEMBERSHIP (ordinal bookmark; was `&P[]` / `~- *P`) ----
 # A member can declare "that container holds me" — no key, and NO INDEX: order stays the
 # container's own data. ADDITIVE: every [] appends one element after the container's own
 # entries (lists may repeat) — except into a !!set, where duplicate memberships
-# (authored forward and/or reverse) collapse by target. Spec: docs/language/pointers/anchors.
+# (authored forward and/or reverse) collapse by target. Spec: docs/language/pointers/bookmarks.
 favorites:
   - *: pets: 0               # forward: favorites holds Rex …
 fan:
   name: Bob
-  &: favorites[]             # … and ALSO Bob — appended by Bob himself (the reverse side)
-  &: crew[]                  # the reverse half of a both-ways membership (see crew)
+  &: favorites: -             # … and ALSO Bob — appended by Bob himself (the reverse side)
+  &: crew: -                  # the reverse half of a both-ways membership (see crew)
 crew: !!set                 # a SET (= uniqueItems: true in meta): membership by identity
   - *: fan                   # the forward half — !!set collapses the pair to ONE element
 

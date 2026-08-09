@@ -82,7 +82,7 @@ When read *as yamlover*, these YAML spellings change meaning by design (see `doc
   alias still resolves, but the syntax space is yamlover's.
 - A key prefixed with `~` (`~name:`) is a **back-edge**, not a literal key.
 - A `~-` entry (`~- *…`) is a **keyless back-edge** (reverse positional membership,
-  `docs/language/pointers/anchors`), not the plain scalar `~-`.
+  `docs/language/pointers/bookmarks`), not the plain scalar `~-`.
 - `!!mix` / `!!var` / `!!<…>` / `!!set` are **yamlover tags** (mixed/variant containers,
   inline schema, set-semantics container), occupying the `!!` space that YAML uses for type
   tags — `!!set` in particular diverges from YAML's null-valued-mapping meaning.

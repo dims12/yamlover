@@ -87,7 +87,7 @@ export function planRewrites(
       // so the spaceless spelling stays a single token anywhere without quoting.
       const newBody = e.label != null
         ? renderPointer(ptr(cPtr.base, [...cPtr.steps, { sel: 'key', name: e.label }]), { spaced: false })
-        : renderPointer(cPtr, { spaced: false }) + '[]';
+        : renderPointer(cPtr, { spaced: false }) + ':-'; // the trailing keyless segment (compact)
       if (newBody === e.raw.slice(1)) continue; // the authored spelling survived the move
       const tok = isJson5pUri(span.uri) ? json5pAnchorToken(newBody) : anchorToken(newBody);
       const list = plan.edits.get(span.uri) ?? [];

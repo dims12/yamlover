@@ -89,11 +89,11 @@ test('rewrite: a ref through an anchor-created key is rewritten to the moved pat
 });
 
 test('rewrite: keyed and ordinal anchors retarget when their container moves (A4)', () => {
-  const { p, src } = plan('x: 1\n  &: tags: a: slug\n  &: tags: b[]\ntags:\n  a: one\n  b: two\n', ':tags', ':labels');
+  const { p, src } = plan('x: 1\n  &: tags: a: slug\n  &: tags: b: -\ntags:\n  a: one\n  b: two\n', ':tags', ':labels');
   // rewritten anchors come back COMPACT (spaceless): a single token in any position
-  assert.deepEqual(p.rewritten.map((r) => r.newRaw).sort(), ['&:labels:a:slug', '&:labels:b[]']);
+  assert.deepEqual(p.rewritten.map((r) => r.newRaw).sort(), ['&:labels:a:slug', '&:labels:b:-']);
   assert.equal(p.unrewritten.length, 0);
-  assert.equal(applied(src, p.edits), 'x: 1\n  &:labels:a:slug\n  &:labels:b[]\ntags:\n  a: one\n  b: two\n');
+  assert.equal(applied(src, p.edits), 'x: 1\n  &:labels:a:slug\n  &:labels:b:-\ntags:\n  a: one\n  b: two\n');
 });
 
 test('rewrite: a current-scope anchor that moved WITH its container keeps its spelling', () => {

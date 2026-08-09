@@ -3,9 +3,9 @@
 // Covers a practical YAML subset: block mappings & sequences (incl. compact `- key:`,
 // `- - nested` and `- &anchor`), flow `{}`/`[]`, plain/single/double-quoted scalars,
 // `#` comments. Plus the
-// yamlover extensions: value `*pointer` (unquoted), PATH anchors `&path` / `&path[]`
-// (docs/language/pointers/anchors — same line as the value or on their own lines; multiple per node), the
-// deprecated `~key:` back-edges and `~-` keyless back-edges (≡ `&P/key` / `&P[]`), and
+// yamlover extensions: value `*pointer` (unquoted), BOOKMARKS `&path` / `&path: -`
+// (docs/language/pointers/bookmarks — same line as the value or on their own lines; multiple per node), the
+// deprecated `~key:` back-edges and `~-` keyless back-edges (≡ `&P/key` / `&P: -`), and
 // omni-by-default: an untagged node may mix keyed+keyless entries and carry a scalar
 // value line anywhere in its block (`!!mix` parses as a no-op marker; `!!yo` — aliases
 // `!!var`/`!!omni` — and `!!set` are semantic and survive into the graph).
@@ -61,7 +61,7 @@ export function parseYamlover(src: string, uri = '<yamlover>', opts: { yaml?: bo
   if (isPointer(root)) throw new SyntaxError(`yamlover: a top-level pointer is not allowed in ${uri}`);
   // Omni by default: a root that began as a lone scalar (or flow) line may CONTINUE with
   // entries and/or anchor lines at the root indent — `30` + `&//tags/…[]` is the two-line
-  // tagged-scalar file (docs/language/pointers/anchors); `30` + `- one` + `two: three` is a root omni node.
+  // tagged-scalar file (docs/language/pointers/bookmarks); `30` + `- one` + `two: three` is a root omni node.
   if (p.i < p.lines.length && p.peek()!.indent === 0) {
     root = p.mergeCont(root, p.container(0));
   }
@@ -155,7 +155,7 @@ class Block {
 
   peek(): Line | undefined { return this.lines[this.i]; }
 
-  /** Read ONE `&` anchor token at the head of `text` (docs/language/pointers/anchors): `&path`, `&path[]`,
+  /** Read ONE `&` anchor token at the head of `text` (docs/language/pointers/bookmarks): `&path`, `&path: -`,
    *  or the quoted form `&'path with spaces'`. Plain tokens run to unescaped whitespace.
    *  `inline` — the anchor PREFIXES a same-line value (valueAfter): the colon-form's
    *  run-to-end-of-line rule then reads only the HEAD token (up to the first whitespace) —
@@ -319,7 +319,7 @@ class Block {
         }
         entry = { key: null, edge: isPointer(value) ? 'ref' : 'contain', value };
       } else if (isBackSeqLine(l.text)) {
-        // a KEYLESS back-edge — reverse positional membership (docs/language/pointers/anchors): the value
+        // a KEYLESS back-edge — reverse positional membership (docs/language/pointers/bookmarks): the value
         // names the container that holds this node, so it must be a pointer.
         if (keylessOnly) break;
         this.i++;

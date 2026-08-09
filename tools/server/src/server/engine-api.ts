@@ -1276,7 +1276,7 @@ const relKey = (label: string | null, other: string): string => `${label ?? ""}\
 /** A node's DOWNSTREAM entries (it is the natural source), in source order: its containment
  *  children and forward `*` refs (authored here, positioned), then any `~` back-edges that target
  *  it from elsewhere (authored on the downstream node, so unpositioned → appended, ordered
- *  lexicographically by the member's path — docs/language/pointers/anchors).
+ *  lexicographically by the member's path — docs/language/pointers/bookmarks).
  *
  *  Dedup is by identity, which only a LABEL provides: a same-label both-ways pair (`L: *x` +
  *  `~L: …`) is one relation authored twice → one entry. A KEYLESS membership (label null, the

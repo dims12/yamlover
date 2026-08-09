@@ -7,12 +7,12 @@
 // joined by relations that carry an ORDINAL and, sometimes, a KEY. So every relation is labelled
 // with both when it has both, and containment, `*` dereference and `&` anchor membership are three
 // EDGE KINDS the view draws differently — a pointer is a graph edge, never a copy
-// (docs/language/pointers/dereference), so a `*` entry adds no node of its own: the parent's
+// (docs/language/pointers/reference), so a `*` entry adds no node of its own: the parent's
 // relation lands straight on the target.
 
 import { asLink, asMixed, asRef } from "../render";
 import { canonPath, displayPath, segsToStr, strToSegs, type Seg } from "../paths";
-import { parsePointer } from "../../../../parser/ts/src/pointer.ts";
+import { makeAnchor } from "../../../../parser/ts/src/pointer.ts";
 import type { Step } from "../../../../parser/ts/src/ir.ts";
 import type { CommentMap, NodeJson } from "../api";
 
@@ -37,7 +37,7 @@ export interface GraphNode {
 
 /** `contain` — the acyclic spine, a key or position holding its value; `deref` — an authored `*`
  *  pointer; `anchor` — an `&` membership, either authored on the target or derived by storage
- *  (docs/language/pointers/anchors). */
+ *  (docs/language/pointers/bookmarks). */
 export type GraphEdgeKind = "contain" | "deref" | "anchor";
 
 export interface GraphEdge {
@@ -84,19 +84,21 @@ function stepsToSegs(steps: Step[]): Seg[] | null {
   return out;
 }
 
-/** An `&` anchor body (`P: k`, or `P[]` for a keyless membership) read as the MEMBERSHIP it
- *  declares: the container that gains the entry, and the key it gains it under. The anchor's path
- *  resolves from the anchored node's CONTAINER, so the scope sigil decides the base
+/** An `&` bookmark body (`P: k`, or `P: -` for a keyless membership) read as the MEMBERSHIP it
+ *  declares: the container that gains the entry, and the key it gains it under. The bookmark's
+ *  path resolves from the bookmarked node's CONTAINER, so the scope sigil decides the base
  *  (docs/language/pointers/scopes). `documentPath` is the graph's own root: the xyflow tag opens a
- *  document (the engine's boundary.ts), so a `:` anchor lands inside the drawing. */
+ *  document (the engine's boundary.ts), so a `:` bookmark lands inside the drawing.
+ *  Parsing rides the shared makeAnchor — ONE grammar, no local suffix-stripping. */
 function anchorMembership(body: string, selfPath: string, documentPath: string): { host: string; key: string | null } | null {
-  const ordinal = body.endsWith("[]");
+  let ordinal: boolean;
   let steps: Step[];
   let scope: string;
   try {
-    const p = parsePointer(ordinal ? body.slice(0, -2) : body);
-    steps = p.steps;
-    scope = p.base.scope;
+    const a = makeAnchor(body, (m) => { throw new Error(m); });
+    ordinal = a.ordinal === true;
+    steps = a.path.steps;
+    scope = a.path.base.scope;
   } catch {
     return null;
   }
@@ -161,7 +163,7 @@ interface Pending {
 }
 
 /** A membership an `&` anchor declares. The engine ALSO projects it as an entry on the host (the
- *  anchor is a real key, not a namespace — docs/language/pointers/anchors), and that entry is
+ *  anchor is a real key, not a namespace — docs/language/pointers/bookmarks), and that entry is
  *  indistinguishable from a `*` by its value alone. So a claim RECLASSIFIES the edge already
  *  drawn for it, and only mints one of its own when the host lies outside the drawing. */
 interface AnchorClaim {

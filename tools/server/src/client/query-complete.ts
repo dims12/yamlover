@@ -25,10 +25,11 @@ export interface Completion {
 /** The query grammar's matcher portions, offered alongside the real keys. */
 export const OPERATOR_HINTS: Completion[] = [
   { insert: "?", kind: "operator", detail: "any key" },
-  { insert: "[?]", kind: "operator", detail: "any position" },
+  { insert: "-", kind: "operator", detail: "any position" },
   { insert: "...", kind: "operator", detail: "recursive descent" },
   { insert: "..", kind: "operator", detail: "spine parent" },
   { insert: "?..", kind: "operator", detail: "all parents" },
+  { insert: "-..", kind: "operator", detail: "keyless holders" },
   { insert: "=", kind: "operator", detail: "value equals" },
   { insert: "!=", kind: "operator", detail: "value differs" },
   { insert: ">", kind: "operator", detail: "value greater" },

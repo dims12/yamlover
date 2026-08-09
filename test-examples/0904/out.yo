@@ -43,8 +43,8 @@ adam:
 favorites:
   - *: pets: 0
 fan:
-  &: favorites[]
-  &: crew[]
+  &: favorites: -
+  &: crew: -
   name: Bob
 crew: !!set
   - *: fan

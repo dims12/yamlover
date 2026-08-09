@@ -120,21 +120,31 @@ test('& path anchor on a block value; * reaches the anchor-created key', () => {
   assert.deepEqual((lead.value as any).steps, [{ sel: 'key', name: 'chief' }]);
 });
 
-test('& anchors: own-line, multiple, ordinal []', () => {
-  // the two-line tagged-scalar file (docs/language/pointers/anchors) — order-free
-  const a = parseYamlover('30\n&:: tags: whole[]\n').root as any;
+test('& bookmarks: own-line, multiple, ordinal trailing -', () => {
+  // the two-line tagged-scalar file (docs/language/pointers/bookmarks) — order-free
+  const a = parseYamlover('30\n&:: tags: whole: -\n').root as any;
   assert.equal(a.value, 30);
-  assert.deepEqual(a.meta.anchors.map((x: any) => [x.path.raw, x.ordinal === true]), [[':: tags: whole', true]]);
-  const b = parseYamlover('&:: tags: whole[]\n30\n').root as any;
+  assert.deepEqual(a.meta.anchors.map((x: any) => [x.path.raw, x.ordinal === true]), [[':: tags: whole: -', true]]);
+  const b = parseYamlover('&:: tags: whole: -\n30\n').root as any;
   assert.equal(b.value, 30);
   assert.equal(b.meta.anchors.length, 1);
-  // multiple anchors on their own lines inside a node's block
+  // multiple bookmarks on their own lines inside a node's block
   const c = parseYamlover('child:\n  &: p: kid\n  &: q: kid\n  x: 1\n');
   const child = entry(asMap(c.root), 'child').value as Mapping;
   assert.deepEqual(child.meta?.anchors?.map((x) => x.path.raw), [': p: kid', ': q: kid']);
   assert.equal(child.entries.length, 1);
   // a position may not be claimed
   assert.throws(() => parseYamlover('12\n&: seq[3]\n'), /may not claim a position/);
+  // the removed [] spelling is a hard error naming the replacement
+  assert.throws(() => parseYamlover('30\n&:: tags: whole[]\n'), /"\[\]" append was removed/);
+  // a mid-path keyless segment is reserved
+  assert.throws(() => parseYamlover('30\n&: tags: -: deep\n'), /mid-path "-" segment is reserved/);
+  // and '-' is not link-legal in a plain reference
+  assert.throws(() => parseYamlover('x: *: pets: -\n'), /not link-legal/);
+  // a LITERAL '-' key rides quoted — the bare spelling is the keyless segment now
+  const q = parseYamlover("x: *: pets: '-'\n");
+  const xq = entry(asMap(q.root), 'x');
+  assert.deepEqual((xq.value as any).steps, [{ sel: 'key', name: 'pets' }, { sel: 'key', name: '-' }]);
 });
 
 test('~ back-edge key (sigil outside the key)', () => {
@@ -266,9 +276,9 @@ test('parses examples/06-tour.yo (full pointer layer)', () => {
   // the reverse edge deep in adam.cain is anchor-spelled: `&: eve: cain` on the cain node
   const cain = entry(asMap(entry(root, 'adam').value as Mapping), 'cain').value as Mapping;
   assert.deepEqual(cain.meta?.anchors?.map((a) => a.path.raw), [': eve: cain']);
-  // fan's memberships are ordinal anchors (were `~-`)
+  // fan's memberships are ordinal bookmarks (were `~-`, then `&…[]`)
   const fan = entry(root, 'fan').value as Mapping;
-  assert.deepEqual(fan.meta?.anchors?.map((a) => a.path.raw + (a.ordinal ? '[]' : '')), [': favorites[]', ': crew[]']);
+  assert.deepEqual(fan.meta?.anchors?.map((a) => [a.path.raw, a.ordinal === true]), [[': favorites: -', true], [': crew: -', true]]);
   // escaping: `\:` yields the literal key "cat:dog"; `/` rides bare in colon portions
   assert.deepEqual((entry(root, 'ref').value as any).steps, [
     { sel: 'key', name: 'weird' }, { sel: 'key', name: 'cat:dog' }, { sel: 'key', name: 'n' },
@@ -400,7 +410,7 @@ test('a bare BLOCK-SCALAR self-value is omni (tagless) and may sit anywhere amon
 
 // ---- `~-` keyless back-edges (reverse positional membership) + `!!set` ----------
 
-test('~- entry: a keyless back-edge with a pointer value (docs/language/pointers/anchors)', () => {
+test('~- entry: a keyless back-edge with a pointer value (docs/language/pointers/bookmarks)', () => {
   const d = parseYamlover('my_node:\n  name: x\n  ~- *: some: other: location\n');
   const my = asMap(entry(asMap(d.root), 'my_node').value);
   const back = my.entries.find((e) => e.edge === 'back')!;
@@ -473,7 +483,7 @@ test('colon paths: spacing is styling; quoted spacey portions; \\: escape; / is 
 });
 
 test('colon anchors: own-line form runs to end of line', () => {
-  const d = parseYamlover('fan:\n  &: favorites[]\n  name: Bob\nthirty: 30\n  &:: tags: whole[]\n');
+  const d = parseYamlover('fan:\n  &: favorites: -\n  name: Bob\nthirty: 30\n  &:: tags: whole: -\n');
   const fan = entry(asMap(d.root), 'fan').value as Mapping;
   assert.deepEqual(fan.meta?.anchors?.map((a) => [a.path.base.scope, a.ordinal === true]), [['document', true]]);
   const thirty = entry(asMap(d.root), 'thirty').value as any;
