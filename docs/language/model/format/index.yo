@@ -7,6 +7,22 @@ description: a named constraint on node content - not a type; markups, codecs, s
   ([terminology](::language:model:terminology)), and it has an open sub-lattice of its own (whether
   `text/markdown` subtypes `text/plain` is deliberately unsettled). The `format:` schema keyword and
   its resolution order are the [meta chapter](::meta:format)'s subject.
+- 'A few formats in action, spanning the range - JSON Schema''s own values first, then beyond them:'
+- !!<format: text/x-yamlover> |
+  adopted:  !!<format: date-time> 2019-06-01        # JSON Schema's own …
+  contact:  !!<format: email> cat@example.org
+  homepage: !!<format: uri> https://whiskers.example
+  note:     !!<format: text/markdown> |             # … a markup, rendered by its view …
+    Likes **laser pointers**.
+  diagram:  !!<format: text/x-plantuml> |           # … text with a dedicated renderer …
+    @startuml
+    Cat -> Ball : chase
+    @enduml
+- !!<format: text/x-yamlover> |
+  # … and, in a directory's .yo/meta.yo, bytes with a decoding:
+  properties:
+    avatar: {type: binary, format: image/png}       # an image file member
+    weight: {type: binary, format: int32/le}        # a four-byte integer
 - >
   Usually a format constrains a **string scalar**. But a scalar is just a node **without
   members** ([members](::language:model:members)), so nothing limits formats to strings: a format
