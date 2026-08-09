@@ -1,8 +1,8 @@
-A portion cell focused
+A segment cell focused
 description: the cell_editing state
 - >
   The clicked (or focused) cell holds the caret where the click put it; the append cell opens
-  empty after the last portion. The TOC swaps to the live FILTER of the query the cells spell -
+  empty after the last segment. The TOC swaps to the live FILTER of the query the cells spell -
   matches and all their ancestors, expanded, no selection. Candidate and filter fetches are
   (re)scheduled on every text change
 - !!<*yamlover: $defs: table>
@@ -16,7 +16,7 @@ description: the cell_editing state
   - ['`alphanumeric`', '', '`cell_editing` (stays)']
   - ['`colon`', '(pick) the FIRST cell is empty - the scope ladder CLIMBS (bare → `:` → `::` → `:::`), the cells stay', '`cell_editing` (stays)']
   - ['`colon`', 'otherwise - the cell splits at the caret', '`cell_editing` (stays)']
-  - ['`open_bracket`', 'the cell is empty and a previous portion exists - the index folds into it, caret inside the projected pair', '[index_editing](::server:query-editor:index_editing)']
+  - ['`open_bracket`', 'the cell is empty and a previous segment exists - the index folds into it, caret inside the projected pair', '[index_editing](::server:query-editor:index_editing)']
   - ['`open_bracket`', 'otherwise - the pair is projected at the caret', '[index_editing](::server:query-editor:index_editing)']
   - ['`candidates_arrive`', '', '[dropdown_open](::server:query-editor:dropdown_open)']
   - ['`backspace`', 'the caret sits inside an empty projected `[]` - the pair dismantles', '`cell_editing` (stays)']

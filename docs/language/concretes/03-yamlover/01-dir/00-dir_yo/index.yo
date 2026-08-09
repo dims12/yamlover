@@ -14,7 +14,7 @@ description: Directory with the control .yo subdirectory - the overlays live und
     .trash/      - storage of DETACHED members, kept recoverable
 - >
   `body.yo` is the instance overlay - a scalar SELF-VALUE for the directory, extra keyed fields
-  no file holds, pointers, anchors and back-edges, and ORDER: its positional pointer-array
+  no file holds, references, bookmarks and back-edges, and ORDER: its positional pointer-array
   (`- *file1 ...`) grants positions to the children it names, and disk has none - this is exactly
   what lifts the plain dir's no-lists and no-scalar limits. `meta.yo` is the metadata schema -
   types, formats, decoding, what turns a file's bytes into a value. Either overlay is optional,

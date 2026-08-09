@@ -9,9 +9,9 @@ description: the binding walk, and the rules every extension must keep
   survives the whole template contributes its final node to the result.
 - !!<*yamlover: $defs: bullets>
   - '**Result** - an ordered sequence of path-node pairs, deduplicated by canonical path, keep-first: path is identity in the store. Canonical paths are compact colon on every machine surface.'
-  - '**Order is entry order** - members arrive in the container''s document order, and a deref''d member keeps its position; there is no global re-sort by path.'
-  - '**Wildcards see anchor-created entries** - after the container''s own entries; a position step never addresses them.'
-  - '**Implicit dereference** - stepping into a pointer-valued entry yields the target node, transitively and cycle-safely.'
+  - '**Order is entry order** - members arrive in the container''s document order, and a pulled member keeps its position; there is no global re-sort by path.'
+  - '**Wildcards see bookmark-created entries** - after the container''s own entries; a position step never addresses them.'
+  - '**Implicit pull** (the historical *dereference*) - stepping into a pointer-valued entry yields the target node, transitively and cycle-safely.'
   - '**Termination** - the template is finite, every fan-out is finite, pointer-following is cycle-safe; stated once so every extension must re-earn it.'
   - '**Link scope** - the ladder is honored: document descent does not see the project graft, a bare project rung binds the project root graft included, and the self-import is absorbed. An unmounted authority yields the empty result plus an "external" diagnostic - a link is an identifier, not a fetch.'
   - '**Empty versus error** - a syntactically valid query never errors at evaluation: a missing target yields the empty result with a dangling diagnostic, reported, never dropped.'

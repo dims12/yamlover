@@ -131,7 +131,7 @@ Working plan for the next build phase. Companion to `docs/language/pointers` (po
 ## Phase A — anchor refactor: path anchors absorb `~`, omni by default
 
 > **Spec DONE (2026-06-12)** — the anchor decision round, folded into
-> `docs/language/pointers/anchors` (normative), `docs/language/vs-yaml`, `JSON5P.md` §`&`, and
+> `docs/language/pointers/bookmarks` (normative), `docs/language/vs-yaml`, `JSON5P.md` §`&`, and
 > `docs/language/pointers/queries/uplinks`. Summary: `&` takes a full pointer path — `&P/k` = "the
 > container at `P` gains key `k` → ref to me" (push, the dual of `*`'s pull);
 > `&P[]` = keyless appended membership; multiple anchors per node, own-line

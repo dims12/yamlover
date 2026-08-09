@@ -22,7 +22,7 @@ decisions.
   gates these: yamlover requires an explicit `!!mix` / `!!var` tag to write a mixture — see
   `docs/language` — but the IR itself just represents the result.)
 - **Positions are derived, not stored.** The integer-key aliases (the bare-integer
-  portions; the `0: *key0` expansion in `docs/language/pointers`) are a *view* the engine materializes
+  segments; the `0: *key0` expansion in `docs/language/pointers`) are a *view* the engine materializes
   from entry order. The IR
   stores order (the array) once; it does **not** double-store integer keys.
 - **`*` is the only edge-creator** beyond containment; `~` marks a back/non-owning edge;
@@ -140,7 +140,7 @@ export type Step =
 // ---- Metadata ----------------------------------------------------------------
 export interface NodeMeta {
   span?: Span;
-  anchors?: Anchor[];               // `&P/k` / `&P[]` path anchors on this node (docs/language/pointers/anchors)
+  anchors?: Anchor[];               // `&P/k` / `&P: -` bookmarks on this node (docs/language/pointers/bookmarks)
   schema?: Value;                   // the authored `!!<…>` tag: Pointer to a hosted schema or inline Node
   derivedFormat?: string;           // engine-derived format (extension / meta / resolved tag); never authored
   documentRoot?: boolean;           // a self-contained instance; the `/`-scope target
@@ -159,7 +159,7 @@ export interface NodeMeta {
  *  the path's parent gains a ref edge to this node. Realized by the resolver. */
 export interface Anchor {
   path: Pointer;
-  ordinal?: boolean;                // true for `&path[]` — keyless appended membership
+  ordinal?: boolean;                // true for `&path: -` — keyless appended membership
 }
 
 export interface EntryMeta {
@@ -195,14 +195,14 @@ value: Pointer(document-root → eve) }`. The IR records the back-edge as writte
 synthesize the matching forward edge (that's `normalize`/`derive` in the engine).
 
 The **keyless** form — yamlover `~- *…`, json5p `~*'…'` (reverse positional membership,
-`docs/language/pointers/anchors`) — is `Entry { key: null, edge:"back", value: Pointer }`: the same nullable
+`docs/language/pointers/bookmarks`) — is `Entry { key: null, edge:"back", value: Pointer }`: the same nullable
 `key` a keyless forward entry uses, with `edge:"back"`. The value is always a `Pointer`
 (the `Value` contract already requires it for `ref`/`back`). Unlike `!!mix`/`!!var` —
 parse *permissions* whose effect is visible in the node's shape — `!!set` (≡
 `uniqueItems: true`) must survive into the graph, so it is recorded as `NodeMeta.set`.
 
 ### `&` anchors
-An anchor is a **path**, not a name (`docs/language/pointers/anchors`): `&P/k value`
+An anchor is a **path**, not a name (`docs/language/pointers/bookmarks`): `&P/k value`
 declares that the value *also* lives at `P/k`. The parser records it on the anchored node
 as `NodeMeta.anchors: Anchor[]` — anchors are not entries and never count toward the node's
 kind. There is **no anchor namespace and no precedence rule**: a `*name` is pure path

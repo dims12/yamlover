@@ -4,8 +4,8 @@ description: "'~: v' and ': v' - a keyed entry whose key is the null value"
   Adopted from YAML (the YAML-keys round, 2026-08-01): a mapping key may be the **null value**. `: v`
   ≡ `~: v` is a **keyed** entry whose key is null - distinct from the keyless `- v`, which holds only
   a position, and from `'': v`, the empty-*string* key. Canonical emission is `~: v`; in a path the
-  null key is addressed by the bare `~` portion (`: doc: ~`). A literal tilde key is written quoted or
-  escaped - `'~': v` in data, `\~` inside a longer path portion.
+  null key is addressed by the bare `~` segment (`: doc: ~`). A literal tilde key is written quoted or
+  escaped - `'~': v` in data, `\~` inside a longer path segment.
 - !!yo
   doc:
     ~: the null-keyed entry      # the same entry as ": the null-keyed entry"
@@ -19,5 +19,5 @@ description: "'~: v' and ': v' - a keyed entry whose key is the null value"
   together.
 - >
   json5p has **no null-key spelling** - JSON5 object keys are strings, so serializing a null-keyed
-  entry raises a LossyError. Anchors may not create the null key - `&: p: ~` is rejected; the null key
-  is authored in place ([anchors](::language:pointers:anchors)).
+  entry raises a LossyError. Bookmarks may not create the null key - `&: p: ~` is rejected; the null key
+  is authored in place ([anchors](::language:pointers:bookmarks)).

@@ -57,9 +57,9 @@ ordered container** (see `docs/language/pointers`): a position is an **integer k
 **string key**, and the bare-token typing rule keeps the access forms apart (the
 YAML-keys round, 2026-08-01):
 
-- A **bare integer portion** selects the **integer key** `n` (a position) — `*'pets:1'`.
+- A **bare integer segment** selects the **integer key** `n` (a position) — `*'pets:1'`.
   (The retired bracket index `*'pets[1]'` reads forever as an alias, written never.)
-- A **name portion** selects the **string key** `x` — `*'pets:1:name'`; a numeric
+- A **name segment** selects the **string key** `x` — `*'pets:1:name'`; a numeric
   string key rides quoted inside the pointer text.
 
 The brace/bracket surface is still ordinary JSON5 (`{…}` objects, `[…]` arrays); the
@@ -82,7 +82,7 @@ in `docs/language/pointers` — summarized:
 
 ### `~` — back-edges (in key position; DEPRECATED → path anchors)
 
-> **Deprecated 2026-06-12** in favor of path anchors (§`&` below; `docs/language/pointers/anchors`):
+> **Deprecated 2026-06-12** in favor of path anchors (§`&` below; `docs/language/pointers/bookmarks`):
 > `~key: *'P'` ≡ `&'P:key'`, and the keyless `~*'P'` ≡ `&'P[]'`. Both forms produce
 > identical normalized edges; parsers keep accepting `~` through the migration
 > window (PLAN.md Phase A), serializers will emit anchors only.
@@ -129,20 +129,20 @@ and **additive**: with no label and no index there is no identity to dedup on, s
 declaration adds one element, even alongside a forward element pointing at the same node —
 unless the container's metadata says `uniqueItems: true` (the schema-keyword route to set
 semantics; json5p has no tags, so yamlover's `!!set` is unavailable here). Full semantics
-in `docs/language/pointers/anchors`.
+in `docs/language/pointers/bookmarks`.
 
 ### `&` — path anchors (in value position)
 
-> **Implemented** (spec'd 2026-06-12, `docs/language/pointers/anchors`; landed with PLAN.md
+> **Implemented** (spec'd 2026-06-12, `docs/language/pointers/bookmarks`; landed with PLAN.md
 > Phase A): `json5p.ts` parses path anchors via `makeAnchor` onto `NodeMeta.anchors`,
 > and the resolver realizes them (`resolve.ts realizeAnchors`).
 
 `&'path'` declares that the value that follows **also lives at that path**: the
 path's parent gains the last segment as a key, a ref edge to this node (the push
-side of `*`'s pull — full semantics, ordinal `[]`, multiplicity, and collision
-rules in `docs/language/pointers/anchors`). On the json5p surface the anchor path is a **quoted
+side of `*`'s pull — full semantics, the ordinal trailing `-`, multiplicity, and collision
+rules in `docs/language/pointers/bookmarks`). On the json5p surface the anchor path is a **quoted
 string** after the sigil, like a pointer's; multiple anchors may precede one value,
-and a keyless membership is a trailing `[]` inside the path string:
+and a keyless membership is a trailing `: -` inside the path string:
 
 ```json5p
 {
@@ -150,7 +150,7 @@ and a keyless membership is a trailing `[]` inside the path string:
     { age: 30, pet: &':supercat' { species: 'cat', color: 'pink' } },
     { age: 10, pet: *':supercat' },          // plain path — no anchor namespace
   ],
-  thirty: &':tags:whole[]' 30,               // keyless: the tag container holds this node
+  thirty: &':tags:whole:-' 30,               // keyless: the tag container holds this node
 }
 ```
 
@@ -179,7 +179,7 @@ the pointer layer must be written `\\` in the source string:
 {
   'odd:key': { n: 1 },
   oddRef:  *'odd\\:key:n',   // JSON5 'odd\\:key:n' -> pointer text  odd\:key:n
-                             // -> first portion is the literal key "odd:key", then :n
+                             // -> first segment is the literal key "odd:key", then :n
   dotsRef: *'\\.\\.',        // -> pointer text  \.\.  -> the literal key ".." (not parent)
 }
 ```
@@ -201,7 +201,7 @@ switch is json5p rather than json — comments, pointers and `&` anchors all sur
 - **Engine** (`ENGINE.md`): a parsed json5p document populates `node`/`edge`; the resolver
   walks pointers lazily over the graph.
 - **Sibling concrete** (`yamlover`): the indentation / filesystem surface over the *same*
-  model — `*`, `~`, bare-integer positions / string-key portions, scopes are identical; it
+  model — `*`, `~`, bare-integer positions / string-key segments, scopes are identical; it
   additionally has the null key (`~: v`), `&` unquoted anchors, and the directory +
   `body.yo` overlay.
 

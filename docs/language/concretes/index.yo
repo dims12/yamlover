@@ -7,7 +7,7 @@ description: every way a node is physically stored and written
   different concrete.
 - >
   There are two independent axes. The **storage** axis answers *where, in what language*: a
-  portion of a text file, a whole file, opaque bytes, a directory. The **representation** axis
+  fragment of a text file, a whole file, opaque bytes, a directory. The **representation** axis
   answers *how it is written*: a string picks a style, a number picks a notation, a container
   picks flow or block. This chapter opens with the general laws - the storage axis, the choosing
   rules, the layout invariants - and then catalogs the languages, concrete by concrete:

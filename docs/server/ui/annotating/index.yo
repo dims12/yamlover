@@ -41,5 +41,5 @@ description: select a region, pick a tag - the flow shared by prose, images, map
   The built-in tags ship with the yamlover project (at its root: `tags/colors`, beside `$defs/`);
   the engine grafts the **self-import key `yamlover`** into every served root - including the
   yamlover project itself - so `/yamlover/tags/colors/...` and `/yamlover/$defs/...` resolve in
-  every project. Whole-node tagging stays as it was: an anchor membership on the node itself (no
+  every project. Whole-node tagging stays as it was: a bookmark membership on the node itself (no
   annotation object needed when there's no region and no comment).

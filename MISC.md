@@ -95,7 +95,7 @@ directory, without changing what the data means. `examples/51-object-in-dir`,
    *dir* into a node with instance/metadata overlays.
 4. **One ordered container.** There is no separate list/dict: a mapping is
    ordered and its positions are integer keys, addressed by the bare integer
-   portion (`: 1`); `: x` addresses a string key, `: '1'` the numeric string.
+   segment (`: 1`); `: x` addresses a string key, `: '1'` the numeric string.
    Order is data — text order in a file, the pointer-array for a directory (a
    positional prefix over the named subset; unnamed children have no position to
    lose).

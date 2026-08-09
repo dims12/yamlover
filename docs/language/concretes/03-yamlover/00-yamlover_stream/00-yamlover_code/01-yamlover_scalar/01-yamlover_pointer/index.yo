@@ -1,10 +1,10 @@
 yamlover/pointer
-description: A * dereference over an unquoted colon path with the scope ladder
+description: A * reference over an unquoted colon path with the scope ladder
 - >
   A **pointer** is `*` followed by an UNQUOTED colon path - the value IS the node the path
   names, a shared edge rather than a copy. More colons at the start widen the scope - bare is
   the current mapping (a sibling), `:` the document root, `::` the project, `:::` the world. A
-  bare integer portion is a POSITION, `: name` a string key, `: '1'` the numeric STRING key:
+  bare integer segment is a POSITION, `: name` a string key, `: '1'` the numeric STRING key:
 - !!<format: text/x-yamlover> |
   feline: *pets: 1
   topDog: *: pets: 0

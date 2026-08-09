@@ -1,15 +1,16 @@
 Wildcards
 description: any string key, any position - and what a plain index never sees
 - >
-  `?` as a portion matches **every string-keyed entry** of the current node; `[?]` matches **every
-  position** - all entries, keyed or not, *including* entries created by anchors. `?` is the keyed
-  subset, and a query may open with a wildcard.
+  `?` as a segment matches **every string-keyed entry** of the current node; `-` matches **every
+  position** - all entries, keyed or not, *including* entries created by bookmarks (the same
+  keyless segment that appends in a bookmark fans out in a query). `?` is the keyed subset, and a
+  query may open with a wildcard. (The former bracket spelling `[?]` was removed.)
 - !!<format: text/plain> |
   team: ?              → :team:alice, :team:bob
   pets: ?              → ∅            (pets has only keyless entries)
-  pets[?]              → :pets:0, :pets:1
-  pets[?]: name        → :pets:0:name, :pets:1:name
-  : tags: whole[?]     → :thirty      (an &...[] membership)
+  pets: -              → :pets:0, :pets:1
+  pets: -: name        → :pets:0:name, :pets:1:name
+  : tags: whole: -     → :thirty      (an &...: - membership)
 - >
-  A bare position stays a pointer step: it addresses the container's own entry n and **never** an
-  anchor-created member - no position claims - so `: tags: whole: 0` is empty.
+  A bare position stays a pointer step: it addresses the container's own entry n and **never** a
+  bookmark-created member - no position claims - so `: tags: whole: 0` is empty.

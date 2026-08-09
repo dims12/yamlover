@@ -12,9 +12,7 @@ description: the colon grammar - one meaning for the colon everywhere
     The path consists of segments, separated by colons. In the beginning of the path there can be zero, one, two
     or three colons.
 - >
-    Example of paths:
-- >
-    Path shows how to walk inside the yamlover tree. For example, consider this tree:
+    Path shows how to walk inside the yamlover graph. For example, consider this tree:
 - !!yo
     humans:
       - name: Alice
@@ -54,7 +52,7 @@ description: the colon grammar - one meaning for the colon everywhere
 - !!<*yamlover: $defs: table>
   - - Known token
     - `~`, `null`, `..`, `...`, `<<`, `-`
-    - Works according to its meaning
+    - 'Works according to its meaning: `~` the null key, `..` the parent, `...` descent (queries), `-` the keyless segment - a bookmark''s trailing append, or any position in a query'
   - - Unquoted key
     - `abc`, `cde`
     - Leads to child node, connected by this key
@@ -80,44 +78,12 @@ description: the colon grammar - one meaning for the colon everywhere
   - - Triple colon
     - `:::`
     - Starting location is world, global Internet or Registry
-
-
-
-
+  - - Double dot
+    - `..`
+    - Starting location is the parent node
 - >
-  A path is a sequence of **portions**, typed by the **bare-token rule**: a portion of pure digits IS
-  the integer key - a position (`: some: path: 12: with: ordinal`); a bare `~` is the null key;
-  anything else bare, and any *quoted* portion, is a string key - `: '1'` is the numeric string, `:
-  '~'` the literal tilde. The retired bracket index `[n]` reads forever as an alias, written never. A
-  key containing a space must be quoted (the host surface's string quoting), as must a key whose bare
-  form would read as something else - empty, pure digits, `~`, `-`+digits; a literal metacharacter is
-  backslash-escaped ([escaping](::language:pointers:escaping)). The slash is an ordinary key
-  character: `text/html` rides bare, and `*/pets` is a (dangling) reference to the literal key
-  "/pets", never a rooted path.
-- !!<format: text/plain> |
-  deref    = "*" pointer          ; dereference - a graph edge (pull)
-  define   = "&" pointer [ "[]" ] ; PATH anchor - also at that path
-  pointer  = scope *( ":" portion )
-  scope    = ":::" ws authority   ; the world
-           / "::"                 ; current project root
-           / ":"                  ; current document root
-           / ".."                 ; parent node
-           / portion              ; a key / position in the current mapping
-  portion  = position             ; bare digits - the integer key n
-           / nullkey              ; the null key
-           / ( name / ".." ) *( relindex )
-           / 1*( relindex )       ; a bare relative position: *[.-1]
-  position = 1*DIGIT              ; : pets: 1  ([n] reads as an alias)
-  nullkey  = "~"                  ; : doc: ~   ('~' is the literal key)
-  relindex = "[" "." [("+"/"-") 1*DIGIT] "]"  ; host-relative
-  name     = 1*( nchar / "\" CHAR ) / quoted
-  nchar    = <any char except unescaped
-              : [ ] * & # ~ ? ! ( ) < > = |  or whitespace>
-- >
-  The static **arity rule** classifies every expression by its form alone. If every portion guarantees
-  at most one successor, the expression is a **link** - legal after `*` (an edge) and after `&` (an
-  anchor). If any portion may fan out - a wildcard, a matcher, a descent, a fan-out uplink - it is a
-  **query**: askable through the engine, never authorable as an edge; `something: *: team: ?` is a
-  parse-time error. The classification is syntax-only today and designed to grow schema-aware - a
-  schema proving "exactly one parent holds this relation" could admit an uplink into links - without
-  moving the decision point.
+  The retired bracket index `[n]` reads forever as an alias, written never. The slash is an
+  ordinary key character: `text/html` rides bare, and `*/pets` is a (dangling) reference to the
+  literal key "/pets", never a rooted path. Which bare tokens must be quoted to read as string
+  keys - and how metacharacters escape - is the [escaping chapter](::language:pointers:escaping)'s
+  subject.

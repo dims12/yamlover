@@ -1,5 +1,5 @@
 Inlined
-description: a portion of a text file, in a given language
+description: a fragment of a text file, in a given language
 - >
   The value lives inside an enclosing document, and the concrete names the language it is
   written in: `json`, `json5`, `json5p`, `yaml`, or `yamlover`. Descendants inherit the

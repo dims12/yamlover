@@ -2,12 +2,12 @@ Reference being entered (a *-led hole)
 description: the pointer_entry state
 - >
   The hole's text begins with `*` - the reference decision (keys.ts classifies it). The reference
-  enters as PORTIONS - the key-value gesture repeated: the cursor's `ref` carries the scope
-  ladder, the committed portion cells and the active one (state.ts RefEntry; the document is
-  untouched - incompleteness lives in the cursor alone). `:` commits the active portion and opens
+  enters as SEGMENTS - the key-value gesture repeated: the cursor's `ref` carries the scope
+  ladder, the committed segment cells and the active one (state.ts RefEntry; the document is
+  untouched - incompleteness lives in the cursor alone). `:` commits the active segment and opens
   the next; in the EMPTY FIRST cell it CLIMBS the scope ladder instead (`*` -> `*:` -> `*::` ->
   `*:::` - more colons, wider scope) and Backspace there steps it down. `[` in an empty non-first
-  cell folds an INDEX onto the previous portion. Enter JOINS the portions and parses-or-refuses -
+  cell folds an INDEX onto the previous segment. Enter JOINS the segments and parses-or-refuses -
   non-pointers RING and the text stands, nothing is ever lost. COMPLETION HINTS are a separate,
   optional service over the same cells (complete.ts HintProvider - the dropdown under the active
   cell): the pure editor's provider answers from the IN-MEMORY document (docHints), the server
@@ -27,16 +27,16 @@ description: the pointer_entry state
       width: 4
     - 'Next state'
       width: 2
-  - ['`alphanumeric`', 'native text in the active portion cell', '`pointer_entry` (stays)']
+  - ['`alphanumeric`', 'native text in the active segment cell', '`pointer_entry` (stays)']
   - ['`colon`', 'the empty first cell, ladder below world - the SCOPE CLIMBS', '`pointer_entry` (stays)']
-  - ['`colon`', 'otherwise - the portion COMMITS, the next cell opens (a mid-text colon splits at the caret)', '`pointer_entry` (stays)']
-  - ['`open_bracket`', 'an empty non-first cell - an INDEX folds onto the previous portion', '`pointer_entry` (stays)']
-  - ['`left_arrow` / `right_arrow`', 'at a cell edge - the walk crosses PORTION cells first, then leaves the reference', '`pointer_entry` (stays)']
+  - ['`colon`', 'otherwise - the segment COMMITS, the next cell opens (a mid-text colon splits at the caret)', '`pointer_entry` (stays)']
+  - ['`open_bracket`', 'an empty non-first cell - an INDEX folds onto the previous segment', '`pointer_entry` (stays)']
+  - ['`left_arrow` / `right_arrow`', 'at a cell edge - the walk crosses SEGMENT cells first, then leaves the reference', '`pointer_entry` (stays)']
   - ['`hint_pick`', 'a dropdown row (click, or arrows + Enter on the highlight) REPLACES the active cell''s text - committing stays the grammar''s Enter', '`pointer_entry` (stays)']
   - ['`toc_click`', 'the server mount only (yed-toc-pick.ts): the picked path SPELLS into the cells in the typed scope (pointer-spell, relative to the holder) - inserted like a hint, the caret on the last cell; typing meanwhile FILTERS the TOC through the shared session', '`pointer_entry` (stays)']
-  - ['`enter`', 'the joined portions parse as a pointer - it commits as the entry''s ref VALUE (dangling allowed; hints are never validators): SPACED canonical raw in the IR, COMPACT on the wire (yed-sync payloadOf). A reference holds no children, so the next SIBLING hole opens - the one exception to the level rule', '[entry_hole](::server:yamlover-editor:entry_hole)']
-  - ['`enter`', 'not a pointer the wire can carry - the ring, the portions stand', '[error_flash](::server:yamlover-editor:error_flash)']
-  - ['`backspace`', 'at the head of a non-first portion - the cells MERGE at the junction', '`pointer_entry` (stays)']
+  - ['`enter`', 'the joined segments parse as a pointer - it commits as the entry''s ref VALUE (dangling allowed; hints are never validators): SPACED canonical raw in the IR, COMPACT on the wire (yed-sync payloadOf). A reference holds no children, so the next SIBLING hole opens - the one exception to the level rule', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`enter`', 'not a pointer the wire can carry - the ring, the segments stand', '[error_flash](::server:yamlover-editor:error_flash)']
+  - ['`backspace`', 'at the head of a non-first segment - the cells MERGE at the junction', '`pointer_entry` (stays)']
   - ['`backspace`', 'the first cell''s head, ladder above bare - the SCOPE DESCENDS', '`pointer_entry` (stays)']
   - ['`backspace`', 'the emptied floor (one empty cell, bare scope) - the `*` decision undoes, the plain hole returns', '[entry_hole](::server:yamlover-editor:entry_hole)']
   - ['`backspace`', 'otherwise', '`pointer_entry` (stays)']

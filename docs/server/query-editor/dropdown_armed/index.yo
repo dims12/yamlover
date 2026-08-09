@@ -2,7 +2,7 @@ A candidate highlighted
 description: the dropdown_armed state
 - >
   ArrowDown/Up (or hover) armed a row; arrows cycle with wraparound. Enter, Tab or a click takes
-  it - the cell's text becomes the candidate's portion spelling. A MIDDLE cell keeps its tail (the
+  it - the cell's text becomes the candidate's segment spelling. A MIDDLE cell keeps its tail (the
   query re-filters); the LAST cell opens a fresh append cell after it, ready for the next step
 - !!<*yamlover: $defs: table>
   header:

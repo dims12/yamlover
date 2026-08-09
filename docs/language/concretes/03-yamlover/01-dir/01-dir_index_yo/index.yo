@@ -11,7 +11,7 @@ description: The same overlay contract, with the instance overlay as a plain ind
     age        - 42
 - >
   Everything `body.yo` can say, `index.yo` says: the scalar self-value, the overlay-only keys, the
-  pointers and anchors, and the positional pointer-array that grants ORDER. Only the LOCATION
+  references and bookmarks, and the positional pointer-array that grants ORDER. Only the LOCATION
   differs, so a directory converts between the two flavors by moving ONE file.
 - >
   ONE file is all that moves. `.yo/` is untouched by the choice - it keeps `meta.yo`, the index

@@ -7,7 +7,7 @@ description: compositions of the primitives - not new syntax
     - Query
       width: 3
   - ['members of tag T (the embedded model)', '`T: ?..: ?..: !!<type: binary>` - annotated materials reach the tag forward through their annotations, so members are two uplinks away']
-  - ['tags applied to node N', '`: N: yamlover-annotations: [?]: !!<format: x-yamlover-tag>`']
+  - ['tags applied to node N', '`: N: yamlover-annotations: -: !!<format: x-yamlover-tag>`']
   - ['sub-tags of T (not members)', '`T: ?: !!<*:: yamlover: $defs: tag>`']
   - ['all tag nodes (the tag-picker)', '`:: ...: !!<format: x-yamlover-tag>`']
   - ['find-usages of N', '`N: ?..`']

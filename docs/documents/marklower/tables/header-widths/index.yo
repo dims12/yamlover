@@ -1,8 +1,8 @@
 Header widths
-description: proportional column weights on omni header cells
+description: prosegmental column weights on omni header cells
 - >
   A header cell follows the same rules as a regular cell, with one extra: it may be an **omni
-  scalar** - the heading text plus a keyed sidecar - carrying `width`, a **proportional column
+  scalar** - the heading text plus a keyed sidecar - carrying `width`, a **prosegmental column
   weight** (the AsciiDoc `cols="1,2,6"` precedent; Markdown has no widths at all):
 - !!<format: text/x-yamlover> |
   !!<*yamlover: $defs: table>

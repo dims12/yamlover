@@ -21,3 +21,16 @@ description: the ladder - more colons, wider scope; no implicit search
   fetches](::language:principles:names-not-fetches)). **Imports** are root-level keys whose value is a
   world-scoped link (`yamlover: *::: yamlover.inthemoon.net`); inside a project the self-import is
   absorbed, so `:: $defs: tag` and `:: yamlover: $defs: tag` are the same path.
+- 'Formally, a pointer is its scope and its segments:'
+- !!<format: text/plain> |
+  pointer = scope *( ":" segment )
+  scope   = ":::" ws authority   ; the world
+          / "::"                 ; current project root
+          / ":"                  ; current document root
+          / ".."                 ; parent node
+          / segment              ; a key / position in the current mapping
+  segment = 1*DIGIT              ; bare digits - the position (integer key)
+          / "~"                  ; the null key
+          / "-"                  ; the keyless segment (bookmark append / query any-position)
+          / ( name / ".." ) *( relindex )
+          / 1*( relindex )       ; a bare relative position: *[.-1]

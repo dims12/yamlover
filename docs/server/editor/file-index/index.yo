@@ -37,16 +37,16 @@ description: where each piece of the editor lives in the source tree
   `renderers/{subchapter,list,table,depth}.tsx`, `caret.ts` (caret primitives),
   `client/{query-cells,breadcrumb-machine,query-complete,toc-filter-session}.ts(x)` (the
   browse/pick query-cell kit - the breadcrumb and the tag picker; the yed reference cells now
-  ride the pure portion cells with `renderers/yed-cells.tsx treeHints` for completion),
+  ride the pure segment cells with `renderers/yed-cells.tsx treeHints` for completion),
   `client/NodeView.tsx` (mounts the source projection).
 - >
   **`tools/yed/` (the editor package):** `src/state.ts` (IR state + cursor + dialectOf),
   `src/apply.ts` (pure intents + copy/paste + the watchdog), `src/dialect.ts` (language policy),
-  `src/cells.tsx` (framed recursive cells + `CellRegistry` + the portion cells' dropdown),
+  `src/cells.tsx` (framed recursive cells + `CellRegistry` + the segment cells' dropdown),
   `src/complete.ts` (the completion hint seam: `HintProvider` + the in-memory `docHints`),
   `src/legend.tsx` (the dry-run keyboard), `src/page.tsx` (the debug page), `src/diff.ts`
   (line diff), `src/grammar/{dispatch,keys}.ts` (THE shared grammar - production imports it
-  from here), `src/grammar/portions.ts` (the pointer portion spelling);
+  from here), `src/grammar/portions.ts` (the pointer segment spelling; the file keeps its historical name);
   `src/chapter/` (the CHAPTER machine + cells: `site/dispatch/apply/format/positions/watchdog`,
   `cells.tsx` + `caret.ts` + `legend.tsx` + `chapter-cells.css` - the server injects its
   capabilities through `ChapterCellsAdapter`); debug pages under `tools/yed/debug-editor/` (port

@@ -33,10 +33,10 @@ description: the same model, spelled in a .yo file, in json5p, and as a director
     - '`*: pets: 1` (unquoted)'
     - '`*'': pets: 1''` (quoted)'
     - 'a `key: *path` line in `body.yo`'
-  - - anchor
+  - - bookmark
     - '`&: P: k` - on the value''s line or its own'
     - '`&'': P: k''` (quoted)'
-    - 'an anchor line in `body.yo`'
+    - 'a bookmark line in `body.yo`'
   - - schema attachment
     - 'the `!!<...>` tag'
     - '- (no tags: overlay only)'

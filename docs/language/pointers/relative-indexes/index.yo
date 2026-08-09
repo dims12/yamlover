@@ -2,11 +2,13 @@ Relative indexes
 description: the dot in the brackets - the host frame, aligned by depth
 - >
   A dot in the brackets makes the index **relative to the pointer's own position**: `[.]` is "my
-  position at this depth", `[.-1]` one before me, `[.+2]` two after. The `[.±k]` bracket survived the
-  YAML-keys round unchanged - it is a non-literal position operator, not an index literal (an absolute
-  position is a bare-integer portion); the surviving bracket bodies stay disjoint by form - dot
-  relative, `?` the query wildcard, empty the anchor append. A bare `-1` portion is deliberately not
-  taken as a key, kept free for a possible future from-the-end index.
+  position at this depth", `[.-1]` one before me, `[.+2]` two after. The `[.±k]` bracket survived
+  the YAML-keys round unchanged - it is a non-literal position operator, not an index literal (an
+  absolute position is a bare-integer segment), and it is the **one surviving bracket operator**:
+  the former `[]` append and `[?]` wildcard brackets were removed - both are the `-` segment now.
+  A bare `-1` segment is deliberately not taken as a key, kept free for a possible future
+  from-the-end index. Formally: `relindex = "[" "." [("+"/"-") 1*DIGIT] "]"`, attached to the
+  segment before it.
 - >
   Resolution is the **frame rule**: the frame is the host entry's own path - the entry holding the
   pointer. After the base and any `..` ascents, each step consumes one depth, and a `[.±k]` at depth d
@@ -18,6 +20,6 @@ description: the dot in the brackets - the host frame, aligned by depth
                   #   row, my column - a rowspan
 - >
   The motivating idiom is the table - a merged cell names its neighbor. A relative index yields at
-  most one successor, so it is a **link**, authorable after `*`; out of range is the ordinary dangling
-  diagnostic. In anchors it is **rejected** - a position claim is outlawed, and a relative claim is
-  still a claim - and in queries too: a query has no host frame.
+  most one successor, so it is a **link**, authorable after `*`; out of range is the ordinary
+  dangling diagnostic. In bookmarks it is **rejected** - a position claim is outlawed, and a
+  relative claim is still a claim - and in queries too: a query has no host frame.

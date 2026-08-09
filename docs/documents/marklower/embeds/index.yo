@@ -2,7 +2,7 @@ Embeds
 description: '*[label](target) inlines; position decides figure vs chip'
 - >
   `[...]` points at a target; `*[...]` **inlines** it. The `*` carries exactly the sense it carries in
-  yamlover proper: a dereference. One token therefore covers pictures, video, audio, and any media a
+  yamlover proper: a reference. One token therefore covers pictures, video, audio, and any media a
   target can name - there is no separate image syntax, and none is wanted.
 - >
   What a target inlines to is decided by its host first and its extension second:
@@ -38,5 +38,5 @@ description: '*[label](target) inlines; position decides figure vs chip'
     - '`*[a](b)*` - an *italic link*; the `*`s pair around it.'
     - '`**[a](b)**` - a bold link, for the same reason.'
   - >
-    The trailing `*` decides. This is the price of spelling deref the way yamlover spells it, and it
+    The trailing `*` decides. This is the price of spelling the reference the way yamlover spells it, and it
     is worth paying.

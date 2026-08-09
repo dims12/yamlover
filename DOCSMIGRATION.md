@@ -30,7 +30,8 @@ docs/
                        graph, matching, terminology, constructs
     concretes/         storage laws (storage, choosing, invariants) + the per-language
                        catalogs (yamlover, yaml, json5p, json5_code, json_code)
-    pointers/          paths, scopes, deref, anchors, escaping + queries/ nested
+    pointers/          paths, scopes, reference, bookmarks, relative-indexes, escaping
+                       + queries/ nested
     principles/        one subdirectory per principle (order-is-data, one-node, …)
     vs-yaml/           the kept surface + every deliberate break, one each
   meta/              — Yamlover meta: the JSON-Schema replacement (2026-08-09; holds the
@@ -457,3 +458,35 @@ chapters, the `entries:` keyword) deliberately run AHEAD of the code. The rules:
       itself), `!!omap`, `!!pairs`, `!!binary` - `docs/transform` carries the frame
 - [ ] Root `docs/index.yo` header comment still says `.yo/body.yo` - respell to `index.yo`
       when next touching the file
+- [x] The pointer round (2026-08-09): the vocabulary and the `-` sigil, END TO END. Path parts
+      are SEGMENTS (was "portions"); `*` is the PULL (execute) operator and `*`+path a
+      REFERENCE ("dereference" a definition-time synonym); `&` is the PUSH operator and
+      `&`+path a BOOKMARK ("anchor" a definition-time synonym). The `-` segment replaces the
+      bracket operators, context-distributed as they were: a query `-` = any position (was
+      `[?]`, suffix form included), a bookmark's trailing `: -` = the keyless append (was
+      `[]`), `-..` = the keyless-holders uplink (was `[]..`); a mid-path `-` is RESERVED (a
+      clear parse error), and a literal `-` key rides quoted. HARD REMOVAL, by ruling: the
+      bracket spellings parse as errors naming the replacement - the one deliberate pre-1.0
+      exception to read-forever (losslessness carries the carve-out). Chapters git-moved:
+      pointers/dereference → pointers/reference, pointers/anchors → pointers/bookmarks, all
+      citations repointed. The paths chapter's legacy block dissolved: the bare-token
+      paragraph deleted (duplicated 4-6×), the ABNF distributed (scope grammar → scopes,
+      relindex → relative-indexes, name/nchar → escaping), the arity rule moved to
+      queries/index (its reference sites follow), the segment-kinds table's `-` row got its
+      meaning, the path-beginnings table its missing `..` rung. Code: parser Step gains
+      `append`, makeAnchor/serializers/rewrite/query re-spelled, the xyflow renderer's second
+      `[]`-stripper unified onto makeAnchor; corpus regenerated (6 goldens), the tour examples,
+      AGENTS.md, plugin.xml, completion hints, and the yed legend labels respelled. Parser 388,
+      engine 417, yed 672, server 1432 green; plugin compiles, suite passes.
+- [ ] The IDENTIFIER refactor ticket (filed 2026-08-09, deliberately NOT this round): rename
+      the code's "portion" family to the segment vocabulary (grammar/portions.ts + its test,
+      portionsToSteps/keyPortion, the dispatch table's `portion` cell literal and the
+      portionSplit/Merge/Fold/Move intent kinds, Portion the query-grammar type, the
+      y2-portion CSS classes) and weigh anchor→bookmark internals (Anchor/makeAnchor/
+      realizeAnchors ≈1,180 syntax-sense sites; meta.anchored/anchorKey are storage
+      provenance and KEEP their names; HTML/scroll anchors are out of scope). Collision
+      analysis to honor: `Seg` (pathseg.ts) already names the RESOLVED path component -
+      one textual segment expands to 1..n Steps - so the two layers need distinct names
+      (e.g. PointerSegment vs Seg), and `colonSegment` is the historical alias that went
+      the OTHER way. `link` is taken as the IR scope kind. The user-visible surfaces
+      (legend labels, error messages, hints, plugin.xml) already speak segments/bookmarks.

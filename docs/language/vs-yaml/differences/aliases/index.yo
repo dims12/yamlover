@@ -4,7 +4,7 @@ description: YAML's alias-to-anchor turns into a structural pointer expression
   In YAML, `*alias` refers to the node anchored `&alias` - a name-only lookup. In yamlover, `*` takes
   a **pointer expression**: a path with scopes, resolved purely structurally. A bare `*a` is the
   sibling key `a`; `*1` is the parent's second ordinal member (a bare integer is the position); `*: a`
-  starts at the document root. There is no anchor namespace and no precedence rule - dereference is
+  starts at the document root. There is no anchor namespace and no precedence rule - the pull is
   path lookup, nothing else.
 - !!yo
   pets:

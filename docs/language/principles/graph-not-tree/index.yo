@@ -8,10 +8,10 @@ description: an acyclic containment spine, ref edges on top - cycles allowed, no
 - >
   Containment and `*` references are **one relation kind, keyed by the child's name** - "two parents"
   is just two same-named child-edges into one node. A relation may be authored forward (`x: *target`),
-  reverse (an `&` anchor on the target), or both - valid as long as the two do not contradict. The
+  reverse (an `&` bookmark on the target), or both - valid as long as the two do not contradict. The
   engine keeps the graph exactly as written and offers a `normalize` command to reduce it to a
   canonical forwards-only form; queries see the normalized view and cannot tell which way an edge was
   authored.
 - >
-  A dereference always yields a **shared edge, never a copy**: `*` makes two paths lead to the one
+  A pull always yields a **shared edge, never a copy**: `*` makes two paths lead to the one
   node, and an edit through either is an edit of both.

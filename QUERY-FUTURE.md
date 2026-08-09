@@ -17,14 +17,14 @@ graph being queried).
 > operator that subsumes it.
 
 All examples use the colon grammar: `:` document scope, `::` link scope, `..` parent,
-bare = current; portions separated by `:`; `?` any keyed entry, `[?]` any position,
+bare = current; segments separated by `:`; `?` any keyed entry, `-` any position,
 `..` spine/uplink, `!!<type: …>` / `!!<format: …>` / `!!<*schema>` metadata matchers.
 
 ---
 
 ## 1. Repetition / controlled depth — the unifier
 
-A **quantifier** suffix on the preceding portion or `( … )` group repeats it a bounded
+A **quantifier** suffix on the preceding segment or `( … )` group repeats it a bounded
 or unbounded number of times. This is the headline construct: it generalizes descent,
 ancestry walks, and any fixed-or-ranged traversal.
 
@@ -36,7 +36,7 @@ ancestry walks, and any fixed-or-ranged traversal.
 +         = {1,}      (one or more)
 ```
 
-`?` is **not** reused as the `{0,1}` quantifier — it is already the any-key portion
+`?` is **not** reused as the `{0,1}` quantifier — it is already the any-key segment
 (ambiguity), so optional repetition is `{0,1}` spelled out. Newly reserved
 metacharacters: `{ }` (a grep over `examples/` + `yamlover/` must confirm zero keys
 contain them, per docs/language/pointers/escaping's migration discipline; a literal becomes `\{`).
@@ -60,7 +60,7 @@ over the acyclic CONTAIN spine, trivially; over a ref-crossing axis, because ded
 canonical path + a finite node set bounds the walk (pointer-following is already
 cycle-safe, docs/language/pointers/queries/semantics). **Consequence:** the visited-set makes
 ref-crossing closure safe — which the shipped language had punted on for cycle reasons. So a
-repetition over `[?]` (which derefs) becomes a legal, terminating *transitive closure
+repetition over `-` (which pulls) becomes a legal, terminating *transitive closure
 across refs* — a genuinely new capability, not just sugar.
 
 ---
@@ -70,7 +70,7 @@ across refs* — a genuinely new capability, not just sugar.
 `...` (recursive descent: descendant-or-self over CONTAIN only, no deref, pre-order)
 becomes a **special case** of `§1` and should be removed as a primitive.
 
-Leading candidate (syntax TBD): **`(:?)*`** for the keyed case, **`(:[?])*`** to
+Leading candidate (syntax TBD): **`(:?)*`** for the keyed case, **`(:-)*`** to
 include keyless (array) members. The `* = {0,}` supplies the *-or-self*; the inner step
 supplies the fan-out.
 
@@ -78,8 +78,8 @@ supplies the fan-out.
 mechanical rename:
 
 1. **Contain-only vs deref.** `...` walks containment **and never crosses a `*` ref**.
-   But the ordinary `?`/`[?]` steps **deref** when an entry's value is a pointer
-   (docs/language/pointers/queries/semantics implicit dereference). So `(:[?])*` is *ref-crossing closure*, which
+   But the ordinary `?`/`-` steps **pull** when an entry's value is a pointer
+   (docs/language/pointers/queries/semantics implicit dereference). So `(:-)*` is *ref-crossing closure*, which
    is **broader** than `...`. To replace `...` exactly we need a **contain-only child
    axis** (a non-dereferencing wildcard) to quantify — propose a distinct token, or a
    per-step "no-deref" modifier. The richer ref-crossing form is desirable too (it is
@@ -105,7 +105,7 @@ This depends on the `/`-window closing (PLAN.md's frontier (iii) / docs/language
 fallback delimiter (e.g. `` `…` ``) is the contingency. A literal `/` inside the
 pattern is `\/` as usual.
 
-Three uses, mapping onto the existing portion taxonomy (navigate vs test):
+Three uses, mapping onto the existing segment taxonomy (navigate vs test):
 
 - **Key regex (navigating fan-out).** A regex-literal *segment* matches every entry
   whose KEY matches — `?` narrowed by pattern:
@@ -118,7 +118,7 @@ Three uses, mapping onto the existing portion taxonomy (navigate vs test):
   value matches:
   ```text
   : (:?)*: =~/poisson/i     every scalar anywhere matching /poisson/i (returns the scalars)
-  : papers: [?]: title: =~/^On /   papers whose title starts with "On "
+  : papers: -: title: =~/^On /   papers whose title starts with "On "
   ```
 - **Both (key OR value).** Falls out of branching (`§4`) rather than new syntax —
   *the* query a TOC filter / quick-open box wants:
@@ -154,7 +154,7 @@ group sits mid-template. **Negation stays open** — `!` is spent on capture; ca
 
 ### 4a. The `&&` predicate — conjunction without parentheses (ruled 2026-08-01, deferred)
 
-The YAML-keys round settled the TEST spelling: a portion starting with an operator is a
+The YAML-keys round settled the TEST spelling: a segment starting with an operator is a
 non-navigating test of the current node (`arr: 5: >10`), and bare literals are steps. The
 round's dialogue also ruled the *shape* of same-node conjunction — filtering one node by
 several facets **without leaving it** (the omni `John / age: 20` case):
@@ -164,7 +164,7 @@ humans: ?: =John && age: >18        the PERSON — self John AND age over 18
 arr: 5: >10 && label: =good         one element, two facets
 ```
 
-A predicate is `&&`-chained conjuncts inside ONE test portion; each conjunct is `op literal`
+A predicate is `&&`-chained conjuncts inside ONE test segment; each conjunct is `op literal`
 (the node's own self-value) or `relative-path: op literal` (an exists-test through a
 mini-path — the walk does not move). This is branching's conjunctive fragment: it needs no
 parentheses, lands before `||`/grouping, and composes with them later (`&&` inside `( … )`

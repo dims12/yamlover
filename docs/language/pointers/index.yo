@@ -1,17 +1,18 @@
-# Pointers, anchors, paths, and queries - the pointer layer, and the query language it
-# is the singleton fragment of; each construct a subdirectory chapter.
+# Pointers, references, bookmarks, paths, and queries - the pointer layer, and the query
+# language it is the singleton fragment of; each construct a subdirectory chapter.
 Pointers, paths, and queries
-description: the colon grammar, dereference and anchors, and the query language over them
+description: the colon grammar, references and bookmarks, and the query language over them
 - >
   The pointer layer is what makes yamlover a graph language. A **path** names a node by chaining keys
-  with colons; `*` **dereferences** a path - a pull: "my value lives there" - and `&` **anchors** a
-  node to a path - the push: "I *also* live there". Pointers are the **singleton fragment of the query
-  language**: every pointer is a query with at most one result, and the query grammar extends the same
-  lexical space with wildcards, descent, uplinks, and matchers.
+  with colons. `*` is the **pull** (or execute) operator: applied to a path it forms a
+  **reference** - "my value lives there". `&` is the **push** operator: applied to a path it forms
+  a **bookmark** - "I *also* live there". Pointers are the **singleton fragment of the query
+  language**: every pointer is a query with at most one result, and the query grammar extends the
+  same lexical space with wildcards, descent, uplinks, and matchers.
 - *: paths
 - *: scopes
-- *: dereference
-- *: anchors
+- *: reference
+- *: bookmarks
 - *: relative-indexes
 - *: escaping
 - *: queries

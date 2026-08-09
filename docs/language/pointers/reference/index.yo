@@ -1,19 +1,21 @@
-Dereference
-description: the pull - * takes a path and yields a shared edge
+Reference
+description: the pull - * executes a path and yields a shared edge
 - >
-  `*path` **pulls**: "my value lives there". The `*` sigil is the authoring embedding of a path - the
-  only thing that creates an edge - and it takes the full grammar: scopes, positions, escapes.
-  Resolution is lazy and yields a **graph edge, never a copy**: the target node is shared, and a ref
-  edge is never expanded inline to infinity, so cycles are safe.
+  `*path` **pulls**: "my value lives there". The `*` sigil is the **pull** (or execute) operator -
+  the authoring embedding of a path, the only thing that creates an edge - and together with its
+  path it forms a **reference** (also known as a *dereference*, the C-family term - used here only
+  as this synonym). It takes the full grammar: scopes, positions, escapes. Resolution is lazy and
+  yields a **graph edge, never a copy**: the target node is shared, and a ref edge is never
+  expanded inline to infinity, so cycles are safe.
 - !!yo
   cat: furry manager supervising humans life
   feline: *cat        # the sibling key - one node, two paths
 - >
-  Walking *through* a pointer dereferences implicitly and transitively: a step into an entry whose
-  value is a pointer yields the target node, cycle-safely - a path never stops halfway at "a pointer".
-  On the json5p surface the same expression is quoted: `*'..: ..: pets: 1'`.
+  Walking *through* a pointer pulls implicitly and transitively: a step into an entry whose
+  value is a pointer yields the target node, cycle-safely - a path never stops halfway at "a
+  pointer". On the json5p surface the same expression is quoted: `*'..: ..: pets: 1'`.
 - >
   Pointers are the **singleton fragment of the query language**: every pointer is a valid query with
   at most one result - its resolved target, or nothing if dangling
-  ([queries](::language:pointers:queries)). A dangling pointer is a diagnostic, never an error that
-  refuses the document.
+  ([queries](::language:pointers:queries)). A dangling reference is a diagnostic, never an error
+  that refuses the document.

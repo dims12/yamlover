@@ -2,14 +2,14 @@ The query editor - the state machine
 description: the breadcrumb, the pointer pick cells, and the tag picker - one machine in three hosts
 - >
   Each subchapter is a **state** of the editable breadcrumb - the topbar's locator and query
-  editor in one (a permanent row of smart cells, one per query portion). Unlike the yamlover
+  editor in one (a permanent row of smart cells, one per query segment). Unlike the yamlover
   editor's, this machine is ALSO executable code - `tools/server/src/client/breadcrumb-machine.ts`
   is the pure reducer these states compile to, and `breadcrumb-machine.test.ts` runs the table.
   [The projectional editor](::server:editor) is the prose architecture doc for how this machine
   hosts the breadcrumb, the pointer cell, and the tag picker.
 - >
-  **Conventions.** A PORTION is one colon-separated step of the query - a key (`pets[1]` includes
-  its index suffixes), a wildcard (`?`, `[?]`), descent (`...`), an uplink (`..`, `?..`), a value
+  **Conventions.** A SEGMENT is one colon-separated step of the query - a key (`pets[1]` includes
+  its index suffixes), a wildcard (`?`, `-`), descent (`...`), an uplink (`..`, `?..`), a value
   test (`>10`, `=text`) or a meta test (`!!<type: integer>`). While any cell is focused the TOC
   FILTERS live (matches + all their ancestors, expanded down to the matches, no row selected); the
   dropdown under the cell offers the context's REAL children as true TOC rows plus the operator
@@ -43,12 +43,12 @@ description: the breadcrumb, the pointer pick cells, and the tag picker - one ma
   satisfied no-op). Create-on-miss births a named tag from a bare unmatched name; any OTHER miss
   keeps the cells ringed and editable, never a modal error ([annotations](::server:annotations)).
 - >
-  **THE PORTION RULE.** `:` and `[` are STRUCTURE, not text. Typing `:` splits the cell at the
+  **THE SEGMENT RULE.** `:` and `[` are STRUCTURE, not text. Typing `:` splits the cell at the
   caret - the tail becomes the next cell. Typing `[` projects the closing `]` with the caret in
   between; `]` jumps OVER the projected closer; Backspace between an empty projected pair
-  dismantles it. An index belongs to the portion BEFORE it - `[` in an EMPTY cell folds into the
+  dismantles it. An index belongs to the segment BEFORE it - `[` in an EMPTY cell folds into the
   previous cell (`pets` `:` `[` `1` spells `pets[1]`, never `pets: [1]`). For the FIRST cell the
-  previous portion is the ROOT itself. Backspace at a cell's start (or Delete at a cell's end)
+  previous segment is the ROOT itself. Backspace at a cell's start (or Delete at a cell's end)
   deletes the `:` boundary - the neighbouring cells merge with the caret at the junction.
 - >
   **THE REGRESSION RULE.** Leaving the editor always lands somewhere honest: selecting a node that

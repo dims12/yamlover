@@ -1,5 +1,5 @@
 Members
-description: entries seen from the container - keyed, keyless, anchor-created
+description: entries seen from the container - keyed, keyless, bookmark-created
 - >
   In addition to the scalar self value, a node can have one or more **members**. Members are
   themselves nodes, linked to this node by [spine edges](::language:model:terminology). Members can

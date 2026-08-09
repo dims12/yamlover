@@ -1,20 +1,28 @@
 Queries
 description: match templates over the graph - a strict superset of pointers
 - >
-  A query is a bare colon-form pointer expression whose portions may be **matchers**. Four principles
+  A query is a bare colon-form pointer expression whose segments may be **matchers**. Four principles
   shape the language. **A query is a match template**: evaluation walks the graph as the template
   directs, steps either move the walk or test it, and a walk that exhausts the template succeeds -
   like a regex, the pattern visits the subject. **Strict superset of pointers**: every pointer is a
   valid query with at most one result, and the grammar has the *erasure property* - delete the
   query-only alternatives and exactly the pointer grammar remains. **One lexical space**: one escaping
   regime, one metacharacter set, shared with pointers. **Queries see the normalized graph**: a
-  relation authored forward, by an anchor, or both ways is one edge, and queries cannot tell which way
-  it was written.
+  relation authored forward, by a bookmark, or both ways is one edge, and queries cannot tell which
+  way it was written.
+- >
+  The static **arity rule** classifies every expression by its form alone. If every segment
+  guarantees at most one successor, the expression is a **link** - legal after `*` (a reference) and
+  after `&` (a bookmark). If any segment may fan out - a wildcard, a matcher, a descent, a fan-out
+  uplink - it is a **query**: askable through the engine, never authorable as an edge;
+  `something: *: team: ?` is a parse-time error. The classification is syntax-only today and
+  designed to grow schema-aware - a schema proving "exactly one parent holds this relation" could
+  admit an uplink into links - without moving the decision point.
 - >
   A query is asked, not authored - it is the pointer expression written without the `*` (the sigil is
   the authoring embedding, and an ambiguous expression after `*` is a parse error by the arity rule).
   JSONPath is the inspiration, not the syntax: its two core sigils are spoken for here - `*` is
-  dereference, `..` the parent scope - and it has nothing to say about the graph.
+  the pull, `..` the parent scope - and it has nothing to say about the graph.
 - *: wildcards
 - *: descent
 - *: uplinks

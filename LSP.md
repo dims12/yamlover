@@ -295,7 +295,7 @@ Deliverable: a VS Code extension with highlighting and live errors that already
 exceeds the JetBrains plugin.
 
 **Phase 2 — navigation.** `definition`, `references`, `hover`, `documentSymbol`,
-`foldingRange`, `completion` over keys, pointer portions and tags — all backed by
+`foldingRange`, `completion` over keys, pointer segments and tags — all backed by
 `resolve.ts` and the `edge` table, so `::` and `:::` cross-tree resolution works,
 which the heuristic Kotlin navigator cannot do.
 

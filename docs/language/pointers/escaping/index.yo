@@ -6,7 +6,8 @@ description: backslash carries the literal reading; quotes carry the whole-token
   pointer meaning of the next character. A key whose **whole bare form would read as something else**
   is quoted instead: a key containing a space, an empty key, a key of pure digits (`: '1'` - bare
   digits are a position), a key that IS `~` (`: '~'` - bare `~` is the null key; inside a longer key
-  `\~` still escapes), and `-`+digits (bare `-1` is reserved). Backslash escaping carries the
+  `\~` still escapes), a key that IS `-` (`: '-'` - the bare `-` is the keyless segment), and
+  `-`+digits (bare `-1` is reserved). Backslash escaping carries the
   literal-versus-interpreted distinction that quotes cannot: in JSON5 and YAML `'` and `"` are
   interchangeable delimiters - `*".."` and `*'..'` are the same string, both meaning parent.
 - !!yo
@@ -22,3 +23,8 @@ description: backslash carries the literal reading; quotes carry the whole-token
   and URL-ish keys ride bare; a legacy `\/` still reads as the literal slash - `\X` makes any X
   literal. Pointers and queries share this one lexical space: a key escaped for one is escaped
   identically for the other.
+- 'Formally, a name segment:'
+- !!<format: text/plain> |
+  name  = 1*( nchar / "\" CHAR ) / quoted
+  nchar = <any char except unescaped
+           : [ ] * & # ~ ? ! ( ) < > = |  or whitespace>

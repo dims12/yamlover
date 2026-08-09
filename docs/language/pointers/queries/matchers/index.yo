@@ -1,8 +1,8 @@
 Matchers
 description: tests between the colons - values, comparisons, and the metadata form
 - >
-  A matcher is a portion of its own - a **non-navigating test**: bindings that fail drop out, those
-  that pass continue unchanged, and the walk goes on with the next portion (`: rating: =5: scale` -
+  A matcher is a segment of its own - a **non-navigating test**: bindings that fail drop out, those
+  that pass continue unchanged, and the walk goes on with the next segment (`: rating: =5: scale` -
   test the current node, *then* step). A value test **always carries an operator**: a bare integer is
   a position step and a bare word, quoted or not, is a KEY step (the bare-token typing rule), so
   equality is spelled `=31`, `=true`, `=null`, `=female`.
@@ -24,7 +24,7 @@ description: tests between the colons - values, comparisons, and the metadata fo
 - !!<format: text/plain> |
   team: ?: age: >10           → :team:alice:age
   team: ?: age: =31           → :team:alice:age
-  pets[?]: species: =cat      → :pets:1:species
+  pets: -: species: =cat     → :pets:1:species
   : rating: !!<type: omni>    → :rating
   : rating: =5: scale         → :rating:scale  (test =5 ✓, then step)
   : thirty: =30: ..           → :              (test, then step UP)
