@@ -1,5 +1,5 @@
 The schema
-description: $defs/table - variant with title, header, and positional rows
+description: $defs/table - an omni node with title, header, and positional rows
 - >
   `$defs/table` is a normal yamlover/meta schema ([metadata](::meta)).
   `type: variant` with no explicit `format` derives `x-yamlover-table` (the chapter/task

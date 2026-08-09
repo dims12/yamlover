@@ -24,19 +24,23 @@ description: value, keyed, ordinal - the capability cube and its corners
       width: 3
     - bits
   - ['`null`', '`{value: {const: ~}, keyed: false, ordinal: false}`', '`000`']
-  - ['a scalar (`string`, `integer`, `binary`, ...)', '`{value: {type: ...}, keyed: false, ordinal: false}`', '`A00`']
-  - ['`object`', '`{value: false, ordinal: false}`', '`010`']
-  - ['`array`', '`{value: false, keyed: false}`', '`001`']
-  - ['`mixed` (`!!mix`)', '`{value: false, keyed: {min: 1}, ordinal: {min: 1}}`', '`011`']
-  - ['`variant` (`!!yo`) ≡ `true`', '`{}`', '`111`']
-  - ['value+keyed', '`{ordinal: false}`', '`110`']
-  - ['value+ordinal', '`{keyed: false}`', '`101`']
+  - ['`leaf` - a value alone (`str`, `int`, `binary`, ...)', '`{value: {type: ...}, keyed: false, ordinal: false}`', '`A00`']
+  - ['`map` (was `object`)', '`{value: false, ordinal: false}`', '`010`']
+  - ['`seq` (was `array`)', '`{value: false, keyed: false}`', '`001`']
+  - ['`kseq` - a sequence with keys (the `!!mix` shape, was `mixed`)', '`{value: false, keyed: {min: 1}, ordinal: {min: 1}}`', '`011`']
+  - ['`omni` (`!!yo`, was `variant`) ≡ `true`', '`{}`', '`111`']
+  - ['`vmap` - a map with a scalar value', '`{ordinal: false}`', '`110`']
+  - ['`vseq` - a seq with a scalar value', '`{keyed: false}`', '`101`']
 - >
-  **variant ≡ omni ≡ true - the top.** The "permits any shape" formula is a tautology: every node is a
-  variant. As a *schema*, `type: variant` constrains nothing - and the `!!yo` surface tag (formerly
+  The long JSON-Schema spellings (`object`, `array`, `mixed`, `variant`, `string`, `integer`, ...)
+  read forever as aliases; the short YAML-style names are canonical
+  ([terse keywords](::meta:principles:terse-keywords)).
+- >
+  **omni ≡ true - the top.** The "permits any shape" formula is a tautology: every node is
+  omni. As a *schema*, `type: omni` constrains nothing - and the `!!yo` surface tag (formerly
   `!!var`) is no shape assertion either: as a type it is the top, and its real payload is the schema
   *exemption* - plain yamlover, not bound by the enclosing document's meta
-  ([mixtures](::language:vs-yaml:differences:mixtures)). (The query matcher `!!<type: variant>` deliberately tests
+  ([mixtures](::language:vs-yaml:differences:mixtures)). (The query matcher `!!<type: omni>` deliberately tests
   the *region* - a scalar that has own fields - a tautological test would select everything; the
   schema reading and the matcher reading are both correct, each on its own side.)
 - >
@@ -48,12 +52,12 @@ description: value, keyed, ordinal - the capability cube and its corners
   all indexed    →  keyed:   false
   empty          →  keyed: false, ordinal: false
 - >
-  So `object` permits keyed and forbids ordinal - "all keyed", the empty node included vacuously -
-  while `mixed` *requires* at least one entry of each.
+  So `map` permits keyed and forbids ordinal - "all keyed", the empty node included vacuously -
+  while `kseq` *requires* at least one entry of each.
 - >
   **The bottom collapses.** The surface offers exactly three empties - `a:` (≡ `a: ~`, null: the bare
   key IS null), `a: {}`, and `a: []` - and no syntax for an "empty container that is neither", so the
-  abstract no-value, no-keyed, no-ordinal corner has no writable inhabitant. An empty object, an empty
-  array, and that corner are one predicate with three spellings; the meet of `object` and `array` is
+  abstract no-value, no-keyed, no-ordinal corner has no writable inhabitant. An empty map, an empty
+  seq, and that corner are one predicate with three spellings; the meet of `map` and `seq` is
   the bottom, and yamlover names it `null` - the one wart, inherent to `a:` meaning null. Which face
   an empty container shows JSON (`{}` vs `[]`) is a serialization hint, not a type fact.

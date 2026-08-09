@@ -1,8 +1,9 @@
 Versus JSON Schema
 description: the keyword-by-keyword equivalence - kept, renamed, replaced, dropped
 - >
-  **The yamlover specifics** over JSON Schema: `type` adds `binary`, `mixed` (the schema name of the
-  `!!mix` shape), and `variant` (the omni value-plus-fields shape, the self-value given as `value:`);
+  **The yamlover specifics** over JSON Schema: `type` adds `binary`, `kseq` (a sequence with keys -
+  the `!!mix` shape, was `mixed`), `vmap`/`vseq` (a map or seq carrying a scalar value), and `omni`
+  (the top - the value-plus-fields shape, the self-value given as `value:`; was `variant`);
   `format` is open - a MIME type, a codec, or a yamlover-defined view; `uniqueItems: true` marks a set
   (the overlay-and-json5p route to `!!set`); `concrete` may be stated but is normally inferable from
   the filesystem - keep meta minimal. References use `*` pointers, not `$ref`. The combinators
@@ -17,8 +18,9 @@ description: the keyword-by-keyword equivalence - kept, renamed, replaced, dropp
     - yamlover meta
       width: 2
     - status
-  - ['`type: string/integer/number/boolean/null`', 'short YAML names - `str`, `int`, `float`, `bool`, `null`', 'TBD']
-  - ['-', '`type: binary`, `mixed`, `variant`', 'added']
+  - ['`type: string/integer/number/boolean/null`', 'short YAML names - `str`, `int`, `float`, `bool`, `null`; `leaf` covers them all (a node with no members)', 'renamed']
+  - ['`type: object` / `type: array`', '`map` / `seq`', 'renamed']
+  - ['-', '`type: binary`, `kseq` (was `mixed`), `vmap`, `vseq`, `omni` (was `variant`)', 'added']
   - ['`$ref`', 'a `*` pointer', 'replaced']
   - ['`$defs`', '`$defs`, referenced by normal pointers', 'kept']
   - ['`$id` / `$schema` / `$anchor`', 'paths and `&` anchors', 'dropped']

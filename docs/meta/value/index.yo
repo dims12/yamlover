@@ -1,6 +1,6 @@
 The value facet
 description: keywords for the self-value - the scalar types and their refinements
 - >
-  TBD - the value-facet sub-schema: the scalar types ([the value axis](::language:model:values)) -
-  string, numeric, boolean, null, binary - and their refinements: length, range, pattern, and the
-  format hook.
+  TBD - the value-facet sub-schema: the value types ([the value axis](::language:model:values)) -
+  `str`, `int`, `float`, `bool`, `null`, `binary` - and their refinements: length, range, pattern,
+  and the format hook.

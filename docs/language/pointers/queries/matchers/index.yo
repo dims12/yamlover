@@ -16,14 +16,15 @@ description: tests between the colons - values, comparisons, and the metadata fo
   - ['`>30`  `>=18`  `<30`  `<=18`  `!=x`', 'the comparison holds (the ordering family needs both sides numeric)']
 - >
   **Metadata matchers** reuse the `!!<...>` tag with the META vocabulary - one test language for
-  documents and queries: `!!<type: T>` tests the type shape (`variant` here tests the omni *region* -
-  a scalar with own fields); `!!<format: F>` the authored or schema-derived format; `!!<*:: yamlover:
+  documents and queries: `!!<type: T>` tests the type shape (`omni` here tests the *region* - a
+  scalar with own fields; the long alias `variant` reads forever); `!!<format: F>` the authored or
+  schema-derived format; `!!<*:: yamlover:
   $defs: tag>` schema conformance. There is no edge-kind test in v1: a fan-out cannot distinguish
   members from children, and node-shape matchers cover the need.
 - !!<format: text/plain> |
   team: ?: age: >10           → :team:alice:age
   team: ?: age: =31           → :team:alice:age
   pets[?]: species: =cat      → :pets:1:species
-  : rating: !!<type: variant> → :rating
+  : rating: !!<type: omni>    → :rating
   : rating: =5: scale         → :rating:scale  (test =5 ✓, then step)
   : thirty: =30: ..           → :              (test, then step UP)

@@ -2,7 +2,10 @@ Terse keywords
 description: yaml-style short names, probably kebab-cased - TBD
 - >
   JSON Schema's keywords are verbose and camel-cased (`additionalProperties`, `minItems`,
-  `uniqueItems`). Yamlover meta keywords will be **YAML-style short** - the tradition of `set`,
-  `omap`, `int` - and probably **kebab-cased**. The exact spellings are TBD; until they land, the
-  JSON Schema spellings remain the working vocabulary, and the
-  [equivalence table](::meta:vs-json-schema) tracks each keyword's fate.
+  `uniqueItems`). Yamlover meta keywords are **YAML-style short** - the tradition of `set`,
+  `omap`, `int` - and compound ones probably **kebab-cased**. The **type names are ruled**
+  (2026-08-09): `str`, `int`, `float`, `bool`, `null`, `binary`, `leaf`; `map`, `seq`, `kseq`,
+  `vmap`, `vseq`, `omni` ([the cube](::meta:facets)) - the long JSON-Schema spellings read
+  forever as aliases. The remaining keyword spellings are TBD; until they land, the JSON Schema
+  spellings remain the working vocabulary, and the [equivalence table](::meta:vs-json-schema)
+  tracks each keyword's fate.

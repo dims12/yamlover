@@ -64,7 +64,7 @@ description: a named constraint on node content - not a type; markups, codecs, s
   - - '`x-yamlover-tag` · `x-yamlover-fragment` · `x-yamlover-annotation`'
     - '-'
     - an omni or keyed node
-    - 'The platform structures - tags and annotations are omni (`type: variant`), a fragment is keyed.'
+    - 'The platform structures - tags and annotations are omni, a fragment a plain map.'
   - - '`application/octet-stream`'
     - '`contentEncoding: base64`'
     - bytes

@@ -392,7 +392,11 @@ chapters, the `entries:` keyword) deliberately run AHEAD of the code. The rules:
       (resolve.ts:81, ir.ts:175; store adds 'derived'), and the load-bearing rule "reverse
       members never change a node's kind" (node-kind.ts:20-28 - why a tagged PDF stays binary)
       is documented nowhere; terminology:22 says an `&` anchor creates a ref edge.
-- [ ] FIX or file as defects: the query type matcher lacks `mixed`/`null`/`scalar`
+- [ ] FIX or file as defects: the type vocabulary code ticket - the query matcher and schema
+      recursion should ACCEPT the ruled short names (`str`/`int`/`float`/`bool`/`leaf`,
+      `map`/`seq`/`kseq`/`vmap`/`vseq`/`omni`) beside the long aliases they emit today, and
+      the `$defs` files may then adopt the short spellings; the matcher also lacks
+      `mixed`/`null`/`scalar` even in the long vocabulary
       (query.ts:386-398 - `!!<type: mixed>` silently matches nothing while `mixed` is a live
       display kind); blob/binary is a first-class node kind beside scalar in code
       (node-kind.ts:10), folded into scalar by the book; `text/html` is NOT in TEXT_FORMATS so
@@ -437,8 +441,18 @@ chapters, the `entries:` keyword) deliberately run AHEAD of the code. The rules:
       `unevaluated*`); per-clause `min`/`max` subsume `required`/`contains`; a clause position
       keyword (`at:` - restart the ordinal count from N, `~` = floating). Add the rows to
       `meta/vs-json-schema`.
-- [ ] Decide the terse keyword spellings (kebab-case TBD) and respell `meta/vs-json-schema`'s
-      "yamlover meta" column
+- [x] TYPE NAMES RULED (2026-08-09) and respelled end-to-end across the book: value types
+      `str`/`int`/`float`/`bool`/`null`/`binary` with `leaf` the no-members alias (was
+      `scalar`); shapes `map`/`seq` (were `object`/`array`), `kseq` - a sequence with keys
+      (was `mixed`, the `!!mix` shape), `vmap`/`vseq` - a map/seq carrying a scalar value
+      (the 110/101 corners, previously unnamed), `omni` (was `variant`, the `!!yo` tag). Long
+      JSON-Schema spellings read forever as aliases. Respelled: meta/facets (kinds table +
+      prose), terminology's kind row, model/values (types + bullets), model/members (+ two new
+      vmap/vseq rows), meta/vs-json-schema (rows + prose), meta/value, the query matcher
+      examples (`!!<type: omni>`), terse-keywords records the ruling. Quoted `$defs` schema
+      code keeps its authored `type: variant` until the code adopts the aliases.
+- [ ] Decide the remaining terse keyword spellings (the non-type keywords - properties/items/
+      entries, kebab-case for compounds)
 - [ ] Write out the named metas/transforms that are hardcoded today: `!!yo` (the yamlover meta
       itself), `!!omap`, `!!pairs`, `!!binary` - `docs/transform` carries the frame
 - [ ] Root `docs/index.yo` header comment still says `.yo/body.yo` - respell to `index.yo`
