@@ -48,6 +48,7 @@ import type { Chunk } from "./registry";
 import { viewDepth } from "./depth";
 import { markupWidthCh } from "./markup";
 import { useFragmentScrollSpy, useHashScroll } from "./headings";
+import { useTocPresencePublisher } from "../toc-presence";
 
 export { rolesOf }; // the debug page imported it from here historically; the source is yed's legend
 
@@ -197,6 +198,9 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
   useHashScroll(state !== null, { once: true });
   const rootRef = useRef<HTMLDivElement>(null);
   useFragmentScrollSpy(rootRef, path);
+  // the TOC's shading survives the view/edit switch (the edit face may stamp fewer
+  // data-node-paths — those rows just fall back to navigation)
+  useTocPresencePublisher(rootRef, path, state !== null);
 
   const dispatch = (intent: ChapterIntent, split?: SplitPayload): void => {
     const st = stateRef.current;

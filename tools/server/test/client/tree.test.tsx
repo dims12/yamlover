@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, within, act } from "@testing-library/react";
 import { Tree } from "../../src/client/Tree";
+import { clearPresence, publishCurrentFragment, publishPresence } from "../../src/client/toc-presence";
 import type { TreeNode } from "../../src/client/api";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  clearPresence();
+});
 
 const tree: TreeNode = {
   path: ":",
@@ -54,11 +58,11 @@ describe("Tree", () => {
     expect(onLoad).not.toHaveBeenCalled(); // children were already loaded
   });
 
-  it("selecting a row calls onSelect with its path", () => {
+  it("selecting a row calls onSelect with its path and the click event", () => {
     const onSelect = vi.fn();
     render(<Tree node={tree} current=":" onSelect={onSelect} onLoadChildren={noop} />);
     fireEvent.click(screen.getByText("a"));
-    expect(onSelect).toHaveBeenCalledWith(":a");
+    expect(onSelect).toHaveBeenCalledWith(":a", expect.anything());
   });
 
   it("lazily loads an unloaded branch when its chevron is clicked", () => {
@@ -98,5 +102,39 @@ describe("Tree", () => {
     expect(bRow.className).toContain("match");
     expect(screen.getByText("a").closest(".tree-row")?.className).not.toContain("match");
     expect(bRow.className).not.toContain("selected"); // current="" suppresses selection
+  });
+
+  // ---- TOC presence (toc-presence.ts): the shaded merged set + the reading-line row ------- //
+
+  it("presence shades the merged rows and the base row; others stay plain", () => {
+    render(<Tree node={tree} current=":" onSelect={() => {}} onLoadChildren={noop} />);
+    act(() => publishPresence(":", new Map([[":a", "/a"]])));
+    expect(screen.getByText("a").closest(".tree-row")?.className).toContain("merged");
+    expect(screen.getByText("root").closest(".tree-row")?.className).toContain("merged"); // the base
+    expect(screen.getByText("c").closest(".tree-row")?.className).not.toContain("merged");
+  });
+
+  it("the fragment-current row shades differently and its collapsed ancestors spring open", () => {
+    render(<Tree node={tree} current=":" onSelect={() => {}} onLoadChildren={noop} />);
+    expect(screen.queryByText("b")).toBeNull(); // `:a` starts collapsed
+    act(() => {
+      publishPresence(":", new Map([[":a", "/a"], [":a:b", "/a/b"]]));
+      publishCurrentFragment("/a/b");
+    });
+    // the reading line reached `:a:b` — its branch opened by itself (the follow-scroll choice)
+    const bRow = screen.getByText("b").closest(".tree-row") as HTMLElement;
+    expect(bRow.className).toContain("frag-current");
+    expect(screen.getByText("a").closest(".tree-row")?.className).not.toContain("frag-current");
+  });
+
+  it("a fragment DEEPER than any row shades the nearest ancestor row that has one", () => {
+    render(<Tree node={tree} current=":" onSelect={() => {}} onLoadChildren={noop} />);
+    act(() => {
+      // the reading line names `:c:x` — `:c` has no loaded children, so its row carries it
+      publishPresence(":", new Map([[":c", "/c"], [":c:x", "/c/x"]]));
+      publishCurrentFragment("/c/x");
+    });
+    expect(screen.getByText("c").closest(".tree-row")?.className).toContain("frag-current");
+    expect(screen.getByText("root").closest(".tree-row")?.className).not.toContain("frag-current");
   });
 });

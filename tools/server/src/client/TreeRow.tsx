@@ -2,7 +2,7 @@
 // breadcrumb's completion dropdown, so both look identical by construction: `.tree-row` with
 // the chevron toggle, the (type, format, concrete) icon glyph, and the clickable label.
 
-import { DragEvent, Ref, useState } from "react";
+import { DragEvent, MouseEvent, Ref, useState } from "react";
 import { TreeNode } from "./api";
 import { dragHasNode, endNodeDrag } from "./dnd";
 import { typeIcon } from "./icons";
@@ -14,10 +14,12 @@ export interface TreeRowProps {
   selected?: boolean;
   match?: boolean; // a query-filter MATCH row (accented label)
   highlighted?: boolean; // the dropdown's keyboard/hover highlight
+  merged?: boolean; // the node is VISIBLY rendered on the content pane (toc-presence)
+  fragCurrent?: boolean; // …and is the one the URL #fragment names (the reading line)
   /** The expand control: a live chevron, a leaf spacer, or nothing (dropdown rows). */
   chevron?: { open: boolean; loading: boolean; onToggle: () => void } | "leaf" | "none";
   detail?: string; // dim right-hand note (operator rows: "any key", …)
-  onSelect?: () => void;
+  onSelect?: (e: MouseEvent) => void; // the click event rides along (e.detail routes dblclick)
   onContext?: (x: number, y: number) => void;
   /** The row is a drag SOURCE (an in-project node drag; see dnd.ts). */
   drag?: { onStart: (e: DragEvent) => void };
@@ -27,7 +29,7 @@ export interface TreeRowProps {
   rowRef?: Ref<HTMLDivElement>;
 }
 
-export function TreeRow({ node, depth, selected, match, highlighted, chevron = "none", detail, onSelect, onContext, drag, drop, rowRef }: TreeRowProps) {
+export function TreeRow({ node, depth, selected, match, highlighted, merged, fragCurrent, chevron = "none", detail, onSelect, onContext, drag, drop, rowRef }: TreeRowProps) {
   const [over, setOver] = useState(false);
   const ti = typeIcon(node.type, node.format, node.concrete);
   const open = typeof chevron === "object" && chevron.open;
@@ -36,7 +38,7 @@ export function TreeRow({ node, depth, selected, match, highlighted, chevron = "
   return (
     <div
       ref={rowRef}
-      className={"tree-row" + (selected ? " selected" : "") + (match ? " match" : "") + (highlighted ? " hi" : "") + (over ? " drop-target" : "")}
+      className={"tree-row" + (merged ? " merged" : "") + (selected ? " selected" : "") + (fragCurrent ? " frag-current" : "") + (match ? " match" : "") + (highlighted ? " hi" : "") + (over ? " drop-target" : "")}
       style={{ paddingLeft: depth * 14 + 4 }}
       onContextMenu={onContext ? (e) => { e.preventDefault(); onContext(e.clientX, e.clientY); } : undefined}
       draggable={!!drag}

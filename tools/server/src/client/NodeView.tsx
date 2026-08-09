@@ -14,7 +14,8 @@ import { EditingContext } from "./renderers/editing";
 import { YedEditor } from "./renderers/yed-editor";
 import { DepthControl, viewDepth } from "./renderers/depth";
 import { MarkupWidthControl } from "./renderers/markup";
-import { useHashScroll } from "./renderers/headings";
+import { useFragmentScrollSpy, useHashScroll } from "./renderers/headings";
+import { useTocPresencePublisher } from "./toc-presence";
 
 // Renderers whose output is prose — they get the TEXT annotation layer (drag-select → palette →
 // highlight). Image and map renderers carry their OWN region annotation layer (drag-rectangle →
@@ -163,6 +164,25 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   // A `<page>#/cont` deep link (or a local-ref click) scrolls to the stamped node id once the value
   // settles. Unconditional — hooks run every render, including the loading ones.
   useHashScroll(node);
+  // TOC PRESENCE for the DATA views (a merged yamlover/json5p page): the spy makes the URL
+  // fragment follow the reading line (chapters already do), and the publisher shades the TOC
+  // with what the page renders inline. The ref only attaches to the data <pre> below, so
+  // renderer pages leave both inert (the chapter mounts its own pair). The yed structure
+  // editor REPLACES the <pre> wholesale — base goes null there, clearing the shading rather
+  // than serving a map scanned off a detached DOM.
+  const dataRootRef = useRef<HTMLPreElement>(null);
+  const dataViewPath = ((): string | null => {
+    if (!node) return null;
+    const { tabs: t, allRenderers: rs } = tabModel(node);
+    const eff = effectiveFormat(format, node, t);
+    if (rs.some((r) => r.name === eff)) return null; // a renderer page — not this pane
+    if (isSchema(eff)) return null; // schema fragments walk SCHEMA keys, not node paths
+    if (node.type === "binary" || node.valueType === "binary") return null;
+    const yedMounted = unlocked && !node.parseError && isEditableData(eff, node) && !isJsonFamily(node.concrete);
+    return yedMounted ? null : path;
+  })();
+  useFragmentScrollSpy(dataRootRef, node);
+  useTocPresencePublisher(dataRootRef, dataViewPath, node);
 
   // Editing MODE STICKS across navigation: clicking a subchapter while editing opens it still in edit
   // mode. (It starts locked at first load — the initial `unlocked` state — and Esc / the lock button
@@ -652,7 +672,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
         <YedEditor path={path} onNavigate={navigateData} />
       ) : (
         <EditingContext.Provider value={{ unlocked, unlock, readOnly: READ_ONLY }}>
-          <pre className="code">
+          <pre className="code" ref={dataRootRef}>
             {/* data views lead with the relations panel (reverse members / `..`),
                 an <hr/>, then the value; schema views embed rel inline already */}
             {!isSchema(effective) && Object.keys(rest).length > 0 && (

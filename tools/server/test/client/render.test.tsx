@@ -33,6 +33,22 @@ describe("Render", () => {
     expect(txt).toContain("nul"); // an actual null still renders bare as `null`
   });
 
+  it("stamps every fragment anchor with its node path (the TOC presence bridge)", () => {
+    render(
+      <Render
+        value={{ human1: { pets: ["Rex"] } }}
+        syntax="yaml"
+        onNavigate={() => {}}
+        documentPath=":"
+        nodePath=":"
+      />,
+    );
+    const byId = (id: string) => document.getElementById(id) as HTMLElement | null;
+    expect(byId("/human1")?.dataset.nodePath).toBe(":human1");
+    expect(byId("/human1/pets")?.dataset.nodePath).toBe(":human1:pets");
+    expect(byId("/human1/pets/0")?.dataset.nodePath).toBe(":human1:pets:0");
+  });
+
   it("renders leading, trailing, head and tail comments inline (yaml, dimmed)", () => {
     render(
       <Render

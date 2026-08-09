@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
-import { anchorizeHeadings } from "../../src/client/renderers/headings";
+import { describe, it, expect, afterEach } from "vitest";
+import { anchorizeHeadings, navigateToFragment } from "../../src/client/renderers/headings";
+import { clearPresence, getTocPresence, publishPresence } from "../../src/client/toc-presence";
 
 /** Parse the rewritten HTML so assertions read against a real DOM. */
 function dom(html: string): HTMLElement {
@@ -52,5 +53,19 @@ describe("anchorizeHeadings", () => {
   it("passes through markup with no headings untouched", () => {
     const html = "<p>just a paragraph</p>";
     expect(anchorizeHeadings(html)).toBe(html);
+  });
+});
+
+describe("navigateToFragment × toc-presence", () => {
+  afterEach(() => {
+    clearPresence();
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("pushes the hash and publishes the fragment even when nothing scrolls (jsdom)", () => {
+    publishPresence(":", new Map([[":x", "/x"]]));
+    navigateToFragment("/x"); // no element with that id, no scrollIntoView in jsdom
+    expect(window.location.hash).toBe("#/x");
+    expect(getTocPresence().currentPath).toBe(":x"); // the TOC shade moved regardless
   });
 });

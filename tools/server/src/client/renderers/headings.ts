@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from "react";
+import { publishCurrentFragment } from "../toc-presence";
 
 /**
  * Shared heading machinery for the rendered-markup formats (Markdown and AsciiDoc).
@@ -153,6 +154,9 @@ export function navigateToFragment(id: string): void {
     history.pushState(null, "", "#" + id);
   }
   scrollToId(id);
+  // the TOC's current shade follows — NOT gated on the scroll landing (jsdom, or the anchor
+  // not rendered yet): the hash IS the navigation, and a later presence scan may resolve it
+  publishCurrentFragment(id);
 }
 
 /** When {@link useHashScroll} last scrolled programmatically — the scroll spy stands down after,
@@ -199,12 +203,16 @@ export function useFragmentScrollSpy(root: RefObject<HTMLElement | null>, dep: u
       const line = paneRect.top + Math.min(pane.clientHeight * 0.3, 240); // the reading line
       let current: string | null = null;
       for (const a of el.querySelectorAll<HTMLElement>("[id]")) {
+        // an embedded diagram's internal ids (xyflow arrow markers, SVG defs) are not reading
+        // anchors — following one would write garbage like `#1__color=var(--fg)…` into the URL
+        if (a.closest("svg")) continue;
         if (a.getBoundingClientRect().top <= line) current = a.id; // document order — the last one above the line
         else break;
       }
       const now = decodeURIComponent(window.location.hash.slice(1));
       if (current === (now || null)) return;
       spyHash = current; // ours, reader-following — the reveal must never scroll back to it
+      publishCurrentFragment(current); // the TOC's current shade follows the reading line
       history.replaceState(null, "", current !== null
         ? "#" + current
         : window.location.pathname + window.location.search);

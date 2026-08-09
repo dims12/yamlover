@@ -13,6 +13,11 @@
   --bool: #c6a0f6;
   --null: #ed8796;
   --sel: #363a4f;
+  /* TOC presence shades (toc-presence.ts): a row VISIBLY merged on the content pane sinks
+     DARKER than the pane (--panel) — "already on screen" reads as recessed — while the
+     fragment-CURRENT row (the reading line) pops YELLOWISH (a --warn-family tint). */
+  --toc-merged: #1c1f2e;
+  --toc-current: #5c5433;
   --font: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
 
   /* semantic states + surface effects — themed (the raw values assumed a dark bg) */
@@ -73,6 +78,8 @@
   --bool: #8839ef;
   --null: #d20f39;
   --sel: #ccd0da;
+  --toc-merged: #cfd4df; /* clearly darker than the pane (--panel #dce0e8), a step above --sel */
+  --toc-current: #f2e0a4; /* yellowish (the light --warn family) — the reading-line row */
 
   --danger: #d20f39;
   --ok: #40a02b;
@@ -583,8 +590,16 @@ body {
   padding: 1px 8px 1px 0;
   white-space: nowrap;
 }
+/* TOC presence (toc-presence.ts): merged < selected < frag-current — source order carries
+   the precedence at equal specificity, so the reading-line shade always wins its row */
+.tree-row.merged {
+  background: var(--toc-merged);
+}
 .tree-row.selected {
   background: var(--sel);
+}
+.tree-row.frag-current {
+  background: var(--toc-current);
 }
 .tree-label {
   cursor: pointer;

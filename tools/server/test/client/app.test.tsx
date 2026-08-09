@@ -42,8 +42,13 @@ vi.mock("../../src/client/api", () => ({
 }));
 import { App } from "../../src/client/App";
 import { fetchNode, fetchTree } from "../../src/client/api";
+import { clearPresence, publishPresence } from "../../src/client/toc-presence";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  clearPresence();
+  window.history.replaceState({}, "", "/");
+});
 
 describe("App", () => {
   it("shows the root label in the breadcrumb and renders the tree", async () => {
@@ -119,5 +124,35 @@ describe("App", () => {
     // the TOC row is a "go to the node" navigation — the renderer wins there as before
     fireEvent.click(within(document.querySelector(".left") as HTMLElement).getByText("ch"));
     await waitFor(() => expect(new URLSearchParams(window.location.search).get("format")).toBe("chapter"));
+  });
+
+  it("a click on a MERGED TOC row only scrolls in-page (the hash); a double-click navigates", async () => {
+    vi.mocked(fetchTree).mockResolvedValue({
+      path: ":", label: "root", type: "object", format: null, concrete: null, hasChildren: true,
+      children: [{ path: ":a", label: "a", type: "string", format: null, concrete: null, hasChildren: false, children: [] }],
+    });
+    render(<App />);
+    await screen.findByText("a");
+    const label = () => within(document.querySelector(".left") as HTMLElement).getByText("a");
+    // the content pane says `:a` is rendered inline (seeded AFTER the mounted view's own scan)
+    publishPresence(":", new Map([[":a", "/a"]]));
+    fireEvent.click(label());
+    await waitFor(() => expect(window.location.hash).toBe("#/a"));
+    expect(window.location.pathname).toBe("/"); // NO navigation — the in-page scroll only
+    // the double-click escape: old-fashioned navigation, merged or not
+    fireEvent.click(label(), { detail: 2 });
+    await waitFor(() => expect(window.location.pathname).toBe("/a"));
+  });
+
+  it("a click OUTSIDE the merged set navigates as before", async () => {
+    vi.mocked(fetchTree).mockResolvedValue({
+      path: ":", label: "root", type: "object", format: null, concrete: null, hasChildren: true,
+      children: [{ path: ":a", label: "a", type: "string", format: null, concrete: null, hasChildren: false, children: [] }],
+    });
+    render(<App />);
+    await screen.findByText("a");
+    publishPresence(":", new Map()); // a merged view is up, but `:a` is not in it
+    fireEvent.click(within(document.querySelector(".left") as HTMLElement).getByText("a"));
+    await waitFor(() => expect(window.location.pathname).toBe("/a"));
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createNode, createObject, fetchInfo, fetchTasks, fetchTree, installAgentDocs, moveNode, PasteResult, TaskInfo, TreeNode } from "./api";
 import { api, READ_ONLY } from "./base";
 import { planNodeMove } from "../drop-policy";
@@ -16,7 +16,9 @@ const isStandardFormat = (f: Format) => (FORMATS as string[]).includes(f);
  *  `json5p`, which the target node only offers when it is a json-family file. */
 const formatTravelsTo = (f: Format, concrete?: string | null) =>
   isStandardFormat(f) && (f !== "json5p" || isJsonConcrete(concrete));
-import { formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
+import { canonPath, formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
+import { navigateToFragment } from "./renderers/headings";
+import { getTocPresence, useTocCurrentPath } from "./toc-presence";
 import { findNode, loadedDepth, mergeAt, replaceChildren } from "./tree-model";
 import { TocFilterCtx, useTocFilterSession } from "./toc-filter-session";
 import { BrowserSettingsView } from "./BrowserSettingsView";
@@ -223,6 +225,16 @@ export function App() {
     const next = nextToLoad(tree, current);
     if (next) loadChildren(next).catch(() => {});
   }, [tree, current, loadChildren]);
+  // …and the READING LINE the same way (the TOC follows the scroll): as the fragment names
+  // deeper nodes, their TOC branches load one level per pass, so the frag-current shade can
+  // land on the actual row rather than sticking to the shallowest loaded ancestor. Same
+  // mechanism as the deep-link reveal above — Tree's own effects then open the branches.
+  const fragPath = useTocCurrentPath();
+  useEffect(() => {
+    if (!tree || fragPath === null) return;
+    const next = nextToLoad(tree, fragPath);
+    if (next) loadChildren(next).catch(() => {});
+  }, [tree, fragPath, loadChildren]);
 
   // Live refresh: the server watches the filesystem and pushes each reindex diff over SSE
   // (/api/events). For every changed path we re-fetch its deepest LOADED tree branch (merged
@@ -390,6 +402,22 @@ export function App() {
   // claims it while editing; the yamlover editor's reference cells and the tag picker
   // claim it the same way (eviction hands it over). TOC clicks route to the active owner.
   const tocSession = useTocFilterSession();
+
+  // THE TOC CLICK GRAMMAR: a filter session owns every click; a DOUBLE-click always navigates
+  // (the old-fashioned way out, everywhere); a single click on a row the content pane already
+  // renders inline (the shaded merged set — toc-presence) only SCROLLS there in-page,
+  // recording the fragment in history; anything else navigates. The presence read is
+  // imperative (getTocPresence) so this callback subscribes to nothing.
+  const selectToc = useCallback(
+    (p: string, e: ReactMouseEvent) => {
+      if (tocSession.active) { tocSession.pick(p); return; }
+      if (e.detail >= 2) { selectFromToc(p); return; }
+      const id = getTocPresence().anchors.get(canonPath(p));
+      if (id !== undefined) { navigateToFragment(id); return; }
+      selectFromToc(p);
+    },
+    [tocSession, selectFromToc],
+  );
 
   // The editable breadcrumb: locator + query editor (breadcrumb-machine.ts). While the
   // machine is not idle, the TOC swaps to the pruned filter tree and row clicks route
@@ -634,7 +662,7 @@ export function App() {
                       node={filtering ? tocSession.filter!.root : tree}
                       current={bc.state.mode === "editing" ? "" : current} // editing: NO selection
                       filterMode={filtering}
-                      onSelect={(p) => (tocSession.active ? tocSession.pick(p) : selectFromToc(p))}
+                      onSelect={selectToc}
                       onLoadChildren={filtering ? tocSession.loadChildren : loadChildren}
                       onContext={onTocContext}
                       dnd={treeDnd}

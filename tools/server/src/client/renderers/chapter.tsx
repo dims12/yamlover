@@ -4,6 +4,7 @@ import { NODE_SCHEMA } from "./create";
 import { canonPath } from "../paths";
 import { ChapterBody, ChunkGutter, ChunkShell, chunkOf, EditableLine, renderChunkBody, SubchapterHeading } from "./chapter-shared";
 import { useFragmentScrollSpy, useHashScroll } from "./headings";
+import { useTocPresencePublisher } from "../toc-presence";
 import { useEditing } from "./editing";
 import { useExplorerTagMenu } from "./tagmenu";
 import { chunkEditorFor, isJoinableFormat, renderedTextLength, type FocusAt } from "./chunk-editors";
@@ -105,6 +106,8 @@ function ChapterRead({ node, onNavigate }: { node: NodeJson; onNavigate: (path: 
   // …and the reverse: scrolling updates the fragment to the anchor under the reading line
   const rootRef = useRef<HTMLDivElement>(null);
   useFragmentScrollSpy(rootRef, node.path);
+  // the TOC shades what this page renders inline; `loads` re-scans on each lazy landing
+  useTocPresencePublisher(rootRef, node.path, loads);
 
   return (
     <div className="chapter" ref={rootRef} style={{ maxWidth: `${markupWidthCh()}ch` }}>

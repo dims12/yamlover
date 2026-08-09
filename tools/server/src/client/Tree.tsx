@@ -1,10 +1,11 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, MouseEvent, useEffect, useRef, useState } from "react";
 import { isDirConcrete } from "../concrete";
 import { TreeNode } from "./api";
 import { beginNodeDrag } from "./dnd";
 import { tocView } from "./renderers/registry";
 import { TreeRow } from "./TreeRow";
-import { isAncestorPath } from "./paths";
+import { canonPath, isAncestorPath } from "./paths";
+import { useTocPresence } from "./toc-presence";
 
 /** In-project drag-drop wiring for the TOC: `canDrop` consults drop-policy against the
  *  current drag; a drop hands the target + pointer spot to the owner's confirm popup.
@@ -17,7 +18,7 @@ export interface TreeDnd {
 interface Props {
   node: TreeNode;
   current: string;
-  onSelect: (path: string) => void;
+  onSelect: (path: string, e: MouseEvent) => void; // the click event routes dblclick vs in-page scroll
   onLoadChildren: (path: string, levels?: number) => Promise<void>;
   onContext?: (node: TreeNode, x: number, y: number) => void; // right-click → the node context menu
   dnd?: TreeDnd; // rows drag out; directory rows accept drops
@@ -55,11 +56,30 @@ export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren
   const selected = node.path === current;
   const onPath = isAncestorPath(node.path, current); // an ancestor of the selection
   const rowRef = useRef<HTMLDivElement>(null);
+  // TOC PRESENCE (toc-presence.ts): each branch subscribes for ITSELF — no prop rides through
+  // the memo'd chain, so SSE churn still bails at `memo` while presence changes re-render
+  // exactly the subscribed branches. `merged` = visibly rendered on the content pane;
+  // `fragCurrent` = the reading line. The reading line may name a node DEEPER than any TOC
+  // row (the spy anchors every rendered line; the tree only holds loaded branches) — then
+  // the nearest row that cannot hand off to a visible child carries the shade.
+  const presence = useTocPresence();
+  const key = canonPath(node.path);
+  const merged = presence.base !== null && (presence.anchors.has(key) || presence.base === key);
+  const cur = presence.currentPath;
+  const onFragPath = cur !== null && isAncestorPath(node.path, cur);
+  const deeperShown = cur !== null && open && kids.some((c) => c.path === cur || isAncestorPath(c.path, cur));
+  const fragCurrent = cur !== null && (cur === key || (onFragPath && !deeperShown));
 
   // Reveal the selection: keep its ancestors open, and scroll it into view.
   useEffect(() => {
     if (onPath) setOpen(true);
   }, [onPath]);
+  // …and the reading line (user-chosen: the TOC follows the scroll): ancestors of the
+  // fragment-current node spring open too, so the moving shade is never hidden in a
+  // collapsed branch. Only already-loaded branches are affected — nothing is fetched.
+  useEffect(() => {
+    if (onFragPath) setOpen(true);
+  }, [onFragPath]);
   // Filter mode: a branch whose pruned children arrive later (a live query refinement)
   // springs open too — the filtered TOC is always expanded down to the matches.
   useEffect(() => {
@@ -77,8 +97,8 @@ export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren
     setOpen(filterMode ? kids.length > 0 : (initialOpen ?? depth === 0) || onPath);
   }, [filterMode, kids.length, initialOpen, depth, onPath]);
   useEffect(() => {
-    if (selected) rowRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-  }, [selected]);
+    if (selected || fragCurrent) rowRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [selected, fragCurrent]);
 
   const toggle = async () => {
     if (!open && expandable && !loaded) {
@@ -100,8 +120,10 @@ export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren
         depth={depth}
         selected={selected}
         match={filterMode && !!node.match}
+        merged={merged}
+        fragCurrent={fragCurrent}
         chevron={expandable ? { open, loading, onToggle: toggle } : "leaf"}
-        onSelect={() => onSelect(node.path)}
+        onSelect={(e) => onSelect(node.path, e)}
         onContext={onContext ? (x, y) => onContext(node, x, y) : undefined}
         drag={dnd && node.path !== ":" ? { onStart: (e) => beginNodeDrag(e, { path: node.path, concrete: node.concrete ?? null, label: node.label }) } : undefined}
         drop={dnd && isDirConcrete(node.concrete) ? { canDrop: () => dnd.canDrop(node), onDrop: (x, y) => dnd.onDropNode(node, x, y) } : undefined}

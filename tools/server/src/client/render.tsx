@@ -4,6 +4,7 @@ import { segToken } from "../../../parser/ts/src/pathseg.ts";
 import type { CommentBucket, CommentMap } from "./api";
 import { isJsonFamily } from "../concrete";
 import { ScalarLeaf } from "./renderers/value-editors";
+import { navigateToFragment } from "./renderers/headings";
 import { highlightLang, highlightSpans } from "./highlight";
 
 // Keep in sync with LINK_KEY / BINARY_KEY in src/server/yamlover.ts.
@@ -268,19 +269,14 @@ function fileComments(comments: CommentMap | undefined, key: "$head" | "$tail"):
   return Array.isArray(v) && v.length ? v : undefined;
 }
 
-/** Navigate to an in-page fragment: record `<doc>#/cont` in history and scroll to the node stamped
- *  with that id. The id is the DECODED slash continuation (see {@link fragmentOf}). */
-function goFragment(frag: string): void {
-  const base = window.location.pathname + window.location.search;
-  window.history.pushState({}, "", base + "#" + frag);
-  document.getElementById(frag)?.scrollIntoView?.(); // optional-call: absent in jsdom
-}
-
 /** A zero-width anchor stamping a node's `#`-fragment id at its line, so a deep link or a local ref
- *  can scroll straight to it. Nothing for the page root (empty fragment) or when anchors are off. */
-function Anchor({ ctx, frag }: { ctx: Ctx; frag: string }): ReactNode {
+ *  can scroll straight to it. Nothing for the page root (empty fragment) or when anchors are off.
+ *  `path` (the node's absolute colon path — threaded parallel to `frag`, which is NOT invertible
+ *  for exotic keys) rides along as `data-node-path`, the DOM→path bridge the TOC presence scan
+ *  reads (toc-presence.ts); a non-addressable node (`path` null) stays scannable-invisible. */
+function Anchor({ ctx, frag, path }: { ctx: Ctx; frag: string; path?: string | null }): ReactNode {
   if (!ctx.anchors || !frag) return null;
-  return <span id={frag} className="frag-anchor" />;
+  return <span id={frag} className="frag-anchor" data-node-path={path ?? undefined} />;
 }
 
 /**
@@ -466,7 +462,7 @@ function refNode(ref: Ref, syntax: Syntax, ctx: Ctx, display?: string): ReactNod
         href={"#" + frag}
         onClick={(e) => {
           e.preventDefault();
-          goFragment(frag);
+          navigateToFragment(frag);
         }}
       >
         {text}
@@ -816,7 +812,7 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, path, noPad = false }: { k: s
   const head = (
     <>
       {noPad ? null : pad}
-      <Anchor ctx={ctx} frag={frag} />
+      <Anchor ctx={ctx} frag={frag} path={path} />
       <span className="k">{k}</span>
       <span className="punct">:</span>
     </>
@@ -880,7 +876,7 @@ function YamlItem({ v, pad, indent, ctx, frag, path, noPad = false, anchorName }
   const dash = (
     <>
       {noPad ? null : pad}
-      <Anchor ctx={ctx} frag={frag} />
+      <Anchor ctx={ctx} frag={frag} path={path} />
       <span className="punct yaml-dash">{"-"}</span>
       {anchorName !== undefined && <>{" "}<span className="anchor derived">{fmtDerivedAnchor(anchorName)}</span></>}
     </>
@@ -1024,7 +1020,7 @@ function JsonEntry({ k, v, pad, indent, ctx, frag, path, last }: { k: string; v:
   const head = (
     <>
       {pad}
-      <Anchor ctx={ctx} frag={frag} />
+      <Anchor ctx={ctx} frag={frag} path={path} />
       <span className="k">{`"${k}"`}</span>
       <span className="punct">{": "}</span>
       {decoSpan(ctx, frag, "json")}
@@ -1061,13 +1057,13 @@ function JsonItem({ v, pad, indent, ctx, frag, path, last }: { v: unknown; pad: 
       {"\n"}
     </>
   );
-  if (!foldable(v)) return <>{lead}{pad}<Anchor ctx={ctx} frag={frag} />{decoSpan(ctx, frag, "json")}<JsonValue value={v} indent={indent} ctx={ctx} frag={frag} path={path} />{tail}</>;
+  if (!foldable(v)) return <>{lead}{pad}<Anchor ctx={ctx} frag={frag} path={path} />{decoSpan(ctx, frag, "json")}<JsonValue value={v} indent={indent} ctx={ctx} frag={frag} path={path} />{tail}</>;
   return (
     <>
       {lead}
       <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
       {pad}
-      <Anchor ctx={ctx} frag={frag} />
+      <Anchor ctx={ctx} frag={frag} path={path} />
       {decoSpan(ctx, frag, "json")}
       {open ? <JsonBody value={v} indent={indent} ctx={ctx} frag={frag} path={path} /> : <span className="fold-summary">{foldSummary(v)}</span>}
       {tail}
