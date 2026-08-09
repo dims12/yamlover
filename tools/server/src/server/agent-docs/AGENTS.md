@@ -20,7 +20,7 @@ yamlover is a **distinct, YAML-like language** — close to YAML and mostly read
 document that uses aliases/anchors does **not** round-trip identically. On top of a YAML-style
 surface it adds a small **pointer layer** so that data forms a graph, not just a tree:
 
-- **`*` pointers** — a value that *refers to* another node (a shared edge, not a copy).
+- **`*` pointers** — a value that *refers to* another node (a ref edge, not a copy).
 - **`&` path anchors** — declare that "this node also lives over there" (the push side of `*`).
 - **`!!` tags** — type/schema markers, including inline schema references `!!<…>`.
 
@@ -115,7 +115,7 @@ author `'1':` for the numeric string key.
 
 ## 4. Pointers `*` (the pull side)
 
-A `*` value dereferences a path to another node and creates a **shared edge** (not a copy):
+A `*` value dereferences a path to another node and creates a **ref edge** (not a copy):
 
 ```yamlover
 humans:
@@ -139,7 +139,7 @@ target changes everything that points at it.
 boss: &: chief             # this node is ALSO reachable as the document-root key `chief`
   name: Rex
 team:
-  lead: *: chief           # same node as `boss` — a shared edge, not a copy
+  lead: *: chief           # same node as `boss` — a ref edge, not a copy
 ```
 
 Reverse relations are spelled as anchors. `&: parent: child` means "parent holds me as child":

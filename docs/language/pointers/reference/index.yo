@@ -1,11 +1,11 @@
 Reference
-description: the pull - * executes a path and yields a shared edge
+description: the pull - * executes a path and yields a ref edge
 - >
   `*path` **pulls**: "my value lives there". The `*` sigil is the **pull** (or execute) operator -
   the authoring embedding of a path, the only thing that creates an edge - and together with its
   path it forms a **reference** (also known as a *dereference*, the C-family term - used here only
   as this synonym). It takes the full grammar: scopes, positions, escapes. Resolution is lazy and
-  yields a **graph edge, never a copy**: the target node is shared, and a ref edge is never
+  yields a **ref edge, never a copy**: the target node is shared, and a ref edge is never
   expanded inline to infinity, so cycles are safe.
 - !!yo
   cat: furry manager supervising humans life

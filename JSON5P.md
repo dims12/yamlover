@@ -42,7 +42,7 @@ whose contents are a pointer expression.
 ```json5p
 {
   pets: [ { name: 'Rex' }, { name: 'Whiskers' } ],
-  feline: *'pets:1',           // a shared edge to pets position 1 — NOT a copy
+  feline: *'pets:1',           // a ref edge to pets position 1 — NOT a copy
 }
 ```
 
@@ -213,5 +213,5 @@ The supersession is shown as three single files over the **same dataset**:
 - **`examples/02-tour.json5`** — JSON5 ergonomics (comments, unquoted keys, trailing
   commas, hex/`Infinity`/`NaN`) — still no pointers, so a shared node is a *copy*.
 - **`examples/03-tour.json5p`** — json5p: the same JSON5, now with `*` pointers (the
-  copy becomes a *shared edge*), `~` back-edges, scopes, and escaping. The inline comments
+  copy becomes a *ref edge*), `~` back-edges, scopes, and escaping. The inline comments
   are themselves a json5p (JSON5) feature.

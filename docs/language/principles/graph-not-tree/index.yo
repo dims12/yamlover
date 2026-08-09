@@ -13,5 +13,5 @@ description: an acyclic containment spine, ref edges on top - cycles allowed, no
   canonical forwards-only form; queries see the normalized view and cannot tell which way an edge was
   authored.
 - >
-  A pull always yields a **shared edge, never a copy**: `*` makes two paths lead to the one
+  A pull always yields a **ref edge, never a copy**: `*` makes two paths lead to the one
   node, and an edit through either is an edit of both.

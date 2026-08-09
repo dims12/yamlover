@@ -2,7 +2,7 @@ json5p/pointer
 description: A * reference - the value is another node, named by a quoted colon path
 - >
   A **pointer** is `*` followed by a quoted **colon path** - the value IS the node the path
-  names, a shared edge rather than a copy. More colons at the start widen the scope - bare is
+  names, a ref edge rather than a copy. More colons at the start widen the scope - bare is
   the current mapping (a sibling), `:` the document root, `::` the project, `:::` the world. A
   bare integer segment selects a position, a worded or quoted segment a key, and a backslash
   (doubled inside the double-quoted string) makes a character literal - `\:` a colon, `\.\.` the
