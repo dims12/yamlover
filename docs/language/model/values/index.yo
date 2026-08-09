@@ -2,7 +2,28 @@ Self value (scalar)
 description: the self-value's types - JSON Schema's set, binary added, its own subtyping
 
 - >
-  Each omnivorous node can have a self value (or scalar). This value belongs to one of these types
+  Each omnivorous node can have a self value (or scalar).
+
+- 'A whole yamlover document may be nothing but one scalar - a leaf. A string:'
+- !!<format: text/x-yamlover> |
+  Grey tabby, adopted 2019
+- 'A number, a boolean, a null:'
+- !!<format: text/x-yamlover> |
+  30
+- !!<format: text/x-yamlover> |
+  true
+- !!<format: text/x-yamlover> |
+  ~
+- 'Quotes force a string - this document holds text, not a number:'
+- !!<format: text/x-yamlover> |
+  '30'
+- 'And a block scalar carries multi-line text - still one value:'
+- !!<format: text/x-yamlover> |
+  |
+    A multi-line self value —
+    one string, kept verbatim.
+
+- > The value belongs to one of these types
 
 - !!<*yamlover: $defs: table>
   header:
