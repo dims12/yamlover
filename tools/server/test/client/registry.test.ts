@@ -146,10 +146,10 @@ describe("renderer registry (facet predicates)", () => {
     expect(bar(node({ concrete: "dir" }))).toEqual([
       "chapter:true", "xyflow:true", "thumbnails:true", "large-icons:true", "small-icons:true", "details:true",
     ]);
-    // a data SCALAR: no primary, the family in place but disabled (its grids would be empty,
-    // the drawing a lone box)
+    // a data SCALAR: nothing claims the primary slot, so the chapter tab HOLDS it disabled (the
+    // slot never empties — the stable bar), and the family rides along disabled too
     expect(bar(node({ concrete: "file/json", type: "integer", valueType: "integer", value: 30 }))).toEqual([
-      "xyflow:false", "thumbnails:false", "large-icons:false", "small-icons:false", "details:false",
+      "chapter:false", "xyflow:false", "thumbnails:false", "large-icons:false", "small-icons:false", "details:false",
     ]);
   });
 
@@ -157,7 +157,10 @@ describe("renderer registry (facet predicates)", () => {
     // the fixed slot serves the tagged node (the plaintextTab dedup, mirrored): one xyflow tab
     const tagged = node({ format: "x-yamlover-xyflow" }); // concrete null — not even explorer-eligible
     const tabs = rendererTabs(tagged);
-    expect(tabs.primary).toBeNull();
+    // the primary slot never empties: leaving a chapter for its graph chunk greys the leading
+    // button instead of vanishing it
+    expect(tabs.primary).toMatchObject({ enabled: false });
+    expect(tabs.primary!.renderer.name).toBe("chapter");
     expect(tabs.fixed[0].renderer.name).toBe("xyflow");
     expect(tabs.fixed[0].enabled).toBe(true); // its own format keeps the tab live…
     expect(tabs.fixed[1].enabled).toBe(false); // …even where the explorer views stay grey

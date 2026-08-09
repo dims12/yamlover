@@ -224,6 +224,11 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
         // refetches (the effect depends on `format`); the node stays visible meanwhile (no-flash).
         const { tabs: tabsE, allRenderers } = tabModel(n);
         const eff = effectiveFormat(format, n, tabsE);
+        // A requested format this node doesn't enable (a hand-edited URL, or one carried across a
+        // navigation the TOC couldn't resolve — `?format=chapter` riding a double-click into a
+        // graph) falls back to the node's natural view. Reflect the fallback INTO the URL, so the
+        // address always names the representation actually shown (onFormat replaces, never pushes).
+        if (eff !== format) onFormat(eff);
         const active = allRenderers.find((r) => r.name === eff);
         const swap = (dn: NodeJson) => !cancelled && setNode(dn);
         const fail = (e: Error) => !cancelled && setError(e.message);
@@ -256,7 +261,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     };
     // `format` is a dep: switching renderer↔data tab can change the needed depth, so refetch.
     // `unlocked` is a dep: locking re-runs this to refetch the saved chapter; unlocking pauses it.
-  }, [path, reloadKey, refreshSignal, format, unlocked]);
+  }, [path, reloadKey, refreshSignal, format, unlocked, onFormat]);
 
   // Paste-to-upload: pasting clipboard file(s) uploads them — the server drops the file into this
   // directory (a directory page), appends it as a chapter chunk (a chapter page), or drops it into

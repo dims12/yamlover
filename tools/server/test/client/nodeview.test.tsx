@@ -64,11 +64,14 @@ describe("NodeView", () => {
     // format="" is not a real tab → falls to the node's natural default (a data file → yamlover)
     render(<NodeView path=":x.yaml" format="" onFormat={() => {}} onNavigate={() => {}} />);
     expect(await screen.findByText("Alice")).toBeTruthy(); // the yamlover data view, by default
-    // the unified bar, in order: yamlover, the FIXED rendered family (xyflow + icon views), the
-    // remaining data views, then the trailing plaintext — and the DOM keeps exactly that order
-    const order = ["yamlover", "xyflow", "thumbnails", "large icons", "small icons", "details", "json5p", "yamlover/schema", "plaintext"];
+    // the unified bar, in order: the PRIMARY slot (held disabled by the chapter tab — the slot
+    // never empties), yamlover, the FIXED rendered family (xyflow + icon views), the remaining
+    // data views, then the trailing plaintext — and the DOM keeps exactly that order
+    const order = ["chapter", "yamlover", "xyflow", "thumbnails", "large icons", "small icons", "details", "json5p", "yamlover/schema", "plaintext"];
     expect([...document.querySelectorAll(".tabs .tab")].map((b) => b.getAttribute("aria-label"))).toEqual(order);
     for (const t of order) expect(screen.getByRole("button", { name: t })).toBeTruthy();
+    // nothing claims a data file's primary slot: the chapter tab holds the place, disabled
+    expect((screen.getByRole("button", { name: "chapter" }) as HTMLButtonElement).disabled).toBe(true);
     // yaml is not json-family: the json5p tab stays IN PLACE (a stable bar), just disabled
     expect((screen.getByRole("button", { name: "json5p" }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("button", { name: "yamlover" }) as HTMLButtonElement).disabled).toBe(false);

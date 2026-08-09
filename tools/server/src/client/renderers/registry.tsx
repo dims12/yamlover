@@ -551,6 +551,8 @@ export interface TabSlot { renderer: Renderer; enabled: boolean; offered?: boole
 /** The graph view, reused as a FIXED tab (like the explorer family): any container subtree is a
  *  drawing (buildGraph walks the value), not just a node tagged `$defs: xyflow`. */
 const XYFLOW = REGISTRY.find((r) => r.name === "xyflow")!;
+/** The chapter renderer — the placeholder for an otherwise-empty primary slot (disabled). */
+const CHAPTER = REGISTRY.find((r) => r.name === "chapter")!;
 /** The fixed tab's UNTAGGED form — a depth-2 PREVIEW. The registry entry's own depth is
  *  unlimited, which on an arbitrary node (the tree root!) would fetch and lay out everything.
  *  A bounded fetch stays a graph: deeper containers arrive as `$yamloverLink` markers and draw
@@ -578,6 +580,10 @@ export function rendererTabs(node: NodeJson): { primary: TabSlot | null; fixed: 
     const offer = REGISTRY.find((r) => r.offers?.(node));
     if (offer) primary = { renderer: offer, enabled: true, offered: true };
   }
+  // The slot NEVER empties: with no own renderer and no offer (a graph node, a plain data file),
+  // the dominant primary — the chapter tab — holds the place DISABLED, so leaving a chapter for
+  // its graph chunk greys the leading button instead of vanishing it (the stable bar).
+  if (!primary) primary = { renderer: CHAPTER, enabled: false };
   const eligible = own === EXPLORER || explorerEligible(node);
   const fixed: TabSlot[] = [
     // the tagged node gets its own (depth-unlimited) renderer; everyone else the depth-2 preview

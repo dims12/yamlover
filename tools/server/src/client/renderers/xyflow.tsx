@@ -13,7 +13,7 @@
 // on a node navigates to its element. A chapter chunk is inert (the page keeps scrolling over
 // it); double-clicking its canvas opens the graph alone.
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   BaseEdge,
   Controls,
@@ -281,7 +281,11 @@ export function reseatInRelationOrder(
   }
 }
 
-function layout(graph: { nodes: GraphNode[]; edges: GraphEdge[] }, onNavigate: (path: string) => void): { nodes: Node[]; edges: Edge[] } {
+function layout(graph: { nodes: GraphNode[]; edges: GraphEdge[] }, onNavigate: (path: string) => void, uid: string): { nodes: Node[]; edges: Edge[] } {
+  // Edge ids become DOM ids (the label's <textPath href="#id"> rides the edge's <path>), and id
+  // lookup is document-wide — two canvases on one chapter page would alias each other's `e0`,
+  // seating every later graph's titles on the first graph's curves. Prefix with the canvas's id.
+  graph = { nodes: graph.nodes, edges: graph.edges.map((e) => ({ ...e, id: uid + e.id })) };
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   // ranksep buys the room a title riding the curve needs; nodesep keeps a wide fan legible
@@ -347,7 +351,8 @@ function Canvas({ node, onNavigate, className, interactive = false, openPath }: 
   const wrapRef = useRef<HTMLDivElement>(null);
   const flowRef = useRef<ReactFlowInstance | null>(null);
   useFillHeight(wrapRef, 14, interactive); // the full view fills down to the window bottom
-  const graph = useMemo(() => layout(buildGraph(node), onNavigate), [node, onNavigate]);
+  const uid = useId().replace(/[^A-Za-z0-9_-]/g, ""); // per-canvas DOM-id prefix (edge ids must not collide across canvases)
+  const graph = useMemo(() => layout(buildGraph(node), onNavigate, uid), [node, onNavigate, uid]);
   // Node positions live in React Flow state so a plain drag REARRANGES the drawing; a fresh
   // layout (the value changed, a live refresh) re-seats everything.
   const [nodes, setNodes, onNodesChange] = useNodesState(graph.nodes);
