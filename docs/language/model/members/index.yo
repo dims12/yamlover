@@ -7,6 +7,15 @@ description: entries seen from the container - keyed, keyless, anchor-created
   stream: every member has an integer position, and a keyed member carries a string key besides.
 - >
   Examples:
+- 'A pure seq - only ordered members:'
+- !!yo
+  - ball
+  - mouse
+- 'A pure map - only keyed members:'
+- !!yo
+  species: cat
+  age: 3
+- 'And one omni node - a self value beside members of both kinds:'
 - !!yo
   whiskers: a grey tabby     # the node's own self value …
     species: cat             # … a keyed member …
