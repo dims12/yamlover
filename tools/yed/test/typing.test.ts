@@ -465,6 +465,39 @@ describe("yed2 — an EMPTIED key never traps the caret", () => {
   });
 });
 
+describe("yed2 — a KEY cell walks vertically (key_cell_editing's up/down rows)", () => {
+  // reported: editing the `pats` key in a nested document, Up/Down did nothing — the key
+  // branch short-circuited into flowCommon, which has no vertical arrows, so the advertised
+  // focus_prev/focus_next rows were dead keys. One line, so Up/Down always leave the cell.
+  const DOC = "human1:\n  name: Alice\n  age: 30\n  pats:\n    - name: Rex\n      species: dog\n    - name: Whiskers\n      species: cat\n";
+  it("ArrowUp from the `pats` key moves to the previous focusable; ArrowDown to the next", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource(DOC) };
+    const inKey = { ...s0, cursor: { at: "key", path: [0, 2], text: "pats", caret: "end" } } as EditorState;
+    const up = applyKey(inKey, { key: "ArrowUp" });
+    expect(up.refused).toBe(false);
+    // up: the previous visual row — `age: 30`, represented by its value
+    expect(up.cursor).toEqual({ at: "token", path: [0, 1], text: "30", caret: "end" });
+    const down = applyKey(inKey, { key: "ArrowDown" });
+    expect(down.refused).toBe(false);
+    // down: the NEXT visual row — `- name: Rex` — not two rows down (`pats:` holds no value,
+    // so its row has no anchor of its own; the walk must not skip past the first row below)
+    expect(down.cursor).toEqual({ at: "token", path: [0, 2, 0, 0], text: "Rex", caret: "end" });
+    watchdog(up); watchdog(down);
+  });
+  it("the container row is a ROW for everyone: ↓ from the `age` key stops at `pats:`, ↑ from Rex stops there too", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource(DOC) };
+    // reported: from inside the `age` key, ↓ jumped clean over the `pats:` row to Rex —
+    // a bare container key's row had no anchor, so the walk never saw it, from either side
+    const fromAgeKey = { ...s0, cursor: { at: "key", path: [0, 1], text: "age", caret: "end" } } as EditorState;
+    const down = applyKey(fromAgeKey, { key: "ArrowDown" });
+    expect(down.cursor).toEqual({ at: "key", path: [0, 2], text: "pats", caret: "end" });
+    const fromRex = { ...s0, cursor: { at: "token", path: [0, 2, 0, 0], text: "Rex", caret: "end" } } as EditorState;
+    const up = applyKey(fromRex, { key: "ArrowUp" });
+    expect(up.cursor).toEqual({ at: "key", path: [0, 2], text: "pats", caret: "end" });
+    watchdog(down); watchdog(up);
+  });
+});
+
 describe("yed2 — committed labour is never dropped", () => {
   it("Enter on an OMNI's value keeps its fields and opens the hole RIGHT AFTER the value line", () => {
     // reported once: `Eurasia` / `- Europe` / `- Asia`, ↑↑ to the value, Enter erased the whole

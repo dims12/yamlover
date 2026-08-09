@@ -395,7 +395,13 @@ function applyUnmark(state: EditorState): EditorState {
  *  everything inside a ONE-LINE flow container shares that container's row (only the outermost
  *  one-liner's gap represents it). The anchors, in order, ARE the document's rows. */
 function isRowAnchor(doc: Document, p: Position): boolean {
-  if (p.at === "key") return false;
+  if (p.at === "key") {
+    // a key shares its row with its value — EXCEPT a block container's key (`pats:`), whose row
+    // holds no value at all: without the key as anchor the row is invisible to the vertical
+    // walk, and ↓ from the row above skips straight past it (reported)
+    const n = nodeAt(doc, p.path);
+    return n != null && isContainer(n) && !isFlow(n);
+  }
   if (p.at === "tag") return false; // a tag shares its node's visual row (the inline spelling)
   // a ONE-LINE empty container's row is represented by its `into` slot — the gap past its closer
   // would double the row up. A SPREAD empty container's closer takes its OWN row, so its gap
@@ -431,7 +437,14 @@ function applyVertical(state: EditorState, dir: -1 | 1): EditorState {
   } else {
     const mineIdx = anchors.findIndex((a) => a >= slot); // a key's row anchor is its value, just after it
     const mine = mineIdx === -1 ? anchors.length : mineIdx;
-    const t = mine + dir;
+    // …but a CONTAINER's key (or tag) row holds no value, so it has no anchor of its own: the
+    // first anchor at-or-after it already lies on the NEXT visual row — stepping down lands on
+    // that anchor itself, never skips past it (reported: ↓ from a nested `pats:` key jumped two
+    // rows). Same-row test: the anchor's position sits at the cursor's own entry path.
+    const ownRow =
+      (state.cursor.at !== "key" && state.cursor.at !== "tag") ||
+      (mineIdx !== -1 && list[anchors[mine]].path.join(".") === state.cursor.path.join("."));
+    const t = dir > 0 && !ownRow ? mine : mine + dir;
     target = t >= 0 && t < anchors.length ? anchors[t] : undefined;
   }
   if (target === undefined) return refuse(state);

@@ -194,13 +194,17 @@ export function interpret(k: Key, s: Site): Intent | null {
     if (k.key === "ArrowDown") return { kind: "move", dir: 1 };
     return null; // printables: native text editing
   }
-  // ---- a KEY cell inside a flow token ------------------------------------------------------ //
+  // ---- a KEY cell (a committed key being edited — block or flow alike) --------------------- //
   if (s.cell === "key") {
     if (k.key === "Enter") return { kind: "keyCommit" }; // commit the key; the pair takes its row
     // an EMPTIED key + Backspace un-names the pair (one press, one level): `{key: 12}` with the
     // key deleted becomes `{12}` — the incomplete pair, drawn and not written — and the ladder
     // continues instead of jamming on a key nothing could remove
     if (k.key === "Backspace" && s.textEmpty) return { kind: "undoMarker" };
+    // the vertical walk — key_cell_editing's up_arrow/down_arrow rows (focus_prev/focus_next):
+    // a key cell is one line, so Up/Down always leave it, like every other one-line cell
+    if (k.key === "ArrowUp") return { kind: "move", dir: -1 };
+    if (k.key === "ArrowDown") return { kind: "move", dir: 1 };
     return flowCommon(k, s, /*textual*/ true);
   }
   // ---- token cells and holes --------------------------------------------------------------- //
