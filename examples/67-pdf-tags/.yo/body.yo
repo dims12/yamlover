@@ -11,7 +11,7 @@
 
 # A tag's description is its BODY (the node's own value): `name: <text>` with the sub-tags
 # in the deeper block — the schema ($defs/tag, type: variant) declares the value-plus-fields
-# shape, so no `!!var` tag is needed (docs/language/vs-yaml/mixtures: the shape itself is the intention).
+# shape, so no `!!var` tag is needed (docs/language/vs-yaml/differences/mixtures: the shape itself is the intention).
 tags: !!<*yamlover: $defs: tag> A small taxonomy for short / deadpan papers — two axes, field and genre
   field: What the paper is about
     mathematics: Mathematics

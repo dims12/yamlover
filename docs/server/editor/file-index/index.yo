@@ -1,11 +1,11 @@
 File index
 description: where each piece of the editor lives in the source tree
 - >
-  **`renderers/yed-editor.tsx` + `yed-load.ts` + `yed-sync.ts` (the yed mount):** the
-  unlocked-data-view editor, CONCRETE-AGNOSTIC by construction. LOAD is the `/api/json`
-  projection (depth `.inf`) converted to parser IR (`yed-load.ts` - omni/`selfAt`, pointers via
-  the sidecar's canonical text, authored raw spellings, flow/K&R meta at the switch, blobs as
-  opaque atoms). PERSIST is an IR tree diff emitted as PER-NODE `/api/edit` ops (`yed-sync.ts` -
+  **`renderers/yed-editor.tsx` + `yed-content-load.ts` + `yed-sync.ts` (the yed mount):** the
+  unlocked-data-view editor, CONCRETE-AGNOSTIC by construction. LOAD is the `/api/content`
+  envelope (depth `.inf`) - the one wire, whose parsed source IS the parser IR already
+  (`yed-content-load.ts` - omni/`selfAt`, pointers via the sidecar's canonical text, authored raw
+  spellings, flow/K&R meta at the switch, blobs as opaque atoms). PERSIST is an IR tree diff emitted as PER-NODE `/api/edit` ops (`yed-sync.ts` -
   whole-token emplaces at flow boundaries, self-value emplaces with `at`, removals last-first /
   insertions forward, pure key renames via `POST /api/rekey` after the flush); the backend's
   concrete-inheritance rules (`concrete-rules.ts`) route every write, and untouched regions -
@@ -17,7 +17,7 @@ description: where each piece of the editor lives in the source tree
   gated by the superset of what it replaces. `GET /api/source` remains as a diagnostic.
 - >
   **`renderers/yed-chapter-editor.tsx` + `renderers/yed-chapter/materialize.ts` (the DEFAULT
-  chapter editor):** the yed chapter mount - load `/api/json` -> IR, the pure machine in
+  chapter editor):** the yed chapter mount - load the `/api/content` envelope -> IR, the pure machine in
   `tools/yed/src/chapter/`, persistence through the `yed-sync.ts` diff with the exactly-once
   CHAPTER stamp and deferred subchapter materialization (predicted `meta.anchorKey` keys via the
   shared `concrete-rules.ts`). Gate: `test/yed-chapter-parity.test.tsx` (disk-asserting, real

@@ -4,7 +4,7 @@
 // same values, entry order, keys, edge kinds, pointer texts (verbatim `raw`), anchors,
 // `!!set` and `!!<…>` schema tags. The no-op shape tags `!!mix` (a mixed keyed+keyless
 // container) and `!!var` (a scalar-plus-fields) are NOT emitted — omni is the default, so an
-// untagged mixture reparses to the same IR (docs/language/vs-yaml/mixtures). Inexpressible content — blobs,
+// untagged mixture reparses to the same IR (docs/language/vs-yaml/differences/mixtures). Inexpressible content — blobs,
 // non-finite numbers, an anchored document
 // root — raises LossyError: refuse, never drop. (Blobs are refused only for now: the IR
 // carries the content HASH, not the bytes; once a byte source is wired in, a blob can
@@ -329,7 +329,7 @@ class Emitter {
 
   containerTags(node: Node): string[] {
     // `!!yo` and `!!set` carry semantics and are emitted; `!!mix` (a mixed keyed+keyless
-    // container) is the DEFAULT shape (omni-by-default, docs/language/vs-yaml/mixtures), so it is never
+    // container) is the DEFAULT shape (omni-by-default, docs/language/vs-yaml/differences/mixtures), so it is never
     // emitted — an untagged mixture parses back to the same IR. `!!var`/`!!omni` are read as
     // deprecated aliases of `!!yo` and re-emit as `!!yo`.
     const tags: string[] = [];

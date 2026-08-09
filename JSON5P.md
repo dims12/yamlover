@@ -65,7 +65,7 @@ YAML-keys round, 2026-08-01):
 The brace/bracket surface is still ordinary JSON5 (`{…}` objects, `[…]` arrays); the
 *semantics* is the single ordered mapping. **json5p has no null-key spelling**: JSON5
 object keys are strings, so a null-keyed entry (yamlover `~: v`,
-`docs/language/vs-yaml/null-keys`) cannot be serialized to json5p — the serializer raises a
+`docs/language/vs-yaml/similarities/null-keys`) cannot be serialized to json5p — the serializer raises a
 `LossyError`.
 
 ### Scopes (where a pointer starts)
@@ -129,7 +129,7 @@ and **additive**: with no label and no index there is no identity to dedup on, s
 declaration adds one element, even alongside a forward element pointing at the same node —
 unless the container's metadata says `uniqueItems: true` (the schema-keyword route to set
 semantics; json5p has no tags, so yamlover's `!!set` is unavailable here). Full semantics
-in `docs/language/vs-yaml/tilde`.
+in `docs/language/pointers/anchors`.
 
 ### `&` — path anchors (in value position)
 

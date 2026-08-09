@@ -176,7 +176,7 @@ export interface Span { uri: string; start: number; end: number; }
 An `Entry` stores at most a **string** key; the **integer** position is its index in
 `entries`. A keyless entry (`- value` in yamlover and a YAML sequence, a bare element
 in a json5p array) has `key: null`; a NULL-KEYED entry (`~: value` ≡ `: value` — the
-null key, `docs/language/vs-yaml/null-keys`) is keyed, carrying the `nullKey` flag — distinct
+null key, `docs/language/vs-yaml/similarities/null-keys`) is keyed, carrying the `nullKey` flag — distinct
 from keyless. The `docs/language/pointers` expansion — `0: *key0`,
 `1: value1` — is the engine's *derived* positional view; the IR never writes those alias
 entries. So the position step `1` resolves to `entries[1]`; the key step `x` resolves to
@@ -195,7 +195,7 @@ value: Pointer(document-root → eve) }`. The IR records the back-edge as writte
 synthesize the matching forward edge (that's `normalize`/`derive` in the engine).
 
 The **keyless** form — yamlover `~- *…`, json5p `~*'…'` (reverse positional membership,
-`docs/language/vs-yaml/tilde`) — is `Entry { key: null, edge:"back", value: Pointer }`: the same nullable
+`docs/language/pointers/anchors`) — is `Entry { key: null, edge:"back", value: Pointer }`: the same nullable
 `key` a keyless forward entry uses, with `edge:"back"`. The value is always a `Pointer`
 (the `Value` contract already requires it for `ref`/`back`). Unlike `!!mix`/`!!var` —
 parse *permissions* whose effect is visible in the node's shape — `!!set` (≡

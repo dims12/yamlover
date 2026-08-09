@@ -1,6 +1,6 @@
 # PRIOR-ART — the omnivorous node, surveyed
 
-Companion to `docs/language/vs-yaml/mixtures` (*One ordered container*), `IR.md` (the model being
+Companion to `docs/language/vs-yaml/differences/mixtures` (*One ordered container*), `IR.md` (the model being
 claimed), `docs/meta/facets` (`variant` / the `omni` top type), and
 `tools/parser/YAML-CONFORMANCE.md` (how far the YAML surface is actually shared).
 
@@ -16,7 +16,7 @@ claimed), `docs/meta/facets` (`variant` / the `omni` top type), and
 
 ## 1. The claim under test
 
-From `docs/language/vs-yaml/mixtures`, an untagged yamlover node may carry, at once:
+From `docs/language/vs-yaml/differences/mixtures`, an untagged yamlover node may carry, at once:
 
 - **at most one own scalar value** (its self-value, at any line position in the block),
 - **keyless entries** — positional, the `- item` spelling,

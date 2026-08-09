@@ -400,7 +400,7 @@ test('a bare BLOCK-SCALAR self-value is omni (tagless) and may sit anywhere amon
 
 // ---- `~-` keyless back-edges (reverse positional membership) + `!!set` ----------
 
-test('~- entry: a keyless back-edge with a pointer value (docs/language/vs-yaml/tilde)', () => {
+test('~- entry: a keyless back-edge with a pointer value (docs/language/pointers/anchors)', () => {
   const d = parseYamlover('my_node:\n  name: x\n  ~- *: some: other: location\n');
   const my = asMap(entry(asMap(d.root), 'my_node').value);
   const back = my.entries.find((e) => e.edge === 'back')!;

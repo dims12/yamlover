@@ -94,7 +94,7 @@ class Parser {
       let back = false;
       if (this.peek() === '~') { back = true; this.i++; }
       if (back && this.peek() === '*') {
-        // `~*'…'` — a KEYLESS back member (reverse positional membership, docs/language/vs-yaml/tilde):
+        // `~*'…'` — a KEYLESS back member (reverse positional membership, docs/language/pointers/anchors):
         // no key, no colon; the pointer names the container that holds this node.
         entries.push(withSpan({ key: null, edge: 'back', value: this.pointer() }, this.uri, entryStart, this.i));
       } else {

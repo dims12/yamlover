@@ -8,7 +8,7 @@ description: the parallel keys sit beside the node's value - a document root, a 
   **Whole yamlover document** - plain root keys (the root may carry a scalar value too):
 - !!<format: text/x-yamlover> |
   !!<*::yamlover:$defs:chapter>
-  title: A Pinch of Math
+  A Pinch of Math
   yamlover-annotations:
   - *::tags:genre:brevity:shortest-paper
 - >

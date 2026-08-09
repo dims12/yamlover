@@ -73,7 +73,7 @@ export function deriveInverses(g: Graph): Edge[] {
  * Dedup applies to LABELED edges only — a label gives a relation identity, so a same-label
  * pair is one relation authored twice. A KEYLESS edge (label null — positional membership)
  * has no identity and is ADDITIVE: lists may contain repetitions, so every keyless ref and
- * every folded `~-` membership is kept (docs/language/vs-yaml/tilde). A `!!set` container's dedup is a
+ * every folded `~-` membership is kept (docs/language/pointers/anchors). A `!!set` container's dedup is a
  * projection/validation concern over node meta, which a bare edge list does not carry.
  */
 export function normalize(g: Graph): Edge[] {

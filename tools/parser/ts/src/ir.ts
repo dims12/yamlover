@@ -70,7 +70,7 @@ export interface NodeMeta {
   positional?: number;
   /** SET semantics (`!!set` tag / `uniqueItems: true` in meta): an element appears at most
    *  once, so duplicate memberships — forward+forward, forward+`~-` reverse, reverse+reverse —
-   *  collapse to one (docs/language/vs-yaml/tilde). Unlike `!!mix` (a parse permission visible in the
+   *  collapse to one (docs/language/pointers/anchors). Unlike `!!mix` (a parse permission visible in the
    *  node's shape), this must survive into the graph. */
   set?: boolean;
   /** The `!!yo` tag (formerly `!!var`/`!!omni` — read forever as aliases, emitted as `!!yo`):

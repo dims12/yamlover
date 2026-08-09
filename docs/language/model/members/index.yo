@@ -32,7 +32,7 @@ description: entries seen from the container - keyed, keyless, anchor-created
     - '`{species: cat, age: 3}`'
   - - omap
     - '- (none)'
-    - 'Not a constraint but a **transform name** ([transforms](::transform)): as a shape it degenerates to `map` - every yamlover map is already ordered - and the transform reshapes a mapping into ordered `[key, value]` members and back.'
+    - 'Not a constraint but a planned **transform name** ([transforms](::transform)): as a shape it degenerates to `map` - every yamlover map is already ordered - and the transform reshapes a mapping into ordered `[key, value]` members and back.'
     - '`!!omap {a: 1, b: 2}`'
   - - set
     - '- (`uniqueItems`)'
@@ -40,7 +40,7 @@ description: entries seen from the container - keyed, keyless, anchor-created
     - '`!!set [red, green, blue]`'
   - - pairs
     - '- (none)'
-    - 'Also a **transform name**: ordered `[key, value]` members whose keys may repeat - the transform carries them to and from a mapping.'
+    - 'Also a planned **transform name**: ordered `[key, value]` members whose keys may repeat - the transform carries them to and from a mapping.'
     - '`!!pairs [[a, 1], [a, 2]]`'
   - - mix
     - '- (none)'

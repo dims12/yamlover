@@ -5,13 +5,13 @@ The logical (abstract) model
 description: omnivorous nodes with ordered relations - the terminology and the graph
 
 - >
-  The model a yamlover database holds is a **directed** (oriented) **graph**. Graph can have cycles (i.e.
-  it is not acyclic.
+  The model a yamlover database holds is a **directed** (oriented) **graph**. The graph can have
+  cycles (i.e. it is not acyclic).
 
 - >
   The vertices of that graph are called **nodes**. A node may carry a **scalar value** - a string, a
   number, or a boolean. A node carrying no value of its own is taken to hold the special value
-  `null`. Nodeas are called `ombivorous` because of this.
+  `null`. Nodes are called **omnivorous** because of this.
 
 - >
   Nodes are joined by directed edges called **relations**. A relation runs from a **parent** node to

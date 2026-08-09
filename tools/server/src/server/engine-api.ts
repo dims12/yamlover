@@ -1276,7 +1276,7 @@ const relKey = (label: string | null, other: string): string => `${label ?? ""}\
 /** A node's DOWNSTREAM entries (it is the natural source), in source order: its containment
  *  children and forward `*` refs (authored here, positioned), then any `~` back-edges that target
  *  it from elsewhere (authored on the downstream node, so unpositioned → appended, ordered
- *  lexicographically by the member's path — docs/language/vs-yaml/tilde).
+ *  lexicographically by the member's path — docs/language/pointers/anchors).
  *
  *  Dedup is by identity, which only a LABEL provides: a same-label both-ways pair (`L: *x` +
  *  `~L: …`) is one relation authored twice → one entry. A KEYLESS membership (label null, the
@@ -2843,7 +2843,7 @@ function escapeScalarSrc(text: string): string {
  *
  *  `deeper` pushes the value's continuation lines two columns further in — for a node that ALSO
  *  carries keyed fields (which sit at indent+2), a block scalar must be deeper than them so its
- *  dedent to the field column ends the block (docs/language/vs-yaml/mixtures). Blank lines are emitted truly empty:
+ *  dedent to the field column ends the block (docs/language/vs-yaml/differences/mixtures). Blank lines are emitted truly empty:
  *  a `pad`-only line at a shallower column would truncate the block. */
 function renderEntry(valueSrc: string, indent: number, marker: string, tag?: string, deeper = false): string[] {
   const pad = " ".repeat(indent + (deeper ? 2 : 0));
@@ -3174,7 +3174,7 @@ function payloadFacets(src: string): Facets {
 
 /** The facets an EXISTING entry carries, as column-0 source (its own indentation stripped), plus
  *  the inline `!!<…>` it wears. A block scalar's content lives at the child column when the node is
- *  plain, and one step deeper when it is an omni carrying keyed fields (docs/language/vs-yaml/mixtures). */
+ *  plain, and one step deeper when it is an omni carrying keyed fields (docs/language/vs-yaml/differences/mixtures). */
 function entryFacets(lines: string[], e: ChapterEntry, indent: number): Facets & { tag?: string } {
   const marked = lines[e.start].trim().replace(/^-\s*/, "");
   const tag = marked.match(/^(!!<[^>]*>)/)?.[1];
@@ -3475,7 +3475,7 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
 // A chunk that carries a fragment becomes an OMNI node — its prose is a block-scalar self-value and
 // `yamlover-fragments:`/`yamlover-annotations:` are keyed fields. These fields sit at the item's
 // child indent (item-indent + 2); the block-scalar content is pushed one step DEEPER (item-indent +
-// 4) so its dedent to the field level ends the block (docs/language/vs-yaml/mixtures). Reached by ABSOLUTE index
+// 4) so its dedent to the field level ends the block (docs/language/vs-yaml/differences/mixtures). Reached by ABSOLUTE index
 // (node-path space — what the fragment target uses), NOT the /api/edit rank space.
 
 /** The absolute-index body item at `indices` (the last descends INTO the item; earlier ones descend
@@ -3591,7 +3591,7 @@ function splitChunkWithin(within: Seg[]): { indices: number[]; keys: string[] } 
  *  chapter's title (docs/documents/chapter). The self-value is the content line at the root indent that is
  *  neither the leading `!!<…>` tag line nor an entry opener; a block-header self-value owns its
  *  deeper-indented content lines too. Replacement happens in place (the authored position among the
- *  entries is the author's — docs/language/vs-yaml/mixtures); a fresh self-value lands right after the tag line. */
+ *  entries is the author's — docs/language/vs-yaml/differences/mixtures); a fresh self-value lands right after the tag line. */
 /** Replace a document's whole body with one FLOW token. Unlike a self-value line, a flow token is
  *  the entire value — nothing else may stand beside it — so every content line goes and the token
  *  takes their place. The `!!<…>` banner and the head-of-file comments are not content and stay. */

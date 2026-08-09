@@ -1,5 +1,6 @@
 The three facets
 description: value, keyed, ordinal - the capability cube and its corners
+- '*Status: design - the facet keywords and their quantifiers are not implemented yet; the kept JSON-Schema keywords apply today.*'
 - 'Every node is described by three independent **facets** - capabilities it may exercise:'
 - !!<*yamlover: $defs: table>
   header:

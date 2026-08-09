@@ -23,8 +23,9 @@ description: attaching metadata with the !!<> tag - expressions, references, nam
   its content (the omni shape, the exemption from the enclosing document's meta) is sparsely
   hardcoded, but it is an ordinary named meta that will eventually be written out explicitly. A
   bare name may equally name a **transform** ([transforms](::transform)) - `!!omap`, `!!pairs`,
-  `!!binary` - and the naming works the same, since a transform is a meta. There is no tag system
-  beside the meta language - YAML's `!!` surface survives only as this naming.
+  `!!binary`, all planned - and the naming works the same, since a transform is a meta. There is
+  no tag system beside the meta language - YAML's `!!` surface survives only as
+  this naming.
 - >
   The tag is one of two attachment routes; the other - a directory's `.yo/meta.yo` overlay - and
   the rules the two share are described in [attaching](::meta:attaching).

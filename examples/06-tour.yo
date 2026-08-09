@@ -47,7 +47,7 @@ secondName: *pets: 1: name
 # yamlover has ONE ordered container: every entry has an integer position 0,1,… and MAY
 # also carry a string key. So keyless (positional) and keyed entries coexist in one node.
 # Mixing is the DEFAULT (omni); the `!!mix` tag below is an optional, no-op MARKER kept
-# for readability (ANCHOR_REFACTOR 2026-06-12 — see docs/language/vs-yaml/mixtures).
+# for readability (ANCHOR_REFACTOR 2026-06-12 — see docs/language/vs-yaml/differences/mixtures).
 playlist: !!mix
   - Intro                  # position 0     keyless / positional
   - Verse                  # position 1     keyless

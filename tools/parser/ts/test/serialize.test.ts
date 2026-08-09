@@ -210,7 +210,7 @@ test('yamlover rt: !!yo is semantic — kept on keyed nodes, containers, and the
 });
 
 test('yamlover rt: a MULTILINE root omni self-value re-emits as a tagless block scalar, fields follow', () => {
-  // a bare block-scalar self-value mixed with entries — no `!!var` (docs/language/vs-yaml/mixtures)
+  // a bare block-scalar self-value mixed with entries — no `!!var` (docs/language/vs-yaml/differences/mixtures)
   const out = rtYamlover('- solid\n|\n   multi\n   line\n- recommended\nscale: 10\n');
   assert.doesNotMatch(out, /!!var|!!omni/);
   assert.match(out, /^\|$/m); // the block-scalar introducer on its own line

@@ -6,10 +6,10 @@ description: the colon grammar - one meaning for the colon everywhere
 
 - >
   The colon is THE key marker of the JSON/YAML family: `key: value` means "this key leads to that value", and
-  alos it is a ptah separator
+  also it is a path separator
 
 - >
-    The path consists of segments, separated by colons. In the beginning ot the path there can be zero, one, two
+    The path consists of segments, separated by colons. In the beginning of the path there can be zero, one, two
     or three colons.
 - >
     Example of paths:
@@ -46,7 +46,7 @@ description: the colon grammar - one meaning for the colon everywhere
   - enter into the child node keyed `humans`
   - then enter into 0th child node
   - then enter into the child node keyed `pets`
-  - then enter 1th child node
+  - then enter the 1st child node
   - then enter into the child node keyed `name`
 
 - Segment can be
@@ -54,7 +54,7 @@ description: the colon grammar - one meaning for the colon everywhere
 - !!<*yamlover: $defs: table>
   - - Known token
     - `~`, `null`, `..`, `...`, `<<`, `-`
-    - Works according to it's meaning
+    - Works according to its meaning
   - - Unquoted key
     - `abc`, `cde`
     - Leads to child node, connected by this key
@@ -65,7 +65,7 @@ description: the colon grammar - one meaning for the colon everywhere
     - `"abc"`, `'cde'`, `"12"`
     - Leads to child node, connected by this key
 
-- The beginning ot the path can be
+- The beginning of the path can be
 
 - !!<*yamlover: $defs: table>
   - - (none)

@@ -10,8 +10,8 @@ description: yamlover, json5p, schema, renderer tabs, the explorer grid, and the
   - '`explorer` - a file-manager-style **icon grid**, the default for a concrete directory (each child as an icon + label; click to open) and for a **tag''s own page**, where the grid shows the materials filed under that tag (via `/api/tagged` - annotation targets deduplicated, whole-node tags included).'
 - >
   Each data/schema view is **one level deep**: a nested object or array appears as a
-  `{ N properties }` / `[ M elements ]` link - click it to descend. Pointers (`*`/`~` edges)
-  likewise render as links you click to follow.
+  `{ N properties }` / `[ M elements ]` link - click it to descend. Pointers (`*` references and
+  `&` anchors) likewise render as links you click to follow.
 - Relations panel
   - >
     In a data view, the area **above the `<hr>`** lists the node's **upstream** relations - its

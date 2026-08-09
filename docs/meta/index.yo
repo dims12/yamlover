@@ -17,7 +17,9 @@ description: the meta language - the replacement for JSON Schema: typing, descri
   sub-document encoding (`yamlover`, `json5p`, or a `.../meta` variant for a schema document).
   *Rendering*: the viewer picks a renderer from the facets and the format. *Presentation*: `title` and
   `description` annotate a node without living in its data. Format resolution order: the meta
-  `format:` if present; else a recognized file extension; else - no meta and no extension - `binary`.
+  `format:` if present; else a recognized file extension; else - no meta and no extension - a
+  sniff: textual bytes parse as yamlover, binary bytes stay an opaque blob
+  (`application/octet-stream`).
 - >
   This chapter is the meta reference, shaped like the JSON Schema book: [attaching](:attaching) a
   meta to an instance; the [three facets](:facets) - the type system that replaces the `type`

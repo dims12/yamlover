@@ -13,7 +13,8 @@ description: the source and chapter yed mounts share the machine, the cells, and
   - ['**Source**', '`<EditorView>` (yed mount)', '`renderers/yed-editor.tsx`', 'rows of yamlover cells (the `yamlover`/`json5p` data view, unlocked) - DEFAULT']
   - ['**Chapter**', '`<YedChapterEditor>`', '`renderers/yed-chapter-editor.tsx`', 'prose, headings, sections, tables, source chunks (a chapter/task page, unlocked) - DEFAULT']
 - >
-  Both are yed mounts over the parser IR: load via `/api/json` -> `yed-load.ts`, edit via a pure
+  Both are yed mounts over the parser IR: load via the `/api/content` envelope (the one wire) ->
+  `yed-content-load.ts`, edit via a pure
   machine (`tools/yed/src/` grammar for source, `tools/yed/src/chapter/` for chapters), persist
   via the `yed-sync.ts` tree diff. They share the cell contract (`tools/yed/src/cells.tsx`) and
   the never-locked laws (watchdog, positions law, dry-run legend).
@@ -28,7 +29,7 @@ description: the source and chapter yed mounts share the machine, the cells, and
   `chapterEditorFlavor()` (`renderers/chapter.tsx`).
 - !!<format: text/plain> |
   NodeView (unlocked data view) ---> yed-editor.tsx (source)          +  tools/yed machine + cells
-                                                                      +- yed-load.ts / yed-sync.ts
+                                                                      +- yed-content-load.ts / yed-sync.ts
   ChapterView (unlocked, DEFAULT) -> yed-chapter-editor.tsx (chapter) +  (the SHARED yed base)
 
   ChapterView (?chapterEditor=flat) -> ChapterEditor -> chapter-model.ts + useChapterSync   (LEGACY)

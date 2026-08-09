@@ -12,8 +12,8 @@ description: unlock with F2 and edit in place - the chapter and source projectio
   next one in, and the arrow keys walk out of a chunk into its neighbour - so the chapter's
   positional body is edited the way a document is written, not the way a tree is edited. Edits
   ride the surgical `/api/edit` write path in the background (debounced and coalesced),
-  addressing each body element by its **absolute entry index** (`:doc[3]` - keyed entries consume
-  indices too); a trash button removes a chunk. The full behavior, state by state: [the chapter
+  addressing each body element by its **absolute entry index** (`: doc: 3`, the bare integer -
+  keyed entries consume indices too); a trash button removes a chunk. The full behavior, state by state: [the chapter
   editor machine](::server:chapter-editor).
 - >
   Prose is [marklower](::documents:marklower): emphasis is edited live as markup, while its

@@ -67,8 +67,8 @@ description: the source projection's typing grammar, one state per subchapter
 - >
   **THE CONCRETE IS NOT A STATE.** The editor edits ANY yamlover-shaped node the same way - a file
   document, a directory, a directory-backed document. WHERE a newly typed child is STORED is
-  decided server-side by the concrete-derivation module (`derive-concrete.ts`) - invisible to the
-  editing states.
+  decided server-side by the concrete-derivation rules (`concrete-rules.ts` + `concrete.ts`) -
+  invisible to the editing states.
 - >
   **Pseudo-states.** `nop`, `error_flash`, `focus_prev`, `focus_next` and `empty_cell_of_origin`
   stand for "consume the event and stay", "flash the red ring and stay", the two focus-walk

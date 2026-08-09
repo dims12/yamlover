@@ -86,7 +86,7 @@ test('yamlover and json5p agree on the shared normalized edges (06 vs 03)', () =
 
 test('normalize: a keyless ~- membership is ADDITIVE — folds beside the forward, never deduped', () => {
   // forward `- *member` AND reverse `~- *: items`: with no label there is no identity to
-  // dedup on, so normalize keeps BOTH forward keyless refs (docs/language/vs-yaml/tilde — lists repeat).
+  // dedup on, so normalize keeps BOTH forward keyless refs (docs/language/pointers/anchors — lists repeat).
   const d = parseYamlover('items:\n- *: member\nmember:\n  name: m\n  ~- *: items\n');
   const n = normalize(buildGraph(d));
   const memberships = n.filter((e) => e.from === ':items' && e.to === ':member' && e.label === null && e.kind === 'ref');

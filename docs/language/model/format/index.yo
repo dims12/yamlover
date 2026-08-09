@@ -63,8 +63,8 @@ description: a named constraint on node content - not a type; markups, codecs, s
     - 'A book chapter - title self value, `description`, positional body; the format that shapes this book.'
   - - '`x-yamlover-tag` · `x-yamlover-fragment` · `x-yamlover-annotation`'
     - '-'
-    - a keyed node
-    - 'The platform structures - tags, marklower fragments, annotations.'
+    - an omni or keyed node
+    - 'The platform structures - tags and annotations are omni (`type: variant`), a fragment is keyed.'
   - - '`application/octet-stream`'
     - '`contentEncoding: base64`'
     - bytes

@@ -338,6 +338,10 @@ chapters, the `entries:` keyword) deliberately run AHEAD of the code. The rules:
   legal; unmarked divergence is not.
 - **Design-ahead chapters say so** in their own text (the transform chapter, `!!yo`'s content,
   the terse-keyword spellings), so a reader can always tell law from plan.
+- **No implementation details in the book's prose** (ruled 2026-08-09): implementation status
+  lives ONLY in a small italic note at the TOP of a chapter (`*Status: design - …*`), never
+  inline in sentences or table cells. The `docs/server` chapters are the exception by charter -
+  they are the maintainer's map and cite files/endpoints as their subject.
 - Every edited `.yo` is vet-parsed before commit (the reconcile-poisoning gotcha), and
   structural checks run against a SCRATCHPAD copy - never the live served index.
 
@@ -360,7 +364,10 @@ chapters, the `entries:` keyword) deliberately run AHEAD of the code. The rules:
       load-bearing in documents/*: asserts fully-omni AND derives `x-yamlover-*` formats
       (tables/schema:5, lists:21). State the schema-derives-format reading in facets or split
       the meanings.
-- [ ] MARK the design-ahead parts of `meta/facets` as future: the facet keywords
+- [x] MARKED (2026-08-09) as one-line top-of-chapter status notes: `meta/facets` ("the facet
+      keywords and their quantifiers are not implemented yet"), `meta/attaching` ("the overlay
+      route reads one level today"), `docs/transform` ("this layer is not implemented yet").
+      The original finding, for the record: the facet keywords
       `value:`/`keyed:`/`ordinal:` and the `min`/`max` quantifiers are implemented nowhere -
       the engine's whole schema vocabulary is type/format/properties/additionalProperties/
       items/anyOf/allOf (walk.ts:1016-1044; compileMeta returns [] - validate.ts:192);
@@ -368,17 +375,19 @@ chapters, the `entries:` keyword) deliberately run AHEAD of the code. The rules:
       receives text/marklower from the schema). Same marker for meta/attaching's "nests under
       the JSON-Schema keywords" (reality: one level, three keywords - walk.ts:699-715, which
       validate.ts:179 itself calls FUTURE).
-- [ ] SOFTEN "hardcoded today" for `!!omap`/`!!pairs`/`!!binary` (transform:16, model/values:69,
-      model/members:33-44): none PARSE - the bare-tag regex is `!!(mix|var|omni|yo|set)`
-      (yamlover.ts:429); `!!binary` exists only as client output decoration; `int32/le` decodes
-      only in the superseded legacy loader (server/yamlover.ts:436), never in the engine walk
-      (cited as current in 5 chapters).
+- [x] SOFTENED (2026-08-09): "hardcoded today" is gone - the three names are "reserved" /
+      "planned" transform names across transform, model/values, model/members, model/meta, and
+      the transform chapter's top note carries the status. (The underlying facts, for the
+      record: none parse - the bare-tag regex is `!!(mix|var|omni|yo|set)`, yamlover.ts:429;
+      `!!binary` exists only as client output decoration; `int32/le` decodes only in the
+      superseded legacy loader, server/yamlover.ts:436 - landing the codec in the engine walk
+      stays a code ticket.)
 - [ ] FIX the model-root vocabulary: model/index.yo defines "relations" carrying per-edge
       "ordinals" - terminology has entry/member/spine edge/ref edge and no "relation" (used
       undefined in 9 more chapters; "ordinal" also means the facet). Standardize
-      "self-value" (3 spellings live) and the omnivorous spelling; typos: "Nodeas",
-      "ombivorous", two unclosed parens (model/index:8, pointers/index:7), "ptah"/"alos"/
-      "ot"/"1th"/"it's" in pointers/paths, "tree" where the book insists on "graph".
+      "self-value" (3 spellings live), and "tree" where the book insists on "graph".
+      (The plain typos are FIXED 2026-08-09: "Nodeas"/"ombivorous", both unclosed parens,
+      "ptah"/"alos"/"ot"/"1th"/"it's", the vs-yaml grammar slip.)
 - [ ] ADD the `back` edge to terminology: anchors realize as EdgeKind 'back', not 'ref'
       (resolve.ts:81, ir.ts:175; store adds 'derived'), and the load-bearing rule "reverse
       members never change a node's kind" (node-kind.ts:20-28 - why a tagged PDF stays binary)
@@ -386,26 +395,26 @@ chapters, the `entries:` keyword) deliberately run AHEAD of the code. The rules:
 - [ ] FIX or file as defects: the query type matcher lacks `mixed`/`null`/`scalar`
       (query.ts:386-398 - `!!<type: mixed>` silently matches nothing while `mixed` is a live
       display kind); blob/binary is a first-class node kind beside scalar in code
-      (node-kind.ts:10), folded into scalar by the book; the format-resolution fallback is
-      sniff-then-parse-as-yamlover, not "binary" (walk.ts:793-804 vs meta/index:19); `text/html`
-      is NOT in TEXT_FORMATS so an .html file becomes a Blob (format table says string);
-      `x-yamlover-tag`/`-annotation` are `type: variant`, not "a keyed node" (format table);
-      "grafts the `yamlover` self-import into EVERY served root" - on the self-root it
+      (node-kind.ts:10), folded into scalar by the book; `text/html` is NOT in TEXT_FORMATS so
+      an .html file becomes a Blob while the format table says string (a CODE gap now - the
+      book keeps the design claim); `int32/le` decode missing from the engine walk (same).
+      (Doc side DONE 2026-08-09: the resolution fallback respelled to the real
+      sniff-then-parse, meta/index:19; the `x-yamlover-tag`/`-annotation` row now says omni.)
+      Also: "grafts the `yamlover` self-import into EVERY served root" - on the self-root it
       DE-materializes instead (walk.ts:312-345); `json5/meta` missing from DOC_FORMATS while
       the book generalizes "the .../meta variants" (and `json/schema` is code-only).
-- [ ] REPOINT the pre-meta stale citations the 2026-08-07 sweep missed - all from the vs-yaml
-      differences/similarities split: `docs/language/vs-yaml/tilde` (10 sites; the chapter does
-      NOT exist - nearest content similarities/null-keys), `vs-yaml/mixtures` →
-      `differences/mixtures` (13 sites incl. examples/06-tour.yo:50 and
-      examples/67-pdf-tags/.yo/body.yo:14), `vs-yaml/null-keys` → `similarities/null-keys`
-      (IR.md:179, JSON5P.md:68).
-- [ ] REFRESH docs/server for the one-wire migration it predates: `/api/json` cited as live
-      (editor/file-index:5,20; editor/projections:16) - the route does not exist, the wire is
-      `/api/content` + the envelope, never mentioned; `yed-load.ts` (4 sites) is now
-      yed-content-load.ts; `derive-concrete.ts` (yamlover-editor:70) is concrete-rules.ts +
-      concrete.ts. Also: ui/editing:15's retired `:doc[3]` bracket spelling, the `*`/`~`
-      "edges" wording (ui/views:13, yamlover-editor/key_cell_editing:7 - `~` is the null key
-      now), and annotations/storage:10's keyed `title:` example shown as current shape.
+- [x] REPOINTED (2026-08-09) - the vs-yaml split leftovers: `vs-yaml/tilde` (10 sites, all
+      about back-edge/reverse membership) → `docs/language/pointers/anchors`, the chapter that
+      owns the mechanism; `vs-yaml/mixtures` → `differences/mixtures` (13 sites incl. two
+      examples); `vs-yaml/null-keys` → `similarities/null-keys` (IR.md, JSON5P.md). Zero stale
+      spellings remain outside this log and `.yo/.trash`.
+- [x] REFRESHED (2026-08-09) docs/server for the one-wire migration: `/api/json` →
+      the `/api/content` envelope (editor/file-index ×2, editor/projections incl. the ASCII
+      diagram), `yed-load.ts` → `yed-content-load.ts`, `derive-concrete.ts` →
+      `concrete-rules.ts` + `concrete.ts`; ui/editing's `:doc[3]` respelled to the bare-integer
+      `: doc: 3`; the `*`/`~` "edges" wording → `*` pointers and `&` anchors (ui/views,
+      key_cell_editing); annotations/storage's example moved off the legacy keyed `title:` to
+      the self-value title.
 - [ ] SMALL BOOK FIXES: documents/chapter/schema:11-14 quotes a 3-branch body union
       ($defs/chapter has 5 - bullets/numbered missing; the sibling tables/schema lists all 5);
       $defs/chunk:3 comment says "markdown prose" (schema and book say marklower);

@@ -4,7 +4,7 @@ description: the key_cell_editing state
   The entry's KEY as an editable cell - the caret ENTERS it (a click, or an arrow walk in visual
   order), the text edits in place. Reached by clicking a committed key or arrowing into it. Commit
   (Enter / blur) RENAMES the key: the server routes by STORAGE - a directory-backed member is
-  renamed on disk (inbound `*`/`~` pointers rewritten), an inline keyed entry has its key token
+  renamed on disk (inbound `*` pointers and `&` anchors rewritten), an inline keyed entry has its key token
   rewritten in the body, value and comments kept (THE CONCRETE IS NOT A STATE). The rename is
   OPTIMISTIC - the key updates in place and the caret stays in the cell, the persist runs after
   any pending body edits flush. A key that duplicates a sibling is rejected with the error ring,

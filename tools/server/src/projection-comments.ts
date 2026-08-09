@@ -92,7 +92,7 @@ export function scalarRawToken(node: IrNode): string | undefined {
  *  serialize-yamlover's `decorations`: the `!!<…>` schema tag (a tag APPLICATION — it must not
  *  vanish from the view just because the store routes it as `format`), then `!!yo` (the
  *  plain-yamlover mark) and `!!set` (set semantics). The shape tag `!!mix` is the DEFAULT —
- *  omni-by-default (docs/language/vs-yaml/mixtures) — so it is never shown. */
+ *  omni-by-default (docs/language/vs-yaml/differences/mixtures) — so it is never shown. */
 export function tagOf(n: IrNode): string | undefined {
   const parts: string[] = [];
   if (n.meta?.schema !== undefined) {

@@ -319,7 +319,7 @@ class Block {
         }
         entry = { key: null, edge: isPointer(value) ? 'ref' : 'contain', value };
       } else if (isBackSeqLine(l.text)) {
-        // a KEYLESS back-edge — reverse positional membership (docs/language/vs-yaml/tilde): the value
+        // a KEYLESS back-edge — reverse positional membership (docs/language/pointers/anchors): the value
         // names the container that holds this node, so it must be a pointer.
         if (keylessOnly) break;
         this.i++;
@@ -342,7 +342,7 @@ class Block {
           if (/^[|>][+-]?\d*$/.test(l.text)) {
             // a bare block-scalar SELF-VALUE (omni, tagless — no `!!var` needed): its content is
             // the deeper-indented run, and a dedent back to this node's indent ends it, so sibling
-            // entries resume. (docs/language/vs-yaml/mixtures — the value line may sit anywhere among the entries.)
+            // entries resume. (docs/language/vs-yaml/differences/mixtures — the value line may sit anywhere among the entries.)
             v = this.blockScalar(l.text, indent, l.n);
           } else {
             const iv = this.valueInline(l.text, indent, /*allowBlock*/ false, l.n, l.indent);

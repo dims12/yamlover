@@ -8,7 +8,7 @@ description: the kept surface, and every place the same token means something el
   (like an array), and keyed elements (like a mapping), without restriction.
   While yamlover shares much of YAML's surface syntax, this unified node
   model is a fundamental difference and underpins all of yamlover’s semantics.
-  Another important differences are pointers and anchors. 
+  Other important differences are pointers and anchors.
   
 - > 
   Reading is

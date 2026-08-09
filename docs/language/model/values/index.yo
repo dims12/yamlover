@@ -2,7 +2,7 @@ Self value (scalar)
 description: the self-value's types - JSON Schema's set, binary added, its own subtyping
 
 - >
-  Each omnivorous node can have self value (or scalar). This value belongs to one of these types
+  Each omnivorous node can have a self value (or scalar). This value belongs to one of these types
 
 - !!<*yamlover: $defs: table>
   header:
@@ -67,7 +67,7 @@ description: the self-value's types - JSON Schema's set, binary added, its own s
   JSON Schema. The merge key `<<` and YAML's `!!value` are mechanisms, not types.
 - >
   Three of these names are more than facet refinements: `!!omap`, `!!pairs`, and `!!binary` are
-  **transform names** ([transforms](::transform)). The records above are only their *result*
-  shapes - the reshaping itself (a mapping to and from ordered `[key, value]` members, bytes
-  decoded into a value and back) belongs to the transform, hardcoded today and to be written out
+  reserved as **transform names** ([transforms](::transform)). The records above are only their
+  *result* shapes - the reshaping itself (a mapping to and from ordered `[key, value]` members,
+  bytes decoded into a value and back) belongs to the transform layer, to be written out
   explicitly.
