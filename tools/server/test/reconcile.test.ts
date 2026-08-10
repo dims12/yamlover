@@ -92,6 +92,42 @@ describe("reconcile: external edits reach the index", () => {
     expect(call(h, "/api/dangling").json).toEqual([]);
   });
 
+  it("an external move relinks prose links AND the dir-body order pointer end-to-end", async () => {
+    const root = tmpTree({
+      "D/.yo/body.yo": "Doc D\n- *: x.md\n",
+      "D/x.md": "X unique content\n",
+      "pages.md": "see [a](::D:x.md) and [w](https://example.com/keep) end\n",
+    });
+    const h = await handlers(root);
+
+    fs.mkdirSync(path.join(root, "E"));
+    fs.renameSync(path.join(root, "D", "x.md"), path.join(root, "E", "x.md"));
+    const r = await callBody(h, "POST", "/api/reindex");
+    expect(r.status).toBe(200);
+    // marklower is engine-owned: the prose link follows the move; the scheme link is external
+    expect(fs.readFileSync(path.join(root, "pages.md"), "utf8"))
+      .toBe("see [a](::E:x.md) and [w](https://example.com/keep) end\n");
+    // the dangling order pointer is escalated to the project form — never deleted
+    expect(fs.readFileSync(path.join(root, "D", ".yo", "body.yo"), "utf8")).toBe("Doc D\n- *:: E: x.md\n");
+    expect(call(h, "/api/dangling").json).toEqual([]);
+  });
+
+  it("read-only: an external move relinks NOTHING — every byte stays", async () => {
+    const files = {
+      "D/.yo/body.yo": "Doc D\n- *: x.md\n",
+      "D/x.md": "X unique content\n",
+      "pages.md": "see [a](::D:x.md) end\n",
+    };
+    const root = tmpTree(files);
+    const h = await handlers(root, { readOnly: true });
+
+    fs.mkdirSync(path.join(root, "E"));
+    fs.renameSync(path.join(root, "D", "x.md"), path.join(root, "E", "x.md"));
+    await callBody(h, "POST", "/api/reindex"); // reindex is allowed read-only; relinking is not
+    expect(fs.readFileSync(path.join(root, "pages.md"), "utf8")).toBe(files["pages.md"]);
+    expect(fs.readFileSync(path.join(root, "D", ".yo", "body.yo"), "utf8")).toBe(files["D/.yo/body.yo"]);
+  });
+
   it("GET /api/dangling reports a pointer whose target is missing", async () => {
     const root = tmpTree({ "doc.yo": "friend: *missing\n" });
     const h = await handlers(root);

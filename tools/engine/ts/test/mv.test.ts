@@ -152,15 +152,12 @@ test('relinkMoved: a directory move arriving as its N file-level entries relinks
     { from: 'privacy/gdpr/index.yo', to: 'kb/privacy/gdpr/index.yo' },
   ]);
 
-  // the pointer is relinked — and keeps its authored COMPACT spelling
-  assert.equal(r.rewritten.length, 1);
-  assert.equal(r.rewritten[0].newRaw, '::kb:privacy:tax');
-  // the marklower prose link is REPORTED, not silently dropped (and not edited)
-  assert.equal(r.unrewritten.length, 1);
-  assert.equal(r.unrewritten[0].raw, '[tax](::privacy:tax)');
-  assert.match(r.unrewritten[0].reason, /marklower/);
+  // the pointer AND the marklower prose link are both relinked, compact spelling kept
+  assert.equal(r.rewritten.length, 2);
+  assert.deepEqual(r.rewritten.map((x) => x.newRaw).sort(), ['::kb:privacy:tax', '[tax](::kb:privacy:tax)']);
+  assert.deepEqual(r.unrewritten, []);
   assert.deepEqual(r.editedFiles, ['probe.yo']);
-  assert.equal(readFileSync(join(root, 'probe.yo'), 'utf8'), 'ptr: *::kb:privacy:tax\nmd: "see [tax](::privacy:tax)"\n');
+  assert.equal(readFileSync(join(root, 'probe.yo'), 'utf8'), 'ptr: *::kb:privacy:tax\nmd: "see [tax](::kb:privacy:tax)"\n');
   reindex(s, root);
   assert.deepEqual(s.dangling(), []);
 });
@@ -198,13 +195,14 @@ test('relinkMoved: one file moved OUT of a directory stays file-level — no fal
   assert.equal(readFileSync(join(root, 'refs.yo'), 'utf8'), 'r: *::archive:a.md\nkeep: *::docs:b.md\n');
 });
 
-test('mv: a marklower prose link is reported unrewritten, never silently dropped', () => {
+test('mv: a marklower prose link is REWRITTEN in place, surgically', () => {
   const root = tmpRoot();
   writeFileSync(join(root, 'a.md'), 'A\n');
-  writeFileSync(join(root, 'note.yo'), 'md: "see [a](::a.md)"\n');
+  writeFileSync(join(root, 'note.yo'), 'md: "see [a](::a.md)"  # keep me\n');
   const report = mv(root, 'a.md', 'b.md');
-  assert.equal(report.unrewritten.length, 1);
-  assert.equal(report.unrewritten[0].raw, '[a](::a.md)');
-  assert.match(report.unrewritten[0].reason, /marklower/);
-  assert.equal(readFileSync(join(root, 'note.yo'), 'utf8'), 'md: "see [a](::a.md)"\n'); // untouched
+  assert.deepEqual(report.unrewritten, []);
+  assert.equal(report.rewritten.length, 1);
+  assert.equal(report.rewritten[0].newRaw, '[a](::b.md)');
+  // surgical: quotes, prose, and the comment all survive — only the target changed
+  assert.equal(readFileSync(join(root, 'note.yo'), 'utf8'), 'md: "see [a](::b.md)"  # keep me\n');
 });

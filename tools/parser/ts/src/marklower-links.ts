@@ -35,6 +35,11 @@ export interface LinkTarget {
   raw: string; // the whole `[label](target)` / `*[label](target)` token
   start: number; // token offsets into `src`
   end: number;
+  /** Offsets of the BARE target inside `src` — the token always ends with `(${target})`,
+   *  so the target occupies [end - 1 - target.length, end - 1). The move planner edits
+   *  exactly this span when it retargets a link. */
+  targetStart: number;
+  targetEnd: number;
 }
 
 /** Every link and embed TARGET in a marklower source, with token offsets — math and code
@@ -45,7 +50,8 @@ export function linkTargets(src: string): LinkTarget[] {
   for (const m of src.matchAll(TOKEN)) {
     const target = m[4] ?? m[6];
     if (target === undefined) continue; // math or code
-    out.push({ target, raw: m[0], start: m.index, end: m.index + m[0].length });
+    const end = m.index + m[0].length;
+    out.push({ target, raw: m[0], start: m.index, end, targetStart: end - 1 - target.length, targetEnd: end - 1 });
   }
   return out;
 }

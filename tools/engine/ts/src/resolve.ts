@@ -11,7 +11,7 @@
 //   There is no anchor namespace and no precedence rule — `*name` is pure path lookup.
 //   (Anchor paths themselves resolve without anchor keys: no anchor-through-anchor in v1.)
 
-import type { Document, Node, Pointer, Step, Anchor } from '../../../parser/ts/src/ir.ts';
+import type { Document, Node, Pointer, Step, Anchor, Span } from '../../../parser/ts/src/ir.ts';
 import { isPointer } from '../../../parser/ts/src/ir.ts';
 import { segToken } from '../../../parser/ts/src/pathseg.ts';
 import { linkTargets } from '../../../parser/ts/src/marklower-links.ts';
@@ -287,17 +287,22 @@ function buildChains(root: Node): Map<Node, Node[]> {
 }
 
 /** A marklower prose link whose target is spelled as a PATH (`(::a:b)` project-root,
- *  `(:a:b)` document-relative) — a real in-app link (client links.tsx resolveLink) that is
- *  NOT an IR pointer, so the move planner cannot rewrite it. Collected so a move can at
- *  least REPORT it (mv.ts's promise: never silently dropped). `target` is normalized to a
- *  store path (document-relative already joined onto `docRoot`). */
+ *  `(:a:b)` document-relative — the only supported in-tree spellings; scheme links are
+ *  external and slash forms are legacy-frozen). Not an IR pointer, so the move planner
+ *  handles it separately: REWRITTEN surgically when `span` locates the authored token in
+ *  its source, REPORTED otherwise (mv.ts's promise: never silently dropped). `target` is
+ *  normalized to a store path (document-relative already joined onto `docRoot`). */
 export interface TextLinkRef {
   from: string;                 // path of the scalar holding the link
   docRoot: string;              // the scalar's nearest enclosing document root
   scope: 'link' | 'document';   // `::…` project-root vs `:…` document-relative spelling
   target: string;               // the addressed store path
   raw: string;                  // the whole `[label](target)` token, verbatim
-  uri: string | null;           // nearest known source file (a raw text file has no span)
+  uri: string | null;           // nearest known source file (for reporting)
+  /** The SEARCH REGION holding the authored token: the scalar's own span (a whole-file
+   *  text scalar spans its file) or the holding entry's span (a `.yo` scalar). Null when
+   *  neither is known — such a link can only be reported, never rewritten. */
+  span: Span | null;
 }
 
 /** Formats whose string scalars are PROSE and may carry marklower links (mirrors the yed
@@ -309,25 +314,28 @@ const PROSE_TEXT_FORMATS = new Set<string | undefined>([undefined, 'text/marklow
  *  currency: the caller (planRewrites) decides which targets a move strands. */
 export function scanTextLinks(doc: Document): TextLinkRef[] {
   const out: TextLinkRef[] = [];
-  const walk = (node: Node, base: string, docRoot: string, uri: string | null): void => {
+  const walk = (node: Node, base: string, docRoot: string, uri: string | null, entrySpan: Span | null): void => {
     const dr = isDocumentBoundary(node) ? base : docRoot;
     const u = node.meta?.span?.uri ?? uri;
     // an OMNI is scalar-kinded AND carries entries — scan the scalar text, then STILL descend
     // (uniform over array/omni/mix/scalar; no shape special-cases)
     if (node.kind === 'scalar' && typeof node.value === 'string' && PROSE_TEXT_FORMATS.has(node.meta?.derivedFormat)) {
+      // the search region: the scalar's own span (a whole-file scalar spans its file — value
+      // offsets ARE file offsets), else the holding entry's span (key through last value line)
+      const span = node.meta?.span ?? entrySpan;
       for (const l of linkTargets(node.value)) {
         const t = l.target.trim();
-        if (t.startsWith('::')) out.push({ from: base, docRoot: dr, scope: 'link', target: t.slice(1), raw: l.raw, uri: u });
-        else if (t.startsWith(':')) out.push({ from: base, docRoot: dr, scope: 'document', target: (dr === ':' ? '' : dr) + t, raw: l.raw, uri: u });
+        if (t.startsWith('::')) out.push({ from: base, docRoot: dr, scope: 'link', target: t.slice(1), raw: l.raw, uri: u, span });
+        else if (t.startsWith(':')) out.push({ from: base, docRoot: dr, scope: 'document', target: (dr === ':' ? '' : dr) + t, raw: l.raw, uri: u, span });
       }
     }
     const prefix = base === ':' ? '' : base;
     node.entries?.forEach((e, i) => {
       if (isPointer(e.value)) return;
-      walk(e.value, prefix + ':' + segToken(e.nullKey === true ? null : e.key ?? i), dr, u);
+      walk(e.value, prefix + ':' + segToken(e.nullKey === true ? null : e.key ?? i), dr, u, e.meta?.span ?? null);
     });
   };
-  walk(doc.root, ':', ':', doc.source?.uri ?? null);
+  walk(doc.root, ':', ':', doc.source?.uri ?? null, null);
   return out;
 }
 

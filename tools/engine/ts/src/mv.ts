@@ -10,6 +10,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import type { Document, Node } from '../../../parser/ts/src/ir.ts';
+import { isPointer } from '../../../parser/ts/src/ir.ts';
 import type { WalkOptions } from './walk.ts';
 import { walkTree, ownerNodePath } from './walk.ts';
 import { resolveDocument, scanTextLinks } from './resolve.ts';
@@ -46,7 +48,7 @@ export function mv(absRoot: string, fromRel: string, toRel: string, opts: WalkOp
   // plan against the CURRENT tree (fresh walk — spans are exact, never stale)
   const { doc } = walkTree(root, opts);
   const edges = resolveDocument(doc);
-  const plan = planRewrites(doc, edges, storeOf(relFrom), storeOf(relTo), { root, textLinks: scanTextLinks(doc) });
+  const plan = planRewrites(doc, edges, storeOf(relFrom), storeOf(relTo), { root, textLinks: scanTextLinks(doc), read: fileReader() });
 
   // apply text edits BEFORE the rename — spans point at the old file locations
   const editedFiles: string[] = [];
@@ -56,7 +58,51 @@ export function mv(absRoot: string, fromRel: string, toRel: string, opts: WalkOp
   }
   fs.mkdirSync(path.dirname(absTo), { recursive: true });
   fs.renameSync(absFrom, absTo);
-  return { from: relFrom, to: relTo, rewritten: plan.rewritten, unrewritten: plan.unrewritten, editedFiles };
+  const report: MvReport = { from: relFrom, to: relTo, rewritten: plan.rewritten, unrewritten: plan.unrewritten, editedFiles };
+
+  // A dir-body ORDER pointer naming the moved child (`- *: x.md`, `- *anyfile01`) was CONSUMED
+  // by the pre-move walk (applyBody grants the child its position and swallows the pointer), so
+  // the plan above never saw it — and it dangles after the rename. A relink pass over the same
+  // pair sees it as a dangling edge and rewrites it (escalating to the `*::` project form when
+  // the member left the directory — never dropped: the ordering was committed work). Gated on
+  // the parent actually granting the child a body position (meta.anchored). Exposing consumed
+  // order pointers from the walk would save this second walk — future work.
+  if (bodyOrdersChild(doc, relFrom)) {
+    const r2 = relinkRenamed(absRoot, [{ from: storeOf(relFrom), to: storeOf(relTo) }], opts);
+    report.rewritten = [...report.rewritten, ...r2.rewritten];
+    const seen = new Set(report.unrewritten.map((u) => JSON.stringify([u.file, u.from, u.raw])));
+    report.unrewritten = [...report.unrewritten, ...r2.unrewritten.filter((u) => !seen.has(JSON.stringify([u.file, u.from, u.raw])))];
+    report.editedFiles = [...new Set([...report.editedFiles, ...r2.editedFiles])];
+  }
+  return report;
+}
+
+/** Does `relFrom`'s parent directory grant it a POSITION from its body? (`meta.anchored`
+ *  lists the body-ordered member keys — walk.ts applyBody.) Those order pointers are
+ *  consumed while the member exists, so the pre-move plan cannot see them. */
+function bodyOrdersChild(doc: Document, relFrom: string): boolean {
+  const segs = relFrom.split('/');
+  let node: Node | undefined = doc.root;
+  for (const s of segs.slice(0, -1)) {
+    const e = node?.entries?.find((en) => en.key === s);
+    node = e !== undefined && !isPointer(e.value) ? e.value : undefined;
+  }
+  const anchored = (node?.meta as { anchored?: string[] } | undefined)?.anchored;
+  return Array.isArray(anchored) && anchored.includes(segs[segs.length - 1]);
+}
+
+/** A memoized utf8 reader for planRewrites' prose-link locator — one read per file per plan,
+ *  taken BEFORE any edits are applied (plans run against pristine text). */
+function fileReader(): (uri: string) => string {
+  const cache = new Map<string, string>();
+  return (uri) => {
+    let t = cache.get(uri);
+    if (t === undefined) {
+      t = fs.readFileSync(uri, 'utf8');
+      cache.set(uri, t);
+    }
+    return t;
+  };
 }
 
 /** Relink after UNMEDIATED moves (watched/offline tiers): the FS already changed and the
@@ -149,6 +195,7 @@ export function relinkRenamed(
   const { doc } = walkTree(root, opts);
   const edges = resolveDocument(doc);
   const textLinks = scanTextLinks(doc); // once — the per-move loop below reuses it
+  const read = fileReader(); // one memoized reader across all the per-move plans
   const rewritten: RewrittenRef[] = [];
   const unrewritten: UnrewrittenRef[] = [];
   // plan ALL moves against the one walk, merge per file, apply ONCE — a second write
@@ -166,7 +213,7 @@ export function relinkRenamed(
     // planRewrites matches by RESOLVED target; for stale refs synthesize the match by
     // treating the nominal path as the target frame — reuse the planner with a shim
     const shimmed = stale.map((e) => ({ ...e, target: { kind: 'node' as const, node: doc.root, path: nominalPath(doc, e)! } }));
-    const plan = planRewrites(doc, shimmed, oldStore, m.to, { root, textLinks });
+    const plan = planRewrites(doc, shimmed, oldStore, m.to, { root, textLinks, read });
     for (const [uri, edits] of plan.edits) merged.set(uri, [...(merged.get(uri) ?? []), ...edits]);
     rewritten.push(...plan.rewritten);
     unrewritten.push(...plan.unrewritten);

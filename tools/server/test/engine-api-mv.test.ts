@@ -36,6 +36,26 @@ describe("POST /api/mv", () => {
     h.close();
   });
 
+  it("a dir-body ORDER pointer for the moved child is repaired in the merged report (post-rename pass)", async () => {
+    const root = tmpTree({
+      "D/.yo/body.yo": "Doc D\n- *: x.md\n",
+      "D/x.md": "X\n",
+      "pages.md": "see [a](::D:x.md) end\n",
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const r = await callBody(h, "POST", "/api/mv", { from: ":D:x.md", to: ":E:x.md" });
+    expect(r.status).toBe(200);
+    // the consumed order pointer surfaces post-rename and is escalated — never deleted
+    expect(fs.readFileSync(path.join(root, "D", ".yo", "body.yo"), "utf8")).toBe("Doc D\n- *:: E: x.md\n");
+    // the whole-file prose link is rewritten surgically
+    expect(fs.readFileSync(path.join(root, "pages.md"), "utf8")).toBe("see [a](::E:x.md) end\n");
+    expect(r.json.unrewritten).toHaveLength(0);
+    expect(r.json.rewritten.map((x: { newRaw: string }) => x.newRaw).sort()).toEqual([":: E: x.md", "[a](::E:x.md)"]);
+    expect(call(h, "/api/dangling", {}).json).toEqual([]);
+    h.close();
+  });
+
   it("rejects positional segments, missing sources, and existing targets", async () => {
     const root = tmpTree({ "a.md": "A", "b.md": "B" });
     const h = createHandlers(root, { gitignore: false });

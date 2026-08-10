@@ -839,10 +839,13 @@ function blob(abs: string, format: string, ctx: Ctx): Blob {
   return { kind: 'blob', format, contentHash, size: stat.size };
 }
 
-/** A textual file kept as a raw string scalar (markdown/asciidoc/plantuml/csv …). */
+/** A textual file kept as a raw string scalar (markdown/asciidoc/plantuml/csv …). The span
+ *  covers the WHOLE file (value === raw === the bytes, utf8, unnormalized) — so a prose-link
+ *  scan attributes the node to its own file and value offsets ARE file offsets (mv.ts's
+ *  surgical link rewriting relies on both). */
 function textScalar(abs: string, format: string, ctx: Ctx): Node {
   const text = readTracked(ctx, abs).toString('utf8');
-  return { kind: 'scalar', value: text, raw: text, meta: { derivedFormat: format } };
+  return { kind: 'scalar', value: text, raw: text, meta: { derivedFormat: format, span: { uri: abs, start: 0, end: text.length } } };
 }
 
 /** A structured/text file with no binary format: parse it into a node. The parser is chosen by

@@ -12,6 +12,7 @@ import { renderPointer } from '../../../parser/ts/src/pointer.ts';
 import { pathOfSegs, segsOfPath, segToken } from '../../../parser/ts/src/pathseg.ts';
 import { pointerToken, anchorToken } from '../../../parser/ts/src/serialize-yamlover.ts';
 import type { ResolvedEdge, TextLinkRef } from './resolve.ts';
+import { linkTargets } from '../../../parser/ts/src/marklower-links.ts';
 
 export interface TextEdit { start: number; end: number; text: string }
 export interface RewrittenRef { file: string; from: string; oldRaw: string; newRaw: string }
@@ -32,15 +33,16 @@ export function under(p: string, x: string): boolean {
 
 /** Plan the edits that retarget every pointer whose target sits at or under `oldStore`.
  *  `opts.root` (absolute) guards against editing grafted files outside the served tree.
- *  `opts.textLinks` (resolve.ts scanTextLinks) are the marklower prose links: the planner
- *  cannot rewrite text yet, so a stranded one is REPORTED in `unrewritten` instead of
- *  being silently dropped (the mv.ts promise). */
+ *  `opts.textLinks` (resolve.ts scanTextLinks) are the marklower prose links — engine-owned
+ *  like yamlover, so a stranded one is REWRITTEN in place when `opts.read` supplies the
+ *  source text to locate the authored token in; without a reader (or a span) it is
+ *  REPORTED in `unrewritten` instead of being silently dropped (the mv.ts promise). */
 export function planRewrites(
   doc: Document,
   edges: ResolvedEdge[],
   oldStore: string,
   newStore: string,
-  opts: { root?: string; textLinks?: TextLinkRef[] } = {},
+  opts: { root?: string; textLinks?: TextLinkRef[]; read?: (uri: string) => string } = {},
 ): RewritePlan {
   const mapPath = (p: string): string => (under(p, oldStore) ? newStore + p.slice(oldStore.length) : p);
   const plan: RewritePlan = { edits: new Map(), rewritten: [], unrewritten: [] };
@@ -86,7 +88,11 @@ export function planRewrites(
           break;
         }
       }
-      if (cPtr === null) { miss("anchor container left the holder's document"); continue; }
+      // no relative spelling reaches the container — escalate to the project-root form
+      // rather than refuse: an expressible ref is NEVER left stale (the committer's
+      // labor survives the move, re-rooted)
+      if (cPtr === null) cPtr = linkPtr(container);
+      if (cPtr === null) { miss('anchor container has no project-root spelling'); continue; }
       // COMPACT colon rendering: an anchor token ends at whitespace in inline positions,
       // so the spaceless spelling stays a single token anywhere without quoting.
       const newBody = e.label != null
@@ -138,7 +144,12 @@ export function planRewrites(
         break;
       }
     }
-    if (newPtr === null) { miss("target left the holder's document"); continue; }
+    // the target left every relative frame — escalate to the project-root `::` form
+    // instead of refusing: any in-tree path is expressible there, and a rewritten
+    // absolute ref beats a silently stale relative one (never drop the committer's
+    // labor). Only the project root itself / a position-first path has no spelling.
+    if (newPtr === null) newPtr = linkPtr(target);
+    if (newPtr === null) { miss('target has no project-root spelling'); continue; }
     // colon form, in the AUTHORED spacing style — a rename refactor replaces the token, it
     // does not restyle it: a compact `*::a:b` stays compact, a spaced `*:: a: b` spaced. A
     // raw with no separator at all (`*old`) shows no style — the spaced default applies.
@@ -153,18 +164,69 @@ export function planRewrites(
     plan.rewritten.push({ file: span.uri, from: e.from, oldRaw: e.raw, newRaw });
   }
 
-  // marklower prose links the move strands: not IR pointers, so no span surgery reaches
-  // them — report each one so the move at least says what it broke. A document-relative
-  // link whose own document moved travels with it and stays valid.
+  // marklower prose links the move strands: not IR pointers, but engine-owned all the same —
+  // locate the authored token VERBATIM inside its recorded source region (the tokenizer is
+  // the locator, so a code span cannot false-positive and a `>`-folded or escape-decoded
+  // token simply fails to match) and retarget it in place. Identical tokens in one region
+  // all take the same replacement. What cannot be located is REPORTED, never dropped.
+  // A document-relative link whose own document moved travels with it and stays valid.
+  const groups = new Map<string, { t: TextLinkRef; n: number }>();
   for (const t of opts.textLinks ?? []) {
     if (t.scope === 'document' && under(t.docRoot, oldStore)) continue;
     if (!under(t.target, oldStore)) continue;
-    plan.unrewritten.push({
-      file: t.uri ?? '<unknown>', from: t.from, raw: t.raw,
-      reason: 'marklower prose link — not rewritten (text targets are report-only)',
-    });
+    const key = JSON.stringify([t.span?.uri, t.span?.start, t.raw]);
+    const g = groups.get(key);
+    if (g) g.n++;
+    else groups.set(key, { t, n: 1 });
+  }
+  for (const { t, n } of groups.values()) {
+    const missLink = (reason: string): void => {
+      plan.unrewritten.push({ file: t.span?.uri ?? t.uri ?? '<unknown>', from: t.from, raw: t.raw, reason });
+    };
+    // the new spelling keeps the authored scope; a document-relative target that left its
+    // document escalates to the project form — same law as the pointer fallback above
+    const newTarget = mapPath(t.target);
+    const newDocRoot = mapPath(t.docRoot);
+    const spelling = t.scope === 'link'
+      ? linkSpelling(newTarget)
+      : under(newTarget, newDocRoot) ? docSpelling(newDocRoot, newTarget) : linkSpelling(newTarget);
+    if (spelling === null) { missLink('target has no project-root spelling'); continue; }
+    if (t.span === null || opts.read === undefined) {
+      missLink('marklower prose link — no source span/reader (report only)');
+      continue;
+    }
+    if (opts.root !== undefined && path.relative(opts.root, t.span.uri).startsWith('..')) {
+      missLink('source file is outside the served root (grafted)');
+      continue;
+    }
+    let text: string;
+    try { text = opts.read(t.span.uri); } catch { missLink('source file unreadable'); continue; }
+    const slice = text.slice(t.span.start, t.span.end);
+    const hits = linkTargets(slice).filter((h) => h.raw === t.raw);
+    if (hits.length === 0) { missLink('link token not found verbatim in source (folded or escaped)'); continue; }
+    const list = plan.edits.get(t.span.uri) ?? [];
+    for (const h of hits) list.push({ start: t.span.start + h.targetStart, end: t.span.start + h.targetEnd, text: spelling });
+    plan.edits.set(t.span.uri, list);
+    const newRaw = t.raw.slice(0, hits[0].targetStart - hits[0].start) + spelling + ')';
+    plan.rewritten.push({ file: t.span.uri, from: t.from, oldRaw: t.raw, newRaw });
+    if (hits.length < n) missLink(`only ${hits.length} of ${n} occurrences found verbatim (folded or escaped)`);
   }
   return plan;
+}
+
+/** Compact colon spelling of a store path as a marklower link target: `::a:b` (project-root).
+ *  Null when the path has no such spelling (the project root itself, or a position-first path —
+ *  mirroring {@link linkPtr}). */
+function linkSpelling(target: string): string | null {
+  const segs = segsOfPath(target);
+  if (segs.length === 0 || typeof segs[0] !== 'string') return null;
+  return '::' + segs.map((s) => segToken(s)).join(':');
+}
+
+/** Document-relative colon spelling: `:a:b` — the continuation below `docRoot`. */
+function docSpelling(docRoot: string, target: string): string {
+  const segs = segsOfPath(target).slice(docRoot === ':' ? 0 : segsOfPath(docRoot).length);
+  return ':' + segs.map((s) => segToken(s)).join(':');
 }
 
 /** Apply edits to one file's text: descending offset order; overlaps are an error. */
