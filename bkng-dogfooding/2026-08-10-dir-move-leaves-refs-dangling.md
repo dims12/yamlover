@@ -1,7 +1,10 @@
 # A directory move leaves every inbound ref dangling, silently
 
 **Date:** 2026-08-10
-**Found in:** dogfooding a real doc tree (`~/docs`, 15-chapter `privacy/` subtree) on `npx yamlover .`
+**Found in:** dogfooding a real doc tree (15-chapter subtree) on `npx yamlover .`
+**Note:** all directory and node names here are anonymized placeholders — `area`, `section`,
+`sub`, `group`, `target`, `child`, `topic`. Only the tree *shape* and the ref *spellings* are
+reproduced from the real trees; nothing else about them is needed to reproduce any defect.
 **Severity:** high — silent data-integrity loss on a routine reorganization; no diagnostic, no log line
 **Resolved:** 2026-08-10 — all three defects fixed. `relinkMoved` now collapses overlay files
 to their owning directory (`walk.ts ownerNodePath`) and coalesces fully-vacated directories
@@ -11,13 +14,17 @@ text itself stays future work. Rewrites keep the authored spacing style (a compa
 no longer comes back spaced). Regression tests: engine `mv.test.ts`/`walk.test.ts`/
 `resolve.test.ts`, server `reconcile.test.ts` (the exact external-`mv` scenario).
 
+**Reopened:** 2026-08-10 as **Defect 4** — verifying the fix on a second, larger tree found one
+scope spelling still unhandled: a prose link written in PARENT scope (`[t](*:name)`) is neither
+rewritten nor reported. See "Round 2 verification" below. Defects 1-3 confirmed fixed.
+
 ## What happened
 
-`mv privacy kb/privacy` in a shell, with the server watching. The engine detected the move
+`mv area kb/area` in a shell, with the server watching. The engine detected the move
 correctly and said so:
 
 ```
-yamlover 14:38:26.591  watch: 3 change(s) — kb, privacy, kb/privacy
+yamlover 14:38:26.591  watch: 3 change(s) — kb, area, kb/area
 yamlover 14:38:26.591  [reconciling] started
 yamlover 14:38:26.622  [reconciling] done in 0.0s
 yamlover 14:38:26.622  reconcile: +0 ~0 −0 →15
@@ -27,9 +34,9 @@ yamlover 14:38:26.622  reconcile: +0 ~0 −0 →15
 lost. But all 15 inbound cross-references still spell the old location, and nothing said a word:
 
 ```
-$ grep -ro '::privacy' ~/docs --include='*.yo' | wc -l
+$ grep -ro '::area' . --include='*.yo' | wc -l
 15
-$ grep -ro '::kb:privacy' ~/docs --include='*.yo' | wc -l
+$ grep -ro '::kb:area' . --include='*.yo' | wc -l
 0
 ```
 
@@ -44,25 +51,25 @@ independent defects** behind that, either one of which is sufficient to lose the
 `relinkMoved` only as its N moved overlay files — never as the directory itself:
 
 ```
-privacy/.yo/body.yo  →  kb/privacy/.yo/body.yo        (×15)
+area/.yo/body.yo  →  kb/area/.yo/body.yo        (×15)
 ```
 
 `relinkMoved` maps each straight through `storeOf` (`mv.ts:71`, `mv.ts:126-128`), yielding
-`oldStore = ':privacy:.yo:body.yo'`. No inbound ref is ever `under()` that path, because the
-overlay is *consumed* — the node's store path is `:privacy`. So the `stale` filter at
+`oldStore = ':area:.yo:body.yo'`. No inbound ref is ever `under()` that path, because the
+overlay is *consumed* — the node's store path is `:area`. So the `stale` filter at
 `mv.ts:96-100` matches nothing and the planner is handed an empty set.
 
 Tier-1 `mv()` is unaffected: it calls `storeOf(relFrom)` on the directory the caller named
-(`mv.ts:49`), getting `:privacy`. So **mediated moves relink and unmediated directory moves do
+(`mv.ts:49`), getting `:area`. So **mediated moves relink and unmediated directory moves do
 not** — the two tiers disagree, which is precisely what `engine-api.ts:410` says they must not.
 
-Reproduced with a real `*` pointer (`probe.yo: ptr_ref: *::privacy:taxonomy`), same tree, same
+Reproduced with a real `*` pointer (`probe.yo: ptr_ref: *::area:topic`), same tree, same
 `relinkMoved` call, only the shape of `moved` differing:
 
 | `moved` fed to `relinkMoved` | rewritten | unrewritten | editedFiles |
 |---|---|---|---|
-| 15 file-level entries (`privacy/.yo/body.yo → kb/privacy/.yo/body.yo`, …) — what the watcher produces | 0 | 0 | 0 |
-| 1 directory-level entry (`privacy → kb/privacy`) — what tier-1 `mv()` produces | 1 | 0 | `['probe.yo']` |
+| 15 file-level entries (`area/.yo/body.yo → kb/area/.yo/body.yo`, …) — what the watcher produces | 0 | 0 | 0 |
+| 1 directory-level entry (`area → kb/area`) — what tier-1 `mv()` produces | 1 | 0 | `['probe.yo']` |
 
 **Suggested fix:** before planning, normalize `moved` from FS paths to *node* store paths —
 collapse an overlay file to the directory it belongs to (`X/.yo/body.yo → X`, `X/index.yo → X`,
@@ -74,9 +81,9 @@ prefix into the single directory move. That also removes 15 redundant `planRewri
 Even given the correct directory-level move (row 2 above), the prose link in the same probe file
 was left untouched:
 
-```yaml
-ptr_ref: *:: kb: privacy: taxonomy              # rewritten
-md_link: 'see [taxonomy](::privacy:taxonomy)'   # NOT rewritten, NOT reported
+```yamlover
+ptr_ref: *:: kb: area: topic              # rewritten
+md_link: 'see [topic](::area:topic)'   # NOT rewritten, NOT reported
 ```
 
 `[label](::a:b)` is a first-class in-app link: `client/links.tsx:65-73` (`resolveLink`) reads
@@ -105,8 +112,8 @@ But such a link is *not* an IR pointer. It never becomes a `ResolvedEdge`, so
 
 ## Defect 3 (minor) — rewritten pointers are emitted non-canonically
 
-The rewrite produced `*:: kb: privacy: taxonomy`, spaces and all, from an authored
-`*::privacy:taxonomy`. It still resolves (verified: `:kb:privacy:taxonomy`, `kind: 'node'`), so
+The rewrite produced `*:: kb: area: topic`, spaces and all, from an authored
+`*::area:topic`. It still resolves (verified: `:kb:area:topic`, `kind: 'node'`), so
 this is cosmetic — but `rewrite.ts:5` states "Rewrites are emitted in CANONICAL colon form only",
 and a rename refactor rewriting a user's file should not restyle the token while it is there.
 
@@ -121,9 +128,102 @@ npx yamlover .          # then, in another shell:
 mkdir kb && mv a kb/a   # log shows `reconcile: … →N`; both refs in probe.yo stay `::a…`
 ```
 
+## Round 2 verification
+
+Re-tested against a second tree — 53 `dir/index.yo` chapters, refs authored in all three scopes —
+by moving a 4-chapter subtree out of its parent with a shell `mv`, server running, not read-only.
+The shape is what matters: a 3-level parent chain, target moved to the top level.
+
+```bash
+mv kb/section/sub/group/target kb/target
+```
+
+```
+yamlover 19:57:31.198  watch: 2 change(s) — kb/section/sub/group/target, kb/target
+yamlover 19:57:31.326  reconcile: +0 ~0 −0 →4
+```
+
+11 inbound refs broke. Progression across the two fix rounds:
+
+| ref spelling | count | at `38767a6` | at `233f4fb` |
+|---|---|---|---|
+| prose link, project scope — `[t](::kb:section:sub:group:target:child)` | 5 | reported, not rewritten | **rewritten** → `::kb:target:child` |
+| pointer node, parent scope — `- *: target` | 1 | refused: "target left the holder's document" | **rewritten** → `- *:: kb: target` |
+| prose link, parent scope — `[t](*:target:child)` | 5 | absent from every report | **absent from every report** |
+
+`relinkMoved` at `233f4fb`: `rewritten: 6, unrewritten: 0, editedFiles: 5`. Six of eleven refs
+repaired; the remaining five are the parent-scope prose links, and `unrewritten: 0` means the
+`mv.ts:4` promise ("REPORTED, never silently dropped") still does not hold for them.
+
+The pointer case is worth noting as a clean pass: parent scope escalated to the project form
+rather than being refused, and the authored `: `-spaced style carried through.
+
+## Defect 4 — a parent-scope prose link is invisible to the planner
+
+`scanTextLinks` (`resolve.ts:315-330`) branches on two prefixes only:
+
+```ts
+if (t.startsWith('::'))     out.push({ …, scope: 'link',     target: t.slice(1), … });
+else if (t.startsWith(':')) out.push({ …, scope: 'document', target: (dr === ':' ? '' : dr) + t, … });
+```
+
+A `*`-prefixed target matches neither, so it never becomes a `TextLinkRef` and `planRewrites`
+never sees it — hence no rewrite *and* no `unrewritten` entry. The equivalent pointer *node*
+(`- *: name`) is handled, so this is specific to the target sitting inside prose.
+
+Client-side the spelling is fully supported — `client/links.tsx` `resolveLink` reads a bare/`*`
+target as parent-or-current scope, which is why the docs are authored this way.
+
+**Judgment call worth stating in the fix:** a parent-scope link should NOT always be rewritten.
+If the target moves but stays under the same parent, `*:name` is still correct and must be left
+alone. It is when the move takes the target out of the holder's parent frame that the link dies
+and has to be re-rooted (`::…`) — or, failing that, reported.
+
+**Repro** — three invented files, no external tree needed. Drops into
+`tools/engine/ts/test/relink-links.test.ts`, whose `tmpRoot()` helper and existing fixture cover
+`:x.md`, `*..: x.md` and `::D:x.md` but no `*:name`-spelled prose link:
+
+```ts
+test('relink-links: a PARENT-SCOPE prose link is rewritten when the target leaves the parent', () => {
+  const root = tmpRoot();
+  mkdirSync(join(root, 'P', 'target'), { recursive: true });
+  mkdirSync(join(root, 'P', 'holder'), { recursive: true });
+  writeFileSync(join(root, 'P', 'target', 'index.yo'), 'Target\n');
+  // the two spellings side by side: only the `::` one survives the move today
+  writeFileSync(join(root, 'P', 'holder', 'index.yo'),
+    'Holder\n- >\n  rel [t](*:target) abs [t](::P:target)\n');
+
+  const s = new Store(':memory:');
+  reindex(s, root);
+  renameSync(join(root, 'P', 'target'), join(root, 'moved'));
+  const r = relinkMoved(root, reindex(s, root).moved);
+
+  const holder = readFileSync(join(root, 'P', 'holder', 'index.yo'), 'utf8');
+  assert.equal(holder, 'Holder\n- >\n  rel [t](::moved) abs [t](::moved)\n');
+  assert.equal(r.unrewritten.length, 0);
+});
+```
+
+```
+$ node --experimental-strip-types --test tools/engine/ts/test/relink-links.test.ts
++ actual - expected
++ 'Holder\n- >\n  rel [t](*:target) abs [t](::moved)\n'
+- 'Holder\n- >\n  rel [t](::moved) abs [t](::moved)\n'
+```
+
+Both links address the same node from the same line: the `::` one is re-rooted, the `*:` one is
+untouched.
+
+## Not yet exercised
+
+Scope of the round-2 check, so the gaps are known rather than assumed: one cross-parent directory
+move, unmediated tier, `dir/index.yo` flavor. Untested and possibly carrying the same
+prefix-blindness — an in-place rename (`relinkRenamed` entry point), the `dir/.yo/body.yo` flavor,
+embed tokens `*[label](target)`, and a mediated move through the UI/API.
+
 ## Environment
 
 - yamlover: working copy at `~/personal/yamlover`, `.yo` overlay flavor (post-YOMIGRATION)
 - node v22.16.0, macOS (Darwin 25.5.0), `npx yamlover .` live/Vite, not read-only
-- tree: `~/docs` — 15 `dir/.yo` chapters under `privacy/`, plus 2 `dir/index.yo` chapters under
-  `tickets/`; refs authored as marklower links, `::`-rooted
+- tree: a private doc tree — 15 `dir/.yo` chapters under `area/`, plus 2 `dir/index.yo` chapters
+  under `tickets/`; refs authored as marklower links, `::`-rooted
