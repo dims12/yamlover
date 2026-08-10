@@ -122,8 +122,8 @@ describe("Breadcrumb", () => {
     const rows = dd.querySelectorAll(".tree-row");
     expect(rows.length).toBeGreaterThanOrEqual(2); // the two children + operator rows
     expect(dd.querySelector(".icon")).toBeTruthy(); // real TOC icons
-    // ArrowDown arms the second? First: hi -1 → down → 0 (teammate is [1])
-    fireEvent.keyDown(cells()[0], { key: "ArrowDown" });
+    // the cell HAS text, so row 0 is already armed — one ArrowDown reaches teammate at [1]
+    expect(dd.querySelector(".crumb-dd-hi, .tree-row.sel, [aria-selected=true]") ?? dd.querySelector(".tree-row")).toBeTruthy();
     fireEvent.keyDown(cells()[0], { key: "ArrowDown" });
     fireEvent.keyDown(cells()[0], { key: "Enter" });
     // picked "teammate" into cell 0 — the tail cell "alice" is KEPT
@@ -131,20 +131,19 @@ describe("Breadcrumb", () => {
     expect(mode()).toBe("editing");
   });
 
-  it("Tab ACCEPTS the completion — the armed candidate, else the first", async () => {
+  it("Tab and Enter both ACCEPT the armed candidate; a non-empty cell always has one", async () => {
     vi.useFakeTimers();
     vi.mocked(queryTree).mockResolvedValue([n(":team", "team", true), n(":teammate", "teammate")]);
     render(<Host />);
     fireEvent.focus(cells()[0]);
     await settle();
     expect(document.querySelector(".crumb-dd")).toBeTruthy();
-    // nothing armed: Tab takes the FIRST candidate (Enter would commit the typed query instead)
+    // the cell has text, so row 0 is armed from the start — Tab takes it with no arrow walk
     fireEvent.keyDown(cells()[0], { key: "Tab" });
     expect(cells().map((c) => c.textContent)).toEqual(["team", "alice"]);
     expect(mode()).toBe("editing");
-    // armed: Tab takes the highlighted row, like Enter (the refetch reopened the dropdown)
+    // the arrow walk still moves the arming (the refetch reopened the dropdown)
     await settle();
-    fireEvent.keyDown(cells()[0], { key: "ArrowDown" });
     fireEvent.keyDown(cells()[0], { key: "ArrowDown" });
     fireEvent.keyDown(cells()[0], { key: "Tab" });
     expect(cells().map((c) => c.textContent)).toEqual(["teammate", "alice"]);

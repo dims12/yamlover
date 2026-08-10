@@ -6,9 +6,14 @@ description: the key_cell_editing state
   (Enter / blur) RENAMES the key: the server routes by STORAGE - a directory-backed member is
   renamed on disk (inbound `*` references and `&` bookmarks rewritten), an inline keyed entry has its key token
   rewritten in the body, value and comments kept (THE CONCRETE IS NOT A STATE). The rename is
-  OPTIMISTIC - the key updates in place and the caret stays in the cell, the persist runs after
-  any pending body edits flush. A key that duplicates a sibling is rejected with the error ring,
-  the typed text kept (keys are unique per node); an empty/unchanged key is a no-op. A
+  OPTIMISTIC - the key updates in place, the persist runs after any pending body edits flush.
+  Enter then DESCENDS into the value's HEAD - the typing flow's own `k:` ⏎ landing, a fresh
+  [entry hole](::server:yamlover-editor:entry_hole) at the first position - so a committed
+  container stays enterable: its self value, a `&` bookmark, or a new first entry are one Enter
+  away (a scalar's hole opens in its fields region at the self line; a POINTER holds no
+  children, so the hole opens AFTER the entry - the sibling rule; a FLOW key walks to the value
+  cell, flow has no block holes). A key that duplicates a sibling is rejected with the error
+  ring, the typed text kept (keys are unique per node); an empty/unchanged key is a no-op. A
   DERIVED-anchor key (a positional dir-member's storage provenance) is not editable here
 - !!<*yamlover: $defs: table>
   header:
@@ -20,8 +25,9 @@ description: the key_cell_editing state
       width: 2
   - ['`alphanumeric`', '', '`key_cell_editing` (stays)']
   - ['`enter`', 'the new key duplicates a sibling in the node', '[error_flash](::server:yamlover-editor:error_flash)']
-  - ['`enter`', 'empty, or unchanged', '`key_cell_editing` (stays)']
-  - ['`enter`', 'a free key - the rename persists (dir move or inline rewrite), caret kept in the key cell', '`key_cell_editing` (stays)']
+  - ['`enter`', 'a free (or unchanged) key, a block value - the rename persists (dir move or inline rewrite) and the caret DESCENDS into the value''s head hole', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`enter`', 'a pointer value - the rename persists, the hole opens AFTER the entry (the sibling rule)', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`enter`', 'a flow value - the rename persists, the caret walks onto the value cell', '[focus_next](::server:yamlover-editor:focus_next)']
   - ['`click_outside`', '', '`key_cell_editing` (stays)']
   - ['`backspace`', 'caret at the start', '[focus_prev](::server:yamlover-editor:focus_prev)']
   - ['`backspace`', 'otherwise', '`key_cell_editing` (stays)']

@@ -139,4 +139,31 @@ describe("the dispatch table — one meaning per (site, key)", () => {
       expect(kind(c, site("token", "block", { textEmpty: false })), `"${c}" must reach the cell`).toBeNull();
     }
   });
+
+  it("the PORTION face spelling a BOOKMARK (anchorEntry) — the `[` fold is off, the rest identical", () => {
+    const a = (over: Partial<Site> = {}) => site("portion", "block", { anchorEntry: true, ...over });
+    const p = (over: Partial<Site> = {}) => site("portion", "block", over);
+    // the one divergence: a bookmark may not claim a position, so `[` never folds an index
+    expect(kind("[", p({ portionFirst: false }))).toBe("portionFold");
+    expect(kind("[", a({ portionFirst: false }))).toBeNull(); // text, never a fold
+    // everything else is the shared portion grammar, verbatim
+    expect(kind("Enter", a({ textEmpty: false }))).toBe("commit");
+    expect(kind(":", a({ portionFirst: true, ladder: 0 }))).toBe("scope");        // the empty first cell climbs
+    expect(kind(":", a({ textEmpty: false }))).toBe("portionSplit");
+    expect(kind("Backspace", a({ portionFirst: false }))).toBe("portionMerge");
+    expect(kind("Backspace", a({ portionFirst: true, ladder: 1 }))).toBe("scope"); // the ladder descends
+    expect(kind("Backspace", a({ portionFirst: true, portionLast: true, ladder: 0 }))).toBe("undoMarker"); // the floor: the `&` decision undoes
+    expect(kind("Backspace", a({ portionFirst: true, portionLast: true, ladder: 0, entryCommitted: true }))).toBe("removeLevel");
+    expect(kind("x", a())).toBeNull(); // printables: native text
+  });
+
+  it("the ANCHORS row cell — commit in place, the emptied row is a removal, the fresh face undoes", () => {
+    const r = (over: Partial<Site> = {}) => site("anchors", "block", { entryCommitted: true, ...over });
+    expect(kind("Enter", r({ textEmpty: false }))).toBe("commit");
+    expect(kind("Enter", r())).toBe("commit");             // empty commits → the row's removal
+    expect(kind("Tab", r())).toBe("move");                 // a decoration row has no levels — Tab walks
+    expect(kind("ArrowUp", r())).toBe("move");
+    expect(kind("ArrowDown", r())).toBe("move");
+    expect(kind("x", r())).toBeNull();                     // printables: native text
+  });
 });

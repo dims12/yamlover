@@ -180,7 +180,8 @@ export function siteOf(state: EditorState): Site {
   if (cursor.at === "hole") {
     const container = nodeAt(doc, cursor.path);
     const kind = containerKind(container);
-    // the `*` decision made: the hole's face is the PORTION cells (the reference being entered)
+    // the `*` (or `&`) decision made: the hole's face is the PORTION cells — a reference being
+    // entered, or (anchorEntry) the container's bookmark BODY
     if (cursor.ref) {
       return {
         ...base,
@@ -191,6 +192,7 @@ export function siteOf(state: EditorState): Site {
         portionFirst: cursor.ref.active === 0,
         portionLast: cursor.ref.active === cursor.ref.portions.length - 1,
         ladder: cursor.ref.ladder,
+        ...(cursor.anchor === true ? { anchorEntry: true as const } : {}),
       };
     }
     return {
@@ -272,6 +274,7 @@ export type Position =
  *  order: an omni's value line sits at its authored row (`meta.selfAt`) among its fields. */
 export function positionsOf(doc: Document): Position[] {
   const out: Position[] = [];
+  const anchored = (v: Node): boolean => ((((v.meta ?? {}) as { anchors?: unknown[] }).anchors ?? []).length) > 0;
   const rec = (n: Node, path: Path, from = 0, to = (n.entries ?? []).length): void => {
     for (let i = from; i < to; i++) {
       const e = n.entries![i];
@@ -287,33 +290,45 @@ export function positionsOf(doc: Document): Position[] {
       // EVERY empty container instead has an `into` — its clickable inner slot, so the walk
       // (and a click) can always reach the value waiting to be filled: `{}` must never be a wall.
       else if (isContainer(v)) {
+        // BLOCK `&` anchors are HEAD rows (the serializer's own order — the walk agrees with
+        // the eyes); a flow token keeps them inline after its closer gap
+        if (!isFlow(v) && anchored(v)) out.push({ at: "anchors", path: p });
         if ((v.entries ?? []).length === 0) out.push({ at: "into", path: p });
         rec(v, p);
-        if (isFlow(v)) out.push({ at: "after", path: p });
+        if (isFlow(v)) {
+          out.push({ at: "after", path: p });
+          if (anchored(v)) out.push({ at: "anchors", path: p });
+        }
       }
       // anything else (a blob, an unknown kind) is an opaque ATOM — walkable and deletable
       // like a pointer, never editable; a value with no position would be an invisible wall
-      else out.push({ at: "ptr", path: p });
-      // the node's `&` ANCHORS are one stop after its value — the canonical M3 side
-      if ((((e.value as Node).meta ?? {}) as { anchors?: unknown[] }).anchors?.length) out.push({ at: "anchors", path: p });
+      else {
+        out.push({ at: "ptr", path: p });
+        if (anchored(v)) out.push({ at: "anchors", path: p });
+      }
     }
   };
-  /** the scalar's TOKEN at its authored row among its fields — the walk agrees with the eyes */
+  /** the scalar's TOKEN at its authored row among its fields — the walk agrees with the eyes;
+   *  its `&` anchors come right AFTER the token (the value line's own decorations) */
   const omni = (v: Node, p: Path): void => {
     const len = (v.entries ?? []).length;
     const at = Math.min(Math.max((v.meta as { selfAt?: number } | undefined)?.selfAt ?? 0, 0), len);
     rec(v, p, 0, at);
     out.push({ at: "token", path: p });
+    if (anchored(v)) out.push({ at: "anchors", path: p });
     rec(v, p, at, len);
   };
   const root = doc.root as Node;
   if ((root.meta ?? ({} as { schema?: unknown })).schema !== undefined) out.push({ at: "tag", path: [] });
   if (root.kind === "scalar") omni(root, []);
   else {
+    if (!isFlow(root) && anchored(root)) out.push({ at: "anchors", path: [] });
     rec(root, []);
-    if (isFlow(root)) out.push({ at: "after", path: [] });
+    if (isFlow(root)) {
+      out.push({ at: "after", path: [] });
+      if (anchored(root)) out.push({ at: "anchors", path: [] });
+    }
   }
-  if (((root.meta ?? {}) as { anchors?: unknown[] }).anchors?.length) out.push({ at: "anchors", path: [] });
   return out;
 }
 
@@ -527,6 +542,20 @@ export function commitPending(state: EditorState): EditorState | null {
     const container = nodeAt(doc, cursor.path);
     if (!container) return null;
     if (cursor.key === null && bracketOf(container) === "{" && isFlow(container)) return null; // an unnamed pair cannot land in `{`
+    // THE `&` DECISION: the portions spell a BOOKMARK BODY for the hole's CONTAINER — the
+    // own-line `&: path` law (docs/language/pointers/bookmarks: the line attaches to the node
+    // whose block holds it). The commit RECURSES through the anchors-row machinery (the ADD
+    // slot) — makeAnchor, setAnchors and the refusal ring live there once — and then restores
+    // the hole at its own index: the bookmark is a decoration, the user's place is the hole.
+    if (cursor.anchor === true && cursor.ref !== undefined) {
+      const raw = refRawOf(cursor).trim();
+      if (raw === "") return null; // nothing to bookmark — the ring
+      const len = ((((container as Node).meta ?? {}) as { anchors?: Anchor[] }).anchors ?? []).length;
+      const committed = commitPending({ ...state, cursor: { at: "anchors", path: cursor.path, index: len, text: raw } });
+      if (committed === null) return null; // not a bookmark SPELLING (a position claim rings)
+      const { anchor: _a, ref: _r, caret: _c, ...hole } = cursor;
+      return { ...committed, cursor: { ...hole, text: "" } };
+    }
     // A REFERENCE: `*`-led text commits as a POINTER value, never a scalar. A pointer has no
     // SELF-VALUE form (the parser refuses a top-level pointer, and an omni's self line is a
     // scalar), so the omni diversion does not apply: a bare pointer lands as the KEYLESS
@@ -1112,7 +1141,13 @@ function classifyHole(state: EditorState): EditorState {
     // cursor alone until the joined reference parses on commit (cursor-level commits)
     return { ...state, cursor: { ...cursor, ...refFromRaw(action.rest) } };
   }
-  return state; // quote/block (and a dialect-refused pointer): D3
+  if (action.kind === "anchor" && d.anchors && cursor.ordinal !== true) {
+    // the `&` DECISION: the SAME portion cells, spelling a BOOKMARK body for the hole's
+    // CONTAINER (siteOf reports anchorEntry - the `[` fold is off; the commit routes through
+    // the anchors-row machinery and restores the hole)
+    return { ...state, cursor: { ...cursor, anchor: true, ...refFromRaw(action.rest) } };
+  }
+  return state; // quote/block (and a dialect-refused pointer/anchor): D3
 }
 
 function applyIntent(state: EditorState, intent: Intent, site: Site): EditorState {
@@ -1240,9 +1275,9 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
 
     case "undoMarker": {
       if (cursor.at === "hole" && cursor.ref !== undefined) {
-        // the `*` decision undone - back to the plain empty hole (the portions lived only in
-        // the cursor, so nothing else changes; one press, one level)
-        const { ref: _ref, caret: _caret, ...rest } = cursor;
+        // the `*` (or `&`) decision undone - back to the plain empty hole (the portions lived
+        // only in the cursor, so nothing else changes; one press, one level)
+        const { ref: _ref, anchor: _anchor, caret: _caret, ...rest } = cursor;
         return ok({ ...state, cursor: { ...rest, text: "" } });
       }
       if (cursor.at === "hole" && cursor.key !== null) {
@@ -1359,8 +1394,30 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       if (!committed) return refuse(state);
       const spreadDoc = dialectOf(state).spread ? spreadUp(committed.doc, cursor.path.slice(0, -1)) : null;
       const s = spreadDoc !== null ? { ...committed, doc: spreadDoc } : committed;
-      // Enter on a key means the naming is DONE — the caret steps onto the pair's VALUE (in a
-      // block pair with an empty value, onto its `into` slot); staying put would be a dead key
+      // Enter on a key means the naming is DONE — the caret DESCENDS into the value's HEAD: a
+      // fresh hole at the first position, the same landing the typing flow's `k:` ⏎ gives. For
+      // an EMPTY container that is what the old value-walk reached anyway (the `into` slot);
+      // for a NON-EMPTY one the walk stopped at the first child's cell instead, which left the
+      // container's head unreachable — no way back in for its self value, a bookmark, or a new
+      // first entry (the reported "all keystrokes are just jumping"). A scalar's hole opens in
+      // its fields region at the self line (the commit tail's own rule); a POINTER holds no
+      // children, so the hole opens AFTER the entry (the sibling rule); a FLOW value keeps the
+      // walk — flow rows edit through their own cells, block-style holes do not exist there.
+      if (s.cursor.at === "key" && cursor.at === "key" && site.container === "block") {
+        const value = entryAt(s.doc, cursor.path)?.value;
+        if (value !== undefined && !isPointer(value) && !isFlow(value as Node)) {
+          const node = value as Node;
+          const len = (node.entries ?? []).length;
+          const at = node.kind === "scalar"
+            ? Math.min(Math.max((node.meta as { selfAt?: number } | undefined)?.selfAt ?? 0, 0), len)
+            : 0;
+          return ok({ ...s, cursor: { at: "hole", path: cursor.path, index: at, text: "", key: null } });
+        }
+        if (value !== undefined && isPointer(value)) {
+          return ok({ ...s, cursor: { at: "hole", path: cursor.path.slice(0, -1), index: cursor.path[cursor.path.length - 1] + 1, text: "", key: null } });
+        }
+      }
+      // the un-named commit (an emptied key) picked its own landing; flow values keep the walk
       return applyIntent({ ...s, refused: false }, { kind: "move", dir: 1 }, site);
     }
 
@@ -1488,8 +1545,10 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
 
     case "commit": {
       // an ANCHOR row commits in place — the caret stays on the row (or lands on the node when
-      // the emptied row was the last one); descending into the node would make no sense here
-      if (cursor.at === "anchors") {
+      // the emptied row was the last one); descending into the node would make no sense here.
+      // The `&` ENTRY face is the same in-place law: the bookmark is a decoration, no entry was
+      // born, so the level rule's descend has nothing to enter — the restored hole IS the landing
+      if (cursor.at === "anchors" || (cursor.at === "hole" && cursor.anchor === true)) {
         const committed = commitPending(state);
         return committed === null ? refuse(state) : ok(committed);
       }

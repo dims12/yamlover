@@ -25,6 +25,10 @@ export interface Dialect {
   /** `*`-led hole text commits as a REFERENCE (a pointer value). false ⇒ `*…` is plain text
    *  and refuses at the scalar gate like any other non-token. */
   readonly pointers: boolean;
+  /** `&`-led entry-stage text opens the BOOKMARK face (an anchor on the container). false ⇒
+   *  `&…` is plain text and refuses at the scalar gate. (json5p PARSES `&'p' v` — parse-side
+   *  tolerance is not an entry gesture; the json5 dialect models plain-json5 typing.) */
+  readonly anchors: boolean;
   /** May this key be typed BARE (`k:` without quotes)? A refused key rings; `"k":` (the quoted
    *  form) is accepted by every dialect. */
   bareKey(key: string): boolean;
@@ -39,6 +43,7 @@ export const YAMLOVER: Dialect = {
   omniValue: true,
   spread: true,
   pointers: true,
+  anchors: true,
   bareKey: () => true,
   scalarToken: () => true,
 };
@@ -70,6 +75,7 @@ export const JSON5_D: Dialect = {
   omniValue: false,
   spread: true,
   pointers: false, // json5 has no `*` sigil — a star is just an illegal token
+  anchors: false,
   bareKey: (k) => IDENT.test(k),
   scalarToken: json5Token,
 };
@@ -81,6 +87,7 @@ export const JSON_D: Dialect = {
   omniValue: false,
   spread: true,
   pointers: false,
+  anchors: false,
   bareKey: () => false,
   scalarToken: jsonToken,
 };

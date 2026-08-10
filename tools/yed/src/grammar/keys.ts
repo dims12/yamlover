@@ -12,6 +12,7 @@ export type HoleAction =
   | { kind: "flowMap" }                       // `{` — container + keyed hole, `}` projected
   | { kind: "flowSeq" }                       // `[` — container + ordinal hole, `]` projected
   | { kind: "pointer"; rest: string }         // `*` — a reference cell
+  | { kind: "anchor"; rest: string }          // `&` — a bookmark on the CONTAINER (entry stage only)
   | { kind: "metaTag" }                       // `!!<` — a meta-tag cell (entry stage only)
   | { kind: "block"; header: string }         // `|`/`>` header + Enter — a block-scalar (multiline) cell
   | { kind: "text" }                          // anything else — keep accumulating as a plain token
@@ -41,6 +42,10 @@ export function classifyHoleInput(text: string, entryStage: boolean, enterPresse
   if (text[0] === "{") return { kind: "flowMap" };
   if (text[0] === "[") return { kind: "flowSeq" };
   if (text[0] === "*") return { kind: "pointer", rest: text.slice(1) };
+  // `&` opens a BOOKMARK on the container — entry stage only, where an own-line `&: path` can sit
+  // in source (docs/language/pointers/bookmarks); in a value hole `&…` stays text, so the inline
+  // `&'p: q' v` spelling still types through verbatim (scalarFromText carries the meta)
+  if (entryStage && text[0] === "&") return { kind: "anchor", rest: text.slice(1) };
   if (entryStage && text.startsWith("!!<")) return { kind: "metaTag" };
   if (entryStage && (text === "!" || text === "!!" || text === "!!<")) return null; // building the sigil
   // a `|`/`>` header keeps accumulating (`-`, `+`, digits) until Enter allocates the block cell

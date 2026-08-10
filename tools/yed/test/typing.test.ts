@@ -465,6 +465,71 @@ describe("yed2 — an EMPTIED key never traps the caret", () => {
   });
 });
 
+describe("yed2 — Enter on a committed KEY descends into the value's HEAD (the way back in)", () => {
+  // reported: with `a:` holding entries, the self value 12 (and a `&` bookmark) could not be
+  // entered any more — every keystroke walked committed cells ("all keystrokes are just
+  // jumping"). Enter on the key now re-opens the typing flow's own landing: a hole at the head.
+  const DOC = "a:\n  - b\n  c: 12\n";
+  const atKey = (): EditorState =>
+    ({ ...initialState(), doc: parseSource(DOC), cursor: { at: "key", path: [0], text: "a" } }) as EditorState;
+
+  it("the SELF VALUE: Enter on `a`, type 12, Enter — the omni forms, value leading", () => {
+    let s = applyKey(atKey(), { key: "Enter" });
+    expect(s.refused).toBe(false);
+    expect(s.cursor).toEqual({ at: "hole", path: [0], index: 0, text: "", key: null });
+    s = type("12{ArrowRight}", s); // commit the scalar without descending
+    expect(src(s)).toBe("a: 12\n  - b\n  c: 12\n");
+  });
+
+  it("the BOOKMARK: Enter on `a`, `&`, the portions, Enter — the anchor lands on `a`", () => {
+    let s = applyKey(atKey(), { key: "Enter" });
+    s = applyText(s, "&");
+    expect(s.cursor).toMatchObject({ at: "hole", path: [0], index: 0, anchor: true });
+    s = applyKey(s, { key: ":" });
+    s = type("p", s);
+    s = applyKey(s, { key: "Enter" });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("a:\n  &: p\n  - b\n  c: 12\n");
+  });
+
+  it("a NEW FIRST entry: Enter on `a`, type `d: 1` — it lands before `- b`", () => {
+    let s = applyKey(atKey(), { key: "Enter" });
+    s = type("d: 1{ArrowRight}", s);
+    expect(src(s)).toBe("a:\n  d: 1\n  - b\n  c: 12\n");
+  });
+
+  it("a SCALAR entry's key: Enter on `c` opens the fields hole (the omni-in-waiting)", () => {
+    const s0 = { ...initialState(), doc: parseSource(DOC), cursor: { at: "key", path: [0, 1], text: "c" } } as EditorState;
+    const s = applyKey(s0, { key: "Enter" });
+    expect(s.refused).toBe(false);
+    expect(s.cursor).toEqual({ at: "hole", path: [0, 1], index: 0, text: "", key: null });
+    const t = type("unit: cm{ArrowRight}", s);
+    expect(src(t)).toBe("a:\n  - b\n  c: 12\n    unit: cm\n");
+  });
+
+  it("a POINTER entry's key: Enter opens the SIBLING hole (a reference holds no children)", () => {
+    const s0 = { ...initialState(), doc: parseSource("p: *q\nq: 1\n"), cursor: { at: "key", path: [0], text: "p" } } as EditorState;
+    const s = applyKey(s0, { key: "Enter" });
+    expect(s.refused).toBe(false);
+    expect(s.cursor).toEqual({ at: "hole", path: [], index: 1, text: "", key: null });
+  });
+
+  it("a FLOW key keeps the walk — the value cell is next, flow has no block holes", () => {
+    const s0 = { ...initialState(), doc: parseSource("{key: 12}\n"), cursor: { at: "key", path: [0], text: "key" } } as EditorState;
+    const s = applyKey(s0, { key: "Enter" });
+    expect(s.refused).toBe(false);
+    expect(s.cursor.at).not.toBe("hole");
+  });
+
+  it("the RENAME still commits on the way down", () => {
+    const s0 = { ...initialState(), doc: parseSource(DOC), cursor: { at: "key", path: [0], text: "renamed" } } as EditorState;
+    const s = applyKey(s0, { key: "Enter" });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("renamed:\n  - b\n  c: 12\n");
+    expect(s.cursor).toEqual({ at: "hole", path: [0], index: 0, text: "", key: null });
+  });
+});
+
 describe("yed2 — a KEY cell walks vertically (key_cell_editing's up/down rows)", () => {
   // reported: editing the `pats` key in a nested document, Up/Down did nothing — the key
   // branch short-circuited into flowCommon, which has no vertical arrows, so the advertised
@@ -731,6 +796,107 @@ describe("yed2 typing — the editable & ANCHOR rows", () => {
     const s = applyKey({ ...s0, cursor: { at: "anchors", path: [0], index: 1, text: ": x: y" } }, { key: "Enter" });
     expect(s.refused).toBe(false);
     expect(src(s)).toBe("a: 1\n  &: p: q\n  &: x: y\n");
+  });
+});
+
+describe("yed2 typing — the `&` ENTRY face (the FIRST bookmark, docs/server/yamlover-editor anchor_entry)", () => {
+  it("`&` in a hole opens the portion face; the body commits an own-line anchor on the CONTAINER", () => {
+    // a hole INSIDE `a`'s block (the fields region of the scalar 1) — the container is `a`
+    const s0: EditorState = { ...initialState(), doc: parseSource("a: 1\n") };
+    let s = applyText({ ...s0, cursor: { at: "hole", path: [0], index: 0, text: "", key: null } }, "&");
+    expect(s.cursor).toMatchObject({ at: "hole", path: [0], index: 0, anchor: true, ref: { ladder: 0, portions: [""], active: 0 } });
+    // `:` in the empty first cell CLIMBS the ladder (document scope), then the portions type
+    s = applyKey(s, { key: ":" });
+    expect(s.cursor).toMatchObject({ anchor: true, ref: { ladder: 1 } });
+    s = type("p:q", s);
+    // the committed cells ride ref.portions; the ACTIVE cell's live text is cursor.text
+    expect(s.cursor).toMatchObject({ anchor: true, text: "q", ref: { portions: ["p", ""], active: 1 } });
+    s = applyKey(s, { key: "Enter" });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("a: 1\n  &: p: q\n");
+    // the caret is the RESTORED hole at its own index — the bookmark is a decoration, not an entry
+    expect(s.cursor).toEqual({ at: "hole", path: [0], index: 0, text: "", key: null });
+  });
+
+  it("Backspace on the emptied floor UNDOES the `&` decision — the plain hole returns, doc untouched", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("a: 1\n") };
+    let s = applyText({ ...s0, cursor: { at: "hole", path: [0], index: 0, text: "", key: null } }, "&");
+    s = applyKey(s, { key: "Backspace" });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("a: 1\n");
+    expect(s.cursor).toEqual({ at: "hole", path: [0], index: 0, text: "", key: null });
+  });
+
+  it("a POSITION body refuses with the ring — the portions stand to fix", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("a: 1\n") };
+    let s = applyText({ ...s0, cursor: { at: "hole", path: [0], index: 0, text: "", key: null } }, "&");
+    s = applyKey(s, { key: ":" });
+    s = type("p:3", s);
+    s = applyKey(s, { key: "Enter" });
+    expect(s.refused).toBe(true); // a bookmark may not claim a position
+    expect(src(s)).toBe("a: 1\n");
+    expect(s.cursor).toMatchObject({ at: "hole", anchor: true, text: "3" }); // still the face
+  });
+
+  it("the trailing `-` portion spells ORDINAL membership (`: -`)", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("a: 1\n") };
+    let s = applyText({ ...s0, cursor: { at: "hole", path: [0], index: 0, text: "", key: null } }, "&");
+    s = applyKey(s, { key: ":" });
+    s = type("p:-", s);
+    s = applyKey(s, { key: "Enter" });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("a: 1\n  &: p: -\n");
+  });
+
+  it("`[` on the anchor face is INERT — a bookmark may not fold an index", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("a: 1\n") };
+    let s = applyText({ ...s0, cursor: { at: "hole", path: [0], index: 0, text: "", key: null } }, "&");
+    s = type("p:", s); // a committed portion, the next cell empty — the fold's own site
+    const before = s.cursor;
+    s = applyKey(s, { key: "[" });
+    // no fold: the `[` lands as portion TEXT (native), never `p[|]`
+    expect(s.cursor).toMatchObject({ anchor: true, text: "[" });
+    expect((before as { ref?: { portions: string[] } }).ref?.portions).toEqual(["p", ""]);
+  });
+
+  it("a bookmark at the DOCUMENT ROOT serializes (the empty-doc shortcut must not swallow it)", () => {
+    let s = applyText(initialState(), "&");
+    s = applyKey(s, { key: ":" });
+    s = type("p", s);
+    s = applyKey(s, { key: "Enter" });
+    expect(s.refused).toBe(false);
+    // the empty BLOCK mapping has no block spelling, so the root flows to `{}` and the
+    // root anchor takes its own line — the shortcut swallowing the anchor was the bug
+    expect(src(s)).toBe("{}\n&: p\n");
+    expect(s.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: null });
+  });
+
+  it("the SECOND bookmark appends through the same gesture", () => {
+    const s0: EditorState = { ...initialState(), doc: parseSource("a: 1\n  &: p: q\n") };
+    let s = applyText({ ...s0, cursor: { at: "hole", path: [0], index: 0, text: "", key: null } }, "&");
+    s = applyKey(s, { key: ":" });
+    s = type("x:y", s);
+    s = applyKey(s, { key: "Enter" });
+    expect(s.refused).toBe(false);
+    expect(src(s)).toBe("a: 1\n  &: p: q\n  &: x: y\n");
+  });
+
+  it("json5/json dialects: `&` stays text and refuses at the scalar gate", () => {
+    let s = type("{{k: ", initialState("json5"));
+    s = applyText(s, "&x");
+    expect(s.cursor).toMatchObject({ at: "hole", text: "&x" }); // no face — plain text
+    expect((s.cursor as { anchor?: true }).anchor).toBeUndefined();
+    s = applyKey(s, { key: "Enter" });
+    expect(s.refused).toBe(true); // not a json5 scalar spelling
+  });
+
+  it("the INLINE back door still types through verbatim (`&'p: q' 1` — raw-first parity)", () => {
+    // a VALUE hole (the entry named `a`): `&…` is not the entry-stage decision there — the
+    // inline anchor+value spelling commits with the meta riding the token (scalarFromText)
+    const s = type("a: &'p: q' 1{Enter}");
+    // the anchor rode the token (scalarFromText keeps the meta) — the serializer re-spells
+    // it in the canonical own-line form after the value
+    expect(src(s)).toBe("a: 1\n  &p: q\n");
   });
 });
 

@@ -14,7 +14,7 @@ import type { Document, Node, Entry, Value, Scalar, Pointer, Comment } from './i
 import { isPointer } from './ir.ts';
 import { foldLines, plainScalar, splitKV, unquoteKey } from './yamlover.ts';
 import { renderPointer } from './pointer.ts';
-import { LossyError, anchorBody, dq, flowKeyText, isAnchorizableBack, backAnchorBody, keyText } from './serialize-common.ts';
+import { LossyError, anchorBody, dq, flowKeyText, isAnchorizableBack, backAnchorBody, keyText, seqMarkLen } from './serialize-common.ts';
 import { json5pSubtree } from './serialize-json5p.ts';
 
 const STEP = 2;
@@ -456,7 +456,7 @@ function hasUnquotedSpace(s: string): boolean {
 function plainToken(text: string): boolean {
   if (text === '' || text !== text.trim()) return false;
   if ("'\"*&~!|>{[".includes(text[0])) return false; // value-position sigils & quotes
-  if (text === '-' || text.startsWith('- ')) return false; // would read as a seq marker
+  if (seqMarkLen(text) !== null) return false; // would read as a seq marker (`-`, `- x`, `-: x`)
   if (/(^|[ \t])#/.test(text)) return false; // comment stripping
   if (splitKV(text) !== null) return false; // would read as `key: value` in a compact item
   if (/[\u0000-\u0008\u000b-\u001f\u007f]/.test(text)) return false;
@@ -582,14 +582,19 @@ function blockLines(v: string): { header: string; lines: string[] } | null {
   return { header, lines };
 }
 
-/** The AUTHORED key token (EntryMeta.keyRaw), if it survives the reparse guard: the token
- *  must still read as this very key (unquoteKey) and still split as a key at all (splitKV)
- *  — a stale or hand-forged raw must never change what the document says. Null: emit
- *  canonically (keyText). */
+/** The AUTHORED key token (EntryMeta.keyRaw), if it survives the reparse guard: the token must
+ *  still read as this very key (unquoteKey), must still split as a key at all (splitKV), and must
+ *  be QUOTED wherever the canonical emission quotes — a stale or hand-forged raw must never change
+ *  what the document says. That last clause is load-bearing, because {@link keyText} quotes exactly
+ *  the keys whose bare spelling the line grammar MISREADS: `-` / `- x` (the keyless marker) and a
+ *  plain numeric key (a position claim — a parse ERROR). A `.yaml` file mints such raws for real —
+ *  there `1: 12` IS the integer key and `-: 12` IS the string key `-` — so without this, reading
+ *  YAML and writing yamlover emitted a document that would not reparse. Null: emit canonically. */
 function authoredKey(e: Entry): string | null {
   const raw = e.meta?.keyRaw;
   if (raw === undefined || e.key === null) return null;
   try { if (unquoteKey(raw) !== e.key) return null; } catch { return null; }
+  if (keyText(e.key).startsWith('"') && !/^['"]/.test(raw)) return null;
   const sp = splitKV(raw + ': v');
   return sp !== null && sp.key === raw ? raw : null;
 }

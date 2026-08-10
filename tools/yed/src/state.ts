@@ -55,7 +55,9 @@ export type Cursor =
       /** the AUTHORED key token (`"a"` typed with its quotes) — commits as EntryMeta.keyRaw */
       keyRaw?: string;
       /** the `*` decision - the reference PORTIONS being entered (text = the active portion) */
-      ref?: RefEntry; caret?: CaretHint }
+      ref?: RefEntry;
+      /** the `&` decision - `ref` spells the CONTAINER's bookmark BODY, not a value */
+      anchor?: true; caret?: CaretHint }
   | { at: "token"; path: Path; text: string; caret?: "start" | "end" }
   | { at: "key"; path: Path; text: string; caret?: "start" | "end" }
   | { at: "tag"; path: Path; text: string; caret?: "start" | "end" }
@@ -116,8 +118,11 @@ export function trySourceOf(doc: Document): string | null {
   try {
     const root = doc.root as Node;
     // the EMPTY DOCUMENT is a block mapping with no entries; an empty FLOW root is content
-    // (`{}` / `[]` are values — the bracket-authored law) and serializes as itself
-    if (root.kind === "mapping" && (root.entries ?? []).length === 0 && !isFlow(root)) return "";
+    // (`{}` / `[]` are values — the bracket-authored law) and serializes as itself. A root
+    // carrying ANCHORS is not empty — its `&: …` lines are source (rootAnchors emits them),
+    // so the shortcut must not swallow them.
+    if (root.kind === "mapping" && (root.entries ?? []).length === 0 && !isFlow(root)
+      && ((root.meta as { anchors?: unknown[] } | undefined)?.anchors ?? []).length === 0) return "";
     return serializeYamlover(doc);
   } catch {
     return null;

@@ -22,6 +22,7 @@ description: the entry_hole state
   - ['`key_colon_enter`', 'otherwise', '`entry_hole` (stays)']
   - ['`bang_bang_lt`', '', '[meta_tag_editing](::server:yamlover-editor:meta_tag_editing)']
   - ['`asterisk`', '', '[pointer_entry](::server:yamlover-editor:pointer_entry)']
+  - ['`ampersand`', 'the yamlover dialect - a BOOKMARK on the container', '[anchor_entry](::server:yamlover-editor:anchor_entry)']
   - ['`pipe`', '', '[block_scalar_editing](::server:yamlover-editor:block_scalar_editing)']
   - ['`open_brace`', '', '[flow_map_editing](::server:yamlover-editor:flow_map_editing)']
   - ['`open_bracket`', '', '[flow_seq_editing](::server:yamlover-editor:flow_seq_editing)']

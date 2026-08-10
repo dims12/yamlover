@@ -42,6 +42,9 @@ export interface Site {
   portionFirst?: boolean;
   portionLast?: boolean;
   ladder?: number;
+  /** Portion cells only: the portions spell a BOOKMARK body (the `&` decision), not a value —
+   *  the `[` index fold is off (a bookmark may not claim a position). */
+  anchorEntry?: true;
   /** The caret's character offset in the active text cell, when the projection reports it
    *  (a mid-text `:` splits a portion AT the caret). Undefined: assume the end. */
   caretOffset?: number;
@@ -128,7 +131,7 @@ export function interpret(k: Key, s: Site): Intent | null {
       if (s.textEmpty && s.portionFirst && (s.ladder ?? 0) < 3) return { kind: "scope", dir: 1 };
       return { kind: "portionSplit" };
     }
-    if (k.key === "[" && s.textEmpty && !s.portionFirst) return { kind: "portionFold" };
+    if (k.key === "[" && s.textEmpty && !s.portionFirst && s.anchorEntry !== true) return { kind: "portionFold" };
     if (k.key === "Backspace" && s.caretAtStart) {
       if (!s.portionFirst) return { kind: "portionMerge", dir: -1 };
       if ((s.ladder ?? 0) > 0) return { kind: "scope", dir: -1 };
@@ -196,7 +199,7 @@ export function interpret(k: Key, s: Site): Intent | null {
   }
   // ---- a KEY cell (a committed key being edited — block or flow alike) --------------------- //
   if (s.cell === "key") {
-    if (k.key === "Enter") return { kind: "keyCommit" }; // commit the key; the pair takes its row
+    if (k.key === "Enter") return { kind: "keyCommit" }; // naming done - commit, then DESCEND into the value's head
     // an EMPTIED key + Backspace un-names the pair (one press, one level): `{key: 12}` with the
     // key deleted becomes `{12}` — the incomplete pair, drawn and not written — and the ladder
     // continues instead of jamming on a key nothing could remove

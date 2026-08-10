@@ -16,7 +16,7 @@ import { parseJson5p } from '../src/json5p.ts';
 import { parsePointer, renderPointer } from '../src/pointer.ts';
 import { serializeYamlover } from '../src/serialize-yamlover.ts';
 import { serializeJson5p } from '../src/serialize-json5p.ts';
-import { LossyError } from '../src/serialize-common.ts';
+import { LossyError, flowKeyText } from '../src/serialize-common.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..', '..', '..');
@@ -93,6 +93,76 @@ test('yamlover: a null-keyed entry is KEYED — it breaks pure-sequence-ness', (
   assert.equal((doc.root as { array?: boolean }).array, false);
   const entries = (doc.root as { entries: { key: string | null; nullKey?: true }[] }).entries;
   assert.deepEqual(entries.map((e) => [e.key, e.nullKey === true]), [[null, false], [null, true]]);
+});
+
+test('yamlover rt: `-:` is the EXPLICIT KEYLESS CONVERSION — `-: v` ≡ `- v`, canonical `- v`', () => {
+  // the sugar is INPUT ONLY: every spelling below re-emits with the canonical dash marker
+  assert.equal(rtYamlover('a: 1\n-: 2\n'), 'a: 1\n- 2\n');
+  assert.equal(rtYamlover('-:\n  name: Whiskers\n  species: cat\n'), '- name: Whiskers\n  species: cat\n');
+  assert.equal(rtYamlover('-: name: Rex\n'), '- name: Rex\n');
+  assert.equal(rtYamlover('-: - x\n'), '- - x\n'); // nests like the dash it is
+  // the marker is the WHOLE token: the colon sits tight, and space-or-EOL must follow
+  assert.equal(rtYamlover('-:x\n'), '-:x\n'); // a plain scalar, not a marker
+  assert.equal(rtYamlover('- : x\n'), '- ~: x\n'); // still a keyless entry holding a NULL-KEYED one
+  // the IR really is keyless — not the null key, not the string key `-`
+  const doc = parseYamlover('-: 2\n', 't');
+  const entries = (doc.root as { entries: { key: string | null; nullKey?: true }[] }).entries;
+  assert.deepEqual(entries.map((e) => [e.key, e.nullKey === true]), [[null, false]]);
+  assert.equal((doc.root as { array?: boolean }).array, true);
+});
+
+test('yamlover rt: a LITERAL `-` key is quoted — in block, in flow, and against a stale raw', () => {
+  assert.equal(rtYamlover('"-": 12\n'), '"-": 12\n');
+  assert.equal(rtYamlover("'-': 12\n"), "'-': 12\n");
+  assert.equal(rtYamlover("m: {'-': 1}\n"), "m: {'-': 1}\n");
+  // a MINTED `-` key (no authored raw) gets the canonical quoting on both surfaces
+  const minted = parseYamlover('a: 12\n', 't');
+  (minted.root as { entries: { key: string; meta?: object }[] }).entries[0].key = '-';
+  delete (minted.root as { entries: { meta?: object }[] }).entries[0].meta;
+  assert.match(serializeYamlover(minted), /^"-": 12$/m);
+  assert.equal(flowKeyText('-'), "'-'");
+  assert.equal(flowKeyText('-1'), '-1'); // word-like keys stay bare
+  assert.equal(flowKeyText('a-b'), 'a-b');
+});
+
+test('yamlover: an UNQUOTED authored raw is refused wherever keyText quotes (the reparse guard)', () => {
+  // keyText quotes exactly the keys whose BARE spelling the line grammar misreads — the keyless
+  // marker and the plain numeric (a position claim). A `.yaml` file mints such raws for real, so
+  // reading YAML and writing yamlover must not emit a document that cannot be reparsed.
+  const cases: [string, string, RegExp][] = [
+    ['-: 12\n', '-', /^"-": 12$/m], // there, the string key `-`
+    ['1: 12\n', '1', /^"1": 12$/m], // there, the integer key 1
+  ];
+  for (const [src, key, want] of cases) {
+    const y = parseYamlover(src, 't', { yaml: true });
+    const e = (y.root as { entries: { key: string | null; meta?: { keyRaw?: string } }[] }).entries[0];
+    assert.equal(e.key, key);
+    assert.equal(e.meta?.keyRaw, key, 'the YAML read keeps the authored spelling');
+    const out = serializeYamlover(y);
+    assert.match(out, want, 'the yamlover emission quotes it anyway');
+    assert.doesNotThrow(() => parseYamlover(out, 't'), 'and the result reparses');
+  }
+  // a hand-forged raw is refused the same way, whatever the key came from
+  for (const [key, raw, want] of [['- x', '- x', /^"- x": 1$/m], ['12', '12', /^"12": 1$/m]] as const) {
+    const stale = parseYamlover('a: 1\n', 't');
+    const e = (stale.root as { entries: { key: string; meta?: object }[] }).entries[0];
+    e.key = key;
+    e.meta = { keyRaw: raw };
+    assert.match(serializeYamlover(stale), want);
+  }
+  // a QUOTED raw still wins — that is the whole point of keeping the spelling
+  assert.equal(rtYamlover("'-': 12\n"), "'-': 12\n");
+  assert.equal(rtYamlover("'1': 12\n"), "'1': 12\n");
+});
+
+test('yamlover rt: the flow surface reads `-` the same way — `{-: 1}` is the seq `[1]`', () => {
+  assert.equal(rtYamlover('{-: 1, -: 2}\n'), '[1, 2]\n');
+  // a MIXTURE cannot stay flow (flowTextOrNull refuses it) — it demotes to block, keyless and all
+  assert.equal(rtYamlover('{a: 1, -: 2}\n'), 'a: 1\n- 2\n');
+  // YAML mode keeps the literal key on both surfaces
+  const y = parseYamlover('m: {-: 1}\n', 't', { yaml: true });
+  const m = (y.root as { entries: { value: { entries: { key: string | null }[] } }[] }).entries[0].value;
+  assert.equal(m.entries[0].key, '-');
 });
 
 test('yamlover: a plain numeric key is a parse ERROR (a position claim); quoted is the string', () => {

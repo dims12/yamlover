@@ -8,7 +8,7 @@ export { walkDir, walkTree, walkTreeGen, walkTreeAsync, buildIndex, reindex, rei
 export type { WalkOptions, AsyncWalkOptions, ReindexAsyncOptions, PartialSnapshot, WalkResult, WalkProgress, ReindexProgress, IndexDiff } from './walk.ts';
 export { planRewrites, applyEdits, nominalPath, under } from './rewrite.ts';
 export type { TextEdit, RewritePlan, RewrittenRef, UnrewrittenRef } from './rewrite.ts';
-export { mv, relinkMoved } from './mv.ts';
+export { mv, relinkMoved, relinkRenamed } from './mv.ts';
 export type { MvReport } from './mv.ts';
 export { watchTree } from './watch.ts';
 export type { WatchOptions } from './watch.ts';

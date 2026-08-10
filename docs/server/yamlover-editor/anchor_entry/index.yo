@@ -1,0 +1,45 @@
+# The anchor_entry state - the `&` decision in an entry hole: the FIRST (or a further) bookmark
+# entered on the hole's container through the same portion face a reference uses. Also documents
+# the committed anchors ROWS (no other chapter covers them).
+Bookmark being entered (a &-led hole)
+description: the anchor_entry state, and the committed anchor rows
+- >
+  The hole's text begins with `&` - the BOOKMARK decision (keys.ts classifies it; yamlover
+  dialect, entry stage only - in a value hole `&…` stays text, so the inline `&'p: q' v`
+  spelling still types through verbatim). The body enters as the SAME portion cells a `*`
+  reference uses - the scope ladder climbs on `:` in the empty first cell, segments commit on
+  `:`, completion hints ride the active cell with the first row armed once it has text - with
+  two anchor-only differences: `[` never folds an index and POSITION hints are not offered (a
+  bookmark may not claim a position - makeAnchor refuses), and a trailing `-` segment spells
+  keyless membership (`: -`, the ordinal bookmark). The bookmark lands on the hole's CONTAINER -
+  the own-line law: a `&: path` line attaches to the node whose block holds it. Enter joins the
+  segments and parses-or-refuses through makeAnchor; a valid body commits the anchor and the
+  hole RETURNS at its own index, empty - the bookmark is a decoration, no entry was born, so
+  there is nothing to descend into. Backspace on the emptied floor undoes the `&` decision.
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`alphanumeric`', 'native text in the active segment cell', '`anchor_entry` (stays)']
+  - ['`colon`', 'the empty first cell, ladder below world - the SCOPE CLIMBS', '`anchor_entry` (stays)']
+  - ['`colon`', 'otherwise - the segment COMMITS, the next cell opens', '`anchor_entry` (stays)']
+  - ['`open_bracket`', 'NO index fold - a bookmark may not claim a position; the `[` is plain text', '`anchor_entry` (stays)']
+  - ['`hint_pick`', 'a dropdown row (Tab/Enter on the ARMED row, or a click) REPLACES the active cell''s text - position rows are never offered', '`anchor_entry` (stays)']
+  - ['`enter`', 'the joined body is a bookmark spelling (keys walked, a trailing `-` for keyless membership) - the anchor commits on the CONTAINER and the hole returns at its own index', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`enter`', 'a position claim or no body - the ring, the segments stand', '[error_flash](::server:yamlover-editor:error_flash)']
+  - ['`backspace`', 'at the head of a non-first segment - the cells MERGE at the junction', '`anchor_entry` (stays)']
+  - ['`backspace`', 'the first cell''s head, ladder above bare - the SCOPE DESCENDS', '`anchor_entry` (stays)']
+  - ['`backspace`', 'the emptied floor (one empty cell, bare scope) - the `&` decision undoes, the plain hole returns', '[entry_hole](::server:yamlover-editor:entry_hole)']
+  - ['`backspace`', 'otherwise', '`anchor_entry` (stays)']
+- >
+  The COMMITTED anchor rows (a node that already carries bookmarks) are plain text cells after
+  the value - one row, one anchor, the body without its `&`. The walk reaches them as a stop;
+  Enter re-commits the row in place (parses-or-refuses, the caret stays); an EMPTIED row commits
+  as that anchor's removal - the last one removes the stop and the caret lands on the node; the
+  trailing `+` ADD slot appends. Tab and the arrows WALK (a decoration row has no levels). On
+  the wire a bookmark is IDENTITY: any anchor change re-emplaces the node wholesale (yed-sync
+  identityMarks) - there is no surgical anchor facet.

@@ -16,7 +16,7 @@
 import type { Document, Node, Mapping, Scalar, Entry, Value, Pointer, Span, Anchor } from './ir.ts';
 import { isPointer } from './ir.ts';
 import { parsePointer, makeAnchor } from './pointer.ts';
-import { keyRawWorthKeeping } from './serialize-common.ts';
+import { keyRawWorthKeeping, seqMarkLen } from './serialize-common.ts';
 import { attachComments, type RawComment } from './comments.ts';
 
 interface Line { indent: number; text: string; n: number; blankBefore?: boolean }
@@ -235,7 +235,7 @@ class Block {
       this.i++;
       return this.valueAfter(l.text, l.indent - 1, l.n, l.indent);
     }
-    if (isSeqLine(l.text) || isBackSeqLine(l.text) || l.text.startsWith('&') || splitKV(l.text)) {
+    if (isSeqLine(l.text, this.yaml) || isBackSeqLine(l.text) || l.text.startsWith('&') || splitKV(l.text)) {
       return this.container(l.indent);
     }
     // a lone scalar/flow/pointer — or a bare block scalar — occupying the line
@@ -297,16 +297,17 @@ class Block {
         }
         continue;
       }
-      if (isSeqLine(l.text)) {
-        // a keyless (positional) entry
+      const mark = seqMarkLen(l.text, this.yaml);
+      if (mark !== null) {
+        // a keyless (positional) entry — `- v`, or the `-: v` conversion sugar (width 2)
         this.i++;
-        const afterDash = l.text.slice(1);
+        const afterDash = l.text.slice(mark);
         const lead = afterDash.length - afterDash.trimStart().length;
-        const contentCol = l.indent + 1 + lead;
+        const contentCol = l.indent + mark + lead;
         const rest = afterDash.trim();
         if (rest === '') {
           value = this.node(indent + 1) ?? nul();
-        } else if (isSeqLine(rest) || (!/^(!!<|\*|&)/.test(rest) && splitKV(rest))) {
+        } else if (isSeqLine(rest, this.yaml) || (!/^(!!<|\*|&)/.test(rest) && splitKV(rest))) {
           // compact `- key: value` or compact nesting `- - item`: re-read this line
           // (+ deeper siblings) as a container — the rewrite recurses, so `- - - x`
           // nests to any depth. (a `!!<…>` tag, a `*` pointer, or a `&` anchor is a
@@ -455,12 +456,12 @@ class Block {
       //   - a
       // (mappings must be deeper; sequences may be level). Otherwise a deeper block, or null.
       const nxt = this.peek();
-      if (nxt && nxt.indent === parentIndent && isSeqLine(nxt.text)) {
+      if (nxt && nxt.indent === parentIndent && isSeqLine(nxt.text, this.yaml)) {
         value = this.container(parentIndent, /*keylessOnly*/ true);
       } else {
         value = this.node(parentIndent + 1) ?? nul();
       }
-    } else if (anchors.length > 0 && (isSeqLine(rest) || (!/^(!!<|\*|&)/.test(rest) && splitKV(rest)))) {
+    } else if (anchors.length > 0 && (isSeqLine(rest, this.yaml) || (!/^(!!<|\*|&)/.test(rest) && splitKV(rest)))) {
       // COMPACT NESTED CONTENT after an inline anchor (`- &item01 - x` / `- &a k: v` — the
       // positional projection's spelling): the first entry rides this line, and a deeper
       // block CONTINUES the same container. Without this, the line read as the plain scalar
@@ -690,6 +691,7 @@ class Flow {
       if (this.i >= this.s.length) this.fail('unterminated flow map');
       let back = false;
       let nullKey = false;
+      let keyless = false;
       if (this.s[this.i] === '~') {
         // `~:` (spaces allowed) is the NULL KEY (YAML); `~name:` is the back-edge sigil
         let j = this.i + 1;
@@ -724,6 +726,9 @@ class Flow {
         key = unquoteKey(plain);
         rawTok = plain.trim();
         if (key === '') nullKey = true; // `{: v}` — the empty spelling of the null key
+        // an unquoted `-` is the KEYLESS MARKER here too (the block surface's `-: v`), so
+        // `{-: 1}` is the one-entry seq `[1]` — one grammar, both surfaces
+        else if (!this.yaml && key === '-') keyless = true;
       }
       if (!nullKey && !quoted && !this.yaml && /^\d+$/.test(key)) {
         this.fail(`a plain numeric key is a position — author it by order ("- value"), or quote a numeric STRING key ("'${key}':")`);
@@ -736,6 +741,8 @@ class Flow {
       const edge = back ? 'back' as const : isPointer(v) ? 'ref' as const : 'contain' as const;
       entries.push(nullKey
         ? { key: null, nullKey: true, edge, value: v }
+        : keyless
+        ? { key: null, edge, value: v } // `{-: v}` — no key at all, so no keyRaw to keep
         // the same representation rule as block entries: an authored token that differs
         // from a canonical emission rides EntryMeta.keyRaw
         : { key, edge, value: v, ...(rawTok !== undefined && keyRawWorthKeeping(rawTok, key) ? { meta: { keyRaw: rawTok } } : {}) });
@@ -746,7 +753,10 @@ class Flow {
     }
     // `style: 'flow'` records the AUTHORED one-line form so the serializer re-emits it and a
     // projection can offer flow cells — the `yaml/flow` representation concrete (docs/language/concretes).
-    return { kind: 'mapping', entries, array: false, meta: this.layoutMeta(open) };
+    // `array` is a PROJECTION HINT derived from the entries, never the bracket that was typed:
+    // an all-keyless `{-: 1, -: 2}` is the seq `[1, 2]` and re-emits as one.
+    const array = entries.length > 0 && entries.every((e) => e.key === null && e.nullKey !== true);
+    return { kind: 'mapping', entries, array, meta: this.layoutMeta(open) };
   }
 
   seq(): Mapping {
@@ -792,8 +802,11 @@ class Flow {
 }
 
 // ---- helpers -----------------------------------------------------------------
-function isSeqLine(text: string): boolean {
-  return text === '-' || text.startsWith('- ');
+/** A keyless entry line — the canonical `-` / `- v`, or the conversion sugar `-:` / `-: v`
+ *  (yamlover surface only). The one law lives in serialize-common's {@link seqMarkLen}, so the
+ *  parser, the serializers, and the server's line scanner cannot drift apart. */
+function isSeqLine(text: string, yaml: boolean): boolean {
+  return seqMarkLen(text, yaml) !== null;
 }
 
 /** A `~-` keyless back-edge entry line (the sigil tight against the `-` marker). */

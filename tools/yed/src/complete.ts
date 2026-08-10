@@ -15,6 +15,9 @@ export interface Hint {
   insert: string; // replaces the active portion's text on pick
   label?: string; // dropdown text (default: insert)
   detail?: string; // dim right-hand note (a value preview, "container", ...)
+  /** A GRAMMAR row (`..`, `-`), not a real child: offered and pickable, but it never ARMS —
+   *  armed acceptance is for names; a grammar token stays one ArrowDown away. */
+  op?: true;
 }
 
 /** What the active portion cell asks: the scope ladder, the committed portions LEFT of the

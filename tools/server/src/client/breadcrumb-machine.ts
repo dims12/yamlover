@@ -26,8 +26,13 @@
 //   editing   A cell is focused (`active`, live text `activeText`). TOC selection is
 //             SUPPRESSED and the TOC is FILTERED live by the joined query (matches + all
 //             ancestors, expanded). The dropdown offers the context's real children +
-//             operators; `dropdown.hi` starts -1 — free typing always wins (pointer-hints
-//             doctrine: hints are never validators).
+//             operators, ARMED at its first row as soon as the cell has text AND that row is
+//             a real KEY (armedIndex): accepting costs one key, avoiding costs two (Escape,
+//             then Enter). An EMPTY cell arms nothing — "every child" implies no choice, and
+//             PICK opens another empty cell, so arming there would descend forever. An
+//             OPERATOR row never arms — typing `-` must leave Enter meaning "run the query",
+//             not "insert `-..`". Hints still never GATE typing: a query that matches no
+//             candidate runs exactly as typed.
 //   filtered  A committed query: cells kept, TOC stays filtered, a TOC element selected
 //             (the post-Enter / post-click browsing state). Any cell click re-enters
 //             editing; Escape or navigating to a non-match returns to idle.
@@ -56,16 +61,18 @@
 //                                   previous portion which gains a projected `[]`, caret
 //                                   inside — `pets` + `:` + `[` spells `pets[|]`, never
 //                                   the non-canonical `pets: [1]`; refetch
-//   E + CANDIDATES_ARRIVED    → E   seq-guarded; dropdown={open, items, hi:-1}
+//   E + CANDIDATES_ARRIVED    → E   seq-guarded; dropdown={open, items, hi:armedIndex(activeText, items)}
 //   E + MATCHES_ARRIVED ok    → E   seq-guarded; matches kept fresh — UNLESS pendingEnter
 //                                   and non-empty: → F + select(first) + focusToc
 //   E + MATCHES_ARRIVED !ok   → E   queryError=true, keep last good matches (no flicker)
 //   E + DROPDOWN_MOVE/SET     → E   hi cycles (from -1); SET on hover
 //   E + PICK                  → E   cell text = insert, TAIL KEPT (it just re-filters);
 //                                   picking in the last cell appends a fresh cell; refetch
-//   E + ENTER, hi>=0          ≡ PICK(hi)
-//   E + Tab (component-level) ≡ PICK(hi < 0 ? 0 : hi) while the dropdown has items — the
-//                                   ACCEPT key; Enter keeps its free-typed meaning
+//   E + ENTER, hi>=0          ≡ PICK(hi) — the armed row, which a non-empty cell HAS
+//   E + Tab (component-level) ≡ PICK(hi < 0 ? 0 : hi) while the dropdown has items — Tab and
+//                                   Enter are both ACCEPT; Escape is the way out
+//                                   (Escape closes the dropdown — see below — so the NEXT Enter
+//                                   commits the typed query: the two-key cost of refusing)
 //   E + ENTER, matches fresh  → F   select(paths[0]) focusToc — or no-op when 0 matches
 //   E + ENTER, matches stale  → E   pendingEnter=true; fetchMatches(immediate)
 //   E + ESCAPE, dropdown open → E   dropdown closes
@@ -184,6 +191,17 @@ type Editing = Extract<BcState, { mode: "editing" }>;
 
 const CLOSED: Dropdown = { open: false, items: [], hi: -1 };
 
+/** Which candidate is ARMED when a fresh list arrives: the FIRST, once the cell has text AND it
+ *  is a real KEY — so accepting the offer costs one key and avoiding it costs two (Escape, then
+ *  Enter). An EMPTY cell arms nothing: its list is "every child plus every operator", which
+ *  implies no choice, and since PICK in the last cell opens another empty cell, arming it would
+ *  make Enter descend the tree forever instead of ever running the query. An OPERATOR row never
+ *  arms either (keys sort first, so items[0] is an operator only when NO key matches): typing
+ *  `-` must leave Enter meaning "run the query as typed", not "insert `-..`" — grammar tokens
+ *  stay one ArrowDown away. */
+const armedIndex = (activeText: string, items: Candidate[]): number =>
+  (activeText.trim() !== "" && items[0]?.kind === "key" ? 0 : -1);
+
 /** The cells with the active one's LIVE text in place. */
 function cellsOf(s: Editing): string[] {
   const out = [...s.portions];
@@ -283,7 +301,10 @@ export function reduce(state: BcState, e: BcEvent, ctx: MachineCtx): [BcState, E
       return [next, [...fx, { type: "fetchCandidates", contextQuery: joinPortionsScoped(next.portions.slice(0, active), next.ladder), prefix: next.activeText, seq: next.seq.cand }]];
     }
     case "SET_ACTIVE_TEXT": {
-      const next: Editing = { ...s, activeText: e.text, queryError: false, matchesFresh: false, seq: { cand: s.seq.cand + 1, match: s.seq.match + 1 } };
+      // DISARM while the new candidates are in flight: the rows on screen are for a prefix the
+      // user has already typed past, and accepting an offer you were never shown is a trap. The
+      // list stays visible (no flicker); CANDIDATES_ARRIVED re-arms it for the CURRENT text.
+      const next: Editing = { ...s, activeText: e.text, dropdown: { ...s.dropdown, hi: -1 }, queryError: false, matchesFresh: false, seq: { cand: s.seq.cand + 1, match: s.seq.match + 1 } };
       return [next, refetch(next)];
     }
     case "SPLIT_CELL": {
@@ -334,7 +355,7 @@ export function reduce(state: BcState, e: BcEvent, ctx: MachineCtx): [BcState, E
     }
     case "CANDIDATES_ARRIVED": {
       if (e.seq !== s.seq.cand) return [s, []];
-      return [{ ...s, dropdown: { open: e.items.length > 0, items: e.items, hi: -1 } }, []];
+      return [{ ...s, dropdown: { open: e.items.length > 0, items: e.items, hi: armedIndex(s.activeText, e.items) } }, []];
     }
     case "MATCHES_ARRIVED": {
       if (e.seq !== s.seq.match) return [s, []];

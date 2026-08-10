@@ -120,6 +120,36 @@ describe("the dropdown over the portion cells - the debug editor's pointer entra
     expect(rows()).toEqual([]);
   });
 
+  it("ARMS the first row as soon as the cell has text - Enter accepts, no ArrowDown needed", async () => {
+    render(<Harness />);
+    await act(async () => { domType("*"); });
+    // an EMPTY cell arms NOTHING: its list is just "every child", which implies no choice
+    expect(rows()).toEqual(["pets", "owner"]);
+    expect(document.querySelector(".y2-hint-sel")).toBeNull();
+    // one character of prefix and the offer is armed - accepting costs ONE key
+    await act(async () => { domType("ow"); });
+    expect(document.querySelector(".y2-hint-sel .y2-hint-insert")?.textContent).toBe("owner");
+    await act(async () => { fireEvent.keyDown(focused(), { key: "Enter" }); });
+    expect(focused().value).toBe("owner");
+    expect(focused().tagName).toBe("INPUT"); // the caret never left the cell
+    expect(sourceOf(lastState.doc)).toBe(DOC); // a pick replaces text only - nothing committed
+    // the text now matches the candidate exactly, so the list empties and Enter COMMITS
+    expect(rows()).toEqual([]);
+    await act(async () => { fireEvent.keyDown(focused(), { key: "Enter" }); });
+    expect(sourceOf(lastState.doc)).toBe(DOC + "- *owner\n");
+  });
+
+  it("ESCAPE is the way out - it disarms, and the NEXT Enter commits the free-typed text", async () => {
+    render(<Harness />);
+    await act(async () => { domType("*ow"); });
+    expect(document.querySelector(".y2-hint-sel")).toBeTruthy();
+    await act(async () => { fireEvent.keyDown(focused(), { key: "Escape" }); });
+    expect(document.querySelector(".y2-hint-sel")).toBeNull(); // still offered, no longer armed
+    expect(focused().tagName).toBe("INPUT");
+    await act(async () => { fireEvent.keyDown(focused(), { key: "Enter" }); });
+    expect(sourceOf(lastState.doc)).toBe(DOC + "- *ow\n"); // the typed text won, as typed
+  });
+
   it("ArrowDown walks the list, Enter takes the highlighted row into the cell", async () => {
     render(<Harness />);
     await act(async () => { domType("*"); });
@@ -165,6 +195,27 @@ describe("the dropdown over the portion cells - the debug editor's pointer entra
     // Enter with NO highlight falls through to the grammar - the reference commits
     await act(async () => { fireEvent.keyDown(focused(), { key: "Enter" }); });
     expect(sourceOf(lastState.doc)).toBe(DOC + "- *pets: 1\n");
+  });
+
+  it("the `&` BOOKMARK face: same cells, `&` sigil, POSITION hints dropped", async () => {
+    render(<Harness />);
+    await act(async () => { domType("&"); });
+    expect(lastState.cursor).toMatchObject({ at: "hole", anchor: true, ref: { ladder: 0, portions: [""], active: 0 } });
+    expect(document.querySelector(".y2-portions .y2-punct")?.textContent).toBe("&");
+    // the keys still offer (a bookmark path walks keys)...
+    expect(rows()).toEqual(["pets", "owner"]);
+    await act(async () => { domType("pets:"); });
+    // ...but pets' POSITIONS do not: a bookmark may not claim one, and an armed digit row
+    // would Tab-accept straight into the refusal ring (the `*` face shows [0], [1] here)
+    expect(rows()).toEqual([]);
+    // commit through the hints anyway - Tab accepts `pets`? no: type the new key and Enter
+    await act(async () => { domType("adopted"); });
+    await act(async () => { fireEvent.keyDown(focused(), { key: "Enter" }); });
+    expect(lastState.refused).toBe(false);
+    expect(sourceOf(lastState.doc)).toBe("&pets: adopted\n" + DOC); // root anchors lead the document
+    // the caret is the RESTORED hole - the bookmark is a decoration, not an entry
+    expect(lastState.cursor).toMatchObject({ at: "hole", path: [], index: 2, text: "" });
+    expect(focused().tagName).toBe("INPUT");
   });
 
   it("with NO provider the portion cells draw no dropdown and the grammar is unchanged", async () => {

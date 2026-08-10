@@ -73,4 +73,60 @@ describe("/api/rekey", () => {
     expect((await rekey(h, ":world:eurasia:europe", "")).status).toBe(400);
     expect((await rekey(h, ":world:eurasia:europe", " x ")).status).toBe(400);
   });
+
+  // A key whose BARE spelling the line grammar misreads must be written quoted. Writing it bare
+  // made the entry invisible to the scanner — it was reclassified as the node's self-value line —
+  // so the next op answered `no entry at '-'` and a later self-value write could overwrite it.
+  // Both reserved spellings go through the one key tokenizer (embed.ts keyToken).
+  for (const [what, key] of [["the keyless marker", "-"], ["a position claim", "12"]] as const) {
+    it(`writes a key that reads as ${what} QUOTED — and it stays addressable`, async () => {
+      const { root, h } = await tree();
+      expect((await rekey(h, ":world:eurasia:europe", key)).status).toBe(200);
+      const body = bodyAt(root, "world", "eurasia");
+      expect(body).toContain(`"${key}": Europe`);
+      expect(body).not.toMatch(new RegExp(`^${key}: `, "m"));
+      // the entry is still there, and the round trip back to a name works
+      expect(await leaf(h, `:world:eurasia:'${key}'`)).toBe("Europe");
+      const back = await rekey(h, `:world:eurasia:'${key}'`, "europe");
+      expect(back.status).toBe(200);
+      expect(back.json.error).toBeUndefined();
+      expect(await leaf(h, ":world:eurasia:europe")).toBe("Europe");
+      expect(await leaf(h, ":world:eurasia:asia")).toBe("Asia"); // the sibling survived
+    });
+  }
+
+  // A key IS a path segment, so renaming one must carry its inbound `*`/`~` pointers with it —
+  // the fs-backed branch gets that from `mv`, and the INLINE branch used to skip it entirely,
+  // leaving every reference to the old key dangling.
+  it("carries INBOUND POINTERS through an inline rename — the reference never dangles", async () => {
+    const root = tmpTree({ ".yo/settings.yo": "" });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    await edit(h, { path: ":", op: "insert", key: "humans", yamlover: "Humans" });
+    await edit(h, { path: ":humans", op: "emplace", yamlover: "Humans\npet1: Whiskers\nalias: *pet1" });
+    expect(bodyAt(root, "humans")).toMatch(/alias: \*pet1/);
+
+    const r = await rekey(h, ":humans:pet1", "pet3");
+    expect(r.status).toBe(200);
+    // the pointer followed the key: it now spells pet3, and no `*` still names pet1
+    const body = bodyAt(root, "humans");
+    expect(body).toMatch(/alias: \*pet3/);
+    expect(body).not.toMatch(/\*[^\n]*pet1/);
+    expect(r.json.rewritten).toHaveLength(1); // and the move was reported, not silent
+    expect(r.json.unrewritten ?? []).toEqual([]);
+  });
+
+  it("reads a HAND-AUTHORED `-: v` line as the KEYLESS entry it is, not a self-value", async () => {
+    const { root, h } = await tree();
+    // author the sugar directly, the way a human editing the file would
+    fs.writeFileSync(path.join(root, "world", "eurasia", ".yo", "body.yo"), "Eurasia\n-: Europe\nasia: Asia\n");
+    await h.ready;
+    // it occupies an index (a keyless entry), and the scalar self-value is still the title
+    expect(await leaf(h, ":world:eurasia:0")).toBe("Europe");
+    expect(await leaf(h, ":world:eurasia:asia")).toBe("Asia");
+    // and an op addressing it lands — the reported `no entry at '-'` is gone
+    const r = await edit(h, { path: ":world:eurasia:0", op: "replace", yamlover: "Europa" });
+    expect(r.status).toBe(200);
+    expect(await leaf(h, ":world:eurasia:0")).toBe("Europa");
+  });
 });

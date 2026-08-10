@@ -7,7 +7,7 @@ import { render, cleanup, fireEvent } from "@testing-library/react";
 import { EditorView } from "../src/page";
 import { defaultRegistry, type CellRegistry } from "../src/cells";
 import { parseSource, initialState, type EditorState, type Node } from "../src/state";
-import { applyKey } from "../src/apply";
+import { applyKey, positionsOf } from "../src/apply";
 import { parseScript } from "./keys-util";
 
 afterEach(cleanup);
@@ -133,6 +133,57 @@ describe("yed2 cells — the projection is visible", () => {
     cleanup();
     const flow = render(<EditorView state={stateFor("[1, 2]\n")} setState={() => {}} />);
     expect(flow.container.querySelector(".y2-tail")).toBeNull(); // flow appends through its own grammar
+  });
+});
+
+describe("yed2 cells — a BLOCK container's & anchors are HEAD rows, and the colon's right is a way in", () => {
+  // reported: a container's bookmark rendered inline inside its FIRST CHILD's row
+  // (`name: Bubbles  &: …`), reading as the child's own — misplaced-or-wrong-node confusion.
+  // In block form anchor rows sit at the block's HEAD, exactly where the serializer writes them.
+  const DOC = "pet:\n  &: humans: pets\n  name: Bubbles\n  species: fish\n";
+
+  it("the anchors row precedes the child rows — inside the container's block, its own row", () => {
+    const { container } = render(<EditorView state={stateFor(DOC)} setState={() => {}} />);
+    const anchorsCell = container.querySelector(".y2-cell[data-kind=anchors]")!;
+    expect(anchorsCell).toBeTruthy();
+    // its row is a sibling BEFORE the child entries' rows, not inside any child's row
+    const row = anchorsCell.closest(".y2-row")!;
+    expect(row.textContent).not.toContain("Bubbles");
+    const rows = Array.from(row.parentElement!.children);
+    const nameRow = rows.find((r) => r.textContent!.includes("name"))!;
+    expect(rows.indexOf(row)).toBeLessThan(rows.indexOf(nameRow));
+  });
+
+  it("a LEADING self value keeps its row first; the anchors row follows it", () => {
+    const { container } = render(<EditorView state={stateFor("a: 12\n  &: c\n  - b\n")} setState={() => {}} />);
+    const anchorsRow = container.querySelector(".y2-cell[data-kind=anchors]")!.closest(".y2-row")!;
+    const rows = Array.from(anchorsRow.parentElement!.children);
+    const selfRow = rows.find((r) => r.textContent!.includes("12"))!;
+    const bRow = rows.find((r) => r.textContent!.includes("b"))!;
+    expect(rows.indexOf(selfRow)).toBeLessThan(rows.indexOf(anchorsRow));
+    expect(rows.indexOf(anchorsRow)).toBeLessThan(rows.indexOf(bRow));
+  });
+
+  it("the WALK agrees: key → anchors → children for an anchored block container", () => {
+    const state = stateFor(DOC);
+    expect(positionsOf(state.doc)).toEqual([
+      { at: "key", path: [0] },
+      { at: "anchors", path: [0] },
+      { at: "key", path: [0, 0] },
+      { at: "token", path: [0, 0] },
+      { at: "key", path: [0, 1] },
+      { at: "token", path: [0, 1] },
+    ]);
+  });
+
+  it("a click RIGHT OF THE COLON opens the container's head hole (the Enter-on-key landing)", () => {
+    const state = stateFor("pet:\n  name: Bubbles\n");
+    let latest = state;
+    const { container } = render(<EditorView state={state} setState={(s) => { latest = s; }} />);
+    // the key row of the wrapped block — mousedown on the row itself (the blank), not the key cell
+    const keyRow = container.querySelector(".y2-k")!.closest(".y2-row")!;
+    fireEvent.mouseDown(keyRow);
+    expect(latest.cursor).toEqual({ at: "hole", path: [0], index: 0, text: "", key: null });
   });
 });
 

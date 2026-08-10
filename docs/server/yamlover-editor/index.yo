@@ -87,6 +87,7 @@ description: the source projection's typing grammar, one state per subchapter
 - *: scalar_committed
 - *: key_cell_editing
 - *: pointer_entry
+- *: anchor_entry
 - *: pointer_pick_editing
 - *: block_scalar_editing
 - *: flow_map_editing

@@ -14,6 +14,30 @@ export function dq(s: string): string {
   return JSON.stringify(s);
 }
 
+/** The KEYLESS MARKER at the head of a block line — the ONE law, shared by the parser, every
+ *  serializer, and the server's line scanner (three places that must never disagree about what
+ *  opens an entry). Returns the marker's WIDTH, or null when the line opens no keyless entry:
+ *
+ *    `-` / `- value`     width 1 — the canonical spelling, the only one ever EMITTED
+ *    `-:` / `-: value`   width 2 — the explicit conversion sugar (docs/language/vs-yaml/differences),
+ *                        an unquoted `-` in key position is the marker, not a key
+ *
+ *  The colon sits TIGHT against the dash and must be followed by space or EOL, so `-:x` is a plain
+ *  scalar and `- : x` stays a keyless entry holding a NULL-KEYED one. A literal `-` key is quoted
+ *  (see {@link keyText}) — the same trade the plain numeric key makes.
+ *  `yaml` = the YAML concrete, where `-: v` is faithfully the string key `-` and only the dash counts. */
+export function seqMarkLen(text: string, yaml = false): number | null {
+  if (text === '-' || text.startsWith('- ')) return 1;
+  if (!yaml && (text === '-:' || text.startsWith('-: '))) return 2;
+  return null;
+}
+
+/** The content past a keyless marker, trimmed — null when the line opens no keyless entry. */
+export function stripSeqMark(text: string, yaml = false): string | null {
+  const n = seqMarkLen(text, yaml);
+  return n === null ? null : text.slice(n).trim();
+}
+
 /** The CANONICAL key emission. Plain keys carry the pointer-metachar escaping (docs/language/pointers/escaping); keys the line grammar itself would misread are double-quoted instead. A
  *  NUMERIC key is always quoted (the YAML-keys round): bare `1:` is a position claim — a
  *  parse error — so the string key "1" round-trips as `"1":`. Shared with the PARSER: an
@@ -24,7 +48,8 @@ export function keyText(key: string): string {
     key === '' || key !== key.trim() ||
     /[\u0000-\u001f\u007f]/.test(key) ||
     key.includes(': ') || // splitKV would split at the inner colon
-    key === '-' || key.startsWith('- ') ||
+    seqMarkLen(key + ': ') !== null || // the emitted line would open a KEYLESS entry, not a key
+
     /^\d+$/.test(key) || // a bare numeric key reads as a position - quote the string key
     /^['"]/.test(key) ||
     key.includes('\\'); // plain keys are backslash-UNescaped on parse
@@ -34,8 +59,10 @@ export function keyText(key: string): string {
 }
 
 /** The FLOW key emission: bare when word-like, single-quoted otherwise (the flow separators
- *  make more tokens unsafe than the block line grammar does). */
+ *  make more tokens unsafe than the block line grammar does). A lone `-` is the KEYLESS marker on
+ *  both surfaces, so the literal key is quoted — but `-1` and `a-b` stay bare word-like keys. */
 export function flowKeyText(k: string): string {
+  if (k === '-') return "'-'";
   return /^[\w.$/-]+$/.test(k) ? k : `'${k.replace(/'/g, "''")}'`;
 }
 

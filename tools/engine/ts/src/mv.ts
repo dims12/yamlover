@@ -4,8 +4,9 @@
 // engine cannot rewrite are REPORTED, never silently dropped. The caller reindexes
 // afterwards (engine-api: broadcast(doReindex())).
 //
-// v1 moves FS-level nodes only (files/directories — path is identity, ENGINE.md);
-// intra-document key moves are future work.
+// `mv` itself moves FS-level nodes only (files/directories — path is identity, ENGINE.md).
+// An INTRA-DOCUMENT key rename moves nothing on disk, so it goes through `relinkRenamed`
+// instead: same planner, same span surgery, keyed by store path rather than FS path.
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -61,8 +62,21 @@ export function mv(absRoot: string, fromRel: string, toRel: string, opts: WalkOp
 /** Relink after UNMEDIATED moves (watched/offline tiers): the FS already changed and the
  *  stale pointers no longer resolve — match them by their NOMINAL path (what they meant)
  *  under a moved prefix, and rewrite to the new location. Returns the edit report; the
- *  caller reindexes. */
+ *  caller reindexes. `from`/`to` are root-relative FS paths. */
 export function relinkMoved(
+  absRoot: string,
+  moved: { from: string; to: string }[],
+  opts: WalkOptions = {},
+): Pick<MvReport, 'rewritten' | 'unrewritten' | 'editedFiles'> {
+  return relinkRenamed(absRoot, moved.map((m) => ({ from: storeOf(m.from), to: storeOf(m.to) })), opts);
+}
+
+/** The same repair keyed by STORE PATH rather than FS path — so it also serves the move `mv`
+ *  cannot make: an INTRA-DOCUMENT rename (`:human1:pets:pet1` → `:…:pet3`), where nothing on
+ *  disk moved but every inbound `*`/`~` pointer still spells the old key. Call it AFTER the
+ *  rename is written: the walk is fresh, so the spans are exact, and the stale refs are found
+ *  by what they MEANT (nominalPath) rather than by where they now resolve. */
+export function relinkRenamed(
   absRoot: string,
   moved: { from: string; to: string }[],
   opts: WalkOptions = {},
@@ -76,7 +90,7 @@ export function relinkMoved(
   // pass would invalidate the first plan's spans
   const merged = new Map<string, { start: number; end: number; text: string }[]>();
   for (const m of moved) {
-    const oldStore = storeOf(m.from);
+    const oldStore = m.from;
     // only refs that still NOMINALLY address the old location (they broke with the move);
     // refs already pointing at the new path (or unrelated) are left alone
     const stale = edges.filter((e) => {
@@ -87,7 +101,7 @@ export function relinkMoved(
     // planRewrites matches by RESOLVED target; for stale refs synthesize the match by
     // treating the nominal path as the target frame — reuse the planner with a shim
     const shimmed = stale.map((e) => ({ ...e, target: { kind: 'node' as const, node: doc.root, path: nominalPath(doc, e)! } }));
-    const plan = planRewrites(doc, shimmed, oldStore, storeOf(m.to), { root });
+    const plan = planRewrites(doc, shimmed, oldStore, m.to, { root });
     for (const [uri, edits] of plan.edits) merged.set(uri, [...(merged.get(uri) ?? []), ...edits]);
     rewritten.push(...plan.rewritten);
     unrewritten.push(...plan.unrewritten);

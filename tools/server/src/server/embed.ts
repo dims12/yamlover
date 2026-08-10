@@ -14,8 +14,11 @@
  * Index (sequence-position) descent — e.g. tagging a chapter CHUNK, which would turn its
  * block-scalar into an omni node — is intentionally NOT handled here; the server resolves such a
  * target to a key-addressable host. Keep this module free of fs / Store coupling so it unit-tests
- * in isolation (see test/embed.test.ts).
+ * in isolation (see test/embed.test.ts) — the one import below is the parser's PURE spelling law,
+ * which this module must not restate (a second `- ` grammar here is how `-: v` went unseen).
  */
+
+import { seqMarkLen, stripSeqMark } from "../../../parser/ts/src/serialize-common.ts";
 
 const ANNOTATIONS_KEY = "yamlover-annotations";
 const FRAGMENTS_KEY = "yamlover-fragments";
@@ -141,7 +144,7 @@ function seqItemLines(lines: string[], region: Region, key: string): { keyLine: 
     if (ind < region.indent) break;
     if (ind === region.indent) {
       const t = lines[i].trim();
-      if (t === "-" || t.startsWith("- ")) { items.push(i); end = i; continue; }
+      if (seqMarkLen(t) !== null) { items.push(i); end = i; continue; }
       break; // a sibling key at the list indent → the sequence ended
     }
     end = i; // deeper — the current item's body
@@ -325,7 +328,7 @@ export function removeAnnotationAt(lines: string[], region: () => Region, predic
   for (;;) {
     const seq = seqItemLines(lines, region(), ANNOTATIONS_KEY);
     if (!seq) break;
-    const k = seq.items.findIndex((i) => predicate(lines[i].trim().replace(/^-\s*/, "")));
+    const k = seq.items.findIndex((i) => { const t = lines[i].trim(); return predicate(stripSeqMark(t) ?? t); });
     if (k < 0) break;
     const i = seq.items[k];
     const next = k + 1 < seq.items.length ? seq.items[k + 1] : seq.end;

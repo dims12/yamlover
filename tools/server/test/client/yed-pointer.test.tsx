@@ -133,6 +133,44 @@ describe("yed pointer cells - the PORTION face with tree-backed completion", () 
     expect(editChunks).not.toHaveBeenCalled();
   });
 
+  it("`&` in the hole opens the BOOKMARK face; Enter lands the anchor as the node's re-emplace", async () => {
+    const { container } = await mount(":doc");
+    // the `&` decision - the same portion cells, the `&` sigil, the caret claimed
+    fireEvent.change(holeInput(container), { target: { value: "&" } });
+    await waitFor(() => expect(portionInput(container)).toBeTruthy());
+    await waitFor(() => expect(document.activeElement?.classList.contains("y2-input")).toBe(true));
+    expect(container.querySelector(".y2-portions .y2-punct")?.textContent).toBe("&");
+    type(container, "adopted");
+    fireEvent.keyDown(portionInput(container), { key: "Enter" });
+    // the bookmark is IDENTITY on the container - the sync re-emplaces the node wholesale,
+    // the anchor line leading the body (root anchors lead the document)
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":doc", op: "emplace", yamlover: "&adopted\npets:\n  - name: Rex\n  - name: Whiskers" },
+    ]), { timeout: 2000 });
+    // the caret is the RESTORED hole - ready for the next entry
+    await waitFor(() => expect(container.querySelector(".y2-hole .y2-input")).toBeTruthy());
+  });
+
+  it("the trailing `-` of an ORDINAL bookmark commits — no query matcher steals the Enter", async () => {
+    // the reported trap: OPERATOR_HINTS leaked `-..` (a query matcher parsePointer refuses)
+    // into the yed face; with arm-by-default it armed on the typed `-` and Enter INSERTED it
+    // instead of committing — the bookmark was unfinishable
+    queryTree.mockResolvedValue([TREE(":doc:pets", "pets")]);
+    const { container } = await mount(":doc");
+    fireEvent.change(holeInput(container), { target: { value: "&" } });
+    await waitFor(() => expect(portionInput(container)).toBeTruthy());
+    await waitFor(() => expect(document.activeElement?.classList.contains("y2-input")).toBe(true));
+    fireEvent.keyDown(portionInput(container), { key: ":" }); // document scope
+    type(container, "pets:-");
+    await new Promise((r) => setTimeout(r, 300)); // let the hint query answer
+    // no matcher rows offered, nothing armed - the `-` cell's Enter reaches the grammar
+    expect(document.querySelectorAll(".y2-hint-sel").length).toBe(0);
+    fireEvent.keyDown(portionInput(container), { key: "Enter" });
+    await waitFor(() => expect(editChunks).toHaveBeenCalledWith([
+      { path: ":doc", op: "emplace", yamlover: "&: pets: -\npets:\n  - name: Rex\n  - name: Whiskers" },
+    ]), { timeout: 2000 });
+  });
+
   it("a dropdown pick REPLACES the active cell's text; the grammar's Enter commits", async () => {
     queryTree.mockResolvedValue([TREE(":doc:pets", "pets")]);
     const { container } = await mount(":doc");

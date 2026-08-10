@@ -27,15 +27,22 @@ const pathEq = (a: Path, b: Path): boolean => a.length === b.length && a.every((
  *  holder is the cursor's container spelled onto the wire (serverPathOf - the same
  *  addressing law the sync's ops use, so the hints and the ops can never disagree); the
  *  committed portions join to the context query and the wire answers with the context's
- *  real children (plus the query grammar's operator rows). A wire failure is an empty
- *  list - hints, never validators. */
+ *  real children. Of the query grammar's operator rows only the POINTER-VALID pair rides
+ *  along (`..` parent, `-` the keyless segment), marked `op` so it never ARMS - the rest
+ *  (`?`, `...`, `-..`, comparisons, type tests) are query matchers parsePointer refuses,
+ *  and with arm-by-default an armed `-..` stole the Enter that meant "commit the trailing
+ *  `-`" (the reported anchor-face trap). A wire failure is an empty list - hints, never
+ *  validators. */
+const POINTER_OPS = new Set(["..", "-"]);
 export const treeHints: HintProvider = async (q): Promise<Hint[]> => {
   const holder = serverPathOf(q.host?.base ?? ":", q.doc, q.path);
   const cands: Candidate[] = await treeCandidateProvider(holder)(joinPortions(q.portions, q.ladder), q.prefix);
-  return cands.map((c) =>
-    c.kind === "key"
-      ? { insert: c.insert, detail: c.node.label !== c.insert ? c.node.label : undefined }
-      : { insert: c.insert, detail: c.detail });
+  return cands
+    .filter((c) => c.kind === "key" || POINTER_OPS.has(c.insert))
+    .map((c) =>
+      c.kind === "key"
+        ? { insert: c.insert, detail: c.node.label !== c.insert ? c.node.label : undefined }
+        : { insert: c.insert, detail: c.detail, op: true });
 };
 
 /** The pointer VALUE cell: the pure face (idle atom / PICK portion cells) plus the server's

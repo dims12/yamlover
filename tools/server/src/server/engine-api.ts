@@ -40,14 +40,14 @@ import fs from "node:fs";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, loadSettings, ensureSettingsFile, mv, relinkMoved, evalQuery, isBoundaryRow } from "../../../engine/ts/src/index.ts";
+import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, loadSettings, ensureSettingsFile, mv, relinkMoved, relinkRenamed, evalQuery, isBoundaryRow } from "../../../engine/ts/src/index.ts";
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { parseJson5p } from "../../../parser/ts/src/json5p.ts";
 import { pointerToken, schemaTagToken, serializeYamlover } from "../../../parser/ts/src/serialize-yamlover.ts";
 import { renderPointer, parsePointer } from "../../../parser/ts/src/pointer.ts";
 import { pathOfSegs, segsOfPath, segToken } from "../../../parser/ts/src/pathseg.ts";
-import { anchorBody } from "../../../parser/ts/src/serialize-common.ts";
+import { anchorBody, seqMarkLen, stripSeqMark } from "../../../parser/ts/src/serialize-common.ts";
 import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken, appendAnnotationAt, upsertMapEntryAt, removeAnnotationAt, removeMapEntryAt, annotationsRemainAt, pruneEmptyAnnotations, pruneEmptyAnnotationsAt, reachBodyAt, type Region as EmbedRegion } from "./embed.js";
 import { BODY_FILE, INDEX_FILE, OVERLAY_DIR, dataFileConcrete, dirConcreteFor, interiorOf, isDirConcrete, isOverlayDirConcrete, overlaySegs, pointerSafeName, type DirConcrete } from "../concrete.js";
 import { classifyScalar, isDefaultRepr, type BlockQualifiers, type Repr, type ScalarStyle } from "../repr.js";
@@ -987,9 +987,18 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               const within = segs.slice(backing.docSegs.length);
               const src = editChapterSource(fs.readFileSync(backing.bodyFile, "utf8"), within, "rekey", "", undefined, newKey);
               writeBody(dataRoot, s, backing.bodyFile, src);
+              // …and follow it with the inbound `*`/`~` pointers, exactly as the fs-backed branch
+              // gets for free from `mv`. A key IS a path segment, so a rename that skipped this
+              // left every reference to the old key DANGLING (`*: human1: pets: pet1` after
+              // `pet1` became `pet3`). The relink runs AFTER the write, against a fresh walk, so
+              // the spans are exact even when a pointer lives in the very body just rewritten.
+              const report = relinkRenamed(dataRoot, [{
+                from: storePath(segs),
+                to: storePath([...parentSegs, newKey]),
+              }], { ignore });
               const diff = await doReindex();
               broadcast(diff);
-              return { path: segsToStr([...parentSegs, newKey]), diff };
+              return { path: segsToStr([...parentSegs, newKey]), ...report, diff };
             }),
           )
           .then((body) => sendJson(res, 200, body))
@@ -2880,7 +2889,7 @@ interface ChapterEntry { absIndex: number; key: string | null; start: number; en
  *  the entry as ORDINAL, so a later op addressing it by key got "no entry at …". */
 function entryKeyOf(text: string): string | null {
   const t = text.trim();
-  if (t === "-" || t.startsWith("- ")) return null;
+  if (seqMarkLen(t) !== null) return null;
   const m = /^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*')\s*:(?:\s|$)/.exec(t) ?? /^([^:#]+?)\s*:(?:\s|$)/.exec(t);
   if (!m) return null;
   const tok = m[1];
@@ -2902,16 +2911,16 @@ function chapterEntries(lines: string[], r: Region): ChapterEntry[] {
     // key) and shift every index. Chapters only ever descend `- ` items, so this only bit the general
     // value editor descending a `key:` → sequence/mapping.
     const raw = lines[r.marker].replace(/^\s*/, "");
-    if (raw === "-" || raw.startsWith("- ")) {
+    if (seqMarkLen(raw) !== null) {
       // the item's inline `!!<…>` schema tag is META, not an entry — surfacing it would inject a
       // phantom first entry and shift every index (a `- !!<…table>` body item's rows, e.g.)
-      const inline = raw.replace(/^-\s*/, "").replace(/^!!<[^>]*>\s*/, "");
+      const inline = (stripSeqMark(raw) ?? raw).replace(/^!!<[^>]*>\s*/, "");
       // Only an inline ENTRY OPENER is the first child: a nested `- ` item (compact `- - x`
       // nesting) or a `key: …` field (`- title: X`). A plain/quoted/pointer scalar head is the
       // node's own SELF-VALUE (an omni titled subchapter, `- Sub` + body — docs/documents/chapter) — not an
       // entry; surfacing it would inject a phantom [0] and shift every body index off the store.
       if (inline.trim()) {
-        if (/^-/.test(inline)) starts.push({ key: null, start: r.marker, inline: true });
+        if (seqMarkLen(inline) !== null) starts.push({ key: null, start: r.marker, inline: true });
         else if (/^[^\s"'*|>#-][^:]*:(\s|$)/.test(inline.replace(/\s+#.*$/, ""))) {
           starts.push({ key: entryKeyOf(inline), start: r.marker, inline: true });
         }
@@ -2983,7 +2992,8 @@ function memberPointerNameOf(head: string): string | null {
  *  and (for a keyed entry) its own `key:`. A block header (`|-`), a quoted/plain scalar, a `*…`
  *  pointer, or — for a positional entry holding a mapping — an inline `key: value`. */
 function entryHead(lines: string[], e: ChapterEntry): string {
-  let t = lines[e.start].trim().replace(/^-\s*/, "").replace(/^!!<[^>]*>\s*/, "");
+  const bare = lines[e.start].trim();
+  let t = (stripSeqMark(bare) ?? bare).replace(/^!!<[^>]*>\s*/, "");
   if (e.key) t = t.slice(t.indexOf(":") + 1).trim(); // a keyed entry's head is what follows `key:`
   return t;
 }
@@ -2997,7 +3007,7 @@ function isContainerEntry(lines: string[], e: ChapterEntry, childIndent: number)
   const head = entryHead(lines, e);
   // compact `- - x` nesting: the head itself opens a nested item — it IS the first child, even
   // when the entry is a single line (a scalar head can never start `- `; it would be quoted)
-  if (head === "-" || head.startsWith("- ")) return true;
+  if (seqMarkLen(head) !== null) return true;
   if (isBlockHeader(head)) return itemHasFields(lines, e, childIndent); // omni block, or plain
   // The inline `key:` test must not read past a trailing comment: a scalar's comment may itself
   // contain a colon (`theme: dark   # ui palette: dark | light`), which is prose, not a mapping.
@@ -3082,7 +3092,7 @@ interface Facets {
  *  NOT an entry, which is why prose that looks like `note: hi` must reach us escaped. A `&`-led
  *  line is an ANCHOR (its colon form `&: tags: x` runs to EOL) — never an entry, never an index
  *  (an authored key starting with `&` is spelled escaped, `\&key:`). */
-const opensEntry = (t: string): boolean => t === "-" || t.startsWith("- ") || /^[^\s"'*|>#&-][^:]*:(\s|$)/.test(t);
+const opensEntry = (t: string): boolean => seqMarkLen(t) !== null || /^[^\s"'*|>#&-][^:]*:(\s|$)/.test(t);
 
 /** A `|` / `>` block header, a trailing ` # comment` tolerated (YAML allows one on the header
  *  line; a bare header can never itself contain ` #`). */
@@ -3106,7 +3116,7 @@ function groupEntries(lines: string[], at: number): { keyed: string[][]; ordinal
   starts.forEach((s, k) => {
     const group = lines.slice(s, k + 1 < starts.length ? starts[k + 1] : lines.length).map((l) => l.slice(at));
     const head = lines[s].trim();
-    if (head === "-" || head.startsWith("- ")) {
+    if (seqMarkLen(head) !== null) {
       ordinal.push(group);
       order.push("o");
     } else if (!self && !opensEntry(head) && !opensQuotedKey(head) && !/^[&*!]/.test(head)) {
@@ -3176,7 +3186,8 @@ function payloadFacets(src: string): Facets {
  *  the inline `!!<…>` it wears. A block scalar's content lives at the child column when the node is
  *  plain, and one step deeper when it is an omni carrying keyed fields (docs/language/vs-yaml/differences/mixtures). */
 function entryFacets(lines: string[], e: ChapterEntry, indent: number): Facets & { tag?: string } {
-  const marked = lines[e.start].trim().replace(/^-\s*/, "");
+  const bare = lines[e.start].trim();
+  const marked = stripSeqMark(bare) ?? bare;
   const tag = marked.match(/^(!!<[^>]*>)/)?.[1];
   const head = entryHead(lines, e);
   const childIndent = indent + 2;
@@ -3348,8 +3359,10 @@ function trailingCommentOf(line: string): string | null {
 
 function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, valueSrc: string, meta: string | null | undefined, key?: string, at?: number): void {
   // the entry-opening marker a fresh emplace writes: `key: ` for a keyed target, `~: ` for the
-  // NULL key (its canonical emission), `- ` for a positional one
-  const marker = (s: Seg | undefined): string => (typeof s === "string" ? `${s}: ` : s === null ? "~: " : "- ");
+  // NULL key (its canonical emission), `- ` for a positional one. The key goes through keyToken —
+  // spelling is ONE law (embed.ts): a bare `-:` is the keyless marker and a bare `12:` a position,
+  // so a key that needs quotes must get them here too, not only on the `insert` path below.
+  const marker = (s: Seg | undefined): string => (typeof s === "string" ? `${keyToken(s)}: ` : s === null ? "~: " : "- ");
 
   if (op === "insert") {
     if (typeof seg !== "number" && seg !== undefined) throw new Error("`insert` needs a positional target (a path ending in a bare index, or the node itself)");
@@ -3382,10 +3395,11 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
     const rest = line.slice(pre.length);
     const colon = keySepColon(rest);
     if (colon < 0) throw new Error("could not locate the key token to rename");
-    // `key` arrives RAW (the endpoint passes the user's text) — write it as a plain token when it
-    // is a safe identifier, otherwise double-quote it (a spacey/metachar key must not go bare).
-    const keyTok = /^[^\s"'*&!#|>@`,\[\]{}:][^:#]*$/.test(key) && !key.includes(": ") ? key : JSON.stringify(key);
-    lines[entry.start] = pre + keyTok + rest.slice(colon);
+    // `key` arrives RAW (the endpoint passes the user's text) — spell it through the ONE key
+    // tokenizer (embed.ts). The local regex this replaced admitted a bare `-`, which the line
+    // scanner then read as the KEYLESS marker, so the entry vanished and the next op answered
+    // "no entry at '-'"; it admitted a bare `12` the same way (a position claim).
+    lines[entry.start] = pre + keyToken(key) + rest.slice(colon);
     return;
   }
 
@@ -3520,7 +3534,8 @@ function itemHasFields(lines: string[], item: ChapterEntry, fieldIndent: number)
  *  content one step deeper (to item-indent + 4), or convert an inline scalar item into a `- |`
  *  block at that indent. Preserves a leading inline `!!<…>` schema tag. */
 function convertChunkToOmni(lines: string[], item: ChapterEntry, itemIndent: number): void {
-  const head = lines[item.start].slice(itemIndent).replace(/^-\s*/, "");
+  const sliced = lines[item.start].slice(itemIndent);
+  const head = stripSeqMark(sliced) ?? sliced;
   const tagMatch = head.match(/^(!!<[^>]*>)\s*/);
   const tag = tagMatch ? tagMatch[1] + " " : "";
   const rest = tagMatch ? head.slice(tagMatch[0].length) : head;
@@ -3561,7 +3576,8 @@ function collapseChunkOmni(lines: string[], indices: number[]): void {
  *  yamlover source, so editing a pointer or a LaTeX chunk is simply legal.) */
 function assertProseChunk(lines: string[], indices: number[]): void {
   const { item } = reachChapterItem(lines, indices);
-  const head = lines[item.start].slice(indentOf(lines[item.start])).replace(/^-\s*/, "");
+  const sliced = lines[item.start].slice(indentOf(lines[item.start]));
+  const head = stripSeqMark(sliced) ?? sliced;
   if (head.startsWith("*")) throw new Error("cannot tag a file/pointer chunk's text");
   const tag = head.match(/^!!<([^>]*)>/)?.[1];
   if (tag && !/text\/(markdown|marklower|x-latex)/.test(tag)) throw new Error("cannot tag a non-text chunk's text");

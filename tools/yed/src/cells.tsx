@@ -184,6 +184,10 @@ const commentsOf = (meta: unknown, placement: "leading" | "trailing"): string[] 
 const TrailSpan = ({ texts }: { texts: string[] }): ReactNode =>
   texts.length === 0 ? null : <span className="y2-comment y2-trail">{texts.map(fmtComment).join(" ")}</span>;
 
+/** Which hint row is ARMED for the given cell text: the first, once anything is typed; none while
+ *  the cell is empty. See the doctrine note in PortionCells. */
+const armedIndex = (text: string): number => (text.trim() === "" ? -1 : 0);
+
 /** The PORTION CELLS of a reference being entered (the cursor's RefEntry): the `*` sigil, the
  *  scope ladder's colons, then one cell per portion with `:` separators - the ACTIVE cell is
  *  the live input, the others focusable spans (a click moves the active cell there, the arrow
@@ -194,28 +198,49 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
   const r = (c.at === "hole" || c.at === "pick") ? c.ref : undefined;
   // COMPLETION over the active cell - advisory UI state, never document state (the hint list
   // and the highlight live here; picking one only replaces the cell's text via onText)
-  const [items, setItems] = useState<Hint[]>([]);
-  const [sel, setSel] = useState(-1);
   const active = r?.active ?? 0;
   const text = r !== undefined ? (c as { text: string }).text : "";
+  const [items, setItems] = useState<Hint[]>([]);
+  // ARMED BY DEFAULT once the cell has text: accepting the offer costs one key (Enter or Tab),
+  // AVOIDING it costs two (Escape, then Enter) - the deliberate inversion of the old
+  // nothing-armed doctrine. An EMPTY cell arms nothing: with no prefix the list is just "every
+  // child", which implies no choice, and arming it would make Enter walk down the tree forever.
+  const [sel, setSel] = useState(-1);
   const left = r !== undefined ? r.portions.slice(0, active).join("\u0000") : "";
   const holder = c.at === "pick" ? c.path.slice(0, -1) : c.at === "hole" ? c.path : [];
+  // the `&` decision: the same portion face spells a BOOKMARK body (sigil `&`; position hints
+  // dropped - a bookmark may not CLAIM a position, and with arm-by-default an armed digit row
+  // would Tab-accept straight into the refusal ring; mid-path indexes stay typeable, hints
+  // never gate)
+  const anchor = c.at === "hole" && c.anchor === true;
   useEffect(() => {
+    // DISARM the moment the typed context moves: the list on screen is now for a prefix the
+    // user has already typed past, and accepting an offer you were never shown is a trap. The
+    // arming happens below, when the list for THIS text arrives (an in-flight query whose
+    // effect was superseded has `live === false`, so a late answer can never arm anything).
     setSel(-1);
-    const clear = (): void => setItems((prev) => (prev.length === 0 ? prev : []));
+    const clear = (): void => { setItems((prev) => (prev.length === 0 ? prev : [])); setSel(-1); };
     if (r === undefined || ctx.hints === undefined) { clear(); return; }
     let live = true;
     const q = { ladder: r.ladder, portions: r.portions.slice(0, active), prefix: text, path: holder, doc: ctx.doc, host: ctx.host };
-    Promise.resolve(ctx.hints(q)).then((h) => { if (live) setItems(rankHints(h, text)); }, () => { if (live) clear(); });
+    Promise.resolve(ctx.hints(q)).then((h) => {
+      if (!live) return;
+      const offered = anchor ? h.filter((x) => !/^\d+$/.test(x.insert) && x.insert !== "~") : h;
+      const ranked = rankHints(offered, text);
+      setItems(ranked);
+      // a GRAMMAR row (`..`, `-`) never arms - armed acceptance is for names; Enter must stay
+      // the commit when the only offers are grammar tokens (the `-..`-stole-Enter trap)
+      setSel(ranked.length > 0 && ranked[0].op !== true ? armedIndex(text) : -1);
+    }, () => { if (live) clear(); });
     return () => { live = false; };
     // ctx.hints stays OUT of the deps deliberately: a host may pass an inline provider (a fresh
     // identity every render), and re-querying is only meaningful when the typed context moved
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, active, left, r?.ladder, r === undefined, holder.join(".")]);
+  }, [text, active, left, r?.ladder, r === undefined, holder.join("."), anchor]);
   if ((c.at !== "hole" && c.at !== "pick") || !c.ref) return null;
   const pick = (h: Hint): void => { ctx.onText(h.insert); setSel(-1); };
   // the dropdown's keys ride BEFORE the grammar - only while a hint list is up, and only the
-  // keys the list claims (vertical walk, Tab, Enter on a HIGHLIGHTED row, Escape); everything
+  // keys the list claims (vertical walk, Tab, Enter on the ARMED row, Escape); everything
   // else falls through to ctx.onKey untouched - hints never gate typing
   const hctx: CellCtx = items.length === 0 ? ctx : {
     ...ctx,
@@ -223,8 +248,10 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
         if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => (s + 1) % items.length); return; }
         if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => (s <= 0 ? items.length - 1 : s - 1)); return; }
-        // Tab is the ACCEPT key (the query editor's rule, query-cells.tsx): the armed candidate,
-        // else the FIRST one - Enter stays the free-typed commit (hints are never validators)
+        // Tab and Enter both ACCEPT: the armed candidate, else the FIRST one. ESCAPE is the way
+        // OUT - it disarms, and the next Enter commits the free-typed text (a second Escape falls
+        // through to the grammar's own cancel). Typing past every candidate empties the list, so
+        // a genuinely new name never has to fight the dropdown at all.
         if (e.key === "Tab") { e.preventDefault(); e.stopPropagation(); pick(items[sel >= 0 ? sel : 0]); return; }
         if (e.key === "Enter" && sel >= 0) { e.preventDefault(); pick(items[sel]); return; }
         if (e.key === "Escape" && sel >= 0) { e.preventDefault(); setSel(-1); return; }
@@ -234,7 +261,7 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
   };
   return (
     <span className="y2-p y2-pick y2-portions">
-      <span className="y2-punct">*</span>
+      <span className="y2-punct">{anchor ? "&" : "*"}</span>
       {r!.ladder > 0 && <span className="y2-punct y2-scope">{":".repeat(r!.ladder)}</span>}
       {r!.portions.map((p, i) => (
         <Fragment key={i}>
@@ -497,7 +524,26 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow,
               ? <NodeCell node={e.value as Node} path={p} ctx={ctx} trailingComma={wantComma} lead={keyFrag} />
               : childBlock && e.key != null && !flow
                 ? <div className="y2-rows">
-                    <div className="y2-row">{keyFrag}</div>
+                    {/* RIGHT OF THE COLON is the way back into the container's head: a visible
+                        slot (the gapslot vocabulary) plus the row's own blank both open the
+                        hole at position 0 (toCursor's `into` rule) — the same landing Enter on
+                        the key gives; without them the row was a wall ("can't add anything to
+                        the right of colon"). The slot hides while that hole is open. */}
+                    <div
+                      className="y2-row y2-keyrow"
+                      onMouseDown={(ev) => { if (ev.target === ev.currentTarget) { ev.preventDefault(); ctx.onFocus({ at: "into", path: p }); } }}
+                    >
+                      {keyFrag}
+                      {!(ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, p) && (ctx.cursor as { index: number }).index === 0) && (
+                        <button
+                          className="y2-gapslot y2-headslot"
+                          onFocus={() => ctx.onFocus({ at: "into", path: p })}
+                          onKeyDown={(e) => ctx.onKey(e)}
+                        >
+                          ▏
+                        </button>
+                      )}
+                    </div>
                     <div className="y2-row y2-indent"><NodeCell node={e.value as Node} path={p} ctx={ctx} /></div>
                   </div>
                 : <>
@@ -522,6 +568,17 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow,
     const itemRows = mkItems(false);
     const rows: ReactNode[] = [];
     let placedValue = false;
+    // the node's `&` BOOKMARK rows: in block form they are ROWS OF THEIR OWN at the block's
+    // HEAD — after the leading self row (`a: 12` + `&: …`), else first — exactly where the
+    // serializer writes them. The old inline-chrome placement floated them into a CHILD's
+    // row, reading as that child's bookmark (the reported "assigned to wrong node")
+    const aActive = ctx.cursor.at === "anchors" && pathEq(ctx.cursor.path, path);
+    const anchorsRow = ((((node.meta ?? {}) as { anchors?: unknown[] }).anchors ?? []).length > 0 || aActive)
+      ? <div key="anchors" className="y2-row"><AnchorsCell node={node} path={path} ctx={ctx} /></div>
+      : null;
+    let anchorsPlaced = anchorsRow === null;
+    const placeAnchors = (): void => { if (!anchorsPlaced) { rows.push(anchorsRow); anchorsPlaced = true; } };
+    if (!(valueRow && valueRow.at === 0)) placeAnchors();
     // the LEAD (a key/dash marker routed into this container) rides the FIRST content row — for
     // an omni that is its self row, so field rows can indent one step below it. Comment/blank
     // chrome rows never take it.
@@ -535,6 +592,7 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow,
       if (valueRow && !placedValue && it.entry !== undefined && it.entry >= valueRow.at) {
         rows.push(<div key="self" className="y2-row">{takeLead()}{valueRow.el}{selfTrail}</div>);
         placedValue = true;
+        placeAnchors(); // the bookmark rows follow a LEADING self row (no-op when already placed)
       }
       // the entry's DECORATIONS — its blank separator, its own-line leading comments, its
       // trailing remark — read-only chrome around the entry's row
@@ -553,7 +611,7 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow,
         </div>,
       );
     }
-    if (valueRow && !placedValue) rows.push(<div key="self" className="y2-row">{takeLead()}{valueRow.el}{selfTrail}</div>);
+    if (valueRow && !placedValue) { rows.push(<div key="self" className="y2-row">{takeLead()}{valueRow.el}{selfTrail}</div>); placeAnchors(); }
     // an EMPTY container keeps its PLACEHOLDER slot even when comment chrome exists — the way
     // back into the value must never be a wall
     const hasContent = itemRows.length > 0 || valueRow !== undefined;
@@ -743,6 +801,15 @@ export function NodeCell({ node, path, ctx, trailingComma = false, lead }: Value
       <MarkChrome node={node} />
     </>
   );
+  // a node whose cell renders BLOCK ROWS (ContainerCell's !flow branch — a block mapping, or a
+  // scalar with fields/hole) draws its `&` anchors as rows of its own AT THE HEAD, in there;
+  // only leaf/flow faces take the inline anchors chrome here (`a: 1  &: p: q`)
+  const n0 = node as Node;
+  const ownRows = !isPointer(node) && !isFlow(n0) && (
+    n0.kind === "mapping"
+    || (n0.kind === "scalar" && (((n0.entries ?? []).length > 0) || (ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, path))))
+  );
+  const anchorsTail = ownRows ? null : <AnchorsCell node={node} path={path} ctx={ctx} />;
   // a ROUTED marker (`k: ` / `- ` in `lead`) keeps the source order — the identity chrome rides
   // AFTER it, inside the child's first row (`key: !!<tag> value`), exactly where the read
   // renderer's decoSpan puts it
@@ -750,7 +817,7 @@ export function NodeCell({ node, path, ctx, trailingComma = false, lead }: Value
     return (
       <>
         <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} lead={<>{lead}{chrome}</>} />
-        <AnchorsCell node={node} path={path} ctx={ctx} />
+        {anchorsTail}
       </>
     );
   }
@@ -767,7 +834,7 @@ export function NodeCell({ node, path, ctx, trailingComma = false, lead }: Value
       <>
         <div className="y2-row">{chrome}</div>
         <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} />
-        <AnchorsCell node={node} path={path} ctx={ctx} />
+        {anchorsTail}
       </>
     );
   }
@@ -775,7 +842,7 @@ export function NodeCell({ node, path, ctx, trailingComma = false, lead }: Value
     <>
       {chrome}
       <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} />
-      <AnchorsCell node={node} path={path} ctx={ctx} />
+      {anchorsTail}
     </>
   );
 }

@@ -134,12 +134,43 @@ describe("dropdown", () => {
     return s;
   };
 
-  it("CANDIDATES_ARRIVED opens with hi=-1; stale seq dropped", () => {
-    const s = openDropdown();
+  it("CANDIDATES_ARRIVED opens with hi=-1 while the cell is EMPTY; stale seq dropped", () => {
+    const s = openDropdown(); // FOCUS_CELL with no index = the empty APPEND cell
     if (s.mode !== "editing") throw new Error();
+    expect(s.activeText).toBe("");
+    // an empty cell arms NOTHING — its list is "every child + every operator", which implies no
+    // choice, and since PICK in the last cell opens ANOTHER empty cell, arming here would make
+    // Enter descend the tree forever instead of ever running the query
     expect(s.dropdown).toMatchObject({ open: true, hi: -1 });
     const [same] = reduce(s, { type: "CANDIDATES_ARRIVED", seq: 999, items: [] }, ":");
     expect(same).toBe(s);
+  });
+
+  it("an OPERATOR row never arms — typing `-` leaves Enter meaning `run the query`", () => {
+    // the reported trap: with only matcher rows offered (`-..` after typing `-`), arming row 0
+    // made Enter INSERT the operator instead of committing — the query became unfinishable
+    const op: Candidate = { kind: "operator", insert: "-..", detail: "keyless holders" };
+    let [s] = run([{ type: "FOCUS_CELL" }, { type: "SET_ACTIVE_TEXT", text: "-" }]);
+    [s] = reduce(s, { type: "CANDIDATES_ARRIVED", seq: cseq(s), items: [op] }, ":");
+    if (s.mode !== "editing") throw new Error();
+    expect(s.dropdown).toMatchObject({ open: true, hi: -1 }); // offered, never armed
+    // a KEY leading the list still arms (keys sort first in the provider)
+    [s] = reduce(s, { type: "SET_ACTIVE_TEXT", text: "al" }, ":");
+    [s] = reduce(s, { type: "CANDIDATES_ARRIVED", seq: cseq(s), items: [key("alice"), op] }, ":");
+    if (s.mode !== "editing") throw new Error();
+    expect(s.dropdown.hi).toBe(0);
+  });
+
+  it("CANDIDATES_ARRIVED ARMS the first row once the cell has text — Enter then accepts it", () => {
+    let [s] = run([{ type: "FOCUS_CELL" }, { type: "SET_ACTIVE_TEXT", text: "al" }]);
+    [s] = reduce(s, { type: "CANDIDATES_ARRIVED", seq: cseq(s), items: [key("alice"), key("bob")] }, ":");
+    if (s.mode !== "editing") throw new Error();
+    expect(s.dropdown).toMatchObject({ open: true, hi: 0 });
+    // ENTER with an armed row IS a PICK — the offer is accepted with one key, no ArrowDown
+    const at = s.active;
+    const [picked] = reduce(s, { type: "ENTER" }, ":");
+    if (picked.mode !== "editing") throw new Error();
+    expect(picked.portions[at]).toBe("alice");
   });
 
   it("DROPDOWN_MOVE arms from -1 (down→first, up→last) and wraps", () => {

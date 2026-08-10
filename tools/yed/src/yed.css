@@ -90,6 +90,12 @@
 @keyframes y2blink { 50% { opacity: .2; } }
 .y2-rows { display: flex; flex-direction: column; align-items: flex-start; }
 .y2-row { display: flex; align-items: baseline; }
+/* a wrapped block's KEY row stretches across its block, so the blank RIGHT OF THE COLON is the
+   row's own (clickable — the way back into the container's head), not dead wrapper space; the
+   HEAD SLOT is the visible affordance there, dim until hovered */
+.y2-keyrow { align-self: stretch; }
+.y2-headslot { opacity: 0.35; margin-left: 2px; }
+.y2-keyrow:hover .y2-headslot, .y2-headslot:focus { opacity: 1; }
 /* a multi-row element's separating comma is rendered INSIDE its closer row (`},`) by the
    cells themselves — no flex alignment can put a parent-row span onto a nested block's
    last line (first-baseline drew `{ ,`, flex-end sank it below the glyph). */
