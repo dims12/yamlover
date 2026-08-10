@@ -1,10 +1,11 @@
 {
   "name": "yamlover",
   "version": "0.3.48",
-  "description": "Browse a yamlover tree in the web: npx yamlover <root> serves a React SPA over a directory.",
+  "description": "A local-first, editable knowledge graph for humans and LLMs: npx yamlover <root> serves a browser UI over a plain-text directory, with an editor, live queries, pointers, and an LLM-agent API.",
   "type": "module",
   "license": "MIT",
   "author": "dims",
+  "homepage": "https://yamlover.inthemoon.net/docs",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dims12/yamlover.git",
@@ -14,11 +15,15 @@
     "yamlover",
     "yaml",
     "json5",
-    "viewer",
+    "editor",
     "browser",
     "spa",
     "knowledge-graph",
-    "pointers"
+    "knowledge-base",
+    "pointers",
+    "llm",
+    "agent-memory",
+    "markdown-alternative"
   ],
   "bin": {
     "yamlover": "bin/yamlover.js"

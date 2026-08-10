@@ -1,6 +1,14 @@
-# server
+# yamlover
 
-Browse a yamlover tree in the web browser.
+A local-first, editable knowledge graph for humans and LLMs — one plain-text
+directory that a person edits like notes, an agent reads and writes like a
+database, and `git` versions like code. This package is the web server: it
+serves a browser UI (tree, editor, renderers, live queries) over a yamlover
+directory, and an HTTP API an agent can drive directly.
+
+- **Repo:** https://github.com/dims12/yamlover
+- **Live demo** (no install): https://yamlover.inthemoon.net/
+- **Docs** (written in yamlover, click-through): https://yamlover.inthemoon.net/docs
 
 ```console
 $ npx yamlover [ROOT] [--port N] [--headless] [--host ADDR] [--base-path PREFIX] [--no-gitignore] [--prod] [--read-only]
