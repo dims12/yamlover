@@ -2,15 +2,16 @@
 // oldStore → newStore (store paths like ':dir:file.md'), plan the SOURCE-TEXT edits
 // that retarget every inbound `*`/`~` pointer — replacing exactly the deref token at
 // its recorded span, never re-rendering the file (comments and formatting survive).
-// Rewrites are emitted in CANONICAL colon form only (the slash separator is dead —
-// docs/language/pointers/paths). Pure: no filesystem access; `mv.ts` applies the plan.
+// Rewrites are emitted in colon form only (the slash separator is dead —
+// docs/language/pointers/paths), keeping the authored token's spacing style.
+// Pure: no filesystem access; `mv.ts` applies the plan.
 
 import * as path from 'node:path';
 import type { Document, Pointer, PointerBase, Step } from '../../../parser/ts/src/ir.ts';
 import { renderPointer } from '../../../parser/ts/src/pointer.ts';
 import { pathOfSegs, segsOfPath, segToken } from '../../../parser/ts/src/pathseg.ts';
 import { pointerToken, anchorToken } from '../../../parser/ts/src/serialize-yamlover.ts';
-import type { ResolvedEdge } from './resolve.ts';
+import type { ResolvedEdge, TextLinkRef } from './resolve.ts';
 
 export interface TextEdit { start: number; end: number; text: string }
 export interface RewrittenRef { file: string; from: string; oldRaw: string; newRaw: string }
@@ -30,13 +31,16 @@ export function under(p: string, x: string): boolean {
 }
 
 /** Plan the edits that retarget every pointer whose target sits at or under `oldStore`.
- *  `opts.root` (absolute) guards against editing grafted files outside the served tree. */
+ *  `opts.root` (absolute) guards against editing grafted files outside the served tree.
+ *  `opts.textLinks` (resolve.ts scanTextLinks) are the marklower prose links: the planner
+ *  cannot rewrite text yet, so a stranded one is REPORTED in `unrewritten` instead of
+ *  being silently dropped (the mv.ts promise). */
 export function planRewrites(
   doc: Document,
   edges: ResolvedEdge[],
   oldStore: string,
   newStore: string,
-  opts: { root?: string } = {},
+  opts: { root?: string; textLinks?: TextLinkRef[] } = {},
 ): RewritePlan {
   const mapPath = (p: string): string => (under(p, oldStore) ? newStore + p.slice(oldStore.length) : p);
   const plan: RewritePlan = { edits: new Map(), rewritten: [], unrewritten: [] };
@@ -135,7 +139,11 @@ export function planRewrites(
       }
     }
     if (newPtr === null) { miss("target left the holder's document"); continue; }
-    const newRaw = renderPointer(newPtr); // canonical colon form (docs/language/pointers/paths)
+    // colon form, in the AUTHORED spacing style — a rename refactor replaces the token, it
+    // does not restyle it: a compact `*::a:b` stays compact, a spaced `*:: a: b` spaced. A
+    // raw with no separator at all (`*old`) shows no style — the spaced default applies.
+    const spaced = e.raw.includes(': ') || !e.raw.includes(':');
+    const newRaw = renderPointer(newPtr, { spaced });
     if (newRaw === e.raw) continue; // the relative form survived the move — nothing to edit
 
     const token = isJson5pUri(span.uri) ? json5pToken(newRaw) : pointerToken(newRaw);
@@ -143,6 +151,18 @@ export function planRewrites(
     list.push({ start: span.start, end: span.end, text: token });
     plan.edits.set(span.uri, list);
     plan.rewritten.push({ file: span.uri, from: e.from, oldRaw: e.raw, newRaw });
+  }
+
+  // marklower prose links the move strands: not IR pointers, so no span surgery reaches
+  // them — report each one so the move at least says what it broke. A document-relative
+  // link whose own document moved travels with it and stays valid.
+  for (const t of opts.textLinks ?? []) {
+    if (t.scope === 'document' && under(t.docRoot, oldStore)) continue;
+    if (!under(t.target, oldStore)) continue;
+    plan.unrewritten.push({
+      file: t.uri ?? '<unknown>', from: t.from, raw: t.raw,
+      reason: 'marklower prose link — not rewritten (text targets are report-only)',
+    });
   }
   return plan;
 }

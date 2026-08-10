@@ -3,6 +3,13 @@
 **Date:** 2026-08-10
 **Found in:** dogfooding a real doc tree (`~/docs`, 15-chapter `privacy/` subtree) on `npx yamlover .`
 **Severity:** high — silent data-integrity loss on a routine reorganization; no diagnostic, no log line
+**Resolved:** 2026-08-10 — all three defects fixed. `relinkMoved` now collapses overlay files
+to their owning directory (`walk.ts ownerNodePath`) and coalesces fully-vacated directories
+into one directory-level move, so the unmediated tier relinks like tier-1. Marklower prose
+links are scanned (`resolve.ts scanTextLinks`) and reported in `unrewritten` — rewriting the
+text itself stays future work. Rewrites keep the authored spacing style (a compact `*::a:b`
+no longer comes back spaced). Regression tests: engine `mv.test.ts`/`walk.test.ts`/
+`resolve.test.ts`, server `reconcile.test.ts` (the exact external-`mv` scenario).
 
 ## What happened
 

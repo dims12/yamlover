@@ -1,4 +1,7 @@
 import { ReactNode } from "react";
+// The LABEL/TOKEN grammar lives in the shared parser module — the engine's move planner
+// reads the same alternation to find the link targets it must report (scanTextLinks).
+import { TOKEN } from "../../../../parser/ts/src/marklower-links.ts";
 import { NodeJson } from "../api";
 import { scalarValue } from "../render";
 import { Chunk } from "./registry";
@@ -58,32 +61,6 @@ function styleText(text: string): string {
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/(?<![A-Za-z0-9])_(.+?)_(?![A-Za-z0-9])/g, "<em>$1</em>");
 }
-
-/** A link/embed label: may contain a balanced `[…]` (so a path used as its own label —
- *  `[:children[0]](:children[0])` — works), but a stray `]` is not a label, so a non-link `[a]` in
- *  prose is left alone. Non-greedy so adjacent tokens don't merge. */
-const LABEL = String.raw`(?:[^\[\]]|\[[^\]]*\])*?`;
-
-/** The non-text tokens, in one alternation matched in source order:
- *
- *   1. `$$…$$` math (group 1; `[\s\S]` so a formula may span lines);
- *   2. `` `code` `` (group 2);
- *   3. `*[label](target)` — an EMBED (groups 3 = label, 4 = target): the target is *inlined*
- *      rather than pointed at, `*` carrying the same deref sense it has in yamlover proper;
- *   4. `[label](target)` — an ordinary link (groups 5 = label, 6 = target).
- *
- * The embed's `(?!\*)` guard keeps the one collision with emphasis honest: `*[a](b)*` is an
- * *italic link* (the `*`s pair around it), while `*[a](b)` is an embed. Bold (`**[a](b)**`) is
- * likewise unaffected — the second `*` starts an embed that the trailing `*` immediately vetoes,
- * and the alternation falls through to the plain link.
- */
-const TOKEN = new RegExp(
-  String.raw`\$\$([\s\S]+?)\$\$|` + // 1: math
-    "`([^`]+?)`|" + // 2: code
-    String.raw`\*\[(${LABEL})\]\(([^)]+?)\)(?!\*)|` + // 3,4: embed
-    String.raw`\[(${LABEL})\]\(([^)]+?)\)`, // 5,6: link
-  "g",
-);
 
 /** True when a token occupies its own line (only blank space around it) — the one thing that
  *  decides whether an embed renders as a block `<figure>` or an inline chip. Position, not kind:

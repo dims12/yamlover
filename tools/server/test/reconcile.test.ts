@@ -74,6 +74,24 @@ describe("reconcile: external edits reach the index", () => {
     expect(call(h, "/api/dangling").json).toEqual([]);
   });
 
+  it("an external DIRECTORY move relinks too — the file-level diff collapses to the dir", async () => {
+    const root = tmpTree({
+      "privacy/tax/.yo/body.yo": "Taxonomy\n",
+      "privacy/gdpr/index.yo": "GDPR\n",
+      "probe.yo": "ptr: *::privacy:tax\n",
+    });
+    const h = await handlers(root);
+
+    // an external actor: mv privacy kb/privacy (the dogfooding repro, 2026-08-10)
+    fs.mkdirSync(path.join(root, "kb"));
+    fs.renameSync(path.join(root, "privacy"), path.join(root, "kb", "privacy"));
+    const r = await callBody(h, "POST", "/api/reindex");
+    expect(r.json.moved.length).toBeGreaterThan(0); // the diff itself stays file-level
+    // the inbound ref followed the directory — compact spelling preserved
+    expect(fs.readFileSync(path.join(root, "probe.yo"), "utf8")).toBe("ptr: *::kb:privacy:tax\n");
+    expect(call(h, "/api/dangling").json).toEqual([]);
+  });
+
   it("GET /api/dangling reports a pointer whose target is missing", async () => {
     const root = tmpTree({ "doc.yo": "friend: *missing\n" });
     const h = await handlers(root);

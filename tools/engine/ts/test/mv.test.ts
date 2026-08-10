@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, renameSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Store } from '../src/store.ts';
@@ -129,4 +129,82 @@ test('relinkMoved: repairs refs after an UNMEDIATED move', () => {
   assert.equal(readFileSync(join(root, 'refs.yo'), 'utf8'), 'link: *:: new.md\n');
   reindex(s, root);
   assert.deepEqual(s.dangling(), []);
+});
+
+test('relinkMoved: a directory move arriving as its N file-level entries relinks like tier-1', () => {
+  const root = tmpRoot();
+  // two chapters, one of each overlay flavor (dir/.yo and dir/index.yo)
+  mkdirSync(join(root, 'privacy', 'tax', '.yo'), { recursive: true });
+  writeFileSync(join(root, 'privacy', 'tax', '.yo', 'body.yo'), 'Taxonomy\n');
+  mkdirSync(join(root, 'privacy', 'gdpr'));
+  writeFileSync(join(root, 'privacy', 'gdpr', 'index.yo'), 'GDPR\n');
+  writeFileSync(join(root, 'probe.yo'), 'ptr: *::privacy:tax\nmd: "see [tax](::privacy:tax)"\n');
+  const s = new Store(':memory:');
+  reindex(s, root);
+
+  // an external actor: mv privacy kb/privacy
+  mkdirSync(join(root, 'kb'));
+  renameSync(join(root, 'privacy'), join(root, 'kb', 'privacy'));
+
+  // the watcher's diff is FILE-level (walk.ts IndexDiff) — the directory never appears itself
+  const r = relinkMoved(root, [
+    { from: 'privacy/tax/.yo/body.yo', to: 'kb/privacy/tax/.yo/body.yo' },
+    { from: 'privacy/gdpr/index.yo', to: 'kb/privacy/gdpr/index.yo' },
+  ]);
+
+  // the pointer is relinked — and keeps its authored COMPACT spelling
+  assert.equal(r.rewritten.length, 1);
+  assert.equal(r.rewritten[0].newRaw, '::kb:privacy:tax');
+  // the marklower prose link is REPORTED, not silently dropped (and not edited)
+  assert.equal(r.unrewritten.length, 1);
+  assert.equal(r.unrewritten[0].raw, '[tax](::privacy:tax)');
+  assert.match(r.unrewritten[0].reason, /marklower/);
+  assert.deepEqual(r.editedFiles, ['probe.yo']);
+  assert.equal(readFileSync(join(root, 'probe.yo'), 'utf8'), 'ptr: *::kb:privacy:tax\nmd: "see [tax](::privacy:tax)"\n');
+  reindex(s, root);
+  assert.deepEqual(s.dangling(), []);
+});
+
+test('relinkMoved: nested moved directories coalesce to the outermost — one plan pass', () => {
+  const root = tmpRoot();
+  mkdirSync(join(root, 'outer', 'inner', '.yo'), { recursive: true });
+  writeFileSync(join(root, 'outer', 'inner', '.yo', 'body.yo'), 'Inner\n');
+  writeFileSync(join(root, 'outer', 'inner', 'leaf.md'), 'L\n');
+  mkdirSync(join(root, 'outer', '.yo'), { recursive: true });
+  writeFileSync(join(root, 'outer', '.yo', 'body.yo'), 'Outer\n');
+  writeFileSync(join(root, 'refs.yo'), 'a: *::outer:inner\nb: *::outer:inner:leaf.md\n');
+
+  renameSync(join(root, 'outer'), join(root, 'moved'));
+  const r = relinkMoved(root, [
+    { from: 'outer/.yo/body.yo', to: 'moved/.yo/body.yo' },
+    { from: 'outer/inner/.yo/body.yo', to: 'moved/inner/.yo/body.yo' },
+    { from: 'outer/inner/leaf.md', to: 'moved/inner/leaf.md' },
+  ]);
+  assert.deepEqual(r.rewritten.map((x) => x.newRaw).sort(), ['::moved:inner', '::moved:inner:leaf.md']);
+  assert.equal(readFileSync(join(root, 'refs.yo'), 'utf8'), 'a: *::moved:inner\nb: *::moved:inner:leaf.md\n');
+});
+
+test('relinkMoved: one file moved OUT of a directory stays file-level — no false coalescing', () => {
+  const root = tmpRoot();
+  mkdirSync(join(root, 'docs'));
+  writeFileSync(join(root, 'docs', 'a.md'), 'A\n');
+  writeFileSync(join(root, 'docs', 'b.md'), 'B\n');
+  writeFileSync(join(root, 'refs.yo'), 'r: *::docs:a.md\nkeep: *::docs:b.md\n');
+
+  mkdirSync(join(root, 'archive'));
+  renameSync(join(root, 'docs', 'a.md'), join(root, 'archive', 'a.md'));
+  const r = relinkMoved(root, [{ from: 'docs/a.md', to: 'archive/a.md' }]);
+  assert.equal(r.rewritten.length, 1);
+  assert.equal(readFileSync(join(root, 'refs.yo'), 'utf8'), 'r: *::archive:a.md\nkeep: *::docs:b.md\n');
+});
+
+test('mv: a marklower prose link is reported unrewritten, never silently dropped', () => {
+  const root = tmpRoot();
+  writeFileSync(join(root, 'a.md'), 'A\n');
+  writeFileSync(join(root, 'note.yo'), 'md: "see [a](::a.md)"\n');
+  const report = mv(root, 'a.md', 'b.md');
+  assert.equal(report.unrewritten.length, 1);
+  assert.equal(report.unrewritten[0].raw, '[a](::a.md)');
+  assert.match(report.unrewritten[0].reason, /marklower/);
+  assert.equal(readFileSync(join(root, 'note.yo'), 'utf8'), 'md: "see [a](::a.md)"\n'); // untouched
 });

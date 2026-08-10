@@ -1063,6 +1063,22 @@ function overlayFile(dir: string): string | null {
   return fs.existsSync(index) ? index : null;
 }
 
+/** The NODE a root-relative file path belongs to: a directory's consumed instance overlay
+ *  (`X/.yo/body.yo`, or an `X/index.yo` that {@link overlayFile} confirms is the overlay and
+ *  not a shadowed plain member) collapses to the directory `X` itself; any other path is its
+ *  own node. PRECONDITION: the path must exist under `absRoot` — the `index.yo` case checks
+ *  the filesystem to disambiguate — so on a moved pair only the `to` side is safe to ask. */
+export function ownerNodePath(absRoot: string, relPath: string): string {
+  const parts = relPath.split('/');
+  const base = parts[parts.length - 1];
+  if (base === BODY_FILE && parts[parts.length - 2] === YAMLOVER_DIR && parts.length > 2) return parts.slice(0, -2).join('/');
+  if (base === INDEX_FILE && parts.length > 1) {
+    const dirRel = parts.slice(0, -1).join('/');
+    if (overlayFile(path.join(absRoot, dirRel)) === path.join(absRoot, dirRel, INDEX_FILE)) return dirRel;
+  }
+  return relPath;
+}
+
 /** Merge a directory's instance overlay over its mapping (docs/language/concretes):
  *  - a mapping body OVERRIDES same-key children and ADDS overlay-only keys (scalars/pointers);
  *  - a pointer-array body (`- *file …`) imposes ORDER over the existing children;

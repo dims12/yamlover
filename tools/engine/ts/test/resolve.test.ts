@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { parseJson5p } from '../../../parser/ts/src/json5p.ts';
 import { parseYamlover } from '../../../parser/ts/src/yamlover.ts';
 import type { Mapping, Node } from '../../../parser/ts/src/ir.ts';
-import { resolveDocument, resolvePointer } from '../src/resolve.ts';
+import { resolveDocument, resolvePointer, scanTextLinks } from '../src/resolve.ts';
 import type { Located } from '../src/resolve.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -223,4 +223,32 @@ test('relindex: the examples/61 table resolves with no relindex-unresolved edges
   const rel = resolveDocument(doc).filter((e) => e.ptr.steps.some((s) => s.sel === 'relindex'));
   assert.ok(rel.length >= 2); // the colspan + rowspan merges
   for (const e of rel) assert.equal(e.target.kind, 'node', (e.target as any).reason);
+});
+
+test('scanTextLinks: path-spelled marklower link targets, with scopes', () => {
+  const doc = parseYamlover(
+    'a: "see [x](::kb:tax) and [y](:local) and [w](https://x.example) and *[e](::kb:embed)"\n',
+    'links.yo',
+  );
+  const links = scanTextLinks(doc);
+  assert.deepEqual(
+    links.map((l) => ({ from: l.from, scope: l.scope, target: l.target, raw: l.raw })),
+    [
+      { from: ':a', scope: 'link', target: ':kb:tax', raw: '[x](::kb:tax)' },
+      { from: ':a', scope: 'document', target: ':local', raw: '[y](:local)' },
+      { from: ':a', scope: 'link', target: ':kb:embed', raw: '*[e](::kb:embed)' }, // embed form too
+    ],
+  );
+});
+
+test('scanTextLinks: an OMNI scans its title AND descends into its members', () => {
+  const doc = parseYamlover('Chapter [t](::top)\n- see [c](::kb:chunk)\n', 'omni.yo');
+  const links = scanTextLinks(doc);
+  assert.deepEqual(
+    links.map((l) => ({ from: l.from, target: l.target })),
+    [
+      { from: ':', target: ':top' },       // the omni title itself
+      { from: ':0', target: ':kb:chunk' }, // the chunk below it
+    ],
+  );
 });

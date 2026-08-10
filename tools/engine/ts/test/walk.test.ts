@@ -4,7 +4,7 @@ import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, sep } from 'node:path';
-import { walkDir } from '../src/walk.ts';
+import { walkDir, ownerNodePath } from '../src/walk.ts';
 import { Store } from '../src/store.ts';
 import { resolveDocument } from '../src/resolve.ts';
 import { parseYamlover } from '../../../parser/ts/src/yamlover.ts';
@@ -803,5 +803,30 @@ test('ANCHORED members route through the items schema — a bannerless member fo
     s.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('ownerNodePath: an overlay file collapses to the directory that consumes it', () => {
+  const root = mkdtempSync(join(tmpdir(), 'yo-owner-'));
+  try {
+    mkdirSync(join(root, 'a', '.yo'), { recursive: true });
+    writeFileSync(join(root, 'a', '.yo', 'body.yo'), 'A\n');
+    mkdirSync(join(root, 'b'));
+    writeFileSync(join(root, 'b', 'index.yo'), 'B\n');
+    // layout violation (duplicate-overlay): body.yo wins, so this index.yo is NOT the overlay
+    mkdirSync(join(root, 'c', '.yo'), { recursive: true });
+    writeFileSync(join(root, 'c', '.yo', 'body.yo'), 'C\n');
+    writeFileSync(join(root, 'c', 'index.yo'), 'shadowed\n');
+    writeFileSync(join(root, 'plain.md'), 'P\n');
+    mkdirSync(join(root, '.yo'), { recursive: true });
+    writeFileSync(join(root, '.yo', 'body.yo'), 'R\n');
+
+    assert.equal(ownerNodePath(root, 'a/.yo/body.yo'), 'a');
+    assert.equal(ownerNodePath(root, 'b/index.yo'), 'b');
+    assert.equal(ownerNodePath(root, 'c/index.yo'), 'c/index.yo'); // shadowed — stays itself
+    assert.equal(ownerNodePath(root, 'plain.md'), 'plain.md');
+    assert.equal(ownerNodePath(root, '.yo/body.yo'), '.yo/body.yo'); // the served root is not a movable node
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });

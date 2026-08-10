@@ -11,8 +11,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { WalkOptions } from './walk.ts';
-import { walkTree } from './walk.ts';
-import { resolveDocument } from './resolve.ts';
+import { walkTree, ownerNodePath } from './walk.ts';
+import { resolveDocument, scanTextLinks } from './resolve.ts';
 import type { RewrittenRef, UnrewrittenRef } from './rewrite.ts';
 import { planRewrites, applyEdits, nominalPath, under } from './rewrite.ts';
 
@@ -46,7 +46,7 @@ export function mv(absRoot: string, fromRel: string, toRel: string, opts: WalkOp
   // plan against the CURRENT tree (fresh walk — spans are exact, never stale)
   const { doc } = walkTree(root, opts);
   const edges = resolveDocument(doc);
-  const plan = planRewrites(doc, edges, storeOf(relFrom), storeOf(relTo), { root });
+  const plan = planRewrites(doc, edges, storeOf(relFrom), storeOf(relTo), { root, textLinks: scanTextLinks(doc) });
 
   // apply text edits BEFORE the rename — spans point at the old file locations
   const editedFiles: string[] = [];
@@ -62,13 +62,77 @@ export function mv(absRoot: string, fromRel: string, toRel: string, opts: WalkOp
 /** Relink after UNMEDIATED moves (watched/offline tiers): the FS already changed and the
  *  stale pointers no longer resolve — match them by their NOMINAL path (what they meant)
  *  under a moved prefix, and rewrite to the new location. Returns the edit report; the
- *  caller reindexes. `from`/`to` are root-relative FS paths. */
+ *  caller reindexes. `from`/`to` are root-relative FS paths.
+ *
+ *  The diff arrives FILE-level (walk.ts IndexDiff), so a moved directory shows up as its N
+ *  moved content/overlay files, never as itself — and a ref points at the directory NODE
+ *  (`:privacy`), not at `:privacy:.yo:body.yo`. Normalize first: collapse each overlay file
+ *  to the directory that consumes it, then coalesce fully-vacated directories into single
+ *  directory-level moves, so the planner sees the move the way tier-1 `mv()` would. */
 export function relinkMoved(
   absRoot: string,
   moved: { from: string; to: string }[],
   opts: WalkOptions = {},
 ): Pick<MvReport, 'rewritten' | 'unrewritten' | 'editedFiles'> {
-  return relinkRenamed(absRoot, moved.map((m) => ({ from: storeOf(m.from), to: storeOf(m.to) })), opts);
+  const root = path.resolve(absRoot);
+  const pairs = coalesceMoved(root, collapseOwners(root, moved));
+  return relinkRenamed(absRoot, pairs.map((m) => ({ from: storeOf(m.from), to: storeOf(m.to) })), opts);
+}
+
+type MovedPair = { from: string; to: string };
+
+/** A moved OVERLAY file stands for its directory: `X/.yo/body.yo → Y/.yo/body.yo` means the
+ *  node `X` moved to `Y`. Judged on the `to` side only (the `from` no longer exists, and
+ *  ownerNodePath needs the filesystem to tell a real `index.yo` overlay from a shadowed
+ *  member). A pair whose overlay filename itself changed is left alone — no guessing. */
+function collapseOwners(root: string, moved: MovedPair[]): MovedPair[] {
+  return moved.map((m) => {
+    const ownerTo = ownerNodePath(root, m.to);
+    if (ownerTo === m.to) return m;
+    const tail = m.to.slice(ownerTo.length); // '/.yo/body.yo' or '/index.yo'
+    if (!m.from.endsWith(tail)) return m;
+    return { from: m.from.slice(0, -tail.length), to: ownerTo };
+  });
+}
+
+/** Coalesce sibling moves into their parent directory, to a fixed point: a group of entries
+ *  `P/a → Q/a, P/b → Q/b, …` becomes the single `P → Q` — but ONLY when the source parent is
+ *  GONE from disk (a real `mv P Q` vacates `P`; moving one file out leaves it), and only when
+ *  every member kept its own basename (a child renamed during the move stays its own entry).
+ *  Nested moved directories converge to the outermost — the map keying dedupes a child's
+ *  promoted pair against the parent's own collapsed overlay entry. */
+function coalesceMoved(root: string, pairs: MovedPair[]): MovedPair[] {
+  const m = new Map(pairs.map((p) => [p.from, p.to]));
+  for (let changed = true; changed; ) {
+    changed = false;
+    const groups = new Map<string, MovedPair[]>();
+    for (const [from, to] of m) {
+      const pf = parentPath(from);
+      const pt = parentPath(to);
+      if (pf === null || pt === null) continue;
+      const k = pf + '\0' + pt;
+      groups.set(k, [...(groups.get(k) ?? []), { from, to }]);
+    }
+    for (const [k, g] of groups) {
+      const [pf, pt] = k.split('\0');
+      if (!g.every((e) => baseName(e.from) === baseName(e.to))) continue;
+      if (fs.existsSync(path.join(root, pf))) continue; // source dir not fully vacated — partial move
+      for (const e of g) m.delete(e.from);
+      m.set(pf, pt);
+      changed = true;
+      break; // the map changed under us — regroup from scratch
+    }
+  }
+  return [...m].map(([from, to]) => ({ from, to }));
+}
+
+function parentPath(rel: string): string | null {
+  const i = rel.lastIndexOf('/');
+  return i < 0 ? null : rel.slice(0, i);
+}
+
+function baseName(rel: string): string {
+  return rel.slice(rel.lastIndexOf('/') + 1);
 }
 
 /** The same repair keyed by STORE PATH rather than FS path — so it also serves the move `mv`
@@ -84,6 +148,7 @@ export function relinkRenamed(
   const root = path.resolve(absRoot);
   const { doc } = walkTree(root, opts);
   const edges = resolveDocument(doc);
+  const textLinks = scanTextLinks(doc); // once — the per-move loop below reuses it
   const rewritten: RewrittenRef[] = [];
   const unrewritten: UnrewrittenRef[] = [];
   // plan ALL moves against the one walk, merge per file, apply ONCE — a second write
@@ -101,7 +166,7 @@ export function relinkRenamed(
     // planRewrites matches by RESOLVED target; for stale refs synthesize the match by
     // treating the nominal path as the target frame — reuse the planner with a shim
     const shimmed = stale.map((e) => ({ ...e, target: { kind: 'node' as const, node: doc.root, path: nominalPath(doc, e)! } }));
-    const plan = planRewrites(doc, shimmed, oldStore, m.to, { root });
+    const plan = planRewrites(doc, shimmed, oldStore, m.to, { root, textLinks });
     for (const [uri, edits] of plan.edits) merged.set(uri, [...(merged.get(uri) ?? []), ...edits]);
     rewritten.push(...plan.rewritten);
     unrewritten.push(...plan.unrewritten);
