@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { NodeJson, editChunks, createNode, createObject } from "../api";
 import { NODE_SCHEMA } from "./create";
-import { canonPath } from "../paths";
+import { canonPath, ROOT_FRAGMENT } from "../paths";
 import { ChapterBody, ChunkGutter, ChunkShell, chunkOf, EditableLine, renderChunkBody, SubchapterHeading } from "./chapter-shared";
 import { useFragmentScrollSpy, useHashScroll } from "./headings";
 import { useTocPresencePublisher } from "../toc-presence";
@@ -111,6 +111,9 @@ function ChapterRead({ node, onNavigate }: { node: NodeJson; onNavigate: (path: 
 
   return (
     <div className="chapter" ref={rootRef} style={{ maxWidth: `${markupWidthCh()}ch` }}>
+      {/* the page root's own anchor (`#/`): the TOC's click on THIS chapter scrolls here, the
+          presence scan maps the base row to it, and the spy names it when reading the top */}
+      <span id={ROOT_FRAGMENT} className="frag-anchor" data-node-path={node.path} />
       <ChapterBody
         value={node.value}
         nodePath={node.path}

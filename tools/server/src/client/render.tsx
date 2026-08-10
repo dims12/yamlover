@@ -1,5 +1,5 @@
 import { ReactNode, useState, Fragment } from "react";
-import { fragmentOf, isAncestorPath } from "./paths";
+import { fragmentOf, isAncestorPath, ROOT_FRAGMENT } from "./paths";
 import { segToken } from "../../../parser/ts/src/pathseg.ts";
 import type { CommentBucket, CommentMap } from "./api";
 import { isJsonFamily } from "../concrete";
@@ -270,7 +270,8 @@ function fileComments(comments: CommentMap | undefined, key: "$head" | "$tail"):
 }
 
 /** A zero-width anchor stamping a node's `#`-fragment id at its line, so a deep link or a local ref
- *  can scroll straight to it. Nothing for the page root (empty fragment) or when anchors are off.
+ *  can scroll straight to it. Nothing when anchors are off or the frag is empty — the page root
+ *  spells its empty continuation as {@link ROOT_FRAGMENT} at its one call site in {@link Render}.
  *  `path` (the node's absolute colon path — threaded parallel to `frag`, which is NOT invertible
  *  for exotic keys) rides along as `data-node-path`, the DOM→path bridge the TOC presence scan
  *  reads (toc-presence.ts); a non-addressable node (`path` null) stays scannable-invisible. */
@@ -323,6 +324,9 @@ export function Render({
   return (
     <>
       {head && <CommentBlock texts={head} syntax={syntax} />}
+      {/* the rendered ROOT's own anchor — entry rows stamp only their children, so without this
+          the page's own node is unaddressable (`#/` for the doc root, its continuation below) */}
+      <Anchor ctx={ctx} frag={base || ROOT_FRAGMENT} path={nodePath} />
       {syntax === "yaml" ? (
         <>
           <RootDeco ctx={ctx} frag={base} tag={rootTag} />
@@ -455,7 +459,8 @@ function refNode(ref: Ref, syntax: Syntax, ctx: Ctx, display?: string): ReactNod
   if (!ref.path) return <span className="s">{text}</span>;
   const local = ref.path === ctx.node || isAncestorPath(ctx.node, ref.path);
   if (local) {
-    const frag = fragmentOf(ctx.doc, ref.path);
+    const frag = fragmentOf(ctx.doc, ref.path) || ROOT_FRAGMENT; // a ref AT the page root scrolls to its top
+
     return (
       <a
         className="descend ref-local"

@@ -94,7 +94,7 @@ describe("App", () => {
     expect(window.location.pathname).toBe("/");
   });
 
-  it("a data view's continuation link PINS the format — the target's renderer does not steal the hop; a TOC click still opens the renderer", async () => {
+  it("a data view's continuation link PINS the format — the target's renderer does not steal the hop; a TOC double-click opens the renderer", async () => {
     // a child that HAS a renderer (chapter) …
     vi.mocked(fetchTree).mockResolvedValue({
       path: ":",
@@ -121,9 +121,29 @@ describe("App", () => {
     await waitFor(() => expect(window.location.pathname).toBe("/ch"));
     expect(new URLSearchParams(window.location.search).get("format")).toBe("yamlover"); // NOT chapter
 
-    // the TOC row is a "go to the node" navigation — the renderer wins there as before
-    fireEvent.click(within(document.querySelector(".left") as HTMLElement).getByText("ch"));
+    // the page's OWN row is rendered by the page (the root `#/` anchor) — a single click
+    // scrolls in-page and the pinned format survives; the DOUBLE-click escape is the
+    // "go to the node" navigation where the renderer wins
+    const row = () => within(document.querySelector(".left") as HTMLElement).getByText("ch");
+    fireEvent.click(row());
+    await waitFor(() => expect(window.location.hash).toBe("#/"));
+    expect(new URLSearchParams(window.location.search).get("format")).toBe("yamlover"); // still pinned
+    fireEvent.click(row(), { detail: 2 });
     await waitFor(() => expect(new URLSearchParams(window.location.search).get("format")).toBe("chapter"));
+  });
+
+  it("a click on the page's OWN row scrolls to its top anchor (#/) — the base row is merged too", async () => {
+    vi.mocked(fetchTree).mockResolvedValue({
+      path: ":", label: "root", type: "object", format: null, concrete: null, hasChildren: true,
+      children: [{ path: ":a", label: "a", type: "string", format: null, concrete: null, hasChildren: false, children: [] }],
+    });
+    render(<App />);
+    await screen.findByText("a");
+    // the content pane publishes its base with the ROOT anchor — what a chapter/data view stamps
+    publishPresence(":", new Map([[":", "/"]]));
+    fireEvent.click(within(document.querySelector(".left") as HTMLElement).getByText("root"));
+    await waitFor(() => expect(window.location.hash).toBe("#/"));
+    expect(window.location.pathname).toBe("/"); // NO navigation — the in-page scroll only
   });
 
   it("a click on a MERGED TOC row only scrolls in-page (the hash); a double-click navigates", async () => {

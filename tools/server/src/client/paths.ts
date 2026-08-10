@@ -77,12 +77,20 @@ export function urlOfPath(path: string): string {
   return BASE + tail; // keep navigation under the served base prefix (--base-path)
 }
 
+/** The rendered page ROOT's own in-page anchor id: the empty continuation spelled `/` — the same
+ *  way {@link urlOfPath} spells the root path. {@link fragmentOf} keeps returning "" for the root
+ *  (children CONCATENATE onto it), so the anchor-BEARING spots spell it out: `frag || ROOT_FRAGMENT`.
+ *  With the root addressable, a TOC click on the page's own row scrolls to the top like any
+ *  fragment click, the reading line can name it, and `<doc>#/` deep-links to the top. */
+export const ROOT_FRAGMENT = "/";
+
 /** The slash-form fragment continuation from a document `base` to a `full` path: the segments of
  *  `full` past `base`, slashed, with NO served-base prefix. A flattened/inlined node exposes its
  *  in-page location as exactly this (README "flattened child" rule), used as both its anchor `id`
  *  and its `#`-fragment — so `<doc>#/cont` lands on it. Keys are kept DECODED (matching what
  *  `useHashScroll` looks up after decoding the hash). E.g. (":book", ":book:chunks[0]") →
- *  "/chunks[0]"; ("" when `full === base`, i.e. the rendered root itself). */
+ *  "/chunks[0]"; ("" when `full === base`, i.e. the rendered root itself — spelled
+ *  {@link ROOT_FRAGMENT} where an anchor id is needed). */
 export function fragmentOf(base: string, full: string): string {
   const tail = strToSegs(full).slice(strToSegs(base).length);
   return tail.map((s) => "/" + segToken(s)).join("");

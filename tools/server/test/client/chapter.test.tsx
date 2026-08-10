@@ -8,6 +8,7 @@ const { fetchNode } = vi.hoisted(() => ({ fetchNode: vi.fn() }));
 vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchNode }));
 
 import { ChapterView } from "../../src/client/renderers/chapter";
+import { getTocPresence } from "../../src/client/toc-presence";
 import { broadcastDiff } from "../../src/client/live";
 import type { NodeJson } from "../../src/client/api";
 
@@ -481,5 +482,18 @@ describe("ChapterView — creating inside an inlined subchapter", () => {
     await waitFor(() => expect(container.querySelector("section.chapter-sub")).toBeTruthy());
     const sub = container.querySelector("section.chapter-sub")!;
     expect(sub.getAttribute("data-chapter-path")).toBe(":dogs"); // the create target the menu reads
+  });
+});
+
+describe("the page root anchor", () => {
+  it("a chapter stamps its own `#/` anchor, and presence maps the base row to it", () => {
+    const { container } = render(<ChapterView node={chapter} onNavigate={vi.fn()} />);
+    const root = container.querySelector('.frag-anchor[id="/"]') as HTMLElement;
+    expect(root).not.toBeNull();
+    expect(root.dataset.nodePath).toBe(":");
+    // the publisher's scan (mounted by ChapterRead) picked it up: a TOC click on the
+    // page's own row resolves to an in-page scroll — the "clicking Documents does
+    // nothing" report
+    expect(getTocPresence().anchors.get(":")).toBe("/");
   });
 });
