@@ -74,6 +74,23 @@ fence leaves a residue. A link *inside* a fence is correctly skipped, and `` ``�
 backtick span) is fine; a 4-space indented code block leaks, but marklower may not claim that
 construct.
 
+**Verified (tester, 2026-08-11) at `e4c1da9`:** the fence arm is correct on every case above — A–E
+all skip now, the real `AGENTS.md` is down to its one external URL (all four backticked examples
+skipped), and the move repro below keeps the backticked target literal while rewriting the real link
+beside it. The dead-link UI is correct in both directions: `GET /api/dead-links` →
+`{"targets": [":P:gone"]}`, the target renders as `SPAN.deadlink` with `href: null` and the path in
+its `title`, creating the missing node heals the mark on the reconcile diff with no reload, and
+deleting it again brings both the mark and the warning straight back. Suites: parser+engine 646/650
+(the 4 are the conformance submodules), server vitest 1465/1465. Defect 2 (flow cell) re-confirmed
+as the stated limitation.
+
+The indented-code residual is **real, and `.md`-only**: the marklower renderer has no indented-code
+construct either, so there the scanner and the renderer agree — but a `.md` node is rendered by
+`marked`, which does. Four CommonMark constructs diverge that way (indented block, `~~~` fence, HTML
+comment, backslash escape), each of them still rewritten by a move. Filed separately, with the
+reasoning for why no further arm in the *shared* tokenizer can fix it, as
+`2026-08-11-md-files-are-scanned-with-the-wrong-grammar.md`.
+
 `marklower/grammar` only defines the atomic single-backtick span, so a ``` fence is arguably not
 marklower syntax at all. It is still standard in the **markdown** files the same scanner is pointed
 at: `PROSE_TEXT_FORMATS` (`resolve.ts:321`) includes `text/markdown`, so every `README.md` /
