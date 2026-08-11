@@ -24,6 +24,7 @@ import { TocFilterCtx, useTocFilterSession } from "./toc-filter-session";
 import { BrowserSettingsView } from "./BrowserSettingsView";
 import { applyTheme, BROWSER_SETTINGS_PATH, isBrowserSettingsPath, primeProjectSettings } from "./browser-settings";
 import { broadcastDiff } from "./live";
+import { watchDeadLinks } from "./dead-links";
 import { Fragments, fragmentGroups } from "./Fragments";
 import { useAnnotations } from "./renderers/annotate";
 import { useExplorerTagMenu } from "./renderers/tagmenu";
@@ -289,6 +290,9 @@ export function App() {
       .catch(() => {});
     fetchInfo().then((i) => setRootLabel(i.root)).catch(() => {});
   }, []);
+
+  // the dead-link marks (links.tsx .deadlink): the initial set, refreshed on every diff event
+  useEffect(() => watchDeadLinks(), []);
 
   useEffect(() => {
     if (typeof EventSource === "undefined") return; // test envs (jsdom) have no SSE

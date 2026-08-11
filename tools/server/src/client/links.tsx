@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { parseLinkTarget } from "../../../parser/ts/src/marklower-links";
 import type { Pointer } from "../../../parser/ts/src/ir";
 import { Seg, segsToStr, strToSegs } from "./paths";
+import { isDeadTarget, useDeadLinksVersion } from "./dead-links";
 
 /**
  * The shared **link** concept: one place that decides what a link *target* means
@@ -143,12 +144,22 @@ export function NavLink({
   onNavigate: (path: string) => void;
   children: ReactNode;
 }) {
+  useDeadLinksVersion(); // re-render the marks when the dead set refreshes (a move heals/kills)
   const { path, href, dead } = resolveLink(target, documentPath, holderPath ?? null);
   if (href) {
     return (
       <a className="extlink" href={href} target="_blank" rel="noopener noreferrer">
         {children}
       </a>
+    );
+  }
+  // a target that SPELLS fine but names no node (the server's dead set) is just as dead as
+  // one that cannot be spelled — marked where it stands, never a live anchor into a 404
+  if (path && isDeadTarget(path)) {
+    return (
+      <span className="deadlink" title={`link target names no node: ${path}`}>
+        {children}
+      </span>
     );
   }
   if (path) {

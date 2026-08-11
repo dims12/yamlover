@@ -108,17 +108,22 @@ function parse(
     html += plain(src.slice(last, m.index)); // plain run before this token
     joinLead = true; // every token is inline
     if (m[1] !== undefined) {
-      joinTrail();
-      html += renderMath(m[1], false); // $$ inline math $$
+      // a ``` fence — not marklower syntax, but ATOMIC all the same: passed through verbatim
+      // so its odd backtick count can never desync the inline code arm behind it
+      html += escapeHtml(m[0]);
+      joinLead = false;
     } else if (m[2] !== undefined) {
       joinTrail();
-      html += `<code>${escapeHtml(m[2])}</code>`; // `code` — contents literal
+      html += renderMath(m[2], false); // $$ inline math $$
+    } else if (m[3] !== undefined) {
+      joinTrail();
+      html += `<code>${escapeHtml(m[3])}</code>`; // `code` — contents literal
     } else {
       // [label](target) — a real anchor so it navigates in JSON instance space; the
       // label keeps its own inline styling.
       joinTrail();
       flush();
-      nodes.push(link(m[3], m[4]));
+      nodes.push(link(m[4], m[5]));
     }
     last = m.index + m[0].length;
   }
@@ -178,11 +183,14 @@ export function marklowerToEditableHtml(value: unknown): string {
   for (const m of src.matchAll(TOKEN)) {
     html += styleText(src.slice(last, m.index));
     if (m[1] !== undefined) {
-      html += `<span class="mlw-atom" contenteditable="false" data-src="${escapeAttr("$$" + m[1] + "$$")}">${renderMath(m[1], false)}</span>`;
+      // a ``` fence rides as one atom, its whole text the data-src — never re-tokenized
+      html += `<code class="mlw-atom" contenteditable="false" data-src="${escapeAttr(m[0])}">${escapeHtml(m[0])}</code>`;
     } else if (m[2] !== undefined) {
-      html += `<code class="mlw-atom" contenteditable="false" data-src="${escapeAttr("`" + m[2] + "`")}">${escapeHtml(m[2])}</code>`;
+      html += `<span class="mlw-atom" contenteditable="false" data-src="${escapeAttr("$$" + m[2] + "$$")}">${renderMath(m[2], false)}</span>`;
+    } else if (m[3] !== undefined) {
+      html += `<code class="mlw-atom" contenteditable="false" data-src="${escapeAttr("`" + m[3] + "`")}">${escapeHtml(m[3])}</code>`;
     } else {
-      html += `<a class="mlw-atom mlw-link" contenteditable="false" data-src="${escapeAttr("[" + m[3] + "](" + m[4] + ")")}">${styleText(m[3])}</a>`;
+      html += `<a class="mlw-atom mlw-link" contenteditable="false" data-src="${escapeAttr("[" + m[4] + "](" + m[5] + ")")}">${styleText(m[4])}</a>`;
     }
     last = m.index + m[0].length;
   }

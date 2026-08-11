@@ -18,6 +18,12 @@ no longer comes back spaced). Regression tests: engine `mv.test.ts`/`walk.test.t
 scope spelling still unhandled: a prose link written in PARENT scope (`[t](*:name)`) is neither
 rewritten nor reported. See "Round 2 verification" below. Defects 1-3 confirmed fixed.
 
+**Fully closed:** 2026-08-11 — the last open sliver of Defect 2 ("the dead link stays
+*clickable*") is gone: the client now marks a link whose target names no node as an unclickable
+`.deadlink`, fed by the server's dead-target set and healed live on reconcile (see
+`2026-08-11-dangling-prose-links-are-never-reported.md` and the fence report beside it). Nothing
+in this report remains open.
+
 **Resolved (Defect 4):** 2026-08-11 — by an ARCHITECTURE ruling, not a patch. Investigating the
 `*:` spelling revealed the doc/architecture mistake: the client never resolved sigil-prefixed
 targets at all, and the text-level embed token `*[label](target)` overloaded the same `*`. The

@@ -258,3 +258,22 @@ test('scanTextLinks: an OMNI scans its title AND descends into its members', () 
     ],
   );
 });
+
+test('scanTextLinks: a ``` fence never desyncs the code arm (the fence-desync report)', () => {
+  const fence = '```\ncode\n```';
+  const inline = 'x `[t](::dead)` y'; // a backticked example — atomic, never a link
+  const cases = [
+    ['A inline only', inline],
+    ['B one fence then inline', fence + '\n' + inline],
+    ['C fence w/ info string', '```bash\necho hi\n```\n' + inline],
+    ['D two fences then inline', fence + '\n' + fence + '\n' + inline],
+    ['E fence containing backtick', '```\na ` b\n```\n' + inline],
+  ] as const;
+  for (const [name, text] of cases) {
+    const doc = parseYamlover(`md: ${JSON.stringify(text)}\n`, 'fence.yo');
+    assert.deepEqual(scanTextLinks(doc), [], name);
+  }
+  // and a REAL link after a fence still scans
+  const doc = parseYamlover(`md: ${JSON.stringify(fence + '\nsee [a](*::live)')}\n`, 'fence.yo');
+  assert.equal(scanTextLinks(doc).length, 1);
+});

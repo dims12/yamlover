@@ -41,6 +41,14 @@ console, and the view keeps the previous chapter's title with nothing marking th
 of Defect 2 in `2026-08-10-dir-move-leaves-refs-dangling.md`. The server now computes the dead set
 anyway, so shipping it with the node payload would let `NavLink` reuse `.deadlink` as-is.
 
+**(2) closed:** 2026-08-11, exactly along that line — the server ships the dead TARGET set
+(`GET /api/dead-links`, computed by the same link-check as the doctor), the client holds it in a
+diff-refreshed module store (`client/dead-links.ts`), and `NavLink` renders a resolved link whose
+target names no node as a marked, unclickable `.deadlink`. Verified in a real browser: the dead
+link is marked with the path in its title, and creating the missing target HEALS the mark on the
+next reconcile's diff event, with no reload. The UI half of Defect 1 here — and the last open half
+of Defect 2 in the 2026-08-10 report — is thereby closed.
+
 **Follow-on defect found while verifying:** the doctor's `.md` coverage (the thing `linkcheck.mjs`
 lacked) exposed that a ``` fence desynchronizes the code-span tokenizer, so a link target inside
 `` `code` `` is scanned as live — false `link/dead-target` warnings, and worse, `relinkMoved`

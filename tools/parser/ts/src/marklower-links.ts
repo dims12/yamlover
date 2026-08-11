@@ -23,17 +23,24 @@ export const LABEL = String.raw`(?:[^\[\]]|\[[^\]]*\])*?`;
 
 /** The non-text tokens, in one alternation matched in source order:
  *
- *   1. `$$…$$` math (group 1; `[\s\S]` so a formula may span lines);
- *   2. `` `code` `` (group 2);
- *   3. `[label](target)` — a link (groups 3 = label, 4 = target).
+ *   1. ```` ``` ```` fenced block (group 1 = the opening backtick run; the closer is the
+ *      SAME run, via backreference) — marklower does not claim the fence as syntax, but the
+ *      markdown files this scanner also reads are full of them, and without this arm a
+ *      fence's odd backtick count DESYNCS the code arm: every later inline span leaks its
+ *      contents to link scanning (the fence-desync dogfooding report). Consumed whole,
+ *      passed through verbatim;
+ *   2. `$$…$$` math (group 2; `[\s\S]` so a formula may span lines);
+ *   3. `` `code` `` (group 3);
+ *   4. `[label](target)` — a link (groups 4 = label, 5 = target).
  *
  * There is no embed arm: a leading `*` before a link is plain emphasis/text now, so
  * `*[a](b)*` is an italic link and a bare `*[a](b)` is a literal `*` followed by a link.
  */
 export const TOKEN = new RegExp(
-  String.raw`\$\$([\s\S]+?)\$\$|` + // 1: math
-    "`([^`]+?)`|" + // 2: code
-    String.raw`\[(${LABEL})\]\(([^)]+?)\)`, // 3,4: link
+  '(`{3,})[\\s\\S]*?\\1|' + // 1: fenced block — atomic, never re-interpreted
+    String.raw`\$\$([\s\S]+?)\$\$|` + // 2: math
+    "`([^`]+?)`|" + // 3: code
+    String.raw`\[(${LABEL})\]\(([^)]+?)\)`, // 4,5: link
   "g",
 );
 
@@ -55,8 +62,8 @@ export interface LinkTarget {
 export function linkTargets(src: string): LinkTarget[] {
   const out: LinkTarget[] = [];
   for (const m of src.matchAll(TOKEN)) {
-    const target = m[4];
-    if (target === undefined) continue; // math or code
+    const target = m[5];
+    if (target === undefined) continue; // fence, math, or code
     const end = m.index + m[0].length;
     out.push({ target, raw: m[0], start: m.index, end, targetStart: end - 1 - target.length, targetEnd: end - 1 });
   }

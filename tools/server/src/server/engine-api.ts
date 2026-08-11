@@ -41,7 +41,7 @@ import os from "node:os";
 import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, walkTree, loadSettings, ensureSettingsFile, mv, relinkMoved, relinkRenamed, evalQuery, isBoundaryRow } from "../../../engine/ts/src/index.ts";
-import { deadLinkDiagnostics, logDeadLinks } from "./link-check.js";
+import { deadLinkDiagnostics, deadLinkTargets, logDeadLinks } from "./link-check.js";
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { parseJson5p } from "../../../parser/ts/src/json5p.ts";
@@ -527,6 +527,19 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           // node (link-check.ts). Content warnings, merged after the layout diagnostics.
           const doc = cachedDoc ?? walkTree(dataRoot, walkOpts).doc;
           sendJson(res, 200, { allowed: v.allowed, diagnostics: [...v.diagnostics, ...deadLinkDiagnostics(doc, s, dataRoot)] });
+        } catch (e) {
+          sendJson(res, 500, { error: String((e as Error).message || e) });
+        }
+        return;
+      }
+
+      // THE LINK INVARIANT's client half: the dead TARGET set, so NavLink can mark a link
+      // whose target names no node (`.deadlink`) instead of rendering it live. Refreshed by
+      // the client on every diff event.
+      if (url.pathname === "/api/dead-links") {
+        try {
+          const doc = cachedDoc ?? walkTree(dataRoot, walkOpts).doc;
+          sendJson(res, 200, { targets: deadLinkTargets(doc, s) });
         } catch (e) {
           sendJson(res, 500, { error: String((e as Error).message || e) });
         }

@@ -7,6 +7,16 @@ reports, on `npx yamlover .`
 gets rewritten), plus false `link/dead-target` warnings on any markdown file that has a fenced
 block
 **Note:** all names below are invented placeholders. The fixtures are self-contained.
+**Resolved:** 2026-08-11 — Defect 1: `TOKEN` gained a FENCE arm ahead of the code arm
+(`` `{3,} `` … matched to the same-length closer by backreference), consumed whole and passed
+through verbatim/atomic in both the read and editable renderers — the leak matrix (A–E) is
+pinned in `resolve.test.ts` and the move-edits-example repro byte-exact in
+`relink-links.test.ts`. Defect 3 (carried): closed — the server ships the dead TARGET set
+(`GET /api/dead-links`, from the same link-check), the client holds it in a diff-refreshed
+module store (`client/dead-links.ts`), and `NavLink` renders a resolved link whose target
+names no node as `.deadlink` instead of a live anchor into a 404; healing a target clears the
+mark on the same diff event that reindexes it. Defect 2 (flow-cell links reported, not
+rewritten) stays a stated limitation — reported, doctor-caught, nothing silent.
 
 ## Verification first: `ed2914a` holds
 

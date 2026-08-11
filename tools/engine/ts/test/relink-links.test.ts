@@ -201,3 +201,17 @@ test('relink-links: presentational containers are TRANSPARENT frames (the bullet
   );
   assert.deepEqual(r.unrewritten, []);
 });
+
+test('relink-links: a move NEVER edits a backticked example, even after a ``` fence', () => {
+  const root = tmpRoot();
+  mkdirSync(join(root, 'P', 'target'), { recursive: true });
+  writeFileSync(join(root, 'P', 'target', 'index.yo'), 'Target\ndescription: t\n');
+  writeFileSync(join(root, 'P', 'index.yo'), 'P\ndescription: p\n- *: target\n');
+  // the fence-desync repro: the fence used to desync the code arm and expose the example
+  const notes = '# Notes\n\n```bash\necho hi\n```\n\nA documented example that must stay literal: `[t](*::P:target)`.\n';
+  writeFileSync(join(root, 'NOTES.md'), notes);
+
+  const r = mv(root, 'P/target', 'Q/target');
+  assert.equal(readFileSync(join(root, 'NOTES.md'), 'utf8'), notes); // byte-identical
+  assert.ok(!r.editedFiles.includes('NOTES.md'));
+});

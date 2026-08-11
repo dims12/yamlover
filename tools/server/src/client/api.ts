@@ -99,6 +99,11 @@ export function fetchTasks(): Promise<TaskInfo[]> {
   return getJson<TaskInfo[]>(api("/api/tasks"));
 }
 
+/** The dead prose-link TARGET set (the link invariant's client half — see dead-links.ts). */
+export function fetchDeadLinks(): Promise<{ targets: string[] }> {
+  return getJson<{ targets: string[] }>(api("/api/dead-links"));
+}
+
 /** The TOC subtree rooted at `path`, `depth` levels deep (server default 3). */
 export function fetchTree(path = ":", depth?: number): Promise<TreeNode> {
   const q = new URLSearchParams({ path });

@@ -32,6 +32,18 @@ export function deadLinkDiagnostics(doc: Document, store: Store, dataRoot: strin
   return out;
 }
 
+/** The unique dead TARGET store paths — the client's currency (GET /api/dead-links):
+ *  NavLink marks a resolved link whose target is in this set as `.deadlink`, closing the
+ *  UI half of the invariant (a dead link is visible where it stands, not just logged). */
+export function deadLinkTargets(doc: Document, store: Store): string[] {
+  const out = new Set<string>();
+  for (const l of scanTextLinks(doc)) {
+    if (l.anchor || l.target === null) continue;
+    if (store.node(l.target) === null) out.add(l.target);
+  }
+  return [...out];
+}
+
 /** The capped log rendering: every dead link once, first `max` spelled out. */
 export function logDeadLinks(found: Diagnostic[], log: (line: string) => void, max = 8): void {
   for (const d of found.slice(0, max)) {
