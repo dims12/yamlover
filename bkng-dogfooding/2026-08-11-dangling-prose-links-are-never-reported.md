@@ -22,6 +22,31 @@ threading through list/table renderers) — pinned by the bullets repro from thi
 IS the migration diagnostic — release-note line added below. Frame law documented in
 `link-targets/index.yo`.
 
+**Verified (tester, 2026-08-11) at `ed2914a`:** (1), (3) and (4) confirmed against the original
+fixtures. The doctor reports at startup, on every reconcile and via `/api/doctor`, with node path
+and fs path, `severity: warning` / `allowed: true`. The frame fix holds three levels deep — a
+`- >` block, a `bullets` item and a `table` cell (two containers down, the stampless-row case) all
+report `holder: ":P:holder"` now, and the bullets link is **rewritten** on a move where it used to
+be silently skipped. Client agrees: both spellings render the same `href`. Suites: parser+engine
+644/648 (the 4 are the missing conformance submodules), server vitest 1465/1465.
+
+**(2) is narrower than stated.** `.deadlink` fires when a target cannot be *spelled* into a path
+(verified: a reserved `&some:mark` gets the wavy underline and the title). A target that spells
+fine but names **no node** still renders as an ordinary clickable link, because the client has no
+store to check against — `resolveLink` returns `DEAD` only on `path === null`. In a browser against
+a live server, `dead [b](*..:target)` with `target` moved away renders
+`<a href=":P:target">b</a>`; clicking it navigates, `GET /api/content/P/target` 404s in the
+console, and the view keeps the previous chapter's title with nothing marking the failure. So the
+*log/doctor* half of Defect 1 is fixed and the *UI* half is not — which is also the still-open half
+of Defect 2 in `2026-08-10-dir-move-leaves-refs-dangling.md`. The server now computes the dead set
+anyway, so shipping it with the node payload would let `NavLink` reuse `.deadlink` as-is.
+
+**Follow-on defect found while verifying:** the doctor's `.md` coverage (the thing `linkcheck.mjs`
+lacked) exposed that a ``` fence desynchronizes the code-span tokenizer, so a link target inside
+`` `code` `` is scanned as live — false `link/dead-target` warnings, and worse, `relinkMoved`
+rewrites the author's literal example. Filed as
+`2026-08-11-fences-desync-code-spans-so-moves-edit-examples.md`.
+
 ## Summary
 
 The new law is a real improvement — one `parseLinkTarget` seam, and the parent-scope prose link

@@ -125,12 +125,20 @@ But such a link is *not* an IR pointer. It never becomes a `ResolvedEdge`, so
    applies; the parse just has to reach inside marklower/AsciiDoc link syntax. Alternatively
    surface a `doctor`-style dangling-link check, which also catches hand-authored typos.
 
-## Defect 3 (minor) — rewritten pointers are emitted non-canonically
+## Defect 3 (minor) — a rewrite restyles the author's pointer
 
 The rewrite produced `*:: kb: area: topic`, spaces and all, from an authored
-`*::area:topic`. It still resolves (verified: `:kb:area:topic`, `kind: 'node'`), so
-this is cosmetic — but `rewrite.ts:5` states "Rewrites are emitted in CANONICAL colon form only",
-and a rename refactor rewriting a user's file should not restyle the token while it is there.
+`*::area:topic`. It still resolves (verified: `:kb:area:topic`, `kind: 'node'`), so this is
+cosmetic: a rename refactor rewriting a user's file should not restyle the token while it is there.
+
+**Correction (2026-08-11):** this section was originally titled "emitted non-canonically" and
+leaned on `rewrite.ts:5` ("Rewrites are emitted in CANONICAL colon form only") as if the spaced
+form were the wrong one. That premise was wrong — the `: `-spaced spelling **is** canonical for a
+structural pointer token, and the emitter was within its rights. The defect is only that it
+overrode the author's spelling, which is what the fix addressed (rewrites now preserve the authored
+spacing style). Compact is separately *required* inside prose, since a `: `-spaced target on a bare
+scalar line would re-split it as key/value — but that is the new link law's rule, not this
+section's claim.
 
 ## Reproduction
 
@@ -239,6 +247,21 @@ Scope of the round-2 check, so the gaps are known rather than assumed: one cross
 move, unmediated tier, `dir/index.yo` flavor. Untested and possibly carrying the same
 prefix-blindness — an in-place rename (`relinkRenamed` entry point), the `dir/.yo/body.yo` flavor,
 embed tokens `*[label](target)`, and a mediated move through the UI/API.
+
+**Update (2026-08-11):** the embed-token gap is void — `*[label](target)` was REMOVED from
+marklower by `2d6cb53`; embedding is structural now (a chapter body element, or a chunk whose whole
+text is one media URL), so there is no such token to relink. The in-place rename path has since
+been exercised (`relinkRenamed`, intra-parent rename, relative spelling correctly preserved). Still
+untested: the `dir/.yo/body.yo` flavor and a mediated move through the UI/API.
+
+**Still open from Defect 2 (2026-08-11):** the second bullet — "`resolveLink` does no existence
+check, so the dead link stays *clickable* and navigates to a path with no node behind it. Nothing
+marks it broken in the UI or the log." The **log** half is fixed: `ed2914a` added the
+`link/dead-target` doctor warning. The **UI** half is not. `ed2914a`'s `.deadlink` marker fires
+only when a target cannot be spelled into a path at all (or is a reserved `&…`); a target that
+spells fine but names no node still renders as a normal `<a>`, and clicking it 404s
+`/api/content/…` in the console with nothing shown to the reader. Verified in a browser at
+`ed2914a`. Detail in `2026-08-11-fences-desync-code-spans-so-moves-edit-examples.md`.
 
 ## Environment
 
