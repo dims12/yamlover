@@ -146,7 +146,11 @@ export function interpret(k: Key, s: Site): Intent | null {
     if ((k.key === "]" || k.key === "}") && inFlow(s)) {
       return k.key === closerOf(s) ? { kind: "closeToken", closer: k.key } : { kind: "refuse" };
     }
-    if (k.key === "Tab") return inFlow(s) ? { kind: "move", dir: k.shift ? -1 : 1 } : k.shift ? { kind: "dedent" } : { kind: "indent" };
+    // Tab FINISHES the reference like Enter (the polish-link-entrance spec): mid-entry there
+    // is no entry to indent, and a Tab that moved levels while a dropdown was one repaint away
+    // read as "Tab cycles suggestions". Shift-Tab keeps the level gesture.
+    if (k.key === "Tab" && !k.shift && !inFlow(s)) return { kind: "commit", submit: true };
+    if (k.key === "Tab") return inFlow(s) ? { kind: "move", dir: k.shift ? -1 : 1 } : { kind: "dedent" };
     if (k.key === "ArrowLeft" && s.caretAtStart) return s.portionFirst ? { kind: "move", dir: -1 } : { kind: "portionMove", dir: -1 };
     if (k.key === "ArrowRight" && s.caretAtEnd) return s.portionLast ? { kind: "move", dir: 1 } : { kind: "portionMove", dir: 1 };
     if (k.key === "ArrowUp") return { kind: "move", dir: -1 };

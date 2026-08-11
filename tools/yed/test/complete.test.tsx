@@ -60,7 +60,7 @@ describe("docHints - the in-memory document answers the portion cells", () => {
   });
 });
 
-describe("rankHints - prefix first, substrings after, the exact match drops", () => {
+describe("rankHints - the exact match first, then prefixes, then substrings", () => {
   const pool: Hint[] = [{ insert: "pets" }, { insert: "owner" }, { insert: "carpets" }];
   it("empty prefix keeps everything", () => {
     expect(rankHints(pool, "").map((h) => h.insert)).toEqual(["pets", "owner", "carpets"]);
@@ -68,8 +68,10 @@ describe("rankHints - prefix first, substrings after, the exact match drops", ()
   it("prefix matches outrank substrings; non-matches drop", () => {
     expect(rankHints(pool, "pe").map((h) => h.insert)).toEqual(["pets", "carpets"]);
   });
-  it("the exact match drops - the typed text needs no hint", () => {
-    expect(rankHints(pool, "pets").map((h) => h.insert)).toEqual(["carpets"]);
+  it("the EXACT match ranks first - typed-in-full must never lose to a lookalike", () => {
+    // the pet1/extra_pet1 trap: with the exact match dropped, the substring lookalike armed
+    // and Tab/Enter overwrote correct text; exact-first makes the typed name its own arm
+    expect(rankHints(pool, "pets").map((h) => h.insert)).toEqual(["pets", "carpets"]);
   });
 });
 
@@ -98,8 +100,12 @@ function domType(script: string): void {
     const input = focused();
     const key = ch === "\n" ? "Enter" : ch;
     const before = input.value ?? "";
+    // native selection semantics: a typed character REPLACES the selection — the inline
+    // completion tail rides selected, so typing over it must behave like a real browser
+    const s = input.selectionStart ?? before.length;
+    const e = input.selectionEnd ?? before.length;
     const defaulted = fireEvent.keyDown(input, { key });
-    if (key.length === 1 && defaulted) fireEvent.change(input, { target: { value: before + key } });
+    if (key.length === 1 && defaulted) fireEvent.change(input, { target: { value: before.slice(0, s) + key + before.slice(e) } });
   }
 }
 
@@ -120,79 +126,93 @@ describe("the dropdown over the portion cells - the debug editor's pointer entra
     expect(rows()).toEqual([]);
   });
 
-  it("ARMS the first row as soon as the cell has text - Enter accepts, no ArrowDown needed", async () => {
+  it("the INLINE TAIL: the armed candidate rides in the cell, its untyped part selected", async () => {
     render(<Harness />);
     await act(async () => { domType("*"); });
     // an EMPTY cell arms NOTHING: its list is just "every child", which implies no choice
     expect(rows()).toEqual(["pets", "owner"]);
     expect(document.querySelector(".y2-hint-sel")).toBeNull();
-    // one character of prefix and the offer is armed - accepting costs ONE key
+    expect(focused().value).toBe("");
+    // one character and the offer is armed - the candidate appears IN the cell, tail selected
     await act(async () => { domType("ow"); });
     expect(document.querySelector(".y2-hint-sel .y2-hint-insert")?.textContent).toBe("owner");
-    await act(async () => { fireEvent.keyDown(focused(), { key: "Enter" }); });
     expect(focused().value).toBe("owner");
-    expect(focused().tagName).toBe("INPUT"); // the caret never left the cell
-    expect(sourceOf(lastState.doc)).toBe(DOC); // a pick replaces text only - nothing committed
-    // the text now matches the candidate exactly, so the list empties and Enter COMMITS
-    expect(rows()).toEqual([]);
+    expect(focused().selectionStart).toBe(2); // "ow" typed, "ner" selected - typing replaces it
+    expect(focused().selectionEnd).toBe(5);
+    // Enter ACCEPTS the suggestion and FINISHES - one key, one commit
     await act(async () => { fireEvent.keyDown(focused(), { key: "Enter" }); });
     expect(sourceOf(lastState.doc)).toBe(DOC + "- *owner\n");
   });
 
-  it("ESCAPE is the way out - it disarms, and the NEXT Enter commits the free-typed text", async () => {
+  it("ESCAPE closes the DROPDOWN and only the dropdown; the typed text stands", async () => {
     render(<Harness />);
     await act(async () => { domType("*ow"); });
-    expect(document.querySelector(".y2-hint-sel")).toBeTruthy();
-    await act(async () => { fireEvent.keyDown(focused(), { key: "Escape" }); });
-    expect(document.querySelector(".y2-hint-sel")).toBeNull(); // still offered, no longer armed
-    expect(focused().tagName).toBe("INPUT");
+    expect(dropdown()).toBeTruthy();
+    expect(focused().value).toBe("owner"); // the tail is up
+    const esc = fireEvent.keyDown(focused(), { key: "Escape" });
+    await act(async () => {});
+    expect(esc).toBe(false); // swallowed - it must never reach the page's lock-on-Escape
+    expect(dropdown()).toBeNull(); // closed, not merely disarmed
+    expect(focused().tagName).toBe("INPUT"); // the edit survives
+    expect(focused().value).toBe("ow"); // the tail went with the dropdown
     await act(async () => { fireEvent.keyDown(focused(), { key: "Enter" }); });
     expect(sourceOf(lastState.doc)).toBe(DOC + "- *ow\n"); // the typed text won, as typed
   });
 
-  it("ArrowDown walks the list, Enter takes the highlighted row into the cell", async () => {
+  it("DELETE discards the tail; the next typed character re-arms it", async () => {
+    render(<Harness />);
+    await act(async () => { domType("*o"); });
+    expect(focused().value).toBe("owner");
+    await act(async () => { fireEvent.keyDown(focused(), { key: "Delete" }); });
+    expect(focused().value).toBe("o"); // the tail is gone, the dropdown stays
+    expect(dropdown()).toBeTruthy();
+    await act(async () => { domType("w"); });
+    expect(focused().value).toBe("owner"); // typing re-arms
+  });
+
+  it("ArrowDown walks the list and the tail follows; `:` accepts and opens the next portion", async () => {
     render(<Harness />);
     await act(async () => { domType("*"); });
     await act(async () => { fireEvent.keyDown(focused(), { key: "ArrowDown" }); });
     expect(document.querySelector(".y2-hint-sel .y2-hint-insert")?.textContent).toBe("pets");
-    await act(async () => { fireEvent.keyDown(focused(), { key: "Enter" }); });
-    // the pick REPLACED the text - nothing committed to the document yet
+    // the arrow-picked candidate previews in the cell, wholly selected (nothing typed yet)
     expect(focused().value).toBe("pets");
-    expect(sourceOf(lastState.doc)).toBe(DOC);
-    // `:` splits the portion; the next cell's hints are pets' POSITIONS
-    await act(async () => { domType(":"); });
+    expect(focused().selectionStart).toBe(0);
+    // `:` ACCEPTS the suggestion and splits - the next cell's hints are pets' POSITIONS
+    await act(async () => { fireEvent.keyDown(focused(), { key: ":" }); });
     expect(lastState.cursor).toMatchObject({ ref: { portions: ["pets", ""], active: 1 } });
     expect(rows()).toEqual(["[0]", "[1]"]);
+    expect(sourceOf(lastState.doc)).toBe(DOC); // still mid-entry - nothing committed
   });
 
-  it("Tab ACCEPTS - the armed candidate, else the FIRST row (the query editor's rule)", async () => {
+  it("TAB never cycles - it accepts the suggestion and FINISHES the reference", async () => {
     render(<Harness />);
-    await act(async () => { domType("*"); });
-    // no row armed: Tab takes the FIRST hint into the cell - never an indent, never a focus walk
+    await act(async () => { domType("*pe"); });
+    expect(focused().value).toBe("pets"); // armed, tail up
     await act(async () => { fireEvent.keyDown(focused(), { key: "Tab" }); });
+    expect(sourceOf(lastState.doc)).toBe(DOC + "- *pets\n"); // one Tab: accepted AND committed
+  });
+
+  it("a fully-typed name commits AS TYPED - a lookalike candidate never overrides it", async () => {
+    render(<Harness />);
+    await act(async () => { domType("*pets"); });
+    // "pets" is typed in full: the exact match arms (rankHints), so the tail is empty
     expect(focused().value).toBe("pets");
-    expect(sourceOf(lastState.doc)).toBe(DOC); // replaced text only - nothing committed
-    // an ARMED row: Tab takes it, like Enter would
-    await act(async () => { domType(":"); });
-    await act(async () => { fireEvent.keyDown(focused(), { key: "ArrowDown" }); });
-    await act(async () => { fireEvent.keyDown(focused(), { key: "ArrowDown" }); });
-    await act(async () => { fireEvent.keyDown(focused(), { key: "Tab" }); });
-    expect(focused().value).toBe("1");
-    // the grammar's Enter still owns the commit
+    expect(focused().selectionStart).toBe(4);
     await act(async () => { fireEvent.keyDown(focused(), { key: "Enter" }); });
-    expect(sourceOf(lastState.doc)).toBe(DOC + "- *pets: 1\n");
+    expect(sourceOf(lastState.doc)).toBe(DOC + "- *pets\n");
   });
 
-  it("a CLICK on a row picks it; the grammar's Enter still commits the reference", async () => {
+  it("a CLICK on a row picks it into the cell; Enter then commits", async () => {
     render(<Harness />);
     await act(async () => { domType("*"); });
-    await act(async () => { fireEvent.keyDown(focused(), { key: "ArrowDown" }); });
-    await act(async () => { fireEvent.keyDown(focused(), { key: "Enter" }); });
-    await act(async () => { domType(":"); });
-    const row = document.querySelectorAll(".y2-hint")[1] as HTMLElement;
+    const row = document.querySelectorAll(".y2-hint")[0] as HTMLElement;
     await act(async () => { fireEvent.mouseDown(row); });
+    expect(focused().value).toBe("pets");
+    await act(async () => { fireEvent.keyDown(focused(), { key: ":" }); });
+    const pos = document.querySelectorAll(".y2-hint")[1] as HTMLElement;
+    await act(async () => { fireEvent.mouseDown(pos); });
     expect(focused().value).toBe("1");
-    // Enter with NO highlight falls through to the grammar - the reference commits
     await act(async () => { fireEvent.keyDown(focused(), { key: "Enter" }); });
     expect(sourceOf(lastState.doc)).toBe(DOC + "- *pets: 1\n");
   });

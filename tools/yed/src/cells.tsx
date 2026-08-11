@@ -9,7 +9,7 @@
 // through `ctx.onText`, every click through `ctx.onFocus` (the cursor moves to the clicked
 // position). What you see is `state`, all of it.
 
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Cursor, Document, Entry, Node, Path, Value } from "./state";
 import { anchorDecorations, blockRawOf, bracketOf, isFlow, isSpread, schemaTextOf } from "./state";
 import { isPointer, type Comment, type Pointer } from "../../parser/ts/src/ir.ts";
@@ -47,6 +47,11 @@ export interface CellCtx {
    *  active cell renders but must not STEAL the caret. Absent ⇒ true. */
   plantCaret?: boolean;
   onKey: (e: React.KeyboardEvent, edges?: { atStart: boolean; atEnd: boolean; firstLine?: boolean; lastLine?: boolean; offset?: number }) => void;
+  /** Set the active cell's text AND apply a grammar key in ONE state pass — the inline
+   *  completion's accept-then-act (`:`/Enter/Tab take the suggestion and the key acts on
+   *  it). Two separate onText/onKey calls in one tick would compute from the same stale
+   *  state and the second would discard the first. */
+  onTextKey?: (text: string, e: React.KeyboardEvent, edges?: { atStart: boolean; atEnd: boolean; offset?: number }) => void;
   onText: (text: string) => void;
   onFocus: (pos: Position) => void;
   /** A click on an IDLE portion cell of the reference being entered (the ref cursor): move
@@ -132,17 +137,27 @@ export function Cell({ kind, active, refused, pos, badge, block, tone, children 
 }
 
 /** A controlled inline input sized to its content — native caret, selection, text copy/paste.
- *  `caret` places the caret on the side the cursor ARRIVED from (movement stamps it). */
-function CellInput({ value, ctx, autoFocus, caret }: { value: string; ctx: CellCtx; autoFocus: boolean; caret?: "start" | "end" | number }) {
+ *  `caret` places the caret on the side the cursor ARRIVED from (movement stamps it).
+ *  `select` (an offset) keeps [select, end] SELECTED — the inline-completion tail: the part
+ *  the user has not typed yet rides selected, so any keystroke replaces it natively. */
+function CellInput({ value, ctx, autoFocus, caret, select }: { value: string; ctx: CellCtx; autoFocus: boolean; caret?: "start" | "end" | number; select?: number }) {
+  const ref = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && select !== undefined && document.activeElement === el) {
+      el.setSelectionRange(Math.min(select, el.value.length), el.value.length);
+    }
+  }, [value, select]);
   return (
     <input
       className="y2-input"
       value={value}
       size={Math.max(1, value.length)}
       ref={(el) => {
+        ref.current = el;
         if (el && autoFocus && ctx.plantCaret !== false && document.activeElement !== el) {
           el.focus();
-          if (caret !== undefined) {
+          if (caret !== undefined && select === undefined) {
             const n = caret === "end" ? el.value.length : caret === "start" ? 0 : Math.min(caret, el.value.length);
             el.setSelectionRange(n, n);
           }
@@ -201,13 +216,23 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
   const active = r?.active ?? 0;
   const text = r !== undefined ? (c as { text: string }).text : "";
   const [items, setItems] = useState<Hint[]>([]);
-  // ARMED BY DEFAULT once the cell has text: accepting the offer costs one key (Enter or Tab),
-  // AVOIDING it costs two (Escape, then Enter) - the deliberate inversion of the old
-  // nothing-armed doctrine. An EMPTY cell arms nothing: with no prefix the list is just "every
-  // child", which implies no choice, and arming it would make Enter walk down the tree forever.
+  // ARMED BY DEFAULT once the cell has text: the armed candidate rides as the INLINE TAIL and
+  // one key (Enter/Tab/`:`) accepts it. An EMPTY cell arms nothing: with no prefix the list is
+  // just "every child", which implies no choice, and arming it would make Enter walk down the
+  // tree forever. `dismissed` = Escape closed the dropdown (typing reopens); `tailOff` = a
+  // deletion suppressed the tail (the next typed character re-arms it).
   const [sel, setSel] = useState(-1);
+  const [dismissed, setDismissed] = useState(false);
+  const [tailOff, setTailOff] = useState(false);
   const left = r !== undefined ? r.portions.slice(0, active).join("\u0000") : "";
-  const holder = c.at === "pick" ? c.path.slice(0, -1) : c.at === "hole" ? c.path : [];
+  // the HOLDER the bare scope resolves at — the mapping that HOLDS the reference. A pick's
+  // path names the pointer entry itself; a KEY-COMMITTED value hole (`k: *…`, apply.ts's
+  // key-commit) extends its path INTO the fresh entry — both step back to the container.
+  // A keyless hole's path IS the container. Asking at the entry was the no-hints bug: the
+  // uncommitted entry resolves to nothing, and every candidate list came back empty.
+  const holder = c.at === "pick" ? c.path.slice(0, -1)
+    : c.at === "hole" ? (c.key !== null ? c.path.slice(0, -1) : c.path)
+    : [];
   // the `&` decision: the same portion face spells a BOOKMARK body (sigil `&`; position hints
   // dropped - a bookmark may not CLAIM a position, and with arm-by-default an armed digit row
   // would Tab-accept straight into the refusal ring; mid-path indexes stay typeable, hints
@@ -218,7 +243,9 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
     // user has already typed past, and accepting an offer you were never shown is a trap. The
     // arming happens below, when the list for THIS text arrives (an in-flight query whose
     // effect was superseded has `live === false`, so a late answer can never arm anything).
+    // An Escape-dismissed dropdown REOPENS here — typing is the reopen gesture.
     setSel(-1);
+    setDismissed(false);
     const clear = (): void => { setItems((prev) => (prev.length === 0 ? prev : [])); setSel(-1); };
     if (r === undefined || ctx.hints === undefined) { clear(); return; }
     let live = true;
@@ -239,22 +266,55 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
   }, [text, active, left, r?.ladder, r === undefined, holder.join("."), anchor]);
   if ((c.at !== "hole" && c.at !== "pick") || !c.ref) return null;
   const pick = (h: Hint): void => { ctx.onText(h.insert); setSel(-1); };
-  // the dropdown's keys ride BEFORE the grammar - only while a hint list is up, and only the
-  // keys the list claims (vertical walk, Tab, Enter on the ARMED row, Escape); everything
-  // else falls through to ctx.onKey untouched - hints never gate typing
-  const hctx: CellCtx = items.length === 0 ? ctx : {
+  // THE INLINE TAIL (the polish-link-entrance spec): the armed candidate's untyped remainder
+  // rides IN THE CELL, selected \u2014 any keystroke replaces it natively, `:` accepts it and opens
+  // the next portion, Enter/Tab accept it and finish, Delete discards it, Escape closes the
+  // dropdown (and ONLY the dropdown). `dismissed` is the Escape state (typing reopens);
+  // `tailOff` is the Delete/Backspace state (deletion must never fight a reappearing tail).
+  const open = items.length > 0 && !dismissed;
+  const armed = open && sel >= 0 && items[sel] !== undefined && items[sel].op !== true;
+  const suggestion = armed && !tailOff ? items[sel].insert : null;
+  const shown = suggestion !== null && suggestion !== text ? suggestion : text;
+  const suggesting = shown !== text;
+  // the selection starts where the typed text and the candidate part ways \u2014 for a prefix
+  // match that is exactly the typed length; an arrow-picked lookalike selects wholly
+  const common = (a: string, b: string): number => {
+    const al = a.toLowerCase(); const bl = b.toLowerCase();
+    let i = 0;
+    while (i < al.length && i < bl.length && al[i] === bl[i]) i++;
+    return i;
+  };
+  const selectFrom = suggesting ? common(text, shown) : undefined;
+  // the completion keys ride BEFORE the grammar \u2014 and only the keys the completion claims
+  // (vertical walk while the list is up, Escape-close, Delete-the-tail, accept-then-forward
+  // for `:`/Enter/Tab); everything else falls through untouched \u2014 hints never gate typing
+  const hctx: CellCtx = {
     ...ctx,
     onKey: (e, edges) => {
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => (s + 1) % items.length); return; }
-        if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => (s <= 0 ? items.length - 1 : s - 1)); return; }
-        // Tab and Enter both ACCEPT: the armed candidate, else the FIRST one. ESCAPE is the way
-        // OUT - it disarms, and the next Enter commits the free-typed text (a second Escape falls
-        // through to the grammar's own cancel). Typing past every candidate empties the list, so
-        // a genuinely new name never has to fight the dropdown at all.
-        if (e.key === "Tab") { e.preventDefault(); e.stopPropagation(); pick(items[sel >= 0 ? sel : 0]); return; }
-        if (e.key === "Enter" && sel >= 0) { e.preventDefault(); pick(items[sel]); return; }
-        if (e.key === "Escape" && sel >= 0) { e.preventDefault(); setSel(-1); return; }
+        if (open && e.key === "ArrowDown") { e.preventDefault(); setTailOff(false); setSel((s) => (s + 1) % items.length); return; }
+        if (open && e.key === "ArrowUp") { e.preventDefault(); setTailOff(false); setSel((s) => (s <= 0 ? items.length - 1 : s - 1)); return; }
+        // Escape closes the DROPDOWN, never the edit: swallowed entirely (stopPropagation \u2014
+        // the document-level Escape would lock the whole page, the reported catastrophe).
+        // With no dropdown up it falls through to the page's own Escape law.
+        if (open && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setDismissed(true); setSel(-1); return; }
+        // Delete discards the tail and nothing else; with no tail it is the grammar's Delete
+        if (suggesting && e.key === "Delete") { e.preventDefault(); e.stopPropagation(); setTailOff(true); return; }
+        // a deletion must not fight a reappearing tail; the next typed character re-arms
+        if (e.key === "Backspace") setTailOff(true);
+        else if (e.key.length === 1 && e.key !== ":") setTailOff(false);
+        // `:` accepts the suggestion and opens the next portion; Enter and Tab accept it and
+        // FINISH (the grammar's commit) \u2014 accepting is making the shown text the cell's text,
+        // then letting the grammar key act on it, in ONE state pass (onTextKey). Tab never
+        // cycles; an exact typed match is ranked first (rankHints), so a fully-typed name
+        // commits as itself.
+        if (suggesting && (e.key === ":" || e.key === "Enter" || e.key === "Tab") && ctx.onTextKey !== undefined) {
+          setSel(-1);
+          // accepting consumes the selection: the caret stands at the END of the accepted
+          // text (a `:` split at the input's raw selectionStart would cut BEFORE the tail)
+          ctx.onTextKey(shown, e, { atStart: shown.length === 0, atEnd: true, offset: shown.length });
+          return;
+        }
       }
       ctx.onKey(e, edges);
     },
@@ -268,8 +328,8 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
           {i > 0 && <span className="y2-punct">: </span>}
           {i === r!.active
             ? <span className="y2-portionwrap">
-                <CellInput value={text} ctx={hctx} autoFocus caret={c.caret} />
-                {items.length > 0 && (
+                <CellInput value={shown} ctx={hctx} autoFocus caret={c.caret} select={selectFrom} />
+                {open && (
                   <span className="y2-hints" data-testid="y2-hints">
                     {items.map((h, j) => (
                       <span

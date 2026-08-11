@@ -8,7 +8,9 @@ description: the anchor_entry state, and the committed anchor rows
   dialect, entry stage only - in a value hole `&…` stays text, so the inline `&'p: q' v`
   spelling still types through verbatim). The body enters as the SAME portion cells a `*`
   reference uses - the scope ladder climbs on `:` in the empty first cell, segments commit on
-  `:`, completion hints ride the active cell with the first row armed once it has text - with
+  `:`, completion rides the active cell as the INLINE TAIL (the pointer_entry law: the armed
+  candidate's untyped remainder selected in the cell, `:`/Enter/Tab accept, Escape closes the
+  dropdown only, Delete discards the tail) - with
   two anchor-only differences: `[` never folds an index and POSITION hints are not offered (a
   bookmark may not claim a position - makeAnchor refuses), and a trailing `-` segment spells
   keyless membership (`: -`, the ordinal bookmark). The bookmark lands on the hole's CONTAINER -

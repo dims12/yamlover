@@ -39,16 +39,16 @@ export interface HintQuery {
  *  cannot answer (an unresolvable context, a scope it has no knowledge of) returns []. */
 export type HintProvider = (q: HintQuery) => Hint[] | Promise<Hint[]>;
 
-/** Rank hints against the typed prefix: prefix matches first, then substrings; non-matches
- *  and the EXACT match drop (the text already typed needs no hint). Case-insensitive; an
- *  empty prefix keeps everything (capped). */
+/** Rank hints against the typed prefix: the EXACT match first (typed-in-full must never be
+ *  overridden by a lookalike — the pet1/extra_pet1 trap), then prefix matches, then
+ *  substrings; non-matches drop. Case-insensitive; an empty prefix keeps everything (capped). */
 export function rankHints(hints: Hint[], prefix: string, max = 12): Hint[] {
   const p = prefix.trim().toLowerCase();
   if (p === "") return hints.slice(0, max);
   return hints
     .map((h) => {
       const hay = [h.insert.toLowerCase(), (h.label ?? "").toLowerCase()];
-      const r = hay.includes(p) ? -1 : hay.some((s) => s.startsWith(p)) ? 0 : hay.some((s) => s.includes(p)) ? 1 : -1;
+      const r = hay.includes(p) ? 0 : hay.some((s) => s.startsWith(p)) ? 1 : hay.some((s) => s.includes(p)) ? 2 : -1;
       return { h, r };
     })
     .filter((x) => x.r >= 0)

@@ -1,5 +1,5 @@
 Reference being entered (a *-led hole)
-description: the pointer_entry state
+description: the pointer_entry state - typing is primary, the completion rides as an inline tail
 - >
   The hole's text begins with `*` - the reference decision (keys.ts classifies it). The reference
   enters as SEGMENTS - the key-value gesture repeated: the cursor's `ref` carries the scope
@@ -7,18 +7,28 @@ description: the pointer_entry state
   untouched - incompleteness lives in the cursor alone). `:` commits the active segment and opens
   the next; in the EMPTY FIRST cell it CLIMBS the scope ladder instead (`*` -> `*:` -> `*::` ->
   `*:::` - more colons, wider scope) and Backspace there steps it down. `[` in an empty non-first
-  cell folds an INDEX onto the previous segment. Enter JOINS the segments and parses-or-refuses -
-  non-pointers RING and the text stands, nothing is ever lost. COMPLETION HINTS are a separate,
-  optional service over the same cells (complete.ts HintProvider - the dropdown under the active
-  cell): the pure editor's provider answers from the IN-MEMORY document (docHints), the server
-  host's from the live tree (yed-cells.tsx treeHints over GET /api/query). Hints ADVISE and never
-  validate or gate typing - the grammar works identically with no provider at all. The server
-  mount also claims the shared TOC FILTER SESSION for the edit's lifetime (yed-toc-pick.ts,
-  host-side - the pure editor stays TOC-blind): the typed query prunes the TOC and a TOC row
-  click INSERTS the spelled path into the cells - the same advisory law as hints. A pointer has
-  no SELF-VALUE form (the parser refuses a top-level pointer), so the omni diversion never
-  applies: a BARE pointer lands as the KEYLESS member it is (`*x` is `- *x` - the chapter
-  pointer-array case); only the `k:` enter-descend's EMPTY container takes it wholesale (`k: *x`).
+  cell folds an INDEX onto the previous segment. Enter and Tab JOIN the segments and
+  parse-or-refuse - non-pointers RING and the text stands, nothing is ever lost.
+- >
+  COMPLETION is an optional, advisory service over the same cells (complete.ts HintProvider -
+  the pure editor answers from the in-memory document, the server host from the live tree over
+  GET /api/query). **Typing is primary; the completer only helps.** Once the cell has text, the
+  best candidate ARMS - the EXACT typed name first, then prefix matches, then substrings
+  (rankHints; a fully-typed name can never lose to a lookalike) - and its untyped remainder
+  rides IN THE CELL as the selected INLINE TAIL: any keystroke replaces it natively, `:` accepts
+  it and opens the next segment, Enter/Tab accept it and finish. Arrows walk the dropdown and
+  the tail follows the highlight. Escape closes the DROPDOWN and only the dropdown (the edit
+  survives; typing reopens it); Delete discards the tail (the next typed character re-arms).
+  An empty cell arms nothing. Hints ADVISE and never validate or gate typing - the grammar
+  works identically with no provider at all.
+- >
+  The server mount also claims the shared TOC FILTER SESSION for the edit's lifetime
+  (yed-toc-pick.ts, host-side - the pure editor stays TOC-blind): the typed query prunes the TOC
+  and a TOC row click INSERTS the spelled path into the cells - the same advisory law as hints.
+  A pointer has no SELF-VALUE form (the parser refuses a top-level pointer), so the omni
+  diversion never applies: a BARE pointer lands as the KEYLESS member it is (`*x` is `- *x` -
+  the chapter pointer-array case); only the `k:` enter-descend's EMPTY container takes it
+  wholesale (`k: *x`).
 - !!<*yamlover: $defs: table>
   header:
     - Event
@@ -27,16 +37,20 @@ description: the pointer_entry state
       width: 4
     - 'Next state'
       width: 2
-  - ['`alphanumeric`', 'native text in the active segment cell', '`pointer_entry` (stays)']
+  - ['`alphanumeric`', 'native text in the active segment cell; the armed tail is replaced (it rides selected), then re-arms for the new prefix', '`pointer_entry` (stays)']
   - ['`colon`', 'the empty first cell, ladder below world - the SCOPE CLIMBS', '`pointer_entry` (stays)']
-  - ['`colon`', 'otherwise - the segment COMMITS, the next cell opens (a mid-text colon splits at the caret)', '`pointer_entry` (stays)']
+  - ['`colon`', 'otherwise - the ARMED SUGGESTION (if any) is accepted, the segment COMMITS, the next cell opens (a mid-text colon with no tail splits at the caret)', '`pointer_entry` (stays)']
   - ['`open_bracket`', 'an empty non-first cell - an INDEX folds onto the previous segment', '`pointer_entry` (stays)']
+  - ['`up_arrow` / `down_arrow`', 'the dropdown is up - the highlight walks the list and the INLINE TAIL follows it; with no dropdown the caret walk leaves the cell', '`pointer_entry` (stays)']
   - ['`left_arrow` / `right_arrow`', 'at a cell edge - the walk crosses SEGMENT cells first, then leaves the reference', '`pointer_entry` (stays)']
-  - ['`hint_pick`', 'a dropdown row (click, or arrows + Enter on the highlight) REPLACES the active cell''s text - committing stays the grammar''s Enter', '`pointer_entry` (stays)']
+  - ['`escape`', 'the dropdown is up - it CLOSES (and only it: the event never reaches the page''s lock-on-Escape); typing reopens it. With no dropdown the page''s own Escape law applies', '`pointer_entry` (stays)']
+  - ['`delete`', 'an inline tail is up - the TAIL goes, the dropdown stays; the next typed character re-arms. With no tail, the grammar''s Delete (cells merge forward)', '`pointer_entry` (stays)']
+  - ['`hint_pick`', 'a dropdown row click REPLACES the active cell''s text; the edit continues', '`pointer_entry` (stays)']
   - ['`toc_click`', 'the server mount only (yed-toc-pick.ts): the picked path SPELLS into the cells in the typed scope (pointer-spell, relative to the holder) - inserted like a hint, the caret on the last cell; typing meanwhile FILTERS the TOC through the shared session', '`pointer_entry` (stays)']
-  - ['`enter`', 'the joined segments parse as a pointer - it commits as the entry''s ref VALUE (dangling allowed; hints are never validators): SPACED canonical raw in the IR, COMPACT on the wire (yed-sync payloadOf). A reference holds no children, so the next SIBLING hole opens - the one exception to the level rule', '[entry_hole](*::server:yamlover-editor:entry_hole)']
-  - ['`enter`', 'not a pointer the wire can carry - the ring, the segments stand', '[error_flash](*::server:yamlover-editor:error_flash)']
-  - ['`backspace`', 'at the head of a non-first segment - the cells MERGE at the junction', '`pointer_entry` (stays)']
+  - ['`enter` / `tab`', 'the armed suggestion (if any) is ACCEPTED, the joined segments parse as a pointer - it commits as the entry''s ref VALUE (dangling allowed; hints are never validators): SPACED canonical raw in the IR, COMPACT on the wire (yed-sync payloadOf). A reference holds no children, so the next SIBLING hole opens - the one exception to the level rule. Tab NEVER cycles the list; Shift-Tab keeps the level gesture', '[entry_hole](*::server:yamlover-editor:entry_hole)']
+  - ['`enter` / `tab`', 'not a pointer the wire can carry - the ring, the segments stand', '[error_flash](*::server:yamlover-editor:error_flash)']
+  - ['`backspace`', 'a tail was up - the deletion also suppresses the tail (a deletion never fights a reappearing suggestion)', '`pointer_entry` (stays)']
+  - ['`backspace`', 'at the head of a non-first segment - the cells MERGE at the junction (the reference unwinds in reverse, segment by segment)', '`pointer_entry` (stays)']
   - ['`backspace`', 'the first cell''s head, ladder above bare - the SCOPE DESCENDS', '`pointer_entry` (stays)']
   - ['`backspace`', 'the emptied floor (one empty cell, bare scope) - the `*` decision undoes, the plain hole returns', '[entry_hole](*::server:yamlover-editor:entry_hole)']
   - ['`backspace`', 'otherwise', '`pointer_entry` (stays)']

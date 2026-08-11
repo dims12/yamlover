@@ -101,6 +101,13 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
       if (next !== state) { e.preventDefault(); apply(next); }
     },
     onText: (text) => apply(applyText(state, text)),
+    // accept-then-act in ONE pass (the inline completion's `:`/Enter/Tab): the text lands
+    // and the key acts on the LANDED state — two separate calls would stale-clobber
+    onTextKey: (text, e, edges) => {
+      const next = applyKey(applyText(state, text), { key: e.key, shift: e.shiftKey }, edges);
+      e.preventDefault();
+      apply(next);
+    },
     onPortion: (index) => apply(focusPortion(state, index)),
     hints,
     onAppend: (path, index) => apply({ ...state, cursor: { at: "hole", path, index, text: "", key: null }, refused: false }),
