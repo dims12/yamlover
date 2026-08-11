@@ -1,0 +1,16 @@
+Markdown
+description: text/markdown - CommonMark, rendered in place; links are native and author-owned
+- >
+  A `.md` file renders as a proper CommonMark page (the `marked` engine, plus `$$...$$` math
+  typeset with KaTeX). Headings get stable `§` anchor ids, GitHub-style, so a deep link like
+  `README.md#section` lands and scrolls.
+- >
+  **The link treaty.** Markdown links in ITS OWN format only - relative file paths
+  (`./sibling.md`, `../other`) - which the renderer resolves against the file's directory and
+  turns into in-app navigation. Yamlover pointer spellings are NOT links here; they belong to
+  [marklower](*::documents:marklower:link-targets).
+- >
+  **The engine never manages them.** Markdown links are not scanned, not rewritten on a move,
+  and not checked by the doctor: moving a file MAY break inbound `.md` links, and the author
+  fixes them by hand. *Far future: broken-link highlighting in the renderer, and
+  engine-managed updates.*

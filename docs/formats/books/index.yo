@@ -1,0 +1,12 @@
+Books and page documents
+description: pdf, epub, fb2, djvu - paged readers with fragments and annotations
+- >
+  Long-form documents get real readers:
+- !!<*yamlover: $defs: bullets>
+  - '`.pdf` - paged viewer (react-pdf) with text selection; FRAGMENTS and annotations attach to regions, so a highlight is an addressable node'
+  - '`.epub` - the packaged book, chapter navigation included'
+  - '`.fb2` - FictionBook, rendered as flowing text'
+  - '`.djvu` - decoded in a worker, paged like PDF'
+- >
+  A book is still one node in the tree: link to it, tag it, cite a fragment of it from a
+  chapter.

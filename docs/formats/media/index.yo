@@ -1,0 +1,10 @@
+Video and audio
+description: native players, streamed from the blob endpoint; body-level figures in chapters
+- >
+  Video (`mp4`, `webm`, `ogg`, `mov`) and audio (`mp3`, `ogg`, `wav`, `flac`, `m4a`, `aac`)
+  members play in native `<video>`/`<audio>` elements, streamed from `/api/blob`.
+- >
+  In a chapter, a media member (`- *: clip.mp4`) renders as its figure; a chunk whose entire
+  text is one media URL (YouTube, Vimeo, a direct file) renders as the provider player behind
+  a click-to-play facade - the allowlist and the no-third-party-scripts-until-clicked rule
+  live in [embeds](*::documents:marklower:embeds).

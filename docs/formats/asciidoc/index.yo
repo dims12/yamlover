@@ -1,0 +1,9 @@
+AsciiDoc
+description: text/asciidoc - Asciidoctor-rendered, same link treaty as Markdown
+- >
+  An `.adoc` file renders through Asciidoctor, with `§` heading anchors and KaTeX math, the
+  same reading surface Markdown gets.
+- >
+  The [link treaty](*..:markdown) is identical: relative file paths only, made navigable by
+  the renderer, never scanned, rewritten, or doctor-checked by the engine. A move may break
+  them; the author owns them.

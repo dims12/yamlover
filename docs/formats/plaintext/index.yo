@@ -1,0 +1,8 @@
+Plain text and source code
+description: text/plain verbatim, with an encoding control; known source languages highlighted
+- >
+  A `text/plain` file renders verbatim at reading width, with an encoding selector for files
+  that are not UTF-8.
+- >
+  Source files of the data languages yamlover itself speaks - `.yo`, JSON, JSON5, JSON5P,
+  YAML - get the same plain reading surface plus syntax highlighting from the shared lexer.

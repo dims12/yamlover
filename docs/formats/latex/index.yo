@@ -1,0 +1,8 @@
+LaTeX
+description: text/x-latex - KaTeX-typeset math, as a page and as a chapter chunk
+- >
+  A `.tex`-flavored file (`text/x-latex`) is typeset with KaTeX. The same machinery serves
+  `$$...$$` math inside [marklower](*::documents:marklower) prose, Markdown, and AsciiDoc -
+  one typesetter everywhere.
+- >
+  As a chapter body element, a LaTeX member renders as a formula chunk in the reading flow.

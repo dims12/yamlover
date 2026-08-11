@@ -1,0 +1,5 @@
+Maps
+description: kml and kmz - placemarks and tracks on a pannable map
+- >
+  A `.kml` or `.kmz` file renders as an interactive map - placemarks, paths, and tracks drawn
+  over tiles, pannable and zoomable in place.

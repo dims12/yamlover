@@ -1,0 +1,6 @@
+HTML
+description: text/html - shown in a sandboxed frame, never merged into the app's DOM
+- >
+  A `.html` file displays inside an `<iframe>` pointed at its own `/api/blob` bytes - the
+  page renders as authored, and its scripts and styles stay in their own browsing context,
+  never in the app's.

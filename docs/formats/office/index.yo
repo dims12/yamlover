@@ -1,0 +1,12 @@
+Office documents
+description: docx, xlsx/xls, rtf - read in place; legacy .doc offered as a download
+- >
+  Word-processor and spreadsheet files render for reading, not editing:
+- !!<*yamlover: $defs: bullets>
+  - '`.docx` - converted and shown as a readable page'
+  - '`.xlsx` / `.xls` - the spreadsheet view, sheet by sheet'
+  - '`.rtf` - rendered rich text'
+  - '`.doc` (Word 97-2003) - no reliable in-browser parser exists, so it is presented honestly: a note and a download link to the raw bytes'
+- >
+  Editing stays in the owning application; yamlover's value is that the document lives IN the
+  tree - addressable, taggable, annotatable like any node.

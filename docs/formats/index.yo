@@ -1,0 +1,25 @@
+Supported foreign formats
+description: what yamlover overlays besides its own - each format, its renderer, and its limits
+- >
+  Yamlover overlays a directory tree, and a tree holds more than `.yo` files. Every foreign
+  file is a first-class **node**: its format is inferred from the extension, its bytes stream
+  from `/api/blob`, and a dedicated renderer shows it in place - as a page of its own and,
+  where it fits, inline in a chapter as a body element. What yamlover does NOT do is pretend
+  to own a foreign format's internals: each subchapter below states exactly how far the
+  integration goes.
+- >
+  [Markdown](*:markdown) and [AsciiDoc](*:asciidoc) come first - the closest relatives of
+  [marklower](*::documents:marklower), with an explicit boundary treaty. The rest are grouped
+  by kin.
+- *: markdown
+- *: asciidoc
+- *: plaintext
+- *: latex
+- *: plantuml
+- *: html
+- *: csv
+- *: office
+- *: books
+- *: images
+- *: media
+- *: maps

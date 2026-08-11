@@ -1,0 +1,6 @@
+PlantUML
+description: text/x-plantuml - the diagram, rendered in place
+- >
+  A `text/x-plantuml` source renders as its diagram, on its own page and inline as a chapter
+  chunk. The format is attachable to any text member via `meta.yo` or a
+  `!!<format: text/x-plantuml>` tag - the source stays the stored truth.

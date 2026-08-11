@@ -1,0 +1,12 @@
+Images
+description: the common rasters and SVG shown directly; TIFF, PSD, HEIC decoded first
+- >
+  `png`, `jpeg`, `gif`, `webp`, `avif`, `bmp`, `ico`, and `svg` display directly, with
+  thumbnails in the tree views. Region FRAGMENTS and annotations attach to an image, so a
+  marked-up photo is an addressable, taggable node.
+- >
+  Formats browsers refuse are decoded client-side first: `tiff`, `psd` (Photoshop, flattened),
+  `heic`.
+- >
+  In a chapter, an image member (`- *: photo.png`) IS the figure - embedding is structural
+  (docs/documents/marklower/embeds), never a text token.

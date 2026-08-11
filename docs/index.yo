@@ -44,9 +44,12 @@ description: YAML with pointers – the language, its storage model, and its doc
   between yamlover shapes, typed like function prototypes. The [documents chapter](*::documents)
   explains the document layer built on top of yamlover—chapters, marklower prose, tables, and lists. The
   [demo server chapter](*::server) documents the web server that serves this book—the UI, projectional
-  editors, their state machines, and annotations.
+  editors, their state machines, and annotations. The
+  [supported foreign formats chapter](*::formats) lists everything else the tree can hold—Markdown,
+  AsciiDoc, office documents, books, images, media, maps—and how far each integration goes.
 - *: language
 - *: meta
 - *: transform
 - *: documents
 - *: server
+- *: formats

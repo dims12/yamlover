@@ -1,0 +1,7 @@
+CSV and TSV
+description: text/csv, text/tab-separated-values - a scrollable grid
+- >
+  A `.csv` or `.tsv` file renders as a table - header row, scrollable grid - on its own page
+  and inline as a chapter chunk. It stays a foreign text file: for a table that is yamlover
+  DATA (editable cells, merges, pointers), use the native
+  [table document](*::documents:marklower:tables).
