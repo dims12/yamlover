@@ -40,7 +40,8 @@ import fs from "node:fs";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, loadSettings, ensureSettingsFile, mv, relinkMoved, relinkRenamed, evalQuery, isBoundaryRow } from "../../../engine/ts/src/index.ts";
+import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, walkTree, loadSettings, ensureSettingsFile, mv, relinkMoved, relinkRenamed, evalQuery, isBoundaryRow } from "../../../engine/ts/src/index.ts";
+import { deadLinkDiagnostics, logDeadLinks } from "./link-check.js";
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { parseJson5p } from "../../../parser/ts/src/json5p.ts";
@@ -382,6 +383,9 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         cachedDoc = doc;
         h.done();
         log(`${label}: +${diff.added.length} ~${diff.changed.length} −${diff.removed.length} →${diff.moved.length}`);
+        // THE LINK INVARIANT, said out loud at startup: a tree with dead prose links is told
+        // so before anyone clicks one (link-check.ts; /api/doctor lists the full set)
+        logDeadLinks(deadLinkDiagnostics(doc, store0, dataRoot), log);
         broadcast(diff);
         scheduleHasher();
         return diff;
@@ -432,6 +436,9 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         }
         h.done();
         log(`reconcile: +${diff.added.length} ~${diff.changed.length} −${diff.removed.length} →${diff.moved.length}`);
+        // the link invariant re-checks after every external change; a relink round nulls the
+        // cached doc (the follow-up reindex is sync), so that pass reports on the NEXT walk
+        if (cachedDoc) logDeadLinks(deadLinkDiagnostics(cachedDoc, store0, dataRoot), log);
         broadcast(diff);
         scheduleHasher();
         return diff;
@@ -516,7 +523,10 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       if (url.pathname === "/api/doctor") {
         try {
           const v = validateTree(scanTree(dataRoot, ignore));
-          sendJson(res, 200, { allowed: v.allowed, diagnostics: v.diagnostics });
+          // THE LINK INVARIANT rides the same sweep: every in-tree prose link must name a
+          // node (link-check.ts). Content warnings, merged after the layout diagnostics.
+          const doc = cachedDoc ?? walkTree(dataRoot, walkOpts).doc;
+          sendJson(res, 200, { allowed: v.allowed, diagnostics: [...v.diagnostics, ...deadLinkDiagnostics(doc, s, dataRoot)] });
         } catch (e) {
           sendJson(res, 500, { error: String((e as Error).message || e) });
         }

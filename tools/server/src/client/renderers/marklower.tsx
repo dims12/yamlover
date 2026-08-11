@@ -7,8 +7,7 @@ import { NodeJson } from "../api";
 import { scalarValue } from "../render";
 import { Chunk } from "./registry";
 import { renderMath } from "./latex";
-import { NavLink } from "../links";
-import { strToSegs, segsToStr } from "../paths";
+import { NavLink, holderOf } from "../links";
 import { embed } from "../embed";
 import { EmbedFigure } from "./embed";
 
@@ -65,15 +64,6 @@ function styleText(text: string): string {
     .replace(/(?<![A-Za-z0-9])__(.+?)__(?![A-Za-z0-9])/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/(?<![A-Za-z0-9])_(.+?)_(?![A-Za-z0-9])/g, "<em>$1</em>");
-}
-
-/** The container mapping a piece of prose belongs to — the frame the relative pointer
- *  scopes (`*name`, `*..: x`) resolve against: a leaf scalar's PARENT. Null for the root. */
-function holderOf(path: string | null | undefined): string | null {
-  if (!path) return null;
-  const segs = strToSegs(path);
-  if (segs.length === 0) return null;
-  return segsToStr(segs.slice(0, -1));
 }
 
 /** Parse marklower into React nodes. Most syntax renders to an HTML string (math,
@@ -162,7 +152,7 @@ export function MarklowerChunk({ chunk, onNavigate }: { chunk: Chunk; onNavigate
     const spec = embed(text, chunk.documentPath);
     if (spec) return <EmbedFigure spec={spec} label="" />;
   }
-  return <Prose nodes={parse(chunk.value, onNavigate, chunk.documentPath, holderOf(chunk.path))} />;
+  return <Prose nodes={parse(chunk.value, onNavigate, chunk.documentPath, chunk.holderPath ?? holderOf(chunk.path))} />;
 }
 
 // --------------------------------------------------------------------------- //

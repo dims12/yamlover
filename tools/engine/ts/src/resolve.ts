@@ -320,6 +320,14 @@ export interface TextLinkRef {
  *  authors its link in a bare data scalar. */
 const PROSE_TEXT_FORMATS = new Set<string | undefined>([undefined, 'text/marklower', 'text/markdown']);
 
+/** PRESENTATIONAL containers exist to render, not to scope: prose inside a bullets item or a
+ *  table cell frames its relative link scopes (`*name`, `*..: x`) at the SAME holder as prose
+ *  in a top-level `- >` block — the wrapper is transparent. A format-less container INSIDE one
+ *  (a table row — `$defs/table`'s anonymous items array is never stamped) is transparent too;
+ *  a stamped structural cell (an untagged container cell folds as `x-yamlover-chapter`) resets
+ *  the frame normally. The client renderers thread the same law (list.tsx/table.tsx). */
+const PRESENTATIONAL_FORMATS = new Set(['x-yamlover-bullets', 'x-yamlover-numbered', 'x-yamlover-table']);
+
 /** The store path a link-target pointer NOMINALLY addresses, given its frames. Mirrors
  *  rewrite.ts nominalPath, over a TextLinkRef's frames instead of a ResolvedEdge. */
 export function textLinkPath(ptr: Pointer, holder: string, docRoot: string): string | null {
@@ -356,18 +364,22 @@ export function textLinkPath(ptr: Pointer, holder: string, docRoot: string): str
  *  (planRewrites) decides which targets a move strands and rewrites/reports them. */
 export function scanTextLinks(doc: Document): TextLinkRef[] {
   const out: TextLinkRef[] = [];
-  const walk = (node: Node, base: string, parent: string, docRoot: string, uri: string | null, entrySpan: Span | null): void => {
+  const walk = (node: Node, base: string, parent: string, docRoot: string, uri: string | null, entrySpan: Span | null, inPres: boolean): void => {
     const dr = isDocumentBoundary(node) ? base : docRoot;
     const u = node.meta?.span?.uri ?? uri;
+    // presentational wrappers are TRANSPARENT frames — a bullets/table node (and a stampless
+    // row inside one) hands its OWN frame down instead of becoming one
+    const fmt = node.meta?.derivedFormat;
+    const pres = PRESENTATIONAL_FORMATS.has(fmt as string) || (inPres && fmt === undefined);
     // an OMNI is scalar-kinded AND carries entries — scan the scalar text, then STILL descend
     // (uniform over array/omni/mix/scalar; no shape special-cases)
     if (node.kind === 'scalar' && typeof node.value === 'string' && PROSE_TEXT_FORMATS.has(node.meta?.derivedFormat)) {
       // the search region: the scalar's own span (a whole-file scalar spans its file — value
       // offsets ARE file offsets), else the holding entry's span (key through last value line)
       const span = node.meta?.span ?? entrySpan;
-      // the relative-scope frame: a leaf scalar's prose belongs to its PARENT mapping; an
-      // omni's own text belongs to the omni itself
-      const holder = node.entries ? base : parent;
+      // the relative-scope frame: a leaf scalar's prose belongs to its PARENT mapping (through
+      // any presentational wrappers); an omni's own text belongs to the omni itself
+      const holder = node.entries && !pres ? base : parent;
       for (const l of linkTargets(node.value)) {
         const t = parseLinkTarget(l.target);
         if (t.kind === 'pointer') {
@@ -390,12 +402,14 @@ export function scanTextLinks(doc: Document): TextLinkRef[] {
       }
     }
     const prefix = base === ':' ? '' : base;
+    // a presentational node hands DOWN the frame it received; anything else IS the frame
+    const frame = pres ? parent : base;
     node.entries?.forEach((e, i) => {
       if (isPointer(e.value)) return;
-      walk(e.value, prefix + ':' + segToken(e.nullKey === true ? null : e.key ?? i), base, dr, u, e.meta?.span ?? null);
+      walk(e.value, prefix + ':' + segToken(e.nullKey === true ? null : e.key ?? i), frame, dr, u, e.meta?.span ?? null, pres);
     });
   };
-  walk(doc.root, ':', ':', ':', doc.source?.uri ?? null, null);
+  walk(doc.root, ':', ':', ':', doc.source?.uri ?? null, null, false);
   return out;
 }
 

@@ -80,6 +80,9 @@ export type DiagnosticCode =
   | "layout/orphan-overlay"
   | "layout/duplicate-overlay"
   | "layout/concrete-mismatch"
+  // link — prose-link invariants (the doctor sweep; gathered server-side from the walked
+  // doc + store, since a link target's existence is content, not layout)
+  | "link/dead-target"
   // value — RESERVED for meta.yo (docs/meta)
   | "value/type"
   | "value/required"
@@ -108,8 +111,12 @@ export type ValidationVerdict =
   | { allowed: true; diagnostics: Diagnostic[] }
   | { allowed: false; reason: string; diagnostics: Diagnostic[] };
 
-/** Every code's severity unless {@link ValidateOptions.severity} says otherwise. */
-const DEFAULT_SEVERITY: Partial<Record<DiagnosticCode, Severity>> = { "layout/off-scheme-name": "warning" };
+/** Every code's severity unless {@link ValidateOptions.severity} says otherwise. A dead link
+ *  is CONTENT, not corruption — a warning, so production `refuse` mode logs it and proceeds. */
+const DEFAULT_SEVERITY: Partial<Record<DiagnosticCode, Severity>> = {
+  "layout/off-scheme-name": "warning",
+  "link/dead-target": "warning",
+};
 
 // --------------------------------------------------------------------------- //
 // Snapshots — the caller gathers, this module decides (the DirTargetState precedent)

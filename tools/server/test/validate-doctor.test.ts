@@ -77,6 +77,36 @@ describe("GET /api/doctor — corruption is found", () => {
   });
 });
 
+describe("GET /api/doctor — THE LINK INVARIANT (dead prose links are warnings)", () => {
+  it("a link that names no node is a link/dead-target warning; live and reserved links are not", async () => {
+    const d = await doctor(
+      tmpTree({
+        "target.md": "T\n",
+        "note.yo": 'a: "live [x](*::target.md) dead [y](*::nowhere.md) reserved [z](&some:mark)"\n',
+      }),
+    );
+    expect(d.allowed).toBe(true); // content, not corruption — a warning never refuses
+    const dead = d.diagnostics.filter((x) => x.code === "link/dead-target");
+    expect(dead).toHaveLength(1);
+    expect(dead[0].message).toContain(":nowhere.md");
+    expect(dead[0].fsPath).toBe("note.yo");
+  });
+
+  it("the bare alias and relative scopes are checked with the same frames navigation uses", async () => {
+    const d = await doctor(
+      tmpTree({
+        "P/holder/index.yo": "Holder\n- >\n  ok [a](*..:target) dead [b](*..:gone) alias-dead [c](::absent)\n",
+        "P/target/index.yo": "Target\n",
+        "P/index.yo": "P\n- *: holder\n- *: target\n",
+      }),
+    );
+    const dead = d.diagnostics.filter((x) => x.code === "link/dead-target").map((x) => x.message);
+    expect(dead).toHaveLength(2);
+    expect(dead.some((m) => m.includes(":P:gone"))).toBe(true);
+    expect(dead.some((m) => m.includes(":absent"))).toBe(true);
+  });
+});
+
 describe("GET /api/doctor — the examples sweep", () => {
   // Every fixture the project ships must be clean. This is the net that keeps a new rule honest:
   // an over-eager rule breaks here long before it can reject a user's legitimate edit.

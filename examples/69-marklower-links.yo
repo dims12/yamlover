@@ -26,9 +26,9 @@ A Tour of marklower Links
 - Project-root links
   - |
     A `*::path` link is anchored at the **project root** — the directory yamlover was
-    served. Served from the repo, a sibling example is at
-    [*::examples:68-math-chapter](*::examples:68-math-chapter), or one formula in it
-    at [*::examples:68-math-chapter:2](*::examples:68-math-chapter:2).
+    served. Served from the examples directory, a sibling example is at
+    [*::68-math-chapter](*::68-math-chapter), or one formula in it
+    at [*::68-math-chapter:2](*::68-math-chapter:2).
 - Parent and current scope
   notes: a keyed member of this section — `*notes` lands here
   - |
@@ -43,7 +43,7 @@ A Tour of marklower Links
     engine writes when a move rewrites a link.
   - |
     The **slash** spellings are legacy-frozen: the document-relative [/0](/0) and the
-    project-rooted [//examples/68-math-chapter](//examples/68-math-chapter) still navigate,
+    project-rooted [//68-math-chapter](//68-math-chapter) still navigate,
     written never.
 - External targets and the reserved sigil
   - |

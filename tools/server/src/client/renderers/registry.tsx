@@ -98,6 +98,11 @@ export interface Chunk {
    *  chapter's `documentPath`) — the anchor a document-relative (`/…`) marklower
    *  link in the chunk resolves against. */
   documentPath?: string;
+  /** The frame the chunk's RELATIVE link scopes (`*name`, `*..: x`) resolve against, when
+   *  the container knows better than `holderOf(path)` — presentational wrappers (bullets,
+   *  tables) are transparent, so their renderers pass their OWN frame down (the same law
+   *  the engine's scanTextLinks applies). Unset: the chunk's parent path. */
+  holderPath?: string | null;
 }
 
 /** How a node appears in the TOC. `children` are the rows shown beneath it;

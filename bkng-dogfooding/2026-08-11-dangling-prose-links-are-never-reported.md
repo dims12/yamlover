@@ -6,6 +6,21 @@
 **Severity:** medium — no data loss, but a whole tree's cross-references can go dead invisibly
 **Note:** directory and node names below are anonymized placeholders (`P`, `holder`, `target`,
 `sib`). Only the tree *shape* and the ref *spellings* are reproduced.
+**Resolved:** 2026-08-11 — the INVARIANT is now the system's, not a side script's. (1) The
+doctor learned links: `link/dead-target` warnings (validate.ts + server/link-check.ts, the
+same `scanTextLinks` frames the planner and the client use), listed by `/api/doctor`, logged
+at startup and on every reconcile (first 8 spelled out + a count). The examples sweep now
+enforces it on everything the repo ships — and its first run caught 3 dead links in our own
+docs/examples, fixed. `linkcheck.mjs` is thereby retired (kept beside this report as the
+origin story). (2) The client marks a dead in-tree intent VISIBLY (`.deadlink`, wavy danger
+underline + title) — a pointer-spelled target that cannot resolve, and the reserved `&…`,
+never degrade to silent plain text. (3) Presentational containers are TRANSPARENT frames on
+both sides: `*..:sib` inside a `bullets` item or a table cell means exactly what it means in
+a `- >` block (engine `PRESENTATIONAL_FORMATS` skip in scanTextLinks; client `holderPath`
+threading through list/table renderers) — pinned by the bullets repro from this report in
+`relink-links.test.ts`. (4) The `*:x` re-scoping (Defect 3) needs no code: the doctor warning
+IS the migration diagnostic — release-note line added below. Frame law documented in
+`link-targets/index.yo`.
 
 ## Summary
 

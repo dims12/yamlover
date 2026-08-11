@@ -180,3 +180,24 @@ test('relink-links: a stale `&` bookmark link is REPORTED, never rewritten, neve
   assert.equal(r.unrewritten[0].raw, '[m](&::marks:x.md)');
   assert.match(r.unrewritten[0].reason, /reserved/);
 });
+
+test('relink-links: presentational containers are TRANSPARENT frames (the bullets repro)', () => {
+  const root = tmpRoot();
+  mkdirSync(join(root, 'P', 'holder'), { recursive: true });
+  mkdirSync(join(root, 'P', 'target'), { recursive: true });
+  writeFileSync(join(root, 'P', 'target', 'index.yo'), 'Target\ndescription: t\n');
+  writeFileSync(join(root, 'P', 'index.yo'), 'P\ndescription: p\n- *: holder\n- *: target\n');
+  // the SAME parent-scope spelling in a `- >` block and inside a bullets item — one meaning
+  writeFileSync(
+    join(root, 'P', 'holder', 'index.yo'),
+    "Holder\ndescription: h\n- >\n  block [t](*..:target)\n- !!<*yamlover: $defs: bullets>\n  - 'bullet [t](*..:target)'\n",
+  );
+
+  const r = mv(root, 'P/target', 'moved');
+  // BOTH links rewrote — the bullets wrapper did not shift the frame, and nothing went silent
+  assert.equal(
+    readFileSync(join(root, 'P', 'holder', 'index.yo'), 'utf8'),
+    "Holder\ndescription: h\n- >\n  block [t](*::moved)\n- !!<*yamlover: $defs: bullets>\n  - 'bullet [t](*::moved)'\n",
+  );
+  assert.deepEqual(r.unrewritten, []);
+});

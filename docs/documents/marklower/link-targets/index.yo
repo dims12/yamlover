@@ -21,9 +21,16 @@ description: the parens hold a yamlover expression - sigiled pointers, the bare 
   context. A position is the **bare integer** segment (`*:2`, `*::a:0`); the retired bracket
   index reads forever as an alias, written never.
 - >
+  **Presentational containers are transparent frames.** A `bullets`/`numbered` item and a table
+  cell exist to render, not to scope: `*name` and `*..: x` there mean exactly what they mean in
+  a plain `- >` block - the wrapper hands its own frame through. A *structural* cell (an
+  untagged container cell folds as a chapter) is a real frame and resets normally. A link that
+  still resolves to nothing is a **doctor warning** (`link/dead-target`), logged at startup and
+  on every reconcile, and renders visibly broken - never as silent plain text.
+- >
   The **bare colon form** - `(::a:b)`, `(:a:b)` - is the same pointer without its sigil, and
   reads **forever** as an alias; the sigiled form is what the engine emits when a
-  [move](*::server:engine) rewrites a link. The legacy slash spellings (`/a/b`
+  [move](*::server) rewrites a link. The legacy slash spellings (`/a/b`
   document-relative, `//a/b` project-rooted) still navigate but are frozen - written never.
   Anything else does not resolve, and the label renders as plain text.
   `examples/69-marklower-links.yo` is a tour of the flavours.

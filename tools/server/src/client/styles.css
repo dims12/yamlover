@@ -994,6 +994,13 @@ pre.code.chapter-data {
   scroll-margin-top: 12px;
 }
 /* an external (off-tree) marklower link — solid underline marks it leaves the app */
+/* a DEAD in-tree link — the author wrote a pointer target that resolves to nothing (or a
+   reserved `&…` bookmark): visibly broken where it stands, never silent plain text */
+.deadlink {
+  text-decoration: underline wavy var(--danger);
+  text-underline-offset: 2px;
+  cursor: help;
+}
 .extlink {
   color: var(--accent);
   text-decoration: underline;

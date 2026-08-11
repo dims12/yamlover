@@ -111,7 +111,7 @@
               "edge": "contain",
               "value": {
                 "kind": "scalar",
-                "value": "A `*::path` link is anchored at the **project root** — the directory yamlover was\nserved. Served from the repo, a sibling example is at\n[*::examples:68-math-chapter](*::examples:68-math-chapter), or one formula in it\nat [*::examples:68-math-chapter:2](*::examples:68-math-chapter:2).\n",
+                "value": "A `*::path` link is anchored at the **project root** — the directory yamlover was\nserved. Served from the examples directory, a sibling example is at\n[*::68-math-chapter](*::68-math-chapter), or one formula in it\nat [*::68-math-chapter:2](*::68-math-chapter:2).\n",
                 "array": false,
                 "set": false,
                 "yo": false,
@@ -191,7 +191,7 @@
               "edge": "contain",
               "value": {
                 "kind": "scalar",
-                "value": "The **slash** spellings are legacy-frozen: the document-relative [/0](/0) and the\nproject-rooted [//examples/68-math-chapter](//examples/68-math-chapter) still navigate,\nwritten never.\n",
+                "value": "The **slash** spellings are legacy-frozen: the document-relative [/0](/0) and the\nproject-rooted [//68-math-chapter](//68-math-chapter) still navigate,\nwritten never.\n",
                 "array": false,
                 "set": false,
                 "yo": false,

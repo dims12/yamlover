@@ -26,6 +26,7 @@ import { useSubtreeDiffBump } from "../live";
 import { childPath, escapeYamloverScalar } from "./chapter-model";
 import { ListBody, listKind } from "./list";
 import { MarklowerChunk } from "./marklower";
+import { holderOf } from "../links";
 import { MarklowerChunkEditor } from "./chunk-editors";
 import { useEditing } from "./editing";
 import { Chunk } from "./registry";
@@ -151,8 +152,8 @@ export function computeSpans(grid: TableGrid): Spans {
 // Cells
 // ---------------------------------------------------------------------------- //
 
-function proseChunk(cell: CellModel, documentPath?: string): Chunk {
-  return { value: cell.value, path: cell.path, type: "string", format: "text/marklower", documentPath };
+function proseChunk(cell: CellModel, documentPath?: string, holderPath?: string | null): Chunk {
+  return { value: cell.value, path: cell.path, type: "string", format: "text/marklower", documentPath, holderPath };
 }
 
 /** An editable prose cell: its own local text state and a debounced single-op emplace — the
@@ -209,12 +210,16 @@ function CellContent({
   cell,
   tablePath,
   documentPath,
+  holderPath,
   unlocked,
   onNavigate,
 }: {
   cell: CellModel;
   tablePath: string;
   documentPath?: string;
+  /** The TABLE's own frame — the table and its rows are presentational, so cell prose
+   *  frames where the table does; an untagged (chapter) cell resets the frame itself. */
+  holderPath?: string | null;
   unlocked: boolean;
   onNavigate: (path: string) => void;
 }) {
@@ -240,11 +245,11 @@ function CellContent({
   if (mixed?.format === "x-yamlover-table") {
     // a NESTED table — entering only by its explicit tag; the stamped format on the
     // mixed marker is what tells it apart from an untagged (chapter) container cell
-    return <Grid value={cell.value} path={cell.path} documentPath={documentPath} onNavigate={onNavigate} caption />;
+    return <Grid value={cell.value} path={cell.path} documentPath={documentPath} holderPath={holderPath} onNavigate={onNavigate} caption />;
   }
   if (mixed?.format === "x-yamlover-bullets" || mixed?.format === "x-yamlover-numbered") {
     // a tagged LIST cell — bullets / numbered (docs/documents/marklower/lists)
-    return <ListBody value={cell.value} path={cell.path} kind={listKind(mixed.format)} documentPath={documentPath} onNavigate={onNavigate} />;
+    return <ListBody value={cell.value} path={cell.path} kind={listKind(mixed.format)} documentPath={documentPath} holderPath={holderPath} onNavigate={onNavigate} />;
   }
   if ((mixed && mixed.kind !== "omni") || Array.isArray(cell.value)) {
     // an UNTAGGED container cell IS a CHAPTER — the table schema consumes exactly two
@@ -253,7 +258,7 @@ function CellContent({
   }
   if (mixed) {
     // an omni SCALAR cell (an annotated / width-carrying scalar): render its self-value as prose
-    return <MarklowerChunk chunk={proseChunk({ value: scalarValue(cell.value), path: cell.path }, documentPath)} onNavigate={onNavigate} />;
+    return <MarklowerChunk chunk={proseChunk({ value: scalarValue(cell.value), path: cell.path }, documentPath, holderPath)} onNavigate={onNavigate} />;
   }
   const link = asLink(cell.value);
   if (link) {
@@ -271,7 +276,7 @@ function CellContent({
     );
   }
   if (unlocked) return <EditableCell key={cell.path} cell={cell} tablePath={tablePath} onNavigate={onNavigate} />;
-  return <MarklowerChunk chunk={proseChunk(cell, documentPath)} onNavigate={onNavigate} />;
+  return <MarklowerChunk chunk={proseChunk(cell, documentPath, holderPath)} onNavigate={onNavigate} />;
 }
 
 /** A CHAPTER cell (docs/documents/marklower/tables/cells): the UNTAGGED container cell — the table schema
@@ -345,16 +350,21 @@ export function Grid({
   value,
   path,
   documentPath,
+  holderPath,
   onNavigate,
   caption,
 }: {
   value: unknown;
   path: string;
   documentPath?: string;
+  /** The frame cell prose resolves relative scopes against — the table is presentational,
+   *  so it hands its OWN frame to every cell. Defaults to the table's parent. */
+  holderPath?: string | null;
   onNavigate: (path: string) => void;
   caption?: boolean; // render the title as a <caption> (the inline/nested form)
 }) {
   const { unlocked } = useEditing();
+  const frame = holderPath ?? holderOf(path);
   const grid = buildTableGrid(value, path);
   if (!grid.rows.length) return <p className="csv-empty">(empty table)</p>;
   const spans = computeSpans(grid);
@@ -371,7 +381,7 @@ export function Grid({
           if (sp === null) return null; // a merged-region member — the origin spans over it
           return (
             <Tag key={cell.path} data-node-path={cell.path} colSpan={sp?.colSpan} rowSpan={sp?.rowSpan}>
-              <CellContent cell={cell} tablePath={path} documentPath={documentPath} unlocked={unlocked} onNavigate={onNavigate} />
+              <CellContent cell={cell} tablePath={path} documentPath={documentPath} holderPath={frame} unlocked={unlocked} onNavigate={onNavigate} />
             </Tag>
           );
         })}
@@ -447,8 +457,8 @@ export function TableChunk({ chunk, onNavigate }: { chunk: Chunk; onNavigate: (p
     };
   }, [chunk.path, inline, bump]);
 
-  if (inline) return <Grid value={chunk.value} path={chunk.path} documentPath={chunk.documentPath} onNavigate={onNavigate} caption />;
+  if (inline) return <Grid value={chunk.value} path={chunk.path} documentPath={chunk.documentPath} holderPath={chunk.holderPath ?? holderOf(chunk.path)} onNavigate={onNavigate} caption />;
   if (error) return <p className="csv-empty">table failed to load: {error}</p>;
   if (!node) return <p className="csv-empty">…</p>;
-  return <Grid value={node.value} path={node.path} documentPath={node.documentPath ?? chunk.documentPath} onNavigate={onNavigate} caption />;
+  return <Grid value={node.value} path={node.path} documentPath={node.documentPath ?? chunk.documentPath} holderPath={chunk.holderPath ?? holderOf(chunk.path)} onNavigate={onNavigate} caption />;
 }

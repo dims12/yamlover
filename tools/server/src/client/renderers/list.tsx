@@ -11,6 +11,7 @@ import { asLink, asMixed, asRef } from "../render";
 import { useSubtreeDiffBump } from "../live";
 import { childPath } from "./chapter-model";
 import { MarklowerChunk } from "./marklower";
+import { holderOf } from "../links";
 import { Grid } from "./table";
 import { Chunk } from "./registry";
 
@@ -40,12 +41,16 @@ function ListItem({
   path,
   kind,
   documentPath,
+  holderPath,
   onNavigate,
 }: {
   value: unknown;
   path: string;
   kind: ListKind;
   documentPath?: string;
+  /** The list container's OWN frame — presentational wrappers are transparent, so every
+   *  item's prose (at any nesting depth) frames where the list itself does. */
+  holderPath?: string | null;
   onNavigate: (path: string) => void;
 }) {
   const ref = asRef(value);
@@ -67,8 +72,8 @@ function ListItem({
   }
   const mixed = asMixed(value);
   if (mixed?.format === "x-yamlover-table") {
-    // an explicitly tagged table inside a list item — an inline grid
-    return <Grid value={value} path={path} documentPath={documentPath} onNavigate={onNavigate} caption />;
+    // an explicitly tagged table inside a list item — an inline grid; the frame passes through
+    return <Grid value={value} path={path} documentPath={documentPath} holderPath={holderPath} onNavigate={onNavigate} caption />;
   }
   if (mixed || Array.isArray(value)) {
     // an untagged container item is a nested sublist of the SAME kind (any-depth rule);
@@ -79,6 +84,7 @@ function ListItem({
         path={path}
         kind={mixed?.format ? listKind(mixed.format) : kind}
         documentPath={documentPath}
+        holderPath={holderPath}
         onNavigate={onNavigate}
       />
     );
@@ -89,7 +95,7 @@ function ListItem({
     if (self == null) return sublist;
     return (
       <>
-        <MarklowerChunk chunk={{ value: self, path, type: "string", format: "text/marklower", documentPath }} onNavigate={onNavigate} />
+        <MarklowerChunk chunk={{ value: self, path, type: "string", format: "text/marklower", documentPath, holderPath }} onNavigate={onNavigate} />
         {sublist}
       </>
     );
@@ -111,7 +117,7 @@ function ListItem({
   }
   return (
     <MarklowerChunk
-      chunk={{ value, path, type: "string", format: "text/marklower", documentPath }}
+      chunk={{ value, path, type: "string", format: "text/marklower", documentPath, holderPath }}
       onNavigate={onNavigate}
     />
   );
@@ -122,15 +128,20 @@ export function ListBody({
   path,
   kind,
   documentPath,
+  holderPath,
   onNavigate,
 }: {
   value: unknown;
   path: string;
   kind: ListKind;
   documentPath?: string;
+  /** The frame every item's relative link scope resolves against — the list container's own
+   *  holder (presentational transparency). Defaults to the list's parent. */
+  holderPath?: string | null;
   onNavigate: (path: string) => void;
 }) {
   const Tag = kind === "numbered" ? "ol" : "ul";
+  const frame = holderPath ?? holderOf(path);
   return (
     <Tag className={`yl-list yl-list-${kind}`}>
       {itemEntries(value).map((e, i) => {
@@ -138,7 +149,7 @@ export function ListBody({
         const p = childPath(path, i);
         return (
           <li key={p} data-node-path={p}>
-            <ListItem value={e.value} path={p} kind={kind} documentPath={documentPath} onNavigate={onNavigate} />
+            <ListItem value={e.value} path={p} kind={kind} documentPath={documentPath} holderPath={frame} onNavigate={onNavigate} />
           </li>
         );
       })}
@@ -175,7 +186,7 @@ export function ListChunk({ chunk, onNavigate }: { chunk: Chunk; onNavigate: (pa
   }, [chunk.path, inline, bump]);
 
   const kind = listKind(chunk.format);
-  if (inline) return <ListBody value={chunk.value} path={chunk.path} kind={kind} documentPath={chunk.documentPath} onNavigate={onNavigate} />;
+  if (inline) return <ListBody value={chunk.value} path={chunk.path} kind={kind} documentPath={chunk.documentPath} holderPath={chunk.holderPath ?? holderOf(chunk.path)} onNavigate={onNavigate} />;
   if (error) return <p className="csv-empty">list failed to load: {error}</p>;
   if (!node) return <p className="csv-empty">…</p>;
   return (
@@ -184,6 +195,7 @@ export function ListChunk({ chunk, onNavigate }: { chunk: Chunk; onNavigate: (pa
       path={node.path}
       kind={listKind(node.format ?? chunk.format)}
       documentPath={node.documentPath ?? chunk.documentPath}
+      holderPath={chunk.holderPath ?? holderOf(chunk.path)}
       onNavigate={onNavigate}
     />
   );

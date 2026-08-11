@@ -60,4 +60,18 @@ describe("NavLink", () => {
     expect(container.querySelector("a")).toBeNull();
     expect(container.textContent).toBe("label");
   });
+
+  it("marks an IN-TREE intent that cannot resolve as a DEAD link, never silent plain text", () => {
+    // a relative scope with no holder frame — the author wrote a pointer; say it's broken
+    const { container } = render(<NavLink target="*..:sib" documentPath=":doc" onNavigate={() => {}}>up</NavLink>);
+    const dead = container.querySelector("span.deadlink") as HTMLElement;
+    expect(dead).not.toBeNull();
+    expect(dead.title).toContain("*..:sib");
+    expect(container.querySelector("a")).toBeNull();
+  });
+
+  it("marks a reserved `&…` bookmark target the same way (visibly inert)", () => {
+    const { container } = render(<NavLink target="&marks:x" onNavigate={() => {}}>mark</NavLink>);
+    expect(container.querySelector("span.deadlink")).not.toBeNull();
+  });
 });

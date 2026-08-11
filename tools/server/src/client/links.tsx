@@ -25,14 +25,30 @@ import { Seg, segsToStr, strToSegs } from "./paths";
  */
 
 /** A link's resolved destination. Exactly one of `path` (an in-app JSON-space path
- *  for SPA navigation) or `href` (an external URL) is set; both null means the
- *  target did not resolve and the link renders as plain text. */
+ *  for SPA navigation) or `href` (an external URL) is set. Both null: `dead` says
+ *  whether the AUTHOR meant an in-tree link (a pointer/anchor expression that failed
+ *  to resolve — rendered visibly broken, never silently as plain text) or the target
+ *  was never a link at all (plain text). */
 export interface ResolvedLink {
   path: string | null;
   href: string | null;
+  dead?: boolean;
 }
 
 const UNRESOLVED: ResolvedLink = { path: null, href: null };
+const DEAD: ResolvedLink = { path: null, href: null, dead: true };
+
+/** The container mapping a piece of prose belongs to — the frame the relative pointer
+ *  scopes (`*name`, `*..: x`) resolve against: a leaf scalar's PARENT. Null for the root.
+ *  Presentational wrappers (bullets, tables) are TRANSPARENT: their renderers pass their
+ *  own frame down instead of letting items re-derive it from their paths — the same law
+ *  the engine's scanTextLinks applies, so navigation and moves can never disagree. */
+export function holderOf(path: string | null | undefined): string | null {
+  if (!path) return null;
+  const segs = strToSegs(path);
+  if (segs.length === 0) return null;
+  return segsToStr(segs.slice(0, -1));
+}
 
 /** Tokenize a slash-spelled link target (`/a/b/0`, legacy `/a/b[0]`) into segments — the
  *  bare-token typing rule (bare digits = position, `~` = the null key, quotes = string key),
@@ -92,7 +108,9 @@ export function resolveLink(target: string, documentPath = ":", holderPath: stri
   switch (t.kind) {
     case "pointer": {
       const path = pointerPath(t.ptr, documentPath, holderPath);
-      return path === null ? UNRESOLVED : { path, href: null };
+      // an in-tree intent that cannot resolve is DEAD, not plain text — the author wrote
+      // a pointer; silence would hide the breakage (the dangling-prose-links report)
+      return path === null ? DEAD : { path, href: null };
     }
     case "external":
       return { path: null, href: t.href };
@@ -101,9 +119,10 @@ export function resolveLink(target: string, documentPath = ":", holderPath: stri
       if (raw.startsWith("//")) return { path: segsToStr(slashSegs(raw)), href: null }; // legacy project root
       return { path: segsToStr([...strToSegs(documentPath), ...slashSegs(raw)]), href: null }; // legacy doc-relative
     }
-    case "anchor": // RESERVED — TODO(annotations refactor): bookmark-link behavior
+    case "anchor":
+      return DEAD; // RESERVED — TODO(annotations refactor): bookmark-link behavior; visibly inert meanwhile
     case "unresolved":
-      return UNRESOLVED;
+      return UNRESOLVED; // never a link — plain prose stays plain
   }
 }
 
@@ -124,7 +143,7 @@ export function NavLink({
   onNavigate: (path: string) => void;
   children: ReactNode;
 }) {
-  const { path, href } = resolveLink(target, documentPath, holderPath ?? null);
+  const { path, href, dead } = resolveLink(target, documentPath, holderPath ?? null);
   if (href) {
     return (
       <a className="extlink" href={href} target="_blank" rel="noopener noreferrer">
@@ -144,6 +163,14 @@ export function NavLink({
       >
         {children}
       </a>
+    );
+  }
+  if (dead) {
+    // the author wrote an in-tree link that resolves to nothing — say so where it stands
+    return (
+      <span className="deadlink" title={`link target does not resolve: ${target}`}>
+        {children}
+      </span>
     );
   }
   return <>{children}</>;
