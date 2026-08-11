@@ -2,5 +2,5 @@ Composition
 description: anyOf, oneOf, allOf, not - the boolean algebra, kept
 - >
   TBD - the combinators, kept from JSON Schema: types are predicates, so the boolean combinators are
-  the whole algebra ([matching](::language:model:matching)). A heterogeneous positional body is an
+  the whole algebra ([matching](*::language:model:matching)). A heterogeneous positional body is an
   `items` union, and `allOf` over a schema pointer is the provisional "extends".

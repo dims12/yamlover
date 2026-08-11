@@ -12,7 +12,7 @@ description: the table_cell_editing state
       width: 4
     - 'Next state'
       width: 2
-  - ['`enter`', 'plain - splitProse - the cell becomes a container of chunks, the caret in the tail; a SCALAR row wraps to its one cell FIRST (its entries are cells - splitting it directly would mint a phantom column); a join that reduces the chunks back to ONE paragraph FOLDS the cell back to its scalar (the exact inverse - no one-item husk)', '[chapter_prose_editing](::server:chapter-editor:chapter_prose_editing)']
+  - ['`enter`', 'plain - splitProse - the cell becomes a container of chunks, the caret in the tail; a SCALAR row wraps to its one cell FIRST (its entries are cells - splitting it directly would mint a phantom column); a join that reduces the chunks back to ONE paragraph FOLDS the cell back to its scalar (the exact inverse - no one-item husk)', '[chapter_prose_editing](*::server:chapter-editor:chapter_prose_editing)']
   - ['`enter`', 'ctrl - appendRow - a fresh row of the table''s width, from anywhere IN the table (a cell, or a split cell''s inner chunks)', '`table_cell_editing` (stays)']
   - ['`backspace`', 'mid-text - native char delete', '`table_cell_editing` (stays)']
   - ['`backspace`', 'at a cell''s start - THE TABLE UNWIND LADDER - the caret steps into the previous cell and deletion continues there (walking out of the table past its first cell)', '`table_cell_editing` (stays)']
@@ -22,9 +22,9 @@ description: the table_cell_editing state
   - ['`tab`', 'at a SINGLE row''s end - appendColumn - the creation flow grows the width', '`table_cell_editing` (stays)']
   - ['`tab`', 'at the VERY last cell - appendRow - the width is fixed past row one', '`table_cell_editing` (stays)']
   - ['`shift_tab`', 'not the first cell - cellWalk -1', '`table_cell_editing` (stays)']
-  - ['`shift_tab`', 'the first cell - never un-appends', '[nop](::server:yamlover-editor:nop)']
+  - ['`shift_tab`', 'the first cell - never un-appends', '[nop](*::server:yamlover-editor:nop)']
   - ['`up_down_arrow`', 'an adjacent row exists - a GRID move - the same column, one row up/down', '`table_cell_editing` (stays)']
-  - ['`up_down_arrow`', 'the top/bottom edge - the caret LEAVES the table; past the DOCUMENT''s last stop, ↓ ADDS a fresh chunk right AFTER THE TABLE in the table''s own container - a table inside a subchapter grows the subchapter, never the root (and never spamming empties)', '[chapter_prose_editing](::server:chapter-editor:chapter_prose_editing)']
+  - ['`up_down_arrow`', 'the top/bottom edge - the caret LEAVES the table; past the DOCUMENT''s last stop, ↓ ADDS a fresh chunk right AFTER THE TABLE in the table''s own container - a table inside a subchapter grows the subchapter, never the root (and never spamming empties)', '[chapter_prose_editing](*::server:chapter-editor:chapter_prose_editing)']
   - ['`left_right_arrow`', 'at the cell''s start/end edge - cellWalk - the caret hops to the previous/next cell', '`table_cell_editing` (stays)']
   - ['`left_right_arrow`', 'mid-text - native editing', '`table_cell_editing` (stays)']
   - ['`plus_buttons`', '+ row / + col show while the caret is in the grid; a scalar row becomes its two-cell array on + col', '`table_cell_editing` (stays)']

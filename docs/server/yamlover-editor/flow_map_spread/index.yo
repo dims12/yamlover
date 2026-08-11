@@ -16,7 +16,7 @@ description: the flow_map_spread state
   one, or steps onto the last cell. THE NEWLINE GESTURE. A comma keeps the next pair on this line;
   ENTER puts it on the next one, which SPREADS the token - one pair per row, the closer alone on
   the last. On disk that is an inline concrete switch to json5p (the
-  [concretes](::language:concretes) Collection style),
+  [concretes](*::language:concretes) Collection style),
   so it is written by json5p's own serializer. The cells and the comma/closer grammar are
   unchanged; only the layout differs. A container json5p cannot hold - a keyed+keyless MIXTURE -
   does not spread, and the pair simply opens inline. Backspace just past the closer JOINS the
@@ -29,10 +29,10 @@ description: the flow_map_spread state
       width: 4
     - 'Next state'
       width: 2
-  - ['`key_colon_space`', '', '[value_hole](::server:yamlover-editor:value_hole)']
-  - ['`close_brace`', '', '[scalar_committed](::server:yamlover-editor:scalar_committed)']
+  - ['`key_colon_space`', '', '[value_hole](*::server:yamlover-editor:value_hole)']
+  - ['`close_brace`', '', '[scalar_committed](*::server:yamlover-editor:scalar_committed)']
   - ['`comma`', '', '`flow_map_spread` (stays)']
   - ['`enter`', 'otherwise', '`flow_map_spread` (stays)']
-  - ['`backspace`', 'the inner cell is empty and it is the only one', '[empty_cell_of_origin](::server:yamlover-editor:empty_cell_of_origin)']
-  - ['`backspace`', 'the caret is past the closer', '[flow_map_editing](::server:yamlover-editor:flow_map_editing)']
+  - ['`backspace`', 'the inner cell is empty and it is the only one', '[empty_cell_of_origin](*::server:yamlover-editor:empty_cell_of_origin)']
+  - ['`backspace`', 'the caret is past the closer', '[flow_map_editing](*::server:yamlover-editor:flow_map_editing)']
   - ['`backspace`', 'otherwise', '`flow_map_spread` (stays)']

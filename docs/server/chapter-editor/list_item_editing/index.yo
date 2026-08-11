@@ -12,8 +12,8 @@ description: the list_item_editing state
     - 'Next state'
       width: 2
   - ['`enter`', '', '`list_item_editing` (stays)']
-  - ['`ctrl_enter`', 'THE TABLE GESTURE - the list retags as a table', '[format_switched](::server:chapter-editor:format_switched)']
+  - ['`ctrl_enter`', 'THE TABLE GESTURE - the list retags as a table', '[format_switched](*::server:chapter-editor:format_switched)']
   - ['`tab`', 'a previous item exists', '`list_item_editing` (stays)']
-  - ['`tab`', 'otherwise', '[nop](::server:yamlover-editor:nop)']
+  - ['`tab`', 'otherwise', '[nop](*::server:yamlover-editor:nop)']
   - ['`shift_tab`', '', '`list_item_editing` (stays)']
-  - ['`ctrl_alt_number`', '', '[format_switched](::server:chapter-editor:format_switched)']
+  - ['`ctrl_alt_number`', '', '[format_switched](*::server:chapter-editor:format_switched)']

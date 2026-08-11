@@ -14,11 +14,11 @@ description: the chapter_atom_focused state
       width: 4
     - 'Next state'
       width: 2
-  - ['`enter`', 'a pointer atom - the reference opens for retargeting (the source grammar''s pick)', '[pointer_pick_editing](::server:yamlover-editor:pointer_pick_editing)']
+  - ['`enter`', 'a pointer atom - the reference opens for retargeting (the source grammar''s pick)', '[pointer_pick_editing](*::server:yamlover-editor:pointer_pick_editing)']
   - ['`enter`', 'a link / binary - nothing to edit - swallowed', '`chapter_atom_focused` (stays)']
-  - ['`backspace`', 'a pointer atom - the emptied reference DISSOLVES the chunk into an empty paragraph, caret in it', '[chapter_prose_editing](::server:chapter-editor:chapter_prose_editing)']
+  - ['`backspace`', 'a pointer atom - the emptied reference DISSOLVES the chunk into an empty paragraph, caret in it', '[chapter_prose_editing](*::server:chapter-editor:chapter_prose_editing)']
   - ['`backspace`', 'a link / binary - the chapter grammar leaves it standing', '`chapter_atom_focused` (stays)']
-  - ['`up_down_arrow`', 'the walk continues past the atom (whatever cell is adjacent)', '[chapter_prose_editing](::server:chapter-editor:chapter_prose_editing)']
-  - ['`left_right_arrow`', 'an atom is ONE stop - any arrow leaves it', '[chapter_prose_editing](::server:chapter-editor:chapter_prose_editing)']
-  - ['`tab`', 'swallowed, never a browser focus walk', '[nop](::server:yamlover-editor:nop)']
+  - ['`up_down_arrow`', 'the walk continues past the atom (whatever cell is adjacent)', '[chapter_prose_editing](*::server:chapter-editor:chapter_prose_editing)']
+  - ['`left_right_arrow`', 'an atom is ONE stop - any arrow leaves it', '[chapter_prose_editing](*::server:chapter-editor:chapter_prose_editing)']
+  - ['`tab`', 'swallowed, never a browser focus walk', '[nop](*::server:yamlover-editor:nop)']
   - ['`alphanumeric`', 'typing into an atom does nothing here', '`chapter_atom_focused` (stays)']

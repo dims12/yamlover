@@ -1,7 +1,7 @@
 Layout invariants
 description: the write-side checks that keep a tree well-formed, schema or no schema
 - >
-  The [choosing rules](::language:concretes:01-choosing) say where a value SHOULD live;
+  The [choosing rules](*::language:concretes:01-choosing) say where a value SHOULD live;
   the layout invariants assert a write actually PUT it there. They restate no policy - each
   re-asks the deriving rule and only checks that the plan obeyed the answer - and they hold
   with no schema at all, so they protect a directory from the first keystroke:

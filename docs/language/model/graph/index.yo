@@ -5,7 +5,7 @@ description: an acyclic spine, one relation kind, and a normal form
   acyclic spine: every node has exactly one containing parent, and the spine is the node's identity
   path. **References** - `*` pointers and the entries `&` bookmarks create - are non-owning edges laid
   on top; they may point anywhere, an ancestor included, so the whole is a general directed graph,
-  cycles allowed ([a graph, kept as written](::language:principles:graph-not-tree)).
+  cycles allowed ([a graph, kept as written](*::language:principles:graph-not-tree)).
 - >
   Containment and references are **one relation kind, keyed by the child's name**: a `cain:` key
   holding a node and a `cain: *...` reference landing on the same node are the same relation, authored

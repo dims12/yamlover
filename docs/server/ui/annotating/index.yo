@@ -4,7 +4,7 @@ description: select a region, pick a tag - the flow shared by prose, images, map
   An annotation is **a tag applied to a piece of a material** - one tag application, saved **into
   the target itself**: a selected region becomes a `yamlover-fragments` entry on the node, and
   each applied tag an element of its `yamlover-annotations` array (the exact shapes:
-  [annotations](::server:annotations)) - so it travels with the document, persists across
+  [annotations](*::server:annotations)) - so it travels with the document, persists across
   reloads, shows up wherever the material is read, and is listed on the tag's own page among the
   tag's members. Its display color is **the applied tag's**: a built-in **pure color tag**
   (`yamlover/tags/colors/...`) carries an explicit color, and any **named tag** gets its stable
@@ -15,7 +15,7 @@ description: select a region, pick a tag - the flow shared by prose, images, map
   a rectangle over the region.
 - >
   **2.** A small **tag picker** pops up by the selection (its cells are [the query
-  editor](::server:query-editor) in pick mode). **Nothing is pre-selected** - a new mark starts
+  editor](*::server:query-editor) in pick mode). **Nothing is pre-selected** - a new mark starts
   blank, and the selected text / dragged rectangle stays shown in a **neutral** color while the
   picker is open, so it's clear what you're marking without implying a tag. The controls:
 - !!<*yamlover: $defs: bullets>

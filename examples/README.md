@@ -73,7 +73,7 @@ and a title-only subchapter — the same thing, by design. A schema attaches *in
 | 65 | [`65-all-formats-chunks`](65-all-formats-chunks)             | a **directory** chapter — textual chunks (block scalars) interleaved with `*sample.*` pointers to binary files; per-chunk formats and file types in `meta.yo` |
 | 66 | [`66-pet-keeper-handbook`](66-pet-keeper-handbook)           | a recursive chapter **tree where each chapter is its own directory** — the root plus `dogs/`, `cats/`, `fish/` (and nested `dogs/puppies/`), each a directory chapter with its own `.yo/`; subchapters are `*`-pointers to those subdirectories, prose + `*png` image chunks + per-chunk PlantUML |
 | 68 | [`68-math-chapter`](68-math-chapter)                         | a **directory** chapter — marklower prose (inline `$$…$$`) plus standalone LaTeX chunks (`format: text/x-latex` in `meta`) |
-| 69 | [`69-marklower-links.yo`](69-marklower-links.yo) | a tagged **file** — nested chapters demonstrating document-relative, project-rooted, and external marklower links (all default format, no meta). Written in the **legacy** slash spelling (`/`, `//`); `:` / `::` are canonical — see `docs/language/pointers/paths`, `docs/documents/marklower` |
+| 69 | [`69-marklower-links.yo`](69-marklower-links.yo) | a tagged **file** — nested chapters touring every link-target tier (all default format, no meta): the **sigiled** canonical pointers in all four scopes (`*::` project, `*:` document, `*..:` parent, `*name` current), the bare-colon **read-forever alias**, the **legacy-frozen** slash spellings, external URLs, and the **reserved** `&…` bookmark form — see `docs/documents/marklower/link-targets` |
 
 ## Plain directories (format by extension)
 

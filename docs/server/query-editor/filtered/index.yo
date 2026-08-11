@@ -12,10 +12,10 @@ description: the filtered state
       width: 4
     - 'Next state'
       width: 2
-  - ['`click_cell`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`click_cell`', '', '[cell_editing](*::server:query-editor:cell_editing)']
   - ['`toc_click`', 'another MATCH row', '`filtered` (stays)']
-  - ['`toc_click`', 'otherwise - e.g. a chevron-loaded real child; the breadcrumb regresses to its path', '[idle_path](::server:query-editor:idle_path)']
-  - ['`escape`', '', '[idle_path](::server:query-editor:idle_path)']
-  - ['`evicted`', '', '[idle_path](::server:query-editor:idle_path)']
-  - ['`clear_button`', '', '[idle_path](::server:query-editor:idle_path)']
-  - ['`navigate_elsewhere`', '', '[idle_path](::server:query-editor:idle_path)']
+  - ['`toc_click`', 'otherwise - e.g. a chevron-loaded real child; the breadcrumb regresses to its path', '[idle_path](*::server:query-editor:idle_path)']
+  - ['`escape`', '', '[idle_path](*::server:query-editor:idle_path)']
+  - ['`evicted`', '', '[idle_path](*::server:query-editor:idle_path)']
+  - ['`clear_button`', '', '[idle_path](*::server:query-editor:idle_path)']
+  - ['`navigate_elsewhere`', '', '[idle_path](*::server:query-editor:idle_path)']

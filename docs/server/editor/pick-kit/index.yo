@@ -25,7 +25,7 @@ description: segment cells in the pure grammar, one query-cell kit and one hint 
   `makeSourceCells()` only adds the idle affordances now (the go-to-target arrow, the
   `$yamloverLink` descend); the entry and retarget faces ARE the pure segment cells. The
   breadcrumb and the tag picker (`renderers/annotate.tsx`) still run the query-cell kit
-  (`client/query-cells.tsx` over `breadcrumb-machine`) - [one machine](::server:query-editor)
+  (`client/query-cells.tsx` over `breadcrumb-machine`) - [one machine](*::server:query-editor)
   in two hosts.
 - >
   **The TOC is re-plugged onto the segment cells HOST-SIDE** (`renderers/yed-toc-pick.ts`
@@ -42,6 +42,6 @@ description: segment cells in the pure grammar, one query-cell kit and one hint 
   sibling rule, the refusal ring, the watchdog; a REFUSED commit keeps the segment cursor and
   the typed text stands), and the wire spelling is COMPACT (`yed-sync.ts payloadOf` respells
   via `renderPointer({spaced: false})` - the server's single-line `*\S*` payload gate). Outer
-  states: [pointer_entry](::server:yamlover-editor:pointer_entry) /
-  [pointer_pick_editing](::server:yamlover-editor:pointer_pick_editing) /
-  [atom_focused](::server:yamlover-editor:atom_focused).
+  states: [pointer_entry](*::server:yamlover-editor:pointer_entry) /
+  [pointer_pick_editing](*::server:yamlover-editor:pointer_pick_editing) /
+  [atom_focused](*::server:yamlover-editor:atom_focused).

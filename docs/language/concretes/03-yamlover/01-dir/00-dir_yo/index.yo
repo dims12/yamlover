@@ -25,6 +25,6 @@ description: Directory with the control .yo subdirectory - the overlays live und
   indexed - hidden from the table of contents, yet addressable (`*:.yo:settings.yo`,
   `*:.yo:thumbnails:cover.png`). `.trash/` alone is skipped ENTIRELY - a deleted member leaves the
   projection while its storage survives here, recoverable. Nothing else may live under `.yo/` - see the
-  [layout invariants](::language:concretes:02-invariants). The storage-wide rules live in
-  [the storage axis](::language:concretes:00-storage) and the
-  [choosing rules](::language:concretes:01-choosing).
+  [layout invariants](*::language:concretes:02-invariants). The storage-wide rules live in
+  [the storage axis](*::language:concretes:00-storage) and the
+  [choosing rules](*::language:concretes:01-choosing).

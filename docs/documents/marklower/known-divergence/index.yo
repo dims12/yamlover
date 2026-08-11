@@ -5,12 +5,13 @@ description: paste may emit block constructs marklower refuses to parse
   **not** parse, and which therefore render as literal text: `- ` bullets, fenced code, and `> `
   block quotes. They are recorded here as a divergence, not a promise: teaching marklower to parse
   them would be teaching it block structure, which is the one thing it refuses to have. Bullets now
-  have a structural home - `$defs/bullets` ([lists](::documents:marklower:lists)) - so the likelier
+  have a structural home - `$defs/bullets` ([lists](*::documents:marklower:lists)) - so the likelier
   resolution is that paste emits a tagged list; fenced code and quotes still await theirs.
 - >
   **Implementation.** The inline grammar lives in `tools/server/src/client/renderers/marklower.tsx`
-  (as one `TOKEN` alternation), `embed.ts` (the embed resolver and its allowlist), `links.tsx`
-  (`resolveLink`), and `marklower-serialize.ts` (HTML → marklower). The delegated structures -
+  (as one `TOKEN` alternation - math, code, links), `embed.ts` (the body-level media resolver and its
+  allowlist), `links.tsx` (`resolveLink`, over the shared `parseLinkTarget`), and
+  `marklower-serialize.ts` (HTML → marklower). The delegated structures -
   `$defs/table`, `$defs/bullets`, `$defs/numbered` - are hosted under `$defs`; `examples/61-table.yo`
   is the worked table fixture, `examples/60-simple-chapter.yo` carries the list demos. Relative-index
   resolution is in `tools/engine/ts/src/resolve.ts`; the table and list renderers are `table.tsx` and

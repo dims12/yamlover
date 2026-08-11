@@ -12,10 +12,10 @@ description: the flow_seq_spread state
       width: 4
     - 'Next state'
       width: 2
-  - ['`alphanumeric`', '', '[unquoted_scalar_appending](::server:yamlover-editor:unquoted_scalar_appending)']
-  - ['`close_bracket`', '', '[scalar_committed](::server:yamlover-editor:scalar_committed)']
+  - ['`alphanumeric`', '', '[unquoted_scalar_appending](*::server:yamlover-editor:unquoted_scalar_appending)']
+  - ['`close_bracket`', '', '[scalar_committed](*::server:yamlover-editor:scalar_committed)']
   - ['`comma`', '', '`flow_seq_spread` (stays)']
   - ['`enter`', 'otherwise', '`flow_seq_spread` (stays)']
-  - ['`backspace`', 'the inner cell is empty and it is the only one', '[empty_cell_of_origin](::server:yamlover-editor:empty_cell_of_origin)']
-  - ['`backspace`', 'the caret is past the closer', '[flow_seq_editing](::server:yamlover-editor:flow_seq_editing)']
+  - ['`backspace`', 'the inner cell is empty and it is the only one', '[empty_cell_of_origin](*::server:yamlover-editor:empty_cell_of_origin)']
+  - ['`backspace`', 'the caret is past the closer', '[flow_seq_editing](*::server:yamlover-editor:flow_seq_editing)']
   - ['`backspace`', 'otherwise', '`flow_seq_spread` (stays)']

@@ -5,10 +5,10 @@ description: an extension of meta - conversions between yamlover shapes, typed a
 - '*Status: design - this layer is not implemented yet.*'
 - >
   A **transform** converts between shapes of yamlover data. It is the lower-level, data-to-data
-  counterpart of the [projection](::language:model:terminology) the engine serves: a projection is
+  counterpart of the [projection](*::language:model:terminology) the engine serves: a projection is
   the read-side view of storage, a transform reshapes data into data.
 - >
-  Transforms are an **extension of the meta language** ([yamlover meta](::meta)). The meta
+  Transforms are an **extension of the meta language** ([yamlover meta](*::meta)). The meta
   language can describe transforms between various shapes of yamlover, and a transform reads like
   a **function prototype**: a meta for the **arguments** - the accepted input shapes - and a meta
   for the **result** - the produced shape - plus the information that describes the data
@@ -16,6 +16,6 @@ description: an extension of meta - conversions between yamlover shapes, typed a
 - >
   Several familiar names are reserved as **names of transforms**: `!!omap` and `!!pairs` (a mapping
   reshaped into ordered `[key, value]` members and back), and `!!binary` (bytes decoded into a
-  value and encoded back). The frame is `!!yo`'s ([named metas](::language:model:meta)): a
+  value and encoded back). The frame is `!!yo`'s ([named metas](*::language:model:meta)): a
   transform is a meta, so a bare `!!name` may equally name one, and the name is all the surface
   ever shows.

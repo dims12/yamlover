@@ -12,8 +12,7 @@ description: five constructs, atomic tokens, soft breaks
   - ['`~~strike~~`', 'struck through']
   - ['`` `code` ``', 'code span - **atomic**']
   - ['`$$...$$`', 'math, typeset with KaTeX - **atomic**, may span lines']
-  - ['`[label](target)`', 'a link - *points at* the target']
-  - ['`*[label](target)`', 'an **embed** - *inlines* the target']
+  - ['`[label](target)`', 'a link - *points at* the target, a yamlover expression']
 - >
   **Atomic** means the contents are never re-interpreted as markup: a `*` inside `` `code` `` or
   `$$...$$` is a literal asterisk, not emphasis. Bold is matched before italic, so `**x**` is one
@@ -25,15 +24,18 @@ description: five constructs, atomic tokens, soft breaks
   `unquoted_scalar_appending` must not italicize its middle. Only a `_` at a word boundary opens
   or closes emphasis (`__` likewise). `*` keeps intra-word emphasis - identifiers don't use it.
 - >
-  Marklower is **not a Markdown subset**, and does not try to be. `![](...)` is not image syntax here
-  (see [embeds](::documents:marklower:embeds)), and `*[a](b)` means something Markdown has no word
-  for.
+  There is **no embed syntax** - marklower delegates structure to yamlover, and embedding *is*
+  structure: a chapter body element (see [embeds](*::documents:marklower:embeds)). A `*` before a
+  link's bracket is plain text: `*[a](b)*` is an *italic link*, a bare `*[a](b)` a literal
+  asterisk followed by a link. The `*` that matters lives INSIDE the parens, as the target's
+  pointer sigil ([link targets](*::documents:marklower:link-targets)).
+- >
+  Marklower is **not a Markdown subset**, and does not try to be. `![](...)` is not image syntax
+  here, and a link target is a yamlover pointer expression, which Markdown has no word for.
 - Line breaks
   - >
     A **single newline is a soft break**: the hard-wrapped lines of a block scalar are a *source*
     courtesy, so they rejoin into one flowing run and the rendered prose wraps at the reader's
     chosen width instead of the authored column - Markdown's rule, kept for the same reason. The
     join crosses an inline token (`text\n$$x$$` is one sentence), and emphasis may span it. A
-    **blank line stays**: it renders as the vertical gap the author drew. A block embed's own line
-    vanishes with the figure (see [embeds](::documents:marklower:embeds)), never leaving a stray gap
-    above or below it.
+    **blank line stays**: it renders as the vertical gap the author drew.

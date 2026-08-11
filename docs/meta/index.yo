@@ -8,7 +8,7 @@ description: the meta language - the replacement for JSON Schema: typing, descri
   the familiar vocabulary (`properties`, `type`, `format`, `prefixItems`, `items`) - the same or
   close - but repurposes it: the primary purpose is **metadata** - typing, decoding, and
   presentation - with validation a secondary, optional use
-  ([metadata first](::language:principles:metadata-first)). Data lives in the instance; the meta only
+  ([metadata first](*::language:principles:metadata-first)). Data lives in the instance; the meta only
   describes it. Schema-as-storage - pinning data with `const` so the schema *is* the instance - is
   the one old model that was dropped.
 - >
@@ -21,13 +21,13 @@ description: the meta language - the replacement for JSON Schema: typing, descri
   sniff: textual bytes parse as yamlover, binary bytes stay an opaque blob
   (`application/octet-stream`).
 - >
-  This chapter is the meta reference, shaped like the JSON Schema book: [attaching](:attaching) a
-  meta to an instance; the [three facets](:facets) - the type system that replaces the `type`
-  keyword's boxes; the per-facet keyword chapters - [value](:value), [keyed](:keyed),
-  [ordinal](:ordinal); [enumerated and constant values](:enum-const); [annotations](:annotations);
-  [formats](:format); [composition](:composition); [conditionals](:conditionals);
-  [structuring](:structuring) - `$defs`, pointers, hosted schemas; the [principles](:principles)
-  behind the design; and the keyword-by-keyword [comparison with JSON Schema](:vs-json-schema).
+  This chapter is the meta reference, shaped like the JSON Schema book: [attaching](*:attaching) a
+  meta to an instance; the [three facets](*:facets) - the type system that replaces the `type`
+  keyword's boxes; the per-facet keyword chapters - [value](*:value), [keyed](*:keyed),
+  [ordinal](*:ordinal); [enumerated and constant values](*:enum-const); [annotations](*:annotations);
+  [formats](*:format); [composition](*:composition); [conditionals](*:conditionals);
+  [structuring](*:structuring) - `$defs`, pointers, hosted schemas; the [principles](*:principles)
+  behind the design; and the keyword-by-keyword [comparison with JSON Schema](*:vs-json-schema).
 - *: attaching
 - *: facets
 - *: value

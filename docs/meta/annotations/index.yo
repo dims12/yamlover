@@ -3,5 +3,5 @@ description: title, description, default, examples - the metadata heart
 - >
   TBD - the annotation keywords. They are not an afterthought here: description and presentation are
   the meta language's primary purpose
-  ([more than validation](::meta:principles:more-than-validation)) - `title` and `description`
+  ([more than validation](*::meta:principles:more-than-validation)) - `title` and `description`
   annotate a node without living in its data.

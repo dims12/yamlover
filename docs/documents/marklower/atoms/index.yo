@@ -2,15 +2,15 @@ Atoms and the WYSIWYG round-trip
 description: contentEditable prose; atomic tokens carry data-src
 - >
   The web editor edits a prose chunk **in place**: the rendered prose itself is `contentEditable`.
-  Emphasis is edited live as markup, while every **atomic** token - math, code, links, embeds -
+  Emphasis is edited live as markup, while every **atomic** token - math, code, links -
   renders `contenteditable="false"` carrying its verbatim marklower source in `data-src`. The reverse
   serializer returns that source untouched rather than re-deriving it from the rendered KaTeX, code,
-  or player.
+  or anchor.
 - >
   That is why the language is worth keeping small: every construct must survive a round trip through
   a DOM the browser is allowed to rewrite. `domToMarklower` is the single reverse serializer, shared
   by the editor and by clipboard paste, so the two always agree on the markup they emit.
 - >
   An image pasted **into** an open chunk is uploaded beside the chapter (an `inline` file paste,
-  which appends no chunk) and referenced by an embed token - the bytes become the project's, not a
-  hotlink.
+  which appends no chunk) and referenced by a plain link - the bytes become the project's, not a
+  hotlink. A figure is a body element, not a token ([embeds](*::documents:marklower:embeds)).

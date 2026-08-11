@@ -17,5 +17,5 @@ description: the pull - * executes a path and yields a ref edge
 - >
   Pointers are the **singleton fragment of the query language**: every pointer is a valid query with
   at most one result - its resolved target, or nothing if dangling
-  ([queries](::language:pointers:queries)). A dangling reference is a diagnostic, never an error
+  ([queries](*::language:pointers:queries)). A dangling reference is a diagnostic, never an error
   that refuses the document.

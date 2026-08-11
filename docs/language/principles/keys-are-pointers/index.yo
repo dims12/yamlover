@@ -4,7 +4,7 @@ description: every key is a path segment - a bare integer selects a position, ':
   Every key is a pointer: the same text that names an entry (`key: value`) is a path segment a pointer
   can travel (`*key`). The `*` sigil pulls - beyond YAML's bare alias word it takes a full
   **pointer expression**, resolved purely structurally: a bare `*a` is the sibling key `a`, and scopes
-  reach wider (the [pointers part](::language:pointers)).
+  reach wider (the [pointers part](*::language:pointers)).
 - !!yo
   feline: *pets: 1                   # a sibling's second element
   manager: *: pets: 1                # : = current document root

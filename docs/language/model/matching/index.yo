@@ -10,7 +10,7 @@ description: types compose as predicates; consumers carry their own acceptance f
   nodes are where a value-test and an element-test meet.
 - >
   On this algebra sits the matching stance ([what it doesn't test, it
-  tolerates](::language:principles:tolerance)): the spec mandates neither open nor closed matching;
+  tolerates](*::language:principles:tolerance)): the spec mandates neither open nor closed matching;
   each consumer carries its own formula. A matcher inspects a node's **type facets** - four
   observations:
 - !!<format: text/plain> |

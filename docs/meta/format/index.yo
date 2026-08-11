@@ -4,4 +4,4 @@ description: the open format keyword - MIME types, codecs, sub-document encoding
   TBD - `format` is open: a MIME type, a codec (`int32/le`), or a yamlover-defined view - naming how
   to decode, render, and edit a value. It also names a sub-document encoding (`yamlover`, `json5p`,
   or a `.../meta` variant), and it replaces JSON Schema's `contentMediaType`/`contentEncoding`. A
-  format refines a facet; it is not a type ([terminology](::language:model:terminology)).
+  format refines a facet; it is not a type ([terminology](*::language:model:terminology)).

@@ -19,10 +19,10 @@ description: the flow_map_editing state
       width: 4
     - 'Next state'
       width: 2
-  - ['`key_colon_space`', '', '[value_hole](::server:yamlover-editor:value_hole)']
-  - ['`close_brace`', '', '[scalar_committed](::server:yamlover-editor:scalar_committed)']
+  - ['`key_colon_space`', '', '[value_hole](*::server:yamlover-editor:value_hole)']
+  - ['`close_brace`', '', '[scalar_committed](*::server:yamlover-editor:scalar_committed)']
   - ['`comma`', '', '`flow_map_editing` (stays)']
-  - ['`enter`', 'the token cannot be spread (a keyed+keyless mixture)', '[scalar_committed](::server:yamlover-editor:scalar_committed)']
-  - ['`enter`', 'otherwise', '[flow_map_spread](::server:yamlover-editor:flow_map_spread)']
-  - ['`backspace`', 'the inner cell is empty and it is the only one', '[empty_cell_of_origin](::server:yamlover-editor:empty_cell_of_origin)']
+  - ['`enter`', 'the token cannot be spread (a keyed+keyless mixture)', '[scalar_committed](*::server:yamlover-editor:scalar_committed)']
+  - ['`enter`', 'otherwise', '[flow_map_spread](*::server:yamlover-editor:flow_map_spread)']
+  - ['`backspace`', 'the inner cell is empty and it is the only one', '[empty_cell_of_origin](*::server:yamlover-editor:empty_cell_of_origin)']
   - ['`backspace`', 'otherwise', '`flow_map_editing` (stays)']

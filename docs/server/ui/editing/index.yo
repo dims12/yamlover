@@ -14,10 +14,10 @@ description: unlock with F2 and edit in place - the chapter and source projectio
   ride the surgical `/api/edit` write path in the background (debounced and coalesced),
   addressing each body element by its **absolute entry index** (`: doc: 3`, the bare integer -
   keyed entries consume indices too); a trash button removes a chunk. The full behavior, state by state: [the chapter
-  editor machine](::server:chapter-editor).
+  editor machine](*::server:chapter-editor).
 - >
-  Prose is [marklower](::documents:marklower): emphasis is edited live as markup, while its
-  atomic tokens - `$$math$$`, `` `code` ``, links, and `*[...](...)` embeds - render as single
+  Prose is [marklower](*::documents:marklower): emphasis is edited live as markup, while its
+  atomic tokens - `$$math$$`, `` `code` ``, and links - render as single
   non-editable objects that carry their own source, so a round trip through the editor never
   rewrites them. A LaTeX chunk edits its raw source in a textarea instead; a chunk whose format
   has no editor stays read-only in place.

@@ -2,7 +2,7 @@ yamlover/code
 description: One yamlover document's content - the project's own text language
 - >
   **yamlover** is this project's own text language - a CLOSE KIN of YAML, deliberately NOT a
-  superset (the [differences have their own chapter](::language:vs-yaml)). Kept from YAML:
+  superset (the [differences have their own chapter](*::language:vs-yaml)). Kept from YAML:
   block and flow spelling, comments, every scalar style. Extended with the POINTER LAYER -
   `*` references over colon paths, `&` bookmarks - and the UNIFIED NODE, where keyed
   entries, positions, and a scalar self-value mix freely:

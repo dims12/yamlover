@@ -12,7 +12,7 @@ description: the idle_path state
       width: 4
     - 'Next state'
       width: 2
-  - ['`click_cell`', '', '[cell_editing](::server:query-editor:cell_editing)']
-  - ['`click_tail`', '', '[cell_editing](::server:query-editor:cell_editing)']
-  - ['`f4`', '', '[cell_editing](::server:query-editor:cell_editing)']
+  - ['`click_cell`', '', '[cell_editing](*::server:query-editor:cell_editing)']
+  - ['`click_tail`', '', '[cell_editing](*::server:query-editor:cell_editing)']
+  - ['`f4`', '', '[cell_editing](*::server:query-editor:cell_editing)']
   - ['`toc_click`', '', '`idle_path` (stays)']

@@ -3,7 +3,7 @@ description: A directory entry's name, playing the key role
 - >
   A **filename** is a directory entry's name playing the KEY role of the mapping the directory
   is - the storage twin of a
-  [textual key](::language:concretes:04-yaml:01-yaml_code:00-yaml_structured:00-yaml_mapping:02-yaml_key_value_pair:00-yaml_key).
+  [textual key](*::language:concretes:04-yaml:01-yaml_code:00-yaml_structured:00-yaml_mapping:02-yaml_key_value_pair:00-yaml_key).
   Its constraints come from the FILESYSTEM, not the grammar: no path separators, a length
   limit, the platform's forbidden characters - and the platform's case rules, the two
   concretes below:

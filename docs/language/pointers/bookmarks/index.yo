@@ -33,7 +33,7 @@ description: the push - & gives this node another real path
   **Ordinal bookmarks.** A trailing `-` segment makes the membership keyless: the container gains
   this node as a positional member. No position may be claimed - `&: path: 3` is rejected (a
   bare-integer tail is a position); order is the container's own data
-  ([order is data](::language:principles:order-is-data)) - and membership is **additive**: each
+  ([order is data](*::language:principles:order-is-data)) - and membership is **additive**: each
   trailing `-` appends one element, lists may repeat - except into a `!!set`, where duplicates
   collapse by target. A `-` anywhere but the trailing position is **reserved**. (The former
   bracket spelling `&path[]` was removed and no longer parses.) Bookmark-created members project
@@ -41,7 +41,7 @@ description: the push - & gives this node another real path
   **unambiguous**: wildcards and matchers are rejected by the arity rule, position claims by this
   one. A keyed bookmark must end in a nonempty *string* key - it may not create the null key
   either (`&: p: ~` is rejected; the null key is authored in place,
-  [null keys](::language:vs-yaml:similarities:null-keys)); the literal-tilde key is fine, quoted
+  [null keys](*::language:vs-yaml:similarities:null-keys)); the literal-tilde key is fine, quoted
   (`&: p: '~'`).
 - >
   **Collisions.** A bookmark-created entry may meet an authored one at the same path - valid

@@ -2,5 +2,5 @@ The ordinal facet
 description: keywords for positional entries - items, tuples, sets, entry counts
 - >
   TBD - the ordinal-facet sub-schema: `items`, `prefixItems` tuples, `contains`, the `min`/`max`
-  entry counts ([the quantifiers](::meta:facets)), and the set marker (`uniqueItems`, the `!!set`
+  entry counts ([the quantifiers](*::meta:facets)), and the set marker (`uniqueItems`, the `!!set`
   shape).

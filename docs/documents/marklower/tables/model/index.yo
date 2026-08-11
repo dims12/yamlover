@@ -1,7 +1,7 @@
 The model - rows of cells, one omni node
 description: keyless rows, optional header and title; no rows array
 - >
-  A table is just an omni (`variant`) node (the [logical model](::language:model)): its keyless
+  A table is just an omni (`variant`) node (the [logical model](*::language:model)): its keyless
   entries are the **rows**, read top to bottom, and each row is an **array of cells**, read left to
   right. Rows may be keyed - normal for an omni node - and one key is well-known: a row keyed
   `header` is the header row. An optional keyed `title` is the caption. There is no `rows`
@@ -20,4 +20,4 @@ description: keyless rows, optional header and title; no rows array
 - !!<*yamlover: $defs: bullets>
   - '**The column count is inferred from the first row** - the `header` when present, else the first keyless row. A shorter row pads with empty trailing cells; a longer row is a **reported inconsistency**, surfaced like a dangling pointer, never silently truncated.'
   - '`header` renders as the header (`<th>` cells) wherever it is authored; by convention it is written first. Other keyed rows have no table meaning - the key just makes the row addressable by name.'
-  - '`title` is the caption, `text/marklower` like a chapter''s title (which, unlike this one, is the chapter node''s *self-value*). Being keyed, `title` and `header` **consume positions** in the omni stream ([addressing](::documents:chapter:addressing)) - a captioned table''s header is position `1` and its first body row `2` (bare-integer addressing, the YAML-keys round).'
+  - '`title` is the caption, `text/marklower` like a chapter''s title (which, unlike this one, is the chapter node''s *self-value*). Being keyed, `title` and `header` **consume positions** in the omni stream ([addressing](*::documents:chapter:addressing)) - a captioned table''s header is position `1` and its first body row `2` (bare-integer addressing, the YAML-keys round).'

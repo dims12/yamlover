@@ -9,7 +9,7 @@ description: $defs, pointers instead of $ref, hosted schemas
   root, and the engine grafts the self-import key `yamlover` into every served root - so
   `!!<*yamlover: $defs: chapter>` resolves from any project, a detached tree included (the taxonomy
   ships as package data). The document-model schemas hosted there - `chunk`, `chapter`, `table` - are
-  specified in the [documents chapter](::documents).
+  specified in the [documents chapter](*::documents).
 - >
   A served root's `.yo/settings.yo` carries project configuration. The governing rule: **settings are
   defaults, never constraints** - a node is identified by what it *is*, not by where it sits; a

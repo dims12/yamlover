@@ -4,7 +4,7 @@ description: scalar-plus-fields and keyed-plus-keyless - invalid in YAML, the de
   Plain YAML forbids mixing `- item` entries with `key: value` entries in one collection, and has no
   way for a scalar to carry fields. In yamlover both are **one node and the default**: an untagged
   node may mix keyed and keyless entries and may carry a scalar self-value alongside them ([one
-  omnivorous node](::language:principles:one-node)). Two tags accompany the shapes. `!!mix` marks a
+  omnivorous node](*::language:principles:one-node)). Two tags accompany the shapes. `!!mix` marks a
   keyed+keyless container - a no-op documentation marker, parsed and never re-emitted. `!!yo` - it
   means simply "yamlover" - is **semantic**: it marks the node as *plain yamlover, exempt from the
   enclosing document's schema*, so a structured consumer (the chapter renderer, its editor) must not

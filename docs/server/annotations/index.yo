@@ -3,10 +3,10 @@ description: how a user marks up a document - regions, tag applications, and whe
 - >
   How a user marks up a document: **fragments** (regions) and **annotations** (tags applied to a
   whole node or a fragment). Both live **on the target node** - they travel with the document,
-  not in a side file. The user-facing flow is in [annotating](::server:ui:annotating); companion
-  chapters: the [model](::language:model) (omni), [metadata](::meta)
-  (`$defs`, `variant`), [pointers](::language:pointers) (the `::` project scope, `*`/`&`), and
-  [queries](::language:pointers:queries).
+  not in a side file. The user-facing flow is in [annotating](*::server:ui:annotating); companion
+  chapters: the [model](*::language:model) (omni), [metadata](*::meta)
+  (`$defs`, `variant`), [pointers](*::language:pointers) (the `::` project scope, `*`/`&`), and
+  [queries](*::language:pointers:queries).
 - >
   This model supersedes the old one (a separate `/annotations/*.yo` node per tag application,
   reverse-linked by a `target` pointer). The selector role moves into **fragments**; the

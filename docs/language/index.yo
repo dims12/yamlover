@@ -12,12 +12,12 @@ description: the full spec – principles, the abstract model, concretes, pointe
 
 - >
   The abstract model, generated (in computer or human memory) when parsing the language,
-  is called the abstract or logical model. This is described in the [Model subchapter](:model).
+  is called the abstract or logical model. This is described in the [Model subchapter](*:model).
 
 - >
   A text or other substrate that is read to build the model is called a "concrete" (expression) or, simply, the language.
   Yamlover supports many concretes, including JSON, YAML, and filesystem directories. They are
-  all parsed into the same abstract logical model. The various concretes are described in the [Concretes subchapter](:concretes).
+  all parsed into the same abstract logical model. The various concretes are described in the [Concretes subchapter](*:concretes).
 
 - >
   The main concrete used to express the yamlover model is called yamlover itself, or `yamlover/code`.
@@ -26,13 +26,13 @@ description: the full spec – principles, the abstract model, concretes, pointe
 
 - >
   This chapter is the self-contained specification, in five parts: the [abstract
-  model](::language:model)—omnivorous nodes with ordered relations and their terminology
-  (the type system now lives in the [meta chapter](::meta));
-  the [concretes](::language:concretes)—every way a node is physically stored and
-  written; [pointers and queries](::language:pointers)—paths, bookmarks, and the query language
+  model](*::language:model)—omnivorous nodes with ordered relations and their terminology
+  (the type system now lives in the [meta chapter](*::meta));
+  the [concretes](*::language:concretes)—every way a node is physically stored and
+  written; [pointers and queries](*::language:pointers)—paths, bookmarks, and the query language
   (of which these are the only fragment); the [general
-  principles](::language:principles) from which the rest follows; and the [relationship to
-  YAML](::language:vs-yaml), covering similarities and differences.
+  principles](*::language:principles) from which the rest follows; and the [relationship to
+  YAML](*::language:vs-yaml), covering similarities and differences.
 - *: model
 - *: concretes
 - *: pointers

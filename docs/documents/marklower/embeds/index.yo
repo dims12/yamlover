@@ -1,11 +1,22 @@
 Embeds
-description: '*[label](target) inlines; position decides figure vs chip'
+description: embedding is structural - a chapter body element, never a text token
 - >
-  `[...]` points at a target; `*[...]` **inlines** it. The `*` carries exactly the sense it carries in
-  yamlover proper: a reference. One token therefore covers pictures, video, audio, and any media a
-  target can name - there is no separate image syntax, and none is wanted.
+  Marklower has **no embed syntax**. Embedding is a *structural* act, and structure is delegated
+  to yamlover (docs/documents/chapter): a chapter's body decides what is inlined, one element per
+  embed. Prose only ever *points* - a `[label](target)` link
+  ([link targets](*::documents:marklower:link-targets)).
 - >
-  What a target inlines to is decided by its host first and its extension second:
+  Three body-element shapes embed:
+- !!<*yamlover: $defs: table>
+  header:
+    - 'Body element'
+    - 'Renders as'
+      width: 2
+  - ['`- *: picture.png` - a pointer to an image member', 'the image, in the chapter flow']
+  - ['`- *: clip.mp4` / `- *: talk.mp3` - a pointer to a media member', 'a native `<video>` / `<audio>` figure, streamed from `/api/blob`']
+  - ['a chunk whose **entire text is one media URL**', 'the provider player or media element, as a captionless `<figure>`']
+- >
+  What a URL chunk inlines to is decided by its host first and its extension second:
 - !!<*yamlover: $defs: table>
   header:
     - Target
@@ -16,27 +27,17 @@ description: '*[label](target) inlines; position decides figure vs chip'
   - ['`...mp4`, `.webm`, `.ogv`, `.mov`', 'a native `<video>`']
   - ['`...mp3`, `.ogg`, `.wav`, `.flac`', 'a native `<audio>`']
   - ['`...png`, `.jpg`, `.webp`, `.avif`, ...', 'an `<img>`']
-  - ['an in-app node path with such an extension', 'the same, streamed from `/api/blob`']
-  - ['**anything else**', '**nothing** - it degrades to the plain link it already was']
+  - ['**anything else**', '**nothing** - the chunk stays ordinary prose']
 - >
-  That last row is a **security boundary, not a fallback**. The set of hosts that may be framed is an
-  allowlist; an arbitrary origin, a `data:` URL, and a `javascript:` URL are all refused, so prose can
-  never mount a frame of its own choosing. A provider embed also renders as a **facade** - poster
-  plus play button - and loads the third party's frame only once the reader clicks it.
+  That last row is a **security boundary, not a fallback**. The set of hosts that may be framed is
+  an allowlist; an arbitrary origin, a `data:` URL, and a `javascript:` URL are all refused, so
+  content can never mount a frame of its own choosing. A provider embed also renders as a
+  **facade** - poster plus play button - and loads the third party's frame only once the reader
+  clicks it.
 - >
-  Timestamps need no syntax: they ride on the target's own query string
-  (`*[the good bit](https://youtu.be/abc?t=1m30s)`).
+  Timestamps need no syntax: they ride on the URL's own query string
+  (`https://youtu.be/abc?t=1m30s` as the chunk).
 - >
-  **Position decides the shape, not kind.** A token alone on its line becomes a block `<figure>`,
-  captioned by its label. The same token inside a sentence becomes an inline chip that opens in
-  place. A YouTube video is a figure or a chip depending only on where the author put it.
-- The one ambiguity
-  - >
-    Reusing `*` costs exactly one collision, with emphasis:
-  - !!<*yamlover: $defs: bullets>
-    - '`*[a](b)` - an embed.'
-    - '`*[a](b)*` - an *italic link*; the `*`s pair around it.'
-    - '`**[a](b)**` - a bold link, for the same reason.'
-  - >
-    The trailing `*` decides. This is the price of spelling the reference the way yamlover spells it, and it
-    is worth paying.
+  A media URL *inside a sentence* is just a link - prose flows, nothing mounts mid-line. To embed,
+  give the media its own body element: split the chunk. This is the whole model: **one element,
+  one embed, ordered by the body** - the same law that orders everything else in a chapter.

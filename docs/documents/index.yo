@@ -3,14 +3,14 @@
 Documents
 description: chapters and chunks, marklower prose, tables, and lists
 - >
-  A **document** in yamlover is a [chapter](::documents:chapter): a readable page whose positional
+  A **document** in yamlover is a [chapter](*::documents:chapter): a readable page whose positional
   body interleaves prose, media, tables, lists, and subchapters. The prose format is
-  [marklower](::documents:marklower) - intentionally below Markdown: inline markup only, with
+  [marklower](*::documents:marklower) - intentionally below Markdown: inline markup only, with
   structure delegated to yamlover nodes. Together they are the document layer built on the
-  [language](::language).
+  [language](*::language).
 - >
   This chapter absorbs `CHAPTER.md` and `MARKLOWER.md`. Cross-links into the language point at the
-  [model](::language:model), [metadata](::meta), [pointers](::language:pointers),
-  and [concretes](::language:concretes).
+  [model](*::language:model), [metadata](*::meta), [pointers](*::language:pointers),
+  and [concretes](*::language:concretes).
 - *: chapter
 - *: marklower

@@ -14,4 +14,4 @@ description: YAML's alias-to-anchor turns into a structural pointer expression
 - >
   The result is always a **ref edge, never a copy** - YAML implementations that expand aliases into
   duplicated values have no counterpart here ([a graph, kept as
-  written](::language:principles:graph-not-tree)).
+  written](*::language:principles:graph-not-tree)).

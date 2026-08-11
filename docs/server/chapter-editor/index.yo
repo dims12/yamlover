@@ -1,15 +1,15 @@
 The chapter editor - the state machine
 description: the chapter projection's states - titles, prose, lists, tables, atoms
 - >
-  The SAME document as [the yamlover editor](::server:yamlover-editor), drawn as prose, headings,
+  The SAME document as [the yamlover editor](*::server:yamlover-editor), drawn as prose, headings,
   sections and lists. The machine is PURE and lives in `tools/yed/src/chapter/` (`site.ts` ->
   `dispatch.ts` -> `apply.ts`, `watchdog.ts` enforcing the never-locked law);
   `tools/yed/test/chapter-dispatch.test.ts` mirrors this chapter as data. The typing grammar of
   the source projection does not apply here (no holes, no `- `/`key:`) - EXCEPT inside a [SOURCE
-  chunk](::server:chapter-editor:source_chunk_editing), where the chapter grammar DECLINES every
+  chunk](*::server:chapter-editor:source_chunk_editing), where the chapter grammar DECLINES every
   key and the source grammar owns the caret entirely. THE PROSE EXCEPTION governs Enter; THE
   FORMAT RULE governs Tab and the format commands (both defined in [the yamlover editor
-  machine](::server:yamlover-editor)).
+  machine](*::server:yamlover-editor)).
 - >
   **Ctrl+Enter is THE TABLE GESTURE**: outside a table it INITIATES one (the bar's table button as
   a keystroke), inside one it appends a ROW. Closed intents: `splitProse` `joinPrev` `joinNext`

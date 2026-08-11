@@ -11,7 +11,7 @@ description: the keyword-by-keyword equivalence - kept, renamed, replaced, dropp
   `items` union, and `allOf` over a schema pointer is the provisional "extends".
 - >
   The table tracks each JSON Schema keyword's fate - kept, renamed, replaced, dropped, or still
-  undecided (the spellings await [terse keywords](::meta:principles:terse-keywords)):
+  undecided (the spellings await [terse keywords](*::meta:principles:terse-keywords)):
 - !!<*yamlover: $defs: table>
   header:
     - JSON Schema

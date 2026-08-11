@@ -5,7 +5,7 @@ description: the breadcrumb, the pointer pick cells, and the tag picker - one ma
   editor in one (a permanent row of smart cells, one per query segment). Unlike the yamlover
   editor's, this machine is ALSO executable code - `tools/server/src/client/breadcrumb-machine.ts`
   is the pure reducer these states compile to, and `breadcrumb-machine.test.ts` runs the table.
-  [The projectional editor](::server:editor) is the prose architecture doc for how this machine
+  [The projectional editor](*::server:editor) is the prose architecture doc for how this machine
   hosts the breadcrumb, the pointer cell, and the tag picker.
 - >
   **Conventions.** A SEGMENT is one colon-separated step of the query - a key (`pets[1]` includes
@@ -33,7 +33,7 @@ description: the breadcrumb, the pointer pick cells, and the tag picker - one ma
 - >
   **THE THREE HOSTS.** (1) The BREADCRUMB - browse mode, this chapter's main table. (2) The yed
   editor's REFERENCE CELL (`*` in a hole, and the atom's pick retarget) - pick mode; its outer
-  states live in [the yamlover editor machine](::server:yamlover-editor) (`pointer_entry` /
+  states live in [the yamlover editor machine](*::server:yamlover-editor) (`pointer_entry` /
   `pointer_pick_editing` / `atom_focused`), which delegate the inner grammar here through the cell
   registry's `holePick`/pointer seam. (3) The TAG PICKER (the annotation popup's search row) -
   pick mode, opening at the PROJECT scope with the caret already in the trailing cell, cells
@@ -41,7 +41,7 @@ description: the breadcrumb, the pointer pick cells, and the tag picker - one ma
   <name>`; Enter commits the first match, and a TOC row click TOGGLES the node as the annotation
   ref (already applied -> it unapplies), while Enter ASSIGNS the typed path (already applied -> a
   satisfied no-op). Create-on-miss births a named tag from a bare unmatched name; any OTHER miss
-  keeps the cells ringed and editable, never a modal error ([annotations](::server:annotations)).
+  keeps the cells ringed and editable, never a modal error ([annotations](*::server:annotations)).
 - >
   **THE SEGMENT RULE.** `:` and `[` are STRUCTURE, not text. Typing `:` splits the cell at the
   caret - the tail becomes the next cell. Typing `[` projects the closing `]` with the caret in

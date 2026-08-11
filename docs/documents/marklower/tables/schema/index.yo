@@ -1,7 +1,7 @@
 The schema
 description: $defs/table - an omni node with title, header, and positional rows
 - >
-  `$defs/table` is a normal yamlover/meta schema ([metadata](::meta)).
+  `$defs/table` is a normal yamlover/meta schema ([metadata](*::meta)).
   `type: variant` with no explicit `format` derives `x-yamlover-table` (the chapter/task
   precedent), which is what the renderer registry keys on:
 - !!<format: text/x-yamlover> |
@@ -30,4 +30,4 @@ description: $defs/table - an omni node with title, header, and positional rows
         - *:: yamlover: $defs: numbered #   explicit tag
 - >
   A table enters a chapter body as an **explicitly tagged** element - the tag decides; untagged
-  containers keep routing to subchapters ([chapter schema](::documents:chapter:schema)).
+  containers keep routing to subchapters ([chapter schema](*::documents:chapter:schema)).

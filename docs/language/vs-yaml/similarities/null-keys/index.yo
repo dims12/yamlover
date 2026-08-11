@@ -15,9 +15,9 @@ description: "'~: v' and ': v' - a keyed entry whose key is the null value"
   The adoption has deliberate boundaries. `null: v` stays the **string key** `null` - the
   keys-are-strings doctrine: a *word* in key position is a string, the way a plain numeric key `1: v`
   is a position claim and a parse error ([keys are
-  pointers](::language:principles:keys-are-pointers)). Both are documented YAML divergences, ruled
+  pointers](*::language:principles:keys-are-pointers)). Both are documented YAML divergences, ruled
   together.
 - >
   json5p has **no null-key spelling** - JSON5 object keys are strings, so serializing a null-keyed
   entry raises a LossyError. Bookmarks may not create the null key - `&: p: ~` is rejected; the null key
-  is authored in place ([anchors](::language:pointers:bookmarks)).
+  is authored in place ([anchors](*::language:pointers:bookmarks)).

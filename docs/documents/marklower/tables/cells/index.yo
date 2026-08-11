@@ -7,8 +7,8 @@ description: chunk default; untagged container is a chapter; nested tables by ta
   - '**A chunk** (`$defs/chunk`) - the default. Schema propagation stamps every leaf cell `text/marklower`, exactly as a chapter''s body prose is stamped, so cells carry bold, links, math, and embeds with no per-cell tag. An empty string is an empty cell.'
   - '**A chapter** (`$defs/chapter`) - the *untagged container* cell. Past the table''s two levels, shape routing switches **back to the chapter rules**: the cell''s items are chunks of a chapter, its untagged containers subchapters, its tagged elements tables and lists - the same rules as the top chapter. The explicit `!!<*yamlover: $defs: chapter>` tag stays legal, just no longer required.'
   - '**A nested table** - only by the explicit `!!<*yamlover: $defs: table>` tag; the tag restarts the two-level budget, and the recursion bottoms out in marklower.'
-  - '**A list** - only by its explicit tag ([lists](::documents:marklower:lists)).'
-  - '**A pointer** - a cell may be a `*` edge to any node; a pointer is an edge, not a schema branch, and the shared target conforms as whatever it is. Two pointer targets are special - the adjacent previous cells - and they mean **merging** ([merged cells](::documents:marklower:tables:merged-cells)).'
+  - '**A list** - only by its explicit tag ([lists](*::documents:marklower:lists)).'
+  - '**A pointer** - a cell may be a `*` edge to any node; a pointer is an edge, not a schema branch, and the shared target conforms as whatever it is. Two pointer targets are special - the adjacent previous cells - and they mean **merging** ([merged cells](*::documents:marklower:tables:merged-cells)).'
 - !!<format: text/x-yamlover> |
   - - Rocky                            # a block row, compact
     - raccoon

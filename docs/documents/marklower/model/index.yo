@@ -13,19 +13,17 @@ description: no block structure; sentences only; tables and lists are nodes
   subchapter is a body element. So marklower gives up block syntax on purpose, and keeps exactly what
   a *sentence* needs. **Tables are the flagship case** of the delegation: where Markdown draws a grid
   out of pipe characters, marklower has nothing - a table is a *yamlover node* tagged
-  `!!<*yamlover: $defs: table>` ([tables](::documents:marklower:tables)), whose cells are themselves
-  marklower. Bullet and numbered lists delegate the same way ([lists](::documents:marklower:lists)).
+  `!!<*yamlover: $defs: table>` ([tables](*::documents:marklower:tables)), whose cells are themselves
+  marklower. Bullet and numbered lists delegate the same way ([lists](*::documents:marklower:lists)),
+  and so does embedding: a figure is a **body element** - a pointer to a media member, or a chunk
+  that is one media URL - never a text token ([embeds](*::documents:marklower:embeds)).
 - !!<format: text/x-yamlover> |
   !!<*yamlover: $defs: chapter>
   Embedding things                         # the SELF-VALUE title - marklower too
   - >
     Prose with **bold**, *italic*, `code`, inline math $$e^{i\pi}+1=0$$, and a
-    [link to the next section](:2) - all inline, all in one chunk.
-  - >
-    An embed alone on its line becomes a figure:
-
-    *[Kubrick on Napoleon](https://youtu.be/dQw4w9WgXcQ)
-
-    The same token *[mid-sentence](https://youtu.be/dQw4w9WgXcQ) is a chip instead.
+    [link to the next section](*:3) - all inline, all in one chunk.
+  - *: napoleon.png                       # EMBEDDING - a body element, never a text token
+  - https://youtu.be/dQw4w9WgXcQ          # a chunk that IS one media URL inlines the player
   - The next section                      # STRUCTURE - a body element, never `##` in the prose
     - deeper prose...

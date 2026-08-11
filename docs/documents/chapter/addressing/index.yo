@@ -6,7 +6,7 @@ description: bare-integer positions on the omni node - title consumes no index
   omni model indexes entries by their absolute position - a keyed entry like `description` consumes
   an index too, so a described chapter's first body element is `:P:1`). The **title consumes NO
   index**: it is the node's self-value, not an entry. A document-relative marklower link therefore
-  points at `:1` ([link targets](::documents:marklower:link-targets); the retired bracket spelling
+  points at `:1` ([link targets](*::documents:marklower:link-targets); the retired bracket spelling
   `:[1]` and the legacy slash `/[1]` still parse as aliases - see `examples/69-marklower-links.yo`),
   a subchapter's chunk at `:1:2`, and the in-page anchor of a flattened chunk is the slash
   continuation `#/1`.

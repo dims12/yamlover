@@ -8,7 +8,7 @@ description: the source projection's typing grammar, one state per subchapter
   `interpret(key, site)` in `tools/yed/src/grammar/dispatch.ts` - ONE pure table, run as data by
   `tools/yed/test/yed-dispatch.test.ts`; **the code table is normative**, and a grammar change
   edits the code, its test, and this chapter together ([the projectional
-  editor](::server:editor)).
+  editor](*::server:editor)).
 - >
   **Conventions.** `alphanumeric` covers letters, digits and any ordinary character that starts or
   extends a plain token - QUOTES INCLUDED: yed projects no quote glyphs and has no quote mode; a
@@ -28,7 +28,7 @@ description: the source projection's typing grammar, one state per subchapter
   **THE PROJECTION RULE.** One machine, several PROJECTIONS. The pure yed state
   (`tools/yed/src/state.ts`: the parser IR document + the cursor) is what edits; a projection only
   DRAWS. The source projection draws rows of yamlover token cells and applies the typing grammar
-  of this chapter. The [chapter projection](::server:chapter-editor) draws its own cell zoo over
+  of this chapter. The [chapter projection](*::server:chapter-editor) draws its own cell zoo over
   the same IR and does NOT use the typing grammar at all - no holes, no `- `/`key:` decisions.
 - >
   **THE FORMAT RULE.** A block's format is its `!!<...$defs:X>` tag - table, bullets, numbered -
@@ -51,7 +51,7 @@ description: the source projection's typing grammar, one state per subchapter
   has a row above it; at the document root, and mid-text or at the end of the cell, the level rule
   stands.
 - >
-  **THE PROSE EXCEPTION.** Under the [chapter projection](::server:chapter-editor) Enter makes a
+  **THE PROSE EXCEPTION.** Under the [chapter projection](*::server:chapter-editor) Enter makes a
   SIBLING block, not a descent, and Tab is the only descent - prose is a stream of paragraphs, not
   a tree of typed values. In a LIST, Tab keeps the classic outliner move; inside a TABLE, Tab is a
   caret walk across the grid.

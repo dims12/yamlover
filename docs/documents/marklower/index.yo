@@ -5,11 +5,12 @@ description: inline-only prose; tables and lists are yamlover nodes
   **Marklower** is yamlover's prose format: a markup language deliberately a notch *below* Markdown
   (hence the name). It is the format a **chapter's chunks** carry - `$defs/chunk` declares
   `format: text/marklower` and schema propagation stamps every prose chunk with it, so an article
-  needs no per-chunk tag ([chapters](::documents:chapter)). It is asked for by name: a format-less
+  needs no per-chunk tag ([chapters](*::documents:chapter)). It is asked for by name: a format-less
   string *elsewhere* in the tree is data, not prose. This part defines the language AND the
-  structures it delegates to - [tables](::documents:marklower:tables) and [lists](::documents:marklower:lists).
-  Companion language material: the [`:` path grammar](::language:pointers), the [type
-  lattice](::language:model), the [schema vocabulary](::meta).
+  structures it delegates to - [tables](*::documents:marklower:tables), [lists](*::documents:marklower:lists),
+  and [embeds](*::documents:marklower:embeds).
+  Companion language material: the [pointer grammar](*::language:pointers), the [type
+  lattice](*::language:model), the [schema vocabulary](*::meta).
 - *: model
 - *: grammar
 - *: link-targets

@@ -8,7 +8,7 @@ description: value, keyed, ordinal - the capability cube and its corners
     - keyword
     - meaning
       width: 2
-  - ['**value**', '`value:`', 'a scalar **self-value** - the [value axis](::language:model:values)']
+  - ['**value**', '`value:`', 'a scalar **self-value** - the [value axis](*::language:model:values)']
   - ['**keyed**', '`keyed:`', 'named entries `key: ...`']
   - ['**ordinal**', '`ordinal:`', 'positional entries `- ...`']
 - >
@@ -34,7 +34,7 @@ description: value, keyed, ordinal - the capability cube and its corners
 - >
   The long JSON-Schema spellings (`object`, `array`, `mixed`, `variant`, `string`, `integer`, ...)
   read forever as aliases; the short YAML-style names are canonical
-  ([terse keywords](::meta:principles:terse-keywords)). Note that closed `leaf` - a node with no
+  ([terse keywords](*::meta:principles:terse-keywords)). Note that closed `leaf` - a node with no
   members - and the *open* value facet differ exactly on omni nodes: the open reading includes a
   value that has grown entries.
 - >
@@ -42,7 +42,7 @@ description: value, keyed, ordinal - the capability cube and its corners
   omni. As a *schema*, `type: omni` constrains nothing - and the `!!yo` surface tag (formerly
   `!!var`) is no shape assertion either: as a type it is the top, and its real payload is the schema
   *exemption* - plain yamlover, not bound by the enclosing document's meta
-  ([mixtures](::language:vs-yaml:differences:mixtures)). (The query matcher `!!<type: omni>` deliberately tests
+  ([mixtures](*::language:vs-yaml:differences:mixtures)). (The query matcher `!!<type: omni>` deliberately tests
   the *region* - a scalar that has own fields - a tautological test would select everything; the
   schema reading and the matcher reading are both correct, each on its own side.)
 - >
@@ -79,5 +79,5 @@ description: value, keyed, ordinal - the capability cube and its corners
   A facet carries a small fixed set of modifier keywords beyond false-or-schema - `uniqueItems` (set),
   key-uniqueness (omap versus pairs), ordering (yamlover's default) - almost all kept verbatim from
   JSON Schema. The merge key `<<` and YAML's `!!value` are mechanisms, not types. And `!!omap`,
-  `!!pairs`, `!!binary` are more than refinements - reserved [transform names](::transform), the
+  `!!pairs`, `!!binary` are more than refinements - reserved [transform names](*::transform), the
   records above being only their *result* shapes.

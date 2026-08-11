@@ -2,7 +2,7 @@ json5p/list
 description: Comma-separated list of values, enclosed into square brackets; a trailing comma is allowed
 - >
   A json5p list is a
-  [json5/list](::language:concretes:06-json5_code:00-json5_structured:01-json5_list) whose
+  [json5/list](*::language:concretes:06-json5_code:00-json5_structured:01-json5_list) whose
   elements are json5p values - in particular, a pointer can stand as an element. An element can
   be ANY json5p value - the grammar recurses here:
 - !!<format: text/x-json5p> |

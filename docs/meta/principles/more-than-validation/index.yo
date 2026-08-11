@@ -3,6 +3,6 @@ description: the role is description, not just checking - hence meta, not schema
 - >
   A JSON Schema exists to validate. A yamlover meta's role is wider: it **describes** - typing,
   decoding, rendering, presentation - and validation is a secondary, optional use of the same
-  description ([metadata first](::language:principles:metadata-first)). That is why the language is
+  description ([metadata first](*::language:principles:metadata-first)). That is why the language is
   called **yamlover meta**, not yamlover schema: `title` and `description` are not annotation
   afterthoughts bolted onto a validator - the metadata is the point, and the validator reads it too.

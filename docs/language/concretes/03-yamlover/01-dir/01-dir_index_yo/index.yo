@@ -2,7 +2,7 @@ dir/index.yo
 description: The same overlay contract, with the instance overlay as a plain index.yo file
 - >
   A dir carrying an `index.yo` file - the SAME overlay contract as
-  [dir/.yo](::language:concretes:03-yamlover:01-dir:00-dir_yo), with the instance overlay moved
+  [dir/.yo](*::language:concretes:03-yamlover:01-dir:00-dir_yo), with the instance overlay moved
   out of the control subdirectory and into one plain file inside the directory it controls:
 - !!<format: text/plain> |
   julia/
@@ -16,7 +16,7 @@ description: The same overlay contract, with the instance overlay as a plain ind
 - >
   ONE file is all that moves. `.yo/` is untouched by the choice - it keeps `meta.yo`, the index
   cache, the sidecars and the trash, read and written exactly as
-  [the other flavor](::language:concretes:03-yamlover:01-dir:00-dir_yo) does, and a `dir/index.yo`
+  [the other flavor](*::language:concretes:03-yamlover:01-dir:00-dir_yo) does, and a `dir/index.yo`
   grows one the moment it needs any of them. What changes is only that such a `.yo/` has no body
   of its own to hold, which is no longer the debris the layout invariants look for.
 - >
@@ -24,4 +24,4 @@ description: The same overlay contract, with the instance overlay as a plain ind
   is - it is never rendered as a key, which is this concrete's one limitation: a `dir/index.yo`
   cannot hold a member NAMED `index.yo`. Nor can it hold both overlays: `index.yo` beside a
   `.yo/body.yo` is a
-  [layout violation](::language:concretes:02-invariants), the duplicate-overlay diagnostic.
+  [layout violation](*::language:concretes:02-invariants), the duplicate-overlay diagnostic.

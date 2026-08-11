@@ -2,7 +2,7 @@ json5p/code
 description: JSON5 with pointers - json5/code extended with the pointer layer
 - >
   **json5p** is this project's own language -
-  [json5/code](::language:concretes:06-json5_code) plus the **pointer layer**, and nothing
+  [json5/code](*::language:concretes:06-json5_code) plus the **pointer layer**, and nothing
   else. A `*` pointer makes a SHARED edge where JSON and JSON5 could only copy, and an `&` bookmark
   writes the reverse edge. JSON ⊂ JSON5 ⊂ json5p - every JSON5 code is also valid json5p:
 - !!<format: text/x-json5p> |

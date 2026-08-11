@@ -14,8 +14,8 @@ description: the dropdown_armed state
       width: 2
   - ['`down_arrow`', '', '`dropdown_armed` (stays)']
   - ['`up_arrow`', '', '`dropdown_armed` (stays)']
-  - ['`enter`', '', '[cell_editing](::server:query-editor:cell_editing)']
-  - ['`tab`', '', '[cell_editing](::server:query-editor:cell_editing)']
-  - ['`click_candidate`', '', '[cell_editing](::server:query-editor:cell_editing)']
-  - ['`escape`', '', '[dropdown_open](::server:query-editor:dropdown_open)']
-  - ['`alphanumeric`', '', '[dropdown_open](::server:query-editor:dropdown_open)']
+  - ['`enter`', '', '[cell_editing](*::server:query-editor:cell_editing)']
+  - ['`tab`', '', '[cell_editing](*::server:query-editor:cell_editing)']
+  - ['`click_candidate`', '', '[cell_editing](*::server:query-editor:cell_editing)']
+  - ['`escape`', '', '[dropdown_open](*::server:query-editor:dropdown_open)']
+  - ['`alphanumeric`', '', '[dropdown_open](*::server:query-editor:dropdown_open)']

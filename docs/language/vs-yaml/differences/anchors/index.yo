@@ -15,4 +15,4 @@ description: YAML's reusable label turns into "this node also lives at that path
   ... `*: a`, one shared key at the document root - and the alias resolves exactly as YAML intends. A
   `.yo` file's bare `&a` instead anchors into the current mapping. Either way the parsed result is
   concrete-agnostic and renders back in yamlover syntax. Full semantics - ordinal membership,
-  multiplicity, collisions: the [bookmarks subchapter](::language:pointers:bookmarks).
+  multiplicity, collisions: the [bookmarks subchapter](*::language:pointers:bookmarks).

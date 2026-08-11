@@ -1,7 +1,7 @@
 Attaching a chapter
 description: inline tags, directory overlays, subchapter materialization, media drops
 - >
-  Two ways, both in the [metadata](::meta:attaching) vocabulary:
+  Two ways, both in the [metadata](*::meta:attaching) vocabulary:
 - !!<*yamlover: $defs: bullets>
   - '**Inline tag** (a `.yo` file or an inline value): `!!<*yamlover: $defs: chapter>` on the node. A whole article fits in one file (`examples/60-simple-chapter.yo`).'
   - '**Directory overlay**: a directory''s `.yo/body.yo` is tagged at its root, so the *directory itself* is the chapter and its files can be referenced as pointer chunks (`examples/68-math-chapter`, `65-all-formats-chunks`). Subchapters can themselves be **subdirectories** - each its own directory chapter, referenced by a `*`-pointer body element - giving a recursive tree where every chapter is a directory (`examples/66-pet-keeper-handbook`: `dogs/`, `cats/`, `fish/`, and nested `dogs/puppies/`).'
@@ -18,7 +18,7 @@ description: inline tags, directory overlays, subchapter materialization, media 
   back), and deleting its body element splices only the pointer line: the subdirectory is orphaned,
   resurfacing as a keyed-only member, never destroyed. An underived ordinal-container insert (the
   data editor's path) materializes too, under a generated order-numbered name (`item01`, ..., between
-  → `item01-1` - [member encoding](::language:concretes:01-choosing)).
+  → `item01-1` - [member encoding](*::language:concretes:01-choosing)).
 - >
   **Media drops and pastes.** Dropping a file onto a chapter page (read-only or unlocked) writes it
   into the chapter's owning directory and appends a `- *: <name>` pointer chunk to the body (the

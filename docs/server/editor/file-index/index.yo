@@ -52,7 +52,7 @@ description: where each piece of the editor lives in the source tree
   capabilities through `ChapterCellsAdapter`); debug pages under `tools/yed/debug-editor/` (port
   5199) and `tools/yed/debug-chapter/` (port 5198), suites under `tools/yed/test/`.
 - >
-  **State machines:** [the yamlover editor](::server:yamlover-editor), [the chapter
-  editor](::server:chapter-editor), [the query editor](::server:query-editor) - keep in sync with
+  **State machines:** [the yamlover editor](*::server:yamlover-editor), [the chapter
+  editor](*::server:chapter-editor), [the query editor](*::server:query-editor) - keep in sync with
   `tools/yed/src/grammar/dispatch.ts`, `tools/yed/src/chapter/dispatch.ts` and
   `breadcrumb-machine.ts` respectively.

@@ -15,10 +15,10 @@ description: the flow_seq_editing state
       width: 4
     - 'Next state'
       width: 2
-  - ['`alphanumeric`', '', '[unquoted_scalar_appending](::server:yamlover-editor:unquoted_scalar_appending)']
-  - ['`close_bracket`', '', '[scalar_committed](::server:yamlover-editor:scalar_committed)']
+  - ['`alphanumeric`', '', '[unquoted_scalar_appending](*::server:yamlover-editor:unquoted_scalar_appending)']
+  - ['`close_bracket`', '', '[scalar_committed](*::server:yamlover-editor:scalar_committed)']
   - ['`comma`', '', '`flow_seq_editing` (stays)']
-  - ['`enter`', 'the token cannot be spread (a keyed+keyless mixture)', '[scalar_committed](::server:yamlover-editor:scalar_committed)']
-  - ['`enter`', 'otherwise', '[flow_seq_spread](::server:yamlover-editor:flow_seq_spread)']
-  - ['`backspace`', 'the inner cell is empty and it is the only one', '[empty_cell_of_origin](::server:yamlover-editor:empty_cell_of_origin)']
+  - ['`enter`', 'the token cannot be spread (a keyed+keyless mixture)', '[scalar_committed](*::server:yamlover-editor:scalar_committed)']
+  - ['`enter`', 'otherwise', '[flow_seq_spread](*::server:yamlover-editor:flow_seq_spread)']
+  - ['`backspace`', 'the inner cell is empty and it is the only one', '[empty_cell_of_origin](*::server:yamlover-editor:empty_cell_of_origin)']
   - ['`backspace`', 'otherwise', '`flow_seq_editing` (stays)']

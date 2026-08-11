@@ -10,7 +10,7 @@ description: a tree diff turns edits into surgical /api/edit ops - the machine n
 - >
   The op shape is `{ path, op: "emplace" | "replace" | "insert" | "remove", yamlover?, meta? }`
   (`meta` carries the `!!<...>` facet). Ops address body elements by **absolute entry index**
-  (`:doc[3]` - keyed entries consume indices too, [the chapter model](::documents:chapter)); the
+  (`:doc[3]` - keyed entries consume indices too, [the chapter model](*::documents:chapter)); the
   server applies a batch strictly in order, re-scanning after each op. The yed chapter mount
   likewise auto-stamps the document's chapter meta with its first flush - the exactly-once
   CHAPTER stamp (`yed-chapter-editor.tsx` `stampedRef`, `yed-chapter/materialize.ts`

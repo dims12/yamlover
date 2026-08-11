@@ -85,5 +85,5 @@ description: the colon grammar - one meaning for the colon everywhere
   The retired bracket index `[n]` reads forever as an alias, written never. The slash is an
   ordinary key character: `text/html` rides bare, and `*/pets` is a (dangling) reference to the
   literal key "/pets", never a rooted path. Which bare tokens must be quoted to read as string
-  keys - and how metacharacters escape - is the [escaping chapter](::language:pointers:escaping)'s
+  keys - and how metacharacters escape - is the [escaping chapter](*::language:pointers:escaping)'s
   subject.

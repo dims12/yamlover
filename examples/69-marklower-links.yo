@@ -1,44 +1,55 @@
 # A documentation tree about its own links — nested chapters of marklower prose, the whole
-# thing one tagged .yo file (all chunks are the default markdown/marklower format, so
-# no meta overlay is needed). The body is positional; a `:i` link (a bare-integer segment —
-# the YAML-keys round) addresses body element i of the document root (the title is the
-# node's SELF-VALUE, so it consumes no index — the first chunk is `:0`). The legacy
-# bracket/slash spellings (`/[i]`, `/i`) read forever as aliases, written never.
-# Spec: docs/documents/chapter, docs/documents/marklower, docs/language.
+# thing one tagged .yo file (all chunks are the default marklower format, so no meta overlay
+# is needed). A link target is a SIGILED yamlover pointer expression, written COMPACT inside
+# prose: `*::a:b` project-rooted, `*:a:b` document-relative, `*..:x` parent-relative, `*name`
+# current scope. The body is positional; a bare integer segment is a position (the title is
+# the node's SELF-VALUE, so it consumes no index — the first chunk is `*:0`). The bare-colon
+# form reads forever as an alias, the slash spellings are legacy-frozen, `&…` is reserved —
+# all written never. Spec: docs/documents/marklower/link-targets, docs/language/pointers.
 !!<*yamlover: $defs: chapter>
 A Tour of marklower Links
 - |
-  marklower links live in **JSON instance space**, in three flavours. Jump to the
-  document-relative links subchapter at [:2](:2), the project-root one
-  at [:3](:3), or external links at [:4](:4) — each
-  its own subchapter below.
-- |
-  Wherever you are in this guide, the top of it at [:0](:0) is one
-  document-relative link away. You can also leave for the wider world, like the KaTeX
-  project at [https://katex.org](https://katex.org).
+  A link's target is a **sigiled pointer**. This guide tours every tier: document-relative
+  links at [*:1](*:1), project-rooted ones at [*:2](*:2), the parent and current scopes
+  at [*:3](*:3), the read-forever aliases and legacy spellings at [*:4](*:4), and external
+  targets at [*:5](*:5) — each its own subchapter below.
 - Document-relative links
   - |
-    A `:path` link is relative to **this document** — the whole guide — however deep you
-    are reading, and a bare integer segment is a position. So [:0](:0) always lands on
-    the opening line.
-  - |
-    From here, reach a sibling section at [:3](:3), or descend deeper
-    to [:2:2](:2:2).
+    A `*:path` link counts from **this document** — the whole guide — however deep you are
+    reading, and a bare integer segment is a position. The title is the self-value and
+    consumes no index, so the intro is [*:0](*:0) and this section is [*:1](*:1).
   - Going deeper
     - |
-      Even two levels down, a `:…` link still counts from the document root: the intro at
-      [:0](:0), and the external-links section at [:4](:4).
+      Two levels down, a `*:…` link still counts from the document root: the intro at
+      [*:0](*:0), the external-targets section at [*:5](*:5), or this very line
+      at [*:1:1:0](*:1:1:0).
 - Project-root links
   - |
-    A `::path` link is relative to the **project root** — the directory you served. Served
-    from the repo, a sibling example is at [::examples:68-math-chapter](::examples:68-math-chapter),
-    or one formula in it at [::examples:68-math-chapter:2](::examples:68-math-chapter:2).
+    A `*::path` link is anchored at the **project root** — the directory yamlover was
+    served. Served from the repo, a sibling example is at
+    [*::examples:68-math-chapter](*::examples:68-math-chapter), or one formula in it
+    at [*::examples:68-math-chapter:2](*::examples:68-math-chapter:2).
+- Parent and current scope
+  notes: a keyed member of this section — `*notes` lands here
   - |
-    The pet handbook is at [::examples:66-pet-keeper-handbook](::examples:66-pet-keeper-handbook). To return home,
-    regardless of mount point, use a document-relative link to this guide's intro at
-    [:0](:0).
-- External links
+    A `*name` link resolves in the mapping the prose belongs to — this section's own note
+    is at [*notes](*notes). A `*..:` link starts one level up: from here the parent is the
+    guide itself, so its intro is at [*..:0](*..:0) and the previous section
+    at [*..:2](*..:2).
+- Aliases and legacy spellings
   - |
-    Any target with a scheme is an external link, opened in a new tab: Wikipedia on
-    hyperlinks at [https://en.wikipedia.org/wiki/Hyperlink](https://en.wikipedia.org/wiki/Hyperlink),
-    or email the maintainer at [mailto:dimskraft@gmail.com](mailto:dimskraft@gmail.com).
+    The **bare colon** form is the same pointer without its sigil, and reads **forever** as
+    an alias — the intro at [:0](:0) still lands, though the sigiled spelling is what the
+    engine writes when a move rewrites a link.
+  - |
+    The **slash** spellings are legacy-frozen: the document-relative [/0](/0) and the
+    project-rooted [//examples/68-math-chapter](//examples/68-math-chapter) still navigate,
+    written never.
+- External targets and the reserved sigil
+  - |
+    Any target with a scheme is an **external** link, opened in a new tab: the KaTeX
+    project at [https://katex.org](https://katex.org), or mail the maintainer
+    at [mailto:dimskraft@gmail.com](mailto:dimskraft@gmail.com).
+  - |
+    A `&…` target is **reserved** for bookmarks — it parses but does not yet navigate, so
+    its label renders as plain text: [a future bookmark](&some-mark).

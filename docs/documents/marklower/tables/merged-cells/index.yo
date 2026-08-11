@@ -3,7 +3,7 @@ description: '*[.-1] colspan, *..[.-1][.] rowspan; filled rectangle'
 - >
   A merged (spanned) region is not new vocabulary: it is a cell declaring **"I *am* the previous
   cell"** with a `*` pointer, using the language's [relative
-  indexes](::language:pointers:relative-indexes) (`[.]` = my own position at this depth,
+  indexes](*::language:pointers:relative-indexes) (`[.]` = my own position at this depth,
   `[.-1]` = one before it). The YAML-keys round leaves this idiom **unchanged**: `[.±k]` is one of
   the surviving non-literal position operators - `*[.-1]` and `*..[.-1][.]` keep their bracket
   spelling (only *literal* absolute indexes went bare):

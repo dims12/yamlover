@@ -15,7 +15,7 @@ description: Why the prose format refuses headings — and what carries them ins
 - Marklower — a notch below Markdown
   notes: |
     TODO — docs/documents/marklower. Five constructs and no others: bold, italic, strike, code, math,
-    a link, an embed. Everything else passes through.
+    a link. Everything else passes through.
   - !!<*yamlover: $defs: table>
     header: [Syntax, Meaning]
     - - '`**bold**`, `*italic*`, `~~strike~~`'
@@ -24,8 +24,6 @@ description: Why the prose format refuses headings — and what carries them ins
       - atomic — never re-read as markup
     - - '`[label](target)`'
       - a link — *points at* the target
-    - - '`*[label](target)`'
-      - an embed — *inlines* the target
 - No headings, on purpose
   notes: |
     TODO — the design argument: a `##` buried in a chunk cannot become a subchapter that
@@ -42,14 +40,16 @@ description: Why the prose format refuses headings — and what carries them ins
     TODO — one sentence on delegation: the structure marklower refuses to own.
 - Links across the tree
   notes: |
-    TODO — examples/69-marklower-links.yo. A link target is a path in the same
-    space the tree and the URL navigate (docs/language/pointers/paths), so prose can point anywhere.
+    TODO — examples/69-marklower-links.yo. A link target is a sigiled pointer in the same
+    space the tree and the URL navigate (docs/documents/marklower/link-targets), so prose can
+    point anywhere.
   - |
     TODO — one sentence.
 - Embeds
   notes: |
-    TODO — an embed alone on its line becomes a figure; the same token mid-sentence is a
-    chip. Show a picture inlined from a sibling file.
+    TODO — no embed token: embedding is structural, a body element — a `*` pointer to a
+    media member, or a chunk whose whole text is one media URL. Show a picture inlined
+    from a sibling file.
   - |
     TODO — one sentence.
 - One document model, many formats

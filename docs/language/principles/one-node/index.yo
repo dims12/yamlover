@@ -18,9 +18,9 @@ description: scalar, list, and dict are not boxes - one node may be all three at
   **Mixtures are the default.** An untagged node may mix keyed and keyless entries and may carry a
   self-value alongside fields - at the document root included. `!!mix` remains a no-op documentation
   marker; the `!!yo` tag is semantic - plain yamlover, exempt from the enclosing document's schema
-  ([mixtures](::language:vs-yaml:differences:mixtures)).
+  ([mixtures](*::language:vs-yaml:differences:mixtures)).
 - >
   The payoff is stability under growth: adding a field to a node - an annotation onto a markdown
   string, a subchapter under a title - never flips its type out from under a consumer. A type is a
   predicate over a node's shape, and a node may satisfy several at once (the [logical
-  model](::language:model)).
+  model](*::language:model)).

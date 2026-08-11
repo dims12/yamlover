@@ -7,7 +7,7 @@ description: $defs/bullets and $defs/numbered - same-kind nesting at any depth
   **just a yamlover list** whose items are marklower chunks:
 - !!<format: text/x-yamlover> |
   - !!<*yamlover: $defs: bullets>
-    - the first point, with **bold** and [links](:2) - items are marklower
+    - the first point, with **bold** and [links](*:2) - items are marklower
     - - a nested sub-point               # an untagged container = a sublist of the SAME kind
       - - and deeper still               # -at ANY depth (compact `- - ` or block form alike)
   - !!<*yamlover: $defs: numbered>

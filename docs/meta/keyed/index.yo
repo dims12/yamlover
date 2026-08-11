@@ -2,4 +2,4 @@ The keyed facet
 description: keywords for named entries - properties, required keys, entry counts
 - >
   TBD - the keyed-facet sub-schema: `properties`, required keys, the `min`/`max` entry counts
-  ([the quantifiers](::meta:facets)), and what JSON Schema spells `additionalProperties`.
+  ([the quantifiers](*::meta:facets)), and what JSON Schema spells `additionalProperties`.

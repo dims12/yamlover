@@ -26,5 +26,5 @@ description: the clean-room IR-backed editor whose semantics are normative
   every other), `clipboard` (subtree copy/paste as serialized text, under the same laws typing
   obeys), `cells` (the framed, titled, recursive cell projection), `dom-typing` (real key events
   with the caret pinned per keystroke), `dialect` (json/json5 policy smoke), `yed-dispatch` (the
-  grammar table as data - the table [the yamlover editor machine](::server:yamlover-editor)
+  grammar table as data - the table [the yamlover editor machine](*::server:yamlover-editor)
   mirrors).

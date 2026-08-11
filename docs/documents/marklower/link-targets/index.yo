@@ -1,20 +1,38 @@
 Link targets
-description: document, project, and external - the colon grammar
+description: the parens hold a yamlover expression - sigiled pointers, the bare alias, external URLs
 - >
-  A target is addressed in the app's **instance space** - the same space the tree, the breadcrumbs,
-  and the URL navigate - with the colon grammar of [pointers](::language:pointers):
+  The parenthesized target is a **yamlover expression**. Canonically it is a *pointer* — the same
+  `*`-sigiled grammar as [pointers](*::language:pointers) everywhere else, addressing the app's
+  **instance space** (the space the tree, the breadcrumbs, and the URL navigate):
 - !!<*yamlover: $defs: table>
   header:
     - Target
     - 'Anchored at'
       width: 2
-  - ['`:a:b`, `:2`', 'the **document** the link appears in (the nearest yamlover entity)']
-  - ['`::a:b`', 'the **project root** (the directory yamlover was served)']
+  - ['`*:: a: b`', 'the **project root** (the directory yamlover was served)']
+  - ['`*: a: b`, `*: 2`', 'the **document** the link appears in (the nearest yamlover entity)']
+  - ['`*..: sib`', 'the **parent** of the mapping the prose belongs to']
+  - ['`*name`', 'the mapping the prose belongs to (**current** scope)']
+  - ['`&...`', '**reserved** - a bookmark target; parsed, not yet resolved']
   - ['`scheme://...`, `mailto:...`', 'an ordinary **external** link, opened in a new tab']
 - >
-  A position in a target is the **bare integer** segment (`:2`, `::a:0` - the YAML-keys round); the
-  retired bracket index (`:[2]`) reads forever as an alias, written never. Anything else does not
-  resolve, and the label renders as plain text. The legacy slash spellings (`/a/b` document-relative,
-  `//a/b` project-rooted, with `/1` bare-integer segments) still parse; `examples/69-marklower-links.yo`
-  is a tour of all three flavours. One function, `resolveLink`, decides what a target means, for
-  every renderer that emits links.
+  Inside prose the pointer is written **compact** (`*::a:b`) - a `: `-spaced spelling inside a
+  bare scalar line would re-split the line as a key and value, and compact is valid in every
+  context. A position is the **bare integer** segment (`*:2`, `*::a:0`); the retired bracket
+  index reads forever as an alias, written never.
+- >
+  The **bare colon form** - `(::a:b)`, `(:a:b)` - is the same pointer without its sigil, and
+  reads **forever** as an alias; the sigiled form is what the engine emits when a
+  [move](*::server:engine) rewrites a link. The legacy slash spellings (`/a/b`
+  document-relative, `//a/b` project-rooted) still navigate but are frozen - written never.
+  Anything else does not resolve, and the label renders as plain text.
+  `examples/69-marklower-links.yo` is a tour of the flavours.
+- >
+  A `&...` target is the **bookmark** half of the expression space, reserved for the annotations
+  rework: it parses (a move that strands one *reports* it rather than silently breaking it), but
+  the client does not yet navigate it. *TODO: give bookmark links behavior when annotations are
+  refactored.*
+- >
+  One seam decides what a target means - `parseLinkTarget`, shared verbatim by the client's
+  `resolveLink` (navigation) and the engine's move planner (rewriting) - so a spelling that
+  navigates is exactly a spelling a move keeps alive.

@@ -2,7 +2,7 @@ json5p/object
 description: Comma-separated list of key-value pairs, enclosed into curly braces; a trailing comma is allowed
 - >
   A json5p object is a
-  [json5/object](::language:concretes:06-json5_code:00-json5_structured:00-json5_object)
+  [json5/object](*::language:concretes:06-json5_code:00-json5_structured:00-json5_object)
   whose pairs are json5p pairs - a pair may bookmark its value, and the value may be a pointer:
 - !!<format: text/x-json5p> |
   {name: 'Rex', boss: &": chief" {}, buddy: *": pets: 1"}

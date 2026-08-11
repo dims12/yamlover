@@ -54,7 +54,7 @@ description: the self-value's types - JSON Schema's set, binary added, its own s
   A scalar may carry a **format** - JSON Schema's own (`date-time`, `email`, `uri`) and, beyond
   them, `text/markdown`, `image/png`, `int32/le` - a named constraint refining how the value is
   decoded, rendered, and edited; a bare string's default prose format is `text/marklower`. The
-  [format chapter](::language:model:format) is its subject.
+  [format chapter](*::language:model:format) is its subject.
 - 'In a file, the format rides the `!!<...>` tag:'
 - !!<format: text/x-yamlover> |
   adopted: !!<format: date-time> 2019-06-01

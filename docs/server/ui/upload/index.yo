@@ -19,7 +19,7 @@ description: files, text, links, and rich HTML land in the tree by what the curr
   subchapters) so the pasted page stays structured rather than landing as one opaque blob. A
   copied **YouTube or Vimeo player** survives the trip as a marklower embed; a frame from any
   other origin is dropped rather than pasted (the [embeddable
-  hosts](::documents:marklower:embeds) are an allowlist, and that is a security boundary).
+  hosts](*::documents:marklower:embeds) are an allowlist, and that is a security boundary).
 - >
   **Pasting an image *into* an open prose chunk** is the one case that does not append anything:
   the picture is uploaded beside the chapter and referenced from the sentence you were writing,
