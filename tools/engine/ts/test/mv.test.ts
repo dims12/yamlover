@@ -152,12 +152,12 @@ test('relinkMoved: a directory move arriving as its N file-level entries relinks
     { from: 'privacy/gdpr/index.yo', to: 'kb/privacy/gdpr/index.yo' },
   ]);
 
-  // the pointer AND the marklower prose link are both relinked, compact spelling kept
+  // the pointer keeps its authored compact spelling; the link emits SIGILED canonical
   assert.equal(r.rewritten.length, 2);
-  assert.deepEqual(r.rewritten.map((x) => x.newRaw).sort(), ['::kb:privacy:tax', '[tax](::kb:privacy:tax)']);
+  assert.deepEqual(r.rewritten.map((x) => x.newRaw).sort(), ['::kb:privacy:tax', '[tax](*::kb:privacy:tax)']);
   assert.deepEqual(r.unrewritten, []);
   assert.deepEqual(r.editedFiles, ['probe.yo']);
-  assert.equal(readFileSync(join(root, 'probe.yo'), 'utf8'), 'ptr: *::kb:privacy:tax\nmd: "see [tax](::kb:privacy:tax)"\n');
+  assert.equal(readFileSync(join(root, 'probe.yo'), 'utf8'), 'ptr: *::kb:privacy:tax\nmd: "see [tax](*::kb:privacy:tax)"\n');
   reindex(s, root);
   assert.deepEqual(s.dangling(), []);
 });
@@ -202,7 +202,7 @@ test('mv: a marklower prose link is REWRITTEN in place, surgically', () => {
   const report = mv(root, 'a.md', 'b.md');
   assert.deepEqual(report.unrewritten, []);
   assert.equal(report.rewritten.length, 1);
-  assert.equal(report.rewritten[0].newRaw, '[a](::b.md)');
+  assert.equal(report.rewritten[0].newRaw, '[a](*::b.md)'); // sigiled canonical emission
   // surgical: quotes, prose, and the comment all survive — only the target changed
-  assert.equal(readFileSync(join(root, 'note.yo'), 'utf8'), 'md: "see [a](::b.md)"  # keep me\n');
+  assert.equal(readFileSync(join(root, 'note.yo'), 'utf8'), 'md: "see [a](*::b.md)"  # keep me\n');
 });

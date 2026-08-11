@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { embed, isEmbeddable } from "../../src/client/embed";
 import { marklowerToEditableHtml } from "../../src/client/renderers/marklower";
+import { linkTargets } from "../../../parser/ts/src/marklower-links.ts";
 
 describe("embed — providers", () => {
   it("claims every spelling YouTube hands out, and frames it on the no-cookie host", () => {
@@ -90,13 +91,31 @@ describe("isEmbeddable", () => {
   });
 });
 
-describe("the embed token vs. emphasis", () => {
-  // The one ambiguity `*` buys us: a leading `*` starts an embed, but it may equally be the opening
-  // marker of an italic run that happens to wrap a link. The trailing `*` decides.
+describe("a leading * before a link — emphasis or plain text, never an embed token", () => {
+  // The text-level embed token is GONE: embedding is a body-level property of a chunk
+  // (docs/documents/marklower/embeds), so a `*` before a link is a literal star — or the
+  // opening marker of an italic run that happens to wrap the link. No spelling makes a chip.
   const chip = (src: string) => marklowerToEditableHtml(src).includes("mlw-embed-chip");
   const link = (src: string) => marklowerToEditableHtml(src).includes("mlw-link");
 
-  it("*[a](b) is an embed", () => expect(chip("*[cat](https://youtu.be/abc)")).toBe(true));
+  it("*[a](b) lexes as a literal * followed by a plain link", () => {
+    const src = "*[cat](https://youtu.be/abc)";
+    // the TOKEN alternation sees ONE link token, starting AFTER the star — the star is text
+    expect(linkTargets(src)).toEqual([
+      {
+        target: "https://youtu.be/abc",
+        raw: "[cat](https://youtu.be/abc)",
+        start: 1,
+        end: src.length,
+        targetStart: src.length - 1 - "https://youtu.be/abc".length,
+        targetEnd: src.length - 1,
+      },
+    ]);
+    expect(chip(src)).toBe(false);
+    const html = marklowerToEditableHtml(src);
+    expect(html).toMatch(/^\*<a /); // the literal star, then the link atom
+    expect(html).toContain('data-src="[cat](https://youtu.be/abc)"'); // the atom's source has NO star
+  });
   it("*[a](b)* is an italic link, not an embed", () => {
     expect(chip("*[cat](https://youtu.be/abc)*")).toBe(false);
     expect(link("*[cat](https://youtu.be/abc)*")).toBe(true);

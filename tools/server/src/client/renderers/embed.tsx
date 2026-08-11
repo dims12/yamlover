@@ -1,12 +1,13 @@
 import { useState } from "react";
+import { blobUrl } from "../api";
 import { Embed } from "../embed";
+import type { Chunk } from "./registry";
 
 /**
- * The render half of the marklower `*[label](target)` embed token — {@link Embed} (the resolved
- * target) → pixels. Two shapes, chosen by the token's position in the source, not by its kind:
- *
- *   - **block** — the token stands alone on its line: a `<figure>`, the label its `<figcaption>`;
- *   - **inline** — the token sits inside a sentence: a compact chip, so prose still flows.
+ * The render half of BODY-LEVEL media — {@link Embed} (the resolved target) → pixels.
+ * Embedding is structural (docs/documents/marklower/embeds): a chapter body element that IS
+ * media — a `- *: clip` member, or a chunk whose whole text is one embeddable URL — renders
+ * as a `<figure>`, the caption its label. There is no text-level embed token.
  *
  * A provider iframe is never mounted on load: it renders as a **facade** (poster + play button)
  * and swaps in the frame on click. That keeps a third party's scripts out of the page until the
@@ -64,7 +65,7 @@ function Media({ spec, label }: { spec: Embed; label: string }) {
   }
 }
 
-/** A block embed: its own figure in the chapter's flow, captioned by the token's label. */
+/** A block embed: its own figure in the chapter's flow, captioned by its label. */
 export function EmbedFigure({ spec, label }: { spec: Embed; label: string }) {
   return (
     <figure className="mlw-embed">
@@ -72,6 +73,13 @@ export function EmbedFigure({ spec, label }: { spec: Embed; label: string }) {
       {label && <figcaption className="mlw-embed-caption">{label}</figcaption>}
     </figure>
   );
+}
+
+/** A file-backed video/audio MEMBER (`- *: clip.mp4`) as a body figure: the bytes stream
+ *  from the blob endpoint; the kind is the format's top half. */
+export function MediaChunk({ chunk }: { chunk: Chunk }) {
+  const kind = chunk.format?.startsWith("audio/") ? ("audio" as const) : ("video" as const);
+  return <EmbedFigure spec={{ kind, src: blobUrl(chunk.path), path: chunk.path }} label="" />;
 }
 
 /** An inline embed: a chip carrying the kind's glyph and the label. An image is small enough to

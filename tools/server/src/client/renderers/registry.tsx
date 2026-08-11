@@ -8,6 +8,7 @@ import { isSubchapter } from "./chapter-model";
 import { TaskView } from "./task";
 import { TextView, TextChunk } from "./text";
 import { MarklowerView, MarklowerChunk } from "./marklower";
+import { MediaChunk } from "./embed";
 import { LatexView, LatexChunk } from "./latex";
 import { AsciidocView, AsciidocChunk } from "./asciidoc";
 import { CsvView, CsvChunk, CsvControls } from "./csv";
@@ -437,6 +438,16 @@ const REGISTRY: Renderer[] = [
     specificity: 2,
     render: (node) => lazily(<ImageView node={node} />),
     renderChunk: (chunk, onNavigate) => lazily(<ImageChunk chunk={chunk} onNavigate={onNavigate} />),
+  },
+  {
+    // File-backed video/audio: a `- *: clip.mp4` body member renders as a figure — embedding
+    // is structural (docs/documents/marklower/embeds), never a text token.
+    name: "media",
+    icon: "🎬",
+    accepts: byFormat("video/mp4", "video/webm", "video/ogg", "video/quicktime", "audio/mpeg", "audio/ogg", "audio/wav", "audio/flac", "audio/mp4", "audio/aac"),
+    specificity: 2,
+    render: (node) => <MediaChunk chunk={{ value: null, path: node.path, type: node.type, format: node.format, valueType: node.valueType ?? null, hasKeyed: false, hasOrdinal: false, documentPath: node.documentPath }} />,
+    renderChunk: (chunk) => <MediaChunk chunk={chunk} />,
   },
   {
     name: "html",

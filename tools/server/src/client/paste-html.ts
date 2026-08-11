@@ -51,11 +51,12 @@ export function htmlToRich(html: string): RichDraft | null {
       stack.push({ node: child, level: b.level });
     } else {
       const top = stack[stack.length - 1].node;
-      // An embed needs no chunk kind of its own: it IS marklower prose, a lone embed token. (It
-      // needed its own *block* kind, though — a draft of nothing but text degrades to null above,
-      // and a pasted YouTube player is not "plain formatted text".)
+      // A pasted player becomes a MEDIA CHUNK — a chunk whose entire text is the URL, which the
+      // chapter renders as a figure (embedding is structural, docs/documents/marklower/embeds;
+      // there is no text-level embed token). It still needs its own *block* kind: a draft of
+      // nothing but text degrades to null above, and a pasted YouTube player is not plain text.
       top.chunks.push(
-        b.kind === "image" ? { image: { url: b.url, alt: b.alt } } : b.kind === "embed" ? { text: `*[${b.label}](${b.target})` } : { text: b.text },
+        b.kind === "image" ? { image: { url: b.url, alt: b.alt } } : b.kind === "embed" ? { text: b.target } : { text: b.text },
       );
     }
   }
@@ -197,7 +198,9 @@ export async function resolveImages(draft: RichDraft): Promise<RichNode> {
           const blob = await res.blob();
           return { file: { name: imageName(c.image.url, blob.type), contentBase64: await blobBase64(blob) } };
         } catch {
-          return { text: `*[${c.image.alt}](${c.image.url})` };
+          // undownloadable (CORS, a dead host): keep the URL as a MEDIA CHUNK — the chapter
+          // renders an allowlisted one as its figure straight from the origin
+          return { text: c.image.url };
         }
       }),
     ),

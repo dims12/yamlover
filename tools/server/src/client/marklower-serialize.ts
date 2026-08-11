@@ -36,15 +36,16 @@ export function inlineMd(n: Node): string {
   const tag = n.tagName.toLowerCase();
   if (SKIP.has(tag)) return "";
   if (tag === "br") return "\n";
-  // Media the embed allowlist claims becomes an embed token; anything else it refuses — an
-  // arbitrary framed origin, a relative `src` with no base to resolve against, the `data:`/`blob:`
-  // image a browser inserts when you paste a picture into a contentEditable — contributes nothing,
-  // exactly as it did when both tags were skipped outright. (A pasted image is caught earlier, by
-  // the editor's own paste handler, and uploaded; it never reaches here as a `data:` URL.)
+  // Mid-text media degrades to a plain LINK — there is no text-level embed token (embedding is
+  // structural, a body element — docs/documents/marklower/embeds). Only allowlisted media keeps
+  // even the link; anything else — an arbitrary framed origin, a relative `src` with no base,
+  // the `data:`/`blob:` image a browser inserts when you paste a picture into a contentEditable —
+  // contributes nothing. (A pasted image is caught earlier, by the editor's own paste handler,
+  // and uploaded; it never reaches here as a `data:` URL.)
   if (tag === "img" || tag === "iframe") {
     const src = mediaSrc(n);
     const label = n.getAttribute(tag === "img" ? "alt" : "title") ?? "";
-    return src && isEmbeddable(src) ? `*[${label}](${src})` : "";
+    return src && isEmbeddable(src) ? `[${label || src}](${src})` : "";
   }
   const inner = Array.from(n.childNodes).map(inlineMd).join("");
   if (tag === "a") {

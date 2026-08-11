@@ -13,8 +13,9 @@
 
 import type { Document, Node, Pointer, Step, Anchor, Span } from '../../../parser/ts/src/ir.ts';
 import { isPointer } from '../../../parser/ts/src/ir.ts';
-import { segToken } from '../../../parser/ts/src/pathseg.ts';
-import { linkTargets } from '../../../parser/ts/src/marklower-links.ts';
+import { segToken, segsOfPath, pathOfSegs } from '../../../parser/ts/src/pathseg.ts';
+import { linkTargets, parseLinkTarget } from '../../../parser/ts/src/marklower-links.ts';
+import { parsePointer } from '../../../parser/ts/src/pointer.ts';
 import { isDocumentBoundary } from './boundary.ts';
 
 export type Located =
@@ -294,9 +295,18 @@ function buildChains(root: Node): Map<Node, Node[]> {
  *  normalized to a store path (document-relative already joined onto `docRoot`). */
 export interface TextLinkRef {
   from: string;                 // path of the scalar holding the link
+  /** The container mapping the prose belongs to — the frame the relative pointer scopes
+   *  resolve against: a leaf scalar's PARENT; an omni node itself (its text is its own). */
+  holder: string;
   docRoot: string;              // the scalar's nearest enclosing document root
-  scope: 'link' | 'document';   // `::…` project-root vs `:…` document-relative spelling
-  target: string;               // the addressed store path
+  /** The target as a parsed pointer expression (`*…` sigiled canonical; bare `:`/`::` alias). */
+  ptr: Pointer;
+  sigiled: boolean;             // authored with the `*` sigil (the canonical spelling)
+  /** `&…` bookmark target — RESERVED (annotations refactor TODO): reported when a move
+   *  strands it, never rewritten, never silently dropped. */
+  anchor: boolean;
+  /** The store path the expression NOMINALLY addresses, or null when it cannot be walked. */
+  target: string | null;
   raw: string;                  // the whole `[label](target)` token, verbatim
   uri: string | null;           // nearest known source file (for reporting)
   /** The SEARCH REGION holding the authored token: the scalar's own span (a whole-file
@@ -310,11 +320,43 @@ export interface TextLinkRef {
  *  authors its link in a bare data scalar. */
 const PROSE_TEXT_FORMATS = new Set<string | undefined>([undefined, 'text/marklower', 'text/markdown']);
 
-/** Scan every prose-eligible string scalar for path-spelled link targets. Report-only
- *  currency: the caller (planRewrites) decides which targets a move strands. */
+/** The store path a link-target pointer NOMINALLY addresses, given its frames. Mirrors
+ *  rewrite.ts nominalPath, over a TextLinkRef's frames instead of a ResolvedEdge. */
+export function textLinkPath(ptr: Pointer, holder: string, docRoot: string): string | null {
+  let base: string;
+  switch (ptr.base.scope) {
+    case 'link': base = ptr.base.world ? '' : ':' + segToken(ptr.base.authority); break;
+    case 'document': base = docRoot; break;
+    case 'current': base = holder; break;
+    case 'parent': {
+      const segs = segsOfPath(holder);
+      if (segs.length === 0) return null;
+      base = pathOfSegs(segs.slice(0, -1));
+      break;
+    }
+  }
+  if (ptr.base.scope === 'link' && ptr.base.world) return null; // `::: uri` — an external world
+  let p = base === ':' ? '' : base;
+  for (const st of ptr.steps) {
+    if (st.sel === 'parent') {
+      const segs = segsOfPath(p === '' ? ':' : p);
+      if (segs.length === 0) return null;
+      p = pathOfSegs(segs.slice(0, -1));
+      if (p === ':') p = '';
+    } else if (st.sel === 'key') p += ':' + segToken(st.name);
+    else if (st.sel === 'index') p += ':' + st.n;
+    else if (st.sel === 'nullkey') p += ':~';
+    else return null; // relative indexes / append have no nominal store path
+  }
+  return p === '' ? ':' : p;
+}
+
+/** Scan every prose-eligible string scalar for pointer-expression link targets (THE TARGET
+ *  LAW — marklower-links.ts parseLinkTarget, the seam the client shares). The caller
+ *  (planRewrites) decides which targets a move strands and rewrites/reports them. */
 export function scanTextLinks(doc: Document): TextLinkRef[] {
   const out: TextLinkRef[] = [];
-  const walk = (node: Node, base: string, docRoot: string, uri: string | null, entrySpan: Span | null): void => {
+  const walk = (node: Node, base: string, parent: string, docRoot: string, uri: string | null, entrySpan: Span | null): void => {
     const dr = isDocumentBoundary(node) ? base : docRoot;
     const u = node.meta?.span?.uri ?? uri;
     // an OMNI is scalar-kinded AND carries entries — scan the scalar text, then STILL descend
@@ -323,19 +365,37 @@ export function scanTextLinks(doc: Document): TextLinkRef[] {
       // the search region: the scalar's own span (a whole-file scalar spans its file — value
       // offsets ARE file offsets), else the holding entry's span (key through last value line)
       const span = node.meta?.span ?? entrySpan;
+      // the relative-scope frame: a leaf scalar's prose belongs to its PARENT mapping; an
+      // omni's own text belongs to the omni itself
+      const holder = node.entries ? base : parent;
       for (const l of linkTargets(node.value)) {
-        const t = l.target.trim();
-        if (t.startsWith('::')) out.push({ from: base, docRoot: dr, scope: 'link', target: t.slice(1), raw: l.raw, uri: u, span });
-        else if (t.startsWith(':')) out.push({ from: base, docRoot: dr, scope: 'document', target: (dr === ':' ? '' : dr) + t, raw: l.raw, uri: u, span });
+        const t = parseLinkTarget(l.target);
+        if (t.kind === 'pointer') {
+          out.push({
+            from: base, holder, docRoot: dr, ptr: t.ptr, sigiled: t.sigiled, anchor: false,
+            target: textLinkPath(t.ptr, holder, dr), raw: l.raw, uri: u, span,
+          });
+        } else if (t.kind === 'anchor') {
+          // RESERVED `&…` — parse the path portion so a stranding move can at least report it
+          let ptr: Pointer | null = null;
+          try { ptr = parsePointer(t.raw.slice(1)); } catch { /* unparsable — invisible */ }
+          if (ptr !== null) {
+            out.push({
+              from: base, holder, docRoot: dr, ptr, sigiled: true, anchor: true,
+              target: textLinkPath(ptr, holder, dr), raw: l.raw, uri: u, span,
+            });
+          }
+        }
+        // external / legacy-slash / unresolved: never the engine's to touch
       }
     }
     const prefix = base === ':' ? '' : base;
     node.entries?.forEach((e, i) => {
       if (isPointer(e.value)) return;
-      walk(e.value, prefix + ':' + segToken(e.nullKey === true ? null : e.key ?? i), dr, u, e.meta?.span ?? null);
+      walk(e.value, prefix + ':' + segToken(e.nullKey === true ? null : e.key ?? i), base, dr, u, e.meta?.span ?? null);
     });
   };
-  walk(doc.root, ':', ':', doc.source?.uri ?? null, null);
+  walk(doc.root, ':', ':', ':', doc.source?.uri ?? null, null);
   return out;
 }
 

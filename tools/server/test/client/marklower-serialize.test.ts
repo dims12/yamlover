@@ -9,18 +9,18 @@ const one = (html: string): string => {
   return inlineMd(d.firstElementChild!);
 };
 
-describe("inlineMd — media becomes an embed token", () => {
-  it("turns an allowlisted <img> into an embed, captioned by its alt", () => {
-    expect(one('<img src="https://x.example/pic.png" alt="A cat">')).toBe("*[A cat](https://x.example/pic.png)");
-    expect(one('<img src="https://x.example/pic.png">')).toBe("*[](https://x.example/pic.png)");
+describe("inlineMd — mid-text media becomes a plain link (there is no text-level embed token)", () => {
+  it("turns an allowlisted <img> into a link, labeled by its alt (or the src itself)", () => {
+    expect(one('<img src="https://x.example/pic.png" alt="A cat">')).toBe("[A cat](https://x.example/pic.png)");
+    expect(one('<img src="https://x.example/pic.png">')).toBe("[https://x.example/pic.png](https://x.example/pic.png)");
   });
 
-  it("turns an allowlisted <iframe> into an embed, captioned by its title", () => {
-    expect(one('<iframe src="https://www.youtube.com/embed/abc" title="Talk"></iframe>')).toBe("*[Talk](https://www.youtube.com/embed/abc)");
+  it("turns an allowlisted <iframe> into a link, labeled by its title", () => {
+    expect(one('<iframe src="https://www.youtube.com/embed/abc" title="Talk"></iframe>')).toBe("[Talk](https://www.youtube.com/embed/abc)");
   });
 
-  it("upgrades a protocol-relative src", () => {
-    expect(one('<img src="//x.example/pic.png" alt="c">')).toBe("*[c](https://x.example/pic.png)");
+  it("upgrades a protocol-relative src in the emitted link URL", () => {
+    expect(one('<img src="//x.example/pic.png" alt="c">')).toBe("[c](https://x.example/pic.png)");
   });
 
   it("drops media the allowlist refuses — an arbitrary framed origin, a relative src, a data: image", () => {
@@ -36,7 +36,7 @@ describe("inlineMd — media becomes an embed token", () => {
     expect(one('<img src="../up/one.png" alt="rel">')).toBe("");
   });
 
-  it("keeps an existing embed atom verbatim — data-src still wins over the tag", () => {
+  it("keeps an existing atom verbatim — data-src still wins over the tag", () => {
     const d = document.createElement("div");
     d.innerHTML = '<span class="mlw-atom" contenteditable="false" data-src="*[cat](https://youtu.be/abc)">▶ cat</span>';
     expect(domToMarklower(d)).toBe("*[cat](https://youtu.be/abc)");

@@ -104,9 +104,10 @@ describe("reconcile: external edits reach the index", () => {
     fs.renameSync(path.join(root, "D", "x.md"), path.join(root, "E", "x.md"));
     const r = await callBody(h, "POST", "/api/reindex");
     expect(r.status).toBe(200);
-    // marklower is engine-owned: the prose link follows the move; the scheme link is external
+    // marklower is engine-owned: the prose link follows the move (sigiled compact — the
+    // canonical emission); the scheme link is external and untouched
     expect(fs.readFileSync(path.join(root, "pages.md"), "utf8"))
-      .toBe("see [a](::E:x.md) and [w](https://example.com/keep) end\n");
+      .toBe("see [a](*::E:x.md) and [w](https://example.com/keep) end\n");
     // the dangling order pointer is escalated to the project form — never deleted
     expect(fs.readFileSync(path.join(root, "D", ".yo", "body.yo"), "utf8")).toBe("Doc D\n- *:: E: x.md\n");
     expect(call(h, "/api/dangling").json).toEqual([]);

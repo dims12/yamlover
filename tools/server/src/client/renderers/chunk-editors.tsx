@@ -66,9 +66,10 @@ function captionOf(filename: string): string {
 }
 
 /**
- * Upload each pasted image beside the chapter and drop an embed atom for it at the caret. The
- * upload is `inline`, so the server writes the file and does NOT append a chunk — the picture
- * belongs in this sentence, not after the chapter.
+ * Upload each pasted image beside the chapter and drop a LINK atom for it at the caret. The
+ * upload is `inline`, so the server writes the file and does NOT append a chunk — mid-sentence
+ * there is no embedding (embedding is structural, a body element — docs/documents/marklower/embeds),
+ * so the sentence gains a hyperlink to the pasted member; making it a figure is a body edit.
  *
  * The atom's HTML comes from {@link marklowerToEditableHtml} rather than being hand-built, so a
  * freshly pasted image and one reloaded from source are the same DOM. The caret `Range` is captured
@@ -78,10 +79,10 @@ async function insertPastedImages(el: HTMLElement, range: Range, files: File[], 
   for (const f of files) {
     const name = pastedName(f);
     const res = await pasteFileInline(chapterPath, name, await fileToBase64(f));
-    // `res.path` is a `:`-rooted node path; a second colon makes it project-rooted (docs/language/pointers/paths),
-    // which is the spelling `resolveLink` reads back.
+    // `res.path` is a `:`-rooted node path; the sigil + a second colon spell it as the
+    // canonical project-rooted pointer target (docs/documents/marklower/link-targets).
     const holder = document.createElement("span");
-    holder.innerHTML = marklowerToEditableHtml(`*[${captionOf(name)}](:${res.path})`);
+    holder.innerHTML = marklowerToEditableHtml(`[${captionOf(name)}](*:${res.path})`);
     const atom = holder.firstChild;
     if (!atom) continue;
     range.insertNode(atom);
@@ -127,7 +128,7 @@ export const MarklowerChunkEditor: ChunkEditor = ({ text, rev, chapterPath, focu
       data-placeholder={placeholder}
       onInput={() => { if (ref.current) onChangeText(domToMarklower(ref.current)); }}
       onPaste={(e) => {
-        // An image on the clipboard becomes a FILE beside the chapter plus an embed atom here.
+        // An image on the clipboard becomes a FILE beside the chapter plus a link atom here.
         // Everything else (text, HTML) falls through to the browser's own paste, which the input
         // handler then re-serializes.
         const el = ref.current;

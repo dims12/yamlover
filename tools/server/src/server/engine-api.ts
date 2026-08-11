@@ -2190,7 +2190,7 @@ function handlePaste(dataRoot: string, s: Store, input: PasteInput): Record<stri
 
   // A chapter gains the file as a pointer chunk appended to its body — UNLESS the caller asked for
   // an `inline` paste, in which case the file merely lands beside the chapter and the caller writes
-  // its own reference (a marklower embed token, mid-prose). Appending a chunk there would leave the
+  // its own reference (a marklower link, mid-prose). Appending a chunk there would leave the
   // picture on the page twice: once in the sentence, once at the end.
   if (intoChapter && !input.inline) return pasteIntoChapter(dataRoot, s, segs, name, bytes);
 

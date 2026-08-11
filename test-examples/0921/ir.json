@@ -33,20 +33,7 @@
         "edge": "contain",
         "value": {
           "kind": "scalar",
-          "value": "marklower links live in **JSON instance space**, in three flavours. Jump to the\ndocument-relative links subchapter at [:2](:2), the project-root one\nat [:3](:3), or external links at [:4](:4) — each\nits own subchapter below.\n",
-          "array": false,
-          "set": false,
-          "yo": false,
-          "anchors": [],
-          "entries": []
-        }
-      },
-      {
-        "key": null,
-        "edge": "contain",
-        "value": {
-          "kind": "scalar",
-          "value": "Wherever you are in this guide, the top of it at [:0](:0) is one\ndocument-relative link away. You can also leave for the wider world, like the KaTeX\nproject at [https://katex.org](https://katex.org).\n",
+          "value": "A link's target is a **sigiled pointer**. This guide tours every tier: document-relative\nlinks at [*:1](*:1), project-rooted ones at [*:2](*:2), the parent and current scopes\nat [*:3](*:3), the read-forever aliases and legacy spellings at [*:4](*:4), and external\ntargets at [*:5](*:5) — each its own subchapter below.\n",
           "array": false,
           "set": false,
           "yo": false,
@@ -70,20 +57,7 @@
               "edge": "contain",
               "value": {
                 "kind": "scalar",
-                "value": "A `:path` link is relative to **this document** — the whole guide — however deep you\nare reading, and a bare integer segment is a position. So [:0](:0) always lands on\nthe opening line.\n",
-                "array": false,
-                "set": false,
-                "yo": false,
-                "anchors": [],
-                "entries": []
-              }
-            },
-            {
-              "key": null,
-              "edge": "contain",
-              "value": {
-                "kind": "scalar",
-                "value": "From here, reach a sibling section at [:3](:3), or descend deeper\nto [:2:2](:2:2).\n",
+                "value": "A `*:path` link counts from **this document** — the whole guide — however deep you are\nreading, and a bare integer segment is a position. The title is the self-value and\nconsumes no index, so the intro is [*:0](*:0) and this section is [*:1](*:1).\n",
                 "array": false,
                 "set": false,
                 "yo": false,
@@ -107,7 +81,7 @@
                     "edge": "contain",
                     "value": {
                       "kind": "scalar",
-                      "value": "Even two levels down, a `:…` link still counts from the document root: the intro at\n[:0](:0), and the external-links section at [:4](:4).\n",
+                      "value": "Two levels down, a `*:…` link still counts from the document root: the intro at\n[*:0](*:0), the external-targets section at [*:5](*:5), or this very line\nat [*:1:1:0](*:1:1:0).\n",
                       "array": false,
                       "set": false,
                       "yo": false,
@@ -137,20 +111,7 @@
               "edge": "contain",
               "value": {
                 "kind": "scalar",
-                "value": "A `::path` link is relative to the **project root** — the directory you served. Served\nfrom the repo, a sibling example is at [::examples:68-math-chapter](::examples:68-math-chapter),\nor one formula in it at [::examples:68-math-chapter:2](::examples:68-math-chapter:2).\n",
-                "array": false,
-                "set": false,
-                "yo": false,
-                "anchors": [],
-                "entries": []
-              }
-            },
-            {
-              "key": null,
-              "edge": "contain",
-              "value": {
-                "kind": "scalar",
-                "value": "The pet handbook is at [::examples:66-pet-keeper-handbook](::examples:66-pet-keeper-handbook). To return home,\nregardless of mount point, use a document-relative link to this guide's intro at\n[:0](:0).\n",
+                "value": "A `*::path` link is anchored at the **project root** — the directory yamlover was\nserved. Served from the repo, a sibling example is at\n[*::examples:68-math-chapter](*::examples:68-math-chapter), or one formula in it\nat [*::examples:68-math-chapter:2](*::examples:68-math-chapter:2).\n",
                 "array": false,
                 "set": false,
                 "yo": false,
@@ -166,7 +127,47 @@
         "edge": "contain",
         "value": {
           "kind": "scalar",
-          "value": "External links",
+          "value": "Parent and current scope",
+          "array": false,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "notes",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "a keyed member of this section — `*notes` lands here",
+                "array": false,
+                "set": false,
+                "yo": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A `*name` link resolves in the mapping the prose belongs to — this section's own note\nis at [*notes](*notes). A `*..:` link starts one level up: from here the parent is the\nguide itself, so its intro is at [*..:0](*..:0) and the previous section\nat [*..:2](*..:2).\n",
+                "array": false,
+                "set": false,
+                "yo": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "Aliases and legacy spellings",
           "array": true,
           "set": false,
           "yo": false,
@@ -177,7 +178,60 @@
               "edge": "contain",
               "value": {
                 "kind": "scalar",
-                "value": "Any target with a scheme is an external link, opened in a new tab: Wikipedia on\nhyperlinks at [https://en.wikipedia.org/wiki/Hyperlink](https://en.wikipedia.org/wiki/Hyperlink),\nor email the maintainer at [mailto:dimskraft@gmail.com](mailto:dimskraft@gmail.com).\n",
+                "value": "The **bare colon** form is the same pointer without its sigil, and reads **forever** as\nan alias — the intro at [:0](:0) still lands, though the sigiled spelling is what the\nengine writes when a move rewrites a link.\n",
+                "array": false,
+                "set": false,
+                "yo": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "The **slash** spellings are legacy-frozen: the document-relative [/0](/0) and the\nproject-rooted [//examples/68-math-chapter](//examples/68-math-chapter) still navigate,\nwritten never.\n",
+                "array": false,
+                "set": false,
+                "yo": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": null,
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "External targets and the reserved sigil",
+          "array": true,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Any target with a scheme is an **external** link, opened in a new tab: the KaTeX\nproject at [https://katex.org](https://katex.org), or mail the maintainer\nat [mailto:dimskraft@gmail.com](mailto:dimskraft@gmail.com).\n",
+                "array": false,
+                "set": false,
+                "yo": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": null,
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "A `&…` target is **reserved** for bookmarks — it parses but does not yet navigate, so\nits label renders as plain text: [a future bookmark](&some-mark).\n",
                 "array": false,
                 "set": false,
                 "yo": false,

@@ -1,4 +1,6 @@
 import { ReactNode } from "react";
+import { parseLinkTarget } from "../../../parser/ts/src/marklower-links";
+import type { Pointer } from "../../../parser/ts/src/ir";
 import { Seg, segsToStr, strToSegs } from "./paths";
 
 /**
@@ -6,22 +8,20 @@ import { Seg, segsToStr, strToSegs } from "./paths";
  * and how a link is made clickable. Every renderer that emits links routes through
  * here, so link behaviour is defined once.
  *
- * A target is addressed in the app's JSON instance space — the same space the
- * tree, breadcrumbs, and the URL all navigate — with two anchors, mirroring how an
- * `x-yamlover` `rel` pointer is written:
+ * THE TARGET LAW (docs/documents/marklower/link-targets): the parenthesized target is a
+ * yamlover expression, classified by the ONE seam `parseLinkTarget` (parser/marklower-links)
+ * the engine's move planner shares — a spelling that navigates here is exactly a spelling
+ * a move keeps alive there:
  *
- *   - **`/some/path`** — relative to the *document* the link appears in (the
- *     nearest yamlover entity; "document" meaning the literal file/entity, overlays
- *     and all). Resolved against the `documentPath` the server reports for the node.
- *   - **`//some/path`** — relative to the *project root* (the location given at
- *     yamlover startup), i.e. the served root → browser path `/some/path`.
+ *   - **`*<pointer>`** — the canonical in-tree link: a real yamlover pointer expression.
+ *     `*:: a: b` project scope, `*: child` document scope, `*..: sib` parent scope,
+ *     `*name` current scope. Relative scopes resolve against `holderPath` (the mapping
+ *     the prose belongs to); `*: …` against `documentPath`.
+ *   - **`::a:b` / `:a`** — the bare colon alias, read forever (same pointer, no sigil).
+ *   - **`&…`** — a bookmark target, RESERVED: parsed but not resolved (renders as plain
+ *     text). TODO(annotations refactor): give bookmark links behavior.
  *   - **`scheme://…` / `mailto:…`** — an ordinary external link.
- *
- * `resolveLink` is deliberately the single seam for interpretation: it is where
- * refs and rels are expected to plug in later (gaining the full pointer grammar —
- * `..`, `^name`, virtual children), rather than each renderer re-deciding what a
- * target points at. (Refs/rels keep their own server-side interpretation for now;
- * this powers marklower links.)
+ *   - **`/a/b` / `//a/b`** — legacy slash spellings, navigable but frozen.
  */
 
 /** A link's resolved destination. Exactly one of `path` (an in-app JSON-space path
@@ -33,16 +33,6 @@ export interface ResolvedLink {
 }
 
 const UNRESOLVED: ResolvedLink = { path: null, href: null };
-
-/** True for an external target carrying a URI scheme (`http:`, `https:`, `mailto:`,
- *  …). A `//`-rooted project path is *not* a scheme (no leading `scheme:`). */
-const hasScheme = (s: string) => /^[a-z][a-z0-9+.-]*:/i.test(s);
-
-/** Join a document base path with a document-relative path (both JSON-space),
- *  canonicalizing the result. */
-function joinDoc(documentPath: string, rel: string): string {
-  return segsToStr([...strToSegs(documentPath), ...strToSegs(rel)]);
-}
 
 /** Tokenize a slash-spelled link target (`/a/b/0`, legacy `/a/b[0]`) into segments — the
  *  bare-token typing rule (bare digits = position, `~` = the null key, quotes = string key),
@@ -59,18 +49,62 @@ function slashSegs(str: string): Seg[] {
   return out;
 }
 
-/** Interpret a link `target` against the `documentPath` it appears in (the JSON-space
- *  path of its document; defaults to root). Colon spellings (`:a:b`, `::a:b` —
- *  docs/language/pointers/paths) are canonical; legacy slash spellings (`/a/b`, `//a/b`) still parse. */
-export function resolveLink(target: string, documentPath = ":"): ResolvedLink {
-  const raw = target.trim();
-  if (!raw) return UNRESOLVED;
-  if (raw.startsWith("::")) return { path: segsToStr(strToSegs(raw.slice(2))), href: null }; // project root
-  if (raw.startsWith(":")) return { path: joinDoc(documentPath, raw), href: null }; // document-relative
-  if (raw.startsWith("//")) return { path: segsToStr(slashSegs(raw)), href: null }; // legacy project root
-  if (hasScheme(raw)) return { path: null, href: raw }; // external (http(s)/mailto/…)
-  if (raw.startsWith("/")) return { path: segsToStr([...strToSegs(documentPath), ...slashSegs(raw)]), href: null }; // legacy doc-relative
-  return UNRESOLVED; // anything else is not (yet) a recognized link target
+/** The path a pointer expression addresses, given the two frames a link render carries:
+ *  `documentPath` (the `/` scope) and `holderPath` (the mapping the prose belongs to — the
+ *  `current`/`parent` frame). Null when a needed frame is missing or a step cannot be
+ *  walked nominally (relative indexes, append). */
+function pointerPath(ptr: Pointer, documentPath: string, holderPath: string | null): string | null {
+  let segs: Seg[];
+  switch (ptr.base.scope) {
+    case "link":
+      if (ptr.base.world) return null; // `::: uri` — an external world, not locally navigable
+      segs = [ptr.base.authority];
+      break;
+    case "document":
+      segs = strToSegs(documentPath);
+      break;
+    case "current":
+      if (holderPath == null) return null;
+      segs = strToSegs(holderPath);
+      break;
+    case "parent":
+      if (holderPath == null) return null;
+      segs = strToSegs(holderPath);
+      if (segs.length === 0) return null;
+      segs.pop();
+      break;
+  }
+  for (const st of ptr.steps) {
+    if (st.sel === "parent") { if (segs.length === 0) return null; segs.pop(); }
+    else if (st.sel === "key") segs.push(st.name);
+    else if (st.sel === "index") segs.push(st.n);
+    else if (st.sel === "nullkey") segs.push(null);
+    else return null; // `[.±k]` / `-` have no nominal path here
+  }
+  return segsToStr(segs);
+}
+
+/** Interpret a link `target` against its frames: `documentPath` (the document the link
+ *  appears in) and `holderPath` (the mapping its prose belongs to — needed only for the
+ *  relative pointer scopes; omitting it leaves those unresolved). */
+export function resolveLink(target: string, documentPath = ":", holderPath: string | null = null): ResolvedLink {
+  const t = parseLinkTarget(target);
+  switch (t.kind) {
+    case "pointer": {
+      const path = pointerPath(t.ptr, documentPath, holderPath);
+      return path === null ? UNRESOLVED : { path, href: null };
+    }
+    case "external":
+      return { path: null, href: t.href };
+    case "legacy-slash": {
+      const raw = t.raw;
+      if (raw.startsWith("//")) return { path: segsToStr(slashSegs(raw)), href: null }; // legacy project root
+      return { path: segsToStr([...strToSegs(documentPath), ...slashSegs(raw)]), href: null }; // legacy doc-relative
+    }
+    case "anchor": // RESERVED — TODO(annotations refactor): bookmark-link behavior
+    case "unresolved":
+      return UNRESOLVED;
+  }
 }
 
 /** Render a link as the right kind of anchor: an in-app `.descend` link that calls
@@ -80,15 +114,17 @@ export function resolveLink(target: string, documentPath = ":"): ResolvedLink {
 export function NavLink({
   target,
   documentPath,
+  holderPath,
   onNavigate,
   children,
 }: {
   target: string;
   documentPath?: string;
+  holderPath?: string | null;
   onNavigate: (path: string) => void;
   children: ReactNode;
 }) {
-  const { path, href } = resolveLink(target, documentPath);
+  const { path, href } = resolveLink(target, documentPath, holderPath ?? null);
   if (href) {
     return (
       <a className="extlink" href={href} target="_blank" rel="noopener noreferrer">

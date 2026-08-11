@@ -225,30 +225,36 @@ test('relindex: the examples/61 table resolves with no relindex-unresolved edges
   for (const e of rel) assert.equal(e.target.kind, 'node', (e.target as any).reason);
 });
 
-test('scanTextLinks: path-spelled marklower link targets, with scopes', () => {
+test('scanTextLinks: pointer-expression targets across every spelling and scope', () => {
   const doc = parseYamlover(
-    'a: "see [x](::kb:tax) and [y](:local) and [w](https://x.example) and *[e](::kb:embed)"\n',
+    'a: "see [x](*:: kb: tax) and [b](::kb:bare) and [y](*: local) and [r](:relbare) and [c](*name) and [p](*..: sib) and [w](https://x.example) and [k](&marks: spot)"\n',
     'links.yo',
   );
   const links = scanTextLinks(doc);
   assert.deepEqual(
-    links.map((l) => ({ from: l.from, scope: l.scope, target: l.target, raw: l.raw })),
+    links.map((l) => ({ from: l.from, holder: l.holder, scope: l.ptr.base.scope, sigiled: l.sigiled, anchor: l.anchor, target: l.target, raw: l.raw })),
     [
-      { from: ':a', scope: 'link', target: ':kb:tax', raw: '[x](::kb:tax)' },
-      { from: ':a', scope: 'document', target: ':local', raw: '[y](:local)' },
-      { from: ':a', scope: 'link', target: ':kb:embed', raw: '*[e](::kb:embed)' }, // embed form too
+      { from: ':a', holder: ':', scope: 'link', sigiled: true, anchor: false, target: ':kb:tax', raw: '[x](*:: kb: tax)' },
+      { from: ':a', holder: ':', scope: 'link', sigiled: false, anchor: false, target: ':kb:bare', raw: '[b](::kb:bare)' }, // the bare alias, read forever
+      { from: ':a', holder: ':', scope: 'document', sigiled: true, anchor: false, target: ':local', raw: '[y](*: local)' },
+      { from: ':a', holder: ':', scope: 'document', sigiled: false, anchor: false, target: ':relbare', raw: '[r](:relbare)' },
+      { from: ':a', holder: ':', scope: 'current', sigiled: true, anchor: false, target: ':name', raw: '[c](*name)' }, // the leaf scalar's PARENT is the frame
+      { from: ':a', holder: ':', scope: 'parent', sigiled: true, anchor: false, target: null, raw: '[p](*..: sib)' }, // above the root — no nominal path
+      { from: ':a', holder: ':', scope: 'current', sigiled: true, anchor: true, target: ':marks:spot', raw: '[k](&marks: spot)' }, // reserved `&`
     ],
   );
 });
 
 test('scanTextLinks: an OMNI scans its title AND descends into its members', () => {
-  const doc = parseYamlover('Chapter [t](::top)\n- see [c](::kb:chunk)\n', 'omni.yo');
+  // NOTE the compact target: a SPACED one inside a bare title line would re-split the
+  // line as key/value — the reason prose emission is compact
+  const doc = parseYamlover('Chapter [t](*::top)\n- see [c](::kb:chunk)\n', 'omni.yo');
   const links = scanTextLinks(doc);
   assert.deepEqual(
-    links.map((l) => ({ from: l.from, target: l.target })),
+    links.map((l) => ({ from: l.from, holder: l.holder, target: l.target })),
     [
-      { from: ':', target: ':top' },       // the omni title itself
-      { from: ':0', target: ':kb:chunk' }, // the chunk below it
+      { from: ':', holder: ':', target: ':top' },       // the omni title itself — its own frame
+      { from: ':0', holder: ':', target: ':kb:chunk' }, // the chunk below it — the omni is its frame
     ],
   );
 });

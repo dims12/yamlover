@@ -36,7 +36,7 @@ function caretAtEndOf(el: HTMLElement) {
 }
 
 describe("pasting an image into a prose chunk", () => {
-  it("uploads it beside the chapter (no chunk appended) and writes an embed token at the caret", async () => {
+  it("uploads it beside the chapter (no chunk appended) and writes a link atom at the caret", async () => {
     const posted: unknown[] = [];
     vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
       posted.push(JSON.parse(String(init.body)));
@@ -54,14 +54,15 @@ describe("pasting an image into a prose chunk", () => {
     // the upload asked for an INLINE paste — the server must not append a pointer chunk
     expect(posted).toEqual([{ path: ":doc", filename: "cat.png", contentBase64: btoa("PNG"), inline: true }]);
 
-    // the chunk's source gained an embed token pointing at the new file, project-rooted
-    expect(onChangeText).toHaveBeenLastCalledWith("before after*[cat](::doc:cat.png)");
+    // the chunk's source gained a LINK pointing at the new file — the canonical sigiled
+    // project-rooted target (`*:` + the `:`-rooted res.path); there is no text-level embed token
+    expect(onChangeText).toHaveBeenLastCalledWith("before after[cat](*::doc:cat.png)");
 
-    // and it landed as a non-editable atom, exactly as a reloaded one would
-    const atom = container.querySelector(".mlw-atom.mlw-embed-chip") as HTMLElement;
+    // and it landed as a non-editable link atom, exactly as a reloaded one would
+    const atom = container.querySelector(".mlw-atom.mlw-link") as HTMLElement;
     expect(atom.getAttribute("contenteditable")).toBe("false");
-    expect(atom.dataset.src).toBe("*[cat](::doc:cat.png)");
-    expect(atom.textContent).toBe("🖼 cat"); // the image glyph, not the play glyph
+    expect(atom.dataset.src).toBe("[cat](*::doc:cat.png)");
+    expect(atom.textContent).toBe("cat"); // the caption is the label
   });
 
   it("lets a text paste fall through to the browser", () => {

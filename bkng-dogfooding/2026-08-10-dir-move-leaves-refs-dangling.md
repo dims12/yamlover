@@ -18,6 +18,21 @@ no longer comes back spaced). Regression tests: engine `mv.test.ts`/`walk.test.t
 scope spelling still unhandled: a prose link written in PARENT scope (`[t](*:name)`) is neither
 rewritten nor reported. See "Round 2 verification" below. Defects 1-3 confirmed fixed.
 
+**Resolved (Defect 4):** 2026-08-11 — by an ARCHITECTURE ruling, not a patch. Investigating the
+`*:` spelling revealed the doc/architecture mistake: the client never resolved sigil-prefixed
+targets at all, and the text-level embed token `*[label](target)` overloaded the same `*`. The
+corrected law (docs/documents/marklower/{grammar,embeds,link-targets}): a link target IS a
+yamlover pointer expression — `[t](*::a:b)` project, `[t](*:a)` document, `[t](*..:x)` parent,
+`[t](*name)` current — one seam (`parseLinkTarget`) shared by the client's navigation and the
+engine's move planner, so every scope the client navigates is a scope a move rewrites (the
+`retarget` law is shared with `*` pointer tokens). Bare colon targets read forever as an alias;
+rewrites and the repo-wide migration emit the sigiled COMPACT form (spaced would re-split a bare
+scalar line). `&…` targets are reserved (reported on moves, not resolved) for the annotations
+rework. The embed token is REMOVED — embedding is structural: a chapter body element (`- *:
+member`, or a chunk whose entire text is one media URL renders as the figure). Regression matrix:
+`tools/engine/ts/test/relink-links.test.ts` (incl. the parent-scope Defect-4 pin and the `&`
+reserve pin).
+
 ## What happened
 
 `mv area kb/area` in a shell, with the server watching. The engine detected the move

@@ -125,30 +125,11 @@ export function planRewrites(
     const docRoot = mapPath(e.docRoot);
     const target = mapPath(e.target.path);
 
-    let newPtr: Pointer | null = null;
-    switch (e.ptr.base.scope) {
-      case 'link':
-        newPtr = linkPtr(target); // project-root relative
-        break;
-      case 'document':
-        newPtr = under(target, docRoot) ? docPtr(docRoot, target) : null;
-        break;
-      case 'current':
-        if (under(target, holder) && target !== holder) newPtr = ptr({ scope: 'current' }, stepsBelow(holder, target));
-        else if (under(target, docRoot)) newPtr = docPtr(docRoot, target); // scope-form fallback
-        break;
-      case 'parent': {
-        const p = parentOf(holder);
-        if (p !== null && under(target, p)) newPtr = ptr({ scope: 'parent' }, stepsBelow(p, target));
-        else if (under(target, docRoot)) newPtr = docPtr(docRoot, target);
-        break;
-      }
-    }
     // the target left every relative frame — escalate to the project-root `::` form
     // instead of refusing: any in-tree path is expressible there, and a rewritten
     // absolute ref beats a silently stale relative one (never drop the committer's
     // labor). Only the project root itself / a position-first path has no spelling.
-    if (newPtr === null) newPtr = linkPtr(target);
+    const newPtr = retarget(e.ptr.base.scope, holder, docRoot, target) ?? linkPtr(target);
     if (newPtr === null) { miss('target has no project-root spelling'); continue; }
     // colon form, in the AUTHORED spacing style — a rename refactor replaces the token, it
     // does not restyle it: a compact `*::a:b` stays compact, a spaced `*:: a: b` spaced. A
@@ -164,16 +145,17 @@ export function planRewrites(
     plan.rewritten.push({ file: span.uri, from: e.from, oldRaw: e.raw, newRaw });
   }
 
-  // marklower prose links the move strands: not IR pointers, but engine-owned all the same —
-  // locate the authored token VERBATIM inside its recorded source region (the tokenizer is
-  // the locator, so a code span cannot false-positive and a `>`-folded or escape-decoded
-  // token simply fails to match) and retarget it in place. Identical tokens in one region
-  // all take the same replacement. What cannot be located is REPORTED, never dropped.
-  // A document-relative link whose own document moved travels with it and stays valid.
+  // marklower prose links the move strands: THE SAME pointer law as the edge loop above —
+  // every frame maps through the move, `retarget` recomputes the relative spelling, and a
+  // target that left every frame escalates to the project form. The authored token is
+  // located VERBATIM inside its recorded source region (the tokenizer is the locator, so a
+  // code span cannot false-positive and a `>`-folded token simply fails to match) and the
+  // target substring replaced in place, emitted SIGILED (the canonical spelling —
+  // docs/documents/marklower/link-targets). A `&…` bookmark target is RESERVED: a stranding
+  // move reports it. What cannot be located is REPORTED, never dropped.
   const groups = new Map<string, { t: TextLinkRef; n: number }>();
   for (const t of opts.textLinks ?? []) {
-    if (t.scope === 'document' && under(t.docRoot, oldStore)) continue;
-    if (!under(t.target, oldStore)) continue;
+    if (t.target === null || !under(t.target, oldStore)) continue;
     const key = JSON.stringify([t.span?.uri, t.span?.start, t.raw]);
     const g = groups.get(key);
     if (g) g.n++;
@@ -183,14 +165,19 @@ export function planRewrites(
     const missLink = (reason: string): void => {
       plan.unrewritten.push({ file: t.span?.uri ?? t.uri ?? '<unknown>', from: t.from, raw: t.raw, reason });
     };
-    // the new spelling keeps the authored scope; a document-relative target that left its
-    // document escalates to the project form — same law as the pointer fallback above
-    const newTarget = mapPath(t.target);
-    const newDocRoot = mapPath(t.docRoot);
-    const spelling = t.scope === 'link'
-      ? linkSpelling(newTarget)
-      : under(newTarget, newDocRoot) ? docSpelling(newDocRoot, newTarget) : linkSpelling(newTarget);
-    if (spelling === null) { missLink('target has no project-root spelling'); continue; }
+    const holder = mapPath(t.holder);
+    const docRoot = mapPath(t.docRoot);
+    const target = mapPath(t.target!);
+    const newPtr = retarget(t.ptr.base.scope, holder, docRoot, target) ?? linkPtr(target);
+    if (newPtr === null) { missLink('target has no project-root spelling'); continue; }
+    // the relative form survived the move (frames rode along) — nothing to edit; an
+    // untouched link keeps its authored spelling, alias or not
+    if (renderPointer(newPtr, { spaced: false }) === renderPointer(t.ptr, { spaced: false })) continue;
+    if (t.anchor) { missLink('&-target link is stale — reserved spelling, not rewritten (annotations refactor TODO)'); continue; }
+    // sigiled COMPACT: the canonical prose emission. Compact is a safety property of the
+    // embedding context — a spaced spelling inside a BARE yamlover scalar (an omni title
+    // line) would re-split the line as key/value; compact is valid in every context.
+    const spelling = '*' + renderPointer(newPtr, { spaced: false });
     if (t.span === null || opts.read === undefined) {
       missLink('marklower prose link — no source span/reader (report only)');
       continue;
@@ -214,19 +201,25 @@ export function planRewrites(
   return plan;
 }
 
-/** Compact colon spelling of a store path as a marklower link target: `::a:b` (project-root).
- *  Null when the path has no such spelling (the project root itself, or a position-first path —
- *  mirroring {@link linkPtr}). */
-function linkSpelling(target: string): string | null {
-  const segs = segsOfPath(target);
-  if (segs.length === 0 || typeof segs[0] !== 'string') return null;
-  return '::' + segs.map((s) => segToken(s)).join(':');
-}
-
-/** Document-relative colon spelling: `:a:b` — the continuation below `docRoot`. */
-function docSpelling(docRoot: string, target: string): string {
-  const segs = segsOfPath(target).slice(docRoot === ':' ? 0 : segsOfPath(docRoot).length);
-  return ':' + segs.map((s) => segToken(s)).join(':');
+/** The ONE scope law: the relative respelling of `target` for a ref authored in `scope`,
+ *  holding at `holder` within `docRoot` — or null when no relative frame reaches it (the
+ *  caller escalates to {@link linkPtr}). Shared by the pointer edge loop and the prose-link
+ *  loop, so a `*` token and a `[t](*…)` link can never disagree about a move. */
+function retarget(scope: PointerBase['scope'], holder: string, docRoot: string, target: string): Pointer | null {
+  switch (scope) {
+    case 'link':
+      return linkPtr(target);
+    case 'document':
+      return under(target, docRoot) ? docPtr(docRoot, target) : null;
+    case 'current':
+      if (under(target, holder) && target !== holder) return ptr({ scope: 'current' }, stepsBelow(holder, target));
+      return under(target, docRoot) ? docPtr(docRoot, target) : null;
+    case 'parent': {
+      const p = parentOf(holder);
+      if (p !== null && under(target, p)) return ptr({ scope: 'parent' }, stepsBelow(p, target));
+      return under(target, docRoot) ? docPtr(docRoot, target) : null;
+    }
+  }
 }
 
 /** Apply edits to one file's text: descending offset order; overlaps are an error. */

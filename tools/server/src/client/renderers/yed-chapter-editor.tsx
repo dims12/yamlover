@@ -335,13 +335,14 @@ function LinkedPreview({ link, level, budget, chapterPath, onNavigate }: {
   );
 }
 
-/** Upload pasted images beside the chapter, insert embed atoms at the caret, recommit. */
+/** Upload pasted images beside the chapter, insert LINK atoms at the caret, recommit —
+ *  mid-sentence there is no embedding (a figure is a body element), the prose gains a link. */
 async function insertPastedImages(el: HTMLElement, range: Range, files: File[], chapterPath: string, commit: (text: string) => void): Promise<void> {
   for (const f of files) {
     const name = pastedName(f);
     const res = await pasteFileInline(chapterPath, name, await fileToBase64(f));
     const holder = document.createElement("span");
-    holder.innerHTML = marklowerToEditableHtml(`*[${name.replace(/\.[^.]+$/, "")}](:${res.path})`);
+    holder.innerHTML = marklowerToEditableHtml(`[${name.replace(/\.[^.]+$/, "")}](*:${res.path})`);
     const atom = holder.firstChild;
     if (!atom) continue;
     range.insertNode(atom);

@@ -356,7 +356,7 @@ function EditChunk({
       />
     );
   } else {
-    body = renderChunkBody(chunkOf(part.marker, documentPath), onNavigate);
+    body = renderChunkBody(chunkOf(part.marker, documentPath, childPath(basePath, index)), onNavigate);
   }
   return (
     <ChunkShell

@@ -366,6 +366,7 @@ export function ChapterBody({
         anchorBase={anchorBase}
         slot={childSlotId}
         documentPath={documentPath}
+        path={childPath(nodePath, f.absIndex)}
         onNavigate={onNavigate}
       />
     );
@@ -385,6 +386,7 @@ export function ReadChunk({
   anchorBase,
   slot,
   documentPath,
+  path,
   onNavigate,
 }: {
   index: number | string | readonly (number | string)[];
@@ -392,9 +394,12 @@ export function ReadChunk({
   anchorBase: string;
   slot: string;
   documentPath?: string;
+  /** The chunk's OWN node path (composed by the caller for an inline prose scalar, which
+   *  carries no `$yamloverLink`) — the frame a relative link scope resolves against. */
+  path?: string;
   onNavigate: (path: string) => void;
 }) {
-  const chunk = chunkOf(item, documentPath);
+  const chunk = chunkOf(item, documentPath, path);
   // its path continuation from the page root when it lives under it, else its render slot — an
   // inlined subchapter's chunks are addressed one way on a root page and the other on a subpage
   const anchor = anchorOf(anchorBase, chunk.path, slot);
@@ -416,7 +421,7 @@ export function ReadChunk({
  *  marker carries its node's own format; a bare inline scalar has none to carry). Saying so here is
  *  what lets the registry ask for the format BY NAME instead of claiming every format-less string in
  *  the tree, which would make prose of a plain `name: Alice`. */
-export function chunkOf(item: unknown, documentPath?: string): Chunk {
+export function chunkOf(item: unknown, documentPath?: string, fallbackPath?: string): Chunk {
   const link = asLink(item);
   const value = link ? link.value : scalarValue(item); // peel an annotation overlay to the prose under it
   const inlineProse = !link && typeof value === "string";
@@ -425,7 +430,9 @@ export function chunkOf(item: unknown, documentPath?: string): Chunk {
   const mixedFormat = asMixed(item)?.format ?? null;
   return {
     value,
-    path: link?.path ?? "",
+    // an inline prose scalar has no marker to carry its path — the caller composes it, so a
+    // relative link scope (`*name`, `*..: x`) still knows the mapping the prose belongs to
+    path: link?.path ?? fallbackPath ?? "",
     type: link?.type ?? "string",
     format: link?.format ?? mixedFormat ?? (inlineProse ? "text/marklower" : null),
     valueType: link?.valueType ?? "string",
