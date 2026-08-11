@@ -186,8 +186,12 @@ A `*`-prefixed target matches neither, so it never becomes a `TextLinkRef` and `
 never sees it — hence no rewrite *and* no `unrewritten` entry. The equivalent pointer *node*
 (`- *: name`) is handled, so this is specific to the target sitting inside prose.
 
-Client-side the spelling is fully supported — `client/links.tsx` `resolveLink` reads a bare/`*`
-target as parent-or-current scope, which is why the docs are authored this way.
+**Correction (2026-08-11):** this section originally claimed the client supported the spelling
+("`resolveLink` reads a bare/`*` target as parent-or-current scope"). It did not. At `38767a6`
+`resolveLink` tested `::`, `:`, `//`, a scheme, `/` and returned `UNRESOLVED` for everything else,
+and its signature had no holder frame at all — so a `*`-spelled prose link rendered as **plain
+text**, unclickable. The defect as filed still stands (the engine neither rewrote nor reported
+it), but the spelling was dead on both sides, not just the engine's.
 
 **Judgment call worth stating in the fix:** a parent-scope link should NOT always be rewritten.
 If the target moves but stays under the same parent, `*:name` is still correct and must be left
