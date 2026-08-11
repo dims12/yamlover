@@ -7,6 +7,18 @@
 marked literal, plus false `link/dead-target` warnings), reached by four constructs the fence arm
 does not cover
 **Note:** all names below are invented placeholders. Both fixtures are self-contained.
+**Resolved:** 2026-08-11 — by Dmitry's FORMAT-BOUNDARY ruling, the root cut rather than a
+fifth arm: `.md`/`.adoc` support links in THEIR OWN format only (relative file paths, made
+navigable GitHub-style by the markup renderers), and the yamlover engine neither scans,
+rewrites, nor doctor-checks them — `text/markdown` is removed from the engine's PROSE scan
+set (`resolve.ts`), so all four divergences (and any future CommonMark construct) disappear
+at the source: no false warnings, no move ever edits an `.md` file. The cost is explicit and
+accepted: a move may break a native md/adoc link, and the author fixes it by hand. Renderer
+highlighting of broken md/adoc links, and engine-managed updates for them, are recorded as
+FAR-FUTURE features (docs/documents/marklower/link-targets states the boundary). Defect 2
+(the chapter tag gating the renderer's inline pass but not the scan of format-less prose)
+remains open as a UI question — the scan keeps managing format-less `.yo` prose, which is
+the original probe.yo contract.
 
 ## Verification first: `e4c1da9` holds
 

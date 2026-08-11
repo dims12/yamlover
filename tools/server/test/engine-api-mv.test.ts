@@ -48,10 +48,10 @@ describe("POST /api/mv", () => {
     expect(r.status).toBe(200);
     // the consumed order pointer surfaces post-rename and is escalated — never deleted
     expect(fs.readFileSync(path.join(root, "D", ".yo", "body.yo"), "utf8")).toBe("Doc D\n- *:: E: x.md\n");
-    // the whole-file prose link is rewritten surgically — sigiled compact canonical
-    expect(fs.readFileSync(path.join(root, "pages.md"), "utf8")).toBe("see [a](*::E:x.md) end\n");
+    // the .md file keeps its NATIVE link — md/adoc links are the author's, never the engine's
+    expect(fs.readFileSync(path.join(root, "pages.md"), "utf8")).toBe("see [a](::D:x.md) end\n");
     expect(r.json.unrewritten).toHaveLength(0);
-    expect(r.json.rewritten.map((x: { newRaw: string }) => x.newRaw).sort()).toEqual([":: E: x.md", "[a](*::E:x.md)"]);
+    expect(r.json.rewritten.map((x: { newRaw: string }) => x.newRaw)).toEqual([":: E: x.md"]);
     expect(call(h, "/api/dangling", {}).json).toEqual([]);
     h.close();
   });

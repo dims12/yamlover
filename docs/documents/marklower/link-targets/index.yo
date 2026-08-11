@@ -43,3 +43,8 @@ description: the parens hold a yamlover expression - sigiled pointers, the bare 
   One seam decides what a target means - `parseLinkTarget`, shared verbatim by the client's
   `resolveLink` (navigation) and the engine's move planner (rewriting) - so a spelling that
   navigates is exactly a spelling a move keeps alive.
+- >
+  **This law is marklower's** (and format-less prose's). A `.md` or `.adoc` file links in ITS
+  OWN format - relative file paths, made navigable GitHub-style by the markup renderers - and
+  the yamlover engine neither scans, rewrites, nor doctor-checks them: a move may break such a
+  link, and the author fixes it. *Engine-managed md/adoc links are a far-future feature.*

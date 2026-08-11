@@ -315,10 +315,15 @@ export interface TextLinkRef {
   span: Span | null;
 }
 
-/** Formats whose string scalars are PROSE and may carry marklower links (mirrors the yed
- *  chapter editor's PROSE_FORMATS): format-less strings included — the repro's probe file
- *  authors its link in a bare data scalar. */
-const PROSE_TEXT_FORMATS = new Set<string | undefined>([undefined, 'text/marklower', 'text/markdown']);
+/** Formats whose string scalars are PROSE in the MARKLOWER sense and may carry yamlover
+ *  link expressions: marklower itself plus format-less strings (a bare data scalar's link
+ *  is still the author's link). `text/markdown` is DELIBERATELY absent — an `.md` file is
+ *  rendered by a CommonMark engine with its own native file-path links, which the yamlover
+ *  engine neither scans, rewrites, nor doctor-checks: a move breaks them and the author
+ *  fixes them (the md-wrong-grammar dogfooding report; engine-managed md/adoc links are a
+ *  far-future feature). Scanning it with THIS grammar produced false warnings and moves
+ *  editing CommonMark-code the tokenizer cannot know about. */
+const PROSE_TEXT_FORMATS = new Set<string | undefined>([undefined, 'text/marklower']);
 
 /** PRESENTATIONAL containers exist to render, not to scope: prose inside a bullets item or a
  *  table cell frames its relative link scopes (`*name`, `*..: x`) at the SAME holder as prose

@@ -40,7 +40,9 @@ test('relink-links: tier-1 mv out of the directory updates every ref spelling', 
   // re-rooted at the project form — spacing style preserved per spelling
   assert.equal(readFileSync(join(root, 'refs.yo'), 'utf8'), 'r: *:: E: x.md\n');
   assert.equal(readFileSync(join(root, 'D', 'refs.yo'), 'utf8'), 'sib: *:: E: x.md\nmd: "see [abs](*::E:x.md)"\n');
-  assert.equal(readFileSync(join(root, 'pages.md'), 'utf8'), 'Intro [a](*::E:x.md) and [w](https://example.com/keep) end\n');
+  // an .md file keeps its NATIVE links — the yamlover engine never rewrites it (the author
+  // owns md/adoc links; a move may break them — Dmitry's format-boundary ruling)
+  assert.equal(readFileSync(join(root, 'pages.md'), 'utf8'), 'Intro [a](::D:x.md) and [w](https://example.com/keep) end\n');
   // the body ORDER entry is REWRITTEN, never deleted (the ordering was committed work) —
   // via the post-rename pass, since the consumed pointer is invisible to the pre-move plan;
   // the doc-relative prose link escalates the same way
@@ -62,7 +64,7 @@ test('relink-links: tier-1 same-dir rename keeps the relative spellings', () => 
 
   assert.equal(readFileSync(join(root, 'D', '.yo', 'body.yo'), 'utf8'), 'Doc D\n- *: y.md\n- >\n  see [rel](*:y.md) inline\n');
   assert.equal(readFileSync(join(root, 'D', 'refs.yo'), 'utf8'), 'sib: *..: y.md\nmd: "see [abs](*::D:y.md)"\n');
-  assert.equal(readFileSync(join(root, 'pages.md'), 'utf8'), 'Intro [a](*::D:y.md) and [w](https://example.com/keep) end\n');
+  assert.equal(readFileSync(join(root, 'pages.md'), 'utf8'), 'Intro [a](::D:x.md) and [w](https://example.com/keep) end\n'); // .md untouched
   assert.equal(readFileSync(join(root, 'refs.yo'), 'utf8'), 'r: *:: D: y.md\n');
   assert.deepEqual(r.unrewritten, []);
 
@@ -90,7 +92,7 @@ test('relink-links: tier-1 directory move — outside refs re-root, inside links
   fixture(root);
   const r = mv(root, 'D', 'Dm');
 
-  assert.equal(readFileSync(join(root, 'pages.md'), 'utf8'), 'Intro [a](*::Dm:x.md) and [w](https://example.com/keep) end\n');
+  assert.equal(readFileSync(join(root, 'pages.md'), 'utf8'), 'Intro [a](::D:x.md) and [w](https://example.com/keep) end\n'); // .md untouched
   assert.equal(readFileSync(join(root, 'refs.yo'), 'utf8'), 'r: *:: Dm: x.md\n');
   // everything document-relative INSIDE the moved dir rides along untouched
   assert.equal(readFileSync(join(root, 'Dm', '.yo', 'body.yo'), 'utf8'), 'Doc D\n- *: x.md\n- >\n  see [rel](:x.md) inline\n');
@@ -116,7 +118,9 @@ test('relink-links: the watcher tier repairs the same matrix from file-level dif
 
   assert.equal(readFileSync(join(root, 'refs.yo'), 'utf8'), 'r: *:: E: x.md\n');
   assert.equal(readFileSync(join(root, 'D', 'refs.yo'), 'utf8'), 'sib: *:: E: x.md\nmd: "see [abs](*::E:x.md)"\n');
-  assert.equal(readFileSync(join(root, 'pages.md'), 'utf8'), 'Intro [a](*::E:x.md) and [w](https://example.com/keep) end\n');
+  // an .md file keeps its NATIVE links — the yamlover engine never rewrites it (the author
+  // owns md/adoc links; a move may break them — Dmitry's format-boundary ruling)
+  assert.equal(readFileSync(join(root, 'pages.md'), 'utf8'), 'Intro [a](::D:x.md) and [w](https://example.com/keep) end\n');
   assert.equal(
     readFileSync(join(root, 'D', '.yo', 'body.yo'), 'utf8'),
     'Doc D\n- *:: E: x.md\n- >\n  see [rel](*::E:x.md) inline\n',
