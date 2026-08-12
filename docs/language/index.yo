@@ -3,7 +3,7 @@
 # Sources: YAMLOVER.md, URIs.md, SEPARATOR.md, TYPES.md, META.md, CONCRETES.md, QUERY.md -
 # progress in ../../DOCSMIGRATION.md.
 The yamlover language
-description: the full spec – principles, the abstract model, concretes, pointers, queries
+description: the full spec – principles, the abstract model, pointers, queries, flattening, concretes
 - >
   yamlover is *not* a superset of YAML—it is a distinct but closely related language: similar in surface,
   but with different semantics. Because of these differences, it requires its own parser.
@@ -25,16 +25,19 @@ description: the full spec – principles, the abstract model, concretes, pointe
   have limitations.
 
 - >
-  This chapter is the self-contained specification, in five parts: the [abstract
+  This chapter is the self-contained specification, in six parts: the [abstract
   model](*::language:model)—omnivorous nodes with ordered relations and their terminology
   (the type system now lives in the [meta chapter](*::meta));
+  [pointers and queries](*::language:pointers)—paths, bookmarks, and the query language
+  (of which these are the only fragment); [flattening](*::language:flattening)—multicomponent
+  keys that spell a whole nested document as flat path rows;
   the [concretes](*::language:concretes)—every way a node is physically stored and
-  written; [pointers and queries](*::language:pointers)—paths, bookmarks, and the query language
-  (of which these are the only fragment); the [general
+  written; the [general
   principles](*::language:principles) from which the rest follows; and the [relationship to
   YAML](*::language:vs-yaml), covering similarities and differences.
 - *: model
-- *: concretes
 - *: pointers
+- *: flattening
+- *: concretes
 - *: principles
 - *: vs-yaml

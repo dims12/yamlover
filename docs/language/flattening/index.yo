@@ -1,0 +1,98 @@
+# Flattened yamlover - multicomponent keys as path commands. Defined here, not yet implemented;
+# the normalized form is the nested one.
+Flattening
+description: multicomponent keys - a whole nested document as flat path rows, and back
+- >
+  *Status: defined, not yet implemented.*
+- >
+  A **flat row** folds a chain of nested single-pair lines onto one line: the key chains with
+  colons - the same colon grammar [paths](*::language:pointers:paths) already use - and the
+  value follows the last colon:
+- !!<format: text/x-yamlover> |
+  key1: key2: key3: value
+- >
+  reads exactly as the nested spelling
+- !!<format: text/x-yamlover> |
+  key1:
+    key2:
+      key3: value
+- >
+  Every nested yamlover document is representable in fully flattened form and back; the
+  **normalized form is the nested one**. The authored flat spelling is a REPRESENTATION, not a
+  different value: every path segment after the first carries the
+  [yamlover/key/flat](*::language:concretes:03-yamlover:00-yamlover_stream:00-yamlover_code:00-yamlover_structured:00-yamlover_key_value_pair:00-yamlover_key_flat)
+  concrete, so the fold survives a round-trip end to end while the model stays identical -
+  the same classified-and-preserved law every non-default spelling follows
+  ([invariants](*::language:concretes:02-invariants)).
+- >
+  **Rows are commands.** Order matters in yamlover, and a sequence of flat rows is read as a
+  sequence of commands that build the model by PAVING paths: each segment ensures its node
+  exists (created null-valued when absent), and the value lands at the path's end. Paving is
+  write-once where it must be for the reading to stay unambiguous - see the constraints below.
+- >
+  **The keyless segment `-`.** A path segment spelled `-` addresses keyless members - and only
+  keyless members, never keyed ones. At the END of a path it CREATES: "append a new element and
+  put the value there". In the MIDDLE it addresses the LAST existing keyless element and never
+  adds one:
+- !!<format: text/x-yamlover> |
+  key1: key2: -: scalar     # append a new element under key1: key2, holding `scalar`
+  key1: -: key3: 100        # in key1's LAST keyless element, pave key3: 100
+- >
+  Appending is also triggered by switching from the flat key to nested keying - the indented
+  block under a trailing `-:` is the new element's content:
+- !!<format: text/x-yamlover> |
+  key1: key2: -:
+        name: Alice
+        age: 30
+- >
+  A row of scalars is therefore a repetition of trailing `-:` rows - `list: -: 1` then
+  `list: -: 2` builds the two-element list. The standalone `-: value` row (the `-` as the whole
+  path) is today's tolerated spelling of `- value` and keeps that reading. Positions (bare
+  integer segments) are RESERVED in flat paths: named keys and `-` only.
+- >
+  **Indentation.** A flat row's continuation block indents to the columns the NESTED spelling
+  would give it in the same document - the number of indent steps equals the path's depth, as
+  if the fold were undone. Flattening is a pure line fold: unfolding a flat row moves no other
+  line's column.
+- >
+  **The write-once constraint.** A scalar value may land on a node only while that node is
+  null-valued AND childless. This is what makes flattening and de-flattening predictable and
+  unambiguous - a path, once paved past, cannot be silently overwritten:
+- !!<format: text/x-yamlover> |
+  key1: key2: 12
+  key1: key2: 13            # INVALID - key2 already holds 12
+- !!<format: text/x-yamlover> |
+  key1: key2: key3: 100     # paving made key1: key2 a null-valued node with a child
+  key1: key2: 13            # INVALID - the value is null, but key3 is already under it
+- >
+  The [unified node](*::language:model)'s self-value is still reachable: spell the value row
+  FIRST, then pave children into it (`k: 13` then `k: sub: x` - the scalar grows fields, the
+  omni). What flat rows cannot spell stays nested - a self line authored among its fields, a
+  bookmark or `!!<...>` tag on an intermediate node, comments between segments - the same
+  silent, lossless fallback flow form takes to block form
+  ([yamlover/structured](*::language:concretes:03-yamlover:00-yamlover_stream:00-yamlover_code:00-yamlover_structured)).
+- >
+  **Combinations.** The flat row's tail is the ordinary
+  [pair](*::language:concretes:03-yamlover:00-yamlover_stream:00-yamlover_code:00-yamlover_structured:00-yamlover_key_value_pair)
+  tail - after the path, the node's properties may precede the value. `&` BOOKMARKS chain
+  their own colon paths; each bookmark runs to the next `&` or to the value, and the value is
+  the trailing colon-less token. The continuation block carries the rest of the node - further
+  bookmark rows, fields, keyless elements - at the fold's computed depth:
+- !!<format: text/x-yamlover> |
+  normal: flat: key: &book: mark1: &another: book: mark: scalar
+        &third: book: mark
+        field1: value1
+        - value2
+- >
+  **The pull link is exclusive.** A flat path may land a
+  [reference](*::language:pointers:reference) as its value - and nothing else may share the
+  node. A reference is an EDGE, not a node: in the model a pointer carries no bookmarks, no
+  tag, no fields at all, so no `&` chain may precede it on the row and no continuation block
+  may follow it:
+- !!<format: text/x-yamlover> |
+  normal: flat: key: *pull: link
+- >
+  **Escape.** Quotes make strings, as everywhere: a scalar that CONTAINS `: ` is spelled quoted
+  (`key1: 'key2: value'`) - which has always been the serializer's canonical emission for such
+  values; the bare spelling now reads as the path it looks like. The differences this opens
+  with YAML are catalogued [with the other deliberate breaks](*::language:vs-yaml:differences:flattening).

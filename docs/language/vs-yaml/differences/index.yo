@@ -5,4 +5,5 @@ description: every deliberate break - the same token, another meaning
 - *: anchors
 - *: aliases
 - *: set
+- *: flattening
 - *: conformance

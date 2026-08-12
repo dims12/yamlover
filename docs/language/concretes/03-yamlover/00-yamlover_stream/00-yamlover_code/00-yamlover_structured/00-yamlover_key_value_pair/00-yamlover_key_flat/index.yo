@@ -1,0 +1,18 @@
+# The flat-key representation concrete - the authored fold of a nested chain onto one line.
+yamlover/key/flat
+description: a key spelled on a flat row - every segment after the first wears this concrete
+- >
+  *Status: defined, not yet implemented.*
+- >
+  The representation concrete of a key that was authored on a
+  [flat row](*::language:flattening): in `key1: key2: key3: value`, the keys `key2` and `key3`
+  each carry **yamlover/key/flat** - the FIRST segment owns the line and spells normally. The
+  concrete records nothing but the fold: the model is identical to the nested spelling, and the
+  serializer re-emits the flat row because the concrete says the author wrote one - classified
+  from the authored token, preserved end to end, with the nested spelling as the costless
+  default ([the choosing rules](*::language:concretes:01-choosing)).
+- >
+  A `-` path segment (the keyless append/last-element address) wears the same concrete when it
+  stands past the first position. Whatever a flat row cannot spell - a mid-body self line, a
+  decorated intermediate node, comments between segments - drops the concrete and falls back to
+  nested form, silently and losslessly.
